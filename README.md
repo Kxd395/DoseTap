@@ -28,7 +28,7 @@ Fill out the application form with these values:
 |-------|-------|-------|
 | **Name** | DoseTap | App name displayed in OAuth flow |
 | **Logo** | [Upload logo] | .jpg or .png, 1:1 aspect ratio |
-| **Contacts** | [your-email@example.com](mailto:your-email@example.com) | Administrative communications |
+| **Contacts** | [kevindial@myyahoo.com](mailto:kevindial@myyahoo.com) | Administrative communications |
 | **Privacy Policy** | [https://your-privacy-policy.com](https://your-privacy-policy.com) | Link shown in OAuth flow |
 | **Redirect URLs** | `dosetap://oauth/callback` | Custom URL scheme for app callback |
 | **Scopes** | `read:sleep read:cycles read:recovery` | Required data access permissions |
