@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+    <key>CFBundleIdentifier</key>
+    <string>org.axxessphila.dosetap</string>
+    <key>CFBundleName</key>
+    <string>DoseTap</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+
+    <!-- URL scheme for Flic/Shortcuts triggers -->
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>dosetap</string>
+            </array>
+            <key>CFBundleURLName</key>
+            <string>org.axxessphila.dosetap</string>
+        </dict>
+    </array>
+
+    <!-- HealthKit usage descriptions -->
+    <key>NSHealthShareUsageDescription</key>
+    <string>DoseTap reads your sleep data to schedule safe second-dose reminders.</string>
+    <key>NSHealthUpdateUsageDescription</key>
+    <string>DoseTap may write simple log markers if you enable it.</string>
+
+    <!-- Bluetooth (only if you later talk to BLE yourself; not needed for Flic app path) -->
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>DoseTap can use Bluetooth if you connect a button directly.</string>
+    <key>NSBluetoothPeripheralUsageDescription</key>
+    <string>DoseTap can use Bluetooth if you connect a button directly.</string>
+</dict>
+</plist>

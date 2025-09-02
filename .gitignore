@@ -1,0 +1,18 @@
+# Build artifacts
+.build/
+*.xcuserdatad
+
+# Secrets and configuration
+ios/DoseTap/Config.plist
+
+# OS generated files
+.DS_Store
+*.swp
+*.lock
+
+# IDE files
+.vscode/
+.idea/
+
+# Logs
+*.log
