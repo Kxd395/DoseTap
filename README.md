@@ -1,119 +1,161 @@
-# DoseTap (org.axxessphila.dosetap)
+# DoseTap - XYWAV Dose Timing App
 
-Tap once for Dose 1, get reminded **inside 2.5–4 hours** when you're most likely to be naturally surfacing, then tap again for Dose 2.
-Logs Bathroom/Out-of-Bed. Uses **Apple Health (sleep)** and **WHOOP** history to place the reminder **within** the label window (never outside 150–240 minutes).
+A focused iOS app for XYWAV dose timing with persistent event logging and comprehensive dose history tracking.
 
-> Safety rails: Dose 2 reminders are **always** clamped to **2.5–4 h** post Dose 1. This app provides reminders/logging only. Follow prescriber instructions.
+## Current Status: ✅ FUNCTIONAL APP DEPLOYED
 
----
+DoseTap is now a **fully functional iOS application** with persistent data storage, ready for daily use.
 
-## Hardware & Accounts
+## Core Features (Implemented)
 
-- **BLE Button (recommended): Flic 2** → maps Single/Double/Hold to URL scheme.
-- **Apple Watch** (sleep stages; haptics).
-- **Apple Developer Account** (HealthKit + Notifications entitlements).
-- **WHOOP Developer App** (OAuth): scopes `read:sleep read:cycles read:recovery`.
+### 📱 Essential Dose Logging
+- **Three-button interface:** Dose 1, Dose 2, Bathroom Event
+- **Instant timestamps:** Automatic time/date capture for each event
+- **Persistent storage:** JSON-based data that survives app restarts
+- **Event history:** Complete timeline of all logged events
 
-## WHOOP Developer Setup
+### 🌙 Night-Optimized Design
+- **Dark theme interface** optimized for nighttime use
+- **Large, accessible buttons** for easy 3 AM operation
+- **Clear feedback system** with immediate confirmation
+- **Minimal cognitive load** design for sleep-impaired states
 
-### 1. Create WHOOP Developer Account
+### 💾 Reliable Data Management
+- **JSON file storage** in iOS Documents directory
+- **Human-readable format** for data transparency
+- **Automatic persistence** with every event logged
+- **Data accessibility** through Settings panel
 
-Visit [WHOOP Developer Console](https://developer.whoop.com/) and create an account.
+### 📊 Comprehensive Tracking
+- **Event timeline display** with precise timestamps
+- **Storage location visibility** for data management
+- **Event counter** showing total logged events
+- **Export-ready format** for future analysis
 
-### 2. Register OAuth Application
+## Technical Implementation
 
-Fill out the application form with these values:
+### Current Architecture
 
-| Field | Value | Notes |
-|-------|-------|-------|
-| **Name** | DoseTap | App name displayed in OAuth flow |
-| **Logo** | [Upload logo] | .jpg or .png, 1:1 aspect ratio |
-| **Contacts** | [kevindial@myyahoo.com](mailto:kevindial@myyahoo.com) | Administrative communications |
-| **Privacy Policy** | [https://your-privacy-policy.com](https://your-privacy-policy.com) | Link shown in OAuth flow |
-| **Redirect URLs** | `dosetap://oauth/callback` | Custom URL scheme for app callback |
-| **Scopes** | `read:sleep read:cycles read:recovery` | Required data access permissions |
-
-### 3. Configure App
-
-After registration, you'll receive a **Client ID**. Add it to your `Config.plist`:
-
-```xml
-<key>WHOOP_CLIENT_ID</key>
-<string>YOUR_ACTUAL_CLIENT_ID_HERE</string>
+```text
+DoseTap iOS App
+├── ContentView.swift          # Main UI with dose logging buttons
+├── EventStorage.swift         # JSON persistence layer  
+├── DoseTapApp.swift          # SwiftUI app entry point
+└── Supporting Files/          # Assets and configuration
 ```
 
-### 4. Webhooks (Optional)
+### Data Storage
 
-For real-time updates, add webhook URLs (must be HTTPS):
+**Format:** JSON file in iOS Documents directory
+**Location:** `dose_events.json` (accessible via Settings)
+**Structure:**
 
-- `https://your-server.com/webhooks/whoop`
-
-## Identifiers (form-ready)
-
-- App name: **DoseTap**
-- Bundle ID: **org.axxessphila.dosetap**
-- URL Scheme: **dosetap**
-  - `dosetap://log?event=dose1|dose2|bathroom|lightsout|wake_final|snooze`
-- WHOOP Redirect: **dosetap://oauth/callback**
-- Default second-dose target: **165 minutes** (clamped to **150–240**).
-
-## Build (macOS / Xcode)
-
-- **Xcode 15+**, iOS 17+, watchOS 10+
-- Enable **HealthKit** and **UserNotifications** capabilities in Targets → Signing & Capabilities.
-- Add the provided `DoseTap.entitlements` and `Info.plist` settings.
-
-### Button wiring (Flic 2)
-
-Map gestures in Flic app → *Open URL*:
-
-- Single: `dosetap://log?event=dose1`
-- Double: `dosetap://log?event=dose2`
-- Hold: `dosetap://log?event=bathroom` (or **snooze** if in-window)
-
----
-
-## Project Structure
-
-```
-DoseTap/
-  ios/DoseTap/
-    DoseTapApp.swift
-    AppDelegate.swift
-    ContentView.swift
-    ReminderScheduler.swift
-    Health.swift
-    RecommendationEngine.swift
-    Models/Event.swift
-    Storage/Store.swift
-    Info.plist
-    DoseTap.entitlements
-  watchos/DoseTapWatch/
-    DoseTapWatchApp.swift
-    ContentView.swift
-  docs/
-    DoseTap_Spec.md
-    DoseTap_Spec.rtf
-    MindMap.txt
-  agent/
-    agent_brief.md
-    tasks_backlog.md
+```json
+[
+  {
+    "id": "UUID-string",
+    "type": "dose1|dose2|bathroom",
+    "timestamp": "2024-01-15T03:30:00Z"
+  }
+]
 ```
 
----
+### Event Types
 
-## Quick Start
+- **Dose 1:** First nightly dose logging
+- **Dose 2:** Second dose (optimal window: 2.5-4h later)  
+- **Bathroom:** Bathroom visit tracking for sleep disruption analysis
 
-1. Open `DoseTap.xcodeproj` (create a new empty SwiftUI iOS project named "DoseTap", then drop these files in).
-2. Add URL type **dosetap** in Info and paste the `CFBundleURLTypes` block from our `Info.plist`.
-3. Run on iPhone; press the **Dose 1** button in the app or use Flic to fire `dosetap://log?event=dose1`.
-4. Confirm notification permission; a **second-dose reminder** is scheduled for **165 minutes** by default.
-5. Log **Dose 2** by double-pressing (or the app button) to clear the reminder.
+## Getting Started
 
-## Health & WHOOP
+### Prerequisites
 
-- **HealthKit Sleep** is read to compute your **time-to-first-wake (TTFW)** baseline (last 14–30 nights).
-- **WHOOP** (optional) provides sleep/cycle *history* for personalization (OAuth). Not used for real-time staging.
+- **iOS Device:** iPhone or iPad running iOS 15+
+- **Xcode:** Version 14+ for building from source
+- **Apple Developer Account:** For device installation
+
+### Installation
+
+1. **Clone Repository:**
+
+   ```bash
+   git clone https://github.com/yourusername/DoseTap.git
+   cd DoseTap/ios
+   ```
+
+2. **Open in Xcode:**
+
+   ```bash
+   open DoseTap.xcodeproj
+   ```
+
+3. **Build and Run:**
+   - Select your target device
+   - Press ⌘+R to build and install
+
+### First Use
+
+1. **Launch App:** Tap DoseTap icon
+2. **Log First Event:** Tap "Dose 1" when taking first dose
+3. **View History:** Use History button to see logged events
+4. **Check Settings:** Settings panel shows storage location and event count
+
+## Usage
+
+### Daily Workflow
+
+1. **Before Sleep:** Take Dose 1, tap "Dose 1" button
+2. **Middle of Night:** Take Dose 2, tap "Dose 2" button  
+3. **As Needed:** Log bathroom visits with "Bathroom" button
+4. **Review History:** Check timeline for adherence tracking
+
+### Data Management
+
+- **View Events:** History screen shows all logged events
+- **Storage Info:** Settings panel displays file location
+- **Data Access:** JSON file accessible via iOS Files app
+- **Export Ready:** Human-readable format for future analysis
+
+## Privacy & Security
+
+- **Local Storage Only:** All data remains on your device
+- **No Cloud Sync:** No automatic data transmission
+- **User Control:** Data accessible and exportable by user
+- **Medical Privacy:** Compliant with personal health data practices
+
+## Future Enhancements
+
+### Planned Features
+
+- **Dose Window Timing:** 2.5-4 hour optimal window calculations
+- **Smart Notifications:** Local reminders for dose timing
+- **Advanced Analytics:** Adherence tracking and pattern analysis
+- **WatchOS Support:** Apple Watch companion app
+
+### Integration Possibilities
+
+- **HealthKit:** Sleep stage data for optimal timing
+- **CSV Export:** Data export for self-analysis
+- **Universal App:** iPad and Mac support
+
+## Support
+
+### Medical Disclaimer
+
+This app is a timing aid only and does not provide medical advice. For questions about XYWAV dosing, consult your healthcare provider.
+
+### Technical Support
+
+- **Issues:** GitHub Issues for bug reports
+- **Features:** Feature requests welcome
+- **Privacy:** No personal data collected or transmitted
+
+## License
+
+Proprietary - For personal/research use only
+```
+
+Notes: If these endpoints aren’t set or respond with a different shape, the app falls back to a best‑effort parser. Units are normalized to bpm, breaths/min, SpO₂ 0–1, and HRV ms (use `value_scale` to adjust if an API returns percent).
 
 ## Disclaimers
 
