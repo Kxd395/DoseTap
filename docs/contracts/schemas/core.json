@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "xywav_profile": {
+      "type": "object",
+      "required": ["user_id", "target_interval_minutes", "clamp_min", "clamp_max"],
+      "properties": {
+        "user_id": { "type": "string" },
+        "target_interval_minutes": { 
+          "type": "integer",
+          "minimum": 150,
+          "maximum": 240,
+          "default": 165
+        },
+        "clamp_min": { 
+          "type": "integer",
+          "const": 150
+        },
+        "clamp_max": { 
+          "type": "integer",
+          "const": 240
+        },
+        "nudge_step_minutes": {
+          "type": "integer",
+          "const": 15
+        },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

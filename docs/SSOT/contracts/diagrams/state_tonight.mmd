@@ -1,0 +1,53 @@
+stateDiagram-v2
+    [*] --> Idle: App Launch
+    
+    Idle --> Dose1Taken: Take Dose 1
+    Idle --> Loading: API Call
+    
+    Dose1Taken --> SessionActiveBeforeWindow: Timer starts
+    SessionActiveBeforeWindow --> WindowActive: Timer reaches 150m (window opens)
+    
+    WindowActive --> WindowActive: Snooze (max 3)
+    WindowActive --> Dose2Taken: Take Dose 2
+    WindowActive --> WindowNearClose: <15m remaining (225m+)
+    WindowActive --> Loading: API Call
+    
+    WindowNearClose --> Dose2Taken: Take Dose 2
+    WindowNearClose --> WindowExpired: Timer reaches 240m
+    WindowNearClose --> Loading: API Call
+    
+    Dose2Taken --> Idle: Next Day Reset
+    Dose2Taken --> UndoAvailable: 5s Undo Window
+    
+    UndoAvailable --> WindowActive: Undo Pressed
+    UndoAvailable --> Dose2Taken: Undo Expires
+    
+    WindowExpired --> Idle: Next Day Reset
+    
+    Loading --> Error: API Failure
+    Loading --> WindowActive: Success (from window)
+    Loading --> Dose1Taken: Success (from dose1)
+    Loading --> Dose2Taken: Success (from dose2)
+    
+    Error --> Idle: Retry
+    Error --> OfflineQueue: No Connection
+    
+    OfflineQueue --> Idle: Synced
+    
+    note right of WindowActive
+        - Timer shows remaining time
+        - Snooze available (>15m)
+        - All actions enabled
+    end note
+    
+    note right of WindowNearClose
+        - Timer shows urgent state
+        - Snooze disabled
+        - Warning colors active
+    end note
+    
+    note right of OfflineQueue
+        - Actions saved locally
+        - Badge shows pending count
+        - Auto-retry on connection
+    end note

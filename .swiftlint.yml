@@ -1,0 +1,140 @@
+# SwiftLint Configuration for DoseTap
+# Enforces consistent code style and catches common issues
+
+# Rules enabled by default
+# - Use camelCase for variables and functions
+# - Use PascalCase for types and protocols  
+# - Limit line length to 120 characters
+# - Require proper spacing and indentation
+# - Prevent common anti-patterns
+
+# Disable specific rules that conflict with project style
+disabled_rules:
+  - trailing_whitespace           # Allow trailing spaces in documentation
+  - line_length                   # Some API documentation exceeds limits
+  - file_length                   # Some Core Data models are necessarily long
+  - function_parameter_count      # Some APIs require many parameters
+  - large_tuple                   # Core Data tuples can be large
+  - cyclomatic_complexity         # Some switch statements are complex but readable
+
+# Only include relevant source directories
+included:
+  - ios/Core                      # SwiftPM module (most important)
+  - ios/DoseTap                   # Main app code
+  - ios/AppMinimal                # Minimal app target
+  - Tests/DoseCoreTests           # Unit tests
+  - watchos/DoseTapWatch          # Watch app
+
+# Exclude generated and legacy files
+excluded:
+  - ios/DoseTap/DoseTap.xcodeproj          # Project files
+  - ios/DoseTap/DoseTap.xcworkspace        # Workspace files
+  - ios/DoseTap/build                      # Build artifacts
+  - ios/DoseTap/*.xcdatamodeld             # Core Data models
+  - ios/DoseTap/Demo                       # Demo files
+  - ios/DoseTapiOS                         # Legacy folder
+  - ios/DoseTapProject                     # Legacy folder
+  - ios/DoseTapWorking                     # Legacy folder
+  - ios/TempProject                        # Temporary files
+
+# Custom rule configuration
+line_length:
+  warning: 120    # Warn at 120 characters
+  error: 200      # Error at 200 characters
+  ignores_urls: true
+  ignores_function_declarations: true
+  ignores_comments: true
+
+function_body_length:
+  warning: 50     # Warn at 50 lines
+  error: 100      # Error at 100 lines
+
+type_body_length:
+  warning: 300    # Warn at 300 lines
+  error: 500      # Error at 500 lines
+
+identifier_name:
+  min_length: 2   # Allow short names like 'id'
+  max_length: 50  # Prevent extremely long names
+  excluded:       # Allow common short names
+    - id
+    - url
+    - api
+    - ui
+    - x
+    - y
+
+# Force specific patterns
+force_unwrapping:
+  severity: error   # Never force unwrap in production code
+
+force_cast:
+  severity: error   # Never force cast
+
+# Allow opt-in rules for better code quality
+opt_in_rules:
+  - empty_count                   # Use isEmpty instead of count == 0
+  - explicit_init                 # Prefer explicit init calls
+  - first_where                   # Use first(where:) instead of filter().first
+  - redundant_nil_coalescing      # Remove unnecessary ?? nil
+  - sorted_first_last            # Use min/max instead of sorted().first
+  - vertical_parameter_alignment_on_call  # Align parameters in function calls
+  - closure_spacing              # Proper spacing in closures
+  - empty_string                 # Use isEmpty instead of == ""
+  - fallthrough                  # Explicit fallthrough in switch
+  - fatal_error_message          # Require message in fatalError
+  - multiline_parameters         # Format multi-line parameters nicely
+  - redundant_optional_initialization  # Remove = nil from optionals
+  - unneeded_parentheses_in_closure_argument  # Clean closure syntax
+
+# Severity levels for important rules
+cyclomatic_complexity:
+  warning: 10     # Warn when function complexity > 10
+  error: 20       # Error when complexity > 20
+
+nesting:
+  type_level: 2   # Max 2 levels of nested types
+  function_level: 3  # Max 3 levels of nested functions
+
+# Rules specific to our architecture
+custom_rules:
+  # Ensure Core module stays platform-free
+  no_uikit_in_core:
+    name: "No UIKit in Core module"
+    regex: "^import UIKit$"
+    match_kinds:
+      - identifier
+    message: "Core module must remain platform-free. Use #if canImport(UIKit) guards."
+    severity: error
+    included: "ios/Core/.*\\.swift"
+
+  # Ensure SwiftUI imports are guarded in shared code
+  guarded_swiftui_import:
+    name: "Guard SwiftUI imports"
+    regex: "^import SwiftUI$"
+    match_kinds:
+      - identifier
+    message: "Use #if canImport(SwiftUI) import SwiftUI #endif for cross-platform compatibility"
+    severity: warning
+    excluded: "ios/DoseTap/.*View\\.swift"
+
+  # Prefer actor for thread-safe state
+  prefer_actor_for_mutable_state:
+    name: "Consider using actor for mutable shared state"
+    regex: "class.*State|class.*Store|class.*Manager"
+    message: "Consider using 'actor' instead of 'class' for thread-safe mutable state"
+    severity: warning
+
+  # Require time injection for testability
+  time_injection_pattern:
+    name: "Inject time for testability"
+    regex: "Date\\(\\)|Date\\.now"
+    message: "Consider injecting time via closure parameter: now: () -> Date = Date.init"
+    severity: warning
+    included: "ios/Core/.*\\.swift"
+
+# Reporter configuration
+reporter: "xcode"   # Use Xcode-compatible output format
+
+# Performance settings
+compilation_mode: wholemodule

@@ -1,0 +1,125 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://dosetap.com/schemas/core.json",
+  "title": "DoseTap Core Schemas",
+  "definitions": {
+    "xywav_profile": {
+      "type": "object",
+      "title": "XYWAV Profile",
+      "description": "User's XYWAV configuration and preferences",
+      "required": [
+        "user_id",
+        "target_interval_minutes",
+        "clamp_min",
+        "clamp_max",
+        "notifications_enabled",
+        "haptics_enabled"
+      ],
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Unique user identifier"
+        },
+        "target_interval_minutes": {
+          "type": "integer",
+          "minimum": 150,
+          "maximum": 240,
+          "default": 165,
+          "enum": [165, 180, 195, 210, 225],
+          "description": "Target minutes between Dose 1 and Dose 2"
+        },
+        "clamp_min": {
+          "type": "integer",
+          "const": 150,
+          "description": "Minimum allowed interval (constant)"
+        },
+        "clamp_max": {
+          "type": "integer",
+          "const": 240,
+          "description": "Maximum allowed interval (constant)"
+        },
+        "nudge_step_minutes": {
+          "type": "integer",
+          "const": 15,
+          "description": "Adjustment step size (constant)"
+        },
+        "notifications_enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Push notifications enabled"
+        },
+        "haptics_enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Haptic feedback enabled"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Profile creation timestamp"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update timestamp"
+        }
+      },
+      "additionalProperties": false
+    },
+    "dose_event": {
+      "type": "object",
+      "title": "Dose Event",
+      "description": "Individual dose or skip event",
+      "required": ["id", "type", "timestamp"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^evt_[a-zA-Z0-9]+$",
+          "description": "Event identifier"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["dose1", "dose2", "skip"],
+          "description": "Event type"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Actual event time"
+        },
+        "planned_timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Originally planned time"
+        },
+        "meta": {
+          "type": "object",
+          "properties": {
+            "snooze_count": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3,
+              "description": "Number of snoozes used"
+            },
+            "undo_used": {
+              "type": "boolean",
+              "description": "Whether undo was used"
+            },
+            "offline_recorded": {
+              "type": "boolean",
+              "description": "Recorded while offline"
+            },
+            "device_type": {
+              "type": "string",
+              "enum": ["ios", "watchos", "flic"],
+              "description": "Recording device"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

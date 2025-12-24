@@ -1,0 +1,290 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://dosetap.com/ssot/constants.json",
+  "title": "DoseTap SSOT Constants",
+  "description": "Single source of truth for all numeric and enum constants. Generate code and validate docs from this file.",
+  "version": "1.0.0",
+  "lastUpdated": "2025-01-07",
+  
+  "doseWindow": {
+    "description": "Core dose timing window constraints (non-negotiable medical safety)",
+    "minMinutes": {
+      "value": 150,
+      "description": "Minimum minutes between Dose 1 and Dose 2",
+      "configurable": false
+    },
+    "maxMinutes": {
+      "value": 240,
+      "description": "Maximum minutes between Dose 1 and Dose 2 (window expires)",
+      "configurable": false
+    },
+    "validTargets": {
+      "value": [165, 180, 195, 210, 225],
+      "description": "Only valid target interval options (in minutes)",
+      "configurable": true,
+      "default": 165
+    },
+    "targetStepMinutes": {
+      "value": 15,
+      "description": "Increment between valid target options",
+      "configurable": false
+    },
+    "nearWindowThresholdMinutes": {
+      "value": 15,
+      "description": "Snooze disabled when this many minutes remain",
+      "configurable": false
+    }
+  },
+  
+  "snooze": {
+    "description": "Snooze behavior for Dose 2 reminder",
+    "durationMinutes": {
+      "value": 10,
+      "description": "How long each snooze delays the reminder",
+      "configurable": false
+    },
+    "maxCount": {
+      "value": 3,
+      "description": "Maximum number of snoozes per session",
+      "configurable": true,
+      "range": [1, 5],
+      "default": 3
+    }
+  },
+  
+  "undo": {
+    "description": "Undo window for accidental taps",
+    "windowSeconds": {
+      "value": 5,
+      "description": "Seconds after dose/skip action to allow undo",
+      "configurable": false
+    }
+  },
+  
+  "quickLogPanel": {
+    "description": "User-customizable event logging grid",
+    "maxSlots": 16,
+    "layout": "4x4 grid",
+    "customizable": true,
+    "defaultSlots": ["bathroom", "water", "lightsOut", "wakeFinal", "wakeTemp", "anxiety", "noise", "pain"],
+    "note": "User can choose any events from sleepEvents.types plus custom user-defined events"
+  },
+  
+  "sleepEventEditing": {
+    "description": "Sleep events can be edited, deleted, or undone",
+    "undoWindowSeconds": 5,
+    "undoNote": "5-second undo snackbar appears after logging any event",
+    "deleteEnabled": true,
+    "deleteNote": "Swipe to delete individual events in timeline, or tap event to edit/delete",
+    "editEnabled": true,
+    "editableFields": ["timestamp", "notes"],
+    "confirmationRequired": {
+      "wakeFinal": true,
+      "lightsOut": false
+    },
+    "confirmationNote": "Wake Final shows confirmation dialog before logging because it triggers Morning Check-In flow"
+  },
+  
+  "sleepEvents": {
+    "description": "Sleep event types. All are LOCAL-ONLY (SQLite), NOT sent to API.",
+    "storage": "local-only",
+    "storageNote": "Sleep events are stored in SQLite sleep_events table. The API /events/log endpoint does NOT accept these.",
+    "rateLimitingNote": "REVISED: Only physical events (bathroom, water, snack) have cooldowns to prevent accidental double-taps. Mental/environment events have NO cooldown - log as many times as needed.",
+    "types": [
+      {"rawValue": "bathroom", "cooldownSeconds": 60, "category": "physical", "wireFormat": "bathroom", "rationale": "Prevent accidental double-tap"},
+      {"rawValue": "water", "cooldownSeconds": 60, "category": "physical", "wireFormat": "water", "rationale": "Prevent accidental double-tap"},
+      {"rawValue": "snack", "cooldownSeconds": 60, "category": "physical", "wireFormat": "snack", "rationale": "Prevent accidental double-tap"},
+      {"rawValue": "lightsOut", "cooldownSeconds": 0, "category": "sleepCycle", "wireFormat": "lights_out", "rationale": "Session marker, no cooldown"},
+      {"rawValue": "wakeFinal", "cooldownSeconds": 0, "category": "sleepCycle", "wireFormat": "wake_final", "rationale": "Session marker, no cooldown"},
+      {"rawValue": "wakeTemp", "cooldownSeconds": 0, "category": "sleepCycle", "wireFormat": "wake_temp", "rationale": "May wake multiple times"},
+      {"rawValue": "anxiety", "cooldownSeconds": 0, "category": "mental", "wireFormat": "anxiety", "rationale": "Log as often as experienced"},
+      {"rawValue": "dream", "cooldownSeconds": 0, "category": "mental", "wireFormat": "dream", "rationale": "Log as often as experienced"},
+      {"rawValue": "heartRacing", "cooldownSeconds": 0, "category": "mental", "wireFormat": "heart_racing", "rationale": "Log as often as experienced"},
+      {"rawValue": "noise", "cooldownSeconds": 0, "category": "environment", "wireFormat": "noise", "rationale": "Log as often as experienced"},
+      {"rawValue": "temperature", "cooldownSeconds": 0, "category": "environment", "wireFormat": "temperature", "rationale": "Log as often as experienced"},
+      {"rawValue": "pain", "cooldownSeconds": 0, "category": "environment", "wireFormat": "pain", "rationale": "Log as often as experienced"}
+    ],
+    "customEvents": {
+      "description": "Users can add custom event types",
+      "maxCustomTypes": 8,
+      "fields": ["name", "icon", "color"]
+    },
+    "categories": ["physical", "sleepCycle", "mental", "environment", "custom"],
+    "namingConvention": {
+      "swift": "camelCase (rawValue field)",
+      "sqlite": "snake_case (wireFormat field)",
+      "export": "snake_case (wireFormat field)"
+    }
+  },
+  
+  "states": {
+    "description": "Session state machine phases (literal naming)",
+    "phases": [
+      {
+        "name": "SessionActiveBeforeWindow",
+        "description": "Dose 1 taken, waiting for window to open",
+        "condition": "dose1TakenAt != nil && minutesSinceDose1 < 150"
+      },
+      {
+        "name": "WindowOpen",
+        "description": "Window is open, Dose 2 can be taken",
+        "condition": "minutesSinceDose1 >= 150 && minutesSinceDose1 < 225"
+      },
+      {
+        "name": "WindowNearClose",
+        "description": "Less than 15 minutes remain, snooze disabled",
+        "condition": "minutesSinceDose1 >= 225 && minutesSinceDose1 < 240"
+      },
+      {
+        "name": "WindowExpired",
+        "description": "240 minutes passed without Dose 2",
+        "condition": "minutesSinceDose1 >= 240 && dose2TakenAt == nil && !dose2Skipped"
+      },
+      {
+        "name": "Dose2Taken",
+        "description": "Session complete with Dose 2 taken",
+        "condition": "dose2TakenAt != nil"
+      },
+      {
+        "name": "Dose2Skipped",
+        "description": "Session complete with Dose 2 skipped",
+        "condition": "dose2Skipped == true"
+      },
+      {
+        "name": "NoSession",
+        "description": "No active session, ready for Dose 1",
+        "condition": "dose1TakenAt == nil"
+      }
+    ]
+  },
+  
+  "inventory": {
+    "description": "Inventory management thresholds",
+    "lowThresholdDays": {
+      "value": 10,
+      "description": "Days remaining to trigger low inventory warning",
+      "configurable": true
+    },
+    "criticalThresholdDays": {
+      "value": 3,
+      "description": "Days remaining to trigger critical inventory alert",
+      "configurable": false
+    }
+  },
+  
+  "notifications": {
+    "description": "Notification timing and behavior",
+    "criticalInventoryRepeatHours": {
+      "value": 24,
+      "description": "Hours between repeated critical inventory alerts"
+    }
+  },
+  
+  "historyView": {
+    "description": "History screen display options",
+    "sortOptions": [
+      {"value": "time_desc", "label": "Newest First", "default": true},
+      {"value": "time_asc", "label": "Oldest First"},
+      {"value": "name_asc", "label": "A-Z (by event type)"},
+      {"value": "name_desc", "label": "Z-A (by event type)"}
+    ],
+    "filterOptions": {
+      "byEventType": true,
+      "byDateRange": true,
+      "byCategory": true
+    },
+    "groupBy": ["day", "week", "month", "none"],
+    "defaultGroupBy": "day"
+  },
+  
+  "preSleepLog": {
+    "description": "Pre-sleep check-in for context logging. Optional, fast, never blocking.",
+    "design": {
+      "maxCompletionSeconds": 30,
+      "cardCount": 3,
+      "skippable": true,
+      "blocking": false,
+      "note": "Never blocks Dose 1 or session start"
+    },
+    "sessionLinking": {
+      "windowMinutes": 120,
+      "strategy": "Link to session starting within 2 hours of log creation",
+      "unlinkable": true,
+      "note": "Logs without linked session are kept as 'Unlinked'"
+    },
+    "coreQuestions": [
+      {
+        "id": "intendedSleepTime",
+        "card": 1,
+        "label": "When do you plan to sleep?",
+        "type": "single",
+        "options": ["now", "within30", "30to60", "later"]
+      },
+      {
+        "id": "stressLevel",
+        "card": 1,
+        "label": "Current stress level",
+        "type": "scale",
+        "range": [1, 5]
+      },
+      {
+        "id": "bodyPain",
+        "card": 2,
+        "label": "Body pain right now",
+        "type": "single",
+        "options": ["none", "mild", "moderate", "severe"]
+      },
+      {
+        "id": "stimulants",
+        "card": 2,
+        "label": "Stimulants after 2pm",
+        "type": "single",
+        "options": ["none", "caffeine", "nicotine", "both"]
+      },
+      {
+        "id": "alcohol",
+        "card": 2,
+        "label": "Alcohol today",
+        "type": "single",
+        "options": ["none", "1to2", "3plus"]
+      },
+      {
+        "id": "exercise",
+        "card": 3,
+        "label": "Exercise today",
+        "type": "single",
+        "options": ["none", "light", "moderate", "hard"]
+      },
+      {
+        "id": "napToday",
+        "card": 3,
+        "label": "Nap today",
+        "type": "single",
+        "options": ["none", "short", "medium", "long"],
+        "optionLabels": {"short": "<30 min", "medium": "30-90 min", "long": "90+ min"}
+      }
+    ],
+    "smartExpanders": {
+      "painDetails": {
+        "showWhen": "bodyPain != 'none'",
+        "questions": [
+          {"id": "painLocation", "type": "multi", "options": ["head", "neck", "shoulders", "upperBack", "lowerBack", "hips", "legs", "other"]},
+          {"id": "painType", "type": "single", "options": ["aching", "sharp", "throbbing", "burning", "tingling"]}
+        ]
+      },
+      "stressDetails": {
+        "showWhen": "stressLevel >= 4",
+        "questions": [
+          {"id": "stressDriver", "type": "single", "options": ["work", "family", "health", "money", "other"]}
+        ]
+      },
+      "laterDetails": {
+        "showWhen": "intendedSleepTime == 'later'",
+        "questions": [
+          {"id": "laterReason", "type": "single", "options": ["social", "work", "screenTime", "restless", "other"]}
+        ]
+      }
+    },
+    "completionStates": ["partial", "complete", "skipped"]
+  }
+}

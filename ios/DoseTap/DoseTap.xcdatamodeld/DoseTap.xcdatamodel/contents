@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="22522" systemVersion="23C71" minimumToolsVersion="Automatic" sourceLanguage="Swift" usedWithCloudKit="NO" usedWithSwiftData="NO" userDefinedModelVersionIdentifier="">
+    <entity name="DoseEvent" representedClassName="DoseEvent" syncable="YES" codeGenerationType="class">
+        <attribute name="doseSequence" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="eventID" attributeType="String" indexed="YES"/>
+        <attribute name="eventType" attributeType="String"/>
+        <attribute name="localTZ" attributeType="String"/>
+        <attribute name="note" optional="YES" attributeType="String"/>
+        <attribute name="occurredAtUTC" attributeType="Date" usesScalarValueType="NO" indexed="YES"/>
+        <attribute name="source" attributeType="String"/>
+    </entity>
+    <entity name="DoseSession" representedClassName="DoseSession" syncable="YES" codeGenerationType="class">
+        <attribute name="adherenceFlag" optional="YES" attributeType="String"/>
+        <attribute name="avgHR" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="bedtimeLocal" optional="YES" attributeType="String"/>
+        <attribute name="endedUTC" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="note" optional="YES" attributeType="String"/>
+        <attribute name="sessionID" attributeType="String" indexed="YES"/>
+        <attribute name="sleepEfficiency" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="startedUTC" attributeType="Date" usesScalarValueType="NO" indexed="YES"/>
+        <attribute name="whoopRecovery" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="windowActualMin" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="windowTargetMin" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+    </entity>
+    <entity name="InventorySnapshot" representedClassName="InventorySnapshot" syncable="YES" codeGenerationType="class">
+        <attribute name="asOfUTC" attributeType="Date" usesScalarValueType="NO" indexed="YES"/>
+        <attribute name="bottlesOnHand" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="estimatedDaysRemaining" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="medicationName" attributeType="String"/>
+        <attribute name="mgPerBottle" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="mgPerDose1" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="mgPerDose2" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="refillThresholdDays" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+    </entity>
+</model>

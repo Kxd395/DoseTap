@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>DEVELOPMENT_MODE</key>
+    <true/>
+    <key>LOCAL_ONLY</key>
+    <true/>
+    <key>MOCK_API_RESPONSES</key>
+    <true/>
+    <key>SKIP_EXTERNAL_INTEGRATIONS</key>
+    <true/>
+    <key>ENABLE_DEBUG_LOGGING</key>
+    <true/>
+    <key>AUTO_POPULATE_TEST_DATA</key>
+    <true/>
+</dict>
+</plist>

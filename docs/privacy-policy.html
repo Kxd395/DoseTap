@@ -43,7 +43,7 @@
 </head>
 <body>
     <h1>DoseTap Privacy Policy</h1>
-    <p class="last-updated">Last Updated: September 2, 2025</p>
+    <p class="last-updated">Last Updated: September 3, 2025</p>
 
     <h2>Introduction</h2>
     <p>DoseTap ("we", "our", or "us") respects your privacy and is committed to protecting your personal information. This Privacy Policy explains how we collect, use, and safeguard your information when you use our DoseTap mobile application.</p>
@@ -56,11 +56,11 @@
         <li><strong>WHOOP Data</strong>: Sleep and recovery metrics (only if you connect your WHOOP account)</li>
     </ul>
 
-    <h3>App Usage Data</h3>
+    <h3>App Event Data</h3>
     <ul>
-        <li>Medication logging events (dose times, bathroom visits)</li>
-        <li>App usage patterns and preferences</li>
-        <li>Device information (iOS version, device type)</li>
+        <li>XYWAV dose event timestamps (Dose 1 / Dose 2)</li>
+        <li>Adjunct events you log (bathroom, lights_out, wake_final, snooze)</li>
+        <li>Derived adaptive interval selection (stored locally)</li>
     </ul>
 
     <h3>WHOOP Integration (Optional)</h3>
@@ -85,17 +85,17 @@
     <h3>Data Processing</h3>
     <ul>
         <li>All health data processing occurs on-device</li>
-        <li>No personal health data is transmitted to our servers</li>
-        <li>WHOOP data is fetched directly from WHOOP's servers to your device</li>
+        <li>WHOOP and HealthKit data never leave the device</li>
+        <li>Optional minimal sync (disabled by default) transmits only event type, UTC timestamp, timezone offset, and random device identifier</li>
     </ul>
 
     <h2>Data Storage and Security</h2>
 
-    <h3>Local Storage Only</h3>
+    <h3>Local Storage First</h3>
     <ul>
-        <li>All data is stored locally on your device</li>
-        <li>No data is transmitted to external servers</li>
-        <li>You maintain full control of your information</li>
+        <li>All data is stored locally by default</li>
+        <li>No data leaves the device unless you enable optional minimal sync</li>
+        <li>Minimal sync never includes health metrics or personally identifying information</li>
     </ul>
 
     <h3>Security Measures</h3>
@@ -107,15 +107,15 @@
 
     <h2>Data Sharing</h2>
     <div class="highlight">
-        <strong>We do NOT share your personal information with any third parties, including:</strong>
+        <strong>We do NOT sell or share your information with advertising, analytics, or data broker third parties.</strong>
     </div>
     <ul>
         <li>No advertising networks</li>
-        <li>No analytics companies</li>
+        <li>No third-party analytics SDKs</li>
         <li>No data brokers</li>
-        <li>No social media platforms</li>
+        <li>No social media platform sharing</li>
     </ul>
-    <p>The only external service we integrate with is WHOOP, and only if you explicitly authorize it.</p>
+    <p>WHOOP integration is optional and read-only. Optional minimal sync (if enabled) stores only de-identified event metadata for backup.</p>
 
     <h2>Your Rights</h2>
 
@@ -135,9 +135,9 @@
 
     <h2>Data Retention</h2>
     <ul>
-        <li>Medication logs are retained until you delete them or uninstall the app</li>
-        <li>No automatic data deletion policies</li>
-        <li>You have full control over data retention</li>
+        <li>Event logs remain on device until you delete them or uninstall</li>
+        <li>Optional synced copies (if enabled) are purged within 24h after you disable sync</li>
+        <li>No dark retention of deleted data</li>
     </ul>
 
     <h2>Third-Party Services</h2>
@@ -161,7 +161,7 @@
     <p>This app is not intended for children under 13. We do not knowingly collect personal information from children under 13.</p>
 
     <h2>Changes to This Policy</h2>
-    <p>We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy on this page and updating the "Last Updated" date.</p>
+    <p>We may update this Privacy Policy. Material changes will update the "Last Updated" date and appear in the in-app changelog.</p>
 
     <h2>Contact Us</h2>
     <p>If you have any questions about this Privacy Policy, please contact us at:</p>

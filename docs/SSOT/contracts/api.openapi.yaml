@@ -1,0 +1,287 @@
+openapi: 3.0.3
+info:
+  title: DoseTap API
+  version: 1.0.0
+  description: XYWAV dose management API (SSOT version)
+  contact:
+    name: DoseTap Team
+    email: api@dosetap.com
+
+servers:
+  - url: https://api.dosetap.com/v1
+    description: Production
+  - url: http://localhost:8080/v1
+    description: Local development
+
+security:
+  - bearerAuth: []
+
+paths:
+  /doses/take:
+    post:
+      summary: Record dose taken
+      operationId: takeDose
+      tags: [Doses]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TakeDoseRequest'
+      responses:
+        '200':
+          description: Dose recorded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TakeDoseResponse'
+        '409':
+          $ref: '#/components/responses/AlreadyTaken'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /doses/skip:
+    post:
+      summary: Skip dose 2 with optional reason
+      operationId: skipDose
+      tags: [Doses]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SkipDoseRequest'
+      responses:
+        '200':
+          description: Skip recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkipDoseResponse'
+
+  /doses/snooze:
+    post:
+      summary: Snooze dose reminder
+      operationId: snoozeDose
+      tags: [Doses]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [minutes]
+              properties:
+                minutes:
+                  type: integer
+                  enum: [10]
+                  description: Always 10 minutes
+      responses:
+        '200':
+          description: Snooze set
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SnoozeResponse'
+        '422':
+          $ref: '#/components/responses/SnoozeLimit'
+
+  /events/log:
+    post:
+      summary: Log dose-related events (NOT sleep events)
+      description: |
+        Logs dose-related events to the server. This endpoint is for dose tracking only.
+        
+        **IMPORTANT**: Sleep events (bathroom, water, snack, etc.) are LOCAL-ONLY. 
+        The full 12-type sleep event system is stored in SQLite on-device and exported 
+        in support bundles, but never sent to the API. See constants.json for the full 
+        sleep event taxonomy.
+        
+        This endpoint only accepts:
+        - bathroom: User got up for bathroom during dose window
+        - lights_out: User turned off lights (session start marker)
+        - wake_final: User woke up for the day (session end marker)
+      operationId: logEvent
+      tags: [Events]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogEventRequest'
+      responses:
+        '200':
+          description: Event logged
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogEventResponse'
+
+  /analytics/export:
+    get:
+      summary: Export dose and analytics data
+      operationId: exportAnalytics
+      tags: [Analytics]
+      parameters:
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: CSV export data
+          content:
+            text/csv:
+              schema:
+                type: string
+                example: |
+                  Date,Dose1Time,Dose2Time,Interval,OnTime,NaturalWake
+                  2024-01-15,22:30:00,01:15:00,165,true,false
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    TakeDoseRequest:
+      type: object
+      required: [type, timestamp]
+      properties:
+        type:
+          type: string
+          enum: [dose1, dose2]
+        timestamp:
+          type: string
+          format: date-time
+
+    TakeDoseResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        next_window_opens:
+          type: string
+          format: date-time
+        next_window_closes:
+          type: string
+          format: date-time
+
+    SkipDoseRequest:
+      type: object
+      required: [sequence]
+      properties:
+        sequence:
+          type: integer
+          enum: [2]
+        reason:
+          type: string
+          maxLength: 500
+
+    SkipDoseResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          const: skip
+        sequence:
+          type: integer
+        timestamp:
+          type: string
+          format: date-time
+
+    SnoozeResponse:
+      type: object
+      properties:
+        snooze_until:
+          type: string
+          format: date-time
+        snoozes_used:
+          type: integer
+        snoozes_remaining:
+          type: integer
+
+    LogEventRequest:
+      type: object
+      required: [type, timestamp]
+      description: |
+        Dose-related events only. Full sleep event tracking (12 types) is LOCAL-ONLY.
+        See constants.json sleepEvents for the complete local taxonomy.
+      properties:
+        type:
+          type: string
+          enum: [bathroom, lights_out, wake_final]
+          description: |
+            Only 3 event types are sent to API (session markers). 
+            The remaining 9 sleep event types (water, snack, wakeTemp, anxiety, 
+            dream, heartRacing, noise, temperature, pain) are stored locally in 
+            SQLite and included in export bundles.
+        timestamp:
+          type: string
+          format: date-time
+
+    LogEventResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+  responses:
+    AlreadyTaken:
+      description: Dose already taken
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                const: ALREADY_TAKEN
+              message:
+                type: string
+
+    ValidationError:
+      description: Validation failed
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                enum: [WINDOW_EXCEEDED, DOSE1_REQUIRED]
+              message:
+                type: string
+
+    SnoozeLimit:
+      description: Snooze limit reached
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                const: SNOOZE_LIMIT
+              message:
+                type: string

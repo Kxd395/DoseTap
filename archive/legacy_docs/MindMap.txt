@@ -1,0 +1,23 @@
+DoseTap
+├─ Inputs
+│  ├─ Flic 2 (BLE button → URL)
+│  ├─ Apple Health (Sleep stages, HR/HRV/RR, SpO2)
+│  └─ WHOOP API v2 (sleep & cycles history) [optional]
+├─ Events (all UTC + offset)
+│  ├─ dose1 → schedule target interval
+│  ├─ dose2 → finalize interval
+│  ├─ bathroom / out-of-bed (adjunct)
+│  └─ lights_out / wake_final / snooze
+├─ Timing & Planning
+│  ├─ Baseline: median TTFW (14–30 nights)
+│  ├─ Discrete intervals {165,180,195,210,225} (opt-in bandit)
+│  ├─ Same-night nudge ±10 min
+│  └─ Clamp: 150–240 min (never violated)
+├─ Storage & Sync
+│  ├─ Local (Core Data / JSON)
+│  ├─ Optional minimal sync (event type + timestamp only)
+│  └─ CSV export
+└─ Outputs
+   ├─ Local notification (Dose 2 cues + window end)
+   ├─ Haptics / VoiceOver announcements
+   └─ Insights (Dose timing, Natural wake %, WASO)

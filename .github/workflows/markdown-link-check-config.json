@@ -1,0 +1,20 @@
+{
+  "ignorePatterns": [
+    {
+      "pattern": "^http://localhost"
+    },
+    {
+      "pattern": "^https://localhost"
+    }
+  ],
+  "replacementPatterns": [
+    {
+      "pattern": "^/",
+      "replacement": "file:///"
+    }
+  ],
+  "aliveStatusCodes": [200, 206],
+  "retryOn429": true,
+  "retryCount": 3,
+  "fallbackHttpStatus": 200
+}

@@ -1,0 +1,39 @@
+name: Documentation CI
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'docs/**'
+      - 'tools/ssot_check.sh'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - 'tools/ssot_check.sh'
+
+jobs:
+  docs-validation:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Make ssot_check.sh executable
+      run: chmod +x tools/ssot_check.sh
+      
+    - name: Run SSOT integrity check
+      run: tools/ssot_check.sh
+      
+    - name: Check markdown links
+      uses: gaurav-nelson/github-action-markdown-link-check@v1
+      with:
+        use-quiet-mode: 'yes'
+        use-verbose-mode: 'yes'
+        config-file: '.github/workflows/markdown-link-check-config.json'
+        
+    - name: Validate OpenAPI spec
+      uses: char0n/swagger-editor-validate@v1
+      with:
+        definition-file: docs/contracts/api.openapi.yaml

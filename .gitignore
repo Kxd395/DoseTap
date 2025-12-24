@@ -4,6 +4,7 @@
 
 # Secrets and configuration
 ios/DoseTap/Config.plist
+ios/DoseTap/Secrets.swift
 
 # OS generated files
 .DS_Store

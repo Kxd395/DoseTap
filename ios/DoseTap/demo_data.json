@@ -1,0 +1,113 @@
+{
+  "saved_data": [
+    {
+      "user_id": "u_kevin_dial",
+      "timestamp": "2025-09-01T22:45:00Z",
+      "source": "manual",
+      "metric": "medication_event",
+      "value": "dose1",
+      "notes": "Tapped BLE button; Dose 1 logged",
+      "tags": ["night", "dose", "demo"]
+    },
+    {
+      "user_id": "u_kevin_dial",
+      "timestamp": "2025-09-01T22:50:00Z",
+      "source": "apple_health",
+      "metric": "sleep_stage",
+      "value": "core",
+      "notes": "Apple Watch sleep stage",
+      "tags": ["sleep", "demo"]
+    },
+    {
+      "user_id": "u_kevin_dial",
+      "timestamp": "2025-09-01T23:00:00Z",
+      "source": "whoop",
+      "metric": "heart_rate",
+      "value": 62,
+      "notes": "WHOOP avg HR in first sleep block",
+      "tags": ["sleep", "hr", "demo"]
+    },
+    {
+      "user_id": "u_kevin_dial",
+      "timestamp": "2025-09-01T23:00:00Z",
+      "source": "apple_health",
+      "metric": "heart_rate",
+      "value": 60,
+      "notes": "Apple Health HR sample near bedtime",
+      "tags": ["sleep", "hr", "demo"]
+    },
+    {
+      "user_id": "u_kevin_dial",
+      "timestamp": "2025-09-01T23:30:00Z",
+      "source": "whoop",
+      "metric": "respiratory_rate",
+      "value": 14,
+      "notes": "WHOOP RR during sleep",
+      "tags": ["sleep", "rr", "demo"]
+    },
+    {
+      "user_id": "u_kevin_dial",
+      "timestamp": "2025-09-01T23:30:00Z",
+      "source": "apple_health",
+      "metric": "respiratory_rate",
+      "value": 13,
+      "notes": "Apple Health RR during sleep",
+      "tags": ["sleep", "rr", "demo"]
+    },
+    {
+      "user_id": "u_kevin_dial",
+      "timestamp": "2025-09-02T00:40:00Z",
+      "source": "apple_health",
+      "metric": "oxygen_saturation",
+      "value": 0.96,
+      "notes": "SpO₂ (fractional 0–1)",
+      "tags": ["sleep", "spo2", "demo"]
+    },
+    {
+      "user_id": "u_kevin_dial",
+      "timestamp": "2025-09-02T00:55:00Z",
+      "source": "manual",
+      "metric": "bathroom_event",
+      "value": "out_of_bed",
+      "notes": "Button press: bathroom",
+      "tags": ["bio", "night", "demo"]
+    },
+    {
+      "user_id": "u_kevin_dial",
+      "timestamp": "2025-09-02T01:15:00Z",
+      "source": "whoop",
+      "metric": "heart_rate",
+      "value": 59,
+      "notes": "WHOOP HR near reminder window",
+      "tags": ["sleep", "hr", "demo"]
+    },
+    {
+      "user_id": "u_kevin_dial",
+      "timestamp": "2025-09-02T01:27:00Z",
+      "source": "manual",
+      "metric": "medication_event",
+      "value": "dose2",
+      "notes": "Second dose taken; reminder cleared",
+      "tags": ["night", "dose", "demo"]
+    },
+    {
+      "user_id": "u_kevin_dial",
+      "timestamp": "2025-09-02T06:45:00Z",
+      "source": "apple_health",
+      "metric": "sleep_stage",
+      "value": "awake_final",
+      "notes": "Final wake detected",
+      "tags": ["sleep", "wake", "demo"]
+    },
+    {
+      "user_id": "u_kevin_dial",
+      "timestamp": "2025-09-02T07:00:00Z",
+      "source": "apple_health",
+      "metric": "hrv_sdnn",
+      "value": 68,
+      "notes": "Morning HRV SDNN (ms)",
+      "tags": ["recovery", "demo"]
+    }
+  ]
+}
+

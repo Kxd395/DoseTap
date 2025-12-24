@@ -1,8 +1,12 @@
+// DoseTapApp_Simple.swift
 import SwiftUI
 
 @main
 struct DoseTapApp: App {
-    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    init() {
+        print("DoseTap app initialized (simplified)")
+    }
+    
     var body: some Scene {
         WindowGroup {
             ContentView()
