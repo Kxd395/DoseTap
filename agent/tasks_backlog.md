@@ -1,5 +1,10 @@
 # Tasks Backlog
 
+## Completed (v2.9.0)
+- [x] Settings: Reduced Motion toggle - shouldReduceMotion, ReducedMotionSupport.swift, accessibleAnimation modifier
+- [x] Flic single/long/double mapping implementation - FlicButtonService.swift, FlicButtonSettingsView
+- [x] Analytics dispatcher + exact event names - AnalyticsService.swift with 50+ event types
+
 ## Completed (v2.8.0)
 - [x] Integration: Wire SleepStageTimeline to HealthKitService data - LiveSleepTimelineView, SleepTimelineContainer
 - [x] Settings: High Contrast color tokens with ≥7:1 validation - HighContrastColors.swift, DoseColors enum
@@ -29,12 +34,10 @@
 ## High Priority (Next Up)
 - [ ] WHOOP OAuth screen + token storage
 - [ ] WHOOP sleep/cycle fetch (history import)
-- [ ] Flic single/long/double mapping implementation
 
 ## Medium Priority
-- [ ] Settings: Reduced Motion toggle
 - [ ] HR/RR overlay on sleep timeline (WHOOP integration)
-- [ ] Analytics dispatcher + exact event names
+- [ ] Press-and-hold (1s) Take interaction (watchOS UX polish)
 
 ## watchOS (Completed in v2.8.0)
 - [x] Watch app: Dose1/Dose2/Bathroom buttons

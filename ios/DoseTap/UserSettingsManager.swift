@@ -56,6 +56,12 @@ class UserSettingsManager: ObservableObject {
     @AppStorage("high_contrast_mode") var highContrastMode: Bool = false
     @AppStorage("reduced_motion") var reducedMotion: Bool = false
     
+    /// Returns true if motion should be reduced (either system or user preference)
+    /// Use this to conditionally disable animations throughout the app
+    var shouldReduceMotion: Bool {
+        reducedMotion || UIAccessibility.isReduceMotionEnabled
+    }
+    
     // MARK: - Dose Timing (XYWAV Specific)
     // Per SSOT: Window 150-240 min, valid targets: 165, 180, 195, 210, 225
     @AppStorage("target_interval_minutes") var targetIntervalMinutes: Int = 165

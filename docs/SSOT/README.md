@@ -13,7 +13,47 @@
 **This document supersedes:** `DoseTap_Spec.md`, `ui-ux-specifications.md`, `button-logic-mapping.md`, `api-documentation.md`, `user-guide.md`, `implementation-roadmap.md`
 
 **Last Updated:** 2024-12-25  
-**Version:** 2.8.0
+**Version:** 2.9.0
+
+## Recent Updates (v2.9.0)
+
+### New in v2.9.0 (Reduced Motion, Flic Mapping, Analytics)
+
+#### Reduced Motion Support (`ReducedMotionSupport.swift`)
+
+- ✅ **ADDED**: `shouldReduceMotion` computed property in UserSettingsManager
+- ✅ **ADDED**: Respects both user preference and system `UIAccessibility.isReduceMotionEnabled`
+- ✅ **ADDED**: `accessibleAnimation(_:value:)` view modifier
+- ✅ **ADDED**: `accessibleTransition(_:)` view modifier
+- ✅ **ADDED**: `withAccessibleAnimation(_:_:)` global function
+- ✅ **ADDED**: Animations disabled when reduce motion is enabled
+
+#### Flic Button Service (`FlicButtonService.swift`)
+
+- ✅ **ADDED**: `FlicButtonService` singleton for hardware button integration
+- ✅ **ADDED**: `FlicAction` enum: takeDose, snooze, undo, logBathroom, logLightsOut, logWake, skip, none
+- ✅ **ADDED**: `FlicGesture` enum: singlePress, doublePress, longHold
+- ✅ **ADDED**: Gesture mapping per SSOT: Single=Dose, Double=Snooze, Hold=Undo
+- ✅ **ADDED**: `handleGesture(_:)` routes to appropriate action handler
+- ✅ **ADDED**: Haptic feedback for success/warning/error outcomes
+- ✅ **ADDED**: Configuration persistence (UserDefaults)
+- ✅ **ADDED**: `FlicButtonSettingsView` with gesture configuration UI
+- ✅ **ADDED**: `FlicPairingView` pairing flow (stub - requires Flic SDK)
+
+#### Analytics Service (`AnalyticsService.swift`)
+
+- ✅ **ADDED**: `AnalyticsService` singleton for event tracking
+- ✅ **ADDED**: `EventName` enum with 50+ event types (dose_, event_, session_, ui_, error_, perf_)
+- ✅ **ADDED**: `AnalyticsEvent` model with timestamp, parameters, session/device info
+- ✅ **ADDED**: `AnalyticsProvider` protocol for pluggable providers
+- ✅ **ADDED**: `ConsoleAnalyticsProvider` for debug logging
+- ✅ **ADDED**: `LocalFileAnalyticsProvider` for offline storage (analytics_events.json)
+- ✅ **ADDED**: Convenience methods: trackDose1Taken, trackDose2Taken, trackSnooze, trackSessionCompleted
+- ✅ **ADDED**: Event queue with automatic flush (60s interval, 100 event max)
+
+**Test Coverage**: 246 tests passing
+
+---
 
 ## Recent Updates (v2.8.0)
 
