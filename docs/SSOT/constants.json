@@ -119,14 +119,31 @@
   },
   
   "medications": {
-    "description": "Medication logging for Adderall and other stimulants. Local-only, session-linked.",
+    "description": "All FDA-approved narcolepsy medications. Local-only, session-linked. Supports multi-entry logging.",
     "storage": "local-only",
     "storageNote": "Medication events are stored in SQLite medication_events table. NOT sent to any API.",
+    "multiEntrySupport": {
+      "description": "Users can log multiple medications before saving",
+      "pendingListUI": true,
+      "addButtonLabel": "+",
+      "batchSave": true
+    },
     "duplicateGuardMinutes": {
       "value": 5,
       "description": "Warn if same medication logged within this many minutes (absolute delta)",
       "configurable": false
     },
+    "categories": [
+      {"id": "stimulant", "displayName": "Stimulant"},
+      {"id": "wakefulness_agent", "displayName": "Wakefulness Agent"},
+      {"id": "histamine_modulator", "displayName": "Histamine Modulator"},
+      {"id": "sodium_oxybate", "displayName": "Sodium Oxybate"}
+    ],
+    "formulations": [
+      {"id": "immediate_release", "displayName": "Immediate Release"},
+      {"id": "extended_release", "displayName": "Extended Release"},
+      {"id": "liquid", "displayName": "Liquid"}
+    ],
     "types": [
       {
         "id": "adderall_ir",
@@ -147,11 +164,143 @@
         "validDoses": [5, 10, 15, 20, 25, 30],
         "icon": "pill.circle.fill",
         "color": "#4ECDC4"
+      },
+      {
+        "id": "ritalin_ir",
+        "displayName": "Ritalin",
+        "category": "stimulant",
+        "formulation": "immediate_release",
+        "defaultDoseMg": 10,
+        "validDoses": [5, 10, 15, 20],
+        "icon": "pill.fill",
+        "color": "#9B59B6"
+      },
+      {
+        "id": "ritalin_la",
+        "displayName": "Ritalin LA",
+        "category": "stimulant",
+        "formulation": "extended_release",
+        "defaultDoseMg": 20,
+        "validDoses": [10, 20, 30, 40],
+        "icon": "pill.circle.fill",
+        "color": "#8E44AD"
+      },
+      {
+        "id": "concerta",
+        "displayName": "Concerta",
+        "category": "stimulant",
+        "formulation": "extended_release",
+        "defaultDoseMg": 36,
+        "validDoses": [18, 27, 36, 54],
+        "icon": "pill.circle.fill",
+        "color": "#3498DB"
+      },
+      {
+        "id": "vyvanse",
+        "displayName": "Vyvanse",
+        "category": "stimulant",
+        "formulation": "extended_release",
+        "defaultDoseMg": 30,
+        "validDoses": [10, 20, 30, 40, 50, 60, 70],
+        "icon": "capsule.fill",
+        "color": "#E74C3C"
+      },
+      {
+        "id": "dexedrine",
+        "displayName": "Dexedrine",
+        "category": "stimulant",
+        "formulation": "immediate_release",
+        "defaultDoseMg": 10,
+        "validDoses": [5, 10, 15],
+        "icon": "pill.fill",
+        "color": "#F39C12"
+      },
+      {
+        "id": "modafinil",
+        "displayName": "Modafinil",
+        "category": "wakefulness_agent",
+        "formulation": "immediate_release",
+        "defaultDoseMg": 200,
+        "validDoses": [100, 200],
+        "icon": "sun.max.fill",
+        "color": "#F1C40F"
+      },
+      {
+        "id": "provigil",
+        "displayName": "Provigil",
+        "category": "wakefulness_agent",
+        "formulation": "immediate_release",
+        "defaultDoseMg": 200,
+        "validDoses": [100, 200],
+        "icon": "sun.max.fill",
+        "color": "#F1C40F"
+      },
+      {
+        "id": "armodafinil",
+        "displayName": "Armodafinil",
+        "category": "wakefulness_agent",
+        "formulation": "immediate_release",
+        "defaultDoseMg": 150,
+        "validDoses": [50, 150, 200, 250],
+        "icon": "sunrise.fill",
+        "color": "#E67E22"
+      },
+      {
+        "id": "nuvigil",
+        "displayName": "Nuvigil",
+        "category": "wakefulness_agent",
+        "formulation": "immediate_release",
+        "defaultDoseMg": 150,
+        "validDoses": [50, 150, 200, 250],
+        "icon": "sunrise.fill",
+        "color": "#E67E22"
+      },
+      {
+        "id": "sunosi",
+        "displayName": "Sunosi",
+        "category": "wakefulness_agent",
+        "formulation": "immediate_release",
+        "defaultDoseMg": 75,
+        "validDoses": [75, 150],
+        "icon": "sun.horizon.fill",
+        "color": "#1ABC9C"
+      },
+      {
+        "id": "wakix",
+        "displayName": "Wakix",
+        "category": "histamine_modulator",
+        "formulation": "immediate_release",
+        "defaultDoseMg": 35,
+        "validDoses": [5, 9, 18, 35],
+        "icon": "sparkles",
+        "color": "#9B59B6"
+      },
+      {
+        "id": "xywav",
+        "displayName": "XYWAV",
+        "category": "sodium_oxybate",
+        "formulation": "liquid",
+        "defaultDoseMg": 4500,
+        "validDoses": [2250, 3000, 3750, 4500, 6000, 7500, 9000],
+        "icon": "drop.fill",
+        "color": "#2980B9",
+        "note": "Doses in mg (divide by 1000 for grams)"
+      },
+      {
+        "id": "xyrem",
+        "displayName": "Xyrem",
+        "category": "sodium_oxybate",
+        "formulation": "liquid",
+        "defaultDoseMg": 4500,
+        "validDoses": [2250, 3000, 3750, 4500, 6000, 7500, 9000],
+        "icon": "drop.fill",
+        "color": "#3498DB",
+        "note": "Doses in mg (divide by 1000 for grams)"
       }
     ],
     "schema": {
       "table": "medication_events",
-      "columns": ["id", "session_id", "session_date", "medication_id", "dose_mg", "taken_at_utc", "notes", "confirmed_duplicate", "created_at"],
+      "columns": ["id", "session_id", "session_date", "medication_id", "dose_mg", "dose_unit", "formulation", "taken_at_utc", "local_offset_minutes", "notes", "confirmed_duplicate", "created_at"],
       "foreignKey": "session_id REFERENCES dose_sessions(id) ON DELETE CASCADE"
     }
   },

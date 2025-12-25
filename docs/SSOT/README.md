@@ -13,7 +13,36 @@
 **This document supersedes:** `DoseTap_Spec.md`, `ui-ux-specifications.md`, `button-logic-mapping.md`, `api-documentation.md`, `user-guide.md`, `implementation-roadmap.md`
 
 **Last Updated:** 2024-12-25  
-**Version:** 2.4.4
+**Version:** 2.4.5
+
+## Recent Updates (v2.4.5)
+
+### New in v2.4.5 (All Narcolepsy Medications + Multi-Entry)
+
+#### All FDA-Approved Narcolepsy Medications (15 total)
+
+- ✅ **ADDED**: Full medication catalog with 4 categories:
+  - **Stimulants (7)**: Adderall IR, Adderall XR, Ritalin IR, Ritalin LA, Concerta, Vyvanse, Dexedrine
+  - **Wakefulness Agents (5)**: Modafinil, Provigil, Armodafinil, Nuvigil, Sunosi
+  - **Histamine Modulators (1)**: Wakix
+  - **Sodium Oxybate (2)**: XYWAV, Xyrem
+
+- ✅ **ADDED**: `MedicationCategory` enum: `.stimulant`, `.wakefulnessAgent`, `.histamineModulator`, `.sodiumOxybate`
+- ✅ **ADDED**: `MedicationFormulation` enum: `.immediateRelease`, `.extendedRelease`, `.liquid`
+- ✅ **ADDED**: Dose display formatting (mg for pills, grams for liquids)
+
+#### Multi-Entry Medication Logging
+
+- ✅ **ADDED**: Log multiple medications before saving (batch entry)
+- ✅ **ADDED**: "+" button to add medication to pending list
+- ✅ **ADDED**: Pending entries preview before Save
+- ✅ **ADDED**: Remove individual entries with "×" button
+- ✅ **ADDED**: Collapsible category sections in picker
+- ✅ **ADDED**: Duplicate guard checks pending list AND database
+
+**Test Coverage**: 225 tests passing (18 MedicationLogger tests)
+
+---
 
 ## Recent Updates (v2.4.4)
 
@@ -293,10 +322,21 @@ The previous architecture had `DoseTapCore` (in-memory) and `EventStorage` (SQLi
 ## Core Invariants
 
 ### Medication Scope
-- **XYWAV-only**: No multi-medication support, refills, pharmacy integration, or provider portals
+- **Primary Focus**: XYWAV dose timing (150-240 minute window)
+- **Secondary Logging**: All FDA-approved narcolepsy medications (15 total) for daytime tracking
 - **Dose Window**: Dose 2 must be taken 150–240 minutes after Dose 1
 - **Default Target**: 165 minutes (2h 45m)
 - **Safety**: Never combine doses, never exceed window, always enforce stay-in-bed protocol
+- **Out of Scope**: Refills, pharmacy integration, provider portals
+
+### Supported Medications (v2.4.5)
+
+| Category | Medications |
+|----------|-------------|
+| **Stimulants** | Adderall IR, Adderall XR, Ritalin IR, Ritalin LA, Concerta, Vyvanse, Dexedrine |
+| **Wakefulness Agents** | Modafinil, Provigil, Armodafinil, Nuvigil, Sunosi |
+| **Histamine Modulators** | Wakix |
+| **Sodium Oxybate** | XYWAV, Xyrem |
 
 ### Dose Timing Parameters (AUTHORITATIVE)
 

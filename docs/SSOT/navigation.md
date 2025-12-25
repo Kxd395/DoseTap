@@ -60,6 +60,7 @@ Quick links to find exactly what you need in the Single Source of Truth.
 - [State Diagrams](contracts/diagrams/) - Visual state machines
 
 ### Other Contracts
+- [**MedicationLogger.md**](contracts/MedicationLogger.md) - Multi-entry medication logging (15 narcolepsy meds)
 - [SetupWizard.md](contracts/SetupWizard.md) - First-run wizard steps
 - [SupportBundle.md](contracts/SupportBundle.md) - Export format and privacy
 - [Inventory.md](contracts/Inventory.md) - Medication tracking
