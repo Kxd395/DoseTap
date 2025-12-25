@@ -209,4 +209,130 @@ public final class SessionRepository: ObservableObject, DoseTapSessionRepository
             snoozeCount: snoozeCount
         )
     }
+    
+    // MARK: - Medication Logging
+    
+    /// Log a medication entry (e.g., Adderall)
+    /// Returns the DuplicateGuardResult for UI to handle
+    public func logMedicationEntry(
+        medicationId: String,
+        doseMg: Int,
+        takenAt: Date,
+        notes: String? = nil,
+        confirmedDuplicate: Bool = false
+    ) -> DuplicateGuardResult {
+        let sessionDate = computeSessionDate(for: takenAt)
+        
+        // Check for duplicate within guard window (if not already confirmed)
+        if !confirmedDuplicate {
+            let guardResult = checkDuplicateGuard(medicationId: medicationId, takenAt: takenAt, sessionDate: sessionDate)
+            if guardResult.isDuplicate {
+                return guardResult
+            }
+        }
+        
+        // Get session_id if we have an active session matching this date
+        let sessionId: String?
+        if sessionDate == activeSessionDate {
+            sessionId = activeSessionDate
+        } else {
+            sessionId = nil
+        }
+        
+        let entry = StoredMedicationEntry(
+            sessionId: sessionId,
+            sessionDate: sessionDate,
+            medicationId: medicationId,
+            doseMg: doseMg,
+            takenAtUTC: takenAt,
+            notes: notes,
+            confirmedDuplicate: confirmedDuplicate
+        )
+        
+        storage.insertMedicationEvent(entry)
+        
+        print("💊 SessionRepository: Logged medication \(medicationId) \(doseMg)mg at \(takenAt)")
+        sessionDidChange.send()
+        
+        return .notDuplicate
+    }
+    
+    /// Check if a medication entry would be a duplicate
+    public func checkDuplicateGuard(medicationId: String, takenAt: Date, sessionDate: String) -> DuplicateGuardResult {
+        let guardMinutes = MedicationConfig.duplicateGuardMinutes
+        
+        if let existing = storage.findRecentMedicationEntry(
+            medicationId: medicationId,
+            sessionDate: sessionDate,
+            withinMinutes: guardMinutes,
+            ofTime: takenAt
+        ) {
+            let deltaSeconds = abs(takenAt.timeIntervalSince(existing.takenAtUTC))
+            let minutesDelta = Int(deltaSeconds / 60)
+            
+            // Convert StoredMedicationEntry to MedicationEntry for return
+            let entry = MedicationEntry(
+                id: existing.id,
+                sessionId: existing.sessionId,
+                sessionDate: existing.sessionDate,
+                medicationId: existing.medicationId,
+                doseMg: existing.doseMg,
+                takenAtUTC: existing.takenAtUTC,
+                notes: existing.notes,
+                confirmedDuplicate: existing.confirmedDuplicate,
+                createdAt: existing.createdAt
+            )
+            
+            return DuplicateGuardResult(isDuplicate: true, existingEntry: entry, minutesDelta: minutesDelta)
+        }
+        
+        return .notDuplicate
+    }
+    
+    /// List medication entries for a session date
+    public func listMedicationEntries(for sessionDate: String) -> [MedicationEntry] {
+        storage.fetchMedicationEvents(sessionDate: sessionDate).map { stored in
+            MedicationEntry(
+                id: stored.id,
+                sessionId: stored.sessionId,
+                sessionDate: stored.sessionDate,
+                medicationId: stored.medicationId,
+                doseMg: stored.doseMg,
+                takenAtUTC: stored.takenAtUTC,
+                notes: stored.notes,
+                confirmedDuplicate: stored.confirmedDuplicate,
+                createdAt: stored.createdAt
+            )
+        }
+    }
+    
+    /// List medication entries for current session
+    public func listMedicationEntriesForCurrentSession() -> [MedicationEntry] {
+        let sessionDate = currentSessionDateString()
+        return listMedicationEntries(for: sessionDate)
+    }
+    
+    /// Delete a medication entry
+    public func deleteMedicationEntry(id: String) {
+        storage.deleteMedicationEvent(id: id)
+        sessionDidChange.send()
+    }
+    
+    /// Compute session date for a given timestamp using 6PM boundary
+    /// Times before 6PM belong to previous day's session
+    private func computeSessionDate(for date: Date) -> String {
+        let calendar = Calendar.current
+        let hour = calendar.component(.hour, from: date)
+        
+        let sessionDay: Date
+        if hour < 18 { // Before 6 PM
+            sessionDay = calendar.date(byAdding: .day, value: -1, to: date) ?? date
+        } else {
+            sessionDay = date
+        }
+        
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: sessionDay)
+    }
 }

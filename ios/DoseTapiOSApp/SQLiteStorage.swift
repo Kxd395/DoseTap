@@ -130,6 +130,26 @@ public class SQLiteStorage: ObservableObject {
         -- Create indexes for morning checkins
         CREATE INDEX IF NOT EXISTS idx_morning_checkins_session ON morning_checkins(session_id);
         CREATE INDEX IF NOT EXISTS idx_morning_checkins_date ON morning_checkins(session_date);
+        
+        -- Medication events (Adderall, etc.) - local-only, session-linked
+        CREATE TABLE IF NOT EXISTS medication_events (
+            id TEXT PRIMARY KEY,
+            session_id TEXT,
+            session_date TEXT NOT NULL,
+            medication_id TEXT NOT NULL,
+            dose_mg INTEGER NOT NULL,
+            taken_at_utc TEXT NOT NULL,
+            notes TEXT,
+            confirmed_duplicate INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (session_id) REFERENCES current_session(id) ON DELETE CASCADE
+        );
+        
+        -- Create indexes for medication events
+        CREATE INDEX IF NOT EXISTS idx_medication_events_session ON medication_events(session_id);
+        CREATE INDEX IF NOT EXISTS idx_medication_events_session_date ON medication_events(session_date);
+        CREATE INDEX IF NOT EXISTS idx_medication_events_medication ON medication_events(medication_id);
+        CREATE INDEX IF NOT EXISTS idx_medication_events_taken_at ON medication_events(taken_at_utc);
         """
         
         var errMsg: UnsafeMutablePointer<CChar>?
@@ -850,6 +870,191 @@ public class SQLiteStorage: ObservableObject {
         return csv
     }
     
+    // MARK: - Medication Events
+    
+    /// Insert a medication event (Adderall, etc.)
+    public func insertMedicationEvent(_ entry: StoredMedicationEntry) {
+        let sql = """
+        INSERT INTO medication_events (id, session_id, session_date, medication_id, dose_mg, taken_at_utc, notes, confirmed_duplicate)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            lastError = "Failed to prepare medication event insert"
+            return
+        }
+        defer { sqlite3_finalize(stmt) }
+        
+        sqlite3_bind_text(stmt, 1, entry.id, -1, SQLITE_TRANSIENT)
+        
+        if let sessionId = entry.sessionId {
+            sqlite3_bind_text(stmt, 2, sessionId, -1, SQLITE_TRANSIENT)
+        } else {
+            sqlite3_bind_null(stmt, 2)
+        }
+        
+        sqlite3_bind_text(stmt, 3, entry.sessionDate, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 4, entry.medicationId, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_int(stmt, 5, Int32(entry.doseMg))
+        bindDateToColumn(stmt, column: 6, date: entry.takenAtUTC)
+        
+        if let notes = entry.notes {
+            sqlite3_bind_text(stmt, 7, notes, -1, SQLITE_TRANSIENT)
+        } else {
+            sqlite3_bind_null(stmt, 7)
+        }
+        
+        sqlite3_bind_int(stmt, 8, entry.confirmedDuplicate ? 1 : 0)
+        
+        if sqlite3_step(stmt) != SQLITE_DONE {
+            lastError = "Failed to insert medication event: \(String(cString: sqlite3_errmsg(db)))"
+        }
+    }
+    
+    /// Fetch medication events for a session date
+    public func fetchMedicationEvents(sessionDate: String) -> [StoredMedicationEntry] {
+        let sql = """
+        SELECT id, session_id, session_date, medication_id, dose_mg, taken_at_utc, notes, confirmed_duplicate, created_at
+        FROM medication_events
+        WHERE session_date = ?
+        ORDER BY taken_at_utc DESC
+        """
+        
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            return []
+        }
+        defer { sqlite3_finalize(stmt) }
+        
+        sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
+        
+        var entries: [StoredMedicationEntry] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            entries.append(parseMedicationEventRow(stmt))
+        }
+        
+        return entries
+    }
+    
+    /// Fetch all medication events (for export)
+    public func fetchAllMedicationEvents(limit: Int = 1000) -> [StoredMedicationEntry] {
+        let sql = """
+        SELECT id, session_id, session_date, medication_id, dose_mg, taken_at_utc, notes, confirmed_duplicate, created_at
+        FROM medication_events
+        ORDER BY taken_at_utc DESC
+        LIMIT ?
+        """
+        
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            return []
+        }
+        defer { sqlite3_finalize(stmt) }
+        
+        sqlite3_bind_int(stmt, 1, Int32(limit))
+        
+        var entries: [StoredMedicationEntry] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            entries.append(parseMedicationEventRow(stmt))
+        }
+        
+        return entries
+    }
+    
+    /// Delete a medication event
+    public func deleteMedicationEvent(id: String) {
+        let sql = "DELETE FROM medication_events WHERE id = ?"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(stmt) }
+        
+        sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
+        
+        if sqlite3_step(stmt) != SQLITE_DONE {
+            lastError = "Failed to delete medication event"
+        }
+    }
+    
+    /// Check for duplicate medication entry within guard window (used for duplicate guard)
+    public func findRecentMedicationEntry(medicationId: String, sessionDate: String, withinMinutes: Int, ofTime takenAt: Date) -> StoredMedicationEntry? {
+        // Fetch all entries for this medication + session_date, check time delta in Swift
+        // (SQLite datetime math is tricky across timezones)
+        let entries = fetchMedicationEvents(sessionDate: sessionDate)
+        
+        for entry in entries where entry.medicationId == medicationId {
+            let deltaSeconds = abs(takenAt.timeIntervalSince(entry.takenAtUTC))
+            let deltaMinutes = Int(deltaSeconds / 60)
+            if deltaMinutes < withinMinutes {
+                return entry
+            }
+        }
+        
+        return nil
+    }
+    
+    /// Parse a medication event row
+    private func parseMedicationEventRow(_ stmt: OpaquePointer?) -> StoredMedicationEntry {
+        let id = String(cString: sqlite3_column_text(stmt, 0))
+        
+        let sessionId: String?
+        if sqlite3_column_type(stmt, 1) != SQLITE_NULL {
+            sessionId = String(cString: sqlite3_column_text(stmt, 1))
+        } else {
+            sessionId = nil
+        }
+        
+        let sessionDate = String(cString: sqlite3_column_text(stmt, 2))
+        let medicationId = String(cString: sqlite3_column_text(stmt, 3))
+        let doseMg = Int(sqlite3_column_int(stmt, 4))
+        let takenAtUTC = parseDateColumn(stmt, column: 5) ?? Date()
+        
+        let notes: String?
+        if sqlite3_column_type(stmt, 6) != SQLITE_NULL {
+            notes = String(cString: sqlite3_column_text(stmt, 6))
+        } else {
+            notes = nil
+        }
+        
+        let confirmedDuplicate = sqlite3_column_int(stmt, 7) == 1
+        let createdAt = parseDateColumn(stmt, column: 8) ?? Date()
+        
+        return StoredMedicationEntry(
+            id: id,
+            sessionId: sessionId,
+            sessionDate: sessionDate,
+            medicationId: medicationId,
+            doseMg: doseMg,
+            takenAtUTC: takenAtUTC,
+            notes: notes,
+            confirmedDuplicate: confirmedDuplicate,
+            createdAt: createdAt
+        )
+    }
+    
+    /// Export medication events to CSV
+    public func exportMedicationEventsToCSV() -> String {
+        var csv = "id,session_id,session_date,medication_id,dose_mg,taken_at_utc,notes,confirmed_duplicate,created_at\n"
+        
+        let sql = """
+        SELECT id, session_id, session_date, medication_id, dose_mg, taken_at_utc, notes, confirmed_duplicate, created_at
+        FROM medication_events
+        ORDER BY taken_at_utc DESC
+        """
+        
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return csv }
+        defer { sqlite3_finalize(stmt) }
+        
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            let entry = parseMedicationEventRow(stmt)
+            let escapedNotes = (entry.notes ?? "").replacingOccurrences(of: "\"", with: "\"\"")
+            csv += "\(entry.id),\(entry.sessionId ?? ""),\(entry.sessionDate),\(entry.medicationId),\(entry.doseMg),\(isoFormatter.string(from: entry.takenAtUTC)),\"\(escapedNotes)\",\(entry.confirmedDuplicate ? 1 : 0),\(isoFormatter.string(from: entry.createdAt))\n"
+        }
+        
+        return csv
+    }
+    
     // MARK: - Morning Check-In
     
     /// Save morning check-in data
@@ -1117,6 +1322,41 @@ public struct StoredMorningCheckIn {
     /// Computed: any narcolepsy symptoms reported
     public var hasNarcolepsySymptoms: Bool {
         hadSleepParalysis || hadHallucinations || hadAutomaticBehavior || fellOutOfBed || hadConfusionOnWaking
+    }
+}
+
+// MARK: - Medication Entry Storage Model
+public struct StoredMedicationEntry {
+    public let id: String
+    public let sessionId: String?
+    public let sessionDate: String
+    public let medicationId: String
+    public let doseMg: Int
+    public let takenAtUTC: Date
+    public let notes: String?
+    public let confirmedDuplicate: Bool
+    public let createdAt: Date
+    
+    public init(
+        id: String = UUID().uuidString,
+        sessionId: String?,
+        sessionDate: String,
+        medicationId: String,
+        doseMg: Int,
+        takenAtUTC: Date,
+        notes: String? = nil,
+        confirmedDuplicate: Bool = false,
+        createdAt: Date = Date()
+    ) {
+        self.id = id
+        self.sessionId = sessionId
+        self.sessionDate = sessionDate
+        self.medicationId = medicationId
+        self.doseMg = doseMg
+        self.takenAtUTC = takenAtUTC
+        self.notes = notes
+        self.confirmedDuplicate = confirmedDuplicate
+        self.createdAt = createdAt
     }
 }
 

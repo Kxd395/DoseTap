@@ -141,6 +141,25 @@ public class EventStorage {
         CREATE INDEX IF NOT EXISTS idx_dose_events_session ON dose_events(session_date);
         CREATE INDEX IF NOT EXISTS idx_morning_checkins_session ON morning_checkins(session_date);
         CREATE INDEX IF NOT EXISTS idx_morning_checkins_session_id ON morning_checkins(session_id);
+        
+        -- Medication events (Adderall, etc.) - local-only, session-linked
+        CREATE TABLE IF NOT EXISTS medication_events (
+            id TEXT PRIMARY KEY,
+            session_id TEXT,
+            session_date TEXT NOT NULL,
+            medication_id TEXT NOT NULL,
+            dose_mg INTEGER NOT NULL,
+            taken_at_utc TEXT NOT NULL,
+            notes TEXT,
+            confirmed_duplicate INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        -- Indexes for medication events
+        CREATE INDEX IF NOT EXISTS idx_medication_events_session ON medication_events(session_id);
+        CREATE INDEX IF NOT EXISTS idx_medication_events_session_date ON medication_events(session_date);
+        CREATE INDEX IF NOT EXISTS idx_medication_events_medication ON medication_events(medication_id);
+        CREATE INDEX IF NOT EXISTS idx_medication_events_taken_at ON medication_events(taken_at_utc);
         """
         
         var errMsg: UnsafeMutablePointer<CChar>?
@@ -1106,6 +1125,225 @@ public class EventStorage {
             }
         }
         
+        // Export medication events
+        let medications = fetchAllMedicationEvents(limit: 10000)
+        for med in medications {
+            let details = "\(med.medicationId)|\(med.doseMg)mg|\(med.notes ?? "")"
+            csv += "medication,\(isoFormatter.string(from: med.takenAtUTC)),\(med.sessionDate),\(details)\n"
+        }
+        
+        return csv
+    }
+    
+    /// Export combined data with separate CSV files (for advanced export)
+    public func exportCombinedData() -> (events: String, doses: String, medications: String) {
+        let eventsCSV = exportSleepEventsToCSV()
+        let dosesCSV = exportDoseEventsToCSV()
+        let medicationsCSV = exportMedicationEventsToCSV()
+        return (eventsCSV, dosesCSV, medicationsCSV)
+    }
+    
+    /// Export sleep events to CSV
+    private func exportSleepEventsToCSV() -> String {
+        var csv = "id,event_type,timestamp,session_date,color_hex,notes\n"
+        let events = fetchAllSleepEvents(limit: 10000)
+        for event in events {
+            let escapedNotes = (event.notes ?? "").replacingOccurrences(of: "\"", with: "\"\"")
+            csv += "\(event.id),\(event.eventType),\(isoFormatter.string(from: event.timestamp)),\(event.sessionDate),\(event.colorHex ?? ""),\"\(escapedNotes)\"\n"
+        }
+        return csv
+    }
+    
+    /// Export dose events to CSV
+    private func exportDoseEventsToCSV() -> String {
+        var csv = "session_date,dose1_time,dose2_time,snooze_count,dose2_skipped\n"
+        let sessions = fetchRecentSessions(days: 365)
+        for session in sessions {
+            let d1 = session.dose1Time.map { isoFormatter.string(from: $0) } ?? ""
+            let d2 = session.dose2Time.map { isoFormatter.string(from: $0) } ?? ""
+            csv += "\(session.sessionDate),\(d1),\(d2),\(session.snoozeCount),\(session.dose2Skipped ? 1 : 0)\n"
+        }
+        return csv
+    }
+    
+    // MARK: - Medication Event Operations
+    
+    /// Insert a medication event (Adderall, etc.)
+    public func insertMedicationEvent(_ entry: StoredMedicationEntry) {
+        let sql = """
+        INSERT INTO medication_events (id, session_id, session_date, medication_id, dose_mg, taken_at_utc, notes, confirmed_duplicate)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            print("❌ Failed to prepare medication event insert")
+            return
+        }
+        defer { sqlite3_finalize(stmt) }
+        
+        sqlite3_bind_text(stmt, 1, entry.id, -1, SQLITE_TRANSIENT)
+        
+        if let sessionId = entry.sessionId {
+            sqlite3_bind_text(stmt, 2, sessionId, -1, SQLITE_TRANSIENT)
+        } else {
+            sqlite3_bind_null(stmt, 2)
+        }
+        
+        sqlite3_bind_text(stmt, 3, entry.sessionDate, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 4, entry.medicationId, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_int(stmt, 5, Int32(entry.doseMg))
+        sqlite3_bind_text(stmt, 6, isoFormatter.string(from: entry.takenAtUTC), -1, SQLITE_TRANSIENT)
+        
+        if let notes = entry.notes {
+            sqlite3_bind_text(stmt, 7, notes, -1, SQLITE_TRANSIENT)
+        } else {
+            sqlite3_bind_null(stmt, 7)
+        }
+        
+        sqlite3_bind_int(stmt, 8, entry.confirmedDuplicate ? 1 : 0)
+        
+        if sqlite3_step(stmt) != SQLITE_DONE {
+            print("❌ Failed to insert medication event: \(String(cString: sqlite3_errmsg(db)))")
+        } else {
+            print("💊 Medication event inserted: \(entry.medicationId) \(entry.doseMg)mg")
+        }
+    }
+    
+    /// Fetch medication events for a session date
+    public func fetchMedicationEvents(sessionDate: String) -> [StoredMedicationEntry] {
+        var entries: [StoredMedicationEntry] = []
+        let sql = """
+        SELECT id, session_id, session_date, medication_id, dose_mg, taken_at_utc, notes, confirmed_duplicate, created_at
+        FROM medication_events
+        WHERE session_date = ?
+        ORDER BY taken_at_utc DESC
+        """
+        
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return entries }
+        defer { sqlite3_finalize(stmt) }
+        
+        sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
+        
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            if let entry = parseMedicationRow(stmt) {
+                entries.append(entry)
+            }
+        }
+        
+        return entries
+    }
+    
+    /// Fetch all medication events (for export)
+    public func fetchAllMedicationEvents(limit: Int = 1000) -> [StoredMedicationEntry] {
+        var entries: [StoredMedicationEntry] = []
+        let sql = """
+        SELECT id, session_id, session_date, medication_id, dose_mg, taken_at_utc, notes, confirmed_duplicate, created_at
+        FROM medication_events
+        ORDER BY taken_at_utc DESC
+        LIMIT ?
+        """
+        
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return entries }
+        defer { sqlite3_finalize(stmt) }
+        
+        sqlite3_bind_int(stmt, 1, Int32(limit))
+        
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            if let entry = parseMedicationRow(stmt) {
+                entries.append(entry)
+            }
+        }
+        
+        return entries
+    }
+    
+    /// Delete a medication event
+    public func deleteMedicationEvent(id: String) {
+        let sql = "DELETE FROM medication_events WHERE id = ?"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(stmt) }
+        
+        sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
+        
+        if sqlite3_step(stmt) != SQLITE_DONE {
+            print("❌ Failed to delete medication event")
+        }
+    }
+    
+    /// Find recent medication entry for duplicate guard
+    public func findRecentMedicationEntry(medicationId: String, sessionDate: String, withinMinutes: Int, ofTime takenAt: Date) -> StoredMedicationEntry? {
+        let entries = fetchMedicationEvents(sessionDate: sessionDate)
+        
+        for entry in entries where entry.medicationId == medicationId {
+            let deltaSeconds = abs(takenAt.timeIntervalSince(entry.takenAtUTC))
+            let deltaMinutes = Int(deltaSeconds / 60)
+            if deltaMinutes < withinMinutes {
+                return entry
+            }
+        }
+        
+        return nil
+    }
+    
+    /// Parse a medication row from SQLite result
+    private func parseMedicationRow(_ stmt: OpaquePointer?) -> StoredMedicationEntry? {
+        guard let stmt = stmt else { return nil }
+        
+        let id = String(cString: sqlite3_column_text(stmt, 0))
+        
+        let sessionId: String?
+        if sqlite3_column_type(stmt, 1) != SQLITE_NULL {
+            sessionId = String(cString: sqlite3_column_text(stmt, 1))
+        } else {
+            sessionId = nil
+        }
+        
+        let sessionDate = String(cString: sqlite3_column_text(stmt, 2))
+        let medicationId = String(cString: sqlite3_column_text(stmt, 3))
+        let doseMg = Int(sqlite3_column_int(stmt, 4))
+        
+        let takenAtStr = String(cString: sqlite3_column_text(stmt, 5))
+        guard let takenAtUTC = isoFormatter.date(from: takenAtStr) else { return nil }
+        
+        let notes: String?
+        if sqlite3_column_type(stmt, 6) != SQLITE_NULL {
+            notes = String(cString: sqlite3_column_text(stmt, 6))
+        } else {
+            notes = nil
+        }
+        
+        let confirmedDuplicate = sqlite3_column_int(stmt, 7) == 1
+        
+        let createdAtStr = String(cString: sqlite3_column_text(stmt, 8))
+        let createdAt = isoFormatter.date(from: createdAtStr) ?? Date()
+        
+        return StoredMedicationEntry(
+            id: id,
+            sessionId: sessionId,
+            sessionDate: sessionDate,
+            medicationId: medicationId,
+            doseMg: doseMg,
+            takenAtUTC: takenAtUTC,
+            notes: notes,
+            confirmedDuplicate: confirmedDuplicate,
+            createdAt: createdAt
+        )
+    }
+    
+    /// Export medication events to CSV
+    public func exportMedicationEventsToCSV() -> String {
+        var csv = "id,session_id,session_date,medication_id,dose_mg,taken_at_utc,notes,confirmed_duplicate,created_at\n"
+        
+        let entries = fetchAllMedicationEvents(limit: 10000)
+        for entry in entries {
+            let escapedNotes = (entry.notes ?? "").replacingOccurrences(of: "\"", with: "\"\"")
+            csv += "\(entry.id),\(entry.sessionId ?? ""),\(entry.sessionDate),\(entry.medicationId),\(entry.doseMg),\(isoFormatter.string(from: entry.takenAtUTC)),\"\(escapedNotes)\",\(entry.confirmedDuplicate ? 1 : 0),\(isoFormatter.string(from: entry.createdAt))\n"
+        }
+        
         return csv
     }
 }
@@ -1126,6 +1364,41 @@ public struct EventRecord: Identifiable {
 }
 
 // MARK: - Storage Data Models
+
+/// Stored medication entry model for EventStorage
+public struct StoredMedicationEntry: Identifiable {
+    public let id: String
+    public let sessionId: String?
+    public let sessionDate: String
+    public let medicationId: String
+    public let doseMg: Int
+    public let takenAtUTC: Date
+    public let notes: String?
+    public let confirmedDuplicate: Bool
+    public let createdAt: Date
+    
+    public init(
+        id: String = UUID().uuidString,
+        sessionId: String?,
+        sessionDate: String,
+        medicationId: String,
+        doseMg: Int,
+        takenAtUTC: Date,
+        notes: String? = nil,
+        confirmedDuplicate: Bool = false,
+        createdAt: Date = Date()
+    ) {
+        self.id = id
+        self.sessionId = sessionId
+        self.sessionDate = sessionDate
+        self.medicationId = medicationId
+        self.doseMg = doseMg
+        self.takenAtUTC = takenAtUTC
+        self.notes = notes
+        self.confirmedDuplicate = confirmedDuplicate
+        self.createdAt = createdAt
+    }
+}
 
 /// Stored pre-sleep log model for EventStorage
 public struct StoredPreSleepLog: Identifiable {

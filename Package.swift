@@ -29,7 +29,8 @@ let package = Package(
                 "DoseUndoManager.swift",
                 "MorningCheckIn.swift",
                 "CSVExporter.swift",
-                "DataRedactor.swift"
+                "DataRedactor.swift",
+                "MedicationConfig.swift"
             ]
         ),
         .testTarget(
@@ -50,7 +51,8 @@ let package = Package(
                 "Dose2EdgeCaseTests.swift",
                 "SleepEnvironmentTests.swift",
                 "CSVExporterTests.swift",
-                "DataRedactorTests.swift"
+                "DataRedactorTests.swift",
+                "MedicationLoggerTests.swift"
             ]
         )
     ]
