@@ -13,7 +13,58 @@
 **This document supersedes:** `DoseTap_Spec.md`, `ui-ux-specifications.md`, `button-logic-mapping.md`, `api-documentation.md`, `user-guide.md`, `implementation-roadmap.md`
 
 **Last Updated:** 2024-12-25  
-**Version:** 2.5.0
+**Version:** 2.6.0
+
+## Recent Updates (v2.6.0)
+
+### New in v2.6.0 (Reminder Scheduling, HealthKit Integration)
+
+#### Dose 2 Reminder Scheduling (`AlarmService.swift`)
+
+- ✅ **ADDED**: `secondDose` notification - fires at window open (150 min)
+- ✅ **ADDED**: `windowWarning15` notification - 15 min before window close
+- ✅ **ADDED**: `windowWarning5` notification - 5 min before window close (critical)
+- ✅ **ADDED**: `scheduleDose2Reminders(dose1Time:)` method
+- ✅ **ADDED**: `cancelDose2Reminders()` method
+- ✅ **ADDED**: Reminders auto-cancelled when Dose 2 taken or skipped
+
+#### HealthKit Sleep Integration (`HealthKitService.swift`)
+
+- ✅ **ADDED**: `HealthKitService` singleton for sleep data access
+- ✅ **ADDED**: `requestAuthorization()` for sleep analysis permission
+- ✅ **ADDED**: `fetchSleepSegments(from:to:)` - reads sleep stages
+- ✅ **ADDED**: `analyzeSleepNight(segments:)` - extracts TTFW, wake count
+- ✅ **ADDED**: `computeTTFWBaseline(days:)` - computes average Time to First Wake
+- ✅ **ADDED**: `calculateNudgeSuggestion()` - suggests ±15 min adjustment
+- ✅ **ADDED**: `sameNightNudge(dose1Time:)` - real-time nudge suggestion
+
+#### HealthKit Settings UI (`HealthKitSettingsView`)
+
+- ✅ **ADDED**: Authorization status display and connect button
+- ✅ **ADDED**: "Compute Sleep Baseline" button (14 nights analysis)
+- ✅ **ADDED**: TTFW baseline display with suggested nudge
+- ✅ **ADDED**: Recent nights sleep history list
+- ✅ **ADDED**: Privacy info section explaining data usage
+
+#### Data Types
+
+```swift
+struct SleepNightSummary {
+    let date: Date
+    let bedTime: Date?
+    let sleepOnset: Date?
+    let firstWake: Date?
+    let finalWake: Date?
+    let ttfwMinutes: Double?
+    let totalSleepMinutes: Double
+    let wakeCount: Int
+    let source: String
+}
+```
+
+**Test Coverage**: 246 tests passing
+
+---
 
 ## Recent Updates (v2.5.0)
 

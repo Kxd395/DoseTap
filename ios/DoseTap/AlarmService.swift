@@ -14,12 +14,16 @@ public class AlarmService: NSObject, ObservableObject {
         static let wakeAlarm = "dosetap_wake_alarm"
         static let preAlarm = "dosetap_pre_alarm"
         static let followUp = "dosetap_followup"
+        static let secondDose = "dosetap_second_dose"         // Window open reminder
+        static let windowWarning15 = "dosetap_window_15min"   // 15 min warning
+        static let windowWarning5 = "dosetap_window_5min"     // 5 min warning
     }
     
     // MARK: - Published Properties
     @Published public var targetWakeTime: Date?
     @Published public var alarmScheduled: Bool = false
     @Published public var snoozeCount: Int = 0
+    @Published public var reminderScheduled: Bool = false
     
     private let notificationCenter = UNUserNotificationCenter.current()
     private var audioPlayer: AVAudioPlayer?
@@ -57,7 +61,69 @@ public class AlarmService: NSObject, ObservableObject {
         }
     }
     
-    // MARK: - Schedule Alarm
+    // MARK: - Schedule Dose 2 Reminders
+    
+    /// Schedule Dose 2 window reminders after Dose 1 is taken
+    /// - Parameter dose1Time: Time Dose 1 was taken
+    public func scheduleDose2Reminders(dose1Time: Date) async {
+        let settings = UserSettingsManager.shared
+        
+        // Window boundaries
+        let windowOpen = dose1Time.addingTimeInterval(150 * 60)   // 150 min
+        let windowClose = dose1Time.addingTimeInterval(240 * 60)  // 240 min
+        let warning15 = windowClose.addingTimeInterval(-15 * 60)  // 15 min before close
+        let warning5 = windowClose.addingTimeInterval(-5 * 60)    // 5 min before close
+        
+        // Schedule window open reminder (identifier: secondDose)
+        if windowOpen > Date() && settings.windowOpenAlert {
+            await scheduleNotification(
+                id: NotificationID.secondDose,
+                title: "💊 Dose Window Now Open",
+                body: "Your Dose 2 window has opened (150 min). Take Dose 2 when ready.",
+                at: windowOpen,
+                sound: .default
+            )
+            print("📅 AlarmService: Dose 2 window open reminder scheduled for \(formatTime(windowOpen))")
+        }
+        
+        // Schedule 15 min warning
+        if warning15 > Date() && settings.fifteenMinWarning {
+            await scheduleNotification(
+                id: NotificationID.windowWarning15,
+                title: "⚠️ 15 Minutes Remaining",
+                body: "Only 15 minutes left in your dose window!",
+                at: warning15,
+                sound: .default
+            )
+        }
+        
+        // Schedule 5 min warning
+        if warning5 > Date() && settings.fiveMinWarning {
+            await scheduleNotification(
+                id: NotificationID.windowWarning5,
+                title: "🚨 5 Minutes Remaining!",
+                body: "Final warning - take Dose 2 NOW or skip!",
+                at: warning5,
+                sound: .defaultCritical
+            )
+        }
+        
+        reminderScheduled = true
+    }
+    
+    /// Cancel Dose 2 reminders (called when Dose 2 taken or skipped)
+    public func cancelDose2Reminders() {
+        let ids = [
+            NotificationID.secondDose,
+            NotificationID.windowWarning15,
+            NotificationID.windowWarning5
+        ]
+        notificationCenter.removePendingNotificationRequests(withIdentifiers: ids)
+        reminderScheduled = false
+        print("🔕 AlarmService: Dose 2 reminders cancelled")
+    }
+    
+    // MARK: - Schedule Wake Alarm
     
     /// Schedule wake alarm for Dose 2
     /// - Parameters:
@@ -162,19 +228,25 @@ public class AlarmService: NSObject, ObservableObject {
             NotificationID.preAlarm,
             "\(NotificationID.followUp)_1",
             "\(NotificationID.followUp)_2",
-            "\(NotificationID.followUp)_3"
+            "\(NotificationID.followUp)_3",
+            NotificationID.secondDose,
+            NotificationID.windowWarning15,
+            NotificationID.windowWarning5
         ]
         notificationCenter.removePendingNotificationRequests(withIdentifiers: ids)
         
         alarmScheduled = false
+        reminderScheduled = false
         print("🔕 AlarmService: All alarms cancelled")
     }
     
     /// Reset for new session
     public func resetForNewSession() {
         cancelAllAlarms()
+        cancelDose2Reminders()
         targetWakeTime = nil
         snoozeCount = 0
+        reminderScheduled = false
         UserDefaults.standard.removeObject(forKey: "alarmService_targetWakeTime")
     }
     

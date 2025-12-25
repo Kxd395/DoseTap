@@ -916,6 +916,9 @@ struct CompactDoseButton: View {
                 let targetInterval = targetMinutes > 0 ? targetMinutes : 165
                 let wakeTime = now.addingTimeInterval(Double(targetInterval) * 60)
                 await AlarmService.shared.scheduleWakeAlarm(at: wakeTime, dose1Time: now)
+                
+                // Schedule Dose 2 reminders (window open, 15 min warning, 5 min warning)
+                await AlarmService.shared.scheduleDose2Reminders(dose1Time: now)
             }
             return
         }
@@ -1101,6 +1104,8 @@ struct CompactSummaryItem: View {
                 .foregroundColor(color)
             Text(value)
                 .font(.caption.bold())
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
             Text(label)
                 .font(.caption2)
                 .foregroundColor(.secondary)
@@ -1559,6 +1564,8 @@ struct SummaryItem: View {
                 .foregroundColor(color)
             Text(value)
                 .font(.subheadline.bold())
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
             Text(label)
                 .font(.caption2)
                 .foregroundColor(.secondary)

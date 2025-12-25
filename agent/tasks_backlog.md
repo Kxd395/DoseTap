@@ -1,6 +1,6 @@
 # Tasks Backlog
 
-## Completed (v2.5.0)
+## Completed (v2.6.0)
 - [x] CSV exporter - Real implementation with share sheet
 - [x] Debounce bathroom presses (60s) - EventRateLimiter implemented
 - [x] Undo snackbar (5s) w/ cancel token - DoseUndoManager + UndoSnackbarView with configurable speed
@@ -13,13 +13,15 @@
 - [x] URL scheme and event router - URLRouter.swift handles dosetap:// deep links
 - [x] Insights: Avg interval, natural vs alarm %, bathroom clustering - InsightsCalculator.swift
 - [x] Tab rename: Details → Timeline
+- [x] Reminder scheduling (identifier: secondDose) - AlarmService.scheduleDose2Reminders()
+- [x] HealthKit permission + Sleep read (14–30 nights) - HealthKitService.swift
+- [x] TTFW baseline computation - computeTTFWBaseline(days:)
+- [x] Same-night nudge (±10–15 min) - calculateNudgeSuggestion(), sameNightNudge()
 
 ## High Priority (Next Up)
-- [ ] Reminder scheduling (identifier: secondDose)
-- [ ] HealthKit permission + Sleep read (14–30 nights)
-- [ ] TTFW baseline computation
-- [ ] Same-night nudge (±10–15 min)
-- [ ] Snooze 10m if reminder pending
+- [ ] Snooze 10m if reminder pending (AlarmService already handles)
+- [ ] Weekly Planner engine (discrete set {165,180,195,210,225})
+- [ ] VoiceOver timed announcements & large tap targets
 
 ## Medium Priority
 - [ ] WHOOP OAuth screen + token storage
@@ -45,7 +47,7 @@
 - [x] Offline queue infra (enqueue, flush, cancel)  *(cancel pending via Undo still TODO)*
 - [x] DoseWindowState model (pure) + unit tests skeleton
 
-Progress (2025-12-25): Core networking + state machine + offline queue in place with 246 passing tests. URL scheme, insights metrics, and tab rename complete. Remaining PR-1 scope: legacy multi-med purge.
+Progress (2025-12-25): Core networking + state machine + offline queue in place with 246 passing tests. URL scheme, insights metrics, tab rename, Dose 2 reminders, HealthKit integration complete. Remaining PR-1 scope: legacy multi-med purge.
 
 ### PR-2: Night-First UI + Accessibility
 

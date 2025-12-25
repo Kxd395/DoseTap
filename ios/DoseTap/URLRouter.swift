@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import DoseCore
 
 /// URL Router for handling deep links
 /// Supported URLs:
