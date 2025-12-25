@@ -5,6 +5,7 @@
 - [x] WHOOP sleep/cycle fetch (history import) - WHOOPDataFetching.swift, WHOOPSleepRecord model
 - [x] WHOOP Settings UI - WHOOPSettingsView.swift, WHOOPStatusRow
 - [x] HR/RR overlay on sleep timeline - SleepTimelineOverlays.swift, EnhancedSleepTimeline, BiometricOverlay
+- [x] Press-and-hold (1s) Take interaction - PressAndHoldButton, watchOS ContentView.swift
 
 ## Completed (v2.9.0)
 - [x] Settings: Reduced Motion toggle - shouldReduceMotion, ReducedMotionSupport.swift, accessibleAnimation modifier
@@ -39,11 +40,11 @@
 
 ## High Priority (Next Up)
 
-- [ ] Press-and-hold (1s) Take interaction (watchOS UX polish)
+- [ ] Combine HealthKit + WHOOP sleep comparison view
 
 ## Medium Priority
 
-- [ ] Combine HealthKit + WHOOP sleep comparison view
+- [ ] Additional edge tests (239-240m boundary, DST shifts)
 
 ## watchOS (Completed in v2.8.0)
 - [x] Watch app: Dose1/Dose2/Bathroom buttons

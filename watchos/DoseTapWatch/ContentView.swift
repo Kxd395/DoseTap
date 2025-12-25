@@ -2,6 +2,9 @@ import SwiftUI
 #if canImport(WatchConnectivity)
 import WatchConnectivity
 #endif
+#if os(watchOS)
+import WatchKit
+#endif
 
 // MARK: - Dose Phase (matches iOS DoseStatus)
 enum WatchDosePhase: String, Codable {
@@ -447,22 +450,24 @@ struct PrimaryActionButtons: View {
     var body: some View {
         VStack(spacing: 8) {
             if viewModel.dose1Time == nil {
-                // Dose 1 Button
-                Button(action: viewModel.takeDose1) {
-                    Label("Take Dose 1", systemImage: "1.circle.fill")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.blue)
+                // Dose 1 Button (press and hold)
+                PressAndHoldButton(
+                    label: "Take Dose 1",
+                    icon: "1.circle.fill",
+                    color: .blue,
+                    holdDuration: 1.0,
+                    action: viewModel.takeDose1
+                )
             } else if viewModel.phase != .completed {
-                // Dose 2 Button
-                Button(action: viewModel.takeDose2) {
-                    Label("Take Dose 2", systemImage: "2.circle.fill")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.green)
-                .disabled(viewModel.phase == .beforeWindow || viewModel.phase == .closed)
+                // Dose 2 Button (press and hold)
+                PressAndHoldButton(
+                    label: "Take Dose 2",
+                    icon: "2.circle.fill",
+                    color: .green,
+                    holdDuration: 1.0,
+                    action: viewModel.takeDose2,
+                    isDisabled: viewModel.phase == .beforeWindow || viewModel.phase == .closed
+                )
                 
                 // Secondary row: Snooze & Skip
                 HStack(spacing: 8) {
@@ -487,6 +492,260 @@ struct PrimaryActionButtons: View {
                 viewModel.skipDose()
             }
             Button("Cancel", role: .cancel) { }
+        }
+    }
+}
+
+// MARK: - Press and Hold Button Component
+struct PressAndHoldButton: View {
+    let label: String
+    let icon: String
+    let color: Color
+    let holdDuration: TimeInterval
+    let action: () -> Void
+    var isDisabled: Bool = false
+    
+    @State private var isHolding = false
+    @State private var holdProgress: CGFloat = 0
+    @State private var holdTimer: Timer?
+    @State private var holdCompleted = false
+    @GestureState private var isDetectingPress = false
+    
+    private let updateInterval: TimeInterval = 0.02 // 50Hz update
+    
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                // Background
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(isDisabled ? Color.gray.opacity(0.3) : color.opacity(0.2))
+                
+                // Progress fill
+                if isHolding && !isDisabled {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(color.opacity(0.4))
+                        .frame(width: geometry.size.width * holdProgress)
+                }
+                
+                // Content
+                HStack {
+                    if holdCompleted {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.white)
+                            .transition(.scale.combined(with: .opacity))
+                    } else {
+                        Image(systemName: icon)
+                            .foregroundColor(isDisabled ? .gray : color)
+                    }
+                    
+                    Text(holdCompleted ? "Done!" : (isHolding ? "Hold..." : label))
+                        .fontWeight(.semibold)
+                        .foregroundColor(holdCompleted ? .white : (isDisabled ? .gray : .primary))
+                    
+                    Spacer()
+                    
+                    if !holdCompleted && !isDisabled {
+                        // Progress ring
+                        ZStack {
+                            Circle()
+                                .stroke(color.opacity(0.3), lineWidth: 2)
+                                .frame(width: 20, height: 20)
+                            
+                            Circle()
+                                .trim(from: 0, to: holdProgress)
+                                .stroke(color, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                                .frame(width: 20, height: 20)
+                                .rotationEffect(.degrees(-90))
+                        }
+                    }
+                }
+                .padding(.horizontal, 12)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(holdCompleted ? color : Color.clear)
+            )
+        }
+        .frame(height: 44)
+        .opacity(isDisabled ? 0.5 : 1.0)
+        .scaleEffect(isHolding ? 0.98 : 1.0)
+        .animation(.easeInOut(duration: 0.1), value: isHolding)
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    guard !isDisabled && !holdCompleted else { return }
+                    if !isHolding {
+                        startHold()
+                    }
+                }
+                .onEnded { _ in
+                    cancelHold()
+                }
+        )
+        .sensoryFeedback(.selection, trigger: isHolding)
+        .disabled(isDisabled)
+        .accessibilityLabel("\(label), press and hold for 1 second")
+        .accessibilityHint("Press and hold to confirm")
+    }
+    
+    private func startHold() {
+        isHolding = true
+        holdProgress = 0
+        
+        let progressIncrement = CGFloat(updateInterval / holdDuration)
+        
+        holdTimer = Timer.scheduledTimer(withTimeInterval: updateInterval, repeats: true) { timer in
+            holdProgress += progressIncrement
+            
+            if holdProgress >= 1.0 {
+                completeHold()
+            }
+        }
+    }
+    
+    private func cancelHold() {
+        holdTimer?.invalidate()
+        holdTimer = nil
+        
+        withAnimation(.easeOut(duration: 0.2)) {
+            isHolding = false
+            if !holdCompleted {
+                holdProgress = 0
+            }
+        }
+    }
+    
+    private func completeHold() {
+        holdTimer?.invalidate()
+        holdTimer = nil
+        
+        withAnimation(.easeInOut(duration: 0.2)) {
+            holdCompleted = true
+            holdProgress = 1.0
+        }
+        
+        // Trigger haptic
+        #if os(watchOS)
+        WKInterfaceDevice.current().play(.success)
+        #endif
+        
+        // Execute action
+        action()
+        
+        // Reset after delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            withAnimation(.easeOut(duration: 0.3)) {
+                holdCompleted = false
+                holdProgress = 0
+                isHolding = false
+            }
+        }
+    }
+}
+
+// MARK: - Compact Press and Hold for smaller buttons
+struct CompactPressAndHoldButton: View {
+    let icon: String
+    let color: Color
+    let holdDuration: TimeInterval
+    let action: () -> Void
+    var isDisabled: Bool = false
+    
+    @State private var holdProgress: CGFloat = 0
+    @State private var isHolding = false
+    @State private var holdTimer: Timer?
+    @State private var holdCompleted = false
+    
+    private let updateInterval: TimeInterval = 0.02
+    
+    var body: some View {
+        ZStack {
+            // Background circle
+            Circle()
+                .fill(isDisabled ? Color.gray.opacity(0.3) : color.opacity(0.2))
+            
+            // Progress arc
+            if isHolding && !isDisabled {
+                Circle()
+                    .trim(from: 0, to: holdProgress)
+                    .stroke(color, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+            }
+            
+            // Icon
+            Image(systemName: holdCompleted ? "checkmark" : icon)
+                .font(.title3)
+                .foregroundColor(isDisabled ? .gray : (holdCompleted ? .white : color))
+        }
+        .frame(width: 44, height: 44)
+        .background(holdCompleted ? color : Color.clear, in: Circle())
+        .scaleEffect(isHolding ? 0.95 : 1.0)
+        .animation(.easeInOut(duration: 0.1), value: isHolding)
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    guard !isDisabled && !holdCompleted else { return }
+                    if !isHolding {
+                        startHold()
+                    }
+                }
+                .onEnded { _ in
+                    cancelHold()
+                }
+        )
+        .sensoryFeedback(.selection, trigger: isHolding)
+        .disabled(isDisabled)
+    }
+    
+    private func startHold() {
+        isHolding = true
+        holdProgress = 0
+        
+        let progressIncrement = CGFloat(updateInterval / holdDuration)
+        
+        holdTimer = Timer.scheduledTimer(withTimeInterval: updateInterval, repeats: true) { _ in
+            holdProgress += progressIncrement
+            
+            if holdProgress >= 1.0 {
+                completeHold()
+            }
+        }
+    }
+    
+    private func cancelHold() {
+        holdTimer?.invalidate()
+        holdTimer = nil
+        
+        withAnimation(.easeOut(duration: 0.2)) {
+            isHolding = false
+            if !holdCompleted {
+                holdProgress = 0
+            }
+        }
+    }
+    
+    private func completeHold() {
+        holdTimer?.invalidate()
+        holdTimer = nil
+        
+        withAnimation(.easeInOut(duration: 0.2)) {
+            holdCompleted = true
+            holdProgress = 1.0
+        }
+        
+        #if os(watchOS)
+        WKInterfaceDevice.current().play(.success)
+        #endif
+        
+        action()
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            withAnimation(.easeOut(duration: 0.3)) {
+                holdCompleted = false
+                holdProgress = 0
+                isHolding = false
+            }
         }
     }
 }

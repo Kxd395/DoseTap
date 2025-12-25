@@ -58,6 +58,17 @@
 - ✅ **ADDED**: `LiveEnhancedTimelineView` with date picker and WHOOP integration
 - ✅ **ADDED**: `WHOOPService.extractBiometricData(from:)` for data conversion
 
+#### watchOS Press-and-Hold Interaction (`ContentView.swift`)
+
+- ✅ **ADDED**: `PressAndHoldButton` component with 1-second hold duration
+- ✅ **ADDED**: Progress ring animation during hold
+- ✅ **ADDED**: Visual feedback: background fill + progress indicator
+- ✅ **ADDED**: Haptic feedback via `WKInterfaceDevice.play(.success)`
+- ✅ **ADDED**: `CompactPressAndHoldButton` for circular button variant
+- ✅ **ADDED**: Accessibility labels with hold duration hint
+- ✅ **ADDED**: Cancel on lift before completion
+- ✅ **ADDED**: Dose 1 and Dose 2 buttons now use press-and-hold
+
 **Test Coverage**: 246 tests passing
 
 ---
