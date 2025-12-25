@@ -588,6 +588,7 @@ struct CompactDoseButton: View {
     @Binding var showEarlyDoseAlert: Bool
     @Binding var earlyDoseMinutes: Int
     @Binding var showExtraDoseWarning: Bool  // For second dose 2 attempt
+    @State private var showWindowExpiredOverride = false  // For taking dose after window expired
     
     private let windowOpenMinutes: Double = 150
     
@@ -602,12 +603,19 @@ struct CompactDoseButton: View {
                     .background(primaryButtonColor)
                     .cornerRadius(12)
             }
-            // Allow tapping even when "completed" to show extra dose warning
-            .disabled(core.currentStatus == .closed)
+            // Allow tapping even when completed (for extra dose warning) or closed (for override)
             .padding(.horizontal)
+            .alert("Window Expired", isPresented: $showWindowExpiredOverride) {
+                Button("Cancel", role: .cancel) { }
+                Button("Take Dose 2 Anyway", role: .destructive) {
+                    takeDose2WithOverride()
+                }
+            } message: {
+                Text("The 240-minute window has passed. Taking Dose 2 late may affect efficacy. Are you sure you want to proceed?")
+            }
             
             // Secondary buttons row
-            if core.currentStatus != .noDose1 && core.currentStatus != .completed {
+            if core.currentStatus != .noDose1 && core.currentStatus != .completed && core.currentStatus != .closed {
                 HStack(spacing: 12) {
                     Button {
                         Task { await core.snooze() }
@@ -655,6 +663,12 @@ struct CompactDoseButton: View {
             return
         }
         
+        // Window expired - show override confirmation
+        if core.currentStatus == .closed {
+            showWindowExpiredOverride = true
+            return
+        }
+        
         if core.currentStatus == .beforeWindow {
             if let dose1Time = core.dose1Time {
                 let remaining = dose1Time.addingTimeInterval(windowOpenMinutes * 60).timeIntervalSince(Date())
@@ -674,12 +688,25 @@ struct CompactDoseButton: View {
         }
     }
     
+    /// Take Dose 2 after window expired with explicit user override
+    private func takeDose2WithOverride() {
+        let storage = EventStorage.shared
+        Task {
+            let now = Date()
+            await core.takeDose()
+            // Persist to SQLite - mark as late/override
+            storage.saveDose2(timestamp: now, isEarly: false, isExtraDose: false)
+            // Log with late indicator
+            eventLogger.logEvent(name: "Dose 2 (Late)", color: .orange, cooldownSeconds: 3600 * 8)
+        }
+    }
+    
     private var primaryButtonText: String {
         switch core.currentStatus {
         case .noDose1: return "Take Dose 1"
         case .beforeWindow: return "Waiting..."
         case .active, .nearClose: return "Take Dose 2"
-        case .closed: return "Window Closed"
+        case .closed: return "Take Dose 2 (Late)"
         case .completed: return "Complete ✓"
         }
     }
@@ -690,7 +717,7 @@ struct CompactDoseButton: View {
         case .beforeWindow: return .gray
         case .active: return .green
         case .nearClose: return .orange
-        case .closed: return .gray
+        case .closed: return .red  // Red indicates override/warning state
         case .completed: return .purple
         }
     }
@@ -700,7 +727,7 @@ struct CompactDoseButton: View {
     }
     
     private var skipEnabled: Bool {
-        core.currentStatus == .active || core.currentStatus == .nearClose
+        core.currentStatus == .active || core.currentStatus == .nearClose || core.currentStatus == .closed
     }
 }
 

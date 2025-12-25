@@ -237,7 +237,9 @@ The previous architecture had `DoseTapCore` (in-memory) and `EventStorage` (SQLi
 | 15 min warning | 225 min | Red warning, snooze disabled |
 | 5 min warning | 235 min | Critical alert |
 | 1 min warning | 239 min | Final warning |
-| Window Closed | 240 min | Block all dose actions |
+| Window Expired | 240 min | Override required (red button, confirmation dialog) |
+
+**Window Expired Override**: When 240 minutes have passed, user CAN still take Dose 2 but must explicitly confirm via a warning dialog. Button shows "Take Dose 2 (Late)" in red. This ensures the user makes a conscious decision while not completely blocking the dose.
 
 ## Wake Alarm System (NEW in v2.2.0)
 

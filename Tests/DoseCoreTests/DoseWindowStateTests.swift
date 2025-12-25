@@ -42,6 +42,12 @@ final class DoseWindowStateTests: XCTestCase {
         let ctx = calc.context(dose1At: anchor, dose2TakenAt: nil, dose2Skipped: false, snoozeCount: 0)
         XCTAssertEqual(ctx.phase, .closed)
         XCTAssertTrue(ctx.errors.contains(.windowExceeded))
+        // Window expired allows override - not disabled
+        if case .takeWithOverride(let reason) = ctx.primary {
+            XCTAssertTrue(reason.lowercased().contains("expired"))
+        } else {
+            XCTFail("Expected takeWithOverride, got \(ctx.primary)")
+        }
     }
 
     func test_completedTaken() {

@@ -27,6 +27,7 @@ public enum DoseActionPrimaryCTA: Equatable {
     case takeNow
     case takeBeforeWindowEnds(remaining: TimeInterval)
     case waitingUntilEarliest(remaining: TimeInterval)
+    case takeWithOverride(reason: String)  // Window expired but user can override
     case disabled(String)
 }
 
@@ -81,7 +82,8 @@ public struct DoseWindowCalculator {
             return DoseWindowContext(phase: .beforeWindow, primary: .waitingUntilEarliest(remaining: minS - elapsed), snooze: .snoozeDisabled(reason: "Too early"), skip: .skipEnabled, elapsedSinceDose1: elapsed, remainingToMax: remaining, errors: [], snoozeCount: snoozeCount)
         }
         if elapsed >= maxS {
-            return DoseWindowContext(phase: .closed, primary: .disabled("Window closed"), snooze: .snoozeDisabled(reason: "Window closed"), skip: .skipEnabled, elapsedSinceDose1: elapsed, remainingToMax: 0, errors: [.windowExceeded], snoozeCount: snoozeCount)
+            // Window expired - allow override with explicit confirmation
+            return DoseWindowContext(phase: .closed, primary: .takeWithOverride(reason: "Window expired"), snooze: .snoozeDisabled(reason: "Window closed"), skip: .skipEnabled, elapsedSinceDose1: elapsed, remainingToMax: 0, errors: [.windowExceeded], snoozeCount: snoozeCount)
         }
         let nearThresholdS = Double(config.nearWindowThresholdMin) * 60
         let snoozeState: DoseSecondaryActionState
