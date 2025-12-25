@@ -2,7 +2,7 @@
 import uuid
 import re
 
-# Files we need to add
+# Files we need to add (including Views folder files)
 missing_files = [
     "EventStore.swift",
     "EventStoreAdapter.swift", 
@@ -13,7 +13,13 @@ missing_files = [
     "AccessibilitySupport.swift",
     "DashboardView.swift",
     "DoseTapCore.swift",
-    "UndoSnackbar.swift"
+    "UndoSnackbar.swift",
+    # Views folder files
+    "Views/UndoSnackbarView.swift",
+    "Views/MedicationSettingsView.swift",
+    "Views/MedicationPickerView.swift",
+    "Views/MorningCheckInView.swift",
+    "Views/PreSleepLogView.swift",
 ]
 
 def generate_uuid():
