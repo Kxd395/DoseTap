@@ -4,6 +4,7 @@
 - [x] WHOOP OAuth screen + token storage - WHOOPService.swift with OAuth 2.0 flow, Keychain storage
 - [x] WHOOP sleep/cycle fetch (history import) - WHOOPDataFetching.swift, WHOOPSleepRecord model
 - [x] WHOOP Settings UI - WHOOPSettingsView.swift, WHOOPStatusRow
+- [x] HR/RR overlay on sleep timeline - SleepTimelineOverlays.swift, EnhancedSleepTimeline, BiometricOverlay
 
 ## Completed (v2.9.0)
 - [x] Settings: Reduced Motion toggle - shouldReduceMotion, ReducedMotionSupport.swift, accessibleAnimation modifier
@@ -37,10 +38,11 @@
 - [x] Timeline stage bands visualization - SleepStageTimeline.swift
 
 ## High Priority (Next Up)
-- [ ] HR/RR overlay on sleep timeline (requires WHOOP data integration)
+
 - [ ] Press-and-hold (1s) Take interaction (watchOS UX polish)
 
 ## Medium Priority
+
 - [ ] Combine HealthKit + WHOOP sleep comparison view
 
 ## watchOS (Completed in v2.8.0)

@@ -48,6 +48,16 @@
 - ✅ **ADDED**: Sync now action button
 - ✅ **ADDED**: `WHOOPStatusRow` compact row for settings list
 
+#### HR/RR/HRV Timeline Overlays (`SleepTimelineOverlays.swift`)
+
+- ✅ **ADDED**: `HeartRateDataPoint`, `RespiratoryRateDataPoint`, `HRVDataPoint` models
+- ✅ **ADDED**: `BiometricOverlay` component for line graph overlays
+- ✅ **ADDED**: `BiometricDataType` enum: heartRate, respiratoryRate, hrv
+- ✅ **ADDED**: `EnhancedSleepTimeline` with toggle-able biometric overlays
+- ✅ **ADDED**: `BiometricToggle` component for showing/hiding overlays
+- ✅ **ADDED**: `LiveEnhancedTimelineView` with date picker and WHOOP integration
+- ✅ **ADDED**: `WHOOPService.extractBiometricData(from:)` for data conversion
+
 **Test Coverage**: 246 tests passing
 
 ---
