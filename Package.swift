@@ -52,7 +52,8 @@ let package = Package(
                 "SleepEnvironmentTests.swift",
                 "CSVExporterTests.swift",
                 "DataRedactorTests.swift",
-                "MedicationLoggerTests.swift"
+                "MedicationLoggerTests.swift",
+                "TimeCorrectnessTests.swift"
             ]
         )
     ]

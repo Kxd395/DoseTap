@@ -6,6 +6,22 @@ import DoseCore
 import SwiftUI
 #endif
 
+// MARK: - Notification Scheduling Protocol
+
+/// Protocol for notification scheduling to enable testing without real UNUserNotificationCenter
+public protocol NotificationScheduling: Sendable {
+    func cancelNotifications(withIdentifiers ids: [String])
+}
+
+/// Production implementation wrapping UNUserNotificationCenter
+public final class SystemNotificationScheduler: NotificationScheduling {
+    public static let shared = SystemNotificationScheduler()
+    
+    public func cancelNotifications(withIdentifiers ids: [String]) {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ids)
+    }
+}
+
 // MARK: - Session Repository
 /// Single source of truth for session state. UI should bind to this, not DoseTapCore directly.
 /// All mutations flow through here and automatically notify observers.
@@ -31,17 +47,39 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     
     // MARK: - Dependencies
     private let storage: EventStorage
+    private let notificationScheduler: NotificationScheduling
+    
+    /// Canonical list of notification identifiers that are session-scoped.
+    /// Tests and production code should both use this list to ensure consistency.
+    public static let sessionNotificationIdentifiers: [String] = [
+        "dose_reminder",
+        "window_opening",
+        "window_closing",
+        "window_critical",
+        "wake_alarm",
+        "wake_alarm_pre",
+        "wake_alarm_follow1",
+        "wake_alarm_follow2",
+        "wake_alarm_follow3",
+        "hard_stop",
+        "hard_stop_5min",
+        "hard_stop_2min",
+        "hard_stop_30sec",
+        "hard_stop_expired",
+        "snooze_reminder"
+    ]
     
     // MARK: - Initialization
     
-    /// Initialize with default shared storage
+    /// Initialize with default shared storage and system notification scheduler
     public convenience init() {
-        self.init(storage: EventStorage.shared)
+        self.init(storage: EventStorage.shared, notificationScheduler: SystemNotificationScheduler.shared)
     }
     
     /// Initialize with injected storage (for testing)
-    public init(storage: EventStorage) {
+    public init(storage: EventStorage, notificationScheduler: NotificationScheduling = SystemNotificationScheduler.shared) {
         self.storage = storage
+        self.notificationScheduler = notificationScheduler
         reload()
     }
     
@@ -106,28 +144,8 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     /// Cancel all pending dose-related notifications
     /// Called when active session is deleted to prevent orphan notifications
     private func cancelPendingNotifications() {
-        let notificationCenter = UNUserNotificationCenter.current()
-        
-        // Cancel all pending dose notifications
-        // These identifiers match those used in EnhancedNotificationService
-        let notificationIDs = [
-            "dose_reminder",
-            "window_opening",
-            "window_closing",
-            "window_critical",
-            "wake_alarm",
-            "wake_alarm_pre",
-            "wake_alarm_follow1",
-            "wake_alarm_follow2",
-            "wake_alarm_follow3",
-            "hard_stop",
-            "hard_stop_5min",
-            "hard_stop_2min",
-            "hard_stop_30sec",
-            "hard_stop_expired"
-        ]
-        
-        notificationCenter.removePendingNotificationRequests(withIdentifiers: notificationIDs)
+        // Use the canonical list of session notification identifiers
+        notificationScheduler.cancelNotifications(withIdentifiers: Self.sessionNotificationIdentifiers)
         print("🔕 SessionRepository: Cancelled pending notifications for deleted session")
     }
     
@@ -507,5 +525,13 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.string(from: sessionDay)
+    }
+    
+    // MARK: - Export Support
+    
+    /// Get all session dates from storage (for export)
+    /// Returns array of session date strings in descending order (newest first)
+    public func getAllSessions() -> [String] {
+        return storage.getAllSessionDates()
     }
 }

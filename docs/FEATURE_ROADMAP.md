@@ -3,6 +3,8 @@
 > **Development Phases & Progress**  
 > Version: 2.1 | January 2025  
 > Last Updated: 2025-01-06
+>
+> **Note:** Test counts in this document are historical snapshots from when features were implemented. See CI for current test totals.
 
 ---
 

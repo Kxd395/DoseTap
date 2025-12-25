@@ -204,4 +204,45 @@ public struct DoseWindowCalculator {
             return "Timezone shifted \(hours) \(hourWord) \(minutes) minutes \(direction)"
         }
     }
+    
+    // MARK: - Session Date Calculation
+    
+    /// Calculate the session date string for a given timestamp.
+    /// Sessions use a 6 PM boundary:
+    /// - 6:00 PM to 11:59 PM → that calendar day
+    /// - 12:00 AM to 5:59 PM → previous calendar day
+    /// This groups overnight doses (11 PM Dose 1 → 2 AM Dose 2) into a single session.
+    /// 
+    /// - Parameters:
+    ///   - timestamp: The date/time to evaluate
+    ///   - timeZone: The timezone to use for boundary calculation. Defaults to user's current timezone.
+    /// - Returns: ISO8601 date string (e.g., "2025-12-26")
+    public func sessionDateString(for timestamp: Date, in timeZone: TimeZone? = nil) -> String {
+        var calendar = Calendar.current
+        if let tz = timeZone {
+            calendar.timeZone = tz
+        }
+        let hour = calendar.component(.hour, from: timestamp)
+        
+        // If before 6 PM (hour < 18), this belongs to previous day's session
+        let sessionDate: Date
+        if hour < 18 {
+            sessionDate = calendar.date(byAdding: .day, value: -1, to: timestamp) ?? timestamp
+        } else {
+            sessionDate = timestamp
+        }
+        
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = calendar.timeZone
+        return formatter.string(from: sessionDate)
+    }
+    
+    /// Get remaining minutes until window closes
+    /// Returns nil if no dose 1 or window already closed
+    public var remainingMinutes: Int? {
+        let ctx = context(dose1At: nil, dose2TakenAt: nil, dose2Skipped: false, snoozeCount: 0)
+        guard let remaining = ctx.remainingToMax else { return nil }
+        return Int(remaining / 60)
+    }
 }

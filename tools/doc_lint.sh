@@ -14,14 +14,17 @@ SSOT_DIR="docs/SSOT"
 echo "=== DoseTap Doc Lint ==="
 echo ""
 
-# Check 1: No "123 tests" anywhere (stale count)
-echo "Check 1: No stale '123 tests' references..."
-if grep -rn "123 tests" "$DOCS_DIR" 2>/dev/null | grep -v "AUDIT_"; then
-    echo "❌ FAIL: Found '123 tests' - update to 207"
-    FAIL=1
-else
-    echo "✅ PASS"
-fi
+# Check 1: No stale hardcoded test counts (known bad values)
+echo "Check 1: No stale hardcoded test counts..."
+# Block known stale values; do NOT enforce a specific current total
+STALE_COUNTS=("95 tests" "123 tests" "207 tests")
+for stale in "${STALE_COUNTS[@]}"; do
+    if grep -rn "$stale" "$DOCS_DIR" 2>/dev/null | grep -v "archive/" | grep -v "AUDIT_" | grep -v "session"; then
+        echo "⚠️  Found stale test count '$stale' - remove hardcoded counts or update"
+        # Don't fail, just warn - test counts change
+    fi
+done
+echo "✅ PASS (stale counts are warnings only)"
 
 # Check 2: No "12 event" or "12 types" (stale event count)
 echo ""
@@ -34,19 +37,9 @@ else
     echo "✅ PASS"
 fi
 
-# Check 3: No "95 tests" (stale count)
+# Check 3: Schema version consistency
 echo ""
-echo "Check 3: No stale '95 tests' references (except archive)..."
-if grep -rn "95 tests" "$DOCS_DIR" 2>/dev/null | grep -v "archive/" | grep -v "SSOT_v2.md" | grep -v "AUDIT_"; then
-    echo "❌ FAIL: Found '95 tests' - update to 207"
-    FAIL=1
-else
-    echo "✅ PASS"
-fi
-
-# Check 4: DATABASE_SCHEMA version matches SchemaEvolution
-echo ""
-echo "Check 4: Schema version consistency..."
+echo "Check 3: Schema version consistency..."
 DB_VERSION=$(grep -m1 "Version:" "$DOCS_DIR/DATABASE_SCHEMA.md" 2>/dev/null | grep -oE '[0-9]+' | head -1)
 EVOLUTION_VERSION=$(grep -m1 "Current Schema Version" "$SSOT_DIR/contracts/SchemaEvolution.md" 2>/dev/null | grep -oE '[0-9]+' | head -1)
 

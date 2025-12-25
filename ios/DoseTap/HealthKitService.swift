@@ -3,8 +3,11 @@ import HealthKit
 
 /// HealthKit service for reading sleep data and computing TTFW baselines
 /// TTFW = Time to First Wake (minutes from "asleep" to first "awake" segment)
+///
+/// Conforms to `HealthKitProviding` protocol for dependency injection.
+/// Tests should use `NoOpHealthKitProvider` instead to avoid HealthKit entitlements.
 @MainActor
-final class HealthKitService: ObservableObject {
+final class HealthKitService: ObservableObject, HealthKitProviding {
     
     static let shared = HealthKitService()
     
@@ -297,9 +300,8 @@ final class HealthKitService: ObservableObject {
         
         return nil
     }
-}
 
-// MARK: - Timeline Integration
+    // MARK: - Timeline Integration
     
     /// Fetch sleep segments for timeline visualization
     /// - Parameters:

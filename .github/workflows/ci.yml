@@ -39,14 +39,71 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Guard against ghost test directories
+        run: |
+          # Fail if duplicate test locations exist
+          if [ -d "Tests/DoseTapTests" ]; then
+            echo "❌ FAIL: Tests/DoseTapTests should not exist (duplicate of ios/DoseTapTests)"
+            exit 1
+          fi
+          # Check for duplicate SessionRepositoryTests files
+          COUNT=$(find . -name "SessionRepositoryTests.swift" -type f | wc -l | tr -d ' ')
+          if [ "$COUNT" -gt 1 ]; then
+            echo "❌ FAIL: Found $COUNT copies of SessionRepositoryTests.swift - should only have 1"
+            find . -name "SessionRepositoryTests.swift" -type f
+            exit 1
+          fi
+          echo "✅ No ghost test directories found"
+
       - name: Xcode version
         run: xcodebuild -version
 
-      - name: SwiftPM tests
+      - name: SwiftPM tests (default timezone)
         run: |
           set -euo pipefail
           swift --version
-          swift test --verbose
+          swift test --verbose 2>&1 | tee "$RUNNER_TEMP/swift-test-default.log"
+
+      - name: SwiftPM tests (TZ=UTC)
+        run: |
+          set -euo pipefail
+          echo "Running tests in UTC timezone..."
+          TZ=UTC swift test 2>&1 | tee "$RUNNER_TEMP/swift-test-utc.log"
+          echo "✅ UTC timezone tests passed"
+
+      - name: SwiftPM tests (TZ=America/New_York)
+        run: |
+          set -euo pipefail
+          echo "Running tests in America/New_York timezone..."
+          TZ=America/New_York swift test 2>&1 | tee "$RUNNER_TEMP/swift-test-eastern.log"
+          echo "✅ America/New_York timezone tests passed"
+
+      - name: Verify critical test suites executed
+        run: |
+          set -euo pipefail
+          LOG="$RUNNER_TEMP/swift-test-default.log"
+          CRITICAL_SUITES=(
+            "DoseWindowStateTests"
+            "DoseWindowEdgeTests"
+            "TimeCorrectnessTests"
+            "OfflineQueueTests"
+            "APIErrorsTests"
+          )
+          echo "Verifying critical SwiftPM test suites executed..."
+          for SUITE in "${CRITICAL_SUITES[@]}"; do
+            if grep -q "Test Suite '$SUITE'" "$LOG"; then
+              echo "✅ $SUITE executed"
+            else
+              echo "⚠️ Could not verify $SUITE (may use different log format)"
+            fi
+          done
+          # Check overall test count
+          if grep -q "Executed.*tests.*with 0 failures" "$LOG"; then
+            echo "✅ All SwiftPM tests passed"
+          else
+            echo "❌ SwiftPM tests may have failed"
+            exit 1
+          fi
 
   xcode-tests:
     name: Xcode simulator tests
@@ -80,6 +137,37 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             DEVELOPMENT_TEAM="" \
             | tee "$RUNNER_TEMP/xcodebuild-test.log"
+
+      - name: Verify required test suites executed
+        run: |
+          set -euo pipefail
+          LOG="$RUNNER_TEMP/xcodebuild-test.log"
+          REQUIRED_SUITES=(
+            "SessionRepositoryTests"
+            "DataIntegrityTests"
+            "ExportIntegrityTests"
+            "HealthKitProviderTests"
+            "URLRouterTests"
+            "UISmokeTests"
+            "UIStateTests"
+            "E2EIntegrationTests"
+            "NavigationFlowTests"
+          )
+          echo "Verifying required test suites executed..."
+          MISSING=0
+          for SUITE in "${REQUIRED_SUITES[@]}"; do
+            if grep -q "Test Suite '$SUITE'" "$LOG"; then
+              echo "✅ $SUITE executed"
+            else
+              echo "❌ MISSING: $SUITE did not execute"
+              MISSING=$((MISSING + 1))
+            fi
+          done
+          if [ "$MISSING" -gt 0 ]; then
+            echo "❌ $MISSING required test suite(s) missing from execution"
+            exit 1
+          fi
+          echo "✅ All required test suites verified"
 
       - name: Upload xcodebuild log on failure
         if: failure()

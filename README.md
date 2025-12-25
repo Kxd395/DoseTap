@@ -47,7 +47,7 @@ open ios/DoseTap/DoseTap.xcodeproj
 
 ## Current Status
 
-- ✅ 207 unit tests passing
+- ✅ **Tests**: See CI for current counts (SwiftPM + Xcode)
 - ✅ Core window logic complete
 - ✅ SQLite persistence
 - ✅ Sleep Environment tracking

@@ -69,7 +69,7 @@
 - ✅ **ADDED**: Cancel on lift before completion
 - ✅ **ADDED**: Dose 1 and Dose 2 buttons now use press-and-hold
 
-**Test Coverage**: 246 tests passing
+**Test Coverage**: CI runs `swift test` (DoseCore) and `xcodebuild test` (DoseTapTests). See latest CI for counts.
 
 ---
 
@@ -1675,4 +1675,4 @@ function suggestNextWeekTarget(history: DoseEvent[]): number {
 ## Version History
 
 - **1.0.0** (2024-01-15): Initial SSOT consolidation from 6 documents
-- See [CHANGELOG.md](../CHANGELOG.md) for detailed changes
+- See [CHANGELOG.md](../../CHANGELOG.md) for detailed changes

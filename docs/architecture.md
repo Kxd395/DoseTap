@@ -123,9 +123,11 @@ The repository contains multiple iOS-related folders. Here's what each is for:
 | `ios/DoseTapNative/` | 📦 **Archive** | Legacy native experiment - can be deleted |
 | `ios/TempProject/` | 📦 **Archive** | Temporary files - can be deleted |
 
-**To build the production app:** Open `ios/DoseTap/DoseTap.xcodeproj` in Xcode.
+**To build the production app:** Open `ios/DoseTap.xcodeproj` in Xcode.
 
-**To run tests:** Use `swift test` from the repository root (tests the `DoseCore` library).
+**To run SwiftPM tests:** `swift test` from the repository root (tests `DoseCore`). See CI for current test count.
+
+**To run Xcode tests:** `xcodebuild test -project ios/DoseTap.xcodeproj -scheme DoseTap -destination 'platform=iOS Simulator,name=iPhone 15'`
 
 ### Legacy Code Warning
 

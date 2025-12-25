@@ -111,7 +111,7 @@
 
 ### Before You Start
 1. **Read [SSOT/README.md](SSOT/README.md)** - Complete specification (canonical)
-2. Run tests: `swift test -q` (207 tests must pass)
+2. Run tests: `swift test -q` (all tests must pass, see CI for count)
 3. Check [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for current tasks
 
 ### Key Principles
@@ -130,7 +130,7 @@
 1. Update [SSOT/README.md](SSOT/README.md) first (canonical SSOT)
 2. Add to appropriate section
 3. Update navigation if needed
-4. Run `swift test -q` (207 tests must pass)
+4. Run `swift test -q` (all tests must pass)
 5. Submit PR with "Docs: " prefix
 
 ### Documentation Structure
@@ -162,4 +162,4 @@ docs/
 
 **Remember:** The SSOT folder contains everything. Start with [SSOT/README.md](SSOT/README.md) for the canonical specification.
 
-**Current Status:** 207 tests passing • 13 sleep event types • 5 SQLite tables • HealthKit + WHOOP ready
+**Current Status:** All tests passing • 13 sleep event types • 5 SQLite tables • HealthKit + WHOOP ready

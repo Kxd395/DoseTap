@@ -43,6 +43,26 @@ public class EventStorage {
         if sqlite3_open(dbPath, &db) != SQLITE_OK {
             print("❌ Failed to open database: \(String(cString: sqlite3_errmsg(db)))")
         }
+        
+        // Enable foreign key enforcement (required for CASCADE to work)
+        var stmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, "PRAGMA foreign_keys = ON", -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_step(stmt)
+        }
+        sqlite3_finalize(stmt)
+    }
+    
+    /// Check if foreign keys are enabled (for test assertions)
+    public func isForeignKeysEnabled() -> Bool {
+        var stmt: OpaquePointer?
+        var enabled = false
+        if sqlite3_prepare_v2(db, "PRAGMA foreign_keys", -1, &stmt, nil) == SQLITE_OK {
+            if sqlite3_step(stmt) == SQLITE_ROW {
+                enabled = sqlite3_column_int(stmt, 0) == 1
+            }
+        }
+        sqlite3_finalize(stmt)
+        return enabled
     }
     
     private func createTables() {
@@ -226,6 +246,43 @@ public class EventStorage {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.string(from: sessionDate)
+    }
+    
+    /// Get all distinct session dates from the database
+    /// Returns array of session date strings in descending order (newest first)
+    public func getAllSessionDates() -> [String] {
+        var dates: [String] = []
+        
+        // Query distinct session dates from current_session table
+        let sql = "SELECT DISTINCT session_date FROM current_session ORDER BY session_date DESC"
+        var stmt: OpaquePointer?
+        
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                if let cString = sqlite3_column_text(stmt, 0) {
+                    dates.append(String(cString: cString))
+                }
+            }
+        }
+        sqlite3_finalize(stmt)
+        
+        return dates
+    }
+    
+    /// Get current schema version (using SQLite user_version pragma)
+    /// Returns 0 if not set
+    public func getSchemaVersion() -> Int {
+        var version = 0
+        var stmt: OpaquePointer?
+        
+        if sqlite3_prepare_v2(db, "PRAGMA user_version", -1, &stmt, nil) == SQLITE_OK {
+            if sqlite3_step(stmt) == SQLITE_ROW {
+                version = Int(sqlite3_column_int(stmt, 0))
+            }
+        }
+        sqlite3_finalize(stmt)
+        
+        return version
     }
     
     // MARK: - Sleep Event Operations
@@ -896,7 +953,7 @@ public class EventStorage {
     
     /// Clear all data (for testing/debug)
     public func clearAllData() {
-        let tables = ["sleep_events", "dose_events", "current_session", "pre_sleep_logs", "morning_checkins"]
+        let tables = ["sleep_events", "dose_events", "current_session", "pre_sleep_logs", "morning_checkins", "medication_events"]
         for table in tables {
             let sql = "DELETE FROM \(table)"
             var errMsg: UnsafeMutablePointer<CChar>?
@@ -906,6 +963,31 @@ public class EventStorage {
             }
         }
         print("🗑️ All EventStorage data cleared")
+    }
+    
+    /// Fetch row count for a table filtered by session_date (for test assertions)
+    /// Returns 0 if table doesn't exist or query fails
+    public func fetchRowCount(table: String, sessionDate: String) -> Int {
+        // Sanitize table name to prevent SQL injection (only allow known tables)
+        let allowedTables = ["sleep_events", "dose_events", "current_session", "pre_sleep_logs", "morning_checkins", "medication_events"]
+        guard allowedTables.contains(table) else {
+            print("⚠️ fetchRowCount: Unknown table '\(table)'")
+            return 0
+        }
+        
+        let sql = "SELECT COUNT(*) FROM \(table) WHERE session_date = ?"
+        var stmt: OpaquePointer?
+        var count = 0
+        
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
+            if sqlite3_step(stmt) == SQLITE_ROW {
+                count = Int(sqlite3_column_int(stmt, 0))
+            }
+        }
+        sqlite3_finalize(stmt)
+        
+        return count
     }
     
     /// Clear all sleep events only
