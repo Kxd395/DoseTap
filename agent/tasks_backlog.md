@@ -1,17 +1,35 @@
 # Tasks Backlog
 
+## Completed (v2.4.4)
+- [x] CSV exporter - Real implementation with share sheet
+- [x] Debounce bathroom presses (60s) - EventRateLimiter implemented
+- [x] Undo snackbar (5s) w/ cancel token - DoseUndoManager + UndoSnackbarView with configurable speed
+- [x] Add APIClient endpoints: take, skip, snooze, events/log, analytics/export
+- [x] Typed error decoding (422_WINDOW_EXCEEDED, 422_SNOOZE_LIMIT, 422_DOSE1_REQUIRED, 409_ALREADY_TAKEN, 429_RATE_LIMIT, 401_DEVICE_NOT_REGISTERED, OFFLINE)
+- [x] Offline queue infra (enqueue, flush, cancel)
+- [x] DoseWindowState model (pure) + unit tests skeleton
+- [x] Alarm UI Indicator - AlarmIndicatorView shows scheduled wake time
+- [x] Hard Stop Countdown - HardStopCountdownView + CompactStatusCard countdown
+
+## High Priority (Next Up)
 - [ ] URL scheme and event router
 - [ ] Reminder scheduling (identifier: secondDose)
 - [ ] HealthKit permission + Sleep read (14–30 nights)
 - [ ] TTFW baseline computation
 - [ ] Same-night nudge (±10–15 min)
+- [ ] Snooze 10m if reminder pending
+
+## Medium Priority
 - [ ] WHOOP OAuth screen + token storage
 - [ ] WHOOP sleep/cycle fetch (history import)
-- [ ] Watch app: Dose1/Dose2/Bathroom buttons
 - [ ] Insights: Avg interval, natural vs alarm %, bathroom clustering
-- [ ] CSV exporter
-- [ ] Debounce bathroom presses (60s)
-- [ ] Snooze 10m if reminder pending
+
+## watchOS
+- [ ] Watch app: Dose1/Dose2/Bathroom buttons
+- [ ] Press-and-hold (1s) Take interaction
+- [ ] Snooze 10m + Skip actions
+- [ ] Dose1 guardrail (require Dose1 before Dose2)
+- [ ] Flic single/long/double mapping implementation
 
 ---
 
@@ -26,17 +44,17 @@
 - [x] Offline queue infra (enqueue, flush, cancel)  *(cancel pending via Undo still TODO)*
 - [x] DoseWindowState model (pure) + unit tests skeleton
 
-Progress (2025-09-04): Core networking + state machine + offline queue in place with 23 passing tests. Remaining PR-1 scope: legacy multi-med purge, tab renames, undo-cancel pathway.
+Progress (2025-12-25): Core networking + state machine + offline queue in place with 223 passing tests. Undo snackbar implemented with configurable speed. Remaining PR-1 scope: legacy multi-med purge, tab renames.
 
 ### PR-2: Night-First UI + Accessibility
 
-- [ ] Countdown ring hero component
+- [x] Countdown ring hero component (CompactStatusCard)
 - [ ] Button logic state machine integration
-- [ ] Snooze disable <15m + CTA swap
-- [ ] Undo snackbar (5s) w/ cancel token
+- [x] Snooze disable <15m + CTA swap
+- [x] Undo snackbar (5s) w/ cancel token
 - [ ] Timeline: stage bands + HR/RR overlay scaffolding
 - [ ] Insights metrics calculations (on-time %, interval stats, natural wake %, WASO)
-- [ ] CSV export hook integration
+- [x] CSV export hook integration
 - [ ] Settings: clamp display, default interval (165m), Nudge step, High Contrast, Reduced Motion toggles
 - [ ] VoiceOver timed announcements & large tap targets
 
