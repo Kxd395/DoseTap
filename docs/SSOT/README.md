@@ -13,7 +13,40 @@
 **This document supersedes:** `DoseTap_Spec.md`, `ui-ux-specifications.md`, `button-logic-mapping.md`, `api-documentation.md`, `user-guide.md`, `implementation-roadmap.md`
 
 **Last Updated:** 2024-12-25  
-**Version:** 2.4.9
+**Version:** 2.5.0
+
+## Recent Updates (v2.5.0)
+
+### New in v2.5.0 (URL Scheme, Insights, Tab Rename)
+
+#### URL Scheme / Deep Links (`URLRouter.swift`)
+
+- ✅ **ADDED**: `dosetap://dose1` - Take Dose 1
+- ✅ **ADDED**: `dosetap://dose2` - Take Dose 2
+- ✅ **ADDED**: `dosetap://snooze` - Snooze alarm +10 min
+- ✅ **ADDED**: `dosetap://skip` - Skip Dose 2
+- ✅ **ADDED**: `dosetap://log?event=bathroom` - Log quick event
+- ✅ **ADDED**: `dosetap://tonight`, `dosetap://history`, `dosetap://settings` - Navigation
+- ✅ **ADDED**: `URLFeedbackBanner` - Shows action result feedback
+
+#### Insights Metrics (`InsightsCalculator.swift`)
+
+- ✅ **ADDED**: On-time percentage (doses within 150-240 min window)
+- ✅ **ADDED**: Average interval minutes between Dose 1 and 2
+- ✅ **ADDED**: Natural wake percentage (sessions with 0 snoozes)
+- ✅ **ADDED**: Average WASO (Wake After Sleep Onset) from bathroom events
+- ✅ **ADDED**: `InsightsSummaryCard` view showing all metrics
+- ✅ **ADDED**: `computeInsights(days:)` method for historical analysis
+
+#### Tab Rename
+
+- ✅ **CHANGED**: "Details" tab renamed to "Timeline"
+- ✅ **CHANGED**: Tab icon changed to `chart.bar.xaxis`
+- ✅ **ADDED**: InsightsSummaryCard at top of Timeline view
+
+**Test Coverage**: 246 tests passing
+
+---
 
 ## Recent Updates (v2.4.9)
 
