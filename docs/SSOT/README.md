@@ -897,6 +897,9 @@ User's XYWAV configuration and preferences.
 interface XywavProfile {
   user_id: string;
   target_interval_minutes: number; // 165 default, must be one of {165, 180, 195, 210, 225}
+  // NOTE: target_interval_minutes is the user's preferred reminder time (discrete set).
+  // The window (clamp_min to clamp_max) is the allowed range during which Dose 2 may be taken.
+  // These are different concepts: target = when we remind, window = when it's valid.
   clamp_min: 150; // constant - window minimum (not a valid target)
   clamp_max: 240; // constant - window maximum (not a valid target)
   nudge_step_minutes: 15; // constant

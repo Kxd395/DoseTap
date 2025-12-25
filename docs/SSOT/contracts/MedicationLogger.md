@@ -73,13 +73,33 @@ CREATE INDEX IF NOT EXISTS idx_medication_events_session ON medication_events(se
 CREATE INDEX IF NOT EXISTS idx_medication_events_medication ON medication_events(medication_id);
 ```
 
+### Data Integrity Rules
+
+**session_id vs session_date precedence:**
+
+1. If `session_id` is present, `session_date` MUST match the session's computed date (derived from dose1_time using 6PM boundary rule)
+2. If `session_id` is NULL (daytime dose, no active sleep session), `session_date` is computed from `taken_at_utc` + `local_offset_minutes` using the 6PM boundary rule
+3. On insert, the repository MUST validate this consistency; reject if mismatched
+
+**Orphan prevention (cascade delete):**
+
+Since SQLite foreign keys are optional and our schema doesn't enforce them, session deletion MUST explicitly delete medication_events:
+
+```swift
+// In EventStorage.deleteSession(sessionDate:)
+// Add to the transaction:
+let deleteMedsSQL = "DELETE FROM medication_events WHERE session_date = ?"
+```
+
+This follows the same pattern as sleep_events and dose_events deletion.
+
 ### Column Definitions
 
 | Column | Type | Description |
 | ------ | ---- | ----------- |
 | id | TEXT | UUID primary key |
 | session_id | TEXT | Links to sleep session (nullable for daytime doses) |
-| session_date | TEXT | YYYY-MM-DD format, using 6PM boundary |
+| session_date | TEXT | YYYY-MM-DD format, using 6PM boundary (must match session if session_id present) |
 | taken_at_utc | TEXT | ISO8601 timestamp in UTC |
 | local_offset_minutes | INTEGER | User's timezone offset at time of entry |
 | medication_id | TEXT | One of: `adderall_ir`, `adderall_xr` |
@@ -161,15 +181,21 @@ struct MedicationEntry: Identifiable, Codable {
 ## 4. Duplicate Guard Logic
 
 ```swift
-func checkDuplicateGuard(medicationId: String, takenAt: Date) -> (isDuplicate: Bool, existingEntry: MedicationEntry?, minutesAgo: Int) {
+func checkDuplicateGuard(medicationId: String, takenAt: Date, sessionDate: String) -> (isDuplicate: Bool, existingEntry: MedicationEntry?, minutesDelta: Int) {
     let guardWindow = Constants.medications.duplicateGuardMinutes // 5
-    let entries = listMedicationEntriesForActiveSession()
+    
+    // Query entries for the SAME session_date (not just active session)
+    // This handles the 6PM boundary correctly
+    let entries = listMedicationEntries(for: sessionDate)
     
     for entry in entries {
         if entry.medicationId == medicationId {
-            let minutesAgo = Int(takenAt.timeIntervalSince(entry.takenAtUTC) / 60)
-            if minutesAgo < guardWindow {
-                return (true, entry, minutesAgo)
+            // Use ABSOLUTE delta to catch both forward and backward time edits
+            let deltaSeconds = abs(takenAt.timeIntervalSince(entry.takenAtUTC))
+            let minutesDelta = Int(deltaSeconds / 60)
+            
+            if minutesDelta < guardWindow {
+                return (true, entry, minutesDelta)
             }
         }
     }
@@ -177,12 +203,20 @@ func checkDuplicateGuard(medicationId: String, takenAt: Date) -> (isDuplicate: B
 }
 ```
 
+**Important safeguards:**
+
+1. **Absolute delta:** Uses `abs()` to catch duplicates regardless of time picker direction (user editing time backwards would otherwise bypass guard)
+2. **Session-scoped:** Checks within the computed `session_date`, not just "active session" — prevents bypassing guard by crossing 6PM boundary
+3. **Same medication only:** Different medications (Adderall IR vs XR) do not trigger each other's guard
+
 **Behavior:**
+
 1. User taps "Add Adderall"
-2. Check if same `medication_id` logged within 5 minutes
-3. If yes → Show hard stop warning: "You logged Adderall 2 minutes ago. Add another entry?"
-4. User must explicitly confirm to add duplicate
-5. `confirmed_duplicate = 1` in database for audit trail
+2. Compute `session_date` from `takenAt` using 6PM boundary rule
+3. Check if same `medication_id` logged within ±5 minutes in that session
+4. If yes → Show hard stop warning: "You logged Adderall 2 minutes ago. Add another entry?"
+5. User must explicitly confirm to add duplicate
+6. `confirmed_duplicate = 1` in database for audit trail
 
 ---
 

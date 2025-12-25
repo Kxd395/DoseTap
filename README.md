@@ -22,7 +22,9 @@ swift test
 open ios/DoseTap/DoseTap.xcodeproj
 ```
 
-**Requirements**: Xcode 15+, iOS 17 SDK
+**Requirements:**
+- **Deployment target:** iOS 16.0 (app runs on iOS 16+ devices)
+- **Build requires:** Xcode 15+ with iOS 17 SDK
 
 ## Documentation Map
 
