@@ -13,7 +13,38 @@
 **This document supersedes:** `DoseTap_Spec.md`, `ui-ux-specifications.md`, `button-logic-mapping.md`, `api-documentation.md`, `user-guide.md`, `implementation-roadmap.md`
 
 **Last Updated:** 2024-12-25  
-**Version:** 2.4.6
+**Version:** 2.4.7
+
+## Recent Updates (v2.4.7)
+
+### New in v2.4.7 (Sleep-Through Handling)
+
+#### Auto-Expire Sessions When User Sleeps Through
+
+- ✅ **ADDED**: `sleepThroughGraceMin` config (default 30 min after 240 min window)
+- ✅ **ADDED**: `shouldAutoExpireSession()` method in DoseWindowCalculator
+- ✅ **ADDED**: `checkAndHandleExpiredSession()` method in SessionRepository
+- ✅ **ADDED**: `markSessionSleptThrough()` internal method for auto-skip
+- ✅ **ADDED**: `updateTerminalState()` method in EventStorage
+- ✅ **ADDED**: `saveDoseSkipped(reason:)` with optional reason parameter
+- ✅ **ADDED**: App lifecycle hook (`scenePhase .active`) to check for expired sessions
+
+#### Behavior
+
+When app returns to foreground, it checks if:
+1. Dose 1 was taken
+2. Dose 2 was NOT taken or skipped
+3. Current time > Dose 1 + 240 min (window) + 30 min (grace)
+
+If all conditions met, session is auto-marked as `incomplete_slept_through`:
+- Dose 2 is auto-skipped with reason "slept_through"
+- Terminal state is set to "incomplete_slept_through"
+- Pending notifications are cancelled
+- User can start a new session
+
+**Test Coverage**: 235 tests passing (+6 new sleep-through detection tests)
+
+---
 
 ## Recent Updates (v2.4.6)
 
@@ -274,7 +305,7 @@ The previous architecture had `DoseTapCore` (in-memory) and `EventStorage` (SQLi
 | ~~**Session Terminal State**~~ | ✅ FIXED in v2.4.0 - SQLite now has `terminal_state` column via migration | ~~Medium~~ |
 | ~~**History Delete State Sync**~~ | ✅ FIXED in v2.4.0 - SessionRepository pattern ensures Tonight clears on delete | ~~High~~ |
 | ~~**Finalizing State**~~ | ✅ FIXED in v2.4.6 - Track session between wakeFinal and check-in via `.finalizing` phase | ~~Medium~~ |
-| **Sleep-Through Handling** | Auto-mark incomplete if user sleeps through window | Medium |
+| ~~**Sleep-Through Handling**~~ | ✅ FIXED in v2.4.7 - Auto-mark incomplete on app foreground if window+30min grace passed | ~~Medium~~ |
 | **Late Dose 1 Logic** | Handle Dose 1 past midnight (sleep night vs calendar date) | Low |
 | **Timezone Changes** | Detect and warn about timezone changes during session | Low |
 | ~~**Early Dose Override**~~ | ✅ FIXED in v2.4.0 - Confirmation dialog for Dose 2 before window opens | ~~Low~~ |

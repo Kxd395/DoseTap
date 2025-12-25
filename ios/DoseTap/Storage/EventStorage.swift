@@ -420,9 +420,15 @@ public class EventStorage {
         }
     }
     
-    /// Save dose skipped
-    public func saveDoseSkipped() {
-        insertDoseEvent(eventType: "dose2_skipped", timestamp: Date())
+    /// Save dose skipped with optional reason
+    public func saveDoseSkipped(reason: String? = nil) {
+        let metadata: String?
+        if let reason = reason {
+            metadata = "{\"reason\":\"\(reason)\"}"
+        } else {
+            metadata = nil
+        }
+        insertDoseEvent(eventType: "dose2_skipped", timestamp: Date(), metadata: metadata)
         updateCurrentSession(dose2Skipped: true)
     }
     
@@ -698,6 +704,28 @@ public class EventStorage {
         }
         
         return (nil, nil, 0, false)
+    }
+    
+    /// Update the terminal state for a session
+    /// Terminal states: completed, skipped, expired, aborted, incomplete_slept_through
+    public func updateTerminalState(sessionDate: String, state: String) {
+        let sql = "UPDATE current_session SET terminal_state = ?, updated_at = CURRENT_TIMESTAMP WHERE session_date = ?"
+        
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            print("❌ Failed to prepare terminal state update")
+            return
+        }
+        defer { sqlite3_finalize(stmt) }
+        
+        sqlite3_bind_text(stmt, 1, state, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 2, sessionDate, -1, SQLITE_TRANSIENT)
+        
+        if sqlite3_step(stmt) == SQLITE_DONE {
+            print("✅ Terminal state updated to '\(state)' for session \(sessionDate)")
+        } else {
+            print("❌ Failed to update terminal state: \(String(cString: sqlite3_errmsg(db)))")
+        }
     }
     
     /// Fetch the most recent pre-sleep log for loading defaults

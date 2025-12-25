@@ -7,19 +7,22 @@ public struct DoseWindowConfig {
     public let defaultTargetMin: Int
     public let snoozeStepMin: Int
     public var maxSnoozes: Int
+    public let sleepThroughGraceMin: Int  // Grace period after window closes before auto-marking incomplete
 
     public init(minIntervalMin: Int = 150,
                 maxIntervalMin: Int = 240,
                 nearWindowThresholdMin: Int = 15,
                 defaultTargetMin: Int = 165,
                 snoozeStepMin: Int = 10,
-                maxSnoozes: Int = 3) {
+                maxSnoozes: Int = 3,
+                sleepThroughGraceMin: Int = 30) {  // 30 min grace after 240 min window
         self.minIntervalMin = minIntervalMin
         self.maxIntervalMin = maxIntervalMin
         self.nearWindowThresholdMin = nearWindowThresholdMin
         self.defaultTargetMin = defaultTargetMin
         self.snoozeStepMin = snoozeStepMin
         self.maxSnoozes = maxSnoozes
+        self.sleepThroughGraceMin = sleepThroughGraceMin
     }
 }
 
@@ -112,4 +115,21 @@ public struct DoseWindowCalculator {
     }
 
     private func elapsed(from dose1At: Date?) -> TimeInterval? { dose1At.map { now().timeIntervalSince($0) } }
+    
+    // MARK: - Sleep-Through Detection
+    
+    /// Check if a session has expired due to user sleeping through the dose window
+    /// Returns true if: Dose 1 exists, Dose 2 not taken/skipped, and window + grace period has passed
+    public func shouldAutoExpireSession(dose1At: Date?, dose2TakenAt: Date?, dose2Skipped: Bool) -> Bool {
+        guard let d1 = dose1At,
+              dose2TakenAt == nil,
+              !dose2Skipped else {
+            return false
+        }
+        
+        let elapsed = now().timeIntervalSince(d1)
+        let expiryThresholdSeconds = Double(config.maxIntervalMin + config.sleepThroughGraceMin) * 60
+        
+        return elapsed >= expiryThresholdSeconds
+    }
 }

@@ -90,4 +90,48 @@ final class DoseWindowEdgeTests: XCTestCase {
         let ctx = calc.context(dose1At: anchor, dose2TakenAt: nil, dose2Skipped: false, snoozeCount: 0, wakeFinalAt: nil, checkInCompleted: false)
         XCTAssertEqual(ctx.phase, .active)
     }
+    
+    // MARK: - Sleep-Through Detection Tests
+    
+    func test_shouldAutoExpire_false_when_no_dose1() {
+        let calc = DoseWindowCalculator(now: { Date() })
+        XCTAssertFalse(calc.shouldAutoExpireSession(dose1At: nil, dose2TakenAt: nil, dose2Skipped: false))
+    }
+    
+    func test_shouldAutoExpire_false_when_dose2_taken() {
+        let anchor = Date().addingTimeInterval(-300 * 60) // 5 hours ago
+        let dose2Time = anchor.addingTimeInterval(165 * 60)
+        let calc = DoseWindowCalculator(now: { Date() })
+        XCTAssertFalse(calc.shouldAutoExpireSession(dose1At: anchor, dose2TakenAt: dose2Time, dose2Skipped: false))
+    }
+    
+    func test_shouldAutoExpire_false_when_dose2_skipped() {
+        let anchor = Date().addingTimeInterval(-300 * 60) // 5 hours ago
+        let calc = DoseWindowCalculator(now: { Date() })
+        XCTAssertFalse(calc.shouldAutoExpireSession(dose1At: anchor, dose2TakenAt: nil, dose2Skipped: true))
+    }
+    
+    func test_shouldAutoExpire_false_within_window_and_grace() {
+        let anchor = Date()
+        // At 260 min: window closed (240) + only 20 min grace (need 30)
+        let now = anchor.addingTimeInterval(260 * 60)
+        let calc = DoseWindowCalculator(now: { now })
+        XCTAssertFalse(calc.shouldAutoExpireSession(dose1At: anchor, dose2TakenAt: nil, dose2Skipped: false))
+    }
+    
+    func test_shouldAutoExpire_true_after_window_plus_grace() {
+        let anchor = Date()
+        // At 270 min: window (240) + grace (30) = 270 - should expire
+        let now = anchor.addingTimeInterval(270 * 60)
+        let calc = DoseWindowCalculator(now: { now })
+        XCTAssertTrue(calc.shouldAutoExpireSession(dose1At: anchor, dose2TakenAt: nil, dose2Skipped: false))
+    }
+    
+    func test_shouldAutoExpire_true_well_past_grace() {
+        let anchor = Date()
+        // 6 hours after dose 1 (360 min) - definitely slept through
+        let now = anchor.addingTimeInterval(360 * 60)
+        let calc = DoseWindowCalculator(now: { now })
+        XCTAssertTrue(calc.shouldAutoExpireSession(dose1At: anchor, dose2TakenAt: nil, dose2Skipped: false))
+    }
 }

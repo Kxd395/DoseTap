@@ -272,6 +272,51 @@ public final class SessionRepository: ObservableObject, DoseTapSessionRepository
         print("↩️ SessionRepository: Wake Final cleared (undo)")
     }
     
+    // MARK: - Sleep-Through Handling
+    
+    /// Check if session has expired due to sleeping through dose window
+    /// Called on app foreground to auto-mark incomplete sessions
+    /// Returns true if session was auto-expired
+    @discardableResult
+    public func checkAndHandleExpiredSession() -> Bool {
+        let calculator = DoseWindowCalculator()
+        
+        if calculator.shouldAutoExpireSession(
+            dose1At: dose1Time,
+            dose2TakenAt: dose2Time,
+            dose2Skipped: dose2Skipped
+        ) {
+            markSessionSleptThrough()
+            return true
+        }
+        
+        return false
+    }
+    
+    /// Mark the current session as incomplete due to sleeping through
+    /// This auto-skips Dose 2 with a special reason and resets for new session
+    private func markSessionSleptThrough() {
+        guard dose1Time != nil else { return }
+        
+        print("😴 SessionRepository: Auto-marking session as slept-through (window + grace expired)")
+        
+        // Save skip with slept-through reason
+        storage.saveDoseSkipped(reason: "slept_through")
+        
+        // Update terminal state
+        storage.updateTerminalState(sessionDate: activeSessionDate ?? storage.currentSessionDate(), state: "incomplete_slept_through")
+        
+        // Reset in-memory state for new session
+        dose2Skipped = true
+        wakeFinalTime = nil
+        checkInCompleted = false
+        
+        // Cancel any pending notifications
+        cancelPendingNotifications()
+        
+        sessionDidChange.send()
+    }
+    
     // MARK: - Queries
     
     /// Check if a given session date is the active/current session

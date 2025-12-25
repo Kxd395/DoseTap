@@ -33,6 +33,11 @@
       "value": 15,
       "description": "Snooze disabled when this many minutes remain",
       "configurable": false
+    },
+    "sleepThroughGraceMinutes": {
+      "value": 30,
+      "description": "Grace period after window closes before auto-marking session incomplete (user slept through)",
+      "configurable": false
     }
   },
   
