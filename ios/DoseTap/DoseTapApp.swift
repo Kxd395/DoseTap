@@ -7,6 +7,12 @@ struct DoseTapApp: App {
     
     init() {
         print("DoseTap app initialized (simplified)")
+        
+        // Request notification permission for wake alarms
+        Task { @MainActor in
+            let granted = await AlarmService.shared.requestPermission()
+            print("🔔 Notification permission: \(granted ? "granted" : "denied")")
+        }
     }
     
     var body: some Scene {

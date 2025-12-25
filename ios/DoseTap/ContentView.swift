@@ -256,19 +256,19 @@ struct TonightView: View {
                 .padding(.top, 8)
             }
             
-            Spacer()
+            Spacer().frame(height: 12)
             
             // Combined Status + Timer Card (compact)
             CompactStatusCard(core: core)
             
-            Spacer()
+            Spacer().frame(height: 12)
             
             // Pre-Sleep Log Button (only show if no dose taken yet)
             if core.dose1Time == nil {
                 PreSleepLogButton(showPreSleepLog: $showPreSleepLog)
                     .padding(.horizontal)
                 
-                Spacer()
+                Spacer().frame(height: 12)
             }
             
             // Main Dose Button
@@ -281,13 +281,13 @@ struct TonightView: View {
                 showExtraDoseWarning: $showExtraDoseWarning
             )
             
-            Spacer()
+            Spacer().frame(height: 12)
             
             // Quick Event Log
             QuickEventPanel(eventLogger: eventLogger)
                 .padding(.horizontal)
             
-            Spacer()
+            Spacer().frame(height: 12)
             
             // Wake Up & End Session Button (prominent)
             WakeUpButton(
@@ -296,7 +296,7 @@ struct TonightView: View {
             )
             .padding(.horizontal)
             
-            Spacer()
+            Spacer().frame(height: 12)
             
             // Compact Session Summary (tap events to expand list)
             CompactSessionSummary(core: core, eventLogger: eventLogger)
@@ -435,22 +435,36 @@ struct TonightDateLabel: View {
 /// Shows scheduled wake alarm time (dose 2 target) when dose 1 has been taken
 struct AlarmIndicatorView: View {
     let dose1Time: Date?
+    @ObservedObject private var alarmService = AlarmService.shared
     @AppStorage("target_interval_minutes") private var targetIntervalMinutes: Int = 165
     
     var body: some View {
         if let d1 = dose1Time {
-            let alarmTime = d1.addingTimeInterval(Double(targetIntervalMinutes) * 60)
+            // Use AlarmService's target time if available (accounts for snoozes)
+            // Otherwise fall back to calculated time
+            let alarmTime = alarmService.targetWakeTime ?? d1.addingTimeInterval(Double(targetIntervalMinutes) * 60)
+            let snoozeCount = alarmService.snoozeCount
+            
             HStack(spacing: 4) {
-                Image(systemName: "alarm.fill")
+                Image(systemName: alarmService.alarmScheduled ? "alarm.fill" : "alarm")
                     .font(.caption)
-                    .foregroundColor(.orange)
-                Text("Wake: \(formattedTime(alarmTime))")
-                    .font(.caption.bold())
-                    .foregroundColor(.orange)
+                    .foregroundColor(alarmService.alarmScheduled ? .orange : .gray)
+                
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Wake: \(formattedTime(alarmTime))")
+                        .font(.caption.bold())
+                        .foregroundColor(alarmService.alarmScheduled ? .orange : .gray)
+                    
+                    if snoozeCount > 0 {
+                        Text("(+\(snoozeCount * 10)m)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(Color.orange.opacity(0.15))
+            .background(Color.orange.opacity(alarmService.alarmScheduled ? 0.15 : 0.05))
             .cornerRadius(8)
         }
     }
@@ -833,16 +847,29 @@ struct CompactDoseButton: View {
             if core.currentStatus != .noDose1 && core.currentStatus != .completed && core.currentStatus != .closed {
                 HStack(spacing: 12) {
                     Button {
-                        Task { await core.snooze() }
+                        Task {
+                            // Snooze the alarm (+10 min) and increment count
+                            if let newTime = await AlarmService.shared.snoozeAlarm(dose1Time: core.dose1Time) {
+                                await core.snooze()
+                                print("✅ Snoozed to \(newTime.formatted(date: .omitted, time: .shortened))")
+                            } else {
+                                // Still increment count even if alarm couldn't be rescheduled
+                                await core.snooze()
+                            }
+                        }
                     } label: {
-                        Label("Snooze", systemImage: "bell.badge")
+                        Label("Snooze +10m", systemImage: "bell.badge")
                             .font(.caption)
                     }
                     .buttonStyle(.bordered)
                     .disabled(!snoozeEnabled)
                     
                     Button {
-                        Task { await core.skipDose() }
+                        Task {
+                            await core.skipDose()
+                            // Cancel wake alarm since Dose 2 was skipped
+                            AlarmService.shared.cancelAllAlarms()
+                        }
                     } label: {
                         Label("Skip", systemImage: "forward.fill")
                             .font(.caption)
@@ -870,6 +897,12 @@ struct CompactDoseButton: View {
                 eventLogger.logEvent(name: "Dose 1", color: .green, cooldownSeconds: 3600 * 8)
                 // Register for undo
                 undoState.register(.takeDose1(at: now))
+                
+                // Schedule wake alarm for default target time (165 min after Dose 1)
+                let targetMinutes = UserDefaults.standard.integer(forKey: "target_interval_minutes")
+                let targetInterval = targetMinutes > 0 ? targetMinutes : 165
+                let wakeTime = now.addingTimeInterval(Double(targetInterval) * 60)
+                await AlarmService.shared.scheduleWakeAlarm(at: wakeTime, dose1Time: now)
             }
             return
         }
@@ -904,6 +937,8 @@ struct CompactDoseButton: View {
             eventLogger.logEvent(name: "Dose 2", color: .green, cooldownSeconds: 3600 * 8)
             // Register for undo
             undoState.register(.takeDose2(at: now))
+            // Cancel wake alarm since Dose 2 was taken
+            AlarmService.shared.cancelAllAlarms()
         }
     }
     
@@ -1137,54 +1172,62 @@ struct QuickEventPanel: View {
     @ObservedObject var eventLogger: EventLogger
     @ObservedObject var settings = UserSettingsManager.shared
     
-    // Use all configured QuickLog buttons
+    // Max 5 per row, max 3 rows = 15 buttons total
+    private let maxColumns = 5
+    private let maxRows = 3
+    
+    // Get quick events limited to max display count
     private var quickEvents: [(name: String, icon: String, color: Color)] {
-        settings.quickLogButtons.map { ($0.name, $0.icon, $0.color) }
+        let all = settings.quickLogButtons.map { ($0.name, $0.icon, $0.color) }
+        return Array(all.prefix(maxColumns * maxRows))
     }
     
-    // Show first row (4 buttons) always visible, rest in horizontal scroll
-    private var firstRowEvents: [(name: String, icon: String, color: Color)] {
-        Array(quickEvents.prefix(4))
-    }
-    
-    private var additionalEvents: [(name: String, icon: String, color: Color)] {
-        Array(quickEvents.dropFirst(4))
+    // Split into rows of 5
+    private var eventRows: [[(name: String, icon: String, color: Color)]] {
+        var rows: [[(name: String, icon: String, color: Color)]] = []
+        var currentRow: [(name: String, icon: String, color: Color)] = []
+        
+        for (index, event) in quickEvents.enumerated() {
+            currentRow.append(event)
+            if currentRow.count == maxColumns || index == quickEvents.count - 1 {
+                rows.append(currentRow)
+                currentRow = []
+            }
+        }
+        return rows
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text("Quick Log")
-                    .font(.subheadline.bold())
+                    .font(.caption.bold())
                 Spacer()
                 if !eventLogger.events.isEmpty {
                     Text("\(eventLogger.events.count) tonight")
-                        .font(.caption)
+                        .font(.caption2)
                         .foregroundColor(.secondary)
                 }
             }
             
-            // First row: always visible (4 main buttons)
-            HStack(spacing: 8) {
-                ForEach(firstRowEvents, id: \.name) { event in
-                    quickButton(for: event)
-                }
-            }
-            
-            // Additional rows: horizontal scroll if more than 4 buttons
-            if !additionalEvents.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(additionalEvents, id: \.name) { event in
-                            quickButton(for: event)
+            // Display rows (max 3 rows of 5)
+            ForEach(0..<eventRows.count, id: \.self) { rowIndex in
+                HStack(spacing: 4) {
+                    ForEach(eventRows[rowIndex], id: \.name) { event in
+                        quickButton(for: event)
+                    }
+                    // Fill remaining space if row is incomplete
+                    if eventRows[rowIndex].count < maxColumns {
+                        ForEach(0..<(maxColumns - eventRows[rowIndex].count), id: \.self) { _ in
+                            Color.clear.frame(maxWidth: .infinity)
                         }
                     }
                 }
             }
         }
-        .padding(12)
+        .padding(10)
         .background(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 10)
                 .fill(Color(.systemGray6))
         )
     }
@@ -1192,7 +1235,7 @@ struct QuickEventPanel: View {
     @ViewBuilder
     private func quickButton(for event: (name: String, icon: String, color: Color)) -> some View {
         let cooldown = settings.cooldown(for: event.name)
-        QuickEventButton(
+        CompactQuickButton(
             name: event.name,
             icon: event.icon,
             color: event.color,
@@ -1205,8 +1248,8 @@ struct QuickEventPanel: View {
     }
 }
 
-// MARK: - Quick Event Button (Compact)
-struct QuickEventButton: View {
+// MARK: - Compact Quick Event Button
+struct CompactQuickButton: View {
     let name: String
     let icon: String
     let color: Color
@@ -1217,32 +1260,37 @@ struct QuickEventButton: View {
     @State private var progress: CGFloat = 1.0
     let timer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
     
+    private var isOnCooldown: Bool {
+        guard let end = cooldownEnd else { return false }
+        return Date() < end
+    }
+    
     var body: some View {
         Button(action: onTap) {
-            VStack(spacing: 4) {
+            VStack(spacing: 2) {
                 ZStack {
                     Circle()
                         .fill(color.opacity(isOnCooldown ? 0.2 : 0.15))
-                        .frame(width: 44, height: 44)
+                        .frame(width: 36, height: 36)
                     
                     if isOnCooldown {
                         Circle()
                             .trim(from: 0, to: progress)
                             .stroke(color.opacity(0.5), lineWidth: 2)
-                            .frame(width: 44, height: 44)
+                            .frame(width: 36, height: 36)
                             .rotationEffect(.degrees(-90))
                     }
                     
                     Image(systemName: icon)
-                        .font(.body)
+                        .font(.caption)
                         .foregroundColor(isOnCooldown ? color.opacity(0.4) : color)
                 }
                 
                 Text(name)
-                    .font(.caption2)
+                    .font(.system(size: 9))
                     .foregroundColor(isOnCooldown ? .secondary : .primary)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .minimumScaleFactor(0.7)
             }
         }
         .disabled(isOnCooldown)
@@ -1252,20 +1300,16 @@ struct QuickEventButton: View {
         }
     }
     
-    private var isOnCooldown: Bool {
-        guard let end = cooldownEnd else { return false }
-        return Date() < end
-    }
-    
     private func updateProgress() {
         guard let end = cooldownEnd else {
             progress = 1.0
             return
         }
-        let remaining = end.timeIntervalSince(Date())
-        if remaining <= 0 {
+        let now = Date()
+        if now >= end {
             progress = 1.0
         } else {
+            let remaining = end.timeIntervalSince(now)
             progress = 1.0 - CGFloat(remaining / cooldownSeconds)
         }
     }
