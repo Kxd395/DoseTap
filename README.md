@@ -52,7 +52,18 @@ open ios/DoseTap/DoseTap.xcodeproj
 - ✅ CSV export with SSOT v1 format
 - ✅ PII redaction for support bundles
 - ⏸️ **watchOS companion** — Phase 2 placeholder (see below)
-- � Phase 2: Health Dashboard (planned)
+- 🔄 Phase 2: Health Dashboard (planned)
+
+## Docs Truth Table
+
+| Status | Features |
+|--------|----------|
+| ✅ **Implemented** | Dose window logic (150-240m), SQLite persistence, SessionRepository SSOT, Sleep event logging, CSV export, Support bundles |
+| 🔄 **Planned** | Cloud API sync, watchOS companion, Health Dashboard, WHOOP data visualization |
+| 📋 **Spec Ready** | Medication logger (Adderall/XR), Stimulant tracking |
+| ⚠️ **Deprecated** | CoreData references (now SQLite), JSON file storage (migrated to SQLite) |
+
+> See [`docs/SSOT/README.md`](docs/SSOT/README.md) for authoritative feature status.
 
 ### watchOS Status
 

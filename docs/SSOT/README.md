@@ -764,8 +764,12 @@ CREATE TABLE morning_checkins (
 
 ## API Contract
 
+> 🔄 **STATUS: PLANNED** — The API contract below is designed but not yet implemented.  
+> The app currently operates in local-first mode with SQLite storage.  
+> API calls use `MockAPITransport` for development. Production server is future work.
+
 ### Base Configuration
-- **Base URL**: `https://api.dosetap.com/v1` (production)
+- **Base URL**: `https://api.dosetap.com/v1` (production, planned)
 - **Auth**: Bearer token in header
 - **Content-Type**: `application/json`
 - **Timeout**: 30 seconds
@@ -892,9 +896,9 @@ User's XYWAV configuration and preferences.
 ```typescript
 interface XywavProfile {
   user_id: string;
-  target_interval_minutes: number; // 165 default, 150-240 range
-  clamp_min: 150; // constant
-  clamp_max: 240; // constant
+  target_interval_minutes: number; // 165 default, must be one of {165, 180, 195, 210, 225}
+  clamp_min: 150; // constant - window minimum (not a valid target)
+  clamp_max: 240; // constant - window maximum (not a valid target)
   nudge_step_minutes: 15; // constant
   notifications_enabled: boolean;
   haptics_enabled: boolean;
@@ -1008,7 +1012,7 @@ interface SleepEvent {
 
 ### Data Lifecycle
 - **JSON Migration**: One-time import from existing dose_events.json and dose_sessions.json files
-- **Migration Flag**: UserDefaults.didMigrateToCoreData prevents re-migration
+- **Migration Flag**: UserDefaults.didMigrateToSQLite prevents re-migration
 - **Atomic Operations**: Batch deletes and saves for data integrity
 - **Clear All Data**: Two-step confirmation with atomic wipe functionality
 

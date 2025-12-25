@@ -1,5 +1,7 @@
 # Code Review: DoseTap Safety & Correctness Audit
 
+> ⚠️ **SUPERSEDED**: This document shows pre-fix state. See `CODE_REVIEW_2025-12-24_session3.md` for verified post-fix state.
+
 **Date:** 2025-12-24  
 **Reviewer:** Automated Code Audit  
 **Focus:** Two-sources-of-truth risk, persistence integrity, timing edge cases, dose safety
