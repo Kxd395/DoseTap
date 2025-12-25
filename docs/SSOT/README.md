@@ -13,7 +13,34 @@
 **This document supersedes:** `DoseTap_Spec.md`, `ui-ux-specifications.md`, `button-logic-mapping.md`, `api-documentation.md`, `user-guide.md`, `implementation-roadmap.md`
 
 **Last Updated:** 2024-12-25  
-**Version:** 2.4.8
+**Version:** 2.4.9
+
+## Recent Updates (v2.4.9)
+
+### New in v2.4.9 (Timezone Change Detection)
+
+#### Timezone Change Detection System
+
+- ✅ **ADDED**: `currentTimezoneOffsetMinutes()` static method in DoseWindowCalculator
+- ✅ **ADDED**: `timezoneChange(from:)` method - returns delta in minutes (nil if no change)
+- ✅ **ADDED**: `timezoneChangeDescription(from:)` method - human-readable description
+- ✅ **ADDED**: `dose1TimezoneOffsetMinutes` property in SessionRepository
+- ✅ **ADDED**: `checkTimezoneChange()` method - returns description if changed
+- ✅ **ADDED**: `hasTimezoneChanged` computed property - boolean convenience
+
+#### Behavior
+
+When Dose 1 is taken, the current timezone offset (minutes from UTC) is recorded.
+On subsequent checks, UI can detect if timezone has changed and warn user:
+- "Timezone shifted 3 hours east"
+- "Timezone shifted 1 hour west"
+- "Timezone shifted 30 minutes east"
+
+This prevents confusion when users travel or device timezone changes mid-session.
+
+**Test Coverage**: 246 tests passing (+7 new timezone detection tests)
+
+---
 
 ## Recent Updates (v2.4.8)
 
@@ -333,7 +360,7 @@ The previous architecture had `DoseTapCore` (in-memory) and `EventStorage` (SQLi
 | ~~**Finalizing State**~~ | ✅ FIXED in v2.4.6 - Track session between wakeFinal and check-in via `.finalizing` phase | ~~Medium~~ |
 | ~~**Sleep-Through Handling**~~ | ✅ FIXED in v2.4.7 - Auto-mark incomplete on app foreground if window+30min grace passed | ~~Medium~~ |
 | ~~**Late Dose 1 Logic**~~ | ✅ FIXED in v2.4.8 - `lateDose1Info()` detects midnight-6AM zone, returns session date label | ~~Low~~ |
-| **Timezone Changes** | Detect and warn about timezone changes during session | Low |
+| ~~**Timezone Changes**~~ | ✅ FIXED in v2.4.9 - `checkTimezoneChange()` detects and describes timezone shifts | ~~Low~~ |
 | ~~**Early Dose Override**~~ | ✅ FIXED in v2.4.0 - Confirmation dialog for Dose 2 before window opens | ~~Low~~ |
 | ~~**Alarm UI Indicator**~~ | ✅ FIXED in v2.4.4 - AlarmIndicatorView shows scheduled wake time in Tonight header | ~~Medium~~ |
 | ~~**Hard Stop Countdown**~~ | ✅ FIXED in v2.4.4 - HardStopCountdownView + CompactStatusCard shows countdown when <15 min remain | ~~Medium~~ |

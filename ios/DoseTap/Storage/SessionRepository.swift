@@ -24,6 +24,7 @@ public final class SessionRepository: ObservableObject, DoseTapSessionRepository
     @Published public private(set) var dose2Skipped: Bool = false
     @Published public private(set) var wakeFinalTime: Date?       // When user pressed Wake Up
     @Published public private(set) var checkInCompleted: Bool = false  // Morning check-in done
+    @Published public private(set) var dose1TimezoneOffsetMinutes: Int?  // Timezone when Dose 1 was taken
     
     /// Emits whenever session data changes (for observers that need explicit signal)
     public let sessionDidChange = PassthroughSubject<Void, Never>()
@@ -88,6 +89,7 @@ public final class SessionRepository: ObservableObject, DoseTapSessionRepository
             dose2Skipped = false
             wakeFinalTime = nil
             checkInCompleted = false
+            dose1TimezoneOffsetMinutes = nil
             
             // P0-3 FIX: Cancel any pending notifications for this session
             // Notifications should not fire for deleted sessions
@@ -133,6 +135,9 @@ public final class SessionRepository: ObservableObject, DoseTapSessionRepository
     public func setDose1Time(_ time: Date) {
         dose1Time = time
         activeSessionDate = storage.currentSessionDate()
+        
+        // Record timezone offset when Dose 1 is taken
+        dose1TimezoneOffsetMinutes = DoseWindowCalculator.currentTimezoneOffsetMinutes()
         
         // Persist to storage
         storage.saveDose1(timestamp: time)
@@ -184,8 +189,32 @@ public final class SessionRepository: ObservableObject, DoseTapSessionRepository
         dose2Skipped = false
         wakeFinalTime = nil
         checkInCompleted = false
+        dose1TimezoneOffsetMinutes = nil
         
         sessionDidChange.send()
+    }
+    
+    // MARK: - Timezone Change Detection
+    
+    /// Check if timezone has changed since Dose 1 was taken
+    /// Returns a human-readable description if changed, nil otherwise
+    public func checkTimezoneChange() -> String? {
+        guard let referenceOffset = dose1TimezoneOffsetMinutes else {
+            return nil
+        }
+        
+        let calculator = DoseWindowCalculator()
+        return calculator.timezoneChangeDescription(from: referenceOffset)
+    }
+    
+    /// Check if timezone has changed (boolean convenience)
+    public var hasTimezoneChanged: Bool {
+        guard let referenceOffset = dose1TimezoneOffsetMinutes else {
+            return false
+        }
+        
+        let calculator = DoseWindowCalculator()
+        return calculator.timezoneChange(from: referenceOffset) != nil
     }
     
     // MARK: - Undo Support
@@ -194,6 +223,7 @@ public final class SessionRepository: ObservableObject, DoseTapSessionRepository
     public func clearDose1() {
         dose1Time = nil
         activeSessionDate = nil
+        dose1TimezoneOffsetMinutes = nil
         
         // Clear from storage
         storage.clearDose1()

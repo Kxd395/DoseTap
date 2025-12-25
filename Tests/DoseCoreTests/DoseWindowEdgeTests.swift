@@ -192,4 +192,72 @@ final class DoseWindowEdgeTests: XCTestCase {
         XCTAssertTrue(info.isLateNight)
         XCTAssertTrue(info.sessionDateLabel.contains("Dec 25") || info.sessionDateLabel.contains("25"))
     }
+    
+    // MARK: - Timezone Change Detection Tests
+    
+    func test_timezone_no_change_returns_nil() {
+        let calc = DoseWindowCalculator()
+        let currentOffset = DoseWindowCalculator.currentTimezoneOffsetMinutes()
+        
+        // Same offset should return nil (no change)
+        XCTAssertNil(calc.timezoneChange(from: currentOffset))
+    }
+    
+    func test_timezone_change_east_3_hours() {
+        let calc = DoseWindowCalculator()
+        let currentOffset = DoseWindowCalculator.currentTimezoneOffsetMinutes()
+        
+        // Reference 3 hours west (180 min less) = we moved 3 hours east
+        let referenceOffset = currentOffset - 180
+        let delta = calc.timezoneChange(from: referenceOffset)
+        
+        XCTAssertEqual(delta, 180) // 180 minutes = 3 hours east
+    }
+    
+    func test_timezone_change_west_1_hour() {
+        let calc = DoseWindowCalculator()
+        let currentOffset = DoseWindowCalculator.currentTimezoneOffsetMinutes()
+        
+        // Reference 1 hour east (60 min more) = we moved 1 hour west
+        let referenceOffset = currentOffset + 60
+        let delta = calc.timezoneChange(from: referenceOffset)
+        
+        XCTAssertEqual(delta, -60) // -60 minutes = 1 hour west
+    }
+    
+    func test_timezone_description_hours_only() {
+        let calc = DoseWindowCalculator()
+        let currentOffset = DoseWindowCalculator.currentTimezoneOffsetMinutes()
+        
+        // 3 hours east
+        let desc = calc.timezoneChangeDescription(from: currentOffset - 180)
+        XCTAssertEqual(desc, "Timezone shifted 3 hours east")
+    }
+    
+    func test_timezone_description_1_hour() {
+        let calc = DoseWindowCalculator()
+        let currentOffset = DoseWindowCalculator.currentTimezoneOffsetMinutes()
+        
+        // 1 hour west (singular)
+        let desc = calc.timezoneChangeDescription(from: currentOffset + 60)
+        XCTAssertEqual(desc, "Timezone shifted 1 hour west")
+    }
+    
+    func test_timezone_description_minutes_only() {
+        let calc = DoseWindowCalculator()
+        let currentOffset = DoseWindowCalculator.currentTimezoneOffsetMinutes()
+        
+        // 30 minutes (e.g., India's +5:30 to +6:00)
+        let desc = calc.timezoneChangeDescription(from: currentOffset - 30)
+        XCTAssertEqual(desc, "Timezone shifted 30 minutes east")
+    }
+    
+    func test_timezone_description_hours_and_minutes() {
+        let calc = DoseWindowCalculator()
+        let currentOffset = DoseWindowCalculator.currentTimezoneOffsetMinutes()
+        
+        // 1 hour 30 minutes west
+        let desc = calc.timezoneChangeDescription(from: currentOffset + 90)
+        XCTAssertEqual(desc, "Timezone shifted 1 hour 30 minutes west")
+    }
 }

@@ -153,10 +153,55 @@ public struct DoseWindowCalculator {
             sessionDate = current
         }
         
+        
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE, MMM d" // e.g., "Wednesday, Dec 25"
         let sessionDateLabel = formatter.string(from: sessionDate)
         
         return (isLateNight, sessionDateLabel)
+    }
+    
+    // MARK: - Timezone Change Detection
+    
+    /// Get the current timezone offset from UTC in minutes
+    /// Used to detect if timezone has changed during a session
+    public static func currentTimezoneOffsetMinutes() -> Int {
+        return TimeZone.current.secondsFromGMT() / 60
+    }
+    
+    /// Check if timezone has changed since a reference offset
+    /// Returns the delta in minutes (positive = moved east, negative = moved west)
+    /// Returns nil if no change
+    public func timezoneChange(from referenceOffsetMinutes: Int) -> Int? {
+        let currentOffset = Self.currentTimezoneOffsetMinutes()
+        let delta = currentOffset - referenceOffsetMinutes
+        
+        if delta == 0 {
+            return nil
+        }
+        
+        return delta
+    }
+    
+    /// Human-readable timezone change description
+    /// E.g., "Timezone shifted 3 hours east" or "Timezone shifted 1 hour west"
+    public func timezoneChangeDescription(from referenceOffsetMinutes: Int) -> String? {
+        guard let delta = timezoneChange(from: referenceOffsetMinutes) else {
+            return nil
+        }
+        
+        let hours = abs(delta) / 60
+        let minutes = abs(delta) % 60
+        let direction = delta > 0 ? "east" : "west"
+        
+        if hours == 0 {
+            return "Timezone shifted \(minutes) minutes \(direction)"
+        } else if minutes == 0 {
+            let hourWord = hours == 1 ? "hour" : "hours"
+            return "Timezone shifted \(hours) \(hourWord) \(direction)"
+        } else {
+            let hourWord = hours == 1 ? "hour" : "hours"
+            return "Timezone shifted \(hours) \(hourWord) \(minutes) minutes \(direction)"
+        }
     }
 }
