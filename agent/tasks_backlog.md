@@ -1,6 +1,6 @@
 # Tasks Backlog
 
-## Completed (v2.6.0)
+## Completed (v2.7.0)
 - [x] CSV exporter - Real implementation with share sheet
 - [x] Debounce bathroom presses (60s) - EventRateLimiter implemented
 - [x] Undo snackbar (5s) w/ cancel token - DoseUndoManager + UndoSnackbarView with configurable speed
@@ -17,22 +17,25 @@
 - [x] HealthKit permission + Sleep read (14–30 nights) - HealthKitService.swift
 - [x] TTFW baseline computation - computeTTFWBaseline(days:)
 - [x] Same-night nudge (±10–15 min) - calculateNudgeSuggestion(), sameNightNudge()
+- [x] Weekly Planner engine - WeeklyPlanner.swift with 4 strategies
+- [x] VoiceOver timed announcements & accessibility labels - CompactStatusCard, buttons
+- [x] Timeline stage bands visualization - SleepStageTimeline.swift
 
 ## High Priority (Next Up)
-- [ ] Snooze 10m if reminder pending (AlarmService already handles)
-- [ ] Weekly Planner engine (discrete set {165,180,195,210,225})
-- [ ] VoiceOver timed announcements & large tap targets
+- [ ] Integration: Wire SleepStageTimeline to HealthKitService data
+- [ ] Settings: High Contrast color tokens with ≥7:1 validation
+- [ ] watchOS: Watch app Dose1/Dose2/Bathroom buttons
 
 ## Medium Priority
 - [ ] WHOOP OAuth screen + token storage
 - [ ] WHOOP sleep/cycle fetch (history import)
+- [ ] Flic single/long/double mapping implementation
 
 ## watchOS
 - [ ] Watch app: Dose1/Dose2/Bathroom buttons
 - [ ] Press-and-hold (1s) Take interaction
 - [ ] Snooze 10m + Skip actions
 - [ ] Dose1 guardrail (require Dose1 before Dose2)
-- [ ] Flic single/long/double mapping implementation
 
 ---
 

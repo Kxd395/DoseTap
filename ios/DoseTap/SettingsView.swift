@@ -33,6 +33,19 @@ struct SettingsView: View {
                 Section {
                     targetIntervalPicker
                     
+                    NavigationLink {
+                        WeeklyPlannerView()
+                    } label: {
+                        HStack {
+                            Label("Weekly Planner", systemImage: "calendar.badge.clock")
+                            Spacer()
+                            if let target = WeeklyPlanner.shared.todayTarget() {
+                                Text("\(target) min today")
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    
                     HStack {
                         Label("Snooze Duration", systemImage: "clock.badge.plus")
                         Spacer()

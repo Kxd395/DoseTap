@@ -13,7 +13,43 @@
 **This document supersedes:** `DoseTap_Spec.md`, `ui-ux-specifications.md`, `button-logic-mapping.md`, `api-documentation.md`, `user-guide.md`, `implementation-roadmap.md`
 
 **Last Updated:** 2024-12-25  
-**Version:** 2.6.0
+**Version:** 2.7.0
+
+## Recent Updates (v2.7.0)
+
+### New in v2.7.0 (Weekly Planner, Accessibility, Timeline Visualization)
+
+#### Weekly Planner Engine (`WeeklyPlanner.swift`)
+
+- ✅ **ADDED**: `WeeklyPlanner` singleton for 7-day dose timing optimization
+- ✅ **ADDED**: Valid intervals: `[165, 180, 195, 210, 225]` minutes
+- ✅ **ADDED**: Plan strategies: `consistent`, `weekendAdjusted`, `gradual`, `baseline`
+- ✅ **ADDED**: `generatePlan(baseline:strategy:)` creates personalized 7-day plan
+- ✅ **ADDED**: `todayTarget()` returns current day's recommended interval
+- ✅ **ADDED**: `planNeedsRefresh()` checks if plan is older than 7 days
+- ✅ **ADDED**: `WeeklyPlannerView` with strategy picker and day breakdown
+- ✅ **ADDED**: `CompactPlanSummary` for Tonight view
+
+#### VoiceOver Accessibility
+
+- ✅ **ADDED**: `accessibilityLabel` and `accessibilityHint` for CompactStatusCard
+- ✅ **ADDED**: Timed announcements at 60, 30, 15, 10, 5, 1 minute marks
+- ✅ **ADDED**: Accessibility labels for primary dose button (all states)
+- ✅ **ADDED**: Accessibility hints with double-tap instructions
+- ✅ **ADDED**: 44pt minimum tap targets for QuickLog buttons (was 36pt)
+
+#### Sleep Stage Timeline (`SleepStageTimeline.swift`)
+
+- ✅ **ADDED**: `SleepStageTimeline` visualization with color-coded bands
+- ✅ **ADDED**: `SleepStage` enum: `awake`, `light`, `core`, `deep`, `rem`
+- ✅ **ADDED**: `SleepStageBand` model for stage intervals
+- ✅ **ADDED**: `TimelineEvent` for dose/bathroom markers on timeline
+- ✅ **ADDED**: `StageSummaryCard` with duration breakdown by stage
+- ✅ **ADDED**: Stage colors: awake=red, light=blue40%, core=blue60%, deep=indigo, rem=purple
+
+**Test Coverage**: 246 tests passing
+
+---
 
 ## Recent Updates (v2.6.0)
 

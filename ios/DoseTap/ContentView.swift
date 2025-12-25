@@ -704,6 +704,7 @@ struct CompactStatusCard: View {
     @ObservedObject var core: DoseTapCore
     @State private var timeRemaining: TimeInterval = 0
     @State private var windowCloseRemaining: TimeInterval = 0
+    @State private var lastAnnouncedMinute: Int = -1
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     
     private let windowOpenMinutes: TimeInterval = 150
@@ -726,6 +727,7 @@ struct CompactStatusCard: View {
                     .font(.system(size: 48, weight: .bold, design: .rounded))
                     .foregroundColor(.orange)
                     .monospacedDigit()
+                    .accessibilityLabel(accessibleTimeRemaining)
                 
                 Text("Window opens at \(formatWindowOpenTime)")
                     .font(.caption)
@@ -749,8 +751,15 @@ struct CompactStatusCard: View {
                 .fill(statusColor.opacity(0.1))
         )
         .padding(.horizontal)
+        // Accessibility
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityStatusLabel)
+        .accessibilityHint(accessibilityStatusHint)
         .onAppear { updateTimeRemaining() }
-        .onReceive(timer) { _ in updateTimeRemaining() }
+        .onReceive(timer) { _ in 
+            updateTimeRemaining()
+            announceTimeIfNeeded()
+        }
     }
     
     private func updateTimeRemaining() {
@@ -761,11 +770,67 @@ struct CompactStatusCard: View {
         windowCloseRemaining = max(0, windowCloseTime.timeIntervalSince(Date()))
     }
     
+    /// Announce time at key intervals for VoiceOver users
+    private func announceTimeIfNeeded() {
+        let currentMinute = Int(timeRemaining) / 60
+        guard currentMinute != lastAnnouncedMinute else { return }
+        
+        // Announce at 60, 30, 15, 10, 5, 1 minute marks
+        let announceMinutes = [60, 30, 15, 10, 5, 1]
+        if announceMinutes.contains(currentMinute) && UIAccessibility.isVoiceOverRunning {
+            let announcement = currentMinute == 1 
+                ? "1 minute remaining until dose window opens"
+                : "\(currentMinute) minutes remaining until dose window opens"
+            UIAccessibility.post(notification: .announcement, argument: announcement)
+            lastAnnouncedMinute = currentMinute
+        }
+    }
+    
     private var formatTimeRemaining: String {
         let hours = Int(timeRemaining) / 3600
         let minutes = (Int(timeRemaining) % 3600) / 60
         let seconds = Int(timeRemaining) % 60
         return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+    }
+    
+    private var accessibleTimeRemaining: String {
+        let hours = Int(timeRemaining) / 3600
+        let minutes = (Int(timeRemaining) % 3600) / 60
+        if hours > 0 {
+            return "\(hours) hours and \(minutes) minutes remaining"
+        } else {
+            return "\(minutes) minutes remaining"
+        }
+    }
+    
+    private var accessibilityStatusLabel: String {
+        switch core.currentStatus {
+        case .noDose1: 
+            return "Ready for Dose 1. Tap the button below to take your first dose."
+        case .beforeWindow:
+            return "Waiting for window. \(accessibleTimeRemaining)"
+        case .active:
+            return "Dose window is open. You can take Dose 2 now."
+        case .nearClose:
+            let minutes = Int(windowCloseRemaining / 60)
+            return "Warning: Window closing soon! Only \(minutes) minutes remaining."
+        case .closed:
+            return "Window has closed. Dose 2 was not taken in time."
+        case .completed:
+            return "Session complete. Both doses taken successfully."
+        case .finalizing:
+            return "Finalizing session. Complete your morning check-in."
+        }
+    }
+    
+    private var accessibilityStatusHint: String {
+        switch core.currentStatus {
+        case .noDose1: return "Double tap to take Dose 1"
+        case .beforeWindow: return "Wait for the countdown to finish"
+        case .active, .nearClose: return "Double tap to take Dose 2"
+        case .closed: return "Session has expired"
+        case .completed, .finalizing: return ""
+        }
     }
     
     private var formatWindowOpenTime: String {
@@ -841,10 +906,13 @@ struct CompactDoseButton: View {
                     .font(.headline)
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 50)
+                    .frame(height: 50)  // Minimum 44pt tap target per Apple HIG
                     .background(primaryButtonColor)
                     .cornerRadius(12)
             }
+            // Accessibility
+            .accessibilityLabel(primaryButtonAccessibilityLabel)
+            .accessibilityHint(primaryButtonAccessibilityHint)
             // Allow tapping even when completed (for extra dose warning) or closed (for override)
             .padding(.horizontal)
             .alert("Window Expired", isPresented: $showWindowExpiredOverride) {
@@ -981,6 +1049,30 @@ struct CompactDoseButton: View {
         case .closed: return "Take Dose 2 (Late)"
         case .completed: return "Complete ✓"
         case .finalizing: return "Check-In"
+        }
+    }
+    
+    private var primaryButtonAccessibilityLabel: String {
+        switch core.currentStatus {
+        case .noDose1: return "Take Dose 1 button"
+        case .beforeWindow: return "Waiting for dose window to open"
+        case .active: return "Take Dose 2 button. Window is open."
+        case .nearClose: return "Take Dose 2 button. Warning: window closing soon!"
+        case .closed: return "Take Dose 2 late button. Window has closed."
+        case .completed: return "Session complete. Both doses taken."
+        case .finalizing: return "Complete morning check-in button"
+        }
+    }
+    
+    private var primaryButtonAccessibilityHint: String {
+        switch core.currentStatus {
+        case .noDose1: return "Double tap to record taking your first dose"
+        case .beforeWindow: return "Button disabled. Wait for the countdown to complete."
+        case .active: return "Double tap to record taking your second dose"
+        case .nearClose: return "Double tap now to take your second dose before the window closes"
+        case .closed: return "Double tap to take dose late. You will be asked to confirm."
+        case .completed: return ""
+        case .finalizing: return "Double tap to complete your session"
         }
     }
     
@@ -1307,13 +1399,13 @@ struct CompactQuickButton: View {
                 ZStack {
                     Circle()
                         .fill(color.opacity(isOnCooldown ? 0.2 : 0.15))
-                        .frame(width: 36, height: 36)
+                        .frame(width: 44, height: 44)  // Minimum 44pt tap target
                     
                     if isOnCooldown {
                         Circle()
                             .trim(from: 0, to: progress)
                             .stroke(color.opacity(0.5), lineWidth: 2)
-                            .frame(width: 36, height: 36)
+                            .frame(width: 44, height: 44)
                             .rotationEffect(.degrees(-90))
                     }
                     
@@ -1331,6 +1423,10 @@ struct CompactQuickButton: View {
         }
         .disabled(isOnCooldown)
         .frame(maxWidth: .infinity)
+        // Accessibility
+        .accessibilityLabel("\(name) event button")
+        .accessibilityHint(isOnCooldown ? "Button on cooldown. Wait to log again." : "Double tap to log \(name) event")
+        .accessibilityAddTraits(isOnCooldown ? .isButton : [.isButton])
         .onReceive(timer) { _ in
             updateProgress()
         }
