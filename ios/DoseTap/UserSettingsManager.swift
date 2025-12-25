@@ -62,6 +62,19 @@ class UserSettingsManager: ObservableObject {
     @AppStorage("snooze_duration_minutes") var snoozeDurationMinutes: Int = 10
     @AppStorage("max_snoozes") var maxSnoozes: Int = 3
     
+    // MARK: - Undo Settings
+    // How long the undo snackbar appears after dose actions (seconds)
+    @AppStorage("undo_window_seconds") var undoWindowSeconds: Double = 5.0
+    
+    // Valid undo window options (seconds)
+    let validUndoWindowOptions: [Double] = [3.0, 5.0, 7.0, 10.0]
+    
+    // MARK: - Medication Settings
+    // Which medications the user takes (stored as JSON array of medication IDs)
+    @AppStorage("user_medications_json") private var userMedicationsJSON: String = ""
+    @AppStorage("default_adderall_dose") var defaultAdderallDose: Int = 10
+    @AppStorage("default_adderall_formulation") var defaultAdderallFormulation: String = "ir"
+    
     // MARK: - Event Log Cooldowns (in seconds)
     // Shorter = can log same event more frequently
     @AppStorage("cooldown_bathroom") var cooldownBathroom: Int = 30
@@ -217,6 +230,46 @@ class UserSettingsManager: ObservableObject {
         case .dark: return .dark
         case .system: return nil
         }
+    }
+    
+    // MARK: - Medication Management
+    
+    // Available doses for Adderall (mg)
+    let adderallDoseOptions: [Int] = [5, 10, 15, 20, 25, 30]
+    
+    // Get user's configured medications
+    var userMedications: [String] {
+        get {
+            if userMedicationsJSON.isEmpty {
+                return ["adderall_ir"] // Default to Adderall IR
+            }
+            guard let data = userMedicationsJSON.data(using: .utf8),
+                  let meds = try? JSONDecoder().decode([String].self, from: data) else {
+                return ["adderall_ir"]
+            }
+            return meds
+        }
+        set {
+            if let data = try? JSONEncoder().encode(newValue),
+               let json = String(data: data, encoding: .utf8) {
+                userMedicationsJSON = json
+                objectWillChange.send()
+            }
+        }
+    }
+    
+    func toggleMedication(_ medicationId: String) {
+        var meds = userMedications
+        if meds.contains(medicationId) {
+            meds.removeAll { $0 == medicationId }
+        } else {
+            meds.append(medicationId)
+        }
+        userMedications = meds
+    }
+    
+    func hasMedication(_ medicationId: String) -> Bool {
+        userMedications.contains(medicationId)
     }
 }
 

@@ -70,6 +70,33 @@ struct SettingsView: View {
                     Text("Target interval is when you'll be reminded to take Dose 2.")
                 }
                 
+                // MARK: - Undo Settings Section
+                Section {
+                    undoSpeedPicker
+                } header: {
+                    Label("Undo", systemImage: "arrow.uturn.backward")
+                } footer: {
+                    Text("How long you have to undo a dose action after tapping.")
+                }
+                
+                // MARK: - Medication Settings Section
+                Section {
+                    NavigationLink {
+                        MedicationSettingsView()
+                    } label: {
+                        HStack {
+                            Label("My Medications", systemImage: "pills.fill")
+                            Spacer()
+                            Text(medicationSummary)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                } header: {
+                    Label("Medications", systemImage: "cross.case.fill")
+                } footer: {
+                    Text("Configure which medications you take and default doses.")
+                }
+                
                 // MARK: - Notifications Section
                 Section {
                     Toggle(isOn: $settings.notificationsEnabled) {
@@ -321,11 +348,74 @@ struct SettingsView: View {
         }
     }
     
+    // MARK: - Undo Speed Picker
+    private var undoSpeedPicker: some View {
+        HStack {
+            Label("Undo Window", systemImage: "timer")
+            Spacer()
+            Menu {
+                ForEach(settings.validUndoWindowOptions, id: \.self) { seconds in
+                    Button {
+                        settings.undoWindowSeconds = seconds
+                    } label: {
+                        HStack {
+                            Text(formatUndoWindow(seconds))
+                            if settings.undoWindowSeconds == seconds {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack {
+                    Text(formatUndoWindow(settings.undoWindowSeconds))
+                        .foregroundColor(.secondary)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+    }
+    
+    // MARK: - Medication Summary
+    private var medicationSummary: String {
+        let meds = settings.userMedications
+        if meds.isEmpty {
+            return "None"
+        } else if meds.count == 1 {
+            return medicationDisplayName(meds[0])
+        } else {
+            return "\(meds.count) medications"
+        }
+    }
+    
+    private func medicationDisplayName(_ id: String) -> String {
+        switch id {
+        case "adderall_ir": return "Adderall IR"
+        case "adderall_xr": return "Adderall XR"
+        default: return id
+        }
+    }
+    
     // MARK: - Helper Methods
     private func formatInterval(_ minutes: Int) -> String {
         let hours = minutes / 60
         let mins = minutes % 60
         return "\(hours)h \(mins)m (\(minutes) min)"
+    }
+    
+    private func formatUndoWindow(_ seconds: Double) -> String {
+        let intSeconds = Int(seconds)
+        if intSeconds == 3 {
+            return "Fast (3s)"
+        } else if intSeconds == 5 {
+            return "Normal (5s)"
+        } else if intSeconds == 7 {
+            return "Slow (7s)"
+        } else {
+            return "Very Slow (10s)"
+        }
     }
     
     private func requestHealthKitPermissions() {

@@ -13,7 +13,45 @@
 **This document supersedes:** `DoseTap_Spec.md`, `ui-ux-specifications.md`, `button-logic-mapping.md`, `api-documentation.md`, `user-guide.md`, `implementation-roadmap.md`
 
 **Last Updated:** 2024-12-25  
-**Version:** 2.4.2
+**Version:** 2.4.3
+
+## Recent Updates (v2.4.3)
+
+### New in v2.4.3 (Undo Support & Medication Settings)
+
+#### Undo Snackbar (High Priority Gap Closed)
+
+- ✅ **IMPLEMENTED**: 5-second undo window for dose actions
+- ✅ **ADDED**: Configurable speed setting: Fast (3s), Normal (5s), Slow (7s), Very Slow (10s)
+- ✅ **ADDED**: `UndoSnackbarView` with countdown progress bar and color coding
+- ✅ **ADDED**: `UndoStateManager` observable wrapper for SwiftUI integration
+- ✅ **ADDED**: Undo callback integration with `SessionRepository` for state reversal
+- ✅ **ADDED**: Storage layer methods: `clearDose1()`, `clearDose2()`, `clearSkip()`
+
+**User Flow:**
+1. User takes Dose 1 or Dose 2
+2. Snackbar appears at bottom with countdown
+3. User can tap "Undo" to revert within configured window
+4. If window expires, action commits permanently
+
+#### Medication Settings (User Request)
+
+- ✅ **ADDED**: `MedicationSettingsView` - configure which medications user takes
+- ✅ **ADDED**: Medication toggle for Adderall IR and Adderall XR
+- ✅ **ADDED**: Default dose picker (5, 10, 15, 20, 25, 30 mg)
+- ✅ **ADDED**: Default formulation picker when both IR/XR selected
+- ✅ **ADDED**: Info section explaining duplicate guard and session linking
+
+**Settings Location:** Settings → Medications → My Medications
+
+#### Settings Additions
+
+- ✅ **ADDED**: "Undo" section with speed picker in Settings
+- ✅ **ADDED**: "Medications" navigation link to MedicationSettingsView
+- ✅ **ADDED**: `undoWindowSeconds` user preference (default: 5.0)
+- ✅ **ADDED**: `userMedications` array for tracking selected medications
+
+---
 
 ## Recent Updates (v2.4.2)
 
@@ -173,7 +211,7 @@ The previous architecture had `DoseTapCore` (in-memory) and `EventStorage` (SQLi
 
 | Gap | Description | Priority |
 |-----|-------------|----------|
-| **Undo Support** | ⚠️ NOT YET IMPLEMENTED: 5-second undo snackbar for accidental taps. Backend ready (`DoseUndoManager` in Core with tests), UI wiring pending. | High |
+| ~~**Undo Support**~~ | ✅ FIXED in v2.4.3 - Undo snackbar with configurable speed (3-10s), full state reversal | ~~High~~ |
 | ~~**Session Terminal State**~~ | ✅ FIXED in v2.4.0 - SQLite now has `terminal_state` column via migration | ~~Medium~~ |
 | ~~**History Delete State Sync**~~ | ✅ FIXED in v2.4.0 - SessionRepository pattern ensures Tonight clears on delete | ~~High~~ |
 | **Finalizing State** | Track session between wakeFinal and check-in completion | Medium |

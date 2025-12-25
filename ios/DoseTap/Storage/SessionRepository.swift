@@ -182,6 +182,55 @@ public final class SessionRepository: ObservableObject, DoseTapSessionRepository
         sessionDidChange.send()
     }
     
+    // MARK: - Undo Support
+    
+    /// Clear Dose 1 (for undo)
+    public func clearDose1() {
+        dose1Time = nil
+        activeSessionDate = nil
+        
+        // Clear from storage
+        storage.clearDose1()
+        
+        sessionDidChange.send()
+        print("↩️ SessionRepository: Dose 1 cleared (undo)")
+    }
+    
+    /// Clear Dose 2 (for undo)
+    public func clearDose2() {
+        dose2Time = nil
+        
+        // Clear from storage
+        storage.clearDose2()
+        
+        sessionDidChange.send()
+        print("↩️ SessionRepository: Dose 2 cleared (undo)")
+    }
+    
+    /// Clear skip status (for undo)
+    public func clearSkip() {
+        dose2Skipped = false
+        
+        // Clear from storage
+        storage.clearSkip()
+        
+        sessionDidChange.send()
+        print("↩️ SessionRepository: Skip cleared (undo)")
+    }
+    
+    /// Decrement snooze count (for undo)
+    public func decrementSnoozeCount() {
+        if snoozeCount > 0 {
+            snoozeCount -= 1
+            
+            // Persist to storage
+            storage.saveSnooze(count: snoozeCount)
+            
+            sessionDidChange.send()
+            print("↩️ SessionRepository: Snooze count decremented to \(snoozeCount) (undo)")
+        }
+    }
+    
     // MARK: - Queries
     
     /// Check if a given session date is the active/current session

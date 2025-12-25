@@ -99,13 +99,14 @@ struct ContentView: View {
     @StateObject private var settings = UserSettingsManager.shared
     @StateObject private var eventLogger = EventLogger.shared
     @StateObject private var sessionRepo = SessionRepository.shared
+    @StateObject private var undoState = UndoStateManager()
     @State private var selectedTab = 0
     
     var body: some View {
         ZStack(alignment: .bottom) {
             // Swipeable Page View
             TabView(selection: $selectedTab) {
-                TonightView(core: core, eventLogger: eventLogger)
+                TonightView(core: core, eventLogger: eventLogger, undoState: undoState)
                     .tag(0)
                 
                 DetailsView(core: core, eventLogger: eventLogger)
@@ -122,12 +123,52 @@ struct ContentView: View {
             
             // Custom Tab Bar
             CustomTabBar(selectedTab: $selectedTab)
+            
+            // Undo Snackbar Overlay
+            UndoOverlayView(stateManager: undoState)
         }
         .preferredColorScheme(settings.colorScheme)
         .onAppear {
             // P0 FIX: Wire DoseTapCore to SessionRepository (single source of truth)
             // All state reads/writes now go through SessionRepository
             core.setSessionRepository(sessionRepo)
+            
+            // Setup undo callbacks
+            setupUndoCallbacks()
+        }
+    }
+    
+    private func setupUndoCallbacks() {
+        // On commit: the action stays (do nothing, already saved)
+        undoState.onCommit = { action in
+            print("✅ Action committed: \(action)")
+        }
+        
+        // On undo: revert the action
+        undoState.onUndo = { action in
+            Task { @MainActor in
+                switch action {
+                case .takeDose1(let time):
+                    // Revert Dose 1
+                    sessionRepo.clearDose1()
+                    print("↩️ Undid Dose 1 taken at \(time)")
+                    
+                case .takeDose2(let time):
+                    // Revert Dose 2
+                    sessionRepo.clearDose2()
+                    print("↩️ Undid Dose 2 taken at \(time)")
+                    
+                case .skipDose(let seq, _):
+                    // Revert skip
+                    sessionRepo.clearSkip()
+                    print("↩️ Undid skip of dose \(seq)")
+                    
+                case .snooze(let mins):
+                    // Revert snooze (decrement count)
+                    sessionRepo.decrementSnoozeCount()
+                    print("↩️ Undid snooze of \(mins) minutes")
+                }
+            }
         }
     }
 }
@@ -176,6 +217,7 @@ struct CustomTabBar: View {
 struct TonightView: View {
     @ObservedObject var core: DoseTapCore
     @ObservedObject var eventLogger: EventLogger
+    @ObservedObject var undoState: UndoStateManager
     @State private var showEarlyDoseAlert = false
     @State private var showOverrideConfirmation = false
     @State private var earlyDoseMinutesRemaining: Int = 0
@@ -229,6 +271,7 @@ struct TonightView: View {
             CompactDoseButton(
                 core: core,
                 eventLogger: eventLogger,
+                undoState: undoState,
                 showEarlyDoseAlert: $showEarlyDoseAlert,
                 earlyDoseMinutes: $earlyDoseMinutesRemaining,
                 showExtraDoseWarning: $showExtraDoseWarning
@@ -585,6 +628,7 @@ struct CompactStatusCard: View {
 struct CompactDoseButton: View {
     @ObservedObject var core: DoseTapCore
     @ObservedObject var eventLogger: EventLogger
+    @ObservedObject var undoState: UndoStateManager
     @Binding var showEarlyDoseAlert: Bool
     @Binding var earlyDoseMinutes: Int
     @Binding var showExtraDoseWarning: Bool  // For second dose 2 attempt
@@ -653,6 +697,8 @@ struct CompactDoseButton: View {
                 storage.linkPreSleepLogToSession(sessionId: sessionId)
                 // Log Dose 1 as event for Details tab
                 eventLogger.logEvent(name: "Dose 1", color: .green, cooldownSeconds: 3600 * 8)
+                // Register for undo
+                undoState.register(.takeDose1(at: now))
             }
             return
         }
@@ -685,6 +731,8 @@ struct CompactDoseButton: View {
             storage.saveDose2(timestamp: now)
             // Log Dose 2 as event for Details tab
             eventLogger.logEvent(name: "Dose 2", color: .green, cooldownSeconds: 3600 * 8)
+            // Register for undo
+            undoState.register(.takeDose2(at: now))
         }
     }
     
@@ -698,6 +746,8 @@ struct CompactDoseButton: View {
             storage.saveDose2(timestamp: now, isEarly: false, isExtraDose: false)
             // Log with late indicator
             eventLogger.logEvent(name: "Dose 2 (Late)", color: .orange, cooldownSeconds: 3600 * 8)
+            // Register for undo (late doses can also be undone)
+            undoState.register(.takeDose2(at: now))
         }
     }
     

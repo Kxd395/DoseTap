@@ -432,6 +432,80 @@ public class EventStorage {
         updateCurrentSession(snoozeCount: count)
     }
     
+    // MARK: - Undo Support Methods
+    
+    /// Clear dose 1 from current session (for undo)
+    public func clearDose1() {
+        let sessionDate = currentSessionDate()
+        
+        // Delete dose1 event from dose_events
+        let deleteSQL = "DELETE FROM dose_events WHERE session_date = ? AND event_type = 'dose1'"
+        var stmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, deleteSQL, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
+            sqlite3_step(stmt)
+            sqlite3_finalize(stmt)
+        }
+        
+        // Clear dose1_time in current_session
+        let updateSQL = "UPDATE current_session SET dose1_time = NULL WHERE session_date = ?"
+        if sqlite3_prepare_v2(db, updateSQL, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
+            sqlite3_step(stmt)
+            sqlite3_finalize(stmt)
+        }
+        
+        print("↩️ EventStorage: Cleared dose1 for session \(sessionDate)")
+    }
+    
+    /// Clear dose 2 from current session (for undo)
+    public func clearDose2() {
+        let sessionDate = currentSessionDate()
+        
+        // Delete dose2 event from dose_events
+        let deleteSQL = "DELETE FROM dose_events WHERE session_date = ? AND event_type = 'dose2'"
+        var stmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, deleteSQL, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
+            sqlite3_step(stmt)
+            sqlite3_finalize(stmt)
+        }
+        
+        // Clear dose2_time in current_session
+        let updateSQL = "UPDATE current_session SET dose2_time = NULL WHERE session_date = ?"
+        if sqlite3_prepare_v2(db, updateSQL, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
+            sqlite3_step(stmt)
+            sqlite3_finalize(stmt)
+        }
+        
+        print("↩️ EventStorage: Cleared dose2 for session \(sessionDate)")
+    }
+    
+    /// Clear skip status from current session (for undo)
+    public func clearSkip() {
+        let sessionDate = currentSessionDate()
+        
+        // Delete skip event from dose_events
+        let deleteSQL = "DELETE FROM dose_events WHERE session_date = ? AND event_type = 'dose2_skipped'"
+        var stmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, deleteSQL, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
+            sqlite3_step(stmt)
+            sqlite3_finalize(stmt)
+        }
+        
+        // Clear dose2_skipped in current_session
+        let updateSQL = "UPDATE current_session SET dose2_skipped = 0 WHERE session_date = ?"
+        if sqlite3_prepare_v2(db, updateSQL, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
+            sqlite3_step(stmt)
+            sqlite3_finalize(stmt)
+        }
+        
+        print("↩️ EventStorage: Cleared skip for session \(sessionDate)")
+    }
+    
     private func insertDoseEvent(eventType: String, timestamp: Date, metadata: String? = nil) {
         let sql = """
         INSERT INTO dose_events (id, event_type, timestamp, session_date, metadata)
