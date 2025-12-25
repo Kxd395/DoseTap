@@ -4,6 +4,7 @@ import SwiftUI
 @main
 struct DoseTapApp: App {
     @Environment(\.scenePhase) private var scenePhase
+    @StateObject private var urlRouter = URLRouter.shared
     
     init() {
         print("DoseTap app initialized (simplified)")
@@ -18,6 +19,12 @@ struct DoseTapApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(urlRouter)
+                .onOpenURL { url in
+                    // Handle deep links
+                    let handled = urlRouter.handle(url)
+                    print("🔗 URL \(url.absoluteString) handled: \(handled)")
+                }
                 .onChange(of: scenePhase) { newPhase in
                     if newPhase == .active {
                         // Check for expired sessions when app becomes active

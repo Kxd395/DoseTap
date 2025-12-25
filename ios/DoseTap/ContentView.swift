@@ -100,12 +100,12 @@ struct ContentView: View {
     @StateObject private var eventLogger = EventLogger.shared
     @StateObject private var sessionRepo = SessionRepository.shared
     @StateObject private var undoState = UndoStateManager()
-    @State private var selectedTab = 0
+    @ObservedObject private var urlRouter = URLRouter.shared
     
     var body: some View {
         ZStack(alignment: .bottom) {
             // Swipeable Page View
-            TabView(selection: $selectedTab) {
+            TabView(selection: $urlRouter.selectedTab) {
                 TonightView(core: core, eventLogger: eventLogger, undoState: undoState)
                     .tag(0)
                 
@@ -122,16 +122,27 @@ struct ContentView: View {
             .ignoresSafeArea(.container, edges: .bottom)
             
             // Custom Tab Bar
-            CustomTabBar(selectedTab: $selectedTab)
+            CustomTabBar(selectedTab: $urlRouter.selectedTab)
             
             // Undo Snackbar Overlay
             UndoOverlayView(stateManager: undoState)
+            
+            // URL Action Feedback Banner
+            VStack {
+                URLFeedbackBanner()
+                Spacer()
+            }
+            .padding(.top, 50)
         }
         .preferredColorScheme(settings.colorScheme)
         .onAppear {
             // P0 FIX: Wire DoseTapCore to SessionRepository (single source of truth)
             // All state reads/writes now go through SessionRepository
             core.setSessionRepository(sessionRepo)
+            
+            // Wire URLRouter dependencies for deep link handling
+            urlRouter.core = core
+            urlRouter.eventLogger = eventLogger
             
             // Setup undo callbacks
             setupUndoCallbacks()
@@ -177,9 +188,11 @@ struct ContentView: View {
 struct CustomTabBar: View {
     @Binding var selectedTab: Int
     
+    // Tab names per SSOT: Tonight / Timeline / History / Settings
+    // (Insights will be merged into Timeline; Devices tab is future work)
     private let tabs: [(icon: String, label: String)] = [
         ("moon.fill", "Tonight"),
-        ("list.bullet.clipboard", "Details"),
+        ("chart.bar.xaxis", "Timeline"),  // Renamed from "Details"
         ("calendar", "History"),
         ("gear", "Settings")
     ]
@@ -1584,6 +1597,9 @@ struct DetailsView: View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 20) {
+                    // Insights Summary Card (on-time %, avg interval, etc.)
+                    InsightsSummaryCard()
+                    
                     // Full Session Details (dose times, window status)
                     FullSessionDetails(core: core)
                     
@@ -1600,7 +1616,7 @@ struct DetailsView: View {
                 .padding()
                 .padding(.bottom, 80) // Space for tab bar
             }
-            .navigationTitle("Details")
+            .navigationTitle("Timeline")
         }
     }
 }
