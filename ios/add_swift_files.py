@@ -14,6 +14,7 @@ missing_files = [
     "DashboardView.swift",
     "DoseTapCore.swift",
     "UndoSnackbar.swift",
+    "UndoStateManager.swift",  # Standalone file for UndoStateManager class
     # Views folder files
     "Views/UndoSnackbarView.swift",
     "Views/MedicationSettingsView.swift",
