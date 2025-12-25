@@ -149,7 +149,10 @@ public class EventStorage {
             session_date TEXT NOT NULL,
             medication_id TEXT NOT NULL,
             dose_mg INTEGER NOT NULL,
+            dose_unit TEXT NOT NULL DEFAULT 'mg',
+            formulation TEXT NOT NULL DEFAULT 'ir',
             taken_at_utc TEXT NOT NULL,
+            local_offset_minutes INTEGER NOT NULL DEFAULT 0,
             notes TEXT,
             confirmed_duplicate INTEGER DEFAULT 0,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -186,7 +189,11 @@ public class EventStorage {
             "ALTER TABLE morning_checkins ADD COLUMN has_sleep_environment INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE morning_checkins ADD COLUMN sleep_environment_json TEXT",
             // Dose 3 Hazard Safety: Add hazard flag to dose_events
-            "ALTER TABLE dose_events ADD COLUMN is_hazard INTEGER DEFAULT 0"
+            "ALTER TABLE dose_events ADD COLUMN is_hazard INTEGER DEFAULT 0",
+            // Medication events schema v2: Add missing columns
+            "ALTER TABLE medication_events ADD COLUMN dose_unit TEXT NOT NULL DEFAULT 'mg'",
+            "ALTER TABLE medication_events ADD COLUMN formulation TEXT NOT NULL DEFAULT 'ir'",
+            "ALTER TABLE medication_events ADD COLUMN local_offset_minutes INTEGER NOT NULL DEFAULT 0"
         ]
         
         for sql in migrations {
@@ -818,7 +825,7 @@ public class EventStorage {
         
         sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
         
-        let tables = ["sleep_events", "dose_events", "pre_sleep_logs", "morning_checkins"]
+        let tables = ["sleep_events", "dose_events", "pre_sleep_logs", "morning_checkins", "medication_events"]
         for table in tables {
             let sql = "DELETE FROM \(table) WHERE session_date < ?"
             var stmt: OpaquePointer?
@@ -847,7 +854,7 @@ public class EventStorage {
         // Use transaction for atomicity
         sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
         
-        let tables = ["sleep_events", "dose_events", "pre_sleep_logs", "morning_checkins"]
+        let tables = ["sleep_events", "dose_events", "pre_sleep_logs", "morning_checkins", "medication_events"]
         for table in tables {
             let sql = "DELETE FROM \(table) WHERE session_date = ?"
             var stmt: OpaquePointer?
@@ -1171,8 +1178,8 @@ public class EventStorage {
     /// Insert a medication event (Adderall, etc.)
     public func insertMedicationEvent(_ entry: StoredMedicationEntry) {
         let sql = """
-        INSERT INTO medication_events (id, session_id, session_date, medication_id, dose_mg, taken_at_utc, notes, confirmed_duplicate)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO medication_events (id, session_id, session_date, medication_id, dose_mg, dose_unit, formulation, taken_at_utc, local_offset_minutes, notes, confirmed_duplicate)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         
         var stmt: OpaquePointer?
@@ -1193,20 +1200,23 @@ public class EventStorage {
         sqlite3_bind_text(stmt, 3, entry.sessionDate, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 4, entry.medicationId, -1, SQLITE_TRANSIENT)
         sqlite3_bind_int(stmt, 5, Int32(entry.doseMg))
-        sqlite3_bind_text(stmt, 6, isoFormatter.string(from: entry.takenAtUTC), -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 6, entry.doseUnit, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 7, entry.formulation, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 8, isoFormatter.string(from: entry.takenAtUTC), -1, SQLITE_TRANSIENT)
+        sqlite3_bind_int(stmt, 9, Int32(entry.localOffsetMinutes))
         
         if let notes = entry.notes {
-            sqlite3_bind_text(stmt, 7, notes, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 10, notes, -1, SQLITE_TRANSIENT)
         } else {
-            sqlite3_bind_null(stmt, 7)
+            sqlite3_bind_null(stmt, 10)
         }
         
-        sqlite3_bind_int(stmt, 8, entry.confirmedDuplicate ? 1 : 0)
+        sqlite3_bind_int(stmt, 11, entry.confirmedDuplicate ? 1 : 0)
         
         if sqlite3_step(stmt) != SQLITE_DONE {
             print("❌ Failed to insert medication event: \(String(cString: sqlite3_errmsg(db)))")
         } else {
-            print("💊 Medication event inserted: \(entry.medicationId) \(entry.doseMg)mg")
+            print("💊 Medication event inserted: \(entry.medicationId) \(entry.doseMg)\(entry.doseUnit)")
         }
     }
     
@@ -1214,7 +1224,7 @@ public class EventStorage {
     public func fetchMedicationEvents(sessionDate: String) -> [StoredMedicationEntry] {
         var entries: [StoredMedicationEntry] = []
         let sql = """
-        SELECT id, session_id, session_date, medication_id, dose_mg, taken_at_utc, notes, confirmed_duplicate, created_at
+        SELECT id, session_id, session_date, medication_id, dose_mg, dose_unit, formulation, taken_at_utc, local_offset_minutes, notes, confirmed_duplicate, created_at
         FROM medication_events
         WHERE session_date = ?
         ORDER BY taken_at_utc DESC
@@ -1239,7 +1249,7 @@ public class EventStorage {
     public func fetchAllMedicationEvents(limit: Int = 1000) -> [StoredMedicationEntry] {
         var entries: [StoredMedicationEntry] = []
         let sql = """
-        SELECT id, session_id, session_date, medication_id, dose_mg, taken_at_utc, notes, confirmed_duplicate, created_at
+        SELECT id, session_id, session_date, medication_id, dose_mg, dose_unit, formulation, taken_at_utc, local_offset_minutes, notes, confirmed_duplicate, created_at
         FROM medication_events
         ORDER BY taken_at_utc DESC
         LIMIT ?
@@ -1290,6 +1300,7 @@ public class EventStorage {
     }
     
     /// Parse a medication row from SQLite result
+    /// Column order: id, session_id, session_date, medication_id, dose_mg, dose_unit, formulation, taken_at_utc, local_offset_minutes, notes, confirmed_duplicate, created_at
     private func parseMedicationRow(_ stmt: OpaquePointer?) -> StoredMedicationEntry? {
         guard let stmt = stmt else { return nil }
         
@@ -1304,21 +1315,42 @@ public class EventStorage {
         
         let sessionDate = String(cString: sqlite3_column_text(stmt, 2))
         let medicationId = String(cString: sqlite3_column_text(stmt, 3))
-        let doseMg = Int(sqlite3_column_int(stmt, 4))
+        let doseValue = sqlite3_column_double(stmt, 4)
         
-        let takenAtStr = String(cString: sqlite3_column_text(stmt, 5))
+        let doseUnit: String?
+        if sqlite3_column_type(stmt, 5) != SQLITE_NULL {
+            doseUnit = String(cString: sqlite3_column_text(stmt, 5))
+        } else {
+            doseUnit = nil
+        }
+        
+        let formulation: String?
+        if sqlite3_column_type(stmt, 6) != SQLITE_NULL {
+            formulation = String(cString: sqlite3_column_text(stmt, 6))
+        } else {
+            formulation = nil
+        }
+        
+        let takenAtStr = String(cString: sqlite3_column_text(stmt, 7))
         guard let takenAtUTC = isoFormatter.date(from: takenAtStr) else { return nil }
         
+        let localOffsetMinutes: Int?
+        if sqlite3_column_type(stmt, 8) != SQLITE_NULL {
+            localOffsetMinutes = Int(sqlite3_column_int(stmt, 8))
+        } else {
+            localOffsetMinutes = nil
+        }
+        
         let notes: String?
-        if sqlite3_column_type(stmt, 6) != SQLITE_NULL {
-            notes = String(cString: sqlite3_column_text(stmt, 6))
+        if sqlite3_column_type(stmt, 9) != SQLITE_NULL {
+            notes = String(cString: sqlite3_column_text(stmt, 9))
         } else {
             notes = nil
         }
         
-        let confirmedDuplicate = sqlite3_column_int(stmt, 7) == 1
+        let confirmedDuplicate = sqlite3_column_int(stmt, 10) == 1
         
-        let createdAtStr = String(cString: sqlite3_column_text(stmt, 8))
+        let createdAtStr = String(cString: sqlite3_column_text(stmt, 11))
         let createdAt = isoFormatter.date(from: createdAtStr) ?? Date()
         
         return StoredMedicationEntry(
@@ -1326,8 +1358,11 @@ public class EventStorage {
             sessionId: sessionId,
             sessionDate: sessionDate,
             medicationId: medicationId,
-            doseMg: doseMg,
+            doseValue: doseValue,
+            doseUnit: doseUnit,
+            formulation: formulation,
             takenAtUTC: takenAtUTC,
+            localOffsetMinutes: localOffsetMinutes,
             notes: notes,
             confirmedDuplicate: confirmedDuplicate,
             createdAt: createdAt
@@ -1336,12 +1371,15 @@ public class EventStorage {
     
     /// Export medication events to CSV
     public func exportMedicationEventsToCSV() -> String {
-        var csv = "id,session_id,session_date,medication_id,dose_mg,taken_at_utc,notes,confirmed_duplicate,created_at\n"
+        var csv = "id,session_id,session_date,medication_id,dose_value,dose_unit,formulation,taken_at_utc,local_offset_minutes,notes,confirmed_duplicate,created_at\n"
         
         let entries = fetchAllMedicationEvents(limit: 10000)
         for entry in entries {
             let escapedNotes = (entry.notes ?? "").replacingOccurrences(of: "\"", with: "\"\"")
-            csv += "\(entry.id),\(entry.sessionId ?? ""),\(entry.sessionDate),\(entry.medicationId),\(entry.doseMg),\(isoFormatter.string(from: entry.takenAtUTC)),\"\(escapedNotes)\",\(entry.confirmedDuplicate ? 1 : 0),\(isoFormatter.string(from: entry.createdAt))\n"
+            let doseUnit = entry.doseUnit ?? ""
+            let formulation = entry.formulation ?? ""
+            let localOffset = entry.localOffsetMinutes.map { String($0) } ?? ""
+            csv += "\(entry.id),\(entry.sessionId ?? ""),\(entry.sessionDate),\(entry.medicationId),\(entry.doseValue),\(doseUnit),\(formulation),\(isoFormatter.string(from: entry.takenAtUTC)),\(localOffset),\"\(escapedNotes)\",\(entry.confirmedDuplicate ? 1 : 0),\(isoFormatter.string(from: entry.createdAt))\n"
         }
         
         return csv
@@ -1372,7 +1410,10 @@ public struct StoredMedicationEntry: Identifiable {
     public let sessionDate: String
     public let medicationId: String
     public let doseMg: Int
+    public let doseUnit: String
+    public let formulation: String
     public let takenAtUTC: Date
+    public let localOffsetMinutes: Int
     public let notes: String?
     public let confirmedDuplicate: Bool
     public let createdAt: Date
@@ -1383,7 +1424,10 @@ public struct StoredMedicationEntry: Identifiable {
         sessionDate: String,
         medicationId: String,
         doseMg: Int,
+        doseUnit: String = "mg",
+        formulation: String = "ir",
         takenAtUTC: Date,
+        localOffsetMinutes: Int = 0,
         notes: String? = nil,
         confirmedDuplicate: Bool = false,
         createdAt: Date = Date()
@@ -1393,7 +1437,10 @@ public struct StoredMedicationEntry: Identifiable {
         self.sessionDate = sessionDate
         self.medicationId = medicationId
         self.doseMg = doseMg
+        self.doseUnit = doseUnit
+        self.formulation = formulation
         self.takenAtUTC = takenAtUTC
+        self.localOffsetMinutes = localOffsetMinutes
         self.notes = notes
         self.confirmedDuplicate = confirmedDuplicate
         self.createdAt = createdAt

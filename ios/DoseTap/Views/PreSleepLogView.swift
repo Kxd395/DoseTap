@@ -219,6 +219,7 @@ struct Card1TimingStress: View {
 // MARK: - Card 2: Body + Substances
 struct Card2BodySubstances: View {
     @Binding var answers: PreSleepLogAnswers
+    @State private var showMedicationPicker = false
     
     var body: some View {
         ScrollView {
@@ -269,9 +270,30 @@ struct Card2BodySubstances: View {
                         selection: $answers.alcohol
                     )
                 }
+                
+                // Medication logging button
+                QuestionSection(title: "Log medication (Adderall)?", icon: "pills.fill") {
+                    Button {
+                        showMedicationPicker = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "plus.circle.fill")
+                            Text("Log Medication")
+                        }
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color.orange)
+                        .cornerRadius(10)
+                    }
+                }
             }
             .padding()
             .animation(.easeInOut(duration: 0.2), value: answers.bodyPain)
+        }
+        .sheet(isPresented: $showMedicationPicker) {
+            MedicationPickerView()
         }
     }
 }

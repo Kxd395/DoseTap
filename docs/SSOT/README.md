@@ -12,8 +12,55 @@
 
 **This document supersedes:** `DoseTap_Spec.md`, `ui-ux-specifications.md`, `button-logic-mapping.md`, `api-documentation.md`, `user-guide.md`, `implementation-roadmap.md`
 
-**Last Updated:** 2024-12-24  
-**Version:** 2.4.1
+**Last Updated:** 2024-12-25  
+**Version:** 2.4.2
+
+## Recent Updates (v2.4.2)
+
+### New in v2.4.2 (MedicationLogger & Schema Enhancements)
+
+#### MedicationLogger Feature (First-Class Adderall Tracking)
+
+- ✅ **ADDED**: `medication_events` SQLite table for session-linked medication logging
+- ✅ **ADDED**: `MedicationType` model with Adderall IR/XR support (extendable)
+- ✅ **ADDED**: `MedicationPickerView` - Quick one-handed medication entry form
+- ✅ **ADDED**: Duplicate guard (5-minute window, user confirmation for overrides)
+- ✅ **ADDED**: UI integration in PreSleepLogView Card 2 (Substances section)
+
+**Schema columns:** `id`, `session_id`, `session_date`, `medication_id`, `dose_value`, `dose_unit`, `formulation`, `taken_at_utc`, `local_offset_minutes`, `notes`, `confirmed_duplicate`, `created_at`
+
+**Design goals:**
+- First-class medication tracking (not hacked into text fields)
+- Session-linked for correlation with sleep quality
+- Timezone-aware with `local_offset_minutes`
+- Flexible dose units (mg default) and formulation tracking (ir/xr)
+
+#### Dose 2 Window Override
+
+- ✅ **CHANGED**: Window Expired phase now allows late dose with confirmation
+- ✅ **ADDED**: `takeWithOverride` CTA case in `DoseActionPrimaryCTA`
+- ✅ **ADDED**: Confirmation dialog before taking late Dose 2
+- ✅ **ADDED**: "Take Dose 2 (Late)" button in red when window expired (240+ minutes)
+
+**Behavior:** After 240 minutes, the window is expired but user can still take Dose 2 by confirming "I understand the window has expired". Logged as "Dose 2 (Late)" event.
+
+#### Schema Enhancements
+
+- ✅ **ADDED**: `local_offset_minutes` - Timezone offset at log time (e.g., -300 for EST)
+- ✅ **ADDED**: `dose_unit` - Flexible dose units ("mg" default, extensible)
+- ✅ **ADDED**: `formulation` - IR/XR tracking ("ir", "xr")
+- ✅ **CHANGED**: `dose_mg` → `dose_value REAL` for decimal dose support
+- ✅ **FIXED**: Session cascade delete now includes `medication_events`
+- ✅ **FIXED**: CSV export includes all new columns
+
+#### Test Coverage
+- Added `MedicationLoggerTests.swift` with 16 tests:
+  - MedicationType configuration validation
+  - Session date boundary computation (6 PM rule)
+  - Duplicate guard absolute time delta (forward/backward)
+  - Guard window boundary tests
+
+---
 
 ## Recent Updates (v2.4.1)
 
