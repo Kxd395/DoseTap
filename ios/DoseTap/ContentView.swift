@@ -1172,24 +1172,41 @@ struct QuickEventPanel: View {
     @ObservedObject var eventLogger: EventLogger
     @ObservedObject var settings = UserSettingsManager.shared
     
-    // Max 5 per row, max 3 rows = 15 buttons total
-    private let maxColumns = 5
-    private let maxRows = 3
-    
-    // Get quick events limited to max display count
+    // Get quick events (max 15)
     private var quickEvents: [(name: String, icon: String, color: Color)] {
         let all = settings.quickLogButtons.map { ($0.name, $0.icon, $0.color) }
-        return Array(all.prefix(maxColumns * maxRows))
+        return Array(all.prefix(15))
     }
     
-    // Split into rows of 5
+    /// Dynamic grid layout based on icon count:
+    /// - 9 icons = 3x3
+    /// - 10 icons = 5x2
+    /// - 12 icons = 4x3
+    /// - 11-15 icons = 5x3
+    private var columnsForCount: Int {
+        let count = quickEvents.count
+        switch count {
+        case 0...3: return count  // Single row
+        case 4: return 4          // 4x1
+        case 5: return 5          // 5x1
+        case 6: return 3          // 3x2
+        case 7...8: return 4      // 4x2
+        case 9: return 3          // 3x3
+        case 10: return 5         // 5x2
+        case 11...12: return 4    // 4x3
+        default: return 5         // 5x3 for 13-15
+        }
+    }
+    
+    // Split into rows based on dynamic column count
     private var eventRows: [[(name: String, icon: String, color: Color)]] {
+        let cols = columnsForCount
         var rows: [[(name: String, icon: String, color: Color)]] = []
         var currentRow: [(name: String, icon: String, color: Color)] = []
         
         for (index, event) in quickEvents.enumerated() {
             currentRow.append(event)
-            if currentRow.count == maxColumns || index == quickEvents.count - 1 {
+            if currentRow.count == cols || index == quickEvents.count - 1 {
                 rows.append(currentRow)
                 currentRow = []
             }
@@ -1210,15 +1227,16 @@ struct QuickEventPanel: View {
                 }
             }
             
-            // Display rows (max 3 rows of 5)
+            // Display rows with dynamic column count
             ForEach(0..<eventRows.count, id: \.self) { rowIndex in
                 HStack(spacing: 4) {
                     ForEach(eventRows[rowIndex], id: \.name) { event in
                         quickButton(for: event)
                     }
                     // Fill remaining space if row is incomplete
-                    if eventRows[rowIndex].count < maxColumns {
-                        ForEach(0..<(maxColumns - eventRows[rowIndex].count), id: \.self) { _ in
+                    let cols = columnsForCount
+                    if eventRows[rowIndex].count < cols {
+                        ForEach(0..<(cols - eventRows[rowIndex].count), id: \.self) { _ in
                             Color.clear.frame(maxWidth: .infinity)
                         }
                     }
