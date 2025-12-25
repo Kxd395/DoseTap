@@ -1,5 +1,9 @@
 import Foundation
+import os.log
 // import UIKit  // Temporarily commented out until iOS project is properly configured
+
+// MARK: - Secure Logger (no token values in logs)
+private let whoopLog = Logger(subsystem: "com.dosetap.app", category: "WHOOP")
 
 class WHOOPManager {
     static let shared = WHOOPManager()
@@ -29,10 +33,10 @@ class WHOOPManager {
         self.redirectURI = Secrets.whoopRedirectURI
 
         if self.clientID == "REPLACE_WITH_YOUR_CLIENT_ID" {
-            print("Warning: WHOOP_CLIENT_ID not set in Secrets.swift")
+            whoopLog.warning("WHOOP_CLIENT_ID not set in Secrets.swift")
         }
         if self.clientSecret == "REPLACE_WITH_YOUR_NEW_ROTATED_SECRET" {
-            print("Warning: WHOOP_CLIENT_SECRET not set in Secrets.swift")
+            whoopLog.warning("WHOOP_CLIENT_SECRET not set in Secrets.swift")
         }
 
         // Load metric endpoint config (optional) from Config.plist if present, but secrets are gone from there.
@@ -147,7 +151,7 @@ class WHOOPManager {
                         if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                            let token = json["access_token"] as? String {
                             self.accessToken = token
-                            print("WHOOP: Access token obtained successfully")
+                            whoopLog.info("Access token obtained successfully")
 
                             // Store refresh token if provided
                             if let refreshToken = json["refresh_token"] as? String {
@@ -160,13 +164,13 @@ class WHOOPManager {
                             }
                         }
                     } else {
-                        print("WHOOP: Token exchange failed")
+                        whoopLog.error("Token exchange failed")
                         if let responseString = String(data: data, encoding: .utf8) {
-                            print("WHOOP: Token response: \(responseString)")
+                            whoopLog.debug("Token response: \(responseString, privacy: .private)")
                         }
                     }
                 } catch {
-                    print("WHOOP: Token exchange error: \(error)")
+                    whoopLog.error("Token exchange error: \(error.localizedDescription)")
                 }
             }
         } else {
@@ -178,7 +182,7 @@ class WHOOPManager {
     // Refresh access token using refresh token
     private func refreshAccessToken() async throws -> Bool {
         guard let refreshToken = self.refreshToken else {
-            print("WHOOP: No refresh token available")
+            whoopLog.warning("No refresh token available")
             return false
         }
 
@@ -198,7 +202,7 @@ class WHOOPManager {
                 if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                    let newToken = json["access_token"] as? String {
                     self.accessToken = newToken
-                    print("WHOOP: Access token refreshed successfully")
+                    whoopLog.info("Access token refreshed successfully")
 
                     // Update refresh token if provided
                     if let newRefreshToken = json["refresh_token"] as? String {
@@ -214,12 +218,12 @@ class WHOOPManager {
                 }
             }
 
-            print("WHOOP: Token refresh failed")
+            whoopLog.error("Token refresh failed")
             if let responseString = String(data: data, encoding: .utf8) {
-                print("WHOOP: Refresh response: \(responseString)")
+                whoopLog.debug("Refresh response: \(responseString, privacy: .private)")
             }
         } else {
-            print("WHOOP: iOS 15.0+ required for async URLSession")
+            whoopLog.warning("iOS 15.0+ required for async URLSession")
         }
         #endif
         return false
@@ -231,7 +235,7 @@ class WHOOPManager {
         refreshToken = nil
         tokenExpiration = nil
         UserDefaults.standard.removeObject(forKey: "whoop_oauth_state")
-        print("WHOOP: All tokens cleared")
+        whoopLog.info("All tokens cleared")
     }
 
     // Check if user is authenticated
@@ -242,7 +246,7 @@ class WHOOPManager {
     // Revoke access token on WHOOP's servers (complete disconnect)
     func revokeAccess() async {
         guard let token = accessToken else {
-            print("WHOOP: No access token to revoke")
+            whoopLog.info("No access token to revoke")
             return
         }
 
@@ -257,17 +261,17 @@ class WHOOPManager {
                 let (_, response) = try await URLSession.shared.data(for: request)
                 if let httpResponse = response as? HTTPURLResponse {
                     if httpResponse.statusCode == 200 {
-                        print("WHOOP: Access token successfully revoked on WHOOP servers")
+                        whoopLog.info("Access token successfully revoked on WHOOP servers")
                     } else {
-                        print("WHOOP: Failed to revoke token, status: \(httpResponse.statusCode)")
+                        whoopLog.error("Failed to revoke token, status: \(httpResponse.statusCode)")
                     }
                 }
             } else {
-                print("WHOOP: iOS 15.0+ required for async URLSession")
+                whoopLog.warning("iOS 15.0+ required for async URLSession")
             }
             #endif
         } catch {
-            print("WHOOP: Error revoking access token: \(error.localizedDescription)")
+            whoopLog.error("Error revoking access token: \(error.localizedDescription)")
         }
 
         // Always clear local tokens regardless of server response
@@ -281,17 +285,17 @@ class WHOOPManager {
             do {
                 let refreshSuccess = try await refreshAccessToken()
                 if !refreshSuccess {
-                    print("WHOOP: Token refresh failed, cannot fetch sleep data")
+                    whoopLog.error("Token refresh failed, cannot fetch sleep data")
                     return []
                 }
             } catch {
-                print("WHOOP: Token refresh error: \(error.localizedDescription)")
+                whoopLog.error("Token refresh error: \(error.localizedDescription)")
                 return []
             }
         }
 
         guard let token = accessToken else {
-            print("WHOOP: No access token available")
+            whoopLog.warning("No access token available")
             return []
         }
 
@@ -301,17 +305,17 @@ class WHOOPManager {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
         do {
-            print("WHOOP: Fetching sleep history from \(sleepURL)")
+            whoopLog.debug("Fetching sleep history")
             #if os(iOS)
             if #available(iOS 15.0, *) {
                 let (data, response) = try await URLSession.shared.data(for: request)
 
                 if let httpResponse = response as? HTTPURLResponse {
-                    print("WHOOP: Sleep API response status: \(httpResponse.statusCode)")
+                    whoopLog.debug("Sleep API response status: \(httpResponse.statusCode)")
 
                     // Handle 401 Unauthorized - token might be expired
                     if httpResponse.statusCode == 401 {
-                        print("WHOOP: Received 401, attempting token refresh")
+                        whoopLog.warning("Received 401, attempting token refresh")
                         if let _ = refreshToken {
                             do {
                                 let refreshSuccess = try await refreshAccessToken()
@@ -320,31 +324,31 @@ class WHOOPManager {
                                     return await fetchSleepHistory()
                                 }
                             } catch {
-                                print("WHOOP: Token refresh failed during 401 handling: \(error.localizedDescription)")
+                                whoopLog.error("Token refresh failed during 401 handling: \(error.localizedDescription)")
                             }
                         }
                         return []
                     }
 
                     if httpResponse.statusCode != 200 {
-                        print("WHOOP: API error response: \(String(data: data, encoding: .utf8) ?? "No response body")")
+                        whoopLog.error("API error response: \(String(data: data, encoding: .utf8) ?? "No response body", privacy: .private)")
                         return []
                     }
                 }
 
                 let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
                 if let records = json?["records"] as? [[String: Any]] {
-                    print("WHOOP: Successfully parsed \(records.count) sleep records")
+                    whoopLog.info("Successfully parsed \(records.count) sleep records")
                     return parseSleepRecords(records)
                 } else {
-                    print("WHOOP: No records found in response")
+                    whoopLog.warning("No records found in response")
                 }
             } else {
-                print("WHOOP: iOS 15.0+ required for async URLSession")
+                whoopLog.warning("iOS 15.0+ required for async URLSession")
             }
             #endif
         } catch {
-            print("WHOOP: Sleep fetch error: \(error.localizedDescription)")
+            whoopLog.error("Sleep fetch error: \(error.localizedDescription)")
         }
         return []
     }

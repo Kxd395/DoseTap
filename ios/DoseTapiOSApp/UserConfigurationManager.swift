@@ -67,7 +67,7 @@ class UserConfigurationManager: ObservableObject {
     // MARK: - Migration Support
     
     func migrateLegacyData() {
-        // This will be used when migrating from JSON to Core Data
+        // This will be used when migrating from JSON to SQLite
         // For now, just ensure we have valid configuration
         if userConfig == nil {
             userConfig = UserConfig()

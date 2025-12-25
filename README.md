@@ -45,11 +45,24 @@ open ios/DoseTap/DoseTap.xcodeproj
 
 ## Current Status
 
-- ✅ 136 unit tests passing
+- ✅ 207 unit tests passing
 - ✅ Core window logic complete
 - ✅ SQLite persistence
-- 🔄 watchOS companion (UI only, not integrated)
-- 📋 Phase 2: Health Dashboard (planned)
+- ✅ Sleep Environment tracking
+- ✅ CSV export with SSOT v1 format
+- ✅ PII redaction for support bundles
+- ⏸️ **watchOS companion** — Phase 2 placeholder (see below)
+- � Phase 2: Health Dashboard (planned)
+
+### watchOS Status
+
+The `watchos/DoseTapWatch/` folder contains **placeholder UI code only**. Full watchOS integration is planned for Phase 2 and will include:
+
+- WatchConnectivity sync with iOS app
+- Dose timing notifications
+- Complication support
+
+**Current state**: Builds but not functionally connected to iOS app or DoseCore.
 
 ## License
 

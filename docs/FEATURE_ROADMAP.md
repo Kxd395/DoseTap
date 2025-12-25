@@ -120,7 +120,7 @@ func clearOldData(olderThanDays: Int)      // Clear old data
 
 | Task | Status | File |
 |------|--------|------|
-| SleepEvent model (12 types) | ✅ | `ios/Core/SleepEvent.swift` |
+| SleepEvent model (13 types) | ✅ | `ios/Core/SleepEvent.swift` |
 | EventRateLimiter extension | ✅ | `ios/Core/EventRateLimiter.swift` |
 | SQLite sleep_events table | ✅ | `ios/DoseTapiOSApp/SQLiteStorage.swift` |
 | QuickLogPanel UI | ✅ | `ios/DoseTapiOSApp/QuickLogPanel.swift` |
@@ -130,7 +130,7 @@ func clearOldData(olderThanDays: Int)      // Clear old data
 | SleepEventTests (29 tests) | ✅ | `Tests/DoseCoreTests/SleepEventTests.swift` |
 | ContentView integration | ✅ | `ios/DoseTap/ContentView.swift` |
 
-### Implemented Event Types (12 total)
+### Implemented Event Types (13 total)
 
 | Event | Cooldown | Category | Icon |
 |-------|----------|----------|------|
@@ -179,45 +179,9 @@ Tonight Screen (below dose buttons):
 ---
 
 ## Phase 2: Health Data Dashboard 🔄 IN PROGRESS
-        "lights_out": 300,
-        "wake_brief": 120,
-        "wake_final": 600,
-        "nap_start": 1800,
-        "nap_end": 60
-    ])
-}
 
-// ios/Core/SleepEvent.swift - New model
-public enum SleepEventType: String, Codable, CaseIterable {
-    case lightsOut = "lights_out"
-    case bathroom = "bathroom"
-    case wakeBrief = "wake_brief"
-    case wakeFinal = "wake_final"
-    case napStart = "nap_start"
-    case napEnd = "nap_end"
-    
-    var icon: String {
-        switch self {
-        case .lightsOut: return "🛏️"
-        case .bathroom: return "🚽"
-        case .wakeBrief: return "⏰"
-        case .wakeFinal: return "☀️"
-        case .napStart, .napEnd: return "😴"
-        }
-    }
-    
-    var cooldownSeconds: TimeInterval {
-        switch self {
-        case .bathroom: return 60
-        case .lightsOut: return 300
-        case .wakeBrief: return 120
-        case .wakeFinal: return 600
-        case .napStart: return 1800
-        case .napEnd: return 60
-        }
-    }
-}
-```
+> **Note:** Sleep event model is defined in `ios/Core/SleepEvent.swift` with 13 event types.
+> See `docs/SSOT/constants.json` for canonical cooldown values.
 
 ---
 
@@ -459,7 +423,7 @@ func generateInsights(correlations: [DoseWHOOPCorrelation]) -> [Insight] {
 | Create `SleepEvent` model | S | `ios/Core/SleepEvent.swift` (new) |
 | Add event buttons to Tonight screen | M | `ios/DoseTapiOSApp/TonightView.swift` |
 | Add watchOS quick actions | M | `watchos/DoseTapWatch/` |
-| Store events in Core Data | M | `DoseTapModel.xcdatamodeld` |
+| Store events in SQLite | M | `ios/DoseTap/Storage/EventStorage.swift` |
 | Display events in Timeline | M | `ios/DoseTapiOSApp/TimelineView.swift` |
 | Add tests | M | `Tests/DoseCoreTests/SleepEventTests.swift` |
 

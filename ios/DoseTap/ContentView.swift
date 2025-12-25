@@ -98,6 +98,7 @@ struct ContentView: View {
     @StateObject private var core = DoseTapCore()
     @StateObject private var settings = UserSettingsManager.shared
     @StateObject private var eventLogger = EventLogger.shared
+    @StateObject private var sessionRepo = SessionRepository.shared
     @State private var selectedTab = 0
     
     var body: some View {
@@ -124,18 +125,22 @@ struct ContentView: View {
         }
         .preferredColorScheme(settings.colorScheme)
         .onAppear {
-            // Restore dose state from SQLite on app launch
-            let storage = EventStorage.shared
-            let (dose1, dose2, snoozeCount, skipped) = storage.loadCurrentSession()
-            if let d1 = dose1 {
-                Task { @MainActor in
-                    core.dose1Time = d1
-                    core.dose2Time = dose2
-                    core.snoozeCount = snoozeCount
-                    core.isSkipped = skipped
-                }
-            }
+            // Load state from SessionRepository (single source of truth)
+            syncCoreFromRepository()
         }
+        .onReceive(sessionRepo.sessionDidChange) { _ in
+            // Auto-sync when repository changes (e.g., after delete)
+            syncCoreFromRepository()
+        }
+    }
+    
+    /// Sync DoseTapCore from SessionRepository
+    /// This bridges the repository pattern to existing UI bindings
+    private func syncCoreFromRepository() {
+        core.dose1Time = sessionRepo.dose1Time
+        core.dose2Time = sessionRepo.dose2Time
+        core.snoozeCount = sessionRepo.snoozeCount
+        core.isSkipped = sessionRepo.dose2Skipped
     }
 }
 
@@ -189,6 +194,8 @@ struct TonightView: View {
     @State private var showMorningCheckIn = false
     @State private var showPreSleepLog = false
     @State private var showExtraDoseWarning = false  // For second dose 2 attempt
+    @State private var incompleteSessionDate: String? = nil
+    @State private var showIncompleteCheckIn = false
     
     var body: some View {
         VStack(spacing: 0) {
@@ -199,6 +206,21 @@ struct TonightView: View {
                 TonightDateLabel()
             }
             .padding(.top, 8)
+            
+            // Incomplete Session Banner (if previous night wasn't completed)
+            if let sessionDate = incompleteSessionDate {
+                IncompleteSessionBanner(
+                    sessionDate: sessionDate,
+                    onComplete: {
+                        showIncompleteCheckIn = true
+                    },
+                    onDismiss: {
+                        incompleteSessionDate = nil
+                    }
+                )
+                .padding(.horizontal)
+                .padding(.top, 8)
+            }
             
             Spacer()
             
@@ -321,6 +343,23 @@ struct TonightView: View {
         } message: {
             Text("You have already taken Dose 2 tonight at \(core.dose2Time?.formatted(date: .omitted, time: .shortened) ?? "unknown").\n\n⛔️ TAKING ADDITIONAL DOSES CAN BE DANGEROUS.\n\nThis action will be logged but will NOT replace your original Dose 2 time.\n\nDo NOT proceed unless absolutely necessary.")
         }
+        // Incomplete session check-in sheet
+        .sheet(isPresented: $showIncompleteCheckIn) {
+            if let sessionDate = incompleteSessionDate {
+                MorningCheckInView(
+                    sessionId: UUID(),
+                    sessionDateOverride: sessionDate,
+                    onComplete: {
+                        print("✅ Incomplete session check-in complete for: \(sessionDate)")
+                        incompleteSessionDate = nil
+                    }
+                )
+            }
+        }
+        .onAppear {
+            // Check for incomplete sessions on view appear
+            incompleteSessionDate = EventStorage.shared.mostRecentIncompleteSession()
+        }
     }
 }
 
@@ -336,6 +375,70 @@ struct TonightDateLabel: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE, MMM d"
         return "Tonight – " + formatter.string(from: Date())
+    }
+}
+
+// MARK: - Incomplete Session Banner
+struct IncompleteSessionBanner: View {
+    let sessionDate: String
+    let onComplete: () -> Void
+    let onDismiss: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "exclamationmark.circle.fill")
+                .font(.title2)
+                .foregroundColor(.orange)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Incomplete Session")
+                    .font(.subheadline.bold())
+                Text("Complete check-in for \(formattedDate)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+            
+            Button("Complete") {
+                onComplete()
+            }
+            .font(.caption.bold())
+            .foregroundColor(.white)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(Capsule().fill(Color.orange))
+            
+            Button {
+                onDismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.orange.opacity(0.1))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                )
+        )
+    }
+    
+    private var formattedDate: String {
+        let inputFormatter = DateFormatter()
+        inputFormatter.dateFormat = "yyyy-MM-dd"
+        
+        guard let date = inputFormatter.date(from: sessionDate) else {
+            return sessionDate
+        }
+        
+        let outputFormatter = DateFormatter()
+        outputFormatter.dateFormat = "MMM d"
+        return outputFormatter.string(from: date)
     }
 }
 
@@ -617,85 +720,71 @@ struct CompactDoseButton: View {
 struct CompactSessionSummary: View {
     @ObservedObject var core: DoseTapCore
     @ObservedObject var eventLogger: EventLogger
-    @State private var isEventsExpanded = false
+    @State private var showEventsPopover = false
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Summary row
-            HStack(spacing: 16) {
-                CompactSummaryItem(
-                    icon: "1.circle.fill",
-                    value: core.dose1Time?.formatted(date: .omitted, time: .shortened) ?? "–",
-                    label: "Dose 1",
-                    color: core.dose1Time != nil ? .green : .gray
-                )
-                
-                Divider()
-                    .frame(height: 36)
-                
-                CompactSummaryItem(
-                    icon: "2.circle.fill",
-                    value: dose2Value,
-                    label: "Dose 2",
-                    color: dose2Color
-                )
-                
-                Divider()
-                    .frame(height: 36)
-                
-                // Tappable Events item
-                Button(action: {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        isEventsExpanded.toggle()
-                    }
-                }) {
-                    VStack(spacing: 2) {
-                        HStack(spacing: 2) {
-                            Image(systemName: "list.bullet")
-                                .font(.caption)
-                            Image(systemName: isEventsExpanded ? "chevron.up" : "chevron.down")
-                                .font(.system(size: 8))
-                        }
-                        .foregroundColor(.blue)
-                        Text("\(eventLogger.events.count)")
-                            .font(.caption.bold())
-                        Text("Events")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.plain)
-                
-                Divider()
-                    .frame(height: 36)
-                
-                CompactSummaryItem(
-                    icon: "bell.fill",
-                    value: "\(core.snoozeCount)/3",
-                    label: "Snooze",
-                    color: core.snoozeCount > 0 ? .orange : .gray
-                )
-            }
-            .padding(.vertical, 12)
-            .padding(.horizontal)
+        HStack(spacing: 16) {
+            CompactSummaryItem(
+                icon: "1.circle.fill",
+                value: core.dose1Time?.formatted(date: .omitted, time: .shortened) ?? "–",
+                label: "Dose 1",
+                color: core.dose1Time != nil ? .green : .gray
+            )
             
-            // Expanded event list
-            if isEventsExpanded {
-                ExpandedEventList(
-                    events: eventLogger.events,
-                    onClose: {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            isEventsExpanded = false
-                        }
-                    }
-                )
+            Divider()
+                .frame(height: 36)
+            
+            CompactSummaryItem(
+                icon: "2.circle.fill",
+                value: dose2Value,
+                label: "Dose 2",
+                color: dose2Color
+            )
+            
+            Divider()
+                .frame(height: 36)
+            
+            // Tappable Events item - opens sheet/popover
+            Button(action: {
+                showEventsPopover = true
+            }) {
+                VStack(spacing: 2) {
+                    Image(systemName: "list.bullet")
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                    Text("\(eventLogger.events.count)")
+                        .font(.caption.bold())
+                    Text("Events")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
             }
+            .buttonStyle(.plain)
+            
+            Divider()
+                .frame(height: 36)
+            
+            CompactSummaryItem(
+                icon: "bell.fill",
+                value: "\(core.snoozeCount)/3",
+                label: "Snooze",
+                color: core.snoozeCount > 0 ? .orange : .gray
+            )
         }
+        .padding(.vertical, 12)
+        .padding(.horizontal)
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color(.systemGray6))
         )
+        .sheet(isPresented: $showEventsPopover) {
+            TonightEventsSheet(events: eventLogger.events, onDelete: { id in
+                eventLogger.deleteEvent(id: id)
+            })
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
     }
     
     private var dose2Value: String {
@@ -734,60 +823,74 @@ struct CompactSummaryItem: View {
     }
 }
 
-// MARK: - Expanded Event List (shows when event count is tapped)
-struct ExpandedEventList: View {
+// MARK: - Tonight Events Sheet (Popover replacement for better visibility)
+struct TonightEventsSheet: View {
     let events: [LoggedEvent]
-    let onClose: () -> Void
+    let onDelete: (UUID) -> Void
+    @Environment(\.dismiss) private var dismiss
     
     var body: some View {
-        VStack(spacing: 0) {
-            Divider()
-                .padding(.horizontal)
-            
-            if events.isEmpty {
-                Text("No events logged tonight")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+        NavigationView {
+            Group {
+                if events.isEmpty {
+                    VStack(spacing: 16) {
+                        Image(systemName: "moon.zzz.fill")
+                            .font(.system(size: 48))
+                            .foregroundColor(.secondary)
+                        Text("No events logged tonight")
+                            .font(.headline)
+                            .foregroundColor(.secondary)
+                        Text("Use the Quick Log buttons to track sleep events")
+                            .font(.subheadline)
+                            .foregroundStyle(.tertiary)
+                            .multilineTextAlignment(.center)
+                    }
                     .padding()
-            } else {
-                ScrollView {
-                    VStack(spacing: 4) {
+                } else {
+                    List {
                         ForEach(events.sorted(by: { $0.time > $1.time })) { event in
                             HStack(spacing: 12) {
                                 Circle()
                                     .fill(event.color)
-                                    .frame(width: 8, height: 8)
+                                    .frame(width: 12, height: 12)
                                 
-                                Text(event.name)
-                                    .font(.subheadline)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(event.name)
+                                        .font(.body)
+                                    Text(event.time.formatted(date: .omitted, time: .shortened))
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
                                 
                                 Spacer()
-                                
-                                Text(event.time.formatted(date: .omitted, time: .shortened))
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
                             }
-                            .padding(.horizontal)
-                            .padding(.vertical, 6)
+                            .padding(.vertical, 4)
+                        }
+                        .onDelete { indexSet in
+                            let sorted = events.sorted(by: { $0.time > $1.time })
+                            for index in indexSet {
+                                onDelete(sorted[index].id)
+                            }
                         }
                     }
+                    .listStyle(.insetGrouped)
                 }
-                .frame(maxHeight: 150)
             }
-            
-            // Close button
-            Button(action: onClose) {
-                HStack {
-                    Image(systemName: "chevron.up")
+            .navigationTitle("Tonight's Events")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Text("\(events.count) event\(events.count == 1 ? "" : "s")")
                         .font(.caption)
-                    Text("Close")
-                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
-                .foregroundColor(.blue)
-                .padding(.vertical, 8)
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
             }
         }
-        .transition(.opacity.combined(with: .move(edge: .top)))
     }
 }
 
@@ -796,9 +899,18 @@ struct QuickEventPanel: View {
     @ObservedObject var eventLogger: EventLogger
     @ObservedObject var settings = UserSettingsManager.shared
     
-    // Use first 4 customized QuickLog buttons from settings for compact view
+    // Use all configured QuickLog buttons
     private var quickEvents: [(name: String, icon: String, color: Color)] {
-        settings.quickLogButtons.prefix(4).map { ($0.name, $0.icon, $0.color) }
+        settings.quickLogButtons.map { ($0.name, $0.icon, $0.color) }
+    }
+    
+    // Show first row (4 buttons) always visible, rest in horizontal scroll
+    private var firstRowEvents: [(name: String, icon: String, color: Color)] {
+        Array(quickEvents.prefix(4))
+    }
+    
+    private var additionalEvents: [(name: String, icon: String, color: Color)] {
+        Array(quickEvents.dropFirst(4))
     }
     
     var body: some View {
@@ -814,19 +926,21 @@ struct QuickEventPanel: View {
                 }
             }
             
+            // First row: always visible (4 main buttons)
             HStack(spacing: 8) {
-                ForEach(quickEvents, id: \.name) { event in
-                    let cooldown = settings.cooldown(for: event.name)
-                    QuickEventButton(
-                        name: event.name,
-                        icon: event.icon,
-                        color: event.color,
-                        cooldownSeconds: cooldown,
-                        cooldownEnd: eventLogger.cooldownEnd(for: event.name),
-                        onTap: {
-                            eventLogger.logEvent(name: event.name, color: event.color, cooldownSeconds: cooldown)
+                ForEach(firstRowEvents, id: \.name) { event in
+                    quickButton(for: event)
+                }
+            }
+            
+            // Additional rows: horizontal scroll if more than 4 buttons
+            if !additionalEvents.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(additionalEvents, id: \.name) { event in
+                            quickButton(for: event)
                         }
-                    )
+                    }
                 }
             }
         }
@@ -834,6 +948,21 @@ struct QuickEventPanel: View {
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color(.systemGray6))
+        )
+    }
+    
+    @ViewBuilder
+    private func quickButton(for event: (name: String, icon: String, color: Color)) -> some View {
+        let cooldown = settings.cooldown(for: event.name)
+        QuickEventButton(
+            name: event.name,
+            icon: event.icon,
+            color: event.color,
+            cooldownSeconds: cooldown,
+            cooldownEnd: eventLogger.cooldownEnd(for: event.name),
+            onTap: {
+                eventLogger.logEvent(name: event.name, color: event.color, cooldownSeconds: cooldown)
+            }
         )
     }
 }
@@ -910,7 +1039,6 @@ struct WakeUpButton: View {
     @Binding var showMorningCheckIn: Bool
     @ObservedObject var settings = UserSettingsManager.shared
     @State private var showConfirmation = false
-    @State private var showUndoSnackbar = false
     @State private var lastWakeEventId: String?
     
     // Wake Up cooldown (1 hour per SSOT)
@@ -962,18 +1090,7 @@ struct WakeUpButton: View {
             }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("This will log your wake time and start the morning check-in. You can undo this within 5 seconds if tapped by mistake.")
-        }
-        .overlay(alignment: .bottom) {
-            if showUndoSnackbar {
-                UndoSnackbarView(
-                    message: "Wake Up logged",
-                    onUndo: undoWakeUp,
-                    onDismiss: { showUndoSnackbar = false }
-                )
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .padding(.bottom, 8)
-            }
+            Text("This will log your wake time and open the morning check-in.")
         }
     }
     
@@ -985,7 +1102,7 @@ struct WakeUpButton: View {
             cooldownSeconds: cooldownSeconds
         )
         
-        // Save to SQLite and store ID for undo
+        // Save to SQLite
         let id = UUID().uuidString
         lastWakeEventId = id
         EventStorage.shared.insertSleepEvent(
@@ -996,37 +1113,9 @@ struct WakeUpButton: View {
             notes: nil
         )
         
-        // Show undo snackbar
-        withAnimation {
-            showUndoSnackbar = true
-        }
-        
-        // Auto-dismiss after 5 seconds and show check-in
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
-            withAnimation {
-                showUndoSnackbar = false
-            }
-            // Only show check-in if not undone
-            if lastWakeEventId != nil {
-                showMorningCheckIn = true
-            }
-        }
-    }
-    
-    private func undoWakeUp() {
-        guard let id = lastWakeEventId else { return }
-        
-        // Delete from SQLite
-        EventStorage.shared.deleteSleepEvent(id: id)
-        
-        // Clear the event from logger
-        eventLogger.clearCooldown(for: "Wake Up")
-        
-        // Clear state
-        lastWakeEventId = nil
-        
-        withAnimation {
-            showUndoSnackbar = false
+        // Show check-in immediately (slight delay to let confirmation dismiss)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            showMorningCheckIn = true
         }
     }
     
@@ -1222,6 +1311,7 @@ struct HistoryView: View {
     @State private var refreshTrigger = false  // Toggled to force SelectedDayView refresh
     
     private let storage = EventStorage.shared
+    private let sessionRepo = SessionRepository.shared
     
     var body: some View {
         NavigationView {
@@ -1273,7 +1363,8 @@ struct HistoryView: View {
     
     private func deleteSelectedDay() {
         let sessionDate = storage.sessionDateString(for: selectedDate)
-        storage.deleteSession(sessionDate: sessionDate)
+        // Use SessionRepository to delete - this broadcasts change to Tonight tab
+        sessionRepo.deleteSession(sessionDate: sessionDate)
         refreshTrigger.toggle()  // Force SelectedDayView to reload
         loadHistory()
     }

@@ -6,6 +6,37 @@
 
 ---
 
+## Documentation Unification (2025-12-24)
+
+### P0 Fixes Completed
+
+| Issue | Resolution | Files Changed |
+|-------|------------|---------------|
+| Core Data vs SQLite claims | Removed ALL Core Data references, SQLite is canonical | `architecture.md` |
+| Schema version drift | Updated from v4 → v6, added morning_checkins + pre_sleep_logs | `SchemaEvolution.md` |
+| Event taxonomy conflicts | Unified to 13 types (added `inBed`), canonical source = `constants.json` | `DataDictionary.md`, `SSOT/README.md`, `docs/README.md` |
+| Test count contradictions | Fixed all references to "207 tests passing" | `docs/README.md` |
+| Dose event naming | Standardized to snake_case: `dose_1`, `dose_2`, `snooze`, `skip`, `extra_dose` | `SchemaEvolution.md`, `DataDictionary.md` |
+| Database table count | Fixed "4 tables" → "5 tables" (added pre_sleep_logs) | `docs/README.md`, `DataDictionary.md` |
+
+### Files Updated
+- `docs/architecture.md` - Complete rewrite: SQLite-only, added ERD, removed Core Data
+- `docs/SSOT/contracts/SchemaEvolution.md` - v4 → v6, added v5/v6 migrations
+- `docs/SSOT/contracts/DataDictionary.md` - 5 tables, 13 sleep events, pre_sleep_logs
+- `docs/SSOT/README.md` - 13 sleep events (was 12), corrected cooldowns
+- `docs/README.md` - Fixed test counts, 5 tables, 13 events
+
+### Canonical Sources Established
+| Artifact | Canonical File |
+|----------|---------------|
+| Schema definition | `docs/DATABASE_SCHEMA.md` |
+| Schema migrations | `docs/SSOT/contracts/SchemaEvolution.md` |
+| Enum definitions | `docs/SSOT/constants.json` |
+| Field constraints | `docs/SSOT/contracts/DataDictionary.md` |
+| Architecture overview | `docs/architecture.md` |
+
+---
+
 ## Chronological Action Log
 
 | Time (UTC) | Action | Findings |

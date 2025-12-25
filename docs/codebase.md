@@ -20,7 +20,7 @@ This document outlines the directory structure of the repository.
 *   **`DoseTap/`** (The iOS App)
     *   `DoseTapApp.swift`: Entry point.
     *   `Config.plist`: Configuration.
-    *   **`Persistence/`**: Core Data logic (`PersistentStore.swift`).
+    *   **`Storage/`**: SQLite persistence (`EventStorage.swift`, `SessionRepository.swift`).
     *   **`Views/`**: SwiftUI views (`TonightView`, `SettingsView`).
     *   **`Resources/`**: Assets and localized strings.
 
@@ -33,5 +33,5 @@ This document outlines the directory structure of the repository.
 | File | Purpose |
 |------|---------|
 | `ios/Core/DoseWindowState.swift` | **CRITICAL**. Defines the 150-240m safety window logic. |
-| `ios/DoseTap/Persistence/PersistentStore.swift` | Database stack. Handles crash recovery. |
-| `docs/SSOT.md` | The Single Source of Truth for feature requirements. |
+| `ios/DoseTap/Storage/EventStorage.swift` | SQLite persistence. Single source of truth for all data. |
+| `docs/SSOT/README.md` | The Single Source of Truth for feature requirements. |

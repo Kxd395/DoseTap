@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(DoseTap)
+import DoseTap
+#endif
 
 /// Timeline view showing historical dose sessions and sleep events
 /// Per SSOT: Timeline Screen shows historical dose events and patterns
@@ -429,6 +432,13 @@ class TimelineViewModel: ObservableObject {
     @Published var groupedSessions: [Date: [TimelineSession]] = [:]
     
     private let storage = SQLiteStorage.shared
+    private let sessionRepo = SessionRepository.shared
+    
+    private let dateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
     
     func load() async {
         state = .loading
@@ -471,8 +481,21 @@ class TimelineViewModel: ObservableObject {
     }
     
     /// Delete a session by its date
+    /// P0-5 FIX: Route through SessionRepository to ensure notifications are cancelled
+    /// and in-memory state is properly cleared for active session
     func deleteSession(date: Date) {
+        let sessionDateString = dateFormatter.string(from: date)
+        
+        // Route through SessionRepository - this ensures:
+        // 1. If this is the active session, in-memory state is cleared
+        // 2. Pending notifications are cancelled
+        // 3. sessionDidChange signal is broadcast
+        sessionRepo.deleteSession(sessionDate: sessionDateString)
+        
+        // Also delete from SQLiteStorage for non-current session data
+        // (SessionRepository only deletes via EventStorage, which handles current_session table)
         storage.deleteSession(date: date)
+        
         // Refresh to reflect changes
         refresh()
     }

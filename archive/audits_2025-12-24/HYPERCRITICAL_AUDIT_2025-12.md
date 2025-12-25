@@ -409,7 +409,7 @@ client: APIClient(baseURL: URL(string: "https://api.dosetap.com")!)
     - Token refresh reliability
     - Offline behavior
 
-13. **Core Data Migration** — Currently no versioning strategy
+13. **SQLite Schema Migration** — Currently no versioning strategy (see SchemaEvolution.md)
 
 14. **Accessibility Audit** — SSOT claims WCAG AAA but no code evidence
 

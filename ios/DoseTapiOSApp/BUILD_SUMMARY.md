@@ -27,13 +27,13 @@ The complete DoseTap iOS application has been successfully built and compiled wi
 - **Note**: Replaced programmatic exit(0) with App Store compliant navigation patterns
 
 ### Data Storage & Persistence
-- **Current**: JSON-based local storage for transparency and simplicity
-- **Roadmap**: Migration to Core Data/SwiftData with optional iCloud sync
+- **Current**: SQLite via EventStorage.swift (canonical persistence layer)
+- **Legacy**: JSON-based local storage for config/preferences
 - **Storage Location**: `Documents/DoseTap/`
-  - `dose_events.json` - All dose logging events
-  - `dose_sessions.json` - Session data with health metrics
+  - `dosetap_events.sqlite` - All dose/event data
+  - `dose_sessions.json` - Legacy session data
 - **Access**: Full visibility in Settings with file paths and sizes
-- **Format**: Human-readable JSON for complete transparency
+- **Format**: SQLite for events, JSON for user preferences
 - **Privacy**: Local-only by default, optional iCloud sync toggle
 
 ### ✅ Comprehensive Dashboard
@@ -74,7 +74,7 @@ Dashboard Views ← Health Services ← Export Services
 - **SwiftUI**: Modern declarative UI framework
 - **Charts**: Native iOS charting and data visualization
 - **HealthKit**: Apple Health data integration
-- **Foundation**: Core data handling and JSON persistence
+- **Foundation**: Core data handling and SQLite persistence
 
 ### Architecture Patterns:
 - **ObservableObject**: Reactive state management
@@ -125,7 +125,7 @@ Dashboard Views ← Health Services ← Export Services
 
 ### Immediate Priorities (PR-2)
 1. **First-Run Setup Wizard**: 5-step guided onboarding for user preferences
-2. **Core Data Migration**: Replace JSON with persistent, robust storage
+2. **SessionRepository Sync**: Ensure all views use single source of truth
 3. **Actionable Notifications**: Take/Snooze/Skip actions from notification banners
 4. **Time Zone Resilience**: Handle DST transitions and travel scenarios
 5. **Enhanced Testing**: Expand test coverage for edge cases and time zones

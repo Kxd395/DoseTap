@@ -224,11 +224,163 @@ enum SleepTherapyDevice: String, CaseIterable, Codable {
     }
 }
 
+// MARK: - Sleep Environment Types (V1 Question Set)
+// See SSOT: "Sleep Setup and Aids" section - high-signal for correlation analysis
+
+/// Sleep aids and environment behaviors (multi-select chips)
+/// Design: tap-to-toggle chips, categorized, includes "behavior" items like TV/phone
+enum LocalSleepAid: String, CaseIterable, Codable {
+    // Environment - Physical
+    case darkRoom = "Dark room/blackout"
+    case eyeMask = "Eye mask"
+    case earplugs = "Earplugs"
+    case whiteNoise = "White noise/sound"
+    case fan = "Fan"
+    case weightedBlanket = "Weighted blanket"
+    case heatingPad = "Heating pad"
+    case humidifier = "Humidifier"
+    
+    // Relaxation
+    case meditation = "Meditation/breathing"
+    case music = "Music"
+    case podcastAudiobook = "Podcast/audiobook"
+    
+    // Medical/Devices
+    case cpap = "CPAP"
+    case mouthTape = "Mouth tape"
+    case nasalStrip = "Nasal strip"
+    
+    // Screen behaviors (NOT aids - correlate with worse sleep)
+    case tvOn = "TV on"
+    case phoneInBed = "Phone in bed"
+    
+    // Meta
+    case other = "Other"
+    case none = "None"
+    
+    var icon: String {
+        switch self {
+        case .darkRoom: return "moon.fill"
+        case .eyeMask: return "eye.slash.fill"
+        case .earplugs: return "ear.badge.checkmark"
+        case .whiteNoise: return "waveform"
+        case .fan: return "fan.fill"
+        case .weightedBlanket: return "bed.double.fill"
+        case .heatingPad: return "flame.fill"
+        case .humidifier: return "humidity.fill"
+        case .meditation: return "brain.head.profile"
+        case .music: return "music.note"
+        case .podcastAudiobook: return "headphones"
+        case .cpap: return "wind"
+        case .mouthTape: return "mouth"
+        case .nasalStrip: return "nose"
+        case .tvOn: return "tv.fill"
+        case .phoneInBed: return "iphone"
+        case .other: return "ellipsis.circle"
+        case .none: return "xmark.circle"
+        }
+    }
+    
+    /// Whether this is a screen/behavior item (visually tagged differently)
+    var isScreenBehavior: Bool {
+        self == .tvOn || self == .phoneInBed
+    }
+    
+    /// Category for grouping in UI
+    var category: SleepAidCategory {
+        switch self {
+        case .darkRoom, .eyeMask, .earplugs, .whiteNoise, .fan, .weightedBlanket, .heatingPad, .humidifier:
+            return .environment
+        case .meditation, .music, .podcastAudiobook:
+            return .relaxation
+        case .cpap, .mouthTape, .nasalStrip:
+            return .medical
+        case .tvOn, .phoneInBed:
+            return .screens
+        case .other, .none:
+            return .meta
+        }
+    }
+    
+    enum SleepAidCategory: String, CaseIterable {
+        case environment = "Environment"
+        case relaxation = "Relaxation"
+        case medical = "Medical"
+        case screens = "Screens"
+        case meta = "Other"
+    }
+}
+
+/// Room darkness level (3-option quick tap)
+enum LocalDarknessLevel: String, CaseIterable, Codable {
+    case bright = "Bright"
+    case dim = "Dim"
+    case dark = "Dark"
+    
+    var icon: String {
+        switch self {
+        case .bright: return "sun.max.fill"
+        case .dim: return "sun.haze.fill"
+        case .dark: return "moon.fill"
+        }
+    }
+}
+
+/// Noise level (3-option quick tap)
+enum LocalNoiseLevel: String, CaseIterable, Codable {
+    case quiet = "Quiet"
+    case someNoise = "Some noise"
+    case loud = "Loud"
+    
+    var icon: String {
+        switch self {
+        case .quiet: return "speaker.fill"
+        case .someNoise: return "speaker.wave.2.fill"
+        case .loud: return "speaker.wave.3.fill"
+        }
+    }
+}
+
+/// Screen time in bed buckets (per user spec: 0-15, 15-45, 45+)
+enum LocalScreenTimeBucket: String, CaseIterable, Codable {
+    case under15 = "0-15 min"
+    case fifteenTo45 = "15-45 min"
+    case over45 = "45+ min"
+    case unknown = "Unknown"
+    
+    var dataKey: String {
+        switch self {
+        case .under15: return "0_15"
+        case .fifteenTo45: return "15_45"
+        case .over45: return "45_plus"
+        case .unknown: return "unknown"
+        }
+    }
+}
+
+/// Sound machine type (follow-up when white noise selected)
+enum LocalSoundType: String, CaseIterable, Codable {
+    case whiteNoise = "White noise"
+    case rain = "Rain"
+    case fan = "Fan"
+    case other = "Other"
+    case unknown = "Unknown"
+    
+    var dataKey: String {
+        rawValue.lowercased().replacingOccurrences(of: " ", with: "_")
+    }
+}
+
 // MARK: - Saved Settings for Persistence
 /// Settings that can be remembered between sessions
 struct SavedCheckInSettings: Codable {
     var usedSleepTherapy: Bool
     var sleepTherapyDevice: SleepTherapyDevice
+    
+    // Sleep environment (NEW - "Same as usual" shortcut)
+    var lastSleepAids: [LocalSleepAid]?
+    var lastRoomDarkness: LocalDarknessLevel?
+    var lastNoiseLevel: LocalNoiseLevel?
 }
 
 // MARK: - Morning Check-In View Model
@@ -277,6 +429,16 @@ class MorningCheckInViewModel: ObservableObject {
     @Published var sleepTherapyCompliance: Int = 100  // Percentage of night used (0-100)
     @Published var sleepTherapyNotes: String = ""  // e.g., "mask leaked", "removed at 3am"
     
+    // Sleep Environment (NEW - V1 Question Set)
+    // Goal: 10 seconds if user taps "Same as usual", 25 seconds for full entry
+    @Published var sleepAidsUsed: Set<LocalSleepAid> = []
+    @Published var roomDarkness: LocalDarknessLevel = .dark
+    @Published var noiseLevel: LocalNoiseLevel = .quiet
+    @Published var screenInBedMinutesBucket: LocalScreenTimeBucket = .unknown
+    @Published var soundType: LocalSoundType = .unknown
+    @Published var useSameAsUsual: Bool = false  // "Same as usual" shortcut
+    @Published var otherAidText: String = ""  // Optional, capped at 50 chars
+    
     // Narcolepsy flags (toggle list)
     @Published var hadSleepParalysis: Bool = false
     @Published var hadHallucinations: Bool = false
@@ -300,7 +462,9 @@ class MorningCheckInViewModel: ObservableObject {
     @Published var showDeepDive: Bool = false
     @Published var isSubmitting: Bool = false
     @Published var showNarcolepsySection: Bool = false
-    @Published var showSleepTherapySection: Bool = false  // NEW
+    @Published var showSleepTherapySection: Bool = false
+    @Published var showSleepEnvironmentSection: Bool = true  // NEW - shown by default
+    @Published var showSleepEnvironmentFollowUps: Bool = false  // Only if not "Same as usual"
     
     // UserDefaults keys for persistence
     private static let rememberSettingsKey = "morningCheckIn.rememberSettings"
@@ -321,8 +485,57 @@ class MorningCheckInViewModel: ObservableObject {
                 usedSleepTherapy = saved.usedSleepTherapy
                 sleepTherapyDevice = saved.sleepTherapyDevice
                 showSleepTherapySection = saved.usedSleepTherapy
+                
+                // Sleep environment "Same as usual" support
+                if let lastAids = saved.lastSleepAids {
+                    sleepAidsUsed = Set(lastAids)
+                }
+                if let lastDarkness = saved.lastRoomDarkness {
+                    roomDarkness = lastDarkness
+                }
+                if let lastNoise = saved.lastNoiseLevel {
+                    noiseLevel = lastNoise
+                }
             }
         }
+    }
+    
+    /// Apply "Same as usual" from last session
+    func applySameAsUsual() {
+        useSameAsUsual = true
+        showSleepEnvironmentFollowUps = false
+    }
+    
+    /// Clear "Same as usual" and show follow-ups
+    func customizeSleepEnvironment() {
+        useSameAsUsual = false
+        showSleepEnvironmentFollowUps = true
+    }
+    
+    /// Toggle a sleep aid chip
+    func toggleSleepAid(_ aid: LocalSleepAid) {
+        if aid == .none {
+            // "None" clears all others
+            sleepAidsUsed = [.none]
+        } else {
+            // Remove "None" if selecting something else
+            sleepAidsUsed.remove(.none)
+            if sleepAidsUsed.contains(aid) {
+                sleepAidsUsed.remove(aid)
+            } else {
+                sleepAidsUsed.insert(aid)
+            }
+        }
+        
+        // Show follow-ups if screen behavior selected
+        if sleepAidsUsed.contains(.tvOn) || sleepAidsUsed.contains(.phoneInBed) {
+            showSleepEnvironmentFollowUps = true
+        }
+    }
+    
+    /// Whether any sleep environment data was captured
+    var hasSleepEnvironmentData: Bool {
+        !sleepAidsUsed.isEmpty || useSameAsUsual
     }
     
     /// Save current settings for next time
@@ -332,7 +545,10 @@ class MorningCheckInViewModel: ObservableObject {
         if rememberSettings {
             let settings = SavedCheckInSettings(
                 usedSleepTherapy: usedSleepTherapy,
-                sleepTherapyDevice: sleepTherapyDevice
+                sleepTherapyDevice: sleepTherapyDevice,
+                lastSleepAids: Array(sleepAidsUsed),
+                lastRoomDarkness: roomDarkness,
+                lastNoiseLevel: noiseLevel
             )
             if let data = try? JSONEncoder().encode(settings) {
                 UserDefaults.standard.set(data, forKey: Self.savedSettingsKey)
@@ -340,6 +556,26 @@ class MorningCheckInViewModel: ObservableObject {
         } else {
             UserDefaults.standard.removeObject(forKey: Self.savedSettingsKey)
         }
+    }
+    
+    /// Build sleep environment JSON for storage
+    func buildSleepEnvironmentJson() -> String? {
+        guard hasSleepEnvironmentData else { return nil }
+        
+        let dict: [String: Any] = [
+            "sleep_aids_used": sleepAidsUsed.map { $0.rawValue },
+            "room_darkness": roomDarkness.rawValue.lowercased(),
+            "noise_level": noiseLevel.rawValue.lowercased().replacingOccurrences(of: " ", with: "_"),
+            "screen_in_bed_minutes_bucket": screenInBedMinutesBucket.dataKey,
+            "sound_type": soundType.dataKey,
+            "other_aid_text": String(otherAidText.prefix(50)),  // Capped at 50 chars
+            "same_as_usual": useSameAsUsual
+        ]
+        
+        if let data = try? JSONSerialization.data(withJSONObject: dict) {
+            return String(data: data, encoding: .utf8)
+        }
+        return nil
     }
     
     /// Convert to storable model
@@ -417,17 +653,23 @@ class MorningCheckInViewModel: ObservableObject {
             hadAutomaticBehavior: hadAutomaticBehavior,
             fellOutOfBed: fellOutOfBed,
             hadConfusionOnWaking: hadConfusionOnWaking,
-            usedSleepTherapy: usedSleepTherapy,  // NEW
-            sleepTherapyJson: sleepTherapyJson,  // NEW
+            usedSleepTherapy: usedSleepTherapy,
+            sleepTherapyJson: sleepTherapyJson,
+            hasSleepEnvironment: hasSleepEnvironmentData,  // NEW
+            sleepEnvironmentJson: buildSleepEnvironmentJson(),  // NEW
             notes: notes.isEmpty ? nil : notes
         )
     }
     
-    func submit() async {
+    func submit(sessionDateOverride: String? = nil) async {
         isSubmitting = true
         saveSettingsForNextTime()  // NEW: Save settings if "Remember" is enabled
         let checkIn = toStoredCheckIn()
-        EventStorage.shared.saveMorningCheckIn(checkIn)
+        if let sessionDate = sessionDateOverride {
+            EventStorage.shared.saveMorningCheckIn(checkIn, forSession: sessionDate)
+        } else {
+            EventStorage.shared.saveMorningCheckIn(checkIn)
+        }
         isSubmitting = false
     }
 }
@@ -437,10 +679,12 @@ struct MorningCheckInView: View {
     @StateObject private var viewModel: MorningCheckInViewModel
     @Environment(\.dismiss) private var dismiss
     
+    let sessionDateOverride: String?
     let onComplete: () -> Void
     
-    init(sessionId: UUID = UUID(), onComplete: @escaping () -> Void = {}) {
+    init(sessionId: UUID = UUID(), sessionDateOverride: String? = nil, onComplete: @escaping () -> Void = {}) {
         _viewModel = StateObject(wrappedValue: MorningCheckInViewModel(sessionId: sessionId))
+        self.sessionDateOverride = sessionDateOverride
         self.onComplete = onComplete
     }
     
@@ -450,6 +694,23 @@ struct MorningCheckInView: View {
                 VStack(spacing: 24) {
                     // Header
                     headerSection
+                    
+                    // Show which session this is for (if completing past session)
+                    if let sessionDate = sessionDateOverride {
+                        HStack {
+                            Image(systemName: "calendar.badge.clock")
+                                .foregroundColor(.orange)
+                            Text("Completing check-in for **\(formattedSessionDate(sessionDate))**")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color.orange.opacity(0.1))
+                        )
+                    }
                     
                     // Quick Mode (always visible)
                     quickModeSection
@@ -466,7 +727,10 @@ struct MorningCheckInView: View {
                         respiratorySymptomsSection
                     }
                     
-                    // Sleep Therapy section (NEW - expandable)
+                    // Sleep Environment section (NEW - "Sleep Setup and Aids")
+                    sleepEnvironmentSection
+                    
+                    // Sleep Therapy section (expandable)
                     sleepTherapySection
                     
                     // Narcolepsy section (expandable)
@@ -484,7 +748,7 @@ struct MorningCheckInView: View {
                 .padding()
             }
             .background(Color(.systemGroupedBackground))
-            .navigationTitle("Morning Check-In")
+            .navigationTitle(sessionDateOverride != nil ? "Complete Check-In" : "Morning Check-In")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -498,6 +762,18 @@ struct MorningCheckInView: View {
         }
     }
     
+    private func formattedSessionDate(_ sessionDate: String) -> String {
+        let inputFormatter = DateFormatter()
+        inputFormatter.dateFormat = "yyyy-MM-dd"
+        
+        guard let date = inputFormatter.date(from: sessionDate) else {
+            return sessionDate
+        }
+        
+        let outputFormatter = DateFormatter()
+        outputFormatter.dateFormat = "EEEE, MMM d"
+        return outputFormatter.string(from: date)
+    }
     // MARK: - Header Section
     private var headerSection: some View {
         VStack(spacing: 8) {
@@ -786,7 +1062,319 @@ struct MorningCheckInView: View {
             .toggleStyle(SwitchToggleStyle(tint: .indigo))
     }
     
-    // MARK: - Sleep Therapy Section (NEW)
+    // MARK: - Sleep Environment Section (NEW - V1 Question Set)
+    // Design: 10 seconds if "Same as usual", 25 seconds for full entry
+    private var sleepEnvironmentSection: some View {
+        VStack(spacing: 12) {
+            // Section header (always visible)
+            Button {
+                withAnimation(.spring(response: 0.3)) {
+                    viewModel.showSleepEnvironmentSection.toggle()
+                }
+            } label: {
+                HStack {
+                    Image(systemName: "moon.stars.fill")
+                        .foregroundColor(.indigo)
+                    Text("Sleep Setup & Aids")
+                        .foregroundColor(.primary)
+                    Spacer()
+                    if !viewModel.sleepAidsUsed.isEmpty || viewModel.useSameAsUsual {
+                        Text(viewModel.useSameAsUsual ? "Same as usual" : "\(viewModel.sleepAidsUsed.count) selected")
+                            .font(.caption)
+                            .foregroundColor(.indigo)
+                    }
+                    Image(systemName: viewModel.showSleepEnvironmentSection ? "chevron.up" : "chevron.down")
+                        .foregroundColor(.secondary)
+                }
+                .padding()
+                .background(Color(.secondarySystemGroupedBackground))
+                .cornerRadius(12)
+            }
+            
+            if viewModel.showSleepEnvironmentSection {
+                VStack(spacing: 16) {
+                    // "Same as usual" shortcut
+                    Button {
+                        withAnimation(.spring(response: 0.3)) {
+                            viewModel.applySameAsUsual()
+                        }
+                    } label: {
+                        HStack {
+                            Image(systemName: viewModel.useSameAsUsual ? "checkmark.circle.fill" : "circle")
+                                .foregroundColor(viewModel.useSameAsUsual ? .green : .secondary)
+                            Text("Same as usual")
+                                .foregroundColor(viewModel.useSameAsUsual ? .primary : .secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(viewModel.useSameAsUsual ? Color.green.opacity(0.15) : Color(.tertiarySystemGroupedBackground))
+                        .cornerRadius(10)
+                    }
+                    
+                    if !viewModel.useSameAsUsual {
+                        // A) Sleep aids multi-select chips
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("What did you use last night?")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            
+                            sleepAidsChipsGrid
+                        }
+                        
+                        // B) Lights and noise quick ratings (conditional)
+                        if viewModel.showSleepEnvironmentFollowUps || !viewModel.sleepAidsUsed.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                // Room darkness
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("Room Darkness")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    
+                                    HStack(spacing: 8) {
+                                        ForEach(LocalDarknessLevel.allCases, id: \.self) { level in
+                                            darknessButton(level)
+                                        }
+                                    }
+                                }
+                                
+                                // Noise level
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("Noise Level")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    
+                                    HStack(spacing: 8) {
+                                        ForEach(LocalNoiseLevel.allCases, id: \.self) { level in
+                                            noiseLevelButton(level)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // C) Screen time follow-up (if TV/Phone selected)
+                        if viewModel.sleepAidsUsed.contains(.tvOn) || viewModel.sleepAidsUsed.contains(.phoneInBed) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("How long was screen on?")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                
+                                HStack(spacing: 8) {
+                                    ForEach(LocalScreenTimeBucket.allCases.filter { $0 != .unknown }, id: \.self) { bucket in
+                                        screenTimeButton(bucket)
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // D) Sound type follow-up (if white noise selected)
+                        if viewModel.sleepAidsUsed.contains(.whiteNoise) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Sound Type")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                
+                                HStack(spacing: 8) {
+                                    ForEach(LocalSoundType.allCases.filter { $0 != .unknown }, id: \.self) { soundType in
+                                        soundTypeButton(soundType)
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // "Other" text field (if "Other" selected)
+                        if viewModel.sleepAidsUsed.contains(.other) {
+                            TextField("Other aid (optional, 50 char max)", text: $viewModel.otherAidText)
+                                .textFieldStyle(.roundedBorder)
+                                .onChange(of: viewModel.otherAidText) { newValue in
+                                    if newValue.count > 50 {
+                                        viewModel.otherAidText = String(newValue.prefix(50))
+                                    }
+                                }
+                        }
+                    }
+                }
+                .padding()
+                .background(Color(.secondarySystemGroupedBackground))
+                .cornerRadius(12)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+    }
+    
+    // MARK: - Sleep Environment Helper Views
+    
+    /// Multi-select chip grid for sleep aids
+    private var sleepAidsChipsGrid: some View {
+        let columns = [GridItem(.adaptive(minimum: 100), spacing: 8)]
+        
+        return LazyVGrid(columns: columns, spacing: 8) {
+            // None chip first
+            sleepAidChip(.none)
+            
+            // Environment aids
+            ForEach(LocalSleepAid.allCases.filter { 
+                $0.category == .environment && $0 != .none
+            }, id: \.self) { aid in
+                sleepAidChip(aid)
+            }
+            
+            // Relaxation aids
+            ForEach(LocalSleepAid.allCases.filter { 
+                $0.category == .relaxation
+            }, id: \.self) { aid in
+                sleepAidChip(aid)
+            }
+            
+            // Medical aids
+            ForEach(LocalSleepAid.allCases.filter { 
+                $0.category == .medical
+            }, id: \.self) { aid in
+                sleepAidChip(aid)
+            }
+            
+            // Screen behaviors (visually tagged)
+            ForEach(LocalSleepAid.allCases.filter { 
+                $0.category == .screens
+            }, id: \.self) { aid in
+                sleepAidChip(aid)
+            }
+            
+            // Other
+            sleepAidChip(.other)
+        }
+    }
+    
+    private func sleepAidChip(_ aid: LocalSleepAid) -> some View {
+        let isSelected = viewModel.sleepAidsUsed.contains(aid)
+        let isScreenBehavior = aid.isScreenBehavior
+        
+        return Button {
+            withAnimation(.spring(response: 0.2)) {
+                viewModel.toggleSleepAid(aid)
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: aid.icon)
+                    .font(.caption)
+                Text(aid.rawValue)
+                    .font(.caption2)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(
+                isSelected 
+                    ? (isScreenBehavior ? Color.orange.opacity(0.2) : Color.indigo.opacity(0.2))
+                    : Color(.tertiarySystemGroupedBackground)
+            )
+            .foregroundColor(
+                isSelected 
+                    ? (isScreenBehavior ? .orange : .indigo)
+                    : .secondary
+            )
+            .cornerRadius(8)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(
+                        isSelected 
+                            ? (isScreenBehavior ? Color.orange : Color.indigo)
+                            : Color.clear,
+                        lineWidth: 1.5
+                    )
+            )
+        }
+    }
+    
+    private func darknessButton(_ level: LocalDarknessLevel) -> some View {
+        let isSelected = viewModel.roomDarkness == level
+        
+        return Button {
+            viewModel.roomDarkness = level
+        } label: {
+            VStack(spacing: 4) {
+                Image(systemName: level.icon)
+                    .font(.title3)
+                Text(level.rawValue)
+                    .font(.caption2)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(isSelected ? Color.indigo.opacity(0.2) : Color(.tertiarySystemGroupedBackground))
+            .foregroundColor(isSelected ? .indigo : .secondary)
+            .cornerRadius(8)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(isSelected ? Color.indigo : Color.clear, lineWidth: 1.5)
+            )
+        }
+    }
+    
+    private func noiseLevelButton(_ level: LocalNoiseLevel) -> some View {
+        let isSelected = viewModel.noiseLevel == level
+        
+        return Button {
+            viewModel.noiseLevel = level
+        } label: {
+            VStack(spacing: 4) {
+                Image(systemName: level.icon)
+                    .font(.title3)
+                Text(level.rawValue)
+                    .font(.caption2)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(isSelected ? Color.indigo.opacity(0.2) : Color(.tertiarySystemGroupedBackground))
+            .foregroundColor(isSelected ? .indigo : .secondary)
+            .cornerRadius(8)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(isSelected ? Color.indigo : Color.clear, lineWidth: 1.5)
+            )
+        }
+    }
+    
+    private func screenTimeButton(_ bucket: LocalScreenTimeBucket) -> some View {
+        let isSelected = viewModel.screenInBedMinutesBucket == bucket
+        
+        return Button {
+            viewModel.screenInBedMinutesBucket = bucket
+        } label: {
+            Text(bucket.rawValue)
+                .font(.caption)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(isSelected ? Color.orange.opacity(0.2) : Color(.tertiarySystemGroupedBackground))
+                .foregroundColor(isSelected ? .orange : .secondary)
+                .cornerRadius(8)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(isSelected ? Color.orange : Color.clear, lineWidth: 1.5)
+                )
+        }
+    }
+    
+    private func soundTypeButton(_ type: LocalSoundType) -> some View {
+        let isSelected = viewModel.soundType == type
+        
+        return Button {
+            viewModel.soundType = type
+        } label: {
+            Text(type.rawValue)
+                .font(.caption)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(isSelected ? Color.indigo.opacity(0.2) : Color(.tertiarySystemGroupedBackground))
+                .foregroundColor(isSelected ? .indigo : .secondary)
+                .cornerRadius(8)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(isSelected ? Color.indigo : Color.clear, lineWidth: 1.5)
+                )
+        }
+    }
+    
+    // MARK: - Sleep Therapy Section
     private var sleepTherapySection: some View {
         VStack(spacing: 12) {
             Button {
@@ -932,7 +1520,7 @@ struct MorningCheckInView: View {
     private var submitButton: some View {
         Button {
             Task {
-                await viewModel.submit()
+                await viewModel.submit(sessionDateOverride: sessionDateOverride)
                 dismiss()
                 onComplete()
             }

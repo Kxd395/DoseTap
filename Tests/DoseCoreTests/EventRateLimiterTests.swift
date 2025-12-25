@@ -15,34 +15,44 @@ final class EventRateLimiterTests: XCTestCase {
         XCTAssertTrue(third)   // after 60s
     }
     
-    func testWaterDebounce300s() async {
+    func testWaterDebounce60s_SSOTCompliant() async {
+        // Per SSOT: water has 60s cooldown (physical event)
         let limiter = EventRateLimiter.default
         let first = await limiter.shouldAllow(event: "water", at: Date(timeIntervalSince1970: 0))
-        let atFourMin = await limiter.shouldAllow(event: "water", at: Date(timeIntervalSince1970: 240))
-        let atFiveMinPlus = await limiter.shouldAllow(event: "water", at: Date(timeIntervalSince1970: 301))
+        let at30s = await limiter.shouldAllow(event: "water", at: Date(timeIntervalSince1970: 30))
+        let at61s = await limiter.shouldAllow(event: "water", at: Date(timeIntervalSince1970: 61))
         XCTAssertTrue(first)
-        XCTAssertFalse(atFourMin, "Should block at 4 min (within 5 min cooldown)")
-        XCTAssertTrue(atFiveMinPlus, "Should allow after 5 min cooldown")
+        XCTAssertFalse(at30s, "Should block at 30s (within 60s cooldown)")
+        XCTAssertTrue(at61s, "Should allow after 60s cooldown")
     }
     
-    func testSnackDebounce900s() async {
+    func testSnackDebounce60s_SSOTCompliant() async {
+        // Per SSOT: snack has 60s cooldown (physical event)
         let limiter = EventRateLimiter.default
         let first = await limiter.shouldAllow(event: "snack", at: Date(timeIntervalSince1970: 0))
-        let at10min = await limiter.shouldAllow(event: "snack", at: Date(timeIntervalSince1970: 600))
-        let at15minPlus = await limiter.shouldAllow(event: "snack", at: Date(timeIntervalSince1970: 901))
+        let at30s = await limiter.shouldAllow(event: "snack", at: Date(timeIntervalSince1970: 30))
+        let at61s = await limiter.shouldAllow(event: "snack", at: Date(timeIntervalSince1970: 61))
         XCTAssertTrue(first)
-        XCTAssertFalse(at10min, "Should block at 10 min (within 15 min cooldown)")
-        XCTAssertTrue(at15minPlus, "Should allow after 15 min cooldown")
+        XCTAssertFalse(at30s, "Should block at 30s (within 60s cooldown)")
+        XCTAssertTrue(at61s, "Should allow after 60s cooldown")
     }
     
-    func testLightsOutDebounce1Hour() async {
+    func testLightsOutNoCooldown_SSOTCompliant() async {
+        // Per SSOT: sleepCycle events have NO cooldown (session markers)
         let limiter = EventRateLimiter.default
         let first = await limiter.shouldAllow(event: "lightsOut", at: Date(timeIntervalSince1970: 0))
-        let at30min = await limiter.shouldAllow(event: "lightsOut", at: Date(timeIntervalSince1970: 1800))
-        let at1hourPlus = await limiter.shouldAllow(event: "lightsOut", at: Date(timeIntervalSince1970: 3601))
+        let immediately = await limiter.shouldAllow(event: "lightsOut", at: Date(timeIntervalSince1970: 1))
         XCTAssertTrue(first)
-        XCTAssertFalse(at30min, "Should block at 30 min (within 1h cooldown)")
-        XCTAssertTrue(at1hourPlus, "Should allow after 1h cooldown")
+        XCTAssertTrue(immediately, "lightsOut should have no cooldown per SSOT")
+    }
+    
+    func testMentalEventsNoCooldown_SSOTCompliant() async {
+        // Per SSOT: mental events have NO cooldown (log as often as experienced)
+        let limiter = EventRateLimiter.default
+        let first = await limiter.shouldAllow(event: "anxiety", at: Date(timeIntervalSince1970: 0))
+        let immediately = await limiter.shouldAllow(event: "anxiety", at: Date(timeIntervalSince1970: 1))
+        XCTAssertTrue(first)
+        XCTAssertTrue(immediately, "anxiety should have no cooldown per SSOT")
     }
     
     func testUnknownEvent_alwaysAllowed() async {
@@ -139,21 +149,36 @@ final class EventRateLimiterTests: XCTestCase {
     
     // MARK: - Static Factory Tests
     
-    func testDefaultLimiter_hasAllEventCooldowns() async {
+    func testDefaultLimiter_hasPhysicalEventCooldowns() async {
+        // Per SSOT: Only physical events (bathroom/water/snack) have 60s cooldowns
         let limiter = EventRateLimiter.default
         
-        // Verify key events have cooldowns by checking they start blocked after first call
+        // Physical events should have cooldown
         _ = await limiter.shouldAllow(event: "bathroom", at: Date(timeIntervalSince1970: 0))
         _ = await limiter.shouldAllow(event: "water", at: Date(timeIntervalSince1970: 0))
-        _ = await limiter.shouldAllow(event: "anxiety", at: Date(timeIntervalSince1970: 0))
+        _ = await limiter.shouldAllow(event: "snack", at: Date(timeIntervalSince1970: 0))
         
         let bathroomBlocked = await limiter.shouldAllow(event: "bathroom", at: Date(timeIntervalSince1970: 30))
         let waterBlocked = await limiter.shouldAllow(event: "water", at: Date(timeIntervalSince1970: 30))
-        let anxietyBlocked = await limiter.shouldAllow(event: "anxiety", at: Date(timeIntervalSince1970: 30))
+        let snackBlocked = await limiter.shouldAllow(event: "snack", at: Date(timeIntervalSince1970: 30))
         
-        XCTAssertFalse(bathroomBlocked, "Default should have bathroom cooldown")
-        XCTAssertFalse(waterBlocked, "Default should have water cooldown")
-        XCTAssertFalse(anxietyBlocked, "Default should have anxiety cooldown")
+        XCTAssertFalse(bathroomBlocked, "Physical event bathroom should have cooldown")
+        XCTAssertFalse(waterBlocked, "Physical event water should have cooldown")
+        XCTAssertFalse(snackBlocked, "Physical event snack should have cooldown")
+    }
+    
+    func testDefaultLimiter_mentalEnvironmentEventsHaveNoCooldown() async {
+        // Per SSOT: mental and environment events have NO cooldown
+        let limiter = EventRateLimiter.default
+        
+        _ = await limiter.shouldAllow(event: "anxiety", at: Date(timeIntervalSince1970: 0))
+        _ = await limiter.shouldAllow(event: "noise", at: Date(timeIntervalSince1970: 0))
+        
+        let anxietyAllowed = await limiter.shouldAllow(event: "anxiety", at: Date(timeIntervalSince1970: 1))
+        let noiseAllowed = await limiter.shouldAllow(event: "noise", at: Date(timeIntervalSince1970: 1))
+        
+        XCTAssertTrue(anxietyAllowed, "Mental event anxiety should have NO cooldown per SSOT")
+        XCTAssertTrue(noiseAllowed, "Environment event noise should have NO cooldown per SSOT")
     }
     
     func testLegacyLimiter_onlyBathroomCooldown() async {

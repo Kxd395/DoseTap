@@ -487,7 +487,7 @@ struct AboutDetailView: View {
             Section("Core Features") {
                 Label("150-240 minute dose window", systemImage: "timer")
                 Label("Smart notifications", systemImage: "bell.badge")
-                Label("12 sleep event types", systemImage: "bed.double.fill")
+                Label("13 sleep event types", systemImage: "bed.double.fill")
                 Label("Apple Health integration", systemImage: "heart.text.square")
                 Label("WHOOP integration", systemImage: "figure.run")
                 Label("Offline-first design", systemImage: "wifi.slash")

@@ -148,8 +148,14 @@ public class SQLiteStorage: ObservableObject {
     /// Add new columns if they don't exist (safe migration)
     private func migrateDatabase() {
         let migrations = [
+            // Morning check-in sleep therapy columns
             "ALTER TABLE morning_checkins ADD COLUMN used_sleep_therapy INTEGER DEFAULT 0",
-            "ALTER TABLE morning_checkins ADD COLUMN sleep_therapy_json TEXT"
+            "ALTER TABLE morning_checkins ADD COLUMN sleep_therapy_json TEXT",
+            // P0: Session terminal state - distinguishes: completed, skipped, expired, aborted
+            "ALTER TABLE current_session ADD COLUMN terminal_state TEXT",
+            // Sleep Environment feature - captures sleep setup and aids for Morning Check-in
+            "ALTER TABLE morning_checkins ADD COLUMN has_sleep_environment INTEGER DEFAULT 0",
+            "ALTER TABLE morning_checkins ADD COLUMN sleep_environment_json TEXT"
         ]
         
         for sql in migrations {
@@ -469,21 +475,33 @@ public class SQLiteStorage: ObservableObject {
     
     /// Delete a session by date string (yyyy-MM-dd format)
     /// This deletes all dose_events for that session_date and associated sleep events
+    /// P0-4 FIX: Wrapped in transaction to ensure atomic deletion
     public func deleteSession(date: Date) {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
         let sessionDate = dateFormatter.string(from: date)
         
+        // Begin transaction for atomic deletion
+        if sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil) != SQLITE_OK {
+            lastError = "Failed to begin transaction for session deletion"
+            return
+        }
+        
+        var success = true
+        var stmt: OpaquePointer?
+        
         // Delete dose events for this session
         let deleteDosesSQL = "DELETE FROM dose_events WHERE session_date = ?"
-        var stmt: OpaquePointer?
         
         if sqlite3_prepare_v2(db, deleteDosesSQL, -1, &stmt, nil) == SQLITE_OK {
             sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
             if sqlite3_step(stmt) != SQLITE_DONE {
                 lastError = "Failed to delete dose events for session \(sessionDate)"
+                success = false
             }
             sqlite3_finalize(stmt)
+        } else {
+            success = false
         }
         
         // Delete sleep events by matching timestamp within the session date range
@@ -493,11 +511,12 @@ public class SQLiteStorage: ObservableObject {
         
         let deleteSleepSQL = "DELETE FROM sleep_events WHERE timestamp >= ? AND timestamp < ?"
         
-        if sqlite3_prepare_v2(db, deleteSleepSQL, -1, &stmt, nil) == SQLITE_OK {
+        if success && sqlite3_prepare_v2(db, deleteSleepSQL, -1, &stmt, nil) == SQLITE_OK {
             bindDateToColumn(stmt, column: 1, date: startOfDay)
             bindDateToColumn(stmt, column: 2, date: endOfDay)
             if sqlite3_step(stmt) != SQLITE_DONE {
                 lastError = "Failed to delete sleep events for session \(sessionDate)"
+                success = false
             }
             sqlite3_finalize(stmt)
         }
@@ -505,15 +524,28 @@ public class SQLiteStorage: ObservableObject {
         // Delete morning check-ins for this session
         let deleteCheckInsSQL = "DELETE FROM morning_checkins WHERE session_date = ?"
         
-        if sqlite3_prepare_v2(db, deleteCheckInsSQL, -1, &stmt, nil) == SQLITE_OK {
+        if success && sqlite3_prepare_v2(db, deleteCheckInsSQL, -1, &stmt, nil) == SQLITE_OK {
             sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
             if sqlite3_step(stmt) != SQLITE_DONE {
                 lastError = "Failed to delete morning check-ins for session \(sessionDate)"
+                success = false
             }
             sqlite3_finalize(stmt)
         }
         
-        print("✅ SQLiteStorage: Deleted session for \(sessionDate)")
+        // Commit or rollback transaction
+        if success {
+            if sqlite3_exec(db, "COMMIT", nil, nil, nil) == SQLITE_OK {
+                print("✅ SQLiteStorage: Deleted session for \(sessionDate) (transaction committed)")
+            } else {
+                sqlite3_exec(db, "ROLLBACK", nil, nil, nil)
+                lastError = "Failed to commit session deletion transaction"
+                print("❌ SQLiteStorage: Failed to commit deletion for \(sessionDate)")
+            }
+        } else {
+            sqlite3_exec(db, "ROLLBACK", nil, nil, nil)
+            print("❌ SQLiteStorage: Rolled back deletion for \(sessionDate) due to error")
+        }
     }
     
     /// Export data as CSV

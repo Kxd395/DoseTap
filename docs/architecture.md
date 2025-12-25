@@ -1,7 +1,12 @@
 # DoseTap Architecture
 
+> **Last Updated:** 2024-12-24
+> **Persistence Layer:** SQLite (via `EventStorage.swift`)
+> **SSOT Reference:** [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md)
+
 ## High-Level Overview
-DoseTap uses a **Clean Architecture** approach, leveraging Swift Package Manager (SwiftPM) to modularize core logic away from the UI. The app is **Local-First**, meaning all logic and state validity is determined on-device, with the backend serving as a synchronization point for analytics/backup.
+
+DoseTap uses a **Clean Architecture** approach, leveraging Swift Package Manager (SwiftPM) to modularize core logic away from the UI. The app is **Local-First**, meaning all logic and state validity is determined on-device, with optional backend synchronization for analytics/backup.
 
 ## Module Structure (SwiftPM)
 
@@ -20,33 +25,120 @@ The project is divided into distinct targets within `Package.swift`:
 *   **Responsibility**: The iOS Application target. Contains SwiftUI Views and ViewModels.
 *   **Key Components**:
     *   `DoseTapApp.swift`: App entry point.
-    *   `PersistentStore.swift`: Core Data stack wrapper. Handles persistence of `DoseEvent` entities.
+    *   `EventStorage.swift`: SQLite database wrapper. Single source of truth for all persistence.
+    *   `SessionRepository.swift`: Observable state manager that bridges storage and UI.
     *   `TonightView.swift`: The main dashboard view.
     *   `Config.plist`: Application configuration (Secrets, API URLs).
 
 ### 3. `DoseTapWatch` (The Companion)
-*   **Responsibility**: specific watchOS views. Simplifies the UI to "Take", "Snooze", "Skip".
+*   **Responsibility**: WatchOS-specific views. Simplifies the UI to "Take", "Snooze", "Skip".
 
-## Key Architectural Patterns
+## Persistence Layer: SQLite
 
-### Local-First Persistence
-*   **Core Data**: Uses `NSPersistentContainer` with a fallback to `NSInMemoryStoreType` for crash resilience.
-*   **Entities**:
-    *   `DoseEvent`: The atomic unit of history (type: dose1/dose2, timestamp).
-    *   `DoseSession`: Aggregates events into a "Night".
+> **CANONICAL**: SQLite is the ONLY persistence layer. There is NO Core Data.
 
-### Offline Sync
+### Storage Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    UI Layer (SwiftUI)                       │
+│   TonightView, HistoryView, MorningCheckInView, etc.        │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              │ @StateObject
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│              SessionRepository (Observable)                  │
+│   @Published dose1Time, dose2Time, snoozeCount, etc.        │
+│   Broadcasts changes via Combine (sessionDidChange)          │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              │ reads/writes
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│              EventStorage (SQLite Wrapper)                   │
+│   @MainActor singleton, direct SQLite3 calls                 │
+│   Database file: dosetap_events.sqlite                       │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    SQLite Database                           │
+│   Tables: current_session, dose_events, sleep_events,        │
+│           morning_checkins, pre_sleep_logs                   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `ios/DoseTap/Storage/EventStorage.swift` | SQLite wrapper, all CRUD operations |
+| `ios/DoseTap/Storage/SessionRepository.swift` | Observable state, Combine publisher |
+| `docs/DATABASE_SCHEMA.md` | Canonical schema documentation |
+| `docs/SSOT/contracts/SchemaEvolution.md` | Migration history |
+
+### Why SQLite (Not Core Data)
+
+1. **Deterministic Testing**: Raw SQL is easier to test and mock
+2. **Export-Friendly**: Direct CSV export without transformation
+3. **Lightweight**: No Core Data stack overhead
+4. **Debuggable**: Can inspect `.sqlite` file directly
+
+## Offline Sync
+
 *   **Actor-based Queue**: `OfflineQueue` is an actor ensuring thread-safe operations.
-*   **Strategy**: "Fire and Forget" from the UI perspective. The UI updates optimistically, while the queue handles the network synchronization in the background.
+*   **Strategy**: "Fire and Forget" from the UI perspective. The UI updates optimistically, while the queue handles network synchronization in the background.
 
-### Dependency Injection
+## Dependency Injection
+
 *   Used heavily in `DoseCore` to allow unit testing of time-dependent logic.
 *   `TimeProvider` protocol allows tests to inject "fake time" to simulate window expiration or DST jumps.
 
 ## Data Flow
-1.  **User Action** (Tap "Take") -> **ViewModel**
-2.  **ViewModel** -> **DoseCore** (Validate Window)
-3.  **DoseCore** -> **Persistence** (Core Data Save)
-4.  **DoseCore** -> **APIClient** (Network Request)
-    *   *Success*: Done.
-    *   *Failure*: **OfflineQueue** (Store Task) -> Retry Loop.
+
+```
+1. User Action (Tap "Take") → ViewModel
+2. ViewModel → SessionRepository.takeDose1()
+3. SessionRepository → EventStorage.saveDose1()
+4. EventStorage → SQLite INSERT
+5. SessionRepository → sessionDidChange.send()
+6. UI updates via @Published properties
+7. (Background) APIClient → Network Request
+   • Success: Done
+   • Failure: OfflineQueue → Retry Loop
+```
+
+## iOS Target Structure
+
+The repository contains multiple iOS-related folders. Here's what each is for:
+
+| Folder | Status | Purpose |
+|--------|--------|---------|
+| `ios/Core/` | ✅ **Active** | SwiftPM `DoseCore` library - pure logic, fully tested |
+| `ios/DoseTap/` | ✅ **Active** | Main iOS app target - production app |
+| `ios/DoseTapiOSApp/` | 🔄 **Merging** | Alternative implementation - being consolidated into DoseTap |
+| `ios/AppMinimal/` | 📦 **Archive** | Debug/test scaffold - can be deleted |
+| `ios/DoseTapWorking/` | 📦 **Archive** | Prototype scratch space - can be deleted |
+| `ios/DoseTapNative/` | 📦 **Archive** | Legacy native experiment - can be deleted |
+| `ios/TempProject/` | 📦 **Archive** | Temporary files - can be deleted |
+
+**To build the production app:** Open `ios/DoseTap/DoseTap.xcodeproj` in Xcode.
+
+**To run tests:** Use `swift test` from the repository root (tests the `DoseCore` library).
+
+### Legacy Code Warning
+
+Files in `ios/DoseTap/legacy/` are preserved for reference but are **not compiled**. The following files in `ios/DoseTap/` may conflict with `DoseCore` and are wrapped in `#if false`:
+- `TimeEngine.swift` (use `ios/Core/` version)
+- `EventStore.swift` (use `ios/Core/` version)  
+- `UndoManager.swift` (use `ios/Core/DoseUndoManager.swift`)
+- `DoseTapCore.swift` (deprecated)
+- `EventStoreCoreData.swift` (deprecated - SQLite is canonical)
+
+## References
+
+- [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) - Complete SQLite schema
+- [SSOT/contracts/SchemaEvolution.md](SSOT/contracts/SchemaEvolution.md) - Migration history
+- [SSOT/constants.json](SSOT/constants.json) - Canonical enum definitions
+

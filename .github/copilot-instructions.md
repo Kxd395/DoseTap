@@ -24,7 +24,7 @@ SSOT update checklist (always first):
 - Build core and run tests from the repo root:
   - `swift build -q`
   - `swift test -q`
-- Known good state: `swift build` succeeds; 24 tests pass (window math, API errors, offline queue, rate limiter).
+- Known good state: `swift build` succeeds; all DoseCoreTests pass (window math, API errors, offline queue, rate limiter). Run `swift test -q` and check CI for current count.
 - Xcode app target may fail due to legacy files. If you must run the app, quarantine conflicting legacy files with `#if false` or `#if canImport(...)` as already done in several `ios/DoseTap/*.swift` files.
 
 How to run the iOS app target safely (avoiding legacy conflicts):

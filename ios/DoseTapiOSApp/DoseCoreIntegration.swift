@@ -1,6 +1,9 @@
 import Foundation
 import SwiftUI
 import DoseCore
+#if canImport(DoseTap)
+import DoseTap
+#endif
 
 // MARK: - Configuration
 /// API configuration - loads from Info.plist or uses defaults
@@ -25,14 +28,15 @@ public struct APIConfiguration {
     }
 }
 
-/// Integration layer that connects the SwiftUI app to the tested DoseCore module
+/// Integration layer that connects the SwiftUI app to the tested DoseCore module.
+/// P0-1 FIX: This class now reads/writes through SessionRepository - it is NOT a separate state owner.
+/// All state is derived from SessionRepository.shared. This class handles API calls and notifications.
 @MainActor
 public class DoseCoreIntegration: ObservableObject {
     // Core services from the tested DoseCore module
     private let dosingService: DosingService
-    private let windowCalculator: DoseWindowCalculator
     
-    // SQLite storage for persistence (accessed lazily)
+    // SQLite storage for event persistence (sleep events, etc.)
     private var _storage: SQLiteStorage?
     private var storage: SQLiteStorage {
         if _storage == nil {
@@ -41,8 +45,17 @@ public class DoseCoreIntegration: ObservableObject {
         return _storage!
     }
     
-    // Published state for SwiftUI
-    @Published public var currentContext: DoseWindowContext
+    // MARK: - State is now derived from SessionRepository (P0-1 FIX)
+    
+    /// Reference to the single source of truth
+    private let sessionRepo = SessionRepository.shared
+    
+    /// Current dose window context - computed from SessionRepository state
+    public var currentContext: DoseWindowContext {
+        sessionRepo.currentContext
+    }
+    
+    // Published state for UI (loading, errors, events)
     @Published public var recentEvents: [DoseEvent] = []
     @Published public var isLoading: Bool = false
     @Published public var lastError: String?
@@ -50,42 +63,23 @@ public class DoseCoreIntegration: ObservableObject {
     // Enhanced notification service
     public let notificationService = EnhancedNotificationService()
     
-    // Dose tracking state (persisted to SQLite)
-    private var dose1Time: Date?
-    private var dose2Time: Date?
-    private var snoozeCount: Int = 0
-    private var dose2Skipped: Bool = false
-    
     // Timer reference for cleanup
     private var updateTimer: Timer?
     
-    // Notification observer for data cleared
-    private var dataClearedObserver: NSObjectProtocol?
+    // Cancellable for observing SessionRepository changes
+    private var sessionObserver: AnyCancellable?
     
     public init() {
         // Initialize core services with configurable base URL
         let transport = URLSessionTransport()
         let apiClient = APIClient(baseURL: APIConfiguration.baseURL, transport: transport)
         let offlineQueue = InMemoryOfflineQueue(isOnline: { true }) // TODO: Use real network monitor
-        let rateLimiter = EventRateLimiter.default // Use all 12 event cooldowns
+        let rateLimiter = EventRateLimiter.default // Use all 13 event cooldowns
         
         self.dosingService = DosingService(
             client: apiClient,
             queue: offlineQueue,
             limiter: rateLimiter
-        )
-        
-        self.windowCalculator = DoseWindowCalculator()
-        
-        // Load persisted state from SQLite
-        loadPersistedState()
-        
-        // Initialize context with loaded state
-        self.currentContext = windowCalculator.context(
-            dose1At: dose1Time, 
-            dose2TakenAt: dose2Time, 
-            dose2Skipped: dose2Skipped, 
-            snoozeCount: snoozeCount
         )
         
         // Load recent events from SQLite
@@ -94,40 +88,18 @@ public class DoseCoreIntegration: ObservableObject {
         // Set up notification service integration
         notificationService.setDoseCoreIntegration(self)
         
-        // Start periodic updates
-        startPeriodicUpdates()
+        // Observe SessionRepository changes to trigger objectWillChange
+        sessionObserver = sessionRepo.sessionDidChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in
+                self?.objectWillChange.send()
+            }
         
-        // Listen for data cleared notification to reset in-memory state
-        dataClearedObserver = NotificationCenter.default.addObserver(
-            forName: NSNotification.Name("DataCleared"),
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.resetSession()
-            print("✅ DoseCoreIntegration: Session reset after data cleared")
-        }
+        // Start periodic updates for time-based context changes
+        startPeriodicUpdates()
     }
     
-    // MARK: - Persistence
-    
-    /// Load persisted dose state from SQLite
-    private func loadPersistedState() {
-        // Load tonight's session if it exists
-        let sessions = storage.fetchSessions(limit: 1)
-        if let session = sessions.first, Calendar.current.isDateInToday(session.startTime) {
-            dose1Time = session.dose1Time
-            dose2Time = session.dose2Time
-            snoozeCount = session.snoozeCount
-            dose2Skipped = session.dose2Skipped
-        } else {
-            // No active session for today - check if we need to create one
-            // (Will be created when user takes Dose 1)
-            dose1Time = nil
-            dose2Time = nil
-            snoozeCount = 0
-            dose2Skipped = false
-        }
-    }
+    // MARK: - Load Recent Events (for display only)
     
     /// Load recent events from SQLite
     private func loadRecentEvents() {
@@ -138,64 +110,46 @@ public class DoseCoreIntegration: ObservableObject {
         }
     }
     
-    /// Persist current session state to SQLite
-    private func persistSessionState() {
-        guard let d1 = dose1Time else { return }
-        
-        let session = DoseSession(
-            startTime: d1,
-            dose1Time: d1,
-            dose2Time: dose2Time,
-            snoozeCount: snoozeCount,
-            dose2Skipped: dose2Skipped
-        )
-        storage.insertSession(session)
-    }
+    // MARK: - Dose Actions (write through SessionRepository)
     
-    /// Take Dose 1 - records timestamp and updates window state
+    /// Take Dose 1 - records timestamp via SessionRepository and handles API/notifications
     public func takeDose1() async {
         isLoading = true
         defer { isLoading = false }
         
         let now = Date()
-        dose1Time = now
         
-        // Persist to SQLite
-        storage.insertEvent(EventRecord(type: "dose1", timestamp: now, metadata: nil))
-        persistSessionState()
+        // P0-1 FIX: Write through SessionRepository (single source of truth)
+        sessionRepo.setDose1Time(now)
         
-        // Record event via core services
+        // Record event via core services (API sync)
         do {
             await dosingService.perform(.takeDose(type: "dose1", at: now))
             await dosingService.perform(.logEvent(name: "dose1", at: now))
             addEvent(type: .dose1, timestamp: now)
-            updateContext()
             
-            // Schedule dose 2 notifications
-            notificationService.scheduleDoseNotifications(for: currentContext, dose1Time: dose1Time)
+            // Schedule dose 2 notifications using repo state
+            notificationService.scheduleDoseNotifications(for: currentContext, dose1Time: sessionRepo.dose1Time)
         } catch {
             lastError = "Failed to record Dose 1: \(error.localizedDescription)"
         }
     }
     
-    /// Take Dose 2 - records timestamp and updates window state
+    /// Take Dose 2 - records timestamp via SessionRepository and handles API/notifications
     public func takeDose2() async {
         isLoading = true
         defer { isLoading = false }
         
         let now = Date()
-        dose2Time = now
         
-        // Persist to SQLite
-        storage.insertEvent(EventRecord(type: "dose2", timestamp: now, metadata: nil))
-        persistSessionState()
+        // P0-1 FIX: Write through SessionRepository (single source of truth)
+        sessionRepo.setDose2Time(now)
         
-        // Record event via core services
+        // Record event via core services (API sync)
         do {
             await dosingService.perform(.takeDose(type: "dose2", at: now))
             await dosingService.perform(.logEvent(name: "dose2", at: now))
             addEvent(type: .dose2, timestamp: now)
-            updateContext()
             
             // Cancel remaining notifications since dose 2 was taken
             notificationService.cancelAllNotifications()
@@ -212,21 +166,18 @@ public class DoseCoreIntegration: ObservableObject {
         defer { isLoading = false }
         
         let now = Date()
-        snoozeCount += 1
         
-        // Persist to SQLite
-        storage.insertEvent(EventRecord(type: "snooze", timestamp: now, metadata: "{\"count\":\(snoozeCount)}"))
-        persistSessionState()
+        // P0-1 FIX: Write through SessionRepository (single source of truth)
+        sessionRepo.incrementSnooze()
         
-        // Record snooze via core services
+        // Record event via core services (API sync)
         do {
             await dosingService.perform(.snooze(minutes: 10))
             await dosingService.perform(.logEvent(name: "snooze", at: now))
             addEvent(type: .snooze, timestamp: now)
-            updateContext()
             
-            // Reschedule notifications with updated snooze time
-            notificationService.scheduleDoseNotifications(for: currentContext, dose1Time: dose1Time)
+            // Reschedule notifications with updated snooze time using repo state
+            notificationService.scheduleDoseNotifications(for: currentContext, dose1Time: sessionRepo.dose1Time)
         } catch {
             lastError = "Failed to record snooze: \(error.localizedDescription)"
         }
@@ -238,18 +189,15 @@ public class DoseCoreIntegration: ObservableObject {
         defer { isLoading = false }
         
         let now = Date()
-        dose2Skipped = true
         
-        // Persist to SQLite
-        storage.insertEvent(EventRecord(type: "skip", timestamp: now, metadata: "{\"reason\":\"user_skip\"}"))
-        persistSessionState()
+        // P0-1 FIX: Write through SessionRepository (single source of truth)
+        sessionRepo.skipDose2()
         
-        // Record skip via core services
+        // Record event via core services (API sync)
         do {
             await dosingService.perform(.skipDose(sequence: 2, reason: "user_skip"))
             await dosingService.perform(.logEvent(name: "skip", at: now))
             addEvent(type: .skip, timestamp: now)
-            updateContext()
             
             // Cancel remaining notifications since dose 2 was skipped
             notificationService.cancelAllNotifications()
@@ -356,22 +304,18 @@ public class DoseCoreIntegration: ObservableObject {
         }
     }
     
-    private func updateContext() {
-        currentContext = windowCalculator.context(
-            dose1At: dose1Time,
-            dose2TakenAt: dose2Time,
-            dose2Skipped: dose2Skipped,
-            snoozeCount: snoozeCount
-        )
+    /// Notify observers that context may have changed (time-based changes)
+    /// Since currentContext is computed from SessionRepository, we just need to trigger objectWillChange
+    private func notifyContextMayHaveChanged() {
+        objectWillChange.send()
     }
     
     private func startPeriodicUpdates() {
         // Schedule on main run loop to ensure main thread execution
+        // This triggers UI refresh for time-based context changes (window phase transitions)
         updateTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
-            // Timer fires on main thread when scheduled on main run loop
-            // But to be safe, ensure we're on MainActor
             Task { @MainActor [weak self] in
-                self?.updateContext()
+                self?.notifyContextMayHaveChanged()
             }
         }
         // Ensure timer runs on main run loop
@@ -394,12 +338,9 @@ public class DoseCoreIntegration: ObservableObject {
     
     /// Reset current session (useful for testing or starting fresh)
     public func resetSession() {
-        dose1Time = nil
-        dose2Time = nil
-        snoozeCount = 0
-        dose2Skipped = false
+        // P0-1 FIX: Clear via SessionRepository (single source of truth)
+        sessionRepo.clearTonight()
         recentEvents.removeAll()
-        updateContext()
         notificationService.cancelAllNotifications()
     }
 }

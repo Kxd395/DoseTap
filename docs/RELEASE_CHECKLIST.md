@@ -5,7 +5,7 @@ Use this checklist before tagging any release. Every item must pass.
 ## Automated (CI must be green)
 
 - [ ] `ssot-lint` — SSOT integrity check passes (no drift between docs and code)
-- [ ] `swiftpm-tests` — All 207+ DoseCore unit tests pass
+- [ ] `swiftpm-tests` — All DoseCore unit tests pass (see CI output for current count)
 - [ ] `xcode-tests` — All SessionRepository and app-level tests pass
 
 ## Manual Verification

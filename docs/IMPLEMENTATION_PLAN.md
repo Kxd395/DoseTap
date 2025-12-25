@@ -1,19 +1,19 @@
 # DoseTap Implementation Plan
 
 > **Roadmap Features → Code**  
-> Last Updated: January 7, 2025  
+> Last Updated: December 24, 2025  
 > Status: Phase 1 Complete, Phase 2 Planned (Not Started)
 
 ---
 
-## 📊 Current State (123 Tests Passing)
+## 📊 Current State (207 Tests Passing)
 
 ### ✅ Phase 1 Complete - Sleep Event Logging
 
 | Component | Location | Status | Tests |
 |-----------|----------|--------|-------|
-| Dose Window Logic | `ios/Core/DoseWindowState.swift` | ✅ Complete | 13 |
-| API Client | `ios/Core/APIClient.swift` | ✅ Complete | 11 |
+| Dose Window Logic | `ios/Core/DoseWindowState.swift` | ✅ Complete | 24 |
+| API Client | `ios/Core/APIClient.swift` | ✅ Complete | 23 |
 | Error Mapping | `ios/Core/APIErrors.swift` | ✅ Complete | 12 |
 | Offline Queue | `ios/Core/OfflineQueue.swift` | ✅ Complete | 4 |
 | Rate Limiter | `ios/Core/EventRateLimiter.swift` | ✅ Extended | all events |
@@ -23,7 +23,7 @@
 | **QuickLogPanel UI** | `ios/DoseTapiOSApp/QuickLogPanel.swift` | ✅ NEW | - |
 | **TimelineView** | `ios/DoseTapiOSApp/TimelineView.swift` | ✅ NEW | - |
 | **UnifiedSleepSession** | `ios/Core/UnifiedSleepSession.swift` | ✅ NEW | - |
-| **ContentView 12 buttons** | `ios/DoseTap/ContentView.swift` | ✅ Updated | - |
+| **ContentView 13 buttons** | `ios/DoseTap/ContentView.swift` | ✅ Updated | - |
 | WHOOP OAuth | `~/.dosetap_whoop_tokens.json` | ✅ Tested | - |
 
 ### 🎯 Phase 2 Next - Health Dashboard
@@ -45,7 +45,7 @@
 ```
 ios/Core/
 ├── SleepEvent.swift           ✅ NEW (216 lines)
-│   - 12 event types with cooldowns
+│   - 13 event types with cooldowns
 │   - SleepEventCategory enum
 │   - SleepEvent struct
 ├── UnifiedSleepSession.swift  ✅ NEW
@@ -81,7 +81,7 @@ ios/DoseTapiOSApp/
 
 ios/DoseTap/
 └── ContentView.swift          ✅ UPDATED (443 lines)
-    - 12 sleep event buttons
+    - 13 sleep event buttons
     - Cooldown UI with progress
     - Category-based colors
 
@@ -93,7 +93,11 @@ Tests/DoseCoreTests/
     - Encoding/decoding tests
 ```
 
-### Test Summary: 123 Total
+### Test Summary: 207 Total
+
+> **Note:** This table shows the original Phase 1 test breakdown. Additional tests 
+> have been added for SessionRepository, Dose2 edge cases, and other features.
+> Run `swift test` to see current breakdown.
 
 | Suite | Tests |
 |-------|-------|
@@ -106,6 +110,9 @@ Tests/DoseCoreTests/
 | OfflineQueueTests | 4 |
 | EventRateLimiterTests | 16 |
 | DoseUndoManagerTests | 12 |
+| SessionRepositoryTests | 15+ |
+| Dose2EdgeCaseTests | 15+ |
+| (Other suites) | 50+ |
 
 ---
 

@@ -53,7 +53,7 @@
 3.  System displays the night's chart: Dose 1 time, sleep duration, Dose 2 time (or skip), and window accuracy.
 
 ## Post-Conditions
-*   Events are strictly logged to Core Data.
+*   Events are strictly logged to SQLite (via EventStorage).
 *   If online, events are synced to backend.
 *   If offline, events are queued for sync.
 

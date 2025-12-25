@@ -37,22 +37,27 @@ public enum SleepEventType: String, Codable, Sendable, CaseIterable {
     }
     
     /// Default cooldown in seconds to prevent rapid duplicate logging
-    /// Per SSOT: Rate limiting prevents accidental double-taps
+    /// Per SSOT constants.json: Only physical events have cooldowns to prevent accidental double-taps
+    /// Mental/environment events have NO cooldown - log as many times as needed
     public var defaultCooldownSeconds: TimeInterval {
         switch self {
-        case .bathroom:     return 60    // 1 min - might go multiple times
-        case .inBed:        return 3600  // 1 hour - once per night
-        case .lightsOut:    return 3600  // 1 hour - once per night
-        case .wakeFinal:    return 3600  // 1 hour - once per night
-        case .wakeTemp:     return 300   // 5 min - might have multiple
-        case .snack:        return 900   // 15 min - reasonable spacing
-        case .water:        return 300   // 5 min - might drink multiple times
-        case .anxiety:      return 300   // 5 min - track multiple episodes
-        case .dream:        return 60    // 1 min - log when remembered
-        case .noise:        return 60    // 1 min - multiple disturbances
-        case .temperature:  return 300   // 5 min - track changes
-        case .pain:         return 300   // 5 min - track episodes
-        case .heartRacing:  return 300   // 5 min - track episodes
+        // Physical events - 60s cooldown to prevent accidental double-tap
+        case .bathroom:     return 60
+        case .water:        return 60
+        case .snack:        return 60
+        // Sleep cycle markers - no cooldown (session markers)
+        case .inBed:        return 0
+        case .lightsOut:    return 0
+        case .wakeFinal:    return 0
+        case .wakeTemp:     return 0
+        // Mental events - no cooldown (log as often as experienced)
+        case .anxiety:      return 0
+        case .dream:        return 0
+        case .heartRacing:  return 0
+        // Environment events - no cooldown (log as often as experienced)
+        case .noise:        return 0
+        case .temperature:  return 0
+        case .pain:         return 0
         }
     }
     

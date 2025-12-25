@@ -27,7 +27,9 @@ let package = Package(
                 "SleepEvent.swift",
                 "UnifiedSleepSession.swift",
                 "DoseUndoManager.swift",
-                "MorningCheckIn.swift"
+                "MorningCheckIn.swift",
+                "CSVExporter.swift",
+                "DataRedactor.swift"
             ]
         ),
         .testTarget(
@@ -45,7 +47,10 @@ let package = Package(
                 "SleepEventTests.swift",
                 "DoseUndoManagerTests.swift",
                 "SSOTComplianceTests.swift",
-                "Dose2EdgeCaseTests.swift"
+                "Dose2EdgeCaseTests.swift",
+                "SleepEnvironmentTests.swift",
+                "CSVExporterTests.swift",
+                "DataRedactorTests.swift"
             ]
         )
     ]

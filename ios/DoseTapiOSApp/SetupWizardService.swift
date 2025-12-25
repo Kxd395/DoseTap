@@ -185,7 +185,7 @@ class SetupWizardService: ObservableObject {
                 userConfig.setupCompleted = true
                 userConfig.setupCompletedAt = Date()
                 
-                // Persist to UserDefaults (will migrate to Core Data later)
+                // Persist to UserDefaults (later syncs with SQLite EventStorage)
                 let data = try JSONEncoder().encode(userConfig)
                 UserDefaults.standard.set(data, forKey: "DoseTapUserConfig")
                 

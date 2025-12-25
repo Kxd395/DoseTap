@@ -9,11 +9,11 @@
 ## Current State (v2.1)
 
 - ✅ XYWAV dose timing (Dose 1 → 150-240m window → Dose 2)
-- ✅ 12 sleep event types with rate limiting
+- ✅ 13 sleep event types with rate limiting
 - ✅ Basic WHOOP/HealthKit integration
 - ✅ SQLite local-first storage
 - ✅ watchOS companion with timer
-- ✅ 123 unit tests
+- ✅ 207 unit tests
 
 ---
 

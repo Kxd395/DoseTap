@@ -220,7 +220,7 @@ components:
       type: object
       required: [type, timestamp]
       description: |
-        Dose-related events only. Full sleep event tracking (12 types) is LOCAL-ONLY.
+        Dose-related events only. Full sleep event tracking (13 types) is LOCAL-ONLY.
         See constants.json sleepEvents for the complete local taxonomy.
       properties:
         type:
@@ -228,7 +228,7 @@ components:
           enum: [bathroom, lights_out, wake_final]
           description: |
             Only 3 event types are sent to API (session markers). 
-            The remaining 9 sleep event types (water, snack, wakeTemp, anxiety, 
+            The remaining 10 sleep event types (water, snack, inBed, wakeTemp, anxiety, 
             dream, heartRacing, noise, temperature, pain) are stored locally in 
             SQLite and included in export bundles.
         timestamp:

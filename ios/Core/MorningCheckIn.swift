@@ -38,7 +38,11 @@ public struct MorningCheckIn: Codable, Identifiable, Sendable {
     public var fellOutOfBed: Bool
     public var hadConfusionOnWaking: Bool
     
-    // MARK: - 6. Notes
+    // MARK: - 6. Sleep Environment (Conditional - only if hasSleepEnvironmentData)
+    public var hasSleepEnvironmentData: Bool
+    public var sleepEnvironment: SleepEnvironment?
+    
+    // MARK: - 7. Notes
     public var notes: String?
     
     public init(
@@ -63,6 +67,8 @@ public struct MorningCheckIn: Codable, Identifiable, Sendable {
         hadAutomaticBehavior: Bool = false,
         fellOutOfBed: Bool = false,
         hadConfusionOnWaking: Bool = false,
+        hasSleepEnvironmentData: Bool = false,
+        sleepEnvironment: SleepEnvironment? = nil,
         notes: String? = nil
     ) {
         self.id = id
@@ -86,6 +92,8 @@ public struct MorningCheckIn: Codable, Identifiable, Sendable {
         self.hadAutomaticBehavior = hadAutomaticBehavior
         self.fellOutOfBed = fellOutOfBed
         self.hadConfusionOnWaking = hadConfusionOnWaking
+        self.hasSleepEnvironmentData = hasSleepEnvironmentData
+        self.sleepEnvironment = sleepEnvironment
         self.notes = notes
     }
 }
@@ -357,6 +365,171 @@ public enum SicknessLevel: String, Codable, CaseIterable, Sendable {
     case comingDown = "Coming down with something"
     case activelySick = "Actively sick"
     case recovering = "Recovering"
+}
+
+// MARK: - Sleep Environment Sub-Model
+
+/// Captures sleep setup details and aids used for correlation analysis
+public struct SleepEnvironment: Codable, Sendable {
+    // Sleep aids used (multi-select)
+    public var sleepAidsUsed: Set<SleepAid>
+    
+    // Room conditions
+    public var roomDarkness: DarknessLevel
+    public var noiseLevel: NoiseLevel
+    
+    // Screen/device usage
+    public var screenInBedMinutesBucket: ScreenTimeBucket
+    
+    // Temperature comfort
+    public var temperatureComfort: TemperatureComfort
+    
+    // Partner/pet disruptions
+    public var hadPartnerDisruption: Bool
+    public var hadPetDisruption: Bool
+    
+    public init(
+        sleepAidsUsed: Set<SleepAid> = [],
+        roomDarkness: DarknessLevel = .dark,
+        noiseLevel: NoiseLevel = .quiet,
+        screenInBedMinutesBucket: ScreenTimeBucket = .none,
+        temperatureComfort: TemperatureComfort = .comfortable,
+        hadPartnerDisruption: Bool = false,
+        hadPetDisruption: Bool = false
+    ) {
+        self.sleepAidsUsed = sleepAidsUsed
+        self.roomDarkness = roomDarkness
+        self.noiseLevel = noiseLevel
+        self.screenInBedMinutesBucket = screenInBedMinutesBucket
+        self.temperatureComfort = temperatureComfort
+        self.hadPartnerDisruption = hadPartnerDisruption
+        self.hadPetDisruption = hadPetDisruption
+    }
+}
+
+/// Sleep aids that may be used (multi-select chip UI)
+public enum SleepAid: String, Codable, CaseIterable, Sendable {
+    case eyeMask = "Eye Mask"
+    case earplugs = "Earplugs"
+    case whiteNoise = "White Noise"
+    case fan = "Fan"
+    case weightedBlanket = "Weighted Blanket"
+    case sleepMeditation = "Sleep Meditation"
+    case breathingExercises = "Breathing Exercises"
+    case sleepPodcast = "Sleep Podcast"
+    case melatonin = "Melatonin"  // OTC supplement
+    case magnesium = "Magnesium"  // OTC supplement
+    case cbdOrThc = "CBD/THC"
+    case tvOn = "TV On"
+    case phoneInBed = "Phone in Bed"
+    
+    public var icon: String {
+        switch self {
+        case .eyeMask: return "eye.slash.fill"
+        case .earplugs: return "ear.badge.checkmark"
+        case .whiteNoise: return "waveform"
+        case .fan: return "fan.fill"
+        case .weightedBlanket: return "bed.double.fill"
+        case .sleepMeditation: return "brain.head.profile"
+        case .breathingExercises: return "wind"
+        case .sleepPodcast: return "headphones"
+        case .melatonin: return "pills.fill"
+        case .magnesium: return "pill.fill"
+        case .cbdOrThc: return "leaf.fill"
+        case .tvOn: return "tv.fill"
+        case .phoneInBed: return "iphone"
+        }
+    }
+    
+    public var category: SleepAidCategory {
+        switch self {
+        case .eyeMask, .earplugs, .whiteNoise, .fan, .weightedBlanket:
+            return .physical
+        case .sleepMeditation, .breathingExercises, .sleepPodcast:
+            return .relaxation
+        case .melatonin, .magnesium, .cbdOrThc:
+            return .supplement
+        case .tvOn, .phoneInBed:
+            return .screen
+        }
+    }
+}
+
+public enum SleepAidCategory: String, Codable, CaseIterable, Sendable {
+    case physical = "Physical"
+    case relaxation = "Relaxation"
+    case supplement = "Supplements"
+    case screen = "Screens"
+    
+    public var aids: [SleepAid] {
+        SleepAid.allCases.filter { $0.category == self }
+    }
+}
+
+public enum DarknessLevel: String, Codable, CaseIterable, Sendable {
+    case pitch = "Pitch Black"
+    case dark = "Dark"
+    case dim = "Dim Light"
+    case bright = "Bright"
+    
+    public var icon: String {
+        switch self {
+        case .pitch: return "moon.fill"
+        case .dark: return "moon.stars.fill"
+        case .dim: return "sun.haze.fill"
+        case .bright: return "sun.max.fill"
+        }
+    }
+}
+
+public enum NoiseLevel: String, Codable, CaseIterable, Sendable {
+    case silent = "Silent"
+    case quiet = "Quiet"
+    case whiteNoise = "White Noise"
+    case someNoise = "Some Noise"
+    case noisy = "Noisy"
+    
+    public var icon: String {
+        switch self {
+        case .silent: return "speaker.slash.fill"
+        case .quiet: return "speaker.fill"
+        case .whiteNoise: return "waveform"
+        case .someNoise: return "speaker.wave.2.fill"
+        case .noisy: return "speaker.wave.3.fill"
+        }
+    }
+}
+
+public enum ScreenTimeBucket: String, Codable, CaseIterable, Sendable {
+    case none = "None"
+    case under15 = "<15 min"
+    case fifteenToThirty = "15-30 min"
+    case thirtyToSixty = "30-60 min"
+    case overHour = ">1 hour"
+    
+    public var midpointMinutes: Int {
+        switch self {
+        case .none: return 0
+        case .under15: return 7
+        case .fifteenToThirty: return 22
+        case .thirtyToSixty: return 45
+        case .overHour: return 90
+        }
+    }
+}
+
+public enum TemperatureComfort: String, Codable, CaseIterable, Sendable {
+    case tooCold = "Too Cold"
+    case comfortable = "Comfortable"
+    case tooWarm = "Too Warm"
+    
+    public var icon: String {
+        switch self {
+        case .tooCold: return "snowflake"
+        case .comfortable: return "thermometer.medium"
+        case .tooWarm: return "flame.fill"
+        }
+    }
 }
 
 // MARK: - Helper Extensions

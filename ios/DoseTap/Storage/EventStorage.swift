@@ -158,8 +158,16 @@ public class EventStorage {
     /// Add new columns if they don't exist (safe migration)
     private func migrateDatabase() {
         let migrations = [
+            // Morning check-in sleep therapy columns
             "ALTER TABLE morning_checkins ADD COLUMN used_sleep_therapy INTEGER NOT NULL DEFAULT 0",
-            "ALTER TABLE morning_checkins ADD COLUMN sleep_therapy_json TEXT"
+            "ALTER TABLE morning_checkins ADD COLUMN sleep_therapy_json TEXT",
+            // P0: Session terminal state - distinguishes: completed, skipped, expired, aborted
+            "ALTER TABLE current_session ADD COLUMN terminal_state TEXT",
+            // Sleep Environment feature - captures sleep setup and aids for Morning Check-in
+            "ALTER TABLE morning_checkins ADD COLUMN has_sleep_environment INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE morning_checkins ADD COLUMN sleep_environment_json TEXT",
+            // Dose 3 Hazard Safety: Add hazard flag to dose_events
+            "ALTER TABLE dose_events ADD COLUMN is_hazard INTEGER DEFAULT 0"
         ]
         
         for sql in migrations {
@@ -430,38 +438,103 @@ public class EventStorage {
         }
     }
     
+    /// Insert a dose event (Dose 1 or Dose 2)
+    /// Returns true if successful, false if duplicate (unless force=true)
+    public func saveDoseEvent(type: String, timestamp: Date, isHazard: Bool = false) -> Bool {
+        let sessionDate = currentSessionDate()
+        
+        // Check for existing dose of this type in this session
+        if !isHazard && hasDose(type: type, sessionDate: sessionDate) {
+            print("⚠️ Dose \(type) already exists for \(sessionDate). Use isHazard=true to force log.")
+            return false
+        }
+        
+        let id = UUID().uuidString
+        let sql = """
+        INSERT INTO dose_events (id, event_type, timestamp, session_date, is_hazard)
+        VALUES (?, ?, ?, ?, ?)
+        """
+        
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            print("❌ Failed to prepare dose insert statement")
+            return false
+        }
+        defer { sqlite3_finalize(stmt) }
+        
+        let timestampStr = isoFormatter.string(from: timestamp)
+        
+        sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 2, type, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 3, timestampStr, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 4, sessionDate, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_int(stmt, 5, isHazard ? 1 : 0)
+        
+        if sqlite3_step(stmt) == SQLITE_DONE {
+            print("✅ Dose event saved: \(type) at \(timestampStr) (Hazard: \(isHazard))")
+            return true
+        } else {
+            print("❌ Failed to insert dose event: \(String(cString: sqlite3_errmsg(db)))")
+            return false
+        }
+    }
+    
+    /// Check if a dose type already exists for a session
+    public func hasDose(type: String, sessionDate: String) -> Bool {
+        let sql = "SELECT count(*) FROM dose_events WHERE session_date = ? AND event_type = ? AND is_hazard = 0"
+        var stmt: OpaquePointer?
+        
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return false }
+        defer { sqlite3_finalize(stmt) }
+        
+        sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 2, type, -1, SQLITE_TRANSIENT)
+        
+        if sqlite3_step(stmt) == SQLITE_ROW {
+            return sqlite3_column_int(stmt, 0) > 0
+        }
+        return false
+    }
+    
     // MARK: - Current Session State
     
+    /// Update current session state in database
+    /// Uses UPSERT pattern to ensure single row exists
     private func updateCurrentSession(dose1Time: Date? = nil, dose2Time: Date? = nil, snoozeCount: Int? = nil, dose2Skipped: Bool? = nil) {
         let sessionDate = currentSessionDate()
         
-        // First, ensure session row exists
+        // First, ensure a row exists for this session
         let insertSQL = """
-        INSERT OR IGNORE INTO current_session (id, session_date) VALUES (1, ?)
+        INSERT OR IGNORE INTO current_session (id, session_date, dose1_time, dose2_time, snooze_count, dose2_skipped, updated_at)
+        VALUES (1, ?, NULL, NULL, 0, 0, CURRENT_TIMESTAMP)
         """
-        var stmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, insertSQL, -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
-            sqlite3_step(stmt)
-            sqlite3_finalize(stmt)
+        
+        var insertStmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, insertSQL, -1, &insertStmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(insertStmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
+            sqlite3_step(insertStmt)
+            sqlite3_finalize(insertStmt)
         }
         
-        // Build update SQL dynamically
-        var updates: [String] = ["updated_at = datetime('now')", "session_date = ?"]
+        // Build dynamic update based on provided parameters
+        var updates: [String] = ["session_date = ?", "updated_at = CURRENT_TIMESTAMP"]
         var values: [Any] = [sessionDate]
         
         if let dose1Time = dose1Time {
             updates.append("dose1_time = ?")
             values.append(isoFormatter.string(from: dose1Time))
         }
+        
         if let dose2Time = dose2Time {
             updates.append("dose2_time = ?")
             values.append(isoFormatter.string(from: dose2Time))
         }
+        
         if let snoozeCount = snoozeCount {
             updates.append("snooze_count = ?")
             values.append(snoozeCount)
         }
+        
         if let dose2Skipped = dose2Skipped {
             updates.append("dose2_skipped = ?")
             values.append(dose2Skipped ? 1 : 0)
@@ -469,24 +542,34 @@ public class EventStorage {
         
         let updateSQL = "UPDATE current_session SET \(updates.joined(separator: ", ")) WHERE id = 1"
         
-        if sqlite3_prepare_v2(db, updateSQL, -1, &stmt, nil) == SQLITE_OK {
-            for (index, value) in values.enumerated() {
-                let col = Int32(index + 1)
-                if let str = value as? String {
-                    sqlite3_bind_text(stmt, col, str, -1, SQLITE_TRANSIENT)
-                } else if let int = value as? Int {
-                    sqlite3_bind_int(stmt, col, Int32(int))
-                }
+        var updateStmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, updateSQL, -1, &updateStmt, nil) == SQLITE_OK else {
+            print("❌ Failed to prepare session update")
+            return
+        }
+        defer { sqlite3_finalize(updateStmt) }
+        
+        // Bind values
+        for (index, value) in values.enumerated() {
+            let bindIndex = Int32(index + 1)
+            if let stringValue = value as? String {
+                sqlite3_bind_text(updateStmt, bindIndex, stringValue, -1, SQLITE_TRANSIENT)
+            } else if let intValue = value as? Int {
+                sqlite3_bind_int(updateStmt, bindIndex, Int32(intValue))
             }
-            sqlite3_step(stmt)
-            sqlite3_finalize(stmt)
+        }
+        
+        if sqlite3_step(updateStmt) == SQLITE_DONE {
+            print("✅ Current session updated")
+        } else {
+            print("❌ Failed to update session: \(String(cString: sqlite3_errmsg(db)))")
         }
     }
     
-    /// Load current session state
+    /// Load current session state from database
     public func loadCurrentSession() -> (dose1Time: Date?, dose2Time: Date?, snoozeCount: Int, dose2Skipped: Bool) {
         let sessionDate = currentSessionDate()
-        let sql = "SELECT dose1_time, dose2_time, snooze_count, dose2_skipped FROM current_session WHERE session_date = ?"
+        let sql = "SELECT dose1_time, dose2_time, snooze_count, dose2_skipped FROM current_session WHERE id = 1 AND session_date = ?"
         
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
@@ -500,11 +583,12 @@ public class EventStorage {
             var dose1Time: Date? = nil
             var dose2Time: Date? = nil
             
-            if let text = sqlite3_column_text(stmt, 0) {
-                dose1Time = isoFormatter.date(from: String(cString: text))
+            if let dose1Str = sqlite3_column_text(stmt, 0) {
+                dose1Time = isoFormatter.date(from: String(cString: dose1Str))
             }
-            if let text = sqlite3_column_text(stmt, 1) {
-                dose2Time = isoFormatter.date(from: String(cString: text))
+            
+            if let dose2Str = sqlite3_column_text(stmt, 1) {
+                dose2Time = isoFormatter.date(from: String(cString: dose2Str))
             }
             
             let snoozeCount = Int(sqlite3_column_int(stmt, 2))
@@ -516,84 +600,138 @@ public class EventStorage {
         return (nil, nil, 0, false)
     }
     
-    // MARK: - Clear Data
-    
-    /// Clear tonight's events (for testing)
-    public func clearTonightsEvents() {
-        let sessionDate = currentSessionDate()
-        let sql = "DELETE FROM sleep_events WHERE session_date = ?"
+    /// Fetch the most recent pre-sleep log for loading defaults
+    public func fetchMostRecentPreSleepLog() -> StoredPreSleepLog? {
+        let sql = "SELECT id, session_id, created_at_utc, local_offset_minutes, completion_state, answers_json FROM pre_sleep_logs ORDER BY created_at DESC LIMIT 1"
         
         var stmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
-            sqlite3_step(stmt)
-            sqlite3_finalize(stmt)
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            return nil
         }
+        defer { sqlite3_finalize(stmt) }
+        
+        if sqlite3_step(stmt) == SQLITE_ROW {
+            let id = String(cString: sqlite3_column_text(stmt, 0))
+            let sessionId = sqlite3_column_text(stmt, 1).map { String(cString: $0) }
+            let createdAtUtc = String(cString: sqlite3_column_text(stmt, 2))
+            let localOffsetMinutes = Int(sqlite3_column_int(stmt, 3))
+            let completionState = String(cString: sqlite3_column_text(stmt, 4))
+            let answersJson = String(cString: sqlite3_column_text(stmt, 5))
+            
+            // Parse answers JSON
+            var answers: PreSleepLogAnswers? = nil
+            if let data = answersJson.data(using: .utf8) {
+                answers = try? JSONDecoder().decode(PreSleepLogAnswers.self, from: data)
+            }
+            
+            return StoredPreSleepLog(
+                id: id,
+                sessionId: sessionId,
+                createdAtUtc: createdAtUtc,
+                localOffsetMinutes: localOffsetMinutes,
+                completionState: completionState,
+                answers: answers
+            )
+        }
+        
+        return nil
     }
     
-    /// Clear all data (for reset)
-    public func clearAllData() {
+    /// Save a pre-sleep log
+    public func savePreSleepLog(sessionId: String?, answers: PreSleepLogAnswers, completionState: String = "complete") {
+        let id = UUID().uuidString
+        let now = Date()
+        let createdAtUtc = isoFormatter.string(from: now)
+        let localOffsetMinutes = TimeZone.current.secondsFromGMT() / 60
+        
+        // Encode answers to JSON
+        let answersJson: String
+        if let data = try? JSONEncoder().encode(answers),
+           let json = String(data: data, encoding: .utf8) {
+            answersJson = json
+        } else {
+            answersJson = "{}"
+        }
+        
         let sql = """
-        DELETE FROM sleep_events;
-        DELETE FROM dose_events;
-        DELETE FROM current_session;
-        """
-        sqlite3_exec(db, sql, nil, nil, nil)
-    }
-    
-    // MARK: - Morning Check-In Operations
-    
-    /// Save a morning check-in
-    public func saveMorningCheckIn(_ checkIn: StoredMorningCheckIn) {
-        let sql = """
-        INSERT OR REPLACE INTO morning_checkins (
-            id, session_id, timestamp, session_date,
-            sleep_quality, feel_rested, grogginess, sleep_inertia_duration, dream_recall,
-            has_physical_symptoms, physical_symptoms_json,
-            has_respiratory_symptoms, respiratory_symptoms_json,
-            mental_clarity, mood, anxiety_level, readiness_for_day,
-            had_sleep_paralysis, had_hallucinations, had_automatic_behavior,
-            fell_out_of_bed, had_confusion_on_waking,
-            used_sleep_therapy, sleep_therapy_json,
-            notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO pre_sleep_logs (id, session_id, created_at_utc, local_offset_minutes, completion_state, answers_json)
+            VALUES (?, ?, ?, ?, ?, ?)
         """
         
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            print("❌ Failed to prepare morning check-in insert")
+            print("❌ Failed to prepare pre-sleep log insert")
             return
         }
         defer { sqlite3_finalize(stmt) }
         
-        let sessionDate = currentSessionDate()
+        sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
+        if let sessionId = sessionId {
+            sqlite3_bind_text(stmt, 2, sessionId, -1, SQLITE_TRANSIENT)
+        } else {
+            sqlite3_bind_null(stmt, 2)
+        }
+        sqlite3_bind_text(stmt, 3, createdAtUtc, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_int(stmt, 4, Int32(localOffsetMinutes))
+        sqlite3_bind_text(stmt, 5, completionState, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 6, answersJson, -1, SQLITE_TRANSIENT)
+        
+        if sqlite3_step(stmt) == SQLITE_DONE {
+            print("✅ Pre-sleep log saved: \(id)")
+        } else {
+            print("❌ Failed to save pre-sleep log: \(String(cString: sqlite3_errmsg(db)))")
+        }
+    }
+    
+    /// Save a morning check-in to the database
+    public func saveMorningCheckIn(_ checkIn: StoredMorningCheckIn, forSession sessionDate: String? = nil) {
+        let effectiveSessionDate = sessionDate ?? currentSessionDate()
+        
+        let sql = """
+            INSERT INTO morning_checkins (
+                id, session_id, timestamp, session_date,
+                sleep_quality, feel_rested, grogginess, sleep_inertia_duration, dream_recall,
+                has_physical_symptoms, physical_symptoms_json,
+                has_respiratory_symptoms, respiratory_symptoms_json,
+                mental_clarity, mood, anxiety_level, readiness_for_day,
+                had_sleep_paralysis, had_hallucinations, had_automatic_behavior,
+                fell_out_of_bed, had_confusion_on_waking,
+                used_sleep_therapy, sleep_therapy_json,
+                has_sleep_environment, sleep_environment_json,
+                notes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            print("❌ Failed to prepare morning check-in insert: \(String(cString: sqlite3_errmsg(db)))")
+            return
+        }
+        defer { sqlite3_finalize(stmt) }
+        
         let timestampStr = isoFormatter.string(from: checkIn.timestamp)
         
         sqlite3_bind_text(stmt, 1, checkIn.id, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 2, checkIn.sessionId, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 3, timestampStr, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 4, sessionDate, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 4, effectiveSessionDate, -1, SQLITE_TRANSIENT)
         sqlite3_bind_int(stmt, 5, Int32(checkIn.sleepQuality))
         sqlite3_bind_text(stmt, 6, checkIn.feelRested, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 7, checkIn.grogginess, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 8, checkIn.sleepInertiaDuration, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 9, checkIn.dreamRecall, -1, SQLITE_TRANSIENT)
         sqlite3_bind_int(stmt, 10, checkIn.hasPhysicalSymptoms ? 1 : 0)
-        
         if let json = checkIn.physicalSymptomsJson {
             sqlite3_bind_text(stmt, 11, json, -1, SQLITE_TRANSIENT)
         } else {
             sqlite3_bind_null(stmt, 11)
         }
-        
         sqlite3_bind_int(stmt, 12, checkIn.hasRespiratorySymptoms ? 1 : 0)
-        
         if let json = checkIn.respiratorySymptomsJson {
             sqlite3_bind_text(stmt, 13, json, -1, SQLITE_TRANSIENT)
         } else {
             sqlite3_bind_null(stmt, 13)
         }
-        
         sqlite3_bind_int(stmt, 14, Int32(checkIn.mentalClarity))
         sqlite3_bind_text(stmt, 15, checkIn.mood, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 16, checkIn.anxietyLevel, -1, SQLITE_TRANSIENT)
@@ -604,714 +742,428 @@ public class EventStorage {
         sqlite3_bind_int(stmt, 21, checkIn.fellOutOfBed ? 1 : 0)
         sqlite3_bind_int(stmt, 22, checkIn.hadConfusionOnWaking ? 1 : 0)
         sqlite3_bind_int(stmt, 23, checkIn.usedSleepTherapy ? 1 : 0)
-        
         if let json = checkIn.sleepTherapyJson {
             sqlite3_bind_text(stmt, 24, json, -1, SQLITE_TRANSIENT)
         } else {
             sqlite3_bind_null(stmt, 24)
         }
-        
-        if let notes = checkIn.notes {
-            sqlite3_bind_text(stmt, 25, notes, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_int(stmt, 25, checkIn.hasSleepEnvironment ? 1 : 0)
+        if let json = checkIn.sleepEnvironmentJson {
+            sqlite3_bind_text(stmt, 26, json, -1, SQLITE_TRANSIENT)
         } else {
-            sqlite3_bind_null(stmt, 25)
+            sqlite3_bind_null(stmt, 26)
+        }
+        if let notes = checkIn.notes {
+            sqlite3_bind_text(stmt, 27, notes, -1, SQLITE_TRANSIENT)
+        } else {
+            sqlite3_bind_null(stmt, 27)
         }
         
         if sqlite3_step(stmt) == SQLITE_DONE {
-            print("✅ Morning check-in saved for session: \(sessionDate)")
+            print("✅ Morning check-in saved: \(checkIn.id)")
         } else {
             print("❌ Failed to save morning check-in: \(String(cString: sqlite3_errmsg(db)))")
         }
     }
     
-    /// Fetch morning check-in for a specific session
-    public func fetchMorningCheckIn(forSession sessionDate: String) -> StoredMorningCheckIn? {
-        let sql = """
-        SELECT 
-            id, session_id, timestamp, session_date,
-            sleep_quality, feel_rested, grogginess, sleep_inertia_duration, dream_recall,
-            has_physical_symptoms, physical_symptoms_json,
-            has_respiratory_symptoms, respiratory_symptoms_json,
-            mental_clarity, mood, anxiety_level, readiness_for_day,
-            had_sleep_paralysis, had_hallucinations, had_automatic_behavior,
-            fell_out_of_bed, had_confusion_on_waking,
-            used_sleep_therapy, sleep_therapy_json,
-            notes
-        FROM morning_checkins
-        WHERE session_date = ?
-        ORDER BY timestamp DESC
-        LIMIT 1
-        """
-        
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            return nil
-        }
-        defer { sqlite3_finalize(stmt) }
-        
-        sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
-        
-        if sqlite3_step(stmt) == SQLITE_ROW {
-            return parseMorningCheckInRow(stmt)
-        }
-        
-        return nil
-    }
-    
-    /// Fetch today's morning check-in
-    public func fetchTodaysMorningCheckIn() -> StoredMorningCheckIn? {
-        return fetchMorningCheckIn(forSession: currentSessionDate())
-    }
-    
-    /// Fetch all morning check-ins for analytics (limited)
-    public func fetchRecentMorningCheckIns(limit: Int = 30) -> [StoredMorningCheckIn] {
-        let sql = """
-        SELECT 
-            id, session_id, timestamp, session_date,
-            sleep_quality, feel_rested, grogginess, sleep_inertia_duration, dream_recall,
-            has_physical_symptoms, physical_symptoms_json,
-            has_respiratory_symptoms, respiratory_symptoms_json,
-            mental_clarity, mood, anxiety_level, readiness_for_day,
-            had_sleep_paralysis, had_hallucinations, had_automatic_behavior,
-            fell_out_of_bed, had_confusion_on_waking, notes
-        FROM morning_checkins
-        ORDER BY timestamp DESC
-        LIMIT ?
-        """
-        
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            return []
-        }
-        defer { sqlite3_finalize(stmt) }
-        
-        sqlite3_bind_int(stmt, 1, Int32(limit))
-        
-        var checkIns: [StoredMorningCheckIn] = []
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            if let checkIn = parseMorningCheckInRow(stmt) {
-                checkIns.append(checkIn)
+    /// Clear all data (for testing/debug)
+    public func clearAllData() {
+        let tables = ["sleep_events", "dose_events", "current_session", "pre_sleep_logs", "morning_checkins"]
+        for table in tables {
+            let sql = "DELETE FROM \(table)"
+            var errMsg: UnsafeMutablePointer<CChar>?
+            sqlite3_exec(db, sql, nil, nil, &errMsg)
+            if errMsg != nil {
+                sqlite3_free(errMsg)
             }
         }
-        
-        return checkIns
+        print("🗑️ All EventStorage data cleared")
     }
     
-    /// Helper to parse morning check-in row
-    private func parseMorningCheckInRow(_ stmt: OpaquePointer?) -> StoredMorningCheckIn? {
-        guard let stmt = stmt else { return nil }
-        
-        let id = String(cString: sqlite3_column_text(stmt, 0))
-        let sessionId = String(cString: sqlite3_column_text(stmt, 1))
-        let timestampStr = String(cString: sqlite3_column_text(stmt, 2))
-        let sessionDate = String(cString: sqlite3_column_text(stmt, 3))
-        let timestamp = isoFormatter.date(from: timestampStr) ?? Date()
-        
-        var physicalSymptomsJson: String? = nil
-        if let text = sqlite3_column_text(stmt, 10) {
-            physicalSymptomsJson = String(cString: text)
-        }
-        
-        var respiratorySymptomsJson: String? = nil
-        if let text = sqlite3_column_text(stmt, 12) {
-            respiratorySymptomsJson = String(cString: text)
-        }
-        
-        // Sleep therapy JSON (NEW - column 23)
-        var sleepTherapyJson: String? = nil
-        if let text = sqlite3_column_text(stmt, 23) {
-            sleepTherapyJson = String(cString: text)
-        }
-        
-        // Notes (NEW - column 24, was 22)
-        var notes: String? = nil
-        if let text = sqlite3_column_text(stmt, 24) {
-            notes = String(cString: text)
-        }
-        
-        return StoredMorningCheckIn(
-            id: id,
-            sessionId: sessionId,
-            timestamp: timestamp,
-            sessionDate: sessionDate,
-            sleepQuality: Int(sqlite3_column_int(stmt, 4)),
-            feelRested: String(cString: sqlite3_column_text(stmt, 5)),
-            grogginess: String(cString: sqlite3_column_text(stmt, 6)),
-            sleepInertiaDuration: String(cString: sqlite3_column_text(stmt, 7)),
-            dreamRecall: String(cString: sqlite3_column_text(stmt, 8)),
-            hasPhysicalSymptoms: sqlite3_column_int(stmt, 9) != 0,
-            physicalSymptomsJson: physicalSymptomsJson,
-            hasRespiratorySymptoms: sqlite3_column_int(stmt, 11) != 0,
-            respiratorySymptomsJson: respiratorySymptomsJson,
-            mentalClarity: Int(sqlite3_column_int(stmt, 13)),
-            mood: String(cString: sqlite3_column_text(stmt, 14)),
-            anxietyLevel: String(cString: sqlite3_column_text(stmt, 15)),
-            readinessForDay: Int(sqlite3_column_int(stmt, 16)),
-            hadSleepParalysis: sqlite3_column_int(stmt, 17) != 0,
-            hadHallucinations: sqlite3_column_int(stmt, 18) != 0,
-            hadAutomaticBehavior: sqlite3_column_int(stmt, 19) != 0,
-            fellOutOfBed: sqlite3_column_int(stmt, 20) != 0,
-            hadConfusionOnWaking: sqlite3_column_int(stmt, 21) != 0,
-            usedSleepTherapy: sqlite3_column_int(stmt, 22) != 0,  // NEW
-            sleepTherapyJson: sleepTherapyJson,  // NEW
-            notes: notes
-        )
-    }
-    
-    /// Check if morning check-in exists for current session
-    public func hasTodaysMorningCheckIn() -> Bool {
-        let sessionDate = currentSessionDate()
-        let sql = "SELECT COUNT(*) FROM morning_checkins WHERE session_date = ?"
-        
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            return false
-        }
-        defer { sqlite3_finalize(stmt) }
-        
-        sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
-        
-        if sqlite3_step(stmt) == SQLITE_ROW {
-            return sqlite3_column_int(stmt, 0) > 0
-        }
-        return false
-    }
-    
-    /// Delete morning check-in for a session
-    public func deleteMorningCheckIn(forSession sessionDate: String) {
-        let sql = "DELETE FROM morning_checkins WHERE session_date = ?"
-        
-        var stmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
-            sqlite3_step(stmt)
-            sqlite3_finalize(stmt)
-        }
-        
-        print("🗑️ Deleted morning check-in for: \(sessionDate)")
-    }
-    
-    // MARK: - Pre-Sleep Log Operations
-    
-    /// Save a pre-sleep log
-    public func savePreSleepLog(_ log: PreSleepLog) {
-        let sql = """
-        INSERT OR REPLACE INTO pre_sleep_logs 
-        (id, session_id, created_at_utc, local_offset_minutes, completion_state, answers_json)
-        VALUES (?, ?, ?, ?, ?, ?)
-        """
-        
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            print("❌ Failed to prepare pre-sleep log insert")
-            return
-        }
-        defer { sqlite3_finalize(stmt) }
-        
-        sqlite3_bind_text(stmt, 1, log.id, -1, SQLITE_TRANSIENT)
-        
-        if let sessionId = log.sessionId {
-            sqlite3_bind_text(stmt, 2, sessionId, -1, SQLITE_TRANSIENT)
-        } else {
-            sqlite3_bind_null(stmt, 2)
-        }
-        
-        sqlite3_bind_text(stmt, 3, log.createdAtUTC, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_int(stmt, 4, Int32(log.localOffsetMinutes))
-        sqlite3_bind_text(stmt, 5, log.completionState, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 6, log.answersJson, -1, SQLITE_TRANSIENT)
-        
-        if sqlite3_step(stmt) == SQLITE_DONE {
-            print("✅ Pre-sleep log saved: \(log.id)")
-        }
-    }
-    
-    /// Link a pre-sleep log to a session (called when Dose 1 taken)
-    /// Links the most recent unlinked log created within 2 hours
-    public func linkPreSleepLogToSession(sessionId: String) {
-        let now = Date()
-        let twoHoursAgo = now.addingTimeInterval(-2 * 60 * 60)
-        let twoHoursAgoStr = isoFormatter.string(from: twoHoursAgo)
-        
-        // Find most recent unlinked log within 2 hours
-        let findSQL = """
-        SELECT id FROM pre_sleep_logs 
-        WHERE session_id IS NULL 
-        AND created_at_utc > ? 
-        ORDER BY created_at_utc DESC 
-        LIMIT 1
-        """
-        
-        var findStmt: OpaquePointer?
-        var logId: String?
-        
-        if sqlite3_prepare_v2(db, findSQL, -1, &findStmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(findStmt, 1, twoHoursAgoStr, -1, SQLITE_TRANSIENT)
-            if sqlite3_step(findStmt) == SQLITE_ROW {
-                if let idPtr = sqlite3_column_text(findStmt, 0) {
-                    logId = String(cString: idPtr)
-                }
-            }
-            sqlite3_finalize(findStmt)
-        }
-        
-        guard let id = logId else {
-            print("📋 No unlinked pre-sleep log found within 2 hours")
-            return
-        }
-        
-        // Link it
-        let updateSQL = "UPDATE pre_sleep_logs SET session_id = ? WHERE id = ?"
-        var updateStmt: OpaquePointer?
-        
-        if sqlite3_prepare_v2(db, updateSQL, -1, &updateStmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(updateStmt, 1, sessionId, -1, SQLITE_TRANSIENT)
-            sqlite3_bind_text(updateStmt, 2, id, -1, SQLITE_TRANSIENT)
-            sqlite3_step(updateStmt)
-            sqlite3_finalize(updateStmt)
-            print("✅ Linked pre-sleep log \(id) to session \(sessionId)")
-        }
-    }
-    
-    /// Fetch pre-sleep log for a session
-    public func fetchPreSleepLog(forSession sessionId: String) -> PreSleepLog? {
-        let sql = """
-        SELECT id, session_id, created_at_utc, local_offset_minutes, completion_state, answers_json
-        FROM pre_sleep_logs
-        WHERE session_id = ?
-        """
-        
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            return nil
-        }
-        defer { sqlite3_finalize(stmt) }
-        
-        sqlite3_bind_text(stmt, 1, sessionId, -1, SQLITE_TRANSIENT)
-        
-        if sqlite3_step(stmt) == SQLITE_ROW {
-            return parsePreSleepLogRow(stmt)
-        }
-        
-        return nil
-    }
-    
-    /// Fetch all unlinked pre-sleep logs
-    public func fetchUnlinkedPreSleepLogs() -> [PreSleepLog] {
-        let sql = """
-        SELECT id, session_id, created_at_utc, local_offset_minutes, completion_state, answers_json
-        FROM pre_sleep_logs
-        WHERE session_id IS NULL
-        ORDER BY created_at_utc DESC
-        """
-        
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            return []
-        }
-        defer { sqlite3_finalize(stmt) }
-        
-        var logs: [PreSleepLog] = []
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            if let log = parsePreSleepLogRow(stmt) {
-                logs.append(log)
-            }
-        }
-        
-        return logs
-    }
-    
-    /// Fetch most recent pre-sleep log (for "use last answers")
-    public func fetchMostRecentPreSleepLog() -> PreSleepLog? {
-        let sql = """
-        SELECT id, session_id, created_at_utc, local_offset_minutes, completion_state, answers_json
-        FROM pre_sleep_logs
-        WHERE completion_state = 'complete'
-        ORDER BY created_at_utc DESC
-        LIMIT 1
-        """
-        
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            return nil
-        }
-        defer { sqlite3_finalize(stmt) }
-        
-        if sqlite3_step(stmt) == SQLITE_ROW {
-            return parsePreSleepLogRow(stmt)
-        }
-        
-        return nil
-    }
-    
-    private func parsePreSleepLogRow(_ stmt: OpaquePointer?) -> PreSleepLog? {
-        guard let idPtr = sqlite3_column_text(stmt, 0),
-              let createdPtr = sqlite3_column_text(stmt, 2),
-              let statePtr = sqlite3_column_text(stmt, 4),
-              let answersPtr = sqlite3_column_text(stmt, 5) else {
-            return nil
-        }
-        
-        var sessionId: String? = nil
-        if let sessionPtr = sqlite3_column_text(stmt, 1) {
-            sessionId = String(cString: sessionPtr)
-        }
-        
-        return PreSleepLog(
-            id: String(cString: idPtr),
-            sessionId: sessionId,
-            createdAtUTC: String(cString: createdPtr),
-            localOffsetMinutes: Int(sqlite3_column_int(stmt, 3)),
-            completionState: String(cString: statePtr),
-            answersJson: String(cString: answersPtr)
-        )
-    }
-    
-    // MARK: - Session Correlation Queries
-    
-    /// Fetch complete session data for specialist reports
-    public func fetchCompleteSession(forDate sessionDate: String) -> CompleteSessionData? {
-        let doseLog = fetchDoseLog(forSession: sessionDate)
-        let sleepEvents = fetchSleepEvents(forSession: sessionDate)
-        let morningCheckIn = fetchMorningCheckIn(forSession: sessionDate)
-        
-        // Must have at least dose data
-        guard let dose = doseLog else { return nil }
-        
-        return CompleteSessionData(
-            sessionDate: sessionDate,
-            doseLog: dose,
-            sleepEvents: sleepEvents,
-            morningCheckIn: morningCheckIn
-        )
-    }
-    
-    /// Fetch wellness score trend
-    public func fetchWellnessScoreTrend(days: Int = 30) -> [(date: String, score: Double)] {
-        let checkIns = fetchRecentMorningCheckIns(limit: days)
-        
-        return checkIns.map { checkIn in
-            // Calculate wellness score from stored data
-            var score = 0.0
-            
-            // Sleep quality (30%)
-            score += Double(checkIn.sleepQuality) / 5.0 * 30
-            
-            // Mental clarity (20%)
-            score += Double(checkIn.mentalClarity) / 10.0 * 20
-            
-            // Readiness (10%)
-            score += Double(checkIn.readinessForDay) / 5.0 * 10
-            
-            // Deductions
-            if checkIn.hasPhysicalSymptoms { score -= 10 }
-            if checkIn.hasRespiratorySymptoms { score -= 5 }
-            
-            // Add 40 base for rested/mood (simplified)
-            score += 40
-            
-            return (checkIn.sessionDate, max(0, min(100, score)))
-        }
-    }
-    
-    /// Fetch narcolepsy symptom frequency
-    public func fetchNarcolepsySymptomFrequency(days: Int = 30) -> NarcolepsySymptomReport {
-        let checkIns = fetchRecentMorningCheckIns(limit: days)
-        
-        var report = NarcolepsySymptomReport(
-            totalNights: checkIns.count,
-            sleepParalysisCount: 0,
-            hallucinationsCount: 0,
-            automaticBehaviorCount: 0,
-            fellOutOfBedCount: 0,
-            confusionOnWakingCount: 0
-        )
-        
-        for checkIn in checkIns {
-            if checkIn.hadSleepParalysis { report.sleepParalysisCount += 1 }
-            if checkIn.hadHallucinations { report.hallucinationsCount += 1 }
-            if checkIn.hadAutomaticBehavior { report.automaticBehaviorCount += 1 }
-            if checkIn.fellOutOfBed { report.fellOutOfBedCount += 1 }
-            if checkIn.hadConfusionOnWaking { report.confusionOnWakingCount += 1 }
-        }
-        
-        return report
-    }
-
-    // MARK: - History Methods
-    
-    /// Get session date string for a given date
-    public func sessionDateString(for date: Date) -> String {
-        let calendar = Calendar.current
-        let hour = calendar.component(.hour, from: date)
-        
-        let sessionDate: Date
-        if hour < 6 {
-            sessionDate = calendar.date(byAdding: .day, value: -1, to: date)!
-        } else {
-            sessionDate = date
-        }
-        
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: sessionDate)
-    }
-    
-    /// Fetch dose log for a specific session
-    public func fetchDoseLog(forSession sessionDate: String) -> StoredDoseLog? {
-        // Query current_session table which has the correct schema
-        let sql = """
-        SELECT dose1_time, dose2_time, snooze_count, dose2_skipped
-        FROM current_session
-        WHERE session_date = ?
-        LIMIT 1
-        """
-        
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            return nil
-        }
-        defer { sqlite3_finalize(stmt) }
-        
-        sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
-        
-        if sqlite3_step(stmt) == SQLITE_ROW {
-            var dose1Time: Date? = nil
-            if let d1Text = sqlite3_column_text(stmt, 0) {
-                dose1Time = isoFormatter.date(from: String(cString: d1Text))
-            }
-            
-            var dose2Time: Date? = nil
-            if let d2Text = sqlite3_column_text(stmt, 1) {
-                dose2Time = isoFormatter.date(from: String(cString: d2Text))
-            }
-            
-            let snoozeCount = Int(sqlite3_column_int(stmt, 2))
-            let skipped = sqlite3_column_int(stmt, 3) == 1
-            
-            return StoredDoseLog(
-                sessionDate: sessionDate,
-                dose1Time: dose1Time ?? Date(),
-                dose2Time: dose2Time,
-                snoozeCount: snoozeCount,
-                skipped: skipped
-            )
-        }
-        
-        return nil
-    }
-    
-    /// Fetch recent sessions summary
-    /// Note: current_session is a singleton table (id=1 only), so we aggregate from dose_events for history
-    public func fetchRecentSessions(days: Int = 7) -> [SessionSummary] {
-        // Aggregate sessions from dose_events table, which stores all historical data
-        // current_session is a singleton that only holds the current night
-        let sql = """
-        SELECT 
-            d.session_date,
-            MAX(CASE WHEN d.event_type = 'dose1' THEN d.timestamp END) as dose1_time,
-            MAX(CASE WHEN d.event_type = 'dose2' THEN d.timestamp END) as dose2_time,
-            COALESCE(MAX(CASE WHEN d.event_type = 'snooze' THEN 
-                CAST(json_extract(d.metadata, '$.count') AS INTEGER) END), 0) as snooze_count,
-            MAX(CASE WHEN d.event_type = 'dose2_skipped' THEN 1 ELSE 0 END) as dose2_skipped,
-            (SELECT COUNT(*) FROM sleep_events WHERE session_date = d.session_date) as event_count
-        FROM dose_events d
-        GROUP BY d.session_date
-        ORDER BY d.session_date DESC
-        LIMIT ?
-        """
-        
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            print("❌ fetchRecentSessions: Failed to prepare statement")
-            return []
-        }
-        defer { sqlite3_finalize(stmt) }
-        
-        sqlite3_bind_int(stmt, 1, Int32(days))
-        
-        var sessions: [SessionSummary] = []
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            guard let sessionDatePtr = sqlite3_column_text(stmt, 0) else { continue }
-            let sessionDate = String(cString: sessionDatePtr)
-            
-            var dose1Time: Date? = nil
-            if let d1Text = sqlite3_column_text(stmt, 1) {
-                dose1Time = isoFormatter.date(from: String(cString: d1Text))
-            }
-            
-            var dose2Time: Date? = nil
-            if let d2Text = sqlite3_column_text(stmt, 2) {
-                dose2Time = isoFormatter.date(from: String(cString: d2Text))
-            }
-            
-            let snoozeCount = Int(sqlite3_column_int(stmt, 3))
-            let skipped = sqlite3_column_int(stmt, 4) == 1
-            let eventCount = Int(sqlite3_column_int(stmt, 5))
-            
-            sessions.append(SessionSummary(
-                sessionDate: sessionDate,
-                dose1Time: dose1Time,
-                dose2Time: dose2Time,
-                snoozeCount: snoozeCount,
-                skipped: skipped,
-                eventCount: eventCount
-            ))
-        }
-        
-        print("✅ fetchRecentSessions: Found \(sessions.count) sessions")
-        return sessions
-    }
-    
-    // MARK: - Delete Methods
-    
-    /// Delete a specific session and all its events
-    public func deleteSession(sessionDate: String) {
-        let sql1 = "DELETE FROM sleep_events WHERE session_date = ?"
-        let sql2 = "DELETE FROM dose_events WHERE session_date = ?"
-        let sql3 = "DELETE FROM current_session WHERE session_date = ?"
-        
-        var stmt: OpaquePointer?
-        
-        // Delete sleep events
-        if sqlite3_prepare_v2(db, sql1, -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
-            sqlite3_step(stmt)
-            sqlite3_finalize(stmt)
-        }
-        
-        // Delete dose events
-        if sqlite3_prepare_v2(db, sql2, -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
-            sqlite3_step(stmt)
-            sqlite3_finalize(stmt)
-        }
-        
-        // Delete from current_session table
-        if sqlite3_prepare_v2(db, sql3, -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
-            sqlite3_step(stmt)
-            sqlite3_finalize(stmt)
-        }
-        
-        print("🗑️ Deleted session: \(sessionDate)")
-    }
-    
-    /// Delete a single sleep event by ID
-    public func deleteSleepEvent(id: String) {
-        let sql = "DELETE FROM sleep_events WHERE id = ?"
-        var stmt: OpaquePointer?
-        
-        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
-            sqlite3_step(stmt)
-            sqlite3_finalize(stmt)
-            print("🗑️ Deleted sleep event: \(id)")
-        }
-    }
-    
-    /// Delete the most recent sleep event of a specific type (for undo)
-    public func deleteLastSleepEvent(ofType eventType: String) -> Bool {
-        // Find the most recent event of this type
-        let findSQL = "SELECT id FROM sleep_events WHERE event_type = ? ORDER BY timestamp DESC LIMIT 1"
-        var findStmt: OpaquePointer?
-        var eventId: String?
-        
-        if sqlite3_prepare_v2(db, findSQL, -1, &findStmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(findStmt, 1, eventType, -1, SQLITE_TRANSIENT)
-            if sqlite3_step(findStmt) == SQLITE_ROW {
-                if let idPtr = sqlite3_column_text(findStmt, 0) {
-                    eventId = String(cString: idPtr)
-                }
-            }
-            sqlite3_finalize(findStmt)
-        }
-        
-        guard let id = eventId else { return false }
-        
-        // Delete it
-        deleteSleepEvent(id: id)
-        return true
-    }
-    
-    /// Update a sleep event's timestamp (for editing)
-    public func updateSleepEventTimestamp(id: String, newTimestamp: Date) {
-        let sql = "UPDATE sleep_events SET timestamp = ? WHERE id = ?"
-        var stmt: OpaquePointer?
-        
-        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-            let timestampStr = isoFormatter.string(from: newTimestamp)
-            sqlite3_bind_text(stmt, 1, timestampStr, -1, SQLITE_TRANSIENT)
-            sqlite3_bind_text(stmt, 2, id, -1, SQLITE_TRANSIENT)
-            sqlite3_step(stmt)
-            sqlite3_finalize(stmt)
-            print("✏️ Updated sleep event timestamp: \(id)")
-        }
-    }
-    
-    /// Update a sleep event's notes
-    public func updateSleepEventNotes(id: String, notes: String?) {
-        let sql = "UPDATE sleep_events SET notes = ? WHERE id = ?"
-        var stmt: OpaquePointer?
-        
-        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-            if let notes = notes {
-                sqlite3_bind_text(stmt, 1, notes, -1, SQLITE_TRANSIENT)
-            } else {
-                sqlite3_bind_null(stmt, 1)
-            }
-            sqlite3_bind_text(stmt, 2, id, -1, SQLITE_TRANSIENT)
-            sqlite3_step(stmt)
-            sqlite3_finalize(stmt)
-            print("✏️ Updated sleep event notes: \(id)")
-        }
-    }
-    
-    /// Clear all sleep events (preserves dose logs)
+    /// Clear all sleep events only
     public func clearAllSleepEvents() {
         let sql = "DELETE FROM sleep_events"
-        sqlite3_exec(db, sql, nil, nil, nil)
-        print("🗑️ Cleared all sleep events")
+        var errMsg: UnsafeMutablePointer<CChar>?
+        sqlite3_exec(db, sql, nil, nil, &errMsg)
+        if errMsg != nil {
+            sqlite3_free(errMsg)
+        }
+        print("🗑️ All sleep events cleared")
     }
     
     /// Clear data older than specified days
     public func clearOldData(olderThanDays days: Int) {
         let calendar = Calendar.current
         guard let cutoffDate = calendar.date(byAdding: .day, value: -days, to: Date()) else { return }
+        let cutoffStr = sessionDateString(for: cutoffDate)
         
+        sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
+        
+        let tables = ["sleep_events", "dose_events", "pre_sleep_logs", "morning_checkins"]
+        for table in tables {
+            let sql = "DELETE FROM \(table) WHERE session_date < ?"
+            var stmt: OpaquePointer?
+            if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+                sqlite3_bind_text(stmt, 1, cutoffStr, -1, SQLITE_TRANSIENT)
+                sqlite3_step(stmt)
+                sqlite3_finalize(stmt)
+            }
+        }
+        
+        // Also clean current_session entries
+        let sessionSQL = "DELETE FROM current_session WHERE session_date < ?"
+        var sessionStmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, sessionSQL, -1, &sessionStmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(sessionStmt, 1, cutoffStr, -1, SQLITE_TRANSIENT)
+            sqlite3_step(sessionStmt)
+            sqlite3_finalize(sessionStmt)
+        }
+        
+        sqlite3_exec(db, "COMMIT", nil, nil, nil)
+        print("🗑️ Data older than \(days) days cleared")
+    }
+    
+    /// Delete a session by date
+    public func deleteSession(sessionDate: String) {
+        // Use transaction for atomicity
+        sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
+        
+        let tables = ["sleep_events", "dose_events", "pre_sleep_logs", "morning_checkins"]
+        for table in tables {
+            let sql = "DELETE FROM \(table) WHERE session_date = ?"
+            var stmt: OpaquePointer?
+            if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+                sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
+                sqlite3_step(stmt)
+                sqlite3_finalize(stmt)
+            }
+        }
+        
+        // Clear current_session if it matches
+        let clearCurrentSQL = "UPDATE current_session SET dose1_time = NULL, dose2_time = NULL, snooze_count = 0, dose2_skipped = 0 WHERE session_date = ?"
+        var clearStmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, clearCurrentSQL, -1, &clearStmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(clearStmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
+            sqlite3_step(clearStmt)
+            sqlite3_finalize(clearStmt)
+        }
+        
+        sqlite3_exec(db, "COMMIT", nil, nil, nil)
+        print("🗑️ Session \(sessionDate) deleted from EventStorage")
+    }
+    
+    // MARK: - Additional Methods Required by ContentView
+    
+    /// Delete a specific sleep event by ID
+    public func deleteSleepEvent(id: String) {
+        let sql = "DELETE FROM sleep_events WHERE id = ?"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(stmt) }
+        
+        sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
+        
+        if sqlite3_step(stmt) == SQLITE_DONE {
+            print("🗑️ Sleep event deleted: \(id)")
+        }
+    }
+    
+    /// Clear all events for tonight's session
+    public func clearTonightsEvents() {
+        let sessionDate = currentSessionDate()
+        let sql = "DELETE FROM sleep_events WHERE session_date = ?"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(stmt) }
+        
+        sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
+        sqlite3_step(stmt)
+        print("🗑️ Tonight's events cleared")
+    }
+    
+    /// Get session date string for a given Date
+    public func sessionDateString(for date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
-        let cutoffString = formatter.string(from: cutoffDate)
-        
-        let sql1 = "DELETE FROM sleep_events WHERE session_date < ?"
-        let sql2 = "DELETE FROM dose_events WHERE session_date < ?"
-        let sql3 = "DELETE FROM current_session WHERE session_date < ?"
+        return formatter.string(from: date)
+    }
+    
+    /// Find the most recent incomplete session (has dose1 but no dose2 and not skipped)
+    public func mostRecentIncompleteSession() -> String? {
+        let sql = """
+            SELECT session_date FROM current_session 
+            WHERE dose1_time IS NOT NULL 
+            AND dose2_time IS NULL 
+            AND dose2_skipped = 0
+            AND session_date != ?
+            ORDER BY session_date DESC LIMIT 1
+        """
         
         var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return nil }
+        defer { sqlite3_finalize(stmt) }
         
-        if sqlite3_prepare_v2(db, sql1, -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, cutoffString, -1, SQLITE_TRANSIENT)
-            sqlite3_step(stmt)
-            sqlite3_finalize(stmt)
+        let today = currentSessionDate()
+        sqlite3_bind_text(stmt, 1, today, -1, SQLITE_TRANSIENT)
+        
+        if sqlite3_step(stmt) == SQLITE_ROW {
+            return String(cString: sqlite3_column_text(stmt, 0))
+        }
+        return nil
+    }
+    
+    /// Link a pre-sleep log to a session
+    public func linkPreSleepLogToSession(sessionId: String) {
+        // Find the most recent unlinked pre-sleep log and link it
+        let sql = "UPDATE pre_sleep_logs SET session_id = ? WHERE session_id IS NULL ORDER BY created_at DESC LIMIT 1"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(stmt) }
+        
+        sqlite3_bind_text(stmt, 1, sessionId, -1, SQLITE_TRANSIENT)
+        sqlite3_step(stmt)
+    }
+    
+    /// Fetch recent sessions as summaries
+    public func fetchRecentSessions(days: Int = 7) -> [SessionSummary] {
+        var sessions: [SessionSummary] = []
+        
+        // Get unique session dates from current_session and sleep_events
+        let sql = """
+            SELECT DISTINCT cs.session_date, cs.dose1_time, cs.dose2_time, cs.dose2_skipped, cs.snooze_count,
+                   (SELECT COUNT(*) FROM sleep_events se WHERE se.session_date = cs.session_date) as event_count
+            FROM current_session cs
+            ORDER BY cs.session_date DESC
+            LIMIT ?
+        """
+        
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return sessions }
+        defer { sqlite3_finalize(stmt) }
+        
+        sqlite3_bind_int(stmt, 1, Int32(days))
+        
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            let sessionDate = String(cString: sqlite3_column_text(stmt, 0))
+            
+            var dose1Time: Date? = nil
+            var dose2Time: Date? = nil
+            
+            if let d1Str = sqlite3_column_text(stmt, 1) {
+                dose1Time = isoFormatter.date(from: String(cString: d1Str))
+            }
+            if let d2Str = sqlite3_column_text(stmt, 2) {
+                dose2Time = isoFormatter.date(from: String(cString: d2Str))
+            }
+            
+            let dose2Skipped = sqlite3_column_int(stmt, 3) != 0
+            let snoozeCount = Int(sqlite3_column_int(stmt, 4))
+            let eventCount = Int(sqlite3_column_int(stmt, 5))
+            
+            let summary = SessionSummary(
+                sessionDate: sessionDate,
+                dose1Time: dose1Time,
+                dose2Time: dose2Time,
+                dose2Skipped: dose2Skipped,
+                snoozeCount: snoozeCount,
+                sleepEvents: [],
+                eventCount: eventCount
+            )
+            sessions.append(summary)
         }
         
-        if sqlite3_prepare_v2(db, sql2, -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, cutoffString, -1, SQLITE_TRANSIENT)
-            sqlite3_step(stmt)
-            sqlite3_finalize(stmt)
+        return sessions
+    }
+    
+    /// Fetch dose log for a specific session
+    public func fetchDoseLog(forSession sessionDate: String) -> StoredDoseLog? {
+        let sql = "SELECT dose1_time, dose2_time, dose2_skipped, snooze_count FROM current_session WHERE session_date = ?"
+        
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return nil }
+        defer { sqlite3_finalize(stmt) }
+        
+        sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
+        
+        if sqlite3_step(stmt) == SQLITE_ROW {
+            var dose1Time: Date? = nil
+            var dose2Time: Date? = nil
+            
+            if let d1Str = sqlite3_column_text(stmt, 0) {
+                dose1Time = isoFormatter.date(from: String(cString: d1Str))
+            }
+            if let d2Str = sqlite3_column_text(stmt, 1) {
+                dose2Time = isoFormatter.date(from: String(cString: d2Str))
+            }
+            
+            let dose2Skipped = sqlite3_column_int(stmt, 2) != 0
+            let snoozeCount = Int(sqlite3_column_int(stmt, 3))
+            
+            // Only return if there's at least dose1
+            guard dose1Time != nil else { return nil }
+            
+            return StoredDoseLog(
+                id: sessionDate,
+                sessionDate: sessionDate,
+                dose1Time: dose1Time!,
+                dose2Time: dose2Time,
+                dose2Skipped: dose2Skipped,
+                snoozeCount: snoozeCount
+            )
         }
         
-        if sqlite3_prepare_v2(db, sql3, -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, cutoffString, -1, SQLITE_TRANSIENT)
-            sqlite3_step(stmt)
-            sqlite3_finalize(stmt)
+        return nil
+    }
+    
+    /// Save a pre-sleep log from PreSleepLog model
+    public func savePreSleepLog(_ log: PreSleepLog) {
+        savePreSleepLog(sessionId: log.sessionId, answers: log.answers, completionState: log.completionState)
+    }
+    
+    // MARK: - Additional Utility Methods
+    
+    /// Fetch all sleep events with optional limit
+    public func fetchAllSleepEvents(limit: Int = 500) -> [StoredSleepEvent] {
+        var events: [StoredSleepEvent] = []
+        let sql = "SELECT id, event_type, timestamp, session_date, color_hex, notes FROM sleep_events ORDER BY timestamp DESC LIMIT ?"
+        
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return events }
+        defer { sqlite3_finalize(stmt) }
+        
+        sqlite3_bind_int(stmt, 1, Int32(limit))
+        
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            let id = String(cString: sqlite3_column_text(stmt, 0))
+            let eventType = String(cString: sqlite3_column_text(stmt, 1))
+            let timestampStr = String(cString: sqlite3_column_text(stmt, 2))
+            let sessionDate = String(cString: sqlite3_column_text(stmt, 3))
+            let colorHex = sqlite3_column_text(stmt, 4).map { String(cString: $0) }
+            let notes = sqlite3_column_text(stmt, 5).map { String(cString: $0) }
+            
+            if let timestamp = isoFormatter.date(from: timestampStr) {
+                events.append(StoredSleepEvent(
+                    id: id,
+                    eventType: eventType,
+                    timestamp: timestamp,
+                    sessionDate: sessionDate,
+                    colorHex: colorHex,
+                    notes: notes
+                ))
+            }
         }
         
-        print("🗑️ Cleared data older than \(days) days (before \(cutoffString))")
+        return events
+    }
+    
+    /// Alias for fetchTonightsSleepEvents (handles typo variants)
+    public func fetchTonightSleepEvents() -> [StoredSleepEvent] {
+        return fetchTonightsSleepEvents()
+    }
+    
+    /// Fetch events with limit (generic)
+    public func fetchEvents(limit: Int = 50) -> [StoredSleepEvent] {
+        return fetchAllSleepEvents(limit: limit)
+    }
+    
+    /// Get all events (alias)
+    public func getAllEvents(limit: Int = 500) -> [StoredSleepEvent] {
+        return fetchAllSleepEvents(limit: limit)
+    }
+    
+    /// Insert an event record (for compatibility)
+    public func insertEvent(_ record: EventRecord) {
+        insertSleepEvent(
+            id: record.id.uuidString,
+            eventType: record.type,
+            timestamp: record.timestamp,
+            colorHex: nil
+        )
+    }
+    
+    /// Export all data to CSV string
+    public func exportToCSV() -> String {
+        var csv = "type,timestamp,session_date,details\n"
+        
+        // Export sleep events
+        let events = fetchAllSleepEvents(limit: 10000)
+        for event in events {
+            let line = "\(event.eventType),\(isoFormatter.string(from: event.timestamp)),\(event.sessionDate),\(event.notes ?? "")"
+            csv += line + "\n"
+        }
+        
+        // Export dose sessions
+        let sessions = fetchRecentSessions(days: 365)
+        for session in sessions {
+            if let d1 = session.dose1Time {
+                csv += "dose1,\(isoFormatter.string(from: d1)),\(session.sessionDate),\n"
+            }
+            if let d2 = session.dose2Time {
+                csv += "dose2,\(isoFormatter.string(from: d2)),\(session.sessionDate),\n"
+            }
+            if session.dose2Skipped {
+                csv += "dose2_skipped,,\(session.sessionDate),\n"
+            }
+        }
+        
+        return csv
     }
 }
 
-// MARK: - Stored Models
+/// Event record for compatibility with legacy code
+public struct EventRecord: Identifiable {
+    public let id: UUID
+    public let type: String
+    public let timestamp: Date
+    public let metadata: String?
+    
+    public init(type: String, timestamp: Date, metadata: String? = nil) {
+        self.id = UUID()
+        self.type = type
+        self.timestamp = timestamp
+        self.metadata = metadata
+    }
+}
+
+// MARK: - Storage Data Models
+
+/// Stored pre-sleep log model for EventStorage
+public struct StoredPreSleepLog: Identifiable {
+    public let id: String
+    public let sessionId: String?
+    public let createdAtUtc: String
+    public let localOffsetMinutes: Int
+    public let completionState: String
+    public let answers: PreSleepLogAnswers?
+    
+    public init(id: String, sessionId: String?, createdAtUtc: String, localOffsetMinutes: Int, completionState: String, answers: PreSleepLogAnswers?) {
+        self.id = id
+        self.sessionId = sessionId
+        self.createdAtUtc = createdAtUtc
+        self.localOffsetMinutes = localOffsetMinutes
+        self.completionState = completionState
+        self.answers = answers
+    }
+}
+
+/// Pre-sleep log model for creating new logs (input model)
+public struct PreSleepLog: Identifiable {
+    public let id: String
+    public let sessionId: String?
+    public let answers: PreSleepLogAnswers
+    public let completionState: String
+    public let createdAt: Date
+    
+    public init(answers: PreSleepLogAnswers, completionState: String = "complete", sessionId: String? = nil) {
+        self.id = UUID().uuidString
+        self.sessionId = sessionId
+        self.answers = answers
+        self.completionState = completionState
+        self.createdAt = Date()
+    }
+}
+
+/// Stored sleep event model for EventStorage
 public struct StoredSleepEvent: Identifiable {
     public let id: String
     public let eventType: String
@@ -1319,27 +1171,82 @@ public struct StoredSleepEvent: Identifiable {
     public let sessionDate: String
     public let colorHex: String?
     public let notes: String?
+    
+    public init(id: String, eventType: String, timestamp: Date, sessionDate: String, colorHex: String? = nil, notes: String? = nil) {
+        self.id = id
+        self.eventType = eventType
+        self.timestamp = timestamp
+        self.sessionDate = sessionDate
+        self.colorHex = colorHex
+        self.notes = notes
+    }
 }
 
-public struct StoredDoseLog {
+/// Stored dose log model
+/// Stored dose log model - represents a complete session's dose data
+public struct StoredDoseLog: Identifiable {
+    public let id: String
     public let sessionDate: String
     public let dose1Time: Date
     public let dose2Time: Date?
+    public let dose2Skipped: Bool
     public let snoozeCount: Int
-    public let skipped: Bool
+    
+    public init(id: String, sessionDate: String, dose1Time: Date, dose2Time: Date? = nil, dose2Skipped: Bool = false, snoozeCount: Int = 0) {
+        self.id = id
+        self.sessionDate = sessionDate
+        self.dose1Time = dose1Time
+        self.dose2Time = dose2Time
+        self.dose2Skipped = dose2Skipped
+        self.snoozeCount = snoozeCount
+    }
+    
+    /// Interval in minutes between doses (nil if dose2 not taken)
+    public var intervalMinutes: Int? {
+        guard let d2 = dose2Time else { return nil }
+        return Int(d2.timeIntervalSince(dose1Time) / 60)
+    }
+    
+    /// Alias for dose2Skipped for UI convenience
+    public var skipped: Bool { dose2Skipped }
 }
 
-public struct SessionSummary {
+/// Session summary for history views
+public struct SessionSummary: Identifiable {
+    public let id: String
     public let sessionDate: String
     public let dose1Time: Date?
     public let dose2Time: Date?
+    public let dose2Skipped: Bool
     public let snoozeCount: Int
-    public let skipped: Bool
+    public let intervalMinutes: Int?
+    public let sleepEvents: [StoredSleepEvent]
     public let eventCount: Int
+    
+    /// Alias for dose2Skipped for UI convenience
+    public var skipped: Bool { dose2Skipped }
+    
+    public init(sessionDate: String, dose1Time: Date? = nil, dose2Time: Date? = nil, dose2Skipped: Bool = false, snoozeCount: Int = 0, sleepEvents: [StoredSleepEvent] = [], eventCount: Int? = nil) {
+        self.id = sessionDate
+        self.sessionDate = sessionDate
+        self.dose1Time = dose1Time
+        self.dose2Time = dose2Time
+        self.dose2Skipped = dose2Skipped
+        self.snoozeCount = snoozeCount
+        self.sleepEvents = sleepEvents
+        self.eventCount = eventCount ?? sleepEvents.count
+        
+        // Calculate interval if both doses exist
+        if let d1 = dose1Time, let d2 = dose2Time {
+            self.intervalMinutes = Int(d2.timeIntervalSince(d1) / 60)
+        } else {
+            self.intervalMinutes = nil
+        }
+    }
 }
 
-// MARK: - Morning Check-In Storage Model
-public struct StoredMorningCheckIn {
+/// Stored morning check-in model for EventStorage
+public struct StoredMorningCheckIn: Identifiable {
     public let id: String
     public let sessionId: String
     public let timestamp: Date
@@ -1354,11 +1261,11 @@ public struct StoredMorningCheckIn {
     
     // Physical symptoms
     public let hasPhysicalSymptoms: Bool
-    public let physicalSymptomsJson: String?  // Includes painNotes
+    public let physicalSymptomsJson: String?
     
     // Respiratory symptoms
     public let hasRespiratorySymptoms: Bool
-    public let respiratorySymptomsJson: String?  // Includes respiratoryNotes
+    public let respiratorySymptomsJson: String?
     
     // Mental state
     public let mentalClarity: Int
@@ -1373,9 +1280,13 @@ public struct StoredMorningCheckIn {
     public let fellOutOfBed: Bool
     public let hadConfusionOnWaking: Bool
     
-    // Sleep Therapy (NEW)
+    // Sleep Therapy
     public let usedSleepTherapy: Bool
-    public let sleepTherapyJson: String?  // device, compliance, notes
+    public let sleepTherapyJson: String?
+    
+    // Sleep Environment
+    public let hasSleepEnvironment: Bool
+    public let sleepEnvironmentJson: String?
     
     // Notes
     public let notes: String?
@@ -1384,107 +1295,84 @@ public struct StoredMorningCheckIn {
     public var hasNarcolepsySymptoms: Bool {
         hadSleepParalysis || hadHallucinations || hadAutomaticBehavior || fellOutOfBed || hadConfusionOnWaking
     }
-}
-
-// MARK: - Pre-Sleep Log Storage Model
-/// Raw storage model for pre-sleep logs (matches SQLite schema)
-public struct PreSleepLog {
-    public let id: String
-    public var sessionId: String?
-    public let createdAtUTC: String
-    public let localOffsetMinutes: Int
-    public let completionState: String  // "partial", "complete", "skipped"
-    public let answersJson: String
     
     public init(
-        id: String = UUID().uuidString,
-        sessionId: String? = nil,
-        createdAtUTC: String,
-        localOffsetMinutes: Int,
-        completionState: String,
-        answersJson: String
+        id: String,
+        sessionId: String,
+        timestamp: Date,
+        sessionDate: String,
+        sleepQuality: Int = 3,
+        feelRested: String = "moderate",
+        grogginess: String = "mild",
+        sleepInertiaDuration: String = "fiveToFifteen",
+        dreamRecall: String = "none",
+        hasPhysicalSymptoms: Bool = false,
+        physicalSymptomsJson: String? = nil,
+        hasRespiratorySymptoms: Bool = false,
+        respiratorySymptomsJson: String? = nil,
+        mentalClarity: Int = 5,
+        mood: String = "neutral",
+        anxietyLevel: String = "none",
+        readinessForDay: Int = 3,
+        hadSleepParalysis: Bool = false,
+        hadHallucinations: Bool = false,
+        hadAutomaticBehavior: Bool = false,
+        fellOutOfBed: Bool = false,
+        hadConfusionOnWaking: Bool = false,
+        usedSleepTherapy: Bool = false,
+        sleepTherapyJson: String? = nil,
+        hasSleepEnvironment: Bool = false,
+        sleepEnvironmentJson: String? = nil,
+        notes: String? = nil
     ) {
         self.id = id
         self.sessionId = sessionId
-        self.createdAtUTC = createdAtUTC
-        self.localOffsetMinutes = localOffsetMinutes
-        self.completionState = completionState
-        self.answersJson = answersJson
-    }
-    
-    /// Create from PreSleepLogAnswers
-    public init(answers: PreSleepLogAnswers, completionState: String) {
-        let now = Date()
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        
-        self.id = UUID().uuidString
-        self.sessionId = nil
-        self.createdAtUTC = formatter.string(from: now)
-        self.localOffsetMinutes = TimeZone.current.secondsFromGMT() / 60
-        self.completionState = completionState
-        
-        if let jsonData = try? JSONEncoder().encode(answers),
-           let jsonString = String(data: jsonData, encoding: .utf8) {
-            self.answersJson = jsonString
-        } else {
-            self.answersJson = "{}"
-        }
-    }
-    
-    /// Decode answers from JSON
-    public var answers: PreSleepLogAnswers? {
-        guard let data = answersJson.data(using: .utf8) else { return nil }
-        return try? JSONDecoder().decode(PreSleepLogAnswers.self, from: data)
-    }
-    
-    /// Check if this is linked to a session
-    public var isLinked: Bool {
-        sessionId != nil
+        self.timestamp = timestamp
+        self.sessionDate = sessionDate
+        self.sleepQuality = sleepQuality
+        self.feelRested = feelRested
+        self.grogginess = grogginess
+        self.sleepInertiaDuration = sleepInertiaDuration
+        self.dreamRecall = dreamRecall
+        self.hasPhysicalSymptoms = hasPhysicalSymptoms
+        self.physicalSymptomsJson = physicalSymptomsJson
+        self.hasRespiratorySymptoms = hasRespiratorySymptoms
+        self.respiratorySymptomsJson = respiratorySymptomsJson
+        self.mentalClarity = mentalClarity
+        self.mood = mood
+        self.anxietyLevel = anxietyLevel
+        self.readinessForDay = readinessForDay
+        self.hadSleepParalysis = hadSleepParalysis
+        self.hadHallucinations = hadHallucinations
+        self.hadAutomaticBehavior = hadAutomaticBehavior
+        self.fellOutOfBed = fellOutOfBed
+        self.hadConfusionOnWaking = hadConfusionOnWaking
+        self.usedSleepTherapy = usedSleepTherapy
+        self.sleepTherapyJson = sleepTherapyJson
+        self.hasSleepEnvironment = hasSleepEnvironment
+        self.sleepEnvironmentJson = sleepEnvironmentJson
+        self.notes = notes
     }
 }
 
-// MARK: - Pre-Sleep Log Answers (Typed Model)
-/// Strongly-typed answers for the pre-sleep log questionnaire
+/// Pre-sleep log answers model with nested enums for type-safe options
 public struct PreSleepLogAnswers: Codable {
-    // Card 1: Timing + Stress
-    public var intendedSleepTime: IntendedSleepTime?
-    public var stressLevel: Int?  // 1-5
-    public var stressDriver: StressDriver?  // Only if stress >= 4
     
-    // Card 2: Body + Substances  
-    public var bodyPain: PainLevel?
-    public var painLocations: [PainLocation]?  // Only if pain != none
-    public var painType: PainType?  // Only if pain != none
-    public var stimulants: Stimulants?
-    public var alcohol: AlcoholLevel?
-    
-    // Card 3: Activity + Naps
-    public var exercise: ExerciseLevel?
-    public var napToday: NapDuration?
-    
-    // Optional Smart Expander: More Details (user toggles)
-    public var laterReason: LaterReason?  // Only if intendedSleepTime == later
-    public var lateMeal: LateMeal?
-    public var screensInBed: ScreensInBed?
-    public var roomTemp: RoomTemp?
-    public var noiseLevel: NoiseLevel?
-    
-    public init() {}
-    
-    // MARK: - Enums for type-safe answers
+    // MARK: - Nested Enums for Question Options
     
     public enum IntendedSleepTime: String, Codable, CaseIterable {
         case now = "now"
-        case within30 = "within_30"
-        case thirtyTo60 = "30_to_60"
+        case fifteenMin = "15min"
+        case thirtyMin = "30min"
+        case hour = "1hr"
         case later = "later"
         
         public var displayText: String {
             switch self {
             case .now: return "Now"
-            case .within30: return "Within 30 min"
-            case .thirtyTo60: return "30-60 min"
+            case .fifteenMin: return "~15 min"
+            case .thirtyMin: return "~30 min"
+            case .hour: return "~1 hour"
             case .later: return "Later"
             }
         }
@@ -1494,11 +1382,19 @@ public struct PreSleepLogAnswers: Codable {
         case work = "work"
         case family = "family"
         case health = "health"
-        case money = "money"
+        case financial = "financial"
+        case relationship = "relationship"
         case other = "other"
         
         public var displayText: String {
-            rawValue.capitalized
+            switch self {
+            case .work: return "Work"
+            case .family: return "Family"
+            case .health: return "Health"
+            case .financial: return "Financial"
+            case .relationship: return "Relationship"
+            case .other: return "Other"
+            }
         }
     }
     
@@ -1509,25 +1405,35 @@ public struct PreSleepLogAnswers: Codable {
         case severe = "severe"
         
         public var displayText: String {
-            rawValue.capitalized
+            switch self {
+            case .none: return "None"
+            case .mild: return "Mild"
+            case .moderate: return "Moderate"
+            case .severe: return "Severe"
+            }
         }
     }
     
     public enum PainLocation: String, Codable, CaseIterable {
         case head = "head"
         case neck = "neck"
+        case back = "back"
         case shoulders = "shoulders"
-        case upperBack = "upper_back"
-        case lowerBack = "lower_back"
-        case hips = "hips"
         case legs = "legs"
+        case joints = "joints"
+        case stomach = "stomach"
         case other = "other"
         
         public var displayText: String {
             switch self {
-            case .upperBack: return "Upper Back"
-            case .lowerBack: return "Lower Back"
-            default: return rawValue.capitalized
+            case .head: return "Head"
+            case .neck: return "Neck"
+            case .back: return "Back"
+            case .shoulders: return "Shoulders"
+            case .legs: return "Legs"
+            case .joints: return "Joints"
+            case .stomach: return "Stomach"
+            case .other: return "Other"
             }
         }
     }
@@ -1535,41 +1441,53 @@ public struct PreSleepLogAnswers: Codable {
     public enum PainType: String, Codable, CaseIterable {
         case aching = "aching"
         case sharp = "sharp"
-        case throbbing = "throbbing"
         case burning = "burning"
-        case tingling = "tingling"
+        case throbbing = "throbbing"
+        case cramping = "cramping"
         
         public var displayText: String {
-            rawValue.capitalized
+            switch self {
+            case .aching: return "Aching"
+            case .sharp: return "Sharp"
+            case .burning: return "Burning"
+            case .throbbing: return "Throbbing"
+            case .cramping: return "Cramping"
+            }
         }
     }
     
     public enum Stimulants: String, Codable, CaseIterable {
         case none = "none"
-        case caffeine = "caffeine"
-        case nicotine = "nicotine"
-        case both = "both"
+        case coffee = "coffee"
+        case tea = "tea"
+        case soda = "soda"
+        case energyDrink = "energy_drink"
+        case multiple = "multiple"
         
         public var displayText: String {
             switch self {
             case .none: return "None"
-            case .caffeine: return "Caffeine"
-            case .nicotine: return "Nicotine"
-            case .both: return "Both"
+            case .coffee: return "Coffee"
+            case .tea: return "Tea"
+            case .soda: return "Soda"
+            case .energyDrink: return "Energy Drink"
+            case .multiple: return "Multiple"
             }
         }
     }
     
     public enum AlcoholLevel: String, Codable, CaseIterable {
         case none = "none"
-        case oneToTwo = "1_to_2"
-        case threePlus = "3_plus"
+        case one = "1"
+        case twoThree = "2-3"
+        case fourPlus = "4+"
         
         public var displayText: String {
             switch self {
             case .none: return "None"
-            case .oneToTwo: return "1-2 drinks"
-            case .threePlus: return "3+ drinks"
+            case .one: return "1 drink"
+            case .twoThree: return "2-3 drinks"
+            case .fourPlus: return "4+ drinks"
             }
         }
     }
@@ -1578,165 +1496,179 @@ public struct PreSleepLogAnswers: Codable {
         case none = "none"
         case light = "light"
         case moderate = "moderate"
-        case hard = "hard"
+        case intense = "intense"
         
         public var displayText: String {
-            rawValue.capitalized
+            switch self {
+            case .none: return "None"
+            case .light: return "Light"
+            case .moderate: return "Moderate"
+            case .intense: return "Intense"
+            }
         }
     }
     
     public enum NapDuration: String, Codable, CaseIterable {
         case none = "none"
-        case short = "short"  // < 30 min
-        case medium = "medium"  // 30-90 min
-        case long = "long"  // 90+ min
+        case short = "short"
+        case medium = "medium"
+        case long = "long"
         
         public var displayText: String {
             switch self {
-            case .none: return "None"
-            case .short: return "Short (<30 min)"
-            case .medium: return "Medium (30-90 min)"
-            case .long: return "Long (90+ min)"
+            case .none: return "No nap"
+            case .short: return "<30 min"
+            case .medium: return "30-60 min"
+            case .long: return ">1 hour"
             }
         }
     }
     
     public enum LaterReason: String, Codable, CaseIterable {
-        case social = "social"
-        case work = "work"
-        case screenTime = "screen_time"
-        case restless = "restless"
+        case notTired = "not_tired"
+        case workToDo = "work"
+        case socialPlans = "social"
+        case entertainment = "entertainment"
         case other = "other"
         
         public var displayText: String {
             switch self {
-            case .screenTime: return "Screen Time"
-            default: return rawValue.capitalized
+            case .notTired: return "Not tired"
+            case .workToDo: return "Work to do"
+            case .socialPlans: return "Social plans"
+            case .entertainment: return "Entertainment"
+            case .other: return "Other"
             }
         }
     }
     
     public enum LateMeal: String, Codable, CaseIterable {
         case none = "none"
-        case within2Hours = "within_2_hours"
-        case within1Hour = "within_1_hour"
+        case snack = "snack"
+        case lightMeal = "light"
+        case heavyMeal = "heavy"
         
         public var displayText: String {
             switch self {
             case .none: return "None"
-            case .within2Hours: return "Within 2 hours"
-            case .within1Hour: return "Within 1 hour"
+            case .snack: return "Snack"
+            case .lightMeal: return "Light meal"
+            case .heavyMeal: return "Heavy meal"
             }
         }
     }
     
     public enum ScreensInBed: String, Codable, CaseIterable {
         case none = "none"
-        case some = "some"
-        case aLot = "a_lot"
+        case briefly = "briefly"
+        case thirtyMin = "30min"
+        case hourPlus = "1hr+"
         
         public var displayText: String {
             switch self {
             case .none: return "None"
-            case .some: return "Some"
-            case .aLot: return "A lot"
+            case .briefly: return "Briefly"
+            case .thirtyMin: return "~30 min"
+            case .hourPlus: return "1+ hour"
             }
         }
     }
     
     public enum RoomTemp: String, Codable, CaseIterable {
+        case cold = "cold"
         case cool = "cool"
-        case ok = "ok"
+        case comfortable = "comfortable"
         case warm = "warm"
+        case hot = "hot"
         
         public var displayText: String {
             switch self {
+            case .cold: return "Cold"
             case .cool: return "Cool"
-            case .ok: return "OK"
+            case .comfortable: return "Comfortable"
             case .warm: return "Warm"
+            case .hot: return "Hot"
             }
         }
     }
     
     public enum NoiseLevel: String, Codable, CaseIterable {
+        case silent = "silent"
         case quiet = "quiet"
-        case some = "some"
-        case loud = "loud"
+        case moderate = "moderate"
+        case noisy = "noisy"
         
         public var displayText: String {
-            rawValue.capitalized
+            switch self {
+            case .silent: return "Silent"
+            case .quiet: return "Quiet"
+            case .moderate: return "Moderate"
+            case .noisy: return "Noisy"
+            }
         }
     }
-}
-
-// MARK: - Complete Session Data (for specialist reports)
-public struct CompleteSessionData {
-    public let sessionDate: String
-    public let doseLog: StoredDoseLog
-    public let sleepEvents: [StoredSleepEvent]
-    public let morningCheckIn: StoredMorningCheckIn?
     
-    /// Calculate interval between doses
-    public var doseInterval: TimeInterval? {
-        guard let dose2Time = doseLog.dose2Time else { return nil }
-        return dose2Time.timeIntervalSince(doseLog.dose1Time)
-    }
+    // MARK: - Properties
     
-    /// Format dose interval as "Xh Ym"
-    public var formattedDoseInterval: String? {
-        guard let interval = doseInterval else { return nil }
-        let hours = Int(interval) / 3600
-        let minutes = (Int(interval) % 3600) / 60
-        return "\(hours)h \(minutes)m"
-    }
-}
-
-// MARK: - Narcolepsy Symptom Report
-public struct NarcolepsySymptomReport {
-    public var totalNights: Int
-    public var sleepParalysisCount: Int
-    public var hallucinationsCount: Int
-    public var automaticBehaviorCount: Int
-    public var fellOutOfBedCount: Int
-    public var confusionOnWakingCount: Int
+    // Card 1: Timing + Stress
+    public var intendedSleepTime: IntendedSleepTime?
+    public var stressLevel: Int?
+    public var stressDriver: StressDriver?
+    public var laterReason: LaterReason?
     
-    /// Percentage of nights with any symptom
-    public var symptomNightsPercentage: Double {
-        guard totalNights > 0 else { return 0 }
-        let symptomatic = sleepParalysisCount + hallucinationsCount + automaticBehaviorCount + fellOutOfBedCount + confusionOnWakingCount
-        return Double(symptomatic) / Double(totalNights * 5) * 100
-    }
-}
-
-// MARK: - Color Extension
-import SwiftUI
-
-extension Color {
-    /// Convert Color to hex string
-    func toHex() -> String? {
-        guard let components = UIColor(self).cgColor.components else { return nil }
-        
-        let r = Int(components[0] * 255)
-        let g = Int(components.count > 1 ? components[1] * 255 : components[0] * 255)
-        let b = Int(components.count > 2 ? components[2] * 255 : components[0] * 255)
-        
-        return String(format: "#%02X%02X%02X", r, g, b)
-    }
+    // Card 2: Body + Substances
+    public var bodyPain: PainLevel?
+    public var painLocations: [PainLocation]?
+    public var painType: PainType?
+    public var stimulants: Stimulants?
+    public var alcohol: AlcoholLevel?
     
-    /// Create Color from hex string
-    init?(hex: String) {
-        var hexSanitized = hex.trimmingCharacters(in: .whitespacesAndNewlines)
-        hexSanitized = hexSanitized.replacingOccurrences(of: "#", with: "")
-        
-        guard hexSanitized.count == 6 else { return nil }
-        
-        var rgb: UInt64 = 0
-        Scanner(string: hexSanitized).scanHexInt64(&rgb)
-        
-        let r = Double((rgb & 0xFF0000) >> 16) / 255
-        let g = Double((rgb & 0x00FF00) >> 8) / 255
-        let b = Double(rgb & 0x0000FF) / 255
-        
-        self.init(red: r, green: g, blue: b)
+    // Card 3: Activity + Naps
+    public var exercise: ExerciseLevel?
+    public var napToday: NapDuration?
+    
+    // Optional details
+    public var lateMeal: LateMeal?
+    public var screensInBed: ScreensInBed?
+    public var roomTemp: RoomTemp?
+    public var noiseLevel: NoiseLevel?
+    
+    // Legacy fields (for backwards compatibility)
+    public var notes: String?
+    
+    public init(
+        intendedSleepTime: IntendedSleepTime? = nil,
+        stressLevel: Int? = nil,
+        stressDriver: StressDriver? = nil,
+        laterReason: LaterReason? = nil,
+        bodyPain: PainLevel? = nil,
+        painLocations: [PainLocation]? = nil,
+        painType: PainType? = nil,
+        stimulants: Stimulants? = nil,
+        alcohol: AlcoholLevel? = nil,
+        exercise: ExerciseLevel? = nil,
+        napToday: NapDuration? = nil,
+        lateMeal: LateMeal? = nil,
+        screensInBed: ScreensInBed? = nil,
+        roomTemp: RoomTemp? = nil,
+        noiseLevel: NoiseLevel? = nil,
+        notes: String? = nil
+    ) {
+        self.intendedSleepTime = intendedSleepTime
+        self.stressLevel = stressLevel
+        self.stressDriver = stressDriver
+        self.laterReason = laterReason
+        self.bodyPain = bodyPain
+        self.painLocations = painLocations
+        self.painType = painType
+        self.stimulants = stimulants
+        self.alcohol = alcohol
+        self.exercise = exercise
+        self.napToday = napToday
+        self.lateMeal = lateMeal
+        self.screensInBed = screensInBed
+        self.roomTemp = roomTemp
+        self.noiseLevel = noiseLevel
+        self.notes = notes
     }
 }

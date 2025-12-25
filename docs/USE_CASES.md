@@ -408,7 +408,7 @@ Step 7: Complete
 ```
 1. User opens app after unexpected close
 2. System checks for interrupted state
-3. System restores last known state from Core Data
+3. System restores last known state from SQLite
 4. System validates dose events integrity
 5. System resumes countdown if applicable
 6. System displays current state
@@ -464,7 +464,7 @@ Step 7: Complete
 5. System requires confirmation:
    "Type DELETE to confirm"
 6. User types "DELETE"
-7. System wipes all Core Data entities
+7. System wipes all SQLite database contents
 8. System resets UserDefaults
 9. System displays setup wizard
 ```

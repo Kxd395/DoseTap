@@ -26,8 +26,8 @@ DoseTap provides:
 - **Multi-Device Access**: iPhone, Apple Watch, and Flic button support
 - **Safety Guardrails**: Prevents invalid dose configurations
 - **Offline-First**: Works without internet connectivity
-- **Sleep Tracking**: 12 event types for correlating sleep quality (NEW)
-- **Health Integration**: Apple HealthKit + WHOOP data aggregation (NEW)
+- **Sleep Tracking**: 13 event types for correlating sleep quality (v2.4.1)
+- **Health Integration**: Apple HealthKit + WHOOP data aggregation (v2.4.1)
 
 ### 1.4 Core Timing Parameters (AUTHORITATIVE)
 
@@ -117,7 +117,7 @@ DoseTap provides:
 - iOS 16.0+ / watchOS 9.0+ minimum
 - Swift 5.9 / SwiftUI
 - Local-first architecture (no required backend)
-- Core Data for persistence
+- SQLite for persistence (via EventStorage.swift)
 - Optional iCloud sync (disabled by default)
 
 ---
@@ -241,7 +241,7 @@ DoseTap provides:
 #### FR-032: Data Persistence
 - **Description**: Reliable local storage
 - **Acceptance Criteria**:
-  - Core Data with SQLite backend
+  - SQLite database (via EventStorage.swift)
   - Survives app updates
   - Survives device restarts
   - Migration from legacy JSON format
@@ -360,7 +360,7 @@ DoseTap/
 │   └── EventRateLimiter   # Debouncing
 ├── DoseTap/           # iOS app target
 │   ├── Views/             # SwiftUI screens
-│   ├── Persistence/       # Core Data
+│   ├── Storage/           # SQLite (EventStorage)
 │   └── Services/          # Notifications, sync
 └── DoseTapWatch/      # watchOS app target
 ```
@@ -377,7 +377,7 @@ User Action → ViewModel → DoseCore → Persistence
 ```
 
 ### 7.3 Offline Architecture
-1. All actions write to Core Data first
+1. All actions write to SQLite first
 2. Actions queued for API sync
 3. Queue retries with exponential backoff
 4. Conflict resolution: latest timestamp wins
@@ -419,7 +419,7 @@ User Action → ViewModel → DoseCore → Persistence
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
 | Notification failure | Medium | High | Critical alerts, redundant methods |
-| Data loss | Low | Critical | Core Data + backup export |
+| Data loss | Low | Critical | SQLite + backup export |
 | User misses dose | Medium | High | Escalating alerts, watch backup |
 | App crash during dose | Low | High | Crash recovery, auto-restore |
 | Watch disconnection | Medium | Medium | Offline mode, phone fallback |

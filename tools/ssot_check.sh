@@ -1,5 +1,6 @@
 #!/bin/bash
-set -e
+# Don't exit on error - we want to collect all issues
+# set -e
 
 echo "🔍 DoseTap SSOT Integrity Check v1.1"
 echo "====================================="
@@ -140,10 +141,10 @@ fi
 # Check that critical safety constraints are documented
 echo "Checking safety constraints..."
 SAFETY_PATTERNS=(
-    "150.*240\|150-240\|150–240"  # Dose window range
-    "165"                          # Default target
-    "never combine"                # Safety rule
-    "5.*second.*undo\|5s.*undo"    # Undo window
+    "150.*240|150-240|150–240"  # Dose window range
+    "165"                        # Default target
+    "never combine"              # Safety rule
+    "5.*second.*undo|5s.*undo|5 seconds"    # Undo window
 )
 
 for pattern in "${SAFETY_PATTERNS[@]}"; do
@@ -167,6 +168,117 @@ else
 fi
 
 # Summary
+echo ""
+echo "====================================="
+
+# ============================================================
+# CONTRADICTION CHECKS - Added 2025-12-24, hardened 2025-12-24 session 5
+# These checks ensure docs and code are aligned with SSOT
+# ============================================================
+
+echo ""
+echo "🔍 Running contradiction checks..."
+
+# Check 1: No Core Data references in non-archive docs (excluding audit logs and "why not" explanations)
+# Extended patterns to catch common Core Data indicators
+# Note: "core data" (lowercase) can mean "core application data", so we check specifically for:
+# - "Core Data" (title case = Apple framework)
+# - "CoreData" (import/class names)
+# - NSPersistentContainer, NSManagedObjectContext (Core Data APIs)
+echo "  Checking for Core Data references..."
+COREDATA_MATCHES=$(grep -rnE "Core Data|CoreData|NSPersistentContainer|NSManagedObjectContext" docs/ ios/Core/ --include="*.md" --include="*.swift" 2>/dev/null | grep -v "archive\|Archive\|\.backup\|AUDIT_LOG\|AUDIT_REPO\|FIX_PLAN\|Why SQLite.*Not Core Data\|NO Core Data\|No Core Data\|not Core Data\|removed Core Data\|without Core Data\|deprecated.*SQLite is canonical\|didMigrateToCoreData\|Core data handling" || true)
+if [ -n "$COREDATA_MATCHES" ]; then
+    echo "❌ Found Core Data references (should be SQLite):"
+    echo "$COREDATA_MATCHES" | head -5
+    ((ERRORS++))
+fi
+
+# Check 2: No stale "12 event" references (should be 13, exclude audit logs which document fixes)
+echo "  Checking for stale event counts..."
+STALE_12_EVENTS=$(grep -rn "12 event\|12 sleep event\|12 types" docs/ ios/ --include="*.md" --include="*.swift" 2>/dev/null | grep -v "archive\|Archive\|\.backup\|AUDIT_LOG\|AUDIT_REPO\|AUDIT_REPORT\|FIX_PLAN\|SSOT_v2\.md" || true)
+if [ -n "$STALE_12_EVENTS" ]; then
+    echo "❌ Found stale '12 event' references (should be 13):"
+    echo "$STALE_12_EVENTS" | head -5
+    ((ERRORS++))
+fi
+
+# Check 3: No stale test counts (123, 95, exclude audit logs which document history)
+echo "  Checking for stale test counts..."
+STALE_TESTS=$(grep -rn "123 Total\|123 tests\|95 tests" docs/ --include="*.md" 2>/dev/null | grep -v "archive\|Archive\|SSOT_v2\.md\|\.backup\|AUDIT_LOG\|AUDIT_REPO\|AUDIT_REPORT\|FIX_PLAN" || true)
+if [ -n "$STALE_TESTS" ]; then
+    echo "❌ Found stale test counts:"
+    echo "$STALE_TESTS" | head -5
+    ((ERRORS++))
+fi
+
+# Check 4: Schema version consistency
+echo "  Checking schema version consistency..."
+SCHEMA_V2=$(grep -o "schema_version.*2\.[0-9]" docs/DATABASE_SCHEMA.md 2>/dev/null | head -1)
+SSOT_SCHEMA=$(grep -o "schema_version.*2\.[0-9]" docs/SSOT/README.md 2>/dev/null | head -1)
+if [ "$SCHEMA_V2" != "$SSOT_SCHEMA" ] && [ -n "$SCHEMA_V2" ] && [ -n "$SSOT_SCHEMA" ]; then
+    echo "⚠️  Schema versions may differ:"
+    echo "    DATABASE_SCHEMA.md: $SCHEMA_V2"
+    echo "    SSOT/README.md: $SSOT_SCHEMA"
+fi
+
+# Check 5: Verify SleepEventType has 13 cases
+echo "  Verifying SleepEventType case count..."
+# Count only the actual SleepEventType cases (between enum declaration and next enum/struct)
+EVENT_CASES=$(awk '/public enum SleepEventType/,/^}/ { if (/case [a-z]/) count++ } END { print count }' ios/Core/SleepEvent.swift 2>/dev/null || echo "0")
+if [ "$EVENT_CASES" -ne "13" ] && [ "$EVENT_CASES" != "0" ]; then
+    echo "⚠️  SleepEventType has $EVENT_CASES cases (expected 13)"
+fi
+
+# Check 6: Detect duplicate canonical docs outside archive
+echo "  Checking for duplicate canonical docs outside archive..."
+# Look for SSOT/spec files in non-canonical locations
+DUP_SSOT=$(find . -name "*SSOT*.md" -not -path "./archive/*" -not -path "./docs/SSOT/*" -not -path "./.git/*" 2>/dev/null || true)
+if [ -n "$DUP_SSOT" ]; then
+    echo "❌ Found SSOT docs outside canonical location (should be in docs/SSOT or archived):"
+    echo "$DUP_SSOT"
+    ((ERRORS++))
+fi
+
+# Check for other canonical docs that should only exist in docs/ or archive/
+echo "  Checking for duplicate canonical docs (PRD, architecture, etc.)..."
+CANONICAL_DOCS=("PRD.md" "architecture.md" "FEATURE_ROADMAP.md" "DATABASE_SCHEMA.md")
+for doc in "${CANONICAL_DOCS[@]}"; do
+    DUP_DOC=$(find . -name "$doc" -not -path "./archive/*" -not -path "./docs/*" -not -path "./.git/*" 2>/dev/null || true)
+    if [ -n "$DUP_DOC" ]; then
+        echo "❌ Found duplicate canonical doc '$doc' outside docs/ or archive/:"
+        echo "$DUP_DOC"
+        ((ERRORS++))
+    fi
+done
+
+# Check for markdown files in ios/ that reference Core Data (old advisory docs)
+# Use title case "Core Data" to avoid false positives on "core data handling"
+echo "  Checking ios/ markdown files for Core Data references..."
+IOS_COREDATA_MD=$(find ./ios -name "*.md" -not -path "./archive/*" -exec grep -lE "Core Data|CoreData|NSPersistentContainer" {} \; 2>/dev/null | xargs -I{} grep -lE "Core Data|CoreData|NSPersistentContainer" {} 2>/dev/null | while read f; do
+    # Exclude files that only mention it in deprecation/exclusion context
+    if ! grep -qE "deprecated|SQLite is canonical|not.*Core Data|without.*Core Data|Core data handling" "$f" 2>/dev/null || grep -qE "^[^#-]*Core Data" "$f" 2>/dev/null; then
+        # Check if any match is NOT in an exclusion context
+        MATCHES=$(grep -nE "Core Data|CoreData|NSPersistentContainer" "$f" 2>/dev/null | grep -v "deprecated\|SQLite is canonical\|not.*Core Data\|without.*Core Data\|Core data handling")
+        if [ -n "$MATCHES" ]; then
+            echo "$f"
+        fi
+    fi
+done || true)
+if [ -n "$IOS_COREDATA_MD" ]; then
+    echo "❌ Found markdown files in ios/ with Core Data references (should be archived):"
+    echo "$IOS_COREDATA_MD"
+    ((ERRORS++))
+fi
+
+# Check 7: Verify root README references canonical SSOT (HARD FAIL - source of truth guarantee)
+echo "  Verifying README hierarchy..."
+ROOT_README_REF=$(grep -c "docs/SSOT/README.md" README.md 2>/dev/null || echo "0")
+if [ "$ROOT_README_REF" -eq "0" ]; then
+    echo "❌ Root README.md does not reference docs/SSOT/README.md as canonical spec"
+    echo "   This is a source-of-truth guarantee, not a style preference."
+    ((ERRORS++))
+fi
+
 echo ""
 echo "====================================="
 if [ $ERRORS -eq 0 ]; then

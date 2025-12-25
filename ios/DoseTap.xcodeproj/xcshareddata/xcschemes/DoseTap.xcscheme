@@ -14,7 +14,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "DoseTap"
+               BlueprintIdentifier = "H01"
                BuildableName = "DoseTap.app"
                BlueprintName = "DoseTap"
                ReferencedContainer = "container:DoseTap.xcodeproj">
@@ -34,7 +34,7 @@
             parallelizable = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "DoseTapTests"
+               BlueprintIdentifier = "8017D5302EFCDF6A00BF9683"
                BuildableName = "DoseTapTests.xctest"
                BlueprintName = "DoseTapTests"
                ReferencedContainer = "container:DoseTap.xcodeproj">
@@ -56,7 +56,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "DoseTap"
+            BlueprintIdentifier = "H01"
             BuildableName = "DoseTap.app"
             BlueprintName = "DoseTap"
             ReferencedContainer = "container:DoseTap.xcodeproj">
@@ -73,7 +73,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "DoseTap"
+            BlueprintIdentifier = "H01"
             BuildableName = "DoseTap.app"
             BlueprintName = "DoseTap"
             ReferencedContainer = "container:DoseTap.xcodeproj">

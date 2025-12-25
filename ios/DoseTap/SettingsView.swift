@@ -643,6 +643,7 @@ struct DataManagementView: View {
     @State private var showClearOldDataConfirmation = false
     
     private let storage = EventStorage.shared
+    private let sessionRepo = SessionRepository.shared
     
     var body: some View {
         List {
@@ -794,14 +795,16 @@ struct DataManagementView: View {
     private func deleteSessions(at offsets: IndexSet) {
         for index in offsets {
             let session = sessions[index]
-            storage.deleteSession(sessionDate: session.sessionDate)
+            // Use SessionRepository to broadcast changes to Tonight tab
+            sessionRepo.deleteSession(sessionDate: session.sessionDate)
         }
         sessions.remove(atOffsets: offsets)
     }
     
     private func deleteSelectedSessions() {
         for sessionDate in selectedSessions {
-            storage.deleteSession(sessionDate: sessionDate)
+            // Use SessionRepository to broadcast changes to Tonight tab
+            sessionRepo.deleteSession(sessionDate: sessionDate)
         }
         sessions.removeAll { selectedSessions.contains($0.sessionDate) }
         selectedSessions.removeAll()
@@ -809,7 +812,8 @@ struct DataManagementView: View {
     }
     
     private func clearTonightsEvents() {
-        storage.clearTonightsEvents()
+        // Use SessionRepository to clear tonight and broadcast
+        sessionRepo.clearTonight()
         loadSessions()
     }
     
@@ -916,6 +920,11 @@ struct QuickLogCustomizationView: View {
         GridItem(.flexible())
     ]
     
+    private var availableToAdd: [QuickLogButtonConfig] {
+        let currentIds = Set(settings.quickLogButtons.map { $0.id })
+        return UserSettingsManager.allAvailableEvents.filter { !currentIds.contains($0.id) }
+    }
+    
     var body: some View {
         List {
             // Preview Section
@@ -930,15 +939,20 @@ struct QuickLogCustomizationView: View {
                             QuickLogPreviewButton(config: button)
                         }
                         
-                        // Empty slots
+                        // Empty slots - tappable to show add sheet
                         ForEach(0..<(16 - settings.quickLogButtons.count), id: \.self) { _ in
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(Color(.systemGray5))
-                                .frame(height: 50)
-                                .overlay(
-                                    Image(systemName: "plus")
-                                        .foregroundColor(.secondary)
-                                )
+                            Button(action: {
+                                showAddSheet = true
+                            }) {
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(Color(.systemGray5))
+                                    .frame(height: 50)
+                                    .overlay(
+                                        Image(systemName: "plus")
+                                            .foregroundColor(.blue)
+                                    )
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                 }
@@ -946,7 +960,7 @@ struct QuickLogCustomizationView: View {
             } header: {
                 Text("QuickLog Grid (4×4)")
             } footer: {
-                Text("\(settings.quickLogButtons.count) of 16 slots used")
+                Text("\(settings.quickLogButtons.count) of 16 slots used. Tap + to add events.")
             }
             
             // Current Buttons (Editable)
@@ -1026,11 +1040,78 @@ struct QuickLogCustomizationView: View {
         }
         .navigationTitle("Customize QuickLog")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showAddSheet) {
+            AddQuickLogEventSheet(
+                availableEvents: availableToAdd,
+                onAdd: { button in
+                    settings.addQuickLogButton(button)
+                }
+            )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
     }
+}
+
+// MARK: - Add QuickLog Event Sheet
+struct AddQuickLogEventSheet: View {
+    let availableEvents: [QuickLogButtonConfig]
+    let onAdd: (QuickLogButtonConfig) -> Void
+    @Environment(\.dismiss) private var dismiss
     
-    private var availableToAdd: [QuickLogButtonConfig] {
-        let currentIds = Set(settings.quickLogButtons.map { $0.id })
-        return UserSettingsManager.allAvailableEvents.filter { !currentIds.contains($0.id) }
+    var body: some View {
+        NavigationView {
+            Group {
+                if availableEvents.isEmpty {
+                    VStack(spacing: 16) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 48))
+                            .foregroundColor(.green)
+                        Text("All Events Added!")
+                            .font(.headline)
+                        Text("You've added all available event types to your QuickLog panel.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding()
+                } else {
+                    List {
+                        ForEach(availableEvents) { button in
+                            Button {
+                                onAdd(button)
+                                dismiss()
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: button.icon)
+                                        .font(.title3)
+                                        .foregroundColor(button.color)
+                                        .frame(width: 30)
+                                    
+                                    Text(button.name)
+                                        .foregroundColor(.primary)
+                                    
+                                    Spacer()
+                                    
+                                    Image(systemName: "plus.circle.fill")
+                                        .foregroundColor(.green)
+                                }
+                            }
+                        }
+                    }
+                    .listStyle(.insetGrouped)
+                }
+            }
+            .navigationTitle("Add Event")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
+        }
     }
 }
 

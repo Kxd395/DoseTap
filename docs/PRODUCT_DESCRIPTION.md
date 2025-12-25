@@ -145,7 +145,7 @@ DoseTap marks your night complete. Review your history anytime.
 | Size | ~25 MB |
 | Battery Impact | <5% per night |
 | Offline Support | Full functionality |
-| Data Storage | On-device only (Core Data) |
+| Data Storage | On-device only (SQLite) |
 | Sync | iPhone ↔ Watch automatic |
 | Languages | English (more planned) |
 | Accessibility | VoiceOver, Dynamic Type, High Contrast |

@@ -36,4 +36,4 @@ jobs:
     - name: Validate OpenAPI spec
       uses: char0n/swagger-editor-validate@v1
       with:
-        definition-file: docs/contracts/api.openapi.yaml
+        definition-file: docs/SSOT/contracts/api.openapi.yaml

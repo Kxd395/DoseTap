@@ -1,15 +1,20 @@
 # DoseTap Documentation
 
-> **Last Updated:** 2025-12-23 | **SSOT Version:** 2.0.0 | **Tests:** 95 passing
+> **Last Updated:** 2025-12-24 | **SSOT Version:** 2.4.1 | **Tests:** 207 passing
 
 ## 🎯 Primary Reference
 
 ### Single Source of Truth (SSOT)
 **[📁 SSOT/](SSOT/)** - The authoritative specification folder
 
-- **[SSOT/README.md](SSOT/README.md)** ⭐ - Complete v2.0.0 specification (CURRENT)
+- **[SSOT/README.md](SSOT/README.md)** ⭐ - Complete v2.4.1 specification (CURRENT)
 - **[SSOT/navigation.md](SSOT/navigation.md)** - Quick navigation guide
 - **[SSOT/contracts/](SSOT/contracts/)** - API specs and schemas
+
+### Database Reference
+- **[DATABASE_SCHEMA.md](DATABASE_SCHEMA.md)** ⭐ - Complete SQLite schema (5 tables, v6)
+- **[SSOT/contracts/SchemaEvolution.md](SSOT/contracts/SchemaEvolution.md)** - Migration history
+- **[SSOT/contracts/DataDictionary.md](SSOT/contracts/DataDictionary.md)** - Field definitions
 
 ## ⏱️ Core Timing Parameters (AUTHORITATIVE)
 
@@ -30,7 +35,7 @@
 ### Phase 1: Sleep Event Logging ✅ COMPLETE
 | Feature | Status | Tests |
 |---------|--------|-------|
-| SleepEvent model (12 types) | ✅ Complete | 29 tests |
+| SleepEvent model (13 types) | ✅ Complete | 29 tests |
 | EventRateLimiter | ✅ Complete | Cooldowns work |
 | SQLite sleep_events table | ✅ Complete | CRUD ops |
 | QuickLogPanel UI | ✅ Complete | 4x3 grid |
@@ -40,11 +45,11 @@
 ### Core Features ✅ COMPLETE
 | Feature | Status | Tests |
 |---------|--------|-------|
-| Dose Window Logic | ✅ Complete | 13 tests |
+| Dose Window Logic | ✅ Complete | 24 tests |
 | API Client & Errors | ✅ Complete | 23 tests |
 | Offline Queue | ✅ Complete | 4 tests |
 | CRUD Actions | ✅ Complete | 25 tests |
-| **Total Tests** | **95 passing** | All green |
+| **Total Tests** | **207 passing** | All green |
 
 ### Phase 2: Health Dashboard 🔄 IN PROGRESS
 | Feature | Status |
@@ -57,17 +62,20 @@
 ### Data Integration Status
 | Source | Status | Notes |
 |--------|--------|-------|
-| SQLite Storage | ✅ Complete | 4 tables |
+| SQLite Storage | ✅ Complete | 5 tables (v6) |
 | Apple HealthKit | ✅ Ready | HR, HRV, sleep |
 | WHOOP API | ✅ Connected | Tokens verified |
 
-## �️ Sleep Event Types (12 total)
+## 🛏️ Sleep Event Types (13 total)
+
+> Canonical source: [SSOT/constants.json](SSOT/constants.json)
 
 | Event | Cooldown | Category |
 |-------|----------|----------|
 | `bathroom` 🚽 | 60s | Physical |
 | `water` 💧 | 5m | Physical |
 | `snack` 🍴 | 15m | Physical |
+| `inBed` 🛏️ | 1h | Sleep Cycle |
 | `lightsOut` 💡 | 1h | Sleep Cycle |
 | `wakeFinal` ☀️ | 1h | Sleep Cycle |
 | `wakeTemp` 🌙 | 5m | Sleep Cycle |
@@ -86,7 +94,7 @@
 | [FEATURE_ROADMAP.md](FEATURE_ROADMAP.md) | Development phases |
 | [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) | Technical plan |
 | [USE_CASES.md](USE_CASES.md) | User workflows |
-| [architecture.md](architecture.md) | System design |
+| [architecture.md](architecture.md) | System design (SQLite, not Core Data) |
 
 ## 🔍 Quick Reference
 
@@ -97,12 +105,13 @@
 | **Sleep events** | [SSOT/README.md#sleep-event-system](SSOT/README.md#sleep-event-system-new-in-v20) |
 | **API endpoints** | [SSOT/README.md#api-contract](SSOT/README.md#api-contract) |
 | **Error codes** | [SSOT/README.md#error-codes--ux](SSOT/README.md#error-codes--ux) |
+| **Database schema** | [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) |
 
 ## 🚀 For Contributors
 
 ### Before You Start
 1. **Read [SSOT/README.md](SSOT/README.md)** - Complete specification (canonical)
-2. Run tests: `swift test -q` (123 tests must pass)
+2. Run tests: `swift test -q` (207 tests must pass)
 3. Check [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for current tasks
 
 ### Key Principles
@@ -111,6 +120,7 @@
 - **150-240 min window** - Never violated
 - **Offline-first** - All features work without connection
 - **Test-driven** - All core logic has unit tests
+- **SQLite persistence** - No Core Data (see [architecture.md](architecture.md))
 
 ## 📋 File Structure
 
@@ -120,7 +130,7 @@
 1. Update [SSOT/README.md](SSOT/README.md) first (canonical SSOT)
 2. Add to appropriate section
 3. Update navigation if needed
-4. Run `swift test -q` (123 tests must pass)
+4. Run `swift test -q` (207 tests must pass)
 5. Submit PR with "Docs: " prefix
 
 ### Documentation Structure
@@ -152,4 +162,4 @@ docs/
 
 **Remember:** The SSOT folder contains everything. Start with [SSOT/README.md](SSOT/README.md) for the canonical specification.
 
-**Current Status:** 123 tests passing • 12 sleep event types • 4 tabs (Tonight, Timeline, Dashboard, Settings) • HealthKit + WHOOP ready
+**Current Status:** 207 tests passing • 13 sleep event types • 5 SQLite tables • HealthKit + WHOOP ready

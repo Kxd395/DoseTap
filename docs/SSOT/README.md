@@ -8,16 +8,59 @@
 
 **Constants file:** [`constants.json`](constants.json) - Single source for all numeric constants
 
+**Database schema:** [`../DATABASE_SCHEMA.md`](../DATABASE_SCHEMA.md) - Complete SQLite schema reference
+
 **This document supersedes:** `DoseTap_Spec.md`, `ui-ux-specifications.md`, `button-logic-mapping.md`, `api-documentation.md`, `user-guide.md`, `implementation-roadmap.md`
 
 **Last Updated:** 2024-12-24  
-**Version:** 2.4.0
+**Version:** 2.4.1
+
+## Recent Updates (v2.4.1)
+
+### New in v2.4.1 (Sleep Environment & Documentation)
+
+#### Sleep Environment Feature (V1 Question Set)
+
+- ✅ **ADDED**: `sleepEnvironmentSection` in Morning Check-In with 18 sleep aid options
+- ✅ **ADDED**: "Same as usual" shortcut (10-second completion)
+- ✅ **ADDED**: Conditional follow-ups: screen time, sound type, darkness/noise ratings
+- ✅ **ADDED**: `has_sleep_environment`, `sleep_environment_json` columns in SQLite
+
+**Design goals:**
+- 10 seconds if "Same as usual"
+- 25 seconds for full entry
+- High-signal correlation data without ML
+
+#### Documentation Updates
+
+- ✅ **ADDED**: `docs/DATABASE_SCHEMA.md` - Comprehensive database schema reference
+- ✅ **UPDATED**: Sleep Environment section with V1 question set specification
+- ✅ **FIXED**: SessionRepository.swift added to Xcode project (was missing from build)
+
+---
 
 ## Recent Updates (v2.4.0)
 
-### New in v2.4.0 (Dose 2 Safety & History Fixes)
+### v2.4.0 (Dose 2 Safety & History Fixes)
 
-#### Bug Fixes
+#### Architecture Fix: SessionRepository (Single Source of Truth)
+
+- ✅ **FIXED**: **Two sources of truth bug** - History delete now properly clears Tonight state
+- ✅ **ADDED**: `SessionRepository.swift` - Single source of truth for session state
+- ✅ **FIXED**: **Delete not updating Tonight** - SessionRepository broadcasts changes via Combine
+- ✅ **ADDED**: `SessionRepositoryTests.swift` - Deterministic tests for delete/state sync
+
+The previous architecture had `DoseTapCore` (in-memory) and `EventStorage` (SQLite) as separate sources of truth. Deleting from History modified SQLite but Tonight continued reading stale in-memory state.
+
+**New architecture:**
+
+- `SessionRepository` owns published session state (`dose1Time`, `dose2Time`, etc.)
+- All delete/mutation operations go through `SessionRepository`
+- `SessionRepository.sessionDidChange` broadcasts to all observers
+- `ContentView` syncs `DoseTapCore` from `SessionRepository` on changes
+- Delete from History → SessionRepository.deleteSession() → clears state → broadcasts → Tonight updates
+
+#### Bug Fixes (v2.4.0)
 - ✅ **FIXED**: **History delete not refreshing** - SelectedDayView now receives `refreshTrigger` that forces reload after deletion
 - ✅ **FIXED**: **Early Dose 2 not updating UI** - `takeDose(earlyOverride:)` now accepts override flag; early doses update `dose2Time` immediately and show "(Early)" badge in orange
 - ✅ **FIXED**: **Multiple Dose 2 overwrites** - Second Dose 2 attempt is blocked with major stop warning; if user confirms, recorded as `extra_dose` event type without overwriting original `dose2_time`
@@ -49,7 +92,7 @@
 - ✅ **FIXED**: Snooze duration is fixed at 10 minutes (removed incorrect 5/10/15 options from Setup Wizard)
 - ✅ **FIXED**: Undo window is fixed at 5 seconds (removed incorrect 3-10 configurable range from Setup Wizard)
 - ✅ **FIXED**: Persistence story - SQLite is the implementation (removed Core Data references)
-- ✅ **FIXED**: Event system clarified - All 12 sleep event types defined, stored locally in SQLite
+- ✅ **FIXED**: Event system clarified - All 13 sleep event types defined, stored locally in SQLite
 - ✅ **ADDED**: `constants.json` - Single source of truth for all numeric constants
 
 #### P1 Fixes (Platform/Security)
@@ -83,8 +126,9 @@
 
 | Gap | Description | Priority |
 |-----|-------------|----------|
-| **Undo Support** | 5-second undo for accidental taps (DoseUndoManager exists but not wired to UI) | High |
-| **Session Terminal State** | SQLite needs `terminal_state` column to distinguish: `completed`, `skipped`, `expired`, `aborted` | Medium |
+| **Undo Support** | ⚠️ NOT YET IMPLEMENTED: 5-second undo snackbar for accidental taps. Backend ready (`DoseUndoManager` in Core with tests), UI wiring pending. | High |
+| ~~**Session Terminal State**~~ | ✅ FIXED in v2.4.0 - SQLite now has `terminal_state` column via migration | ~~Medium~~ |
+| ~~**History Delete State Sync**~~ | ✅ FIXED in v2.4.0 - SessionRepository pattern ensures Tonight clears on delete | ~~High~~ |
 | **Finalizing State** | Track session between wakeFinal and check-in completion | Medium |
 | **Sleep-Through Handling** | Auto-mark incomplete if user sleeps through window | Medium |
 | **Late Dose 1 Logic** | Handle Dose 1 past midnight (sleep night vs calendar date) | Low |
@@ -103,12 +147,12 @@
 - ✅ **COMPLETED**: SQLite persistence for events with session linking
 
 ### Previous (v2.0.0)
-- ✅ **COMPLETED**: Sleep Event Logging System (12 event types with rate limiting)
+- ✅ **COMPLETED**: Sleep Event Logging System (13 event types with rate limiting)
 - ✅ **COMPLETED**: QuickLogPanel UI component with cooldown indicators
 - ✅ **COMPLETED**: Timeline View with historical session display
 - ✅ **COMPLETED**: UnifiedSleepSession data model (DoseTap + HealthKit + WHOOP)
 - ✅ **COMPLETED**: SQLite storage for sleep_events table
-- ✅ **COMPLETED**: 136 unit tests passing (DoseCoreTests via SwiftPM)
+- ✅ **COMPLETED**: DoseCore unit tests passing (run `swift test -q` for current count)
 - ✅ **COMPLETED**: WHOOP OAuth integration tested (Kevin Dial, ID: 10995997)
 - 🔄 Phase 2: Health Dashboard with data aggregation (next priority)
 - 🔄 WHOOP data visualization and correlation insights
@@ -125,14 +169,14 @@
 - Dose events logged in timeline (Dose 1/2 appear as events)
 
 ### ✅ Phase 1 Complete (Sleep Event Logging)
-- SleepEvent model with 12 event types (`ios/Core/SleepEvent.swift`)
+- SleepEvent model with 13 event types (`ios/Core/SleepEvent.swift`)
 - EventRateLimiter with per-event cooldowns (`ios/Core/EventRateLimiter.swift`)
 - SQLite sleep_events table (`ios/DoseTapiOSApp/SQLiteStorage.swift`)
-- QuickLogPanel UI with 4x3 grid (`ios/DoseTapiOSApp/QuickLogPanel.swift`)
+- QuickLogPanel UI with 4x4 grid (`ios/DoseTapiOSApp/QuickLogPanel.swift`)
 - TimelineView historical display (`ios/DoseTapiOSApp/TimelineView.swift`)
 - DoseCoreIntegration.logSleepEvent() (`ios/DoseTapiOSApp/DoseCoreIntegration.swift`)
 - UnifiedSleepSession data model (`ios/Core/UnifiedSleepSession.swift`)
-- 136 tests total (DoseCoreTests via SwiftPM)
+- DoseCoreTests via SwiftPM (CI is source of truth for count)
 
 ### 🔄 Phase 2: Health Dashboard (In Progress)
 - SleepDataAggregator for merging data sources
@@ -242,29 +286,34 @@ func clearTargetWakeTime()
 
 ## Sleep Event System (NEW in v2.0)
 
-### Event Types (12 total)
+### Event Types (13 total)
+
+> Canonical source: [constants.json](constants.json)
 
 | Event | Raw Value | Cooldown | Category | Icon |
 |-------|-----------|----------|----------|------|
 | Bathroom | `bathroom` | 60s | Physical | 🚽 |
-| Water | `water` | 300s (5m) | Physical | 💧 |
-| Snack | `snack` | 900s (15m) | Physical | 🍴 |
-| Lights Out | `lightsOut` | 3600s (1h) | Sleep Cycle | 💡 |
-| Final Wake | `wakeFinal` | 3600s (1h) | Sleep Cycle | ☀️ |
-| Temp Wake | `wakeTemp` | 300s (5m) | Sleep Cycle | 🌙 |
-| Anxiety | `anxiety` | 300s (5m) | Mental | 🧠 |
-| Dream | `dream` | 60s | Mental | ☁️ |
-| Heart Racing | `heartRacing` | 300s (5m) | Mental | ❤️ |
-| Noise | `noise` | 60s | Environment | 🔊 |
-| Temperature | `temperature` | 300s (5m) | Environment | 🌡️ |
-| Pain | `pain` | 300s (5m) | Environment | 🩹 |
+| Water | `water` | 60s | Physical | 💧 |
+| Snack | `snack` | 60s | Physical | 🍴 |
+| In Bed | `inBed` | 0 | Sleep Cycle | 🛏️ |
+| Lights Out | `lightsOut` | 0 | Sleep Cycle | 💡 |
+| Final Wake | `wakeFinal` | 0 | Sleep Cycle | ☀️ |
+| Temp Wake | `wakeTemp` | 0 | Sleep Cycle | 🌙 |
+| Anxiety | `anxiety` | 0 | Mental | 🧠 |
+| Dream | `dream` | 0 | Mental | ☁️ |
+| Heart Racing | `heartRacing` | 0 | Mental | ❤️ |
+| Noise | `noise` | 0 | Environment | 🔊 |
+| Temperature | `temperature` | 0 | Environment | 🌡️ |
+| Pain | `pain` | 0 | Environment | 🩹 |
+
+> **Note**: Only physical events (bathroom, water, snack) have 60s cooldowns to prevent accidental double-taps. All other events have no cooldown—log as often as experienced.
 
 ### Event Categories
 
 | Category | Color | Events |
 |----------|-------|--------|
 | Physical | Blue | bathroom, water, snack |
-| Sleep Cycle | Indigo | lightsOut, wakeFinal, wakeTemp |
+| Sleep Cycle | Indigo | inBed, lightsOut, wakeFinal, wakeTemp |
 | Mental | Purple | anxiety, dream, heartRacing |
 | Environment | Green | noise, temperature, pain |
 
@@ -366,6 +415,123 @@ Comprehensive morning questionnaire for specialist reports. Uses progressive dis
 | Automatic Behavior | Performed actions without awareness |
 | Fell Out of Bed | Related to cataplexy or vivid dreams |
 | Confusion on Waking | Disorientation upon awakening |
+
+### Sleep Environment (NEW in v2.5.1 / Updated v2.4.1)
+
+> **V1 Question Set**: High-signal correlation data with minimal friction.
+> **Time Target**: 10 seconds if "Same as usual", 25 seconds for full entry.
+
+#### Card: "Sleep Setup & Aids"
+
+**A) Sleep Aids Used (Multi-select Chips)**
+
+Label: "What did you use last night?"
+
+| Aid | Category | Icon | Note |
+|-----|----------|------|------|
+| Dark room/blackout | Environment | moon.fill | |
+| Eye mask | Environment | eye.slash.fill | |
+| Earplugs | Environment | ear.badge.checkmark | |
+| White noise/sound | Environment | waveform | Triggers sound type follow-up |
+| Fan | Environment | fan.fill | |
+| Weighted blanket | Environment | bed.double.fill | |
+| Heating pad | Environment | flame.fill | |
+| Humidifier | Environment | humidity.fill | |
+| Meditation/breathing | Relaxation | brain.head.profile | |
+| Music | Relaxation | music.note | |
+| Podcast/audiobook | Relaxation | headphones | |
+| CPAP | Medical | wind | |
+| Mouth tape | Medical | mouth | |
+| Nasal strip | Medical | nose | |
+| **TV on** | **Screen** | tv.fill | ⚠️ Behavior, not aid - triggers screen time follow-up |
+| **Phone in bed** | **Screen** | iphone | ⚠️ Behavior, not aid - triggers screen time follow-up |
+| Other | Meta | ellipsis.circle | Shows optional 50-char text field |
+| None | Meta | xmark.circle | Clears all others |
+
+**Design notes:**
+- Chips are tap-to-toggle
+- "None" chip clears all others
+- Screen behaviors (TV, Phone) are visually tagged in orange
+
+**B) Lights and Noise Quick Ratings (2 single taps)**
+
+Only shown if user doesn't select "Same as usual":
+
+| Field | Values | Icon |
+|-------|--------|------|
+| Room Darkness | Bright, Dim, Dark | sun.max.fill → moon.fill |
+| Noise Level | Quiet, Some noise, Loud | speaker.fill → speaker.wave.3.fill |
+
+**C) Screen Time Follow-up (if TV/Phone selected)**
+
+Label: "How long was screen on?"
+
+| Bucket | Data Key |
+|--------|----------|
+| 0-15 min | `0_15` |
+| 15-45 min | `15_45` |
+| 45+ min | `45_plus` |
+
+**D) Sound Type Follow-up (if White Noise selected)**
+
+| Type | Data Key |
+|------|----------|
+| White noise | `white_noise` |
+| Rain | `rain` |
+| Fan | `fan` |
+| Other | `other` |
+
+#### Data Model Keys (Export-Ready)
+
+All fields stored in `sleep_environment_json` column:
+
+```json
+{
+  "sleep_aids_used": ["Dark room/blackout", "Eye mask", "White noise/sound"],
+  "room_darkness": "dark",        // bright | dim | dark
+  "noise_level": "quiet",          // quiet | some_noise | loud
+  "screen_in_bed_minutes_bucket": "0_15",  // 0_15 | 15_45 | 45_plus | unknown
+  "sound_type": "white_noise",     // white_noise | rain | fan | other | unknown
+  "other_aid_text": "",            // Optional, max 50 chars
+  "same_as_usual": false           // true if shortcut used
+}
+```
+
+#### Export CSV Column Definitions
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `sleep_aids_used` | String (JSON array) | Array of aid names selected |
+| `room_darkness` | Enum | bright, dim, dark |
+| `noise_level` | Enum | quiet, some_noise, loud |
+| `screen_minutes_bucket` | Enum | 0_15, 15_45, 45_plus, unknown |
+| `sound_type` | Enum | white_noise, rain, fan, other, unknown |
+| `other_aid_text` | String (50 max) | Free text, optional |
+| `same_as_usual` | Bool | Whether shortcut was used |
+
+#### "Same as Usual" Shortcut
+
+- Stores last session's selections in UserDefaults
+- Single tap auto-fills: sleep_aids_used, room_darkness, noise_level
+- Hides all follow-up questions when selected
+- Sets `same_as_usual: true` in JSON
+
+#### Dashboard Correlation Insights (No ML Required)
+
+Without ML, simple descriptive correlations:
+
+| Correlation | Description |
+|-------------|-------------|
+| Sleep quality vs TV on | % change in sleep quality on TV nights |
+| Wake events vs noise | Wake count by noise level |
+| Sleep inertia vs phone | Morning grogginess by screen bucket |
+| Dose 2 adherence vs screen | Skip/early rate by screen time |
+
+**SQLite Columns (via migration):**
+```sql
+ALTER TABLE morning_checkins ADD COLUMN has_sleep_environment INTEGER DEFAULT 0;
+ALTER TABLE morning_checkins ADD COLUMN sleep_environment_json TEXT;
+```
 
 ### Wellness Score Calculation
 
@@ -690,7 +856,7 @@ Logs sleep/wake events for optional cloud sync. **Note**: Sleep events are prima
 }
 ```
 
-**Current Implementation**: All 12 sleep event types are stored locally in SQLite (`sleep_events` table). The API endpoint is reserved for future iCloud/backend sync—not currently wired.
+**Current Implementation**: All 13 sleep event types are stored locally in SQLite (`sleep_events` table). The API endpoint is reserved for future iCloud/backend sync—not currently wired.
 
 #### GET /analytics/export
 Exports dose and analytics data as CSV.
@@ -790,7 +956,7 @@ interface SleepEvent {
 
 #### sleep_events
 - **id**: TEXT PRIMARY KEY - Unique event identifier
-- **event_type**: TEXT NOT NULL - One of 12 event types (bathroom, water, etc.)
+- **event_type**: TEXT NOT NULL - One of 13 event types (see constants.json)
 - **timestamp**: TEXT NOT NULL - ISO8601 UTC timestamp
 - **session_id**: TEXT - Optional session linkage
 - **notes**: TEXT - Optional user notes
@@ -939,7 +1105,7 @@ function suggestNextWeekTarget(history: DoseEvent[]): number {
 
 ### ✅ Tonight Screen
 - [ ] All button states work offline with queue indicator
-- [ ] 5-second undo implemented with countdown
+- [ ] ⚠️ 5-second undo snackbar (PENDING - backend ready, UI wiring needed)
 - [ ] Window countdown displays mm:ss format
 - [ ] Near-window rules enforced (<15m snooze disabled)
 - [ ] Error states have clear recovery actions

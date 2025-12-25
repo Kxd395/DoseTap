@@ -18,8 +18,14 @@ final class SleepEventTests: XCTestCase {
     }
     
     func testAllEventTypesHaveCooldowns() {
+        // Per SSOT: Only physical events (bathroom/water/snack) have non-zero cooldowns
+        let physicalEvents: Set<SleepEventType> = [.bathroom, .water, .snack]
         for eventType in SleepEventType.allCases {
-            XCTAssertGreaterThan(eventType.defaultCooldownSeconds, 0, "\(eventType.rawValue) should have a positive cooldown")
+            if physicalEvents.contains(eventType) {
+                XCTAssertGreaterThan(eventType.defaultCooldownSeconds, 0, "\(eventType.rawValue) should have a positive cooldown")
+            } else {
+                XCTAssertEqual(eventType.defaultCooldownSeconds, 0, "\(eventType.rawValue) should have zero cooldown per SSOT")
+            }
         }
     }
     
@@ -30,20 +36,36 @@ final class SleepEventTests: XCTestCase {
         }
     }
     
-    func testBathroomCooldown() {
-        XCTAssertEqual(SleepEventType.bathroom.defaultCooldownSeconds, 60)
+    // MARK: - SSOT Cooldown Compliance Tests
+    // These tests ensure cooldowns match docs/SSOT/constants.json
+    
+    func testPhysicalEventCooldowns_SSOTCompliance() {
+        // Physical events have 60s cooldown to prevent accidental double-tap
+        XCTAssertEqual(SleepEventType.bathroom.defaultCooldownSeconds, 60, "bathroom cooldown must be 60s per SSOT")
+        XCTAssertEqual(SleepEventType.water.defaultCooldownSeconds, 60, "water cooldown must be 60s per SSOT")
+        XCTAssertEqual(SleepEventType.snack.defaultCooldownSeconds, 60, "snack cooldown must be 60s per SSOT")
     }
     
-    func testLightsOutCooldown() {
-        XCTAssertEqual(SleepEventType.lightsOut.defaultCooldownSeconds, 3600)
+    func testSleepCycleEventCooldowns_SSOTCompliance() {
+        // Sleep cycle markers have NO cooldown (they're session markers)
+        XCTAssertEqual(SleepEventType.inBed.defaultCooldownSeconds, 0, "inBed cooldown must be 0 per SSOT")
+        XCTAssertEqual(SleepEventType.lightsOut.defaultCooldownSeconds, 0, "lightsOut cooldown must be 0 per SSOT")
+        XCTAssertEqual(SleepEventType.wakeFinal.defaultCooldownSeconds, 0, "wakeFinal cooldown must be 0 per SSOT")
+        XCTAssertEqual(SleepEventType.wakeTemp.defaultCooldownSeconds, 0, "wakeTemp cooldown must be 0 per SSOT")
     }
     
-    func testWakeFinalCooldown() {
-        XCTAssertEqual(SleepEventType.wakeFinal.defaultCooldownSeconds, 3600)
+    func testMentalEventCooldowns_SSOTCompliance() {
+        // Mental events have NO cooldown - log as many times as needed
+        XCTAssertEqual(SleepEventType.anxiety.defaultCooldownSeconds, 0, "anxiety cooldown must be 0 per SSOT")
+        XCTAssertEqual(SleepEventType.dream.defaultCooldownSeconds, 0, "dream cooldown must be 0 per SSOT")
+        XCTAssertEqual(SleepEventType.heartRacing.defaultCooldownSeconds, 0, "heartRacing cooldown must be 0 per SSOT")
     }
     
-    func testWakeTempCooldown() {
-        XCTAssertEqual(SleepEventType.wakeTemp.defaultCooldownSeconds, 300)
+    func testEnvironmentEventCooldowns_SSOTCompliance() {
+        // Environment events have NO cooldown - log as many times as needed
+        XCTAssertEqual(SleepEventType.noise.defaultCooldownSeconds, 0, "noise cooldown must be 0 per SSOT")
+        XCTAssertEqual(SleepEventType.temperature.defaultCooldownSeconds, 0, "temperature cooldown must be 0 per SSOT")
+        XCTAssertEqual(SleepEventType.pain.defaultCooldownSeconds, 0, "pain cooldown must be 0 per SSOT")
     }
     
     // MARK: - SleepEventCategory Tests

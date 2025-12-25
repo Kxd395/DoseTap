@@ -145,11 +145,17 @@ struct PrivacyInformationCard: View {
             }
             
             VStack(alignment: .leading, spacing: 8) {
-                PrivacyItem(title: "Personal identifiers", status: .excluded, description: "Names, emails, device IDs")
-                PrivacyItem(title: "Medication data", status: .anonymized, description: "Dose times without personal details")
+                PrivacyItem(title: "Personal identifiers", status: .minimized, description: "Device IDs hashed, names/emails excluded")
+                PrivacyItem(title: "Dose timing data", status: .included, description: "Relative time offsets (not exact times)")
                 PrivacyItem(title: "App logs", status: .included, description: "Error messages and app behavior")
                 PrivacyItem(title: "Device info", status: .included, description: "iOS version, device model")
             }
+            
+            // SSOT compliance note
+            Text("Review before sharing • PII minimized, not guaranteed zero-PII")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .padding(.top, 4)
         }
         .padding()
         .background(
@@ -172,13 +178,14 @@ struct PrivacyItem: View {
     let description: String
     
     enum PrivacyStatus {
-        case included, excluded, anonymized
+        case included, excluded, anonymized, minimized
         
         var icon: String {
             switch self {
             case .included: return "checkmark.circle.fill"
             case .excluded: return "xmark.circle.fill"
             case .anonymized: return "eye.slash.circle.fill"
+            case .minimized: return "shield.checkered"
             }
         }
         
@@ -187,6 +194,7 @@ struct PrivacyItem: View {
             case .included: return .blue
             case .excluded: return .red
             case .anonymized: return .orange
+            case .minimized: return .green
             }
         }
         
@@ -195,6 +203,7 @@ struct PrivacyItem: View {
             case .included: return "Included"
             case .excluded: return "Excluded"
             case .anonymized: return "Anonymized"
+            case .minimized: return "Minimized"
             }
         }
     }

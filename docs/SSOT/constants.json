@@ -94,6 +94,7 @@
       {"rawValue": "bathroom", "cooldownSeconds": 60, "category": "physical", "wireFormat": "bathroom", "rationale": "Prevent accidental double-tap"},
       {"rawValue": "water", "cooldownSeconds": 60, "category": "physical", "wireFormat": "water", "rationale": "Prevent accidental double-tap"},
       {"rawValue": "snack", "cooldownSeconds": 60, "category": "physical", "wireFormat": "snack", "rationale": "Prevent accidental double-tap"},
+      {"rawValue": "inBed", "cooldownSeconds": 0, "category": "sleepCycle", "wireFormat": "in_bed", "rationale": "Session marker, no cooldown"},
       {"rawValue": "lightsOut", "cooldownSeconds": 0, "category": "sleepCycle", "wireFormat": "lights_out", "rationale": "Session marker, no cooldown"},
       {"rawValue": "wakeFinal", "cooldownSeconds": 0, "category": "sleepCycle", "wireFormat": "wake_final", "rationale": "Session marker, no cooldown"},
       {"rawValue": "wakeTemp", "cooldownSeconds": 0, "category": "sleepCycle", "wireFormat": "wake_temp", "rationale": "May wake multiple times"},
@@ -286,5 +287,114 @@
       }
     },
     "completionStates": ["partial", "complete", "skipped"]
+  },
+  
+  "medicationDefinitions": {
+    "description": "First-class medication entries with formulation-specific definitions. Each entry is distinct for tracking and analytics.",
+    "xywav": {
+      "id": "xywav",
+      "displayName": "XYWAV",
+      "genericName": "calcium, magnesium, potassium, and sodium oxybates",
+      "formulation": "oral_solution",
+      "class": "cns_depressant",
+      "defaultUnit": "g",
+      "dosesPerNight": 2,
+      "notes": "Primary medication for DoseTap dose timing"
+    },
+    "stimulants": [
+      {
+        "id": "adderall_ir",
+        "displayName": "Adderall",
+        "genericName": "amphetamine dextroamphetamine",
+        "formulation": "ir",
+        "class": "stimulant",
+        "defaultUnit": "mg",
+        "duplicateWarningMinutes": 60,
+        "duplicateWarningMessage": "You already logged Adderall recently. Continue only if you truly took another dose."
+      },
+      {
+        "id": "adderall_xr",
+        "displayName": "Adderall XR",
+        "genericName": "amphetamine dextroamphetamine",
+        "formulation": "xr",
+        "class": "stimulant",
+        "defaultUnit": "mg",
+        "duplicateWarningMinutes": 480,
+        "duplicateWarningMessage": "You already logged Adderall XR today. XR is typically once-daily. Continue only if prescribed multiple doses."
+      },
+      {
+        "id": "vyvanse",
+        "displayName": "Vyvanse",
+        "genericName": "lisdexamfetamine",
+        "formulation": "xr",
+        "class": "stimulant",
+        "defaultUnit": "mg",
+        "duplicateWarningMinutes": 1440,
+        "duplicateWarningMessage": "You already logged Vyvanse today. Continue only if you truly took another dose."
+      },
+      {
+        "id": "ritalin_ir",
+        "displayName": "Ritalin",
+        "genericName": "methylphenidate",
+        "formulation": "ir",
+        "class": "stimulant",
+        "defaultUnit": "mg",
+        "duplicateWarningMinutes": 60
+      },
+      {
+        "id": "ritalin_la",
+        "displayName": "Ritalin LA",
+        "genericName": "methylphenidate",
+        "formulation": "la",
+        "class": "stimulant",
+        "defaultUnit": "mg",
+        "duplicateWarningMinutes": 480
+      },
+      {
+        "id": "concerta",
+        "displayName": "Concerta",
+        "genericName": "methylphenidate",
+        "formulation": "er",
+        "class": "stimulant",
+        "defaultUnit": "mg",
+        "duplicateWarningMinutes": 1440
+      },
+      {
+        "id": "modafinil",
+        "displayName": "Provigil",
+        "genericName": "modafinil",
+        "formulation": "ir",
+        "class": "wakefulness_agent",
+        "defaultUnit": "mg",
+        "duplicateWarningMinutes": 720
+      },
+      {
+        "id": "armodafinil",
+        "displayName": "Nuvigil",
+        "genericName": "armodafinil",
+        "formulation": "ir",
+        "class": "wakefulness_agent",
+        "defaultUnit": "mg",
+        "duplicateWarningMinutes": 720
+      }
+    ],
+    "medicationEventSchema": {
+      "description": "Schema for medication_events table and CSV export",
+      "fields": [
+        {"name": "id", "type": "uuid", "required": true},
+        {"name": "session_id", "type": "string", "required": false, "description": "Links to dose session if taken during sleep tracking"},
+        {"name": "med_id", "type": "string", "required": true, "description": "References medicationDefinitions.id"},
+        {"name": "taken_at_utc", "type": "datetime", "required": true},
+        {"name": "local_offset_minutes", "type": "integer", "required": true},
+        {"name": "dose_value", "type": "number", "required": true},
+        {"name": "dose_unit", "type": "string", "required": true, "default": "mg"},
+        {"name": "formulation", "type": "string", "required": true, "enum": ["ir", "xr", "er", "la", "oral_solution"]},
+        {"name": "is_duplicate_confirmed", "type": "boolean", "required": false, "default": false, "description": "True if user confirmed after duplicate warning"}
+      ],
+      "csvExportColumns": [
+        "session_id", "taken_at_utc", "local_offset_minutes", "med_id", "display_name", 
+        "generic_name", "formulation", "dose_value", "dose_unit", "is_duplicate_confirmed"
+      ]
+    }
   }
 }
