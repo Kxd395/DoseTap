@@ -55,6 +55,7 @@
 		AAAAAAAA18169283E3834670 /* DoseTapCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA39ECAAF304904E7E /* DoseTapCore.swift */; };
 		AAAAAAAA30027A266C954107 /* UndoSnackbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA9E5AEDEEA29E4D34 /* UndoSnackbar.swift */; };
 		AAAAAAAAC9B95FB03DAE47E4 /* UndoStateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA8A2CE57B1041416B /* UndoStateManager.swift */; };
+		AAAAAAAAC9B95FB03DAE47E5 /* UndoStateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA8A2CE57B1041416B /* UndoStateManager.swift */; };
 		AAAAAAAA4E1D8D41EB0543A6 /* Views/UndoSnackbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA24F4AB15AB714C8A /* Views/UndoSnackbarView.swift */; };
 		AAAAAAAAF21A1F3F2A174712 /* Views/MedicationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA3E79D1E0408E4330 /* Views/MedicationSettingsView.swift */; };
 		AAAAAAAAF530334FE1CF4A77 /* Views/MedicationPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAAAC6CE07E06A64F3C /* Views/MedicationPickerView.swift */; };
@@ -243,6 +244,7 @@
 				80A27C7D2EFAC24D0005C000 /* DoseTap.entitlements */,
 				B01 /* DoseTapApp.swift */,
 				B02 /* ContentView.swift */,
+				AAAAAAAA8A2CE57B1041416B /* UndoStateManager.swift */,
 				B3941DD4936B4FD0BD5A8837 /* Views/MorningCheckInView.swift */,
 				B03 /* Info.plist */,
 				BB4C5084D06D74163A5C71A9 /* UserSettingsManager.swift */,
@@ -468,6 +470,7 @@
 				92518D93643945F4B64E860F /* SessionRepository.swift in Sources */,
 				D8746EA078A54AF7A8CE92B3 /* Views/MorningCheckInView.swift in Sources */,
 				F94248D37BBE47A5A2E90C9B /* Views/PreSleepLogView.swift in Sources */,
+				AAAAAAAAC9B95FB03DAE47E5 /* UndoStateManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
