@@ -13,7 +13,44 @@
 **This document supersedes:** `DoseTap_Spec.md`, `ui-ux-specifications.md`, `button-logic-mapping.md`, `api-documentation.md`, `user-guide.md`, `implementation-roadmap.md`
 
 **Last Updated:** 2024-12-25  
-**Version:** 2.9.0
+**Version:** 2.10.0
+
+## Recent Updates (v2.10.0)
+
+### New in v2.10.0 (WHOOP Integration)
+
+#### WHOOP OAuth Service (`WHOOPService.swift`)
+
+- ✅ **ADDED**: `WHOOPService` singleton for WHOOP API integration
+- ✅ **ADDED**: OAuth 2.0 authorization flow via `ASWebAuthenticationSession`
+- ✅ **ADDED**: Secure token storage in iOS Keychain
+- ✅ **ADDED**: Automatic token refresh when expired
+- ✅ **ADDED**: `WHOOPProfile` model: userId, firstName, lastName, email
+- ✅ **ADDED**: `WHOOPError` enum for typed error handling
+- ✅ **ADDED**: Scopes: `read:recovery`, `read:sleep`, `read:cycles`
+
+#### WHOOP Data Fetching (`WHOOPDataFetching.swift`)
+
+- ✅ **ADDED**: `WHOOPSleepRecord` model with stages, efficiency, HRV, RR
+- ✅ **ADDED**: `WHOOPNightSummary` computed from raw sleep data
+- ✅ **ADDED**: `fetchRecentSleep(nights:)` fetches N nights of sleep data
+- ✅ **ADDED**: Sleep stage breakdown: deep, REM, light, awake minutes
+- ✅ **ADDED**: Sleep metrics: efficiency, disturbance count, respiratory rate
+- ✅ **ADDED**: ISO 8601 date parsing with millisecond support
+
+#### WHOOP Settings UI (`WHOOPSettingsView.swift`)
+
+- ✅ **ADDED**: `WHOOPSettingsView` for connection management
+- ✅ **ADDED**: OAuth connect/disconnect flow
+- ✅ **ADDED**: Profile display (name, email) when connected
+- ✅ **ADDED**: Last sync timestamp display
+- ✅ **ADDED**: Recent sleep history (7 nights) with stage breakdown
+- ✅ **ADDED**: Sync now action button
+- ✅ **ADDED**: `WHOOPStatusRow` compact row for settings list
+
+**Test Coverage**: 246 tests passing
+
+---
 
 ## Recent Updates (v2.9.0)
 

@@ -1,5 +1,10 @@
 # Tasks Backlog
 
+## Completed (v2.10.0)
+- [x] WHOOP OAuth screen + token storage - WHOOPService.swift with OAuth 2.0 flow, Keychain storage
+- [x] WHOOP sleep/cycle fetch (history import) - WHOOPDataFetching.swift, WHOOPSleepRecord model
+- [x] WHOOP Settings UI - WHOOPSettingsView.swift, WHOOPStatusRow
+
 ## Completed (v2.9.0)
 - [x] Settings: Reduced Motion toggle - shouldReduceMotion, ReducedMotionSupport.swift, accessibleAnimation modifier
 - [x] Flic single/long/double mapping implementation - FlicButtonService.swift, FlicButtonSettingsView
@@ -32,12 +37,11 @@
 - [x] Timeline stage bands visualization - SleepStageTimeline.swift
 
 ## High Priority (Next Up)
-- [ ] WHOOP OAuth screen + token storage
-- [ ] WHOOP sleep/cycle fetch (history import)
+- [ ] HR/RR overlay on sleep timeline (requires WHOOP data integration)
+- [ ] Press-and-hold (1s) Take interaction (watchOS UX polish)
 
 ## Medium Priority
-- [ ] HR/RR overlay on sleep timeline (WHOOP integration)
-- [ ] Press-and-hold (1s) Take interaction (watchOS UX polish)
+- [ ] Combine HealthKit + WHOOP sleep comparison view
 
 ## watchOS (Completed in v2.8.0)
 - [x] Watch app: Dose1/Dose2/Bathroom buttons
