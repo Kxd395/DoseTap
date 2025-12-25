@@ -234,6 +234,10 @@ struct TonightView: View {
                 Text("DoseTap")
                     .font(.largeTitle.bold())
                 TonightDateLabel()
+                
+                // Show scheduled wake alarm when dose 1 taken
+                AlarmIndicatorView(dose1Time: core.dose1Time)
+                    .padding(.top, 4)
             }
             .padding(.top, 8)
             
@@ -409,6 +413,37 @@ struct TonightDateLabel: View {
     }
 }
 
+// MARK: - Alarm Indicator View
+/// Shows scheduled wake alarm time (dose 2 target) when dose 1 has been taken
+struct AlarmIndicatorView: View {
+    let dose1Time: Date?
+    @AppStorage("target_interval_minutes") private var targetIntervalMinutes: Int = 165
+    
+    var body: some View {
+        if let d1 = dose1Time {
+            let alarmTime = d1.addingTimeInterval(Double(targetIntervalMinutes) * 60)
+            HStack(spacing: 4) {
+                Image(systemName: "alarm.fill")
+                    .font(.caption)
+                    .foregroundColor(.orange)
+                Text("Wake: \(formattedTime(alarmTime))")
+                    .font(.caption.bold())
+                    .foregroundColor(.orange)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color.orange.opacity(0.15))
+            .cornerRadius(8)
+        }
+    }
+    
+    private func formattedTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        return formatter.string(from: date)
+    }
+}
+
 // MARK: - Incomplete Session Banner
 struct IncompleteSessionBanner: View {
     let sessionDate: String
@@ -514,13 +549,112 @@ struct PreSleepLogButton: View {
     }
 }
 
+// MARK: - Hard Stop Countdown View
+/// Prominent countdown UI shown when window is closing (<15 min remaining)
+struct HardStopCountdownView: View {
+    let timeRemaining: TimeInterval
+    
+    var body: some View {
+        VStack(spacing: 4) {
+            // Pulsing warning icon
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.title2)
+                    .symbolEffect(.pulse)
+                Text("HARD STOP")
+                    .font(.caption.bold())
+                    .tracking(2)
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.title2)
+                    .symbolEffect(.pulse)
+            }
+            .foregroundColor(.red)
+            
+            // Large countdown timer
+            Text(formatCountdown)
+                .font(.system(size: 56, weight: .heavy, design: .rounded))
+                .foregroundColor(urgencyColor)
+                .monospacedDigit()
+                .animation(.easeInOut(duration: 0.3), value: timeRemaining)
+            
+            // Progress ring
+            ZStack {
+                Circle()
+                    .stroke(Color.gray.opacity(0.2), lineWidth: 8)
+                
+                Circle()
+                    .trim(from: 0, to: progress)
+                    .stroke(urgencyColor, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .animation(.linear(duration: 1), value: progress)
+            }
+            .frame(width: 100, height: 100)
+            .overlay(
+                VStack(spacing: 0) {
+                    Text("minutes")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    Text("\(Int(timeRemaining / 60))")
+                        .font(.title.bold())
+                        .foregroundColor(urgencyColor)
+                    Text("left")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            )
+            
+            // Urgency message
+            Text(urgencyMessage)
+                .font(.subheadline.bold())
+                .foregroundColor(urgencyColor)
+                .multilineTextAlignment(.center)
+                .padding(.top, 4)
+        }
+    }
+    
+    private var formatCountdown: String {
+        let minutes = Int(timeRemaining) / 60
+        let seconds = Int(timeRemaining) % 60
+        return String(format: "%d:%02d", minutes, seconds)
+    }
+    
+    private var progress: CGFloat {
+        // 15 minutes = 900 seconds is 100%
+        CGFloat(timeRemaining / 900)
+    }
+    
+    private var urgencyColor: Color {
+        let minutes = timeRemaining / 60
+        if minutes < 2 {
+            return .red
+        } else if minutes < 5 {
+            return .orange
+        } else {
+            return .yellow
+        }
+    }
+    
+    private var urgencyMessage: String {
+        let minutes = Int(timeRemaining / 60)
+        if minutes < 2 {
+            return "⚠️ TAKE DOSE NOW!"
+        } else if minutes < 5 {
+            return "Window closing very soon!"
+        } else {
+            return "Take Dose 2 before window closes"
+        }
+    }
+}
+
 // MARK: - Compact Status Card (combines status + timer)
 struct CompactStatusCard: View {
     @ObservedObject var core: DoseTapCore
     @State private var timeRemaining: TimeInterval = 0
+    @State private var windowCloseRemaining: TimeInterval = 0
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     
     private let windowOpenMinutes: TimeInterval = 150
+    private let windowCloseMinutes: TimeInterval = 240
     
     var body: some View {
         VStack(spacing: 8) {
@@ -533,7 +667,7 @@ struct CompactStatusCard: View {
             }
             .foregroundColor(statusColor)
             
-            // Timer (only when waiting)
+            // Timer (waiting for window to open)
             if core.currentStatus == .beforeWindow, core.dose1Time != nil {
                 Text(formatTimeRemaining)
                     .font(.system(size: 48, weight: .bold, design: .rounded))
@@ -543,7 +677,12 @@ struct CompactStatusCard: View {
                 Text("Window opens at \(formatWindowOpenTime)")
                     .font(.caption)
                     .foregroundColor(.secondary)
-            } else {
+            }
+            // Hard Stop Countdown (near close - <15 min)
+            else if core.currentStatus == .nearClose, core.dose1Time != nil {
+                HardStopCountdownView(timeRemaining: windowCloseRemaining)
+            }
+            else {
                 Text(statusDescription)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
@@ -564,7 +703,9 @@ struct CompactStatusCard: View {
     private func updateTimeRemaining() {
         guard let dose1 = core.dose1Time else { return }
         let windowOpenTime = dose1.addingTimeInterval(windowOpenMinutes * 60)
+        let windowCloseTime = dose1.addingTimeInterval(windowCloseMinutes * 60)
         timeRemaining = max(0, windowOpenTime.timeIntervalSince(Date()))
+        windowCloseRemaining = max(0, windowCloseTime.timeIntervalSince(Date()))
     }
     
     private var formatTimeRemaining: String {

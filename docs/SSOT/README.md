@@ -13,9 +13,15 @@
 **This document supersedes:** `DoseTap_Spec.md`, `ui-ux-specifications.md`, `button-logic-mapping.md`, `api-documentation.md`, `user-guide.md`, `implementation-roadmap.md`
 
 **Last Updated:** 2024-12-25  
-**Version:** 2.4.3
+**Version:** 2.4.4
 
-## Recent Updates (v2.4.3)
+## Recent Updates (v2.4.4)
+
+### New in v2.4.4 (Alarm Indicator & Hard Stop Countdown)
+- **AlarmIndicatorView**: Shows scheduled wake/dose 2 time in Tonight header when Dose 1 taken
+- **HardStopCountdownView**: Prominent red countdown when <15 minutes remain in window
+- **CompactStatusCard Enhanced**: Shows live countdown in nearClose status
+- **CSV Export**: Real export implementation with share sheet
 
 ### New in v2.4.3 (Undo Support & Medication Settings)
 
@@ -219,8 +225,8 @@ The previous architecture had `DoseTapCore` (in-memory) and `EventStorage` (SQLi
 | **Late Dose 1 Logic** | Handle Dose 1 past midnight (sleep night vs calendar date) | Low |
 | **Timezone Changes** | Detect and warn about timezone changes during session | Low |
 | ~~**Early Dose Override**~~ | ✅ FIXED in v2.4.0 - Confirmation dialog for Dose 2 before window opens | ~~Low~~ |
-| **Alarm UI Indicator** | Show scheduled wake alarm time in Tonight view | Medium |
-| **Hard Stop Countdown** | Prominent countdown UI as window closes | Medium |
+| ~~**Alarm UI Indicator**~~ | ✅ FIXED in v2.4.4 - AlarmIndicatorView shows scheduled wake time in Tonight header | ~~Medium~~ |
+| ~~**Hard Stop Countdown**~~ | ✅ FIXED in v2.4.4 - HardStopCountdownView + CompactStatusCard shows countdown when <15 min remain | ~~Medium~~ |
 
 ### Previous (v2.1.0)
 - ✅ **COMPLETED**: Swipe Navigation (horizontal page-style TabView with custom bottom tab bar)

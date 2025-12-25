@@ -7,6 +7,8 @@ struct SettingsView: View {
     @StateObject private var settings = UserSettingsManager.shared
     @State private var showingResetConfirmation = false
     @State private var showingExportSuccess = false
+    @State private var showingExportSheet = false
+    @State private var exportURL: URL?
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
@@ -285,6 +287,11 @@ struct SettingsView: View {
         } message: {
             Text("Your data has been exported to the Files app.")
         }
+        .sheet(isPresented: $showingExportSheet) {
+            if let url = exportURL {
+                ShareSheet(items: [url])
+            }
+        }
     }
     
     // MARK: - Appearance Picker
@@ -424,9 +431,22 @@ struct SettingsView: View {
     }
     
     private func exportData() {
-        // In real app, this would export to Files
-        print("Exporting data...")
-        showingExportSuccess = true
+        let storage = EventStorage.shared
+        let csvContent = storage.exportToCSV()
+        
+        // Create temporary file
+        let tempDir = FileManager.default.temporaryDirectory
+        let fileName = "DoseTap_Export_\(DateFormatter.exportDateFormatter.string(from: Date())).csv"
+        let fileURL = tempDir.appendingPathComponent(fileName)
+        
+        do {
+            try csvContent.write(to: fileURL, atomically: true, encoding: .utf8)
+            exportURL = fileURL
+            showingExportSheet = true
+            print("✅ Export file created: \(fileURL.lastPathComponent)")
+        } catch {
+            print("❌ Failed to create export file: \(error)")
+        }
     }
     
     private func clearAllData() {
@@ -1226,6 +1246,26 @@ struct QuickLogPreviewButton: View {
                 .minimumScaleFactor(0.7)
         }
     }
+}
+
+// MARK: - Share Sheet
+struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+    
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+    
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
+// MARK: - DateFormatter Extension for Export
+extension DateFormatter {
+    static let exportDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd_HHmmss"
+        return formatter
+    }()
 }
 
 // MARK: - Preview
