@@ -13,7 +13,48 @@
 **This document supersedes:** `DoseTap_Spec.md`, `ui-ux-specifications.md`, `button-logic-mapping.md`, `api-documentation.md`, `user-guide.md`, `implementation-roadmap.md`
 
 **Last Updated:** 2024-12-25  
-**Version:** 2.7.0
+**Version:** 2.8.0
+
+## Recent Updates (v2.8.0)
+
+### New in v2.8.0 (Live Timeline, High Contrast, watchOS)
+
+#### Live Sleep Timeline Integration
+
+- ✅ **ADDED**: `fetchSegmentsForTimeline(from:to:)` public method in HealthKitService
+- ✅ **ADDED**: `SleepDisplayStage` enum for timeline/HealthKit mapping
+- ✅ **ADDED**: `LiveSleepTimelineView` - fetches real HealthKit data
+- ✅ **ADDED**: `SleepTimelineContainer` with night picker for browsing history
+- ✅ **ADDED**: Timeline tab now shows live HealthKit sleep data
+
+#### High Contrast Color Tokens (`HighContrastColors.swift`)
+
+- ✅ **ADDED**: `DoseColors` enum for centralized color tokens
+- ✅ **ADDED**: WCAG AAA compliant colors (≥7:1 contrast ratio)
+- ✅ **ADDED**: Automatic high-contrast mode via `UIAccessibility.isDarkerSystemColorsEnabled`
+- ✅ **ADDED**: Semantic colors: success, warning, error, info
+- ✅ **ADDED**: Phase colors: phasePreWindow, phaseActive, phaseNearEnd, phaseExceeded
+- ✅ **ADDED**: Sleep stage colors with high contrast variants
+- ✅ **ADDED**: Button colors: buttonDose1, buttonDose2, buttonSkip, buttonSnooze, buttonBathroom
+- ✅ **ADDED**: `ContrastValidator` debug utility for ratio validation
+
+#### watchOS App Enhancement (`watchos/DoseTapWatch/`)
+
+- ✅ **ENHANCED**: `WatchDoseViewModel` with full snooze support (max 3, +10 min each)
+- ✅ **ENHANCED**: Local persistence for dose state (survives app restart)
+- ✅ **ENHANCED**: Session-based storage (resets at 6 PM daily)
+- ✅ **ADDED**: `WatchEventType` enum: bathroom, lightsOut, wakeFinal
+- ✅ **ADDED**: `StatusCard` with phase icon and snooze indicator
+- ✅ **ADDED**: `PrimaryActionButtons` with separate Dose 1/Dose 2 buttons
+- ✅ **ADDED**: `QuickEventGrid` for bathroom/lights_out/wake logging
+- ✅ **ADDED**: `SyncStatusBar` showing phone connectivity and last sync time
+- ✅ **ADDED**: Skip dose confirmation dialog
+- ✅ **ENHANCED**: WatchConnectivity with queued message delivery (`transferUserInfo`)
+- ✅ **ENHANCED**: App delegate handles state sync from iPhone
+
+**Test Coverage**: 246 tests passing
+
+---
 
 ## Recent Updates (v2.7.0)
 

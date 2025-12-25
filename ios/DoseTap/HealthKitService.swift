@@ -299,6 +299,40 @@ final class HealthKitService: ObservableObject {
     }
 }
 
+// MARK: - Timeline Integration
+    
+    /// Fetch sleep segments for timeline visualization
+    /// - Parameters:
+    ///   - from: Start date of the range
+    ///   - to: End date of the range
+    /// - Returns: Array of SleepSegment for timeline display
+    func fetchSegmentsForTimeline(from start: Date, to end: Date) async throws -> [SleepSegment] {
+        try await fetchSleepSegments(from: start, to: end)
+    }
+    
+    /// Convert HealthKit sleep stage to timeline display stage
+    static func mapToDisplayStage(_ hkStage: SleepStage) -> SleepDisplayStage {
+        switch hkStage {
+        case .awake: return .awake
+        case .inBed: return .awake  // In-bed but not asleep shows as awake
+        case .asleep, .asleepCore: return .core
+        case .asleepDeep: return .deep
+        case .asleepREM: return .rem
+        }
+    }
+}
+
+// MARK: - Display Stage Type (matches SleepStageTimeline)
+
+/// Sleep stage enum for timeline display, matches SleepStageTimeline.SleepStage
+enum SleepDisplayStage: String, CaseIterable {
+    case awake = "Awake"
+    case light = "Light"
+    case core = "Core"
+    case deep = "Deep"
+    case rem = "REM"
+}
+
 // MARK: - HealthKit Extension for iOS 16+ Sleep Values
 
 @available(iOS 16.0, *)

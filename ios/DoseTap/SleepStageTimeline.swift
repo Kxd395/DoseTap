@@ -321,3 +321,203 @@ struct SleepStageTimeline_Previews: PreviewProvider {
     }
 }
 #endif
+
+// MARK: - Live Timeline View (wired to HealthKit)
+
+/// Timeline view that fetches real sleep data from HealthKit
+struct LiveSleepTimelineView: View {
+    @StateObject private var healthKit = HealthKitService.shared
+    @State private var sleepBands: [SleepStageBand] = []
+    @State private var doseEvents: [TimelineEvent] = []
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+    
+    let nightDate: Date  // The night to display (defaults to last night)
+    
+    init(nightDate: Date = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date()) {
+        self.nightDate = nightDate
+    }
+    
+    private var timeRange: (start: Date, end: Date) {
+        let calendar = Calendar.current
+        // Sleep window: 6 PM of nightDate to 12 PM next day
+        var components = calendar.dateComponents([.year, .month, .day], from: nightDate)
+        components.hour = 18
+        let start = calendar.date(from: components) ?? nightDate
+        
+        let nextDay = calendar.date(byAdding: .day, value: 1, to: nightDate) ?? nightDate
+        components = calendar.dateComponents([.year, .month, .day], from: nextDay)
+        components.hour = 12
+        let end = calendar.date(from: components) ?? nextDay
+        
+        return (start, end)
+    }
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            if isLoading {
+                ProgressView("Loading sleep data...")
+                    .padding()
+            } else if !healthKit.isAuthorized {
+                VStack(spacing: 12) {
+                    Image(systemName: "heart.text.square")
+                        .font(.largeTitle)
+                        .foregroundColor(.secondary)
+                    Text("HealthKit Access Required")
+                        .font(.headline)
+                    Text("Enable HealthKit in Settings to view your sleep timeline")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                    Button("Enable HealthKit") {
+                        Task {
+                            await healthKit.requestAuthorization()
+                            await loadSleepData()
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .padding()
+            } else if let error = errorMessage {
+                VStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.largeTitle)
+                        .foregroundColor(.orange)
+                    Text(error)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Button("Retry") {
+                        Task { await loadSleepData() }
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .padding()
+            } else if sleepBands.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "moon.zzz")
+                        .font(.largeTitle)
+                        .foregroundColor(.secondary)
+                    Text("No sleep data for this night")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .padding()
+            } else {
+                SleepStageTimeline(
+                    stages: sleepBands,
+                    events: doseEvents,
+                    startTime: timeRange.start,
+                    endTime: timeRange.end
+                )
+                
+                StageSummaryCard(stages: sleepBands)
+            }
+        }
+        .task {
+            healthKit.checkAuthorizationStatus()
+            if healthKit.isAuthorized {
+                await loadSleepData()
+            }
+        }
+    }
+    
+    private func loadSleepData() async {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            let segments = try await healthKit.fetchSegmentsForTimeline(
+                from: timeRange.start,
+                to: timeRange.end
+            )
+            
+            // Convert HealthKit segments to display bands
+            sleepBands = segments.map { segment in
+                let displayStage = HealthKitService.mapToDisplayStage(segment.stage)
+                return SleepStageBand(
+                    stage: mapDisplayStageToSleepStage(displayStage),
+                    startTime: segment.start,
+                    endTime: segment.end
+                )
+            }
+            
+            // TODO: Load dose events from EventStore when available
+            doseEvents = []
+            
+        } catch {
+            errorMessage = "Failed to load sleep data: \(error.localizedDescription)"
+        }
+        
+        isLoading = false
+    }
+    
+    /// Map from HealthKitService.SleepDisplayStage to SleepStageTimeline.SleepStage
+    private func mapDisplayStageToSleepStage(_ displayStage: SleepDisplayStage) -> SleepStage {
+        switch displayStage {
+        case .awake: return .awake
+        case .light: return .light
+        case .core: return .core
+        case .deep: return .deep
+        case .rem: return .rem
+        }
+    }
+}
+
+// MARK: - Night Picker Timeline Container
+
+/// Full sleep timeline with night picker for browsing history
+struct SleepTimelineContainer: View {
+    @State private var selectedNight: Date
+    
+    init() {
+        // Default to last night
+        _selectedNight = State(initialValue: Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date())
+    }
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            // Night selector
+            HStack {
+                Button {
+                    if let prev = Calendar.current.date(byAdding: .day, value: -1, to: selectedNight) {
+                        selectedNight = prev
+                    }
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.title2)
+                }
+                .accessibilityLabel("Previous night")
+                
+                Spacer()
+                
+                VStack {
+                    Text("Night of")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text(selectedNight.formatted(date: .abbreviated, time: .omitted))
+                        .font(.headline)
+                }
+                
+                Spacer()
+                
+                Button {
+                    if let next = Calendar.current.date(byAdding: .day, value: 1, to: selectedNight),
+                       next <= Date() {
+                        selectedNight = next
+                    }
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .font(.title2)
+                }
+                .disabled(Calendar.current.isDateInToday(selectedNight))
+                .accessibilityLabel("Next night")
+            }
+            .padding(.horizontal)
+            
+            LiveSleepTimelineView(nightDate: selectedNight)
+        }
+        .navigationTitle("Sleep Timeline")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+

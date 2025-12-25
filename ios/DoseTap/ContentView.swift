@@ -1690,6 +1690,7 @@ struct DetailsView: View {
     @ObservedObject var core: DoseTapCore
     @ObservedObject var eventLogger: EventLogger
     @ObservedObject var settings = UserSettingsManager.shared
+    @State private var showFullTimeline = false
     
     // Use customized QuickLog buttons from settings
     private var quickLogEventTypes: [(name: String, icon: String, color: Color)] {
@@ -1702,6 +1703,27 @@ struct DetailsView: View {
                 VStack(spacing: 20) {
                     // Insights Summary Card (on-time %, avg interval, etc.)
                     InsightsSummaryCard()
+                    
+                    // Sleep Stage Timeline (live from HealthKit)
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Last Night's Sleep")
+                                .font(.headline)
+                            Spacer()
+                            NavigationLink(destination: SleepTimelineContainer()) {
+                                Text("View Full")
+                                    .font(.caption)
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                        
+                        LiveSleepTimelineView()
+                    }
+                    .padding()
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color(.systemGray6))
+                    )
                     
                     // Full Session Details (dose times, window status)
                     FullSessionDetails(core: core)

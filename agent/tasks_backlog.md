@@ -1,5 +1,10 @@
 # Tasks Backlog
 
+## Completed (v2.8.0)
+- [x] Integration: Wire SleepStageTimeline to HealthKitService data - LiveSleepTimelineView, SleepTimelineContainer
+- [x] Settings: High Contrast color tokens with ≥7:1 validation - HighContrastColors.swift, DoseColors enum
+- [x] watchOS: Enhanced Watch app with Dose1/Dose2/Bathroom/Events buttons
+
 ## Completed (v2.7.0)
 - [x] CSV exporter - Real implementation with share sheet
 - [x] Debounce bathroom presses (60s) - EventRateLimiter implemented
@@ -22,20 +27,23 @@
 - [x] Timeline stage bands visualization - SleepStageTimeline.swift
 
 ## High Priority (Next Up)
-- [ ] Integration: Wire SleepStageTimeline to HealthKitService data
-- [ ] Settings: High Contrast color tokens with ≥7:1 validation
-- [ ] watchOS: Watch app Dose1/Dose2/Bathroom buttons
-
-## Medium Priority
 - [ ] WHOOP OAuth screen + token storage
 - [ ] WHOOP sleep/cycle fetch (history import)
 - [ ] Flic single/long/double mapping implementation
 
-## watchOS
-- [ ] Watch app: Dose1/Dose2/Bathroom buttons
-- [ ] Press-and-hold (1s) Take interaction
-- [ ] Snooze 10m + Skip actions
-- [ ] Dose1 guardrail (require Dose1 before Dose2)
+## Medium Priority
+- [ ] Settings: Reduced Motion toggle
+- [ ] HR/RR overlay on sleep timeline (WHOOP integration)
+- [ ] Analytics dispatcher + exact event names
+
+## watchOS (Completed in v2.8.0)
+- [x] Watch app: Dose1/Dose2/Bathroom buttons
+- [x] Snooze 10m + Skip actions
+- [x] Dose1 guardrail (require Dose1 before Dose2)
+- [x] QuickEventGrid: bathroom, lights_out, wake_final
+- [x] Local state persistence (session-based)
+- [x] WatchConnectivity with queued message delivery
+- [ ] Press-and-hold (1s) Take interaction (optional UX polish)
 
 ---
 
@@ -50,32 +58,33 @@
 - [x] Offline queue infra (enqueue, flush, cancel)  *(cancel pending via Undo still TODO)*
 - [x] DoseWindowState model (pure) + unit tests skeleton
 
-Progress (2025-12-25): Core networking + state machine + offline queue in place with 246 passing tests. URL scheme, insights metrics, tab rename, Dose 2 reminders, HealthKit integration complete. Remaining PR-1 scope: legacy multi-med purge.
+Progress (2025-12-25): Core networking + state machine + offline queue in place with 246 passing tests. URL scheme, insights metrics, tab rename, Dose 2 reminders, HealthKit integration, Weekly Planner, VoiceOver accessibility, live timeline, high contrast colors, and watchOS app complete. Remaining PR-1 scope: legacy multi-med purge.
 
-### PR-2: Night-First UI + Accessibility
+### PR-2: Night-First UI + Accessibility (MOSTLY COMPLETE)
 
 - [x] Countdown ring hero component (CompactStatusCard)
 - [ ] Button logic state machine integration
 - [x] Snooze disable <15m + CTA swap
 - [x] Undo snackbar (5s) w/ cancel token
-- [ ] Timeline: stage bands + HR/RR overlay scaffolding
-- [ ] Insights metrics calculations (on-time %, interval stats, natural wake %, WASO)
+- [x] Timeline: stage bands + live HealthKit data
+- [x] Insights metrics calculations (on-time %, interval stats, natural wake %, WASO)
 - [x] CSV export hook integration
-- [ ] Settings: clamp display, default interval (165m), Nudge step, High Contrast, Reduced Motion toggles
-- [ ] VoiceOver timed announcements & large tap targets
+- [x] Settings: High Contrast color tokens
+- [ ] Settings: Reduced Motion toggle
+- [x] VoiceOver timed announcements & large tap targets
 
-### PR-3: watchOS + Flic
+### PR-3: watchOS + Flic (PARTIALLY COMPLETE)
 
 - [ ] Press-and-hold (1s) Take interaction
-- [ ] Snooze 10m + Skip actions
-- [ ] Dose1 guardrail (require Dose1 before Dose2)
+- [x] Snooze 10m + Skip actions
+- [x] Dose1 guardrail (require Dose1 before Dose2)
 - [ ] Flic single/long/double mapping implementation
 
 ### PR-4: Weekly Planner + Deep Links + Analytics
 
-- [ ] Planner engine (discrete set {165,180,195,210,225})
-- [ ] Generate 7-day plan + rationale storage
-- [ ] Deep link router `dosetap://log?event=...`
+- [x] Planner engine (discrete set {165,180,195,210,225})
+- [x] Generate 7-day plan + rationale storage
+- [x] Deep link router `dosetap://log?event=...`
 - [ ] Analytics dispatcher + exact event names
 
 ### PR-5: Tests + CI
