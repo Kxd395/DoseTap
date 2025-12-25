@@ -125,22 +125,10 @@ struct ContentView: View {
         }
         .preferredColorScheme(settings.colorScheme)
         .onAppear {
-            // Load state from SessionRepository (single source of truth)
-            syncCoreFromRepository()
+            // P0 FIX: Wire DoseTapCore to SessionRepository (single source of truth)
+            // All state reads/writes now go through SessionRepository
+            core.setSessionRepository(sessionRepo)
         }
-        .onReceive(sessionRepo.sessionDidChange) { _ in
-            // Auto-sync when repository changes (e.g., after delete)
-            syncCoreFromRepository()
-        }
-    }
-    
-    /// Sync DoseTapCore from SessionRepository
-    /// This bridges the repository pattern to existing UI bindings
-    private func syncCoreFromRepository() {
-        core.dose1Time = sessionRepo.dose1Time
-        core.dose2Time = sessionRepo.dose2Time
-        core.snoozeCount = sessionRepo.snoozeCount
-        core.isSkipped = sessionRepo.dose2Skipped
     }
 }
 

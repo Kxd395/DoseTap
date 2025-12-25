@@ -11,7 +11,7 @@ import SwiftUI
 /// All mutations flow through here and automatically notify observers.
 
 @MainActor
-public final class SessionRepository: ObservableObject {
+public final class SessionRepository: ObservableObject, DoseTapSessionRepository {
     
     // MARK: - Singleton
     public static let shared = SessionRepository()

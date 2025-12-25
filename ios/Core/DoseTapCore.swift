@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 #if canImport(SwiftUI)
 import SwiftUI
 #endif
@@ -26,21 +27,93 @@ public enum DoseStatus: Equatable {
     }
 }
 
+// MARK: - Session Repository Protocol
+// Allows DoseTapCore to delegate to the app's SessionRepository without tight coupling
+
+@available(iOS 13.0, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
+public protocol DoseTapSessionRepository: AnyObject {
+    var dose1Time: Date? { get }
+    var dose2Time: Date? { get }
+    var snoozeCount: Int { get }
+    var dose2Skipped: Bool { get }
+    var sessionDidChange: PassthroughSubject<Void, Never> { get }
+    
+    func setDose1Time(_ time: Date)
+    func setDose2Time(_ time: Date, isEarly: Bool, isExtraDose: Bool)
+    func incrementSnooze()
+    func skipDose2()
+}
+
 // MARK: - Core Bridge Class
+// P0 FIX: Now delegates to SessionRepository for all state. No stored dose state.
 // Provides an ObservableObject wrapper around the Core module for SwiftUI
 
 #if canImport(SwiftUI)
 @available(iOS 15.0, watchOS 8.0, macOS 12.0, *)
 @MainActor
 public class DoseTapCore: ObservableObject {
-    @Published public var currentStatus: DoseStatus = .noDose1
-    @Published public var dose1Time: Date?
-    @Published public var dose2Time: Date?
-    @Published public var snoozeCount: Int = 0
-    @Published public var isSkipped: Bool = false
+    
+    // MARK: - State is now computed from repository (P0 FIX)
+    
+    /// Session repository for state storage - set by the app
+    public var sessionRepository: DoseTapSessionRepository?
+    
+    /// Current status computed from repository state
+    public var currentStatus: DoseStatus {
+        let context = windowCalculator.context(
+            dose1At: sessionRepository?.dose1Time,
+            dose2TakenAt: sessionRepository?.dose2Time,
+            dose2Skipped: sessionRepository?.dose2Skipped ?? false,
+            snoozeCount: sessionRepository?.snoozeCount ?? 0
+        )
+        return DoseStatus(from: context.phase)
+    }
+    
+    /// Dose 1 time - computed from repository
+    public var dose1Time: Date? {
+        get { sessionRepository?.dose1Time }
+        set { 
+            if let time = newValue {
+                sessionRepository?.setDose1Time(time)
+            }
+            objectWillChange.send()
+        }
+    }
+    
+    /// Dose 2 time - computed from repository
+    public var dose2Time: Date? {
+        get { sessionRepository?.dose2Time }
+        set {
+            if let time = newValue {
+                sessionRepository?.setDose2Time(time, isEarly: false, isExtraDose: false)
+            }
+            objectWillChange.send()
+        }
+    }
+    
+    /// Snooze count - computed from repository
+    public var snoozeCount: Int {
+        get { sessionRepository?.snoozeCount ?? 0 }
+        set { 
+            // Note: incrementSnooze() is preferred over direct set
+            objectWillChange.send()
+        }
+    }
+    
+    /// Is skipped - computed from repository
+    public var isSkipped: Bool {
+        get { sessionRepository?.dose2Skipped ?? false }
+        set {
+            if newValue {
+                sessionRepository?.skipDose2()
+            }
+            objectWillChange.send()
+        }
+    }
     
     private let windowCalculator: DoseWindowCalculator
     private let dosingService: DosingService
+    private var repositoryObserver: AnyCancellable?
     
     public init() {
         self.windowCalculator = DoseWindowCalculator()
@@ -50,29 +123,39 @@ public class DoseTapCore: ObservableObject {
         let apiClient = APIClient(baseURL: URL(string: "https://api.dosetap.com")!, transport: mockTransport)
         let offlineQueue = InMemoryOfflineQueue(isOnline: { true }) // Always online for development
         self.dosingService = DosingService(client: apiClient, queue: offlineQueue)
+    }
+    
+    /// Set the session repository and observe changes
+    public func setSessionRepository(_ repo: DoseTapSessionRepository) {
+        self.sessionRepository = repo
         
-        updateStatus()
+        // Observe repository changes to trigger objectWillChange
+        repositoryObserver = repo.sessionDidChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in
+                self?.objectWillChange.send()
+            }
     }
     
     /// Take dose with optional early override flag
     /// - Parameter earlyOverride: If true, allows taking Dose 2 before window opens (user confirmed)
     public func takeDose(earlyOverride: Bool = false) async {
         let now = Date()
-        // Ensure we're on main thread for @Published updates
+        
         await MainActor.run {
             if dose1Time == nil {
-                dose1Time = now
+                // P0 FIX: Write through repository
+                sessionRepository?.setDose1Time(now)
             } else if dose2Time == nil {
                 // Dose 2 logic
                 let windowOpen = currentStatus == .active || currentStatus == .nearClose
                 
-                if windowOpen {
-                    // Normal case: window is open
-                    dose2Time = now
-                } else if earlyOverride {
-                    // Early override: user confirmed they understand the risk
-                    dose2Time = now
-                    print("⚠️ Dose 2 taken early with user override")
+                if windowOpen || earlyOverride {
+                    // P0 FIX: Write through repository
+                    sessionRepository?.setDose2Time(now, isEarly: earlyOverride, isExtraDose: false)
+                    if earlyOverride {
+                        print("⚠️ Dose 2 taken early with user override")
+                    }
                 } else {
                     // Window not open and no override - block
                     print("❌ Cannot take Dose 2: window not open (status: \(currentStatus))")
@@ -83,7 +166,6 @@ public class DoseTapCore: ObservableObject {
                 print("⚠️ Dose 2 already taken, ignoring duplicate")
                 return
             }
-            updateStatus()
         }
         
         await dosingService.perform(.takeDose(type: "XYWAV", at: now))
@@ -91,8 +173,8 @@ public class DoseTapCore: ObservableObject {
     
     public func skipDose() async {
         await MainActor.run {
-            isSkipped = true
-            updateStatus()
+            // P0 FIX: Write through repository
+            sessionRepository?.skipDose2()
         }
         
         await dosingService.perform(.skipDose(sequence: 2, reason: "user_request"))
@@ -100,21 +182,11 @@ public class DoseTapCore: ObservableObject {
     
     public func snooze() async {
         await MainActor.run {
-            snoozeCount += 1
-            updateStatus()
+            // P0 FIX: Write through repository
+            sessionRepository?.incrementSnooze()
         }
         
         await dosingService.perform(.snooze(minutes: 10))
-    }
-    
-    private func updateStatus() {
-        let context = windowCalculator.context(
-            dose1At: dose1Time,
-            dose2TakenAt: dose2Time,
-            dose2Skipped: isSkipped,
-            snoozeCount: snoozeCount
-        )
-        currentStatus = DoseStatus(from: context.phase)
     }
 }
 
