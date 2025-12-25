@@ -134,4 +134,62 @@ final class DoseWindowEdgeTests: XCTestCase {
         let calc = DoseWindowCalculator(now: { now })
         XCTAssertTrue(calc.shouldAutoExpireSession(dose1At: anchor, dose2TakenAt: nil, dose2Skipped: false))
     }
+    
+    // MARK: - Late Dose 1 Detection Tests
+    
+    func test_lateDose1_at_3am_is_late_night() {
+        // 3 AM should be late night (belongs to previous day)
+        let calendar = Calendar.current
+        var comps = DateComponents()
+        comps.year = 2025; comps.month = 12; comps.day = 26; comps.hour = 3; comps.minute = 0
+        guard let threeAM = calendar.date(from: comps) else { return XCTFail("Failed to create date") }
+        
+        let calc = DoseWindowCalculator(now: { threeAM })
+        let info = calc.lateDose1Info()
+        
+        XCTAssertTrue(info.isLateNight)
+        XCTAssertTrue(info.sessionDateLabel.contains("Dec 25") || info.sessionDateLabel.contains("25"))
+    }
+    
+    func test_lateDose1_at_10pm_is_not_late_night() {
+        // 10 PM should NOT be late night
+        let calendar = Calendar.current
+        var comps = DateComponents()
+        comps.year = 2025; comps.month = 12; comps.day = 25; comps.hour = 22; comps.minute = 0
+        guard let tenPM = calendar.date(from: comps) else { return XCTFail("Failed to create date") }
+        
+        let calc = DoseWindowCalculator(now: { tenPM })
+        let info = calc.lateDose1Info()
+        
+        XCTAssertFalse(info.isLateNight)
+        XCTAssertTrue(info.sessionDateLabel.contains("Dec 25") || info.sessionDateLabel.contains("25"))
+    }
+    
+    func test_lateDose1_at_6am_boundary_is_not_late_night() {
+        // 6 AM exactly should NOT be late night (starts new day)
+        let calendar = Calendar.current
+        var comps = DateComponents()
+        comps.year = 2025; comps.month = 12; comps.day = 26; comps.hour = 6; comps.minute = 0
+        guard let sixAM = calendar.date(from: comps) else { return XCTFail("Failed to create date") }
+        
+        let calc = DoseWindowCalculator(now: { sixAM })
+        let info = calc.lateDose1Info()
+        
+        XCTAssertFalse(info.isLateNight)
+        XCTAssertTrue(info.sessionDateLabel.contains("Dec 26") || info.sessionDateLabel.contains("26"))
+    }
+    
+    func test_lateDose1_at_559am_is_late_night() {
+        // 5:59 AM should still be late night
+        let calendar = Calendar.current
+        var comps = DateComponents()
+        comps.year = 2025; comps.month = 12; comps.day = 26; comps.hour = 5; comps.minute = 59
+        guard let almostSix = calendar.date(from: comps) else { return XCTFail("Failed to create date") }
+        
+        let calc = DoseWindowCalculator(now: { almostSix })
+        let info = calc.lateDose1Info()
+        
+        XCTAssertTrue(info.isLateNight)
+        XCTAssertTrue(info.sessionDateLabel.contains("Dec 25") || info.sessionDateLabel.contains("25"))
+    }
 }

@@ -132,4 +132,31 @@ public struct DoseWindowCalculator {
         
         return elapsed >= expiryThresholdSeconds
     }
+    
+    // MARK: - Late Dose 1 Detection
+    
+    /// Check if current time is in the "late night" zone (midnight to 6 AM)
+    /// When Dose 1 is taken in this window, it belongs to the PREVIOUS day's sleep session
+    /// Returns the session date that Dose 1 would be assigned to if taken now
+    public func lateDose1Info() -> (isLateNight: Bool, sessionDateLabel: String) {
+        let current = now()
+        let calendar = Calendar.current
+        let hour = calendar.component(.hour, from: current)
+        
+        let isLateNight = hour < 6 // Midnight to 5:59 AM
+        
+        // Calculate which date the session belongs to
+        let sessionDate: Date
+        if isLateNight {
+            sessionDate = calendar.date(byAdding: .day, value: -1, to: current) ?? current
+        } else {
+            sessionDate = current
+        }
+        
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE, MMM d" // e.g., "Wednesday, Dec 25"
+        let sessionDateLabel = formatter.string(from: sessionDate)
+        
+        return (isLateNight, sessionDateLabel)
+    }
 }

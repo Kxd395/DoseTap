@@ -13,7 +13,33 @@
 **This document supersedes:** `DoseTap_Spec.md`, `ui-ux-specifications.md`, `button-logic-mapping.md`, `api-documentation.md`, `user-guide.md`, `implementation-roadmap.md`
 
 **Last Updated:** 2024-12-25  
-**Version:** 2.4.7
+**Version:** 2.4.8
+
+## Recent Updates (v2.4.8)
+
+### New in v2.4.8 (Late Dose 1 Detection)
+
+#### Late Night Session Assignment
+
+- ✅ **ADDED**: `lateDose1Info()` method in DoseWindowCalculator
+- ✅ **ADDED**: Returns `(isLateNight: Bool, sessionDateLabel: String)` tuple
+- ✅ **ADDED**: Detects if current time is midnight-6AM (late night zone)
+- ✅ **ADDED**: Returns human-readable session date label (e.g., "Wednesday, Dec 25")
+
+#### Session Date Assignment Rules
+
+Sessions are assigned based on 6 PM boundary:
+- **6 PM to 11:59 PM**: Assigned to current calendar date
+- **Midnight to 5:59 AM**: Assigned to PREVIOUS calendar date (same sleep night)
+- **6 AM to 5:59 PM**: Assigned to current calendar date (new day)
+
+UI can use `lateDose1Info()` to:
+- Warn user: "You're logging Dose 1 for last night's session (Dec 25)"
+- Show which session date the dose will be recorded under
+
+**Test Coverage**: 239 tests passing (+4 new late dose 1 detection tests)
+
+---
 
 ## Recent Updates (v2.4.7)
 
@@ -306,7 +332,7 @@ The previous architecture had `DoseTapCore` (in-memory) and `EventStorage` (SQLi
 | ~~**History Delete State Sync**~~ | ✅ FIXED in v2.4.0 - SessionRepository pattern ensures Tonight clears on delete | ~~High~~ |
 | ~~**Finalizing State**~~ | ✅ FIXED in v2.4.6 - Track session between wakeFinal and check-in via `.finalizing` phase | ~~Medium~~ |
 | ~~**Sleep-Through Handling**~~ | ✅ FIXED in v2.4.7 - Auto-mark incomplete on app foreground if window+30min grace passed | ~~Medium~~ |
-| **Late Dose 1 Logic** | Handle Dose 1 past midnight (sleep night vs calendar date) | Low |
+| ~~**Late Dose 1 Logic**~~ | ✅ FIXED in v2.4.8 - `lateDose1Info()` detects midnight-6AM zone, returns session date label | ~~Low~~ |
 | **Timezone Changes** | Detect and warn about timezone changes during session | Low |
 | ~~**Early Dose Override**~~ | ✅ FIXED in v2.4.0 - Confirmation dialog for Dose 2 before window opens | ~~Low~~ |
 | ~~**Alarm UI Indicator**~~ | ✅ FIXED in v2.4.4 - AlarmIndicatorView shows scheduled wake time in Tonight header | ~~Medium~~ |
