@@ -159,6 +159,8 @@ struct MedicationToggleRow: View {
             return "Immediate Release • Doses: \(dosesText)"
         case .extendedRelease:
             return "Extended Release • Doses: \(dosesText)"
+        case .liquid:
+            return "Liquid • Doses: \(dosesText)"
         }
     }
     

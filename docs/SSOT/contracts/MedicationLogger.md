@@ -5,13 +5,14 @@
 **Dependencies:** SessionRepository (implemented), EventStorage (implemented)
 
 **Implementation Date:** 2024-12-25  
-**Test Coverage:** 16 tests in `MedicationLoggerTests.swift` + 223 total passing tests
+**Test Coverage:** 18 tests in `MedicationLoggerTests.swift` + 225 total passing tests
 
 ---
 
 ## Overview
 
-Add first-class medication logging for stimulants (Adderall IR, Adderall XR) with:
+Add first-class medication logging for ALL FDA-approved narcolepsy medications with:
+- Support for multiple medications per session (log one or more before saving)
 - Append-only event storage (never overwrite)
 - Duplicate tap guard (hard stop warning within time window)
 - Export as separate CSV rows
@@ -20,7 +21,7 @@ Add first-class medication logging for stimulants (Adderall IR, Adderall XR) wit
 
 ## 1. Canonical Medication Definitions
 
-Add to `docs/SSOT/constants.json`:
+All FDA-approved narcolepsy medications:
 
 ```json
 {
@@ -43,6 +44,117 @@ Add to `docs/SSOT/constants.json`:
         "class": "stimulant",
         "default_unit": "mg",
         "common_doses": [5, 10, 15, 20, 25, 30]
+      },
+      {
+        "id": "ritalin_ir",
+        "display_name": "Ritalin",
+        "generic_name": "methylphenidate",
+        "formulation": "ir",
+        "class": "stimulant",
+        "common_doses": [5, 10, 15, 20]
+      },
+      {
+        "id": "ritalin_la",
+        "display_name": "Ritalin LA",
+        "generic_name": "methylphenidate extended-release",
+        "formulation": "xr",
+        "class": "stimulant",
+        "common_doses": [10, 20, 30, 40]
+      },
+      {
+        "id": "concerta",
+        "display_name": "Concerta",
+        "generic_name": "methylphenidate extended-release",
+        "formulation": "xr",
+        "class": "stimulant",
+        "common_doses": [18, 27, 36, 54]
+      },
+      {
+        "id": "vyvanse",
+        "display_name": "Vyvanse",
+        "generic_name": "lisdexamfetamine",
+        "formulation": "xr",
+        "class": "stimulant",
+        "common_doses": [10, 20, 30, 40, 50, 60, 70]
+      },
+      {
+        "id": "dexedrine",
+        "display_name": "Dexedrine",
+        "generic_name": "dextroamphetamine",
+        "formulation": "ir",
+        "class": "stimulant",
+        "common_doses": [5, 10, 15]
+      }
+    ],
+    "wakefulness_agents": [
+      {
+        "id": "modafinil",
+        "display_name": "Modafinil",
+        "generic_name": "modafinil",
+        "formulation": "ir",
+        "class": "wakefulness_agent",
+        "common_doses": [100, 200]
+      },
+      {
+        "id": "provigil",
+        "display_name": "Provigil",
+        "generic_name": "modafinil (brand)",
+        "formulation": "ir",
+        "class": "wakefulness_agent",
+        "common_doses": [100, 200]
+      },
+      {
+        "id": "armodafinil",
+        "display_name": "Armodafinil",
+        "generic_name": "armodafinil",
+        "formulation": "ir",
+        "class": "wakefulness_agent",
+        "common_doses": [50, 150, 200, 250]
+      },
+      {
+        "id": "nuvigil",
+        "display_name": "Nuvigil",
+        "generic_name": "armodafinil (brand)",
+        "formulation": "ir",
+        "class": "wakefulness_agent",
+        "common_doses": [50, 150, 200, 250]
+      },
+      {
+        "id": "sunosi",
+        "display_name": "Sunosi",
+        "generic_name": "solriamfetol",
+        "formulation": "ir",
+        "class": "wakefulness_agent",
+        "common_doses": [75, 150]
+      }
+    ],
+    "histamine_modulators": [
+      {
+        "id": "wakix",
+        "display_name": "Wakix",
+        "generic_name": "pitolisant",
+        "formulation": "ir",
+        "class": "histamine_modulator",
+        "common_doses": [5, 9, 18, 35]
+      }
+    ],
+    "sodium_oxybate": [
+      {
+        "id": "xywav",
+        "display_name": "XYWAV",
+        "generic_name": "calcium/magnesium/potassium/sodium oxybates",
+        "formulation": "liquid",
+        "class": "sodium_oxybate",
+        "common_doses_mg": [2250, 3000, 3750, 4500, 6000, 7500, 9000],
+        "note": "Doses shown in mg but typically prescribed in grams (÷1000)"
+      },
+      {
+        "id": "xyrem",
+        "display_name": "Xyrem",
+        "generic_name": "sodium oxybate",
+        "formulation": "liquid",
+        "class": "sodium_oxybate",
+        "common_doses_mg": [2250, 3000, 3750, 4500, 6000, 7500, 9000]
       }
     ],
     "duplicate_guard_minutes": 5

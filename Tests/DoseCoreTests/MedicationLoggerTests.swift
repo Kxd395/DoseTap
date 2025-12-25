@@ -6,7 +6,8 @@ final class MedicationLoggerTests: XCTestCase {
     // MARK: - MedicationConfig Tests
     
     func testMedicationTypesDefinedCorrectly() {
-        XCTAssertEqual(MedicationConfig.types.count, 2)
+        // All narcolepsy medications: stimulants, wakefulness agents, histamine modulators, sodium oxybate
+        XCTAssertGreaterThanOrEqual(MedicationConfig.types.count, 10) // At least 10 medications
         
         let adderallIR = MedicationConfig.type(for: "adderall_ir")
         XCTAssertNotNil(adderallIR)
@@ -20,6 +21,42 @@ final class MedicationLoggerTests: XCTestCase {
         XCTAssertEqual(adderallXR?.displayName, "Adderall XR")
         XCTAssertEqual(adderallXR?.formulation, .extendedRelease)
         XCTAssertEqual(adderallXR?.defaultDoseMg, 20)
+    }
+    
+    func testAllNarcolepsyMedicationsPresent() {
+        // Stimulants
+        XCTAssertNotNil(MedicationConfig.type(for: "adderall_ir"))
+        XCTAssertNotNil(MedicationConfig.type(for: "adderall_xr"))
+        XCTAssertNotNil(MedicationConfig.type(for: "ritalin_ir"))
+        XCTAssertNotNil(MedicationConfig.type(for: "vyvanse"))
+        
+        // Wakefulness agents
+        XCTAssertNotNil(MedicationConfig.type(for: "modafinil"))
+        XCTAssertNotNil(MedicationConfig.type(for: "armodafinil"))
+        XCTAssertNotNil(MedicationConfig.type(for: "sunosi"))
+        
+        // Histamine modulator
+        XCTAssertNotNil(MedicationConfig.type(for: "wakix"))
+        
+        // Sodium oxybate (night meds)
+        XCTAssertNotNil(MedicationConfig.type(for: "xywav"))
+        XCTAssertNotNil(MedicationConfig.type(for: "xyrem"))
+    }
+    
+    func testMedicationCategories() {
+        // Check that categories are properly set
+        let stimulants = MedicationConfig.types.filter { $0.category == .stimulant }
+        let wakefulnessAgents = MedicationConfig.types.filter { $0.category == .wakefulnessAgent }
+        let sodiumOxybates = MedicationConfig.types.filter { $0.category == .sodiumOxybate }
+        
+        XCTAssertGreaterThan(stimulants.count, 0, "Should have stimulants")
+        XCTAssertGreaterThan(wakefulnessAgents.count, 0, "Should have wakefulness agents")
+        XCTAssertGreaterThan(sodiumOxybates.count, 0, "Should have sodium oxybate medications")
+        
+        // XYWAV and Xyrem should be sodium oxybate
+        let xywav = MedicationConfig.type(for: "xywav")
+        XCTAssertEqual(xywav?.category, .sodiumOxybate)
+        XCTAssertEqual(xywav?.formulation, .liquid)
     }
     
     func testDuplicateGuardMinutes() {

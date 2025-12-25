@@ -338,6 +338,12 @@ public final class SessionRepository: ObservableObject, DoseTapSessionRepository
         return .notDuplicate
     }
     
+    /// Convenience: Check duplicate without needing to compute session date
+    public func checkDuplicateMedication(medicationId: String, takenAt: Date) -> DuplicateGuardResult {
+        let sessionDate = computeSessionDate(for: takenAt)
+        return checkDuplicateGuard(medicationId: medicationId, takenAt: takenAt, sessionDate: sessionDate)
+    }
+    
     /// List medication entries for a session date
     public func listMedicationEntries(for sessionDate: String) -> [MedicationEntry] {
         storage.fetchMedicationEvents(sessionDate: sessionDate).map { stored in
