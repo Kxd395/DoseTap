@@ -13,7 +13,31 @@
 **This document supersedes:** `DoseTap_Spec.md`, `ui-ux-specifications.md`, `button-logic-mapping.md`, `api-documentation.md`, `user-guide.md`, `implementation-roadmap.md`
 
 **Last Updated:** 2024-12-25  
-**Version:** 2.4.5
+**Version:** 2.4.6
+
+## Recent Updates (v2.4.6)
+
+### New in v2.4.6 (Finalizing State)
+
+#### Finalizing Phase Implementation
+
+- ✅ **ADDED**: `finalizing` phase to `DoseWindowPhase` enum
+- ✅ **ADDED**: `wakeFinalTime: Date?` property in SessionRepository
+- ✅ **ADDED**: `checkInCompleted: Bool` property in SessionRepository  
+- ✅ **ADDED**: `setWakeFinalTime()` and `completeCheckIn()` methods
+- ✅ **ADDED**: Updated `context()` to accept `wakeFinalAt` and `checkInCompleted` parameters
+- ✅ **ADDED**: `finalizing` case in DoseStatus bridge type
+
+#### State Machine: Finalizing Phase
+
+The `finalizing` phase tracks the session between Wake Up (`wakeFinal` event) and morning check-in completion:
+- Enters `finalizing` when `wakeFinalTime` is set but `checkInCompleted` is false
+- Transitions to `completed` once check-in is completed
+- Prevents premature session end before user confirms morning data
+
+**Test Coverage**: 229 tests passing (+4 new: 3 finalizing state tests, 1 Lumryz test)
+
+---
 
 ## Recent Updates (v2.4.5)
 
@@ -249,7 +273,7 @@ The previous architecture had `DoseTapCore` (in-memory) and `EventStorage` (SQLi
 | ~~**Undo Support**~~ | ✅ FIXED in v2.4.3 - Undo snackbar with configurable speed (3-10s), full state reversal | ~~High~~ |
 | ~~**Session Terminal State**~~ | ✅ FIXED in v2.4.0 - SQLite now has `terminal_state` column via migration | ~~Medium~~ |
 | ~~**History Delete State Sync**~~ | ✅ FIXED in v2.4.0 - SessionRepository pattern ensures Tonight clears on delete | ~~High~~ |
-| **Finalizing State** | Track session between wakeFinal and check-in completion | Medium |
+| ~~**Finalizing State**~~ | ✅ FIXED in v2.4.6 - Track session between wakeFinal and check-in via `.finalizing` phase | ~~Medium~~ |
 | **Sleep-Through Handling** | Auto-mark incomplete if user sleeps through window | Medium |
 | **Late Dose 1 Logic** | Handle Dose 1 past midnight (sleep night vs calendar date) | Low |
 | **Timezone Changes** | Detect and warn about timezone changes during session | Low |

@@ -22,6 +22,8 @@ public final class SessionRepository: ObservableObject, DoseTapSessionRepository
     @Published public private(set) var dose2Time: Date?
     @Published public private(set) var snoozeCount: Int = 0
     @Published public private(set) var dose2Skipped: Bool = false
+    @Published public private(set) var wakeFinalTime: Date?       // When user pressed Wake Up
+    @Published public private(set) var checkInCompleted: Bool = false  // Morning check-in done
     
     /// Emits whenever session data changes (for observers that need explicit signal)
     public let sessionDidChange = PassthroughSubject<Void, Never>()
@@ -84,6 +86,8 @@ public final class SessionRepository: ObservableObject, DoseTapSessionRepository
             dose2Time = nil
             snoozeCount = 0
             dose2Skipped = false
+            wakeFinalTime = nil
+            checkInCompleted = false
             
             // P0-3 FIX: Cancel any pending notifications for this session
             // Notifications should not fire for deleted sessions
@@ -178,6 +182,8 @@ public final class SessionRepository: ObservableObject, DoseTapSessionRepository
         dose2Time = nil
         snoozeCount = 0
         dose2Skipped = false
+        wakeFinalTime = nil
+        checkInCompleted = false
         
         sessionDidChange.send()
     }
@@ -231,6 +237,41 @@ public final class SessionRepository: ObservableObject, DoseTapSessionRepository
         }
     }
     
+    // MARK: - Session Finalization (Wake Up & Check-In)
+    
+    /// Record when user pressed "Wake Up & End Session"
+    /// This puts the session into "finalizing" state
+    public func setWakeFinalTime(_ time: Date) {
+        wakeFinalTime = time
+        
+        // TODO: Persist to storage
+        // storage.saveWakeFinal(timestamp: time)
+        
+        sessionDidChange.send()
+        print("☀️ SessionRepository: Wake Final logged at \(time)")
+    }
+    
+    /// Mark morning check-in as completed
+    /// This transitions session from "finalizing" to "completed"
+    public func completeCheckIn() {
+        checkInCompleted = true
+        
+        // TODO: Persist to storage
+        // storage.saveCheckInCompleted()
+        
+        sessionDidChange.send()
+        print("✅ SessionRepository: Morning check-in completed, session finalized")
+    }
+    
+    /// Clear wake final time (for undo)
+    public func clearWakeFinal() {
+        wakeFinalTime = nil
+        checkInCompleted = false
+        
+        sessionDidChange.send()
+        print("↩️ SessionRepository: Wake Final cleared (undo)")
+    }
+    
     // MARK: - Queries
     
     /// Check if a given session date is the active/current session
@@ -255,7 +296,9 @@ public final class SessionRepository: ObservableObject, DoseTapSessionRepository
             dose1At: dose1Time,
             dose2TakenAt: dose2Time,
             dose2Skipped: dose2Skipped,
-            snoozeCount: snoozeCount
+            snoozeCount: snoozeCount,
+            wakeFinalAt: wakeFinalTime,
+            checkInCompleted: checkInCompleted
         )
     }
     

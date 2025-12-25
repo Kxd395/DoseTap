@@ -14,6 +14,7 @@ public enum DoseStatus: Equatable {
     case nearClose
     case closed
     case completed
+    case finalizing  // User pressed Wake Up, awaiting morning check-in
     
     init(from phase: DoseWindowPhase) {
         switch phase {
@@ -23,6 +24,7 @@ public enum DoseStatus: Equatable {
         case .nearClose: self = .nearClose
         case .closed: self = .closed
         case .completed: self = .completed
+        case .finalizing: self = .finalizing
         }
     }
 }

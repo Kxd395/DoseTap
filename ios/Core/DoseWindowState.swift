@@ -45,6 +45,7 @@ public enum DoseWindowPhase: Equatable {
     case nearClose
     case closed
     case completed
+    case finalizing  // User pressed Wake Up, awaiting morning check-in
 }
 
 public enum DoseWindowError: Equatable, Error { case windowExceeded, dose1Required, snoozeLimitReached }
@@ -67,7 +68,17 @@ public struct DoseWindowCalculator {
         self.config = config; self.now = now
     }
 
-    public func context(dose1At: Date?, dose2TakenAt: Date?, dose2Skipped: Bool, snoozeCount: Int) -> DoseWindowContext {
+    public func context(dose1At: Date?, dose2TakenAt: Date?, dose2Skipped: Bool, snoozeCount: Int, wakeFinalAt: Date? = nil, checkInCompleted: Bool = false) -> DoseWindowContext {
+        // If wake final logged but check-in not done, we're in finalizing state
+        if wakeFinalAt != nil && !checkInCompleted {
+            return DoseWindowContext(phase: .finalizing, primary: .disabled("Complete Check-In"), snooze: .snoozeDisabled(reason: "Session ending"), skip: .skipDisabled(reason: "Session ending"), elapsedSinceDose1: elapsed(from: dose1At), remainingToMax: nil, errors: [], snoozeCount: snoozeCount)
+        }
+        
+        // If check-in is completed, session is done
+        if checkInCompleted {
+            return DoseWindowContext(phase: .completed, primary: .disabled("Session Complete"), snooze: .snoozeDisabled(reason: "Completed"), skip: .skipDisabled(reason: "Completed"), elapsedSinceDose1: elapsed(from: dose1At), remainingToMax: nil, errors: [], snoozeCount: snoozeCount)
+        }
+        
         if dose2TakenAt != nil || dose2Skipped {
             return DoseWindowContext(phase: .completed, primary: .disabled("Completed"), snooze: .snoozeDisabled(reason: "Completed"), skip: .skipDisabled(reason: "Completed"), elapsedSinceDose1: elapsed(from: dose1At), remainingToMax: nil, errors: [], snoozeCount: snoozeCount)
         }

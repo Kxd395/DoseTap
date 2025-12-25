@@ -64,4 +64,30 @@ final class DoseWindowEdgeTests: XCTestCase {
         // Should still be active (since 210 < 225 threshold for nearClose)
         XCTAssertEqual(ctx.phase, .active)
     }
+    
+    // MARK: - Finalizing State Tests
+    
+    func test_wakeFinal_without_checkin_shows_finalizing() {
+        let anchor = Date()
+        let calc = DoseWindowCalculator(now: { anchor.addingTimeInterval(300 * 60) })
+        let wakeFinal = anchor.addingTimeInterval(420 * 60) // Wake up 7 hours after dose 1
+        let ctx = calc.context(dose1At: anchor, dose2TakenAt: anchor.addingTimeInterval(165 * 60), dose2Skipped: false, snoozeCount: 0, wakeFinalAt: wakeFinal, checkInCompleted: false)
+        XCTAssertEqual(ctx.phase, .finalizing)
+    }
+    
+    func test_checkin_complete_shows_completed() {
+        let anchor = Date()
+        let calc = DoseWindowCalculator(now: { anchor.addingTimeInterval(300 * 60) })
+        let wakeFinal = anchor.addingTimeInterval(420 * 60)
+        let ctx = calc.context(dose1At: anchor, dose2TakenAt: anchor.addingTimeInterval(165 * 60), dose2Skipped: false, snoozeCount: 0, wakeFinalAt: wakeFinal, checkInCompleted: true)
+        XCTAssertEqual(ctx.phase, .completed)
+    }
+    
+    func test_session_without_wakeFinal_still_shows_normal_phases() {
+        let anchor = Date()
+        let calc = DoseWindowCalculator(now: { anchor.addingTimeInterval(180 * 60) })
+        // No wakeFinal - should show active (180 min after dose 1)
+        let ctx = calc.context(dose1At: anchor, dose2TakenAt: nil, dose2Skipped: false, snoozeCount: 0, wakeFinalAt: nil, checkInCompleted: false)
+        XCTAssertEqual(ctx.phase, .active)
+    }
 }
