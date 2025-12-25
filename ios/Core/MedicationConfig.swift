@@ -168,6 +168,16 @@ public struct MedicationConfig {
             iconName: "drop.fill",
             colorHex: "#3498DB"
         ),
+        MedicationType(
+            id: "lumryz",
+            displayName: "Lumryz",
+            category: .sodiumOxybate,
+            formulation: .extendedRelease,  // Extended-release oral suspension
+            defaultDoseMg: 6000,  // 6g typical dose, once nightly
+            validDoses: [4500, 6000, 7500, 9000],  // Extended-release doses
+            iconName: "moon.fill",
+            colorHex: "#6C5CE7"
+        ),
     ]
     
     // MARK: - Filtered Lists

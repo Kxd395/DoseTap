@@ -296,6 +296,17 @@
         "icon": "drop.fill",
         "color": "#3498DB",
         "note": "Doses in mg (divide by 1000 for grams)"
+      },
+      {
+        "id": "lumryz",
+        "displayName": "Lumryz",
+        "category": "sodium_oxybate",
+        "formulation": "extended_release",
+        "defaultDoseMg": 6000,
+        "validDoses": [4500, 6000, 7500, 9000],
+        "icon": "moon.fill",
+        "color": "#6C5CE7",
+        "note": "Extended-release oral suspension by Avadel - ONCE nightly (no second dose needed)"
       }
     ],
     "schema": {

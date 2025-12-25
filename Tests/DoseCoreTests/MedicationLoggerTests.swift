@@ -41,6 +41,18 @@ final class MedicationLoggerTests: XCTestCase {
         // Sodium oxybate (night meds)
         XCTAssertNotNil(MedicationConfig.type(for: "xywav"))
         XCTAssertNotNil(MedicationConfig.type(for: "xyrem"))
+        XCTAssertNotNil(MedicationConfig.type(for: "lumryz")) // Once-nightly extended-release
+    }
+    
+    func testLumryzExtendedReleaseProperties() {
+        // Lumryz is extended-release sodium oxybate taken once nightly (no second dose)
+        let lumryz = MedicationConfig.type(for: "lumryz")
+        XCTAssertNotNil(lumryz)
+        XCTAssertEqual(lumryz?.displayName, "Lumryz")
+        XCTAssertEqual(lumryz?.category, .sodiumOxybate)
+        XCTAssertEqual(lumryz?.formulation, .extendedRelease) // Not liquid like XYWAV/Xyrem
+        XCTAssertEqual(lumryz?.defaultDoseMg, 6000) // 6g typical dose
+        XCTAssertEqual(lumryz?.validDoses, [4500, 6000, 7500, 9000])
     }
     
     func testMedicationCategories() {

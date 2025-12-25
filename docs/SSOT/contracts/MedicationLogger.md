@@ -155,6 +155,15 @@ All FDA-approved narcolepsy medications:
         "formulation": "liquid",
         "class": "sodium_oxybate",
         "common_doses_mg": [2250, 3000, 3750, 4500, 6000, 7500, 9000]
+      },
+      {
+        "id": "lumryz",
+        "display_name": "Lumryz",
+        "generic_name": "sodium oxybate extended-release",
+        "formulation": "extended_release",
+        "class": "sodium_oxybate",
+        "common_doses_mg": [4500, 6000, 7500, 9000],
+        "note": "Extended-release oral suspension by Avadel - ONCE nightly (no second dose needed)"
       }
     ],
     "duplicate_guard_minutes": 5

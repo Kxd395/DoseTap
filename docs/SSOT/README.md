@@ -19,13 +19,13 @@
 
 ### New in v2.4.5 (All Narcolepsy Medications + Multi-Entry)
 
-#### All FDA-Approved Narcolepsy Medications (15 total)
+#### All FDA-Approved Narcolepsy Medications (16 total)
 
 - ✅ **ADDED**: Full medication catalog with 4 categories:
   - **Stimulants (7)**: Adderall IR, Adderall XR, Ritalin IR, Ritalin LA, Concerta, Vyvanse, Dexedrine
   - **Wakefulness Agents (5)**: Modafinil, Provigil, Armodafinil, Nuvigil, Sunosi
   - **Histamine Modulators (1)**: Wakix
-  - **Sodium Oxybate (2)**: XYWAV, Xyrem
+  - **Sodium Oxybate (3)**: XYWAV, Xyrem, **Lumryz** (once-nightly extended-release)
 
 - ✅ **ADDED**: `MedicationCategory` enum: `.stimulant`, `.wakefulnessAgent`, `.histamineModulator`, `.sodiumOxybate`
 - ✅ **ADDED**: `MedicationFormulation` enum: `.immediateRelease`, `.extendedRelease`, `.liquid`
@@ -336,7 +336,7 @@ The previous architecture had `DoseTapCore` (in-memory) and `EventStorage` (SQLi
 | **Stimulants** | Adderall IR, Adderall XR, Ritalin IR, Ritalin LA, Concerta, Vyvanse, Dexedrine |
 | **Wakefulness Agents** | Modafinil, Provigil, Armodafinil, Nuvigil, Sunosi |
 | **Histamine Modulators** | Wakix |
-| **Sodium Oxybate** | XYWAV, Xyrem |
+| **Sodium Oxybate** | XYWAV, Xyrem, Lumryz (once-nightly) |
 
 ### Dose Timing Parameters (AUTHORITATIVE)
 
