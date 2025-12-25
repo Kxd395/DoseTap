@@ -512,7 +512,7 @@ private struct SuccessToast: View {
 
 // MARK: - MedicationCategory CaseIterable
 
-extension MedicationCategory: CaseIterable {
+extension MedicationCategory: @retroactive CaseIterable {
     public static var allCases: [MedicationCategory] {
         [.stimulant, .wakefulnessAgent, .histamineModulator, .sodiumOxybate]
     }

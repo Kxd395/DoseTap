@@ -754,6 +754,7 @@ struct CompactStatusCard: View {
         case .nearClose: return "exclamationmark.triangle"
         case .closed: return "xmark.circle"
         case .completed: return "checkmark.seal.fill"
+        case .finalizing: return "sunrise.fill"
         }
     }
     
@@ -765,6 +766,7 @@ struct CompactStatusCard: View {
         case .nearClose: return "Closing Soon!"
         case .closed: return "Window Closed"
         case .completed: return "Complete"
+        case .finalizing: return "Finalizing Session"
         }
     }
     
@@ -776,6 +778,7 @@ struct CompactStatusCard: View {
         case .nearClose: return "Less than 15 minutes left!"
         case .closed: return "Window has closed"
         case .completed: return "Both doses taken ✓"
+        case .finalizing: return "Complete morning check-in"
         }
     }
     
@@ -787,6 +790,7 @@ struct CompactStatusCard: View {
         case .nearClose: return .red
         case .closed: return .gray
         case .completed: return .purple
+        case .finalizing: return .yellow
         }
     }
 }
@@ -925,6 +929,7 @@ struct CompactDoseButton: View {
         case .active, .nearClose: return "Take Dose 2"
         case .closed: return "Take Dose 2 (Late)"
         case .completed: return "Complete ✓"
+        case .finalizing: return "Check-In"
         }
     }
     
@@ -936,6 +941,7 @@ struct CompactDoseButton: View {
         case .nearClose: return .orange
         case .closed: return .red  // Red indicates override/warning state
         case .completed: return .purple
+        case .finalizing: return .yellow
         }
     }
     
@@ -2096,6 +2102,7 @@ struct StatusCard: View {
         case .nearClose: return "exclamationmark.triangle"
         case .closed: return "xmark.circle"
         case .completed: return "checkmark.seal.fill"
+        case .finalizing: return "sunrise.fill"
         }
     }
     
@@ -2107,6 +2114,7 @@ struct StatusCard: View {
         case .nearClose: return "Window Closing Soon"
         case .closed: return "Window Closed"
         case .completed: return "Complete"
+        case .finalizing: return "Finalizing Session"
         }
     }
     
@@ -2118,6 +2126,7 @@ struct StatusCard: View {
         case .nearClose: return "Less than 15 minutes remaining!"
         case .closed: return "Window closed (240 min max)"
         case .completed: return "Both doses taken ✓"
+        case .finalizing: return "Complete morning check-in"
         }
     }
     
@@ -2129,6 +2138,7 @@ struct StatusCard: View {
         case .nearClose: return .red
         case .closed: return .gray
         case .completed: return .purple
+        case .finalizing: return .yellow
         }
     }
 }
@@ -2258,6 +2268,7 @@ struct DoseButtonsSection: View {
         case .active, .nearClose: return "Take Dose 2"
         case .closed: return "Window Closed"
         case .completed: return "Complete ✓"
+        case .finalizing: return "Check-In"
         }
     }
     
@@ -2269,6 +2280,7 @@ struct DoseButtonsSection: View {
         case .nearClose: return .orange
         case .closed: return .gray
         case .completed: return .purple
+        case .finalizing: return .yellow
         }
     }
     
