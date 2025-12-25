@@ -445,7 +445,30 @@ class TimelineViewModel: ObservableObject {
         
         // Fetch dose events from storage
         let events = storage.getAllEvents(limit: 500)
-        let sleepEvents = storage.fetchAllSleepEvents(limit: 500)
+        var sleepEvents = storage.fetchAllSleepEvents(limit: 500)
+        
+        // Also fetch sleep events from EventStorage (lightsOut from Pre-Sleep Log, etc.)
+        // EventStorage uses a different schema, so we need to convert
+        #if canImport(DoseTap)
+        let eventStorageEvents = EventStorage.shared.fetchAllSleepEvents(limit: 500)
+        for event in eventStorageEvents {
+            // Convert to StoredSleepEvent format and add if not duplicate
+            // EventStorage has: id, eventType, timestamp, sessionDate, colorHex
+            // We need: id, eventType, timestamp, sessionId, notes, source
+            let converted = StoredSleepEvent(
+                id: event.id,
+                eventType: event.eventType,
+                timestamp: event.timestamp,
+                sessionId: nil, // EventStorage uses sessionDate string, not ID
+                notes: event.notes,
+                source: "manual"
+            )
+            // Avoid duplicates by checking ID
+            if !sleepEvents.contains(where: { $0.id == converted.id }) {
+                sleepEvents.append(converted)
+            }
+        }
+        #endif
         
         if events.isEmpty {
             state = .empty

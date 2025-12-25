@@ -321,14 +321,32 @@ struct TonightView: View {
                     // Save the pre-sleep log
                     let log = PreSleepLog(answers: answers, completionState: "complete")
                     EventStorage.shared.savePreSleepLog(log)
-                    print("✅ Pre-sleep log saved: \(log.id)")
+                    
+                    // Also log lightsOut event so it appears in Timeline
+                    EventStorage.shared.insertSleepEvent(
+                        id: UUID().uuidString,
+                        eventType: "lightsOut",
+                        timestamp: Date(),
+                        colorHex: "#6366F1", // Indigo for sleep cycle events
+                        notes: "Pre-sleep check completed"
+                    )
+                    print("✅ Pre-sleep log saved + lightsOut event logged: \(log.id)")
                 },
                 onSkip: {
                     // Save as skipped for tracking
                     let emptyAnswers = PreSleepLogAnswers()
                     let log = PreSleepLog(answers: emptyAnswers, completionState: "skipped")
                     EventStorage.shared.savePreSleepLog(log)
-                    print("⏭️ Pre-sleep log skipped")
+                    
+                    // Still log lightsOut event even when skipped
+                    EventStorage.shared.insertSleepEvent(
+                        id: UUID().uuidString,
+                        eventType: "lightsOut",
+                        timestamp: Date(),
+                        colorHex: "#6366F1",
+                        notes: "Pre-sleep check skipped"
+                    )
+                    print("⏭️ Pre-sleep log skipped + lightsOut event logged")
                 }
             )
         }
