@@ -558,15 +558,11 @@ struct HardStopCountdownView: View {
         VStack(spacing: 4) {
             // Pulsing warning icon
             HStack(spacing: 8) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.title2)
-                    .symbolEffect(.pulse)
+                warningIcon
                 Text("HARD STOP")
                     .font(.caption.bold())
                     .tracking(2)
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.title2)
-                    .symbolEffect(.pulse)
+                warningIcon
             }
             .foregroundColor(.red)
             
@@ -609,6 +605,18 @@ struct HardStopCountdownView: View {
                 .foregroundColor(urgencyColor)
                 .multilineTextAlignment(.center)
                 .padding(.top, 4)
+        }
+    }
+    
+    @ViewBuilder
+    private var warningIcon: some View {
+        if #available(iOS 17.0, *) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.title2)
+                .symbolEffect(.pulse)
+        } else {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.title2)
         }
     }
     
@@ -1331,7 +1339,8 @@ struct WakeUpButton: View {
     }
 }
 
-// MARK: - Undo Snackbar View
+// MARK: - Legacy Undo Snackbar (unused - real impl in Views/UndoSnackbarView.swift)
+#if false
 struct UndoSnackbarView: View {
     let message: String
     let onUndo: () -> Void
@@ -1372,6 +1381,7 @@ struct UndoSnackbarView: View {
         }
     }
 }
+#endif
 
 // MARK: - Session Summary Card
 struct SessionSummaryCard: View {

@@ -1389,30 +1389,30 @@ public class EventStorage {
         
         let sessionDate = String(cString: sqlite3_column_text(stmt, 2))
         let medicationId = String(cString: sqlite3_column_text(stmt, 3))
-        let doseValue = sqlite3_column_double(stmt, 4)
+        let doseMg = Int(sqlite3_column_int(stmt, 4))
         
-        let doseUnit: String?
+        let doseUnit: String
         if sqlite3_column_type(stmt, 5) != SQLITE_NULL {
             doseUnit = String(cString: sqlite3_column_text(stmt, 5))
         } else {
-            doseUnit = nil
+            doseUnit = "mg"
         }
         
-        let formulation: String?
+        let formulation: String
         if sqlite3_column_type(stmt, 6) != SQLITE_NULL {
             formulation = String(cString: sqlite3_column_text(stmt, 6))
         } else {
-            formulation = nil
+            formulation = "ir"
         }
         
         let takenAtStr = String(cString: sqlite3_column_text(stmt, 7))
         guard let takenAtUTC = isoFormatter.date(from: takenAtStr) else { return nil }
         
-        let localOffsetMinutes: Int?
+        let localOffsetMinutes: Int
         if sqlite3_column_type(stmt, 8) != SQLITE_NULL {
             localOffsetMinutes = Int(sqlite3_column_int(stmt, 8))
         } else {
-            localOffsetMinutes = nil
+            localOffsetMinutes = 0
         }
         
         let notes: String?
@@ -1432,7 +1432,7 @@ public class EventStorage {
             sessionId: sessionId,
             sessionDate: sessionDate,
             medicationId: medicationId,
-            doseValue: doseValue,
+            doseMg: doseMg,
             doseUnit: doseUnit,
             formulation: formulation,
             takenAtUTC: takenAtUTC,
@@ -1445,15 +1445,12 @@ public class EventStorage {
     
     /// Export medication events to CSV
     public func exportMedicationEventsToCSV() -> String {
-        var csv = "id,session_id,session_date,medication_id,dose_value,dose_unit,formulation,taken_at_utc,local_offset_minutes,notes,confirmed_duplicate,created_at\n"
+        var csv = "id,session_id,session_date,medication_id,dose_mg,dose_unit,formulation,taken_at_utc,local_offset_minutes,notes,confirmed_duplicate,created_at\n"
         
         let entries = fetchAllMedicationEvents(limit: 10000)
         for entry in entries {
             let escapedNotes = (entry.notes ?? "").replacingOccurrences(of: "\"", with: "\"\"")
-            let doseUnit = entry.doseUnit ?? ""
-            let formulation = entry.formulation ?? ""
-            let localOffset = entry.localOffsetMinutes.map { String($0) } ?? ""
-            csv += "\(entry.id),\(entry.sessionId ?? ""),\(entry.sessionDate),\(entry.medicationId),\(entry.doseValue),\(doseUnit),\(formulation),\(isoFormatter.string(from: entry.takenAtUTC)),\(localOffset),\"\(escapedNotes)\",\(entry.confirmedDuplicate ? 1 : 0),\(isoFormatter.string(from: entry.createdAt))\n"
+            csv += "\(entry.id),\(entry.sessionId ?? ""),\(entry.sessionDate),\(entry.medicationId),\(entry.doseMg),\(entry.doseUnit),\(entry.formulation),\(isoFormatter.string(from: entry.takenAtUTC)),\(entry.localOffsetMinutes),\"\(escapedNotes)\",\(entry.confirmedDuplicate ? 1 : 0),\(isoFormatter.string(from: entry.createdAt))\n"
         }
         
         return csv
