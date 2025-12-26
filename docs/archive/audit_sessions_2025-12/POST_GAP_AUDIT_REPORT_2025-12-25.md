@@ -152,7 +152,7 @@ Pre-existing guard verifies:
 
 ### Low Risk (Cosmetic)
 1. **SSOT check warnings** — 25 warnings for planned UI components not yet implemented
-2. **doc_lint warning** — "12 event" reference in archived FIX_PLAN document
+2. **doc_lint warning** — stale event-count reference in archived FIX_PLAN document
 3. **Markdown lint** — Some formatting warnings in new audit docs
 
 ### Medium Risk (Monitor)

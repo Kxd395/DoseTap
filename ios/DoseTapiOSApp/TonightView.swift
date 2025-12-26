@@ -64,8 +64,8 @@ struct TonightEventsSection: View {
     @State private var isExpanded = false
     
     private var tonightEvents: [StoredSleepEvent] {
-        // Get all sleep events from tonight (last 12 hours)
-        SQLiteStorage.shared.fetchTonightSleepEvents()
+        // Get all sleep events for tonight's session via SessionRepository
+        SessionRepository.shared.fetchTonightSleepEvents()
     }
     
     var body: some View {
@@ -304,31 +304,33 @@ struct WindowStatusCard: View {
     
     private var phaseColor: Color {
         switch context.phase {
+        case .noDose1: return .gray
         case .beforeWindow: return .orange
         case .active: return .green
         case .nearClose: return .red
         case .closed: return .gray
         case .completed: return .blue
+        case .finalizing: return .purple
         }
     }
     
     private var phaseText: String {
         switch context.phase {
+        case .noDose1: return "Dose 1 Needed"
         case .beforeWindow: return "Before Window"
         case .active: return "Active Window" 
         case .nearClose: return "Window Closing"
         case .closed: return "Window Closed"
         case .completed: return "Complete"
+        case .finalizing: return "Finalizing"
         }
     }
     
     private var timingInfo: String? {
         if let remaining = context.timeRemaining {
-            let minutes = Int(remaining / 60)
-            return "\\(minutes) minutes remaining"
+            return "\(Int(remaining / 60)) minutes remaining"
         } else if let elapsed = context.timeElapsed {
-            let minutes = Int(elapsed / 60)
-            return "\\(minutes) minutes since Dose 1"
+            return "\(Int(elapsed / 60)) minutes since Dose 1"
         }
         return nil
     }
@@ -374,10 +376,11 @@ struct ActionButtonsSection: View {
     
     private var primaryButtonColor: Color {
         switch doseCore.currentContext.phase {
-        case .beforeWindow, .completed: return .blue
+        case .noDose1, .beforeWindow, .completed: return .blue
         case .active: return .green
         case .nearClose: return .orange
         case .closed: return .gray
+        case .finalizing: return .purple
         }
     }
     

@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 
 /// Analytics Service for tracking user events and app metrics
 /// Dispatches events to configured providers (local storage, remote API)
@@ -225,7 +226,7 @@ final class AnalyticsService: ObservableObject {
     func track(_ name: EventName, parameters: [String: Any] = [:]) {
         guard isEnabled else { return }
         
-        let sessionId = EventStorage.shared.sessionDateString(for: Date())
+        let sessionId = SessionRepository.shared.sessionDateString(for: Date())
         let event = AnalyticsEvent(name: name, parameters: parameters, sessionId: sessionId)
         
         // Add to queue

@@ -1,13 +1,13 @@
 # DoseTap Documentation
 
-> **Last Updated:** 2025-12-24 | **SSOT Version:** 2.4.1 | **Tests:** 207 passing
+> **Last Updated:** 2025-12-26 | **SSOT Version:** 2.12.0 | **Tests:** 275 passing
 
 ## 🎯 Primary Reference
 
 ### Single Source of Truth (SSOT)
 **[📁 SSOT/](SSOT/)** - The authoritative specification folder
 
-- **[SSOT/README.md](SSOT/README.md)** ⭐ - Complete v2.4.1 specification (CURRENT)
+- **[SSOT/README.md](SSOT/README.md)** ⭐ - Complete v2.12.0 specification (CURRENT)
 - **[SSOT/navigation.md](SSOT/navigation.md)** - Quick navigation guide
 - **[SSOT/contracts/](SSOT/contracts/)** - API specs and schemas
 
@@ -15,6 +15,12 @@
 - **[DATABASE_SCHEMA.md](DATABASE_SCHEMA.md)** ⭐ - Complete SQLite schema (5 tables, v6)
 - **[SSOT/contracts/SchemaEvolution.md](SSOT/contracts/SchemaEvolution.md)** - Migration history
 - **[SSOT/contracts/DataDictionary.md](SSOT/contracts/DataDictionary.md)** - Field definitions
+
+### Storage Architecture
+- **SessionRepository** - Sole façade for UI storage access
+- **EventStorage** - Internal persistence layer (views must not touch directly)
+- **SQLiteStorage** - Banned (`#if false` wrapper)
+- **CI Guards** - Enforcement in `.github/workflows/ci-swift.yml`
 
 ## ⏱️ Core Timing Parameters (AUTHORITATIVE)
 
@@ -49,7 +55,8 @@
 | API Client & Errors | ✅ Complete | 23 tests |
 | Offline Queue | ✅ Complete | 4 tests |
 | CRUD Actions | ✅ Complete | 25 tests |
-| **Total Tests** | **207 passing** | All green |
+| Storage Unification | ✅ Complete | SessionRepository facade |
+| **Total Tests** | **275 passing** | All green |
 
 ### Phase 2: Health Dashboard 🔄 IN PROGRESS
 | Feature | Status |
@@ -162,4 +169,4 @@ docs/
 
 **Remember:** The SSOT folder contains everything. Start with [SSOT/README.md](SSOT/README.md) for the canonical specification.
 
-**Current Status:** All tests passing • 13 sleep event types • 5 SQLite tables • HealthKit + WHOOP ready
+**Current Status:** 275 tests passing • 13 sleep event types • 5 SQLite tables • SessionRepository unified storage • HealthKit + WHOOP ready

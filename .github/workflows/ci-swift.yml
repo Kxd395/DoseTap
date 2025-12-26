@@ -32,3 +32,100 @@ jobs:
         run: |
           echo "### Test Results" >> $GITHUB_STEP_SUMMARY
           swift test 2>&1 | grep -E "Executed|passed|failed" | tail -3 >> $GITHUB_STEP_SUMMARY
+
+  storage-enforcement:
+    name: Storage Enforcement Guard
+    runs-on: macos-14
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Check Views don't touch EventStorage.shared
+        run: |
+          echo "🔍 Checking for EventStorage.shared violations in Views..."
+          VIOLATIONS=$(grep -rn "EventStorage\.shared" ios/DoseTap ios/DoseTapiOSApp --include="*.swift" | grep -v "Storage/EventStorage.swift" | grep -v "Storage/SessionRepository.swift" || true)
+          if [ -n "$VIOLATIONS" ]; then
+            echo "❌ FAIL: Views/helpers are directly accessing EventStorage.shared"
+            echo "All storage access must go through SessionRepository."
+            echo ""
+            echo "Violations found:"
+            echo "$VIOLATIONS"
+            exit 1
+          fi
+          echo "✅ No EventStorage.shared violations in production code"
+      
+      - name: Check SQLiteStorage is not used in production code
+        run: |
+          echo "🔍 Checking for SQLiteStorage usage in production code..."
+          # Exclude: SQLiteStorage.swift itself, test files (tests may reference for setup)
+          VIOLATIONS=$(grep -rn "SQLiteStorage\.shared\|: SQLiteStorage\|= SQLiteStorage" ios/DoseTap ios/DoseTapiOSApp --include="*.swift" | grep -v "SQLiteStorage.swift" || true)
+          if [ -n "$VIOLATIONS" ]; then
+            echo "❌ FAIL: SQLiteStorage is being used in production code"
+            echo "SQLiteStorage is banned (#if false wrapper). Use SessionRepository.shared instead."
+            echo ""
+            echo "Violations found:"
+            echo "$VIOLATIONS"
+            exit 1
+          fi
+          echo "✅ No SQLiteStorage violations in production code"
+      
+      - name: Guard Summary
+        if: always()
+        run: |
+          echo "### Storage Enforcement" >> $GITHUB_STEP_SUMMARY
+          echo "- EventStorage.shared: Views must use SessionRepository" >> $GITHUB_STEP_SUMMARY
+          echo "- SQLiteStorage: Banned (#if false wrapper)" >> $GITHUB_STEP_SUMMARY
+
+      - name: Docs consistency check (stale refs)
+        run: |
+          echo "🔍 Checking for stale references in active docs..."
+          # These patterns should NOT appear in active docs
+          # Scan: all markdown files in repo
+          # Exclude: archive/, legacy/, and intentional changelog/history headers
+          # Allowed exceptions:
+          #   - "Before | After" tables (showing improvement from 268 to 275)
+          #   - "Recent Updates (v2.10.0)" or "New in v2.10.0" changelog headers  
+          #   - "Completed (v2.10.0)" backlog/history headers
+          STALE=$(find . -name "*.md" -type f ! -path "*/archive/*" ! -path "*/legacy/*" -exec grep -Hn "\b268\b\|v2\.10\.0\|v2\.11\.0\|dosetap\.db\|@available.*unavailable" {} \; 2>/dev/null | grep -v "Before.*After\|| 268 | 275\|Recent Updates.*v2\.10\|New in v2\.10\|Completed.*v2\.10\|Completed.*v2\.11" || true)
+          if [ -n "$STALE" ]; then
+            echo "❌ FAIL: Stale references found in active docs"
+            echo "Canonical values: SSOT v2.12.0, 275 tests, dosetap_events.sqlite, #if false wrapper"
+            echo ""
+            echo "Stale refs found:"
+            echo "$STALE"
+            exit 1
+          fi
+          echo "✅ No stale references in active docs"
+
+  xcode-build:
+    name: Xcode iOS Build
+    runs-on: macos-14
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+      
+      - name: Build iOS App
+        run: |
+          cd ios
+          xcodebuild build \
+            -project DoseTap.xcodeproj \
+            -scheme DoseTap \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Debug \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty --color || exit 1
+      
+      - name: Build Summary
+        if: always()
+        run: |
+          echo "### Xcode Build" >> $GITHUB_STEP_SUMMARY
+          echo "- Platform: iOS Simulator" >> $GITHUB_STEP_SUMMARY
+          echo "- Scheme: DoseTap" >> $GITHUB_STEP_SUMMARY
+          echo "- Configuration: Debug" >> $GITHUB_STEP_SUMMARY

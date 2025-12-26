@@ -282,7 +282,7 @@ class SetupWizardServiceTests: XCTestCase {
     }
     
     func testMedicationConfigDefaults() {
-        let config = MedicationConfig()
+        let config = WizardMedicationConfig()
         
         XCTAssertEqual(config.medicationName, "XYWAV")
         XCTAssertEqual(config.doseMgDose1, 450)
@@ -440,7 +440,7 @@ class ConfigurationExtensionsTests: XCTestCase {
     }
     
     func testMedicationConfigExtensions() {
-        let config = MedicationConfig()
+        let config = WizardMedicationConfig()
         
         // Test dose ratio
         XCTAssertEqual(config.doseRatio, 0.5, accuracy: 0.01) // 225/450 = 0.5

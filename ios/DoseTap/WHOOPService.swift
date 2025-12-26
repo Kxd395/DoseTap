@@ -1,4 +1,6 @@
 import Foundation
+import Combine
+import SwiftUI
 import AuthenticationServices
 import Security
 
@@ -11,6 +13,7 @@ import Security
 final class WHOOPService: NSObject, ObservableObject {
     
     static let shared = WHOOPService()
+    static let isEnabled: Bool = false  // Disabled by default until hardened
     
     // MARK: - Configuration
     

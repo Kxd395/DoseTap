@@ -371,7 +371,7 @@ struct LiveSleepTimelineView: View {
                         .multilineTextAlignment(.center)
                     Button("Enable HealthKit") {
                         Task {
-                            await healthKit.requestAuthorization()
+                            _ = await healthKit.requestAuthorization()
                             await loadSleepData()
                         }
                     }
@@ -520,4 +520,3 @@ struct SleepTimelineContainer: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 }
-

@@ -6,6 +6,7 @@ struct DashboardView: View {
     @State private var selectedTimeRange: TimeRange = .week
     @State private var showingExport = false
     
+    @MainActor
     enum TimeRange: String, CaseIterable {
         case week = "7 Days"
         case month = "30 Days"
@@ -25,7 +26,7 @@ struct DashboardView: View {
             case .quarter:
                 start = calendar.date(byAdding: .day, value: -90, to: end)!
             case .all:
-                start = dataStorage.getAllSessions().last?.startTime ?? calendar.date(byAdding: .year, value: -1, to: end)!
+                start = DataStorageService.shared.getAllSessions().last?.startTime ?? calendar.date(byAdding: .year, value: -1, to: end)!
             }
             
             return (start, end)
@@ -71,7 +72,7 @@ struct DashboardView: View {
             }
         }
         .sheet(isPresented: $showingExport) {
-            ShareSheet(activityItems: [dataStorage.exportToCSV()])
+            ShareSheet(items: [dataStorage.exportToCSV()])
         }
     }
 }

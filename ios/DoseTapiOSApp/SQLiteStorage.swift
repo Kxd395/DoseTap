@@ -1,4 +1,11 @@
+// ⛔️ DISABLED: SQLiteStorage is banned. Use SessionRepository.shared → EventStorage.
+// This file is wrapped in #if false to prevent compilation errors from @available(*, unavailable).
+// See docs/SSOT/README.md for the unified storage architecture.
+// CI enforces: grep -R "SQLiteStorage" ios | grep -v SQLiteStorage.swift must return empty.
+
+#if false
 import Foundation
+import Combine
 import SQLite3
 #if canImport(DoseCore)
 import DoseCore
@@ -6,12 +13,21 @@ import DoseCore
 
 // MARK: - SQLite Storage Manager
 /// Single-user SQLite database for persisting dose tracking data
+/// ⛔️ UNAVAILABLE: Use EventStorage (via SessionRepository) instead.
+/// This class is kept for reference only. All production code must use
+/// SessionRepository → EventStorage (EventStore protocol).
+/// See docs/SSOT/README.md for the unified storage architecture.
+///
+/// CI enforces this: `grep -R "SQLiteStorage" ios | grep -v SQLiteStorage.swift` must return empty.
+@available(*, unavailable, message: "SQLiteStorage is banned. Use SessionRepository.shared which routes to EventStorage.")
 @MainActor
 public class SQLiteStorage: ObservableObject {
     public static let shared = SQLiteStorage()
     
     private var db: OpaquePointer?
     private let dbPath: String
+    private var nowProvider: () -> Date = { Date() }
+    private var timeZoneProvider: () -> TimeZone = { TimeZone.current }
     
     // Published state for UI binding
     @Published public private(set) var isReady: Bool = false
@@ -138,7 +154,10 @@ public class SQLiteStorage: ObservableObject {
             session_date TEXT NOT NULL,
             medication_id TEXT NOT NULL,
             dose_mg INTEGER NOT NULL,
+            dose_unit TEXT NOT NULL DEFAULT 'mg',
+            formulation TEXT NOT NULL DEFAULT 'IR',
             taken_at_utc TEXT NOT NULL,
+            local_offset_minutes INTEGER DEFAULT 0,
             notes TEXT,
             confirmed_duplicate INTEGER DEFAULT 0,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -175,7 +194,11 @@ public class SQLiteStorage: ObservableObject {
             "ALTER TABLE current_session ADD COLUMN terminal_state TEXT",
             // Sleep Environment feature - captures sleep setup and aids for Morning Check-in
             "ALTER TABLE morning_checkins ADD COLUMN has_sleep_environment INTEGER DEFAULT 0",
-            "ALTER TABLE morning_checkins ADD COLUMN sleep_environment_json TEXT"
+            "ALTER TABLE morning_checkins ADD COLUMN sleep_environment_json TEXT",
+            // Medication entry updates
+            "ALTER TABLE medication_events ADD COLUMN dose_unit TEXT DEFAULT 'mg'",
+            "ALTER TABLE medication_events ADD COLUMN formulation TEXT DEFAULT 'IR'",
+            "ALTER TABLE medication_events ADD COLUMN local_offset_minutes INTEGER DEFAULT 0"
         ]
         
         for sql in migrations {
@@ -187,28 +210,27 @@ public class SQLiteStorage: ObservableObject {
             }
         }
     }
+
+    public func setNowProvider(_ provider: @escaping () -> Date) {
+        nowProvider = provider
+    }
+
+    public func setTimeZoneProvider(_ provider: @escaping () -> TimeZone) {
+        timeZoneProvider = provider
+    }
     
     // MARK: - Current Session (Tonight's Dose Tracking)
     
     /// Get current session date (tonight)
     private func currentSessionDate() -> String {
-        // Session date = the date when Dose 1 is taken
-        // A "night" starts at 6 PM and ends at 6 AM next day
-        let now = Date()
-        let calendar = Calendar.current
-        let hour = calendar.component(.hour, from: now)
-        
-        // If before 6 AM, session belongs to previous day
-        let sessionDate: Date
-        if hour < 6 {
-            sessionDate = calendar.date(byAdding: .day, value: -1, to: now)!
-        } else {
-            sessionDate = now
-        }
-        
+        let now = nowProvider()
+        #if canImport(DoseCore)
+        return sessionKey(for: now, timeZone: timeZoneProvider(), rolloverHour: 18)
+        #else
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: sessionDate)
+        return formatter.string(from: now)
+        #endif
     }
     
     /// Load current session state
@@ -296,13 +318,42 @@ public class SQLiteStorage: ObservableObject {
         }
     }
     
+    /// Log a dose event for a specific session date (used by integration tests/importers)
+    public func logEvent(sessionDate: String, id: UUID = UUID(), type: String, timestamp: Date, metadata: [String: String]? = nil) {
+        let sql = "INSERT INTO dose_events (id, event_type, timestamp, session_date, metadata) VALUES (?, ?, ?, ?, ?)"
+        
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            lastError = "Failed to prepare event statement"
+            return
+        }
+        defer { sqlite3_finalize(stmt) }
+        
+        sqlite3_bind_text(stmt, 1, id.uuidString, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 2, type, -1, SQLITE_TRANSIENT)
+        bindDateToColumn(stmt, column: 3, date: timestamp)
+        sqlite3_bind_text(stmt, 4, sessionDate, -1, SQLITE_TRANSIENT)
+        
+        if let metadata = metadata {
+            let jsonData = try? JSONSerialization.data(withJSONObject: metadata)
+            let jsonString = jsonData.flatMap { String(data: $0, encoding: .utf8) }
+            sqlite3_bind_text(stmt, 5, jsonString, -1, SQLITE_TRANSIENT)
+        } else {
+            sqlite3_bind_null(stmt, 5)
+        }
+        
+        if sqlite3_step(stmt) != SQLITE_DONE {
+            lastError = "Failed to log event: \(String(cString: sqlite3_errmsg(db)))"
+        }
+    }
+    
     /// Get events for current session
-    public func getEventsForCurrentSession() -> [StoredDoseEvent] {
+    public func getEventsForCurrentSession() -> [SQLiteStoredDoseEvent] {
         return getEvents(forSessionDate: currentSessionDate())
     }
     
     /// Get events for a specific session date
-    public func getEvents(forSessionDate sessionDate: String) -> [StoredDoseEvent] {
+    public func getEvents(forSessionDate sessionDate: String) -> [SQLiteStoredDoseEvent] {
         let sql = "SELECT id, event_type, timestamp, metadata FROM dose_events WHERE session_date = ? ORDER BY timestamp DESC"
         
         var stmt: OpaquePointer?
@@ -313,7 +364,7 @@ public class SQLiteStorage: ObservableObject {
         
         sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
         
-        var events: [StoredDoseEvent] = []
+        var events: [SQLiteStoredDoseEvent] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
             let id = String(cString: sqlite3_column_text(stmt, 0))
             let eventType = String(cString: sqlite3_column_text(stmt, 1))
@@ -328,14 +379,14 @@ public class SQLiteStorage: ObservableObject {
                 }
             }
             
-            events.append(StoredDoseEvent(id: id, eventType: eventType, timestamp: timestamp, metadata: metadata))
+            events.append(SQLiteStoredDoseEvent(id: id, eventType: eventType, timestamp: timestamp, metadata: metadata))
         }
         
         return events
     }
     
     /// Get all events (for history/export)
-    public func getAllEvents(limit: Int = 1000) -> [StoredDoseEvent] {
+    public func getAllEvents(limit: Int = 1000) -> [SQLiteStoredDoseEvent] {
         let sql = "SELECT id, event_type, timestamp, session_date, metadata FROM dose_events ORDER BY timestamp DESC LIMIT ?"
         
         var stmt: OpaquePointer?
@@ -346,13 +397,13 @@ public class SQLiteStorage: ObservableObject {
         
         sqlite3_bind_int(stmt, 1, Int32(limit))
         
-        var events: [StoredDoseEvent] = []
+        var events: [SQLiteStoredDoseEvent] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
             let id = String(cString: sqlite3_column_text(stmt, 0))
             let eventType = String(cString: sqlite3_column_text(stmt, 1))
             let timestamp = getDateFromColumn(stmt, column: 2) ?? Date()
             
-            events.append(StoredDoseEvent(id: id, eventType: eventType, timestamp: timestamp, metadata: nil))
+            events.append(SQLiteStoredDoseEvent(id: id, eventType: eventType, timestamp: timestamp, metadata: nil))
         }
         
         return events
@@ -525,15 +576,17 @@ public class SQLiteStorage: ObservableObject {
         }
         
         // Delete sleep events by matching timestamp within the session date range
-        // Sleep events don't have session_date, so we delete by timestamp range
-        let startOfDay = Calendar.current.startOfDay(for: date)
-        let endOfDay = Calendar.current.date(byAdding: .day, value: 1, to: startOfDay) ?? date
+        // Sleep events don't have session_date, so we delete by timestamp range using 6PM rollover
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZoneProvider()
+        let startOfSession = calendar.date(bySettingHour: 18, minute: 0, second: 0, of: date) ?? date
+        let endOfSession = calendar.date(byAdding: .day, value: 1, to: startOfSession) ?? startOfSession
         
         let deleteSleepSQL = "DELETE FROM sleep_events WHERE timestamp >= ? AND timestamp < ?"
         
         if success && sqlite3_prepare_v2(db, deleteSleepSQL, -1, &stmt, nil) == SQLITE_OK {
-            bindDateToColumn(stmt, column: 1, date: startOfDay)
-            bindDateToColumn(stmt, column: 2, date: endOfDay)
+            bindDateToColumn(stmt, column: 1, date: startOfSession)
+            bindDateToColumn(stmt, column: 2, date: endOfSession)
             if sqlite3_step(stmt) != SQLITE_DONE {
                 lastError = "Failed to delete sleep events for session \(sessionDate)"
                 success = false
@@ -598,6 +651,52 @@ public class SQLiteStorage: ObservableObject {
         }
     }
     
+    // MARK: - Legacy Fetch/Insert
+    
+    public func fetchEvents(limit: Int) -> [SQLiteEventRecord] {
+        let sql = "SELECT event_type, timestamp, metadata FROM dose_events ORDER BY timestamp DESC LIMIT ?"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
+        defer { sqlite3_finalize(stmt) }
+        
+        sqlite3_bind_int(stmt, 1, Int32(limit))
+        
+        var results: [SQLiteEventRecord] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            let type = String(cString: sqlite3_column_text(stmt, 0))
+            let timestamp = getDateFromColumn(stmt, column: 1) ?? Date()
+            let metadata: String?
+            if sqlite3_column_type(stmt, 2) != SQLITE_NULL {
+                metadata = String(cString: sqlite3_column_text(stmt, 2))
+            } else {
+                metadata = nil
+            }
+            results.append(SQLiteEventRecord(type: type, timestamp: timestamp, metadata: metadata))
+        }
+        return results
+    }
+    
+    public func insertEvent(_ record: SQLiteEventRecord) {
+        let sql = "INSERT INTO dose_events (id, event_type, timestamp, session_date, metadata) VALUES (?, ?, ?, ?, ?)"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(stmt) }
+        
+        let id = UUID().uuidString
+        let sessionDate = isoFormatter.string(from: record.timestamp).prefix(10) // Simple day string
+        
+        sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 2, record.type, -1, SQLITE_TRANSIENT)
+        bindDateToColumn(stmt, column: 3, date: record.timestamp)
+        sqlite3_bind_text(stmt, 4, String(sessionDate), -1, SQLITE_TRANSIENT)
+        if let meta = record.metadata {
+            sqlite3_bind_text(stmt, 5, meta, -1, SQLITE_TRANSIENT)
+        } else {
+            sqlite3_bind_null(stmt, 5)
+        }
+        sqlite3_step(stmt)
+    }
+
     // MARK: - Helper Methods
     
     private let isoFormatter: ISO8601DateFormatter = {
@@ -627,7 +726,7 @@ public class SQLiteStorage: ObservableObject {
     // MARK: - Sleep Events
     
     /// Insert a sleep event
-    public func insertSleepEvent(_ event: StoredSleepEvent) {
+    public func insertSleepEvent(_ event: SQLiteStoredSleepEvent) {
         let sql = """
         INSERT INTO sleep_events (id, event_type, timestamp, session_id, notes, source)
         VALUES (?, ?, ?, ?, ?, ?)
@@ -666,7 +765,7 @@ public class SQLiteStorage: ObservableObject {
     /// Convenience method to insert from SleepEvent model
     #if canImport(DoseCore)
     public func insertSleepEvent(_ event: SleepEvent) {
-        insertSleepEvent(StoredSleepEvent(
+        insertSleepEvent(SQLiteStoredSleepEvent(
             id: event.id.uuidString,
             eventType: event.type.rawValue,
             timestamp: event.timestamp,
@@ -678,7 +777,7 @@ public class SQLiteStorage: ObservableObject {
     #endif
     
     /// Fetch sleep events for a session
-    public func fetchSleepEvents(sessionId: String) -> [StoredSleepEvent] {
+    public func fetchSleepEvents(sessionId: String) -> [SQLiteStoredSleepEvent] {
         let sql = """
         SELECT id, event_type, timestamp, session_id, notes, source
         FROM sleep_events
@@ -694,7 +793,7 @@ public class SQLiteStorage: ObservableObject {
         
         sqlite3_bind_text(stmt, 1, sessionId, -1, SQLITE_TRANSIENT)
         
-        var events: [StoredSleepEvent] = []
+        var events: [SQLiteStoredSleepEvent] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
             events.append(parseSleepEventRow(stmt))
         }
@@ -703,7 +802,7 @@ public class SQLiteStorage: ObservableObject {
     }
     
     /// Fetch sleep events within a date range
-    public func fetchSleepEvents(from startDate: Date, to endDate: Date) -> [StoredSleepEvent] {
+    public func fetchSleepEvents(from startDate: Date, to endDate: Date) -> [SQLiteStoredSleepEvent] {
         let sql = """
         SELECT id, event_type, timestamp, session_id, notes, source
         FROM sleep_events
@@ -720,7 +819,7 @@ public class SQLiteStorage: ObservableObject {
         bindDateToColumn(stmt, column: 1, date: startDate)
         bindDateToColumn(stmt, column: 2, date: endDate)
         
-        var events: [StoredSleepEvent] = []
+        var events: [SQLiteStoredSleepEvent] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
             events.append(parseSleepEventRow(stmt))
         }
@@ -729,7 +828,7 @@ public class SQLiteStorage: ObservableObject {
     }
     
     /// Fetch all sleep events (for history/export)
-    public func fetchAllSleepEvents(limit: Int = 500) -> [StoredSleepEvent] {
+    public func fetchAllSleepEvents(limit: Int = 500) -> [SQLiteStoredSleepEvent] {
         let sql = """
         SELECT id, event_type, timestamp, session_id, notes, source
         FROM sleep_events
@@ -745,7 +844,7 @@ public class SQLiteStorage: ObservableObject {
         
         sqlite3_bind_int(stmt, 1, Int32(limit))
         
-        var events: [StoredSleepEvent] = []
+        var events: [SQLiteStoredSleepEvent] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
             events.append(parseSleepEventRow(stmt))
         }
@@ -753,10 +852,36 @@ public class SQLiteStorage: ObservableObject {
         return events
     }
     
-    /// Fetch recent events for tonight (last 12 hours)
-    public func fetchTonightSleepEvents() -> [StoredSleepEvent] {
-        let twelveHoursAgo = Date().addingTimeInterval(-12 * 3600)
-        return fetchSleepEvents(from: twelveHoursAgo, to: Date())
+    /// Fetch sleep events for tonight's session (using 6PM rollover boundary)
+    /// This is the canonical method for getting current session's events.
+    public func fetchTonightSleepEvents() -> [SQLiteStoredSleepEvent] {
+        let sessionDate = currentSessionDate()
+        return fetchSleepEvents(forSessionId: sessionDate)
+    }
+    
+    /// Fetch sleep events for a specific session ID/date
+    public func fetchSleepEvents(forSessionId sessionId: String) -> [SQLiteStoredSleepEvent] {
+        let sql = """
+        SELECT id, event_type, timestamp, session_id, notes, source
+        FROM sleep_events
+        WHERE session_id = ?
+        ORDER BY timestamp DESC
+        """
+        
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            return []
+        }
+        defer { sqlite3_finalize(stmt) }
+        
+        sqlite3_bind_text(stmt, 1, sessionId, -1, SQLITE_TRANSIENT)
+        
+        var events: [SQLiteStoredSleepEvent] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            events.append(parseSleepEventRow(stmt))
+        }
+        
+        return events
     }
     
     /// Count events by type for a session
@@ -801,7 +926,7 @@ public class SQLiteStorage: ObservableObject {
     }
     
     /// Get last event of a specific type (for checking cooldowns on app restart)
-    public func lastSleepEvent(ofType eventType: String) -> StoredSleepEvent? {
+    public func lastSleepEvent(ofType eventType: String) -> SQLiteStoredSleepEvent? {
         let sql = """
         SELECT id, event_type, timestamp, session_id, notes, source
         FROM sleep_events
@@ -825,7 +950,7 @@ public class SQLiteStorage: ObservableObject {
     }
     
     /// Helper to parse sleep event row
-    private func parseSleepEventRow(_ stmt: OpaquePointer?) -> StoredSleepEvent {
+    private func parseSleepEventRow(_ stmt: OpaquePointer?) -> SQLiteStoredSleepEvent {
         let id = String(cString: sqlite3_column_text(stmt, 0))
         let eventType = String(cString: sqlite3_column_text(stmt, 1))
         let timestamp = getDateFromColumn(stmt, column: 2) ?? Date()
@@ -842,7 +967,7 @@ public class SQLiteStorage: ObservableObject {
         
         let source = String(cString: sqlite3_column_text(stmt, 5))
         
-        return StoredSleepEvent(
+        return SQLiteStoredSleepEvent(
             id: id,
             eventType: eventType,
             timestamp: timestamp,
@@ -873,10 +998,12 @@ public class SQLiteStorage: ObservableObject {
     // MARK: - Medication Events
     
     /// Insert a medication event (Adderall, etc.)
-    public func insertMedicationEvent(_ entry: StoredMedicationEntry) {
+    public func insertMedicationEvent(_ entry: SQLiteStoredMedicationEntry) {
         let sql = """
-        INSERT INTO medication_events (id, session_id, session_date, medication_id, dose_mg, taken_at_utc, notes, confirmed_duplicate)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO medication_events (
+            id, session_id, session_date, medication_id, dose_mg, dose_unit, formulation,
+            taken_at_utc, local_offset_minutes, notes, confirmed_duplicate
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         
         var stmt: OpaquePointer?
@@ -897,15 +1024,18 @@ public class SQLiteStorage: ObservableObject {
         sqlite3_bind_text(stmt, 3, entry.sessionDate, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 4, entry.medicationId, -1, SQLITE_TRANSIENT)
         sqlite3_bind_int(stmt, 5, Int32(entry.doseMg))
-        bindDateToColumn(stmt, column: 6, date: entry.takenAtUTC)
+        sqlite3_bind_text(stmt, 6, entry.doseUnit, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 7, entry.formulation, -1, SQLITE_TRANSIENT)
+        bindDateToColumn(stmt, column: 8, date: entry.takenAtUTC)
+        sqlite3_bind_int(stmt, 9, Int32(entry.localOffsetMinutes))
         
         if let notes = entry.notes {
-            sqlite3_bind_text(stmt, 7, notes, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 10, notes, -1, SQLITE_TRANSIENT)
         } else {
-            sqlite3_bind_null(stmt, 7)
+            sqlite3_bind_null(stmt, 10)
         }
         
-        sqlite3_bind_int(stmt, 8, entry.confirmedDuplicate ? 1 : 0)
+        sqlite3_bind_int(stmt, 11, entry.confirmedDuplicate ? 1 : 0)
         
         if sqlite3_step(stmt) != SQLITE_DONE {
             lastError = "Failed to insert medication event: \(String(cString: sqlite3_errmsg(db)))"
@@ -913,9 +1043,9 @@ public class SQLiteStorage: ObservableObject {
     }
     
     /// Fetch medication events for a session date
-    public func fetchMedicationEvents(sessionDate: String) -> [StoredMedicationEntry] {
+    public func fetchMedicationEvents(sessionDate: String) -> [SQLiteStoredMedicationEntry] {
         let sql = """
-        SELECT id, session_id, session_date, medication_id, dose_mg, taken_at_utc, notes, confirmed_duplicate, created_at
+        SELECT id, session_id, session_date, medication_id, dose_mg, dose_unit, formulation, taken_at_utc, local_offset_minutes, notes, confirmed_duplicate, created_at
         FROM medication_events
         WHERE session_date = ?
         ORDER BY taken_at_utc DESC
@@ -929,7 +1059,7 @@ public class SQLiteStorage: ObservableObject {
         
         sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
         
-        var entries: [StoredMedicationEntry] = []
+        var entries: [SQLiteStoredMedicationEntry] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
             entries.append(parseMedicationEventRow(stmt))
         }
@@ -938,9 +1068,9 @@ public class SQLiteStorage: ObservableObject {
     }
     
     /// Fetch all medication events (for export)
-    public func fetchAllMedicationEvents(limit: Int = 1000) -> [StoredMedicationEntry] {
+    public func fetchAllMedicationEvents(limit: Int = 1000) -> [SQLiteStoredMedicationEntry] {
         let sql = """
-        SELECT id, session_id, session_date, medication_id, dose_mg, taken_at_utc, notes, confirmed_duplicate, created_at
+        SELECT id, session_id, session_date, medication_id, dose_mg, dose_unit, formulation, taken_at_utc, local_offset_minutes, notes, confirmed_duplicate, created_at
         FROM medication_events
         ORDER BY taken_at_utc DESC
         LIMIT ?
@@ -954,7 +1084,7 @@ public class SQLiteStorage: ObservableObject {
         
         sqlite3_bind_int(stmt, 1, Int32(limit))
         
-        var entries: [StoredMedicationEntry] = []
+        var entries: [SQLiteStoredMedicationEntry] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
             entries.append(parseMedicationEventRow(stmt))
         }
@@ -977,7 +1107,7 @@ public class SQLiteStorage: ObservableObject {
     }
     
     /// Check for duplicate medication entry within guard window (used for duplicate guard)
-    public func findRecentMedicationEntry(medicationId: String, sessionDate: String, withinMinutes: Int, ofTime takenAt: Date) -> StoredMedicationEntry? {
+    public func findRecentMedicationEntry(medicationId: String, sessionDate: String, withinMinutes: Int, ofTime takenAt: Date) -> SQLiteStoredMedicationEntry? {
         // Fetch all entries for this medication + session_date, check time delta in Swift
         // (SQLite datetime math is tricky across timezones)
         let entries = fetchMedicationEvents(sessionDate: sessionDate)
@@ -994,7 +1124,7 @@ public class SQLiteStorage: ObservableObject {
     }
     
     /// Parse a medication event row
-    private func parseMedicationEventRow(_ stmt: OpaquePointer?) -> StoredMedicationEntry {
+    private func parseMedicationEventRow(_ stmt: OpaquePointer?) -> SQLiteStoredMedicationEntry {
         let id = String(cString: sqlite3_column_text(stmt, 0))
         
         let sessionId: String?
@@ -1007,25 +1137,31 @@ public class SQLiteStorage: ObservableObject {
         let sessionDate = String(cString: sqlite3_column_text(stmt, 2))
         let medicationId = String(cString: sqlite3_column_text(stmt, 3))
         let doseMg = Int(sqlite3_column_int(stmt, 4))
-        let takenAtUTC = parseDateColumn(stmt, column: 5) ?? Date()
+        let doseUnit = String(cString: sqlite3_column_text(stmt, 5))
+        let formulation = String(cString: sqlite3_column_text(stmt, 6))
+        let takenAtUTC = getDateFromColumn(stmt, column: 7) ?? Date()
+        let localOffsetMinutes = Int(sqlite3_column_int(stmt, 8))
         
         let notes: String?
-        if sqlite3_column_type(stmt, 6) != SQLITE_NULL {
-            notes = String(cString: sqlite3_column_text(stmt, 6))
+        if sqlite3_column_type(stmt, 9) != SQLITE_NULL {
+            notes = String(cString: sqlite3_column_text(stmt, 9))
         } else {
             notes = nil
         }
         
-        let confirmedDuplicate = sqlite3_column_int(stmt, 7) == 1
-        let createdAt = parseDateColumn(stmt, column: 8) ?? Date()
+        let confirmedDuplicate = sqlite3_column_int(stmt, 10) == 1
+        let createdAt = getDateFromColumn(stmt, column: 11) ?? Date()
         
-        return StoredMedicationEntry(
+        return SQLiteStoredMedicationEntry(
             id: id,
             sessionId: sessionId,
             sessionDate: sessionDate,
             medicationId: medicationId,
             doseMg: doseMg,
             takenAtUTC: takenAtUTC,
+            doseUnit: doseUnit,
+            formulation: formulation,
+            localOffsetMinutes: localOffsetMinutes,
             notes: notes,
             confirmedDuplicate: confirmedDuplicate,
             createdAt: createdAt
@@ -1034,10 +1170,10 @@ public class SQLiteStorage: ObservableObject {
     
     /// Export medication events to CSV
     public func exportMedicationEventsToCSV() -> String {
-        var csv = "id,session_id,session_date,medication_id,dose_mg,taken_at_utc,notes,confirmed_duplicate,created_at\n"
+        var csv = "id,session_id,session_date,medication_id,dose_mg,dose_unit,formulation,taken_at_utc,local_offset_minutes,notes,confirmed_duplicate,created_at\n"
         
         let sql = """
-        SELECT id, session_id, session_date, medication_id, dose_mg, taken_at_utc, notes, confirmed_duplicate, created_at
+        SELECT id, session_id, session_date, medication_id, dose_mg, dose_unit, formulation, taken_at_utc, local_offset_minutes, notes, confirmed_duplicate, created_at
         FROM medication_events
         ORDER BY taken_at_utc DESC
         """
@@ -1049,7 +1185,7 @@ public class SQLiteStorage: ObservableObject {
         while sqlite3_step(stmt) == SQLITE_ROW {
             let entry = parseMedicationEventRow(stmt)
             let escapedNotes = (entry.notes ?? "").replacingOccurrences(of: "\"", with: "\"\"")
-            csv += "\(entry.id),\(entry.sessionId ?? ""),\(entry.sessionDate),\(entry.medicationId),\(entry.doseMg),\(isoFormatter.string(from: entry.takenAtUTC)),\"\(escapedNotes)\",\(entry.confirmedDuplicate ? 1 : 0),\(isoFormatter.string(from: entry.createdAt))\n"
+            csv += "\(entry.id),\(entry.sessionId ?? ""),\(entry.sessionDate),\(entry.medicationId),\(entry.doseMg),\(entry.doseUnit),\(entry.formulation),\(isoFormatter.string(from: entry.takenAtUTC)),\(entry.localOffsetMinutes),\"\(escapedNotes)\",\(entry.confirmedDuplicate ? 1 : 0),\(isoFormatter.string(from: entry.createdAt))\n"
         }
         
         return csv
@@ -1058,7 +1194,7 @@ public class SQLiteStorage: ObservableObject {
     // MARK: - Morning Check-In
     
     /// Save morning check-in data
-    public func saveMorningCheckIn(_ checkIn: StoredMorningCheckIn) {
+    public func saveMorningCheckIn(_ checkIn: SQLiteStoredMorningCheckIn) {
         let sessionDate = currentSessionDate()
         
         let sql = """
@@ -1138,7 +1274,7 @@ public class SQLiteStorage: ObservableObject {
     }
     
     /// Fetch morning check-in for a session
-    public func fetchMorningCheckIn(sessionDate: String) -> StoredMorningCheckIn? {
+    public func fetchMorningCheckIn(sessionDate: String) -> SQLiteStoredMorningCheckIn? {
         let sql = "SELECT * FROM morning_checkins WHERE session_date = ? ORDER BY timestamp DESC LIMIT 1"
         
         var stmt: OpaquePointer?
@@ -1153,7 +1289,7 @@ public class SQLiteStorage: ObservableObject {
     }
     
     /// Parse a morning check-in row from SQLite
-    private func parseMorningCheckInRow(_ stmt: OpaquePointer?) -> StoredMorningCheckIn? {
+    private func parseMorningCheckInRow(_ stmt: OpaquePointer?) -> SQLiteStoredMorningCheckIn? {
         guard let stmt = stmt else { return nil }
         
         let id = String(cString: sqlite3_column_text(stmt, 0))
@@ -1208,7 +1344,7 @@ public class SQLiteStorage: ObservableObject {
         
         guard let timestamp = isoFormatter.date(from: timestampStr) else { return nil }
         
-        return StoredMorningCheckIn(
+        return SQLiteStoredMorningCheckIn(
             id: id,
             sessionId: sessionId,
             timestamp: timestamp,
@@ -1240,14 +1376,14 @@ public class SQLiteStorage: ObservableObject {
 
 // MARK: - Supporting Types
 
-public struct StoredDoseEvent: Identifiable {
+public struct SQLiteStoredDoseEvent: Identifiable {
     public let id: String
     public let eventType: String
     public let timestamp: Date
     public let metadata: [String: String]?
 }
 
-public struct StoredSleepEvent: Identifiable {
+public struct SQLiteStoredSleepEvent: Identifiable {
     public let id: String
     public let eventType: String
     public let timestamp: Date
@@ -1277,88 +1413,9 @@ public struct DoseStatistics {
     }
 }
 
-// MARK: - Morning Check-In Storage Model
-public struct StoredMorningCheckIn {
-    public let id: String
-    public let sessionId: String
-    public let timestamp: Date
-    public let sessionDate: String
-    
-    // Core assessment
-    public let sleepQuality: Int
-    public let feelRested: String
-    public let grogginess: String
-    public let sleepInertiaDuration: String
-    public let dreamRecall: String
-    
-    // Physical symptoms
-    public let hasPhysicalSymptoms: Bool
-    public let physicalSymptomsJson: String?  // Includes painNotes
-    
-    // Respiratory symptoms
-    public let hasRespiratorySymptoms: Bool
-    public let respiratorySymptomsJson: String?  // Includes respiratoryNotes
-    
-    // Mental state
-    public let mentalClarity: Int
-    public let mood: String
-    public let anxietyLevel: String
-    public let readinessForDay: Int
-    
-    // Narcolepsy flags
-    public let hadSleepParalysis: Bool
-    public let hadHallucinations: Bool
-    public let hadAutomaticBehavior: Bool
-    public let fellOutOfBed: Bool
-    public let hadConfusionOnWaking: Bool
-    
-    // Sleep Therapy
-    public let usedSleepTherapy: Bool
-    public let sleepTherapyJson: String?  // device, compliance, notes
-    
-    // Notes
-    public let notes: String?
-    
-    /// Computed: any narcolepsy symptoms reported
-    public var hasNarcolepsySymptoms: Bool {
-        hadSleepParalysis || hadHallucinations || hadAutomaticBehavior || fellOutOfBed || hadConfusionOnWaking
-    }
-}
-
 // MARK: - Medication Entry Storage Model
-public struct StoredMedicationEntry {
-    public let id: String
-    public let sessionId: String?
-    public let sessionDate: String
-    public let medicationId: String
-    public let doseMg: Int
-    public let takenAtUTC: Date
-    public let notes: String?
-    public let confirmedDuplicate: Bool
-    public let createdAt: Date
-    
-    public init(
-        id: String = UUID().uuidString,
-        sessionId: String?,
-        sessionDate: String,
-        medicationId: String,
-        doseMg: Int,
-        takenAtUTC: Date,
-        notes: String? = nil,
-        confirmedDuplicate: Bool = false,
-        createdAt: Date = Date()
-    ) {
-        self.id = id
-        self.sessionId = sessionId
-        self.sessionDate = sessionDate
-        self.medicationId = medicationId
-        self.doseMg = doseMg
-        self.takenAtUTC = takenAtUTC
-        self.notes = notes
-        self.confirmedDuplicate = confirmedDuplicate
-        self.createdAt = createdAt
-    }
-}
+
 
 // SQLite transient constant
 private let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+#endif // #if false - SQLiteStorage banned

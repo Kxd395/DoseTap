@@ -30,7 +30,10 @@ let package = Package(
                 "MorningCheckIn.swift",
                 "CSVExporter.swift",
                 "DataRedactor.swift",
-                "MedicationConfig.swift"
+                "MedicationConfig.swift",
+                "SessionKey.swift",
+                "SleepPlan.swift",
+                "EventStore.swift"
             ]
         ),
         .testTarget(
@@ -53,7 +56,9 @@ let package = Package(
                 "CSVExporterTests.swift",
                 "DataRedactorTests.swift",
                 "MedicationLoggerTests.swift",
-                "TimeCorrectnessTests.swift"
+                "TimeCorrectnessTests.swift",
+                "SleepPlanCalculatorTests.swift",
+                "SessionIdBackfillTests.swift"
             ]
         )
     ]

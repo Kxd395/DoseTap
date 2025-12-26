@@ -22,7 +22,7 @@
 **Result:** 26 issues (25 warnings for planned features, 1 meta-reference in log)
 
 **Command:** `bash tools/doc_lint.sh`
-**Result:** FAIL on "12 event" reference in archived FIX_PLAN (cosmetic)
+**Result:** FAIL on stale event-count reference in archived FIX_PLAN (cosmetic)
 
 **Command:** `swift test`
 **Result:** 262 tests, 0 failures

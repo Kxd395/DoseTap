@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 import UserNotifications
 import SwiftUI
 import DoseCore
@@ -366,7 +367,10 @@ public class EnhancedNotificationService: NSObject, ObservableObject {
             actions: [ActionID.takeNow, ActionID.skip]
         )
         
-        print("Scheduled \(getPendingNotificationCount()) dose notifications")
+        Task {
+            let count = await getPendingNotificationCount()
+            print("Scheduled \(count) dose notifications")
+        }
     }
     
     /// Schedule medication refill reminder
@@ -571,7 +575,7 @@ public class EnhancedNotificationService: NSObject, ObservableObject {
 
 // MARK: - UNUserNotificationCenterDelegate
 
-extension EnhancedNotificationService: UNUserNotificationCenterDelegate {
+extension EnhancedNotificationService: @preconcurrency UNUserNotificationCenterDelegate {
     
     /// Handle notification actions
     public func userNotificationCenter(

@@ -1,4 +1,5 @@
 import SwiftUI
+import DoseCore
 
 // UserSettingsManager and AppearanceMode are defined in UserSettingsManager.swift
 
@@ -10,6 +11,7 @@ struct SettingsView: View {
     @State private var showingExportSheet = false
     @State private var exportURL: URL?
     @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var sleepPlanStore = SleepPlanStore.shared
     
     var body: some View {
         NavigationView {
@@ -27,6 +29,55 @@ struct SettingsView: View {
                     }
                 } header: {
                     Label("Appearance", systemImage: "paintbrush.fill")
+                }
+                
+                // MARK: - Typical Week + Sleep Plan
+                Section {
+                    ForEach(1...7, id: \.self) { weekday in
+                        TypicalWeekRow(
+                            weekday: weekday,
+                            entry: sleepPlanStore.schedule.entry(for: weekday)
+                        ) { date, enabled in
+                            sleepPlanStore.updateEntry(weekday: weekday, wakeTime: date, enabled: enabled)
+                        }
+                    }
+                } header: {
+                    Label("Typical Week", systemImage: "calendar.badge.clock")
+                } footer: {
+                    Text("Wake-by uses the next morning of tonight's session key.")
+                }
+                
+                Section {
+                    SleepPlanSettingsRow(
+                        title: "Target Sleep",
+                        minutes: sleepPlanStore.settings.targetSleepMinutes,
+                        step: 30,
+                        range: 300...600
+                    ) { newValue in
+                        sleepPlanStore.updateSettings(targetSleepMinutes: newValue)
+                    }
+                    
+                    SleepPlanSettingsRow(
+                        title: "Sleep Latency",
+                        minutes: sleepPlanStore.settings.sleepLatencyMinutes,
+                        step: 5,
+                        range: 0...120
+                    ) { newValue in
+                        sleepPlanStore.updateSettings(sleepLatencyMinutes: newValue)
+                    }
+                    
+                    SleepPlanSettingsRow(
+                        title: "Wind Down",
+                        minutes: sleepPlanStore.settings.windDownMinutes,
+                        step: 5,
+                        range: 0...120
+                    ) { newValue in
+                        sleepPlanStore.updateSettings(windDownMinutes: newValue)
+                    }
+                } header: {
+                    Label("Sleep Plan", systemImage: "bed.double.fill")
+                } footer: {
+                    Text("These knobs feed the Tonight planner and do not change the dose window.")
                 }
                 
                 // MARK: - Dose Timing Section (XYWAV Specific)
@@ -199,17 +250,9 @@ struct SettingsView: View {
                         }
                     }
                     
-                    Toggle(isOn: $settings.whoopEnabled) {
-                        Label("WHOOP", systemImage: "figure.run")
-                    }
-                    
-                    if settings.whoopEnabled {
-                        NavigationLink {
-                            WHOOPSettingsView()
-                        } label: {
-                            Label("WHOOP Settings", systemImage: "chevron.right")
-                        }
-                    }
+                    // WHOOP is disabled-by-default in shipping builds; integration gated behind entitlement review
+                    Label("WHOOP (disabled by default)", systemImage: "figure.run")
+                        .foregroundColor(.secondary)
                 } header: {
                     Label("Integrations", systemImage: "link")
                 }
@@ -232,18 +275,18 @@ struct SettingsView: View {
                         showingResetConfirmation = true
                     } label: {
                         Label("Clear All Data", systemImage: "trash.fill")
-                    }
-                } header: {
-                    Label("Data Management", systemImage: "externaldrive.fill")
-                } footer: {
-                    Text("Data is stored locally on your device only.")
                 }
-                
-                // MARK: - Privacy Section
-                Section {
-                    Toggle(isOn: $settings.analyticsEnabled) {
-                        Label("Anonymous Analytics", systemImage: "chart.bar.fill")
-                    }
+            } header: {
+                Label("Data Management", systemImage: "externaldrive.fill")
+            } footer: {
+                Text("Data is stored locally on your device only.")
+            }
+            
+            // MARK: - Privacy Section
+            Section {
+                Toggle(isOn: $settings.analyticsEnabled) {
+                    Label("Anonymous Analytics", systemImage: "chart.bar.fill")
+                }
                     
                     Toggle(isOn: $settings.crashReportsEnabled) {
                         Label("Crash Reports", systemImage: "ant.fill")
@@ -255,25 +298,39 @@ struct SettingsView: View {
                 }
                 
                 // MARK: - About Section
-                Section {
-                    HStack {
-                        Label("Version", systemImage: "info.circle")
-                        Spacer()
-                        Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.0.0")
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    HStack {
-                        Label("Build", systemImage: "hammer")
-                        Spacer()
-                        Text(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1")
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    NavigationLink {
-                        AboutView()
-                    } label: {
-                        Label("About DoseTap", systemImage: "questionmark.circle")
+            Section {
+                HStack {
+                    Label("Version", systemImage: "info.circle")
+                    Spacer()
+                    Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.0.0")
+                        .foregroundColor(.secondary)
+                }
+                
+                HStack {
+                    Label("Build", systemImage: "hammer")
+                    Spacer()
+                    Text(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1")
+                        .foregroundColor(.secondary)
+                }
+                
+                HStack {
+                    Label("Schema Version", systemImage: "number.circle")
+                    Spacer()
+                    Text("\(SessionRepository.shared.getSchemaVersion())")
+                        .foregroundColor(.secondary)
+                }
+                
+                HStack {
+                    Label("Constants Version", systemImage: "text.book.closed")
+                    Spacer()
+                    Text(EventStorage.constantsVersion)
+                        .foregroundColor(.secondary)
+                }
+                
+                NavigationLink {
+                    AboutView()
+                } label: {
+                    Label("About DoseTap", systemImage: "questionmark.circle")
                     }
                 } header: {
                     Label("About", systemImage: "info.circle.fill")
@@ -447,8 +504,7 @@ struct SettingsView: View {
     }
     
     private func exportData() {
-        let storage = EventStorage.shared
-        let csvContent = storage.exportToCSV()
+        let csvContent = SessionRepository.shared.exportToCSV()
         
         // Create temporary file
         let tempDir = FileManager.default.temporaryDirectory
@@ -521,161 +577,167 @@ struct HealthKitSettingsView: View {
     @StateObject private var settings = UserSettingsManager.shared
     @State private var isLoading = false
     @State private var showingBaseline = false
+    private let defaultProvider: any HealthKitProviding = HealthKitProviderFactory.makeDefault()
     
     var body: some View {
         List {
-            // Status Section
-            Section {
-                HStack {
-                    Label("Status", systemImage: "heart.fill")
-                    Spacer()
-                    if healthKit.isAuthorized {
-                        Label("Connected", systemImage: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                            .labelStyle(.titleOnly)
-                    } else {
-                        Text("Not Connected")
-                            .foregroundColor(.secondary)
-                    }
-                }
-                
-                if !healthKit.isAuthorized {
-                    Button {
-                        Task {
-                            isLoading = true
-                            let success = await healthKit.requestAuthorization()
-                            if success {
-                                settings.healthKitEnabled = true
-                            }
-                            isLoading = false
-                        }
-                    } label: {
-                        HStack {
-                            Label("Connect Apple Health", systemImage: "link")
-                            if isLoading {
-                                Spacer()
-                                ProgressView()
-                            }
-                        }
-                    }
-                    .disabled(isLoading)
-                } else {
-                    Toggle(isOn: $settings.healthKitEnabled) {
-                        Label("Use Sleep Data", systemImage: "bed.double.fill")
-                    }
-                }
-            } header: {
-                Label("Apple Health", systemImage: "heart.text.square")
-            } footer: {
-                Text("DoseTap reads sleep data to learn your patterns and optimize wake times.")
-            }
-            
-            // TTFW Baseline Section
-            if healthKit.isAuthorized && settings.healthKitEnabled {
+            if defaultProvider is NoOpHealthKitProvider {
                 Section {
-                    Button {
-                        Task {
-                            isLoading = true
-                            await healthKit.computeTTFWBaseline(days: 14)
-                            isLoading = false
-                            showingBaseline = true
-                        }
-                    } label: {
-                        HStack {
-                            Label("Compute Sleep Baseline", systemImage: "chart.line.uptrend.xyaxis")
-                            if isLoading {
-                                Spacer()
-                                ProgressView()
-                            }
+                    Label("HealthKit is disabled (simulator or missing entitlements)", systemImage: "heart.slash")
+                        .foregroundColor(.secondary)
+                } footer: {
+                    Text("On simulator and unsigned builds, HealthKit is unavailable. App defaults to NoOp provider for safety.")
+                }
+            } else {
+                Section {
+                    HStack {
+                        Label("Status", systemImage: "heart.fill")
+                        Spacer()
+                        if healthKit.isAuthorized {
+                            Label("Connected", systemImage: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                                .labelStyle(.titleOnly)
+                        } else {
+                            Text("Not Connected")
+                                .foregroundColor(.secondary)
                         }
                     }
-                    .disabled(isLoading)
                     
-                    if let baseline = healthKit.ttfwBaseline {
-                        HStack {
-                            Label("Avg Time to First Wake", systemImage: "clock.fill")
-                            Spacer()
-                            Text("\(Int(baseline)) min")
-                                .foregroundColor(.blue)
-                                .fontWeight(.semibold)
-                        }
-                        
-                        if let nudge = healthKit.calculateNudgeSuggestion() {
-                            HStack {
-                                Label("Suggested Nudge", systemImage: "arrow.left.arrow.right")
-                                Spacer()
-                                Text(nudge >= 0 ? "+\(nudge) min" : "\(nudge) min")
-                                    .foregroundColor(nudge >= 0 ? .green : .orange)
-                                    .fontWeight(.semibold)
+                    if !healthKit.isAuthorized {
+                        Button {
+                            Task {
+                                isLoading = true
+                                let success = await healthKit.requestAuthorization()
+                                if success {
+                                    settings.healthKitEnabled = true
+                                }
+                                isLoading = false
                             }
+                        } label: {
+                            HStack {
+                                Label("Connect Apple Health", systemImage: "link")
+                                if isLoading {
+                                    Spacer()
+                                    ProgressView()
+                                }
+                            }
+                        }
+                        .disabled(isLoading)
+                    } else {
+                        Toggle(isOn: $settings.healthKitEnabled) {
+                            Label("Use Sleep Data", systemImage: "bed.double.fill")
                         }
                     }
                 } header: {
-                    Label("Sleep Analysis", systemImage: "waveform.path.ecg")
+                    Label("Apple Health", systemImage: "heart.text.square")
                 } footer: {
-                    Text("Analyzes 14 nights of sleep data to find your natural wake rhythm.")
+                    Text("DoseTap reads sleep data to learn your patterns and optimize wake times.")
                 }
                 
-                // Sleep History Section
-                if !healthKit.sleepHistory.isEmpty {
+                if healthKit.isAuthorized && settings.healthKitEnabled {
                     Section {
-                        ForEach(healthKit.sleepHistory.prefix(7)) { night in
+                        Button {
+                            Task {
+                                isLoading = true
+                                await healthKit.computeTTFWBaseline(days: 14)
+                                isLoading = false
+                                showingBaseline = true
+                            }
+                        } label: {
                             HStack {
-                                VStack(alignment: .leading) {
-                                    Text(night.date, style: .date)
-                                        .font(.subheadline)
-                                    Text("\(Int(night.totalSleepMinutes / 60))h \(Int(night.totalSleepMinutes.truncatingRemainder(dividingBy: 60)))m sleep")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
+                                Label("Compute Sleep Baseline", systemImage: "chart.line.uptrend.xyaxis")
+                                if isLoading {
+                                    Spacer()
+                                    ProgressView()
                                 }
+                            }
+                        }
+                        .disabled(isLoading)
+                        
+                        if let baseline = healthKit.ttfwBaseline {
+                            HStack {
+                                Label("Avg Time to First Wake", systemImage: "clock.fill")
                                 Spacer()
-                                if let ttfw = night.ttfwMinutes {
-                                    VStack(alignment: .trailing) {
-                                        Text("\(Int(ttfw)) min")
-                                            .font(.subheadline.bold())
-                                        Text("TTFW")
-                                            .font(.caption2)
-                                            .foregroundColor(.secondary)
-                                    }
-                                } else {
-                                    Text("No data")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
+                                Text("\(Int(baseline)) min")
+                                    .foregroundColor(.blue)
+                                    .fontWeight(.semibold)
+                            }
+                            
+                            if let nudge = healthKit.calculateNudgeSuggestion() {
+                                HStack {
+                                    Label("Suggested Nudge", systemImage: "arrow.left.arrow.right")
+                                    Spacer()
+                                    Text(nudge >= 0 ? "+\(nudge) min" : "\(nudge) min")
+                                        .foregroundColor(nudge >= 0 ? .green : .orange)
+                                        .fontWeight(.semibold)
                                 }
                             }
                         }
                     } header: {
-                        Label("Recent Nights", systemImage: "calendar")
+                        Label("Sleep Analysis", systemImage: "waveform.path.ecg")
+                    } footer: {
+                        Text("Analyzes 14 nights of sleep data to find your natural wake rhythm.")
+                    }
+                    
+                    if !healthKit.sleepHistory.isEmpty {
+                        Section {
+                            ForEach(healthKit.sleepHistory.prefix(7)) { night in
+                                HStack {
+                                    VStack(alignment: .leading) {
+                                        Text(night.date, style: .date)
+                                            .font(.subheadline)
+                                        Text("\(Int(night.totalSleepMinutes / 60))h \(Int(night.totalSleepMinutes.truncatingRemainder(dividingBy: 60)))m sleep")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    Spacer()
+                                    if let ttfw = night.ttfwMinutes {
+                                        VStack(alignment: .trailing) {
+                                            Text("\(Int(ttfw)) min")
+                                                .font(.subheadline.bold())
+                                            Text("TTFW")
+                                                .font(.caption2)
+                                                .foregroundColor(.secondary)
+                                        }
+                                    } else {
+                                        Text("No data")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                            }
+                        } header: {
+                            Label("Recent Nights", systemImage: "calendar")
+                        }
                     }
                 }
-            }
-            
-            // Info Section
-            Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Image(systemName: "info.circle.fill")
-                            .foregroundColor(.blue)
-                        Text("What We Read")
-                            .font(.subheadline.bold())
-                    }
-                    Text("• Sleep analysis (bed time, sleep stages, wake times)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Text("• Used to calculate TTFW (Time to First Wake)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Text("• Data stays on your device")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.vertical, 4)
-            }
-            
-            if let error = healthKit.lastError {
+                
                 Section {
-                    Label(error, systemImage: "exclamationmark.triangle.fill")
-                        .foregroundColor(.red)
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Image(systemName: "info.circle.fill")
+                                .foregroundColor(.blue)
+                            Text("What We Read")
+                                .font(.subheadline.bold())
+                        }
+                        Text("• Sleep analysis (bed time, sleep stages, wake times)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text("• Used to calculate TTFW (Time to First Wake)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text("• Data stays on your device")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.vertical, 4)
+                }
+                
+                if let error = healthKit.lastError {
+                    Section {
+                        Label(error, systemImage: "exclamationmark.triangle.fill")
+                            .foregroundColor(.red)
+                    }
                 }
             }
         }
@@ -939,7 +1001,6 @@ struct DataManagementView: View {
     @State private var showClearAllEventsConfirmation = false
     @State private var showClearOldDataConfirmation = false
     
-    private let storage = EventStorage.shared
     private let sessionRepo = SessionRepository.shared
     
     var body: some View {
@@ -1086,7 +1147,7 @@ struct DataManagementView: View {
     }
     
     private func loadSessions() {
-        sessions = storage.fetchRecentSessions(days: 365) // Get up to a year
+        sessions = sessionRepo.fetchRecentSessions(days: 365) // Get up to a year
     }
     
     private func deleteSessions(at offsets: IndexSet) {
@@ -1115,12 +1176,12 @@ struct DataManagementView: View {
     }
     
     private func clearAllEvents() {
-        storage.clearAllSleepEvents()
+        sessionRepo.clearAllSleepEvents()
         loadSessions()
     }
     
     private func clearOldData() {
-        storage.clearOldData(olderThanDays: 30)
+        sessionRepo.clearOldData(olderThanDays: 30)
         loadSessions()
     }
 }
@@ -1435,17 +1496,6 @@ struct QuickLogPreviewButton: View {
     }
 }
 
-// MARK: - Share Sheet
-struct ShareSheet: UIViewControllerRepresentable {
-    let items: [Any]
-    
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
-    }
-    
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
-}
-
 // MARK: - DateFormatter Extension for Export
 extension DateFormatter {
     static let exportDateFormatter: DateFormatter = {
@@ -1453,6 +1503,86 @@ extension DateFormatter {
         formatter.dateFormat = "yyyy-MM-dd_HHmmss"
         return formatter
     }()
+}
+
+// MARK: - Typical Week Helpers
+private struct TypicalWeekRow: View {
+    let weekday: Int
+    let entry: TypicalWeekEntry
+    var onChange: (Date, Bool) -> Void
+    
+    @State private var wakeTime: Date
+    
+    init(weekday: Int, entry: TypicalWeekEntry, onChange: @escaping (Date, Bool) -> Void) {
+        self.weekday = weekday
+        self.entry = entry
+        self.onChange = onChange
+        _wakeTime = State(initialValue: TypicalWeekRow.makeDate(from: entry))
+    }
+    
+    var body: some View {
+        HStack {
+            Toggle(isOn: Binding(
+                get: { entry.enabled },
+                set: { newValue in onChange(wakeTime, newValue) }
+            )) {
+                Text(weekdayName(weekday))
+            }
+            .toggleStyle(.switch)
+            
+            DatePicker(
+                "",
+                selection: Binding(
+                    get: { wakeTime },
+                    set: { newValue in
+                        wakeTime = newValue
+                        onChange(newValue, entry.enabled)
+                    }
+                ),
+                displayedComponents: .hourAndMinute
+            )
+            .labelsHidden()
+        }
+        .onChange(of: entry) { newEntry in
+            wakeTime = TypicalWeekRow.makeDate(from: newEntry)
+        }
+    }
+    
+    private func weekdayName(_ index: Int) -> String {
+        let symbols = Calendar.current.weekdaySymbols
+        let normalized = (index - 1 + symbols.count) % symbols.count
+        return symbols[normalized]
+    }
+    
+    private static func makeDate(from entry: TypicalWeekEntry) -> Date {
+        var comps = DateComponents()
+        comps.hour = entry.wakeByHour
+        comps.minute = entry.wakeByMinute
+        comps.second = 0
+        return Calendar.current.date(from: comps) ?? Date()
+    }
+}
+
+private struct SleepPlanSettingsRow: View {
+    let title: String
+    let minutes: Int
+    let step: Int
+    let range: ClosedRange<Int>
+    var onChange: (Int) -> Void
+    
+    var body: some View {
+        HStack {
+            Text(title)
+            Spacer()
+            Stepper(value: Binding(
+                get: { minutes },
+                set: { newValue in onChange(newValue) }
+            ), in: range, step: step) {
+                Text("\(minutes) min")
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
 }
 
 // MARK: - Preview

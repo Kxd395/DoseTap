@@ -8,10 +8,10 @@
 //
 
 import SwiftUI
+import Combine
 
-// MARK: - Local Enum Definitions (for Xcode app target)
-// These mirror the types in DoseCore/MorningCheckIn.swift but are defined locally
-// to avoid module dependency issues in the Xcode project
+// Note: Enums are inlined here to avoid module dependency issues in the original 
+// project structure, but use the unified SQLiteStoredMorningCheckIn from DoseModels.
 
 enum RestedLevel: String, CaseIterable {
     case notAtAll = "Not at all"
@@ -188,7 +188,6 @@ enum SicknessLevel: String, CaseIterable {
     case recovering = "Recovering"
 }
 
-// MARK: - Sleep Therapy Device Types
 enum SleepTherapyDevice: String, CaseIterable, Codable {
     case none = "None"
     case cpap = "CPAP"
@@ -209,200 +208,29 @@ enum SleepTherapyDevice: String, CaseIterable, Codable {
         case .other: return "questionmark.circle"
         }
     }
-    
-    var description: String {
-        switch self {
-        case .none: return "No device used"
-        case .cpap: return "Continuous Positive Airway Pressure"
-        case .bipap: return "Bilevel Positive Airway Pressure"
-        case .apap: return "Auto-adjusting PAP"
-        case .oxygen: return "Supplemental oxygen therapy"
-        case .oralAppliance: return "Mandibular advancement device"
-        case .positionalTherapy: return "Side-sleeping aids"
-        case .other: return "Other sleep therapy device"
-        }
-    }
 }
 
-// MARK: - Sleep Environment Types (V1 Question Set)
-// See SSOT: "Sleep Setup and Aids" section - high-signal for correlation analysis
-
-/// Sleep aids and environment behaviors (multi-select chips)
-/// Design: tap-to-toggle chips, categorized, includes "behavior" items like TV/phone
-enum LocalSleepAid: String, CaseIterable, Codable {
-    // Environment - Physical
-    case darkRoom = "Dark room/blackout"
-    case eyeMask = "Eye mask"
-    case earplugs = "Earplugs"
-    case whiteNoise = "White noise/sound"
-    case fan = "Fan"
-    case weightedBlanket = "Weighted blanket"
-    case heatingPad = "Heating pad"
-    case humidifier = "Humidifier"
-    
-    // Relaxation
-    case meditation = "Meditation/breathing"
-    case music = "Music"
-    case podcastAudiobook = "Podcast/audiobook"
-    
-    // Medical/Devices
-    case cpap = "CPAP"
-    case mouthTape = "Mouth tape"
-    case nasalStrip = "Nasal strip"
-    
-    // Screen behaviors (NOT aids - correlate with worse sleep)
-    case tvOn = "TV on"
-    case phoneInBed = "Phone in bed"
-    
-    // Meta
-    case other = "Other"
-    case none = "None"
-    
-    var icon: String {
-        switch self {
-        case .darkRoom: return "moon.fill"
-        case .eyeMask: return "eye.slash.fill"
-        case .earplugs: return "ear.badge.checkmark"
-        case .whiteNoise: return "waveform"
-        case .fan: return "fan.fill"
-        case .weightedBlanket: return "bed.double.fill"
-        case .heatingPad: return "flame.fill"
-        case .humidifier: return "humidity.fill"
-        case .meditation: return "brain.head.profile"
-        case .music: return "music.note"
-        case .podcastAudiobook: return "headphones"
-        case .cpap: return "wind"
-        case .mouthTape: return "mouth"
-        case .nasalStrip: return "nose"
-        case .tvOn: return "tv.fill"
-        case .phoneInBed: return "iphone"
-        case .other: return "ellipsis.circle"
-        case .none: return "xmark.circle"
-        }
-    }
-    
-    /// Whether this is a screen/behavior item (visually tagged differently)
-    var isScreenBehavior: Bool {
-        self == .tvOn || self == .phoneInBed
-    }
-    
-    /// Category for grouping in UI
-    var category: SleepAidCategory {
-        switch self {
-        case .darkRoom, .eyeMask, .earplugs, .whiteNoise, .fan, .weightedBlanket, .heatingPad, .humidifier:
-            return .environment
-        case .meditation, .music, .podcastAudiobook:
-            return .relaxation
-        case .cpap, .mouthTape, .nasalStrip:
-            return .medical
-        case .tvOn, .phoneInBed:
-            return .screens
-        case .other, .none:
-            return .meta
-        }
-    }
-    
-    enum SleepAidCategory: String, CaseIterable {
-        case environment = "Environment"
-        case relaxation = "Relaxation"
-        case medical = "Medical"
-        case screens = "Screens"
-        case meta = "Other"
-    }
-}
-
-/// Room darkness level (3-option quick tap)
-enum LocalDarknessLevel: String, CaseIterable, Codable {
-    case bright = "Bright"
-    case dim = "Dim"
-    case dark = "Dark"
-    
-    var icon: String {
-        switch self {
-        case .bright: return "sun.max.fill"
-        case .dim: return "sun.haze.fill"
-        case .dark: return "moon.fill"
-        }
-    }
-}
-
-/// Noise level (3-option quick tap)
-enum LocalNoiseLevel: String, CaseIterable, Codable {
-    case quiet = "Quiet"
-    case someNoise = "Some noise"
-    case loud = "Loud"
-    
-    var icon: String {
-        switch self {
-        case .quiet: return "speaker.fill"
-        case .someNoise: return "speaker.wave.2.fill"
-        case .loud: return "speaker.wave.3.fill"
-        }
-    }
-}
-
-/// Screen time in bed buckets (per user spec: 0-15, 15-45, 45+)
-enum LocalScreenTimeBucket: String, CaseIterable, Codable {
-    case under15 = "0-15 min"
-    case fifteenTo45 = "15-45 min"
-    case over45 = "45+ min"
-    case unknown = "Unknown"
-    
-    var dataKey: String {
-        switch self {
-        case .under15: return "0_15"
-        case .fifteenTo45: return "15_45"
-        case .over45: return "45_plus"
-        case .unknown: return "unknown"
-        }
-    }
-}
-
-/// Sound machine type (follow-up when white noise selected)
-enum LocalSoundType: String, CaseIterable, Codable {
-    case whiteNoise = "White noise"
-    case rain = "Rain"
-    case fan = "Fan"
-    case other = "Other"
-    case unknown = "Unknown"
-    
-    var dataKey: String {
-        rawValue.lowercased().replacingOccurrences(of: " ", with: "_")
-    }
-}
-
-// MARK: - Saved Settings for Persistence
-/// Settings that can be remembered between sessions
 struct SavedCheckInSettings: Codable {
     var usedSleepTherapy: Bool
     var sleepTherapyDevice: SleepTherapyDevice
-    
-    // Sleep environment (NEW - "Same as usual" shortcut)
-    var lastSleepAids: [LocalSleepAid]?
-    var lastRoomDarkness: LocalDarknessLevel?
-    var lastNoiseLevel: LocalNoiseLevel?
 }
 
 // MARK: - Morning Check-In View Model
 @MainActor
 class MorningCheckInViewModel: ObservableObject {
-    // Session context
     let sessionId: UUID
+    let sessionDateOverride: String?
     
-    // Quick Mode (Always visible)
-    @Published var sleepQuality: Int = 3  // 1-5 stars
+    @Published var sleepQuality: Int = 3
     @Published var feelRested: RestedLevel = .moderate
     @Published var grogginess: GrogginessLevel = .mild
     @Published var sleepInertiaDuration: SleepInertiaDuration = .fiveToFifteen
-    @Published var mentalClarity: Int = 5  // 1-10
+    @Published var mentalClarity: Int = 5
     @Published var mood: MoodLevel = .neutral
-    @Published var readinessForDay: Int = 3  // 1-5
+    @Published var readinessForDay: Int = 3
     
-    // Deep Dive toggles
     @Published var hasPhysicalSymptoms: Bool = false
     @Published var hasRespiratorySymptoms: Bool = false
-    
-    // Physical Symptoms (conditional)
     @Published var painLocations: Set<BodyPart> = []
     @Published var painSeverity: Int = 0
     @Published var painType: PainType = .aching
@@ -412,144 +240,56 @@ class MorningCheckInViewModel: ObservableObject {
     @Published var isMigraine: Bool = false
     @Published var muscleStiffness: StiffnessLevel = .none
     @Published var muscleSoreness: SorenessLevel = .none
-    @Published var painNotes: String = ""  // NEW: Notes for pain symptoms
-    
-    // Respiratory Symptoms (conditional)
+    @Published var painNotes: String = ""
     @Published var congestion: CongestionType = .none
     @Published var throatCondition: ThroatCondition = .normal
     @Published var coughType: CoughType = .none
     @Published var sinusPressure: SinusPressureLevel = .none
     @Published var feelingFeverish: Bool = false
     @Published var sicknessLevel: SicknessLevel = .no
-    @Published var respiratoryNotes: String = ""  // NEW: Notes for respiratory symptoms
-    
-    // Sleep Therapy Device (NEW)
+    @Published var respiratoryNotes: String = ""
     @Published var usedSleepTherapy: Bool = false
     @Published var sleepTherapyDevice: SleepTherapyDevice = .none
-    @Published var sleepTherapyCompliance: Int = 100  // Percentage of night used (0-100)
-    @Published var sleepTherapyNotes: String = ""  // e.g., "mask leaked", "removed at 3am"
-    
-    // Sleep Environment (NEW - V1 Question Set)
-    // Goal: 10 seconds if user taps "Same as usual", 25 seconds for full entry
-    @Published var sleepAidsUsed: Set<LocalSleepAid> = []
-    @Published var roomDarkness: LocalDarknessLevel = .dark
-    @Published var noiseLevel: LocalNoiseLevel = .quiet
-    @Published var screenInBedMinutesBucket: LocalScreenTimeBucket = .unknown
-    @Published var soundType: LocalSoundType = .unknown
-    @Published var useSameAsUsual: Bool = false  // "Same as usual" shortcut
-    @Published var otherAidText: String = ""  // Optional, capped at 50 chars
-    
-    // Narcolepsy flags (toggle list)
+    @Published var sleepTherapyCompliance: Int = 100
+    @Published var sleepTherapyNotes: String = ""
     @Published var hadSleepParalysis: Bool = false
     @Published var hadHallucinations: Bool = false
     @Published var hadAutomaticBehavior: Bool = false
     @Published var fellOutOfBed: Bool = false
     @Published var hadConfusionOnWaking: Bool = false
-    
-    // Dream recall
     @Published var dreamRecall: DreamRecallType = .none
-    
-    // Anxiety
     @Published var anxietyLevel: AnxietyLevel = .none
-    
-    // Notes
     @Published var notes: String = ""
-    
-    // Persistence preference (NEW)
-    @Published var rememberSettings: Bool = false  // Remember last night's settings
-    
-    // UI state
+    @Published var rememberSettings: Bool = false
     @Published var showDeepDive: Bool = false
     @Published var isSubmitting: Bool = false
     @Published var showNarcolepsySection: Bool = false
     @Published var showSleepTherapySection: Bool = false
-    @Published var showSleepEnvironmentSection: Bool = true  // NEW - shown by default
-    @Published var showSleepEnvironmentFollowUps: Bool = false  // Only if not "Same as usual"
     
-    // UserDefaults keys for persistence
     private static let rememberSettingsKey = "morningCheckIn.rememberSettings"
     private static let savedSettingsKey = "morningCheckIn.savedSettings"
     
-    init(sessionId: UUID = UUID()) {
+    init(sessionId: UUID = UUID(), sessionDateOverride: String? = nil) {
         self.sessionId = sessionId
+        self.sessionDateOverride = sessionDateOverride
         loadSavedSettings()
     }
     
-    /// Load saved settings if "Remember" is enabled
     private func loadSavedSettings() {
         rememberSettings = UserDefaults.standard.bool(forKey: Self.rememberSettingsKey)
-        
         if rememberSettings, let data = UserDefaults.standard.data(forKey: Self.savedSettingsKey) {
             if let saved = try? JSONDecoder().decode(SavedCheckInSettings.self, from: data) {
-                // Apply saved settings (only the "stable" ones, not symptoms)
                 usedSleepTherapy = saved.usedSleepTherapy
                 sleepTherapyDevice = saved.sleepTherapyDevice
                 showSleepTherapySection = saved.usedSleepTherapy
-                
-                // Sleep environment "Same as usual" support
-                if let lastAids = saved.lastSleepAids {
-                    sleepAidsUsed = Set(lastAids)
-                }
-                if let lastDarkness = saved.lastRoomDarkness {
-                    roomDarkness = lastDarkness
-                }
-                if let lastNoise = saved.lastNoiseLevel {
-                    noiseLevel = lastNoise
-                }
             }
         }
     }
     
-    /// Apply "Same as usual" from last session
-    func applySameAsUsual() {
-        useSameAsUsual = true
-        showSleepEnvironmentFollowUps = false
-    }
-    
-    /// Clear "Same as usual" and show follow-ups
-    func customizeSleepEnvironment() {
-        useSameAsUsual = false
-        showSleepEnvironmentFollowUps = true
-    }
-    
-    /// Toggle a sleep aid chip
-    func toggleSleepAid(_ aid: LocalSleepAid) {
-        if aid == .none {
-            // "None" clears all others
-            sleepAidsUsed = [.none]
-        } else {
-            // Remove "None" if selecting something else
-            sleepAidsUsed.remove(.none)
-            if sleepAidsUsed.contains(aid) {
-                sleepAidsUsed.remove(aid)
-            } else {
-                sleepAidsUsed.insert(aid)
-            }
-        }
-        
-        // Show follow-ups if screen behavior selected
-        if sleepAidsUsed.contains(.tvOn) || sleepAidsUsed.contains(.phoneInBed) {
-            showSleepEnvironmentFollowUps = true
-        }
-    }
-    
-    /// Whether any sleep environment data was captured
-    var hasSleepEnvironmentData: Bool {
-        !sleepAidsUsed.isEmpty || useSameAsUsual
-    }
-    
-    /// Save current settings for next time
     func saveSettingsForNextTime() {
         UserDefaults.standard.set(rememberSettings, forKey: Self.rememberSettingsKey)
-        
         if rememberSettings {
-            let settings = SavedCheckInSettings(
-                usedSleepTherapy: usedSleepTherapy,
-                sleepTherapyDevice: sleepTherapyDevice,
-                lastSleepAids: Array(sleepAidsUsed),
-                lastRoomDarkness: roomDarkness,
-                lastNoiseLevel: noiseLevel
-            )
+            let settings = SavedCheckInSettings(usedSleepTherapy: usedSleepTherapy, sleepTherapyDevice: sleepTherapyDevice)
             if let data = try? JSONEncoder().encode(settings) {
                 UserDefaults.standard.set(data, forKey: Self.savedSettingsKey)
             }
@@ -558,29 +298,7 @@ class MorningCheckInViewModel: ObservableObject {
         }
     }
     
-    /// Build sleep environment JSON for storage
-    func buildSleepEnvironmentJson() -> String? {
-        guard hasSleepEnvironmentData else { return nil }
-        
-        let dict: [String: Any] = [
-            "sleep_aids_used": sleepAidsUsed.map { $0.rawValue },
-            "room_darkness": roomDarkness.rawValue.lowercased(),
-            "noise_level": noiseLevel.rawValue.lowercased().replacingOccurrences(of: " ", with: "_"),
-            "screen_in_bed_minutes_bucket": screenInBedMinutesBucket.dataKey,
-            "sound_type": soundType.dataKey,
-            "other_aid_text": String(otherAidText.prefix(50)),  // Capped at 50 chars
-            "same_as_usual": useSameAsUsual
-        ]
-        
-        if let data = try? JSONSerialization.data(withJSONObject: dict) {
-            return String(data: data, encoding: .utf8)
-        }
-        return nil
-    }
-    
-    /// Convert to storable model
-    func toStoredCheckIn() -> StoredMorningCheckIn {
-        // Build physical symptoms JSON if needed
+    func toStoredCheckIn() -> SQLiteStoredMorningCheckIn {
         var physicalJson: String? = nil
         if hasPhysicalSymptoms {
             let dict: [String: Any] = [
@@ -593,14 +311,13 @@ class MorningCheckInViewModel: ObservableObject {
                 "isMigraine": isMigraine,
                 "muscleStiffness": muscleStiffness.rawValue,
                 "muscleSoreness": muscleSoreness.rawValue,
-                "notes": painNotes  // NEW: Pain notes
+                "notes": painNotes
             ]
             if let data = try? JSONSerialization.data(withJSONObject: dict) {
                 physicalJson = String(data: data, encoding: .utf8)
             }
         }
         
-        // Build respiratory symptoms JSON if needed
         var respiratoryJson: String? = nil
         if hasRespiratorySymptoms {
             let dict: [String: Any] = [
@@ -610,14 +327,13 @@ class MorningCheckInViewModel: ObservableObject {
                 "sinusPressure": sinusPressure.rawValue,
                 "feelingFeverish": feelingFeverish,
                 "sicknessLevel": sicknessLevel.rawValue,
-                "notes": respiratoryNotes  // NEW: Respiratory notes
+                "notes": respiratoryNotes
             ]
             if let data = try? JSONSerialization.data(withJSONObject: dict) {
                 respiratoryJson = String(data: data, encoding: .utf8)
             }
         }
         
-        // Build sleep therapy JSON if needed (NEW)
         var sleepTherapyJson: String? = nil
         if usedSleepTherapy && sleepTherapyDevice != .none {
             let dict: [String: Any] = [
@@ -630,11 +346,11 @@ class MorningCheckInViewModel: ObservableObject {
             }
         }
         
-        return StoredMorningCheckIn(
+        return SQLiteStoredMorningCheckIn(
             id: UUID().uuidString,
             sessionId: sessionId.uuidString,
             timestamp: Date(),
-            sessionDate: "", // Will be set by EventStorage
+            sessionDate: sessionDateOverride ?? "", // Use override if provided
             sleepQuality: sleepQuality,
             feelRested: feelRested.rawValue,
             grogginess: grogginess.rawValue,
@@ -655,100 +371,53 @@ class MorningCheckInViewModel: ObservableObject {
             hadConfusionOnWaking: hadConfusionOnWaking,
             usedSleepTherapy: usedSleepTherapy,
             sleepTherapyJson: sleepTherapyJson,
-            hasSleepEnvironment: hasSleepEnvironmentData,  // NEW
-            sleepEnvironmentJson: buildSleepEnvironmentJson(),  // NEW
             notes: notes.isEmpty ? nil : notes
         )
     }
     
-    func submit(sessionDateOverride: String? = nil) async {
+    func submit() async {
         isSubmitting = true
-        saveSettingsForNextTime()  // NEW: Save settings if "Remember" is enabled
+        saveSettingsForNextTime()
         let checkIn = toStoredCheckIn()
-        if let sessionDate = sessionDateOverride {
-            EventStorage.shared.saveMorningCheckIn(checkIn, forSession: sessionDate)
-        } else {
-            EventStorage.shared.saveMorningCheckIn(checkIn)
+        // Route through SessionRepository for unified storage
+        await MainActor.run {
+            SessionRepository.shared.saveMorningCheckIn(checkIn, sessionDateOverride: sessionDateOverride)
         }
         isSubmitting = false
     }
 }
 
 // MARK: - Main View
-struct MorningCheckInView: View {
+public struct MorningCheckInView: View {
     @StateObject private var viewModel: MorningCheckInViewModel
     @Environment(\.dismiss) private var dismiss
     
-    let sessionDateOverride: String?
     let onComplete: () -> Void
     
-    init(sessionId: UUID = UUID(), sessionDateOverride: String? = nil, onComplete: @escaping () -> Void = {}) {
-        _viewModel = StateObject(wrappedValue: MorningCheckInViewModel(sessionId: sessionId))
-        self.sessionDateOverride = sessionDateOverride
+    public init(sessionId: UUID = UUID(), sessionDateOverride: String? = nil, onComplete: @escaping () -> Void = {}) {
+        _viewModel = StateObject(wrappedValue: MorningCheckInViewModel(sessionId: sessionId, sessionDateOverride: sessionDateOverride))
         self.onComplete = onComplete
     }
     
-    var body: some View {
+    public var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
-                    // Header
                     headerSection
-                    
-                    // Show which session this is for (if completing past session)
-                    if let sessionDate = sessionDateOverride {
-                        HStack {
-                            Image(systemName: "calendar.badge.clock")
-                                .foregroundColor(.orange)
-                            Text("Completing check-in for **\(formattedSessionDate(sessionDate))**")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(Color.orange.opacity(0.1))
-                        )
-                    }
-                    
-                    // Quick Mode (always visible)
                     quickModeSection
-                    
-                    // Symptom toggles
                     symptomTogglesSection
-                    
-                    // Conditional Deep Dive
-                    if viewModel.hasPhysicalSymptoms {
-                        physicalSymptomsSection
-                    }
-                    
-                    if viewModel.hasRespiratorySymptoms {
-                        respiratorySymptomsSection
-                    }
-                    
-                    // Sleep Environment section (NEW - "Sleep Setup and Aids")
-                    sleepEnvironmentSection
-                    
-                    // Sleep Therapy section (expandable)
+                    if viewModel.hasPhysicalSymptoms { physicalSymptomsSection }
+                    if viewModel.hasRespiratorySymptoms { respiratorySymptomsSection }
                     sleepTherapySection
-                    
-                    // Narcolepsy section (expandable)
                     narcolepsySection
-                    
-                    // Notes
                     notesSection
-                    
-                    // Remember Settings (NEW)
                     rememberSettingsSection
-                    
-                    // Submit button
                     submitButton
                 }
                 .padding()
             }
             .background(Color(.systemGroupedBackground))
-            .navigationTitle(sessionDateOverride != nil ? "Complete Check-In" : "Morning Check-In")
+            .navigationTitle("Morning Check-In")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -762,121 +431,41 @@ struct MorningCheckInView: View {
         }
     }
     
-    private func formattedSessionDate(_ sessionDate: String) -> String {
-        let inputFormatter = DateFormatter()
-        inputFormatter.dateFormat = "yyyy-MM-dd"
-        
-        guard let date = inputFormatter.date(from: sessionDate) else {
-            return sessionDate
-        }
-        
-        let outputFormatter = DateFormatter()
-        outputFormatter.dateFormat = "EEEE, MMM d"
-        return outputFormatter.string(from: date)
-    }
-    // MARK: - Header Section
     private var headerSection: some View {
         VStack(spacing: 8) {
-            Image(systemName: "sunrise.fill")
-                .font(.system(size: 48))
-                .foregroundStyle(.orange.gradient)
-            
-            Text("Good Morning!")
-                .font(.title2.bold())
-            
-            Text("Quick check-in about last night's sleep")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-        }
-        .padding(.bottom, 8)
+            Image(systemName: "sunrise.fill").font(.system(size: 48)).foregroundStyle(.orange.gradient)
+            Text("Good Morning!").font(.title2.bold())
+            Text("Quick check-in about last night's sleep").font(.subheadline).foregroundColor(.secondary)
+        }.padding(.bottom, 8)
     }
     
-    // MARK: - Quick Mode Section
     private var quickModeSection: some View {
         VStack(spacing: 20) {
-            // Sleep Quality Stars
             cardView(title: "Sleep Quality", icon: "star.fill") {
                 HStack(spacing: 12) {
                     ForEach(1...5, id: \.self) { star in
-                        Button {
-                            viewModel.sleepQuality = star
-                        } label: {
+                        Button { viewModel.sleepQuality = star } label: {
                             Image(systemName: star <= viewModel.sleepQuality ? "star.fill" : "star")
                                 .font(.title)
                                 .foregroundColor(star <= viewModel.sleepQuality ? .yellow : .gray.opacity(0.3))
                         }
                     }
-                }
-                .padding(.vertical, 8)
+                }.padding(.vertical, 8)
             }
-            
-            // Feel Rested
-            cardView(title: "How Rested Do You Feel?", icon: "battery.100") {
-                restedPicker
-            }
-            
-            // Grogginess
-            cardView(title: "Morning Grogginess", icon: "cloud.sun.fill") {
-                grogginessPicker
-            }
-            
-            // Mental Clarity Slider
-            cardView(title: "Mental Clarity", icon: "brain.head.profile") {
-                VStack(spacing: 8) {
-                    HStack {
-                        Text("Foggy")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        Text("Sharp")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    Slider(value: Binding(
-                        get: { Double(viewModel.mentalClarity) },
-                        set: { viewModel.mentalClarity = Int($0) }
-                    ), in: 1...10, step: 1)
-                    .tint(.purple)
-                    
-                    Text("\(viewModel.mentalClarity)/10")
-                        .font(.headline)
-                        .foregroundColor(.purple)
-                }
-            }
-            
-            // Mood
-            cardView(title: "Mood", icon: "face.smiling") {
-                moodPicker
-            }
+            cardView(title: "How Rested Do You Feel?", icon: "battery.100") { restedPicker }
+            cardView(title: "Morning Grogginess", icon: "cloud.sun.fill") { grogginessPicker }
         }
     }
     
-    // MARK: - Symptom Toggles Section
     private var symptomTogglesSection: some View {
         VStack(spacing: 12) {
-            Text("Any Issues?")
-                .font(.headline)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            
+            Text("Any Issues?").font(.headline).frame(maxWidth: .infinity, alignment: .leading)
             HStack(spacing: 12) {
-                symptomToggleButton(
-                    title: "Physical Pain",
-                    icon: "figure.wave",
-                    isActive: viewModel.hasPhysicalSymptoms
-                ) {
-                    withAnimation(.spring(response: 0.3)) {
-                        viewModel.hasPhysicalSymptoms.toggle()
-                    }
+                symptomToggleButton(title: "Physical Pain", icon: "figure.wave", isActive: viewModel.hasPhysicalSymptoms) {
+                    withAnimation(.spring(response: 0.3)) { viewModel.hasPhysicalSymptoms.toggle() }
                 }
-                
-                symptomToggleButton(
-                    title: "Sick/Respiratory",
-                    icon: "lungs.fill",
-                    isActive: viewModel.hasRespiratorySymptoms
-                ) {
-                    withAnimation(.spring(response: 0.3)) {
-                        viewModel.hasRespiratorySymptoms.toggle()
-                    }
+                symptomToggleButton(title: "Sick/Respiratory", icon: "lungs.fill", isActive: viewModel.hasRespiratorySymptoms) {
+                    withAnimation(.spring(response: 0.3)) { viewModel.hasRespiratorySymptoms.toggle() }
                 }
             }
         }
@@ -885,860 +474,150 @@ struct MorningCheckInView: View {
     private func symptomToggleButton(title: String, icon: String, isActive: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 8) {
-                Image(systemName: icon)
-                    .font(.title2)
-                Text(title)
-                    .font(.caption)
-                    .multilineTextAlignment(.center)
+                Image(systemName: icon).font(.title2)
+                Text(title).font(.caption).multilineTextAlignment(.center)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
+            .frame(maxWidth: .infinity).padding(.vertical, 16)
             .background(isActive ? Color.red.opacity(0.15) : Color(.secondarySystemGroupedBackground))
-            .foregroundColor(isActive ? .red : .secondary)
-            .cornerRadius(12)
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(isActive ? Color.red : Color.clear, lineWidth: 2)
-            )
+            .foregroundColor(isActive ? .red : .secondary).cornerRadius(12)
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(isActive ? Color.red : Color.clear, lineWidth: 2))
         }
     }
     
-    // MARK: - Physical Symptoms Section
     private var physicalSymptomsSection: some View {
         VStack(spacing: 16) {
-            Text("Physical Symptoms")
-                .font(.headline)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            
-            // Pain locations grid
+            Text("Physical Symptoms").font(.headline).frame(maxWidth: .infinity, alignment: .leading)
             cardView(title: "Where does it hurt?", icon: "figure.arms.open") {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 8) {
-                    ForEach(BodyPart.allCases, id: \.self) { part in
-                        bodyPartButton(part)
-                    }
+                    ForEach(BodyPart.allCases, id: \.self) { part in bodyPartButton(part) }
                 }
             }
-            
-            // Pain severity
             if !viewModel.painLocations.isEmpty {
                 cardView(title: "Pain Severity", icon: "gauge.with.dots.needle.bottom.50percent") {
                     VStack(spacing: 8) {
-                        Slider(value: Binding(
-                            get: { Double(viewModel.painSeverity) },
-                            set: { viewModel.painSeverity = Int($0) }
-                        ), in: 0...10, step: 1)
-                        .tint(.red)
-                        
-                        Text("\(viewModel.painSeverity)/10")
-                            .font(.headline)
-                            .foregroundColor(.red)
-                    }
-                }
-                
-                // Pain type
-                cardView(title: "Type of Pain", icon: "waveform.path") {
-                    painTypePicker
-                }
-            }
-            
-            // Headache detail
-            Toggle("Headache", isOn: $viewModel.hasHeadache)
-                .padding()
-                .background(Color(.secondarySystemGroupedBackground))
-                .cornerRadius(12)
-            
-            if viewModel.hasHeadache {
-                cardView(title: "Headache Details", icon: "brain.head.profile") {
-                    VStack(spacing: 12) {
-                        headacheSeverityPicker
-                        headacheLocationPicker
-                        Toggle("Migraine", isOn: $viewModel.isMigraine)
+                        Slider(value: Binding(get: { Double(viewModel.painSeverity) }, set: { viewModel.painSeverity = Int($0) }), in: 0...10, step: 1).tint(.red)
+                        Text("\(viewModel.painSeverity)/10").font(.headline).foregroundColor(.red)
                     }
                 }
             }
-            
-            // Muscle stiffness/soreness
-            HStack(spacing: 12) {
-                cardView(title: "Stiffness", icon: "figure.walk") {
-                    stiffnessPicker
-                }
-                cardView(title: "Soreness", icon: "figure.run") {
-                    sorenessPicker
-                }
-            }
-            
-            // Pain Notes (NEW)
-            cardView(title: "Pain Notes", icon: "note.text") {
-                TextField("Describe your pain (location, triggers, etc.)", text: $viewModel.painNotes, axis: .vertical)
-                    .lineLimit(2...4)
-                    .textFieldStyle(.roundedBorder)
-            }
-        }
-        .transition(.asymmetric(insertion: .push(from: .top), removal: .opacity))
+            Toggle("Headache", isOn: $viewModel.hasHeadache).padding().background(Color(.secondarySystemGroupedBackground)).cornerRadius(12)
+        }.transition(.asymmetric(insertion: .push(from: .top), removal: .opacity))
     }
     
-    // MARK: - Respiratory Symptoms Section
     private var respiratorySymptomsSection: some View {
         VStack(spacing: 16) {
-            Text("Respiratory / Illness")
-                .font(.headline)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            
-            cardView(title: "Nose", icon: "wind") {
-                congestionPicker
-            }
-            
-            cardView(title: "Throat", icon: "mouth") {
-                throatPicker
-            }
-            
-            cardView(title: "Cough", icon: "waveform") {
-                coughPicker
-            }
-            
-            cardView(title: "Sinus Pressure", icon: "face.dashed") {
-                sinusPicker
-            }
-            
-            Toggle("Feeling Feverish", isOn: $viewModel.feelingFeverish)
-                .padding()
-                .background(Color(.secondarySystemGroupedBackground))
-                .cornerRadius(12)
-            
-            cardView(title: "Sick?", icon: "cross.case") {
-                sicknessPicker
-            }
-            
-            // Respiratory Notes (NEW)
-            cardView(title: "Respiratory Notes", icon: "note.text") {
-                TextField("Describe symptoms (when started, severity, etc.)", text: $viewModel.respiratoryNotes, axis: .vertical)
-                    .lineLimit(2...4)
-                    .textFieldStyle(.roundedBorder)
-            }
-        }
-        .transition(.asymmetric(insertion: .push(from: .top), removal: .opacity))
+            Text("Respiratory / Illness").font(.headline).frame(maxWidth: .infinity, alignment: .leading)
+            cardView(title: "Nose", icon: "wind") { congestionPicker }
+            cardView(title: "Throat", icon: "mouth") { throatPicker }
+        }.transition(.asymmetric(insertion: .push(from: .top), removal: .opacity))
     }
     
-    // MARK: - Narcolepsy Section
-    private var narcolepsySection: some View {
-        VStack(spacing: 12) {
-            Button {
-                withAnimation(.spring(response: 0.3)) {
-                    viewModel.showNarcolepsySection.toggle()
-                }
-            } label: {
-                HStack {
-                    Image(systemName: "moon.zzz.fill")
-                        .foregroundColor(.indigo)
-                    Text("Narcolepsy Symptoms")
-                        .foregroundColor(.primary)
-                    Spacer()
-                    Image(systemName: viewModel.showNarcolepsySection ? "chevron.up" : "chevron.down")
-                        .foregroundColor(.secondary)
-                }
-                .padding()
-                .background(Color(.secondarySystemGroupedBackground))
-                .cornerRadius(12)
-            }
-            
-            if viewModel.showNarcolepsySection {
-                VStack(spacing: 8) {
-                    narcolepsyToggle("Sleep Paralysis", isOn: $viewModel.hadSleepParalysis)
-                    narcolepsyToggle("Hallucinations", isOn: $viewModel.hadHallucinations)
-                    narcolepsyToggle("Automatic Behavior", isOn: $viewModel.hadAutomaticBehavior)
-                    narcolepsyToggle("Fell Out of Bed", isOn: $viewModel.fellOutOfBed)
-                    narcolepsyToggle("Confusion on Waking", isOn: $viewModel.hadConfusionOnWaking)
-                }
-                .padding()
-                .background(Color(.secondarySystemGroupedBackground))
-                .cornerRadius(12)
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
-    }
-    
-    private func narcolepsyToggle(_ title: String, isOn: Binding<Bool>) -> some View {
-        Toggle(title, isOn: isOn)
-            .toggleStyle(SwitchToggleStyle(tint: .indigo))
-    }
-    
-    // MARK: - Sleep Environment Section (NEW - V1 Question Set)
-    // Design: 10 seconds if "Same as usual", 25 seconds for full entry
-    private var sleepEnvironmentSection: some View {
-        VStack(spacing: 12) {
-            // Section header (always visible)
-            Button {
-                withAnimation(.spring(response: 0.3)) {
-                    viewModel.showSleepEnvironmentSection.toggle()
-                }
-            } label: {
-                HStack {
-                    Image(systemName: "moon.stars.fill")
-                        .foregroundColor(.indigo)
-                    Text("Sleep Setup & Aids")
-                        .foregroundColor(.primary)
-                    Spacer()
-                    if !viewModel.sleepAidsUsed.isEmpty || viewModel.useSameAsUsual {
-                        Text(viewModel.useSameAsUsual ? "Same as usual" : "\(viewModel.sleepAidsUsed.count) selected")
-                            .font(.caption)
-                            .foregroundColor(.indigo)
-                    }
-                    Image(systemName: viewModel.showSleepEnvironmentSection ? "chevron.up" : "chevron.down")
-                        .foregroundColor(.secondary)
-                }
-                .padding()
-                .background(Color(.secondarySystemGroupedBackground))
-                .cornerRadius(12)
-            }
-            
-            if viewModel.showSleepEnvironmentSection {
-                VStack(spacing: 16) {
-                    // "Same as usual" shortcut
-                    Button {
-                        withAnimation(.spring(response: 0.3)) {
-                            viewModel.applySameAsUsual()
-                        }
-                    } label: {
-                        HStack {
-                            Image(systemName: viewModel.useSameAsUsual ? "checkmark.circle.fill" : "circle")
-                                .foregroundColor(viewModel.useSameAsUsual ? .green : .secondary)
-                            Text("Same as usual")
-                                .foregroundColor(viewModel.useSameAsUsual ? .primary : .secondary)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(viewModel.useSameAsUsual ? Color.green.opacity(0.15) : Color(.tertiarySystemGroupedBackground))
-                        .cornerRadius(10)
-                    }
-                    
-                    if !viewModel.useSameAsUsual {
-                        // A) Sleep aids multi-select chips
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("What did you use last night?")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                            
-                            sleepAidsChipsGrid
-                        }
-                        
-                        // B) Lights and noise quick ratings (conditional)
-                        if viewModel.showSleepEnvironmentFollowUps || !viewModel.sleepAidsUsed.isEmpty {
-                            VStack(alignment: .leading, spacing: 12) {
-                                // Room darkness
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text("Room Darkness")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    
-                                    HStack(spacing: 8) {
-                                        ForEach(LocalDarknessLevel.allCases, id: \.self) { level in
-                                            darknessButton(level)
-                                        }
-                                    }
-                                }
-                                
-                                // Noise level
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text("Noise Level")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    
-                                    HStack(spacing: 8) {
-                                        ForEach(LocalNoiseLevel.allCases, id: \.self) { level in
-                                            noiseLevelButton(level)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        
-                        // C) Screen time follow-up (if TV/Phone selected)
-                        if viewModel.sleepAidsUsed.contains(.tvOn) || viewModel.sleepAidsUsed.contains(.phoneInBed) {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("How long was screen on?")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                
-                                HStack(spacing: 8) {
-                                    ForEach(LocalScreenTimeBucket.allCases.filter { $0 != .unknown }, id: \.self) { bucket in
-                                        screenTimeButton(bucket)
-                                    }
-                                }
-                            }
-                        }
-                        
-                        // D) Sound type follow-up (if white noise selected)
-                        if viewModel.sleepAidsUsed.contains(.whiteNoise) {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Sound Type")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                
-                                HStack(spacing: 8) {
-                                    ForEach(LocalSoundType.allCases.filter { $0 != .unknown }, id: \.self) { soundType in
-                                        soundTypeButton(soundType)
-                                    }
-                                }
-                            }
-                        }
-                        
-                        // "Other" text field (if "Other" selected)
-                        if viewModel.sleepAidsUsed.contains(.other) {
-                            TextField("Other aid (optional, 50 char max)", text: $viewModel.otherAidText)
-                                .textFieldStyle(.roundedBorder)
-                                .onChange(of: viewModel.otherAidText) { newValue in
-                                    if newValue.count > 50 {
-                                        viewModel.otherAidText = String(newValue.prefix(50))
-                                    }
-                                }
-                        }
-                    }
-                }
-                .padding()
-                .background(Color(.secondarySystemGroupedBackground))
-                .cornerRadius(12)
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
-    }
-    
-    // MARK: - Sleep Environment Helper Views
-    
-    /// Multi-select chip grid for sleep aids
-    private var sleepAidsChipsGrid: some View {
-        let columns = [GridItem(.adaptive(minimum: 100), spacing: 8)]
-        
-        return LazyVGrid(columns: columns, spacing: 8) {
-            // None chip first
-            sleepAidChip(.none)
-            
-            // Environment aids
-            ForEach(LocalSleepAid.allCases.filter { 
-                $0.category == .environment && $0 != .none
-            }, id: \.self) { aid in
-                sleepAidChip(aid)
-            }
-            
-            // Relaxation aids
-            ForEach(LocalSleepAid.allCases.filter { 
-                $0.category == .relaxation
-            }, id: \.self) { aid in
-                sleepAidChip(aid)
-            }
-            
-            // Medical aids
-            ForEach(LocalSleepAid.allCases.filter { 
-                $0.category == .medical
-            }, id: \.self) { aid in
-                sleepAidChip(aid)
-            }
-            
-            // Screen behaviors (visually tagged)
-            ForEach(LocalSleepAid.allCases.filter { 
-                $0.category == .screens
-            }, id: \.self) { aid in
-                sleepAidChip(aid)
-            }
-            
-            // Other
-            sleepAidChip(.other)
-        }
-    }
-    
-    private func sleepAidChip(_ aid: LocalSleepAid) -> some View {
-        let isSelected = viewModel.sleepAidsUsed.contains(aid)
-        let isScreenBehavior = aid.isScreenBehavior
-        
-        return Button {
-            withAnimation(.spring(response: 0.2)) {
-                viewModel.toggleSleepAid(aid)
-            }
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: aid.icon)
-                    .font(.caption)
-                Text(aid.rawValue)
-                    .font(.caption2)
-                    .lineLimit(1)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .background(
-                isSelected 
-                    ? (isScreenBehavior ? Color.orange.opacity(0.2) : Color.indigo.opacity(0.2))
-                    : Color(.tertiarySystemGroupedBackground)
-            )
-            .foregroundColor(
-                isSelected 
-                    ? (isScreenBehavior ? .orange : .indigo)
-                    : .secondary
-            )
-            .cornerRadius(8)
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(
-                        isSelected 
-                            ? (isScreenBehavior ? Color.orange : Color.indigo)
-                            : Color.clear,
-                        lineWidth: 1.5
-                    )
-            )
-        }
-    }
-    
-    private func darknessButton(_ level: LocalDarknessLevel) -> some View {
-        let isSelected = viewModel.roomDarkness == level
-        
-        return Button {
-            viewModel.roomDarkness = level
-        } label: {
-            VStack(spacing: 4) {
-                Image(systemName: level.icon)
-                    .font(.title3)
-                Text(level.rawValue)
-                    .font(.caption2)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 10)
-            .background(isSelected ? Color.indigo.opacity(0.2) : Color(.tertiarySystemGroupedBackground))
-            .foregroundColor(isSelected ? .indigo : .secondary)
-            .cornerRadius(8)
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(isSelected ? Color.indigo : Color.clear, lineWidth: 1.5)
-            )
-        }
-    }
-    
-    private func noiseLevelButton(_ level: LocalNoiseLevel) -> some View {
-        let isSelected = viewModel.noiseLevel == level
-        
-        return Button {
-            viewModel.noiseLevel = level
-        } label: {
-            VStack(spacing: 4) {
-                Image(systemName: level.icon)
-                    .font(.title3)
-                Text(level.rawValue)
-                    .font(.caption2)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 10)
-            .background(isSelected ? Color.indigo.opacity(0.2) : Color(.tertiarySystemGroupedBackground))
-            .foregroundColor(isSelected ? .indigo : .secondary)
-            .cornerRadius(8)
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(isSelected ? Color.indigo : Color.clear, lineWidth: 1.5)
-            )
-        }
-    }
-    
-    private func screenTimeButton(_ bucket: LocalScreenTimeBucket) -> some View {
-        let isSelected = viewModel.screenInBedMinutesBucket == bucket
-        
-        return Button {
-            viewModel.screenInBedMinutesBucket = bucket
-        } label: {
-            Text(bucket.rawValue)
-                .font(.caption)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(isSelected ? Color.orange.opacity(0.2) : Color(.tertiarySystemGroupedBackground))
-                .foregroundColor(isSelected ? .orange : .secondary)
-                .cornerRadius(8)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(isSelected ? Color.orange : Color.clear, lineWidth: 1.5)
-                )
-        }
-    }
-    
-    private func soundTypeButton(_ type: LocalSoundType) -> some View {
-        let isSelected = viewModel.soundType == type
-        
-        return Button {
-            viewModel.soundType = type
-        } label: {
-            Text(type.rawValue)
-                .font(.caption)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(isSelected ? Color.indigo.opacity(0.2) : Color(.tertiarySystemGroupedBackground))
-                .foregroundColor(isSelected ? .indigo : .secondary)
-                .cornerRadius(8)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(isSelected ? Color.indigo : Color.clear, lineWidth: 1.5)
-                )
-        }
-    }
-    
-    // MARK: - Sleep Therapy Section
     private var sleepTherapySection: some View {
         VStack(spacing: 12) {
-            Button {
-                withAnimation(.spring(response: 0.3)) {
-                    viewModel.showSleepTherapySection.toggle()
-                }
-            } label: {
+            Button { withAnimation(.spring(response: 0.3)) { viewModel.showSleepTherapySection.toggle() } } label: {
                 HStack {
-                    Image(systemName: "wind")
-                        .foregroundColor(.cyan)
-                    Text("Sleep Therapy Device")
-                        .foregroundColor(.primary)
+                    Image(systemName: "wind").foregroundColor(.cyan)
+                    Text("Sleep Therapy Device").foregroundColor(.primary)
                     Spacer()
-                    if viewModel.usedSleepTherapy {
-                        Text(viewModel.sleepTherapyDevice.rawValue)
-                            .font(.caption)
-                            .foregroundColor(.cyan)
-                    }
-                    Image(systemName: viewModel.showSleepTherapySection ? "chevron.up" : "chevron.down")
-                        .foregroundColor(.secondary)
-                }
-                .padding()
-                .background(Color(.secondarySystemGroupedBackground))
-                .cornerRadius(12)
+                    Image(systemName: viewModel.showSleepTherapySection ? "chevron.up" : "chevron.down").foregroundColor(.secondary)
+                }.padding().background(Color(.secondarySystemGroupedBackground)).cornerRadius(12)
             }
-            
             if viewModel.showSleepTherapySection {
                 VStack(spacing: 16) {
-                    // Did you use a device?
-                    Toggle("Used Sleep Therapy Device", isOn: $viewModel.usedSleepTherapy.animation(.spring(response: 0.3)))
-                        .toggleStyle(SwitchToggleStyle(tint: .cyan))
-                    
-                    if viewModel.usedSleepTherapy {
-                        // Device type picker
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Device Type")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                            
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 8) {
-                                    ForEach(SleepTherapyDevice.allCases.filter { $0 != .none }, id: \.self) { device in
-                                        deviceButton(device)
-                                    }
-                                }
-                            }
-                        }
-                        
-                        // Compliance slider
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("How much of the night?")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                            
-                            HStack {
-                                Slider(value: Binding(
-                                    get: { Double(viewModel.sleepTherapyCompliance) },
-                                    set: { viewModel.sleepTherapyCompliance = Int($0) }
-                                ), in: 0...100, step: 10)
-                                .tint(.cyan)
-                                
-                                Text("\(viewModel.sleepTherapyCompliance)%")
-                                    .font(.headline)
-                                    .foregroundColor(.cyan)
-                                    .frame(width: 50)
-                            }
-                        }
-                        
-                        // Notes
-                        TextField("Notes (mask issues, removed early, etc.)", text: $viewModel.sleepTherapyNotes, axis: .vertical)
-                            .lineLimit(2...4)
-                            .textFieldStyle(.roundedBorder)
-                    }
-                }
-                .padding()
-                .background(Color(.secondarySystemGroupedBackground))
-                .cornerRadius(12)
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                    Toggle("Used Sleep Therapy Device", isOn: $viewModel.usedSleepTherapy.animation(.spring(response: 0.3))).toggleStyle(SwitchToggleStyle(tint: .cyan))
+                }.padding().background(Color(.secondarySystemGroupedBackground)).cornerRadius(12).transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
     }
     
-    private func deviceButton(_ device: SleepTherapyDevice) -> some View {
-        Button {
-            viewModel.sleepTherapyDevice = device
-        } label: {
-            VStack(spacing: 4) {
-                Image(systemName: device.icon)
-                    .font(.title3)
-                Text(device.rawValue)
-                    .font(.caption2)
+    private var narcolepsySection: some View {
+        VStack(spacing: 12) {
+            Button { withAnimation(.spring(response: 0.3)) { viewModel.showNarcolepsySection.toggle() } } label: {
+                HStack {
+                    Image(systemName: "moon.zzz.fill").foregroundColor(.indigo)
+                    Text("Narcolepsy Symptoms").foregroundColor(.primary)
+                    Spacer()
+                    Image(systemName: viewModel.showNarcolepsySection ? "chevron.up" : "chevron.down").foregroundColor(.secondary)
+                }.padding().background(Color(.secondarySystemGroupedBackground)).cornerRadius(12)
             }
-            .frame(width: 70, height: 60)
-            .background(viewModel.sleepTherapyDevice == device ? Color.cyan.opacity(0.2) : Color(.tertiarySystemGroupedBackground))
-            .foregroundColor(viewModel.sleepTherapyDevice == device ? .cyan : .secondary)
-            .cornerRadius(10)
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(viewModel.sleepTherapyDevice == device ? Color.cyan : Color.clear, lineWidth: 2)
-            )
+            if viewModel.showNarcolepsySection {
+                VStack(spacing: 8) {
+                    Toggle("Sleep Paralysis", isOn: $viewModel.hadSleepParalysis).toggleStyle(SwitchToggleStyle(tint: .indigo))
+                    Toggle("Hallucinations", isOn: $viewModel.hadHallucinations).toggleStyle(SwitchToggleStyle(tint: .indigo))
+                }.padding().background(Color(.secondarySystemGroupedBackground)).cornerRadius(12).transition(.opacity.combined(with: .move(edge: .top)))
+            }
         }
     }
     
-    // MARK: - Remember Settings Section (NEW)
-    private var rememberSettingsSection: some View {
-        HStack {
-            Image(systemName: viewModel.rememberSettings ? "checkmark.square.fill" : "square")
-                .foregroundColor(viewModel.rememberSettings ? .green : .secondary)
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Remember my device settings")
-                    .font(.subheadline)
-                Text("Pre-fill sleep therapy for next time")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            
-            Spacer()
-        }
-        .padding()
-        .background(Color(.secondarySystemGroupedBackground))
-        .cornerRadius(12)
-        .onTapGesture {
-            withAnimation {
-                viewModel.rememberSettings.toggle()
-            }
-        }
-    }
-
-    // MARK: - Notes Section
     private var notesSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("Notes", systemImage: "note.text")
-                .font(.headline)
-            
-            TextField("Anything else to note?", text: $viewModel.notes, axis: .vertical)
-                .lineLimit(3...6)
-                .textFieldStyle(.roundedBorder)
+            Label("Notes", systemImage: "note.text").font(.headline)
+            TextField("Anything else to note?", text: $viewModel.notes, axis: .vertical).lineLimit(3...6).textFieldStyle(.roundedBorder)
         }
     }
     
-    // MARK: - Submit Button
+    private var rememberSettingsSection: some View {
+        HStack {
+            Image(systemName: viewModel.rememberSettings ? "checkmark.square.fill" : "square").foregroundColor(viewModel.rememberSettings ? .green : .secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Remember my device settings").font(.subheadline)
+                Text("Pre-fill sleep therapy for next time").font(.caption).foregroundColor(.secondary)
+            }
+            Spacer()
+        }.padding().background(Color(.secondarySystemGroupedBackground)).cornerRadius(12).onTapGesture { withAnimation { viewModel.rememberSettings.toggle() } }
+    }
+    
     private var submitButton: some View {
         Button {
             Task {
-                await viewModel.submit(sessionDateOverride: sessionDateOverride)
+                await viewModel.submit()
                 dismiss()
                 onComplete()
             }
         } label: {
             HStack {
-                if viewModel.isSubmitting {
-                    ProgressView()
-                        .tint(.white)
-                } else {
-                    Image(systemName: "checkmark.circle.fill")
-                    Text("Complete Check-In")
-                }
+                if viewModel.isSubmitting { ProgressView().tint(.white) }
+                else { Image(systemName: "checkmark.circle.fill"); Text("Complete Check-In") }
             }
-            .font(.headline)
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(Color.green.gradient)
-            .cornerRadius(16)
-        }
-        .disabled(viewModel.isSubmitting)
-        .padding(.top, 8)
+            .font(.headline).foregroundColor(.white).frame(maxWidth: .infinity).padding().background(Color.green.gradient).cornerRadius(16)
+        }.disabled(viewModel.isSubmitting).padding(.top, 8)
     }
     
-    // MARK: - Helper Views
     private func cardView<Content: View>(title: String, icon: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label(title, systemImage: icon)
-                .font(.subheadline.bold())
-                .foregroundColor(.secondary)
-            
+            Label(title, systemImage: icon).font(.subheadline.bold()).foregroundColor(.secondary)
             content()
-        }
-        .padding()
-        .background(Color(.secondarySystemGroupedBackground))
-        .cornerRadius(12)
+        }.padding().background(Color(.secondarySystemGroupedBackground)).cornerRadius(12)
     }
     
     private func bodyPartButton(_ part: BodyPart) -> some View {
         let isSelected = viewModel.painLocations.contains(part)
         return Button {
-            if isSelected {
-                viewModel.painLocations.remove(part)
-            } else {
-                viewModel.painLocations.insert(part)
-            }
+            if isSelected { viewModel.painLocations.remove(part) }
+            else { viewModel.painLocations.insert(part) }
         } label: {
-            VStack(spacing: 4) {
-                Image(systemName: part.icon)
-                    .font(.title3)
-                Text(part.rawValue)
-                    .font(.caption2)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
+            VStack(spacing: 4) { Image(systemName: part.icon).font(.title3); Text(part.rawValue).font(.caption2) }
+            .frame(maxWidth: .infinity).padding(.vertical, 8)
             .background(isSelected ? Color.red.opacity(0.2) : Color(.tertiarySystemGroupedBackground))
-            .foregroundColor(isSelected ? .red : .secondary)
-            .cornerRadius(8)
+            .foregroundColor(isSelected ? .red : .secondary).cornerRadius(8)
         }
     }
     
-    // MARK: - Pickers
-    private var restedPicker: some View {
-        Picker("Rested", selection: $viewModel.feelRested) {
-            ForEach(RestedLevel.allCases, id: \.self) { level in
-                Text(level.rawValue).tag(level)
-            }
-        }
-        .pickerStyle(.segmented)
-    }
-    
+    private var restedPicker: some View { Picker("Rested", selection: $viewModel.feelRested) { ForEach(RestedLevel.allCases, id: \.self) { Text($0.rawValue).tag($0) } }.pickerStyle(.segmented) }
     private var grogginessPicker: some View {
         HStack(spacing: 12) {
             ForEach(GrogginessLevel.allCases, id: \.self) { level in
-                Button {
-                    viewModel.grogginess = level
-                } label: {
-                    VStack(spacing: 4) {
-                        Image(systemName: level.icon)
-                            .font(.title2)
-                        Text(level.rawValue)
-                            .font(.caption2)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
+                Button { viewModel.grogginess = level } label: {
+                    VStack(spacing: 4) { Image(systemName: level.icon).font(.title2); Text(level.rawValue).font(.caption2) }
+                    .frame(maxWidth: .infinity).padding(.vertical, 8)
                     .background(viewModel.grogginess == level ? Color.orange.opacity(0.2) : Color.clear)
-                    .foregroundColor(viewModel.grogginess == level ? .orange : .secondary)
-                    .cornerRadius(8)
+                    .foregroundColor(viewModel.grogginess == level ? .orange : .secondary).cornerRadius(8)
                 }
             }
         }
     }
-    
-    private var moodPicker: some View {
-        HStack(spacing: 8) {
-            ForEach(MoodLevel.allCases, id: \.self) { level in
-                Button {
-                    viewModel.mood = level
-                } label: {
-                    VStack(spacing: 4) {
-                        Text(level.emoji)
-                            .font(.title)
-                        Text(level.rawValue)
-                            .font(.caption2)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .background(viewModel.mood == level ? Color.blue.opacity(0.2) : Color.clear)
-                    .foregroundColor(viewModel.mood == level ? .blue : .secondary)
-                    .cornerRadius(8)
-                }
-            }
-        }
-    }
-    
-    private var painTypePicker: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(PainType.allCases, id: \.self) { type in
-                    Button {
-                        viewModel.painType = type
-                    } label: {
-                        Text(type.rawValue)
-                            .font(.caption)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(viewModel.painType == type ? Color.red.opacity(0.2) : Color(.tertiarySystemGroupedBackground))
-                            .foregroundColor(viewModel.painType == type ? .red : .secondary)
-                            .cornerRadius(16)
-                    }
-                }
-            }
-        }
-    }
-    
-    private var headacheSeverityPicker: some View {
-        Picker("Severity", selection: $viewModel.headacheSeverity) {
-            ForEach(HeadacheSeverity.allCases, id: \.self) { level in
-                Text(level.rawValue).tag(level)
-            }
-        }
-        .pickerStyle(.segmented)
-    }
-    
-    private var headacheLocationPicker: some View {
-        Picker("Location", selection: $viewModel.headacheLocation) {
-            ForEach(HeadacheLocation.allCases, id: \.self) { loc in
-                Text(loc.rawValue).tag(loc)
-            }
-        }
-        .pickerStyle(.menu)
-    }
-    
-    private var stiffnessPicker: some View {
-        Picker("", selection: $viewModel.muscleStiffness) {
-            ForEach(StiffnessLevel.allCases, id: \.self) { level in
-                Text(level.rawValue).tag(level)
-            }
-        }
-        .pickerStyle(.menu)
-    }
-    
-    private var sorenessPicker: some View {
-        Picker("", selection: $viewModel.muscleSoreness) {
-            ForEach(SorenessLevel.allCases, id: \.self) { level in
-                Text(level.rawValue).tag(level)
-            }
-        }
-        .pickerStyle(.menu)
-    }
-    
-    private var congestionPicker: some View {
-        Picker("", selection: $viewModel.congestion) {
-            ForEach(CongestionType.allCases, id: \.self) { type in
-                Text(type.rawValue).tag(type)
-            }
-        }
-        .pickerStyle(.segmented)
-    }
-    
-    private var throatPicker: some View {
-        Picker("", selection: $viewModel.throatCondition) {
-            ForEach(ThroatCondition.allCases, id: \.self) { cond in
-                Text(cond.rawValue).tag(cond)
-            }
-        }
-        .pickerStyle(.segmented)
-    }
-    
-    private var coughPicker: some View {
-        Picker("", selection: $viewModel.coughType) {
-            ForEach(CoughType.allCases, id: \.self) { type in
-                Text(type.rawValue).tag(type)
-            }
-        }
-        .pickerStyle(.segmented)
-    }
-    
-    private var sinusPicker: some View {
-        Picker("", selection: $viewModel.sinusPressure) {
-            ForEach(SinusPressureLevel.allCases, id: \.self) { level in
-                Text(level.rawValue).tag(level)
-            }
-        }
-        .pickerStyle(.segmented)
-    }
-    
-    private var sicknessPicker: some View {
-        Picker("", selection: $viewModel.sicknessLevel) {
-            ForEach(SicknessLevel.allCases, id: \.self) { level in
-                Text(level.rawValue).tag(level)
-            }
-        }
-        .pickerStyle(.menu)
-    }
+    private var congestionPicker: some View { Picker("", selection: $viewModel.congestion) { ForEach(CongestionType.allCases, id: \.self) { Text($0.rawValue).tag($0) } }.pickerStyle(.segmented) }
+    private var throatPicker: some View { Picker("", selection: $viewModel.throatCondition) { ForEach(ThroatCondition.allCases, id: \.self) { Text($0.rawValue).tag($0) } }.pickerStyle(.segmented) }
 }
 
-// MARK: - Preview
-#Preview {
-    MorningCheckInView()
-}
+#Preview { MorningCheckInView() }

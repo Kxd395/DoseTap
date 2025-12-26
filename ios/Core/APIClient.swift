@@ -74,10 +74,12 @@ public struct EventResponse: Codable {
 // MARK: - Client
 @available(iOS 15.0, watchOS 8.0, macOS 12.0, *)
 public final class APIClient {
-    public enum Endpoint: String { 
+    public enum Endpoint: String, CaseIterable { 
         case takeDose = "/doses/take"
         case skipDose = "/doses/skip"
         case snoozeDose = "/doses/snooze"
+        case logEvent = "/events/log"
+        case exportAnalytics = "/analytics/export"
     }
     
     private let baseURL: URL
@@ -148,8 +150,7 @@ public final class APIClient {
     @discardableResult
     public func logEvent(_ name: String, at date: Date = Date()) async throws -> EventResponse {
         let body = LogEventBody(event: name, at: ISO8601DateFormatter().string(from: date))
-        // Note: logEvent endpoint was not in Endpoint enum, need to add it or use raw string
-        let req = try makeRequest(path: "/events/log", body: body) 
+        let req = try makeRequest(path: Endpoint.logEvent.rawValue, body: body)
         let (data, response) = try await transport.send(req)
         
         if (400..<600).contains(response.statusCode) {
@@ -161,7 +162,7 @@ public final class APIClient {
         return try JSONDecoder().decode(EventResponse.self, from: data)
     }
     public func exportAnalytics() async throws -> Data {
-        let req = try makeRequest(path: "/analytics/export", method: "GET")
+        let req = try makeRequest(path: Endpoint.exportAnalytics.rawValue, method: "GET")
         let (data, response) = try await transport.send(req)
         
         if (400..<600).contains(response.statusCode) {

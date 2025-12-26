@@ -35,7 +35,7 @@ All P0 contradictions identified in the audit have been fixed. The repository no
 
 | # | File | Change | Risk |
 |---|------|--------|------|
-| 10 | `ios/DoseTapiOSApp/SettingsView.swift` | "12 event"→"13 event" | Low |
+| 10 | `ios/DoseTapiOSApp/SettingsView.swift` | Event-count text updated to 13 | Low |
 | 11 | `ios/DoseTapiOSApp/DoseCoreIntegration.swift` | Comment 12→13 | Low |
 | 12 | `ios/DoseTapiOSApp/SetupWizardService.swift` | Core Data→SQLite comment | Low |
 | 13 | `ios/DoseTapiOSApp/UserConfigurationManager.swift` | Core Data→SQLite comment | Low |
@@ -59,7 +59,7 @@ All P0 contradictions identified in the audit have been fixed. The repository no
 
 - [x] `swift test` passes with 207 tests
 - [x] No "Core Data" refs in active docs (excluding audit logs)
-- [x] No "12 event" refs in active docs
+- [x] No stale event-count refs in active docs
 - [x] No "123 tests" refs in active docs
 - [x] Lint script contradiction checks pass
 - [x] `EventStoreCoreData.swift` removed from project

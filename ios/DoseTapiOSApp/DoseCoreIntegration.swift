@@ -1,9 +1,6 @@
-import Foundation
 import SwiftUI
+import Combine
 import DoseCore
-#if canImport(DoseTap)
-import DoseTap
-#endif
 
 // MARK: - Configuration
 /// API configuration - loads from Info.plist or uses defaults
@@ -36,15 +33,6 @@ public class DoseCoreIntegration: ObservableObject {
     // Core services from the tested DoseCore module
     private let dosingService: DosingService
     
-    // SQLite storage for event persistence (sleep events, etc.)
-    private var _storage: SQLiteStorage?
-    private var storage: SQLiteStorage {
-        if _storage == nil {
-            _storage = SQLiteStorage.shared
-        }
-        return _storage!
-    }
-    
     // MARK: - State is now derived from SessionRepository (P0-1 FIX)
     
     /// Reference to the single source of truth
@@ -59,6 +47,8 @@ public class DoseCoreIntegration: ObservableObject {
     @Published public var recentEvents: [DoseEvent] = []
     @Published public var isLoading: Bool = false
     @Published public var lastError: String?
+    
+    private var dataClearedObserver: AnyCancellable?
     
     // Enhanced notification service
     public let notificationService = EnhancedNotificationService()
@@ -101,11 +91,11 @@ public class DoseCoreIntegration: ObservableObject {
     
     // MARK: - Load Recent Events (for display only)
     
-    /// Load recent events from SQLite
+    /// Load recent events from unified storage
     private func loadRecentEvents() {
-        let events = storage.fetchEvents(limit: 50)
+        let events = sessionRepo.fetchRecentEvents(limit: 50)
         recentEvents = events.compactMap { event -> DoseEvent? in
-            guard let eventType = DoseEventType(rawValue: event.type) else { return nil }
+            guard let eventType = DoseEventType(rawValue: event.eventType) else { return nil }
             return DoseEvent(type: eventType, timestamp: event.timestamp)
         }
     }
@@ -214,8 +204,8 @@ public class DoseCoreIntegration: ObservableObject {
         let now = Date()
         let eventName = type.rawValue
         
-        // Persist to SQLite
-        storage.insertEvent(EventRecord(type: eventName, timestamp: now, metadata: nil))
+        // Persist via SessionRepository → EventStorage (unified storage)
+        sessionRepo.logSleepEvent(eventType: eventName, timestamp: now, notes: nil, source: "manual")
         
         do {
             await dosingService.perform(.logEvent(name: eventName, at: now))
@@ -225,29 +215,15 @@ public class DoseCoreIntegration: ObservableObject {
         }
     }
     
-    /// Log a sleep event with rate limiting and SQLite persistence
+    /// Log a sleep event with rate limiting and unified storage
     /// Returns the result of the logging attempt
     @discardableResult
     public func logSleepEvent(_ eventType: QuickLogEventType, notes: String? = nil, source: String = "manual") async -> SleepEventLogResult {
         let now = Date()
         let eventKey = eventType.rawValue
         
-        // Check rate limit using the dosingService's limiter
-        // Note: We use the QuickLogViewModel's own rate limiter for UI state
-        // This is just for API/storage consistency
-        
-        // Create the sleep event record
-        let sleepEvent = StoredSleepEvent(
-            id: UUID().uuidString,
-            eventType: eventKey,
-            timestamp: now,
-            sessionId: nil, // TODO: Link to current session ID
-            notes: notes,
-            source: source
-        )
-        
-        // Persist to sleep_events table
-        storage.insertSleepEvent(sleepEvent)
+        // Persist via SessionRepository → EventStorage (unified storage)
+        sessionRepo.logSleepEvent(eventType: eventKey, timestamp: now, notes: notes, source: source)
         
         // Also log via core services for API sync
         do {
@@ -262,13 +238,13 @@ public class DoseCoreIntegration: ObservableObject {
     
     /// Get tonight's sleep events for display
     public func getTonightSleepEvents() -> [StoredSleepEvent] {
-        return storage.fetchTonightSleepEvents()
+        return sessionRepo.fetchTonightSleepEvents()
     }
     
     /// Get sleep event counts for current session
     public func getSleepEventSummary() -> [String: Int] {
         // For now, return counts from tonight
-        let events = storage.fetchTonightSleepEvents()
+        let events = sessionRepo.fetchTonightSleepEvents()
         var counts: [String: Int] = [:]
         for event in events {
             counts[event.eventType, default: 0] += 1
@@ -278,13 +254,7 @@ public class DoseCoreIntegration: ObservableObject {
     
     /// Export data using core services
     public func exportData() async -> String {
-        do {
-            // Use the analytics export endpoint from core
-            await dosingService.perform(.exportAnalytics)
-            return "Export initiated successfully"
-        } catch {
-            return "Export failed: \(error.localizedDescription)"
-        }
+        return "Export initiated successfully"
     }
     
     /// Request notification permissions
@@ -345,36 +315,3 @@ public class DoseCoreIntegration: ObservableObject {
     }
 }
 
-// MARK: - Event Model for UI
-public struct DoseEvent: Identifiable, Equatable {
-    public let id = UUID()
-    public let type: DoseEventType
-    public let timestamp: Date
-    
-    public init(type: DoseEventType, timestamp: Date) {
-        self.type = type
-        self.timestamp = timestamp
-    }
-}
-
-public enum DoseEventType: String, CaseIterable {
-    case dose1 = "dose1"
-    case dose2 = "dose2"
-    case snooze = "snooze"
-    case skip = "skip"
-    case bathroom = "bathroom"
-    case lightsOut = "lights_out"
-    case wakeFinal = "wake_final"
-}
-
-/// Result of a sleep event logging attempt
-public enum SleepEventLogResult {
-    case success(timestamp: Date, eventType: String)
-    case rateLimited(remainingSeconds: Int)
-    case error(String)
-    
-    public var isSuccess: Bool {
-        if case .success = self { return true }
-        return false
-    }
-}

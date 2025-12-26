@@ -1,29 +1,7 @@
 import Foundation
+import Combine
+import DoseCore
 
-// MARK: - Event Models
-public struct DoseEvent: Codable, Identifiable, Equatable {
-    public let id: UUID
-    public let type: DoseEventType
-    public let timestamp: Date
-    public let metadata: [String: String]
-    
-    public init(type: DoseEventType, timestamp: Date = Date(), metadata: [String: String] = [:]) {
-        self.id = UUID()
-        self.type = type
-        self.timestamp = timestamp
-        self.metadata = metadata
-    }
-}
-
-public enum DoseEventType: String, Codable, CaseIterable {
-    case dose1 = "dose1"
-    case dose2 = "dose2"
-    case snooze = "snooze"
-    case skip = "skip"
-    case bathroom = "bathroom"
-    case lightsOut = "lights_out"
-    case wakeFinal = "wake_final"
-}
 
 // MARK: - Health Data Models
 public struct HealthData: Codable {
@@ -77,22 +55,53 @@ public struct WHOOPData: Codable {
 }
 
 // MARK: - Unified Data Container
-public struct DoseSessionData: Codable {
+public struct DoseSessionData: Codable, Identifiable {
+    public var id: UUID { sessionId }
     public let sessionId: UUID
+    public let sessionKey: String
     public let events: [DoseEvent]
     public let healthData: HealthData?
     public let whoopData: WHOOPData?
     public let startTime: Date
     public let endTime: Date?
     
-    public init(sessionId: UUID = UUID(), events: [DoseEvent] = [], healthData: HealthData? = nil,
+    public init(sessionId: UUID = UUID(), sessionKey: String? = nil, events: [DoseEvent] = [], healthData: HealthData? = nil,
                 whoopData: WHOOPData? = nil, startTime: Date = Date(), endTime: Date? = nil) {
+        let key = sessionKey ?? DoseCore.sessionKey(for: startTime, timeZone: TimeZone.current, rolloverHour: 18)
         self.sessionId = sessionId
+        self.sessionKey = key
         self.events = events
         self.healthData = healthData
         self.whoopData = whoopData
         self.startTime = startTime
         self.endTime = endTime
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case sessionId, sessionKey, events, healthData, whoopData, startTime, endTime
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        sessionId = try container.decode(UUID.self, forKey: .sessionId)
+        events = try container.decode([DoseEvent].self, forKey: .events)
+        healthData = try container.decodeIfPresent(HealthData.self, forKey: .healthData)
+        whoopData = try container.decodeIfPresent(WHOOPData.self, forKey: .whoopData)
+        startTime = try container.decode(Date.self, forKey: .startTime)
+        endTime = try container.decodeIfPresent(Date.self, forKey: .endTime)
+        let decodedKey = try container.decodeIfPresent(String.self, forKey: .sessionKey)
+        sessionKey = decodedKey ?? DoseCore.sessionKey(for: startTime, timeZone: TimeZone.current, rolloverHour: 18)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(sessionId, forKey: .sessionId)
+        try container.encode(sessionKey, forKey: .sessionKey)
+        try container.encode(events, forKey: .events)
+        try container.encodeIfPresent(healthData, forKey: .healthData)
+        try container.encodeIfPresent(whoopData, forKey: .whoopData)
+        try container.encode(startTime, forKey: .startTime)
+        try container.encodeIfPresent(endTime, forKey: .endTime)
     }
 }
 
@@ -104,6 +113,10 @@ public class DataStorageService: ObservableObject {
     @Published public private(set) var currentSession: DoseSessionData?
     @Published public private(set) var historicalSessions: [DoseSessionData] = []
     @Published public private(set) var allEvents: [DoseEvent] = []
+    
+    private var nowProvider: () -> Date = { Date() }
+    private var timeZoneProvider: () -> TimeZone = { TimeZone.current }
+    private var currentSessionKey: String?
     
     private let documentsDirectory: URL
     private let eventsFileURL: URL
@@ -117,19 +130,26 @@ public class DataStorageService: ObservableObject {
         loadStoredData()
     }
     
+    private func sessionKey(for date: Date) -> String {
+        DoseCore.sessionKey(for: date, timeZone: timeZoneProvider(), rolloverHour: 18)
+    }
+    
     // MARK: - Event Management
     public func logEvent(_ type: DoseEventType, metadata: [String: String] = [:]) {
         let event = DoseEvent(type: type, metadata: metadata)
+        let key = sessionKey(for: event.timestamp)
+        
         allEvents.append(event)
         
-        // Add to current session or create new one
-        if currentSession == nil && type == .dose1 {
-            startNewSession()
+        // Ensure session alignment with rollover-aware key
+        if currentSessionKey != key {
+            startNewSession(at: event.timestamp, sessionKey: key)
         }
         
         if var session = currentSession {
             session = DoseSessionData(
                 sessionId: session.sessionId,
+                sessionKey: session.sessionKey,
                 events: session.events + [event],
                 healthData: session.healthData,
                 whoopData: session.whoopData,
@@ -147,13 +167,15 @@ public class DataStorageService: ObservableObject {
         saveEventsToFile()
     }
     
-    public func startNewSession() {
+    public func startNewSession(at date: Date = Date(), sessionKey: String? = nil) {
         if let session = currentSession {
             // Save incomplete session to history
             historicalSessions.append(session)
         }
         
-        currentSession = DoseSessionData(startTime: Date())
+        let key = sessionKey ?? self.sessionKey(for: date)
+        currentSessionKey = key
+        currentSession = DoseSessionData(sessionKey: key, startTime: date)
         saveSessionsToFile()
     }
     
@@ -162,6 +184,7 @@ public class DataStorageService: ObservableObject {
         
         let completedSession = DoseSessionData(
             sessionId: session.sessionId,
+            sessionKey: session.sessionKey,
             events: session.events,
             healthData: session.healthData,
             whoopData: session.whoopData,
@@ -171,6 +194,7 @@ public class DataStorageService: ObservableObject {
         
         historicalSessions.append(completedSession)
         currentSession = nil
+        currentSessionKey = nil
         saveSessionsToFile()
     }
     
@@ -180,6 +204,7 @@ public class DataStorageService: ObservableObject {
         
         session = DoseSessionData(
             sessionId: session.sessionId,
+            sessionKey: session.sessionKey,
             events: session.events,
             healthData: healthData,
             whoopData: session.whoopData,
@@ -195,6 +220,7 @@ public class DataStorageService: ObservableObject {
         
         session = DoseSessionData(
             sessionId: session.sessionId,
+            sessionKey: session.sessionKey,
             events: session.events,
             healthData: session.healthData,
             whoopData: whoopData,
@@ -222,6 +248,15 @@ public class DataStorageService: ObservableObject {
     
     public func getRecentEvents(limit: Int = 50) -> [DoseEvent] {
         return Array(allEvents.suffix(limit).reversed())
+    }
+    
+    public func getAllEvents() -> [DoseEvent] {
+        return allEvents
+    }
+    
+    public func getTodayEvents() -> [DoseEvent] {
+        let todayKey = sessionKey(for: nowProvider())
+        return allEvents.filter { sessionKey(for: $0.timestamp) == todayKey }
     }
     
     // MARK: - Export Functionality
@@ -289,6 +324,7 @@ public class DataStorageService: ObservableObject {
             let incompleteSessions = sessions.filter { $0.endTime == nil }
             historicalSessions = sessions.filter { $0.endTime != nil }
             currentSession = incompleteSessions.last // Take most recent incomplete session
+            currentSessionKey = currentSession?.sessionKey
         } catch {
             print("Failed to load sessions: \(error)")
         }

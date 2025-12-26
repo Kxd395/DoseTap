@@ -12,8 +12,90 @@
 
 **This document supersedes:** `DoseTap_Spec.md`, `ui-ux-specifications.md`, `button-logic-mapping.md`, `api-documentation.md`, `user-guide.md`, `implementation-roadmap.md`
 
-**Last Updated:** 2024-12-25  
-**Version:** 2.10.0
+**Last Updated:** 2025-12-26  
+**Version:** 2.12.0
+
+---
+
+## Recent Updates (v2.12.0) - Storage Enforcement Complete
+
+### Unified Storage (Split Brain Eliminated)
+
+**Problem Solved**: Previously, the app had dual storage paths (SQLiteStorage + EventStorage) creating "split brain" where data could be logged in one location and invisible in another.
+
+**Architecture Now**:
+```
+UI Views → SessionRepository → EventStorage → SQLite (dosetap_events.sqlite)
+                                          ↳ EventStore protocol
+
+SQLiteStorage → BANNED (#if false wrapper)
+```
+
+**Key Changes**:
+- ✅ **EventStore Protocol** (`ios/Core/EventStore.swift`): Defines unified storage interface
+- ✅ **EventStorage Conformance**: EventStorage implements EventStore protocol
+- ✅ **SQLiteStorage BANNED**: Wrapped in `#if false` - compiler enforced
+- ✅ **SessionRepository Extended**: ALL storage operations route through here
+- ✅ **CI Guard Active**: Fails build if views touch EventStorage.shared directly
+
+**Enforced Boundary** (CI Guard in `.github/workflows/ci-swift.yml`):
+- `EventStorage.shared` - Views MUST NOT reference directly
+- `SQLiteStorage` - Production code MUST NOT reference at all
+- All storage access: `SessionRepository.shared.*`
+
+**Migration Complete** (21 → 0 production violations):
+| File | Violations Fixed |
+|------|------------------|
+| ContentView.swift | 15 |
+| SettingsView.swift | 3 |
+| URLRouter.swift | 2 |
+| AnalyticsService.swift | 1 |
+| InsightsCalculator.swift | 1 |
+
+**SessionRepository Facade Methods**:
+```swift
+// Dose operations
+saveDose1(timestamp:)
+saveDose2(timestamp:isEarly:isExtraDose:)
+
+// Event operations
+insertSleepEvent(id:eventType:timestamp:colorHex:notes:)
+fetchTonightSleepEvents() -> [StoredSleepEvent]
+fetchSleepEvents(for:) -> [StoredSleepEvent]
+deleteSleepEvent(id:)
+clearTonightsEvents()
+
+// Session operations
+currentSessionDateString() -> String
+sessionDateString(for:) -> String
+fetchRecentSessions(days:) -> [SessionSummary]
+fetchDoseLog(forSession:) -> StoredDoseLog?
+mostRecentIncompleteSession() -> String?
+deleteSession(sessionDate:)
+
+// Pre-sleep & Check-in
+savePreSleepLog(answers:completionState:existingLog:)
+fetchMostRecentPreSleepLog() -> StoredPreSleepLog?
+fetchMostRecentPreSleepLog(sessionId:) -> StoredPreSleepLog?
+saveMorningCheckIn(_:sessionDateOverride:)
+linkPreSleepLogToSession(sessionId:)
+
+// Export & Debug
+exportToCSV() -> String
+getSchemaVersion() -> Int
+clearAllData()
+```
+
+**See**: `docs/STORAGE_ENFORCEMENT_REPORT_2025-12-26.md` for full migration details.
+
+---
+
+## Deferred Items (must be resolved before GA)
+
+- UI component IDs (bulk_delete_button, date_picker, delete_day_button, devices_add_button, devices_list, devices_test_button, heart_rate_chart, insights_chart, session_list, settings_target_picker, timeline_export_button, timeline_list, tonight_snooze_button, wake_up_button, watch_dose_button) are NOT yet bound to shipping UI. These must be wired to real elements or explicitly deferred in product requirements (tracked in docs/PROD_READINESS_TODO.md). Placeholder file removed to avoid masking gaps.
+- WHOOP/OAuth integrations remain experimental; treat as disabled-by-default until token handling and UI hardening are complete.
+- HealthKit live data is optional: default provider on simulator/tests must be `NoOpHealthKitProvider`; HealthKitService usage must check availability/authorization. Shipping builds should default to off unless entitlements and validation are complete.
+- All deferrals are tracked in docs/SSOT/PENDING_ITEMS.md for lint alignment.
 
 ## Recent Updates (v2.10.0)
 
@@ -1360,7 +1442,7 @@ Logs sleep/wake events for optional cloud sync. **Note**: Sleep events are prima
 }
 ```
 
-**Current Implementation**: All 13 sleep event types are stored locally in SQLite (`sleep_events` table). The API endpoint is reserved for future iCloud/backend sync—not currently wired.
+**Current Implementation**: All 13 sleep event types are stored locally in SQLite (`sleep_events` table). The API endpoint is reserved for future iCloud/backend sync—not currently wired. For SSOT completeness, the contract is defined; implementation is deferred.
 
 #### GET /analytics/export
 Exports dose and analytics data as CSV.

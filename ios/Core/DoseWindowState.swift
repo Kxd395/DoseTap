@@ -218,24 +218,7 @@ public struct DoseWindowCalculator {
     ///   - timeZone: The timezone to use for boundary calculation. Defaults to user's current timezone.
     /// - Returns: ISO8601 date string (e.g., "2025-12-26")
     public func sessionDateString(for timestamp: Date, in timeZone: TimeZone? = nil) -> String {
-        var calendar = Calendar.current
-        if let tz = timeZone {
-            calendar.timeZone = tz
-        }
-        let hour = calendar.component(.hour, from: timestamp)
-        
-        // If before 6 PM (hour < 18), this belongs to previous day's session
-        let sessionDate: Date
-        if hour < 18 {
-            sessionDate = calendar.date(byAdding: .day, value: -1, to: timestamp) ?? timestamp
-        } else {
-            sessionDate = timestamp
-        }
-        
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = calendar.timeZone
-        return formatter.string(from: sessionDate)
+        return sessionKey(for: timestamp, timeZone: timeZone ?? .current, rolloverHour: 18)
     }
     
     /// Get remaining minutes until window closes

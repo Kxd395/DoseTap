@@ -190,7 +190,7 @@ struct SleepScheduleStepView: View {
 }
 
 struct MedicationStepView: View {
-    @Binding var config: MedicationConfig
+    @Binding var config: WizardMedicationConfig
     
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {

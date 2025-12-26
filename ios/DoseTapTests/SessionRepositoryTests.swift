@@ -3,6 +3,20 @@ import XCTest
 import Combine
 import DoseCore
 
+final class TestClock {
+    var now: Date
+    let timeZone: TimeZone
+    
+    init(now: Date, timeZone: TimeZone) {
+        self.now = now
+        self.timeZone = timeZone
+    }
+    
+    func advance(hours: Double) {
+        now = now.addingTimeInterval(hours * 3600)
+    }
+}
+
 /// Tests for SessionRepository - the single source of truth for session state.
 /// These tests verify that delete operations properly broadcast state changes.
 @MainActor
@@ -272,5 +286,177 @@ final class SessionRepositoryTests: XCTestCase {
         
         // Assert
         XCTAssertEqual(repo.currentContext.snoozeCount, 2, "Context should reflect updated snooze count")
+    }
+    
+    /// Verify timezone change detection fires when device timezone shifts mid-session
+    func test_timezoneChange_detectedAfterDose1() async throws {
+        let original = TimeZone.current
+        defer { NSTimeZone.default = original }
+        
+        // Start session in UTC
+        NSTimeZone.default = TimeZone(secondsFromGMT: 0)!
+        repo.setDose1Time(Date())
+        XCTAssertNotNil(repo.dose1TimezoneOffsetMinutes, "Dose 1 should record timezone offset")
+        
+        // Simulate traveling +3h east
+        NSTimeZone.default = TimeZone(secondsFromGMT: 3 * 3600)!
+        
+        let description = repo.checkTimezoneChange()
+        XCTAssertNotNil(description, "Timezone change should be detected after offset shift")
+        XCTAssertTrue(description?.contains("east") == true, "Description should indicate eastward shift")
+    }
+
+    func test_sessionKey_rollover_rules_across_timezones() {
+        let ny = TimeZone(identifier: "America/New_York")!
+        let utc = TimeZone(secondsFromGMT: 0)!
+        
+        let beforeRolloverNY = makeDate(2025, 12, 25, 14, 22, tz: ny)
+        let afterRolloverNY = makeDate(2025, 12, 25, 20, 47, tz: ny)
+        XCTAssertEqual(sessionKey(for: beforeRolloverNY, timeZone: ny, rolloverHour: 18), "2025-12-24")
+        XCTAssertEqual(sessionKey(for: afterRolloverNY, timeZone: ny, rolloverHour: 18), "2025-12-25")
+        
+        let beforeRolloverUTC = makeDate(2025, 12, 25, 14, 22, tz: utc)
+        let afterRolloverUTC = makeDate(2025, 12, 25, 20, 47, tz: utc)
+        XCTAssertEqual(sessionKey(for: beforeRolloverUTC, timeZone: utc, rolloverHour: 18), "2025-12-24")
+        XCTAssertEqual(sessionKey(for: afterRolloverUTC, timeZone: utc, rolloverHour: 18), "2025-12-25")
+    }
+
+    func test_repository_rollover_changes_sessionKey_and_broadcasts() async throws {
+        storage.clearAllData()
+        cancellables.removeAll()
+        let tz = TimeZone(identifier: "America/New_York")!
+        let clock = TestClock(now: makeDate(2025, 12, 25, 17, 0, tz: tz), timeZone: tz)
+        repo = SessionRepository(
+            storage: storage,
+            notificationScheduler: FakeNotificationScheduler(),
+            clock: { clock.now },
+            timeZoneProvider: { clock.timeZone },
+            rolloverHour: 18
+        )
+        
+        var changeCount = 0
+        let changeExpectation = expectation(description: "rollover broadcast")
+        repo.sessionDidChange
+            .sink { _ in
+                changeCount += 1
+                if changeCount == 1 {
+                    changeExpectation.fulfill()
+                }
+            }
+            .store(in: &cancellables)
+        
+        XCTAssertEqual(repo.currentSessionDateString(), "2025-12-24")
+        
+        clock.advance(hours: 3) // Cross 6 PM boundary
+        repo.refreshForTimeChange()
+        await fulfillment(of: [changeExpectation], timeout: 2.0)
+        XCTAssertEqual(repo.currentSessionDateString(), "2025-12-25")
+        XCTAssertNil(repo.activeSessionDate)
+        XCTAssertNil(repo.dose1Time)
+    }
+
+    func test_tonight_empty_after_rollover() async throws {
+        storage.clearAllData()
+        cancellables.removeAll()
+        let tz = TimeZone(identifier: "America/New_York")!
+        let clock = TestClock(now: makeDate(2025, 12, 25, 17, 30, tz: tz), timeZone: tz)
+        repo = SessionRepository(
+            storage: storage,
+            notificationScheduler: FakeNotificationScheduler(),
+            clock: { clock.now },
+            timeZoneProvider: { clock.timeZone },
+            rolloverHour: 18
+        )
+        
+        repo.setDose1Time(clock.now.addingTimeInterval(-3600))
+        repo.setDose2Time(clock.now)
+        XCTAssertNotNil(repo.activeSessionDate, "Session should be active before rollover")
+        
+        clock.advance(hours: 2) // move past 6 PM
+        repo.refreshForTimeChange()
+        
+        XCTAssertNil(repo.activeSessionDate, "Active session should clear after rollover")
+        XCTAssertEqual(repo.currentContext.phase, .noDose1, "Context should reset after rollover")
+    }
+
+    func test_addPreSleepLog_persistsRowAndIsQueryableBySessionKey() async throws {
+        storage.clearAllData()
+        let answers = PreSleepLogAnswers()
+        let log = try repo.savePreSleepLog(answers: answers, completionState: "complete")
+        guard let sessionId = log.sessionId else {
+            XCTFail("Expected pre-sleep log to include sessionId")
+            return
+        }
+        
+        let count = storage.fetchPreSleepLogCount(sessionId: sessionId)
+        XCTAssertEqual(count, 1, "Expected one pre-sleep log row for session")
+        let fetched = storage.fetchMostRecentPreSleepLog(sessionId: sessionId)
+        XCTAssertNotNil(fetched, "Expected pre-sleep log to be queryable by sessionId")
+    }
+    
+    func test_preSleepSubmit_broadcastsChangeSignal() async throws {
+        cancellables.removeAll()
+        let expectation = XCTestExpectation(description: "pre-sleep broadcast")
+        
+        repo.sessionDidChange
+            .first()
+            .sink { _ in
+                expectation.fulfill()
+            }
+            .store(in: &cancellables)
+        
+        _ = try repo.savePreSleepLog(answers: PreSleepLogAnswers(), completionState: "complete")
+        await fulfillment(of: [expectation], timeout: 1.0)
+    }
+    
+    func test_preSleepSessionKey_matchesTonightKey_aroundRollover() {
+        let tz = TimeZone(identifier: "America/New_York")!
+        let before = makeDate(2025, 12, 25, 17, 30, tz: tz)
+        let after = makeDate(2025, 12, 25, 20, 0, tz: tz)
+        let localRepo = SessionRepository(
+            storage: storage,
+            notificationScheduler: FakeNotificationScheduler(),
+            clock: { before },
+            timeZoneProvider: { tz },
+            rolloverHour: 18
+        )
+        
+        let beforeKey = localRepo.preSleepDisplaySessionKey(for: before)
+        let afterKey = localRepo.preSleepDisplaySessionKey(for: after)
+        
+        XCTAssertEqual(beforeKey, "2025-12-25")
+        XCTAssertEqual(afterKey, "2025-12-25")
+    }
+
+    func test_preSleepLog_upsertSameSession() async throws {
+        storage.clearAllData()
+        var firstAnswers = PreSleepLogAnswers()
+        firstAnswers.stressLevel = 1
+        let first = try repo.savePreSleepLog(answers: firstAnswers, completionState: "complete")
+        guard let sessionId = first.sessionId else {
+            XCTFail("Expected sessionId on first pre-sleep log")
+            return
+        }
+        
+        var secondAnswers = PreSleepLogAnswers()
+        secondAnswers.stressLevel = 5
+        let second = try repo.savePreSleepLog(answers: secondAnswers, completionState: "complete")
+        
+        XCTAssertEqual(first.id, second.id, "Expected upsert to keep the same pre-sleep log id")
+        XCTAssertEqual(storage.fetchPreSleepLogCount(sessionId: sessionId), 1, "Expected only one pre-sleep log row for session")
+        let fetched = storage.fetchMostRecentPreSleepLog(sessionId: sessionId)
+        XCTAssertEqual(fetched?.answers?.stressLevel, 5, "Expected latest save to update answers")
+    }
+
+    private func makeDate(_ year: Int, _ month: Int, _ day: Int, _ hour: Int, _ minute: Int, tz: TimeZone) -> Date {
+        var comps = DateComponents()
+        comps.year = year
+        comps.month = month
+        comps.day = day
+        comps.hour = hour
+        comps.minute = minute
+        comps.second = 0
+        comps.timeZone = tz
+        return Calendar(identifier: .gregorian).date(from: comps) ?? Date()
     }
 }

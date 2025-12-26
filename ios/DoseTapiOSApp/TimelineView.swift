@@ -1,7 +1,6 @@
 import SwiftUI
-#if canImport(DoseTap)
-import DoseTap
-#endif
+import Combine
+import DoseCore
 
 /// Timeline view showing historical dose sessions and sleep events
 /// Per SSOT: Timeline Screen shows historical dose events and patterns
@@ -9,9 +8,9 @@ public struct TimelineView: View {
     @StateObject private var viewModel = TimelineViewModel()
     @Environment(\.colorScheme) var colorScheme
     
-    // Multi-select state - uses session date for identification since that's the DB key
+    // Multi-select state - uses canonical session key (yyyy-MM-dd, 6PM rollover)
     @State private var isEditMode = false
-    @State private var selectedSessionDates: Set<Date> = []
+    @State private var selectedSessionKeys: Set<String> = []
     @State private var showingDeleteConfirmation = false
     
     public init() {}
@@ -38,7 +37,7 @@ public struct TimelineView: View {
                         withAnimation {
                             isEditMode.toggle()
                             if !isEditMode {
-                                selectedSessionDates.removeAll()
+                                selectedSessionKeys.removeAll()
                             }
                         }
                     }
@@ -46,11 +45,11 @@ public struct TimelineView: View {
                 
                 // Delete button when in edit mode (trailing)
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    if isEditMode && !selectedSessionDates.isEmpty {
+                    if isEditMode && !selectedSessionKeys.isEmpty {
                         Button(role: .destructive) {
                             showingDeleteConfirmation = true
                         } label: {
-                            Label("Delete (\(selectedSessionDates.count))", systemImage: "trash")
+                            Label("Delete (\(selectedSessionKeys.count))", systemImage: "trash")
                                 .foregroundColor(.red)
                         }
                     } else {
@@ -69,11 +68,11 @@ public struct TimelineView: View {
             }
             .alert("Delete Sessions?", isPresented: $showingDeleteConfirmation) {
                 Button("Cancel", role: .cancel) { }
-                Button("Delete \(selectedSessionDates.count) Session\(selectedSessionDates.count == 1 ? "" : "s")", role: .destructive) {
+                Button("Delete \(selectedSessionKeys.count) Session\(selectedSessionKeys.count == 1 ? "" : "s")", role: .destructive) {
                     deleteSelectedSessions()
                 }
             } message: {
-                Text("This will permanently delete the selected session\(selectedSessionDates.count == 1 ? "" : "s") and all associated events. This cannot be undone.")
+                Text("This will permanently delete the selected session\(selectedSessionKeys.count == 1 ? "" : "s") and all associated events. This cannot be undone.")
             }
         }
         .task {
@@ -82,10 +81,10 @@ public struct TimelineView: View {
     }
     
     private func deleteSelectedSessions() {
-        for sessionDate in selectedSessionDates {
-            viewModel.deleteSession(date: sessionDate)
+        for key in selectedSessionKeys {
+            viewModel.deleteSession(sessionKey: key)
         }
-        selectedSessionDates.removeAll()
+        selectedSessionKeys.removeAll()
         isEditMode = false
         Task {
             await viewModel.load()
@@ -93,18 +92,17 @@ public struct TimelineView: View {
     }
     
     private func toggleSelection(for session: TimelineSession) {
-        // Use the session's date (start of day) as the unique identifier
-        let sessionDate = Calendar.current.startOfDay(for: session.dose1Time)
-        if selectedSessionDates.contains(sessionDate) {
-            selectedSessionDates.remove(sessionDate)
+        // Use canonical sessionKey to respect 6PM rollover
+        let key = session.sessionKey
+        if selectedSessionKeys.contains(key) {
+            selectedSessionKeys.remove(key)
         } else {
-            selectedSessionDates.insert(sessionDate)
+            selectedSessionKeys.insert(key)
         }
     }
     
     private func isSelected(_ session: TimelineSession) -> Bool {
-        let sessionDate = Calendar.current.startOfDay(for: session.dose1Time)
-        return selectedSessionDates.contains(sessionDate)
+        selectedSessionKeys.contains(session.sessionKey)
     }
     
     private var loadingView: some View {
@@ -153,17 +151,17 @@ public struct TimelineView: View {
                             // Select All for this date
                             if isEditMode, let sessions = viewModel.groupedSessions[date] {
                                 Spacer()
-                                let sessionDates = Set(sessions.map { Calendar.current.startOfDay(for: $0.dose1Time) })
+                                let sessionKeys = Set(sessions.map { $0.sessionKey })
                                 Button {
-                                    if sessionDates.isSubset(of: selectedSessionDates) {
+                                    if sessionKeys.isSubset(of: selectedSessionKeys) {
                                         // Deselect all in this section
-                                        selectedSessionDates.subtract(sessionDates)
+                                        selectedSessionKeys.subtract(sessionKeys)
                                     } else {
                                         // Select all in this section
-                                        selectedSessionDates.formUnion(sessionDates)
+                                        selectedSessionKeys.formUnion(sessionKeys)
                                     }
                                 } label: {
-                                    Text(sessionDates.isSubset(of: selectedSessionDates) ? "Deselect" : "Select All")
+                                    Text(sessionKeys.isSubset(of: selectedSessionKeys) ? "Deselect" : "Select All")
                                         .font(.caption)
                                         .foregroundColor(.blue)
                                 }
@@ -431,7 +429,7 @@ class TimelineViewModel: ObservableObject {
     @Published var state: State = .loading
     @Published var groupedSessions: [Date: [TimelineSession]] = [:]
     
-    private let storage = SQLiteStorage.shared
+    // Use SessionRepository as the single source of truth
     private let sessionRepo = SessionRepository.shared
     
     private let dateFormatter: DateFormatter = {
@@ -443,40 +441,23 @@ class TimelineViewModel: ObservableObject {
     func load() async {
         state = .loading
         
-        // Fetch dose events from storage
-        let events = storage.getAllEvents(limit: 500)
-        var sleepEvents = storage.fetchAllSleepEvents(limit: 500)
+        // Use SessionRepository as the single source of truth
+        let sleepEvents = sessionRepo.fetchAllSleepEvents(limit: 500)
+        let doseLogs = sessionRepo.fetchAllDoseLogs(limit: 500)
         
-        // Also fetch sleep events from EventStorage (lightsOut from Pre-Sleep Log, etc.)
-        // EventStorage uses a different schema, so we need to convert
-        #if canImport(DoseTap)
-        let eventStorageEvents = EventStorage.shared.fetchAllSleepEvents(limit: 500)
-        for event in eventStorageEvents {
-            // Convert to StoredSleepEvent format and add if not duplicate
-            // EventStorage has: id, eventType, timestamp, sessionDate, colorHex
-            // We need: id, eventType, timestamp, sessionId, notes, source
-            let converted = StoredSleepEvent(
-                id: event.id,
-                eventType: event.eventType,
-                timestamp: event.timestamp,
-                sessionId: nil, // EventStorage uses sessionDate string, not ID
-                notes: event.notes,
-                source: "manual"
-            )
-            // Avoid duplicates by checking ID
-            if !sleepEvents.contains(where: { $0.id == converted.id }) {
-                sleepEvents.append(converted)
-            }
-        }
-        #endif
-        
-        if events.isEmpty {
+        if sleepEvents.isEmpty && doseLogs.isEmpty {
             state = .empty
             return
         }
         
-        // Group events into sessions
-        let sessions = buildSessions(from: events, sleepEvents: sleepEvents)
+        // Build sessions from dose logs and sleep events
+        var sessions = buildSessionsFromEventStorage(doseLogs: doseLogs, sleepEvents: sleepEvents)
+        
+        // Filter out sessions that no longer exist (deleted/soft-deleted)
+        let formatter = dateFormatter
+        let sessionDates = sessions.map { formatter.string(from: $0.date) }
+        let allowedDates = Set(sessionRepo.filterExistingSessionDates(sessionDates))
+        sessions = sessions.filter { allowedDates.contains(formatter.string(from: $0.date)) }
         
         if sessions.isEmpty {
             state = .empty
@@ -498,165 +479,93 @@ class TimelineViewModel: ObservableObject {
     }
     
     func exportCSV() {
-        let csv = storage.exportToCSV()
+        let csv = sessionRepo.exportToCSV()
         // TODO: Present share sheet with CSV
         print("CSV Export:\n\(csv)")
     }
     
-    /// Delete a session by its date
+    /// Delete a session by its canonical session key (yyyy-MM-dd)
     /// P0-5 FIX: Route through SessionRepository to ensure notifications are cancelled
     /// and in-memory state is properly cleared for active session
-    func deleteSession(date: Date) {
-        let sessionDateString = dateFormatter.string(from: date)
+    func deleteSession(sessionKey: String) {
+        // Validate session key format (yyyy-MM-dd)
+        guard dateFormatter.date(from: sessionKey) != nil else { return }
         
         // Route through SessionRepository - this ensures:
         // 1. If this is the active session, in-memory state is cleared
         // 2. Pending notifications are cancelled
         // 3. sessionDidChange signal is broadcast
-        sessionRepo.deleteSession(sessionDate: sessionDateString)
-        
-        // Also delete from SQLiteStorage for non-current session data
-        // (SessionRepository only deletes via EventStorage, which handles current_session table)
-        storage.deleteSession(date: date)
+        sessionRepo.deleteSession(sessionDate: sessionKey)
         
         // Refresh to reflect changes
         refresh()
     }
     
-    private func buildSessions(from events: [StoredDoseEvent], sleepEvents: [StoredSleepEvent]) -> [TimelineSession] {
-        // Build sessions from dose events, then associate sleep events by timestamp proximity
-        // Sleep events are linked to the session whose dose1 time is within 12 hours before the event
-        
+    /// Build sessions from EventStorage dose logs and sleep events
+    private func buildSessionsFromEventStorage(doseLogs: [StoredDoseLog], sleepEvents: [StoredSleepEvent]) -> [TimelineSession] {
         var sessionMap: [String: TimelineSession] = [:]
-        var dose1Times: [(key: String, time: Date)] = []
-        
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
         
-        // First pass: Build sessions from dose events
-        for event in events {
-            let sessionKey = dateFormatter.string(from: event.timestamp)
+        // Build sessions from dose logs
+        for log in doseLogs {
+            let sessionDate = dateFormatter.date(from: log.sessionDate) ?? Date()
             
-            var session = sessionMap[sessionKey] ?? TimelineSession(
+            let session = TimelineSession(
                 id: UUID(),
-                date: Calendar.current.startOfDay(for: event.timestamp),
-                dose1Time: Date(),
-                dose2Time: nil,
-                dose2Skipped: false,
-                snoozeCount: 0,
+                sessionKey: log.sessionDate,
+                date: sessionDate,
+                dose1Time: log.dose1Time,
+                dose2Time: log.dose2Time,
+                dose2Skipped: log.dose2Skipped,
+                snoozeCount: log.snoozeCount,
                 sleepEvents: []
             )
-            
-            switch event.eventType {
-            case "dose1":
-                session = TimelineSession(
-                    id: session.id,
-                    date: session.date,
-                    dose1Time: event.timestamp,
-                    dose2Time: session.dose2Time,
-                    dose2Skipped: session.dose2Skipped,
-                    snoozeCount: session.snoozeCount,
-                    sleepEvents: session.sleepEvents
-                )
-                dose1Times.append((key: sessionKey, time: event.timestamp))
-            case "dose2":
-                session = TimelineSession(
-                    id: session.id,
-                    date: session.date,
-                    dose1Time: session.dose1Time,
-                    dose2Time: event.timestamp,
-                    dose2Skipped: false,
-                    snoozeCount: session.snoozeCount,
-                    sleepEvents: session.sleepEvents
-                )
-            case "skip":
-                session = TimelineSession(
-                    id: session.id,
-                    date: session.date,
-                    dose1Time: session.dose1Time,
-                    dose2Time: nil,
-                    dose2Skipped: true,
-                    snoozeCount: session.snoozeCount,
-                    sleepEvents: session.sleepEvents
-                )
-            case "snooze":
-                session = TimelineSession(
-                    id: session.id,
-                    date: session.date,
-                    dose1Time: session.dose1Time,
-                    dose2Time: session.dose2Time,
-                    dose2Skipped: session.dose2Skipped,
-                    snoozeCount: session.snoozeCount + 1,
-                    sleepEvents: session.sleepEvents
-                )
-            default:
-                break
-            }
-            
-            sessionMap[sessionKey] = session
+            sessionMap[log.sessionDate] = session
         }
         
-        // Sort dose1 times for efficient proximity matching
-        dose1Times.sort { $0.time < $1.time }
-        
-        // Second pass: Associate sleep events with sessions using 12-hour proximity window
-        // A sleep event belongs to a session if it occurred within 12 hours AFTER the dose1 time
-        let proximityWindow: TimeInterval = 12 * 60 * 60 // 12 hours
-        
-        for sleepEvent in sleepEvents {
-            let eventTime = sleepEvent.timestamp
-            
-            // Find the best matching session: the most recent dose1 that is before this event
-            // and within the 12-hour proximity window
-            var bestMatch: String? = nil
-            
-            for (key, dose1Time) in dose1Times.reversed() {
-                // Sleep event must be AFTER dose1 (or within 30 min before for lightsOut/inBed)
-                let timeDiff = eventTime.timeIntervalSince(dose1Time)
-                
-                // Allow events from 30 min before dose1 (for lightsOut/inBed) to 12 hours after
-                if timeDiff >= -1800 && timeDiff <= proximityWindow {
-                    bestMatch = key
-                    break
-                }
-            }
-            
-            // If no proximity match, fall back to date-string matching (legacy behavior)
-            let sessionKey = bestMatch ?? dateFormatter.string(from: eventTime)
-            
+        // Associate sleep events with sessions by sessionDate
+        for event in sleepEvents {
+            let sessionKey = event.sessionDate
             if var session = sessionMap[sessionKey] {
-                let timelineEvent = TimelineSleepEvent(
-                    id: UUID(),
-                    type: sleepEvent.eventType,
-                    timestamp: sleepEvent.timestamp
+                let sleepEvent = TimelineSleepEvent(
+                    id: event.id,
+                    eventType: event.eventType,
+                    timestamp: event.timestamp,
+                    notes: event.notes,
+                    source: "manual"
                 )
                 session = TimelineSession(
                     id: session.id,
+                    sessionKey: session.sessionKey,
                     date: session.date,
                     dose1Time: session.dose1Time,
                     dose2Time: session.dose2Time,
                     dose2Skipped: session.dose2Skipped,
                     snoozeCount: session.snoozeCount,
-                    sleepEvents: session.sleepEvents + [timelineEvent]
+                    sleepEvents: session.sleepEvents + [sleepEvent]
                 )
                 sessionMap[sessionKey] = session
             } else {
-                // Create an "events-only" session for orphaned sleep events
-                // This ensures no logged events are lost
-                let newSession = TimelineSession(
+                // Create a session just from sleep events if no dose log exists
+                let sessionDate = dateFormatter.date(from: sessionKey) ?? event.timestamp
+                let sleepEvent = TimelineSleepEvent(
+                    id: event.id,
+                    eventType: event.eventType,
+                    timestamp: event.timestamp,
+                    notes: event.notes,
+                    source: "manual"
+                )
+                sessionMap[sessionKey] = TimelineSession(
                     id: UUID(),
-                    date: Calendar.current.startOfDay(for: eventTime),
-                    dose1Time: eventTime, // Use first event time as placeholder
+                    sessionKey: sessionKey,
+                    date: sessionDate,
+                    dose1Time: event.timestamp,
                     dose2Time: nil,
                     dose2Skipped: false,
                     snoozeCount: 0,
-                    sleepEvents: [TimelineSleepEvent(
-                        id: UUID(),
-                        type: sleepEvent.eventType,
-                        timestamp: sleepEvent.timestamp
-                    )]
+                    sleepEvents: [sleepEvent]
                 )
-                sessionMap[sessionKey] = newSession
             }
         }
         
@@ -668,6 +577,7 @@ class TimelineViewModel: ObservableObject {
 
 struct TimelineSession: Identifiable {
     let id: UUID
+    let sessionKey: String
     let date: Date
     let dose1Time: Date
     let dose2Time: Date?
@@ -682,9 +592,29 @@ struct TimelineSession: Identifiable {
 }
 
 struct TimelineSleepEvent: Identifiable {
-    let id: UUID
+    let id: String  // Changed from UUID to String to match StoredSleepEvent
     let type: String
     let timestamp: Date
+    let notes: String?
+    let source: String
+    
+    // Convenience initializer for new structure
+    init(id: String, eventType: String, timestamp: Date, notes: String?, source: String) {
+        self.id = id
+        self.type = eventType
+        self.timestamp = timestamp
+        self.notes = notes
+        self.source = source
+    }
+    
+    // Legacy initializer for compatibility
+    init(id: UUID, type: String, timestamp: Date) {
+        self.id = id.uuidString
+        self.type = type
+        self.timestamp = timestamp
+        self.notes = nil
+        self.source = "manual"
+    }
     
     var displayName: String {
         switch type {

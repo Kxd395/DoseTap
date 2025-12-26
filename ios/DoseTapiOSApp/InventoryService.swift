@@ -9,12 +9,16 @@ struct MedicationSupply: Codable, Identifiable {
     let totalMgPerBottle: Int
     let dosesPerBottle: Int
     let mgPerDose: Int
-    let costPerBottle: Double?
+    var costPerBottle: Double?
     
     var createdAt: Date
     var currentBottles: Int
     var openedBottleDate: Date?
     var expirationDate: Date?
+    
+    private enum CodingKeys: String, CodingKey {
+        case medicationName, totalMgPerBottle, dosesPerBottle, mgPerDose, costPerBottle, createdAt, currentBottles, openedBottleDate, expirationDate
+    }
     
     // Calculated properties
     var totalMgRemaining: Int {
@@ -36,7 +40,7 @@ struct MedicationSupply: Codable, Identifiable {
         guard let openedDate = openedBottleDate else { return totalMgPerBottle }
         
         // Calculate days since opened
-        let daysSinceOpened = Calendar.current.dateInterval(from: openedDate, to: Date())?.duration ?? 0
+        let daysSinceOpened = DateInterval(start: openedDate, end: Date()).duration
         let nightsSinceOpened = Int(daysSinceOpened / (24 * 60 * 60))
         
         // Each night uses mgPerDose * 2 (Dose 1 + Dose 2)
@@ -70,7 +74,7 @@ struct MedicationSupply: Codable, Identifiable {
     
     var isExpiringSoon: Bool {
         guard let expiration = expirationDate else { return false }
-        let daysUntilExpiration = Calendar.current.dateInterval(from: Date(), to: expiration)?.duration ?? 0
+        let daysUntilExpiration = DateInterval(start: Date(), end: expiration).duration
         return daysUntilExpiration <= (30 * 24 * 60 * 60) // 30 days
     }
 }
@@ -118,6 +122,10 @@ struct RefillReminder: Codable, Identifiable {
     let nightsRemaining: Int
     let isUrgent: Bool
     var dismissed: Bool = false
+    
+    private enum CodingKeys: String, CodingKey {
+        case medicationName, reminderDate, supplyStatus, nightsRemaining, isUrgent, dismissed
+    }
     
     var title: String {
         switch supplyStatus {
@@ -308,7 +316,7 @@ class InventoryService: ObservableObject {
         // Get today's dose events
         let todayEvents = dataStorage.getTodayEvents()
         let doseEvents = todayEvents.filter { event in
-            event.eventType == "dose1_taken" || event.eventType == "dose2_taken"
+            event.type == .dose1 || event.type == .dose2
         }
         
         // If we have dose events but haven't updated the opened bottle date,
@@ -368,7 +376,7 @@ class InventoryService: ObservableObject {
         
         // Calculate usage based on dose events
         let allEvents = dataStorage.getAllEvents()
-        let doseEvents = allEvents.filter { $0.eventType.contains("dose") }
+        let doseEvents = allEvents.filter { $0.type.rawValue.contains("dose") }
         let nightsWithDoses = Set(doseEvents.map { 
             Calendar.current.startOfDay(for: $0.timestamp)
         }).count

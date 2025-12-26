@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Combine
 
 // MARK: - User Configuration Manager
@@ -48,8 +49,8 @@ class UserConfigurationManager: ObservableObject {
         userConfig?.doseWindow ?? DoseWindowConfig()
     }
     
-    var medicationConfig: MedicationConfig {
-        userConfig?.medicationProfile ?? MedicationConfig()
+    var medicationConfig: WizardMedicationConfig {
+        userConfig?.medicationProfile ?? WizardMedicationConfig()
     }
     
     var notificationConfig: NotificationConfig {
@@ -156,7 +157,7 @@ extension DoseWindowConfig {
     }
 }
 
-extension MedicationConfig {
+extension WizardMedicationConfig {
     var doseRatio: Double {
         guard doseMgDose1 > 0 else { return 0 }
         return Double(doseMgDose2) / Double(doseMgDose1)
