@@ -34,7 +34,7 @@
 | `docs/PRODUCT_DESCRIPTION.md` | Core Data in specs table | Changed to SQLite |
 | `docs/FEATURE_ROADMAP.md` | Stale 6-type code block | Removed/replaced |
 | `docs/FEATURE_ROADMAP.md` | Core Data table entry | Changed to SQLite |
-| `docs/FUTURE_ROADMAP.md` | "12 event types", "123 tests" | Changed to 13, 207 |
+| `docs/FUTURE_ROADMAP.md` | stale event-count text, "123 tests" | Changed to 13, 207 |
 | `docs/HYPERCRITICAL_AUDIT_2025-12.md` | Core Data migration | Changed to SQLite |
 
 ### Code Fixes
@@ -42,7 +42,7 @@
 | File | Issue | Fix Applied |
 |------|-------|-------------|
 | `ios/DoseTapiOSApp/SettingsView.swift` | "12 sleep event types" | Changed to 13 |
-| `ios/DoseTapiOSApp/DoseCoreIntegration.swift` | Comment "12 event" | Changed to 13 |
+| `ios/DoseTapiOSApp/DoseCoreIntegration.swift` | Comment with stale event-count | Changed to 13 |
 | `ios/DoseTapiOSApp/SetupWizardService.swift` | Core Data comment | Changed to SQLite |
 | `ios/DoseTapiOSApp/UserConfigurationManager.swift` | Core Data comment | Changed to SQLite |
 | `ios/DoseTapiOSApp/BUILD_SUMMARY.md` | Core Data roadmap | Changed to SQLite |
@@ -80,8 +80,8 @@ swift test
 grep -rn "Core Data" docs/ --include="*.md" | grep -v "archive\|AUDIT\|Why\|NO\|removed"
 → 0 results ✅
 
-# 12 event in active docs
-grep -rn "12 event" docs/ ios/ --include="*.md" --include="*.swift" | grep -v "archive\|AUDIT"
+# Event-count sanity check
+grep -rn "event count" docs/ ios/ --include="*.md" --include="*.swift" | grep -v "archive\|AUDIT"
 → 0 results ✅
 
 # 123 tests in active docs

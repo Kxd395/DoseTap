@@ -1,5 +1,7 @@
 import Foundation
 import SwiftUI
+import Combine
+import DoseCore
 
 // MARK: - Comprehensive Data Export Service
 @MainActor
@@ -12,7 +14,7 @@ public class DataExportService: ObservableObject {
     private init() {}
     
     // MARK: - Export Formats
-    public enum ExportFormat: String, CaseIterable {
+    public enum ExportFormat: String, CaseIterable, Codable {
         case csv = "CSV"
         case json = "JSON"
         case combined = "Combined Report"
@@ -27,7 +29,7 @@ public class DataExportService: ObservableObject {
     }
     
     // MARK: - Export Options
-    public struct ExportOptions {
+    public struct ExportOptions: Codable {
         let format: ExportFormat
         let includeDoseEvents: Bool
         let includeHealthData: Bool
@@ -50,7 +52,7 @@ public class DataExportService: ObservableObject {
         }
     }
     
-    public struct DateRange {
+    public struct DateRange: Codable {
         let start: Date
         let end: Date
     }
@@ -362,11 +364,11 @@ public class DataExportService: ObservableObject {
     }
     
     private func findCorrespondingSleepData(for date: Date, in data: ComprehensiveExportData) -> (sleepStart: String, sleepEnd: String, sleepScore: String, recoveryScore: String, hrv: String, strain: String) {
-        let calendar = Calendar.current
-        let targetDate = calendar.startOfDay(for: date)
+        let tz = TimeZone.current
+        let key = DoseCore.sessionKey(for: date, timeZone: tz, rolloverHour: 18)
         
         // Try WHOOP data first
-        if let whoop = data.whoopData.first(where: { calendar.startOfDay(for: $0.sleepDate) == targetDate }) {
+        if let whoop = data.whoopData.first(where: { DoseCore.sessionKey(for: $0.sleepDate, timeZone: tz, rolloverHour: 18) == key }) {
             return (
                 sleepStart: whoop.sleepStart != nil ? formatTime(whoop.sleepStart!) : "",
                 sleepEnd: whoop.sleepEnd != nil ? formatTime(whoop.sleepEnd!) : "",
@@ -378,7 +380,7 @@ public class DataExportService: ObservableObject {
         }
         
         // Fall back to health data
-        if let health = data.healthData.first(where: { calendar.startOfDay(for: $0.sleepDate) == targetDate }) {
+        if let health = data.healthData.first(where: { DoseCore.sessionKey(for: $0.sleepDate, timeZone: tz, rolloverHour: 18) == key }) {
             return (
                 sleepStart: health.sleepStart != nil ? formatTime(health.sleepStart!) : "",
                 sleepEnd: health.sleepEnd != nil ? formatTime(health.sleepEnd!) : "",
@@ -597,10 +599,9 @@ public struct ComprehensiveExportData: Codable {
     let whoopData: [WHOOPSleepData]
     let analytics: AnalyticsData?
     let exportDate: Date
-    let exportOptions: ExportOptions
+    let exportOptions: DataExportService.ExportOptions
 }
 
-extension DataExportService.ExportOptions: Codable {}
 
 public struct AnalyticsData: Codable {
     let totalSessions: Int
@@ -692,7 +693,7 @@ struct DataExportView: View {
             }
         }
         .sheet(isPresented: $showingShareSheet) {
-            ShareSheet(activityItems: [exportContent])
+            ShareSheet(items: [exportContent])
         }
     }
     

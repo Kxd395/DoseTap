@@ -36,6 +36,10 @@ The project is divided into distinct targets within `Package.swift`:
 ## Persistence Layer: SQLite
 
 > **CANONICAL**: SQLite is the ONLY persistence layer. There is NO Core Data.
+> 
+> **ENFORCED** (v2.12.0): Views MUST access storage via SessionRepository only.
+> Direct EventStorage.shared access from Views is banned (CI guard enforced).
+> SQLiteStorage is banned (`#if false` wrapper).
 
 ### Storage Architecture
 
@@ -43,30 +47,39 @@ The project is divided into distinct targets within `Package.swift`:
 ┌─────────────────────────────────────────────────────────────┐
 │                    UI Layer (SwiftUI)                       │
 │   TonightView, HistoryView, MorningCheckInView, etc.        │
+│                                                             │
+│   ⛔ Views MUST NOT access EventStorage.shared directly     │
 └─────────────────────────────────────────────────────────────┘
                               │
-                              │ @StateObject
+                              │ @StateObject / SessionRepository.shared
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│              SessionRepository (Observable)                  │
+│              SessionRepository (Facade)                      │
 │   @Published dose1Time, dose2Time, snoozeCount, etc.        │
 │   Broadcasts changes via Combine (sessionDidChange)          │
+│                                                             │
+│   ALL storage methods exposed here:                         │
+│   - saveDose1/2(), insertSleepEvent(), fetchTonightEvents() │
+│   - savePreSleepLog(), saveMorningCheckIn(), exportToCSV()  │
 └─────────────────────────────────────────────────────────────┘
                               │
-                              │ reads/writes
+                              │ internal only
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │              EventStorage (SQLite Wrapper)                   │
 │   @MainActor singleton, direct SQLite3 calls                 │
 │   Database file: dosetap_events.sqlite                       │
+│   Implements: EventStore protocol                            │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    SQLite Database                           │
 │   Tables: current_session, dose_events, sleep_events,        │
-│           morning_checkins, pre_sleep_logs                   │
+│           morning_checkins, pre_sleep_logs, medication_events│
 └─────────────────────────────────────────────────────────────┘
+
+⛔ BANNED: SQLiteStorage (#if false wrapper)
 ```
 
 ### Key Files
@@ -74,9 +87,16 @@ The project is divided into distinct targets within `Package.swift`:
 | File | Purpose |
 |------|---------|
 | `ios/DoseTap/Storage/EventStorage.swift` | SQLite wrapper, all CRUD operations |
-| `ios/DoseTap/Storage/SessionRepository.swift` | Observable state, Combine publisher |
+| `ios/DoseTap/Storage/SessionRepository.swift` | **Facade** — ALL view access goes here |
+| `ios/Core/EventStore.swift` | Protocol defining storage interface |
 | `docs/DATABASE_SCHEMA.md` | Canonical schema documentation |
 | `docs/SSOT/contracts/SchemaEvolution.md` | Migration history |
+
+### CI Enforcement
+
+The storage boundary is enforced by CI (`.github/workflows/ci-swift.yml`):
+- ❌ `EventStorage.shared` in Views → Build fails
+- ❌ `SQLiteStorage` anywhere in production → Build fails
 
 ### Why SQLite (Not Core Data)
 

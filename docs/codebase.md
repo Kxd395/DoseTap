@@ -16,11 +16,14 @@ This document outlines the directory structure of the repository.
     *   `DoseWindowState.swift`: State machine logic.
     *   `OfflineQueue.swift`: Offline sync logic.
     *   `TimeEngine.swift`: Time manipulation protocols.
+    *   `EventStore.swift`: Storage protocol interface.
 
 *   **`DoseTap/`** (The iOS App)
     *   `DoseTapApp.swift`: Entry point.
     *   `Config.plist`: Configuration.
-    *   **`Storage/`**: SQLite persistence (`EventStorage.swift`, `SessionRepository.swift`).
+    *   **`Storage/`**: SQLite persistence.
+        *   `SessionRepository.swift`: **Facade** — ALL view access goes here.
+        *   `EventStorage.swift`: SQLite wrapper (internal to SessionRepository).
     *   **`Views/`**: SwiftUI views (`TonightView`, `SettingsView`).
     *   **`Resources/`**: Assets and localized strings.
 
@@ -33,5 +36,18 @@ This document outlines the directory structure of the repository.
 | File | Purpose |
 |------|---------|
 | `ios/Core/DoseWindowState.swift` | **CRITICAL**. Defines the 150-240m safety window logic. |
-| `ios/DoseTap/Storage/EventStorage.swift` | SQLite persistence. Single source of truth for all data. |
+| `ios/DoseTap/Storage/SessionRepository.swift` | **Facade**. ALL view storage access goes here. |
+| `ios/DoseTap/Storage/EventStorage.swift` | SQLite wrapper (internal — Views must not access directly). |
 | `docs/SSOT/README.md` | The Single Source of Truth for feature requirements. |
+
+## Storage Architecture (v2.12.0)
+
+```
+Views → SessionRepository → EventStorage → SQLite
+          (facade)           (internal)
+
+⛔ SQLiteStorage: BANNED (#if false wrapper)
+⛔ EventStorage.shared in Views: BANNED (CI guard)
+```
+
+See `docs/STORAGE_ENFORCEMENT_REPORT_2025-12-26.md` for details.

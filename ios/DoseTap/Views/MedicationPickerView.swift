@@ -168,7 +168,7 @@ struct MedicationPickerView: View {
             
             // Medication categories
             ForEach(MedicationCategory.allCases, id: \.self) { category in
-                let medsInCategory = MedicationConfig.types.filter { $0.category == category }
+                let medsInCategory = DoseCore.MedicationConfig.types.filter { $0.category == category }
                 if !medsInCategory.isEmpty {
                     medicationCategorySection(category: category, medications: medsInCategory)
                 }

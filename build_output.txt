@@ -1,0 +1,342 @@
+Command line invocation:
+    /Applications/_Development/Xcode.app/Contents/Developer/usr/bin/xcodebuild build -project ios/DoseTap.xcodeproj -scheme DoseTap -destination id=A260D359-E23B-4152-8BFC-91CD9C6ACC1E CODE_SIGNING_ALLOWED=NO
+
+Build settings from command line:
+    CODE_SIGNING_ALLOWED = NO
+
+2025-12-25 20:12:32.396 xcodebuild[7538:26145983] warning:  The file reference for "AlarmService.swift" is a member of multiple groups ("Services" and "DoseTap"); this indicates a malformed project.  Only the membership in one of the groups will be preserved (but membership in targets will be unaffected).  If you want a reference to the same file in more than one group, please add another reference to the same path.
+Resolve Package Graph
+
+
+Resolved source packages:
+  DoseTap: /Users/VScode_Projects/projects/DoseTap @ local
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:iOS Simulator, arch:arm64, id:A260D359-E23B-4152-8BFC-91CD9C6ACC1E, OS:17.2, name:iPhone 15 }
+{ platform:iOS Simulator, arch:x86_64, id:A260D359-E23B-4152-8BFC-91CD9C6ACC1E, OS:17.2, name:iPhone 15 }
+ComputePackagePrebuildTargetDependencyGraph
+
+Prepare packages
+
+CreateBuildRequest
+
+SendProjectDescription
+
+CreateBuildOperation
+
+ComputeTargetDependencyGraph
+note: Building targets in dependency order
+note: Target dependency graph (3 targets)
+    Target 'DoseTap' in project 'DoseTap'
+        ➜ Explicit dependency on target 'DoseCore' in project 'DoseTap'
+    Target 'DoseCore' in project 'DoseTap'
+        ➜ Explicit dependency on target 'DoseCore' in project 'DoseTap'
+    Target 'DoseCore' in project 'DoseTap' (no dependencies)
+
+GatherProvisioningInputs
+
+CreateBuildDescription
+
+ExecuteExternalTool /Applications/_Development/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -isysroot /Applications/_Development/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk -x c -c /dev/null
+
+ExecuteExternalTool /Applications/_Development/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc --version
+
+ExecuteExternalTool /Applications/_Development/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ld -version_details
+
+Build description signature: 3643658c1754ff7c02bc146b87cfec2f
+Build description path: /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/XCBuildData/3643658c1754ff7c02bc146b87cfec2f.xcbuilddata
+ClangStatCache /Applications/_Development/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/_Development/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk /Users/kevindialmb/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphonesimulator26.2-23C53-91f42bb1ac8677f8345256348c51d17c.sdkstatcache
+    cd /Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj
+    /Applications/_Development/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/_Development/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk -o /Users/kevindialmb/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphonesimulator26.2-23C53-91f42bb1ac8677f8345256348c51d17c.sdkstatcache
+
+SwiftDriver DoseTap normal arm64 com.apple.xcode.tools.swift.compiler (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+    cd /Users/VScode_Projects/projects/DoseTap/ios
+    builtin-SwiftDriver -- /Applications/_Development/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name DoseTap -Onone -enforce-exclusivity\=checked @/Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/Objects-normal/arm64/DoseTap.SwiftFileList -DDEBUG -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/_Development/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk -target arm64-apple-ios16.0-simulator -g -module-cache-path /Users/kevindialmb/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -profile-coverage-mapping -profile-generate -enable-testing -index-store-path /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Index.noindex/DataStore -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -swift-version 5 -I /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Products/Debug-iphonesimulator -F /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Products/Debug-iphonesimulator/PackageFrameworks -F /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Products/Debug-iphonesimulator -emit-localized-strings -emit-localized-strings-path /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/Objects-normal/arm64 -c -j10 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/kevindialmb/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphonesimulator26.2-23C53-91f42bb1ac8677f8345256348c51d17c.sdkstatcache -output-file-map /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/Objects-normal/arm64/DoseTap-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/kevindialmb/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -sdk-module-cache-path /Users/kevindialmb/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/Objects-normal/arm64/DoseTap.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/kevindialmb/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/Objects-normal/arm64/DoseTap_const_extract_protocols.json -Xcc -iquote -Xcc /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/DoseTap-generated-files.hmap -Xcc -I/Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/DoseTap-own-target-headers.hmap -Xcc -I/Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/DoseTap-all-non-framework-target-headers.hmap -Xcc -ivfsoverlay -Xcc /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap-56ea82861c86e08488026e452d0cb254-VFS-iphonesimulator/all-product-headers.yaml -Xcc -iquote -Xcc /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/DoseTap-project-headers.hmap -Xcc -I/Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/DerivedSources-normal/arm64 -Xcc -I/Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/DerivedSources/arm64 -Xcc -I/Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/DerivedSources -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/Objects-normal/arm64/DoseTap-Swift.h -working-directory /Users/VScode_Projects/projects/DoseTap/ios -experimental-emit-module-separately -disable-cmo
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/TimelineView.swift:3:8: warning: file 'TimelineView.swift' is part of module 'DoseTap'; ignoring import
+import DoseTap
+       ^
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/DoseCoreIntegration.swift:5:8: warning: file 'DoseCoreIntegration.swift' is part of module 'DoseTap'; ignoring import
+import DoseTap
+       ^
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/TimelineView.swift:3:8: warning: File 'TimelineView.swift' is part of module 'DoseTap'; ignoring import
+import DoseTap
+       ^ (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/DoseCoreIntegration.swift:5:8: warning: File 'DoseCoreIntegration.swift' is part of module 'DoseTap'; ignoring import
+import DoseTap
+       ^ (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+
+ProcessInfoPlistFile /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Products/Debug-iphonesimulator/DoseTap.app/Info.plist /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/Info.plist (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+    cd /Users/VScode_Projects/projects/DoseTap/ios
+    builtin-infoPlistUtility /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/Info.plist -producttype com.apple.product-type.application -genpkginfo /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Products/Debug-iphonesimulator/DoseTap.app/PkgInfo -expandbuildsettings -format binary -platform iphonesimulator -o /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Products/Debug-iphonesimulator/DoseTap.app/Info.plist
+
+SwiftCompile normal arm64 Compiling\ InsightsCalculator.swift,\ HealthKitService.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/InsightsCalculator.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/HealthKitService.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+
+SwiftCompile normal arm64 /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/InsightsCalculator.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+    cd /Users/VScode_Projects/projects/DoseTap/ios
+    
+
+SwiftCompile normal arm64 /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/HealthKitService.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+    cd /Users/VScode_Projects/projects/DoseTap/ios
+    
+
+SwiftCompile normal arm64 Compiling\ DoseTapApp.swift,\ ContentView.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/DoseTapApp.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/ContentView.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+SwiftCompile normal arm64 /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/DoseTapApp.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+    cd /Users/VScode_Projects/projects/DoseTap/ios
+    
+
+SwiftCompile normal arm64 /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/ContentView.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+    cd /Users/VScode_Projects/projects/DoseTap/ios
+    
+
+SwiftEmitModule normal arm64 Emitting\ module\ for\ DoseTap (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+
+EmitSwiftModule normal arm64 (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+    cd /Users/VScode_Projects/projects/DoseTap/ios
+    
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/TimelineView.swift:3:8: warning: file 'TimelineView.swift' is part of module 'DoseTap'; ignoring import
+import DoseTap
+       ^
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/DoseCoreIntegration.swift:5:8: warning: file 'DoseCoreIntegration.swift' is part of module 'DoseTap'; ignoring import
+import DoseTap
+       ^
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/QuickLogPanel.swift:147:43: warning: main actor-isolated static property 'shared' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+    public init(storage: SQLiteStorage = .shared, rateLimiter: EventRateLimiter = .default) {
+                                          ^
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/SQLiteStorage.swift:11:23: note: static property declared here
+    public static let shared = SQLiteStorage()
+                      ^
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/EnhancedNotificationService.swift:578:40: warning: conformance of 'EnhancedNotificationService' to protocol 'UNUserNotificationCenterDelegate' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode
+extension EnhancedNotificationService: UNUserNotificationCenterDelegate {
+                                       ^
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/EnhancedNotificationService.swift:578:40: note: isolate this conformance to the main actor with '@MainActor'
+extension EnhancedNotificationService: UNUserNotificationCenterDelegate {
+                                       ^
+                                       @MainActor 
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/EnhancedNotificationService.swift:578:1: note: mark all declarations used in the conformance 'nonisolated'
+extension EnhancedNotificationService: UNUserNotificationCenterDelegate {
+^
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/EnhancedNotificationService.swift:578:40: note: turn data races into runtime errors with '@preconcurrency'
+extension EnhancedNotificationService: UNUserNotificationCenterDelegate {
+                                       ^
+                                       @preconcurrency 
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/EnhancedNotificationService.swift:615:17: note: main actor-isolated instance method 'userNotificationCenter(_:willPresent:withCompletionHandler:)' cannot satisfy nonisolated requirement
+    public func userNotificationCenter(
+                ^
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/EnhancedNotificationService.swift:581:17: note: main actor-isolated instance method 'userNotificationCenter(_:didReceive:withCompletionHandler:)' cannot satisfy nonisolated requirement
+    public func userNotificationCenter(
+                ^
+
+SwiftCompile normal arm64 Compiling\ SleepStageTimeline.swift,\ WeeklyPlanner.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/SleepStageTimeline.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/WeeklyPlanner.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+
+SwiftCompile normal arm64 /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/SleepStageTimeline.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+    cd /Users/VScode_Projects/projects/DoseTap/ios
+    
+
+SwiftCompile normal arm64 /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/WeeklyPlanner.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+    cd /Users/VScode_Projects/projects/DoseTap/ios
+    
+
+SwiftCompile normal arm64 Compiling\ TonightView.swift,\ DashboardView.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/TonightView.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/DashboardView.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+Failed frontend command:
+/Applications/_Development/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-frontend -frontend -c /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/DoseTapApp.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/ContentView.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/AlarmService.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/URLRouter.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/InsightsCalculator.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/HealthKitService.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/SleepStageTimeline.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/WeeklyPlanner.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/Services/HealthKitProviding.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/Views/UndoSnackbarView.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/Views/MedicationSettingsView.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/Views/MedicationPickerView.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/UserSettingsManager.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/SettingsView.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/Storage/EventStorage.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/Storage/SessionRepository.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/Views/MorningCheckInView.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/Views/PreSleepLogView.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/SQLiteStorage.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/TimelineView.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/QuickLogPanel.swift -primary-file /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/TonightView.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/DoseModels.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/DoseCoreIntegration.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/EnhancedNotificationService.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/HealthKitManager.swift -primary-file /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/DashboardView.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/DataExportService.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/UserConfigurationManager.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/DataStorageService.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/HealthIntegrationService.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/KeychainHelper.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/SetupWizardService.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/SetupWizardView.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/InventoryService.swift -emit-dependencies-path /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/Objects-normal/arm64/TonightView.d -emit-const-values-path /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/Objects-normal/arm64/TonightView.swiftconstvalues -emit-reference-dependencies-path /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/Objects-normal/arm64/TonightView.swiftdeps -serialize-diagnostics-path /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/Objects-normal/arm64/TonightView.dia -emit-dependencies-path /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/Objects-normal/arm64/DashboardView.d -emit-const-values-path /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/Objects-normal/arm64/DashboardView.swiftconstvalues -emit-reference-dependencies-path /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/Objects-normal/arm64/DashboardView.swiftdeps -serialize-diagnostics-path /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/Objects-normal/arm64/DashboardView.dia -emit-localized-strings -emit-localized-strings-path /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/Objects-normal/arm64 -target arm64-apple-ios16.0-simulator -module-can-import DoseCore -module-can-import DoseTap -module-can-import-version HealthKit 6200.3.10.2 1.0.0 -module-can-import-version OSLog 10 1815.62.1 -module-can-import-version SwiftUI 7.2.5.1 7.2.5 -load-resolved-plugin /Applications/_Development/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib/swift/host/plugins/libFoundationMacros.dylib\#/Applications/_Development/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server\#FoundationMacros -load-resolved-plugin /Applications/_Development/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib/swift/host/plugins/libObservationMacros.dylib\#/Applications/_Development/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server\#ObservationMacros -load-resolved-plugin /Applications/_Development/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib/swift/host/plugins/libPreviewsMacros.dylib\#/Applications/_Development/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server\#PreviewsMacros -load-resolved-plugin /Applications/_Development/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib/swift/host/plugins/libSwiftMacros.dylib\#/Applications/_Development/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server\#SwiftMacros -load-resolved-plugin /Applications/_Development/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib/swift/host/plugins/libSwiftUIMacros.dylib\#/Applications/_Development/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server\#SwiftUIMacros -disable-implicit-swift-modules -Xcc -fno-implicit-modules -Xcc -fno-implicit-module-maps -explicit-swift-module-map-file /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/Objects-normal/arm64/DoseTap-dependencies-1.json -Xllvm -aarch64-use-tbi -enable-objc-interop -sdk /Applications/_Development/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk -I /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Products/Debug-iphonesimulator -F /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Products/Debug-iphonesimulator/PackageFrameworks -F /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Products/Debug-iphonesimulator -no-color-diagnostics -Xcc -fno-color-diagnostics -enable-testing -g -debug-info-format\=dwarf -dwarf-version\=4 -module-cache-path /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -profile-generate -profile-coverage-mapping -swift-version 5 -enforce-exclusivity\=checked -Onone -D DEBUG -serialize-debugging-options -const-gather-protocols-file /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/Objects-normal/arm64/DoseTap_const_extract_protocols.json -enable-experimental-feature DebugDescriptionMacro -enable-bare-slash-regex -empty-abi-descriptor -validate-clang-modules-once -clang-build-session-file /Users/kevindialmb/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -working-directory -Xcc /Users/VScode_Projects/projects/DoseTap/ios -enable-anonymous-context-mangled-names -file-compilation-dir /Users/VScode_Projects/projects/DoseTap/ios -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -Xcc -ivfsstatcache -Xcc /Users/kevindialmb/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphonesimulator26.2-23C53-91f42bb1ac8677f8345256348c51d17c.sdkstatcache -Xcc -I/Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/swift-overrides.hmap -Xcc -iquote -Xcc /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/DoseTap-generated-files.hmap -Xcc -I/Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/DoseTap-own-target-headers.hmap -Xcc -I/Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/DoseTap-all-non-framework-target-headers.hmap -Xcc -ivfsoverlay -Xcc /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap-56ea82861c86e08488026e452d0cb254-VFS-iphonesimulator/all-product-headers.yaml -Xcc -iquote -Xcc /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/DoseTap-project-headers.hmap -Xcc -I/Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/DerivedSources-normal/arm64 -Xcc -I/Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/DerivedSources/arm64 -Xcc -I/Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/DerivedSources -Xcc -DDEBUG\=1 -no-auto-bridging-header-chaining -module-name DoseTap -frontend-parseable-output -disable-clang-spi -target-sdk-version 26.2 -target-sdk-name iphonesimulator26.2 -clang-target arm64-apple-ios26.2-simulator -in-process-plugin-server-path /Applications/_Development/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/libSwiftInProcPluginServer.dylib -o /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/Objects-normal/arm64/TonightView.o -o /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Build/Intermediates.noindex/DoseTap.build/Debug-iphonesimulator/DoseTap.build/Objects-normal/arm64/DashboardView.o -index-unit-output-path /DoseTap.build/Debug-iphonesimulator/DoseTap.build/Objects-normal/arm64/TonightView.o -index-unit-output-path /DoseTap.build/Debug-iphonesimulator/DoseTap.build/Objects-normal/arm64/DashboardView.o -index-store-path /Users/kevindialmb/Library/Developer/Xcode/DerivedData/DoseTap-duddguohkxsvfkbefogmmnbavlse/Index.noindex/DataStore -index-system-modules
+
+SwiftCompile normal arm64 /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/TonightView.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+    cd /Users/VScode_Projects/projects/DoseTap/ios
+    
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/QuickLogPanel.swift:147:43: warning: main actor-isolated static property 'shared' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+    public init(storage: SQLiteStorage = .shared, rateLimiter: EventRateLimiter = .default) {
+                                          ^
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/SQLiteStorage.swift:11:23: note: static property declared here
+    public static let shared = SQLiteStorage()
+                      ^
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/TonightView.swift:331:17: warning: initialization of immutable value 'minutes' was never used; consider replacing with assignment to '_' or removing it
+            let minutes = Int(remaining / 60)
+            ~~~~^~~~~~~
+            _
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/TonightView.swift:334:17: warning: initialization of immutable value 'minutes' was never used; consider replacing with assignment to '_' or removing it
+            let minutes = Int(elapsed / 60)
+            ~~~~^~~~~~~
+            _
+
+SwiftCompile normal arm64 /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/DashboardView.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+    cd /Users/VScode_Projects/projects/DoseTap/ios
+    
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/DashboardView.swift:28:51: error: call to main actor-isolated instance method 'getAllSessions()' in a synchronous nonisolated context
+                start = DataStorageService.shared.getAllSessions().last?.startTime ?? calendar.date(byAdding: .year, value: -1, to: end)!
+                                                  ^
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/DataStorageService.swift:186:17: note: calls to instance method 'getAllSessions()' from outside of its actor context are implicitly asynchronous
+    public func getAllSessions() -> [DoseSessionData] {
+                ^
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/DashboardView.swift:28:44: warning: main actor-isolated static property 'shared' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+                start = DataStorageService.shared.getAllSessions().last?.startTime ?? calendar.date(byAdding: .year, value: -1, to: end)!
+                                           ^
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/DataStorageService.swift:79:23: note: static property declared here
+    public static let shared = DataStorageService()
+                      ^
+
+SwiftCompile normal arm64 Compiling\ SettingsView.swift,\ MorningCheckInView.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/SettingsView.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/Views/MorningCheckInView.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+SwiftCompile normal arm64 /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/SettingsView.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+    cd /Users/VScode_Projects/projects/DoseTap/ios
+    
+
+SwiftCompile normal arm64 /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/Views/MorningCheckInView.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+    cd /Users/VScode_Projects/projects/DoseTap/ios
+    
+
+SwiftCompile normal arm64 Compiling\ UndoSnackbarView.swift,\ MedicationSettingsView.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/Views/UndoSnackbarView.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/Views/MedicationSettingsView.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+
+SwiftCompile normal arm64 /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/Views/UndoSnackbarView.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+    cd /Users/VScode_Projects/projects/DoseTap/ios
+    
+
+SwiftCompile normal arm64 /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/Views/MedicationSettingsView.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+    cd /Users/VScode_Projects/projects/DoseTap/ios
+    
+
+SwiftCompile normal arm64 Compiling\ DataStorageService.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/DataStorageService.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+
+SwiftCompile normal arm64 /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/DataStorageService.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+    cd /Users/VScode_Projects/projects/DoseTap/ios
+    
+
+SwiftCompile normal arm64 Compiling\ PreSleepLogView.swift,\ QuickLogPanel.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/Views/PreSleepLogView.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/QuickLogPanel.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+
+SwiftCompile normal arm64 /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/Views/PreSleepLogView.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+    cd /Users/VScode_Projects/projects/DoseTap/ios
+    
+
+SwiftCompile normal arm64 /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/QuickLogPanel.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+    cd /Users/VScode_Projects/projects/DoseTap/ios
+    
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/QuickLogPanel.swift:147:43: warning: main actor-isolated static property 'shared' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+    public init(storage: SQLiteStorage = .shared, rateLimiter: EventRateLimiter = .default) {
+                                          ^
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/SQLiteStorage.swift:11:23: note: static property declared here
+    public static let shared = SQLiteStorage()
+                      ^
+
+SwiftCompile normal arm64 Compiling\ SetupWizardService.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/SetupWizardService.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+
+SwiftCompile normal arm64 /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/SetupWizardService.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+    cd /Users/VScode_Projects/projects/DoseTap/ios
+    
+
+SwiftCompile normal arm64 Compiling\ MedicationPickerView.swift,\ UserSettingsManager.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/Views/MedicationPickerView.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/UserSettingsManager.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+
+SwiftCompile normal arm64 /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/Views/MedicationPickerView.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+    cd /Users/VScode_Projects/projects/DoseTap/ios
+    
+
+SwiftCompile normal arm64 /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/UserSettingsManager.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+    cd /Users/VScode_Projects/projects/DoseTap/ios
+    
+
+SwiftDriverJobDiscovery normal arm64 Compiling SetupWizardService.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+
+SwiftCompile normal arm64 Compiling\ SetupWizardView.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/SetupWizardView.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+
+SwiftCompile normal arm64 /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/SetupWizardView.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+    cd /Users/VScode_Projects/projects/DoseTap/ios
+    
+
+SwiftDriverJobDiscovery normal arm64 Compiling DataStorageService.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+
+SwiftCompile normal arm64 Compiling\ UserConfigurationManager.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/UserConfigurationManager.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+
+SwiftCompile normal arm64 /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/UserConfigurationManager.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+    cd /Users/VScode_Projects/projects/DoseTap/ios
+    
+
+SwiftDriverJobDiscovery normal arm64 Compiling InsightsCalculator.swift, HealthKitService.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+
+SwiftCompile normal arm64 Compiling\ HealthIntegrationService.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/HealthIntegrationService.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+
+SwiftCompile normal arm64 /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/HealthIntegrationService.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+    cd /Users/VScode_Projects/projects/DoseTap/ios
+    
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/HealthIntegrationService.swift:109:87: warning: 'asleep' was deprecated in iOS 16.0: renamed to 'HKCategoryValueSleepAnalysis.asleepUnspecified'
+        let asleepSamples = samples.filter { $0.value == HKCategoryValueSleepAnalysis.asleep.rawValue }
+                                                                                      ^
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/HealthIntegrationService.swift:109:87: note: use 'HKCategoryValueSleepAnalysis.asleepUnspecified' instead
+        let asleepSamples = samples.filter { $0.value == HKCategoryValueSleepAnalysis.asleep.rawValue }
+                                                                                      ^~~~~~
+                                                                                      HKCategoryValueSleepAnalysis.asleepUnspecified
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/HealthIntegrationService.swift:280:16: warning: immutable property will not be decoded because it is declared with an initial value which cannot be overwritten
+    public let id = UUID()
+               ^
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/HealthIntegrationService.swift:280:16: note: set the initial value via the initializer or explicitly define a CodingKeys enum including a 'id' case to silence this warning
+    public let id = UUID()
+               ^
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/HealthIntegrationService.swift:280:16: note: make the property mutable instead
+    public let id = UUID()
+           ~~~ ^
+           var
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/HealthIntegrationService.swift:291:16: warning: immutable property will not be decoded because it is declared with an initial value which cannot be overwritten
+    public let id = UUID()
+               ^
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/HealthIntegrationService.swift:291:16: note: set the initial value via the initializer or explicitly define a CodingKeys enum including a 'id' case to silence this warning
+    public let id = UUID()
+               ^
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/HealthIntegrationService.swift:291:16: note: make the property mutable instead
+    public let id = UUID()
+           ~~~ ^
+           var
+
+SwiftDriverJobDiscovery normal arm64 Compiling UndoSnackbarView.swift, MedicationSettingsView.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+
+SwiftCompile normal arm64 Compiling\ InventoryService.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/InventoryService.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+
+SwiftCompile normal arm64 /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/InventoryService.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+    cd /Users/VScode_Projects/projects/DoseTap/ios
+    
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/InventoryService.swift:7:9: warning: immutable property will not be decoded because it is declared with an initial value which cannot be overwritten
+    let id = UUID()
+        ^
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/InventoryService.swift:7:9: note: set the initial value via the initializer or explicitly define a CodingKeys enum including a 'id' case to silence this warning
+    let id = UUID()
+        ^
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/InventoryService.swift:7:9: note: make the property mutable instead
+    let id = UUID()
+    ~~~ ^
+    var
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/InventoryService.swift:114:9: warning: immutable property will not be decoded because it is declared with an initial value which cannot be overwritten
+    let id = UUID()
+        ^
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/InventoryService.swift:114:9: note: set the initial value via the initializer or explicitly define a CodingKeys enum including a 'id' case to silence this warning
+    let id = UUID()
+        ^
+/Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/InventoryService.swift:114:9: note: make the property mutable instead
+    let id = UUID()
+    ~~~ ^
+    var
+
+SwiftDriverJobDiscovery normal arm64 Compiling UserConfigurationManager.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+
+SwiftCompile normal arm64 Compiling\ DataExportService.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/DataExportService.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+
+SwiftCompile normal arm64 /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/DataExportService.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+    cd /Users/VScode_Projects/projects/DoseTap/ios
+    
+
+SwiftDriverJobDiscovery normal arm64 Compiling SleepStageTimeline.swift, WeeklyPlanner.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+
+SwiftDriverJobDiscovery normal arm64 Compiling PreSleepLogView.swift, QuickLogPanel.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+
+SwiftDriverJobDiscovery normal arm64 Compiling HealthIntegrationService.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+
+SwiftCompile normal arm64 Compiling\ EventStorage.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/Storage/EventStorage.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+
+SwiftCompile normal arm64 /Users/VScode_Projects/projects/DoseTap/ios/DoseTap/Storage/EventStorage.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+    cd /Users/VScode_Projects/projects/DoseTap/ios
+    
+
+SwiftDriverJobDiscovery normal arm64 Compiling InventoryService.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+
+** BUILD FAILED **
+
+
+The following build commands failed:
+	SwiftCompile normal arm64 Compiling\ TonightView.swift,\ DashboardView.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/TonightView.swift /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/DashboardView.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+	SwiftCompile normal arm64 /Users/VScode_Projects/projects/DoseTap/ios/DoseTapiOSApp/DashboardView.swift (in target 'DoseTap' from project 'DoseTap' at path '/Users/VScode_Projects/projects/DoseTap/ios/DoseTap.xcodeproj')
+	Building project DoseTap with scheme DoseTap
+(3 failures)

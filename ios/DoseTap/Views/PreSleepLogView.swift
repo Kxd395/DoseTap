@@ -12,13 +12,29 @@ import SwiftUI
 struct PreSleepLogView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var currentCard = 0
-    @State private var answers = PreSleepLogAnswers()
+    @State private var answers: PreSleepLogAnswers
     @State private var showMoreDetails = false
+    @State private var showSaveError = false
+    @State private var saveErrorMessage = ""
+    @ObservedObject private var sessionRepo = SessionRepository.shared
+    @ObservedObject private var sleepPlanStore = SleepPlanStore.shared
     
-    let onComplete: (PreSleepLogAnswers) -> Void
-    let onSkip: () -> Void
+    let existingLog: StoredPreSleepLog?
+    let onComplete: (PreSleepLogAnswers) throws -> Void
+    let onSkip: () throws -> Void
     
     private let totalCards = 3
+    
+    init(
+        existingLog: StoredPreSleepLog? = nil,
+        onComplete: @escaping (PreSleepLogAnswers) throws -> Void,
+        onSkip: @escaping () throws -> Void
+    ) {
+        self.existingLog = existingLog
+        self.onComplete = onComplete
+        self.onSkip = onSkip
+        _answers = State(initialValue: existingLog?.answers ?? PreSleepLogAnswers())
+    }
     
     var body: some View {
         NavigationView {
@@ -27,6 +43,12 @@ struct PreSleepLogView: View {
                 ProgressBar(current: currentCard + 1, total: totalCards)
                     .padding(.horizontal)
                     .padding(.top, 8)
+                
+                if let plan = planSummary {
+                    PlanInlineHint(plan: plan)
+                        .padding(.horizontal)
+                        .padding(.top, 4)
+                }
                 
                 // Card content
                 TabView(selection: $currentCard) {
@@ -90,7 +112,7 @@ struct PreSleepLogView: View {
                         } label: {
                             HStack {
                                 Image(systemName: "checkmark")
-                                Text("Done")
+                                Text(existingLog == nil ? "Done" : "Save")
                             }
                             .font(.headline)
                             .foregroundColor(.white)
@@ -104,16 +126,29 @@ struct PreSleepLogView: View {
                 .padding()
                 .background(Color(.systemBackground))
             }
-            .navigationTitle("Pre-Sleep Check")
+            .navigationTitle(existingLog == nil ? "Pre-Sleep Check" : "Edit Pre-Sleep")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Skip for tonight") {
-                        onSkip()
-                        dismiss()
+                    if existingLog == nil {
+                        Button("Skip for tonight") {
+                            do {
+                                try onSkip()
+                                dismiss()
+                            } catch {
+                                saveErrorMessage = error.localizedDescription
+                                showSaveError = true
+                            }
+                        }
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    } else {
+                        Button("Cancel") {
+                            dismiss()
+                        }
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
                     }
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -126,22 +161,38 @@ struct PreSleepLogView: View {
                 }
             }
         }
+        .alert("Pre-Sleep Save Failed", isPresented: $showSaveError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(saveErrorMessage)
+        }
     }
     
     private func saveAndComplete() {
-        onComplete(answers)
-        dismiss()
+        do {
+            try onComplete(answers)
+            dismiss()
+        } catch {
+            saveErrorMessage = error.localizedDescription
+            showSaveError = true
+        }
     }
     
     private func loadLastAnswers() {
         // Load stable items from last log (not caffeine/alcohol)
-        if let lastLog = EventStorage.shared.fetchMostRecentPreSleepLog(),
+        if let lastLog = sessionRepo.fetchMostRecentPreSleepLog(),
            let lastAnswers = lastLog.answers {
             // Only copy stable environment items
             answers.roomTemp = lastAnswers.roomTemp
             answers.noiseLevel = lastAnswers.noiseLevel
             answers.screensInBed = lastAnswers.screensInBed
         }
+    }
+    
+    private var planSummary: (wakeBy: Date, inBed: Date, windDown: Date, expectedSleep: Double)? {
+        let key = sessionRepo.preSleepDisplaySessionKey(for: Date())
+        let plan = sleepPlanStore.plan(for: key, now: Date(), tz: TimeZone.current)
+        return (plan.wakeBy, plan.recommendedInBed, plan.windDown, plan.expectedSleepMinutes)
     }
 }
 
@@ -164,6 +215,36 @@ struct ProgressBar: View {
                 .font(.caption2)
                 .foregroundColor(.secondary)
         }
+    }
+}
+
+private struct PlanInlineHint: View {
+    let plan: (wakeBy: Date, inBed: Date, windDown: Date, expectedSleep: Double)
+    
+    private var formatter: DateFormatter {
+        let f = DateFormatter()
+        f.timeStyle = .short
+        return f
+    }
+    
+    var body: some View {
+        HStack {
+            Image(systemName: "bed.double.fill")
+                .foregroundColor(.blue)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Wake by \(formatter.string(from: plan.wakeBy))")
+                    .font(.subheadline.bold())
+                Text("In bed by \(formatter.string(from: plan.inBed)); wind down \(formatter.string(from: plan.windDown))")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+            Text("\(Int(plan.expectedSleep)) min")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .padding(8)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color(.secondarySystemBackground)))
     }
 }
 

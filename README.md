@@ -49,10 +49,11 @@ open ios/DoseTap/DoseTap.xcodeproj
 
 - ✅ **Tests**: See CI for current counts (SwiftPM + Xcode)
 - ✅ Core window logic complete
-- ✅ SQLite persistence
+- ✅ SQLite persistence (unified via SessionRepository)
 - ✅ Sleep Environment tracking
 - ✅ CSV export with SSOT v1 format
 - ✅ PII redaction for support bundles
+- ✅ **Storage Unified** — Split brain eliminated (v2.12.0)
 - ⏸️ **watchOS companion** — Phase 2 placeholder (see below)
 - 🔄 Phase 2: Health Dashboard (planned)
 
@@ -60,10 +61,12 @@ open ios/DoseTap/DoseTap.xcodeproj
 
 | Status | Features |
 |--------|----------|
-| ✅ **Implemented** | Dose window logic (150-240m), SQLite persistence, SessionRepository SSOT, Sleep event logging, CSV export, Support bundles |
+| ✅ **Implemented** | Dose window logic (150-240m), SQLite persistence, SessionRepository facade, Sleep event logging, CSV export, Support bundles |
+| ✅ **Enforced** | Storage boundary: Views → SessionRepository only (CI guard) |
 | 🔄 **Planned** | Cloud API sync, watchOS companion, Health Dashboard, WHOOP data visualization |
 | 📋 **Spec Ready** | Medication logger (Adderall/XR), Stimulant tracking |
-| ⚠️ **Deprecated** | CoreData references (now SQLite), JSON file storage (migrated to SQLite) |
+| ⛔ **Banned** | SQLiteStorage (use SessionRepository), Direct EventStorage access from Views |
+| ⚠️ **Legacy** | CoreData references (unused), JSON file storage (migrated) |
 
 > See [`docs/SSOT/README.md`](docs/SSOT/README.md) for authoritative feature status.
 

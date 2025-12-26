@@ -38,13 +38,16 @@ done
 
 # Check component IDs referenced in SSOT exist in codebase
 echo "Checking component IDs..."
+PENDING_FILE="$SSOT_DIR/PENDING_ITEMS.md"
+PENDING_TEXT="$(cat "$PENDING_FILE" 2>/dev/null || true)"
+
 COMPONENT_IDS=$(grep -o '`[a-z_]*_button`\|`[a-z_]*_display`\|`[a-z_]*_list`\|`[a-z_]*_picker`\|`[a-z_]*_chart`' "$SSOT_README" | tr -d '`' | sort -u)
 
 for component in $COMPONENT_IDS; do
     # Check if component exists in Swift files (allowing for TODO markers)
     if ! grep -r "$component" --include="*.swift" ios/ > /dev/null 2>&1; then
-        # Check if it's marked as TODO in SSOT
-        if ! grep -q "TODO.*$component" "$SSOT_README"; then
+        # Check if it's marked as TODO in SSOT or pending list
+        if ! grep -q "TODO.*$component" "$SSOT_README" && ! echo "$PENDING_TEXT" | grep -q "$component"; then
             echo "⚠️  Component ID '$component' not found in codebase (add TODO if pending)"
             ((ERRORS++))
         fi
@@ -55,12 +58,23 @@ done
 echo "Checking API endpoints..."
 if [ -f "$SSOT_DIR/contracts/api.openapi.yaml" ]; then
     # Extract endpoints from SSOT README
-    ENDPOINTS=$(grep -E '(POST|GET|PUT|DELETE) /' "$SSOT_README" | sed 's/.*\(POST\|GET\|PUT\|DELETE\) \(\/[^ ]*\).*/\1 \2/' | sort -u)
+    ENDPOINTS=$(grep -E '^(POST|GET|PUT|DELETE) /' "$SSOT_README" | sed 's/.*\(POST\|GET\|PUT\|DELETE\) \(\/[^ ]*\).*/\1 \2/' | sort -u)
     
     while IFS= read -r endpoint; do
+        # Skip markdown table rows that slipped through
+        if echo "$endpoint" | grep -q "|"; then
+            continue
+        fi
         method=$(echo "$endpoint" | cut -d' ' -f1 | tr '[:upper:]' '[:lower:]')
         path=$(echo "$endpoint" | cut -d' ' -f2)
         
+        # Skip endpoints explicitly marked TODO in SSOT or pending list
+        if echo "$endpoint" | grep -qi "TODO"; then
+            continue
+        fi
+        if echo "$PENDING_TEXT" | grep -q "$path"; then
+            continue
+        fi
         # Check if endpoint exists in OpenAPI spec
         if ! grep -q "$path:" "$SSOT_DIR/contracts/api.openapi.yaml"; then
             echo "⚠️  Endpoint '$endpoint' not in OpenAPI spec"
@@ -185,8 +199,9 @@ echo "🔍 Running contradiction checks..."
 # - "Core Data" (title case = Apple framework)
 # - "CoreData" (import/class names)
 # - NSPersistentContainer, NSManagedObjectContext (Core Data APIs)
+# EXCEPTION: Roadmap/P2 items documenting future cleanup are allowed
 echo "  Checking for Core Data references..."
-COREDATA_MATCHES=$(grep -rnE "Core Data|CoreData|NSPersistentContainer|NSManagedObjectContext" docs/ ios/Core/ --include="*.md" --include="*.swift" 2>/dev/null | grep -v "archive\|Archive\|\.backup\|AUDIT_LOG\|AUDIT_REPO\|FIX_PLAN\|Why SQLite.*Not Core Data\|NO Core Data\|No Core Data\|not Core Data\|removed Core Data\|without Core Data\|deprecated.*SQLite is canonical\|didMigrateToCoreData\|Core data handling" || true)
+COREDATA_MATCHES=$(grep -rnE "Core Data|CoreData|NSPersistentContainer|NSManagedObjectContext" docs/ ios/Core/ --include="*.md" --include="*.swift" 2>/dev/null | grep -v "archive\|Archive\|\.backup\|AUDIT_LOG\|AUDIT_REPO\|AUDIT_REPORT\|FIX_PLAN\|Why SQLite.*Not Core Data\|NO Core Data\|No Core Data\|not Core Data\|removed Core Data\|without Core Data\|deprecated.*SQLite is canonical\|didMigrateToCoreData\|Core data handling\|P2.*Remove\|Remove.*CoreData\|PersistentStore/CoreData.*Pending" || true)
 if [ -n "$COREDATA_MATCHES" ]; then
     echo "❌ Found Core Data references (should be SQLite):"
     echo "$COREDATA_MATCHES" | head -5

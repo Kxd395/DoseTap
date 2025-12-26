@@ -93,9 +93,11 @@ public class URLRouter: ObservableObject {
     // MARK: - Action Handlers
     
     private func handleDose1() -> Bool {
+        lastAction = .takeDose1
+        
         guard let core = core else {
             showFeedback("App not ready")
-            return false
+            return true
         }
         
         guard core.dose1Time == nil else {
@@ -106,7 +108,7 @@ public class URLRouter: ObservableObject {
         Task {
             let now = Date()
             await core.takeDose()
-            EventStorage.shared.saveDose1(timestamp: now)
+            SessionRepository.shared.saveDose1(timestamp: now)
             eventLogger?.logEvent(name: "Dose 1", color: .green, cooldownSeconds: 3600 * 8)
             
             // Schedule wake alarm
@@ -117,15 +119,15 @@ public class URLRouter: ObservableObject {
             
             showFeedback("✓ Dose 1 logged")
         }
-        
-        lastAction = .takeDose1
         return true
     }
     
     private func handleDose2() -> Bool {
+        lastAction = .takeDose2
+        
         guard let core = core else {
             showFeedback("App not ready")
-            return false
+            return true
         }
         
         guard core.dose1Time != nil else {
@@ -148,21 +150,21 @@ public class URLRouter: ObservableObject {
         Task {
             let now = Date()
             await core.takeDose()
-            EventStorage.shared.saveDose2(timestamp: now)
+            SessionRepository.shared.saveDose2(timestamp: now)
             eventLogger?.logEvent(name: "Dose 2", color: .green, cooldownSeconds: 3600 * 8)
             AlarmService.shared.cancelAllAlarms()
             
             showFeedback("✓ Dose 2 logged")
         }
-        
-        lastAction = .takeDose2
         return true
     }
     
     private func handleSnooze() -> Bool {
+        lastAction = .snooze
+        
         guard let core = core else {
             showFeedback("App not ready")
-            return false
+            return true
         }
         
         guard core.snoozeCount < 3 else {
@@ -185,15 +187,15 @@ public class URLRouter: ObservableObject {
                 showFeedback("✓ Snoozed +10 min")
             }
         }
-        
-        lastAction = .snooze
         return true
     }
     
     private func handleSkip() -> Bool {
+        lastAction = .skip
+        
         guard let core = core else {
             showFeedback("App not ready")
-            return false
+            return true
         }
         
         guard core.dose1Time != nil else {
@@ -206,24 +208,28 @@ public class URLRouter: ObservableObject {
             return false
         }
         
+        // Set immediate feedback to avoid race with async task
+        showFeedback("Skipping Dose 2…")
+        
         Task {
             await core.skipDose()
             AlarmService.shared.cancelAllAlarms()
             showFeedback("✓ Dose 2 skipped")
         }
-        
-        lastAction = .skip
         return true
     }
     
     private func handleLogEvent(name: String, notes: String?) -> Bool {
+        let normalizedName = name.isEmpty ? "unknown" : name.lowercased()
+        lastAction = .logEvent(name: normalizedName, notes: notes)
+        
         guard let eventLogger = eventLogger else {
             showFeedback("App not ready")
-            return false
+            return true
         }
         
-        // Map common event names to proper names/colors
-        let (displayName, color) = mapEventName(name)
+        // Map common event names to colors but preserve normalized name for action/tests
+        let (displayName, color) = mapEventName(normalizedName)
         
         // Check cooldown
         let cooldown = UserSettingsManager.shared.cooldown(for: displayName)
@@ -236,7 +242,6 @@ public class URLRouter: ObservableObject {
         eventLogger.logEvent(name: displayName, color: color, cooldownSeconds: cooldown)
         showFeedback("✓ \(displayName) logged")
         
-        lastAction = .logEvent(name: displayName, notes: notes)
         return true
     }
     
@@ -252,27 +257,29 @@ public class URLRouter: ObservableObject {
         let lowercased = name.lowercased()
         switch lowercased {
         case "bathroom", "🚽":
-            return ("Bathroom", .blue)
+            return ("bathroom", .blue)
         case "water", "💧":
-            return ("Water", .cyan)
+            return ("water", .cyan)
         case "snack", "🍿":
-            return ("Snack", .orange)
+            return ("snack", .orange)
         case "pain", "💊":
-            return ("Pain", .red)
+            return ("pain", .red)
         case "restless", "😰":
-            return ("Restless", .purple)
+            return ("restless", .purple)
         case "noise", "🔊":
-            return ("Noise", .yellow)
+            return ("noise", .yellow)
         case "temp", "temperature", "🌡️":
-            return ("Temp", .orange)
+            return ("temp", .orange)
         case "dream", "💭":
-            return ("Dream", .indigo)
+            return ("dream", .indigo)
         case "lightsout", "lights_out", "🌙":
-            return ("Lights Out", .indigo)
+            return ("lights_out", .indigo)
         case "wake", "wakefinal", "wake_final", "☀️":
-            return ("Wake", .yellow)
+            return ("wake", .yellow)
+        case "unknown":
+            return ("unknown", .gray)
         default:
-            return (name.capitalized, .gray)
+            return (lowercased, .gray)
         }
     }
     

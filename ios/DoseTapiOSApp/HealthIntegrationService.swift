@@ -1,5 +1,6 @@
 import Foundation
 import HealthKit
+import Combine
 
 // MARK: - Health Data Integration Service
 @MainActor
@@ -106,7 +107,7 @@ public class HealthDataService: ObservableObject {
     
     private func processSingleNight(date: Date, samples: [HKCategorySample]) -> HealthSleepData? {
         let inBedSamples = samples.filter { $0.value == HKCategoryValueSleepAnalysis.inBed.rawValue }
-        let asleepSamples = samples.filter { $0.value == HKCategoryValueSleepAnalysis.asleep.rawValue }
+        let asleepSamples = samples.filter { $0.value == HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue }
         let deepSleepSamples = samples.filter { $0.value == HKCategoryValueSleepAnalysis.asleepDeep.rawValue }
         let remSleepSamples = samples.filter { $0.value == HKCategoryValueSleepAnalysis.asleepREM.rawValue }
         
@@ -285,6 +286,10 @@ public struct HealthSleepData: Identifiable, Codable {
     public let totalSleepTime: TimeInterval?
     public let deepSleepTime: TimeInterval?
     public let remSleepTime: TimeInterval?
+    
+    private enum CodingKeys: String, CodingKey {
+        case sleepDate, sleepStart, sleepEnd, timeToFirstWake, totalSleepTime, deepSleepTime, remSleepTime
+    }
 }
 
 public struct WHOOPSleepData: Identifiable, Codable {
@@ -299,6 +304,10 @@ public struct WHOOPSleepData: Identifiable, Codable {
     public let strain: Double?
     public let hrv: Double?
     public let restingHeartRate: Int?
+    
+    private enum CodingKeys: String, CodingKey {
+        case sleepDate, cycleId, sleepStart, sleepEnd, timeToFirstWake, sleepScore, recoveryScore, strain, hrv, restingHeartRate
+    }
 }
 
 // MARK: - Error Types

@@ -1,5 +1,6 @@
 import Foundation
 import HealthKit
+import Combine
 
 /// Manages HealthKit data access for heart rate, HRV, and sleep data
 /// WHOOP syncs to Apple Health, so we can pull granular HR samples here
@@ -177,7 +178,7 @@ final class HealthKitManager: ObservableObject {
                     switch sample.value {
                     case HKCategoryValueSleepAnalysis.inBed.rawValue:
                         stage = .inBed
-                    case HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue:
+                    case HealthKit.HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue:
                         stage = .asleepUnspecified
                     case HKCategoryValueSleepAnalysis.asleepCore.rawValue:
                         stage = .asleepCore

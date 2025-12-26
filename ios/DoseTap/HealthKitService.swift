@@ -335,11 +335,3 @@ enum SleepDisplayStage: String, CaseIterable {
     case rem = "REM"
 }
 
-// MARK: - HealthKit Extension for iOS 16+ Sleep Values
-
-@available(iOS 16.0, *)
-extension HKCategoryValueSleepAnalysis {
-    static var asleepUnspecified: HKCategoryValueSleepAnalysis {
-        HKCategoryValueSleepAnalysis(rawValue: 2) ?? .asleepCore
-    }
-}

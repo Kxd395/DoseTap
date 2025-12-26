@@ -1,14 +1,15 @@
 import SwiftUI
+import Combine
 
 // MARK: - Setup Wizard Models
 
 struct UserConfig: Codable {
-    let schemaVersion: Int = 1
+    var schemaVersion: Int = 1
     var setupCompleted: Bool = false
     var setupCompletedAt: Date?
     
     var sleepSchedule: SleepScheduleConfig = SleepScheduleConfig()
-    var medicationProfile: MedicationConfig = MedicationConfig()
+    var medicationProfile: WizardMedicationConfig = WizardMedicationConfig()
     var doseWindow: DoseWindowConfig = DoseWindowConfig()
     var notifications: NotificationConfig = NotificationConfig()
     var privacy: PrivacyConfig = PrivacyConfig()
@@ -21,7 +22,7 @@ struct SleepScheduleConfig: Codable {
     var varyBedtime: Bool = true
 }
 
-struct MedicationConfig: Codable {
+struct WizardMedicationConfig: Codable {
     var medicationName: String = "XYWAV"
     var doseMgDose1: Int = 450
     var doseMgDose2: Int = 225
@@ -30,9 +31,9 @@ struct MedicationConfig: Codable {
 }
 
 struct DoseWindowConfig: Codable {
-    let minMinutes: Int = 150  // Core invariant - not user configurable
-    let maxMinutes: Int = 240  // Core invariant - not user configurable
-    let nearWindowThreshold: Int = 15  // Snooze disabled threshold
+    var minMinutes: Int = 150  // Core invariant - not user configurable
+    var maxMinutes: Int = 240  // Core invariant - not user configurable
+    var nearWindowThreshold: Int = 15  // Snooze disabled threshold
     
     var defaultTargetMinutes: Int = 165
     var snoozeStepMinutes: Int = 10

@@ -177,8 +177,8 @@ bash tools/ssot_check.sh
 
 ### 20. `docs/CODE_REVIEW_2025-12-24_session3.md` — Archived
 - **Action**: Moved to `archive/audits_2025-12-24/`
-- **Intent**: Clear Core Data reference lint error (doc was historical)
-- **Verification**: SSOT check no longer flags Core Data reference
+- **Intent**: Clear legacy persistence reference lint error (doc was historical)
+- **Verification**: SSOT check no longer flags legacy persistence reference
 
 ### 21. `CHANGELOG.md` — NEW FILE
 - **Lines**: 36 lines

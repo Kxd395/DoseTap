@@ -39,8 +39,7 @@ public class InsightsCalculator: ObservableObject {
     /// Compute all insights from recent session history
     /// - Parameter days: Number of days to analyze (default 14)
     func computeInsights(days: Int = 14) {
-        let storage = EventStorage.shared
-        let sessions = storage.fetchRecentSessions(days: days)
+        let sessions = SessionRepository.shared.fetchRecentSessions(days: days)
         
         guard !sessions.isEmpty else {
             resetMetrics()
@@ -91,7 +90,7 @@ public class InsightsCalculator: ObservableObject {
             }
             
             // Estimate WASO from bathroom events during the session
-            let events = storage.fetchSleepEvents(forSession: session.sessionDate)
+            let events = SessionRepository.shared.fetchSleepEvents(forSession: session.sessionDate)
             let bathroomEvents = events.filter { $0.eventType == "bathroom" || $0.eventType == "Bathroom" }
             
             // Assume each bathroom event = ~5 min wake time

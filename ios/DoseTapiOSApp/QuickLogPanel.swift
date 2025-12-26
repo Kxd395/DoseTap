@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 #if canImport(DoseCore)
 import DoseCore
 #endif
@@ -137,15 +138,15 @@ public class QuickLogViewModel: ObservableObject {
     @Published private(set) var buttonStates: [String: QuickLogButtonState] = [:]
     @Published private(set) var recentEvents: [StoredSleepEvent] = []
     
-    private let storage: SQLiteStorage
+    private let repository: SessionRepository
     private let rateLimiter: EventRateLimiter
     private var cooldownTimers: [String: Timer] = [:]
     private var dataClearedObserver: NSObjectProtocol?
     
     public var onEventLogged: ((QuickLogEventType) -> Void)?
     
-    public init(storage: SQLiteStorage = .shared, rateLimiter: EventRateLimiter = .default) {
-        self.storage = storage
+    public init(repository: SessionRepository? = nil, rateLimiter: EventRateLimiter = .default) {
+        self.repository = repository ?? SessionRepository.shared
         self.rateLimiter = rateLimiter
         
         // Initialize all button states
@@ -194,18 +195,20 @@ public class QuickLogViewModel: ObservableObject {
                 return
             }
             
-            // Create and store the event
-            let event = StoredSleepEvent(
+            // Log event via unified storage (SessionRepository)
+            let now = Date()
+            repository.logSleepEvent(eventType: eventKey, timestamp: now, notes: nil, source: "manual")
+            
+            // Update local recent events list from storage
+            let newEvent = StoredSleepEvent(
                 id: UUID().uuidString,
                 eventType: eventKey,
-                timestamp: Date(),
-                sessionId: nil, // TODO: Link to current session
-                notes: nil,
-                source: "manual"
+                timestamp: now,
+                sessionDate: repository.currentSessionKey,
+                colorHex: nil,
+                notes: nil
             )
-            
-            storage.insertSleepEvent(event)
-            recentEvents.insert(event, at: 0)
+            recentEvents.insert(newEvent, at: 0)
             
             // Update button state with cooldown
             buttonStates[eventKey] = QuickLogButtonState(
@@ -235,8 +238,8 @@ public class QuickLogViewModel: ObservableObject {
             }
         }
         
-        // Load recent events
-        recentEvents = storage.fetchTonightSleepEvents()
+        // Load recent events via SessionRepository
+        recentEvents = repository.fetchTonightSleepEvents()
     }
     
     private func startCooldownTimer(for eventType: QuickLogEventType) {

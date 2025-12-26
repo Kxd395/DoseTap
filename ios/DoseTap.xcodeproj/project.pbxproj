@@ -26,6 +26,32 @@
 		SST001 /* SleepStageTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = SST002 /* SleepStageTimeline.swift */; };
 		WP001 /* WeeklyPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP002 /* WeeklyPlanner.swift */; };
 		HKP001 /* HealthKitProviding.swift in Sources */ = {isa = PBXBuildFile; fileRef = HKP002 /* HealthKitProviding.swift */; };
+		2AC2BB5E8B07470DAC87BF98 /* SQLiteStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F6DD7934D5146A9AEFC99A2 /* SQLiteStorage.swift */; };
+		FF9B9D3487C94D99934BC6FB /* TimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96266670665C4D408EB337B4 /* TimelineView.swift */; };
+		626D4BF0DD5F45C9BE4DADD3 /* QuickLogPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D24FAD994B0C407F929BD3AC /* QuickLogPanel.swift */; };
+		1A539DC8315840749C5671D7 /* TonightView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2988FA865D94BD982491694 /* TonightView.swift */; };
+		01FF500944CC4F14A6E163C4 /* DoseModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 418F7D12D4A2473F800C75ED /* DoseModels.swift */; };
+		E9AD7E6058C34B8FBB03E87D /* DoseCoreIntegration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55547FD4D707466DAA743FE8 /* DoseCoreIntegration.swift */; };
+		9D35A7FAB4A9475D997EF36A /* EnhancedNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C39612EB02A94A3BADDD204B /* EnhancedNotificationService.swift */; };
+		45F1AA062DDD452F8BA1C0A0 /* HealthKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EB783D234E142F09F662199 /* HealthKitManager.swift */; };
+		F6A54D65D1B84EFF863C73C3 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F65B22283DEE43E8AA554209 /* DashboardView.swift */; };
+		8C0097D7D4054D81BDBF5507 /* DataExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9BC765DBC6846A8B0F169E7 /* DataExportService.swift */; };
+		E67E1CC8E48846A3850E2568 /* UserConfigurationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 652F871BE504479F9D73CC0D /* UserConfigurationManager.swift */; };
+		0835950893AC446EABC20688 /* DataStorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76CC32E0134E4DFC8A421A8B /* DataStorageService.swift */; };
+		A4DE3A024E7E4AC6B5F83DEA /* HealthIntegrationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30318D594933405BA4659E72 /* HealthIntegrationService.swift */; };
+		05D399B5B86749ACB9CD89BF /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BD7AD6DA76F4E548669A489 /* KeychainHelper.swift */; };
+		E7EA21EC3FE949B3890BF69A /* SetupWizardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1BA2E6CCFB845E6BFC919FA /* SetupWizardService.swift */; };
+		54E3599B814B4ACFBD87EA6B /* SetupWizardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CB34E7F86084B24991BD7CA /* SetupWizardView.swift */; };
+		1CB467AF229E4760A2F4A18A /* InventoryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4E2B992A9FD423E84206CCE /* InventoryService.swift */; };
+		17973A68E9374E0DBB30F712 /* MorningCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3941DD4936B4FD0BD5A8837 /* MorningCheckInView.swift */; };
+		71DCA3BA35464A60B99EC25A /* UIUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 016ED98793654A7E806DEFE4 /* UIUtils.swift */; };
+		858140CD5C3C42A2BE0BF7EB /* UIUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 016ED98793654A7E806DEFE4 /* UIUtils.swift */; };
+		EA02466EA69547DF963A8BA7 /* WHOOPService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7084981AA100483EB6E6ADE1 /* WHOOPService.swift */; };
+		65392A3A73494EDC98ABC322 /* WHOOPService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7084981AA100483EB6E6ADE1 /* WHOOPService.swift */; };
+		46EBB63DD7FE446C8EEF4021 /* AnalyticsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCEDF0A0E4BE41F582C2221F /* AnalyticsService.swift */; };
+		6C7E9EEC927342C0AB062D41 /* AnalyticsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCEDF0A0E4BE41F582C2221F /* AnalyticsService.swift */; };
+		4D964849829E4DA49AA365FB /* UserSettingsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB4C5084D06D74163A5C71A9 /* UserSettingsManager.swift */; };
+		17B727A14C724DB892D5BAAC /* EventStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5D8DC9D91D38419C97E97FA /* EventStorage.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -73,6 +99,26 @@
 		SST002 /* SleepStageTimeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepStageTimeline.swift; sourceTree = "<group>"; };
 		WP002 /* WeeklyPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyPlanner.swift; sourceTree = "<group>"; };
 		HKP002 /* HealthKitProviding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitProviding.swift; sourceTree = "<group>"; };
+		8F6DD7934D5146A9AEFC99A2 /* SQLiteStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../DoseTapiOSApp/SQLiteStorage.swift"; sourceTree = "<group>"; };
+		96266670665C4D408EB337B4 /* TimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../DoseTapiOSApp/TimelineView.swift"; sourceTree = "<group>"; };
+		D24FAD994B0C407F929BD3AC /* QuickLogPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../DoseTapiOSApp/QuickLogPanel.swift"; sourceTree = "<group>"; };
+		D2988FA865D94BD982491694 /* TonightView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../DoseTapiOSApp/TonightView.swift"; sourceTree = "<group>"; };
+		418F7D12D4A2473F800C75ED /* DoseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../DoseTapiOSApp/DoseModels.swift"; sourceTree = "<group>"; };
+		55547FD4D707466DAA743FE8 /* DoseCoreIntegration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../DoseTapiOSApp/DoseCoreIntegration.swift"; sourceTree = "<group>"; };
+		C39612EB02A94A3BADDD204B /* EnhancedNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../DoseTapiOSApp/EnhancedNotificationService.swift"; sourceTree = "<group>"; };
+		3EB783D234E142F09F662199 /* HealthKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../DoseTapiOSApp/HealthKitManager.swift"; sourceTree = "<group>"; };
+		F65B22283DEE43E8AA554209 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../DoseTapiOSApp/DashboardView.swift"; sourceTree = "<group>"; };
+		D9BC765DBC6846A8B0F169E7 /* DataExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../DoseTapiOSApp/DataExportService.swift"; sourceTree = "<group>"; };
+		652F871BE504479F9D73CC0D /* UserConfigurationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../DoseTapiOSApp/UserConfigurationManager.swift"; sourceTree = "<group>"; };
+		76CC32E0134E4DFC8A421A8B /* DataStorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../DoseTapiOSApp/DataStorageService.swift"; sourceTree = "<group>"; };
+		30318D594933405BA4659E72 /* HealthIntegrationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../DoseTapiOSApp/HealthIntegrationService.swift"; sourceTree = "<group>"; };
+		1BD7AD6DA76F4E548669A489 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../DoseTapiOSApp/KeychainHelper.swift"; sourceTree = "<group>"; };
+		D1BA2E6CCFB845E6BFC919FA /* SetupWizardService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../DoseTapiOSApp/SetupWizardService.swift"; sourceTree = "<group>"; };
+		1CB34E7F86084B24991BD7CA /* SetupWizardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../DoseTapiOSApp/SetupWizardView.swift"; sourceTree = "<group>"; };
+		E4E2B992A9FD423E84206CCE /* InventoryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../DoseTapiOSApp/InventoryService.swift"; sourceTree = "<group>"; };
+		016ED98793654A7E806DEFE4 /* UIUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../DoseTapiOSApp/UIUtils.swift"; sourceTree = "<group>"; };
+		7084981AA100483EB6E6ADE1 /* WHOOPService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WHOOPService.swift; sourceTree = "<group>"; };
+		FCEDF0A0E4BE41F582C2221F /* AnalyticsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AnalyticsService.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -134,7 +180,27 @@
 				GRP_PERSISTENCE /* Persistence */,
 				GRP_EXPORT /* Export */,
 				GRP_SERVICES /* Services */,
-			);
+			
+				8F6DD7934D5146A9AEFC99A2 /* SQLiteStorage.swift */,
+				96266670665C4D408EB337B4 /* TimelineView.swift */,
+				D24FAD994B0C407F929BD3AC /* QuickLogPanel.swift */,
+				D2988FA865D94BD982491694 /* TonightView.swift */,
+				418F7D12D4A2473F800C75ED /* DoseModels.swift */,
+				55547FD4D707466DAA743FE8 /* DoseCoreIntegration.swift */,
+				C39612EB02A94A3BADDD204B /* EnhancedNotificationService.swift */,
+				3EB783D234E142F09F662199 /* HealthKitManager.swift */,
+				F65B22283DEE43E8AA554209 /* DashboardView.swift */,
+				D9BC765DBC6846A8B0F169E7 /* DataExportService.swift */,
+				652F871BE504479F9D73CC0D /* UserConfigurationManager.swift */,
+				76CC32E0134E4DFC8A421A8B /* DataStorageService.swift */,
+				30318D594933405BA4659E72 /* HealthIntegrationService.swift */,
+				1BD7AD6DA76F4E548669A489 /* KeychainHelper.swift */,
+				D1BA2E6CCFB845E6BFC919FA /* SetupWizardService.swift */,
+				1CB34E7F86084B24991BD7CA /* SetupWizardView.swift */,
+				E4E2B992A9FD423E84206CCE /* InventoryService.swift */,
+				016ED98793654A7E806DEFE4 /* UIUtils.swift */,
+				7084981AA100483EB6E6ADE1 /* WHOOPService.swift */,
+				FCEDF0A0E4BE41F582C2221F /* AnalyticsService.swift */,);
 			path = DoseTap;
 			sourceTree = "<group>";
 		};
@@ -198,7 +264,6 @@
 		GRP_SERVICES /* Services */ = {
 			isa = PBXGroup;
 			children = (
-				3E912715BD5C4BBAAA735378 /* AlarmService.swift */,
 				HKP002 /* HealthKitProviding.swift */,
 			);
 			path = Services;
@@ -337,7 +402,27 @@
 				92518D93643945F4B64E860F /* SessionRepository.swift in Sources */,
 				D8746EA078A54AF7A8CE92B3 /* MorningCheckInView.swift in Sources */,
 				F94248D37BBE47A5A2E90C9B /* PreSleepLogView.swift in Sources */,
-			);
+			
+				2AC2BB5E8B07470DAC87BF98 /* SQLiteStorage.swift in Sources */,
+				FF9B9D3487C94D99934BC6FB /* TimelineView.swift in Sources */,
+				626D4BF0DD5F45C9BE4DADD3 /* QuickLogPanel.swift in Sources */,
+				1A539DC8315840749C5671D7 /* TonightView.swift in Sources */,
+				01FF500944CC4F14A6E163C4 /* DoseModels.swift in Sources */,
+				E9AD7E6058C34B8FBB03E87D /* DoseCoreIntegration.swift in Sources */,
+				9D35A7FAB4A9475D997EF36A /* EnhancedNotificationService.swift in Sources */,
+				45F1AA062DDD452F8BA1C0A0 /* HealthKitManager.swift in Sources */,
+				F6A54D65D1B84EFF863C73C3 /* DashboardView.swift in Sources */,
+				8C0097D7D4054D81BDBF5507 /* DataExportService.swift in Sources */,
+				E67E1CC8E48846A3850E2568 /* UserConfigurationManager.swift in Sources */,
+				0835950893AC446EABC20688 /* DataStorageService.swift in Sources */,
+				A4DE3A024E7E4AC6B5F83DEA /* HealthIntegrationService.swift in Sources */,
+				05D399B5B86749ACB9CD89BF /* KeychainHelper.swift in Sources */,
+				E7EA21EC3FE949B3890BF69A /* SetupWizardService.swift in Sources */,
+				54E3599B814B4ACFBD87EA6B /* SetupWizardView.swift in Sources */,
+				1CB467AF229E4760A2F4A18A /* InventoryService.swift in Sources */,
+				71DCA3BA35464A60B99EC25A /* UIUtils.swift in Sources */,
+				EA02466EA69547DF963A8BA7 /* WHOOPService.swift in Sources */,
+				46EBB63DD7FE446C8EEF4021 /* AnalyticsService.swift in Sources */,);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */

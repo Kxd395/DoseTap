@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import DoseCore
 
 // MARK: - Shared Event Logger (Observable with SQLite persistence)
@@ -9,16 +10,24 @@ class EventLogger: ObservableObject {
     @Published var events: [LoggedEvent] = []
     @Published var cooldowns: [String: Date] = [:]
     
-    private let storage = EventStorage.shared
+    private let sessionRepo = SessionRepository.shared
+    private var sessionChangeCancellable: AnyCancellable?
     
     private init() {
         // Load persisted events from SQLite on startup
         loadEventsFromStorage()
+        
+        // Refresh events when session changes (rollover/delete)
+        sessionChangeCancellable = SessionRepository.shared.sessionDidChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in
+                self?.loadEventsFromStorage()
+            }
     }
     
     /// Load events from SQLite for tonight's session
     private func loadEventsFromStorage() {
-        let storedEvents = storage.fetchTonightsSleepEvents()
+        let storedEvents = sessionRepo.fetchTonightSleepEvents()
         events = storedEvents.map { stored in
             LoggedEvent(
                 id: UUID(uuidString: stored.id) ?? UUID(),
@@ -46,12 +55,13 @@ class EventLogger: ObservableObject {
         // Set cooldown
         cooldowns[name] = now.addingTimeInterval(cooldownSeconds)
         
-        // Persist to SQLite
-        storage.insertSleepEvent(
+        // Persist to SQLite via SessionRepository
+        sessionRepo.insertSleepEvent(
             id: eventId.uuidString,
             eventType: name,
             timestamp: now,
-            colorHex: color.toHex()
+            colorHex: color.toHex(),
+            notes: nil
         )
         
         // Haptic feedback
@@ -77,7 +87,7 @@ class EventLogger: ObservableObject {
     /// Delete a specific event by ID
     func deleteEvent(id: UUID) {
         events.removeAll { $0.id == id }
-        storage.deleteSleepEvent(id: id.uuidString)
+        sessionRepo.deleteSleepEvent(id: id.uuidString)
     }
     
     /// Refresh events from storage
@@ -89,7 +99,7 @@ class EventLogger: ObservableObject {
     func clearTonight() {
         events.removeAll()
         cooldowns.removeAll()
-        storage.clearTonightsEvents()
+        sessionRepo.clearTonightsEvents()
     }
 }
 
@@ -106,7 +116,7 @@ struct ContentView: View {
         ZStack(alignment: .bottom) {
             // Swipeable Page View
             TabView(selection: $urlRouter.selectedTab) {
-                TonightView(core: core, eventLogger: eventLogger, undoState: undoState)
+                LegacyTonightView(core: core, eventLogger: eventLogger, undoState: undoState)
                     .tag(0)
                 
                 DetailsView(core: core, eventLogger: eventLogger)
@@ -226,11 +236,15 @@ struct CustomTabBar: View {
     }
 }
 
-// MARK: - Tonight View (Main Screen - No Scroll)
-struct TonightView: View {
+// MARK: - Legacy Tonight View
+struct LegacyTonightView: View {
     @ObservedObject var core: DoseTapCore
     @ObservedObject var eventLogger: EventLogger
     @ObservedObject var undoState: UndoStateManager
+    @ObservedObject private var sessionRepo = SessionRepository.shared
+    @ObservedObject private var sleepPlanStore = SleepPlanStore.shared
+    @State private var overrideEnabled: Bool = false
+    @State private var overrideWake: Date = Date()
     @State private var showEarlyDoseAlert = false
     @State private var showOverrideConfirmation = false
     @State private var earlyDoseMinutesRemaining: Int = 0
@@ -239,10 +253,12 @@ struct TonightView: View {
     @State private var showExtraDoseWarning = false  // For second dose 2 attempt
     @State private var incompleteSessionDate: String? = nil
     @State private var showIncompleteCheckIn = false
+    @State private var preSleepLog: StoredPreSleepLog? = nil
+    @State private var preSleepEditingLog: StoredPreSleepLog? = nil
     
     var body: some View {
         VStack(spacing: 0) {
-            // Header
+            // Header - add extra top padding to account for safe area in page-style TabView
             VStack(spacing: 2) {
                 Text("DoseTap")
                     .font(.largeTitle.bold())
@@ -252,7 +268,48 @@ struct TonightView: View {
                 AlarmIndicatorView(dose1Time: core.dose1Time)
                     .padding(.top, 4)
             }
-            .padding(.top, 8)
+            .padding(.top, 50) // Safe area offset for page-style TabView
+            
+            if let message = sessionRepo.awaitingRolloverMessage {
+                HStack(spacing: 8) {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .foregroundColor(.orange)
+                    Text(message)
+                        .font(.footnote.weight(.semibold))
+                        .foregroundColor(.orange)
+                    Spacer()
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                .background(Color.orange.opacity(0.1))
+                .cornerRadius(10)
+                .padding(.horizontal)
+            }
+            
+            if let plan = sleepPlanSummary {
+                SleepPlanSummaryCard(
+                    wakeBy: plan.wakeBy,
+                    recommendedInBed: plan.recommendedInBed,
+                    windDown: plan.windDown,
+                    expectedSleepMinutes: plan.expectedSleepMinutes
+                )
+                .padding(.horizontal)
+                .padding(.top, 8)
+                
+                SleepPlanOverrideCard(
+                    overrideEnabled: $overrideEnabled,
+                    overrideWake: $overrideWake,
+                    onUpdate: { date in
+                        sleepPlanStore.setTonightOverride(sessionKey: sessionRepo.currentSessionKey, wakeBy: date)
+                    },
+                    onClear: {
+                        sleepPlanStore.setTonightOverride(sessionKey: sessionRepo.currentSessionKey, wakeBy: nil)
+                    },
+                    baselineWake: plan.wakeBy
+                )
+                .padding(.horizontal)
+                .padding(.top, 4)
+            }
             
             // Incomplete Session Banner (if previous night wasn't completed)
             if let sessionDate = incompleteSessionDate {
@@ -276,10 +333,26 @@ struct TonightView: View {
             
             Spacer().frame(height: 12)
             
-            // Pre-Sleep Log Button (only show if no dose taken yet)
-            if core.dose1Time == nil {
-                PreSleepLogButton(showPreSleepLog: $showPreSleepLog)
-                    .padding(.horizontal)
+            // Pre-Sleep Log Card (CTA or logged state)
+            if preSleepLog != nil || core.dose1Time == nil {
+                PreSleepCard(
+                    state: PreSleepCardState(log: preSleepLog),
+                    onAction: { action in
+                        switch action {
+                        case .start:
+                            preSleepEditingLog = nil
+                            showPreSleepLog = true
+                        case .edit(let id):
+                            if preSleepLog?.id == id {
+                                preSleepEditingLog = preSleepLog
+                            } else {
+                                preSleepEditingLog = nil
+                            }
+                            showPreSleepLog = true
+                        }
+                    }
+                )
+                .padding(.horizontal)
                 
                 Spacer().frame(height: 12)
             }
@@ -289,6 +362,7 @@ struct TonightView: View {
                 core: core,
                 eventLogger: eventLogger,
                 undoState: undoState,
+                sessionRepo: sessionRepo,
                 showEarlyDoseAlert: $showEarlyDoseAlert,
                 earlyDoseMinutes: $earlyDoseMinutesRemaining,
                 showExtraDoseWarning: $showExtraDoseWarning
@@ -329,40 +403,46 @@ struct TonightView: View {
             )
         }
         .sheet(isPresented: $showPreSleepLog) {
-            PreSleepLogView(
-                onComplete: { answers in
-                    // Save the pre-sleep log
-                    let log = PreSleepLog(answers: answers, completionState: "complete")
-                    EventStorage.shared.savePreSleepLog(log)
-                    
-                    // Also log lightsOut event so it appears in Timeline
-                    EventStorage.shared.insertSleepEvent(
-                        id: UUID().uuidString,
-                        eventType: "lightsOut",
-                        timestamp: Date(),
-                        colorHex: "#6366F1", // Indigo for sleep cycle events
-                        notes: "Pre-sleep check completed"
-                    )
-                    print("✅ Pre-sleep log saved + lightsOut event logged: \(log.id)")
-                },
-                onSkip: {
-                    // Save as skipped for tracking
-                    let emptyAnswers = PreSleepLogAnswers()
-                    let log = PreSleepLog(answers: emptyAnswers, completionState: "skipped")
-                    EventStorage.shared.savePreSleepLog(log)
-                    
-                    // Still log lightsOut event even when skipped
-                    EventStorage.shared.insertSleepEvent(
-                        id: UUID().uuidString,
-                        eventType: "lightsOut",
-                        timestamp: Date(),
-                        colorHex: "#6366F1",
-                        notes: "Pre-sleep check skipped"
-                    )
-                    print("⏭️ Pre-sleep log skipped + lightsOut event logged")
-                }
-            )
-        }
+                PreSleepLogView(
+                    existingLog: preSleepEditingLog,
+                    onComplete: { answers in
+                        let log = try sessionRepo.savePreSleepLog(
+                            answers: answers,
+                            completionState: "complete",
+                            existingLog: preSleepEditingLog
+                        )
+                        if preSleepLog == nil {
+                            sessionRepo.insertSleepEvent(
+                                id: UUID().uuidString,
+                                eventType: "lightsOut",
+                                timestamp: Date(),
+                                colorHex: "#6366F1", // Indigo for sleep cycle events
+                                notes: "Pre-sleep check completed"
+                            )
+                        }
+                        preSleepLog = log
+                        preSleepEditingLog = log
+                    },
+                    onSkip: {
+                        let log = try sessionRepo.savePreSleepLog(
+                            answers: PreSleepLogAnswers(),
+                            completionState: "skipped",
+                            existingLog: preSleepEditingLog
+                        )
+                        if preSleepLog == nil {
+                            sessionRepo.insertSleepEvent(
+                                id: UUID().uuidString,
+                                eventType: "lightsOut",
+                                timestamp: Date(),
+                                colorHex: "#6366F1",
+                                notes: "Pre-sleep check skipped"
+                            )
+                        }
+                        preSleepLog = log
+                        preSleepEditingLog = log
+                    }
+                )
+            }
         // Early dose alerts
         .alert("⚠️ Early Dose Warning", isPresented: $showEarlyDoseAlert) {
             Button("Cancel", role: .cancel) { }
@@ -377,12 +457,11 @@ struct TonightView: View {
                 minutesRemaining: earlyDoseMinutesRemaining,
                 onConfirm: {
                     Task {
-                        let storage = EventStorage.shared
                         let now = Date()
                         // Taking Dose 2 early with explicit override
                         await core.takeDose(earlyOverride: true)
                         // Persist to SQLite for History tab (with early flag in metadata)
-                        storage.saveDose2(timestamp: now, isEarly: true)
+                        sessionRepo.saveDose2(timestamp: now, isEarly: true)
                         // Log dose as event with Early badge for Details tab
                         eventLogger.logEvent(name: "Dose 2 (Early)", color: .orange, cooldownSeconds: 3600 * 8)
                     }
@@ -397,10 +476,9 @@ struct TonightView: View {
             Button("I Accept Full Responsibility", role: .destructive) {
                 // Record as extra_dose with explicit user confirmation
                 Task {
-                    let storage = EventStorage.shared
                     let now = Date()
                     // Save as extra_dose (does NOT update dose2_time)
-                    storage.saveDose2(timestamp: now, isExtraDose: true)
+                    sessionRepo.saveDose2(timestamp: now, isExtraDose: true)
                     // Log with warning color
                     eventLogger.logEvent(name: "Extra Dose ⚠️", color: .red, cooldownSeconds: 0)
                     print("⚠️ Extra dose logged at \(now) - user confirmed")
@@ -424,13 +502,56 @@ struct TonightView: View {
         }
         .onAppear {
             // Check for incomplete sessions on view appear
-            incompleteSessionDate = EventStorage.shared.mostRecentIncompleteSession()
+            incompleteSessionDate = sessionRepo.mostRecentIncompleteSession()
+            syncOverrideState()
+            reloadPreSleepLog()
+        }
+        .onChange(of: sessionRepo.currentSessionKey) { _ in
+            syncOverrideState()
+            reloadPreSleepLog()
+        }
+        .onReceive(sessionRepo.sessionDidChange) { _ in
+            reloadPreSleepLog()
+        }
+        .onChange(of: showPreSleepLog) { newValue in
+            if !newValue {
+                preSleepEditingLog = nil
+                reloadPreSleepLog()
+            }
+        }
+    }
+
+    private func syncOverrideState() {
+        let key = sessionRepo.currentSessionKey
+        sleepPlanStore.clearObsoleteOverrides(currentSessionKey: key)
+        if let override = sleepPlanStore.overrideForSession(key) {
+            overrideEnabled = true
+            overrideWake = override
+        } else {
+            overrideEnabled = false
+            let base = sleepPlanStore.wakeByDate(for: key)
+            overrideWake = base
+        }
+    }
+    
+    private var sleepPlanSummary: (wakeBy: Date, recommendedInBed: Date, windDown: Date, expectedSleepMinutes: Double)? {
+        let key = sessionRepo.currentSessionKey
+        return sleepPlanStore.plan(for: key, now: Date(), tz: TimeZone.current)
+    }
+    
+    private func reloadPreSleepLog() {
+        let key = sessionRepo.preSleepDisplaySessionKey(for: Date())
+        preSleepLog = sessionRepo.fetchMostRecentPreSleepLog(sessionId: key)
+        if preSleepLog == nil {
+            preSleepEditingLog = nil
         }
     }
 }
 
 // MARK: - Tonight Date Label
 struct TonightDateLabel: View {
+    @ObservedObject private var sessionRepo = SessionRepository.shared
+    
     var body: some View {
         Text(tonightDateString)
             .font(.subheadline)
@@ -440,7 +561,268 @@ struct TonightDateLabel: View {
     private var tonightDateString: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE, MMM d"
+        
+        // Use the session key to determine the "Tonight" date
+        // If the session key is 2025-12-26, we want to show Friday, Dec 26
+        let key = sessionRepo.currentSessionKey
+        let keyFormatter = DateFormatter()
+        keyFormatter.dateFormat = "yyyy-MM-dd"
+        keyFormatter.timeZone = TimeZone.current
+        
+        if let date = keyFormatter.date(from: key) {
+            return "Tonight – " + formatter.string(from: date)
+        }
+        
         return "Tonight – " + formatter.string(from: Date())
+    }
+}
+
+// MARK: - Sleep Plan UI
+private struct SleepPlanSummaryCard: View {
+    let wakeBy: Date
+    let recommendedInBed: Date
+    let windDown: Date
+    let expectedSleepMinutes: Double
+    
+    private var timeFormatter: DateFormatter {
+        let f = DateFormatter()
+        f.timeStyle = .short
+        f.timeZone = TimeZone.current
+        return f
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Label("Sleep Plan", systemImage: "bed.double.fill")
+                    .font(.headline)
+                Spacer()
+                Text("Wake by \(timeFormatter.string(from: wakeBy))")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+            Divider()
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Recommended in bed")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text(timeFormatter.string(from: recommendedInBed))
+                        .font(.body.bold())
+                }
+                Spacer()
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Wind down")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text(timeFormatter.string(from: windDown))
+                        .font(.body.bold())
+                }
+                Spacer()
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("If in bed now")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text("\(Int(expectedSleepMinutes)) min")
+                        .font(.body.bold())
+                }
+            }
+        }
+        .padding()
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color(.secondarySystemBackground)))
+    }
+}
+
+private struct SleepPlanOverrideCard: View {
+    @Binding var overrideEnabled: Bool
+    @Binding var overrideWake: Date
+    let onUpdate: (Date) -> Void
+    let onClear: () -> Void
+    let baselineWake: Date
+    
+    private var timeFormatter: DateFormatter {
+        let f = DateFormatter()
+        f.timeStyle = .short
+        f.timeZone = TimeZone.current
+        return f
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Label("Just for tonight", systemImage: "sparkles")
+                    .font(.headline)
+                Spacer()
+                Toggle("", isOn: $overrideEnabled)
+                    .labelsHidden()
+                    .onChange(of: overrideEnabled) { newValue in
+                        if newValue {
+                            onUpdate(overrideWake)
+                        } else {
+                            onClear()
+                        }
+                    }
+            }
+            
+            if overrideEnabled {
+                DatePicker(
+                    "Wake by",
+                    selection: $overrideWake,
+                    displayedComponents: .hourAndMinute
+                )
+                .datePickerStyle(.compact)
+                .onChange(of: overrideWake) { newValue in
+                    onUpdate(newValue)
+                }
+                
+                Button(role: .destructive) {
+                    overrideWake = baselineWake
+                    overrideEnabled = false
+                    onClear()
+                } label: {
+                    Label("Reset to schedule (\(timeFormatter.string(from: baselineWake)))", systemImage: "arrow.uturn.backward")
+                }
+                .font(.caption)
+            } else {
+                Text("Uses your Typical Week wake time (\(timeFormatter.string(from: baselineWake)))")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding()
+        .background(RoundedRectangle(cornerRadius: 12).stroke(Color(.separator)))
+    }
+}
+
+enum PreSleepCardAction: Equatable {
+    case start
+    case edit(id: String)
+}
+
+struct PreSleepCardState: Equatable {
+    let logId: String?
+    let completionState: String?
+    let createdAtUtc: String?
+    let localOffsetMinutes: Int?
+    
+    init(log: StoredPreSleepLog?) {
+        logId = log?.id
+        completionState = log?.completionState
+        createdAtUtc = log?.createdAtUtc
+        localOffsetMinutes = log?.localOffsetMinutes
+    }
+    
+    var isLogged: Bool {
+        logId != nil
+    }
+    
+    var action: PreSleepCardAction {
+        if let logId = logId {
+            return .edit(id: logId)
+        }
+        return .start
+    }
+}
+
+struct PreSleepCard: View {
+    let state: PreSleepCardState
+    let onAction: (PreSleepCardAction) -> Void
+    
+    private var titleText: String {
+        if state.isLogged {
+            return state.completionState == "skipped" ? "Pre-sleep skipped" : "Pre-sleep logged"
+        }
+        return "Pre-Sleep Check"
+    }
+    
+    private var subtitleText: String {
+        if state.isLogged {
+            return "At \(timestamp)"
+        }
+        return "Quick 30-second check-in"
+    }
+    
+    private var iconName: String {
+        if state.isLogged {
+            return state.completionState == "skipped" ? "minus.circle.fill" : "checkmark.seal.fill"
+        }
+        return "moon.stars.fill"
+    }
+    
+    private var iconColor: Color {
+        if state.isLogged {
+            return state.completionState == "skipped" ? .orange : .green
+        }
+        return .indigo
+    }
+    
+    private var timestamp: String {
+        guard let createdAtUtc = state.createdAtUtc else {
+            return "unknown"
+        }
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        guard let date = iso.date(from: createdAtUtc) else {
+            return "unknown"
+        }
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        if let offset = state.localOffsetMinutes {
+            formatter.timeZone = TimeZone(secondsFromGMT: offset * 60) ?? .current
+        }
+        return formatter.string(from: date)
+    }
+    
+    var body: some View {
+        Button {
+            onAction(state.action)
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: iconName)
+                    .font(.title3)
+                    .foregroundColor(iconColor)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(titleText)
+                        .font(.subheadline.bold())
+                    Text(subtitleText)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                if state.isLogged {
+                    Text("Edit")
+                        .font(.caption.bold())
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(
+                            Capsule()
+                                .fill(Color(.tertiarySystemFill))
+                        )
+                } else {
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(state.isLogged ? Color(.secondarySystemBackground) : Color.indigo.opacity(0.1))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(
+                                state.isLogged ? Color(.separator) : Color.indigo.opacity(0.3),
+                                lineWidth: 1
+                            )
+                    )
+            )
+            .foregroundColor(state.isLogged ? .primary : .indigo)
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -553,46 +935,6 @@ struct IncompleteSessionBanner: View {
     }
 }
 
-// MARK: - Pre-Sleep Log Button
-struct PreSleepLogButton: View {
-    @Binding var showPreSleepLog: Bool
-    
-    var body: some View {
-        Button {
-            showPreSleepLog = true
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "moon.stars.fill")
-                    .font(.title3)
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Pre-Sleep Check")
-                        .font(.subheadline.bold())
-                    Text("Quick 30-second check-in")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                
-                Spacer()
-                
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            .padding()
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.indigo.opacity(0.1))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.indigo.opacity(0.3), lineWidth: 1)
-                    )
-            )
-            .foregroundColor(.indigo)
-        }
-        .buttonStyle(.plain)
-    }
-}
 
 // MARK: - Hard Stop Countdown View
 /// Prominent countdown UI shown when window is closing (<15 min remaining)
@@ -892,6 +1234,7 @@ struct CompactDoseButton: View {
     @ObservedObject var core: DoseTapCore
     @ObservedObject var eventLogger: EventLogger
     @ObservedObject var undoState: UndoStateManager
+    @ObservedObject var sessionRepo: SessionRepository
     @Binding var showEarlyDoseAlert: Bool
     @Binding var earlyDoseMinutes: Int
     @Binding var showExtraDoseWarning: Bool  // For second dose 2 attempt
@@ -963,17 +1306,15 @@ struct CompactDoseButton: View {
     }
     
     private func handlePrimaryButtonTap() {
-        let storage = EventStorage.shared
-        
         guard core.dose1Time != nil else {
             Task {
                 let now = Date()
                 await core.takeDose()
                 // Persist to SQLite for History tab
-                storage.saveDose1(timestamp: now)
+                sessionRepo.saveDose1(timestamp: now)
                 // Link any recent pre-sleep log to this session
-                let sessionId = storage.currentSessionDate()
-                storage.linkPreSleepLogToSession(sessionId: sessionId)
+                let sessionId = sessionRepo.currentSessionDateString()
+                sessionRepo.linkPreSleepLogToSession(sessionId: sessionId)
                 // Log Dose 1 as event for Details tab
                 eventLogger.logEvent(name: "Dose 1", color: .green, cooldownSeconds: 3600 * 8)
                 // Register for undo
@@ -1016,7 +1357,7 @@ struct CompactDoseButton: View {
             let now = Date()
             await core.takeDose()
             // Persist to SQLite for History tab
-            storage.saveDose2(timestamp: now)
+            sessionRepo.saveDose2(timestamp: now)
             // Log Dose 2 as event for Details tab
             eventLogger.logEvent(name: "Dose 2", color: .green, cooldownSeconds: 3600 * 8)
             // Register for undo
@@ -1028,12 +1369,11 @@ struct CompactDoseButton: View {
     
     /// Take Dose 2 after window expired with explicit user override
     private func takeDose2WithOverride() {
-        let storage = EventStorage.shared
         Task {
             let now = Date()
             await core.takeDose()
             // Persist to SQLite - mark as late/override
-            storage.saveDose2(timestamp: now, isEarly: false, isExtraDose: false)
+            sessionRepo.saveDose2(timestamp: now, isEarly: false, isExtraDose: false)
             // Log with late indicator
             eventLogger.logEvent(name: "Dose 2 (Late)", color: .orange, cooldownSeconds: 3600 * 8)
             // Register for undo (late doses can also be undone)
@@ -1066,9 +1406,9 @@ struct CompactDoseButton: View {
     
     private var primaryButtonAccessibilityHint: String {
         switch core.currentStatus {
-        case .noDose1: return "Double tap to record taking your first dose"
-        case .beforeWindow: return "Button disabled. Wait for the countdown to complete."
-        case .active: return "Double tap to record taking your second dose"
+        case .noDose1: return "Double tap to take Dose 1"
+        case .beforeWindow: return "Wait for the countdown to finish"
+        case .active: return "Double tap to take Dose 2"
         case .nearClose: return "Double tap now to take your second dose before the window closes"
         case .closed: return "Double tap to take dose late. You will be asked to confirm."
         case .completed: return ""
@@ -1433,10 +1773,7 @@ struct CompactQuickButton: View {
     }
     
     private func updateProgress() {
-        guard let end = cooldownEnd else {
-            progress = 1.0
-            return
-        }
+        guard let end = cooldownEnd else { progress = 1.0; return }
         let now = Date()
         if now >= end {
             progress = 1.0
@@ -1452,6 +1789,7 @@ struct WakeUpButton: View {
     @ObservedObject var eventLogger: EventLogger
     @Binding var showMorningCheckIn: Bool
     @ObservedObject var settings = UserSettingsManager.shared
+    private let sessionRepo = SessionRepository.shared
     @State private var showConfirmation = false
     @State private var lastWakeEventId: String?
     
@@ -1516,10 +1854,10 @@ struct WakeUpButton: View {
             cooldownSeconds: cooldownSeconds
         )
         
-        // Save to SQLite
+        // Save to SQLite via SessionRepository
         let id = UUID().uuidString
         lastWakeEventId = id
-        EventStorage.shared.insertSleepEvent(
+        sessionRepo.insertSleepEvent(
             id: id,
             eventType: "wakeFinal",
             timestamp: Date(),
@@ -1753,7 +2091,6 @@ struct HistoryView: View {
     @State private var showDeleteDayConfirmation = false
     @State private var refreshTrigger = false  // Toggled to force SelectedDayView refresh
     
-    private let storage = EventStorage.shared
     private let sessionRepo = SessionRepository.shared
     
     var body: some View {
@@ -1801,11 +2138,11 @@ struct HistoryView: View {
     }
     
     private func loadHistory() {
-        pastSessions = storage.fetchRecentSessions(days: 7)
+        pastSessions = sessionRepo.fetchRecentSessions(days: 7)
     }
     
     private func deleteSelectedDay() {
-        let sessionDate = storage.sessionDateString(for: selectedDate)
+        let sessionDate = sessionRepo.sessionDateString(for: selectedDate)
         // Use SessionRepository to delete - this broadcasts change to Tonight tab
         sessionRepo.deleteSession(sessionDate: sessionDate)
         refreshTrigger.toggle()  // Force SelectedDayView to reload
@@ -1822,7 +2159,7 @@ struct SelectedDayView: View {
     @State private var events: [StoredSleepEvent] = []
     @State private var doseLog: StoredDoseLog?
     
-    private let storage = EventStorage.shared
+    private let sessionRepo = SessionRepository.shared
     
     private var hasData: Bool {
         doseLog != nil || !events.isEmpty
@@ -1889,16 +2226,6 @@ struct SelectedDayView: View {
                 .padding()
                 .background(
                     RoundedRectangle(cornerRadius: 12)
-                        .fill(Color(.systemGray6))
-                )
-            } else {
-                Text("No dose data for this date")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
                             .fill(Color(.systemGray6))
                     )
             }
@@ -1946,16 +2273,16 @@ struct SelectedDayView: View {
     }
     
     private func loadData() {
-        let sessionDate = storage.sessionDateString(for: date)
-        events = storage.fetchSleepEvents(forSession: sessionDate)
-        doseLog = storage.fetchDoseLog(forSession: sessionDate)
+        let sessionDate = sessionRepo.sessionDateString(for: date)
+        events = sessionRepo.fetchSleepEvents(for: sessionDate)
+        doseLog = sessionRepo.fetchDoseLog(forSession: sessionDate)
     }
 }
 
 // MARK: - Recent Sessions List
 struct RecentSessionsList: View {
     @State private var sessions: [SessionSummary] = []
-    private let storage = EventStorage.shared
+    private let sessionRepo = SessionRepository.shared
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -1983,7 +2310,7 @@ struct RecentSessionsList: View {
     }
     
     private func loadSessions() {
-        sessions = storage.fetchRecentSessions(days: 7)
+        sessions = sessionRepo.fetchRecentSessions(days: 7)
     }
 }
 

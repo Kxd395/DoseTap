@@ -1,10 +1,13 @@
 import Foundation
+#if canImport(HealthKit)
+import HealthKit
+#endif
 
 // MARK: - HealthKit Protocol for Dependency Injection
 
 /// Protocol abstracting HealthKit access for testability.
-/// Production code uses `HealthKitService`, tests use `NoOpHealthKitProvider`.
-/// This enables test isolation without simulator HealthKit entitlements.
+/// Production code should obtain providers via HealthKitProviderFactory,
+/// which defaults to NoOp on simulator or when entitlements are unavailable.
 @MainActor
 public protocol HealthKitProviding: AnyObject {
     /// Whether HealthKit is available on this device
@@ -88,5 +91,27 @@ public final class NoOpHealthKitProvider: HealthKitProviding {
         requestAuthorizationCallCount = 0
         computeBaselineCallCount = 0
         lastComputeBaselineDays = nil
+    }
+}
+
+// MARK: - Provider Factory
+
+@MainActor
+enum HealthKitProviderFactory {
+    static func makeDefault() -> HealthKitProviding {
+        #if targetEnvironment(simulator)
+        return NoOpHealthKitProvider()
+        #else
+        #if canImport(HealthKit)
+        // Gate on HealthKit availability; fallback to NoOp if unavailable
+        if HKHealthStore.isHealthDataAvailable() {
+            return HealthKitService.shared
+        } else {
+            return NoOpHealthKitProvider()
+        }
+        #else
+        return NoOpHealthKitProvider()
+        #endif
+        #endif
     }
 }

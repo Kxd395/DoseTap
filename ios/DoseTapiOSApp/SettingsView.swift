@@ -10,6 +10,7 @@ struct SettingsView: View {
     @State private var showingExportSheet = false
     @State private var showingClearDataAlert = false
     @State private var exportData = ""
+    @StateObject private var sleepPlanStore = SleepPlanStore.shared
     
     var body: some View {
         NavigationView {
@@ -19,6 +20,9 @@ struct SettingsView: View {
                 
                 // MARK: - Dose Timing Section
                 doseTimingSection
+                
+                // MARK: - Typical Week Schedule
+                typicalWeekSection
                 
                 // MARK: - Notifications Section
                 notificationsSection
@@ -174,6 +178,58 @@ struct SettingsView: View {
         }
     }
     
+    // MARK: - Typical Week Schedule Section
+    private var typicalWeekSection: some View {
+        Section {
+            NavigationLink {
+                TypicalWeekScheduleView(store: sleepPlanStore)
+            } label: {
+                HStack {
+                    Label("Typical Week", systemImage: "calendar")
+                    Spacer()
+                    Text(enabledDaysSummary)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            // Show today's planned wake time if enabled
+            if let todayEntry = todayScheduleEntry, todayEntry.enabled {
+                HStack {
+                    Label("Tonight's Wake Goal", systemImage: "sunrise.fill")
+                        .foregroundColor(.orange)
+                    Spacer()
+                    Text(formatWakeTime(hour: todayEntry.wakeByHour, minute: todayEntry.wakeByMinute))
+                        .foregroundColor(.secondary)
+                }
+            }
+        } header: {
+            Label("Sleep Schedule", systemImage: "bed.double.fill")
+        } footer: {
+            Text("Set your typical wake-up times for each day. Tonight tab will show a summary.")
+        }
+    }
+    
+    private var enabledDaysSummary: String {
+        let enabledCount = sleepPlanStore.schedule.entries.filter { $0.enabled }.count
+        return "\(enabledCount)/7 days"
+    }
+    
+    private var todayScheduleEntry: TypicalWeekEntry? {
+        let calendar = Calendar.current
+        let weekday = calendar.component(.weekday, from: Date())
+        let entry = sleepPlanStore.schedule.entry(for: weekday)
+        return entry
+    }
+    
+    private func formatWakeTime(hour: Int, minute: Int) -> String {
+        let calendar = Calendar.current
+        let components = DateComponents(hour: hour, minute: minute)
+        guard let date = calendar.date(from: components) else { return "\(hour):\(String(format: "%02d", minute))" }
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+    
     // MARK: - Notifications Section
     private var notificationsSection: some View {
         Section {
@@ -325,7 +381,7 @@ struct SettingsView: View {
     }
     
     private func clearAllData() {
-        // Clear all stored data from both storage systems
+        // Clear all stored data via unified storage
         
         // 1. Clear UserDefaults
         UserDefaults.standard.removePersistentDomain(forName: Bundle.main.bundleIdentifier!)
@@ -333,8 +389,8 @@ struct SettingsView: View {
         // 2. Clear DataStorageService (JSON files + in-memory)
         dataStorage.clearAllData()
         
-        // 3. Clear SQLiteStorage (all tables: dose_events, sleep_events, morning_checkins, etc.)
-        SQLiteStorage.shared.clearAllData()
+        // 3. Clear SessionRepository → EventStorage (all tables)
+        SessionRepository.shared.clearAllData()
         
         // 4. Post notification to refresh any UI that's showing cached data
         NotificationCenter.default.post(name: NSNotification.Name("DataCleared"), object: nil)
@@ -463,6 +519,118 @@ struct WHOOPSettingsDetailView: View {
     }
 }
 
+// MARK: - Typical Week Schedule View
+struct TypicalWeekScheduleView: View {
+    @ObservedObject var store: SleepPlanStore
+    
+    private let weekdays = [
+        (1, "Sunday"),
+        (2, "Monday"),
+        (3, "Tuesday"),
+        (4, "Wednesday"),
+        (5, "Thursday"),
+        (6, "Friday"),
+        (7, "Saturday")
+    ]
+    
+    var body: some View {
+        List {
+            Section {
+                ForEach(weekdays, id: \.0) { weekday, name in
+                    WeekdayEntryRow(
+                        weekdayIndex: weekday,
+                        weekdayName: name,
+                        entry: store.schedule.entry(for: weekday),
+                        onUpdate: { wakeTime, enabled in
+                            store.updateEntry(weekday: weekday, wakeTime: wakeTime, enabled: enabled)
+                        }
+                    )
+                }
+            } header: {
+                Label("Wake-Up Times", systemImage: "alarm.fill")
+            } footer: {
+                Text("Set the time you want to wake up each day. Disabled days use the default 7:30 AM.")
+            }
+            
+            Section {
+                HStack {
+                    Label("Target Sleep", systemImage: "moon.zzz.fill")
+                    Spacer()
+                    Text("\(store.settings.targetSleepMinutes / 60)h \(store.settings.targetSleepMinutes % 60)m")
+                        .foregroundColor(.secondary)
+                }
+                
+                HStack {
+                    Label("Sleep Latency", systemImage: "timer")
+                    Spacer()
+                    Text("\(store.settings.sleepLatencyMinutes) min")
+                        .foregroundColor(.secondary)
+                }
+                
+                HStack {
+                    Label("Wind-Down", systemImage: "leaf.fill")
+                    Spacer()
+                    Text("\(store.settings.windDownMinutes) min")
+                        .foregroundColor(.secondary)
+                }
+            } header: {
+                Label("Sleep Goals", systemImage: "chart.bar.fill")
+            }
+        }
+        .navigationTitle("Typical Week")
+    }
+}
+
+// MARK: - Weekday Entry Row
+struct WeekdayEntryRow: View {
+    let weekdayIndex: Int
+    let weekdayName: String
+    let entry: TypicalWeekEntry
+    let onUpdate: (Date, Bool) -> Void
+    
+    @State private var isEnabled: Bool
+    @State private var wakeTime: Date
+    
+    init(weekdayIndex: Int, weekdayName: String, entry: TypicalWeekEntry, onUpdate: @escaping (Date, Bool) -> Void) {
+        self.weekdayIndex = weekdayIndex
+        self.weekdayName = weekdayName
+        self.entry = entry
+        self.onUpdate = onUpdate
+        
+        // Initialize state from entry
+        _isEnabled = State(initialValue: entry.enabled)
+        let calendar = Calendar.current
+        let components = DateComponents(hour: entry.wakeByHour, minute: entry.wakeByMinute)
+        _wakeTime = State(initialValue: calendar.date(from: components) ?? Date())
+    }
+    
+    var body: some View {
+        HStack {
+            Toggle("", isOn: $isEnabled)
+                .labelsHidden()
+                .onChange(of: isEnabled) { newValue in
+                    onUpdate(wakeTime, newValue)
+                }
+            
+            Text(weekdayName)
+                .foregroundColor(isEnabled ? .primary : .secondary)
+            
+            Spacer()
+            
+            if isEnabled {
+                DatePicker("", selection: $wakeTime, displayedComponents: .hourAndMinute)
+                    .labelsHidden()
+                    .onChange(of: wakeTime) { newValue in
+                        onUpdate(newValue, isEnabled)
+                    }
+            } else {
+                Text("Off")
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+}
+
 // MARK: - About Detail View
 struct AboutDetailView: View {
     var body: some View {
@@ -501,17 +669,6 @@ struct AboutDetailView: View {
         }
         .navigationTitle("About")
     }
-}
-
-// MARK: - Share Sheet
-struct ShareSheet: UIViewControllerRepresentable {
-    let items: [Any]
-    
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
-    }
-    
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 // MARK: - Preview
