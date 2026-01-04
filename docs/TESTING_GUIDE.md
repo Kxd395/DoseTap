@@ -26,22 +26,29 @@ open DoseTap.xcodeproj
 - Build the project (⌘B)
 - If legacy file conflicts occur, they're already quarantined with `#if false`
 
-### 3. Enable Diagnostic Logging
+### 3. Diagnostic Logging (Always On)
 
 The app has **session-scoped diagnostic logging** that records state transitions and invariants (see `docs/DIAGNOSTIC_LOGGING.md`):
 
 - **Tier 1:** Safety-critical diagnostic events (lifecycle, timezone, notifications, undo) - always on
-- **Tier 2:** Session context events (sleep events, pre-sleep, check-in) - enabled by default
-- **Tier 3:** Forensic deep inspection (optional snapshots, state deltas) - explicitly opt-in
+- **Tier 2:** Session context events (sleep events, pre-sleep, check-in) - always on by default
+- **Tier 3:** Forensic deep inspection (optional snapshots, state deltas) - **not yet implemented**
 
 > ⚠️ **Important**: Diagnostic logs record **state facts**, not UI actions. You will not see logs like "button tapped"—instead you'll see the **effects** like `dose.1.taken` or `dose.snooze.activated`.
 
-**To enable full logging:**
+**Current Status:**
 
-- Go to Settings > Diagnostic Logging
-- Toggle "Enable Diagnostic Logging" ON
-- Toggle "Enable Tier 2 Logging" ON (if available)
-- Toggle "Enable Tier 3 Forensic Logging" ON (if you want maximum detail)
+- Diagnostic logging is **always enabled** (`DiagnosticLogger.shared.isEnabled = true`)
+- There are **no user-facing toggles** in Settings yet (planned but not implemented)
+- Logs are automatically written to `Documents/diagnostics/sessions/{session_id}/`
+- Export is available via Settings > Data Management > "Export Session Diagnostics"
+
+**To access diagnostic logs:**
+
+1. Go to Settings > Data Management
+2. Tap "Export Session Diagnostics"
+3. Select a session date
+4. Export folder opens in Files app
 
 ---
 
@@ -484,11 +491,14 @@ swift test -q
 **Fix:** Quarantine conflicting files with `#if false` (already done for known files)
 
 ### Logs Not Appearing
-**Check:** Diagnostic logging enabled in Settings
-**Fix:** Toggle "Enable Diagnostic Logging" ON
+
+**Check:** Diagnostic logging is always on by default  
+**Reality:** `DiagnosticLogger.shared.isEnabled = true` (no user toggle yet)  
+**Workaround:** If logs are missing, check `Documents/diagnostics/sessions/` folder directly via Files app
 
 ### Offline Queue Not Flushing
-**Check:** Network connectivity
+
+**Check:** Network connectivity  
 **Fix:** Verify `DosingService.flushPending()` is called on app foreground
 
 ### Undo Not Working
