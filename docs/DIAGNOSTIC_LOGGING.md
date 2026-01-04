@@ -110,11 +110,22 @@ All events are JSON objects with consistent structure:
 | Field | Type | Description |
 |-------|------|-------------|
 | `ts` | ISO8601 | Event timestamp with timezone offset |
+| `seq` | int | Monotonically increasing sequence number per session (for forensic reconstruction) |
 | `level` | string | `debug`, `info`, `warning`, `error` |
 | `event` | string | Dot-notation event name |
-| `session_id` | string | Session date (YYYY-MM-DD) |
+| `session_id` | string | Session date (YYYY-MM-DD) - see note below |
 | `app_version` | string | Bundle version |
 | `build` | string | `debug` or `release` |
+
+#### session_id Semantic Freeze
+
+`session_id` is a **logical grouping key**, not a guaranteed unique identifier.
+
+- Today: One session per night, keyed by date
+- Future: May support multiple sessions per night (medication changes, rescue doses, Lumryz variants)
+- If multi-session nights are added, a `session_uuid` field will be introduced for uniqueness
+
+The `session_id` meaning is frozen as "the night this belongs to", not "a unique session".
 
 ### Context Fields (Event-Specific)
 
@@ -179,6 +190,8 @@ One JSON object per line, append-only:
 ### errors.jsonl
 
 Subset containing only `warning` and `error` level events for quick triage.
+
+> ⚠️ **Important**: `errors.jsonl` is a **lens**, not a source of truth. It is triage, not evidence. You MUST read `events.jsonl` for causal context—errors without their surrounding events are uninterpretable.
 
 ## API Reference
 

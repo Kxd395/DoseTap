@@ -27,6 +27,10 @@ public actor DiagnosticLogger {
     private let encoder: JSONEncoder
     private let dateFormatter: ISO8601DateFormatter
     
+    /// Monotonically increasing sequence number per session (for forensic reconstruction)
+    /// Key: sessionId, Value: last sequence number written
+    private var sessionSequence: [String: Int] = [:]
+    
     /// Root directory for diagnostics
     private var diagnosticsRoot: URL {
         let docs = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
@@ -79,6 +83,11 @@ public actor DiagnosticLogger {
             appVersion: Self.appVersion,
             build: Self.buildType
         )
+        
+        // Assign monotonically increasing sequence number for this session
+        let seq = (sessionSequence[sessionId] ?? 0) + 1
+        sessionSequence[sessionId] = seq
+        entry.seq = seq
         
         // Allow caller to add context
         context?(&entry)
@@ -327,6 +336,8 @@ public extension DiagnosticLogger {
             entry.terminalState = terminalState
             entry.dose1Time = dose1Time
             entry.dose2Time = dose2Time
+            // Include constants_hash on terminal events for config drift detection
+            entry.constantsHash = Self.constantsHash
         }
     }
     
@@ -403,6 +414,8 @@ public extension DiagnosticLogger {
             entry.newTimezone = newTimezone
             entry.previousTimezoneOffset = previousOffset
             entry.newTimezoneOffset = newOffset
+            // Include constants_hash to distinguish "did time move or did rules change?"
+            entry.constantsHash = Self.constantsHash
         }
     }
     
@@ -410,6 +423,7 @@ public extension DiagnosticLogger {
     func logTimeSignificantChange(sessionId: String, timeDeltaSeconds: Int) {
         log(.timeSignificantChange, level: .warning, sessionId: sessionId) { entry in
             entry.timeDeltaSeconds = timeDeltaSeconds
+            entry.constantsHash = Self.constantsHash
         }
     }
     
@@ -495,5 +509,26 @@ public extension DiagnosticLogger {
     /// Log pre-sleep abandoned
     func logPreSleepAbandoned(sessionId: String) {
         log(.preSleepLogAbandoned, sessionId: sessionId)
+    }
+    
+    // MARK: - Invariant Violations
+    
+    /// Log something that "should never happen"
+    /// Always logged at error level; always warrants investigation.
+    ///
+    /// - Parameters:
+    ///   - name: Short identifier for the invariant (e.g., "negative_elapsed", "dose2_before_window")
+    ///   - sessionId: Session ID (required even for invariant violations)
+    ///   - reason: Human-readable explanation of what went wrong
+    func logInvariantViolation(
+        name: String,
+        sessionId: String,
+        reason: String
+    ) {
+        log(.invariantViolation, level: .error, sessionId: sessionId) { entry in
+            entry.invariantName = name
+            entry.reason = reason
+            entry.constantsHash = Self.constantsHash
+        }
     }
 }

@@ -169,6 +169,14 @@ public enum DiagnosticEvent: String, Codable, Sendable {
     
     /// Timezone change detected
     case errorTimezone = "error.timezone"
+    
+    // MARK: - Invariant Violations (Should Never Happen)
+    
+    /// Something that "should never happen" did happen.
+    /// Examples: elapsed_minutes < 0, dose2 in beforeWindow without override,
+    /// session_id empty, impossible state transitions.
+    /// These are gold during rare bugs—always warrant investigation.
+    case invariantViolation = "invariant.violation"
 }
 
 // MARK: - Diagnostic Level
@@ -189,6 +197,10 @@ public struct DiagnosticLogEntry: Codable, Sendable {
     /// ISO8601 timestamp with timezone offset
     public let ts: Date
     
+    /// Monotonically increasing sequence number per session (for forensic reconstruction)
+    /// Allows reconstruction even under timestamp collision or file truncation
+    public var seq: Int?
+    
     /// Log level
     public let level: DiagnosticLevel
     
@@ -196,6 +208,8 @@ public struct DiagnosticLogEntry: Codable, Sendable {
     public let event: DiagnosticEvent
     
     /// Session identifier (YYYY-MM-DD) - REQUIRED
+    /// Note: This is a logical grouping key, not guaranteed unique forever.
+    /// Future versions may add session_uuid for multi-session nights.
     public let sessionId: String
     
     /// App version
@@ -271,6 +285,13 @@ public struct DiagnosticLogEntry: Codable, Sendable {
     /// Background time in seconds (for app.foregrounded)
     public var backgroundDurationSeconds: Int?
     
+    /// Config hash for detecting drift (on session completion, timezone changes)
+    public var constantsHash: String?
+    
+    /// Invariant name (for invariant.violation events)
+    /// Examples: "negative_elapsed", "dose2_before_window", "empty_session_id"
+    public var invariantName: String?
+    
     public init(
         ts: Date = Date(),
         level: DiagnosticLevel = .info,
@@ -291,6 +312,7 @@ public struct DiagnosticLogEntry: Codable, Sendable {
     
     enum CodingKeys: String, CodingKey {
         case ts
+        case seq
         case level
         case event
         case sessionId = "session_id"
@@ -318,6 +340,8 @@ public struct DiagnosticLogEntry: Codable, Sendable {
         case sleepEventType = "sleep_event_type"
         case sleepEventId = "sleep_event_id"
         case backgroundDurationSeconds = "background_duration_seconds"
+        case constantsHash = "constants_hash"
+        case invariantName = "invariant_name"
     }
 }
 
