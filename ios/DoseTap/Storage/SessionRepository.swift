@@ -404,6 +404,14 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     ) throws -> StoredPreSleepLog {
         let now = clock()
         let sessionKey = existingLog?.sessionId ?? preSleepDisplaySessionKey(for: now)
+        
+        // Diagnostic logging: Pre-sleep started (Tier 2) - log on first save, not edits
+        if existingLog == nil {
+            Task {
+                await DiagnosticLogger.shared.log(.preSleepLogStarted, sessionId: sessionKey)
+            }
+        }
+        
         let log = try storage.savePreSleepLogOrThrow(
             sessionId: sessionKey,
             answers: answers,
@@ -412,6 +420,12 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             timeZone: timeZoneProvider(),
             existingLog: existingLog
         )
+        
+        // Diagnostic logging: Pre-sleep saved or skipped (Tier 2)
+        Task {
+            let event: DiagnosticEvent = completionState == "skipped" ? .preSleepLogAbandoned : .preSleepLogSaved
+            await DiagnosticLogger.shared.log(event, sessionId: sessionKey)
+        }
         
         #if DEBUG
         let count = storage.fetchPreSleepLogCount(sessionId: sessionKey)
@@ -571,6 +585,11 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         )
         storage.updateTerminalState(sessionDate: key, state: "completed_wake")
         
+        // Diagnostic logging: Check-in flow started (Tier 2)
+        Task {
+            await DiagnosticLogger.shared.log(.checkinStarted, sessionId: key)
+        }
+        
         let rolloverDate = nextRollover(after: time, timeZone: timeZoneProvider(), rolloverHour: rolloverHour)
         if clock() >= rolloverDate {
             awaitingRolloverMessage = nil
@@ -594,12 +613,26 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         // TODO: Persist to storage
         // storage.saveCheckInCompleted()
         
+        // Diagnostic logging (Tier 2: Session Context)
+        if let sessionId = activeSessionDate {
+            Task {
+                await DiagnosticLogger.shared.log(.checkinCompleted, sessionId: sessionId)
+            }
+        }
+        
         sessionDidChange.send()
         print("✅ SessionRepository: Morning check-in completed, session finalized")
     }
     
     /// Clear wake final time (for undo)
     public func clearWakeFinal() {
+        // Diagnostic logging: Check-in skipped/abandoned (Tier 2)
+        if let sessionId = activeSessionDate, wakeFinalTime != nil {
+            Task {
+                await DiagnosticLogger.shared.log(.checkinSkipped, sessionId: sessionId)
+            }
+        }
+        
         wakeFinalTime = nil
         checkInCompleted = false
         
@@ -976,15 +1009,25 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         source: String = "manual"
     ) {
         let key = sessionKey(for: timestamp, timeZone: timeZoneProvider(), rolloverHour: rolloverHour)
+        let eventId = UUID().uuidString
         
         storage.insertSleepEvent(
-            id: UUID().uuidString,
+            id: eventId,
             eventType: eventType,
             timestamp: timestamp,
             sessionDate: key,
             colorHex: nil,
             notes: notes
         )
+        
+        // Diagnostic logging (Tier 2: Session Context)
+        Task {
+            await DiagnosticLogger.shared.logSleepEventLogged(
+                sessionId: key,
+                eventType: eventType,
+                eventId: eventId
+            )
+        }
         
         #if canImport(OSLog)
         logger.info("Sleep event '\(eventType)' logged for session \(key)")
@@ -1010,7 +1053,21 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     
     /// Delete a sleep event by ID
     public func deleteSleepEvent(id: String) {
+        // Get event type before deleting (for diagnostic logging)
+        let events = storage.fetchSleepEvents(forSession: currentSessionKey)
+        let eventType = events.first(where: { $0.id == id })?.eventType ?? "unknown"
+        
         storage.deleteSleepEvent(id: id)
+        
+        // Diagnostic logging (Tier 2: Session Context)
+        Task {
+            await DiagnosticLogger.shared.logSleepEventDeleted(
+                sessionId: currentSessionKey,
+                eventType: eventType,
+                eventId: id
+            )
+        }
+        
         sessionDidChange.send()
     }
     

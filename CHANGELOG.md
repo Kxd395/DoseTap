@@ -13,7 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - DiagnosticEvent enum mirroring SSOT state names exactly
   - DiagnosticLogger actor with JSONL file output
   - Session metadata (meta.json) with device/app context
-  - Events logged: session lifecycle, phase transitions, dose actions, alarms
+  - **Tier 1 Critical Events:** App lifecycle, timezone changes, notification delivery, undo flow
+  - **Tier 2 Session Context Events:** Sleep event logging, pre-sleep log, morning check-in
   - Phase transition logging at edges only (window.opened, nearClose, expired)
   - SessionTraceExporter in Settings → Export Session Diagnostics
   - Local export only, no cloud upload, no health data

@@ -277,6 +277,34 @@ public enum DiagnosticEvent: String, Codable {
     case checkinCompleted = "checkin.completed"
     case checkinSkipped = "checkin.skipped"
     
+    // Tier 1: App Lifecycle (Critical for Safety Debugging)
+    case appForegrounded = "app.foregrounded"
+    case appBackgrounded = "app.backgrounded"
+    case appLaunched = "app.launched"
+    
+    // Tier 1: Timezone Changes (Critical for Safety Debugging)
+    case timezoneChanged = "timezone.changed"
+    case timeSignificantChange = "time.significantChange"
+    
+    // Tier 1: Notification Delivery (Critical for Safety Debugging)
+    case notificationDelivered = "notification.delivered"
+    case notificationTapped = "notification.tapped"
+    case notificationDismissed = "notification.dismissed"
+    
+    // Tier 1: Undo Flow (Critical for Safety Debugging)
+    case undoWindowOpened = "undo.windowOpened"
+    case undoExecuted = "undo.executed"
+    case undoExpired = "undo.expired"
+    
+    // Tier 2: Sleep Events (Session Context)
+    case sleepEventLogged = "sleepEvent.logged"
+    case sleepEventDeleted = "sleepEvent.deleted"
+    
+    // Tier 2: Pre-Sleep Log (Session Context)
+    case preSleepLogStarted = "preSleepLog.started"
+    case preSleepLogSaved = "preSleepLog.saved"
+    case preSleepLogAbandoned = "preSleepLog.abandoned"
+    
     // Errors
     case errorStorage = "error.storage"
     case errorNotification = "error.notification"
