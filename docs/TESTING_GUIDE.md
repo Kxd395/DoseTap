@@ -325,9 +325,11 @@ Offline queue operations are **not** part of the diagnostic event contract unles
 
 ### Method 1: In-App Export
 
-1. Go to Settings > Diagnostic Logging
-2. Tap "Export Logs"
-3. Choose destination (Files, AirDrop, email)
+1. Go to Settings (bottom tab bar)
+2. Scroll down to **Data Management** section
+3. Tap "Export Session Diagnostics"
+4. Select a session date
+5. Folder exports to Files app
 4. Open exported folder
 
 **Folder Structure:**
