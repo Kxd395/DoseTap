@@ -33,7 +33,10 @@ let package = Package(
                 "MedicationConfig.swift",
                 "SessionKey.swift",
                 "SleepPlan.swift",
-                "EventStore.swift"
+                "EventStore.swift",
+                "TimeIntervalMath.swift",
+                "DiagnosticEvent.swift",
+                "DiagnosticLogger.swift"
             ]
         ),
         .testTarget(

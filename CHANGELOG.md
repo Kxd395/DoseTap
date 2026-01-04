@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Diagnostic Logging System (v2.14.0)** - Session-scoped diagnostic logging for debugging and support
+  - DiagnosticEvent enum mirroring SSOT state names exactly
+  - DiagnosticLogger actor with JSONL file output
+  - Session metadata (meta.json) with device/app context
+  - Events logged: session lifecycle, phase transitions, dose actions, alarms
+  - Phase transition logging at edges only (window.opened, nearClose, expired)
+  - SessionTraceExporter in Settings → Export Session Diagnostics
+  - Local export only, no cloud upload, no health data
+  - 14-day retention with automatic pruning
+  - Documentation: `docs/DIAGNOSTIC_LOGGING.md`
+  - Implementation: `ios/Core/DiagnosticEvent.swift`, `ios/Core/DiagnosticLogger.swift`
+  - SSOT contract: Every log MUST have session_id, views MAY NOT call logger
+
 - **Night Mode theme** - Circadian-friendly red light mode eliminating all blue wavelengths for nighttime medication checks
   - Three theme options: Light, Dark, Night Mode (red light)
   - Global red color filter (`.colorMultiply()`) removes blue light exposure

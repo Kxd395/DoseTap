@@ -14,8 +14,8 @@
 
 **This document supersedes:** `DoseTap_Spec.md`, `ui-ux-specifications.md`, `button-logic-mapping.md`, `api-documentation.md`, `user-guide.md`, `implementation-roadmap.md`
 
-**Last Updated:** 2026-01-03  
-**Version:** 2.13.0
+**Last Updated:** 2026-01-04  
+**Version:** 2.14.0
 
 ---
 
@@ -128,6 +128,300 @@ let buttonColor = themeManager.currentTheme.buttonBackground
 - `ios/DoseTap/SettingsView.swift` - Settings integration
 
 **Test Validation**: Visual inspection required - Night Mode must show zero blue UI elements across all 4 tabs.
+
+---
+
+## Diagnostic Logging System (v2.14.0)
+
+### Philosophy: Logging as a Shadow State Machine
+
+DoseTap's logging is **diagnostic evidence attached to session lifecycles**, not general observability infrastructure.
+
+**Core Principles**:
+1. Logs are **state facts**, not UI actions
+2. Log only **transitions and invariants**, not ticks
+3. Every log MUST have a `session_id` - if it can't be tied to a session, it doesn't belong
+4. Logs are the "black box recorder" for each session
+
+**What Diagnostic Logging Is NOT**:
+- NOT interaction telemetry (that's `AnalyticsService`)
+- NOT performance monitoring
+- NOT crash reporting
+- NOT user behavior tracking
+
+**Key Distinction**:
+> `AnalyticsService` is non-authoritative and lossy (answers "how often")
+> `DiagnosticLogger` is authoritative and complete (answers "what exactly happened in this session")
+
+### Boundary Rules (CI-Enforced)
+
+Logging MUST obey the same boundaries as storage:
+
+1. **Views MAY NOT call DiagnosticLogger directly**
+2. **DiagnosticLogger MAY NOT talk to SQLite**
+3. **DiagnosticLogger MAY NOT bypass SessionRepository**
+4. **Logging is attached to session lifecycle, not UI events**
+
+### Where Logging Lives (Exactly 4 Places)
+
+#### 1. SessionRepository (Primary - 80% of value)
+
+Log when:
+- Session starts (`session.started`)
+- Phase changes (`session.phase.entered`)
+- Terminal state is set (`session.completed`, `session.expired`, `session.skipped`)
+- Session auto-expires (`session.autoExpired`)
+- Session rolls over (`session.rollover`)
+
+#### 2. DoseWindowCalculator (Invariant Logging)
+
+Log only at **edges**:
+- Window boundary crossed (`dose.window.opened`, `dose.window.nearClose`, `dose.window.expired`)
+- Guard prevents action (`dose.window.blocked`)
+- Override required (`dose.window.override.required`)
+
+**Never log every tick. Only edges.**
+
+#### 3. AlarmService / NotificationScheduler
+
+Log why alarms fired or didn't:
+- `alarm.scheduled`
+- `alarm.cancelled`
+- `alarm.suppressed.windowNearClose` (snooze disabled <15m)
+- `alarm.autoCancelled.sessionComplete`
+
+#### 4. Morning Check-In
+
+Log completion state:
+- `checkin.started`
+- `checkin.completed`
+- `checkin.skipped`
+
+### Event Format (Machine Events, Not Strings)
+
+All diagnostic events follow this structure:
+
+```json
+{
+  "ts": "2026-01-04T07:42:18-05:00",
+  "level": "info",
+  "event": "dose.window.expired",
+  "session_id": "2026-01-03",
+  "phase": "closed",
+  "dose1_time": "2026-01-04T03:02:00-05:00",
+  "elapsed_minutes": 241,
+  "app_version": "2.14.0",
+  "build": "release"
+}
+```
+
+**Required Fields**:
+| Field | Type | Description |
+|-------|------|-------------|
+| `ts` | ISO8601 | Event timestamp with timezone offset |
+| `level` | string | `debug`, `info`, `warning`, `error` |
+| `event` | string | Dot-notation event name (e.g., `session.phase.entered`) |
+| `session_id` | string | Session date (YYYY-MM-DD) - **REQUIRED** |
+| `app_version` | string | Bundle version |
+| `build` | string | `debug` or `release` |
+
+**Context Fields** (event-specific):
+| Field | Type | When Present |
+|-------|------|--------------|
+| `phase` | string | Phase changes |
+| `dose1_time` | ISO8601 | Dose-related events |
+| `dose2_time` | ISO8601 | Dose 2 events |
+| `elapsed_minutes` | int | Window calculations |
+| `remaining_minutes` | int | Window state |
+| `snooze_count` | int | Snooze events |
+| `terminal_state` | string | Session completion |
+| `reason` | string | Blocked/suppressed events |
+
+### DoseTapDiagnosticEvent Enum
+
+The event enum MUST mirror SSOT state names exactly:
+
+```swift
+public enum DiagnosticEvent: String, Codable {
+    // Session lifecycle
+    case sessionStarted = "session.started"
+    case sessionPhaseEntered = "session.phase.entered"
+    case sessionCompleted = "session.completed"
+    case sessionExpired = "session.expired"
+    case sessionSkipped = "session.skipped"
+    case sessionAutoExpired = "session.autoExpired"
+    case sessionRollover = "session.rollover"
+    
+    // Dose window boundaries
+    case doseWindowOpened = "dose.window.opened"
+    case doseWindowNearClose = "dose.window.nearClose"
+    case doseWindowExpired = "dose.window.expired"
+    case doseWindowBlocked = "dose.window.blocked"
+    case doseWindowOverrideRequired = "dose.window.override.required"
+    
+    // Dose actions
+    case dose1Taken = "dose.1.taken"
+    case dose2Taken = "dose.2.taken"
+    case dose2Skipped = "dose.2.skipped"
+    case doseUndone = "dose.undone"
+    case snoozeActivated = "dose.snooze.activated"
+    
+    // Alarms
+    case alarmScheduled = "alarm.scheduled"
+    case alarmCancelled = "alarm.cancelled"
+    case alarmSuppressed = "alarm.suppressed"
+    case alarmAutoCancelled = "alarm.autoCancelled"
+    
+    // Check-in
+    case checkinStarted = "checkin.started"
+    case checkinCompleted = "checkin.completed"
+    case checkinSkipped = "checkin.skipped"
+    
+    // Errors
+    case errorStorage = "error.storage"
+    case errorNotification = "error.notification"
+    case errorTimezone = "error.timezone"
+}
+```
+
+### File Layout (Session-Scoped)
+
+Logs are grouped by `session_date`, consistent with existing data model:
+
+```
+Documents/
+  diagnostics/
+    sessions/
+      2026-01-03/
+        meta.json       # Static context for this session
+        events.jsonl    # Event stream (append-only)
+        errors.jsonl    # Errors only (subset for quick triage)
+      2026-01-04/
+        ...
+```
+
+#### meta.json (Static Context)
+
+Created once per session, captures environment:
+
+```json
+{
+  "session_id": "2026-01-03",
+  "created_at": "2026-01-03T22:15:00-05:00",
+  "app_version": "2.14.0",
+  "build_number": "42",
+  "build_type": "release",
+  "device_model": "iPhone15,3",
+  "os_version": "17.2",
+  "timezone": "America/New_York",
+  "timezone_offset_minutes": -300,
+  "constants_hash": "a1b2c3d4"
+}
+```
+
+The `constants_hash` enables detecting "this bug only happened before config X changed".
+
+#### events.jsonl (Event Stream)
+
+One JSON object per line, append-only:
+
+```jsonl
+{"ts":"2026-01-03T22:15:00-05:00","level":"info","event":"session.started","session_id":"2026-01-03","app_version":"2.14.0","build":"release"}
+{"ts":"2026-01-04T01:20:00-05:00","level":"info","event":"dose.1.taken","session_id":"2026-01-03","dose1_time":"2026-01-04T01:20:00-05:00","app_version":"2.14.0","build":"release"}
+{"ts":"2026-01-04T03:50:00-05:00","level":"info","event":"dose.window.opened","session_id":"2026-01-03","phase":"active","elapsed_minutes":150,"app_version":"2.14.0","build":"release"}
+```
+
+### DiagnosticLogger Implementation
+
+```swift
+// ios/Core/DiagnosticLogger.swift
+
+@MainActor
+public final class DiagnosticLogger {
+    public static let shared = DiagnosticLogger()
+    
+    private let fileManager = FileManager.default
+    private let encoder = JSONEncoder()
+    
+    private init() {
+        encoder.dateEncodingStrategy = .iso8601
+    }
+    
+    /// Log a diagnostic event for the current session
+    public func log(
+        _ event: DiagnosticEvent,
+        level: DiagnosticLevel = .info,
+        sessionId: String,
+        context: [String: Any] = [:]
+    )
+    
+    /// Export diagnostics for a session as a zip file
+    public func exportSession(_ sessionId: String) -> URL?
+    
+    /// Prune old sessions (keep last N days)
+    public func pruneOldSessions(keepDays: Int = 14)
+}
+```
+
+### SessionTraceExporter (Settings Integration)
+
+Single button in Settings:
+
+```
+Settings
+  └── Support & Diagnostics
+        └── Export Last Session Diagnostics
+              → Generates zip: meta.json + events.jsonl
+              → Local share sheet (no cloud upload)
+              → Anonymized (no PII in diagnostic events)
+```
+
+**Use Cases**:
+- Debug your own edge cases
+- Share with clinician (narcolepsy timing anomalies)
+- Validate timezone behavior
+- Investigate missed doses
+
+### What This Enables (Concrete Questions Answered)
+
+With diagnostic logging, you can answer:
+1. Did the window really expire, or was the app backgrounded?
+2. Was Dose 2 blocked by rules or user action?
+3. Did timezone change mid-session?
+4. Did Night Mode suppress a reminder visually but not functionally?
+5. Did narcolepsy-related wake events cluster before missed doses?
+6. Why didn't the alarm fire?
+
+**All answerable from one session folder.**
+
+### What NOT to Add
+
+- ❌ No OpenTelemetry
+- ❌ No tracing SDKs  
+- ❌ No dashboards
+- ❌ No sampling
+- ❌ No live tail UI (yet)
+- ❌ No cloud upload
+
+DoseTap is a medical-adjacent tool. **Calm beats clever.**
+
+### Contract Summary
+
+| Rule | Enforcement |
+|------|-------------|
+| Every log has `session_id` | Logger rejects events without it |
+| Views don't call logger | CI grep guard |
+| Only 4 integration points | Code review |
+| JSONL format | Type system |
+| Session-scoped folders | FileManager logic |
+| No SQLite access | Logger uses FileManager only |
+
+### Implementation Files
+
+- `ios/Core/DiagnosticLogger.swift` - Logger singleton, file I/O
+- `ios/Core/DiagnosticEvent.swift` - Event enum mirroring SSOT
+- `ios/DoseTap/Views/DiagnosticExportView.swift` - Export UI
+- `docs/DIAGNOSTIC_LOGGING.md` - Complete specification
 
 ---
 

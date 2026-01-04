@@ -1,4 +1,5 @@
 import SwiftUI
+import DoseCore
 
 // MARK: - Undo State Manager (Observable)
 /// Observable wrapper around DoseUndoManager for SwiftUI integration.
@@ -57,6 +58,13 @@ class UndoStateManager: ObservableObject {
                     remainingTime = totalTime
                     isVisible = true
                     startCountdown()
+                    
+                    // Diagnostic logging: undo window opened
+                    let sessionId = SessionRepository.shared.currentSessionDateString()
+                    let targetType = undoTargetType(for: action)
+                    Task {
+                        await DiagnosticLogger.shared.logUndoWindowOpened(sessionId: sessionId, targetType: targetType)
+                    }
                 }
                 
                 await manager.register(action)
@@ -67,16 +75,29 @@ class UndoStateManager: ObservableObject {
     func performUndo() {
         Task {
             if let manager = undoManager {
+                let action = currentAction
                 let result = await manager.undo()
                 await MainActor.run {
+                    #if DEBUG
                     switch result {
                     case .success(let action):
-                        print("✅ Undo successful: \(action)")
+                        Swift.print("✅ Undo successful: \(action)")
                     case .expired:
-                        print("⏰ Undo window expired")
+                        Swift.print("⏰ Undo window expired")
                     case .noAction:
-                        print("⚠️ No action to undo")
+                        Swift.print("⚠️ No action to undo")
                     }
+                    #endif
+                    
+                    // Diagnostic logging: undo executed
+                    if case .success = result, let action = action {
+                        let sessionId = SessionRepository.shared.currentSessionDateString()
+                        let targetType = undoTargetType(for: action)
+                        Task {
+                            await DiagnosticLogger.shared.logUndoExecuted(sessionId: sessionId, targetType: targetType)
+                        }
+                    }
+                    
                     dismiss()
                 }
             }
@@ -112,6 +133,13 @@ class UndoStateManager: ObservableObject {
     }
     
     private func handleCommit(_ action: UndoableAction) {
+        // Diagnostic logging: undo expired (user didn't press undo)
+        let sessionId = SessionRepository.shared.currentSessionDateString()
+        let targetType = undoTargetType(for: action)
+        Task {
+            await DiagnosticLogger.shared.logUndoExpired(sessionId: sessionId, targetType: targetType)
+        }
+        
         onCommit?(action)
         dismiss()
     }
@@ -119,6 +147,15 @@ class UndoStateManager: ObservableObject {
     private func handleUndo(_ action: UndoableAction) {
         onUndo?(action)
         dismiss()
+    }
+    
+    /// Convert action to target type string for logging
+    private func undoTargetType(for action: UndoableAction) -> String {
+        switch action.type {
+        case .dose1: return "dose1"
+        case .dose2: return "dose2"
+        case .sleepEvent: return "sleepEvent"
+        }
     }
 }
 

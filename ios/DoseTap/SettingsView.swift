@@ -281,6 +281,12 @@ struct SettingsView: View {
                     }
                     
                     NavigationLink {
+                        DiagnosticExportView()
+                    } label: {
+                        Label("Export Session Diagnostics", systemImage: "doc.text.magnifyingglass")
+                    }
+                    
+                    NavigationLink {
                         DataManagementView()
                     } label: {
                         Label("Manage History", systemImage: "clock.arrow.circlepath")
@@ -294,7 +300,7 @@ struct SettingsView: View {
             } header: {
                 Label("Data Management", systemImage: "externaldrive.fill")
             } footer: {
-                Text("Data is stored locally on your device only.")
+                Text("Data is stored locally on your device only. Session diagnostics contain timing/state data only, no health info.")
             }
             
             // MARK: - Privacy Section

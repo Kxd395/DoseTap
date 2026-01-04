@@ -52,6 +52,10 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     /// Emits whenever session data changes (for observers that need explicit signal)
     public let sessionDidChange = PassthroughSubject<Void, Never>()
     
+    // MARK: - Phase Tracking (for diagnostic logging)
+    /// Tracks last known phase to detect transitions at edges
+    private var lastLoggedPhase: DoseWindowPhase?
+    
     // MARK: - Dependencies
     private let storage: EventStorage
     private let notificationScheduler: NotificationScheduling
@@ -160,6 +164,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         checkInCompleted = false
         dose1TimezoneOffsetMinutes = nil
         awaitingRolloverMessage = nil
+        lastLoggedPhase = nil  // Reset phase tracking
     }
 
     private func updateSessionKeyIfNeeded(reason: String, forceReload: Bool = false) {
@@ -168,10 +173,19 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         let changed = newKey != currentSessionKey
         
         if changed {
+            let oldKey = currentSessionKey
             print("🔄 SessionRepository: Rollover \(currentSessionKey) -> \(newKey) (reason: \(reason))")
             #if canImport(OSLog)
             logger.info("Session rollover: \(self.currentSessionKey, privacy: .public) -> \(newKey, privacy: .public) (reason: \(reason, privacy: .public))")
             #endif
+            
+            // Diagnostic logging: session rollover
+            Task {
+                await DiagnosticLogger.shared.log(.sessionRollover, sessionId: oldKey) { entry in
+                    entry.reason = reason
+                }
+            }
+            
             currentSessionKey = newKey
             clearInMemoryState()
         }
@@ -288,6 +302,13 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         // Persist to storage
         storage.saveDose1(timestamp: time)
         
+        // Diagnostic logging: session started + dose 1 taken
+        Task {
+            await DiagnosticLogger.shared.ensureSessionMetadata(sessionId: key)
+            await DiagnosticLogger.shared.logSessionStarted(sessionId: key)
+            await DiagnosticLogger.shared.logDoseTaken(sessionId: key, dose: 1, at: time)
+        }
+        
         sessionDidChange.send()
     }
     
@@ -303,6 +324,15 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         // Persist to storage
         storage.saveDose2(timestamp: time, isEarly: isEarly, isExtraDose: isExtraDose)
         
+        // Diagnostic logging: dose 2 taken + session completed
+        if !isExtraDose {
+            let elapsed = dose1Time.map { Int(time.timeIntervalSince($0) / 60) }
+            Task {
+                await DiagnosticLogger.shared.logDoseTaken(sessionId: key, dose: 2, at: time, elapsedMinutes: elapsed)
+                await DiagnosticLogger.shared.logSessionCompleted(sessionId: key, terminalState: "completed", dose1Time: dose1Time, dose2Time: time)
+            }
+        }
+        
         sessionDidChange.send()
     }
     
@@ -315,6 +345,13 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         
         // Persist to storage
         storage.saveSnooze(count: snoozeCount)
+        
+        // Diagnostic logging: snooze activated
+        Task {
+            await DiagnosticLogger.shared.log(.snoozeActivated, sessionId: key) { entry in
+                entry.snoozeCount = self.snoozeCount
+            }
+        }
         
         sessionDidChange.send()
     }
@@ -329,6 +366,14 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         
         // Persist to storage
         storage.saveDoseSkipped()
+        
+        // Diagnostic logging: dose 2 skipped + session completed
+        Task {
+            await DiagnosticLogger.shared.log(.dose2Skipped, sessionId: key) { entry in
+                entry.dose1Time = self.dose1Time
+            }
+            await DiagnosticLogger.shared.logSessionCompleted(sessionId: key, terminalState: "skipped", dose1Time: self.dose1Time)
+        }
         
         // Session is considered complete; cancel any pending notifications (including wake alarms)
         cancelPendingNotifications()
@@ -588,13 +633,23 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     private func markSessionSleptThrough() {
         guard dose1Time != nil else { return }
         
+        let sessionId = activeSessionDate ?? storage.currentSessionDate()
         print("😴 SessionRepository: Auto-marking session as slept-through (window + grace expired)")
         
         // Save skip with slept-through reason
         storage.saveDoseSkipped(reason: "slept_through")
         
         // Update terminal state
-        storage.updateTerminalState(sessionDate: activeSessionDate ?? storage.currentSessionDate(), state: "incomplete_slept_through")
+        storage.updateTerminalState(sessionDate: sessionId, state: "incomplete_slept_through")
+        
+        // Diagnostic logging: session auto-expired
+        Task {
+            await DiagnosticLogger.shared.log(.sessionAutoExpired, sessionId: sessionId) { entry in
+                entry.terminalState = "incomplete_slept_through"
+                entry.dose1Time = self.dose1Time
+                entry.reason = "slept_through"
+            }
+        }
         
         // Reset in-memory state for new session
         dose2Skipped = true
@@ -630,7 +685,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     /// Computed dose window context based on current session state.
     /// This is THE context that UI should bind to - it derives from repository state.
     public var currentContext: DoseWindowContext {
-        SessionRepository.windowCalculator.context(
+        let context = SessionRepository.windowCalculator.context(
             dose1At: dose1Time,
             dose2TakenAt: dose2Time,
             dose2Skipped: dose2Skipped,
@@ -638,6 +693,46 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             wakeFinalAt: wakeFinalTime,
             checkInCompleted: checkInCompleted
         )
+        
+        // Log phase transitions (edges only)
+        checkAndLogPhaseTransition(newPhase: context.phase, context: context)
+        
+        return context
+    }
+    
+    /// Check if phase changed and log transition (diagnostic logging at edges)
+    private func checkAndLogPhaseTransition(newPhase: DoseWindowPhase, context: DoseWindowContext) {
+        guard let sessionId = activeSessionDate else { return }
+        guard newPhase != lastLoggedPhase else { return }
+        
+        let previousPhase = lastLoggedPhase
+        lastLoggedPhase = newPhase
+        
+        // Map phase to diagnostic event
+        let event: DiagnosticEvent
+        switch newPhase {
+        case .active where previousPhase == .beforeWindow:
+            event = .doseWindowOpened
+        case .nearClose where previousPhase == .active:
+            event = .doseWindowNearClose
+        case .closed where previousPhase == .nearClose || previousPhase == .active:
+            event = .doseWindowExpired
+        default:
+            event = .sessionPhaseEntered
+        }
+        
+        let elapsed = context.elapsedSinceDose1.map { Int($0 / 60) }
+        let remaining = context.remainingToMax.map { Int($0 / 60) }
+        
+        Task {
+            await DiagnosticLogger.shared.log(event, sessionId: sessionId) { entry in
+                entry.phase = String(describing: newPhase)
+                entry.previousPhase = previousPhase.map { String(describing: $0) }
+                entry.elapsedMinutes = elapsed
+                entry.remainingMinutes = remaining
+                entry.snoozeCount = context.snoozeCount
+            }
+        }
     }
     
     // MARK: - Medication Logging
@@ -1050,18 +1145,32 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         return storage.fetchMostRecentPreSleepLog(sessionId: sessionId)
     }
     
-    /// Save dose 1 timestamp (convenience for direct dose saving)
+    /// Save dose 1 timestamp - SSOT: Updates in-memory state AND persists to storage
+    /// Use this or setDose1Time() - they are now equivalent
     public func saveDose1(timestamp: Date) {
-        storage.saveDose1(timestamp: timestamp)
+        setDose1Time(timestamp)
     }
     
-    /// Save dose 2 timestamp with optional flags
+    /// Save dose 2 timestamp with optional flags - SSOT: Updates in-memory state AND persists to storage
+    /// Use this or setDose2Time() - they are now equivalent
     public func saveDose2(timestamp: Date, isEarly: Bool = false, isExtraDose: Bool = false) {
-        storage.saveDose2(timestamp: timestamp, isEarly: isEarly, isExtraDose: isExtraDose)
+        setDose2Time(timestamp, isEarly: isEarly, isExtraDose: isExtraDose)
     }
     
     /// Insert sleep event (for event logging)
     public func insertSleepEvent(id: String, eventType: String, timestamp: Date, colorHex: String?, notes: String? = nil) {
         storage.insertSleepEvent(id: id, eventType: eventType, timestamp: timestamp, colorHex: colorHex, notes: notes)
+    }
+    
+    // MARK: - Night Review Support
+    
+    /// Fetch list of recent session keys for picker
+    public func getRecentSessionKeys(limit: Int = 30) -> [String] {
+        return storage.fetchRecentSessionsLocal(days: limit).map { $0.sessionDate }
+    }
+    
+    /// Fetch sleep events for a specific session (local type)
+    public func fetchSleepEventsLocal(for sessionKey: String) -> [StoredSleepEvent] {
+        return storage.fetchSleepEvents(forSession: sessionKey)
     }
 }

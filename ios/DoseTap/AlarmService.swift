@@ -1,6 +1,7 @@
 import Foundation
 import UserNotifications
 import AVFoundation
+import DoseCore
 
 /// Alarm service for scheduling and managing wake alarms
 /// Handles snooze functionality with proper notification rescheduling
@@ -121,6 +122,14 @@ public class AlarmService: NSObject, ObservableObject {
         notificationCenter.removePendingNotificationRequests(withIdentifiers: ids)
         reminderScheduled = false
         print("🔕 AlarmService: Dose 2 reminders cancelled")
+        
+        // Diagnostic logging: alarms cancelled
+        let sessionId = SessionRepository.shared.currentSessionDateString()
+        for id in ids {
+            Task {
+                await DiagnosticLogger.shared.logAlarm(.alarmCancelled, sessionId: sessionId, alarmId: id, reason: "dose2_completed_or_skipped")
+            }
+        }
     }
     
     // MARK: - Schedule Wake Alarm
@@ -273,8 +282,16 @@ public class AlarmService: NSObject, ObservableObject {
         do {
             try await notificationCenter.add(request)
             print("📅 AlarmService: Scheduled '\(id)' for \(formatTime(date))")
+            
+            // Diagnostic logging: alarm scheduled
+            let sessionId = SessionRepository.shared.currentSessionDateString()
+            await DiagnosticLogger.shared.logAlarm(.alarmScheduled, sessionId: sessionId, alarmId: id)
         } catch {
             print("⚠️ AlarmService: Failed to schedule notification: \(error)")
+            
+            // Diagnostic logging: notification error
+            let sessionId = SessionRepository.shared.currentSessionDateString()
+            await DiagnosticLogger.shared.logError(.errorNotification, sessionId: sessionId, reason: "Failed to schedule: \(error.localizedDescription)")
         }
     }
     
@@ -310,6 +327,17 @@ extension AlarmService: UNUserNotificationCenterDelegate {
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
+        // Diagnostic logging: notification delivered (shown while app in foreground)
+        let notificationId = notification.request.identifier
+        Task { @MainActor in
+            let sessionId = SessionRepository.shared.currentSessionDateString()
+            await DiagnosticLogger.shared.logNotificationDelivered(
+                sessionId: sessionId,
+                notificationId: notificationId,
+                category: notification.request.content.categoryIdentifier
+            )
+        }
+        
         // Show notification even when app is in foreground
         completionHandler([.banner, .sound, .badge])
     }
@@ -319,8 +347,28 @@ extension AlarmService: UNUserNotificationCenterDelegate {
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
-        // Handle notification tap - just complete for now
-        // Actionable buttons can be added later
+        // Diagnostic logging: notification tapped
+        let notificationId = response.notification.request.identifier
+        let actionId = response.actionIdentifier
+        
+        Task { @MainActor in
+            let sessionId = SessionRepository.shared.currentSessionDateString()
+            
+            if actionId == UNNotificationDismissActionIdentifier {
+                await DiagnosticLogger.shared.logNotificationDismissed(
+                    sessionId: sessionId,
+                    notificationId: notificationId,
+                    category: response.notification.request.content.categoryIdentifier
+                )
+            } else {
+                await DiagnosticLogger.shared.logNotificationTapped(
+                    sessionId: sessionId,
+                    notificationId: notificationId,
+                    category: response.notification.request.content.categoryIdentifier
+                )
+            }
+        }
+        
         completionHandler()
     }
 }
