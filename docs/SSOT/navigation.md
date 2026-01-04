@@ -28,6 +28,7 @@ Quick links to find exactly what you need in the Single Source of Truth.
 - [Data Management](README.md#data-management-screen) - Delete functionality
 - [Button Logic & Components](README.md#button-logic--components) - Complete mapping table
 - [Accessibility](README.md#accessibility) - Visual, audio, haptic requirements
+- **[Theme System & Night Mode](README.md#theme-system--night-mode-circadian-friendly-ui) - Blue light elimination for nighttime use**
 
 ## 🔌 API & Integration
 - [API Contract](README.md#api-contract) - Endpoints, payloads, responses

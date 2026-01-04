@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
+- **Night Mode theme** - Circadian-friendly red light mode eliminating all blue wavelengths for nighttime medication checks
+  - Three theme options: Light, Dark, Night Mode (red light)
+  - Global red color filter (`.colorMultiply()`) removes blue light exposure
+  - Persistent theme selection via UserDefaults
+  - Theme picker in Settings → Appearance section
+  - Medical benefit: Protects melatonin production during 2-4 AM dose checks
+  - Documentation: `docs/NIGHT_MODE.md`
+  - Implementation: `ios/DoseTap/Theme/AppTheme.swift`, `ios/DoseTap/Views/ThemeSettingsView.swift`
+
 - HealthKitProviding protocol for test isolation (GAP A)
 - TimeCorrectnessTests: 14 tests for 6 PM boundary, DST, timezone edge cases (GAP B)
 - ExportIntegrityTests: 6 tests for row counts and secrets redaction (GAP C)
@@ -15,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dynamic test count references in documentation (GAP E)
 
 ### Changed
+
 - Removed hardcoded test counts from docs (architecture.md, README.md, FEATURE_ROADMAP.md)
 - Archived historical code review docs to `archive/audits_2025-12-24/`
 

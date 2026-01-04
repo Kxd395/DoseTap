@@ -110,6 +110,7 @@ struct ContentView: View {
     @StateObject private var eventLogger = EventLogger.shared
     @StateObject private var sessionRepo = SessionRepository.shared
     @StateObject private var undoState = UndoStateManager()
+    @StateObject private var themeManager = ThemeManager.shared
     @ObservedObject private var urlRouter = URLRouter.shared
     
     var body: some View {
@@ -117,15 +118,19 @@ struct ContentView: View {
             // Swipeable Page View
             TabView(selection: $urlRouter.selectedTab) {
                 LegacyTonightView(core: core, eventLogger: eventLogger, undoState: undoState)
+                    .environmentObject(themeManager)
                     .tag(0)
                 
                 DetailsView(core: core, eventLogger: eventLogger)
+                    .environmentObject(themeManager)
                     .tag(1)
                 
                 HistoryView()
+                    .environmentObject(themeManager)
                     .tag(2)
                 
                 SettingsView()
+                    .environmentObject(themeManager)
                     .tag(3)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
@@ -144,7 +149,9 @@ struct ContentView: View {
             }
             .padding(.top, 50)
         }
-        .preferredColorScheme(settings.colorScheme)
+        .preferredColorScheme(themeManager.currentTheme == .night ? .dark : (themeManager.currentTheme.colorScheme ?? settings.colorScheme))
+        .accentColor(themeManager.currentTheme.accentColor)
+        .applyNightModeFilter(themeManager.currentTheme)
         .onAppear {
             // P0 FIX: Wire DoseTapCore to SessionRepository (single source of truth)
             // All state reads/writes now go through SessionRepository
@@ -241,6 +248,7 @@ struct LegacyTonightView: View {
     @ObservedObject var core: DoseTapCore
     @ObservedObject var eventLogger: EventLogger
     @ObservedObject var undoState: UndoStateManager
+    @EnvironmentObject var themeManager: ThemeManager
     @ObservedObject private var sessionRepo = SessionRepository.shared
     @ObservedObject private var sleepPlanStore = SleepPlanStore.shared
     @State private var overrideEnabled: Bool = false
@@ -257,34 +265,35 @@ struct LegacyTonightView: View {
     @State private var preSleepEditingLog: StoredPreSleepLog? = nil
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Header - add extra top padding to account for safe area in page-style TabView
-            VStack(spacing: 2) {
-                Text("DoseTap")
-                    .font(.largeTitle.bold())
-                TonightDateLabel()
-                
-                // Show scheduled wake alarm when dose 1 taken
-                AlarmIndicatorView(dose1Time: core.dose1Time)
-                    .padding(.top, 4)
-            }
-            .padding(.top, 50) // Safe area offset for page-style TabView
-            
-            if let message = sessionRepo.awaitingRolloverMessage {
-                HStack(spacing: 8) {
-                    Image(systemName: "clock.arrow.circlepath")
-                        .foregroundColor(.orange)
-                    Text(message)
-                        .font(.footnote.weight(.semibold))
-                        .foregroundColor(.orange)
-                    Spacer()
+        ScrollView {
+            VStack(spacing: 0) {
+                // Header - add extra top padding to account for safe area in page-style TabView
+                VStack(spacing: 2) {
+                    Text("DoseTap")
+                        .font(.largeTitle.bold())
+                    TonightDateLabel()
+                    
+                    // Show scheduled wake alarm when dose 1 taken
+                    AlarmIndicatorView(dose1Time: core.dose1Time)
+                        .padding(.top, 4)
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-                .background(Color.orange.opacity(0.1))
-                .cornerRadius(10)
-                .padding(.horizontal)
-            }
+                .padding(.top, 50) // Safe area offset for page-style TabView
+                
+                if let message = sessionRepo.awaitingRolloverMessage {
+                    HStack(spacing: 8) {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .foregroundColor(.orange)
+                        Text(message)
+                            .font(.footnote.weight(.semibold))
+                            .foregroundColor(.orange)
+                        Spacer()
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                    .background(Color.orange.opacity(0.1))
+                    .cornerRadius(10)
+                    .padding(.horizontal)
+                }
             
             if let plan = sleepPlanSummary {
                 SleepPlanSummaryCard(
@@ -390,9 +399,11 @@ struct LegacyTonightView: View {
                 .padding(.horizontal)
             
             Spacer()
-                .frame(height: 80) // Space for tab bar
+                .frame(height: 100) // Space for tab bar (increased from 80)
+            }
+            .padding(.horizontal)
         }
-        .padding(.horizontal)
+        .scrollIndicators(.hidden)
         .sheet(isPresented: $showMorningCheckIn) {
             MorningCheckInView(
                 sessionId: UUID(),
@@ -1044,6 +1055,7 @@ struct HardStopCountdownView: View {
 // MARK: - Compact Status Card (combines status + timer)
 struct CompactStatusCard: View {
     @ObservedObject var core: DoseTapCore
+    @EnvironmentObject var themeManager: ThemeManager
     @State private var timeRemaining: TimeInterval = 0
     @State private var windowCloseRemaining: TimeInterval = 0
     @State private var lastAnnouncedMinute: Int = -1
@@ -1217,14 +1229,15 @@ struct CompactStatusCard: View {
     }
     
     private var statusColor: Color {
+        let theme = themeManager.currentTheme
         switch core.currentStatus {
-        case .noDose1: return .blue
-        case .beforeWindow: return .orange
-        case .active: return .green
-        case .nearClose: return .red
+        case .noDose1: return theme == .night ? theme.accentColor : .blue
+        case .beforeWindow: return theme == .night ? theme.warningColor : .orange
+        case .active: return theme == .night ? theme.successColor : .green
+        case .nearClose: return theme == .night ? theme.errorColor : .red
         case .closed: return .gray
-        case .completed: return .purple
-        case .finalizing: return .yellow
+        case .completed: return theme == .night ? Color(red: 0.6, green: 0.3, blue: 0.2) : .purple
+        case .finalizing: return theme == .night ? theme.warningColor : .yellow
         }
     }
 }
@@ -1235,6 +1248,7 @@ struct CompactDoseButton: View {
     @ObservedObject var eventLogger: EventLogger
     @ObservedObject var undoState: UndoStateManager
     @ObservedObject var sessionRepo: SessionRepository
+    @EnvironmentObject var themeManager: ThemeManager
     @Binding var showEarlyDoseAlert: Bool
     @Binding var earlyDoseMinutes: Int
     @Binding var showExtraDoseWarning: Bool  // For second dose 2 attempt
@@ -1417,14 +1431,15 @@ struct CompactDoseButton: View {
     }
     
     private var primaryButtonColor: Color {
+        let theme = themeManager.currentTheme
         switch core.currentStatus {
-        case .noDose1: return .blue
+        case .noDose1: return theme == .night ? theme.buttonBackground : .blue
         case .beforeWindow: return .gray
-        case .active: return .green
-        case .nearClose: return .orange
-        case .closed: return .red  // Red indicates override/warning state
-        case .completed: return .purple
-        case .finalizing: return .yellow
+        case .active: return theme == .night ? theme.successColor : .green
+        case .nearClose: return theme == .night ? theme.warningColor : .orange
+        case .closed: return theme == .night ? theme.errorColor : .red
+        case .completed: return theme == .night ? Color(red: 0.6, green: 0.3, blue: 0.2) : .purple
+        case .finalizing: return theme == .night ? theme.warningColor : .yellow
         }
     }
     
@@ -2203,7 +2218,7 @@ struct SelectedDayView: View {
                                 .foregroundColor(.secondary)
                         }
                         
-                        let interval = Int(d2.timeIntervalSince(dose.dose1Time) / 60)
+                        let interval = TimeIntervalMath.minutesBetween(start: dose.dose1Time, end: d2)
                         HStack {
                             Image(systemName: "timer")
                                 .foregroundColor(.purple)
@@ -2346,7 +2361,7 @@ struct SessionRow: View {
             }
             Spacer()
             if let d1 = session.dose1Time, let d2 = session.dose2Time {
-                let interval = Int(d2.timeIntervalSince(d1) / 60)
+                let interval = TimeIntervalMath.minutesBetween(start: d1, end: d2)
                 Text("\(interval)m")
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -2397,11 +2412,11 @@ struct FullSessionDetails: View {
                     )
                     
                     if let dose2 = core.dose2Time {
-                        let interval = dose2.timeIntervalSince(dose1) / 60
+                        let interval = TimeIntervalMath.minutesBetween(start: dose1, end: dose2)
                         DetailRow(
                             icon: "timer",
                             title: "Interval",
-                            value: String(format: "%.0f minutes", interval),
+                            value: "\(interval) minutes",
                             color: .purple
                         )
                     }

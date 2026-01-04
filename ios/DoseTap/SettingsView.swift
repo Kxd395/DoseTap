@@ -10,7 +10,7 @@ struct SettingsView: View {
     @State private var showingExportSuccess = false
     @State private var showingExportSheet = false
     @State private var exportURL: URL?
-    @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var urlRouter = URLRouter.shared
     @ObservedObject private var sleepPlanStore = SleepPlanStore.shared
     
     var body: some View {
@@ -18,6 +18,18 @@ struct SettingsView: View {
             List {
                 // MARK: - Appearance Section
                 Section {
+                    // Theme selection (Light, Dark, Night Mode)
+                    NavigationLink {
+                        ThemeSettingsView()
+                    } label: {
+                        HStack {
+                            Label("Theme", systemImage: "paintpalette.fill")
+                            Spacer()
+                            Text(ThemeManager.shared.currentTheme.rawValue)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    
                     appearancePicker
                     
                     Toggle(isOn: $settings.highContrastMode) {
@@ -29,6 +41,9 @@ struct SettingsView: View {
                     }
                 } header: {
                     Label("Appearance", systemImage: "paintbrush.fill")
+                } footer: {
+                    Text("Night Mode uses red/amber tones to reduce blue light exposure and protect your sleep cycle.")
+                        .font(.caption)
                 }
                 
                 // MARK: - Typical Week + Sleep Plan
@@ -341,7 +356,10 @@ struct SettingsView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
-                        dismiss()
+                        // Navigate back to Tonight tab
+                        withAnimation {
+                            urlRouter.selectedTab = 0
+                        }
                     }
                 }
             }
@@ -522,9 +540,32 @@ struct SettingsView: View {
     }
     
     private func clearAllData() {
-        // In real app, this would clear all data
-        print("Clearing all data...")
-        UserDefaults.standard.removePersistentDomain(forName: Bundle.main.bundleIdentifier!)
+        // Clear all data sources - SSOT pattern
+        #if DEBUG
+        print("🗑️ Clearing all data...")
+        #endif
+        
+        // 1. Clear EventStorage (database)
+        SessionRepository.shared.clearAllData()
+        
+        // 2. Clear UserDefaults
+        if let bundleId = Bundle.main.bundleIdentifier {
+            UserDefaults.standard.removePersistentDomain(forName: bundleId)
+            UserDefaults.standard.synchronize()
+        }
+        
+        // 3. Reset UserSettingsManager to defaults
+        settings.resetToDefaults()
+        
+        // 4. Clear SleepPlanStore
+        sleepPlanStore.resetToDefaults()
+        
+        // 5. Reload SessionRepository to reflect cleared state
+        SessionRepository.shared.reload()
+        
+        #if DEBUG
+        print("✅ All data cleared successfully")
+        #endif
     }
 }
 

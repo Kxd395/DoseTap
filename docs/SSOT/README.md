@@ -10,10 +10,124 @@
 
 **Database schema:** [`../DATABASE_SCHEMA.md`](../DATABASE_SCHEMA.md) - Complete SQLite schema reference
 
+**Follow-along execution checklist:** [`TODO.md`](TODO.md)
+
 **This document supersedes:** `DoseTap_Spec.md`, `ui-ux-specifications.md`, `button-logic-mapping.md`, `api-documentation.md`, `user-guide.md`, `implementation-roadmap.md`
 
-**Last Updated:** 2025-12-26  
-**Version:** 2.12.0
+**Last Updated:** 2026-01-03  
+**Version:** 2.13.0
+
+---
+
+## Contract Index (machine-checkable map)
+
+This table is the executable map of the SSOT. If a feature is user-visible, it should have an entry here.
+
+| Feature | Spec section | `constants.json` keys | Schema tables | Code entrypoint(s) | Test file(s) |
+|---|---|---|---|---|---|
+| Dose 2 window + CTAs | “Dose window model” + “CTA Mapping Table” | `doseWindow.*` | `dose_events`, `current_session` | `DoseWindowCalculator`, `SessionRepository` | `Tests/DoseCoreTests/DoseWindowStateTests.swift`, `Tests/DoseCoreTests/DoseWindowEdgeTests.swift` |
+| Late Dose 2 override | “Dose 2 Window Override” | `doseWindow.maxMinutes` | `dose_events` | `DoseWindowCalculator` (expired phase) + UI CTA wiring | `Tests/DoseCoreTests/DoseWindowEdgeTests.swift` |
+| Midnight rollover interval | “Time Model” + “Midnight rollover interval rule” | n/a | `dose_events` | `SessionSummary.intervalMinutes`, `StoredDoseLog.intervalMinutes` | `Tests/DoseCoreTests/Dose2EdgeCaseTests.swift` |
+| Undo snackbar | “Undo Support & Medication Settings” | `undo.windowSeconds` | `dose_events` | `UndoSnackbarView`, `UndoStateManager`, `SessionRepository` | (UI wiring: DoseTapTests) |
+| Storage boundaries | “Storage / SSOT Boundary Rules” | n/a | all | `SessionRepository` ⇄ `EventStorage` | CI workflow guards |
+
+---
+
+## Time Model (normative)
+
+The time model is part of the SSOT contract.
+
+- **Absolute timestamps are authoritative**: all stored event times are absolute instants (`Date` / ISO8601 timestamp). Any interval math MUST use these absolute timestamps.
+- **`session_date` is a grouping key only**: it is used for “which night” grouping, not for reconstructing absolute times.
+- **Never reconstruct absolute timestamps from UI strings**: UI must not rebuild an absolute time from `session_date` + “time-of-day”. Only format already-stored absolute timestamps for display.
+- **Midnight rollover interval rule**: if an interval is computed from two timestamps and the end appears earlier than the start (e.g., Dose 2 after midnight), treat end as occurring on the next day (+24h) for interval purposes.
+
+---
+
+## Storage / SSOT Boundary Rules (normative)
+
+These boundaries are enforced by CI and are part of the SSOT contract:
+
+1. Views and view models MAY call `SessionRepository` only.
+2. `SessionRepository` is the only module allowed to talk to `EventStorage`.
+3. `EventStorage` is the only module allowed to talk to SQLite.
+4. `SQLiteStorage.swift` is legacy and banned; any reference is a build failure.
+5. Any direct use of `EventStorage.shared` from UI is a build failure.
+
+The exact guard patterns live in `.github/workflows/ci-swift.yml`.
+
+## Recent Updates (v2.13.0) - Night Mode Theme System
+
+### Theme System & Night Mode (Circadian-Friendly UI)
+
+**Problem Solved**: Blue light exposure during nighttime medication dosing can suppress melatonin production and disrupt circadian rhythm, particularly problematic for users taking doses in the middle of the night.
+
+**Architecture Now**:
+```
+ThemeManager (singleton) → AppTheme enum (Light, Dark, Night)
+                        ↓
+                   ContentView applies global theme
+                        ↓
+                   All views inherit theme colors
+```
+
+**Key Components**:
+- ✅ **AppTheme Enum** (`ios/DoseTap/Theme/AppTheme.swift`): Three modes - Light, Dark, Night Mode
+- ✅ **ThemeManager** (`@MainActor`, `ObservableObject`): Singleton managing current theme state
+- ✅ **Night Mode Colors**: Red/amber palette eliminating all blue wavelengths (<600nm)
+- ✅ **Global Red Filter**: `.colorMultiply()` applied at root when Night Mode active
+- ✅ **Persistent Selection**: Theme choice saved to UserDefaults, survives app restart
+- ✅ **Settings Integration**: Theme picker in Settings → Appearance section
+
+**Night Mode Color Palette** (eliminating blue light for sleep protection):
+- Background: Very deep red-black (`rgb(0.08, 0.0, 0.0)`)
+- Cards: Red-tinted (`rgb(0.15, 0.03, 0.0)`)
+- Primary text: Warm amber (`rgb(1.0, 0.6, 0.4)`)
+- Accent: Deep red (`rgb(0.8, 0.2, 0.1)`)
+- Buttons: Dark red (`rgb(0.6, 0.15, 0.0)`)
+- Success: Amber (`rgb(0.9, 0.6, 0.0)`)
+- Warning: Deep orange (`rgb(1.0, 0.4, 0.0)`)
+- Error: Pure red (`rgb(0.8, 0.2, 0.0)`)
+
+**Theme Application**:
+```swift
+// At ContentView root
+.preferredColorScheme(themeManager.currentTheme == .night ? .dark : colorScheme)
+.accentColor(themeManager.currentTheme.accentColor)
+.applyNightModeFilter(themeManager.currentTheme)  // Red colorMultiply filter
+
+// In child views
+@EnvironmentObject var themeManager: ThemeManager
+let buttonColor = themeManager.currentTheme.buttonBackground
+```
+
+**Medical Rationale**:
+- Blue light (400-500nm) suppresses melatonin by 50%+ even at low intensities
+- Red/amber light (>600nm) has minimal circadian impact
+- Critical for users taking Dose 2 at 2-4 AM (peak melatonin window)
+- Enables safe medication checks without disrupting remaining sleep
+
+**User Flow**:
+1. User taps Settings → Theme → Night Mode
+2. ThemeManager persists choice to UserDefaults (`"selectedTheme": "Night Mode"`)
+3. Global red filter applied: all white → red-black, all blue/teal → red/amber
+4. User can check doses, log events, view timeline without blue light exposure
+5. Theme persists across app restarts and device reboots
+
+**Contract**:
+- MUST eliminate ALL blue wavelengths in Night Mode (no exceptions)
+- MUST apply to ALL screens (Tonight, Timeline, History, Settings)
+- MUST persist user's theme selection
+- MUST be toggle-able at any time via Settings
+- Light/Dark modes MUST retain original blue/teal accent colors
+
+**Implementation Files**:
+- `ios/DoseTap/Theme/AppTheme.swift` - Theme enum, colors, manager
+- `ios/DoseTap/Views/ThemeSettingsView.swift` - Theme selection UI
+- `ios/DoseTap/ContentView.swift` - Global theme application
+- `ios/DoseTap/SettingsView.swift` - Settings integration
+
+**Test Validation**: Visual inspection required - Night Mode must show zero blue UI elements across all 4 tabs.
 
 ---
 
@@ -42,6 +156,8 @@ SQLiteStorage → BANNED (#if false wrapper)
 - `EventStorage.shared` - Views MUST NOT reference directly
 - `SQLiteStorage` - Production code MUST NOT reference at all
 - All storage access: `SessionRepository.shared.*`
+
+**Terminology note**: `SQLiteStorage.swift` is legacy and banned. When this SSOT refers to “SQLite”, it means the SQLite database as implemented by `EventStorage` and accessed only via `SessionRepository`.
 
 **Migration Complete** (21 → 0 production violations):
 | File | Violations Fixed |
@@ -142,7 +258,7 @@ clearAllData()
 
 #### watchOS Press-and-Hold Interaction (`ContentView.swift`)
 
-- ✅ **ADDED**: `PressAndHoldButton` component with 1-second hold duration
+- ✅ **ADDED**: `PressAndHoldButton` component with hold duration defined in `constants.json` (single source)
 - ✅ **ADDED**: Progress ring animation during hold
 - ✅ **ADDED**: Visual feedback: background fill + progress indicator
 - ✅ **ADDED**: Haptic feedback via `WKInterfaceDevice.play(.success)`
@@ -404,6 +520,15 @@ Sessions are assigned based on 6 PM boundary:
 UI can use `lateDose1Info()` to:
 - Warn user: "You're logging Dose 1 for last night's session (Dec 25)"
 - Show which session date the dose will be recorded under
+
+#### Midnight Rollover Interval Rule
+
+Because `session_date` is a *grouping key* (not necessarily the same as the calendar date of every event), Dose 2 can legitimately occur after midnight while still belonging to the prior session.
+
+**Requirement:** Dose interval calculations must be based on the stored absolute timestamps.
+
+Defensive behavior (to prevent negative intervals in history/review UI):
+- If Dose 2 timestamp is earlier than Dose 1 timestamp, treat Dose 2 as occurring the next day for interval math (i.e., add +24h before subtracting).
 
 **Test Coverage**: 239 tests passing (+4 new late dose 1 detection tests)
 
@@ -722,7 +847,7 @@ The previous architecture had `DoseTapCore` (in-memory) and `EventStorage` (SQLi
 - ✅ **COMPLETED**: UnifiedSleepSession data model (DoseTap + HealthKit + WHOOP)
 - ✅ **COMPLETED**: SQLite storage for sleep_events table
 - ✅ **COMPLETED**: DoseCore unit tests passing (run `swift test -q` for current count)
-- ✅ **COMPLETED**: WHOOP OAuth integration tested (Kevin Dial, ID: 10995997)
+- ✅ **COMPLETED**: WHOOP OAuth integration tested (using non-production test account; no personal identifiers in SSOT)
 - 🔄 Phase 2: Health Dashboard with data aggregation (next priority)
 - 🔄 WHOOP data visualization and correlation insights
 
@@ -820,6 +945,8 @@ The previous architecture had `DoseTapCore` (in-memory) and `EventStorage` (SQLi
 | Window Expired | 240 min | Override required (red button, confirmation dialog) |
 
 **Window Expired Override**: When 240 minutes have passed, user CAN still take Dose 2 but must explicitly confirm via a warning dialog. Button shows "Take Dose 2 (Late)" in red. This ensures the user makes a conscious decision while not completely blocking the dose.
+
+**Normative rule**: At window expiry ($\ge 240$ minutes), the standard “Take Dose 2” action is blocked. The only allowed path to record a Dose 2 is the explicit late-override CTA + confirmation.
 
 ## Wake Alarm System (NEW in v2.2.0)
 
@@ -1188,12 +1315,13 @@ CREATE TABLE morning_checkins (
   - `WindowExpired` - 240m passed without Dose 2
   - `Dose2Taken` - Session complete, Dose 2 taken
   - `Dose2Skipped` - Session complete, Dose 2 skipped
-- **Near-Window Rules**: 
+- **Near-Window Rules**:
   - Disable snooze <15m remaining
   - Show countdown timer
   - Block all actions at window expiry
-- **Layout**: No vertical scroll, single-screen compact view
-- **Components**: 
+- **Layout**: Compact, single-screen *by design*, but must not be visually cut off by the custom bottom tab bar.
+  - If content doesn't fit (smaller devices / dynamic type), the view MUST scroll and include a bottom inset/padding so primary CTAs (e.g. `wake_up_button`) remain reachable.
+- **Components**:
   - `compact_status_card` (integrated status + timer display)
   - `compact_dose1_button`
   - `compact_dose2_button`
@@ -1201,7 +1329,9 @@ CREATE TABLE morning_checkins (
   - `wake_up_button` (prominent "Wake Up & End Session" button)
   - `compact_session_summary`
 
+
 #### Wake Up & End Session Flow (NEW in v2.5)
+
 - **Trigger**: User taps "Wake Up & End Session" button on Tonight screen
 - **Action Sequence**:
   1. Log `wakeFinal` event to SQLite
@@ -1211,7 +1341,9 @@ CREATE TABLE morning_checkins (
 - **Cooldown**: 3600s (1 hour) - prevents accidental retap
 - **UI**: Prominent yellow button with sun icon, different from other event buttons
 
+
 #### Details Screen (Full Event Grid)
+
 - **Purpose**: Full session details and all 13 event buttons
 - **States**: `loading`, `ready`, `empty`
 - **Scroll**: Vertical scroll enabled
@@ -1220,7 +1352,9 @@ CREATE TABLE morning_checkins (
   - `full_event_grid` (13 sleep event buttons including Wake Up)
   - Note: Wake Up here just logs event, doesn't trigger Morning Check-In
 
+
 #### History Screen (NEW in v2.1.0)
+
 - **Purpose**: View past days' doses and events with date navigation
 - **States**: `loading`, `ready`, `empty`, `error`
 - **Components**:
@@ -1233,15 +1367,56 @@ CREATE TABLE morning_checkins (
   - Delete individual day's data with confirmation
 
 #### Timeline Screen (Legacy)
+
+---
+
+## Settings & Navigation Behavior (UX Guarantees)
+
+### Settings is a Tab (Not a Sheet)
+
+- The Settings screen is displayed as Tab 4 in the 4-tab swipe navigation.
+- Because Settings is not presented modally, there is **no "Done" button** for dismissal.
+- Exiting Settings is done by navigating to another tab (swipe or tap in the bottom tab bar).
+
+### Content must not be obscured by the bottom tab bar
+
+- Any screen that places interactive controls near the bottom edge MUST include adequate bottom padding/inset to avoid overlap with the custom tab bar.
+- If the screen is "compact" but could exceed viewport height, scrolling is allowed and preferred over truncation.
+
+---
+
+## HealthKit Integration Contract (Authorization vs Enable)
+
+DoseTap tracks **two distinct states** for Apple Health integration:
+
+1. **OS Authorization (HealthKit)**
+
+- Source of truth: `HKHealthStore.authorizationStatus(for: .sleepAnalysis)`
+- Derived flag: `HealthKitService.isAuthorized`
+- Requirement: `HealthKitService` MUST restore/check authorization status on initialization (app launch) so UI reflects the true OS permission state.
+
+1. **User Preference (App-level Toggle)**
+
+- Source of truth: `UserSettingsManager.healthKitEnabled` (`@AppStorage("healthkit_enabled")`)
+- Meaning: user has opted-in to using sleep data within DoseTap
+- Default: `false` until user explicitly enables
+
+### Effective Enable Rule
+
+- HealthKit-derived sleep features are enabled only when:
+  - `HealthKitService.isAuthorized == true` AND
+  - `UserSettingsManager.healthKitEnabled == true`
+
 - **Purpose**: Historical dose events and sleep patterns
 - **States**: `loading`, `ready`, `empty`, `error`
-- **Components**: 
+- **Components**:
   - `timeline_list` (expandable session cards)
   - `timeline_filter`
   - `timeline_export_button`
   - `session_event_details` (NEW)
 
 #### Dashboard Screen (NEW)
+
 - **Purpose**: Health metrics and insights
 - **Components**:
   - `tonights_sleep_card`
@@ -1250,30 +1425,34 @@ CREATE TABLE morning_checkins (
   - `dose_insights_card`
 
 #### Insights Screen
+
 - **Analytics**: On-time %, Dose1→Dose2 intervals, natural-wake %, WASO
 - **States**: `loading`, `ready`, `insufficient_data`
-- **Components**: 
+- **Components**:
   - `insights_chart`
   - `insights_summary`
   - `insights_export`
 
 #### Devices Screen
+
 - **Features**: Flic button pairing, device registration
 - **States**: `scanning`, `paired`, `disconnected`
-- **Components**: 
+- **Components**:
   - `devices_list`
   - `devices_add_button`
   - `devices_test_button`
 
 #### Settings Screen
+
 - **Configuration**: Target interval, notifications, accessibility, data management
-- **Components**: 
+- **Components**:
   - `settings_target_picker`
   - `settings_notifications`
   - `settings_accessibility`
   - `data_management_section` (NEW)
 
 #### Data Management Screen (NEW in v2.1.0)
+
 - **Purpose**: Delete history and manage stored data
 - **Access**: Settings → Manage History
 - **Components**:
@@ -1289,9 +1468,10 @@ CREATE TABLE morning_checkins (
 - **Confirmation**: All destructive actions require confirmation dialog
 
 #### watchOS Companion
+
 - **Features**: Dose taking, timer display, haptic feedback
 - **States**: `syncing`, `ready`, `offline`
-- **Components**: 
+- **Components**:
   - `watch_dose_button`
   - `watch_timer`
   - `watch_complications`
@@ -1299,6 +1479,7 @@ CREATE TABLE morning_checkins (
 ## New Features (v1.1.0)
 
 ### First-Run Setup Wizard
+
 - **Purpose**: Guided 5-step onboarding to establish user preferences and core invariant
 - **Steps**: Sleep schedule → Medication profile → Dose window rules → Notifications → Privacy
 - **Completion**: Required before accessing main application
@@ -1528,11 +1709,13 @@ interface SleepEvent {
 ## Persistence & Data Management
 
 ### Source of Truth
-- **Primary Store**: SQLite (local device storage via `SQLiteStorage.swift`)
+- **Primary Store**: SQLite via `EventStorage` (implementation), accessed only through `SessionRepository` (public boundary)
 - **Export Formats**: JSON and CSV files for interoperability
 - **Sync**: iCloud/CloudKit sync is optional and disabled by default per privacy posture
 
 ### SQLite Tables
+
+**Schema authority**: Table/column definitions are normative in `docs/DATABASE_SCHEMA.md`. This section is a high-level summary only.
 
 #### dose_events
 - **id**: TEXT PRIMARY KEY - Unique event identifier
@@ -1653,7 +1836,7 @@ function suggestNextWeekTarget(history: DoseEvent[]): number {
 - **Touch Targets**: 
   - Minimum 48x48pt
   - 8pt spacing between targets
-  - Press-and-hold requires 0.5s
+  - Press-and-hold duration MUST come from `constants.json` (single source)
 
 ### Audio & Haptics
 - **VoiceOver Announcements**:
@@ -1694,7 +1877,7 @@ function suggestNextWeekTarget(history: DoseEvent[]): number {
 
 ### ✅ Tonight Screen
 - [ ] All button states work offline with queue indicator
-- [ ] ⚠️ 5-second undo snackbar (PENDING - backend ready, UI wiring needed)
+- [x] 5-second undo snackbar
 - [ ] Window countdown displays mm:ss format
 - [ ] Near-window rules enforced (<15m snooze disabled)
 - [ ] Error states have clear recovery actions
