@@ -6,29 +6,38 @@ This guide walks you through thoroughly testing DoseTap's core functionality and
 ## Pre-Testing Setup
 
 ### 1. Build Verification
+
 ```bash
 # From repo root
 swift build -q
 swift test -q
 ```
+
 ✅ **Expected:** Build succeeds, all 277 tests pass
 
 ### 2. Xcode Build (Optional - for running on device/simulator)
+
 ```bash
 cd ios/DoseTap
 open DoseTap.xcodeproj
 ```
+
 - Select the iOS scheme and device/simulator
 - Build the project (⌘B)
 - If legacy file conflicts occur, they're already quarantined with `#if false`
 
 ### 3. Enable Diagnostic Logging
-The app has **3 tiers of diagnostic logging** (see `docs/DIAGNOSTIC_LOGGING.md`):
-- **Tier 1:** User actions (button taps, dose events) - always on
-- **Tier 2:** Session context events (window transitions, snooze state changes) - enabled by default
-- **Tier 3:** Forensic deep inspection (state deltas, full context snapshots) - opt-in
+
+The app has **session-scoped diagnostic logging** that records state transitions and invariants (see `docs/DIAGNOSTIC_LOGGING.md`):
+
+- **Tier 1:** Safety-critical diagnostic events (lifecycle, timezone, notifications, undo) - always on
+- **Tier 2:** Session context events (sleep events, pre-sleep, check-in) - enabled by default
+- **Tier 3:** Forensic deep inspection (optional snapshots, state deltas) - explicitly opt-in
+
+> ⚠️ **Important**: Diagnostic logs record **state facts**, not UI actions. You will not see logs like "button tapped"—instead you'll see the **effects** like `dose.1.taken` or `dose.snooze.activated`.
 
 **To enable full logging:**
+
 - Go to Settings > Diagnostic Logging
 - Toggle "Enable Diagnostic Logging" ON
 - Toggle "Enable Tier 2 Logging" ON (if available)
@@ -39,9 +48,11 @@ The app has **3 tiers of diagnostic logging** (see `docs/DIAGNOSTIC_LOGGING.md`)
 ## Core Testing Scenarios
 
 ### Scenario 1: Fresh Session (No Doses)
+
 **Goal:** Verify the app starts in the correct state and shows proper prompts.
 
 **Steps:**
+
 1. Launch app (fresh install or reset data)
 2. Verify UI shows:
    - Phase: `noDose1` or "No Dose 1"
@@ -49,19 +60,22 @@ The app has **3 tiers of diagnostic logging** (see `docs/DIAGNOSTIC_LOGGING.md`)
    - No window timer visible
 3. Check logs for session initialization
 
-**Expected Logs:**
-```
-[Tier 1] User Action: Take Dose 1 tapped
-[Tier 2] Session Context: Dose 1 taken at [timestamp]
-[Tier 2] Window Transition: noDose1 → beforeWindow
+**Expected Events:**
+
+```jsonl
+{"event":"session.started","session_id":"2026-01-04","phase":"noDose1"}
+{"event":"dose.1.taken","session_id":"2026-01-04","dose1_time":"2026-01-04T22:00:00-05:00"}
+{"event":"session.phase.entered","session_id":"2026-01-04","phase":"beforeWindow","previous_phase":"noDose1"}
 ```
 
 ---
 
 ### Scenario 2: Take Dose 1 → Before Window
+
 **Goal:** Verify window calculations start correctly.
 
 **Steps:**
+
 1. Tap "Take Dose 1"
 2. Note the timestamp (e.g., 10:00 PM)
 3. Verify UI shows:
@@ -71,23 +85,29 @@ The app has **3 tiers of diagnostic logging** (see `docs/DIAGNOSTIC_LOGGING.md`)
    - Skip: disabled ("Window hasn't opened yet")
    - Snooze: disabled
 
-**Expected Logs:**
-```
-[Tier 1] Dose 1 Taken: [timestamp]
-[Tier 2] Window Transition: noDose1 → beforeWindow
-[Tier 2] Window State: opens in 150 minutes
-[Tier 3] DoseWindowContext: {phase: beforeWindow, remaining: 9000s, ...}
+**Expected Events:**
+
+```jsonl
+{"event":"dose.1.taken","session_id":"2026-01-04","dose1_time":"2026-01-04T22:00:00-05:00"}
+{"event":"session.phase.entered","phase":"beforeWindow","elapsed_minutes":0}
 ```
 
 **Edge Case:** Fast-forward time (or use Xcode's time debug):
+
 - At exactly +150 min, verify phase changes to `active`
+
+```jsonl
+{"event":"dose.window.opened","phase":"active","previous_phase":"beforeWindow","elapsed_minutes":150}
+```
 
 ---
 
 ### Scenario 3: Active Window → Take Dose 2
+
 **Goal:** Verify dose 2 can be taken within the window.
 
 **Steps:**
+
 1. Wait until window opens (150 min after Dose 1)
 2. Verify UI shows:
    - Phase: `active`
@@ -98,21 +118,22 @@ The app has **3 tiers of diagnostic logging** (see `docs/DIAGNOSTIC_LOGGING.md`)
 3. Tap "Take Dose 2"
 4. Verify phase changes to `completed`
 
-**Expected Logs:**
-```
-[Tier 2] Window Transition: beforeWindow → active
-[Tier 1] User Action: Take Dose 2 tapped
-[Tier 1] Dose 2 Taken: [timestamp]
-[Tier 2] Window Transition: active → completed
-[Tier 2] Undo Window Started: 5 seconds
+**Expected Events:**
+
+```jsonl
+{"event":"dose.window.opened","phase":"active","elapsed_minutes":150,"remaining_minutes":90}
+{"event":"dose.2.taken","dose2_time":"2026-01-05T00:45:00-05:00"}
+{"event":"session.completed","terminal_state":"completed"}
 ```
 
 ---
 
 ### Scenario 4: Snooze (+10 min)
+
 **Goal:** Verify snooze increments target time correctly.
 
 **Steps:**
+
 1. Take Dose 1 at 10:00 PM
 2. Wait until window opens (12:30 AM)
 3. Verify target time shows 12:45 AM (default 165 min)
@@ -121,49 +142,53 @@ The app has **3 tiers of diagnostic logging** (see `docs/DIAGNOSTIC_LOGGING.md`)
 6. Snooze again → 1:05 AM
 7. Verify snooze counter increments (shown in UI if configured)
 
-**Expected Logs:**
-```
-[Tier 1] User Action: Snooze tapped
-[Tier 2] Snooze Applied: count=1, newTarget=[timestamp]
-[Tier 1] User Action: Snooze tapped
-[Tier 2] Snooze Applied: count=2, newTarget=[timestamp]
+**Expected Events:**
+
+```jsonl
+{"event":"dose.snooze.activated","snooze_count":1,"new_target_minutes":175}
+{"event":"dose.snooze.activated","snooze_count":2,"new_target_minutes":185}
 ```
 
 **Edge Cases:**
+
 - Snooze disabled when `remaining < 15 min`
 - Snooze disabled after `maxSnoozes` reached (default: 3)
 
-**Expected Logs for Edge Case:**
-```
-[Tier 2] Snooze Disabled: reason="Less than 15 minutes remaining"
-[Tier 1] User Action: Snooze blocked (not enabled)
+**Expected Events for Edge Case:**
+
+```jsonl
+{"event":"dose.window.blocked","reason":"snooze_limit_reached","snooze_count":3}
 ```
 
 ---
 
 ### Scenario 5: Skip Dose 2
+
 **Goal:** Verify skip works and logs correctly.
 
 **Steps:**
+
 1. Take Dose 1
 2. Wait for window to open
 3. Tap "Skip Dose 2"
 4. Verify phase changes to `completed` (or `finalizing`)
 5. Verify dose 2 is NOT recorded (check history/session data)
 
-**Expected Logs:**
-```
-[Tier 1] User Action: Skip Dose 2 tapped
-[Tier 1] Dose 2 Skipped: reason="user_skipped"
-[Tier 2] Window Transition: active → completed
+**Expected Events:**
+
+```jsonl
+{"event":"dose.2.skipped","session_id":"2026-01-04","reason":"user_skipped"}
+{"event":"session.skipped","terminal_state":"skipped"}
 ```
 
 ---
 
 ### Scenario 6: Undo (5-second window)
+
 **Goal:** Verify undo works within 5 seconds.
 
 **Steps:**
+
 1. Take Dose 1 at 10:00 PM
 2. Immediately tap "Undo" (within 5 seconds)
 3. Verify:
@@ -172,26 +197,28 @@ The app has **3 tiers of diagnostic logging** (see `docs/DIAGNOSTIC_LOGGING.md`)
    - Snackbar disappears
 4. Verify no undo button after 5 seconds
 
-**Expected Logs:**
-```
-[Tier 1] Dose 1 Taken: [timestamp]
-[Tier 2] Undo Window Started: 5 seconds, action=takeDose1
-[Tier 1] User Action: Undo tapped
-[Tier 1] Undo Success: action=takeDose1
-[Tier 2] Window Transition: beforeWindow → noDose1
+**Expected Events:**
+
+```jsonl
+{"event":"dose.1.taken","dose1_time":"2026-01-04T22:00:00-05:00"}
+{"event":"dose.undone","action":"takeDose1","elapsed_seconds":2.1}
+{"event":"session.phase.entered","phase":"noDose1","previous_phase":"beforeWindow"}
 ```
 
 **Edge Case:** Wait >5 seconds, then try to undo
-```
-[Tier 2] Undo Expired: action=takeDose1, elapsed=6.2s
+
+```jsonl
+{"event":"undo.expired","action":"takeDose1","elapsed_seconds":6.2}
 ```
 
 ---
 
 ### Scenario 7: Window Exceeded (Closed)
+
 **Goal:** Verify behavior when dose 2 is taken after the 240-minute window.
 
 **Steps:**
+
 1. Take Dose 1 at 10:00 PM
 2. Fast-forward past 2:00 AM (+240 min)
 3. Verify UI shows:
@@ -201,20 +228,23 @@ The app has **3 tiers of diagnostic logging** (see `docs/DIAGNOSTIC_LOGGING.md`)
 4. Take Dose 2 anyway
 5. Verify it logs with a warning flag
 
-**Expected Logs:**
-```
-[Tier 2] Window Transition: active → closed
-[Tier 1] User Action: Take Dose 2 tapped (outside window)
-[Tier 1] Dose 2 Taken: [timestamp], windowExceeded=true
-[Tier 2] Window Exceeded: elapsed=245 minutes
+**Expected Events:**
+
+```jsonl
+{"event":"dose.window.expired","phase":"closed","elapsed_minutes":240}
+{"event":"dose.window.override.required","reason":"window_exceeded"}
+{"event":"dose.2.taken","dose2_time":"2026-01-05T02:05:00-05:00","window_exceeded":true}
+{"event":"session.completed","terminal_state":"completed","late_dose":true}
 ```
 
 ---
 
 ### Scenario 8: Near-Window Threshold (15 min warning)
+
 **Goal:** Verify UI shows urgency when <15 min remain.
 
 **Steps:**
+
 1. Take Dose 1 at 10:00 PM
 2. Fast-forward to 1:45 AM (10 min before close)
 3. Verify UI shows:
@@ -222,18 +252,21 @@ The app has **3 tiers of diagnostic logging** (see `docs/DIAGNOSTIC_LOGGING.md`)
    - Snooze: disabled
    - "Less than 15 minutes remaining" message
 
-**Expected Logs:**
-```
-[Tier 2] Window Transition: active → nearClose
-[Tier 2] Snooze Disabled: reason="nearWindowThresholdMin=15"
+**Expected Events:**
+
+```jsonl
+{"event":"dose.window.nearClose","phase":"nearClose","remaining_minutes":10}
+{"event":"dose.window.blocked","reason":"near_close_threshold","remaining_minutes":10}
 ```
 
 ---
 
 ### Scenario 9: Sleep Events (Bathroom, Lights Out, Wake)
+
 **Goal:** Verify event logging works.
 
 **Steps:**
+
 1. From dashboard, tap "Quick Log" (if available)
 2. Log events:
    - "Bathroom" event
@@ -242,64 +275,70 @@ The app has **3 tiers of diagnostic logging** (see `docs/DIAGNOSTIC_LOGGING.md`)
 3. Verify events appear in timeline/history
 4. Check rate limiting: tap "Bathroom" twice within 60 seconds
 
-**Expected Logs:**
+**Expected Events:**
+
+```jsonl
+{"event":"sleep.event.logged","event_type":"bathroom","timestamp":"2026-01-05T01:30:00-05:00"}
+{"event":"sleep.event.logged","event_type":"lights_out","timestamp":"2026-01-04T22:15:00-05:00"}
+{"event":"sleep.event.logged","event_type":"wake_final","timestamp":"2026-01-05T07:00:00-05:00"}
 ```
-[Tier 1] Sleep Event Logged: type=bathroom, timestamp=[timestamp]
-[Tier 1] Sleep Event Logged: type=lights_out, timestamp=[timestamp]
-[Tier 1] Sleep Event Logged: type=wake_final, timestamp=[timestamp]
-[Tier 2] Rate Limit Blocked: event=bathroom, cooldown=60s
-```
+
+> ⚠️ **Note**: Rate limiting is handled at the service layer and may not generate diagnostic events. The **absence** of a second bathroom event in the timeline is the test—logs record effects, not blocked actions unless they violate an invariant.
 
 ---
 
 ### Scenario 10: Offline Queue (Network Resilience)
+
 **Goal:** Verify offline actions are queued and retried.
 
+> ⚠️ **Important**: Offline queue behavior is validated via **app behavior and unit tests**, not diagnostic logs. Diagnostic logging records session state facts, not infrastructure behavior. Queue mechanics are tested in `OfflineQueueTests.swift`.
+
 **Steps:**
+
 1. Turn on Airplane Mode
 2. Take Dose 1
-3. Verify action is queued (check logs)
+3. Verify action completes in UI (queued locally)
 4. Turn off Airplane Mode
-5. Verify queue flushes automatically
+5. Verify dose syncs automatically (check history/server)
 
-**Expected Logs:**
-```
-[Tier 1] Dose 1 Taken: [timestamp]
-[Tier 2] Network Error: action queued (offline)
-[Tier 2] Offline Queue: enqueued takeDose1
-[Tier 2] Network Restored: flushing queue
-[Tier 2] Offline Queue: flushed 1 actions
-```
+**What to verify:**
+
+- UI responds immediately (optimistic update)
+- Dose appears in local session storage
+- After network restore, server reflects the dose
+- No user-visible errors
+
+**Diagnostic events (if any):**
+
+Offline queue operations are **not** part of the diagnostic event contract unless a sync failure violates a session invariant (e.g., server rejects a dose as duplicate).
 
 ---
 
 ## Reviewing Diagnostic Logs
 
 ### Method 1: In-App Export
+
 1. Go to Settings > Diagnostic Logging
 2. Tap "Export Logs"
 3. Choose destination (Files, AirDrop, email)
-4. Open exported JSON file
+4. Open exported folder
 
-**Log Structure:**
-```json
-{
-  "version": "2.15.0",
-  "tier": 2,
-  "sessionId": "2026-01-04",
-  "logs": [
-    {
-      "timestamp": "2026-01-04T22:00:00Z",
-      "level": "info",
-      "category": "userAction",
-      "message": "Dose 1 Taken",
-      "metadata": {
-        "timestamp": "2026-01-04T22:00:00Z",
-        "source": "dashboard"
-      }
-    }
-  ]
-}
+**Folder Structure:**
+
+```
+2026-01-04/
+├── meta.json      ← Device, app version, timezone at session start
+├── events.jsonl   ← Full event stream (authoritative)
+└── errors.jsonl   ← Errors only (incomplete, use events.jsonl for investigation)
+```
+
+**⚠️ Warning**: `errors.jsonl` is a convenience view. **Always use `events.jsonl` for real investigation.**
+
+**Example `events.jsonl` entry:**
+
+```jsonl
+{"ts":"2026-01-04T22:00:00-05:00","seq":1,"level":"info","event":"dose.1.taken","session_id":"2026-01-04","dose1_time":"2026-01-04T22:00:00-05:00","app_version":"2.15.0"}
+{"ts":"2026-01-05T00:30:00-05:00","seq":2,"level":"info","event":"dose.window.opened","session_id":"2026-01-04","phase":"active","previous_phase":"beforeWindow","elapsed_minutes":150}
 ```
 
 ### Method 2: Xcode Console
@@ -318,44 +357,59 @@ The app has **3 tiers of diagnostic logging** (see `docs/DIAGNOSTIC_LOGGING.md`)
 
 ## Interpreting Logs
 
-### Key Log Categories
-| Category | Description | Example |
-|----------|-------------|---------|
-| `userAction` | Button taps, explicit user input | "Take Dose 1 tapped" |
-| `sessionContext` | State transitions, window changes | "Window Transition: beforeWindow → active" |
-| `forensic` | Deep state inspection (Tier 3 only) | Full `DoseWindowContext` snapshot |
-| `error` | Failures, edge cases | "Network error: 500" |
+> ⚠️ **Critical Boundary**: If you are expecting to see a log line and don't, check whether the system logs **effects**, not **inputs**. Diagnostic logs record state facts (e.g., `dose.1.taken`), not UI actions (e.g., "button tapped").
+
+### Key Event Types
+
+| Event Pattern | Description | Example |
+|---------------|-------------|---------|
+| `session.*` | Session lifecycle | `session.started`, `session.completed` |
+| `dose.*` | Dose actions and window boundaries | `dose.1.taken`, `dose.window.opened` |
+| `alarm.*` | Notification/alarm events | `alarm.scheduled`, `alarm.suppressed` |
+| `checkin.*` | Morning check-in flow | `checkin.started`, `checkin.completed` |
+| `app.*` | App lifecycle (foreground/background) | `app.foregrounded` |
+| `*.error` | Error conditions | `sync.error`, `storage.error` |
 
 ### Common Patterns to Look For
 
 #### ✅ Healthy Session
-```
-[userAction] Dose 1 Taken: 22:00:00
-[sessionContext] Window Transition: noDose1 → beforeWindow
-[sessionContext] Window Opens: 00:30:00 (150 min)
-[sessionContext] Window Transition: beforeWindow → active
-[userAction] Dose 2 Taken: 00:45:00
-[sessionContext] Window Transition: active → completed
+
+```jsonl
+{"event":"session.started","session_id":"2026-01-04"}
+{"event":"dose.1.taken","dose1_time":"2026-01-04T22:00:00-05:00"}
+{"event":"dose.window.opened","phase":"active","elapsed_minutes":150}
+{"event":"dose.2.taken","dose2_time":"2026-01-05T00:45:00-05:00"}
+{"event":"session.completed","terminal_state":"completed"}
+{"event":"checkin.completed"}
 ```
 
 #### ⚠️ Warning Signs
-```
-[error] Network error: Failed to sync dose
-[sessionContext] Offline Queue: enqueued takeDose1
-```
-→ Action was queued; verify it syncs later.
 
-```
-[sessionContext] Snooze Disabled: reason="maxSnoozes=3"
-[userAction] Snooze blocked (not enabled)
-```
-→ User hit snooze limit; expected behavior.
+**Late dose:**
 
+```jsonl
+{"event":"dose.window.expired","phase":"closed","elapsed_minutes":240}
+{"event":"dose.window.override.required","reason":"window_exceeded"}
+{"event":"dose.2.taken","window_exceeded":true}
 ```
-[error] Window Exceeded: elapsed=245 minutes
-[userAction] Dose 2 Taken (outside window)
+
+→ User took dose late; expected if confirmed via UI.
+
+**Snooze limit reached:**
+
+```jsonl
+{"event":"dose.window.blocked","reason":"snooze_limit_reached","snooze_count":3}
 ```
-→ User took dose late; flag for review in insights.
+
+→ User hit snooze limit; expected behavior per SSOT.
+
+**Session expired:**
+
+```jsonl
+{"event":"session.autoExpired","terminal_state":"expired","elapsed_minutes":360}
+```
+
+→ User slept through window + grace period; requires check-in.
 
 ---
 
@@ -391,9 +445,12 @@ The app has **3 tiers of diagnostic logging** (see `docs/DIAGNOSTIC_LOGGING.md`)
 - [ ] Spam "bathroom" within 60s → verify rate limited
 
 ### Offline Resilience
-- [ ] Airplane mode + Take Dose 1 → verify queued
-- [ ] Re-enable network → verify queue flushes
-- [ ] Check logs for `Offline Queue: flushed X actions`
+
+> ⚠️ **Note**: Offline queue behavior is tested via unit tests (`OfflineQueueTests.swift`), not diagnostic logs.
+
+- [ ] Airplane mode + Take Dose 1 → verify UI responds (optimistic update)
+- [ ] Re-enable network → verify dose syncs to server
+- [ ] Verify dose appears in history after network restore
 
 ### DST & Time Zones
 - [ ] Test during DST transition (if applicable)
@@ -446,11 +503,12 @@ swift test -q
 See `docs/HOW_TO_READ_A_SESSION_TRACE.md` for detailed examples of full session traces and how to interpret them.
 
 **Quick Reference:**
-1. **Find session start:** Look for `Session Initialized: sessionId=YYYY-MM-DD`
-2. **Track transitions:** Follow `Window Transition: X → Y` logs
-3. **Verify timing:** Check `elapsed` fields match expected intervals (150-240 min)
-4. **Check for errors:** Search for `[error]` or `blocked` keywords
-5. **Validate undo:** Look for `Undo Window Started` → `Undo Success` or `Undo Expired`
+
+1. **Find session start:** Look for `{"event":"session.started","session_id":"YYYY-MM-DD"}`
+2. **Track transitions:** Follow `session.phase.entered` events and `dose.window.*` boundaries
+3. **Verify timing:** Check `elapsed_minutes` fields match expected intervals (150-240 min)
+4. **Check for errors:** Search for `"level":"error"` or `"reason":` fields indicating blocked actions
+5. **Validate undo:** Look for `dose.undone` or `undo.expired` events
 
 ---
 
