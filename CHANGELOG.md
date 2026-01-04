@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Forensic Improvements to Diagnostic Logging (v2.15.0)** - Aviation-grade forensic hardening
+  - Per-session `seq` counter for event ordering under timestamp collision
+  - `constants_hash` on terminal events (`session.completed`, `timezone.changed`) for drift detection
+  - `invariant.violation` event type for "should never happen" conditions
+  - `logInvariantViolation(name:reason:sessionId:)` convenience method
+  - Session trace reading guide: `docs/HOW_TO_READ_A_SESSION_TRACE.md`
+  - Documented `session_id` semantic freeze (grouping key, not unique identifier)
+  - Documented `errors.jsonl` as lens for triage, not evidence
+
 - **Diagnostic Logging System (v2.14.0)** - Session-scoped diagnostic logging for debugging and support
   - DiagnosticEvent enum mirroring SSOT state names exactly
   - DiagnosticLogger actor with JSONL file output
@@ -39,6 +48,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dynamic test count references in documentation (GAP E)
 
 ### Changed
+
+- Repository cleanup: Archived dated audit reports to `docs/archive/`
+- Archived WHOOP OAuth test scripts to `archive/tools_whoop/`
+- Moved historical audit files to `archive/audits_2026-01/`
+- Deleted build artifacts and test logs from root directory
+- Moved unused ContentView variants to `ios/DoseTap/legacy/`
 
 - Removed hardcoded test counts from docs (architecture.md, README.md, FEATURE_ROADMAP.md)
 - Archived historical code review docs to `archive/audits_2025-12-24/`

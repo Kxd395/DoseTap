@@ -1,6 +1,6 @@
 # DoseTap Documentation
 
-> **Last Updated:** 2025-12-26 | **SSOT Version:** 2.12.0 | **Tests:** 275 passing
+> **Last Updated:** 2026-01-04 | **SSOT Version:** 2.15.0 | **Tests:** 277 passing
 
 ## 🎯 Primary Reference
 
@@ -53,10 +53,12 @@
 |---------|--------|-------|
 | Dose Window Logic | ✅ Complete | 24 tests |
 | API Client & Errors | ✅ Complete | 23 tests |
-| Offline Queue | ✅ Complete | 4 tests |
+| Offline Queue | ✅ Complete | 7 tests |
 | CRUD Actions | ✅ Complete | 25 tests |
 | Storage Unification | ✅ Complete | SessionRepository facade |
-| **Total Tests** | **275 passing** | All green |
+| Diagnostic Logging | ✅ Complete | Aviation-grade forensics |
+| Night Mode | ✅ Complete | Circadian-friendly red theme |
+| **Total Tests** | **277 passing** | All green |
 
 ### Phase 2: Health Dashboard 🔄 IN PROGRESS
 | Feature | Status |
@@ -169,4 +171,4 @@ docs/
 
 **Remember:** The SSOT folder contains everything. Start with [SSOT/README.md](SSOT/README.md) for the canonical specification.
 
-**Current Status:** 275 tests passing • 13 sleep event types • 5 SQLite tables • SessionRepository unified storage • HealthKit + WHOOP ready
+**Current Status:** 277 tests passing • 13 sleep event types • 5 SQLite tables • SessionRepository unified storage • HealthKit + WHOOP ready • Diagnostic Logging v2.15.0
