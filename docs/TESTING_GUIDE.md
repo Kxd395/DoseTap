@@ -26,22 +26,26 @@ open DoseTap.xcodeproj
 - Build the project (⌘B)
 - If legacy file conflicts occur, they're already quarantined with `#if false`
 
-### 3. Diagnostic Logging (Always On)
+### 3. Diagnostic Logging Settings
 
 The app has **session-scoped diagnostic logging** that records state transitions and invariants (see `docs/DIAGNOSTIC_LOGGING.md`):
 
-- **Tier 1:** Safety-critical diagnostic events (lifecycle, timezone, notifications, undo) - always on
-- **Tier 2:** Session context events (sleep events, pre-sleep, check-in) - always on by default
-- **Tier 3:** Forensic deep inspection (optional snapshots, state deltas) - **not yet implemented**
+- **Tier 1:** Safety-critical diagnostic events (lifecycle, timezone, notifications, undo) - always logged when master toggle is ON
+- **Tier 2:** Session context events (sleep events, pre-sleep, check-in) - can be toggled
+- **Tier 3:** Forensic deep inspection (state snapshots) - **not yet implemented**, can be toggled
 
 > ⚠️ **Important**: Diagnostic logs record **state facts**, not UI actions. You will not see logs like "button tapped"—instead you'll see the **effects** like `dose.1.taken` or `dose.snooze.activated`.
 
-**Current Status:**
+**Toggling Diagnostic Logging:**
 
-- Diagnostic logging is **always enabled** (`DiagnosticLogger.shared.isEnabled = true`)
-- There are **no user-facing toggles** in Settings yet (planned but not implemented)
-- Logs are automatically written to `Documents/diagnostics/sessions/{session_id}/`
-- Export is available via Settings > Data Management > "Export Session Diagnostics"
+1. Go to Settings (tab bar, gear icon)
+2. Scroll to "Diagnostic Logging" section (after Privacy, before About)
+3. Toggle master switch: "Enable Diagnostic Logging" (ON by default)
+   - When OFF: no logging at all
+   - When ON: Tier 1 always logs, Tier 2/3 can be toggled separately
+4. When master is ON, you can toggle:
+   - "Tier 2: Session Context" (ON by default)
+   - "Tier 3: Forensic Logging" (OFF by default, not yet implemented)
 
 **To access diagnostic logs:**
 
@@ -49,6 +53,16 @@ The app has **session-scoped diagnostic logging** that records state transitions
 2. Tap "Export Session Diagnostics"
 3. Select a session date
 4. Export folder opens in Files app
+5. Folder contains: `meta.json`, `events.jsonl`, `errors.jsonl`
+
+**Testing the toggles:**
+
+1. Disable "Enable Diagnostic Logging"
+2. Take Dose 1
+3. Export diagnostics → should see no new events after toggle was disabled
+4. Re-enable master toggle, disable "Tier 2: Session Context"
+5. Log a sleep event (e.g., "Bathroom")
+6. Export diagnostics → should see dose events but no `sleepEvent.logged`
 
 ---
 
@@ -461,6 +475,16 @@ Offline queue operations are **not** part of the diagnostic event contract unles
 - [ ] Re-enable network → verify dose syncs to server
 - [ ] Verify dose appears in history after network restore
 
+### Diagnostic Logging Toggles
+- [ ] Settings > Diagnostic Logging → verify "Enable Diagnostic Logging" toggle exists and is ON
+- [ ] Take Dose 1 → export logs → verify `dose.1.taken` event present
+- [ ] Disable "Enable Diagnostic Logging"
+- [ ] Take Dose 2 → export logs → verify no new events after toggle was disabled
+- [ ] Re-enable master toggle → disable "Tier 2: Session Context"
+- [ ] Log a sleep event (e.g., "Bathroom") → export logs → verify no `sleepEvent.logged` event
+- [ ] Re-enable "Tier 2: Session Context"
+- [ ] Log another sleep event → export logs → verify `sleepEvent.logged` event present
+
 ### DST & Time Zones
 - [ ] Test during DST transition (if applicable)
 - [ ] Change time zone → verify session date stability
@@ -494,9 +518,9 @@ swift test -q
 
 ### Logs Not Appearing
 
-**Check:** Diagnostic logging is always on by default  
-**Reality:** `DiagnosticLogger.shared.isEnabled = true` (no user toggle yet)  
-**Workaround:** If logs are missing, check `Documents/diagnostics/sessions/` folder directly via Files app
+**Check:** Diagnostic logging enabled in Settings
+**Fix:** Go to Settings → Diagnostic Logging → ensure "Enable Diagnostic Logging" toggle is ON
+**Note:** If logs are still missing, check `Documents/diagnostics/sessions/` folder directly via Files app or Xcode Organizer
 
 ### Offline Queue Not Flushing
 

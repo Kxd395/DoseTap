@@ -287,6 +287,9 @@ struct PreSleepLogCard: View {
                     if let noise = answers.noiseLevel {
                         PreSleepRow(label: "Noise Level", value: noise.displayText, icon: "speaker.wave.2.fill")
                     }
+                    if let aids = answers.sleepAids {
+                        PreSleepRow(label: "Sleep Aids", value: aids.displayText, icon: "moon.stars")
+                    }
                     
                     // Pain
                     if let pain = answers.bodyPain, pain != .none {
@@ -645,7 +648,7 @@ struct ExportCard: View {
         .cornerRadius(12)
         .shadow(radius: 2)
         .sheet(isPresented: $showingShareSheet) {
-            ShareSheet(items: [exportContent])
+            ActivityViewController(activityItems: [exportContent])
         }
     }
     
@@ -656,6 +659,21 @@ struct ExportCard: View {
         return "DoseTap Night Report - \(sessionKey)\n\nExport your full night data for review."
     }
 }
+
+// MARK: - Activity View Controller (Share Sheet)
+#if canImport(UIKit)
+import UIKit
+
+struct ActivityViewController: UIViewControllerRepresentable {
+    let activityItems: [Any]
+    
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+    
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+#endif
 
 // MARK: - Preview
 #if DEBUG

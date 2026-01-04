@@ -16,53 +16,108 @@ struct SettingsView: View {
     var body: some View {
         NavigationView {
             List {
-                // MARK: - Appearance Section
+                // MARK: - Dose & Timing (Most Important)
                 Section {
-                    // Theme selection (Light, Dark, Night Mode)
+                    targetIntervalPicker
+                    
                     NavigationLink {
-                        ThemeSettingsView()
+                        WeeklyPlannerView()
                     } label: {
                         HStack {
-                            Label("Theme", systemImage: "paintpalette.fill")
+                            Label("Weekly Planner", systemImage: "calendar.badge.clock")
                             Spacer()
-                            Text(ThemeManager.shared.currentTheme.rawValue)
+                            if let target = WeeklyPlanner.shared.todayTarget() {
+                                Text("\(target) min today")
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    
+                    undoSpeedPicker
+                    
+                    // Info card
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Image(systemName: "info.circle.fill")
+                                .foregroundColor(.blue)
+                            Text("XYWAV Dose Window")
+                                .font(.subheadline.bold())
+                        }
+                        Text("• Window opens at 150 min after Dose 1")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text("• Window closes at 240 min (hard limit)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text("• Snooze disabled when <15 min remain")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                        Text("• Max snoozes: \(settings.maxSnoozes) per night")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.vertical, 4)
+                } header: {
+                    Label("Dose & Timing", systemImage: "timer")
+                        .font(.headline)
+                } footer: {
+                    Text("Configure when you'll be reminded to take Dose 2, and how long you have to undo actions.")
+                }
+                
+                // MARK: - Notifications
+                Section {
+                    Toggle(isOn: $settings.notificationsEnabled) {
+                        Label("Enable Notifications", systemImage: "bell.fill")
+                    }
+                    
+                    if settings.notificationsEnabled {
+                        Toggle(isOn: $settings.criticalAlertsEnabled) {
+                            Label("Critical Alerts", systemImage: "exclamationmark.triangle.fill")
+                        }
+                        .tint(.red)
+                        
+                        Toggle(isOn: $settings.windowOpenAlert) {
+                            Label("Window Open (150 min)", systemImage: "door.left.hand.open")
+                        }
+                        
+                        Toggle(isOn: $settings.fifteenMinWarning) {
+                            Label("15 Min Warning", systemImage: "clock.badge.exclamationmark")
+                        }
+                        
+                        Toggle(isOn: $settings.fiveMinWarning) {
+                            Label("5 Min Warning", systemImage: "exclamationmark.circle")
+                        }
+                        
+                        Divider()
+                        
+                        Toggle(isOn: $settings.soundEnabled) {
+                            Label("Sound", systemImage: "speaker.wave.2.fill")
+                        }
+                        
+                        Toggle(isOn: $settings.hapticsEnabled) {
+                            Label("Haptics", systemImage: "waveform")
+                        }
+                    }
+                } header: {
+                    Label("Notifications & Alerts", systemImage: "bell.badge.fill")
+                        .font(.headline)
+                } footer: {
+                    Text("Critical alerts can override Do Not Disturb for important dose reminders.")
+                }
+                
+                // MARK: - Sleep Planning
+                Section {
+                    NavigationLink {
+                        SleepPlanDetailView()
+                    } label: {
+                        HStack {
+                            Label("Typical Week Schedule", systemImage: "calendar.badge.clock")
+                            Spacer()
+                            Text("Configure")
                                 .foregroundColor(.secondary)
                         }
                     }
                     
-                    appearancePicker
-                    
-                    Toggle(isOn: $settings.highContrastMode) {
-                        Label("High Contrast", systemImage: "circle.lefthalf.striped.horizontal")
-                    }
-                    
-                    Toggle(isOn: $settings.reducedMotion) {
-                        Label("Reduce Motion", systemImage: "figure.walk")
-                    }
-                } header: {
-                    Label("Appearance", systemImage: "paintbrush.fill")
-                } footer: {
-                    Text("Night Mode uses red/amber tones to reduce blue light exposure and protect your sleep cycle.")
-                        .font(.caption)
-                }
-                
-                // MARK: - Typical Week + Sleep Plan
-                Section {
-                    ForEach(1...7, id: \.self) { weekday in
-                        TypicalWeekRow(
-                            weekday: weekday,
-                            entry: sleepPlanStore.schedule.entry(for: weekday)
-                        ) { date, enabled in
-                            sleepPlanStore.updateEntry(weekday: weekday, wakeTime: date, enabled: enabled)
-                        }
-                    }
-                } header: {
-                    Label("Typical Week", systemImage: "calendar.badge.clock")
-                } footer: {
-                    Text("Wake-by uses the next morning of tonight's session key.")
-                }
-                
-                Section {
                     SleepPlanSettingsRow(
                         title: "Target Sleep",
                         minutes: sleepPlanStore.settings.targetSleepMinutes,
@@ -90,77 +145,41 @@ struct SettingsView: View {
                         sleepPlanStore.updateSettings(windDownMinutes: newValue)
                     }
                 } header: {
-                    Label("Sleep Plan", systemImage: "bed.double.fill")
+                    Label("Sleep Planning", systemImage: "bed.double.fill")
+                        .font(.headline)
                 } footer: {
-                    Text("These knobs feed the Tonight planner and do not change the dose window.")
+                    Text("Set your typical wake times and sleep goals. These feed the Tonight planner and do not change the dose window.")
                 }
                 
-                // MARK: - Dose Timing Section (XYWAV Specific)
+                // MARK: - Appearance
                 Section {
-                    targetIntervalPicker
-                    
                     NavigationLink {
-                        WeeklyPlannerView()
+                        ThemeSettingsView()
                     } label: {
                         HStack {
-                            Label("Weekly Planner", systemImage: "calendar.badge.clock")
+                            Label("Theme", systemImage: "paintpalette.fill")
                             Spacer()
-                            if let target = WeeklyPlanner.shared.todayTarget() {
-                                Text("\(target) min today")
-                                    .foregroundColor(.secondary)
-                            }
+                            Text(ThemeManager.shared.currentTheme.rawValue)
+                                .foregroundColor(.secondary)
                         }
                     }
                     
-                    HStack {
-                        Label("Snooze Duration", systemImage: "clock.badge.plus")
-                        Spacer()
-                        Text("\(settings.snoozeDurationMinutes) min")
-                            .foregroundColor(.secondary)
+                    appearancePicker
+                    
+                    Toggle(isOn: $settings.highContrastMode) {
+                        Label("High Contrast", systemImage: "circle.lefthalf.striped.horizontal")
                     }
                     
-                    HStack {
-                        Label("Max Snoozes", systemImage: "repeat")
-                        Spacer()
-                        Text("\(settings.maxSnoozes) per night")
-                            .foregroundColor(.secondary)
+                    Toggle(isOn: $settings.reducedMotion) {
+                        Label("Reduce Motion", systemImage: "figure.walk")
                     }
-                    
-                    // Info card
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Image(systemName: "info.circle.fill")
-                                .foregroundColor(.blue)
-                            Text("XYWAV Dose Window")
-                                .font(.subheadline.bold())
-                        }
-                        Text("Window opens at 150 min after Dose 1")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text("Window closes at 240 min (hard limit)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text("Snooze disabled when <15 min remain")
-                            .font(.caption)
-                            .foregroundColor(.orange)
-                    }
-                    .padding(.vertical, 4)
                 } header: {
-                    Label("Dose Timing", systemImage: "timer")
+                    Label("Appearance", systemImage: "paintbrush.fill")
                 } footer: {
-                    Text("Target interval is when you'll be reminded to take Dose 2.")
+                    Text("Night Mode uses red/amber tones to reduce blue light exposure and protect your sleep cycle.")
                 }
                 
-                // MARK: - Undo Settings Section
-                Section {
-                    undoSpeedPicker
-                } header: {
-                    Label("Undo", systemImage: "arrow.uturn.backward")
-                } footer: {
-                    Text("How long you have to undo a dose action after tapping.")
-                }
-                
-                // MARK: - Medication Settings Section
+                // MARK: - Medications
                 Section {
                     NavigationLink {
                         MedicationSettingsView()
@@ -178,67 +197,24 @@ struct SettingsView: View {
                     Text("Configure which medications you take and default doses.")
                 }
                 
-                // MARK: - Notifications Section
-                Section {
-                    Toggle(isOn: $settings.notificationsEnabled) {
-                        Label("Enable Notifications", systemImage: "bell.fill")
-                    }
-                    
-                    if settings.notificationsEnabled {
-                        Toggle(isOn: $settings.criticalAlertsEnabled) {
-                            Label("Critical Alerts", systemImage: "exclamationmark.triangle.fill")
-                        }
-                        .tint(.red)
-                        
-                        Toggle(isOn: $settings.windowOpenAlert) {
-                            Label("Window Open (150 min)", systemImage: "door.left.hand.open")
-                        }
-                        
-                        Toggle(isOn: $settings.fifteenMinWarning) {
-                            Label("15 Min Warning", systemImage: "clock.badge.exclamationmark")
-                        }
-                        
-                        Toggle(isOn: $settings.fiveMinWarning) {
-                            Label("5 Min Warning", systemImage: "exclamationmark.circle")
-                        }
-                        
-                        Toggle(isOn: $settings.soundEnabled) {
-                            Label("Sound", systemImage: "speaker.wave.2.fill")
-                        }
-                        
-                        Toggle(isOn: $settings.hapticsEnabled) {
-                            Label("Haptics", systemImage: "waveform")
-                        }
-                    }
-                } header: {
-                    Label("Notifications", systemImage: "bell.badge.fill")
-                }
-                
-                // MARK: - QuickLog Customization Section
+                // MARK: - Event Logging
                 Section {
                     NavigationLink {
                         QuickLogCustomizationView()
                     } label: {
                         HStack {
-                            Label("Customize QuickLog Buttons", systemImage: "square.grid.2x2")
+                            Label("QuickLog Buttons", systemImage: "square.grid.2x2")
                             Spacer()
                             Text("\(settings.quickLogButtons.count)/16")
                                 .foregroundColor(.secondary)
                         }
                     }
-                } header: {
-                    Label("QuickLog Panel", systemImage: "hand.tap.fill")
-                } footer: {
-                    Text("Choose which event buttons appear in your 4×4 quick log grid (up to 16).")
-                }
-                
-                // MARK: - Event Log Cooldowns Section
-                Section {
+                    
                     NavigationLink {
                         EventCooldownSettingsView()
                     } label: {
                         HStack {
-                            Label("Event Log Cooldowns", systemImage: "timer")
+                            Label("Event Cooldowns", systemImage: "timer")
                             Spacer()
                             Text("Customize")
                                 .foregroundColor(.secondary)
@@ -247,10 +223,10 @@ struct SettingsView: View {
                 } header: {
                     Label("Event Logging", systemImage: "list.bullet.clipboard")
                 } footer: {
-                    Text("Adjust how often you can log the same sleep event.")
+                    Text("Customize which events appear in your quick log grid and how often you can log them.")
                 }
                 
-                // MARK: - Integrations Section
+                // MARK: - Integrations
                 Section {
                     NavigationLink {
                         HealthKitSettingsView()
@@ -265,14 +241,15 @@ struct SettingsView: View {
                         }
                     }
                     
-                    // WHOOP is disabled-by-default in shipping builds; integration gated behind entitlement review
-                    Label("WHOOP (disabled by default)", systemImage: "figure.run")
+                    Label("WHOOP (coming soon)", systemImage: "figure.run")
                         .foregroundColor(.secondary)
                 } header: {
                     Label("Integrations", systemImage: "link")
+                } footer: {
+                    Text("Connect with Apple Health to sync sleep data and view integrated insights.")
                 }
                 
-                // MARK: - Data Management Section
+                // MARK: - Data Management
                 Section {
                     Button {
                         exportData()
@@ -292,66 +269,67 @@ struct SettingsView: View {
                         Label("Manage History", systemImage: "clock.arrow.circlepath")
                     }
                     
+                    Divider()
+                    
                     Button(role: .destructive) {
                         showingResetConfirmation = true
                     } label: {
                         Label("Clear All Data", systemImage: "trash.fill")
+                    }
+                } header: {
+                    Label("Data Management", systemImage: "externaldrive.fill")
+                } footer: {
+                    Text("Export your data for backup or analysis. All data is stored locally on your device only.")
                 }
-            } header: {
-                Label("Data Management", systemImage: "externaldrive.fill")
-            } footer: {
-                Text("Data is stored locally on your device only. Session diagnostics contain timing/state data only, no health info.")
-            }
-            
-            // MARK: - Privacy Section
-            Section {
-                Toggle(isOn: $settings.analyticsEnabled) {
-                    Label("Anonymous Analytics", systemImage: "chart.bar.fill")
-                }
+                
+                // MARK: - Privacy & Diagnostics
+                Section {
+                    Toggle(isOn: $settings.analyticsEnabled) {
+                        Label("Anonymous Analytics", systemImage: "chart.bar.fill")
+                    }
                     
                     Toggle(isOn: $settings.crashReportsEnabled) {
                         Label("Crash Reports", systemImage: "ant.fill")
                     }
+                    
+                    NavigationLink {
+                        DiagnosticLoggingSettingsView()
+                    } label: {
+                        HStack {
+                            Label("Diagnostic Logging", systemImage: "stethoscope")
+                            Spacer()
+                            if settings.diagnosticLoggingEnabled {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                            }
+                        }
+                    }
                 } header: {
-                    Label("Privacy", systemImage: "hand.raised.fill")
+                    Label("Privacy & Diagnostics", systemImage: "hand.raised.fill")
                 } footer: {
-                    Text("No personal health data is ever transmitted.")
+                    Text("No personal health data is ever transmitted. Diagnostic logs are stored locally for troubleshooting.")
                 }
                 
-                // MARK: - About Section
-            Section {
-                HStack {
-                    Label("Version", systemImage: "info.circle")
-                    Spacer()
-                    Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.0.0")
-                        .foregroundColor(.secondary)
-                }
-                
-                HStack {
-                    Label("Build", systemImage: "hammer")
-                    Spacer()
-                    Text(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1")
-                        .foregroundColor(.secondary)
-                }
-                
-                HStack {
-                    Label("Schema Version", systemImage: "number.circle")
-                    Spacer()
-                    Text("\(SessionRepository.shared.getSchemaVersion())")
-                        .foregroundColor(.secondary)
-                }
-                
-                HStack {
-                    Label("Constants Version", systemImage: "text.book.closed")
-                    Spacer()
-                    Text(EventStorage.constantsVersion)
-                        .foregroundColor(.secondary)
-                }
-                
-                NavigationLink {
-                    AboutView()
-                } label: {
-                    Label("About DoseTap", systemImage: "questionmark.circle")
+                // MARK: - About
+                Section {
+                    HStack {
+                        Label("Version", systemImage: "info.circle")
+                        Spacer()
+                        Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.0.0")
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    HStack {
+                        Label("Build", systemImage: "hammer")
+                        Spacer()
+                        Text(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1")
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    NavigationLink {
+                        AboutView()
+                    } label: {
+                        Label("About DoseTap", systemImage: "questionmark.circle")
                     }
                 } header: {
                     Label("About", systemImage: "info.circle.fill")
@@ -390,12 +368,10 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showingExportSheet) {
             if let url = exportURL {
-                ShareSheet(items: [url])
+                ActivityViewController(activityItems: [url])
             }
         }
-    }
-    
-    // MARK: - Appearance Picker
+    }    // MARK: - Appearance Picker
     private var appearancePicker: some View {
         HStack {
             Label("Theme", systemImage: settings.appearanceMode.icon)

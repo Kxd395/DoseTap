@@ -186,6 +186,7 @@ struct PreSleepLogView: View {
             answers.roomTemp = lastAnswers.roomTemp
             answers.noiseLevel = lastAnswers.noiseLevel
             answers.screensInBed = lastAnswers.screensInBed
+            answers.sleepAids = lastAnswers.sleepAids
         }
     }
     
@@ -443,6 +444,13 @@ struct Card3ActivityNaps: View {
                                 selection: $answers.noiseLevel
                             )
                         }
+                        
+                        QuestionSection(title: "Sleep aids?", icon: "moon.stars") {
+                            OptionGrid(
+                                options: PreSleepLogAnswers.SleepAid.allCases,
+                                selection: $answers.sleepAids
+                            )
+                        }
                     }
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
@@ -617,6 +625,7 @@ extension PreSleepLogAnswers.LateMeal: DisplayTextProvider {}
 extension PreSleepLogAnswers.ScreensInBed: DisplayTextProvider {}
 extension PreSleepLogAnswers.RoomTemp: DisplayTextProvider {}
 extension PreSleepLogAnswers.NoiseLevel: DisplayTextProvider {}
+extension PreSleepLogAnswers.SleepAid: DisplayTextProvider {}
 
 // MARK: - Preview
 #Preview {

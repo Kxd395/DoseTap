@@ -32,6 +32,16 @@ struct DoseTapApp: App {
             await DiagnosticLogger.shared.logAppLaunched(sessionId: sessionId)
         }
         
+        // Sync diagnostic logging settings
+        Task { @MainActor in
+            let settings = UserSettingsManager.shared
+            await DiagnosticLogger.shared.updateSettings(
+                isEnabled: settings.diagnosticLoggingEnabled,
+                tier2Enabled: settings.diagnosticTier2Enabled,
+                tier3Enabled: settings.diagnosticTier3Enabled
+            )
+        }
+        
         // Register for timezone change notifications
         NotificationCenter.default.addObserver(
             forName: .NSSystemTimeZoneDidChange,

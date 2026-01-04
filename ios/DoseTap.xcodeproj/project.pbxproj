@@ -64,6 +64,28 @@
 		UNDO005 /* MedicationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNDO006 /* MedicationSettingsView.swift */; };
 		UNDO007 /* MedicationPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNDO008 /* MedicationPickerView.swift */; };
 		WP001 /* WeeklyPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP002 /* WeeklyPlanner.swift */; };
+		ASSETSBUILD01 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = ASSETS01 /* Assets.xcassets */; };
+
+		AAAAAAAAB87941E7DF594E24 /* EventStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA9DBAF056AB1C49BC /* EventStore.swift */; };
+		AAAAAAAAD50C5D1A26974F56 /* EventStoreAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA3BA639A7295F4A8B /* EventStoreAdapter.swift */; };
+		AAAAAAAAD21C1DC5F3AB4657 /* UndoManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA0C2B781536614815 /* UndoManager.swift */; };
+		AAAAAAAAA0CFD7C48F0B4D39 /* TimeEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA228351A6B9254E54 /* TimeEngine.swift */; };
+		AAAAAAAAD5E533BC3DBD4560 /* SnoozeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAADE3CE12CAC8D4F6A /* SnoozeController.swift */; };
+		AAAAAAAA665C3FB4C9924FE1 /* OfflineQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAAF2660D49646040A0 /* OfflineQueue.swift */; };
+		AAAAAAAA1CC499F82E6144DA /* AccessibilitySupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA4C47F79D20684073 /* AccessibilitySupport.swift */; };
+		AAAAAAAA07497596B6904671 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA537A9EE417FC46A5 /* DashboardView.swift */; };
+		AAAAAAAA89602384A983443E /* DoseTapCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA5D81B00628A14F8E /* DoseTapCore.swift */; };
+		AAAAAAAAF176A51010A24F44 /* UndoSnackbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA08C80B4B155C4F1F /* UndoSnackbar.swift */; };
+		AAAAAAAA5146B7388E7B44E4 /* UndoStateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA79BDDCB8B8394A8C /* UndoStateManager.swift */; };
+		AAAAAAAA5D455781AD854DAE /* Views/UndoSnackbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAAA4A8D14140B649E4 /* Views/UndoSnackbarView.swift */; };
+		AAAAAAAAF1E2F78DF5B24EAA /* Views/MedicationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAAE2F91D7AC1EF43C1 /* Views/MedicationSettingsView.swift */; };
+		AAAAAAAA9D0D4CF2EFB54BCB /* Views/MedicationPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA180FECDFD1A34BF9 /* Views/MedicationPickerView.swift */; };
+		AAAAAAAA6F8992926A284D92 /* Views/MorningCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAADA901C7481C5490B /* Views/MorningCheckInView.swift */; };
+		AAAAAAAA35286560CB464309 /* Views/PreSleepLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA7DFB77385FC541DB /* Views/PreSleepLogView.swift */; };
+		C1A4A08A302A4FA99C4A /* SleepPlanDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BACAE6FF95D948B09DD2 /* SleepPlanDetailView.swift */; };
+		314CDC168E3F4AA59A52 /* DiagnosticLoggingSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2980209556A04B5F8CE5 /* DiagnosticLoggingSettingsView.swift */; };
+		68B3DB1D97734922B659 /* SleepPlanDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 576700D19A9F4B35BA54 /* SleepPlanDetailView.swift */; };
+		1B86C969549644B2A31C /* DiagnosticLoggingSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 237C573EA83946FE8AFC /* DiagnosticLoggingSettingsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -112,6 +134,7 @@
 		B01 /* DoseTapApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseTapApp.swift; sourceTree = "<group>"; };
 		B02 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		B03 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		ASSETS01 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B0DBB25F0B4C46EAAFB4205A /* PersistentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistentStore.swift; sourceTree = "<group>"; };
 		B1CBF59D219929011DD8A4A8 /* InputValidator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InputValidator.swift; sourceTree = "<group>"; };
 		B358CDCA949364F93BD996D6 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -146,6 +169,27 @@
 		UNDO006 /* MedicationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationSettingsView.swift; sourceTree = "<group>"; };
 		UNDO008 /* MedicationPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationPickerView.swift; sourceTree = "<group>"; };
 		WP002 /* WeeklyPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyPlanner.swift; sourceTree = "<group>"; };
+
+		AAAAAAAA9DBAF056AB1C49BC /* EventStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventStore.swift; sourceTree = "<group>"; };
+		AAAAAAAA3BA639A7295F4A8B /* EventStoreAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventStoreAdapter.swift; sourceTree = "<group>"; };
+		AAAAAAAA0C2B781536614815 /* UndoManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoManager.swift; sourceTree = "<group>"; };
+		AAAAAAAA228351A6B9254E54 /* TimeEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeEngine.swift; sourceTree = "<group>"; };
+		AAAAAAAADE3CE12CAC8D4F6A /* SnoozeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnoozeController.swift; sourceTree = "<group>"; };
+		AAAAAAAAF2660D49646040A0 /* OfflineQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueue.swift; sourceTree = "<group>"; };
+		AAAAAAAA4C47F79D20684073 /* AccessibilitySupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilitySupport.swift; sourceTree = "<group>"; };
+		AAAAAAAA537A9EE417FC46A5 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		AAAAAAAA5D81B00628A14F8E /* DoseTapCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseTapCore.swift; sourceTree = "<group>"; };
+		AAAAAAAA08C80B4B155C4F1F /* UndoSnackbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoSnackbar.swift; sourceTree = "<group>"; };
+		AAAAAAAA79BDDCB8B8394A8C /* UndoStateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoStateManager.swift; sourceTree = "<group>"; };
+		AAAAAAAAA4A8D14140B649E4 /* Views/UndoSnackbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/UndoSnackbarView.swift; sourceTree = "<group>"; };
+		AAAAAAAAE2F91D7AC1EF43C1 /* Views/MedicationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/MedicationSettingsView.swift; sourceTree = "<group>"; };
+		AAAAAAAA180FECDFD1A34BF9 /* Views/MedicationPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/MedicationPickerView.swift; sourceTree = "<group>"; };
+		AAAAAAAADA901C7481C5490B /* Views/MorningCheckInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/MorningCheckInView.swift; sourceTree = "<group>"; };
+		AAAAAAAA7DFB77385FC541DB /* Views/PreSleepLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/PreSleepLogView.swift; sourceTree = "<group>"; };
+		BACAE6FF95D948B09DD2 /* SleepPlanDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepPlanDetailView.swift; sourceTree = "<group>"; };
+		2980209556A04B5F8CE5 /* DiagnosticLoggingSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLoggingSettingsView.swift; sourceTree = "<group>"; };
+		576700D19A9F4B35BA54 /* SleepPlanDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepPlanDetailView.swift; sourceTree = "<group>"; };
+		237C573EA83946FE8AFC /* DiagnosticLoggingSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLoggingSettingsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -187,6 +231,22 @@
 				80B7FD26BB9CFDD4F25097AC /* DatabaseSecurity.swift */,
 				B1CBF59D219929011DD8A4A8 /* InputValidator.swift */,
 				DED8B35BAB0493115DB99CA4 /* SecureLogger.swift */,
+				AAAAAAAA9DBAF056AB1C49BC /* EventStore.swift */,
+				AAAAAAAA3BA639A7295F4A8B /* EventStoreAdapter.swift */,
+				AAAAAAAA0C2B781536614815 /* UndoManager.swift */,
+				AAAAAAAA228351A6B9254E54 /* TimeEngine.swift */,
+				AAAAAAAADE3CE12CAC8D4F6A /* SnoozeController.swift */,
+				AAAAAAAAF2660D49646040A0 /* OfflineQueue.swift */,
+				AAAAAAAA4C47F79D20684073 /* AccessibilitySupport.swift */,
+				AAAAAAAA537A9EE417FC46A5 /* DashboardView.swift */,
+				AAAAAAAA5D81B00628A14F8E /* DoseTapCore.swift */,
+				AAAAAAAA08C80B4B155C4F1F /* UndoSnackbar.swift */,
+				AAAAAAAA79BDDCB8B8394A8C /* UndoStateManager.swift */,
+				AAAAAAAAA4A8D14140B649E4 /* Views/UndoSnackbarView.swift */,
+				AAAAAAAAE2F91D7AC1EF43C1 /* Views/MedicationSettingsView.swift */,
+				AAAAAAAA180FECDFD1A34BF9 /* Views/MedicationPickerView.swift */,
+				AAAAAAAADA901C7481C5490B /* Views/MorningCheckInView.swift */,
+				AAAAAAAA7DFB77385FC541DB /* Views/PreSleepLogView.swift */,
 			);
 			name = Security;
 			path = Security;
@@ -215,6 +275,7 @@
 			children = (
 				80A27C7D2EFAC24D0005C000 /* DoseTap.entitlements */,
 				B03 /* Info.plist */,
+				ASSETS01 /* Assets.xcassets */,
 				F65B22283DEE43E8AA554209 /* DashboardView.swift */,
 				D9BC765DBC6846A8B0F169E7 /* DataExportService.swift */,
 				76CC32E0134E4DFC8A421A8B /* DataStorageService.swift */,
@@ -242,6 +303,10 @@
 				6FEE161A09D6441A8D4448DA /* InsightsCalculator.swift */,
 				D049AFCF96FC4AFF9120309E /* Secrets.swift */,
 				B358CDCA949364F93BD996D6 /* SettingsView.swift */,
+				576700D19A9F4B35BA54 /* SleepPlanDetailView.swift */,
+				237C573EA83946FE8AFC /* DiagnosticLoggingSettingsView.swift */,
+				BACAE6FF95D948B09DD2 /* SleepPlanDetailView.swift */,
+				2980209556A04B5F8CE5 /* DiagnosticLoggingSettingsView.swift */,
 				SST002 /* SleepStageTimeline.swift */,
 				15C51DD55054436BA1B68CD7 /* SupportBundleExport.swift */,
 				12B2779FB31708024300E8E5 /* TimeIntervalMath.swift */,
@@ -435,6 +500,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				ASSETSBUILD01 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -445,7 +511,23 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-			);
+			
+				AAAAAAAAB87941E7DF594E24 /* EventStore.swift in Sources */,
+				AAAAAAAAD50C5D1A26974F56 /* EventStoreAdapter.swift in Sources */,
+				AAAAAAAAD21C1DC5F3AB4657 /* UndoManager.swift in Sources */,
+				AAAAAAAAA0CFD7C48F0B4D39 /* TimeEngine.swift in Sources */,
+				AAAAAAAAD5E533BC3DBD4560 /* SnoozeController.swift in Sources */,
+				AAAAAAAA665C3FB4C9924FE1 /* OfflineQueue.swift in Sources */,
+				AAAAAAAA1CC499F82E6144DA /* AccessibilitySupport.swift in Sources */,
+				AAAAAAAA07497596B6904671 /* DashboardView.swift in Sources */,
+				AAAAAAAA89602384A983443E /* DoseTapCore.swift in Sources */,
+				AAAAAAAAF176A51010A24F44 /* UndoSnackbar.swift in Sources */,
+				AAAAAAAA5146B7388E7B44E4 /* UndoStateManager.swift in Sources */,
+				AAAAAAAA5D455781AD854DAE /* Views/UndoSnackbarView.swift in Sources */,
+				AAAAAAAAF1E2F78DF5B24EAA /* Views/MedicationSettingsView.swift in Sources */,
+				AAAAAAAA9D0D4CF2EFB54BCB /* Views/MedicationPickerView.swift in Sources */,
+				AAAAAAAA6F8992926A284D92 /* Views/MorningCheckInView.swift in Sources */,
+				AAAAAAAA35286560CB464309 /* Views/PreSleepLogView.swift in Sources */,);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		J01 /* Sources */ = {
@@ -466,6 +548,10 @@
 				UNDO007 /* MedicationPickerView.swift in Sources */,
 				0A777B0D5CC54803B060A980 /* UserSettingsManager.swift in Sources */,
 				626911F284B24C54BA73D7F8 /* SettingsView.swift in Sources */,
+				68B3DB1D97734922B659 /* SleepPlanDetailView.swift in Sources */,
+				1B86C969549644B2A31C /* DiagnosticLoggingSettingsView.swift in Sources */,
+				C1A4A08A302A4FA99C4A /* SleepPlanDetailView.swift in Sources */,
+				314CDC168E3F4AA59A52 /* DiagnosticLoggingSettingsView.swift in Sources */,
 				81A5CD7A3DD244DEB70FA0B2 /* EventStorage.swift in Sources */,
 				92518D93643945F4B64E860F /* SessionRepository.swift in Sources */,
 				D8746EA078A54AF7A8CE92B3 /* MorningCheckInView.swift in Sources */,
@@ -702,6 +788,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = DoseTap/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = DoseTap;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.medical";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "DoseTap can use Bluetooth if you connect a button directly.";
 				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "DoseTap can use Bluetooth if you connect a button directly.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "DoseTap reads your sleep, heart rate, respiratory rate, oxygen saturation, and HRV to optimize a label-compliant second-dose reminder.";
@@ -709,6 +797,8 @@
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiresFullScreen = NO;
+				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
@@ -716,9 +806,9 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 2.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.dosetap.ios;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = DoseTap;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -738,6 +828,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = DoseTap/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = DoseTap;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.medical";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "DoseTap can use Bluetooth if you connect a button directly.";
 				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "DoseTap can use Bluetooth if you connect a button directly.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "DoseTap reads your sleep, heart rate, respiratory rate, oxygen saturation, and HRV to optimize a label-compliant second-dose reminder.";
@@ -745,6 +837,8 @@
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiresFullScreen = NO;
+				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
@@ -752,9 +846,9 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 2.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.dosetap.ios;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = DoseTap;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";

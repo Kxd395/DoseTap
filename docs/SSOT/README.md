@@ -397,9 +397,9 @@ Single button in Settings:
 
 ```
 Settings
-  └── Support & Diagnostics
-        └── Export Last Session Diagnostics
-              → Generates zip: meta.json + events.jsonl
+  └── Data Management
+        └── Export Session Diagnostics
+              → Generates session folder: meta.json + events.jsonl + errors.jsonl
               → Local share sheet (no cloud upload)
               → Anonymized (no PII in diagnostic events)
 ```
@@ -409,6 +409,50 @@ Settings
 - Share with clinician (narcolepsy timing anomalies)
 - Validate timezone behavior
 - Investigate missed doses
+
+### Diagnostic Logging Toggles
+
+Diagnostic logging can be controlled via **Settings → Diagnostic Logging**:
+
+#### Master Toggle
+- **Enable Diagnostic Logging**: ON by default
+  - When disabled, no events are logged at all
+  - When enabled, Tier 1 events are always logged (safety-critical)
+
+#### Tier Toggles (when master is ON)
+- **Tier 2: Session Context Events**: ON by default
+  - Sleep events (`sleepEvent.logged`, `sleepEvent.deleted`)
+  - Pre-sleep log (`preSleepLog.started`, `preSleepLog.saved`, `preSleepLog.abandoned`)
+  - Check-in events (`checkin.started`, `checkin.completed`, `checkin.skipped`)
+  - When disabled, Tier 2 events are not logged
+
+- **Tier 3: Forensic Logging**: OFF by default
+  - Full state snapshots (not yet implemented)
+  - When implemented, will capture complete app state at key moments
+  - When disabled, no forensic snapshots are saved
+
+#### Tier 1: Always Logged (when master is ON)
+Tier 1 events cannot be disabled separately because they are **safety-critical** for debugging:
+- App lifecycle: `app.launched`, `app.foregrounded`, `app.backgrounded`
+- Timezone changes: `timezone.changed`, `time.significantChange`
+- Notification delivery: `notification.delivered`, `notification.tapped`, `notification.dismissed`
+- Undo flow: `undo.windowOpened`, `undo.executed`, `undo.expired`
+- Session lifecycle: `session.started`, `session.completed`, etc.
+- Dose actions: `dose.1.taken`, `dose.2.taken`, `dose.2.skipped`, etc.
+- Window events: `dose.window.opened`, `dose.window.nearClose`, etc.
+- Alarms: `alarm.scheduled`, `alarm.cancelled`, etc.
+
+#### Storage Location
+All diagnostic logs are stored locally at:
+```
+Documents/diagnostics/sessions/YYYY-MM-DD/
+```
+
+#### Implementation Details
+- Settings are persisted using `@AppStorage` in `UserSettingsManager`
+- `DiagnosticLogger.updateSettings(isEnabled:tier2Enabled:tier3Enabled:)` is called when toggles change
+- Tier checking is done in log helper functions (e.g., `logSleepEventLogged()` checks `tier2Enabled`)
+- Master toggle (`isEnabled`) is checked in the base `log()` function
 
 ### What This Enables (Concrete Questions Answered)
 

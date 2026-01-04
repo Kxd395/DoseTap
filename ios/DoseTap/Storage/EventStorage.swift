@@ -2540,6 +2540,40 @@ public struct PreSleepLogAnswers: Codable {
         }
     }
     
+    public enum SleepAid: String, Codable, CaseIterable {
+        case none = "none"
+        case eyeMask = "eye_mask"
+        case earplugs = "earplugs"
+        case whiteNoise = "white_noise"
+        case fan = "fan"
+        case blackoutCurtains = "blackout_curtains"
+        case multiple = "multiple"
+        
+        public var displayText: String {
+            switch self {
+            case .none: return "None"
+            case .eyeMask: return "Eye Mask"
+            case .earplugs: return "Earplugs"
+            case .whiteNoise: return "White Noise"
+            case .fan: return "Fan"
+            case .blackoutCurtains: return "Blackout Curtains"
+            case .multiple: return "Multiple"
+            }
+        }
+        
+        public var icon: String {
+            switch self {
+            case .none: return "moon.zzz"
+            case .eyeMask: return "eye"
+            case .earplugs: return "ear"
+            case .whiteNoise: return "waveform"
+            case .fan: return "wind"
+            case .blackoutCurtains: return "curtains.closed"
+            case .multiple: return "square.grid.2x2"
+            }
+        }
+    }
+    
     // MARK: - Properties
     
     // Card 1: Timing + Stress
@@ -2564,6 +2598,7 @@ public struct PreSleepLogAnswers: Codable {
     public var screensInBed: ScreensInBed?
     public var roomTemp: RoomTemp?
     public var noiseLevel: NoiseLevel?
+    public var sleepAids: SleepAid?
     
     // Legacy fields (for backwards compatibility)
     public var notes: String?
@@ -2584,6 +2619,7 @@ public struct PreSleepLogAnswers: Codable {
         screensInBed: ScreensInBed? = nil,
         roomTemp: RoomTemp? = nil,
         noiseLevel: NoiseLevel? = nil,
+        sleepAids: SleepAid? = nil,
         notes: String? = nil
     ) {
         self.intendedSleepTime = intendedSleepTime
@@ -2601,6 +2637,7 @@ public struct PreSleepLogAnswers: Codable {
         self.screensInBed = screensInBed
         self.roomTemp = roomTemp
         self.noiseLevel = noiseLevel
+        self.sleepAids = sleepAids
         self.notes = notes
     }
 }

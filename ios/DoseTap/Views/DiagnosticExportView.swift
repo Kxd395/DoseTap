@@ -27,6 +27,14 @@ struct DiagnosticExportView: View {
                 Text("Export diagnostic logs to share with support or review locally. Logs contain session state transitions and timing data. No personal health data is included.")
                     .font(.footnote)
                     .foregroundColor(.secondary)
+                
+                Text("Exported as a .zip file containing meta.json, events.jsonl, and errors.jsonl.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                Text("Tip: Use 'Save to Files' to save the zip file, or share via email/messages.")
+                    .font(.caption)
+                    .foregroundColor(.blue)
             }
             
             Section("Available Sessions") {
@@ -106,7 +114,7 @@ struct DiagnosticExportView: View {
         }
         .sheet(isPresented: $showShareSheet) {
             if let url = exportURL {
-                ShareSheet(items: [url])
+                ActivityViewController(activityItems: [url])
             }
         }
     }

@@ -1,4 +1,5 @@
 import Foundation
+import System
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -40,8 +41,23 @@ public actor DiagnosticLogger {
     /// Whether logging is enabled (can be disabled in settings)
     public var isEnabled: Bool = true
     
+    /// Whether Tier 2 events (session context: sleep, pre-sleep, check-in) are enabled
+    public var tier2Enabled: Bool = true
+    
+    /// Whether Tier 3 events (forensic: state snapshots - not yet implemented) are enabled
+    public var tier3Enabled: Bool = false
+    
     /// Maximum age of sessions to keep (in days)
     public var retentionDays: Int = 14
+    
+    // MARK: - Settings
+    
+    /// Update diagnostic logging settings (called from app settings)
+    public func updateSettings(isEnabled: Bool, tier2Enabled: Bool, tier3Enabled: Bool) {
+        self.isEnabled = isEnabled
+        self.tier2Enabled = tier2Enabled
+        self.tier3Enabled = tier3Enabled
+    }
     
     // MARK: - Initialization
     
@@ -139,12 +155,55 @@ public actor DiagnosticLogger {
         }
     }
     
-    /// Export a session's diagnostics as a temporary directory URL.
-    /// Caller is responsible for sharing/copying the contents.
+    /// Export a session's diagnostics as a zip file.
+    /// Returns a temporary zip file URL that the caller should share/copy.
     public func exportSession(_ sessionId: String) -> URL? {
         let sessionDir = sessionDirectory(for: sessionId)
         guard fileManager.fileExists(atPath: sessionDir.path) else { return nil }
-        return sessionDir
+        
+        // Create temporary zip file in a more persistent location
+        let tempDir = fileManager.temporaryDirectory.appendingPathComponent("DoseTapExports", isDirectory: true)
+        try? fileManager.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        
+        let zipURL = tempDir.appendingPathComponent("diagnostics-\(sessionId).zip")
+        
+        // Remove existing zip if present
+        try? fileManager.removeItem(at: zipURL)
+        
+        // Create zip archive using NSFileCoordinator
+        // The .forUploading option automatically creates a zip
+        var coordinatorError: NSError?
+        var success = false
+        
+        NSFileCoordinator().coordinate(readingItemAt: sessionDir, options: .forUploading, error: &coordinatorError) { zipReadURL in
+            // The system provides a zipped version at zipReadURL
+            do {
+                try fileManager.copyItem(at: zipReadURL, to: zipURL)
+                success = true
+            } catch {
+                print("⚠️ DiagnosticLogger: Failed to copy zip: \(error)")
+            }
+        }
+        
+        if coordinatorError != nil {
+            print("⚠️ DiagnosticLogger: Coordinator error: \(coordinatorError!)")
+        }
+        
+        if !success || !fileManager.fileExists(atPath: zipURL.path) {
+            // Fallback: if coordinator fails, just return the directory
+            // (Some share targets like Files app can handle directories)
+            print("⚠️ DiagnosticLogger: Failed to create zip, returning directory")
+            return sessionDir
+        }
+        
+        // Mark file as accessible for sharing
+        var resourceValues = URLResourceValues()
+        resourceValues.isExcludedFromBackup = true
+        var mutableURL = zipURL
+        try? mutableURL.setResourceValues(resourceValues)
+        
+        print("✅ DiagnosticLogger: Exported zip to: \(zipURL.path)")
+        return zipURL
     }
     
     /// List all available session IDs with diagnostics
@@ -480,6 +539,7 @@ public extension DiagnosticLogger {
     
     /// Log sleep event logged
     func logSleepEventLogged(sessionId: String, eventType: String, eventId: String) {
+        guard tier2Enabled else { return }
         log(.sleepEventLogged, sessionId: sessionId) { entry in
             entry.sleepEventType = eventType
             entry.sleepEventId = eventId
@@ -488,6 +548,7 @@ public extension DiagnosticLogger {
     
     /// Log sleep event deleted
     func logSleepEventDeleted(sessionId: String, eventType: String, eventId: String) {
+        guard tier2Enabled else { return }
         log(.sleepEventDeleted, sessionId: sessionId) { entry in
             entry.sleepEventType = eventType
             entry.sleepEventId = eventId
@@ -498,16 +559,19 @@ public extension DiagnosticLogger {
     
     /// Log pre-sleep started
     func logPreSleepStarted(sessionId: String) {
+        guard tier2Enabled else { return }
         log(.preSleepLogStarted, sessionId: sessionId)
     }
     
     /// Log pre-sleep saved
     func logPreSleepSaved(sessionId: String) {
+        guard tier2Enabled else { return }
         log(.preSleepLogSaved, sessionId: sessionId)
     }
     
     /// Log pre-sleep abandoned
     func logPreSleepAbandoned(sessionId: String) {
+        guard tier2Enabled else { return }
         log(.preSleepLogAbandoned, sessionId: sessionId)
     }
     

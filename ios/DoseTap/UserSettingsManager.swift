@@ -117,6 +117,17 @@ class UserSettingsManager: ObservableObject {
     @AppStorage("analytics_enabled") var analyticsEnabled: Bool = false
     @AppStorage("crash_reports_enabled") var crashReportsEnabled: Bool = true
     
+    // MARK: - Diagnostic Logging
+    /// Master toggle for diagnostic logging (Tier 1 + Tier 2)
+    @AppStorage("diagnostic_logging_enabled") var diagnosticLoggingEnabled: Bool = true
+    
+    /// Enable Tier 2 session context events (pre-sleep, check-in, sleep events)
+    /// Tier 1 (safety-critical) is always on when diagnosticLoggingEnabled=true
+    @AppStorage("diagnostic_tier2_enabled") var diagnosticTier2Enabled: Bool = true
+    
+    /// Enable Tier 3 forensic deep inspection (state snapshots, deltas) - future use
+    @AppStorage("diagnostic_tier3_enabled") var diagnosticTier3Enabled: Bool = false
+    
     // MARK: - QuickLog Panel Customization
     // Stores the list of event types to show in the QuickLog grid (up to 16)
     @AppStorage("quicklog_buttons_json") private var quickLogButtonsJSON: String = ""

@@ -524,7 +524,47 @@ public struct MorningCheckInView: View {
             }
             if viewModel.showSleepTherapySection {
                 VStack(spacing: 16) {
-                    Toggle("Used Sleep Therapy Device", isOn: $viewModel.usedSleepTherapy.animation(.spring(response: 0.3))).toggleStyle(SwitchToggleStyle(tint: .cyan))
+                    Toggle("Used Sleep Therapy Device", isOn: $viewModel.usedSleepTherapy.animation(.spring(response: 0.3)))
+                        .toggleStyle(SwitchToggleStyle(tint: .cyan))
+                    
+                    if viewModel.usedSleepTherapy {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Device Type")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                                ForEach(SleepTherapyDevice.allCases.filter { $0 != .none }, id: \.self) { device in
+                                    Button {
+                                        withAnimation(.spring(response: 0.3)) {
+                                            viewModel.sleepTherapyDevice = device
+                                        }
+                                    } label: {
+                                        VStack(spacing: 4) {
+                                            Image(systemName: device.icon)
+                                                .font(.title2)
+                                                .foregroundColor(viewModel.sleepTherapyDevice == device ? .cyan : .secondary)
+                                            Text(device.rawValue)
+                                                .font(.caption)
+                                                .foregroundColor(viewModel.sleepTherapyDevice == device ? .primary : .secondary)
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 12)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 8)
+                                                .fill(viewModel.sleepTherapyDevice == device ? Color.cyan.opacity(0.15) : Color(.tertiarySystemGroupedBackground))
+                                        )
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 8)
+                                                .stroke(viewModel.sleepTherapyDevice == device ? Color.cyan : Color.clear, lineWidth: 2)
+                                        )
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
                 }.padding().background(Color(.secondarySystemGroupedBackground)).cornerRadius(12).transition(.opacity.combined(with: .move(edge: .top)))
             }
         }

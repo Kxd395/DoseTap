@@ -446,7 +446,15 @@ struct ActivityViewController: UIViewControllerRepresentable {
     let activityItems: [Any]
     
     func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+        let controller = UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+        
+        // Configure for better file handling
+        if #available(iOS 13.0, *) {
+            // Ensure the share sheet shows all relevant options
+            controller.excludedActivityTypes = []
+        }
+        
+        return controller
     }
     
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
