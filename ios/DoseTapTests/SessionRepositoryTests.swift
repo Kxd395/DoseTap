@@ -381,7 +381,7 @@ final class SessionRepositoryTests: XCTestCase {
 
     func test_addPreSleepLog_persistsRowAndIsQueryableBySessionKey() async throws {
         storage.clearAllData()
-        let answers = PreSleepLogAnswers()
+        let answers = DoseTap.PreSleepLogAnswers()
         let log = try repo.savePreSleepLog(answers: answers, completionState: "complete")
         guard let sessionId = log.sessionId else {
             XCTFail("Expected pre-sleep log to include sessionId")
@@ -430,7 +430,7 @@ final class SessionRepositoryTests: XCTestCase {
 
     func test_preSleepLog_upsertSameSession() async throws {
         storage.clearAllData()
-        var firstAnswers = PreSleepLogAnswers()
+        var firstAnswers = DoseTap.PreSleepLogAnswers()
         firstAnswers.stressLevel = 1
         let first = try repo.savePreSleepLog(answers: firstAnswers, completionState: "complete")
         guard let sessionId = first.sessionId else {
@@ -438,7 +438,7 @@ final class SessionRepositoryTests: XCTestCase {
             return
         }
         
-        var secondAnswers = PreSleepLogAnswers()
+        var secondAnswers = DoseTap.PreSleepLogAnswers()
         secondAnswers.stressLevel = 5
         let second = try repo.savePreSleepLog(answers: secondAnswers, completionState: "complete")
         

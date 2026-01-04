@@ -98,6 +98,9 @@ struct WHOOPPaginatedResponse<T: Codable>: Codable {
     }
 }
 
+/// Type alias for backward compatibility - WHOOPSleepRecord is now WHOOPSleep
+typealias WHOOPSleepRecord = WHOOPSleep
+
 /// WHOOP Sleep Record
 struct WHOOPSleep: Codable, Identifiable {
     let id: Int

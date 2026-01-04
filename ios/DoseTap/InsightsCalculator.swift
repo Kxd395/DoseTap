@@ -66,13 +66,13 @@ public class InsightsCalculator: ObservableObject {
             
             // Calculate interval if both doses taken
             if let d1 = session.dose1Time, let d2 = session.dose2Time {
-                let interval = d2.timeIntervalSince(d1) / 60  // minutes
-                intervalMinutes = Int(interval)
-                totalInterval += interval
+                let minutes = TimeIntervalMath.minutesBetween(start: d1, end: d2)
+                intervalMinutes = minutes
+                totalInterval += Double(minutes)
                 intervalsCount += 1
                 
                 // On-time if within 150-240 minute window
-                isOnTime = interval >= 150 && interval <= 240
+                isOnTime = minutes >= 150 && minutes <= 240
                 if isOnTime {
                     onTimeSessions += 1
                 }

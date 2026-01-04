@@ -575,49 +575,6 @@ struct SettingsView: View {
     }
 }
 
-// MARK: - WHOOP Settings View
-struct WHOOPSettingsView: View {
-    @State private var isConnected = false
-    
-    var body: some View {
-        List {
-            Section {
-                HStack {
-                    Text("Status")
-                    Spacer()
-                    Text(isConnected ? "Connected" : "Not Connected")
-                        .foregroundColor(isConnected ? .green : .secondary)
-                }
-                
-                if isConnected {
-                    Button("Disconnect WHOOP") {
-                        isConnected = false
-                    }
-                    .foregroundColor(.red)
-                } else {
-                    Button("Connect WHOOP") {
-                        // OAuth flow would go here
-                        isConnected = true
-                    }
-                }
-            }
-            
-            if isConnected {
-                Section("Data Sync") {
-                    Button("Sync Last 7 Days") {
-                        // Sync logic
-                    }
-                    
-                    Button("Sync Last 30 Days") {
-                        // Sync logic
-                    }
-                }
-            }
-        }
-        .navigationTitle("WHOOP")
-    }
-}
-
 // MARK: - HealthKit Settings View
 struct HealthKitSettingsView: View {
     @StateObject private var healthKit = HealthKitService.shared

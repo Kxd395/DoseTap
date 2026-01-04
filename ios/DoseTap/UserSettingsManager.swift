@@ -410,4 +410,68 @@ final class SleepPlanStore: ObservableObject {
         let expected = SleepPlanCalculator.expectedSleepIfInBedNow(now: now, wakeBy: wake, settings: settings)
         return (wake, inBed, wind, expected)
     }
+    
+    /// Reset SleepPlanStore to defaults
+    func resetToDefaults() {
+        settings = SleepPlanSettings()
+        tonightOverrides.removeAll()
+        schedule = TypicalWeekSchedule()
+        persistSettings()
+        persistSchedule()
+        #if DEBUG
+        Swift.print("✅ SleepPlanStore reset to defaults")
+        #endif
+    }
+}
+
+// MARK: - UserSettingsManager Reset Extension
+extension UserSettingsManager {
+    /// Reset all user settings to defaults
+    func resetToDefaults() {
+        // Appearance
+        appearanceMode = .system
+        highContrastMode = false
+        reducedMotion = false
+        
+        // Dose timing
+        targetIntervalMinutes = 165
+        snoozeDurationMinutes = 10
+        maxSnoozes = 3
+        
+        // Undo
+        undoWindowSeconds = 5.0
+        
+        // Medications
+        userMedicationsJSON = ""
+        defaultAdderallDose = 10
+        defaultAdderallFormulation = "ir"
+        
+        // Cooldowns
+        cooldownBathroom = 30
+        cooldownWater = 30
+        cooldownBriefWake = 60
+        cooldownAnxiety = 60
+        cooldownDream = 30
+        cooldownNoise = 30
+        cooldownLightsOut = 1800
+        cooldownWakeUp = 1800
+        cooldownSnack = 300
+        cooldownHeartRacing = 60
+        cooldownTemperature = 60
+        cooldownPain = 60
+        
+        // QuickLog buttons - reset to defaults
+        quickLogButtonsJSON = "[]"
+        
+        // Integrations
+        healthKitEnabled = false
+        
+        // Privacy
+        analyticsEnabled = true
+        crashReportsEnabled = true
+        
+        #if DEBUG
+        Swift.print("✅ UserSettingsManager reset to defaults")
+        #endif
+    }
 }

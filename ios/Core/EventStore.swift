@@ -221,7 +221,7 @@ public struct SessionSummary: Identifiable, Equatable, Sendable {
         self.eventCount = eventCount ?? sleepEvents.count
         
         if let d1 = dose1Time, let d2 = dose2Time {
-            self.intervalMinutes = Int(d2.timeIntervalSince(d1) / 60)
+            self.intervalMinutes = TimeIntervalMath.minutesBetween(start: d1, end: d2)
         } else {
             self.intervalMinutes = nil
         }

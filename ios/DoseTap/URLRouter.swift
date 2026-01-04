@@ -43,12 +43,24 @@ public class URLRouter: ObservableObject {
     /// Handle incoming URL and return true if handled
     @discardableResult
     public func handle(_ url: URL) -> Bool {
+        // Security: Validate deep link before processing
+        let validation = InputValidator.validateDeepLink(url)
+        guard validation.isValid else {
+            #if DEBUG
+            print("⚠️ URLRouter: Invalid deep link - \(validation.errors.joined(separator: ", "))")
+            #endif
+            showFeedback("Invalid link")
+            return false
+        }
+        
         guard url.scheme == "dosetap" else { return false }
         
         let host = url.host ?? ""
         let queryItems = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
         
-        print("🔗 URLRouter: Handling \(url.absoluteString)")
+        #if DEBUG
+        print("🔗 URLRouter: Handling \(InputValidator.sanitizeForLogging(url.absoluteString))")
+        #endif
         
         switch host {
         case "dose1":
@@ -220,8 +232,19 @@ public class URLRouter: ObservableObject {
     }
     
     private func handleLogEvent(name: String, notes: String?) -> Bool {
-        let normalizedName = name.isEmpty ? "unknown" : name.lowercased()
-        lastAction = .logEvent(name: normalizedName, notes: notes)
+        // Security: Validate event type
+        let eventValidation = InputValidator.validateEventType(name)
+        guard eventValidation.isValid else {
+            #if DEBUG
+            print("⚠️ URLRouter: Invalid event type - \(eventValidation.errors.joined(separator: ", "))")
+            #endif
+            showFeedback("Invalid event")
+            return false
+        }
+        
+        let normalizedName = InputValidator.sanitizeInput(name.isEmpty ? "unknown" : name.lowercased())
+        let sanitizedNotes = notes.flatMap { InputValidator.sanitizeInputOptional($0) }
+        lastAction = .logEvent(name: normalizedName, notes: sanitizedNotes)
         
         guard let eventLogger = eventLogger else {
             showFeedback("App not ready")

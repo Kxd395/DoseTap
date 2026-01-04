@@ -2135,8 +2135,8 @@ public struct StoredDoseLog: Identifiable {
     
     /// Interval in minutes between doses (nil if dose2 not taken)
     public var intervalMinutes: Int? {
-        guard let d2 = dose2Time else { return nil }
-        return Int(d2.timeIntervalSince(dose1Time) / 60)
+    guard let d2 = dose2Time else { return nil }
+    return TimeIntervalMath.minutesBetween(start: dose1Time, end: d2)
     }
     
     /// Alias for dose2Skipped for UI convenience
@@ -2170,7 +2170,7 @@ public struct SessionSummary: Identifiable {
         
         // Calculate interval if both doses exist
         if let d1 = dose1Time, let d2 = dose2Time {
-            self.intervalMinutes = Int(d2.timeIntervalSince(d1) / 60)
+            self.intervalMinutes = TimeIntervalMath.minutesBetween(start: d1, end: d2)
         } else {
             self.intervalMinutes = nil
         }

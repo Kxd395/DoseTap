@@ -93,7 +93,7 @@ public struct DoseSessionData: Codable, Sendable {
     /// Dose interval in minutes (nil if dose2 not taken)
     public var intervalMinutes: Int? {
         guard let d2 = dose2Time else { return nil }
-        return Int(d2.timeIntervalSince(dose1Time) / 60)
+    return TimeIntervalMath.minutesBetween(start: dose1Time, end: d2)
     }
     
     /// Whether the dose interval is within the 150-240 minute window

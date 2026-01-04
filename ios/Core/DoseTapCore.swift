@@ -155,17 +155,23 @@ public class DoseTapCore: ObservableObject {
                 if windowOpen || earlyOverride {
                     // P0 FIX: Write through repository
                     sessionRepository?.setDose2Time(now, isEarly: earlyOverride, isExtraDose: false)
+                    #if DEBUG
                     if earlyOverride {
-                        print("⚠️ Dose 2 taken early with user override")
+                        Swift.print("⚠️ Dose 2 taken early with user override")
                     }
+                    #endif
                 } else {
                     // Window not open and no override - block
-                    print("❌ Cannot take Dose 2: window not open (status: \(currentStatus))")
+                    #if DEBUG
+                    Swift.print("❌ Cannot take Dose 2: window not open (status: \(currentStatus))")
+                    #endif
                     return
                 }
             } else {
                 // Dose 2 already taken - this should be blocked by UI
-                print("⚠️ Dose 2 already taken, ignoring duplicate")
+                #if DEBUG
+                Swift.print("⚠️ Dose 2 already taken, ignoring duplicate")
+                #endif
                 return
             }
         }

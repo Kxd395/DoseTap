@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <title>DoseTap Liquid Glass — Foreground 1</title>
+  <desc>Foreground layer: dose window ring + highlight arc.</desc>
+
+  <g transform="translate(512,512)">
+    <circle cx="0" cy="28" r="300" fill="none" stroke="#F2F7FF" stroke-width="56" opacity="0.14"/>
+    <path d="M -290 28 A 290 290 0 0 1 290 28" fill="none" stroke="#34D3C7" stroke-width="56" stroke-linecap="round" opacity="0.95"/>
+
+    <circle cx="0" cy="28" r="176" fill="#F2F7FF" opacity="0.18"/>
+    <circle cx="0" cy="28" r="124" fill="#F2F7FF" opacity="0.24"/>
+  </g>
+</svg>

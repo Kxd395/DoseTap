@@ -151,10 +151,11 @@ class UndoStateManager: ObservableObject {
     
     /// Convert action to target type string for logging
     private func undoTargetType(for action: UndoableAction) -> String {
-        switch action.type {
-        case .dose1: return "dose1"
-        case .dose2: return "dose2"
-        case .sleepEvent: return "sleepEvent"
+        switch action {
+        case .takeDose1: return "dose1"
+        case .takeDose2: return "dose2"
+        case .skipDose: return "skipDose"
+        case .snooze: return "snooze"
         }
     }
 }

@@ -10,10 +10,17 @@ class WHOOPManager {
 
     // WHOOP API Configuration
     private let baseURL = "https://api.prod.whoop.com"
-    private let clientID: String
-    private let clientSecret: String
-    private let redirectURI: String
     private let scope = "read:recovery read:cycles read:sleep read:workout read:profile read:body_measurement offline"
+    
+    // MARK: - Secure Configuration (loaded from SecureConfig)
+    private var clientID: String { SecureConfig.shared.whoopClientID }
+    private var clientSecret: String { SecureConfig.shared.whoopClientSecret }
+    private var redirectURI: String { SecureConfig.shared.whoopRedirectURI }
+    
+    // MARK: - OAuth State Storage Keys (Keychain-based for CSRF protection)
+    private static let oauthStateKey = "whoop_oauth_state"
+    private static let oauthStateExpirationKey = "whoop_oauth_state_expiration"
+    private static let oauthStateTTL: TimeInterval = 300 // 5 minutes
 
     struct MetricEndpointConfig {
         let path: String
@@ -27,19 +34,12 @@ class WHOOPManager {
     private var endpoints: [String: MetricEndpointConfig] = [:] // hr, rr, spo2, hrv
 
     private init() {
-        // Load client credentials from Secrets.swift (git-ignored)
-        self.clientID = Secrets.whoopClientID
-        self.clientSecret = Secrets.whoopClientSecret
-        self.redirectURI = Secrets.whoopRedirectURI
-
-        if self.clientID == "REPLACE_WITH_YOUR_CLIENT_ID" {
-            whoopLog.warning("WHOOP_CLIENT_ID not set in Secrets.swift")
-        }
-        if self.clientSecret == "REPLACE_WITH_YOUR_NEW_ROTATED_SECRET" {
-            whoopLog.warning("WHOOP_CLIENT_SECRET not set in Secrets.swift")
+        // Validate configuration on init
+        if !SecureConfig.shared.isConfigured {
+            whoopLog.warning("WHOOP credentials not configured - check Secrets.swift or environment variables")
         }
 
-        // Load metric endpoint config (optional) from Config.plist if present, but secrets are gone from there.
+        // Load metric endpoint config (optional) from Config.plist if present
         if let path = Bundle.main.path(forResource: "Config", ofType: "plist"),
            let dict = NSDictionary(contentsOfFile: path) as? [String: Any],
            let ep = dict["WHOOP_METRIC_ENDPOINTS"] as? [String: Any] {
@@ -88,22 +88,59 @@ class WHOOPManager {
         }
     }
 
-    // Generate 8-character state parameter for CSRF protection
+    // Generate cryptographically secure state parameter for CSRF protection
     private func generateState() -> String {
-        let characters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-        return String((0..<8).map { _ in characters.randomElement()! })
+        // Use 32 bytes of random data for cryptographic security
+        var bytes = [UInt8](repeating: 0, count: 32)
+        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        return bytes.map { String(format: "%02x", $0) }.joined().prefix(16).description
+    }
+    
+    // MARK: - Secure OAuth State Management (Keychain-based)
+    
+    /// Store OAuth state securely in Keychain with TTL
+    private func storeOAuthState(_ state: String) {
+        KeychainHelper.shared.save(state, forKey: Self.oauthStateKey)
+        let expiration = Date().addingTimeInterval(Self.oauthStateTTL)
+        KeychainHelper.shared.save(String(expiration.timeIntervalSince1970), forKey: Self.oauthStateExpirationKey)
+    }
+    
+    /// Retrieve and validate OAuth state from Keychain
+    /// Returns nil if expired or not found
+    private func retrieveOAuthState() -> String? {
+        guard let state = KeychainHelper.shared.read(forKey: Self.oauthStateKey),
+              let expirationStr = KeychainHelper.shared.read(forKey: Self.oauthStateExpirationKey),
+              let expirationTimestamp = Double(expirationStr) else {
+            return nil
+        }
+        
+        let expiration = Date(timeIntervalSince1970: expirationTimestamp)
+        guard Date() < expiration else {
+            // State expired - clean up
+            clearOAuthState()
+            whoopLog.warning("OAuth state expired")
+            return nil
+        }
+        
+        return state
+    }
+    
+    /// Clear OAuth state from Keychain
+    private func clearOAuthState() {
+        KeychainHelper.shared.delete(forKey: Self.oauthStateKey)
+        KeychainHelper.shared.delete(forKey: Self.oauthStateExpirationKey)
     }
 
     // Start OAuth flow with state parameter
     func authorize() {
         let state = generateState()
-        UserDefaults.standard.set(state, forKey: "whoop_oauth_state")
+        storeOAuthState(state)
 
         let authURL = "\(baseURL)/oauth/oauth2/auth?response_type=code&client_id=\(clientID)&redirect_uri=\(redirectURI)&scope=\(scope)&state=\(state)"
         if let url = URL(string: authURL) {
             #if os(iOS)
             // UIApplication.shared.open(url)  // Temporarily commented until UIKit is available
-            print("WHOOP: Would open URL: \(url.absoluteString)")
+            whoopLog.info("WHOOP: Opening OAuth URL")
             #endif
         }
     }
@@ -114,19 +151,24 @@ class WHOOPManager {
               let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
               let code = components.queryItems?.first(where: { $0.name == "code" })?.value,
               let returnedState = components.queryItems?.first(where: { $0.name == "state" })?.value else {
-            print("WHOOP: Invalid callback URL or missing parameters")
+            whoopLog.error("WHOOP: Invalid callback URL or missing parameters")
             return
         }
 
-        // Validate state parameter for CSRF protection
-        let storedState = UserDefaults.standard.string(forKey: "whoop_oauth_state")
+        // Validate state parameter for CSRF protection (from Keychain)
+        guard let storedState = retrieveOAuthState() else {
+            whoopLog.error("WHOOP: No valid OAuth state found - possible timeout or attack")
+            return
+        }
+        
         guard returnedState == storedState else {
-            print("WHOOP: State parameter mismatch - possible CSRF attack")
+            whoopLog.error("WHOOP: State parameter mismatch - possible CSRF attack")
+            clearOAuthState()
             return
         }
 
-        // Clear stored state
-        UserDefaults.standard.removeObject(forKey: "whoop_oauth_state")
+        // Clear stored state immediately after validation
+        clearOAuthState()
 
         exchangeCodeForToken(code: code)
     }

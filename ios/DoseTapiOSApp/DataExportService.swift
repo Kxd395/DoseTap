@@ -160,8 +160,8 @@ public class DataExportService: ObservableObject {
                 let duration: String
                 if event.type == .dose2,
                    let dose1 = session.events.first(where: { $0.type == .dose1 }) {
-                    let interval = event.timestamp.timeIntervalSince(dose1.timestamp)
-                    duration = formatDurationMinutes(interval)
+                    let minutes = TimeIntervalMath.minutesBetween(start: dose1.timestamp, end: event.timestamp)
+                    duration = formatDurationMinutes(Double(minutes) * 60)
                 } else {
                     duration = ""
                 }
@@ -280,7 +280,8 @@ public class DataExportService: ObservableObject {
         let intervals = completedSessions.compactMap { session -> TimeInterval? in
             guard let dose1 = session.events.first(where: { $0.type == .dose1 }),
                   let dose2 = session.events.first(where: { $0.type == .dose2 }) else { return nil }
-            return dose2.timestamp.timeIntervalSince(dose1.timestamp)
+            let minutes = TimeIntervalMath.minutesBetween(start: dose1.timestamp, end: dose2.timestamp)
+            return Double(minutes) * 60
         }
         
         let avgInterval = intervals.isEmpty ? 0 : intervals.reduce(0, +) / Double(intervals.count)
@@ -447,9 +448,10 @@ public class DataExportService: ObservableObject {
             let statusClass: String
             
             if let d1 = dose1, let d2 = dose2 {
-                let intervalSeconds = d2.timestamp.timeIntervalSince(d1.timestamp)
+                let minutesInt = TimeIntervalMath.minutesBetween(start: d1.timestamp, end: d2.timestamp)
+                let intervalSeconds = TimeInterval(minutesInt * 60)
                 interval = formatDuration(intervalSeconds)
-                let minutes = intervalSeconds / 60
+                let minutes = Double(minutesInt)
                 
                 if minutes >= 150 && minutes <= 240 {
                     status = "Optimal"

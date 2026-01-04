@@ -316,7 +316,7 @@ struct HistoryView: View {
         let manual = data.filter { $0.source == .manual }.count
         let spanText: String = {
             guard let first = data.first?.timestamp, let last = data.last?.timestamp, last > first else { return "Span: 0m" }
-            let mins = Int(last.timeIntervalSince(first) / 60)
+            let mins = TimeIntervalMath.minutesBetween(start: first, end: last)
             let hours = mins / 60
             let rem = mins % 60
             return hours > 0 ? String(format: "Span: %dh %dm", hours, rem) : "Span: \(mins)m"

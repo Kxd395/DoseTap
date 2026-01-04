@@ -1,4 +1,5 @@
 import SwiftUI
+import DoseCore
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -82,9 +83,9 @@ struct DiagnosticExportView: View {
             
             Section("What's Included") {
                 VStack(alignment: .leading, spacing: 8) {
-                    InfoRow(icon: "doc.text", title: "meta.json", description: "Device, app version, timezone")
-                    InfoRow(icon: "list.bullet.rectangle", title: "events.jsonl", description: "Phase transitions, dose times")
-                    InfoRow(icon: "exclamationmark.triangle", title: "errors.jsonl", description: "Errors and warnings only")
+                    DiagnosticInfoRow(icon: "doc.text", title: "meta.json", description: "Device, app version, timezone")
+                    DiagnosticInfoRow(icon: "list.bullet.rectangle", title: "events.jsonl", description: "Phase transitions, dose times")
+                    DiagnosticInfoRow(icon: "exclamationmark.triangle", title: "errors.jsonl", description: "Errors and warnings only")
                 }
                 .padding(.vertical, 4)
             }
@@ -160,7 +161,7 @@ struct DiagnosticExportView: View {
 
 // MARK: - Supporting Views
 
-private struct InfoRow: View {
+private struct DiagnosticInfoRow: View {
     let icon: String
     let title: String
     let description: String
@@ -181,20 +182,6 @@ private struct InfoRow: View {
         }
     }
 }
-
-// MARK: - Share Sheet
-
-#if canImport(UIKit)
-struct ShareSheet: UIViewControllerRepresentable {
-    let items: [Any]
-    
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
-    }
-    
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
-}
-#endif
 
 // MARK: - Preview
 

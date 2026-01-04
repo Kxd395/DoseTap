@@ -1078,16 +1078,14 @@ final class URLRouterTests: XCTestCase {
         }
     }
     
-    /// Verify log event with missing event defaults to "unknown"
-    func test_logEvent_missingEvent_defaultsToUnknown() {
+    /// Verify log event with missing event is rejected (security validation)
+    func test_logEvent_missingEvent_isRejected() {
         let url = URL(string: "dosetap://log")!
-        _ = router.handle(url)
+        let result = router.handle(url)
         
-        if case .logEvent(let name, _) = router.lastAction {
-            XCTAssertEqual(name, "unknown", "Missing event should default to 'unknown'")
-        } else {
-            XCTFail("lastAction should be .logEvent")
-        }
+        // Missing event should be rejected by InputValidator
+        XCTAssertFalse(result, "Missing event should fail validation")
+        XCTAssertTrue(router.feedbackMessage.contains("Invalid"), "Should show invalid event feedback")
     }
     
     // MARK: - Action Recording Tests

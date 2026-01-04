@@ -43,9 +43,9 @@ final class Dose2EdgeCaseTests: XCTestCase {
         let anchor = Date()
         let earlyDose2Time = makeDate(anchor, addMinutes: 120)
         
-        let interval = earlyDose2Time.timeIntervalSince(anchor) / 60
-        XCTAssertEqual(Int(interval), 120, "Interval should be 120 minutes")
-        XCTAssertLessThan(interval, 150, "Early dose interval is less than minimum window (150)")
+    let minutes = TimeIntervalMath.minutesBetween(start: anchor, end: earlyDose2Time)
+    XCTAssertEqual(minutes, 120, "Interval should be 120 minutes")
+    XCTAssertLessThan(minutes, 150, "Early dose interval is less than minimum window (150)")
     }
     
     func test_earlyDose2_exact150Minutes_isNotEarly() {
@@ -60,8 +60,8 @@ final class Dose2EdgeCaseTests: XCTestCase {
         XCTAssertEqual(ctx.phase, .completed)
         
         // Verify it's exactly at window boundary
-        let interval = dose2Time.timeIntervalSince(anchor) / 60
-        XCTAssertEqual(Int(interval), 150, "Interval should be exactly 150 minutes (not early)")
+    let minutes = TimeIntervalMath.minutesBetween(start: anchor, end: dose2Time)
+    XCTAssertEqual(minutes, 150, "Interval should be exactly 150 minutes (not early)")
     }
     
     // MARK: - Extra Dose (Second Dose 2 Attempt) Tests
@@ -93,16 +93,41 @@ final class Dose2EdgeCaseTests: XCTestCase {
     }
     
     // MARK: - Interval Calculation Tests
+
+    func test_intervalCalculation_midnightRollover_isPositiveAndCorrect() {
+        // Real-world case: Dose 1 at 8:53 PM, Dose 2 at 12:51 AM next day.
+        // Interval should be 238 minutes.
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)! // stable + deterministic
+
+        let dose1 = calendar.date(from: DateComponents(year: 2026, month: 1, day: 1, hour: 20, minute: 53))!
+        let dose2 = calendar.date(from: DateComponents(year: 2026, month: 1, day: 2, hour: 0, minute: 51))!
+
+        let calc = DoseWindowCalculator(now: { dose2 })
+        let ctx = calc.context(dose1At: dose1, dose2TakenAt: dose2, dose2Skipped: false, snoozeCount: 0)
+
+        XCTAssertEqual(ctx.phase, .completed)
+        XCTAssertEqual(TimeIntervalMath.minutesBetween(start: dose1, end: dose2), 238)
+    }
+
+    func test_minutesBetween_nonsensicalNegative_keepsNegativeValue() {
+    // If the negative delta isn't plausibly a midnight rollover, we should NOT coerce it.
+    // NOTE: `assertionFailure` can be configured to trap in this test environment, so we
+    // keep the delta small enough to be non-rollover but non-fatal.
+    let start = Date(timeIntervalSince1970: 0)
+    let end = Date(timeIntervalSince1970: -60) // -1 minute (not a plausible rollover)
+    XCTAssertEqual(TimeIntervalMath.minutesBetween(start: start, end: end), -1)
+    }
     
     func test_intervalCalculation_normalCase() {
         // Dose 1 at T=0, Dose 2 at T=165 (optimal)
         let anchor = Date()
         let dose2Time = makeDate(anchor, addMinutes: 165)
         
-        let interval = dose2Time.timeIntervalSince(anchor) / 60
-        XCTAssertEqual(Int(interval), 165, "Normal interval should be 165 minutes")
-        XCTAssertGreaterThanOrEqual(interval, 150, "Should be >= min window")
-        XCTAssertLessThanOrEqual(interval, 240, "Should be <= max window")
+    let minutes = TimeIntervalMath.minutesBetween(start: anchor, end: dose2Time)
+    XCTAssertEqual(minutes, 165, "Normal interval should be 165 minutes")
+    XCTAssertGreaterThanOrEqual(minutes, 150, "Should be >= min window")
+    XCTAssertLessThanOrEqual(minutes, 240, "Should be <= max window")
     }
     
     func test_intervalCalculation_nearClose() {
@@ -110,9 +135,9 @@ final class Dose2EdgeCaseTests: XCTestCase {
         let anchor = Date()
         let dose2Time = makeDate(anchor, addMinutes: 235)
         
-        let interval = dose2Time.timeIntervalSince(anchor) / 60
-        XCTAssertEqual(Int(interval), 235, "Near-close interval should be 235 minutes")
-        XCTAssertLessThan(interval, 240, "Should still be within window")
+    let minutes = TimeIntervalMath.minutesBetween(start: anchor, end: dose2Time)
+    XCTAssertEqual(minutes, 235, "Near-close interval should be 235 minutes")
+    XCTAssertLessThan(minutes, 240, "Should still be within window")
     }
     
     func test_intervalCalculation_exactMaxWindow() {
@@ -120,8 +145,8 @@ final class Dose2EdgeCaseTests: XCTestCase {
         let anchor = Date()
         let dose2Time = makeDate(anchor, addMinutes: 240)
         
-        let interval = dose2Time.timeIntervalSince(anchor) / 60
-        XCTAssertEqual(Int(interval), 240, "Exact max interval should be 240 minutes")
+    let minutes = TimeIntervalMath.minutesBetween(start: anchor, end: dose2Time)
+    XCTAssertEqual(minutes, 240, "Exact max interval should be 240 minutes")
     }
     
     // MARK: - Window Boundary Tests

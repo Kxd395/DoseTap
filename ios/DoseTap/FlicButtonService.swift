@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import DoseCore
 
 /// Flic Button Service for hardware button integration
 /// Maps single/double/long press gestures to DoseTap actions
@@ -9,10 +10,20 @@ import Combine
 /// - Double press: Snooze (+10 min if in window, >15 min remaining, <3 snoozes)
 /// - Long hold (1s+): Cancel/undo last action
 ///
+/// CRITICAL: Uses SessionRepository as single source of truth to prevent split-brain.
+///
 @MainActor
 final class FlicButtonService: ObservableObject {
     
     static let shared = FlicButtonService()
+    
+    // MARK: - Dependencies (SSOT)
+    
+    /// Session repository is the single source of truth for dose state
+    private var sessionRepository: SessionRepository { SessionRepository.shared }
+    
+    /// Window calculator for determining dose phase
+    private let windowCalculator = DoseWindowCalculator()
     
     // MARK: - Published State
     @Published var isPaired: Bool = false
@@ -151,18 +162,27 @@ final class FlicButtonService: ObservableObject {
     
     // MARK: - Action Handlers
     
+    /// Compute current window context from SSOT (SessionRepository)
+    private var currentContext: DoseWindowContext {
+        windowCalculator.context(
+            dose1At: sessionRepository.dose1Time,
+            dose2TakenAt: sessionRepository.dose2Time,
+            dose2Skipped: sessionRepository.dose2Skipped,
+            snoozeCount: sessionRepository.snoozeCount,
+            wakeFinalAt: sessionRepository.wakeFinalTime,
+            checkInCompleted: sessionRepository.checkInCompleted
+        )
+    }
+    
     /// Handle take dose action - routes to Dose 1 or Dose 2 based on state
     private func handleTakeDose(gesture: FlicGesture) async -> FlicActionResult {
-        // Check current dose state
-        let core = DoseTapCore.shared
-        let context = core.windowContext
+        let context = currentContext
         
         // Route based on current phase
         switch context.phase {
-        case .idle:
-            // Take Dose 1
-            core.takeDose1()
-            // Provide haptic feedback
+        case .noDose1:
+            // Take Dose 1 via SSOT
+            sessionRepository.saveDose1(timestamp: Date())
             provideHapticFeedback(.success)
             return FlicActionResult(
                 gesture: gesture,
@@ -172,7 +192,7 @@ final class FlicButtonService: ObservableObject {
                 canUndo: true
             )
             
-        case .preWindow:
+        case .beforeWindow:
             // Cannot take Dose 2 yet
             provideHapticFeedback(.error)
             return FlicActionResult(
@@ -183,9 +203,9 @@ final class FlicButtonService: ObservableObject {
                 canUndo: false
             )
             
-        case .active, .nearEnd:
-            // Take Dose 2
-            core.takeDose2()
+        case .active, .nearClose:
+            // Take Dose 2 via SSOT
+            sessionRepository.saveDose2(timestamp: Date())
             provideHapticFeedback(.success)
             return FlicActionResult(
                 gesture: gesture,
@@ -195,9 +215,9 @@ final class FlicButtonService: ObservableObject {
                 canUndo: true
             )
             
-        case .exceeded:
-            // Window closed - log with warning
-            core.takeDose2()
+        case .closed:
+            // Window closed - log with warning (user should confirm via UI)
+            sessionRepository.saveDose2(timestamp: Date())
             provideHapticFeedback(.warning)
             return FlicActionResult(
                 gesture: gesture,
@@ -207,7 +227,7 @@ final class FlicButtonService: ObservableObject {
                 canUndo: true
             )
             
-        case .completed:
+        case .completed, .finalizing:
             // Already done for tonight
             provideHapticFeedback(.error)
             return FlicActionResult(
@@ -222,23 +242,28 @@ final class FlicButtonService: ObservableObject {
     
     /// Handle snooze action
     private func handleSnooze(gesture: FlicGesture) async -> FlicActionResult {
-        let core = DoseTapCore.shared
-        let context = core.windowContext
+        let context = currentContext
         
         // Check if snooze is allowed
-        guard context.snoozeState.isEnabled else {
+        guard case .snoozeEnabled = context.snooze else {
+            let reason: String
+            if case .snoozeDisabled(let r) = context.snooze {
+                reason = r
+            } else {
+                reason = "Snooze not available"
+            }
             provideHapticFeedback(.error)
             return FlicActionResult(
                 gesture: gesture,
                 action: .snooze,
                 success: false,
-                message: context.snoozeState.disabledReason ?? "Snooze not available",
+                message: reason,
                 canUndo: false
             )
         }
         
-        // Perform snooze
-        core.snooze()
+        // Perform snooze via SSOT
+        sessionRepository.incrementSnooze()
         provideHapticFeedback(.success)
         
         return FlicActionResult(
@@ -267,9 +292,8 @@ final class FlicButtonService: ObservableObject {
     
     /// Handle event logging
     private func handleLogEvent(_ eventType: String, gesture: FlicGesture) -> FlicActionResult {
-        // Log via EventLogger
-        let logger = EventLogger.shared
-        logger.logEvent(name: eventType, notes: nil)
+        // Log via SessionRepository
+        sessionRepository.logSleepEvent(eventType: eventType, notes: nil)
         provideHapticFeedback(.success)
         
         return FlicActionResult(
@@ -283,10 +307,9 @@ final class FlicButtonService: ObservableObject {
     
     /// Handle skip action
     private func handleSkip(gesture: FlicGesture) async -> FlicActionResult {
-        let core = DoseTapCore.shared
-        let context = core.windowContext
+        let context = currentContext
         
-        guard context.skipState.isEnabled else {
+        guard case .skipEnabled = context.skip else {
             provideHapticFeedback(.error)
             return FlicActionResult(
                 gesture: gesture,
@@ -297,7 +320,8 @@ final class FlicButtonService: ObservableObject {
             )
         }
         
-        core.skipDose2(reason: "flic_button")
+        // Skip via SSOT
+        sessionRepository.skipDose2()
         provideHapticFeedback(.warning)
         
         return FlicActionResult(

@@ -16,6 +16,20 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
     // MARK: - Published State
     @Published var isAuthorized = false
     @Published var authorizationStatus: HKAuthorizationStatus = .notDetermined
+    
+    // MARK: - Initialization
+    private init() {
+        // Restore authorization status from HealthKit on init
+        // This ensures isAuthorized is correct after app restart
+        if HKHealthStore.isHealthDataAvailable() {
+            let sleepType = HKCategoryType(.sleepAnalysis)
+            authorizationStatus = healthStore.authorizationStatus(for: sleepType)
+            isAuthorized = authorizationStatus == .sharingAuthorized
+            #if DEBUG
+            print("🏥 HealthKitService: Init - authorization status: \(authorizationStatus.rawValue), isAuthorized: \(isAuthorized)")
+            #endif
+        }
+    }
     @Published var lastError: String?
     @Published var ttfwBaseline: Double?  // Average TTFW in minutes
     @Published var sleepHistory: [SleepNightSummary] = []

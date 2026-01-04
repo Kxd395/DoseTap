@@ -112,7 +112,8 @@ final class HealthKitManager: ObservableObject {
         let now = Date()
         
         // Get last night: from 8 PM yesterday to 10 AM today
-        guard let yesterday8PM = calendar.date(bySettingHour: 20, minute: 0, second: 0, of: calendar.date(byAdding: .day, value: -1, to: now)!),
+        guard let yesterday = calendar.date(byAdding: .day, value: -1, to: now),
+              let yesterday8PM = calendar.date(bySettingHour: 20, minute: 0, second: 0, of: yesterday),
               let today10AM = calendar.date(bySettingHour: 10, minute: 0, second: 0, of: now) else {
             throw HealthKitError.invalidDateRange
         }
@@ -243,7 +244,8 @@ final class HealthKitManager: ObservableObject {
         let calendar = Calendar.current
         let now = Date()
         
-        guard let yesterday8PM = calendar.date(bySettingHour: 20, minute: 0, second: 0, of: calendar.date(byAdding: .day, value: -1, to: now)!),
+        guard let yesterday = calendar.date(byAdding: .day, value: -1, to: now),
+              let yesterday8PM = calendar.date(bySettingHour: 20, minute: 0, second: 0, of: yesterday),
               let today10AM = calendar.date(bySettingHour: 10, minute: 0, second: 0, of: now) else {
             throw HealthKitError.invalidDateRange
         }
@@ -287,8 +289,14 @@ extension HealthKitManager {
         
         // Generate HR samples every 5 minutes from 10 PM to 6 AM
         var hrSamples: [HeartRateSample] = []
-        var currentTime = calendar.date(bySettingHour: 22, minute: 0, second: 0, of: calendar.date(byAdding: .day, value: -1, to: now)!)!
-        let endTime = calendar.date(bySettingHour: 6, minute: 0, second: 0, of: now)!
+        
+        guard let yesterday = calendar.date(byAdding: .day, value: -1, to: now),
+              let startTime = calendar.date(bySettingHour: 22, minute: 0, second: 0, of: yesterday),
+              let endTime = calendar.date(bySettingHour: 6, minute: 0, second: 0, of: now) else {
+            return OvernightSummary(heartRateSamples: [], hrvSamples: [], sleepSegments: [])
+        }
+        
+        var currentTime = startTime
         
         while currentTime < endTime {
             // Simulate lower HR during deep sleep (1-3 AM)
@@ -301,7 +309,9 @@ extension HealthKitManager {
                 bpm: baseHR + variation,
                 source: "WHOOP"
             ))
-            currentTime = calendar.date(byAdding: .minute, value: 5, to: currentTime)!
+            
+            guard let nextTime = calendar.date(byAdding: .minute, value: 5, to: currentTime) else { break }
+            currentTime = nextTime
         }
         
         return OvernightSummary(

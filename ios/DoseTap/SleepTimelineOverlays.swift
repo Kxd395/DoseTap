@@ -364,16 +364,20 @@ extension WHOOPService {
         var rrPoints: [RespiratoryRateDataPoint] = []
         var hrvPoints: [HRVDataPoint] = []
         
-        let startTime = sleep.startTime
-        let endTime = sleep.endTime
+        guard let startTime = sleep.start, let endTime = sleep.end else {
+            return (hrPoints, rrPoints, hrvPoints)
+        }
         let totalDuration = endTime.timeIntervalSince(startTime)
+        guard totalDuration > 0 else {
+            return (hrPoints, rrPoints, hrvPoints)
+        }
         
         // Generate sample points (every 10 minutes)
         let interval: TimeInterval = 600 // 10 minutes
         var currentTime = startTime
         
         // Base values from WHOOP data
-        let baseRR = sleep.respiratoryRate ?? 15.0
+        let baseRR = sleep.score?.respiratoryRate ?? 15.0
         
         while currentTime < endTime {
             // Heart rate varies with sleep stage
@@ -474,13 +478,40 @@ struct LiveEnhancedTimelineView: View {
         stages.last?.endTime ?? Date()
     }
     
+    /// Map HealthKit sleep stage to timeline sleep stage
+    private func mapHealthKitStage(_ hkStage: HealthKitService.SleepStage) -> SleepStage? {
+        switch hkStage {
+        case .awake:
+            return .awake
+        case .asleepCore:
+            return .core
+        case .asleepDeep:
+            return .deep
+        case .asleepREM:
+            return .rem
+        case .asleep:
+            return .light
+        case .inBed:
+            return nil // Filter out "in bed" segments
+        }
+    }
+    
     private func loadData() async {
         isLoading = true
         
         // Load HealthKit sleep stages
         do {
             let (start, end) = nightRange(for: selectedDate)
-            stages = try await healthKit.fetchSegmentsForTimeline(from: start, to: end)
+            let segments = try await healthKit.fetchSegmentsForTimeline(from: start, to: end)
+            // Convert SleepSegment to SleepStageBand
+            stages = segments.compactMap { segment in
+                guard let mappedStage = mapHealthKitStage(segment.stage) else { return nil }
+                return SleepStageBand(
+                    stage: mappedStage,
+                    startTime: segment.start,
+                    endTime: segment.end
+                )
+            }
         } catch {
             stages = []
         }

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <title>DoseTap Liquid Glass — Foreground 2</title>
+  <desc>Foreground layer: minimal hour mark ticks to imply interval without using text.</desc>
+
+  <g transform="translate(512,512)">
+    <!-- 12 ticks, subtle and centered. -->
+    <g stroke="#F2F7FF" stroke-width="18" stroke-linecap="round" opacity="0.35">
+      <path d="M 0 -290 L 0 -250"/>
+      <path d="M 145 -251 L 125 -218"/>
+      <path d="M 251 -145 L 218 -125"/>
+      <path d="M 290 28 L 250 28"/>
+      <path d="M 251 201 L 218 181"/>
+      <path d="M 145 307 L 125 274"/>
+      <path d="M 0 346 L 0 306"/>
+      <path d="M -145 307 L -125 274"/>
+      <path d="M -251 201 L -218 181"/>
+      <path d="M -290 28 L -250 28"/>
+      <path d="M -251 -145 L -218 -125"/>
+      <path d="M -145 -251 L -125 -218"/>
+    </g>
+  </g>
+</svg>

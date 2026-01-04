@@ -71,15 +71,16 @@ func withAccessibleAnimation(_ animation: Animation = .default, _ body: () -> Vo
 }
 
 /// Executes an async state change with animation only if reduced motion is disabled
+/// Note: Since withAnimation doesn't support async closures, we execute the body
+/// directly. Animation will still apply to any state changes on the main actor.
 @MainActor
 func withAccessibleAnimation<Result>(_ animation: Animation = .default, _ body: () async throws -> Result) async rethrows -> Result {
     if UserSettingsManager.shared.shouldReduceMotion {
         return try await body()
     } else {
-        return try await withAnimation(animation) {
-            // Note: withAnimation doesn't support async, so we use this pattern
-            return try body()
-        }
+        // Execute body and let SwiftUI animate any state changes automatically
+        // withAnimation doesn't support async, so we rely on implicit animations
+        return try await body()
     }
 }
 

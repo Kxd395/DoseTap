@@ -37,9 +37,10 @@ struct DoseTapApp: App {
             forName: .NSSystemTimeZoneDidChange,
             object: nil,
             queue: .main
-        ) { _ in
-            Task { @MainActor in
-                handleTimezoneChange()
+        ) { [lastKnownTimezone] _ in
+            let currentTz = TimeZone.current
+            if currentTz.identifier != lastKnownTimezone.identifier {
+                Self.logTimezoneChangeStatic(from: lastKnownTimezone, to: currentTz)
             }
         }
         
@@ -49,9 +50,7 @@ struct DoseTapApp: App {
             object: nil,
             queue: .main
         ) { _ in
-            Task { @MainActor in
-                handleSignificantTimeChange()
-            }
+            Self.handleSignificantTimeChangeStatic()
         }
     }
     
@@ -136,6 +135,10 @@ struct DoseTapApp: App {
     }
     
     private func logTimezoneChange(from oldTz: TimeZone, to newTz: TimeZone) {
+        Self.logTimezoneChangeStatic(from: oldTz, to: newTz)
+    }
+    
+    private static func logTimezoneChangeStatic(from oldTz: TimeZone, to newTz: TimeZone) {
         let sessionId = SessionRepository.shared.currentSessionDateString()
         Task {
             await DiagnosticLogger.shared.logTimezoneChanged(
@@ -152,6 +155,10 @@ struct DoseTapApp: App {
     }
     
     private func handleSignificantTimeChange() {
+        Self.handleSignificantTimeChangeStatic()
+    }
+    
+    private static func handleSignificantTimeChangeStatic() {
         // This fires for midnight rollover, DST changes, and manual clock changes
         let sessionId = SessionRepository.shared.currentSessionDateString()
         Task {

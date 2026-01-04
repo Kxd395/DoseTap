@@ -586,8 +586,8 @@ struct TimelineSession: Identifiable {
     let sleepEvents: [TimelineSleepEvent]
     
     var intervalMinutes: Int? {
-        guard let d2 = dose2Time else { return nil }
-        return Int(d2.timeIntervalSince(dose1Time) / 60)
+    guard let d2 = dose2Time else { return nil }
+    return TimeIntervalMath.minutesBetween(start: dose1Time, end: d2)
     }
 }
 
