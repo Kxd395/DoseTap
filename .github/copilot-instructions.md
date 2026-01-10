@@ -75,6 +75,22 @@ How to run the iOS app target safely (avoiding legacy conflicts):
 
 If anything here is unclear or you discover a mismatch with the SSOT or tests, pause and update the SSOT first, then code.
 
+## Spec-Driven Development (Spec Kit)
+
+For larger features or architectural changes, use the Spec Kit workflow:
+
+```
+/speckit.constitution  → Review project principles (one-time setup)
+/speckit.specify       → Write detailed specification for the feature
+/speckit.clarify       → Ask clarifying questions (optional)
+/speckit.plan          → Create implementation plan
+/speckit.tasks         → Break into actionable tasks
+/speckit.implement     → Execute implementation
+/speckit.checklist     → Verify completion
+```
+
+Spec artifacts are stored in `.specify/` and should be committed with the feature.
+
 ## Examples (repo-specific patterns)
 
 1) Add a new APIClient endpoint (+ minimal test)
