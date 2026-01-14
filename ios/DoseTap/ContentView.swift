@@ -2173,11 +2173,18 @@ struct SelectedDayView: View {
     
     @State private var events: [StoredSleepEvent] = []
     @State private var doseLog: StoredDoseLog?
+    @State private var editingDose1 = false
+    @State private var editingDose2 = false
+    @State private var editingEvent: StoredSleepEvent?
     
     private let sessionRepo = SessionRepository.shared
     
     private var hasData: Bool {
         doseLog != nil || !events.isEmpty
+    }
+    
+    private var sessionDateString: String {
+        sessionRepo.sessionDateString(for: date)
     }
     
     var body: some View {
@@ -2186,6 +2193,11 @@ struct SelectedDayView: View {
                 Text(dateTitle)
                     .font(.headline)
                 Spacer()
+                if hasData {
+                    Text("Tap to edit")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
                 if hasData, let onDelete = onDeleteRequested {
                     Button(role: .destructive) {
                         onDelete()
@@ -2197,26 +2209,46 @@ struct SelectedDayView: View {
             }
             
             if let dose = doseLog {
-                // Dose info
+                // Dose info - now tappable
                 VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Image(systemName: "1.circle.fill")
-                            .foregroundColor(.green)
-                        Text("Dose 1")
-                        Spacer()
-                        Text(dose.dose1Time.formatted(date: .omitted, time: .shortened))
-                            .foregroundColor(.secondary)
+                    // Dose 1 Row - Tappable
+                    Button {
+                        editingDose1 = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "1.circle.fill")
+                                .foregroundColor(.green)
+                            Text("Dose 1")
+                                .foregroundColor(.primary)
+                            Spacer()
+                            Text(dose.dose1Time.formatted(date: .omitted, time: .shortened))
+                                .foregroundColor(.secondary)
+                            Image(systemName: "pencil")
+                                .font(.caption)
+                                .foregroundColor(.blue)
+                        }
                     }
+                    .buttonStyle(.plain)
                     
                     if let d2 = dose.dose2Time {
-                        HStack {
-                            Image(systemName: "2.circle.fill")
-                                .foregroundColor(.green)
-                            Text("Dose 2")
-                            Spacer()
-                            Text(d2.formatted(date: .omitted, time: .shortened))
-                                .foregroundColor(.secondary)
+                        // Dose 2 Row - Tappable
+                        Button {
+                            editingDose2 = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "2.circle.fill")
+                                    .foregroundColor(.green)
+                                Text("Dose 2")
+                                    .foregroundColor(.primary)
+                                Spacer()
+                                Text(d2.formatted(date: .omitted, time: .shortened))
+                                    .foregroundColor(.secondary)
+                                Image(systemName: "pencil")
+                                    .font(.caption)
+                                    .foregroundColor(.blue)
+                            }
                         }
+                        .buttonStyle(.plain)
                         
                         let interval = TimeIntervalMath.minutesBetween(start: dose.dose1Time, end: d2)
                         HStack {
@@ -2245,24 +2277,33 @@ struct SelectedDayView: View {
                     )
             }
             
-            // Events for this day
+            // Events for this day - now tappable
             if !events.isEmpty {
                 Text("Events (\(events.count))")
                     .font(.subheadline.bold())
                     .padding(.top, 8)
                 
                 ForEach(events, id: \.id) { event in
-                    HStack {
-                        Circle()
-                            .fill(Color(hex: event.colorHex ?? "#888888") ?? .gray)
-                            .frame(width: 10, height: 10)
-                        Text(event.eventType)
-                            .font(.subheadline)
-                        Spacer()
-                        Text(event.timestamp.formatted(date: .omitted, time: .shortened))
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                    Button {
+                        editingEvent = event
+                    } label: {
+                        HStack {
+                            Circle()
+                                .fill(Color(hex: event.colorHex ?? "#888888") ?? .gray)
+                                .frame(width: 10, height: 10)
+                            Text(event.eventType)
+                                .font(.subheadline)
+                                .foregroundColor(.primary)
+                            Spacer()
+                            Text(event.timestamp.formatted(date: .omitted, time: .shortened))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Image(systemName: "pencil")
+                                .font(.caption2)
+                                .foregroundColor(.blue)
+                        }
                     }
+                    .buttonStyle(.plain)
                     .padding(.vertical, 4)
                 }
             } else {
@@ -2279,6 +2320,44 @@ struct SelectedDayView: View {
         .onChange(of: date) { _ in loadData() }
         .onChange(of: refreshTrigger) { _ in loadData() }
         .onAppear { loadData() }
+        // Edit Dose 1 Sheet
+        .sheet(isPresented: $editingDose1) {
+            if let dose = doseLog {
+                EditDoseTimeView(
+                    doseNumber: 1,
+                    originalTime: dose.dose1Time,
+                    dose1Time: nil,
+                    sessionDate: sessionDateString,
+                    onSave: { newTime in
+                        saveDose1Time(newTime)
+                    }
+                )
+            }
+        }
+        // Edit Dose 2 Sheet
+        .sheet(isPresented: $editingDose2) {
+            if let dose = doseLog, let d2 = dose.dose2Time {
+                EditDoseTimeView(
+                    doseNumber: 2,
+                    originalTime: d2,
+                    dose1Time: dose.dose1Time,
+                    sessionDate: sessionDateString,
+                    onSave: { newTime in
+                        saveDose2Time(newTime)
+                    }
+                )
+            }
+        }
+        // Edit Event Sheet
+        .sheet(item: $editingEvent) { event in
+            EditEventTimeView(
+                event: event,
+                sessionDate: sessionDateString,
+                onSave: { newTime in
+                    saveEventTime(event: event, newTime: newTime)
+                }
+            )
+        }
     }
     
     private var dateTitle: String {
@@ -2291,6 +2370,21 @@ struct SelectedDayView: View {
         let sessionDate = sessionRepo.sessionDateString(for: date)
         events = sessionRepo.fetchSleepEvents(for: sessionDate)
         doseLog = sessionRepo.fetchDoseLog(forSession: sessionDate)
+    }
+    
+    private func saveDose1Time(_ newTime: Date) {
+        sessionRepo.updateDose1Time(newTime: newTime, sessionDate: sessionDateString)
+        loadData()
+    }
+    
+    private func saveDose2Time(_ newTime: Date) {
+        sessionRepo.updateDose2Time(newTime: newTime, sessionDate: sessionDateString)
+        loadData()
+    }
+    
+    private func saveEventTime(event: StoredSleepEvent, newTime: Date) {
+        sessionRepo.updateEventTime(eventId: event.id, newTime: newTime)
+        loadData()
     }
 }
 

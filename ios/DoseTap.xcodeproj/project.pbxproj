@@ -63,6 +63,7 @@
 		UNDO003 /* UndoSnackbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNDO004 /* UndoSnackbarView.swift */; };
 		UNDO005 /* MedicationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNDO006 /* MedicationSettingsView.swift */; };
 		UNDO007 /* MedicationPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNDO008 /* MedicationPickerView.swift */; };
+		EDIT002 /* EditDoseTimeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDIT001 /* EditDoseTimeView.swift */; };
 		WP001 /* WeeklyPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP002 /* WeeklyPlanner.swift */; };
 		ASSETSBUILD01 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = ASSETS01 /* Assets.xcassets */; };
 
@@ -82,8 +83,6 @@
 		AAAAAAAA9D0D4CF2EFB54BCB /* Views/MedicationPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA180FECDFD1A34BF9 /* Views/MedicationPickerView.swift */; };
 		AAAAAAAA6F8992926A284D92 /* Views/MorningCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAADA901C7481C5490B /* Views/MorningCheckInView.swift */; };
 		AAAAAAAA35286560CB464309 /* Views/PreSleepLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA7DFB77385FC541DB /* Views/PreSleepLogView.swift */; };
-		C1A4A08A302A4FA99C4A /* SleepPlanDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BACAE6FF95D948B09DD2 /* SleepPlanDetailView.swift */; };
-		314CDC168E3F4AA59A52 /* DiagnosticLoggingSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2980209556A04B5F8CE5 /* DiagnosticLoggingSettingsView.swift */; };
 		68B3DB1D97734922B659 /* SleepPlanDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 576700D19A9F4B35BA54 /* SleepPlanDetailView.swift */; };
 		1B86C969549644B2A31C /* DiagnosticLoggingSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 237C573EA83946FE8AFC /* DiagnosticLoggingSettingsView.swift */; };
 /* End PBXBuildFile section */
@@ -168,6 +167,7 @@
 		UNDO004 /* UndoSnackbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoSnackbarView.swift; sourceTree = "<group>"; };
 		UNDO006 /* MedicationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationSettingsView.swift; sourceTree = "<group>"; };
 		UNDO008 /* MedicationPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationPickerView.swift; sourceTree = "<group>"; };
+		EDIT001 /* EditDoseTimeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditDoseTimeView.swift; sourceTree = "<group>"; };
 		WP002 /* WeeklyPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyPlanner.swift; sourceTree = "<group>"; };
 
 		AAAAAAAA9DBAF056AB1C49BC /* EventStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventStore.swift; sourceTree = "<group>"; };
@@ -400,6 +400,7 @@
 				2EF211068DBC684F390BC8F9 /* DiagnosticExportView.swift */,
 				8FABFEE0765C943A32E6ACC2 /* NightReviewView.swift */,
 				707FF265ADBBA04484376264 /* ThemeSettingsView.swift */,
+				EDIT001 /* EditDoseTimeView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -546,12 +547,11 @@
 				UNDO003 /* UndoSnackbarView.swift in Sources */,
 				UNDO005 /* MedicationSettingsView.swift in Sources */,
 				UNDO007 /* MedicationPickerView.swift in Sources */,
+				EDIT002 /* EditDoseTimeView.swift in Sources */,
 				0A777B0D5CC54803B060A980 /* UserSettingsManager.swift in Sources */,
 				626911F284B24C54BA73D7F8 /* SettingsView.swift in Sources */,
 				68B3DB1D97734922B659 /* SleepPlanDetailView.swift in Sources */,
 				1B86C969549644B2A31C /* DiagnosticLoggingSettingsView.swift in Sources */,
-				C1A4A08A302A4FA99C4A /* SleepPlanDetailView.swift in Sources */,
-				314CDC168E3F4AA59A52 /* DiagnosticLoggingSettingsView.swift in Sources */,
 				81A5CD7A3DD244DEB70FA0B2 /* EventStorage.swift in Sources */,
 				92518D93643945F4B64E860F /* SessionRepository.swift in Sources */,
 				D8746EA078A54AF7A8CE92B3 /* MorningCheckInView.swift in Sources */,
@@ -806,7 +806,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.0.0;
+				MARKETING_VERSION = 2.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.dosetap.ios;
 				PRODUCT_NAME = DoseTap;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -846,7 +846,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.0.0;
+				MARKETING_VERSION = 2.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.dosetap.ios;
 				PRODUCT_NAME = DoseTap;
 				SWIFT_EMIT_LOC_STRINGS = YES;

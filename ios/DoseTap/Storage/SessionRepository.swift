@@ -1159,6 +1159,61 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         return storage.fetchMostRecentPreSleepLog()
     }
     
+    // MARK: - Time Editing Methods (Manual Entry Support)
+    
+    /// Update Dose 1 time for a past session
+    /// - Parameters:
+    ///   - newTime: The corrected time
+    ///   - sessionDate: The session date string (YYYY-MM-DD format)
+    public func updateDose1Time(newTime: Date, sessionDate: String) {
+        storage.updateDose1Time(newTime: newTime, sessionDate: sessionDate)
+        
+        // If editing current session, update in-memory state
+        if sessionDate == activeSessionDate {
+            dose1Time = newTime
+            sessionDidChange.send()
+        }
+        
+        // Log the edit
+        Task {
+            await DiagnosticLogger.shared.log(.dose1Taken, sessionId: sessionDate) { entry in
+                entry.dose1Time = newTime
+                entry.reason = "time_adjusted"
+            }
+        }
+    }
+    
+    /// Update Dose 2 time for a past session
+    /// - Parameters:
+    ///   - newTime: The corrected time
+    ///   - sessionDate: The session date string (YYYY-MM-DD format)
+    public func updateDose2Time(newTime: Date, sessionDate: String) {
+        storage.updateDose2Time(newTime: newTime, sessionDate: sessionDate)
+        
+        // If editing current session, update in-memory state
+        if sessionDate == activeSessionDate {
+            dose2Time = newTime
+            sessionDidChange.send()
+        }
+        
+        // Log the edit
+        Task {
+            await DiagnosticLogger.shared.log(.dose2Taken, sessionId: sessionDate) { entry in
+                entry.dose2Time = newTime
+                entry.reason = "time_adjusted"
+            }
+        }
+    }
+    
+    /// Update event time for a sleep event
+    /// - Parameters:
+    ///   - eventId: The event UUID
+    ///   - newTime: The corrected time
+    public func updateEventTime(eventId: String, newTime: Date) {
+        storage.updateSleepEventTime(eventId: eventId, newTime: newTime)
+        sessionDidChange.send()
+    }
+    
     // MARK: - Additional Storage Facade Methods (Views must use these, not EventStorage directly)
     
     /// Get schema version for debug display

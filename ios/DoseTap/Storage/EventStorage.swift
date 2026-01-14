@@ -819,6 +819,76 @@ public class EventStorage {
         print("↩️ EventStorage: Cleared skip for session \(sessionDate)")
     }
     
+    // MARK: - Time Editing Methods (Manual Entry Support)
+    
+    /// Update Dose 1 time for a session
+    public func updateDose1Time(newTime: Date, sessionDate: String) {
+        let timestampStr = isoFormatter.string(from: newTime)
+        
+        // Update dose_events table
+        let updateEventSQL = "UPDATE dose_events SET timestamp = ? WHERE session_date = ? AND event_type = 'dose1'"
+        var stmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, updateEventSQL, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt, 1, timestampStr, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, sessionDate, -1, SQLITE_TRANSIENT)
+            sqlite3_step(stmt)
+            sqlite3_finalize(stmt)
+        }
+        
+        // Update current_session table
+        let updateSessionSQL = "UPDATE current_session SET dose1_time = ? WHERE session_date = ?"
+        if sqlite3_prepare_v2(db, updateSessionSQL, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt, 1, timestampStr, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, sessionDate, -1, SQLITE_TRANSIENT)
+            sqlite3_step(stmt)
+            sqlite3_finalize(stmt)
+        }
+        
+        print("✏️ EventStorage: Updated dose1 time to \(timestampStr) for session \(sessionDate)")
+    }
+    
+    /// Update Dose 2 time for a session
+    public func updateDose2Time(newTime: Date, sessionDate: String) {
+        let timestampStr = isoFormatter.string(from: newTime)
+        
+        // Update dose_events table
+        let updateEventSQL = "UPDATE dose_events SET timestamp = ? WHERE session_date = ? AND event_type = 'dose2'"
+        var stmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, updateEventSQL, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt, 1, timestampStr, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, sessionDate, -1, SQLITE_TRANSIENT)
+            sqlite3_step(stmt)
+            sqlite3_finalize(stmt)
+        }
+        
+        // Update current_session table
+        let updateSessionSQL = "UPDATE current_session SET dose2_time = ? WHERE session_date = ?"
+        if sqlite3_prepare_v2(db, updateSessionSQL, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt, 1, timestampStr, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, sessionDate, -1, SQLITE_TRANSIENT)
+            sqlite3_step(stmt)
+            sqlite3_finalize(stmt)
+        }
+        
+        print("✏️ EventStorage: Updated dose2 time to \(timestampStr) for session \(sessionDate)")
+    }
+    
+    /// Update sleep event time
+    public func updateSleepEventTime(eventId: String, newTime: Date) {
+        let timestampStr = isoFormatter.string(from: newTime)
+        
+        let updateSQL = "UPDATE sleep_events SET timestamp = ? WHERE id = ?"
+        var stmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, updateSQL, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt, 1, timestampStr, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, eventId, -1, SQLITE_TRANSIENT)
+            sqlite3_step(stmt)
+            sqlite3_finalize(stmt)
+        }
+        
+        print("✏️ EventStorage: Updated event \(eventId) time to \(timestampStr)")
+    }
+    
     private func insertDoseEvent(eventType: String, timestamp: Date, sessionDate: String? = nil, metadata: String? = nil) {
         let sql = """
         INSERT INTO dose_events (id, event_type, timestamp, session_date, metadata)
