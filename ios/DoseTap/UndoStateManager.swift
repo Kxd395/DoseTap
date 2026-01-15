@@ -60,7 +60,7 @@ class UndoStateManager: ObservableObject {
                     startCountdown()
                     
                     // Diagnostic logging: undo window opened
-                    let sessionId = SessionRepository.shared.currentSessionDateString()
+                    let sessionId = SessionRepository.shared.currentSessionIdString()
                     let targetType = undoTargetType(for: action)
                     Task {
                         await DiagnosticLogger.shared.logUndoWindowOpened(sessionId: sessionId, targetType: targetType)
@@ -91,7 +91,7 @@ class UndoStateManager: ObservableObject {
                     
                     // Diagnostic logging: undo executed
                     if case .success = result, let action = action {
-                        let sessionId = SessionRepository.shared.currentSessionDateString()
+                        let sessionId = SessionRepository.shared.currentSessionIdString()
                         let targetType = undoTargetType(for: action)
                         Task {
                             await DiagnosticLogger.shared.logUndoExecuted(sessionId: sessionId, targetType: targetType)
@@ -134,7 +134,7 @@ class UndoStateManager: ObservableObject {
     
     private func handleCommit(_ action: UndoableAction) {
         // Diagnostic logging: undo expired (user didn't press undo)
-        let sessionId = SessionRepository.shared.currentSessionDateString()
+        let sessionId = SessionRepository.shared.currentSessionIdString()
         let targetType = undoTargetType(for: action)
         Task {
             await DiagnosticLogger.shared.logUndoExpired(sessionId: sessionId, targetType: targetType)

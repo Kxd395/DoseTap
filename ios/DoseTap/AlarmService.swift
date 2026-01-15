@@ -92,7 +92,7 @@ public class AlarmService: NSObject, ObservableObject {
             await scheduleNotification(
                 id: NotificationID.windowWarning15,
                 title: "⚠️ 15 Minutes Remaining",
-                body: "Only 15 minutes left in your dose window!",
+                body: "Only \(TimeIntervalMath.formatMinutes(15)) left in your dose window!",
                 at: warning15,
                 sound: .default
             )
@@ -124,7 +124,7 @@ public class AlarmService: NSObject, ObservableObject {
         print("🔕 AlarmService: Dose 2 reminders cancelled")
         
         // Diagnostic logging: alarms cancelled
-        let sessionId = SessionRepository.shared.currentSessionDateString()
+        let sessionId = SessionRepository.shared.currentSessionIdString()
         for id in ids {
             Task {
                 await DiagnosticLogger.shared.logAlarm(.alarmCancelled, sessionId: sessionId, alarmId: id, reason: "dose2_completed_or_skipped")
@@ -168,7 +168,7 @@ public class AlarmService: NSObject, ObservableObject {
         await scheduleNotification(
             id: NotificationID.wakeAlarm,
             title: "🔔 WAKE UP - Time for Dose 2",
-            body: "Take your second dose now! \(minutesRemaining) minutes remaining in window.",
+            body: "Take your second dose now! \(TimeIntervalMath.formatMinutes(minutesRemaining)) remaining in window.",
             at: time,
             sound: .defaultCritical
         )
@@ -180,7 +180,7 @@ public class AlarmService: NSObject, ObservableObject {
                 await scheduleNotification(
                     id: "\(NotificationID.followUp)_\(i)",
                     title: "🔔 REMINDER \(i) - Dose 2 Still Waiting",
-                    body: "\(max(0, minutesRemaining - (i * 2))) minutes left in window!",
+                    body: "\(TimeIntervalMath.formatMinutes(max(0, minutesRemaining - (i * 2)))) left in window!",
                     at: followUpTime,
                     sound: .defaultCritical
                 )
@@ -284,13 +284,13 @@ public class AlarmService: NSObject, ObservableObject {
             print("📅 AlarmService: Scheduled '\(id)' for \(formatTime(date))")
             
             // Diagnostic logging: alarm scheduled
-            let sessionId = SessionRepository.shared.currentSessionDateString()
+            let sessionId = SessionRepository.shared.currentSessionIdString()
             await DiagnosticLogger.shared.logAlarm(.alarmScheduled, sessionId: sessionId, alarmId: id)
         } catch {
             print("⚠️ AlarmService: Failed to schedule notification: \(error)")
             
             // Diagnostic logging: notification error
-            let sessionId = SessionRepository.shared.currentSessionDateString()
+            let sessionId = SessionRepository.shared.currentSessionIdString()
             await DiagnosticLogger.shared.logError(.errorNotification, sessionId: sessionId, reason: "Failed to schedule: \(error.localizedDescription)")
         }
     }
@@ -330,7 +330,7 @@ extension AlarmService: UNUserNotificationCenterDelegate {
         // Diagnostic logging: notification delivered (shown while app in foreground)
         let notificationId = notification.request.identifier
         Task { @MainActor in
-            let sessionId = SessionRepository.shared.currentSessionDateString()
+            let sessionId = SessionRepository.shared.currentSessionIdString()
             await DiagnosticLogger.shared.logNotificationDelivered(
                 sessionId: sessionId,
                 notificationId: notificationId,
@@ -352,7 +352,7 @@ extension AlarmService: UNUserNotificationCenterDelegate {
         let actionId = response.actionIdentifier
         
         Task { @MainActor in
-            let sessionId = SessionRepository.shared.currentSessionDateString()
+            let sessionId = SessionRepository.shared.currentSessionIdString()
             
             if actionId == UNNotificationDismissActionIdentifier {
                 await DiagnosticLogger.shared.logNotificationDismissed(

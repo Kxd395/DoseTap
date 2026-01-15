@@ -71,6 +71,13 @@ class UserSettingsManager: ObservableObject {
     @AppStorage("target_interval_minutes") var targetIntervalMinutes: Int = 165
     @AppStorage("snooze_duration_minutes") var snoozeDurationMinutes: Int = 10
     @AppStorage("max_snoozes") var maxSnoozes: Int = 3
+
+    // MARK: - Session Schedule
+    // Minutes since midnight (local time)
+    @AppStorage("sleep_start_minutes") var sleepStartMinutes: Int = 21 * 60  // 9:00 PM
+    @AppStorage("wake_time_minutes") var wakeTimeMinutes: Int = 7 * 60       // 7:00 AM
+    @AppStorage("prep_time_minutes") var prepTimeMinutes: Int = 18 * 60      // 6:00 PM
+    @AppStorage("missed_checkin_cutoff_hours") var missedCheckInCutoffHours: Int = 4
     
     // MARK: - Undo Settings
     // How long the undo snackbar appears after dose actions (seconds)
@@ -150,6 +157,9 @@ class UserSettingsManager: ObservableObject {
         QuickLogButtonConfig(id: "bathroom", name: "Bathroom", icon: "toilet.fill", colorHex: "#007AFF"),
         QuickLogButtonConfig(id: "water", name: "Water", icon: "drop.fill", colorHex: "#00CED1"),
         QuickLogButtonConfig(id: "snack", name: "Snack", icon: "fork.knife", colorHex: "#34C759"),
+        // Nap Tracking
+        QuickLogButtonConfig(id: "napStart", name: "Nap Start", icon: "bed.double.fill", colorHex: "#34C759"),
+        QuickLogButtonConfig(id: "napEnd", name: "Nap End", icon: "sun.max.fill", colorHex: "#FF9F0A"),
         // Sleep Cycle
         QuickLogButtonConfig(id: "lightsOut", name: "Lights Out", icon: "light.max", colorHex: "#5856D6"),
         QuickLogButtonConfig(id: "wakeTemp", name: "Brief Wake", icon: "moon.zzz.fill", colorHex: "#5856D6"),
@@ -224,6 +234,26 @@ class UserSettingsManager: ObservableObject {
             return "\(seconds / 3600)h"
         }
     }
+
+    // MARK: - Schedule Helpers
+
+    func dateFromMinutes(_ minutes: Int, on date: Date = Date(), timeZone: TimeZone = .current) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let day = calendar.startOfDay(for: date)
+        let hour = minutes / 60
+        let minute = minutes % 60
+        return calendar.date(bySettingHour: hour, minute: minute, second: 0, of: day) ?? day
+    }
+
+    func minutesFromDate(_ date: Date, timeZone: TimeZone = .current) -> Int {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let components = calendar.dateComponents([.hour, .minute], from: date)
+        let hour = components.hour ?? 0
+        let minute = components.minute ?? 0
+        return max(0, min(23 * 60 + 59, hour * 60 + minute))
+    }
     
     // Get cooldown for event name
     func cooldown(for eventName: String) -> TimeInterval {
@@ -240,6 +270,8 @@ class UserSettingsManager: ObservableObject {
         case "Heart Racing": return TimeInterval(cooldownHeartRacing)
         case "Temperature": return TimeInterval(cooldownTemperature)
         case "Pain": return TimeInterval(cooldownPain)
+        case "Nap Start": return 30
+        case "Nap End": return 30
         default: return 30
         }
     }
@@ -448,6 +480,12 @@ extension UserSettingsManager {
         targetIntervalMinutes = 165
         snoozeDurationMinutes = 10
         maxSnoozes = 3
+
+        // Session schedule
+        sleepStartMinutes = 21 * 60
+        wakeTimeMinutes = 7 * 60
+        prepTimeMinutes = 18 * 60
+        missedCheckInCutoffHours = 4
         
         // Undo
         undoWindowSeconds = 5.0

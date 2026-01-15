@@ -49,9 +49,9 @@ def add_file_to_project(filename, folder_path, rel_path):
 
 if __name__ == '__main__':
     os.chdir('ios')
-    # Add files from DoseTapiOSApp that are missing in the main project but needed for tests/app
-    add_file_to_project('SQLiteStorage.swift', 'DoseTapiOSApp', '../DoseTapiOSApp/SQLiteStorage.swift')
-    add_file_to_project('TimelineView.swift', 'DoseTapiOSApp', '../DoseTapiOSApp/TimelineView.swift')
-    add_file_to_project('QuickLogPanel.swift', 'DoseTapiOSApp', '../DoseTapiOSApp/QuickLogPanel.swift')
-    add_file_to_project('MorningCheckInView.swift', 'DoseTapiOSApp', '../DoseTapiOSApp/MorningCheckInView.swift')
-    add_file_to_project('TonightView.swift', 'DoseTapiOSApp', '../DoseTapiOSApp/TonightView.swift')
+    # Add files from FullApp that are missing in the main project but needed for tests/app
+    add_file_to_project('SQLiteStorage.swift', 'FullApp', 'FullApp/SQLiteStorage.swift')
+    add_file_to_project('TimelineView.swift', 'FullApp', 'FullApp/TimelineView.swift')
+    add_file_to_project('QuickLogPanel.swift', 'FullApp', 'FullApp/QuickLogPanel.swift')
+    add_file_to_project('MorningCheckInView.swift', 'Views', 'Views/MorningCheckInView.swift')
+    add_file_to_project('TonightView.swift', 'FullApp', 'FullApp/TonightView.swift')

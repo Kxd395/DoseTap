@@ -124,10 +124,10 @@ func clearOldData(olderThanDays: Int)      // Clear old data
 |------|--------|------|
 | SleepEvent model (13 types) | ✅ | `ios/Core/SleepEvent.swift` |
 | EventRateLimiter extension | ✅ | `ios/Core/EventRateLimiter.swift` |
-| SQLite sleep_events table | ✅ | `ios/DoseTapiOSApp/SQLiteStorage.swift` |
-| QuickLogPanel UI | ✅ | `ios/DoseTapiOSApp/QuickLogPanel.swift` |
-| TimelineView historical | ✅ | `ios/DoseTapiOSApp/TimelineView.swift` |
-| DoseCoreIntegration.logSleepEvent() | ✅ | `ios/DoseTapiOSApp/DoseCoreIntegration.swift` |
+| SQLite sleep_events table | ✅ | `ios/DoseTap/FullApp/SQLiteStorage.swift` |
+| QuickLogPanel UI | ✅ | `ios/DoseTap/FullApp/QuickLogPanel.swift` |
+| TimelineView historical | ✅ | `ios/DoseTap/FullApp/TimelineView.swift` |
+| DoseCoreIntegration.logSleepEvent() | ✅ | `ios/DoseTap/FullApp/DoseCoreIntegration.swift` |
 | UnifiedSleepSession model | ✅ | `ios/Core/UnifiedSleepSession.swift` |
 | SleepEventTests (29 tests) | ✅ | `Tests/DoseCoreTests/SleepEventTests.swift` |
 | ContentView integration | ✅ | `ios/DoseTap/ContentView.swift` |
@@ -423,10 +423,10 @@ func generateInsights(correlations: [DoseWHOOPCorrelation]) -> [Insight] {
 |------|--------|-------|
 | Extend `EventRateLimiter` with new events | S | `ios/Core/EventRateLimiter.swift` |
 | Create `SleepEvent` model | S | `ios/Core/SleepEvent.swift` (new) |
-| Add event buttons to Tonight screen | M | `ios/DoseTapiOSApp/TonightView.swift` |
+| Add event buttons to Tonight screen | M | `ios/DoseTap/FullApp/TonightView.swift` |
 | Add watchOS quick actions | M | `watchos/DoseTapWatch/` |
 | Store events in SQLite | M | `ios/DoseTap/Storage/EventStorage.swift` |
-| Display events in Timeline | M | `ios/DoseTapiOSApp/TimelineView.swift` |
+| Display events in Timeline | M | `ios/DoseTap/FullApp/TimelineView.swift` |
 | Add tests | M | `Tests/DoseCoreTests/SleepEventTests.swift` |
 
 ### Phase 2: Apple Health Enhancement (2 weeks)

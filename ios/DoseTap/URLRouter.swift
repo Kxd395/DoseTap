@@ -120,7 +120,6 @@ public class URLRouter: ObservableObject {
         Task {
             let now = Date()
             await core.takeDose()
-            SessionRepository.shared.saveDose1(timestamp: now)
             eventLogger?.logEvent(name: "Dose 1", color: .green, cooldownSeconds: 3600 * 8)
             
             // Schedule wake alarm
@@ -160,9 +159,7 @@ public class URLRouter: ObservableObject {
         }
         
         Task {
-            let now = Date()
             await core.takeDose()
-            SessionRepository.shared.saveDose2(timestamp: now)
             eventLogger?.logEvent(name: "Dose 2", color: .green, cooldownSeconds: 3600 * 8)
             AlarmService.shared.cancelAllAlarms()
             

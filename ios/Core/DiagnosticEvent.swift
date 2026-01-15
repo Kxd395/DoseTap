@@ -58,6 +58,9 @@ public enum DiagnosticEvent: String, Codable, Sendable {
     
     /// Dose 2 taken
     case dose2Taken = "dose.2.taken"
+
+    /// Extra dose taken (dose 3+)
+    case doseExtraTaken = "dose.extra.taken"
     
     /// Dose 2 skipped by user
     case dose2Skipped = "dose.2.skipped"
@@ -207,9 +210,8 @@ public struct DiagnosticLogEntry: Codable, Sendable {
     /// Event type (dot-notation)
     public let event: DiagnosticEvent
     
-    /// Session identifier (YYYY-MM-DD) - REQUIRED
-    /// Note: This is a logical grouping key, not guaranteed unique forever.
-    /// Future versions may add session_uuid for multi-session nights.
+    /// Session identifier (UUID string for active sessions; legacy sessions may use session_date)
+    /// Note: This is a logical grouping key and should not be parsed as a date.
     public let sessionId: String
     
     /// App version
@@ -228,9 +230,18 @@ public struct DiagnosticLogEntry: Codable, Sendable {
     
     /// Dose 2 timestamp
     public var dose2Time: Date?
+
+    /// Dose index within session (1, 2, 3+)
+    public var doseIndex: Int?
     
     /// Elapsed minutes since Dose 1
     public var elapsedMinutes: Int?
+
+    /// Elapsed minutes since previous dose
+    public var elapsedSincePrevDoseMinutes: Int?
+
+    /// True if dose 2 was taken after window close
+    public var isLate: Bool?
     
     /// Remaining minutes in window
     public var remainingMinutes: Int?
@@ -321,7 +332,10 @@ public struct DiagnosticLogEntry: Codable, Sendable {
         case phase
         case dose1Time = "dose1_time"
         case dose2Time = "dose2_time"
+        case doseIndex = "dose_index"
         case elapsedMinutes = "elapsed_minutes"
+        case elapsedSincePrevDoseMinutes = "elapsed_since_prev_dose_minutes"
+        case isLate = "is_late"
         case remainingMinutes = "remaining_minutes"
         case snoozeCount = "snooze_count"
         case terminalState = "terminal_state"
@@ -349,7 +363,7 @@ public struct DiagnosticLogEntry: Codable, Sendable {
 
 /// Static context for a session, written to meta.json
 public struct SessionMetadata: Codable, Sendable {
-    /// Session identifier (YYYY-MM-DD)
+    /// Session identifier (UUID string or legacy session_date)
     public let sessionId: String
     
     /// When this session was created

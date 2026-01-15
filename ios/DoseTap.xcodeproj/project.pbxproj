@@ -7,39 +7,58 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		01FF500944CC4F14A6E163C4 /* DoseModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 418F7D12D4A2473F800C75ED /* DoseModels.swift */; };
-		05D399B5B86749ACB9CD89BF /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BD7AD6DA76F4E548669A489 /* KeychainHelper.swift */; };
-		0835950893AC446EABC20688 /* DataStorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76CC32E0134E4DFC8A421A8B /* DataStorageService.swift */; };
+		01FF500944CC4F14A6E163C4 /* FullApp/DoseModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 418F7D12D4A2473F800C75ED /* FullApp/DoseModels.swift */; };
+		05D399B5B86749ACB9CD89BF /* FullApp/KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BD7AD6DA76F4E548669A489 /* FullApp/KeychainHelper.swift */; };
+		0835950893AC446EABC20688 /* FullApp/DataStorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76CC32E0134E4DFC8A421A8B /* FullApp/DataStorageService.swift */; };
 		0A777B0D5CC54803B060A980 /* UserSettingsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB4C5084D06D74163A5C71A9 /* UserSettingsManager.swift */; };
 		11C08ABBAF24106F948991D3 /* HighContrastColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = C64168860F0E76DF93919D76 /* HighContrastColors.swift */; };
 		194E929BA46514E973F8ACEE /* WHOOPSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 403FF1A5371F4BA427EC1520 /* WHOOPSettingsView.swift */; };
-		1A539DC8315840749C5671D7 /* TonightView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2988FA865D94BD982491694 /* TonightView.swift */; };
+		1A539DC8315840749C5671D7 /* FullApp/TonightView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2988FA865D94BD982491694 /* FullApp/TonightView.swift */; };
+		1B86C969549644B2A31C /* DiagnosticLoggingSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 237C573EA83946FE8AFC /* DiagnosticLoggingSettingsView.swift */; };
 		1B95E3AD96741FD0E9FED120 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = D049AFCF96FC4AFF9120309E /* Secrets.swift */; };
-		1CB467AF229E4760A2F4A18A /* InventoryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4E2B992A9FD423E84206CCE /* InventoryService.swift */; };
+		1CB467AF229E4760A2F4A18A /* FullApp/InventoryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4E2B992A9FD423E84206CCE /* FullApp/InventoryService.swift */; };
 		24CA1B0499D673C5227DA6EC /* SleepTimelineOverlays.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BC9035E4ACF20D1D40B9A9 /* SleepTimelineOverlays.swift */; };
 		251486320D35FEA58E9D81CA /* EncryptedEventStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCC2762A054AE377C80CF2B0 /* EncryptedEventStorage.swift */; };
-		2AC2BB5E8B07470DAC87BF98 /* SQLiteStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F6DD7934D5146A9AEFC99A2 /* SQLiteStorage.swift */; };
+		2AC2BB5E8B07470DAC87BF98 /* FullApp/SQLiteStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F6DD7934D5146A9AEFC99A2 /* FullApp/SQLiteStorage.swift */; };
 		40BDAEDF308A4508940C55F7 /* AlarmService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E912715BD5C4BBAAA735378 /* AlarmService.swift */; };
-		45F1AA062DDD452F8BA1C0A0 /* HealthKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EB783D234E142F09F662199 /* HealthKitManager.swift */; };
+		45F1AA062DDD452F8BA1C0A0 /* FullApp/HealthKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EB783D234E142F09F662199 /* FullApp/HealthKitManager.swift */; };
 		46EBB63DD7FE446C8EEF4021 /* AnalyticsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCEDF0A0E4BE41F582C2221F /* AnalyticsService.swift */; };
 		49BABB381D1350BB62368638 /* ReducedMotionSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A3C6B3DB1EBBE10E2F3E7FB /* ReducedMotionSupport.swift */; };
 		51117520922E2EF076DD4A81 /* DiagnosticExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EF211068DBC684F390BC8F9 /* DiagnosticExportView.swift */; };
-		54E3599B814B4ACFBD87EA6B /* SetupWizardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CB34E7F86084B24991BD7CA /* SetupWizardView.swift */; };
+		54E3599B814B4ACFBD87EA6B /* FullApp/SetupWizardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CB34E7F86084B24991BD7CA /* FullApp/SetupWizardView.swift */; };
 		626911F284B24C54BA73D7F8 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B358CDCA949364F93BD996D6 /* SettingsView.swift */; };
-		626D4BF0DD5F45C9BE4DADD3 /* QuickLogPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D24FAD994B0C407F929BD3AC /* QuickLogPanel.swift */; };
-		71DCA3BA35464A60B99EC25A /* UIUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 016ED98793654A7E806DEFE4 /* UIUtils.swift */; };
+		626D4BF0DD5F45C9BE4DADD3 /* FullApp/QuickLogPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D24FAD994B0C407F929BD3AC /* FullApp/QuickLogPanel.swift */; };
+		68B3DB1D97734922B659 /* SleepPlanDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 576700D19A9F4B35BA54 /* SleepPlanDetailView.swift */; };
+		71DCA3BA35464A60B99EC25A /* FullApp/UIUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 016ED98793654A7E806DEFE4 /* FullApp/UIUtils.swift */; };
 		75396BE379F85EF05DC1AEE6 /* WHOOPDataFetching.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67D4EB39451985378B4E5D61 /* WHOOPDataFetching.swift */; };
 		7C57BE36F02F850F7FE909C1 /* SecureLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = DED8B35BAB0493115DB99CA4 /* SecureLogger.swift */; };
 		801008E9567E13B12BC52116 /* DatabaseSecurity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80B7FD26BB9CFDD4F25097AC /* DatabaseSecurity.swift */; };
 		81A5CD7A3DD244DEB70FA0B2 /* EventStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5D8DC9D91D38419C97E97FA /* EventStorage.swift */; };
-		8C0097D7D4054D81BDBF5507 /* DataExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9BC765DBC6846A8B0F169E7 /* DataExportService.swift */; };
+		8C0097D7D4054D81BDBF5507 /* FullApp/DataExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9BC765DBC6846A8B0F169E7 /* FullApp/DataExportService.swift */; };
 		8DA90A6B025231EACF48A8AD /* SecureConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7772A3ACA248F927B3008122 /* SecureConfig.swift */; };
 		92518D93643945F4B64E860F /* SessionRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64641673735B464BB4E4B02F /* SessionRepository.swift */; };
-		9D35A7FAB4A9475D997EF36A /* EnhancedNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C39612EB02A94A3BADDD204B /* EnhancedNotificationService.swift */; };
+		9D35A7FAB4A9475D997EF36A /* FullApp/EnhancedNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C39612EB02A94A3BADDD204B /* FullApp/EnhancedNotificationService.swift */; };
 		A01 /* DoseTapApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B01 /* DoseTapApp.swift */; };
 		A02 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B02 /* ContentView.swift */; };
 		A03 /* DoseCore in Frameworks */ = {isa = PBXBuildFile; productRef = P01 /* DoseCore */; };
-		A4DE3A024E7E4AC6B5F83DEA /* HealthIntegrationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30318D594933405BA4659E72 /* HealthIntegrationService.swift */; };
+		A4DE3A024E7E4AC6B5F83DEA /* FullApp/HealthIntegrationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30318D594933405BA4659E72 /* FullApp/HealthIntegrationService.swift */; };
+		AAAAAAAA07497596B6904671 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA537A9EE417FC46A5 /* DashboardView.swift */; };
+		AAAAAAAA1CC499F82E6144DA /* AccessibilitySupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA4C47F79D20684073 /* AccessibilitySupport.swift */; };
+		AAAAAAAA35286560CB464309 /* Views/PreSleepLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA7DFB77385FC541DB /* Views/PreSleepLogView.swift */; };
+		AAAAAAAA5146B7388E7B44E4 /* UndoStateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA79BDDCB8B8394A8C /* UndoStateManager.swift */; };
+		AAAAAAAA5D455781AD854DAE /* Views/UndoSnackbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAAA4A8D14140B649E4 /* Views/UndoSnackbarView.swift */; };
+		AAAAAAAA665C3FB4C9924FE1 /* OfflineQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAAF2660D49646040A0 /* OfflineQueue.swift */; };
+		AAAAAAAA6F8992926A284D92 /* Views/MorningCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAADA901C7481C5490B /* Views/MorningCheckInView.swift */; };
+		AAAAAAAA89602384A983443E /* DoseTapCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA5D81B00628A14F8E /* DoseTapCore.swift */; };
+		AAAAAAAA9D0D4CF2EFB54BCB /* Views/MedicationPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA180FECDFD1A34BF9 /* Views/MedicationPickerView.swift */; };
+		AAAAAAAAA0CFD7C48F0B4D39 /* TimeEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA228351A6B9254E54 /* TimeEngine.swift */; };
+		AAAAAAAAB87941E7DF594E24 /* EventStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA9DBAF056AB1C49BC /* EventStore.swift */; };
+		AAAAAAAAD21C1DC5F3AB4657 /* UndoManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA0C2B781536614815 /* UndoManager.swift */; };
+		AAAAAAAAD50C5D1A26974F56 /* EventStoreAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA3BA639A7295F4A8B /* EventStoreAdapter.swift */; };
+		AAAAAAAAD5E533BC3DBD4560 /* SnoozeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAADE3CE12CAC8D4F6A /* SnoozeController.swift */; };
+		AAAAAAAAF176A51010A24F44 /* UndoSnackbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA08C80B4B155C4F1F /* UndoSnackbar.swift */; };
+		AAAAAAAAF1E2F78DF5B24EAA /* Views/MedicationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAAE2F91D7AC1EF43C1 /* Views/MedicationSettingsView.swift */; };
+		ASSETSBUILD01 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = ASSETS01 /* Assets.xcassets */; };
 		B264C67A3D970638F91FC1ED /* UndoStateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D7115779119154483A7838A /* UndoStateManager.swift */; };
 		BC3BD8377E674DB98BB83F35 /* InsightsCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FEE161A09D6441A8D4448DA /* InsightsCalculator.swift */; };
 		C0E47E55D0CB89F0CCE49C2A /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1FBB8D30211AB1F43A21D65 /* AppTheme.swift */; };
@@ -47,15 +66,16 @@
 		D8746EA078A54AF7A8CE92B3 /* MorningCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3941DD4936B4FD0BD5A8837 /* MorningCheckInView.swift */; };
 		D9B47E5F3E91E2F68102BA13 /* NightReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FABFEE0765C943A32E6ACC2 /* NightReviewView.swift */; };
 		DD45B910AB7B414A9948C5A9 /* URLRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D565C0B5A1804860B23307B9 /* URLRouter.swift */; };
-		E67E1CC8E48846A3850E2568 /* UserConfigurationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 652F871BE504479F9D73CC0D /* UserConfigurationManager.swift */; };
-		E7EA21EC3FE949B3890BF69A /* SetupWizardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1BA2E6CCFB845E6BFC919FA /* SetupWizardService.swift */; };
-		E9AD7E6058C34B8FBB03E87D /* DoseCoreIntegration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55547FD4D707466DAA743FE8 /* DoseCoreIntegration.swift */; };
+		E67E1CC8E48846A3850E2568 /* FullApp/UserConfigurationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 652F871BE504479F9D73CC0D /* FullApp/UserConfigurationManager.swift */; };
+		E7EA21EC3FE949B3890BF69A /* FullApp/SetupWizardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1BA2E6CCFB845E6BFC919FA /* FullApp/SetupWizardService.swift */; };
+		E9AD7E6058C34B8FBB03E87D /* FullApp/DoseCoreIntegration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55547FD4D707466DAA743FE8 /* FullApp/DoseCoreIntegration.swift */; };
 		EA02466EA69547DF963A8BA7 /* WHOOPService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7084981AA100483EB6E6ADE1 /* WHOOPService.swift */; };
+		EDIT002 /* EditDoseTimeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDIT001 /* EditDoseTimeView.swift */; };
 		F3296BD6A65A57599A202642 /* InputValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1CBF59D219929011DD8A4A8 /* InputValidator.swift */; };
-		F6A54D65D1B84EFF863C73C3 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F65B22283DEE43E8AA554209 /* DashboardView.swift */; };
+		F6A54D65D1B84EFF863C73C3 /* FullApp/DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F65B22283DEE43E8AA554209 /* FullApp/DashboardView.swift */; };
 		F94248D37BBE47A5A2E90C9B /* PreSleepLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE3796A887B24D9FBBD40758 /* PreSleepLogView.swift */; };
 		FC82425609210406E72373A8 /* FlicButtonService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFF67F0048CFBF2716448CC5 /* FlicButtonService.swift */; };
-		FF9B9D3487C94D99934BC6FB /* TimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96266670665C4D408EB337B4 /* TimelineView.swift */; };
+		FF9B9D3487C94D99934BC6FB /* FullApp/TimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96266670665C4D408EB337B4 /* FullApp/TimelineView.swift */; };
 		FFCE63C8C666930BEE06D38F /* ThemeSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 707FF265ADBBA04484376264 /* ThemeSettingsView.swift */; };
 		HK001 /* HealthKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = HK002 /* HealthKitService.swift */; };
 		HKP001 /* HealthKitProviding.swift in Sources */ = {isa = PBXBuildFile; fileRef = HKP002 /* HealthKitProviding.swift */; };
@@ -63,28 +83,7 @@
 		UNDO003 /* UndoSnackbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNDO004 /* UndoSnackbarView.swift */; };
 		UNDO005 /* MedicationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNDO006 /* MedicationSettingsView.swift */; };
 		UNDO007 /* MedicationPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNDO008 /* MedicationPickerView.swift */; };
-		EDIT002 /* EditDoseTimeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDIT001 /* EditDoseTimeView.swift */; };
 		WP001 /* WeeklyPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP002 /* WeeklyPlanner.swift */; };
-		ASSETSBUILD01 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = ASSETS01 /* Assets.xcassets */; };
-
-		AAAAAAAAB87941E7DF594E24 /* EventStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA9DBAF056AB1C49BC /* EventStore.swift */; };
-		AAAAAAAAD50C5D1A26974F56 /* EventStoreAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA3BA639A7295F4A8B /* EventStoreAdapter.swift */; };
-		AAAAAAAAD21C1DC5F3AB4657 /* UndoManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA0C2B781536614815 /* UndoManager.swift */; };
-		AAAAAAAAA0CFD7C48F0B4D39 /* TimeEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA228351A6B9254E54 /* TimeEngine.swift */; };
-		AAAAAAAAD5E533BC3DBD4560 /* SnoozeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAADE3CE12CAC8D4F6A /* SnoozeController.swift */; };
-		AAAAAAAA665C3FB4C9924FE1 /* OfflineQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAAF2660D49646040A0 /* OfflineQueue.swift */; };
-		AAAAAAAA1CC499F82E6144DA /* AccessibilitySupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA4C47F79D20684073 /* AccessibilitySupport.swift */; };
-		AAAAAAAA07497596B6904671 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA537A9EE417FC46A5 /* DashboardView.swift */; };
-		AAAAAAAA89602384A983443E /* DoseTapCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA5D81B00628A14F8E /* DoseTapCore.swift */; };
-		AAAAAAAAF176A51010A24F44 /* UndoSnackbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA08C80B4B155C4F1F /* UndoSnackbar.swift */; };
-		AAAAAAAA5146B7388E7B44E4 /* UndoStateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA79BDDCB8B8394A8C /* UndoStateManager.swift */; };
-		AAAAAAAA5D455781AD854DAE /* Views/UndoSnackbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAAA4A8D14140B649E4 /* Views/UndoSnackbarView.swift */; };
-		AAAAAAAAF1E2F78DF5B24EAA /* Views/MedicationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAAE2F91D7AC1EF43C1 /* Views/MedicationSettingsView.swift */; };
-		AAAAAAAA9D0D4CF2EFB54BCB /* Views/MedicationPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA180FECDFD1A34BF9 /* Views/MedicationPickerView.swift */; };
-		AAAAAAAA6F8992926A284D92 /* Views/MorningCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAADA901C7481C5490B /* Views/MorningCheckInView.swift */; };
-		AAAAAAAA35286560CB464309 /* Views/PreSleepLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA7DFB77385FC541DB /* Views/PreSleepLogView.swift */; };
-		68B3DB1D97734922B659 /* SleepPlanDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 576700D19A9F4B35BA54 /* SleepPlanDetailView.swift */; };
-		1B86C969549644B2A31C /* DiagnosticLoggingSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 237C573EA83946FE8AFC /* DiagnosticLoggingSettingsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -98,66 +97,88 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		016ED98793654A7E806DEFE4 /* UIUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../DoseTapiOSApp/UIUtils.swift; sourceTree = "<group>"; };
+		016ED98793654A7E806DEFE4 /* FullApp/UIUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/UIUtils.swift; sourceTree = "<group>"; };
 		108C602480AF4A41B98FD22B /* EnhancedSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnhancedSettings.swift; sourceTree = "<group>"; };
 		12B2779FB31708024300E8E5 /* TimeIntervalMath.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TimeIntervalMath.swift; sourceTree = "<group>"; };
 		15C51DD55054436BA1B68CD7 /* SupportBundleExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportBundleExport.swift; sourceTree = "<group>"; };
-		1BD7AD6DA76F4E548669A489 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../DoseTapiOSApp/KeychainHelper.swift; sourceTree = "<group>"; };
-		1CB34E7F86084B24991BD7CA /* SetupWizardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../DoseTapiOSApp/SetupWizardView.swift; sourceTree = "<group>"; };
+		1BD7AD6DA76F4E548669A489 /* FullApp/KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/KeychainHelper.swift; sourceTree = "<group>"; };
+		1CB34E7F86084B24991BD7CA /* FullApp/SetupWizardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/SetupWizardView.swift; sourceTree = "<group>"; };
+		237C573EA83946FE8AFC /* DiagnosticLoggingSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLoggingSettingsView.swift; sourceTree = "<group>"; };
+		2980209556A04B5F8CE5 /* DiagnosticLoggingSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLoggingSettingsView.swift; sourceTree = "<group>"; };
 		2EF211068DBC684F390BC8F9 /* DiagnosticExportView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DiagnosticExportView.swift; sourceTree = "<group>"; };
-		30318D594933405BA4659E72 /* HealthIntegrationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../DoseTapiOSApp/HealthIntegrationService.swift; sourceTree = "<group>"; };
+		30318D594933405BA4659E72 /* FullApp/HealthIntegrationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/HealthIntegrationService.swift; sourceTree = "<group>"; };
 		3E912715BD5C4BBAAA735378 /* AlarmService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmService.swift; sourceTree = "<group>"; };
-		3EB783D234E142F09F662199 /* HealthKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../DoseTapiOSApp/HealthKitManager.swift; sourceTree = "<group>"; };
+		3EB783D234E142F09F662199 /* FullApp/HealthKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/HealthKitManager.swift; sourceTree = "<group>"; };
 		403FF1A5371F4BA427EC1520 /* WHOOPSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WHOOPSettingsView.swift; sourceTree = "<group>"; };
-		418F7D12D4A2473F800C75ED /* DoseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../DoseTapiOSApp/DoseModels.swift; sourceTree = "<group>"; };
+		418F7D12D4A2473F800C75ED /* FullApp/DoseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/DoseModels.swift; sourceTree = "<group>"; };
 		42C70AB54EEE44A19DF24685 /* FetchHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FetchHelpers.swift; sourceTree = "<group>"; };
 		4A3C6B3DB1EBBE10E2F3E7FB /* ReducedMotionSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReducedMotionSupport.swift; sourceTree = "<group>"; };
-		55547FD4D707466DAA743FE8 /* DoseCoreIntegration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../DoseTapiOSApp/DoseCoreIntegration.swift; sourceTree = "<group>"; };
+		55547FD4D707466DAA743FE8 /* FullApp/DoseCoreIntegration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/DoseCoreIntegration.swift; sourceTree = "<group>"; };
+		576700D19A9F4B35BA54 /* SleepPlanDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepPlanDetailView.swift; sourceTree = "<group>"; };
 		64641673735B464BB4E4B02F /* SessionRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepository.swift; sourceTree = "<group>"; };
-		652F871BE504479F9D73CC0D /* UserConfigurationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../DoseTapiOSApp/UserConfigurationManager.swift; sourceTree = "<group>"; };
+		652F871BE504479F9D73CC0D /* FullApp/UserConfigurationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/UserConfigurationManager.swift; sourceTree = "<group>"; };
 		67D4EB39451985378B4E5D61 /* WHOOPDataFetching.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WHOOPDataFetching.swift; sourceTree = "<group>"; };
 		6CFBD921F6074479AF4FF155 /* JSONMigrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONMigrator.swift; sourceTree = "<group>"; };
 		6FEE161A09D6441A8D4448DA /* InsightsCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightsCalculator.swift; sourceTree = "<group>"; };
 		707FF265ADBBA04484376264 /* ThemeSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThemeSettingsView.swift; sourceTree = "<group>"; };
 		7084981AA100483EB6E6ADE1 /* WHOOPService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WHOOPService.swift; sourceTree = "<group>"; };
-		76CC32E0134E4DFC8A421A8B /* DataStorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../DoseTapiOSApp/DataStorageService.swift; sourceTree = "<group>"; };
+		76CC32E0134E4DFC8A421A8B /* FullApp/DataStorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/DataStorageService.swift; sourceTree = "<group>"; };
 		7772A3ACA248F927B3008122 /* SecureConfig.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SecureConfig.swift; sourceTree = "<group>"; };
+		7797EE7911D146B6A7456454 /* DoseTapStaging.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DoseTapStaging.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7D7115779119154483A7838A /* UndoStateManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UndoStateManager.swift; sourceTree = "<group>"; };
 		8017D5312EFCDF6A00BF9683 /* DoseTapTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DoseTapTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		80A27C7D2EFAC24D0005C000 /* DoseTap.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DoseTap.entitlements; sourceTree = "<group>"; };
 		80B7FD26BB9CFDD4F25097AC /* DatabaseSecurity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DatabaseSecurity.swift; sourceTree = "<group>"; };
-		8F6DD7934D5146A9AEFC99A2 /* SQLiteStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../DoseTapiOSApp/SQLiteStorage.swift; sourceTree = "<group>"; };
+		8F6DD7934D5146A9AEFC99A2 /* FullApp/SQLiteStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/SQLiteStorage.swift; sourceTree = "<group>"; };
 		8FABFEE0765C943A32E6ACC2 /* NightReviewView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NightReviewView.swift; sourceTree = "<group>"; };
-		96266670665C4D408EB337B4 /* TimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../DoseTapiOSApp/TimelineView.swift; sourceTree = "<group>"; };
+		96266670665C4D408EB337B4 /* FullApp/TimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/TimelineView.swift; sourceTree = "<group>"; };
 		A600946C6A16447E86DD31CC /* WHOOP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WHOOP.swift; sourceTree = "<group>"; };
+		AAAAAAAA08C80B4B155C4F1F /* UndoSnackbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoSnackbar.swift; sourceTree = "<group>"; };
+		AAAAAAAA0C2B781536614815 /* UndoManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoManager.swift; sourceTree = "<group>"; };
+		AAAAAAAA180FECDFD1A34BF9 /* Views/MedicationPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/MedicationPickerView.swift; sourceTree = "<group>"; };
+		AAAAAAAA228351A6B9254E54 /* TimeEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeEngine.swift; sourceTree = "<group>"; };
+		AAAAAAAA3BA639A7295F4A8B /* EventStoreAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventStoreAdapter.swift; sourceTree = "<group>"; };
+		AAAAAAAA4C47F79D20684073 /* AccessibilitySupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilitySupport.swift; sourceTree = "<group>"; };
+		AAAAAAAA537A9EE417FC46A5 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		AAAAAAAA5D81B00628A14F8E /* DoseTapCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseTapCore.swift; sourceTree = "<group>"; };
+		AAAAAAAA79BDDCB8B8394A8C /* UndoStateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoStateManager.swift; sourceTree = "<group>"; };
+		AAAAAAAA7DFB77385FC541DB /* Views/PreSleepLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/PreSleepLogView.swift; sourceTree = "<group>"; };
+		AAAAAAAA9DBAF056AB1C49BC /* EventStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventStore.swift; sourceTree = "<group>"; };
+		AAAAAAAAA4A8D14140B649E4 /* Views/UndoSnackbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/UndoSnackbarView.swift; sourceTree = "<group>"; };
+		AAAAAAAADA901C7481C5490B /* Views/MorningCheckInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/MorningCheckInView.swift; sourceTree = "<group>"; };
+		AAAAAAAADE3CE12CAC8D4F6A /* SnoozeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnoozeController.swift; sourceTree = "<group>"; };
+		AAAAAAAAE2F91D7AC1EF43C1 /* Views/MedicationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/MedicationSettingsView.swift; sourceTree = "<group>"; };
+		AAAAAAAAF2660D49646040A0 /* OfflineQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueue.swift; sourceTree = "<group>"; };
+		ASSETS01 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B01 /* DoseTapApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseTapApp.swift; sourceTree = "<group>"; };
 		B02 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		B03 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		ASSETS01 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B0DBB25F0B4C46EAAFB4205A /* PersistentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistentStore.swift; sourceTree = "<group>"; };
 		B1CBF59D219929011DD8A4A8 /* InputValidator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InputValidator.swift; sourceTree = "<group>"; };
 		B358CDCA949364F93BD996D6 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		B3941DD4936B4FD0BD5A8837 /* MorningCheckInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckInView.swift; sourceTree = "<group>"; };
 		B5D8DC9D91D38419C97E97FA /* EventStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventStorage.swift; sourceTree = "<group>"; };
+		BACAE6FF95D948B09DD2 /* SleepPlanDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepPlanDetailView.swift; sourceTree = "<group>"; };
 		BB4C5084D06D74163A5C71A9 /* UserSettingsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserSettingsManager.swift; sourceTree = "<group>"; };
 		BE3796A887B24D9FBBD40758 /* PreSleepLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreSleepLogView.swift; sourceTree = "<group>"; };
 		C01 /* DoseTap.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DoseTap.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C1FBB8D30211AB1F43A21D65 /* AppTheme.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
-		C39612EB02A94A3BADDD204B /* EnhancedNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../DoseTapiOSApp/EnhancedNotificationService.swift; sourceTree = "<group>"; };
+		C39612EB02A94A3BADDD204B /* FullApp/EnhancedNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/EnhancedNotificationService.swift; sourceTree = "<group>"; };
 		C64168860F0E76DF93919D76 /* HighContrastColors.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HighContrastColors.swift; sourceTree = "<group>"; };
 		CEF16E4224E846ADAE92B1C6 /* DevelopmentHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevelopmentHelper.swift; sourceTree = "<group>"; };
 		CFF67F0048CFBF2716448CC5 /* FlicButtonService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FlicButtonService.swift; sourceTree = "<group>"; };
 		D049AFCF96FC4AFF9120309E /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
-		D1BA2E6CCFB845E6BFC919FA /* SetupWizardService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../DoseTapiOSApp/SetupWizardService.swift; sourceTree = "<group>"; };
-		D24FAD994B0C407F929BD3AC /* QuickLogPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../DoseTapiOSApp/QuickLogPanel.swift; sourceTree = "<group>"; };
-		D2988FA865D94BD982491694 /* TonightView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../DoseTapiOSApp/TonightView.swift; sourceTree = "<group>"; };
+		D1BA2E6CCFB845E6BFC919FA /* FullApp/SetupWizardService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/SetupWizardService.swift; sourceTree = "<group>"; };
+		D24FAD994B0C407F929BD3AC /* FullApp/QuickLogPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/QuickLogPanel.swift; sourceTree = "<group>"; };
+		D2988FA865D94BD982491694 /* FullApp/TonightView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/TonightView.swift; sourceTree = "<group>"; };
 		D565C0B5A1804860B23307B9 /* URLRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLRouter.swift; sourceTree = "<group>"; };
-		D9BC765DBC6846A8B0F169E7 /* DataExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../DoseTapiOSApp/DataExportService.swift; sourceTree = "<group>"; };
+		D9BC765DBC6846A8B0F169E7 /* FullApp/DataExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/DataExportService.swift; sourceTree = "<group>"; };
 		DED8B35BAB0493115DB99CA4 /* SecureLogger.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SecureLogger.swift; sourceTree = "<group>"; };
 		E0BC9035E4ACF20D1D40B9A9 /* SleepTimelineOverlays.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SleepTimelineOverlays.swift; sourceTree = "<group>"; };
-		E4E2B992A9FD423E84206CCE /* InventoryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../DoseTapiOSApp/InventoryService.swift; sourceTree = "<group>"; };
+		E4E2B992A9FD423E84206CCE /* FullApp/InventoryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/InventoryService.swift; sourceTree = "<group>"; };
+		EDIT001 /* EditDoseTimeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditDoseTimeView.swift; sourceTree = "<group>"; };
 		F3CED6FC4A7543E68CDF0BA0 /* TimeZoneMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeZoneMonitor.swift; sourceTree = "<group>"; };
-		F65B22283DEE43E8AA554209 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../DoseTapiOSApp/DashboardView.swift; sourceTree = "<group>"; };
+		F65B22283DEE43E8AA554209 /* FullApp/DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/DashboardView.swift; sourceTree = "<group>"; };
 		F90DAD707525490DB491F5EA /* CSVExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVExporter.swift; sourceTree = "<group>"; };
 		FCC2762A054AE377C80CF2B0 /* EncryptedEventStorage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EncryptedEventStorage.swift; sourceTree = "<group>"; };
 		FCEDF0A0E4BE41F582C2221F /* AnalyticsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsService.swift; sourceTree = "<group>"; };
@@ -167,43 +188,11 @@
 		UNDO004 /* UndoSnackbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoSnackbarView.swift; sourceTree = "<group>"; };
 		UNDO006 /* MedicationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationSettingsView.swift; sourceTree = "<group>"; };
 		UNDO008 /* MedicationPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationPickerView.swift; sourceTree = "<group>"; };
-		EDIT001 /* EditDoseTimeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditDoseTimeView.swift; sourceTree = "<group>"; };
 		WP002 /* WeeklyPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyPlanner.swift; sourceTree = "<group>"; };
-
-		AAAAAAAA9DBAF056AB1C49BC /* EventStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventStore.swift; sourceTree = "<group>"; };
-		AAAAAAAA3BA639A7295F4A8B /* EventStoreAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventStoreAdapter.swift; sourceTree = "<group>"; };
-		AAAAAAAA0C2B781536614815 /* UndoManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoManager.swift; sourceTree = "<group>"; };
-		AAAAAAAA228351A6B9254E54 /* TimeEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeEngine.swift; sourceTree = "<group>"; };
-		AAAAAAAADE3CE12CAC8D4F6A /* SnoozeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnoozeController.swift; sourceTree = "<group>"; };
-		AAAAAAAAF2660D49646040A0 /* OfflineQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueue.swift; sourceTree = "<group>"; };
-		AAAAAAAA4C47F79D20684073 /* AccessibilitySupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilitySupport.swift; sourceTree = "<group>"; };
-		AAAAAAAA537A9EE417FC46A5 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
-		AAAAAAAA5D81B00628A14F8E /* DoseTapCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseTapCore.swift; sourceTree = "<group>"; };
-		AAAAAAAA08C80B4B155C4F1F /* UndoSnackbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoSnackbar.swift; sourceTree = "<group>"; };
-		AAAAAAAA79BDDCB8B8394A8C /* UndoStateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoStateManager.swift; sourceTree = "<group>"; };
-		AAAAAAAAA4A8D14140B649E4 /* Views/UndoSnackbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/UndoSnackbarView.swift; sourceTree = "<group>"; };
-		AAAAAAAAE2F91D7AC1EF43C1 /* Views/MedicationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/MedicationSettingsView.swift; sourceTree = "<group>"; };
-		AAAAAAAA180FECDFD1A34BF9 /* Views/MedicationPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/MedicationPickerView.swift; sourceTree = "<group>"; };
-		AAAAAAAADA901C7481C5490B /* Views/MorningCheckInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/MorningCheckInView.swift; sourceTree = "<group>"; };
-		AAAAAAAA7DFB77385FC541DB /* Views/PreSleepLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/PreSleepLogView.swift; sourceTree = "<group>"; };
-		BACAE6FF95D948B09DD2 /* SleepPlanDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepPlanDetailView.swift; sourceTree = "<group>"; };
-		2980209556A04B5F8CE5 /* DiagnosticLoggingSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLoggingSettingsView.swift; sourceTree = "<group>"; };
-		576700D19A9F4B35BA54 /* SleepPlanDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepPlanDetailView.swift; sourceTree = "<group>"; };
-		237C573EA83946FE8AFC /* DiagnosticLoggingSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLoggingSettingsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		8017D5322EFCDF6A00BF9683 /* DoseTapTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			path = DoseTapTests;
-			sourceTree = "<group>";
-		};
+		8017D5322EFCDF6A00BF9683 /* DoseTapTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = DoseTapTests; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -248,7 +237,6 @@
 				AAAAAAAADA901C7481C5490B /* Views/MorningCheckInView.swift */,
 				AAAAAAAA7DFB77385FC541DB /* Views/PreSleepLogView.swift */,
 			);
-			name = Security;
 			path = Security;
 			sourceTree = "<group>";
 		};
@@ -257,7 +245,6 @@
 			children = (
 				C1FBB8D30211AB1F43A21D65 /* AppTheme.swift */,
 			);
-			name = Theme;
 			path = Theme;
 			sourceTree = "<group>";
 		};
@@ -276,24 +263,24 @@
 				80A27C7D2EFAC24D0005C000 /* DoseTap.entitlements */,
 				B03 /* Info.plist */,
 				ASSETS01 /* Assets.xcassets */,
-				F65B22283DEE43E8AA554209 /* DashboardView.swift */,
-				D9BC765DBC6846A8B0F169E7 /* DataExportService.swift */,
-				76CC32E0134E4DFC8A421A8B /* DataStorageService.swift */,
-				55547FD4D707466DAA743FE8 /* DoseCoreIntegration.swift */,
-				418F7D12D4A2473F800C75ED /* DoseModels.swift */,
-				C39612EB02A94A3BADDD204B /* EnhancedNotificationService.swift */,
-				30318D594933405BA4659E72 /* HealthIntegrationService.swift */,
-				3EB783D234E142F09F662199 /* HealthKitManager.swift */,
-				E4E2B992A9FD423E84206CCE /* InventoryService.swift */,
-				1BD7AD6DA76F4E548669A489 /* KeychainHelper.swift */,
-				D24FAD994B0C407F929BD3AC /* QuickLogPanel.swift */,
-				D1BA2E6CCFB845E6BFC919FA /* SetupWizardService.swift */,
-				1CB34E7F86084B24991BD7CA /* SetupWizardView.swift */,
-				8F6DD7934D5146A9AEFC99A2 /* SQLiteStorage.swift */,
-				96266670665C4D408EB337B4 /* TimelineView.swift */,
-				D2988FA865D94BD982491694 /* TonightView.swift */,
-				016ED98793654A7E806DEFE4 /* UIUtils.swift */,
-				652F871BE504479F9D73CC0D /* UserConfigurationManager.swift */,
+				F65B22283DEE43E8AA554209 /* FullApp/DashboardView.swift */,
+				D9BC765DBC6846A8B0F169E7 /* FullApp/DataExportService.swift */,
+				76CC32E0134E4DFC8A421A8B /* FullApp/DataStorageService.swift */,
+				55547FD4D707466DAA743FE8 /* FullApp/DoseCoreIntegration.swift */,
+				418F7D12D4A2473F800C75ED /* FullApp/DoseModels.swift */,
+				C39612EB02A94A3BADDD204B /* FullApp/EnhancedNotificationService.swift */,
+				30318D594933405BA4659E72 /* FullApp/HealthIntegrationService.swift */,
+				3EB783D234E142F09F662199 /* FullApp/HealthKitManager.swift */,
+				E4E2B992A9FD423E84206CCE /* FullApp/InventoryService.swift */,
+				1BD7AD6DA76F4E548669A489 /* FullApp/KeychainHelper.swift */,
+				D24FAD994B0C407F929BD3AC /* FullApp/QuickLogPanel.swift */,
+				D1BA2E6CCFB845E6BFC919FA /* FullApp/SetupWizardService.swift */,
+				1CB34E7F86084B24991BD7CA /* FullApp/SetupWizardView.swift */,
+				8F6DD7934D5146A9AEFC99A2 /* FullApp/SQLiteStorage.swift */,
+				96266670665C4D408EB337B4 /* FullApp/TimelineView.swift */,
+				D2988FA865D94BD982491694 /* FullApp/TonightView.swift */,
+				016ED98793654A7E806DEFE4 /* FullApp/UIUtils.swift */,
+				652F871BE504479F9D73CC0D /* FullApp/UserConfigurationManager.swift */,
 				3E912715BD5C4BBAAA735378 /* AlarmService.swift */,
 				FCEDF0A0E4BE41F582C2221F /* AnalyticsService.swift */,
 				B02 /* ContentView.swift */,
@@ -340,6 +327,7 @@
 			children = (
 				C01 /* DoseTap.app */,
 				8017D5312EFCDF6A00BF9683 /* DoseTapTests.xctest */,
+				7797EE7911D146B6A7456454 /* DoseTapStaging.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -408,6 +396,26 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		1A41D2556A7043ADB5D0C63B /* DoseTapStaging */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C003C8AE7F7B4650B2984ABC /* Build configuration list for PBXNativeTarget "DoseTapStaging" */;
+			buildPhases = (
+				J01 /* Sources */,
+				D01 /* Frameworks */,
+				K01 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = DoseTapStaging;
+			packageProductDependencies = (
+				P01 /* DoseCore */,
+			);
+			productName = DoseTapStaging;
+			productReference = 7797EE7911D146B6A7456454 /* DoseTapStaging.app */;
+			productType = "com.apple.product-type.application";
+		};
 		8017D5302EFCDF6A00BF9683 /* DoseTapTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 8017D5392EFCDF6A00BF9683 /* Build configuration list for PBXNativeTarget "DoseTapTests" */;
@@ -459,11 +467,22 @@
 				LastUpgradeCheck = 1500;
 				TargetAttributes = {
 					8017D5302EFCDF6A00BF9683 = {
+						1A41D2556A7043ADB5D0C63B = {
+							CreatedOnToolsVersion = 15.0;
+						};
 						CreatedOnToolsVersion = 26.2;
 						TestTargetID = H01;
 					};
 					H01 = {
 						CreatedOnToolsVersion = 15.0;
+						SystemCapabilities = {
+							com.apple.BackgroundModes = {
+								enabled = 0;
+							};
+							com.apple.HealthKit = {
+								enabled = 1;
+							};
+						};
 					};
 				};
 			};
@@ -485,6 +504,7 @@
 			targets = (
 				H01 /* DoseTap */,
 				8017D5302EFCDF6A00BF9683 /* DoseTapTests */,
+				1A41D2556A7043ADB5D0C63B /* DoseTapStaging */,
 			);
 		};
 /* End PBXProject section */
@@ -512,7 +532,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-			
 				AAAAAAAAB87941E7DF594E24 /* EventStore.swift in Sources */,
 				AAAAAAAAD50C5D1A26974F56 /* EventStoreAdapter.swift in Sources */,
 				AAAAAAAAD21C1DC5F3AB4657 /* UndoManager.swift in Sources */,
@@ -528,7 +547,8 @@
 				AAAAAAAAF1E2F78DF5B24EAA /* Views/MedicationSettingsView.swift in Sources */,
 				AAAAAAAA9D0D4CF2EFB54BCB /* Views/MedicationPickerView.swift in Sources */,
 				AAAAAAAA6F8992926A284D92 /* Views/MorningCheckInView.swift in Sources */,
-				AAAAAAAA35286560CB464309 /* Views/PreSleepLogView.swift in Sources */,);
+				AAAAAAAA35286560CB464309 /* Views/PreSleepLogView.swift in Sources */,
+			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		J01 /* Sources */ = {
@@ -556,24 +576,24 @@
 				92518D93643945F4B64E860F /* SessionRepository.swift in Sources */,
 				D8746EA078A54AF7A8CE92B3 /* MorningCheckInView.swift in Sources */,
 				F94248D37BBE47A5A2E90C9B /* PreSleepLogView.swift in Sources */,
-				2AC2BB5E8B07470DAC87BF98 /* SQLiteStorage.swift in Sources */,
-				FF9B9D3487C94D99934BC6FB /* TimelineView.swift in Sources */,
-				626D4BF0DD5F45C9BE4DADD3 /* QuickLogPanel.swift in Sources */,
-				1A539DC8315840749C5671D7 /* TonightView.swift in Sources */,
-				01FF500944CC4F14A6E163C4 /* DoseModels.swift in Sources */,
-				E9AD7E6058C34B8FBB03E87D /* DoseCoreIntegration.swift in Sources */,
-				9D35A7FAB4A9475D997EF36A /* EnhancedNotificationService.swift in Sources */,
-				45F1AA062DDD452F8BA1C0A0 /* HealthKitManager.swift in Sources */,
-				F6A54D65D1B84EFF863C73C3 /* DashboardView.swift in Sources */,
-				8C0097D7D4054D81BDBF5507 /* DataExportService.swift in Sources */,
-				E67E1CC8E48846A3850E2568 /* UserConfigurationManager.swift in Sources */,
-				0835950893AC446EABC20688 /* DataStorageService.swift in Sources */,
-				A4DE3A024E7E4AC6B5F83DEA /* HealthIntegrationService.swift in Sources */,
-				05D399B5B86749ACB9CD89BF /* KeychainHelper.swift in Sources */,
-				E7EA21EC3FE949B3890BF69A /* SetupWizardService.swift in Sources */,
-				54E3599B814B4ACFBD87EA6B /* SetupWizardView.swift in Sources */,
-				1CB467AF229E4760A2F4A18A /* InventoryService.swift in Sources */,
-				71DCA3BA35464A60B99EC25A /* UIUtils.swift in Sources */,
+				2AC2BB5E8B07470DAC87BF98 /* FullApp/SQLiteStorage.swift in Sources */,
+				FF9B9D3487C94D99934BC6FB /* FullApp/TimelineView.swift in Sources */,
+				626D4BF0DD5F45C9BE4DADD3 /* FullApp/QuickLogPanel.swift in Sources */,
+				1A539DC8315840749C5671D7 /* FullApp/TonightView.swift in Sources */,
+				01FF500944CC4F14A6E163C4 /* FullApp/DoseModels.swift in Sources */,
+				E9AD7E6058C34B8FBB03E87D /* FullApp/DoseCoreIntegration.swift in Sources */,
+				9D35A7FAB4A9475D997EF36A /* FullApp/EnhancedNotificationService.swift in Sources */,
+				45F1AA062DDD452F8BA1C0A0 /* FullApp/HealthKitManager.swift in Sources */,
+				F6A54D65D1B84EFF863C73C3 /* FullApp/DashboardView.swift in Sources */,
+				8C0097D7D4054D81BDBF5507 /* FullApp/DataExportService.swift in Sources */,
+				E67E1CC8E48846A3850E2568 /* FullApp/UserConfigurationManager.swift in Sources */,
+				0835950893AC446EABC20688 /* FullApp/DataStorageService.swift in Sources */,
+				A4DE3A024E7E4AC6B5F83DEA /* FullApp/HealthIntegrationService.swift in Sources */,
+				05D399B5B86749ACB9CD89BF /* FullApp/KeychainHelper.swift in Sources */,
+				E7EA21EC3FE949B3890BF69A /* FullApp/SetupWizardService.swift in Sources */,
+				54E3599B814B4ACFBD87EA6B /* FullApp/SetupWizardView.swift in Sources */,
+				1CB467AF229E4760A2F4A18A /* FullApp/InventoryService.swift in Sources */,
+				71DCA3BA35464A60B99EC25A /* FullApp/UIUtils.swift in Sources */,
 				EA02466EA69547DF963A8BA7 /* WHOOPService.swift in Sources */,
 				46EBB63DD7FE446C8EEF4021 /* AnalyticsService.swift in Sources */,
 				51117520922E2EF076DD4A81 /* DiagnosticExportView.swift in Sources */,
@@ -608,6 +628,88 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		37E9736BC8D5422FB0F78F08 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
+				DEVELOPMENT_TEAM = PJ487S8PS6;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = DoseTap/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "DoseTap Staging";
+				INFOPLIST_KEY_CFBundleName = "DoseTap Staging";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.medical";
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "DoseTap can use Bluetooth if you connect a button directly.";
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "DoseTap can use Bluetooth if you connect a button directly.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "DoseTap reads your sleep, heart rate, respiratory rate, oxygen saturation, and HRV to optimize a label-compliant second-dose reminder.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "DoseTap may write simple log markers if you enable it.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiresFullScreen = NO;
+				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDefault;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 2.0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.dosetap.staging;
+				PRODUCT_NAME = DoseTapStaging;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		52B1380A990244798BBE967C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
+				DEVELOPMENT_TEAM = PJ487S8PS6;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = DoseTap/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "DoseTap Staging";
+				INFOPLIST_KEY_CFBundleName = "DoseTap Staging";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.medical";
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "DoseTap can use Bluetooth if you connect a button directly.";
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "DoseTap can use Bluetooth if you connect a button directly.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "DoseTap reads your sleep, heart rate, respiratory rate, oxygen saturation, and HRV to optimize a label-compliant second-dose reminder.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "DoseTap may write simple log markers if you enable it.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiresFullScreen = NO;
+				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDefault;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 2.0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.dosetap.staging;
+				PRODUCT_NAME = DoseTapStaging;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
 		8017D5372EFCDF6A00BF9683 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -789,11 +891,13 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = DoseTap/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = DoseTap;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.medical";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "DoseTap can use Bluetooth if you connect a button directly.";
 				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "DoseTap can use Bluetooth if you connect a button directly.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "DoseTap reads your sleep, heart rate, respiratory rate, oxygen saturation, and HRV to optimize a label-compliant second-dose reminder.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "DoseTap may write simple log markers if you enable it.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 DoseTap. All rights reserved.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -829,11 +933,13 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = DoseTap/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = DoseTap;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.medical";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "DoseTap can use Bluetooth if you connect a button directly.";
 				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "DoseTap can use Bluetooth if you connect a button directly.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "DoseTap reads your sleep, heart rate, respiratory rate, oxygen saturation, and HRV to optimize a label-compliant second-dose reminder.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "DoseTap may write simple log markers if you enable it.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 DoseTap. All rights reserved.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -863,6 +969,15 @@
 			buildConfigurations = (
 				8017D5372EFCDF6A00BF9683 /* Debug */,
 				8017D5382EFCDF6A00BF9683 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C003C8AE7F7B4650B2984ABC /* Build configuration list for PBXNativeTarget "DoseTapStaging" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				52B1380A990244798BBE967C /* Debug */,
+				37E9736BC8D5422FB0F78F08 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

@@ -25,6 +25,18 @@ public class EventStorage {
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
     }()
+
+    public struct CurrentSessionState {
+        public let sessionId: String?
+        public let sessionDate: String?
+        public let sessionStart: Date?
+        public let sessionEnd: Date?
+        public let dose1Time: Date?
+        public let dose2Time: Date?
+        public let snoozeCount: Int
+        public let dose2Skipped: Bool
+        public let terminalState: String?
+    }
     
     private init() {
         // Store in Documents directory for persistence
@@ -77,6 +89,7 @@ public class EventStorage {
             event_type TEXT NOT NULL,
             timestamp TEXT NOT NULL,
             session_date TEXT NOT NULL,
+            session_id TEXT,
             color_hex TEXT,
             notes TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -88,6 +101,7 @@ public class EventStorage {
             event_type TEXT NOT NULL,
             timestamp TEXT NOT NULL,
             session_date TEXT NOT NULL,
+            session_id TEXT,
             metadata TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
@@ -100,6 +114,20 @@ public class EventStorage {
             snooze_count INTEGER DEFAULT 0,
             dose2_skipped INTEGER DEFAULT 0,
             session_date TEXT NOT NULL,
+            session_id TEXT,
+            session_start_utc TEXT,
+            session_end_utc TEXT,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        -- Sleep session metadata (non-calendar lifecycle)
+        CREATE TABLE IF NOT EXISTS sleep_sessions (
+            session_id TEXT PRIMARY KEY,
+            session_date TEXT NOT NULL,
+            start_utc TEXT NOT NULL,
+            end_utc TEXT,
+            terminal_state TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
         
@@ -163,11 +191,14 @@ public class EventStorage {
         CREATE INDEX IF NOT EXISTS idx_sleep_events_session ON sleep_events(session_date);
         CREATE INDEX IF NOT EXISTS idx_sleep_events_timestamp ON sleep_events(timestamp);
         CREATE INDEX IF NOT EXISTS idx_sleep_events_session_type ON sleep_events(session_date, event_type);
+        CREATE INDEX IF NOT EXISTS idx_sleep_events_session_id ON sleep_events(session_id);
         CREATE INDEX IF NOT EXISTS idx_dose_events_session ON dose_events(session_date);
         CREATE INDEX IF NOT EXISTS idx_dose_events_session_type ON dose_events(session_date, event_type);
+        CREATE INDEX IF NOT EXISTS idx_dose_events_session_id ON dose_events(session_id);
         CREATE INDEX IF NOT EXISTS idx_morning_checkins_session ON morning_checkins(session_date);
         CREATE INDEX IF NOT EXISTS idx_morning_checkins_session_id ON morning_checkins(session_id);
         CREATE INDEX IF NOT EXISTS idx_pre_sleep_logs_session_id ON pre_sleep_logs(session_id);
+        CREATE INDEX IF NOT EXISTS idx_sleep_sessions_date ON sleep_sessions(session_date);
         
         -- Medication events (Adderall, etc.) - local-only, session-linked
         CREATE TABLE IF NOT EXISTS medication_events (
@@ -212,6 +243,13 @@ public class EventStorage {
             "ALTER TABLE morning_checkins ADD COLUMN sleep_therapy_json TEXT",
             // P0: Session terminal state - distinguishes: completed, skipped, expired, aborted
             "ALTER TABLE current_session ADD COLUMN terminal_state TEXT",
+            // Session lifecycle metadata (non-calendar)
+            "ALTER TABLE current_session ADD COLUMN session_id TEXT",
+            "ALTER TABLE current_session ADD COLUMN session_start_utc TEXT",
+            "ALTER TABLE current_session ADD COLUMN session_end_utc TEXT",
+            // Session identity on events
+            "ALTER TABLE sleep_events ADD COLUMN session_id TEXT",
+            "ALTER TABLE dose_events ADD COLUMN session_id TEXT",
             // Sleep Environment feature - captures sleep setup and aids for Morning Check-in
             "ALTER TABLE morning_checkins ADD COLUMN has_sleep_environment INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE morning_checkins ADD COLUMN sleep_environment_json TEXT",
@@ -244,6 +282,9 @@ public class EventStorage {
     public func backfillNullSessionIds() {
         backfillPreSleepLogSessionIds()
         backfillMedicationEventSessionIds()
+        backfillDoseEventSessionIds()
+        backfillSleepEventSessionIds()
+        backfillCurrentSessionIdIfNeeded()
     }
     
     /// Backfill pre_sleep_logs.session_id from created_at_utc
@@ -336,6 +377,101 @@ public class EventStorage {
             print("✅ EventStorage: Backfilled \(rowsToUpdate.count) medication_events with session_id")
         }
     }
+
+    /// Backfill dose_events.session_id from session_date
+    private func backfillDoseEventSessionIds() {
+        let selectSQL = "SELECT id, session_date FROM dose_events WHERE session_id IS NULL"
+        var selectStmt: OpaquePointer?
+
+        guard sqlite3_prepare_v2(db, selectSQL, -1, &selectStmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(selectStmt) }
+
+        var rowsToUpdate: [(id: String, sessionId: String)] = []
+
+        while sqlite3_step(selectStmt) == SQLITE_ROW {
+            guard let idPtr = sqlite3_column_text(selectStmt, 0),
+                  let sessionPtr = sqlite3_column_text(selectStmt, 1) else { continue }
+            let id = String(cString: idPtr)
+            let sessionId = String(cString: sessionPtr)
+            rowsToUpdate.append((id, sessionId))
+        }
+
+        let updateSQL = "UPDATE dose_events SET session_id = ? WHERE id = ?"
+        var updateStmt: OpaquePointer?
+
+        guard sqlite3_prepare_v2(db, updateSQL, -1, &updateStmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(updateStmt) }
+
+        for row in rowsToUpdate {
+            sqlite3_reset(updateStmt)
+            sqlite3_bind_text(updateStmt, 1, row.sessionId, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(updateStmt, 2, row.id, -1, SQLITE_TRANSIENT)
+            sqlite3_step(updateStmt)
+        }
+
+        if !rowsToUpdate.isEmpty {
+            print("✅ EventStorage: Backfilled \(rowsToUpdate.count) dose_events with session_id")
+        }
+    }
+
+    /// Backfill sleep_events.session_id from session_date
+    private func backfillSleepEventSessionIds() {
+        let selectSQL = "SELECT id, session_date FROM sleep_events WHERE session_id IS NULL"
+        var selectStmt: OpaquePointer?
+
+        guard sqlite3_prepare_v2(db, selectSQL, -1, &selectStmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(selectStmt) }
+
+        var rowsToUpdate: [(id: String, sessionId: String)] = []
+
+        while sqlite3_step(selectStmt) == SQLITE_ROW {
+            guard let idPtr = sqlite3_column_text(selectStmt, 0),
+                  let sessionPtr = sqlite3_column_text(selectStmt, 1) else { continue }
+            let id = String(cString: idPtr)
+            let sessionId = String(cString: sessionPtr)
+            rowsToUpdate.append((id, sessionId))
+        }
+
+        let updateSQL = "UPDATE sleep_events SET session_id = ? WHERE id = ?"
+        var updateStmt: OpaquePointer?
+
+        guard sqlite3_prepare_v2(db, updateSQL, -1, &updateStmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(updateStmt) }
+
+        for row in rowsToUpdate {
+            sqlite3_reset(updateStmt)
+            sqlite3_bind_text(updateStmt, 1, row.sessionId, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(updateStmt, 2, row.id, -1, SQLITE_TRANSIENT)
+            sqlite3_step(updateStmt)
+        }
+
+        if !rowsToUpdate.isEmpty {
+            print("✅ EventStorage: Backfilled \(rowsToUpdate.count) sleep_events with session_id")
+        }
+    }
+
+    /// Ensure current_session has a session_id when legacy data exists
+    private func backfillCurrentSessionIdIfNeeded() {
+        let selectSQL = "SELECT session_id, session_date FROM current_session WHERE id = 1"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, selectSQL, -1, &stmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(stmt) }
+
+        if sqlite3_step(stmt) == SQLITE_ROW {
+            let sessionId = sqlite3_column_text(stmt, 0).map { String(cString: $0) }
+            let sessionDate = sqlite3_column_text(stmt, 1).map { String(cString: $0) }
+            guard sessionId == nil, let fallback = sessionDate else { return }
+
+            let updateSQL = "UPDATE current_session SET session_id = ? WHERE id = 1"
+            var updateStmt: OpaquePointer?
+            if sqlite3_prepare_v2(db, updateSQL, -1, &updateStmt, nil) == SQLITE_OK {
+                sqlite3_bind_text(updateStmt, 1, fallback, -1, SQLITE_TRANSIENT)
+                sqlite3_step(updateStmt)
+                sqlite3_finalize(updateStmt)
+                print("✅ EventStorage: Backfilled current_session.session_id with \(fallback)")
+            }
+        }
+    }
     
     /// Parse ISO8601 date string
     private func parseISO8601(_ string: String) -> Date? {
@@ -420,6 +556,38 @@ public class EventStorage {
         
         return dates
     }
+
+    /// Fetch session_id for a given session_date (prefers current_session)
+    public func fetchSessionId(forSessionDate sessionDate: String) -> String? {
+        let currentSQL = "SELECT session_id FROM current_session WHERE id = 1 AND session_date = ?"
+        var stmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, currentSQL, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
+            if sqlite3_step(stmt) == SQLITE_ROW {
+                let sessionId = sqlite3_column_text(stmt, 0).map { String(cString: $0) }
+                sqlite3_finalize(stmt)
+                if let sessionId = sessionId { return sessionId }
+            }
+        }
+        sqlite3_finalize(stmt)
+
+        let sql = """
+            SELECT session_id FROM sleep_sessions
+            WHERE session_date = ?
+            ORDER BY start_utc DESC
+            LIMIT 1
+        """
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
+            if sqlite3_step(stmt) == SQLITE_ROW {
+                let sessionId = sqlite3_column_text(stmt, 0).map { String(cString: $0) }
+                sqlite3_finalize(stmt)
+                return sessionId
+            }
+        }
+        sqlite3_finalize(stmt)
+        return nil
+    }
     
     /// Filter a list of session_date strings to those that still exist in storage.
     /// Used by timeline/export to drop deleted sessions that might still linger in other stores.
@@ -434,12 +602,13 @@ public class EventStorage {
         eventType: String,
         timestamp: Date,
         sessionDate: String,
+        sessionId: String? = nil,
         colorHex: String? = nil,
         notes: String? = nil
     ) {
         let sql = """
-        INSERT OR REPLACE INTO sleep_events (id, event_type, timestamp, session_date, color_hex, notes)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT OR REPLACE INTO sleep_events (id, event_type, timestamp, session_date, session_id, color_hex, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """
         
         var stmt: OpaquePointer?
@@ -455,27 +624,30 @@ public class EventStorage {
         sqlite3_bind_text(stmt, 2, eventType, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 3, timestampStr, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 4, sessionDate, -1, SQLITE_TRANSIENT)
-        
+
+        let resolvedSessionId = sessionId ?? sessionDate
+        sqlite3_bind_text(stmt, 5, resolvedSessionId, -1, SQLITE_TRANSIENT)
+
         if let colorHex = colorHex {
-            sqlite3_bind_text(stmt, 5, colorHex, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 6, colorHex, -1, SQLITE_TRANSIENT)
         } else {
-            sqlite3_bind_null(stmt, 5)
+            sqlite3_bind_null(stmt, 6)
         }
         
         if let notes = notes {
-            sqlite3_bind_text(stmt, 6, notes, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 7, notes, -1, SQLITE_TRANSIENT)
         } else {
-            sqlite3_bind_null(stmt, 6)
+            sqlite3_bind_null(stmt, 7)
         }
         
         sqlite3_step(stmt)
     }
     
     /// Insert a dose event for a specific session date (used by tests/importers).
-    public func insertDoseEvent(eventType: String, timestamp: Date, sessionDate: String, metadata: String? = nil) {
+    public func insertDoseEvent(eventType: String, timestamp: Date, sessionDate: String, sessionId: String? = nil, metadata: String? = nil) {
         let sql = """
-        INSERT INTO dose_events (id, event_type, timestamp, session_date, metadata)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO dose_events (id, event_type, timestamp, session_date, session_id, metadata)
+        VALUES (?, ?, ?, ?, ?, ?)
         """
         
         var stmt: OpaquePointer?
@@ -491,11 +663,14 @@ public class EventStorage {
         sqlite3_bind_text(stmt, 2, eventType, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 3, timestampStr, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 4, sessionDate, -1, SQLITE_TRANSIENT)
-        
+
+        let resolvedSessionId = sessionId ?? sessionDate
+        sqlite3_bind_text(stmt, 5, resolvedSessionId, -1, SQLITE_TRANSIENT)
+
         if let metadata = metadata {
-            sqlite3_bind_text(stmt, 5, metadata, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 6, metadata, -1, SQLITE_TRANSIENT)
         } else {
-            sqlite3_bind_null(stmt, 5)
+            sqlite3_bind_null(stmt, 6)
         }
         
         sqlite3_step(stmt)
@@ -533,44 +708,29 @@ public class EventStorage {
     // MARK: - Sleep Event Operations
     
     /// Insert a sleep event
-    public func insertSleepEvent(id: String, eventType: String, timestamp: Date, colorHex: String?, notes: String? = nil) {
-        let sql = """
-        INSERT OR REPLACE INTO sleep_events (id, event_type, timestamp, session_date, color_hex, notes)
-        VALUES (?, ?, ?, ?, ?, ?)
-        """
-        
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            print("❌ Failed to prepare insert statement")
-            return
-        }
-        defer { sqlite3_finalize(stmt) }
-        
-        let sessionDate = currentSessionDate()
+    public func insertSleepEvent(
+        id: String,
+        eventType: String,
+        timestamp: Date,
+        colorHex: String?,
+        notes: String? = nil,
+        sessionId: String? = nil,
+        sessionDate: String? = nil
+    ) {
+        let resolvedSessionDate = sessionDate ?? currentSessionDate()
+        insertSleepEvent(
+            id: id,
+            eventType: eventType,
+            timestamp: timestamp,
+            sessionDate: resolvedSessionDate,
+            sessionId: sessionId,
+            colorHex: colorHex,
+            notes: notes
+        )
+        #if DEBUG
         let timestampStr = isoFormatter.string(from: timestamp)
-        
-        sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 2, eventType, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 3, timestampStr, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 4, sessionDate, -1, SQLITE_TRANSIENT)
-        
-        if let colorHex = colorHex {
-            sqlite3_bind_text(stmt, 5, colorHex, -1, SQLITE_TRANSIENT)
-        } else {
-            sqlite3_bind_null(stmt, 5)
-        }
-        
-        if let notes = notes {
-            sqlite3_bind_text(stmt, 6, notes, -1, SQLITE_TRANSIENT)
-        } else {
-            sqlite3_bind_null(stmt, 6)
-        }
-        
-        if sqlite3_step(stmt) == SQLITE_DONE {
-            print("✅ Sleep event saved: \(eventType) at \(timestampStr)")
-        } else {
-            print("❌ Failed to insert sleep event: \(String(cString: sqlite3_errmsg(db)))")
-        }
+        print("✅ Sleep event saved: \(eventType) at \(timestampStr)")
+        #endif
     }
     
     /// Fetch sleep events for current session (tonight)
@@ -602,6 +762,54 @@ public class EventStorage {
             let eventType = String(cString: sqlite3_column_text(stmt, 1))
             let timestampStr = String(cString: sqlite3_column_text(stmt, 2))
             let timestamp = isoFormatter.date(from: timestampStr) ?? Date()
+            
+            var colorHex: String? = nil
+            if let colorText = sqlite3_column_text(stmt, 4) {
+                colorHex = String(cString: colorText)
+            }
+            
+            var notes: String? = nil
+            if let notesText = sqlite3_column_text(stmt, 5) {
+                notes = String(cString: notesText)
+            }
+            
+            events.append(StoredSleepEvent(
+                id: id,
+                eventType: eventType,
+                timestamp: timestamp,
+                sessionDate: sessionDate,
+                colorHex: colorHex,
+                notes: notes
+            ))
+        }
+        
+        return events
+    }
+
+    /// Fetch sleep events for a specific session id (preferred for active sessions)
+    public func fetchSleepEvents(forSessionId sessionId: String) -> [StoredSleepEvent] {
+        let sql = """
+        SELECT id, event_type, timestamp, session_date, color_hex, notes
+        FROM sleep_events
+        WHERE session_id = ?
+        ORDER BY timestamp DESC
+        """
+        
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            return []
+        }
+        defer { sqlite3_finalize(stmt) }
+        
+        sqlite3_bind_text(stmt, 1, sessionId, -1, SQLITE_TRANSIENT)
+        
+        var events: [StoredSleepEvent] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            let id = String(cString: sqlite3_column_text(stmt, 0))
+            let eventType = String(cString: sqlite3_column_text(stmt, 1))
+            let timestampStr = String(cString: sqlite3_column_text(stmt, 2))
+            let timestamp = isoFormatter.date(from: timestampStr) ?? Date()
+            let sessionDate = String(cString: sqlite3_column_text(stmt, 3))
             
             var colorHex: String? = nil
             if let colorText = sqlite3_column_text(stmt, 4) {
@@ -696,10 +904,11 @@ public class EventStorage {
     // MARK: - Dose Event Operations
     
     /// Save dose 1 taken
-    public func saveDose1(timestamp: Date) {
-        let sessionDate = sessionDateString(for: timestamp)
-        insertDoseEvent(eventType: "dose1", timestamp: timestamp, sessionDate: sessionDate)
-        updateCurrentSession(sessionDate: sessionDate, dose1Time: timestamp)
+    public func saveDose1(timestamp: Date, sessionId: String? = nil, sessionDateOverride: String? = nil) {
+        let sessionDate = sessionDateOverride ?? sessionDateString(for: timestamp)
+        let resolvedSessionId = sessionId ?? sessionDate
+        insertDoseEventInternal(eventType: "dose1", timestamp: timestamp, sessionDate: sessionDate, sessionId: resolvedSessionId)
+        updateCurrentSession(sessionDate: sessionDate, sessionId: resolvedSessionId, dose1Time: timestamp)
     }
     
     /// Save dose 2 taken
@@ -707,24 +916,26 @@ public class EventStorage {
     ///   - timestamp: When dose 2 was taken
     ///   - isEarly: True if taken before window opened (user override)
     ///   - isExtraDose: True if this is a second attempt at dose 2 (confirmed by user)
-    public func saveDose2(timestamp: Date, isEarly: Bool = false, isExtraDose: Bool = false) {
+    public func saveDose2(timestamp: Date, isEarly: Bool = false, isExtraDose: Bool = false, isLate: Bool = false, sessionId: String? = nil, sessionDateOverride: String? = nil) {
         var metadata: [String: Any] = [:]
         if isEarly { metadata["is_early"] = true }
         if isExtraDose { metadata["is_extra_dose"] = true }
+        if isLate { metadata["is_late"] = true }
         
         let eventType = isExtraDose ? "extra_dose" : "dose2"
         let metadataStr = metadata.isEmpty ? nil : (try? JSONSerialization.data(withJSONObject: metadata)).flatMap { String(data: $0, encoding: .utf8) }
-        let sessionDate = sessionDateString(for: timestamp)
-        insertDoseEvent(eventType: eventType, timestamp: timestamp, sessionDate: sessionDate, metadata: metadataStr)
+        let sessionDate = sessionDateOverride ?? sessionDateString(for: timestamp)
+        let resolvedSessionId = sessionId ?? sessionDate
+        insertDoseEventInternal(eventType: eventType, timestamp: timestamp, sessionDate: sessionDate, sessionId: resolvedSessionId, metadata: metadataStr)
         
         // Only update session dose2_time for first dose2 (not extra doses)
         if !isExtraDose {
-            updateCurrentSession(sessionDate: sessionDate, dose2Time: timestamp)
+            updateCurrentSession(sessionDate: sessionDate, sessionId: resolvedSessionId, dose2Time: timestamp)
         }
     }
     
     /// Save dose skipped with optional reason
-    public func saveDoseSkipped(reason: String? = nil) {
+    public func saveDoseSkipped(reason: String? = nil, sessionId: String? = nil, sessionDateOverride: String? = nil) {
         let metadata: String?
         if let reason = reason {
             metadata = "{\"reason\":\"\(reason)\"}"
@@ -732,24 +943,26 @@ public class EventStorage {
             metadata = nil
         }
         let now = nowProvider()
-        let sessionDate = sessionDateString(for: now)
-        insertDoseEvent(eventType: "dose2_skipped", timestamp: now, sessionDate: sessionDate, metadata: metadata)
-        updateCurrentSession(sessionDate: sessionDate, dose2Skipped: true)
+        let sessionDate = sessionDateOverride ?? sessionDateString(for: now)
+        let resolvedSessionId = sessionId ?? sessionDate
+        insertDoseEventInternal(eventType: "dose2_skipped", timestamp: now, sessionDate: sessionDate, sessionId: resolvedSessionId, metadata: metadata)
+        updateCurrentSession(sessionDate: sessionDate, sessionId: resolvedSessionId, dose2Skipped: true)
     }
     
     /// Save snooze
-    public func saveSnooze(count: Int) {
+    public func saveSnooze(count: Int, sessionId: String? = nil, sessionDateOverride: String? = nil) {
         let now = nowProvider()
-        let sessionDate = sessionDateString(for: now)
-        insertDoseEvent(eventType: "snooze", timestamp: now, sessionDate: sessionDate, metadata: "{\"count\":\(count)}")
-        updateCurrentSession(sessionDate: sessionDate, snoozeCount: count)
+        let sessionDate = sessionDateOverride ?? sessionDateString(for: now)
+        let resolvedSessionId = sessionId ?? sessionDate
+        insertDoseEventInternal(eventType: "snooze", timestamp: now, sessionDate: sessionDate, sessionId: resolvedSessionId, metadata: "{\"count\":\(count)}")
+        updateCurrentSession(sessionDate: sessionDate, sessionId: resolvedSessionId, snoozeCount: count)
     }
     
     // MARK: - Undo Support Methods
     
     /// Clear dose 1 from current session (for undo)
-    public func clearDose1() {
-        let sessionDate = currentSessionDate()
+    public func clearDose1(sessionDateOverride: String? = nil) {
+        let sessionDate = sessionDateOverride ?? currentSessionDate()
         
         // Delete dose1 event from dose_events
         let deleteSQL = "DELETE FROM dose_events WHERE session_date = ? AND event_type = 'dose1'"
@@ -772,8 +985,8 @@ public class EventStorage {
     }
     
     /// Clear dose 2 from current session (for undo)
-    public func clearDose2() {
-        let sessionDate = currentSessionDate()
+    public func clearDose2(sessionDateOverride: String? = nil) {
+        let sessionDate = sessionDateOverride ?? currentSessionDate()
         
         // Delete dose2 event from dose_events
         let deleteSQL = "DELETE FROM dose_events WHERE session_date = ? AND event_type = 'dose2'"
@@ -796,8 +1009,8 @@ public class EventStorage {
     }
     
     /// Clear skip status from current session (for undo)
-    public func clearSkip() {
-        let sessionDate = currentSessionDate()
+    public func clearSkip(sessionDateOverride: String? = nil) {
+        let sessionDate = sessionDateOverride ?? currentSessionDate()
         
         // Delete skip event from dose_events
         let deleteSQL = "DELETE FROM dose_events WHERE session_date = ? AND event_type = 'dose2_skipped'"
@@ -889,10 +1102,10 @@ public class EventStorage {
         print("✏️ EventStorage: Updated event \(eventId) time to \(timestampStr)")
     }
     
-    private func insertDoseEvent(eventType: String, timestamp: Date, sessionDate: String? = nil, metadata: String? = nil) {
+    private func insertDoseEventInternal(eventType: String, timestamp: Date, sessionDate: String? = nil, sessionId: String? = nil, metadata: String? = nil) {
         let sql = """
-        INSERT INTO dose_events (id, event_type, timestamp, session_date, metadata)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO dose_events (id, event_type, timestamp, session_date, session_id, metadata)
+        VALUES (?, ?, ?, ?, ?, ?)
         """
         
         var stmt: OpaquePointer?
@@ -903,17 +1116,20 @@ public class EventStorage {
         
         let id = UUID().uuidString
         let sessionDate = sessionDate ?? sessionDateString(for: timestamp)
+        let resolvedSessionId = sessionId ?? sessionDate
         let timestampStr = isoFormatter.string(from: timestamp)
         
         sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 2, eventType, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 3, timestampStr, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 4, sessionDate, -1, SQLITE_TRANSIENT)
+
+        sqlite3_bind_text(stmt, 5, resolvedSessionId, -1, SQLITE_TRANSIENT)
         
         if let metadata = metadata {
-            sqlite3_bind_text(stmt, 5, metadata, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 6, metadata, -1, SQLITE_TRANSIENT)
         } else {
-            sqlite3_bind_null(stmt, 5)
+            sqlite3_bind_null(stmt, 6)
         }
         
         if sqlite3_step(stmt) == SQLITE_DONE {
@@ -981,10 +1197,233 @@ public class EventStorage {
     
     // MARK: - Current Session State
     
+    /// Start a new sleep session and reset current_session fields.
+    public func startSession(sessionId: String, sessionDate: String, start: Date) {
+        let insertSQL = """
+        INSERT OR IGNORE INTO current_session (id, session_date, dose1_time, dose2_time, snooze_count, dose2_skipped, updated_at)
+        VALUES (1, ?, NULL, NULL, 0, 0, CURRENT_TIMESTAMP)
+        """
+        
+        var insertStmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, insertSQL, -1, &insertStmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(insertStmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
+            sqlite3_step(insertStmt)
+            sqlite3_finalize(insertStmt)
+        }
+        
+        let startStr = isoFormatter.string(from: start)
+        let updateSQL = """
+        UPDATE current_session
+        SET session_date = ?,
+            session_id = ?,
+            session_start_utc = ?,
+            session_end_utc = NULL,
+            terminal_state = NULL,
+            dose1_time = NULL,
+            dose2_time = NULL,
+            snooze_count = 0,
+            dose2_skipped = 0,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = 1
+        """
+        
+        var updateStmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, updateSQL, -1, &updateStmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(updateStmt) }
+        
+        sqlite3_bind_text(updateStmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(updateStmt, 2, sessionId, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(updateStmt, 3, startStr, -1, SQLITE_TRANSIENT)
+        sqlite3_step(updateStmt)
+        
+        upsertSleepSession(sessionId: sessionId, sessionDate: sessionDate, start: start, end: nil, terminalState: nil)
+    }
+    
+    /// Close an active sleep session and persist terminal state.
+    public func closeSession(sessionId: String, sessionDate: String, end: Date, terminalState: String) {
+        let endStr = isoFormatter.string(from: end)
+        let updateSQL = """
+        UPDATE current_session
+        SET session_end_utc = ?,
+            terminal_state = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = 1 AND session_id = ?
+        """
+        
+        var updateStmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, updateSQL, -1, &updateStmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(updateStmt) }
+        
+        sqlite3_bind_text(updateStmt, 1, endStr, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(updateStmt, 2, terminalState, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(updateStmt, 3, sessionId, -1, SQLITE_TRANSIENT)
+        sqlite3_step(updateStmt)
+        
+        upsertSleepSession(sessionId: sessionId, sessionDate: sessionDate, start: nil, end: end, terminalState: terminalState)
+    }
+
+    /// Close a historical session without touching current_session state.
+    public func closeHistoricalSession(sessionId: String, sessionDate: String, end: Date, terminalState: String) {
+        let endStr = isoFormatter.string(from: end)
+        let updateSQL = """
+        UPDATE sleep_sessions
+        SET end_utc = ?, terminal_state = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE session_id = ?
+        """
+        
+        var updateStmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, updateSQL, -1, &updateStmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(updateStmt, 1, endStr, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(updateStmt, 2, terminalState, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(updateStmt, 3, sessionId, -1, SQLITE_TRANSIENT)
+            sqlite3_step(updateStmt)
+            sqlite3_finalize(updateStmt)
+        }
+        
+        if sqlite3_changes(db) == 0 {
+            let insertSQL = """
+            INSERT OR IGNORE INTO sleep_sessions (session_id, session_date, start_utc, end_utc, terminal_state, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """
+            
+            var insertStmt: OpaquePointer?
+            if sqlite3_prepare_v2(db, insertSQL, -1, &insertStmt, nil) == SQLITE_OK {
+                sqlite3_bind_text(insertStmt, 1, sessionId, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(insertStmt, 2, sessionDate, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(insertStmt, 3, endStr, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(insertStmt, 4, endStr, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(insertStmt, 5, terminalState, -1, SQLITE_TRANSIENT)
+                sqlite3_step(insertStmt)
+                sqlite3_finalize(insertStmt)
+            }
+        }
+        
+        let currentSQL = """
+        UPDATE current_session
+        SET session_end_utc = ?, terminal_state = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE session_id = ?
+        """
+        var currentStmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, currentSQL, -1, &currentStmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(currentStmt, 1, endStr, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(currentStmt, 2, terminalState, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(currentStmt, 3, sessionId, -1, SQLITE_TRANSIENT)
+            sqlite3_step(currentStmt)
+            sqlite3_finalize(currentStmt)
+        }
+    }
+    
+    private func upsertSleepSession(
+        sessionId: String,
+        sessionDate: String,
+        start: Date?,
+        end: Date?,
+        terminalState: String?
+    ) {
+        let sql = """
+        INSERT OR IGNORE INTO sleep_sessions (session_id, session_date, start_utc, end_utc, terminal_state, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        """
+        
+        var insertStmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, sql, -1, &insertStmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(insertStmt, 1, sessionId, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(insertStmt, 2, sessionDate, -1, SQLITE_TRANSIENT)
+            if let start = start {
+                sqlite3_bind_text(insertStmt, 3, isoFormatter.string(from: start), -1, SQLITE_TRANSIENT)
+            } else {
+                sqlite3_bind_null(insertStmt, 3)
+            }
+            if let end = end {
+                sqlite3_bind_text(insertStmt, 4, isoFormatter.string(from: end), -1, SQLITE_TRANSIENT)
+            } else {
+                sqlite3_bind_null(insertStmt, 4)
+            }
+            if let terminalState = terminalState {
+                sqlite3_bind_text(insertStmt, 5, terminalState, -1, SQLITE_TRANSIENT)
+            } else {
+                sqlite3_bind_null(insertStmt, 5)
+            }
+            sqlite3_step(insertStmt)
+            sqlite3_finalize(insertStmt)
+        }
+        
+        let updateSQL = """
+        UPDATE sleep_sessions
+        SET start_utc = COALESCE(start_utc, ?),
+            end_utc = ?,
+            terminal_state = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE session_id = ?
+        """
+        
+        var updateStmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, updateSQL, -1, &updateStmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(updateStmt) }
+        
+        if let start = start {
+            sqlite3_bind_text(updateStmt, 1, isoFormatter.string(from: start), -1, SQLITE_TRANSIENT)
+        } else {
+            sqlite3_bind_null(updateStmt, 1)
+        }
+        if let end = end {
+            sqlite3_bind_text(updateStmt, 2, isoFormatter.string(from: end), -1, SQLITE_TRANSIENT)
+        } else {
+            sqlite3_bind_null(updateStmt, 2)
+        }
+        if let terminalState = terminalState {
+            sqlite3_bind_text(updateStmt, 3, terminalState, -1, SQLITE_TRANSIENT)
+        } else {
+            sqlite3_bind_null(updateStmt, 3)
+        }
+        sqlite3_bind_text(updateStmt, 4, sessionId, -1, SQLITE_TRANSIENT)
+        
+        sqlite3_step(updateStmt)
+    }
+    
     /// Update current session state in database
     /// Uses UPSERT pattern to ensure single row exists
-    private func updateCurrentSession(sessionDate: String? = nil, dose1Time: Date? = nil, dose2Time: Date? = nil, snoozeCount: Int? = nil, dose2Skipped: Bool? = nil) {
+    private func updateCurrentSession(
+        sessionDate: String? = nil,
+        sessionId: String? = nil,
+        dose1Time: Date? = nil,
+        dose2Time: Date? = nil,
+        snoozeCount: Int? = nil,
+        dose2Skipped: Bool? = nil
+    ) {
         let sessionDate = sessionDate ?? currentSessionDate()
+
+        var existingSessionDate: String?
+        let existingSQL = "SELECT session_date FROM current_session WHERE id = 1"
+        var existingStmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, existingSQL, -1, &existingStmt, nil) == SQLITE_OK {
+            if sqlite3_step(existingStmt) == SQLITE_ROW {
+                existingSessionDate = sqlite3_column_text(existingStmt, 0).map { String(cString: $0) }
+            }
+        }
+        sqlite3_finalize(existingStmt)
+
+        let needsReset = (existingSessionDate != nil && existingSessionDate != sessionDate)
+        if needsReset {
+            let resetSQL = """
+            UPDATE current_session
+            SET dose1_time = NULL,
+                dose2_time = NULL,
+                snooze_count = 0,
+                dose2_skipped = 0,
+                session_start_utc = NULL,
+                session_end_utc = NULL,
+                terminal_state = NULL,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = 1
+            """
+            var resetStmt: OpaquePointer?
+            if sqlite3_prepare_v2(db, resetSQL, -1, &resetStmt, nil) == SQLITE_OK {
+                sqlite3_step(resetStmt)
+            }
+            sqlite3_finalize(resetStmt)
+            print("🧹 EventStorage: Reset stale current_session for new session_date \(sessionDate)")
+        }
         
         // First, ensure a row exists for this session
         let insertSQL = """
@@ -1002,6 +1441,11 @@ public class EventStorage {
         // Build dynamic update based on provided parameters
         var updates: [String] = ["session_date = ?", "updated_at = CURRENT_TIMESTAMP"]
         var values: [Any] = [sessionDate]
+        
+        if let sessionId = sessionId {
+            updates.append("session_id = ?")
+            values.append(sessionId)
+        }
         
         if let dose1Time = dose1Time {
             updates.append("dose1_time = ?")
@@ -1049,44 +1493,80 @@ public class EventStorage {
         }
     }
     
-    /// Load current session state from database
-    public func loadCurrentSession() -> (dose1Time: Date?, dose2Time: Date?, snoozeCount: Int, dose2Skipped: Bool) {
-        let sessionDate = currentSessionDate()
-        let sql = "SELECT dose1_time, dose2_time, snooze_count, dose2_skipped FROM current_session WHERE id = 1 AND session_date = ?"
+    /// Load current session state from database (includes session metadata).
+    public func loadCurrentSessionState() -> CurrentSessionState {
+        let sql = """
+            SELECT session_id, session_date, session_start_utc, session_end_utc,
+                   dose1_time, dose2_time, snooze_count, dose2_skipped, terminal_state
+            FROM current_session WHERE id = 1
+        """
         
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            return (nil, nil, 0, false)
+            return CurrentSessionState(
+                sessionId: nil,
+                sessionDate: nil,
+                sessionStart: nil,
+                sessionEnd: nil,
+                dose1Time: nil,
+                dose2Time: nil,
+                snoozeCount: 0,
+                dose2Skipped: false,
+                terminalState: nil
+            )
         }
         defer { sqlite3_finalize(stmt) }
         
-        sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
-        
         if sqlite3_step(stmt) == SQLITE_ROW {
-            var dose1Time: Date? = nil
-            var dose2Time: Date? = nil
+            let sessionId = sqlite3_column_text(stmt, 0).map { String(cString: $0) }
+            let sessionDate = sqlite3_column_text(stmt, 1).map { String(cString: $0) }
+            let sessionStart = sqlite3_column_text(stmt, 2).flatMap { isoFormatter.date(from: String(cString: $0)) }
+            let sessionEnd = sqlite3_column_text(stmt, 3).flatMap { isoFormatter.date(from: String(cString: $0)) }
             
-            if let dose1Str = sqlite3_column_text(stmt, 0) {
-                dose1Time = isoFormatter.date(from: String(cString: dose1Str))
-            }
+            let dose1Time = sqlite3_column_text(stmt, 4).flatMap { isoFormatter.date(from: String(cString: $0)) }
+            let dose2Time = sqlite3_column_text(stmt, 5).flatMap { isoFormatter.date(from: String(cString: $0)) }
             
-            if let dose2Str = sqlite3_column_text(stmt, 1) {
-                dose2Time = isoFormatter.date(from: String(cString: dose2Str))
-            }
+            let snoozeCount = Int(sqlite3_column_int(stmt, 6))
+            let dose2Skipped = sqlite3_column_int(stmt, 7) != 0
+            let terminalState = sqlite3_column_text(stmt, 8).map { String(cString: $0) }
             
-            let snoozeCount = Int(sqlite3_column_int(stmt, 2))
-            let dose2Skipped = sqlite3_column_int(stmt, 3) != 0
-            
-            return (dose1Time, dose2Time, snoozeCount, dose2Skipped)
+            return CurrentSessionState(
+                sessionId: sessionId,
+                sessionDate: sessionDate,
+                sessionStart: sessionStart,
+                sessionEnd: sessionEnd,
+                dose1Time: dose1Time,
+                dose2Time: dose2Time,
+                snoozeCount: snoozeCount,
+                dose2Skipped: dose2Skipped,
+                terminalState: terminalState
+            )
         }
         
-        return (nil, nil, 0, false)
+        return CurrentSessionState(
+            sessionId: nil,
+            sessionDate: nil,
+            sessionStart: nil,
+            sessionEnd: nil,
+            dose1Time: nil,
+            dose2Time: nil,
+            snoozeCount: 0,
+            dose2Skipped: false,
+            terminalState: nil
+        )
+    }
+
+    /// Load current session state (legacy tuple signature for EventStore protocol).
+    public func loadCurrentSession() -> (dose1Time: Date?, dose2Time: Date?, snoozeCount: Int, dose2Skipped: Bool) {
+        let state = loadCurrentSessionState()
+        return (state.dose1Time, state.dose2Time, state.snoozeCount, state.dose2Skipped)
     }
     
     /// Update the terminal state for a session
     /// Terminal states: completed, skipped, expired, aborted, incomplete_slept_through
-    public func updateTerminalState(sessionDate: String, state: String) {
-        let sql = "UPDATE current_session SET terminal_state = ?, updated_at = CURRENT_TIMESTAMP WHERE session_date = ?"
+    public func updateTerminalState(sessionDate: String, sessionId: String? = nil, state: String) {
+        let whereClause = sessionId == nil ? "session_date = ?" : "session_id = ?"
+        let sql = "UPDATE current_session SET terminal_state = ?, updated_at = CURRENT_TIMESTAMP WHERE \(whereClause)"
         
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
@@ -1096,12 +1576,21 @@ public class EventStorage {
         defer { sqlite3_finalize(stmt) }
         
         sqlite3_bind_text(stmt, 1, state, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 2, sessionDate, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 2, sessionId ?? sessionDate, -1, SQLITE_TRANSIENT)
         
         if sqlite3_step(stmt) == SQLITE_DONE {
             print("✅ Terminal state updated to '\(state)' for session \(sessionDate)")
         } else {
             print("❌ Failed to update terminal state: \(String(cString: sqlite3_errmsg(db)))")
+        }
+
+        let sessionSQL = "UPDATE sleep_sessions SET terminal_state = ?, updated_at = CURRENT_TIMESTAMP WHERE \(whereClause)"
+        var sessionStmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, sessionSQL, -1, &sessionStmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(sessionStmt, 1, state, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(sessionStmt, 2, sessionId ?? sessionDate, -1, SQLITE_TRANSIENT)
+            sqlite3_step(sessionStmt)
+            sqlite3_finalize(sessionStmt)
         }
     }
     
@@ -1454,7 +1943,7 @@ public class EventStorage {
     
     /// Clear all data (for testing/debug)
     public func clearAllData() {
-        let tables = ["sleep_events", "dose_events", "current_session", "pre_sleep_logs", "morning_checkins", "medication_events"]
+        let tables = ["sleep_events", "dose_events", "current_session", "sleep_sessions", "pre_sleep_logs", "morning_checkins", "medication_events"]
         for table in tables {
             let sql = "DELETE FROM \(table)"
             var errMsg: UnsafeMutablePointer<CChar>?
@@ -1470,7 +1959,7 @@ public class EventStorage {
     /// Returns 0 if table doesn't exist or query fails
     public func fetchRowCount(table: String, sessionDate: String) -> Int {
         // Sanitize table name to prevent SQL injection (only allow known tables)
-        let allowedTables = ["sleep_events", "dose_events", "current_session", "pre_sleep_logs", "morning_checkins", "medication_events"]
+        let allowedTables = ["sleep_events", "dose_events", "current_session", "sleep_sessions", "pre_sleep_logs", "morning_checkins", "medication_events"]
         guard allowedTables.contains(table) else {
             print("⚠️ fetchRowCount: Unknown table '\(table)'")
             return 0
@@ -1510,7 +1999,7 @@ public class EventStorage {
         
         sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
         
-        let tables = ["sleep_events", "dose_events", "pre_sleep_logs", "morning_checkins", "medication_events"]
+        let tables = ["sleep_events", "dose_events", "sleep_sessions", "pre_sleep_logs", "morning_checkins", "medication_events"]
         for table in tables {
             let sql = "DELETE FROM \(table) WHERE session_date < ?"
             var stmt: OpaquePointer?
@@ -1539,7 +2028,7 @@ public class EventStorage {
         // Use transaction for atomicity
         sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
         
-        let tables = ["sleep_events", "dose_events", "pre_sleep_logs", "morning_checkins", "medication_events"]
+        let tables = ["sleep_events", "dose_events", "sleep_sessions", "pre_sleep_logs", "morning_checkins", "medication_events"]
         for table in tables {
             let sql = "DELETE FROM \(table) WHERE session_date = ?"
             var stmt: OpaquePointer?
@@ -1580,8 +2069,8 @@ public class EventStorage {
     }
     
     /// Clear all events for tonight's session
-    public func clearTonightsEvents() {
-        let sessionDate = currentSessionDate()
+    public func clearTonightsEvents(sessionDateOverride: String? = nil) {
+        let sessionDate = sessionDateOverride ?? currentSessionDate()
         let sql = "DELETE FROM sleep_events WHERE session_date = ?"
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
@@ -1598,22 +2087,24 @@ public class EventStorage {
     }
     
     /// Find the most recent incomplete session (has dose1 but no dose2 and not skipped)
-    public func mostRecentIncompleteSession() -> String? {
+    public func mostRecentIncompleteSession(excluding sessionDate: String? = nil) -> String? {
         let sql = """
-            SELECT session_date FROM current_session 
-            WHERE dose1_time IS NOT NULL 
-            AND dose2_time IS NULL 
-            AND dose2_skipped = 0
-            AND session_date != ?
-            ORDER BY session_date DESC LIMIT 1
+            SELECT ss.session_date
+            FROM sleep_sessions ss
+            LEFT JOIN morning_checkins mc ON mc.session_id = ss.session_id
+            WHERE ss.end_utc IS NOT NULL
+            AND mc.id IS NULL
+            AND ss.session_date != ?
+            ORDER BY ss.start_utc DESC
+            LIMIT 1
         """
         
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return nil }
         defer { sqlite3_finalize(stmt) }
         
-        let today = currentSessionDate()
-        sqlite3_bind_text(stmt, 1, today, -1, SQLITE_TRANSIENT)
+        let excluded = sessionDate ?? currentSessionDate()
+        sqlite3_bind_text(stmt, 1, excluded, -1, SQLITE_TRANSIENT)
         
         if sqlite3_step(stmt) == SQLITE_ROW {
             return String(cString: sqlite3_column_text(stmt, 0))
@@ -1621,16 +2112,28 @@ public class EventStorage {
         return nil
     }
     
-    /// Link a pre-sleep log to a session
-    public func linkPreSleepLogToSession(sessionKey: String) {
-        // Find the most recent unlinked pre-sleep log and link it
-        let sql = "UPDATE pre_sleep_logs SET session_id = ? WHERE session_id IS NULL ORDER BY created_at DESC LIMIT 1"
+    /// Link the most recent pre-sleep log to a session id.
+    public func linkPreSleepLogToSession(sessionId: String, sessionDate: String) {
+        // Link either unassigned logs or logs stored under the session date placeholder.
+        let sql = """
+            UPDATE pre_sleep_logs
+            SET session_id = ?
+            WHERE session_id IS NULL OR session_id = ?
+            ORDER BY created_at DESC
+            LIMIT 1
+        """
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
         defer { sqlite3_finalize(stmt) }
         
-        sqlite3_bind_text(stmt, 1, sessionKey, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 1, sessionId, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 2, sessionDate, -1, SQLITE_TRANSIENT)
         sqlite3_step(stmt)
+    }
+
+    /// Legacy helper for EventStore protocol (session key only).
+    public func linkPreSleepLogToSession(sessionKey: String) {
+        linkPreSleepLogToSession(sessionId: sessionKey, sessionDate: sessionKey)
     }
     
     /// Fetch recent sessions as summaries (internal - use protocol method externally)
@@ -2789,20 +3292,25 @@ extension EventStorage: EventStore {
         insertDoseEvent(eventType: eventType, timestamp: timestamp, sessionDate: sessionKey, metadata: metadata)
     }
     
-    public func fetchDoseEvents(sessionKey: String) -> [DoseCore.StoredDoseEvent] {
+    public func fetchDoseEvents(sessionId: String?, sessionDate: String) -> [DoseCore.StoredDoseEvent] {
         var events: [DoseCore.StoredDoseEvent] = []
+        let useSessionId = (sessionId != nil)
         let sql = """
         SELECT id, event_type, timestamp, session_date, metadata
         FROM dose_events
-        WHERE session_date = ?
-        ORDER BY timestamp DESC
+        WHERE \(useSessionId ? "session_id = ?" : "session_date = ?")
+        ORDER BY timestamp ASC
         """
         
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
         defer { sqlite3_finalize(stmt) }
         
-        sqlite3_bind_text(stmt, 1, sessionKey, -1, SQLITE_TRANSIENT)
+        if let sessionId = sessionId {
+            sqlite3_bind_text(stmt, 1, sessionId, -1, SQLITE_TRANSIENT)
+        } else {
+            sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
+        }
         
         while sqlite3_step(stmt) == SQLITE_ROW {
             if let idPtr = sqlite3_column_text(stmt, 0),
@@ -2829,8 +3337,69 @@ extension EventStorage: EventStore {
         return events
     }
     
+    public func fetchDoseEvents(sessionKey: String) -> [DoseCore.StoredDoseEvent] {
+        fetchDoseEvents(sessionId: nil, sessionDate: sessionKey)
+    }
+    
     public func hasDose(type: String, sessionKey: String) -> Bool {
         hasDose(type: type, sessionDate: sessionKey)
+    }
+    
+    // MARK: - Session State (current_session table)
+    
+    public func saveDose1(timestamp: Date) {
+        saveDose1(timestamp: timestamp, sessionId: nil, sessionDateOverride: nil)
+    }
+    
+    public func saveDose2(timestamp: Date, isEarly: Bool, isExtraDose: Bool) {
+        saveDose2(timestamp: timestamp, isEarly: isEarly, isExtraDose: isExtraDose, isLate: false, sessionId: nil, sessionDateOverride: nil)
+    }
+    
+    public func saveDoseSkipped(reason: String?) {
+        saveDoseSkipped(reason: reason, sessionId: nil, sessionDateOverride: nil)
+    }
+    
+    public func saveSnooze(count: Int) {
+        saveSnooze(count: count, sessionId: nil, sessionDateOverride: nil)
+    }
+    
+    public func clearDose1() {
+        // Clear dose 1 from current_session
+        let sql = """
+        UPDATE current_session
+        SET dose1_time = NULL
+        WHERE id = 1
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_step(stmt)
+    }
+    
+    public func clearDose2() {
+        // Clear dose 2 from current_session
+        let sql = """
+        UPDATE current_session
+        SET dose2_time = NULL, dose2_skipped = 0
+        WHERE id = 1
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_step(stmt)
+    }
+    
+    public func clearSkip() {
+        // Clear skip from current_session
+        let sql = """
+        UPDATE current_session
+        SET dose2_skipped = 0
+        WHERE id = 1
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_step(stmt)
     }
     
     // MARK: - Pre-Sleep Logs

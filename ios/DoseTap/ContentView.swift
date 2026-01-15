@@ -39,7 +39,7 @@ class EventLogger: ObservableObject {
         print("📦 Loaded \(events.count) events from SQLite")
     }
     
-    func logEvent(name: String, color: Color, cooldownSeconds: TimeInterval) {
+    func logEvent(name: String, color: Color, cooldownSeconds: TimeInterval, persist: Bool = true) {
         let now = Date()
         
         // Check cooldown
@@ -55,14 +55,16 @@ class EventLogger: ObservableObject {
         // Set cooldown
         cooldowns[name] = now.addingTimeInterval(cooldownSeconds)
         
-        // Persist to SQLite via SessionRepository
-        sessionRepo.insertSleepEvent(
-            id: eventId.uuidString,
-            eventType: name,
-            timestamp: now,
-            colorHex: color.toHex(),
-            notes: nil
-        )
+        if persist {
+            // Persist to SQLite via SessionRepository
+            sessionRepo.insertSleepEvent(
+                id: eventId.uuidString,
+                eventType: name,
+                timestamp: now,
+                colorHex: color.toHex(),
+                notes: nil
+            )
+        }
         
         // Haptic feedback
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
@@ -398,6 +400,12 @@ struct LegacyTonightView: View {
             CompactSessionSummary(core: core, eventLogger: eventLogger)
                 .padding(.horizontal)
             
+            Spacer().frame(height: 12)
+            
+            // Inter-dose intervals for this session
+            LiveDoseIntervalsCard(sessionRepo: sessionRepo)
+                .padding(.horizontal)
+            
             Spacer()
                 .frame(height: 100) // Space for tab bar (increased from 80)
             }
@@ -406,7 +414,8 @@ struct LegacyTonightView: View {
         .scrollIndicators(.hidden)
         .sheet(isPresented: $showMorningCheckIn) {
             MorningCheckInView(
-                sessionId: UUID(),
+                sessionId: sessionRepo.currentSessionIdString(),
+                sessionDate: sessionRepo.currentSessionDateString(),
                 onComplete: {
                     // Session ended - could trigger a session reset here
                     print("✅ Morning check-in complete")
@@ -461,18 +470,15 @@ struct LegacyTonightView: View {
                 showOverrideConfirmation = true
             }
         } message: {
-            Text("The dose window hasn't opened yet.\n\n\(earlyDoseMinutesRemaining) minutes remaining until window opens.\n\nTaking Dose 2 too early may reduce effectiveness.")
+            Text("The dose window hasn't opened yet.\n\n\(TimeIntervalMath.formatMinutes(earlyDoseMinutesRemaining)) remaining until window opens.\n\nTaking Dose 2 too early may reduce effectiveness.")
         }
         .sheet(isPresented: $showOverrideConfirmation) {
             EarlyDoseOverrideSheet(
                 minutesRemaining: earlyDoseMinutesRemaining,
                 onConfirm: {
                     Task {
-                        let now = Date()
                         // Taking Dose 2 early with explicit override
                         await core.takeDose(earlyOverride: true)
-                        // Persist to SQLite for History tab (with early flag in metadata)
-                        sessionRepo.saveDose2(timestamp: now, isEarly: true)
                         // Log dose as event with Early badge for Details tab
                         eventLogger.logEvent(name: "Dose 2 (Early)", color: .orange, cooldownSeconds: 3600 * 8)
                     }
@@ -501,9 +507,10 @@ struct LegacyTonightView: View {
         // Incomplete session check-in sheet
         .sheet(isPresented: $showIncompleteCheckIn) {
             if let sessionDate = incompleteSessionDate {
+                let sessionId = sessionRepo.fetchSessionId(forSessionDate: sessionDate) ?? sessionDate
                 MorningCheckInView(
-                    sessionId: UUID(),
-                    sessionDateOverride: sessionDate,
+                    sessionId: sessionId,
+                    sessionDate: sessionDate,
                     onComplete: {
                         print("✅ Incomplete session check-in complete for: \(sessionDate)")
                         incompleteSessionDate = nil
@@ -551,7 +558,7 @@ struct LegacyTonightView: View {
     }
     
     private func reloadPreSleepLog() {
-        let key = sessionRepo.preSleepDisplaySessionKey(for: Date())
+        let key = sessionRepo.preSleepLogSessionKey(for: Date())
         preSleepLog = sessionRepo.fetchMostRecentPreSleepLog(sessionId: key)
         if preSleepLog == nil {
             preSleepEditingLog = nil
@@ -985,15 +992,15 @@ struct HardStopCountdownView: View {
             .frame(width: 100, height: 100)
             .overlay(
                 VStack(spacing: 0) {
-                    Text("minutes")
+                    Text("time left")
                         .font(.caption2)
                         .foregroundColor(.secondary)
-                    Text("\(Int(timeRemaining / 60))")
+                    Text(TimeIntervalMath.formatMinutes(Int(timeRemaining / 60)))
                         .font(.title.bold())
                         .foregroundColor(urgencyColor)
-                    Text("left")
+                    Text(" ")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.clear)
                 }
             )
             
@@ -1132,9 +1139,7 @@ struct CompactStatusCard: View {
         // Announce at 60, 30, 15, 10, 5, 1 minute marks
         let announceMinutes = [60, 30, 15, 10, 5, 1]
         if announceMinutes.contains(currentMinute) && UIAccessibility.isVoiceOverRunning {
-            let announcement = currentMinute == 1 
-                ? "1 minute remaining until dose window opens"
-                : "\(currentMinute) minutes remaining until dose window opens"
+            let announcement = "\(spokenMinutes(currentMinute)) remaining until dose window opens"
             UIAccessibility.post(notification: .announcement, argument: announcement)
             lastAnnouncedMinute = currentMinute
         }
@@ -1148,13 +1153,7 @@ struct CompactStatusCard: View {
     }
     
     private var accessibleTimeRemaining: String {
-        let hours = Int(timeRemaining) / 3600
-        let minutes = (Int(timeRemaining) % 3600) / 60
-        if hours > 0 {
-            return "\(hours) hours and \(minutes) minutes remaining"
-        } else {
-            return "\(minutes) minutes remaining"
-        }
+        spokenMinutes(Int(timeRemaining / 60)) + " remaining"
     }
     
     private var accessibilityStatusLabel: String {
@@ -1167,7 +1166,7 @@ struct CompactStatusCard: View {
             return "Dose window is open. You can take Dose 2 now."
         case .nearClose:
             let minutes = Int(windowCloseRemaining / 60)
-            return "Warning: Window closing soon! Only \(minutes) minutes remaining."
+            return "Warning: Window closing soon! Only \(spokenMinutes(minutes)) remaining."
         case .closed:
             return "Window has closed. Dose 2 was not taken in time."
         case .completed:
@@ -1185,6 +1184,21 @@ struct CompactStatusCard: View {
         case .closed: return "Session has expired"
         case .completed, .finalizing: return ""
         }
+    }
+
+    private func spokenMinutes(_ minutes: Int) -> String {
+        let isNegative = minutes < 0
+        let total = abs(minutes)
+        let hours = total / 60
+        let mins = total % 60
+        let prefix = isNegative ? "minus " : ""
+        if hours > 0 {
+            if mins > 0 {
+                return "\(prefix)\(hours) hours \(mins) minutes"
+            }
+            return "\(prefix)\(hours) hours"
+        }
+        return "\(prefix)\(mins) minutes"
     }
     
     private var formatWindowOpenTime: String {
@@ -1221,7 +1235,7 @@ struct CompactStatusCard: View {
         case .noDose1: return "Tap below to start"
         case .beforeWindow: return "Wait for optimal timing"
         case .active: return "Take Dose 2 now"
-        case .nearClose: return "Less than 15 minutes left!"
+        case .nearClose: return "Less than \(TimeIntervalMath.formatMinutes(15)) left!"
         case .closed: return "Window has closed"
         case .completed: return "Both doses taken ✓"
         case .finalizing: return "Complete morning check-in"
@@ -1324,11 +1338,6 @@ struct CompactDoseButton: View {
             Task {
                 let now = Date()
                 await core.takeDose()
-                // Persist to SQLite for History tab
-                sessionRepo.saveDose1(timestamp: now)
-                // Link any recent pre-sleep log to this session
-                let sessionId = sessionRepo.currentSessionDateString()
-                sessionRepo.linkPreSleepLogToSession(sessionId: sessionId)
                 // Log Dose 1 as event for Details tab
                 eventLogger.logEvent(name: "Dose 1", color: .green, cooldownSeconds: 3600 * 8)
                 // Register for undo
@@ -1346,8 +1355,18 @@ struct CompactDoseButton: View {
             return
         }
         
-        // SAFETY: Check if Dose 2 already taken - show extra dose warning
-        if core.dose2Time != nil {
+        // SAFETY: Check if Dose 2 already taken (extra dose starts at dose 3+)
+        let doseCount = sessionRepo.fetchDoseEventsForActiveSession()
+            .filter { event in
+                switch event.eventType {
+                case "dose1", "dose2", "extra_dose":
+                    return true
+                default:
+                    return false
+                }
+            }
+            .count
+        if doseCount >= 2 {
             showExtraDoseWarning = true
             return
         }
@@ -1370,8 +1389,6 @@ struct CompactDoseButton: View {
         Task {
             let now = Date()
             await core.takeDose()
-            // Persist to SQLite for History tab
-            sessionRepo.saveDose2(timestamp: now)
             // Log Dose 2 as event for Details tab
             eventLogger.logEvent(name: "Dose 2", color: .green, cooldownSeconds: 3600 * 8)
             // Register for undo
@@ -1385,9 +1402,7 @@ struct CompactDoseButton: View {
     private func takeDose2WithOverride() {
         Task {
             let now = Date()
-            await core.takeDose()
-            // Persist to SQLite - mark as late/override
-            sessionRepo.saveDose2(timestamp: now, isEarly: false, isExtraDose: false)
+            await core.takeDose(lateOverride: true)
             // Log with late indicator
             eventLogger.logEvent(name: "Dose 2 (Late)", color: .orange, cooldownSeconds: 3600 * 8)
             // Register for undo (late doses can also be undone)
@@ -1535,6 +1550,131 @@ struct CompactSessionSummary: View {
         if core.dose2Time != nil { return .green }
         if core.isSkipped { return .orange }
         return .gray
+    }
+}
+
+// MARK: - Live Dose Intervals Card
+struct LiveDoseIntervalsCard: View {
+    @ObservedObject var sessionRepo: SessionRepository
+    @State private var doseEvents: [DoseCore.StoredDoseEvent] = []
+
+    var body: some View {
+        DoseIntervalsCard(doseEvents: doseEvents)
+            .onAppear { load() }
+            .onReceive(sessionRepo.sessionDidChange) { _ in load() }
+    }
+
+    private func load() {
+        doseEvents = sessionRepo.fetchDoseEventsForActiveSession()
+    }
+}
+
+// MARK: - Dose Intervals Card
+struct DoseIntervalsCard: View {
+    let doseEvents: [DoseCore.StoredDoseEvent]
+
+    private struct DoseEventDisplay: Identifiable {
+        let id: String
+        let index: Int
+        let timestamp: Date
+        let isExtra: Bool
+        let isLate: Bool
+        let isEarly: Bool
+    }
+
+    private struct DoseIntervalDisplay: Identifiable {
+        let id = UUID()
+        let from: DoseEventDisplay
+        let to: DoseEventDisplay
+        let minutes: Int
+    }
+
+    private var doseDisplays: [DoseEventDisplay] {
+        let filtered = doseEvents.filter { event in
+            switch event.eventType {
+            case "dose1", "dose2", "extra_dose":
+                return true
+            default:
+                return false
+            }
+        }
+        let sorted = filtered.sorted { $0.timestamp < $1.timestamp }
+        return sorted.enumerated().map { index, event in
+            let flags = parseDoseMetadata(event.metadata)
+            let isExtra = event.eventType == "extra_dose" || (index + 1) >= 3
+            return DoseEventDisplay(
+                id: event.id,
+                index: index + 1,
+                timestamp: event.timestamp,
+                isExtra: isExtra,
+                isLate: flags.isLate,
+                isEarly: flags.isEarly
+            )
+        }
+    }
+
+    private var intervalDisplays: [DoseIntervalDisplay] {
+        guard doseDisplays.count >= 2 else { return [] }
+        var intervals: [DoseIntervalDisplay] = []
+        for idx in 1..<doseDisplays.count {
+            let from = doseDisplays[idx - 1]
+            let to = doseDisplays[idx]
+            let minutes = TimeIntervalMath.minutesBetween(start: from.timestamp, end: to.timestamp)
+            intervals.append(DoseIntervalDisplay(from: from, to: to, minutes: minutes))
+        }
+        return intervals
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Dose Intervals")
+                .font(.headline)
+
+            if intervalDisplays.isEmpty {
+                Text("No dose intervals yet")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            } else {
+                ForEach(intervalDisplays) { interval in
+                    HStack(spacing: 8) {
+                        Text("\(doseLabel(for: interval.from)) -> \(doseLabel(for: interval.to))")
+                            .font(.subheadline)
+                        Spacer()
+                        Text(TimeIntervalMath.formatMinutes(interval.minutes))
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(.systemGray6))
+        )
+    }
+
+    private func doseLabel(for dose: DoseEventDisplay) -> String {
+        var label = "Dose \(dose.index)"
+        if dose.index == 2 {
+            if dose.isLate { label += " (Late)" }
+            if dose.isEarly { label += " (Early)" }
+        } else if dose.isExtra {
+            label += " (Extra)"
+        }
+        return label
+    }
+
+    private func parseDoseMetadata(_ metadata: String?) -> (isLate: Bool, isEarly: Bool) {
+        guard let metadata = metadata,
+              let data = metadata.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return (false, false)
+        }
+        let isLate = json["is_late"] as? Bool ?? false
+        let isEarly = json["is_early"] as? Bool ?? false
+        return (isLate, isEarly)
     }
 }
 
@@ -1806,7 +1946,6 @@ struct WakeUpButton: View {
     @ObservedObject var settings = UserSettingsManager.shared
     private let sessionRepo = SessionRepository.shared
     @State private var showConfirmation = false
-    @State private var lastWakeEventId: String?
     
     // Wake Up cooldown (1 hour per SSOT)
     private let cooldownSeconds: TimeInterval = 3600
@@ -1862,23 +2001,16 @@ struct WakeUpButton: View {
     }
     
     private func logWakeAndShowCheckIn() {
-        // Log the Wake Up event
+        // Log the Wake Up event for UI cooldown only (sessionRepo handles persistence)
         eventLogger.logEvent(
             name: "Wake Up",
             color: .yellow,
-            cooldownSeconds: cooldownSeconds
+            cooldownSeconds: cooldownSeconds,
+            persist: false
         )
-        
-        // Save to SQLite via SessionRepository
-        let id = UUID().uuidString
-        lastWakeEventId = id
-        sessionRepo.insertSleepEvent(
-            id: id,
-            eventType: "wakeFinal",
-            timestamp: Date(),
-            colorHex: "#FFCC00",
-            notes: nil
-        )
+
+        // Persist wake event + mark session finalizing
+        sessionRepo.setWakeFinalTime(Date())
         
         // Show check-in immediately (slight delay to let confirmation dismiss)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
@@ -2044,6 +2176,7 @@ struct DetailsView: View {
     @ObservedObject var eventLogger: EventLogger
     @ObservedObject var settings = UserSettingsManager.shared
     @State private var showFullTimeline = false
+    @State private var showEventsSheet = false
     
     // Use customized QuickLog buttons from settings
     private var quickLogEventTypes: [(name: String, icon: String, color: Color)] {
@@ -2080,6 +2213,54 @@ struct DetailsView: View {
                     
                     // Full Session Details (dose times, window status)
                     FullSessionDetails(core: core)
+                    
+                    // Tonight's Events (same source as History)
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Tonight's Events")
+                                .font(.headline)
+                            Spacer()
+                            Button("View All") {
+                                showEventsSheet = true
+                            }
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                        }
+                        
+                        if eventLogger.events.isEmpty {
+                            Text("No events logged tonight")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .padding(.vertical, 6)
+                        } else {
+                            ForEach(eventLogger.events.sorted(by: { $0.time > $1.time }).prefix(6)) { event in
+                                HStack(spacing: 10) {
+                                    Circle()
+                                        .fill(event.color)
+                                        .frame(width: 10, height: 10)
+                                    Text(event.name)
+                                        .font(.subheadline)
+                                    Spacer()
+                                    Text(event.time.formatted(date: .omitted, time: .shortened))
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.vertical, 2)
+                            }
+                        }
+                    }
+                    .padding()
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color(.systemGray6))
+                    )
+                    .sheet(isPresented: $showEventsSheet) {
+                        TonightEventsSheet(events: eventLogger.events, onDelete: { id in
+                            eventLogger.deleteEvent(id: id)
+                        })
+                        .presentationDetents([.medium, .large])
+                        .presentationDragIndicator(.visible)
+                    }
                     
                     // Full Event Log Grid (buttons to log events) - uses customized buttons
                     FullEventLogGrid(
@@ -2173,6 +2354,7 @@ struct SelectedDayView: View {
     
     @State private var events: [StoredSleepEvent] = []
     @State private var doseLog: StoredDoseLog?
+    @State private var doseEvents: [DoseCore.StoredDoseEvent] = []
     @State private var editingDose1 = false
     @State private var editingDose2 = false
     @State private var editingEvent: StoredSleepEvent?
@@ -2181,6 +2363,36 @@ struct SelectedDayView: View {
     
     private var hasData: Bool {
         doseLog != nil || !events.isEmpty
+    }
+
+    private struct NapIntervalDisplay: Identifiable {
+        let id = UUID()
+        let start: Date
+        let end: Date?
+        let durationMinutes: Int?
+    }
+
+    private var napIntervals: [NapIntervalDisplay] {
+        let sorted = events.sorted { $0.timestamp < $1.timestamp }
+        var intervals: [NapIntervalDisplay] = []
+        var pendingStart: Date?
+
+        for event in sorted {
+            guard let kind = napEventKind(event.eventType) else { continue }
+            if kind == "start" {
+                pendingStart = event.timestamp
+            } else if kind == "end", let start = pendingStart {
+                let minutes = TimeIntervalMath.minutesBetween(start: start, end: event.timestamp)
+                intervals.append(NapIntervalDisplay(start: start, end: event.timestamp, durationMinutes: minutes))
+                pendingStart = nil
+            }
+        }
+
+        if let start = pendingStart {
+            intervals.append(NapIntervalDisplay(start: start, end: nil, durationMinutes: nil))
+        }
+
+        return intervals
     }
     
     private var sessionDateString: String {
@@ -2256,7 +2468,7 @@ struct SelectedDayView: View {
                                 .foregroundColor(.purple)
                             Text("Interval")
                             Spacer()
-                            Text("\(interval) minutes")
+                            Text(TimeIntervalMath.formatMinutes(interval))
                                 .foregroundColor(.secondary)
                         }
                     } else if dose.skipped {
@@ -2275,6 +2487,10 @@ struct SelectedDayView: View {
                     RoundedRectangle(cornerRadius: 12)
                             .fill(Color(.systemGray6))
                     )
+            }
+
+            if doseLog != nil {
+                DoseIntervalsCard(doseEvents: doseEvents)
             }
             
             // Events for this day - now tappable
@@ -2310,6 +2526,27 @@ struct SelectedDayView: View {
                 Text("No events logged")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
+            }
+
+            if !napIntervals.isEmpty {
+                Text("Naps")
+                    .font(.subheadline.bold())
+                    .padding(.top, 8)
+                ForEach(napIntervals) { nap in
+                    HStack(spacing: 10) {
+                        Image(systemName: "bed.double.fill")
+                            .foregroundColor(.green)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(napLabel(for: nap))
+                                .font(.subheadline)
+                            Text(napDetail(for: nap))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                    }
+                    .padding(.vertical, 2)
+                }
             }
         }
         .padding()
@@ -2370,6 +2607,7 @@ struct SelectedDayView: View {
         let sessionDate = sessionRepo.sessionDateString(for: date)
         events = sessionRepo.fetchSleepEvents(for: sessionDate)
         doseLog = sessionRepo.fetchDoseLog(forSession: sessionDate)
+        doseEvents = sessionRepo.fetchDoseEvents(forSessionDate: sessionDate)
     }
     
     private func saveDose1Time(_ newTime: Date) {
@@ -2385,6 +2623,34 @@ struct SelectedDayView: View {
     private func saveEventTime(event: StoredSleepEvent, newTime: Date) {
         sessionRepo.updateEventTime(eventId: event.id, newTime: newTime)
         loadData()
+    }
+
+    private func napEventKind(_ eventType: String) -> String? {
+        let normalized = eventType
+            .lowercased()
+            .replacingOccurrences(of: "_", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let compact = normalized.replacingOccurrences(of: " ", with: "")
+        if normalized == "nap start" || compact == "napstart" { return "start" }
+        if normalized == "nap end" || compact == "napend" { return "end" }
+        return nil
+    }
+
+    private func napLabel(for nap: NapIntervalDisplay) -> String {
+        if nap.end == nil {
+            return "Nap in progress"
+        }
+        return "Nap"
+    }
+
+    private func napDetail(for nap: NapIntervalDisplay) -> String {
+        let start = nap.start.formatted(date: .omitted, time: .shortened)
+        if let end = nap.end {
+            let endStr = end.formatted(date: .omitted, time: .shortened)
+            let duration = nap.durationMinutes.map { TimeIntervalMath.formatMinutes($0) } ?? "—"
+            return "\(start) -> \(endStr) (\(duration))"
+        }
+        return "Started at \(start) (no end logged)"
     }
 }
 
@@ -2456,7 +2722,7 @@ struct SessionRow: View {
             Spacer()
             if let d1 = session.dose1Time, let d2 = session.dose2Time {
                 let interval = TimeIntervalMath.minutesBetween(start: d1, end: d2)
-                Text("\(interval)m")
+                Text(TimeIntervalMath.formatMinutes(interval))
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -2510,7 +2776,7 @@ struct FullSessionDetails: View {
                         DetailRow(
                             icon: "timer",
                             title: "Interval",
-                            value: "\(interval) minutes",
+                            value: TimeIntervalMath.formatMinutes(interval),
                             color: .purple
                         )
                     }
@@ -2760,10 +3026,10 @@ struct StatusCard: View {
     private var statusDescription: String {
         switch status {
         case .noDose1: return "Take Dose 1 to start your session"
-        case .beforeWindow: return "Dose 2 window opens in 150 min"
+        case .beforeWindow: return "Dose 2 window opens in \(TimeIntervalMath.formatMinutes(150))"
         case .active: return "Take Dose 2 now"
-        case .nearClose: return "Less than 15 minutes remaining!"
-        case .closed: return "Window closed (240 min max)"
+        case .nearClose: return "Less than \(TimeIntervalMath.formatMinutes(15)) remaining!"
+        case .closed: return "Window closed (\(TimeIntervalMath.formatMinutes(240)) max)"
         case .completed: return "Both doses taken ✓"
         case .finalizing: return "Complete morning check-in"
         }
@@ -2961,7 +3227,7 @@ struct EarlyDoseOverrideSheet: View {
             .padding(.top, 20)
             
             VStack(alignment: .leading, spacing: 12) {
-                WarningRow(icon: "clock.badge.exclamationmark", text: "\(minutesRemaining) minutes early", color: .orange)
+                WarningRow(icon: "clock.badge.exclamationmark", text: "\(TimeIntervalMath.formatMinutes(minutesRemaining)) early", color: .orange)
                 WarningRow(icon: "pills.fill", text: "May reduce effectiveness", color: .red)
             }
             .padding()

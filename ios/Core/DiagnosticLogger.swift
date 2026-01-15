@@ -77,7 +77,7 @@ public actor DiagnosticLogger {
     /// - Parameters:
     ///   - event: The event type
     ///   - level: Log level (default: .info)
-    ///   - sessionId: Session identifier (YYYY-MM-DD) - REQUIRED
+    ///   - sessionId: Session identifier (UUID string; legacy may be session_date) - REQUIRED
     ///   - context: Builder closure to add context fields
     public func log(
         _ event: DiagnosticEvent,
@@ -361,18 +361,31 @@ public extension DiagnosticLogger {
     /// Log dose taken
     func logDoseTaken(
         sessionId: String,
-        dose: Int,
+        doseIndex: Int,
         at timestamp: Date,
-        elapsedMinutes: Int? = nil
+        elapsedMinutes: Int? = nil,
+        elapsedSincePrevDoseMinutes: Int? = nil,
+        isLate: Bool? = nil
     ) {
-        let event: DiagnosticEvent = dose == 1 ? .dose1Taken : .dose2Taken
+        let event: DiagnosticEvent
+        switch doseIndex {
+        case 1:
+            event = .dose1Taken
+        case 2:
+            event = .dose2Taken
+        default:
+            event = .doseExtraTaken
+        }
         log(event, sessionId: sessionId) { entry in
-            if dose == 1 {
+            if doseIndex == 1 {
                 entry.dose1Time = timestamp
-            } else {
+            } else if doseIndex == 2 {
                 entry.dose2Time = timestamp
             }
+            entry.doseIndex = doseIndex
             entry.elapsedMinutes = elapsedMinutes
+            entry.elapsedSincePrevDoseMinutes = elapsedSincePrevDoseMinutes
+            entry.isLate = isLate
         }
     }
     

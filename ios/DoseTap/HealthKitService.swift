@@ -12,6 +12,8 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
     static let shared = HealthKitService()
     
     private let healthStore = HKHealthStore()
+    private let readTypes: Set<HKObjectType> = [HKCategoryType(.sleepAnalysis)]
+    private let authorizationTimeoutSeconds: UInt64 = 10  // Reduced from 15 for faster feedback
     
     // MARK: - Published State
     @Published var isAuthorized = false
@@ -19,12 +21,9 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
     
     // MARK: - Initialization
     private init() {
-        // Restore authorization status from HealthKit on init
-        // This ensures isAuthorized is correct after app restart
         if HKHealthStore.isHealthDataAvailable() {
-            let sleepType = HKCategoryType(.sleepAnalysis)
-            authorizationStatus = healthStore.authorizationStatus(for: sleepType)
-            isAuthorized = authorizationStatus == .sharingAuthorized
+            // Restore authorization status on init so state is consistent after app restart.
+            checkAuthorizationStatus()
             #if DEBUG
             print("🏥 HealthKitService: Init - authorization status: \(authorizationStatus.rawValue), isAuthorized: \(isAuthorized)")
             #endif
@@ -33,6 +32,10 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
     @Published var lastError: String?
     @Published var ttfwBaseline: Double?  // Average TTFW in minutes
     @Published var sleepHistory: [SleepNightSummary] = []
+
+    private enum AuthorizationError: Error {
+        case timedOut
+    }
     
     // MARK: - Data Types
     
@@ -92,32 +95,183 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
     
     /// Request HealthKit authorization for sleep data
     func requestAuthorization() async -> Bool {
+        print("🏥 HealthKitService.requestAuthorization: Starting...")
+        
         guard isAvailable else {
             lastError = "HealthKit is not available on this device"
+            print("🏥 HealthKitService.requestAuthorization: HealthKit not available")
             return false
         }
-        
-        let typesToRead: Set<HKObjectType> = [
-            HKCategoryType(.sleepAnalysis)
-        ]
+
+        print("🏥 HealthKitService.requestAuthorization: Calling authorization (timeout=\(authorizationTimeoutSeconds)s)")
         
         do {
-            try await healthStore.requestAuthorization(toShare: [], read: typesToRead)
-            isAuthorized = true
-            print("✅ HealthKitService: Authorization granted")
-            return true
-        } catch {
-            lastError = error.localizedDescription
-            print("❌ HealthKitService: Authorization failed: \(error)")
+            let result = try await requestAuthorizationWithTimeout()
+            print("🏥 HealthKitService.requestAuthorization: Authorization returned \(result)")
+            
+            // Refresh our state
+            await refreshReadAuthorization()
+            print("🏥 HealthKitService.requestAuthorization: After refresh - isAuthorized=\(isAuthorized)")
+            
+            if isAuthorized {
+                lastError = nil
+                print("✅ HealthKitService: Authorization granted")
+            } else {
+                lastError = "HealthKit permission not granted. Go to Settings → Health → DoseTap to enable Sleep access."
+                print("⚠️ HealthKitService: Authorization completed but not authorized (user may have denied)")
+            }
+            return isAuthorized
+        } catch AuthorizationError.timedOut {
+            lastError = "HealthKit authorization timed out. Open Settings → Health → DoseTap to grant access."
+            print("⚠️ HealthKitService: Authorization timed out after \(authorizationTimeoutSeconds) seconds")
             return false
+        } catch {
+            lastError = "HealthKit error: \(error.localizedDescription)"
+            print("❌ HealthKitService: Authorization failed with error: \(error)")
+            return false
+        }
+    }
+    
+    /// Request authorization with a timeout using continuation
+    private func requestAuthorizationWithTimeout() async throws -> Bool {
+        print("🏥 requestAuthorizationWithTimeout: Starting")
+        
+        return try await withCheckedThrowingContinuation { continuation in
+            var hasResumed = false
+            let lock = NSLock()
+            
+            // Set up timeout
+            let timeoutSeconds = self.authorizationTimeoutSeconds
+            DispatchQueue.global().asyncAfter(deadline: .now() + .seconds(Int(timeoutSeconds))) {
+                lock.lock()
+                defer { lock.unlock() }
+                if !hasResumed {
+                    hasResumed = true
+                    print("🏥 requestAuthorizationWithTimeout: TIMEOUT after \(timeoutSeconds)s")
+                    continuation.resume(throwing: AuthorizationError.timedOut)
+                }
+            }
+            
+            // Request authorization
+            print("🏥 requestAuthorizationWithTimeout: Calling healthStore.requestAuthorization")
+            self.healthStore.requestAuthorization(toShare: [], read: self.readTypes) { success, error in
+                lock.lock()
+                defer { lock.unlock() }
+                
+                print("🏥 requestAuthorizationWithTimeout: Callback received - success=\(success), error=\(String(describing: error))")
+                
+                if hasResumed {
+                    print("🏥 requestAuthorizationWithTimeout: Already resumed (timeout happened first)")
+                    return
+                }
+                hasResumed = true
+                
+                if let error = error {
+                    print("🏥 requestAuthorizationWithTimeout: Resuming with error")
+                    continuation.resume(throwing: error)
+                } else {
+                    print("🏥 requestAuthorizationWithTimeout: Resuming with success=\(success)")
+                    continuation.resume(returning: success)
+                }
+            }
+            print("🏥 requestAuthorizationWithTimeout: healthStore.requestAuthorization called, waiting for callback...")
         }
     }
     
     /// Check current authorization status
     func checkAuthorizationStatus() {
+        guard isAvailable else {
+            authorizationStatus = .notDetermined
+            isAuthorized = false
+            lastError = "HealthKit is not available on this device"
+            return
+        }
+
         let sleepType = HKCategoryType(.sleepAnalysis)
         authorizationStatus = healthStore.authorizationStatus(for: sleepType)
-        isAuthorized = authorizationStatus == .sharingAuthorized
+        #if DEBUG
+        print("🏥 HealthKitService.checkAuthorizationStatus: status=\(authorizationStatus.rawValue)")
+        #endif
+
+        Task { @MainActor in
+            await refreshReadAuthorization()
+        }
+    }
+
+    private func refreshReadAuthorization() async {
+        do {
+            let sleepType = HKCategoryType(.sleepAnalysis)
+            authorizationStatus = healthStore.authorizationStatus(for: sleepType)
+            let requestStatus = try await requestStatusForRead()
+            switch requestStatus {
+            case .shouldRequest:
+                isAuthorized = false
+                lastError = nil
+                return
+            case .unnecessary:
+                let canRead = try await probeSleepReadAccess()
+                isAuthorized = canRead
+                lastError = canRead ? nil : "HealthKit permission not granted"
+            case .unknown:
+                isAuthorized = false
+                lastError = "HealthKit authorization state unknown"
+            @unknown default:
+                isAuthorized = false
+                lastError = "HealthKit authorization state unknown"
+            }
+        } catch {
+            if isAuthorizationDenied(error) {
+                isAuthorized = false
+                lastError = "HealthKit permission not granted"
+            } else {
+                isAuthorized = false
+                lastError = error.localizedDescription
+            }
+        }
+    }
+
+    private func requestStatusForRead() async throws -> HKAuthorizationRequestStatus {
+        try await withCheckedThrowingContinuation { continuation in
+            healthStore.getRequestStatusForAuthorization(toShare: [], read: readTypes) { status, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: status)
+                }
+            }
+        }
+    }
+
+    private func probeSleepReadAccess() async throws -> Bool {
+        let sleepType = HKCategoryType(.sleepAnalysis)
+        let now = Date()
+        let start = Calendar.current.date(byAdding: .day, value: -1, to: now) ?? now.addingTimeInterval(-86_400)
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: now, options: .strictStartDate)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: sleepType,
+                predicate: predicate,
+                limit: 1,
+                sortDescriptors: nil
+            ) { _, _, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: true)
+                }
+            }
+            healthStore.execute(query)
+        }
+    }
+
+    private func isAuthorizationDenied(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        guard nsError.domain == HKErrorDomain,
+              let code = HKError.Code(rawValue: nsError.code) else {
+            return false
+        }
+        return code == .errorAuthorizationDenied || code == .errorHealthDataUnavailable
     }
     
     // MARK: - Sleep Data Queries
@@ -348,4 +502,3 @@ enum SleepDisplayStage: String, CaseIterable {
     case deep = "Deep"
     case rem = "REM"
 }
-

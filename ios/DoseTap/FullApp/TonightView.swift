@@ -47,7 +47,8 @@ struct TonightView: View {
             }
             .sheet(isPresented: $showMorningCheckIn) {
                 MorningCheckInView(
-                    sessionId: UUID(),
+                    sessionId: SessionRepository.shared.currentSessionIdString(),
+                    sessionDate: SessionRepository.shared.currentSessionDateString(),
                     onComplete: {
                         print("✅ Morning check-in complete")
                     }
@@ -207,10 +208,7 @@ struct WakeUpEndSessionButton: View {
     
     var body: some View {
         Button {
-            // Log wake_final event
-            Task {
-                await doseCore.logSleepEvent(.wakeFinal)
-            }
+            SessionRepository.shared.setWakeFinalTime(Date())
             // Show morning check-in
             showMorningCheckIn = true
         } label: {

@@ -63,6 +63,25 @@ struct SettingsView: View {
                 } footer: {
                     Text("Configure when you'll be reminded to take Dose 2, and how long you have to undo actions.")
                 }
+
+                // MARK: - Night Schedule
+                Section {
+                    DatePicker("Sleep Start", selection: sleepStartBinding, displayedComponents: .hourAndMinute)
+                    DatePicker("Wake Time", selection: wakeTimeBinding, displayedComponents: .hourAndMinute)
+
+                    DisclosureGroup("Evening Prep & Auto-Close") {
+                        DatePicker("Prep Time", selection: prepTimeBinding, displayedComponents: .hourAndMinute)
+                        Stepper("Missed check-in cutoff +\(settings.missedCheckInCutoffHours)h", value: $settings.missedCheckInCutoffHours, in: 1...12)
+                        Text("Auto-close at \(cutoffTimeText)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                } header: {
+                    Label("Night Schedule", systemImage: "moon.stars.fill")
+                        .font(.headline)
+                } footer: {
+                    Text("These times control session rollover. Midnight is not a boundary; the morning check-in (or cutoff) closes the night.")
+                }
                 
                 // MARK: - Notifications
                 Section {
@@ -371,7 +390,39 @@ struct SettingsView: View {
                 ActivityViewController(activityItems: [url])
             }
         }
-    }    // MARK: - Appearance Picker
+    }
+
+    // MARK: - Night Schedule Bindings
+    private var sleepStartBinding: Binding<Date> {
+        Binding(
+            get: { settings.dateFromMinutes(settings.sleepStartMinutes) },
+            set: { settings.sleepStartMinutes = settings.minutesFromDate($0) }
+        )
+    }
+
+    private var wakeTimeBinding: Binding<Date> {
+        Binding(
+            get: { settings.dateFromMinutes(settings.wakeTimeMinutes) },
+            set: { settings.wakeTimeMinutes = settings.minutesFromDate($0) }
+        )
+    }
+
+    private var prepTimeBinding: Binding<Date> {
+        Binding(
+            get: { settings.dateFromMinutes(settings.prepTimeMinutes) },
+            set: { settings.prepTimeMinutes = settings.minutesFromDate($0) }
+        )
+    }
+
+    private var cutoffTimeText: String {
+        let wake = settings.dateFromMinutes(settings.wakeTimeMinutes)
+        let cutoff = Calendar.current.date(byAdding: .hour, value: settings.missedCheckInCutoffHours, to: wake) ?? wake
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter.string(from: cutoff)
+    }
+
+    // MARK: - Appearance Picker
     private var appearancePicker: some View {
         HStack {
             Label("Theme", systemImage: settings.appearanceMode.icon)
@@ -589,14 +640,7 @@ struct HealthKitSettingsView: View {
                     
                     if !healthKit.isAuthorized {
                         Button {
-                            Task {
-                                isLoading = true
-                                let success = await healthKit.requestAuthorization()
-                                if success {
-                                    settings.healthKitEnabled = true
-                                }
-                                isLoading = false
-                            }
+                            connectToHealthKit()
                         } label: {
                             HStack {
                                 Label("Connect Apple Health", systemImage: "link")
@@ -615,7 +659,12 @@ struct HealthKitSettingsView: View {
                 } header: {
                     Label("Apple Health", systemImage: "heart.text.square")
                 } footer: {
-                    Text("DoseTap reads sleep data to learn your patterns and optimize wake times.")
+                    if let error = healthKit.lastError {
+                        Text(error)
+                            .foregroundColor(.red)
+                    } else {
+                        Text("DoseTap reads sleep data to learn your patterns and optimize wake times.")
+                    }
                 }
                 
                 if healthKit.isAuthorized && settings.healthKitEnabled {
@@ -727,7 +776,32 @@ struct HealthKitSettingsView: View {
         }
         .navigationTitle("Apple Health")
         .onAppear {
+            // Reset loading state when view appears (in case it got stuck)
+            isLoading = false
             healthKit.checkAuthorizationStatus()
+        }
+        .onChange(of: healthKit.isAuthorized) { _ in
+            // Always stop loading when authorization state changes
+            isLoading = false
+        }
+    }
+    
+    private func connectToHealthKit() {
+        guard !isLoading else { return }
+        
+        Task {
+            isLoading = true
+            settings.healthKitEnabled = true
+            
+            let authorized = await healthKit.requestAuthorization()
+            
+            // Ensure we're back on main thread and reset loading
+            await MainActor.run {
+                isLoading = false
+                if !authorized {
+                    healthKit.checkAuthorizationStatus()
+                }
+            }
         }
     }
 }

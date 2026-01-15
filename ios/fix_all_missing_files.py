@@ -100,33 +100,24 @@ if __name__ == "__main__":
     # Files to ensure are in Main target.
     # We rely on @testable import for Tests target.
     files_to_add = [
-        ("DoseModels.swift", "../DoseTapiOSApp/DoseModels.swift"),
-        ("DoseCoreIntegration.swift", "../DoseTapiOSApp/DoseCoreIntegration.swift"),
-        ("SQLiteStorage.swift", "../DoseTapiOSApp/SQLiteStorage.swift"),
-        ("TimelineView.swift", "../DoseTapiOSApp/TimelineView.swift"),
-        ("QuickLogPanel.swift", "../DoseTapiOSApp/QuickLogPanel.swift"),
-        ("TonightView.swift", "../DoseTapiOSApp/TonightView.swift"),
-        (
-            "EnhancedNotificationService.swift",
-            "../DoseTapiOSApp/EnhancedNotificationService.swift",
-        ),
-        ("HealthKitManager.swift", "../DoseTapiOSApp/HealthKitManager.swift"),
-        ("DashboardView.swift", "../DoseTapiOSApp/DashboardView.swift"),
-        ("DataExportService.swift", "../DoseTapiOSApp/DataExportService.swift"),
-        (
-            "UserConfigurationManager.swift",
-            "../DoseTapiOSApp/UserConfigurationManager.swift",
-        ),
-        ("DataStorageService.swift", "../DoseTapiOSApp/DataStorageService.swift"),
-        (
-            "HealthIntegrationService.swift",
-            "../DoseTapiOSApp/HealthIntegrationService.swift",
-        ),
-        ("KeychainHelper.swift", "../DoseTapiOSApp/KeychainHelper.swift"),
-        ("SetupWizardService.swift", "../DoseTapiOSApp/SetupWizardService.swift"),
-        ("SetupWizardView.swift", "../DoseTapiOSApp/SetupWizardView.swift"),
-        ("InventoryService.swift", "../DoseTapiOSApp/InventoryService.swift"),
-        ("UIUtils.swift", "../DoseTapiOSApp/UIUtils.swift"),
+        ("DoseModels.swift", "FullApp/DoseModels.swift"),
+        ("DoseCoreIntegration.swift", "FullApp/DoseCoreIntegration.swift"),
+        ("SQLiteStorage.swift", "FullApp/SQLiteStorage.swift"),
+        ("TimelineView.swift", "FullApp/TimelineView.swift"),
+        ("QuickLogPanel.swift", "FullApp/QuickLogPanel.swift"),
+        ("TonightView.swift", "FullApp/TonightView.swift"),
+        ("EnhancedNotificationService.swift", "FullApp/EnhancedNotificationService.swift"),
+        ("HealthKitManager.swift", "FullApp/HealthKitManager.swift"),
+        ("DashboardView.swift", "FullApp/DashboardView.swift"),
+        ("DataExportService.swift", "FullApp/DataExportService.swift"),
+        ("UserConfigurationManager.swift", "FullApp/UserConfigurationManager.swift"),
+        ("DataStorageService.swift", "FullApp/DataStorageService.swift"),
+        ("HealthIntegrationService.swift", "FullApp/HealthIntegrationService.swift"),
+        ("KeychainHelper.swift", "FullApp/KeychainHelper.swift"),
+        ("SetupWizardService.swift", "FullApp/SetupWizardService.swift"),
+        ("SetupWizardView.swift", "FullApp/SetupWizardView.swift"),
+        ("InventoryService.swift", "FullApp/InventoryService.swift"),
+        ("UIUtils.swift", "FullApp/UIUtils.swift"),
         ("WHOOPService.swift", "WHOOPService.swift"),
         ("AnalyticsService.swift", "AnalyticsService.swift"),
         ("UserSettingsManager.swift", "UserSettingsManager.swift"),
@@ -136,4 +127,4 @@ if __name__ == "__main__":
 
     for filename, rel_path in files_to_add:
         # Default to False for add_to_tests to avoid duplication errors
-        add_file_to_project(filename, "DoseTapiOSApp", rel_path, add_to_tests=False)
+        add_file_to_project(filename, "FullApp", rel_path, add_to_tests=False)

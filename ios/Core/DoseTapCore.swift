@@ -38,6 +38,8 @@ public protocol DoseTapSessionRepository: AnyObject {
     var dose2Time: Date? { get }
     var snoozeCount: Int { get }
     var dose2Skipped: Bool { get }
+    var wakeFinalTime: Date? { get }
+    var checkInCompleted: Bool { get }
     var sessionDidChange: PassthroughSubject<Void, Never> { get }
     
     func setDose1Time(_ time: Date)
@@ -66,7 +68,9 @@ public class DoseTapCore: ObservableObject {
             dose1At: sessionRepository?.dose1Time,
             dose2TakenAt: sessionRepository?.dose2Time,
             dose2Skipped: sessionRepository?.dose2Skipped ?? false,
-            snoozeCount: sessionRepository?.snoozeCount ?? 0
+            snoozeCount: sessionRepository?.snoozeCount ?? 0,
+            wakeFinalAt: sessionRepository?.wakeFinalTime,
+            checkInCompleted: sessionRepository?.checkInCompleted ?? false
         )
         return DoseStatus(from: context.phase)
     }
@@ -141,7 +145,7 @@ public class DoseTapCore: ObservableObject {
     
     /// Take dose with optional early override flag
     /// - Parameter earlyOverride: If true, allows taking Dose 2 before window opens (user confirmed)
-    public func takeDose(earlyOverride: Bool = false) async {
+    public func takeDose(earlyOverride: Bool = false, lateOverride: Bool = false) async {
         let now = Date()
         
         await MainActor.run {
@@ -152,12 +156,14 @@ public class DoseTapCore: ObservableObject {
                 // Dose 2 logic
                 let windowOpen = currentStatus == .active || currentStatus == .nearClose
                 
-                if windowOpen || earlyOverride {
+                if windowOpen || earlyOverride || lateOverride {
                     // P0 FIX: Write through repository
                     sessionRepository?.setDose2Time(now, isEarly: earlyOverride, isExtraDose: false)
                     #if DEBUG
                     if earlyOverride {
                         Swift.print("⚠️ Dose 2 taken early with user override")
+                    } else if lateOverride {
+                        Swift.print("⚠️ Dose 2 taken late with user override")
                     }
                     #endif
                 } else {

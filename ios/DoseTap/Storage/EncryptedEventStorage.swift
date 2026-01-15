@@ -206,7 +206,7 @@ public final class EncryptedEventStorage {
             case let stringValue as String:
                 sqlite3_bind_text(statement, idx, stringValue, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
             case let dataValue as Data:
-                dataValue.withUnsafeBytes { ptr in
+                _ = dataValue.withUnsafeBytes { ptr in
                     sqlite3_bind_blob(statement, idx, ptr.baseAddress, Int32(dataValue.count), unsafeBitCast(-1, to: sqlite3_destructor_type.self))
                 }
             case let dateValue as Date:

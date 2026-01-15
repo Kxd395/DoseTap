@@ -27,8 +27,8 @@ struct DoseTapApp: App {
         }
         
         // Log app launch
-        Task {
-            let sessionId = SessionRepository.shared.currentSessionDateString()
+        Task { @MainActor in
+            let sessionId = SessionRepository.shared.currentSessionIdString()
             await DiagnosticLogger.shared.logAppLaunched(sessionId: sessionId)
         }
         
@@ -84,7 +84,7 @@ struct DoseTapApp: App {
     // MARK: - App Lifecycle Logging
     
     private func handleScenePhaseChange(_ newPhase: ScenePhase) {
-        let sessionId = SessionRepository.shared.currentSessionDateString()
+        let sessionId = SessionRepository.shared.currentSessionIdString()
         
         switch newPhase {
         case .active:
@@ -149,7 +149,7 @@ struct DoseTapApp: App {
     }
     
     private static func logTimezoneChangeStatic(from oldTz: TimeZone, to newTz: TimeZone) {
-        let sessionId = SessionRepository.shared.currentSessionDateString()
+        let sessionId = SessionRepository.shared.currentSessionIdString()
         Task {
             await DiagnosticLogger.shared.logTimezoneChanged(
                 sessionId: sessionId,
@@ -170,7 +170,7 @@ struct DoseTapApp: App {
     
     private static func handleSignificantTimeChangeStatic() {
         // This fires for midnight rollover, DST changes, and manual clock changes
-        let sessionId = SessionRepository.shared.currentSessionDateString()
+        let sessionId = SessionRepository.shared.currentSessionIdString()
         Task {
             // We don't have the actual delta, but we log that it happened
             await DiagnosticLogger.shared.logTimeSignificantChange(sessionId: sessionId, timeDeltaSeconds: 0)

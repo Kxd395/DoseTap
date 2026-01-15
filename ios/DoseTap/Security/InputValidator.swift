@@ -25,6 +25,7 @@ public struct InputValidator {
         "bathroom", "water", "snack",
         // Sleep Cycle
         "lightsOut", "lights_out", "wakeTemp", "wake_temp", "inBed", "in_bed", "wake_final",
+        "nap start", "nap end", "nap_start", "nap_end", "napstart", "napend",
         // Mental
         "anxiety", "dream", "heartRacing", "heart_racing",
         // Environment

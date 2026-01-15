@@ -25,4 +25,17 @@ public enum TimeIntervalMath {
         #endif
         return Int(delta / 60)
     }
+
+    /// Formats a minute interval as "Hh Mm" (or "Mm" when < 1 hour).
+    public static func formatMinutes(_ minutes: Int) -> String {
+        let isNegative = minutes < 0
+        let total = abs(minutes)
+        let hours = total / 60
+        let mins = total % 60
+        let prefix = isNegative ? "-" : ""
+        if hours > 0 {
+            return "\(prefix)\(hours)h \(mins)m"
+        }
+        return "\(prefix)\(mins)m"
+    }
 }

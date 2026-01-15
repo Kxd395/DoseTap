@@ -218,8 +218,8 @@ struct SavedCheckInSettings: Codable {
 // MARK: - Morning Check-In View Model
 @MainActor
 class MorningCheckInViewModel: ObservableObject {
-    let sessionId: UUID
-    let sessionDateOverride: String?
+    let sessionId: String
+    let sessionDate: String
     
     @Published var sleepQuality: Int = 3
     @Published var feelRested: RestedLevel = .moderate
@@ -269,9 +269,9 @@ class MorningCheckInViewModel: ObservableObject {
     private static let rememberSettingsKey = "morningCheckIn.rememberSettings"
     private static let savedSettingsKey = "morningCheckIn.savedSettings"
     
-    init(sessionId: UUID = UUID(), sessionDateOverride: String? = nil) {
+    init(sessionId: String, sessionDate: String) {
         self.sessionId = sessionId
-        self.sessionDateOverride = sessionDateOverride
+        self.sessionDate = sessionDate
         loadSavedSettings()
     }
     
@@ -348,9 +348,9 @@ class MorningCheckInViewModel: ObservableObject {
         
         return SQLiteStoredMorningCheckIn(
             id: UUID().uuidString,
-            sessionId: sessionId.uuidString,
+            sessionId: sessionId,
             timestamp: Date(),
-            sessionDate: sessionDateOverride ?? "", // Use override if provided
+            sessionDate: sessionDate,
             sleepQuality: sleepQuality,
             feelRested: feelRested.rawValue,
             grogginess: grogginess.rawValue,
@@ -381,7 +381,7 @@ class MorningCheckInViewModel: ObservableObject {
         let checkIn = toStoredCheckIn()
         // Route through SessionRepository for unified storage
         await MainActor.run {
-            SessionRepository.shared.saveMorningCheckIn(checkIn, sessionDateOverride: sessionDateOverride)
+            SessionRepository.shared.saveMorningCheckIn(checkIn, sessionDateOverride: sessionDate)
         }
         isSubmitting = false
     }
@@ -394,8 +394,8 @@ public struct MorningCheckInView: View {
     
     let onComplete: () -> Void
     
-    public init(sessionId: UUID = UUID(), sessionDateOverride: String? = nil, onComplete: @escaping () -> Void = {}) {
-        _viewModel = StateObject(wrappedValue: MorningCheckInViewModel(sessionId: sessionId, sessionDateOverride: sessionDateOverride))
+    public init(sessionId: String, sessionDate: String, onComplete: @escaping () -> Void = {}) {
+        _viewModel = StateObject(wrappedValue: MorningCheckInViewModel(sessionId: sessionId, sessionDate: sessionDate))
         self.onComplete = onComplete
     }
     
@@ -660,4 +660,4 @@ public struct MorningCheckInView: View {
     private var throatPicker: some View { Picker("", selection: $viewModel.throatCondition) { ForEach(ThroatCondition.allCases, id: \.self) { Text($0.rawValue).tag($0) } }.pickerStyle(.segmented) }
 }
 
-#Preview { MorningCheckInView() }
+#Preview { MorningCheckInView(sessionId: "preview-session", sessionDate: "2025-01-01") }
