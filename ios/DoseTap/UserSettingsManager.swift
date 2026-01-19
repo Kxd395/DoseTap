@@ -143,8 +143,8 @@ class UserSettingsManager: ObservableObject {
     private let defaultQuickLogButtons: [QuickLogButtonConfig] = [
         QuickLogButtonConfig(id: "bathroom", name: "Bathroom", icon: "toilet.fill", colorHex: "#007AFF"),
         QuickLogButtonConfig(id: "water", name: "Water", icon: "drop.fill", colorHex: "#00CED1"),
-        QuickLogButtonConfig(id: "lightsOut", name: "Lights Out", icon: "light.max", colorHex: "#5856D6"),
-        QuickLogButtonConfig(id: "wakeTemp", name: "Brief Wake", icon: "moon.zzz.fill", colorHex: "#5856D6"),
+        QuickLogButtonConfig(id: "lights_out", name: "Lights Out", icon: "light.max", colorHex: "#5856D6"),
+        QuickLogButtonConfig(id: "brief_wake", name: "Brief Wake", icon: "moon.zzz.fill", colorHex: "#5856D6"),
         QuickLogButtonConfig(id: "anxiety", name: "Anxiety", icon: "brain.head.profile", colorHex: "#AF52DE"),
         QuickLogButtonConfig(id: "noise", name: "Noise", icon: "speaker.wave.3.fill", colorHex: "#FF9500"),
         QuickLogButtonConfig(id: "pain", name: "Pain", icon: "bandage.fill", colorHex: "#FF3B30"),
@@ -158,16 +158,16 @@ class UserSettingsManager: ObservableObject {
         QuickLogButtonConfig(id: "water", name: "Water", icon: "drop.fill", colorHex: "#00CED1"),
         QuickLogButtonConfig(id: "snack", name: "Snack", icon: "fork.knife", colorHex: "#34C759"),
         // Nap Tracking
-        QuickLogButtonConfig(id: "napStart", name: "Nap Start", icon: "bed.double.fill", colorHex: "#34C759"),
-        QuickLogButtonConfig(id: "napEnd", name: "Nap End", icon: "sun.max.fill", colorHex: "#FF9F0A"),
+        QuickLogButtonConfig(id: "nap_start", name: "Nap Start", icon: "bed.double.fill", colorHex: "#34C759"),
+        QuickLogButtonConfig(id: "nap_end", name: "Nap End", icon: "sun.max.fill", colorHex: "#FF9F0A"),
         // Sleep Cycle
-        QuickLogButtonConfig(id: "lightsOut", name: "Lights Out", icon: "light.max", colorHex: "#5856D6"),
-        QuickLogButtonConfig(id: "wakeTemp", name: "Brief Wake", icon: "moon.zzz.fill", colorHex: "#5856D6"),
-        QuickLogButtonConfig(id: "inBed", name: "In Bed", icon: "bed.double.fill", colorHex: "#5856D6"),
+        QuickLogButtonConfig(id: "lights_out", name: "Lights Out", icon: "light.max", colorHex: "#5856D6"),
+        QuickLogButtonConfig(id: "brief_wake", name: "Brief Wake", icon: "moon.zzz.fill", colorHex: "#5856D6"),
+        QuickLogButtonConfig(id: "in_bed", name: "In Bed", icon: "bed.double.fill", colorHex: "#5856D6"),
         // Mental
         QuickLogButtonConfig(id: "anxiety", name: "Anxiety", icon: "brain.head.profile", colorHex: "#AF52DE"),
         QuickLogButtonConfig(id: "dream", name: "Dream", icon: "cloud.moon.fill", colorHex: "#FF2D55"),
-        QuickLogButtonConfig(id: "heartRacing", name: "Heart Racing", icon: "heart.fill", colorHex: "#FF3B30"),
+        QuickLogButtonConfig(id: "heart_racing", name: "Heart Racing", icon: "heart.fill", colorHex: "#FF3B30"),
         // Environment
         QuickLogButtonConfig(id: "noise", name: "Noise", icon: "speaker.wave.3.fill", colorHex: "#FF9500"),
         QuickLogButtonConfig(id: "temperature", name: "Temperature", icon: "thermometer.medium", colorHex: "#30B0C7"),
@@ -183,7 +183,14 @@ class UserSettingsManager: ObservableObject {
                   let buttons = try? JSONDecoder().decode([QuickLogButtonConfig].self, from: data) else {
                 return defaultQuickLogButtons
             }
-            return buttons
+            return buttons.map { button in
+                QuickLogButtonConfig(
+                    id: EventTypeNormalizer.normalizedType(for: button.name),
+                    name: button.name,
+                    icon: button.icon,
+                    colorHex: button.colorHex
+                )
+            }
         }
         set {
             if let data = try? JSONEncoder().encode(newValue),

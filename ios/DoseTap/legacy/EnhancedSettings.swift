@@ -1,11 +1,9 @@
 // iOS/EnhancedSettings.swift
-#if os(iOS)
+#if false
 import SwiftUI
-import CoreData
 
 // MARK: - Enhanced Settings ModelS/EnhancedSettings.swift
 import SwiftUI
-import CoreData
 
 // MARK: - Enhanced Settings View
 

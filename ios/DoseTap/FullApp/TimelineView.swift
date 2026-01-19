@@ -748,56 +748,72 @@ struct TimelineSleepEvent: Identifiable {
     }
     
     var displayName: String {
-        switch type {
+        switch normalizedType {
         case "bathroom": return "Bathroom"
         case "water": return "Water"
-        case "lightsOut": return "Lights Out"
-        case "wakeFinal": return "Wake Up"
-        case "wakeTemp": return "Brief Wake"
+        case "lights_out": return "Lights Out"
+        case "wake_final": return "Wake Up"
+        case "brief_wake": return "Brief Wake"
         case "anxiety": return "Anxiety"
         case "pain": return "Pain"
         case "noise": return "Noise"
         case "snack": return "Snack"
         case "dream": return "Dream"
         case "temperature": return "Temperature"
-        case "heartRacing": return "Heart Racing"
+        case "heart_racing": return "Heart Racing"
+        case "in_bed": return "In Bed"
         default: return type.capitalized
         }
     }
     
     var iconName: String {
-        switch type {
+        switch normalizedType {
         case "bathroom": return "toilet.fill"
         case "water": return "drop.fill"
-        case "lightsOut": return "light.max"
-        case "wakeFinal": return "sun.max.fill"
-        case "wakeTemp": return "moon.zzz.fill"
+        case "lights_out": return "light.max"
+        case "wake_final": return "sun.max.fill"
+        case "brief_wake": return "moon.zzz.fill"
         case "anxiety": return "brain.head.profile"
         case "pain": return "bandage.fill"
         case "noise": return "speaker.wave.3.fill"
         case "snack": return "fork.knife"
         case "dream": return "cloud.moon.fill"
         case "temperature": return "thermometer.medium"
-        case "heartRacing": return "heart.fill"
+        case "heart_racing": return "heart.fill"
+        case "in_bed": return "bed.double.fill"
         default: return "circle.fill"
         }
     }
     
     var color: Color {
-        switch type {
+        switch normalizedType {
         case "bathroom": return .blue
         case "water": return .cyan
-        case "lightsOut": return .purple
-        case "wakeFinal": return .orange
-        case "wakeTemp": return .indigo
+        case "lights_out": return .purple
+        case "wake_final": return .orange
+        case "brief_wake": return .indigo
         case "anxiety": return .pink
         case "pain": return .red
         case "noise": return .gray
         case "snack": return .brown
         case "dream": return .purple
         case "temperature": return .orange
-        case "heartRacing": return .red
+        case "heart_racing": return .red
+        case "in_bed": return .indigo
         default: return .gray
+        }
+    }
+
+    private var normalizedType: String {
+        let lower = type.lowercased()
+        switch lower {
+        case "lightsout": return "lights_out"
+        case "wakefinal": return "wake_final"
+        case "waketemp": return "brief_wake"
+        case "heartracing": return "heart_racing"
+        case "inbed": return "in_bed"
+        default:
+            return lower.replacingOccurrences(of: " ", with: "_")
         }
     }
 }

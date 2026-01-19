@@ -27,15 +27,26 @@ class EventLogger: ObservableObject {
     
     /// Load events from SQLite for tonight's session
     private func loadEventsFromStorage() {
-        let storedEvents = sessionRepo.fetchTonightSleepEvents()
-        events = storedEvents.map { stored in
+        let sessionKey = sessionRepo.activeSessionDate ?? sessionRepo.currentSessionKey
+        let storedEvents = sessionRepo.fetchSleepEvents(for: sessionKey)
+        let storedDoseEvents = sessionRepo.fetchDoseEvents(forSessionDate: sessionKey)
+
+        var mergedEvents: [LoggedEvent] = []
+
+        mergedEvents.append(contentsOf: storedEvents.map { stored in
             LoggedEvent(
                 id: UUID(uuidString: stored.id) ?? UUID(),
-                name: EventDisplayName.displayName(for: stored.eventType), // Use display name
+                name: EventDisplayName.displayName(for: stored.eventType),
                 time: stored.timestamp,
                 color: stored.colorHex.flatMap { Color(hex: $0) } ?? .gray
             )
-        }
+        })
+
+        mergedEvents.append(contentsOf: storedDoseEvents.compactMap { stored in
+            LoggedEvent.fromDoseEvent(stored)
+        })
+
+        events = mergedEvents.sorted(by: { $0.time > $1.time })
         print("📦 Loaded \(events.count) events from SQLite")
     }
     
@@ -57,9 +68,10 @@ class EventLogger: ObservableObject {
         
         if persist {
             // Persist to SQLite via SessionRepository
+            let normalizedType = EventTypeNormalizer.normalizedType(for: name)
             sessionRepo.insertSleepEvent(
                 id: eventId.uuidString,
-                eventType: name,
+                eventType: normalizedType,
                 timestamp: now,
                 colorHex: color.toHex(),
                 notes: nil
@@ -117,10 +129,10 @@ struct EventDisplayName {
             return "Dose 2"
         case "dose2_skipped", "dose2skipped":
             return "Dose 2 Skipped"
-        case "dose 2 (late)", "dose2_late":
-            return "Dose 2 (Late)"
         case "dose 2 (early)", "dose2_early":
             return "Dose 2 (Early)"
+        case "dose 2 (late)", "dose2_late":
+            return "Dose 2 (Late)"
         case "extra_dose", "extradose":
             return "Extra Dose"
         case "snooze":
@@ -133,6 +145,8 @@ struct EventDisplayName {
             return "Final Wake"
         case "brief_wake", "briefwake":
             return "Brief Wake"
+        case "heart_racing", "heartracing":
+            return "Heart Racing"
         case "bathroom":
             return "Bathroom"
         case "water":
@@ -153,6 +167,10 @@ struct EventDisplayName {
             return "Nap End"
         case "in_bed", "inbed":
             return "In Bed"
+        case "pain.pre_sleep":
+            return "Pain (Pre-Sleep)"
+        case "pain.wake":
+            return "Pain (Wake)"
             
         // Default: capitalize and replace underscores
         default:
@@ -162,6 +180,89 @@ struct EventDisplayName {
                 .map { $0.prefix(1).uppercased() + $0.dropFirst().lowercased() }
                 .joined(separator: " ")
         }
+    }
+}
+
+// MARK: - Event Type Normalization
+/// Normalize display names and legacy strings to canonical storage types.
+struct EventTypeNormalizer {
+    static func normalizedType(for displayName: String) -> String {
+        let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = trimmed.lowercased()
+        switch lower {
+        case "dose 1", "dose1", "dose_1", "dose1_taken":
+            return "dose1"
+        case "dose 2", "dose2", "dose_2", "dose2_taken":
+            return "dose2"
+        case "dose 2 (early)", "dose2 early", "dose2_early":
+            return "dose2_early"
+        case "dose 2 (late)", "dose2 late", "dose2_late":
+            return "dose2_late"
+        case "dose 2 skipped", "dose2_skipped", "dose2 skipped":
+            return "dose2_skipped"
+        case "extra dose", "extra_dose", "extra dose ⚠️":
+            return "extra_dose"
+        case "lights out", "lightsout", "lights_out", "lightout":
+            return "lights_out"
+        case "brief wake", "briefwake", "brief_wake":
+            return "brief_wake"
+        case "wake final", "wakefinal", "wake_final", "wake":
+            return "wake_final"
+        case "in bed", "inbed", "in_bed":
+            return "in_bed"
+        case "nap start", "nap_start", "napstart":
+            return "nap_start"
+        case "nap end", "nap_end", "napend":
+            return "nap_end"
+        case "heart racing", "heart_racing":
+            return "heart_racing"
+        case "pain (pre-sleep)", "pain pre sleep", "pain.pre_sleep":
+            return "pain.pre_sleep"
+        case "pain (wake)", "pain wake", "pain.wake":
+            return "pain.wake"
+        default:
+            return lower.replacingOccurrences(of: " ", with: "_")
+        }
+    }
+}
+
+// MARK: - Dose Event Display Mapping
+struct DoseEventDisplay {
+    static func displayNameAndColor(for event: DoseCore.StoredDoseEvent) -> (String, Color) {
+        let metadata = parseMetadata(event.metadata)
+        switch event.eventType {
+        case "dose1":
+            return ("Dose 1", .green)
+        case "dose2":
+            if metadata.isEarly {
+                return ("Dose 2 (Early)", .orange)
+            }
+            if metadata.isLate {
+                return ("Dose 2 (Late)", .orange)
+            }
+            return ("Dose 2", .green)
+        case "dose2_skipped":
+            return ("Dose 2 Skipped", .orange)
+        case "extra_dose":
+            return ("Extra Dose", .red)
+        case "snooze":
+            return ("Snooze", .orange)
+        default:
+            return (EventDisplayName.displayName(for: event.eventType), .gray)
+        }
+    }
+
+    private static func parseMetadata(_ metadata: String?) -> (isEarly: Bool, isLate: Bool) {
+        guard let metadata = metadata, let data = metadata.data(using: .utf8) else {
+            return (false, false)
+        }
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return (false, false)
+        }
+        return (
+            (json["is_early"] as? Bool) == true,
+            (json["is_late"] as? Bool) == true
+        )
     }
 }
 
@@ -622,7 +723,7 @@ struct LegacyTonightView: View {
                         // Taking Dose 2 early with explicit override
                         await core.takeDose(earlyOverride: true)
                         // Log dose as event with Early badge for Details tab
-                        eventLogger.logEvent(name: "Dose 2 (Early)", color: .orange, cooldownSeconds: 3600 * 8)
+                        eventLogger.logEvent(name: "Dose 2 (Early)", color: .orange, cooldownSeconds: 3600 * 8, persist: false)
                     }
                     showOverrideConfirmation = false
                 },
@@ -639,7 +740,7 @@ struct LegacyTonightView: View {
                     // Save as extra_dose (does NOT update dose2_time)
                     sessionRepo.saveDose2(timestamp: now, isExtraDose: true)
                     // Log with warning color
-                    eventLogger.logEvent(name: "Extra Dose ⚠️", color: .red, cooldownSeconds: 0)
+                    eventLogger.logEvent(name: "Extra Dose ⚠️", color: .red, cooldownSeconds: 0, persist: false)
                     print("⚠️ Extra dose logged at \(now) - user confirmed")
                 }
             }
@@ -1481,7 +1582,7 @@ struct CompactDoseButton: View {
                 let now = Date()
                 await core.takeDose()
                 // Log Dose 1 as event for Details tab
-                eventLogger.logEvent(name: "Dose 1", color: .green, cooldownSeconds: 3600 * 8)
+                eventLogger.logEvent(name: "Dose 1", color: .green, cooldownSeconds: 3600 * 8, persist: false)
                 // Register for undo
                 undoState.register(.takeDose1(at: now))
                 
@@ -1532,7 +1633,7 @@ struct CompactDoseButton: View {
             let now = Date()
             await core.takeDose()
             // Log Dose 2 as event for Details tab
-            eventLogger.logEvent(name: "Dose 2", color: .green, cooldownSeconds: 3600 * 8)
+            eventLogger.logEvent(name: "Dose 2", color: .green, cooldownSeconds: 3600 * 8, persist: false)
             // Register for undo
             undoState.register(.takeDose2(at: now))
             // Cancel wake alarm since Dose 2 was taken
@@ -1546,7 +1647,7 @@ struct CompactDoseButton: View {
             let now = Date()
             await core.takeDose(lateOverride: true)
             // Log with late indicator
-            eventLogger.logEvent(name: "Dose 2 (Late)", color: .orange, cooldownSeconds: 3600 * 8)
+            eventLogger.logEvent(name: "Dose 2 (Late)", color: .orange, cooldownSeconds: 3600 * 8, persist: false)
             // Register for undo (late doses can also be undone)
             undoState.register(.takeDose2(at: now))
         }
@@ -2310,6 +2411,16 @@ struct LoggedEvent: Identifiable {
         self.time = time
         self.color = color
     }
+
+    static func fromDoseEvent(_ event: DoseCore.StoredDoseEvent) -> LoggedEvent? {
+        let (displayName, color) = DoseEventDisplay.displayNameAndColor(for: event)
+        return LoggedEvent(
+            id: UUID(uuidString: event.id) ?? UUID(),
+            name: displayName,
+            time: event.timestamp,
+            color: color
+        )
+    }
 }
 
 // MARK: - Details View (Second Tab)
@@ -2669,7 +2780,7 @@ struct SelectedDayView: View {
                             Circle()
                                 .fill(Color(hex: event.colorHex ?? "#888888") ?? .gray)
                                 .frame(width: 10, height: 10)
-                            Text(event.eventType)
+                            Text(EventDisplayName.displayName(for: event.eventType))
                                 .font(.subheadline)
                                 .foregroundColor(.primary)
                             Spacer()

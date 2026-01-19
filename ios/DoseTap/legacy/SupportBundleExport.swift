@@ -4,7 +4,6 @@ import SwiftUI
 import OSLog
 import MessageUI
 import UniformTypeIdentifiers
-import CoreData
 
 // MARK: - Support Bundle Models
 

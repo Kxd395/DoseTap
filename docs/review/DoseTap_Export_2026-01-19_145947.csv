@@ -1,0 +1,85 @@
+# DoseTap Export V2 | schema_version=0 | constants_version=1.0.0
+# Export timestamp: 2026-01-19T19:59:47.520Z
+
+# === SLEEP EVENTS ===
+table,id,event_type,timestamp,session_date,color_hex,notes
+sleep_event,607FEA03-7ADD-43F3-8CA6-4B415CC31885,wake_final,2026-01-19T16:13:30.147Z,2026-01-18,,
+sleep_event,4495A4FA-1FC0-406F-A5EE-74EDB1870E4E,wake_final,2026-01-19T14:56:23.269Z,2026-01-18,,
+sleep_event,CA526077-7E03-4DF9-BDFE-83E8456F9EBF,Pain,2026-01-19T14:56:08.634Z,2026-01-18,#FF3A2F,
+sleep_event,7172C666-F9C0-4FC1-AF73-6D3897E3F4A0,Pain,2026-01-19T10:42:54.178Z,2026-01-18,#FF3A2F,
+sleep_event,21756A99-7AE3-4D17-A06D-BDADC028846C,Bathroom,2026-01-19T07:49:47.279Z,2026-01-18,#007AFF,
+sleep_event,1A24BAA9-115F-4D20-8E96-A17FABDEE0B6,Dose 2 (Late),2026-01-19T07:45:59.113Z,2026-01-18,#FF9230,
+sleep_event,A7E0CB4E-98EE-4E66-83DA-0EE442A2DA44,Dose 1,2026-01-19T03:39:18.870Z,2026-01-18,#30D158,
+sleep_event,4452DC95-741B-434C-AE38-5BEC4826F4D1,lightsOut,2026-01-19T03:39:17.523Z,2026-01-18,#6366F1,Pre-sleep check completed
+sleep_event,862E9419-C6CE-401B-A080-1674DEE69A0E,Dose 1,2026-01-18T02:13:35.059Z,2026-01-17,#30D158,
+sleep_event,A3FC29E8-6B9F-42C7-ABCF-B5A4D9C8C174,lightsOut,2026-01-18T02:13:33.725Z,2026-01-17,#6366F1,Pre-sleep check completed
+sleep_event,5164AEEB-D0C2-46BF-9CBA-A1DC0DFBF9D3,Bathroom,2026-01-17T12:30:16.380Z,2026-01-16,#007AFF,
+sleep_event,7EEE4795-A85F-4482-832F-C3F74C99809F,Dose 2,2026-01-17T09:25:06.183Z,2026-01-16,#30D158,
+sleep_event,24F25323-656E-4370-8C39-8F15A110274D,Dose 1,2026-01-17T04:43:40.522Z,2026-01-16,#30D158,
+sleep_event,46FED3E6-C74F-419E-987E-0D65695F1482,pain.pre_sleep,2026-01-17T04:43:17.714Z,2026-01-16,,"{""painWokeUser"":false,""overallLevel"":2,""locations"":[{""region"":""upper_back"",""side"":""both""}],""primaryLocation"":{""region"":""upper_back"",""side"":""both""}}"
+sleep_event,5BB9C0B1-BA65-4EEC-9788-FBD456B688FA,lightsOut,2026-01-17T04:43:17.701Z,2026-01-16,#6366F1,Pre-sleep check completed
+sleep_event,B33C2E58-47A4-4FEE-8EDF-BC7B6D2C9F13,Dose 2,2026-01-16T11:08:24.037Z,2026-01-15,#30D158,
+sleep_event,A35CB83D-6B8C-42EC-802E-A54C0D4224F7,Bathroom,2026-01-16T10:44:26.678Z,2026-01-15,#007AFF,
+sleep_event,A0F3EB64-04F2-4766-B74F-5692684EDD67,Dose 1,2026-01-16T03:33:59.952Z,2026-01-15,#30D158,
+sleep_event,95894977-63FB-405A-84D4-24338F1713A4,pain.pre_sleep,2026-01-16T03:33:58.204Z,2026-01-15,,"{""overallLevel"":2,""painWokeUser"":false,""locations"":[{""side"":""right"",""region"":""mid_back""},{""side"":""left"",""region"":""low_back""}],""primaryLocation"":{""side"":""right"",""region"":""mid_back""}}"
+sleep_event,25EF472B-E4B3-4F5B-98B7-C06BCFFBE99D,lightsOut,2026-01-16T03:33:58.189Z,2026-01-15,#6366F1,Pre-sleep check completed
+sleep_event,DF462C90-2016-4D67-A8F9-14B42F949AB3,wake_final,2026-01-15T18:41:35.307Z,2026-01-14,,
+sleep_event,62176CEC-8E12-4DF6-A530-8C5BB13362E8,wake_final,2026-01-15T17:00:35.035Z,2026-01-14,,
+sleep_event,820AE3B6-0F08-4E6E-9AF7-4A9A29BD488C,pain.wake,2026-01-15T11:31:05.409Z,38B9EE73-EECD-40B5-91B3-BA866B05919F,,"{""locations"":[{""side"":""both"",""region"":""low_back""},{""side"":""left"",""region"":""hip""}],""painWokeUser"":false,""primaryLocation"":{""side"":""both"",""region"":""low_back""},""overallLevel"":2}"
+sleep_event,CA213B49-12A3-4DD0-9A2B-B53735AD755D,wake_final,2026-01-15T11:30:23.017Z,2026-01-14,,
+sleep_event,6C5C9168-314A-41EE-BE82-3DB354013128,pain.pre_sleep,2026-01-15T06:12:28.851Z,2026-01-14,,"{""radiation"":""none"",""painWokeUser"":false,""locations"":[{""region"":""mid_back"",""side"":""left""},{""region"":""low_back"",""side"":""left""},{""region"":""shoulder"",""side"":""right""}],""primaryLocation"":{""region"":""mid_back"",""side"":""left""},""overallLevel"":2}"
+sleep_event,E2F80C35-7291-466B-A6A0-ACA193B660B4,Dose 2,2026-01-15T06:08:06.382Z,2026-01-14,#30D158,
+sleep_event,77E19999-40E0-4365-88A3-22A855C02650,Dose 1,2026-01-15T03:37:51.610Z,2026-01-14,#30D158,
+sleep_event,9D694927-FFCF-4DDD-B588-214AE5A83FC5,pain.pre_sleep,2026-01-15T03:37:28.849Z,2026-01-14,,"{""locations"":[{""side"":""left"",""region"":""mid_back""},{""side"":""left"",""region"":""low_back""},{""side"":""right"",""region"":""shoulder""}],""overallLevel"":2,""radiation"":""none"",""painWokeUser"":false,""primaryLocation"":{""side"":""left"",""region"":""mid_back""}}"
+sleep_event,C0F03690-2932-44E3-A334-800BA3ABF637,lightsOut,2026-01-15T03:37:28.844Z,2026-01-14,#6366F1,Pre-sleep check completed
+
+# === DOSE EVENTS ===
+table,id,event_type,timestamp,session_date,metadata
+dose_event,E04B29EE-17ED-4BA6-B635-3FF1EA6E4C40,dose2,2026-01-19T07:45:59.055Z,2026-01-18,"{""is_late"":true}"
+dose_event,6244B2C4-72BE-4B07-B54D-D6BD613D8EC6,dose1,2026-01-19T03:39:18.819Z,2026-01-18,
+dose_event,8FA2AF4D-8938-4DDD-8DD2-B2CAD5EF7D93,dose1,2026-01-18T02:13:34.981Z,2026-01-17,
+dose_event,DEA45C83-340C-45FF-AE19-0D33AB89D6FC,dose2_skipped,2026-01-17T09:25:00.625Z,2026-01-16,"{""reason"":""slept_through""}"
+dose_event,FC747CDC-F132-4213-B33E-DC3AD1975498,dose1,2026-01-17T04:43:40.459Z,2026-01-16,
+dose_event,08E86474-8659-4E2E-B8BA-9A2D417D98CA,dose2_skipped,2026-01-16T10:46:26.823Z,2026-01-15,"{""reason"":""slept_through""}"
+dose_event,7FEA99C2-1676-4ABC-960F-DFD7A5479737,dose1,2026-01-16T03:33:59.887Z,2026-01-15,
+dose_event,FEC6266B-C50A-4849-8222-2B7BDFD44EBD,dose2,2026-01-15T06:08:06.345Z,2026-01-14,
+dose_event,F198EF84-A6D1-48D5-8D51-B13BFF9EF35F,dose1,2026-01-15T03:37:51.543Z,2026-01-14,
+
+# === SESSIONS ===
+table,session_date,dose1_time,dose2_time,snooze_count,dose2_skipped,interval_minutes,event_count
+session,2026-01-18,2026-01-19T03:39:18.819Z,2026-01-19T07:45:59.055Z,0,0,246,8
+session,2026-01-17,2026-01-18T02:13:34.981Z,,0,0,,2
+session,2026-01-16,2026-01-17T04:43:40.459Z,,0,1,,5
+session,2026-01-15,2026-01-16T03:33:59.887Z,,0,1,,5
+session,2026-01-14,2026-01-15T03:37:51.543Z,2026-01-15T06:08:06.345Z,0,0,150,8
+
+# === MORNING CHECK-INS ===
+table,session_date,timestamp,sleep_quality,feel_rested,grogginess,sleep_inertia_duration,dream_recall,mental_clarity,mood,anxiety_level,readiness_for_day,had_sleep_paralysis,had_hallucinations,had_automatic_behavior,fell_out_of_bed,had_confusion_on_waking,physical_symptoms,respiratory_symptoms,sleep_therapy,sleep_environment,notes
+morning_checkin,2026-01-18,2026-01-19T16:13:32.685Z,3,Moderately,Mild,5-15 minutes,None,5,Neutral,None,3,0,0,0,0,0,,,,,
+morning_checkin,2026-01-17,2026-01-19T15:45:10.704Z,3,Moderately,Mild,5-15 minutes,None,5,Neutral,None,3,0,0,0,0,0,,,,,
+morning_checkin,2026-01-14,2026-01-15T18:41:38.616Z,3,Moderately,Mild,5-15 minutes,None,5,Neutral,None,3,0,0,0,0,0,,,,,
+morning_checkin,2026-01-14,2026-01-15T17:00:38.227Z,3,Moderately,Mild,5-15 minutes,None,5,Neutral,None,3,0,0,0,0,0,,,,,
+morning_checkin,2026-01-14,2026-01-15T11:31:05.392Z,2,Moderately,Mild,5-15 minutes,None,5,Neutral,None,3,0,0,0,0,0,"{""painLocations"":[],""headacheLocation"":""Forehead"",""isMigraine"":false,""painSeverity"":0,""muscleSoreness"":""None"",""hasHeadache"":false,""painType"":""Aching"",""muscleStiffness"":""None"",""notes"":"""",""headacheSeverity"":""Mild""}",,,,
+
+# === PRE-SLEEP LOGS ===
+table,id,session_id,created_at,completion_state,answers_json
+pre_sleep_log,A6E53686-13C0-4334-B827-6B8F5BC0F719,26FE1AAF-4D3E-44A6-B421-05AF0A7921CE,2026-01-19T03:39:17.508Z,complete,"{""intendedSleepTime"":""30min"",""sleepinessLevel"":1,""alcohol"":""none"",""stressLevel"":1}"
+pre_sleep_log,BC08364E-538D-414F-882C-5F52D6B91E32,FAE71004-0E5D-4363-B701-74530E29CF96,2026-01-18T02:13:33.709Z,complete,"{""intendedSleepTime"":""15min"",""stimulantsConsumed"":[""soda""],""alcohol"":""none"",""sleepinessLevel"":1,""lastCaffeineTime"":""8pm"",""exercise"":""none"",""stressLevel"":1,""napToday"":""none""}"
+pre_sleep_log,C611892F-89EE-47BB-980C-985843960037,60E2A6AB-CCCE-40E5-9F23-96206FA1F192,2026-01-17T04:43:17.686Z,complete,"{""stimulantsConsumed"":[""soda""],""napToday"":""none"",""lastCaffeineTime"":""8pm"",""exercise"":""none"",""stressLevel"":1,""sleepinessLevel"":1,""painPrimaryLocation"":{""side"":""both"",""region"":""upper_back""},""painLevel010"":2,""painDetailedLocations"":[{""side"":""both"",""region"":""upper_back""}],""alcohol"":""none"",""intendedSleepTime"":""30min""}"
+pre_sleep_log,1BDC71B6-CC25-4E6E-9D11-3FA4BE5FA124,0AFEDF8F-BB78-4554-BACA-8CCAEF51F498,2026-01-16T03:33:58.172Z,complete,"{""intendedSleepTime"":""15min"",""painLevel010"":2,""stimulantsConsumed"":[""soda""],""painPrimaryLocation"":{""region"":""mid_back"",""side"":""right""},""alcohol"":""none"",""sleepinessLevel"":2,""lastCaffeineTime"":""8pm"",""exercise"":""none"",""stressLevel"":1,""napToday"":""none"",""painDetailedLocations"":[{""region"":""mid_back"",""side"":""right""},{""region"":""low_back"",""side"":""left""}]}"
+pre_sleep_log,C967224F-A921-46D6-B384-F9A2E51A81CF,38B9EE73-EECD-40B5-91B3-BA866B05919F,2026-01-15T03:37:28.801Z,complete,"{""stimulantsConsumed"":[""soda""],""napToday"":""none"",""painRadiation"":""none"",""lastCaffeineTime"":""6pm"",""exercise"":""none"",""sleepinessLevel"":2,""stressLevel"":1,""painLevel010"":2,""painDetailedLocations"":[{""region"":""mid_back"",""side"":""left""},{""region"":""low_back"",""side"":""left""},{""region"":""shoulder"",""side"":""right""}],""painPrimaryLocation"":{""region"":""mid_back"",""side"":""left""},""alcohol"":""none"",""intendedSleepTime"":""30min""}"
+pre_sleep_log,02C2CEF6-C915-421C-9E46-F255A4405DD0,1513CFFC-3530-44CD-BBF4-FD31B9AD2679,2026-01-14T23:14:16.071Z,complete,"{""intendedSleepTime"":""now"",""bodyPain"":""moderate"",""alcohol"":""none"",""stimulants"":""soda"",""exercise"":""none"",""stressLevel"":1,""painType"":""aching"",""napToday"":""none"",""painLocations"":[""back"",""shoulders""]}"
+
+# === MEDICATION EVENTS ===
+table,id,session_date,medication_id,dose_mg,dose_unit,formulation,taken_at,notes
+
+# === SLEEP SESSIONS (Boundaries) ===
+table,session_id,session_date,start_utc,end_utc,terminal_state
+sleep_session,EBF08A1D-A3DE-4243-8C55-72DDBFAF3716,2026-01-18,2026-01-19T16:13:30.147Z,2026-01-19T16:13:32.698Z,checkin_completed
+sleep_session,26FE1AAF-4D3E-44A6-B421-05AF0A7921CE,2026-01-18,2026-01-19T03:39:17.523Z,,finalizing_wake
+sleep_session,FAE71004-0E5D-4363-B701-74530E29CF96,2026-01-17,2026-01-18T02:13:33.725Z,2026-01-19T15:45:10.749Z,checkin_completed
+sleep_session,60E2A6AB-CCCE-40E5-9F23-96206FA1F192,2026-01-16,2026-01-17T04:43:17.701Z,,incomplete_slept_through
+sleep_session,0AFEDF8F-BB78-4554-BACA-8CCAEF51F498,2026-01-15,2026-01-16T03:33:58.189Z,,incomplete_slept_through
+sleep_session,3CFB00CE-E986-4607-B2A1-68951D1E5AE3,2026-01-14,2026-01-15T18:41:35.307Z,2026-01-15T18:41:38.627Z,checkin_completed
+sleep_session,447DAFC8-EB2C-4B20-A1EA-69D81E6966F7,2026-01-14,2026-01-15T17:00:35.035Z,2026-01-15T17:00:38.239Z,checkin_completed
+sleep_session,38B9EE73-EECD-40B5-91B3-BA866B05919F,2026-01-14,2026-01-15T03:37:28.844Z,2026-01-15T11:31:05.397Z,checkin_completed

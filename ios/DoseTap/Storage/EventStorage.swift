@@ -233,6 +233,7 @@ public class EventStorage {
         
         // Migration: Add new columns to existing tables (safe to run multiple times)
         migrateDatabase()
+        migrateEventTypesIfNeeded()
     }
     
     /// Add new columns if they don't exist (safe migration)
@@ -272,6 +273,53 @@ public class EventStorage {
         
         // Backfill NULL session_id values (P0 data integrity fix)
         backfillNullSessionIds()
+    }
+
+    // MARK: - Event Type Normalization Migration
+
+    private func migrateEventTypesIfNeeded() {
+        let flagKey = "event_types_normalized_v1"
+        guard !UserDefaults.standard.bool(forKey: flagKey) else { return }
+
+        let updates = [
+            // Lights out
+            "UPDATE sleep_events SET event_type = 'lights_out' WHERE lower(event_type) IN ('lights out', 'lightsout', 'lights_out', 'lightout')",
+            // Brief wake
+            "UPDATE sleep_events SET event_type = 'brief_wake' WHERE lower(event_type) IN ('brief wake', 'briefwake', 'brief_wake')",
+            // In bed
+            "UPDATE sleep_events SET event_type = 'in_bed' WHERE lower(event_type) IN ('in bed', 'inbed', 'in_bed')",
+            // Heart racing
+            "UPDATE sleep_events SET event_type = 'heart_racing' WHERE lower(event_type) IN ('heart racing', 'heartracing', 'heart_racing')",
+            // Nap start/end
+            "UPDATE sleep_events SET event_type = 'nap_start' WHERE lower(event_type) IN ('nap start', 'napstart', 'nap_start')",
+            "UPDATE sleep_events SET event_type = 'nap_end' WHERE lower(event_type) IN ('nap end', 'napend', 'nap_end')",
+            // Wake final variants
+            "UPDATE sleep_events SET event_type = 'wake_final' WHERE lower(event_type) IN ('wake final', 'wakefinal', 'wake_final', 'wake up', 'wakeup')",
+            // Common canonical lowercase for simple types
+            "UPDATE sleep_events SET event_type = lower(event_type) WHERE lower(event_type) IN ('bathroom','water','snack','pain','anxiety','noise','dream','temperature')"
+        ]
+
+        let deleteDoseEvents = """
+        DELETE FROM sleep_events
+        WHERE lower(event_type) IN (
+            'dose 1','dose1','dose_1','dose1_taken',
+            'dose 2','dose2','dose_2','dose2_taken',
+            'dose 2 (early)','dose2 (early)','dose2_early',
+            'dose 2 (late)','dose2 (late)','dose2_late',
+            'dose 2 skipped','dose2 skipped','dose2_skipped','dose2skipped',
+            'extra dose','extra_dose'
+        )
+        """
+
+        sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
+        for sql in updates {
+            sqlite3_exec(db, sql, nil, nil, nil)
+        }
+        sqlite3_exec(db, deleteDoseEvents, nil, nil, nil)
+        sqlite3_exec(db, "COMMIT", nil, nil, nil)
+
+        UserDefaults.standard.set(true, forKey: flagKey)
+        print("🔧 EventStorage: Normalized sleep_events types and purged dose rows")
     }
     
     // MARK: - Session ID Backfill Migration

@@ -1,6 +1,6 @@
 // iOS/ActionableNotifications.swift
-// This file is iOS-only and should not be compiled for macOS
-#if os(iOS)
+// Legacy UI; disabled until it is fully wired to SQLite persistence.
+#if false
 import SwiftUI
 import UserNotifications
 import UIKit

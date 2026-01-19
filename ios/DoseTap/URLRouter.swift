@@ -120,7 +120,7 @@ public class URLRouter: ObservableObject {
         Task {
             let now = Date()
             await core.takeDose()
-            eventLogger?.logEvent(name: "Dose 1", color: .green, cooldownSeconds: 3600 * 8)
+            eventLogger?.logEvent(name: "Dose 1", color: .green, cooldownSeconds: 3600 * 8, persist: false)
             
             // Schedule wake alarm
             let targetMinutes = UserDefaults.standard.integer(forKey: "target_interval_minutes")
@@ -160,7 +160,7 @@ public class URLRouter: ObservableObject {
         
         Task {
             await core.takeDose()
-            eventLogger?.logEvent(name: "Dose 2", color: .green, cooldownSeconds: 3600 * 8)
+            eventLogger?.logEvent(name: "Dose 2", color: .green, cooldownSeconds: 3600 * 8, persist: false)
             AlarmService.shared.cancelAllAlarms()
             
             showFeedback("✓ Dose 2 logged")

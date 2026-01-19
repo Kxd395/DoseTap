@@ -580,13 +580,19 @@ struct LiveSleepTimelineView: View {
         let sessionKey = effectiveSessionKey  // Use unified session key
         let repo = SessionRepository.shared
         
+        // Fetch sleep events for this session (bathroom, wake, etc.)
+        let sleepEventsData = repo.fetchSleepEvents(for: sessionKey)
+
         // Fetch dose events for this session
         let doseEventsData = repo.fetchDoseEvents(forSessionDate: sessionKey)
-        let dose1 = doseEventsData.first(where: { $0.eventType == "dose1_taken" })?.timestamp
-        let dose2 = doseEventsData.first(where: { $0.eventType == "dose2_taken" })?.timestamp
+        let dose1 = doseEventsData.first(where: { $0.eventType == "dose1" })?.timestamp
+        let dose2 = doseEventsData.first(where: { $0.eventType == "dose2" })?.timestamp
         let skipped = doseEventsData.contains(where: { $0.eventType == "dose2_skipped" })
         let snoozes = doseEventsData.filter { $0.eventType == "snooze" }.count
-        let wakeEvent = doseEventsData.first(where: { $0.eventType == "wake_final" })?.timestamp
+        let wakeEvent = sleepEventsData.first(where: {
+            let type = $0.eventType.lowercased()
+            return type == "wake_final" || type == "wakefinal" || type == "wake"
+        })?.timestamp
         
         // Calculate dose interval if both doses taken
         var interval: TimeInterval? = nil
@@ -627,7 +633,7 @@ struct LiveSleepTimelineView: View {
         doseEvents = timelineEvents
         
         // Fetch sleep events (bathroom, water, etc.)
-        sleepEvents = repo.fetchSleepEvents(for: sessionKey)
+        sleepEvents = sleepEventsData
     }
     
     /// Load HealthKit sleep stage data

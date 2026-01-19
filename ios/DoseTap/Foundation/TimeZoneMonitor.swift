@@ -26,19 +26,7 @@ final class TimeZoneMonitor: ObservableObject {
     }
     
     private func handleTimeZoneChange() {
-        // Log system event for traceability
-        let store = EventStoreCoreData()
-        store.insertEvent(
-            id: UUID().uuidString,
-            type: "system",
-            source: "time_zone_monitor",
-            occurredAtUTC: Date(),
-            localTZ: TimeZone.current.identifier,
-            doseSequence: nil,
-            note: "Time zone changed to \(TimeZone.current.identifier)"
-        )
-        
-        // Trigger UI update for travel mode interstitial
+        // TODO: Add lightweight telemetry once persistence hooks are reworked.
         NotificationCenter.default.post(name: .timeZoneChangeDetected, object: nil)
     }
     

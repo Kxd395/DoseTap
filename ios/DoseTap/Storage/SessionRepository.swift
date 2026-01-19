@@ -1589,9 +1589,10 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     /// Insert sleep event (for event logging)
     public func insertSleepEvent(id: String, eventType: String, timestamp: Date, colorHex: String?, notes: String? = nil) {
         let session = ensureActiveSession(for: timestamp, reason: "sleep_event_insert")
+        let normalizedType = EventTypeNormalizer.normalizedType(for: eventType)
         storage.insertSleepEvent(
             id: id,
-            eventType: eventType,
+            eventType: normalizedType,
             timestamp: timestamp,
             sessionDate: session.sessionDate,
             sessionId: session.sessionId,

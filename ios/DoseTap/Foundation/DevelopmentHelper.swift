@@ -1,6 +1,5 @@
 #if DEBUG
 import Foundation
-import CoreData
 
 struct DevelopmentHelper {
     static let isLocalDevelopment = Bundle.main.object(forInfoDictionaryKey: "LOCAL_ONLY") as? Bool ?? false
@@ -33,75 +32,36 @@ struct DevelopmentHelper {
     
     static func populateTestData() {
         guard isLocalDevelopment && autoPopulateTestData else { return }
-        
-        let store = PersistentStore.shared
-        let context = store.viewContext
-        
+
         // Clear existing test data
         clearTestData()
-        
-        // Create test dose session
-        let session = DoseSession(context: context)
-        session.sessionID = UUID().uuidString
-        session.startedUTC = Date().addingTimeInterval(-3600) // 1 hour ago
-        session.windowTargetMin = 165
-        session.dose1TakenUTC = Date().addingTimeInterval(-160 * 60) // 2h 40m ago
-        
-        // Create some test dose events
-        createTestDoseEvent(context: context, type: "dose1", sequenceNumber: 1, minutesAgo: 160)
-        createTestDoseEvent(context: context, type: "bathroom", sequenceNumber: 0, minutesAgo: 45)
-        createTestDoseEvent(context: context, type: "bathroom", sequenceNumber: 0, minutesAgo: 15)
-        
-        // Create test inventory snapshot
-        let inventory = InventorySnapshot(context: context)
-        inventory.snapshotID = UUID().uuidString
-        inventory.capturedUTC = Date()
-        inventory.remainingDoses = 14
-        
-        store.saveContext()
+
+        let repo = SessionRepository.shared
+        let dose1Time = Date().addingTimeInterval(-160 * 60) // 2h 40m ago
+        repo.saveDose1(timestamp: dose1Time)
+        repo.insertSleepEvent(
+            id: UUID().uuidString,
+            eventType: "bathroom",
+            timestamp: Date().addingTimeInterval(-45 * 60),
+            colorHex: "#007AFF",
+            notes: nil
+        )
+        repo.insertSleepEvent(
+            id: UUID().uuidString,
+            eventType: "bathroom",
+            timestamp: Date().addingTimeInterval(-15 * 60),
+            colorHex: "#007AFF",
+            notes: nil
+        )
         
         if enableDebugLogging {
             print("✅ Test data populated for local development")
-            print("   - Session: \(session.sessionID ?? "unknown")")
-            print("   - Dose 1 taken: \(session.dose1TakenUTC?.description ?? "none")")
-            print("   - Inventory: \(inventory.remainingDoses) doses remaining")
+            print("   - Dose 1 taken: \(dose1Time)")
         }
-    }
-    
-    private static func createTestDoseEvent(context: NSManagedObjectContext, type: String, sequenceNumber: Int, minutesAgo: Int) {
-        let event = DoseEvent(context: context)
-        event.eventID = UUID().uuidString
-        event.eventType = type
-        event.doseSequence = Int16(sequenceNumber)
-        event.occurredAtUTC = Date().addingTimeInterval(-Double(minutesAgo * 60))
-        event.localTZ = TimeZone.current.identifier
-        event.source = "development_helper"
     }
     
     private static func clearTestData() {
-        let store = PersistentStore.shared
-        let context = store.viewContext
-        
-        // Delete existing test data
-        let sessionFetch = NSFetchRequest<DoseSession>(entityName: "DoseSession")
-        let eventFetch = NSFetchRequest<DoseEvent>(entityName: "DoseEvent")
-        let inventoryFetch = NSFetchRequest<InventorySnapshot>(entityName: "InventorySnapshot")
-        
-        do {
-            let sessions = try context.fetch(sessionFetch)
-            let events = try context.fetch(eventFetch)
-            let inventories = try context.fetch(inventoryFetch)
-            
-            sessions.forEach { context.delete($0) }
-            events.forEach { context.delete($0) }
-            inventories.forEach { context.delete($0) }
-            
-            store.saveContext()
-        } catch {
-            if enableDebugLogging {
-                print("⚠️ Failed to clear test data: \(error)")
-            }
-        }
+        SessionRepository.shared.clearAllData()
     }
     
     // MARK: - Mock API Transport
@@ -178,54 +138,15 @@ struct DevelopmentHelper {
     
     static func simulateDose1() {
         guard isLocalDevelopment else { return }
-        
-        let store = PersistentStore.shared
-        let context = store.viewContext
-        
-        // Create new session if none exists
-        let sessionFetch = NSFetchRequest<DoseSession>(entityName: "DoseSession")
-        let existingSessions = try? context.fetch(sessionFetch)
-        
-        let session: DoseSession
-        if let existing = existingSessions?.first {
-            session = existing
-        } else {
-            session = DoseSession(context: context)
-            session.sessionID = UUID().uuidString
-            session.startedUTC = Date()
-            session.windowTargetMin = 165
-        }
-        
-        // Record dose 1
-        session.dose1TakenUTC = Date()
-        
-        // Create dose event
-        createTestDoseEvent(context: context, type: "dose1", sequenceNumber: 1, minutesAgo: 0)
-        
-        store.saveContext()
+
+        SessionRepository.shared.saveDose1(timestamp: Date())
         debugLog("Simulated Dose 1 taken")
     }
     
     static func simulateDose2() {
         guard isLocalDevelopment else { return }
-        
-        let store = PersistentStore.shared
-        let context = store.viewContext
-        
-        // Find existing session
-        let sessionFetch = NSFetchRequest<DoseSession>(entityName: "DoseSession")
-        guard let session = try? context.fetch(sessionFetch).first else {
-            debugLog("No session found - simulate Dose 1 first")
-            return
-        }
-        
-        // Record dose 2
-        session.dose2TakenUTC = Date()
-        
-        // Create dose event
-        createTestDoseEvent(context: context, type: "dose2", sequenceNumber: 2, minutesAgo: 0)
-        
-        store.saveContext()
+
+        SessionRepository.shared.saveDose2(timestamp: Date())
         debugLog("Simulated Dose 2 taken")
     }
 }

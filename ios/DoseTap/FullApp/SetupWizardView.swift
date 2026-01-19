@@ -461,12 +461,12 @@ struct PrivacyStepView: View {
                 VStack(spacing: 12) {
                     Toggle("Enable iCloud Sync", isOn: $config.icloudSyncEnabled)
                         .font(.subheadline)
-                    
-                    if config.icloudSyncEnabled {
-                        Text("Your dose data will sync across your devices using iCloud")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
+                        .disabled(true)
+                        .opacity(0.5)
+
+                    Text("iCloud sync is coming soon and is currently disabled.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
                 .padding(16)
                 .background(Color(UIColor.secondarySystemGroupedBackground))

@@ -1,7 +1,6 @@
 // iOS/InventoryManagement.swift
-#if os(iOS)
+#if false
 import SwiftUI
-import CoreData
 
 // MARK: - Inventory Models
 

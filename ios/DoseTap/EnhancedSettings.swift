@@ -1,11 +1,6 @@
 // iOS/EnhancedSettings.swift
 #if os(iOS)
 import SwiftUI
-import CoreData
-
-// MARK: - Enhanced Settings ModelS/EnhancedSettings.swift
-import SwiftUI
-import CoreData
 
 // MARK: - Enhanced Settings View
 
@@ -33,14 +28,12 @@ struct EnhancedSettingsView: View {
                         )
                     }
                     
-                    NavigationLink(destination: InventoryManagementView()) {
-                        SettingsRow(
-                            icon: "chart.bar.doc.horizontal",
-                            iconColor: .green,
-                            title: "Inventory Tracking",
-                            subtitle: "Monitor medication supply"
-                        )
-                    }
+                    SettingsRow(
+                        icon: "chart.bar.doc.horizontal",
+                        iconColor: .green,
+                        title: "Inventory Tracking",
+                        subtitle: "Removed (legacy CoreData)"
+                    )
                 }
                 
                 // Health & Safety

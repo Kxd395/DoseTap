@@ -16,6 +16,7 @@ DoseTap is a local-first iOS app that helps patients manage two-dose nighttime m
 - Deleting the app deletes the sandbox and all data.
 - Manual CSV export is available in Settings.
 - Cloud sync is not implemented.
+- CoreData is not used; SQLite is the sole persistence layer.
 
 ## HealthKit
 
@@ -45,4 +46,3 @@ open ios/DoseTap.xcodeproj
 ## License
 
 Proprietary.
-
