@@ -31,7 +31,7 @@ class EventLogger: ObservableObject {
         events = storedEvents.map { stored in
             LoggedEvent(
                 id: UUID(uuidString: stored.id) ?? UUID(),
-                name: stored.eventType,
+                name: EventDisplayName.displayName(for: stored.eventType), // Use display name
                 time: stored.timestamp,
                 color: stored.colorHex.flatMap { Color(hex: $0) } ?? .gray
             )
@@ -102,6 +102,137 @@ class EventLogger: ObservableObject {
         events.removeAll()
         cooldowns.removeAll()
         sessionRepo.clearTonightsEvents()
+    }
+}
+
+// MARK: - Event Display Name Helper
+/// Centralized mapping from internal event type strings to user-friendly display names
+struct EventDisplayName {
+    static func displayName(for eventType: String) -> String {
+        switch eventType.lowercased() {
+        // Dose events
+        case "dose1", "dose_1", "dose1_taken":
+            return "Dose 1"
+        case "dose2", "dose_2", "dose2_taken":
+            return "Dose 2"
+        case "dose2_skipped", "dose2skipped":
+            return "Dose 2 Skipped"
+        case "dose 2 (late)", "dose2_late":
+            return "Dose 2 (Late)"
+        case "dose 2 (early)", "dose2_early":
+            return "Dose 2 (Early)"
+        case "extra_dose", "extradose":
+            return "Extra Dose"
+        case "snooze":
+            return "Snooze"
+            
+        // Sleep events
+        case "lightsout", "lights_out", "lightout":
+            return "Lights Out"
+        case "wake_final", "wakefinal", "wake":
+            return "Final Wake"
+        case "brief_wake", "briefwake":
+            return "Brief Wake"
+        case "bathroom":
+            return "Bathroom"
+        case "water":
+            return "Water"
+        case "snack":
+            return "Snack"
+        case "pain":
+            return "Pain"
+        case "anxiety":
+            return "Anxiety"
+        case "noise":
+            return "Noise"
+        case "dream":
+            return "Dream"
+        case "nap_start", "napstart":
+            return "Nap Start"
+        case "nap_end", "napend":
+            return "Nap End"
+        case "in_bed", "inbed":
+            return "In Bed"
+            
+        // Default: capitalize and replace underscores
+        default:
+            return eventType
+                .replacingOccurrences(of: "_", with: " ")
+                .split(separator: " ")
+                .map { $0.prefix(1).uppercased() + $0.dropFirst().lowercased() }
+                .joined(separator: " ")
+        }
+    }
+}
+
+// MARK: - Sleep Session Date Formatter
+/// Formats session dates as day ranges (e.g., "Thu → Fri, Jan 16-17")
+/// Since sleep sessions span two calendar days (night to morning)
+struct SleepSessionDateFormatter {
+    private static let calendar = Calendar.current
+    
+    /// Format a session start date as a day range
+    /// - Parameter date: The session start date (night of)
+    /// - Returns: Formatted string like "Thu → Fri, Jan 16-17" or "Last Night (Sat → Sun)"
+    static func format(_ date: Date) -> String {
+        let nextDay = calendar.date(byAdding: .day, value: 1, to: date) ?? date
+        let dayRange = "\(shortWeekday(date)) → \(shortWeekday(nextDay))"
+        
+        if calendar.isDateInToday(date) {
+            return "Tonight (\(dayRange))"
+        } else if calendar.isDateInYesterday(date) {
+            return "Last Night (\(dayRange))"
+        } else {
+            return "\(dayRange), \(dateRangeText(date, nextDay))"
+        }
+    }
+    
+    /// Format just the day range part (e.g., "Thu → Fri")
+    static func dayRangeOnly(_ date: Date) -> String {
+        let nextDay = calendar.date(byAdding: .day, value: 1, to: date) ?? date
+        return "\(shortWeekday(date)) → \(shortWeekday(nextDay))"
+    }
+    
+    /// Format for compact display (e.g., "Thu→Fri 1/16")
+    static func compact(_ date: Date) -> String {
+        let nextDay = calendar.date(byAdding: .day, value: 1, to: date) ?? date
+        let f = DateFormatter()
+        f.dateFormat = "M/d"
+        return "\(shortWeekday(date))→\(shortWeekday(nextDay)) \(f.string(from: date))"
+    }
+    
+    /// Format from a session date string (yyyy-MM-dd)
+    static func format(sessionDateString: String) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        guard let date = f.date(from: sessionDateString) else {
+            return sessionDateString
+        }
+        return format(date)
+    }
+    
+    private static func shortWeekday(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "EEE"
+        return f.string(from: date)
+    }
+    
+    private static func dateRangeText(_ start: Date, _ end: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "MMM d"
+        
+        let startMonth = calendar.component(.month, from: start)
+        let endMonth = calendar.component(.month, from: end)
+        
+        if startMonth == endMonth {
+            // Same month: "Jan 16-17"
+            let dayFormatter = DateFormatter()
+            dayFormatter.dateFormat = "d"
+            return "\(f.string(from: start))-\(dayFormatter.string(from: end))"
+        } else {
+            // Different months: "Dec 31 – Jan 1"
+            return "\(f.string(from: start)) – \(f.string(from: end))"
+        }
     }
 }
 
@@ -271,9 +402,20 @@ struct LegacyTonightView: View {
             VStack(spacing: 0) {
                 // Header - add extra top padding to account for safe area in page-style TabView
                 VStack(spacing: 2) {
-                    Text("DoseTap")
-                        .font(.largeTitle.bold())
-                    TonightDateLabel()
+                    HStack {
+                        Spacer()
+                        VStack(spacing: 2) {
+                            Text("DoseTap")
+                                .font(.largeTitle.bold())
+                            TonightDateLabel()
+                        }
+                        Spacer()
+                    }
+                    .overlay(alignment: .topTrailing) {
+                        // Theme toggle in top-right corner
+                        ThemeToggleButton()
+                            .padding(.trailing, 8)
+                    }
                     
                     // Show scheduled wake alarm when dose 1 taken
                     AlarmIndicatorView(dose1Time: core.dose1Time)
@@ -423,7 +565,7 @@ struct LegacyTonightView: View {
             )
         }
         .sheet(isPresented: $showPreSleepLog) {
-                PreSleepLogView(
+                PreSleepLogViewV2(
                     existingLog: preSleepEditingLog,
                     onComplete: { answers in
                         let log = try sessionRepo.savePreSleepLog(
@@ -2175,6 +2317,7 @@ struct DetailsView: View {
     @ObservedObject var core: DoseTapCore
     @ObservedObject var eventLogger: EventLogger
     @ObservedObject var settings = UserSettingsManager.shared
+    @EnvironmentObject var themeManager: ThemeManager
     @State private var showFullTimeline = false
     @State private var showEventsSheet = false
     
@@ -2193,7 +2336,8 @@ struct DetailsView: View {
                     // Sleep Stage Timeline (live from HealthKit)
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text("Last Night's Sleep")
+                            // Show day range for last night's sleep
+                            Text(sleepTimelineHeader)
                                 .font(.headline)
                             Spacer()
                             NavigationLink(destination: SleepTimelineContainer()) {
@@ -2276,7 +2420,19 @@ struct DetailsView: View {
                 .padding(.bottom, 80) // Space for tab bar
             }
             .navigationTitle("Timeline")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    ThemeToggleButton()
+                }
+            }
         }
+    }
+    
+    /// Header for sleep timeline showing day range
+    private var sleepTimelineHeader: String {
+        // Yesterday's date = last night's sleep session start
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date()
+        return SleepSessionDateFormatter.format(yesterday) + " Sleep"
     }
 }
 
@@ -2286,6 +2442,7 @@ struct HistoryView: View {
     @State private var pastSessions: [SessionSummary] = []
     @State private var showDeleteDayConfirmation = false
     @State private var refreshTrigger = false  // Toggled to force SelectedDayView refresh
+    @EnvironmentObject var themeManager: ThemeManager
     
     private let sessionRepo = SessionRepository.shared
     
@@ -2321,6 +2478,11 @@ struct HistoryView: View {
                 .padding(.bottom, 80)
             }
             .navigationTitle("History")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    ThemeToggleButton()
+                }
+            }
             .onAppear { loadHistory() }
             .alert("Delete This Day's Data?", isPresented: $showDeleteDayConfirmation) {
                 Button("Cancel", role: .cancel) { }
@@ -2433,7 +2595,7 @@ struct SelectedDayView: View {
                             Text("Dose 1")
                                 .foregroundColor(.primary)
                             Spacer()
-                            Text(dose.dose1Time.formatted(date: .omitted, time: .shortened))
+                            Text(formatDoseTime(dose.dose1Time, referenceDate: dose.dose1Time))
                                 .foregroundColor(.secondary)
                             Image(systemName: "pencil")
                                 .font(.caption)
@@ -2453,7 +2615,7 @@ struct SelectedDayView: View {
                                 Text("Dose 2")
                                     .foregroundColor(.primary)
                                 Spacer()
-                                Text(d2.formatted(date: .omitted, time: .shortened))
+                                Text(formatDoseTime(d2, referenceDate: dose.dose1Time))
                                     .foregroundColor(.secondary)
                                 Image(systemName: "pencil")
                                     .font(.caption)
@@ -2598,9 +2760,21 @@ struct SelectedDayView: View {
     }
     
     private var dateTitle: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE, MMM d"
-        return formatter.string(from: date)
+        // Get the session date key for the selected date
+        let sessionKey = sessionRepo.sessionDateString(for: date)
+        
+        // Parse session key back to date (it's in "yyyy-MM-dd" format)
+        let keyFormatter = DateFormatter()
+        keyFormatter.dateFormat = "yyyy-MM-dd"
+        keyFormatter.timeZone = .current
+        
+        if let sessionDate = keyFormatter.date(from: sessionKey) {
+            // Use day range format for sleep sessions
+            return SleepSessionDateFormatter.format(sessionDate)
+        }
+        
+        // Fallback to day range for the selected date
+        return SleepSessionDateFormatter.format(date)
     }
     
     private func loadData() {
@@ -2652,6 +2826,20 @@ struct SelectedDayView: View {
         }
         return "Started at \(start) (no end logged)"
     }
+    
+    /// Format dose time - shows weekday abbreviation if on different calendar day than reference
+    private func formatDoseTime(_ time: Date, referenceDate: Date) -> String {
+        let cal = Calendar.current
+        if cal.isDate(time, inSameDayAs: referenceDate) {
+            // Same calendar day - just show time
+            return time.formatted(date: .omitted, time: .shortened)
+        } else {
+            // Different calendar day - show "Thu 1:08 AM" format
+            let formatter = DateFormatter()
+            formatter.dateFormat = "EEE h:mm a"
+            return formatter.string(from: time)
+        }
+    }
 }
 
 // MARK: - Recent Sessions List
@@ -2692,10 +2880,15 @@ struct RecentSessionsList: View {
 struct SessionRow: View {
     let session: SessionSummary
     
+    /// Format session date as day range
+    private var formattedSessionDate: String {
+        SleepSessionDateFormatter.format(sessionDateString: session.sessionDate)
+    }
+    
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(session.sessionDate)
+                Text(formattedSessionDate)
                     .font(.subheadline.bold())
                 HStack(spacing: 8) {
                     if session.dose1Time != nil {
@@ -2734,29 +2927,30 @@ struct SessionRow: View {
 // MARK: - Full Session Details
 struct FullSessionDetails: View {
     @ObservedObject var core: DoseTapCore
+    @ObservedObject private var sessionRepo = SessionRepository.shared
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Session Details")
                 .font(.headline)
             
-            // Dose Times
+            // Dose Times - now using sessionRepo directly for consistency
             VStack(spacing: 12) {
                 DetailRow(
                     icon: "1.circle.fill",
                     title: "Dose 1",
-                    value: core.dose1Time?.formatted(date: .abbreviated, time: .shortened) ?? "Not taken",
-                    color: .blue
+                    value: sessionRepo.dose1Time?.formatted(date: .abbreviated, time: .shortened) ?? "Not taken",
+                    color: sessionRepo.dose1Time != nil ? .green : .blue
                 )
                 
                 DetailRow(
                     icon: "2.circle.fill",
                     title: "Dose 2",
                     value: dose2String,
-                    color: .green
+                    color: dose2Color
                 )
                 
-                if let dose1 = core.dose1Time {
+                if let dose1 = sessionRepo.dose1Time {
                     DetailRow(
                         icon: "clock.fill",
                         title: "Window Opens",
@@ -2771,7 +2965,7 @@ struct FullSessionDetails: View {
                         color: .red
                     )
                     
-                    if let dose2 = core.dose2Time {
+                    if let dose2 = sessionRepo.dose2Time {
                         let interval = TimeIntervalMath.minutesBetween(start: dose1, end: dose2)
                         DetailRow(
                             icon: "timer",
@@ -2785,7 +2979,7 @@ struct FullSessionDetails: View {
                 DetailRow(
                     icon: "bell.badge.fill",
                     title: "Snoozes Used",
-                    value: "\(core.snoozeCount) of 3",
+                    value: "\(sessionRepo.snoozeCount) of 3",
                     color: .orange
                 )
             }
@@ -2798,11 +2992,17 @@ struct FullSessionDetails: View {
     }
     
     private var dose2String: String {
-        if let time = core.dose2Time {
+        if let time = sessionRepo.dose2Time {
             return time.formatted(date: .abbreviated, time: .shortened)
         }
-        if core.isSkipped { return "Skipped" }
+        if sessionRepo.dose2Skipped { return "Skipped" }
         return "Pending"
+    }
+    
+    private var dose2Color: Color {
+        if sessionRepo.dose2Time != nil { return .green }
+        if sessionRepo.dose2Skipped { return .orange }
+        return .blue
     }
 }
 
@@ -3306,6 +3506,130 @@ struct WarningRow: View {
                 .frame(width: 24)
             Text(text)
                 .font(.subheadline)
+        }
+    }
+}
+
+// MARK: - Theme Toggle Components
+
+/// Compact theme toggle button for quick access on any screen
+struct ThemeToggleButton: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    @State private var showPicker = false
+    
+    var body: some View {
+        Button {
+            showPicker = true
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: themeManager.currentTheme.icon)
+                    .font(.system(size: 14, weight: .semibold))
+            }
+            .foregroundColor(themeManager.currentTheme.accentColor)
+            .frame(width: 36, height: 36)
+            .background(themeManager.currentTheme.cardBackground)
+            .clipShape(Circle())
+            .overlay(
+                Circle()
+                    .strokeBorder(themeManager.currentTheme.accentColor.opacity(0.3), lineWidth: 1)
+            )
+        }
+        .confirmationDialog("Theme", isPresented: $showPicker, titleVisibility: .hidden) {
+            ForEach(AppTheme.allCases) { theme in
+                Button {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        themeManager.applyTheme(theme)
+                    }
+                } label: {
+                    HStack {
+                        Image(systemName: theme.icon)
+                        Text(theme.rawValue)
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        }
+    }
+}
+
+/// Alternative: Segmented control style for inline placement
+struct ThemeSegmentedControl: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(AppTheme.allCases) { theme in
+                Button {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        themeManager.applyTheme(theme)
+                    }
+                } label: {
+                    VStack(spacing: 2) {
+                        Image(systemName: theme.icon)
+                            .font(.system(size: 16, weight: .semibold))
+                        Text(theme == .night ? "Night" : theme.rawValue)
+                            .font(.caption2)
+                            .lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+                    .foregroundColor(
+                        themeManager.currentTheme == theme
+                            ? themeManager.currentTheme.buttonText
+                            : themeManager.currentTheme.secondaryText
+                    )
+                    .background(
+                        themeManager.currentTheme == theme
+                            ? themeManager.currentTheme.buttonBackground
+                            : themeManager.currentTheme.cardBackground
+                    )
+                    .cornerRadius(8)
+                }
+            }
+        }
+        .padding(4)
+        .background(themeManager.currentTheme.secondaryBackground)
+        .cornerRadius(10)
+    }
+}
+
+/// Alternative: Quick cycle button (tap to cycle through themes)
+struct ThemeCycleButton: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    
+    var body: some View {
+        Button {
+            cycleTheme()
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: themeManager.currentTheme.icon)
+                    .font(.system(size: 14, weight: .semibold))
+                Text(shortLabel)
+                    .font(.caption.weight(.semibold))
+            }
+            .foregroundColor(themeManager.currentTheme.buttonText)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(themeManager.currentTheme.buttonBackground.opacity(0.8))
+            .cornerRadius(20)
+        }
+    }
+    
+    private var shortLabel: String {
+        switch themeManager.currentTheme {
+        case .light: return "Light"
+        case .dark: return "Dark"
+        case .night: return "Night"
+        }
+    }
+    
+    private func cycleTheme() {
+        withAnimation(.easeInOut(duration: 0.3)) {
+            let current = themeManager.currentTheme
+            let all = AppTheme.allCases
+            guard let index = all.firstIndex(of: current) else { return }
+            let nextIndex = (index + 1) % all.count
+            themeManager.applyTheme(all[nextIndex])
         }
     }
 }

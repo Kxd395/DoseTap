@@ -133,6 +133,25 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         currentSessionKey = storage.currentSessionDate()
         var state = storage.loadCurrentSessionState()
 
+        // CRITICAL: Check if stored session matches today's session key
+        // If stored session is for a DIFFERENT date, it's from a past night
+        // We should NOT hydrate past session data into tonight's in-memory state
+        // Instead, clear in-memory (fresh Tonight) and let IncompleteSessionBanner handle late check-in
+        if let storedSessionDate = state.sessionDate, storedSessionDate != currentSessionKey {
+            if state.terminalState != nil {
+                print("📊 SessionRepository: Stored session \(storedSessionDate) completed, current key \(currentSessionKey) → fresh start")
+            } else {
+                // Past incomplete session exists but UI should show fresh Tonight
+                // mostRecentIncompleteSession() will surface banner for late check-in
+                print("📊 SessionRepository: Stored session \(storedSessionDate) incomplete, current key \(currentSessionKey) → fresh Tonight + banner for late check-in")
+            }
+            clearInMemoryState()
+            sessionDidChange.send()
+            evaluateSessionBoundaries(reason: "reload_stale_session")
+            scheduleRolloverTimer()
+            return
+        }
+
         if let d1 = state.dose1Time, let d2 = state.dose2Time {
             let delta = d2.timeIntervalSince(d1)
             if delta < 0 || delta > 12 * 60 * 60 {
@@ -142,6 +161,17 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
                     state = storage.loadCurrentSessionState()
                 }
             }
+        }
+        
+        // CRITICAL GUARD: terminal_state != nil means session is CLOSED
+        // Do NOT hydrate published fields from closed sessions (prevents zombie UI)
+        if state.terminalState != nil {
+            print("📊 SessionRepository: Session has terminal_state=\(state.terminalState ?? ""), clearing in-memory state")
+            clearInMemoryState()
+            sessionDidChange.send()
+            evaluateSessionBoundaries(reason: "reload_closed_session")
+            scheduleRolloverTimer()
+            return
         }
         
         let resolvedSessionId = state.sessionId ?? state.sessionDate
@@ -438,8 +468,14 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         AlarmService.shared.resetForNewSession()
         
         clearInMemoryState()
+        
+        // Refresh session key calculation and trigger reload.
+        // Note: The key itself may not change (e.g., at 6:30 AM it stays "yesterday"),
+        // but reload() will now detect terminal_state and keep UI in idle state.
+        updateSessionKeyIfNeeded(reason: "session_closed_\(reason)", forceReload: true)
+        
         sessionDidChange.send()
-        scheduleRolloverTimer()
+        print("🔄 SessionRepository: Session closed, rolled to \(currentSessionKey)")
     }
     
     /// Delete a session by date string. If it's the active session, clears state.
@@ -1421,9 +1457,14 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         return storage.fetchSessionId(forSessionDate: sessionDate)
     }
     
-    /// Export all data to CSV
+    /// Export all data to CSV (basic format)
     public func exportToCSV() -> String {
         return storage.exportToCSV()
+    }
+    
+    /// Export all data to CSV (comprehensive V2 format with all tables)
+    public func exportToCSVv2() -> String {
+        return storage.exportToCSVv2()
     }
     
     // MARK: - Pre-Sleep Log Support

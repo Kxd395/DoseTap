@@ -1,0 +1,609 @@
+{
+  "" : {
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DoseTap-primary.dia",
+    "emit-module-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DoseTap-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DoseTap-primary-emit-module.dia",
+    "pch" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DoseTap-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DoseTap-primary.swiftdeps"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/AlarmService.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/AlarmService.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/AlarmService.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/AlarmService.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/AlarmService.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/AlarmService.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/AlarmService.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/AlarmService.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/AlarmService~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/AnalyticsService.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/AnalyticsService.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/AnalyticsService.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/AnalyticsService.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/AnalyticsService.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/AnalyticsService.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/AnalyticsService.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/AnalyticsService.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/AnalyticsService~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/ContentView.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/ContentView.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/ContentView.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/ContentView.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/ContentView.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/ContentView.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/ContentView.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/ContentView.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/ContentView~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/DiagnosticLoggingSettingsView.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DiagnosticLoggingSettingsView.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DiagnosticLoggingSettingsView.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DiagnosticLoggingSettingsView.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DiagnosticLoggingSettingsView.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DiagnosticLoggingSettingsView.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DiagnosticLoggingSettingsView.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DiagnosticLoggingSettingsView.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DiagnosticLoggingSettingsView~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/DoseTapApp.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DoseTapApp.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DoseTapApp.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DoseTapApp.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DoseTapApp.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DoseTapApp.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DoseTapApp.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DoseTapApp.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DoseTapApp~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/FlicButtonService.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/FlicButtonService.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/FlicButtonService.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/FlicButtonService.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/FlicButtonService.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/FlicButtonService.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/FlicButtonService.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/FlicButtonService.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/FlicButtonService~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/FullApp/DashboardView.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DashboardView.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DashboardView.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DashboardView.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DashboardView.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DashboardView.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DashboardView.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DashboardView.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DashboardView~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/FullApp/DataExportService.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DataExportService.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DataExportService.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DataExportService.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DataExportService.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DataExportService.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DataExportService.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DataExportService.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DataExportService~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/FullApp/DataStorageService.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DataStorageService.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DataStorageService.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DataStorageService.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DataStorageService.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DataStorageService.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DataStorageService.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DataStorageService.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DataStorageService~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/FullApp/DoseCoreIntegration.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DoseCoreIntegration.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DoseCoreIntegration.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DoseCoreIntegration.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DoseCoreIntegration.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DoseCoreIntegration.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DoseCoreIntegration.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DoseCoreIntegration.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DoseCoreIntegration~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/FullApp/DoseModels.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DoseModels.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DoseModels.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DoseModels.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DoseModels.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DoseModels.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DoseModels.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DoseModels.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DoseModels~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/FullApp/EnhancedNotificationService.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/EnhancedNotificationService.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/EnhancedNotificationService.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/EnhancedNotificationService.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/EnhancedNotificationService.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/EnhancedNotificationService.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/EnhancedNotificationService.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/EnhancedNotificationService.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/EnhancedNotificationService~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/FullApp/HealthIntegrationService.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthIntegrationService.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthIntegrationService.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthIntegrationService.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthIntegrationService.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthIntegrationService.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthIntegrationService.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthIntegrationService.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthIntegrationService~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/FullApp/HealthKitManager.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthKitManager.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthKitManager.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthKitManager.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthKitManager.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthKitManager.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthKitManager.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthKitManager.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthKitManager~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/FullApp/InventoryService.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/InventoryService.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/InventoryService.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/InventoryService.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/InventoryService.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/InventoryService.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/InventoryService.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/InventoryService.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/InventoryService~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/FullApp/KeychainHelper.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/KeychainHelper.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/KeychainHelper.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/KeychainHelper.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/KeychainHelper.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/KeychainHelper.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/KeychainHelper.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/KeychainHelper.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/KeychainHelper~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/FullApp/QuickLogPanel.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/QuickLogPanel.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/QuickLogPanel.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/QuickLogPanel.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/QuickLogPanel.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/QuickLogPanel.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/QuickLogPanel.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/QuickLogPanel.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/QuickLogPanel~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/FullApp/SQLiteStorage.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SQLiteStorage.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SQLiteStorage.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SQLiteStorage.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SQLiteStorage.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SQLiteStorage.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SQLiteStorage.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SQLiteStorage.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SQLiteStorage~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/FullApp/SetupWizardService.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SetupWizardService.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SetupWizardService.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SetupWizardService.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SetupWizardService.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SetupWizardService.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SetupWizardService.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SetupWizardService.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SetupWizardService~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/FullApp/SetupWizardView.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SetupWizardView.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SetupWizardView.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SetupWizardView.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SetupWizardView.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SetupWizardView.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SetupWizardView.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SetupWizardView.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SetupWizardView~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/FullApp/TimelineView.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/TimelineView.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/TimelineView.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/TimelineView.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/TimelineView.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/TimelineView.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/TimelineView.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/TimelineView.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/TimelineView~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/FullApp/TonightView.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/TonightView.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/TonightView.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/TonightView.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/TonightView.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/TonightView.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/TonightView.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/TonightView.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/TonightView~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/FullApp/UIUtils.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UIUtils.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UIUtils.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UIUtils.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UIUtils.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UIUtils.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UIUtils.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UIUtils.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UIUtils~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/FullApp/UserConfigurationManager.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UserConfigurationManager.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UserConfigurationManager.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UserConfigurationManager.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UserConfigurationManager.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UserConfigurationManager.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UserConfigurationManager.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UserConfigurationManager.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UserConfigurationManager~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/HealthKitService.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthKitService.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthKitService.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthKitService.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthKitService.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthKitService.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthKitService.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthKitService.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthKitService~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/HighContrastColors.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HighContrastColors.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HighContrastColors.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HighContrastColors.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HighContrastColors.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HighContrastColors.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HighContrastColors.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HighContrastColors.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HighContrastColors~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/InsightsCalculator.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/InsightsCalculator.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/InsightsCalculator.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/InsightsCalculator.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/InsightsCalculator.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/InsightsCalculator.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/InsightsCalculator.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/InsightsCalculator.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/InsightsCalculator~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/ReducedMotionSupport.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/ReducedMotionSupport.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/ReducedMotionSupport.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/ReducedMotionSupport.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/ReducedMotionSupport.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/ReducedMotionSupport.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/ReducedMotionSupport.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/ReducedMotionSupport.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/ReducedMotionSupport~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/Secrets.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/Secrets.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/Secrets.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/Secrets.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/Secrets.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/Secrets.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/Secrets.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/Secrets.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/Secrets~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/SecureConfig.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SecureConfig.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SecureConfig.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SecureConfig.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SecureConfig.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SecureConfig.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SecureConfig.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SecureConfig.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SecureConfig~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/Security/DatabaseSecurity.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DatabaseSecurity.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DatabaseSecurity.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DatabaseSecurity.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DatabaseSecurity.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DatabaseSecurity.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DatabaseSecurity.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DatabaseSecurity.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DatabaseSecurity~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/Security/InputValidator.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/InputValidator.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/InputValidator.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/InputValidator.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/InputValidator.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/InputValidator.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/InputValidator.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/InputValidator.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/InputValidator~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/Security/SecureLogger.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SecureLogger.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SecureLogger.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SecureLogger.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SecureLogger.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SecureLogger.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SecureLogger.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SecureLogger.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SecureLogger~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/Services/HealthKitProviding.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthKitProviding.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthKitProviding.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthKitProviding.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthKitProviding.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthKitProviding.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthKitProviding.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthKitProviding.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthKitProviding~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/SettingsView.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SettingsView.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SettingsView.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SettingsView.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SettingsView.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SettingsView.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SettingsView.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SettingsView.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SettingsView~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/SleepPlanDetailView.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SleepPlanDetailView.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SleepPlanDetailView.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SleepPlanDetailView.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SleepPlanDetailView.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SleepPlanDetailView.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SleepPlanDetailView.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SleepPlanDetailView.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SleepPlanDetailView~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/SleepStageTimeline.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SleepStageTimeline.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SleepStageTimeline.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SleepStageTimeline.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SleepStageTimeline.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SleepStageTimeline.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SleepStageTimeline.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SleepStageTimeline.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SleepStageTimeline~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/SleepTimelineOverlays.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SleepTimelineOverlays.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SleepTimelineOverlays.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SleepTimelineOverlays.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SleepTimelineOverlays.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SleepTimelineOverlays.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SleepTimelineOverlays.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SleepTimelineOverlays.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SleepTimelineOverlays~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/Storage/EncryptedEventStorage.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/EncryptedEventStorage.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/EncryptedEventStorage.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/EncryptedEventStorage.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/EncryptedEventStorage.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/EncryptedEventStorage.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/EncryptedEventStorage.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/EncryptedEventStorage.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/EncryptedEventStorage~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/Storage/EventStorage.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/EventStorage.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/EventStorage.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/EventStorage.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/EventStorage.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/EventStorage.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/EventStorage.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/EventStorage.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/EventStorage~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/Storage/SessionRepository.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SessionRepository.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SessionRepository.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SessionRepository.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SessionRepository.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SessionRepository.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SessionRepository.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SessionRepository.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SessionRepository~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/Theme/AppTheme.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/AppTheme.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/AppTheme.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/AppTheme.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/AppTheme.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/AppTheme.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/AppTheme.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/AppTheme.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/AppTheme~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/TimeIntervalMath.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/TimeIntervalMath.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/TimeIntervalMath.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/TimeIntervalMath.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/TimeIntervalMath.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/TimeIntervalMath.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/TimeIntervalMath.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/TimeIntervalMath.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/TimeIntervalMath~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/URLRouter.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/URLRouter.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/URLRouter.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/URLRouter.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/URLRouter.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/URLRouter.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/URLRouter.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/URLRouter.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/URLRouter~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/UndoStateManager.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UndoStateManager.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UndoStateManager.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UndoStateManager.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UndoStateManager.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UndoStateManager.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UndoStateManager.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UndoStateManager.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UndoStateManager~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/UserSettingsManager.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UserSettingsManager.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UserSettingsManager.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UserSettingsManager.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UserSettingsManager.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UserSettingsManager.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UserSettingsManager.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UserSettingsManager.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UserSettingsManager~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/Views/DiagnosticExportView.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DiagnosticExportView.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DiagnosticExportView.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DiagnosticExportView.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DiagnosticExportView.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DiagnosticExportView.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DiagnosticExportView.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DiagnosticExportView.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DiagnosticExportView~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/Views/EditDoseTimeView.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/EditDoseTimeView.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/EditDoseTimeView.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/EditDoseTimeView.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/EditDoseTimeView.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/EditDoseTimeView.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/EditDoseTimeView.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/EditDoseTimeView.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/EditDoseTimeView~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/Views/MedicationPickerView.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MedicationPickerView.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MedicationPickerView.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MedicationPickerView.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MedicationPickerView.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MedicationPickerView.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MedicationPickerView.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MedicationPickerView.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MedicationPickerView~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/Views/MedicationSettingsView.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MedicationSettingsView.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MedicationSettingsView.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MedicationSettingsView.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MedicationSettingsView.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MedicationSettingsView.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MedicationSettingsView.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MedicationSettingsView.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MedicationSettingsView~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/Views/MorningCheckInView.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MorningCheckInView.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MorningCheckInView.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MorningCheckInView.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MorningCheckInView.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MorningCheckInView.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MorningCheckInView.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MorningCheckInView.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MorningCheckInView~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/Views/NightReviewView.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/NightReviewView.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/NightReviewView.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/NightReviewView.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/NightReviewView.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/NightReviewView.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/NightReviewView.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/NightReviewView.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/NightReviewView~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/Views/PreSleepLogView.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/PreSleepLogView.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/PreSleepLogView.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/PreSleepLogView.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/PreSleepLogView.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/PreSleepLogView.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/PreSleepLogView.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/PreSleepLogView.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/PreSleepLogView~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/Views/ThemeSettingsView.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/ThemeSettingsView.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/ThemeSettingsView.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/ThemeSettingsView.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/ThemeSettingsView.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/ThemeSettingsView.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/ThemeSettingsView.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/ThemeSettingsView.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/ThemeSettingsView~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/Views/UndoSnackbarView.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UndoSnackbarView.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UndoSnackbarView.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UndoSnackbarView.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UndoSnackbarView.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UndoSnackbarView.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UndoSnackbarView.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UndoSnackbarView.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UndoSnackbarView~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/WHOOPDataFetching.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPDataFetching.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPDataFetching.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPDataFetching.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPDataFetching.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPDataFetching.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPDataFetching.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPDataFetching.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPDataFetching~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/WHOOPService.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPService.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPService.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPService.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPService.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPService.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPService.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPService.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPService~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/WHOOPSettingsView.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPSettingsView.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPSettingsView.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPSettingsView.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPSettingsView.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPSettingsView.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPSettingsView.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPSettingsView.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPSettingsView~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/WeeklyPlanner.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WeeklyPlanner.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WeeklyPlanner.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WeeklyPlanner.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WeeklyPlanner.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WeeklyPlanner.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WeeklyPlanner.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WeeklyPlanner.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WeeklyPlanner~partial.swiftmodule"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/DerivedSources/GeneratedAssetSymbols.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/GeneratedAssetSymbols.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/GeneratedAssetSymbols.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/GeneratedAssetSymbols.dia",
+    "index-unit-output-path" : "/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "llvm-bc" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/GeneratedAssetSymbols.bc",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/GeneratedAssetSymbols.swiftdeps",
+    "swiftmodule" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/GeneratedAssetSymbols~partial.swiftmodule"
+  }
+}

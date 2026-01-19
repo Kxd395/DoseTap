@@ -1,0 +1,44 @@
+{
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/FlicButtonService.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/FlicButtonService.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/FlicButtonService.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/FlicButtonService.dia",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/FlicButtonService.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/FlicButtonService.swiftdeps"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/HighContrastColors.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HighContrastColors.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HighContrastColors.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HighContrastColors.dia",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HighContrastColors.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HighContrastColors.swiftdeps"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/ReducedMotionSupport.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/ReducedMotionSupport.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/ReducedMotionSupport.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/ReducedMotionSupport.dia",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/ReducedMotionSupport.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/ReducedMotionSupport.swiftdeps"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/UndoStateManager.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UndoStateManager.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UndoStateManager.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UndoStateManager.dia",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UndoStateManager.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UndoStateManager.swiftdeps"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/WHOOPDataFetching.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPDataFetching.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPDataFetching.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPDataFetching.dia",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPDataFetching.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPDataFetching.swiftdeps"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/WHOOPSettingsView.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPSettingsView.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPSettingsView.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPSettingsView.dia",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPSettingsView.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WHOOPSettingsView.swiftdeps"
+  }
+}

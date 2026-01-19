@@ -559,7 +559,8 @@ struct SettingsView: View {
     }
     
     private func exportData() {
-        let csvContent = SessionRepository.shared.exportToCSV()
+        // Use comprehensive V2 export format with all tables
+        let csvContent = SessionRepository.shared.exportToCSVv2()
         
         // Create temporary file
         let tempDir = FileManager.default.temporaryDirectory

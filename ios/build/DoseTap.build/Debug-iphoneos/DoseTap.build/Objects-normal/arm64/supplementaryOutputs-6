@@ -1,0 +1,44 @@
+{
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/FullApp/DataExportService.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DataExportService.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DataExportService.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DataExportService.dia",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DataExportService.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DataExportService.swiftdeps"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/FullApp/DataStorageService.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DataStorageService.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DataStorageService.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DataStorageService.dia",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DataStorageService.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/DataStorageService.swiftdeps"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/FullApp/HealthIntegrationService.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthIntegrationService.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthIntegrationService.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthIntegrationService.dia",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthIntegrationService.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthIntegrationService.swiftdeps"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/FullApp/KeychainHelper.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/KeychainHelper.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/KeychainHelper.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/KeychainHelper.dia",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/KeychainHelper.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/KeychainHelper.swiftdeps"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/FullApp/SetupWizardService.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SetupWizardService.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SetupWizardService.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SetupWizardService.dia",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SetupWizardService.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SetupWizardService.swiftdeps"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/FullApp/UserConfigurationManager.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UserConfigurationManager.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UserConfigurationManager.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UserConfigurationManager.dia",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UserConfigurationManager.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UserConfigurationManager.swiftdeps"
+  }
+}

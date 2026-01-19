@@ -353,6 +353,7 @@ struct SessionSummaryData {
 struct LiveSleepTimelineView: View {
     @StateObject private var healthKit = HealthKitService.shared
     @StateObject private var settings = UserSettingsManager.shared
+    @ObservedObject private var sessionRepo = SessionRepository.shared
     @State private var sleepBands: [SleepStageBand] = []
     @State private var doseEvents: [TimelineEvent] = []
     @State private var sleepEvents: [StoredSleepEvent] = []
@@ -360,10 +361,20 @@ struct LiveSleepTimelineView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     
-    let nightDate: Date  // The night to display (defaults to last night)
+    let nightDate: Date?  // Optional: if nil, uses current session key from repository
     
-    init(nightDate: Date = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date()) {
+    /// Initialize with a specific date or nil to use current session
+    init(nightDate: Date? = nil) {
         self.nightDate = nightDate
+    }
+    
+    /// The effective date key for data loading - uses current session if nightDate is nil
+    private var effectiveSessionKey: String {
+        if let date = nightDate {
+            return sessionDateKey(for: date)
+        }
+        // Use current session key from repository (unified source of truth)
+        return sessionRepo.currentSessionKey
     }
     
     /// Convert a Date to the session key format (YYYY-MM-DD) used by SessionRepository
@@ -385,14 +396,24 @@ struct LiveSleepTimelineView: View {
         return formatter.string(from: effectiveDate)
     }
     
+    /// Convert session key to Date for HealthKit queries
+    private func dateFromSessionKey(_ key: String) -> Date {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: key) ?? Date()
+    }
+    
     private var timeRange: (start: Date, end: Date) {
         let calendar = Calendar.current
-        // Sleep window: 6 PM of nightDate to 12 PM next day
-        var components = calendar.dateComponents([.year, .month, .day], from: nightDate)
-        components.hour = 18
-        let start = calendar.date(from: components) ?? nightDate
+        // Use effective date from session key
+        let baseDate = nightDate ?? dateFromSessionKey(effectiveSessionKey)
         
-        let nextDay = calendar.date(byAdding: .day, value: 1, to: nightDate) ?? nightDate
+        // Sleep window: 6 PM of baseDate to 12 PM next day
+        var components = calendar.dateComponents([.year, .month, .day], from: baseDate)
+        components.hour = 18
+        let start = calendar.date(from: components) ?? baseDate
+        
+        let nextDay = calendar.date(byAdding: .day, value: 1, to: baseDate) ?? baseDate
         components = calendar.dateComponents([.year, .month, .day], from: nextDay)
         components.hour = 12
         let end = calendar.date(from: components) ?? nextDay
@@ -556,7 +577,7 @@ struct LiveSleepTimelineView: View {
     
     /// Load session summary and logged events from SessionRepository
     private func loadSessionData() async {
-        let sessionKey = sessionDateKey(for: nightDate)
+        let sessionKey = effectiveSessionKey  // Use unified session key
         let repo = SessionRepository.shared
         
         // Fetch dose events for this session
@@ -1063,7 +1084,8 @@ struct TimelineSleepEventsCard: View {
     }
     
     private func displayName(for eventType: String) -> String {
-        eventType.replacingOccurrences(of: "_", with: " ").capitalized
+        // Use centralized display name mapper
+        EventDisplayName.displayName(for: eventType)
     }
     
     var body: some View {

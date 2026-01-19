@@ -1,0 +1,23 @@
+{
+  "/Volumes/Developer/projects/DoseTap/ios/Core/CSVExporter.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/build/DoseTap.build/Debug-iphoneos/DoseCore.build/Objects-normal/arm64/CSVExporter.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/build/DoseTap.build/Debug-iphoneos/DoseCore.build/Objects-normal/arm64/CSVExporter.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/build/DoseTap.build/Debug-iphoneos/DoseCore.build/Objects-normal/arm64/CSVExporter.dia",
+    "object" : "/Volumes/Developer/projects/DoseTap/build/DoseTap.build/Debug-iphoneos/DoseCore.build/Objects-normal/arm64/CSVExporter.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/build/DoseTap.build/Debug-iphoneos/DoseCore.build/Objects-normal/arm64/CSVExporter.swiftdeps"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/Core/DataRedactor.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/build/DoseTap.build/Debug-iphoneos/DoseCore.build/Objects-normal/arm64/DataRedactor.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/build/DoseTap.build/Debug-iphoneos/DoseCore.build/Objects-normal/arm64/DataRedactor.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/build/DoseTap.build/Debug-iphoneos/DoseCore.build/Objects-normal/arm64/DataRedactor.dia",
+    "object" : "/Volumes/Developer/projects/DoseTap/build/DoseTap.build/Debug-iphoneos/DoseCore.build/Objects-normal/arm64/DataRedactor.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/build/DoseTap.build/Debug-iphoneos/DoseCore.build/Objects-normal/arm64/DataRedactor.swiftdeps"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/Core/DiagnosticEvent.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/build/DoseTap.build/Debug-iphoneos/DoseCore.build/Objects-normal/arm64/DiagnosticEvent.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/build/DoseTap.build/Debug-iphoneos/DoseCore.build/Objects-normal/arm64/DiagnosticEvent.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/build/DoseTap.build/Debug-iphoneos/DoseCore.build/Objects-normal/arm64/DiagnosticEvent.dia",
+    "object" : "/Volumes/Developer/projects/DoseTap/build/DoseTap.build/Debug-iphoneos/DoseCore.build/Objects-normal/arm64/DiagnosticEvent.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/build/DoseTap.build/Debug-iphoneos/DoseCore.build/Objects-normal/arm64/DiagnosticEvent.swiftdeps"
+  }
+}

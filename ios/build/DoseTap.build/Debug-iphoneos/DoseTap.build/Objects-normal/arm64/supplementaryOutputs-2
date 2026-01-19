@@ -1,0 +1,44 @@
+{
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/Services/HealthKitProviding.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthKitProviding.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthKitProviding.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthKitProviding.dia",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthKitProviding.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/HealthKitProviding.swiftdeps"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/SleepStageTimeline.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SleepStageTimeline.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SleepStageTimeline.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SleepStageTimeline.dia",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SleepStageTimeline.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/SleepStageTimeline.swiftdeps"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/Views/MedicationPickerView.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MedicationPickerView.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MedicationPickerView.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MedicationPickerView.dia",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MedicationPickerView.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MedicationPickerView.swiftdeps"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/Views/MedicationSettingsView.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MedicationSettingsView.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MedicationSettingsView.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MedicationSettingsView.dia",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MedicationSettingsView.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/MedicationSettingsView.swiftdeps"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/Views/UndoSnackbarView.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UndoSnackbarView.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UndoSnackbarView.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UndoSnackbarView.dia",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UndoSnackbarView.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/UndoSnackbarView.swiftdeps"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/DoseTap/WeeklyPlanner.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WeeklyPlanner.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WeeklyPlanner.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WeeklyPlanner.dia",
+    "object" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WeeklyPlanner.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/ios/build/DoseTap.build/Debug-iphoneos/DoseTap.build/Objects-normal/arm64/WeeklyPlanner.swiftdeps"
+  }
+}

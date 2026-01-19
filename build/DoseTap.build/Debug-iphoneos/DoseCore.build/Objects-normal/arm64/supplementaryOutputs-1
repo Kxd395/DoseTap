@@ -1,0 +1,23 @@
+{
+  "/Volumes/Developer/projects/DoseTap/ios/Core/APIClient.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/build/DoseTap.build/Debug-iphoneos/DoseCore.build/Objects-normal/arm64/APIClient.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/build/DoseTap.build/Debug-iphoneos/DoseCore.build/Objects-normal/arm64/APIClient.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/build/DoseTap.build/Debug-iphoneos/DoseCore.build/Objects-normal/arm64/APIClient.dia",
+    "object" : "/Volumes/Developer/projects/DoseTap/build/DoseTap.build/Debug-iphoneos/DoseCore.build/Objects-normal/arm64/APIClient.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/build/DoseTap.build/Debug-iphoneos/DoseCore.build/Objects-normal/arm64/APIClient.swiftdeps"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/Core/APIClientQueueIntegration.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/build/DoseTap.build/Debug-iphoneos/DoseCore.build/Objects-normal/arm64/APIClientQueueIntegration.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/build/DoseTap.build/Debug-iphoneos/DoseCore.build/Objects-normal/arm64/APIClientQueueIntegration.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/build/DoseTap.build/Debug-iphoneos/DoseCore.build/Objects-normal/arm64/APIClientQueueIntegration.dia",
+    "object" : "/Volumes/Developer/projects/DoseTap/build/DoseTap.build/Debug-iphoneos/DoseCore.build/Objects-normal/arm64/APIClientQueueIntegration.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/build/DoseTap.build/Debug-iphoneos/DoseCore.build/Objects-normal/arm64/APIClientQueueIntegration.swiftdeps"
+  },
+  "/Volumes/Developer/projects/DoseTap/ios/Core/APIErrors.swift" : {
+    "const-values" : "/Volumes/Developer/projects/DoseTap/build/DoseTap.build/Debug-iphoneos/DoseCore.build/Objects-normal/arm64/APIErrors.swiftconstvalues",
+    "dependencies" : "/Volumes/Developer/projects/DoseTap/build/DoseTap.build/Debug-iphoneos/DoseCore.build/Objects-normal/arm64/APIErrors.d",
+    "diagnostics" : "/Volumes/Developer/projects/DoseTap/build/DoseTap.build/Debug-iphoneos/DoseCore.build/Objects-normal/arm64/APIErrors.dia",
+    "object" : "/Volumes/Developer/projects/DoseTap/build/DoseTap.build/Debug-iphoneos/DoseCore.build/Objects-normal/arm64/APIErrors.o",
+    "swift-dependencies" : "/Volumes/Developer/projects/DoseTap/build/DoseTap.build/Debug-iphoneos/DoseCore.build/Objects-normal/arm64/APIErrors.swiftdeps"
+  }
+}

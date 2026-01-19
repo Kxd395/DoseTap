@@ -1,0 +1,4 @@
+module DoseCore {
+header "DoseCore-Swift.h"
+export *
+}

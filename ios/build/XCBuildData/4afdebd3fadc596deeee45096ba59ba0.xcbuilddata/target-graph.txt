@@ -1,0 +1,6 @@
+Target dependency graph (3 targets)
+Target 'DoseTap' in project 'DoseTap'
+➜ Explicit dependency on target 'DoseCore' in project 'DoseTap'
+Target 'DoseCore' in project 'DoseTap'
+➜ Explicit dependency on target 'DoseCore' in project 'DoseTap'
+Target 'DoseCore' in project 'DoseTap' (no dependencies)

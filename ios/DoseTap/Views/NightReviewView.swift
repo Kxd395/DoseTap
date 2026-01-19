@@ -291,8 +291,21 @@ struct PreSleepLogCard: View {
                         PreSleepRow(label: "Sleep Aids", value: aids.displayText, icon: "moon.stars")
                     }
                     
-                    // Pain
-                    if let pain = answers.bodyPain, pain != .none {
+                    // Pain (new 0-10 scale)
+                    if let painLevel = answers.painLevel010, painLevel > 0 {
+                        let painText: String = {
+                            var text = "\(painLevel)/10"
+                            if let locations = answers.painDetailedLocations, !locations.isEmpty {
+                                let locationText = locations.prefix(2).map { $0.compactText }.joined(separator: ", ")
+                                text += " – \(locationText)"
+                                if locations.count > 2 { text += ", +\(locations.count - 2) more" }
+                            }
+                            return text
+                        }()
+                        PreSleepRow(label: "Body Pain", value: painText, icon: "bandage.fill", highlight: true)
+                    }
+                    // Fallback: Legacy pain (backwards compatibility only)
+                    else if let pain = answers.legacyBodyPain, pain != .none {
                         PreSleepRow(label: "Body Pain", value: pain.displayText, icon: "bandage.fill", highlight: true)
                     }
                 }

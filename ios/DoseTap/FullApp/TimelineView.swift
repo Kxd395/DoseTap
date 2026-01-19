@@ -74,6 +74,11 @@ public struct TimelineView: View {
             } message: {
                 Text("This will permanently delete the selected session\(selectedSessionKeys.count == 1 ? "" : "s") and all associated events. This cannot be undone.")
             }
+            .sheet(isPresented: $viewModel.showExportSheet) {
+                if let url = viewModel.exportURL {
+                    ShareSheet(items: [url])
+                }
+            }
         }
         .task {
             await viewModel.load()
@@ -217,22 +222,51 @@ public struct TimelineView: View {
     }
 }
 
-/// Section header with date
+/// Section header with date range (e.g., "Thu → Fri, Jan 16-17")
 struct TimelineSectionHeader: View {
-    let date: Date
+    let date: Date  // The session start date (night of)
     
-    private var dateFormatter: DateFormatter {
+    private let calendar = Calendar.current
+    
+    /// The next day (morning after)
+    private var nextDay: Date {
+        calendar.date(byAdding: .day, value: 1, to: date) ?? date
+    }
+    
+    /// Short weekday name (e.g., "Thu")
+    private func shortWeekday(_ date: Date) -> String {
         let f = DateFormatter()
-        f.dateStyle = .medium
-        return f
+        f.dateFormat = "EEE"
+        return f.string(from: date)
     }
     
-    private var isToday: Bool {
-        Calendar.current.isDateInToday(date)
+    /// Format: "Jan 16-17" or "Dec 31-Jan 1" if months differ
+    private var dateRangeText: String {
+        let f = DateFormatter()
+        f.dateFormat = "MMM d"
+        
+        let startMonth = calendar.component(.month, from: date)
+        let endMonth = calendar.component(.month, from: nextDay)
+        
+        if startMonth == endMonth {
+            // Same month: "Jan 16-17"
+            let dayFormatter = DateFormatter()
+            dayFormatter.dateFormat = "d"
+            return "\(f.string(from: date))-\(dayFormatter.string(from: nextDay))"
+        } else {
+            // Different months: "Dec 31 – Jan 1"
+            return "\(f.string(from: date)) – \(f.string(from: nextDay))"
+        }
     }
     
-    private var isYesterday: Bool {
-        Calendar.current.isDateInYesterday(date)
+    private var isLastNight: Bool {
+        // "Last night" = session started yesterday evening
+        calendar.isDateInYesterday(date)
+    }
+    
+    private var isTonight: Bool {
+        // "Tonight" = session started today (current night in progress)
+        calendar.isDateInToday(date)
     }
     
     var body: some View {
@@ -249,9 +283,15 @@ struct TimelineSectionHeader: View {
     }
     
     private var displayText: String {
-        if isToday { return "Today" }
-        if isYesterday { return "Yesterday" }
-        return dateFormatter.string(from: date)
+        let dayRange = "\(shortWeekday(date)) → \(shortWeekday(nextDay))"
+        
+        if isTonight {
+            return "Tonight (\(dayRange))"
+        } else if isLastNight {
+            return "Last Night (\(dayRange))"
+        } else {
+            return "\(dayRange), \(dateRangeText)"
+        }
     }
 }
 
@@ -261,12 +301,43 @@ struct TimelineSessionCard: View {
     @Environment(\.colorScheme) var colorScheme
     @State private var isExpanded = false
     
+    private let calendar = Calendar.current
+    
+    // Reference date for the session (used to detect cross-midnight)
+    private var sessionStartOfDay: Date {
+        calendar.startOfDay(for: session.dose1Time)
+    }
+    
+    /// Short weekday format for session range display
+    private var sessionNightLabel: String {
+        let f = DateFormatter()
+        f.dateFormat = "EEE"
+        let startDay = f.string(from: session.dose1Time)
+        
+        // Determine end day from dose2 or estimate next morning
+        let endDate: Date
+        if let dose2 = session.dose2Time {
+            endDate = dose2
+        } else {
+            // Assume next morning if no dose2
+            endDate = calendar.date(byAdding: .day, value: 1, to: session.dose1Time) ?? session.dose1Time
+        }
+        let endDay = f.string(from: endDate)
+        
+        // Only show range if days differ
+        if startDay != endDay {
+            return "\(startDay) → \(endDay) Sleep"
+        } else {
+            return "\(startDay) Sleep"
+        }
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Header with dose times
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Session")
+                    Text(sessionNightLabel)
                         .font(.caption)
                         .foregroundColor(.secondary)
                     
@@ -339,15 +410,39 @@ struct TimelineSessionCard: View {
         )
     }
     
+    /// Check if a date is on a different calendar day than session start
+    private func isDifferentDay(_ date: Date) -> Bool {
+        !calendar.isDate(date, inSameDayAs: sessionStartOfDay)
+    }
+    
+    /// Format time, adding date indicator if it's a different day
+    private func formatDateTime(_ date: Date) -> String {
+        if isDifferentDay(date) {
+            return dateTimeFormatter.string(from: date)
+        } else {
+            return timeFormatter.string(from: date)
+        }
+    }
+    
     private func doseTimeView(label: String, time: Date, color: Color) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label)
                 .font(.caption2)
                 .foregroundColor(.secondary)
-            Text(timeFormatter.string(from: time))
-                .font(.subheadline)
-                .fontWeight(.medium)
-                .foregroundColor(color)
+            
+            VStack(alignment: .leading, spacing: 1) {
+                Text(timeFormatter.string(from: time))
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(color)
+                
+                // Show date if different from session start day
+                if isDifferentDay(time) {
+                    Text(shortDateFormatter.string(from: time))
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
         }
     }
     
@@ -402,15 +497,36 @@ struct TimelineSessionCard: View {
             
             Spacer()
             
-            Text(timeFormatter.string(from: event.timestamp))
-                .font(.caption)
-                .foregroundColor(.secondary)
+            // Show date+time if event is on different day than session start
+            VStack(alignment: .trailing, spacing: 1) {
+                Text(timeFormatter.string(from: event.timestamp))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                if isDifferentDay(event.timestamp) {
+                    Text(shortDateFormatter.string(from: event.timestamp))
+                        .font(.caption2)
+                        .foregroundColor(.secondary.opacity(0.7))
+                }
+            }
         }
     }
     
     private var timeFormatter: DateFormatter {
         let f = DateFormatter()
         f.timeStyle = .short
+        return f
+    }
+    
+    private var shortDateFormatter: DateFormatter {
+        let f = DateFormatter()
+        f.dateFormat = "MMM d"  // e.g., "Jan 19"
+        return f
+    }
+    
+    private var dateTimeFormatter: DateFormatter {
+        let f = DateFormatter()
+        f.dateFormat = "MMM d, h:mm a"  // e.g., "Jan 19, 3:00 AM"
         return f
     }
 }
@@ -428,6 +544,8 @@ class TimelineViewModel: ObservableObject {
     
     @Published var state: State = .loading
     @Published var groupedSessions: [Date: [TimelineSession]] = [:]
+    @Published var showExportSheet = false
+    @Published var exportURL: URL?
     
     // Use SessionRepository as the single source of truth
     private let sessionRepo = SessionRepository.shared
@@ -478,10 +596,23 @@ class TimelineViewModel: ObservableObject {
         }
     }
     
+    /// Export session data to CSV and present share sheet
     func exportCSV() {
-        let csv = sessionRepo.exportToCSV()
-        // TODO: Present share sheet with CSV
-        print("CSV Export:\n\(csv)")
+        // Use comprehensive V2 export format with all tables
+        let csv = sessionRepo.exportToCSVv2()
+        
+        // Write CSV to temporary file
+        let fileName = "DoseTap_Export_\(dateFormatter.string(from: Date())).csv"
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        
+        do {
+            try csv.write(to: tempURL, atomically: true, encoding: .utf8)
+            exportURL = tempURL
+            showExportSheet = true
+            print("✅ CSV exported to: \(tempURL.path)")
+        } catch {
+            print("❌ CSV export failed: \(error.localizedDescription)")
+        }
     }
     
     /// Delete a session by its canonical session key (yyyy-MM-dd)

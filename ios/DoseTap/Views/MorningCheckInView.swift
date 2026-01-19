@@ -231,6 +231,14 @@ class MorningCheckInViewModel: ObservableObject {
     
     @Published var hasPhysicalSymptoms: Bool = false
     @Published var hasRespiratorySymptoms: Bool = false
+    
+    // New detailed pain tracking (0-10 scale)
+    @Published var wakePainLevel: Int? = nil
+    @Published var wakePainLocations: [PainLocationDetail] = []
+    @Published var wakePainPrimary: PainLocationDetail? = nil
+    @Published var wakePainRadiation: PainRadiation? = nil
+    
+    // Legacy pain tracking (deprecated, kept for backwards compatibility)
     @Published var painLocations: Set<BodyPart> = []
     @Published var painSeverity: Int = 0
     @Published var painType: PainType = .aching
@@ -241,6 +249,7 @@ class MorningCheckInViewModel: ObservableObject {
     @Published var muscleStiffness: StiffnessLevel = .none
     @Published var muscleSoreness: SorenessLevel = .none
     @Published var painNotes: String = ""
+    
     @Published var congestion: CongestionType = .none
     @Published var throatCondition: ThroatCondition = .normal
     @Published var coughType: CoughType = .none
@@ -266,6 +275,12 @@ class MorningCheckInViewModel: ObservableObject {
     @Published var showNarcolepsySection: Bool = false
     @Published var showSleepTherapySection: Bool = false
     
+    // Pain delta tracking
+    @Published var preSleepPain: PainSnapshot?
+    @Published var painDelta: PainSnapshot.Delta?
+    @Published var painWokeUser: Bool = false  // Did pain interrupt sleep?
+    @Published var showPainDeltaSection: Bool = false
+    
     private static let rememberSettingsKey = "morningCheckIn.rememberSettings"
     private static let savedSettingsKey = "morningCheckIn.savedSettings"
     
@@ -273,6 +288,15 @@ class MorningCheckInViewModel: ObservableObject {
         self.sessionId = sessionId
         self.sessionDate = sessionDate
         loadSavedSettings()
+        loadPreSleepPain()
+    }
+    
+    private func loadPreSleepPain() {
+        // Check if there's a pre-sleep pain snapshot for this session
+        if let snapshot = EventStorage.shared.getPainSnapshot(sessionId: sessionId, context: .preSleep) {
+            preSleepPain = snapshot
+            showPainDeltaSection = true
+        }
     }
     
     private func loadSavedSettings() {
@@ -383,6 +407,48 @@ class MorningCheckInViewModel: ObservableObject {
         await MainActor.run {
             SessionRepository.shared.saveMorningCheckIn(checkIn, sessionDateOverride: sessionDate)
         }
+        
+        // Save wake pain snapshot
+        // Priority 1: If there's a pre-sleep baseline and delta selected, use those
+        if let preSleep = preSleepPain, let delta = painDelta {
+            let wakeLevel: Int = {
+                let baseline = preSleep.overallLevel
+                switch delta {
+                case .muchBetter: return max(0, baseline - 4)
+                case .better: return max(0, baseline - 2)
+                case .same: return baseline
+                case .worse: return min(10, baseline + 2)
+                case .muchWorse: return min(10, baseline + 4)
+                }
+            }()
+            
+            let wakeSnapshot = PainSnapshot(
+                context: .wake,
+                overallLevel: wakeLevel,
+                locations: preSleep.locations,
+                primaryLocation: preSleep.primaryLocation,
+                radiation: preSleep.radiation,
+                painWokeUser: painWokeUser,
+                sessionId: sessionId,
+                delta: delta
+            )
+            EventStorage.shared.savePainSnapshot(wakeSnapshot)
+        }
+        // Priority 2: If no pre-sleep but user reported wake pain directly, save that
+        else if let wakeLevel = wakePainLevel, wakeLevel > 0 {
+            let wakeSnapshot = PainSnapshot(
+                context: .wake,
+                overallLevel: wakeLevel,
+                locations: wakePainLocations,
+                primaryLocation: wakePainPrimary,
+                radiation: wakePainRadiation,
+                painWokeUser: painWokeUser,
+                sessionId: sessionId,
+                delta: nil  // No baseline to compare to
+            )
+            EventStorage.shared.savePainSnapshot(wakeSnapshot)
+        }
+        
         isSubmitting = false
     }
 }
@@ -405,6 +471,7 @@ public struct MorningCheckInView: View {
                 VStack(spacing: 24) {
                     headerSection
                     quickModeSection
+                    if viewModel.showPainDeltaSection { painDeltaSection }
                     symptomTogglesSection
                     if viewModel.hasPhysicalSymptoms { physicalSymptomsSection }
                     if viewModel.hasRespiratorySymptoms { respiratorySymptomsSection }
@@ -471,6 +538,110 @@ public struct MorningCheckInView: View {
         }
     }
     
+    // MARK: - Pain Delta Section
+    /// Shows pre-sleep pain baseline and quick delta buttons
+    private var painDeltaSection: some View {
+        VStack(spacing: 12) {
+            // Header showing pre-sleep baseline
+            HStack {
+                Image(systemName: "bed.double.fill")
+                    .foregroundColor(.purple)
+                Text("Pain Check")
+                    .font(.headline)
+                Spacer()
+            }
+            
+            // Pre-sleep reference card
+            if let preSleep = viewModel.preSleepPain {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Before bed:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text(preSleep.summary)
+                            .font(.subheadline.bold())
+                    }
+                    Spacer()
+                    Image(systemName: "moon.zzz.fill")
+                        .foregroundColor(.indigo)
+                }
+                .padding()
+                .background(Color.purple.opacity(0.1))
+                .cornerRadius(12)
+                
+                // Delta selection buttons
+                VStack(spacing: 8) {
+                    Text("How does it feel now?")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    
+                    HStack(spacing: 8) {
+                        painDeltaButton(delta: .muchBetter)
+                        painDeltaButton(delta: .better)
+                        painDeltaButton(delta: .same)
+                        painDeltaButton(delta: .worse)
+                        painDeltaButton(delta: .muchWorse)
+                    }
+                }
+                
+                // "Did pain wake you up?" toggle
+                Toggle(isOn: $viewModel.painWokeUser) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "moon.stars.fill")
+                            .foregroundColor(.yellow)
+                        Text("Pain woke me up during the night")
+                            .font(.subheadline)
+                    }
+                }
+                .toggleStyle(SwitchToggleStyle(tint: .red))
+                .padding()
+                .background(Color(.tertiarySystemGroupedBackground))
+                .cornerRadius(10)
+            }
+        }
+        .padding()
+        .background(Color(.secondarySystemGroupedBackground))
+        .cornerRadius(16)
+    }
+    
+    private func painDeltaButton(delta: PainSnapshot.Delta) -> some View {
+        let isSelected = viewModel.painDelta == delta
+        return Button {
+            withAnimation(.spring(response: 0.2)) {
+                viewModel.painDelta = delta
+            }
+        } label: {
+            VStack(spacing: 4) {
+                Text(delta.emoji)
+                    .font(.title3)
+                Text(delta.displayText)
+                    .font(.caption2)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(isSelected ? deltaColor(for: delta).opacity(0.2) : Color(.tertiarySystemGroupedBackground))
+            .foregroundColor(isSelected ? deltaColor(for: delta) : .secondary)
+            .cornerRadius(10)
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(isSelected ? deltaColor(for: delta) : Color.clear, lineWidth: 2)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+    
+    private func deltaColor(for delta: PainSnapshot.Delta) -> Color {
+        switch delta {
+        case .muchBetter: return .green
+        case .better: return .mint
+        case .same: return .orange
+        case .worse: return .red
+        case .muchWorse: return .red
+        }
+    }
+    
     private func symptomToggleButton(title: String, icon: String, isActive: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 8) {
@@ -485,23 +656,32 @@ public struct MorningCheckInView: View {
     }
     
     private var physicalSymptomsSection: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 20) {
             Text("Physical Symptoms").font(.headline).frame(maxWidth: .infinity, alignment: .leading)
-            cardView(title: "Where does it hurt?", icon: "figure.arms.open") {
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 8) {
-                    ForEach(BodyPart.allCases, id: \.self) { part in bodyPartButton(part) }
-                }
-            }
-            if !viewModel.painLocations.isEmpty {
-                cardView(title: "Pain Severity", icon: "gauge.with.dots.needle.bottom.50percent") {
-                    VStack(spacing: 8) {
-                        Slider(value: Binding(get: { Double(viewModel.painSeverity) }, set: { viewModel.painSeverity = Int($0) }), in: 0...10, step: 1).tint(.red)
-                        Text("\(viewModel.painSeverity)/10").font(.headline).foregroundColor(.red)
+            
+            // Pain level picker (0-10 scale)
+            PainLevelPicker(
+                selectedLevel: $viewModel.wakePainLevel,
+                context: "currently"
+            )
+            
+            // Show location details if pain > 0
+            if let level = viewModel.wakePainLevel, level > 0 {
+                Group {
+                    PainLocationPicker(
+                        selectedLocations: $viewModel.wakePainLocations,
+                        primaryLocation: $viewModel.wakePainPrimary
+                    )
+                    
+                    // Radiation (if back/neck/leg pain selected)
+                    if viewModel.wakePainLocations.contains(where: { $0.region.supportsRadiation }) {
+                        RadiationPicker(radiation: $viewModel.wakePainRadiation)
                     }
                 }
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
-            Toggle("Headache", isOn: $viewModel.hasHeadache).padding().background(Color(.secondarySystemGroupedBackground)).cornerRadius(12)
-        }.transition(.asymmetric(insertion: .push(from: .top), removal: .opacity))
+        }
+        .transition(.asymmetric(insertion: .push(from: .top), removal: .opacity))
     }
     
     private var respiratorySymptomsSection: some View {
