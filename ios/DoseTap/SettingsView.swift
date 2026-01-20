@@ -64,6 +64,49 @@ struct SettingsView: View {
                     Text("Configure when you'll be reminded to take Dose 2, and how long you have to undo actions.")
                 }
 
+                // MARK: - Dose Amount Settings
+                Section {
+                    NavigationLink {
+                        RegimenSetupView { regimen in
+                            // Save regimen to UserDefaults for now
+                            UserDefaults.standard.set(regimen.targetTotalAmountValue, forKey: "regimen_total_mg")
+                            UserDefaults.standard.set(regimen.splitPartsRatio, forKey: "regimen_split_ratio")
+                        }
+                    } label: {
+                        HStack {
+                            Label("Dose Amount", systemImage: "scalemass.fill")
+                            Spacer()
+                            let totalMg = UserDefaults.standard.double(forKey: "regimen_total_mg")
+                            if totalMg > 0 {
+                                Text(String(format: "%.2fg", totalMg / 1000))
+                                    .foregroundColor(.secondary)
+                            } else {
+                                Text("Not set")
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    
+                    // Show current split if configured
+                    if let ratios = UserDefaults.standard.array(forKey: "regimen_split_ratio") as? [Double],
+                       ratios.count >= 2 {
+                        HStack {
+                            Text("Split Ratio")
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Text(String(format: "%.0f/%.0f", ratios[0] * 100, ratios[1] * 100))
+                                .foregroundColor(.secondary)
+                        }
+                        .font(.caption)
+                    }
+                } header: {
+                    Label("Dose Amount", systemImage: "pills.fill")
+                        .font(.headline)
+                } footer: {
+                    Text("Set your prescribed total nightly dose and split ratio. Amounts can be adjusted when logging each dose.")
+                }
+
+
                 // MARK: - Night Schedule
                 Section {
                     DatePicker("Sleep Start", selection: sleepStartBinding, displayedComponents: .hourAndMinute)

@@ -227,6 +227,18 @@ public struct TotalNightlyDosePicker: View {
                         )
                     }
                 }
+
+            // Off-label warning if any dose exceeds 4.5g
+            let maxSingleDose = splitRatio.map { totalAmountMg * $0 }.max() ?? 0
+            if maxSingleDose > 4500 {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.orange)
+                    Text("Single dose exceeds 4.5g (off-label)")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                }
+                .padding(.top, 4)
             }
             
             // Split ratio selector

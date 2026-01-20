@@ -499,6 +499,13 @@ extension Regimen {
     public static func xyremMax(startAt: Date = Date()) -> Regimen {
         xyrem(totalGrams: 9.0, startAt: startAt)
     }
+
+    /// Bigger earlier dose (60/40 split)
+    public static func biggerEarlier(
+        medicationId: String,
+        totalMg: Double,
+        startAt: Date = Date()
+    ) -> Regimen {
         Regimen(
             medicationId: medicationId,
             startAt: startAt,
@@ -510,7 +517,6 @@ extension Regimen {
             notes: "Bigger first dose (60/40)"
         )
     }
-    
     /// Single dose, no split
     public static func singleDose(
         medicationId: String,
