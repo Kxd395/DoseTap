@@ -307,6 +307,11 @@ public struct SplitRatioSelector: View {
         )
     }
     
+    /// Check if current ratio is a two-part split
+    private var isTwoPartSplit: Bool {
+        splitRatio.count == 2
+    }
+    
     public var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Split Ratio")
@@ -332,9 +337,13 @@ public struct SplitRatioSelector: View {
                         }
                     }
                     
-                    // Custom button
+                    // Custom button - auto-nudges ratio to make custom state real
                     Button(action: {
                         customMode = true
+                        // Auto-nudge to non-preset ratio so custom state is immediately real
+                        if presets.contains(where: { isSelected($0.ratio) }) {
+                            splitRatio = [0.51, 0.49]
+                        }
                     }) {
                         Text("Custom")
                             .font(.caption)
@@ -348,37 +357,39 @@ public struct SplitRatioSelector: View {
                 }
             }
             
-            // Custom slider for fine adjustment
-            VStack(spacing: 4) {
-                HStack {
-                    Text("Dose 1")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Text("\(Int(round(dose1Percentage.wrappedValue)))%")
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.blue)
+            // Custom slider for fine adjustment - only shown for two-part splits
+            if isTwoPartSplit {
+                VStack(spacing: 4) {
+                    HStack {
+                        Text("Dose 1")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text("\(Int(round(dose1Percentage.wrappedValue)))%")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.blue)
+                    }
+                    
+                    Slider(value: dose1Percentage, in: 30...70, step: 1)
+                        .accentColor(.blue)
+                    
+                    HStack {
+                        Text("30%")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text("70%")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
                 }
-                
-                Slider(value: dose1Percentage, in: 30...70, step: 1)
-                    .accentColor(.blue)
-                
-                HStack {
-                    Text("30%")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Text("70%")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                .padding(.top, 8)
+                .onChange(of: dose1Percentage.wrappedValue) { _ in
+                    // Auto-detect custom mode based on whether ratio matches a preset
+                    let matchesPreset = presets.contains { isSelected($0.ratio) }
+                    customMode = !matchesPreset
                 }
-            }
-            .padding(.top, 8)
-            .onChange(of: dose1Percentage.wrappedValue) { _ in
-                // Auto-detect custom mode
-                let matchesPreset = presets.contains { isSelected($0.ratio) }
-                customMode = !matchesPreset
             }
         }
     }
@@ -501,6 +512,20 @@ public struct RegimenSetupView: View {
     @State private var totalAmountMg: Double = 4500
     @State private var splitRatio: [Double] = [0.5, 0.5]
     @State private var notes: String = ""
+    @State private var showingOffLabelAlert: Bool = false
+    
+    /// Maximum allowed per-dose amount in mg (4.5g)
+    private let maxDoseMg: Double = 4500
+    
+    /// Calculate the maximum single dose in current configuration
+    private var maxSingleDoseMg: Double {
+        splitRatio.map { totalAmountMg * $0 }.max() ?? 0
+    }
+    
+    /// Whether current configuration exceeds per-dose maximum
+    private var exceedsMaxDose: Bool {
+        maxSingleDoseMg > maxDoseMg
+    }
     
     public init(
         medicationId: String = "xyrem",
@@ -549,7 +574,7 @@ public struct RegimenSetupView: View {
                     .padding()
                     
                     // Save button
-                    Button(action: saveRegimen) {
+                    Button(action: attemptSave) {
                         HStack {
                             Image(systemName: "checkmark.circle.fill")
                             Text("Save Regimen")
@@ -579,11 +604,28 @@ public struct RegimenSetupView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        saveRegimen()
+                        attemptSave()
                     }
                     .fontWeight(.bold)
                 }
             }
+            .alert("Off-Label Dosing", isPresented: $showingOffLabelAlert) {
+                Button("Cancel", role: .cancel) { }
+                Button("Save Anyway", role: .destructive) {
+                    saveRegimen()
+                }
+            } message: {
+                Text("This regimen includes a single dose of \(formatGrams(maxSingleDoseMg)), which exceeds the maximum recommended 4.5g per dose. Only continue if explicitly prescribed by your doctor.")
+            }
+        }
+    }
+    
+    /// Attempt to save - shows alert if over max dose, otherwise saves directly
+    private func attemptSave() {
+        if exceedsMaxDose {
+            showingOffLabelAlert = true
+        } else {
+            saveRegimen()
         }
     }
     
@@ -600,6 +642,11 @@ public struct RegimenSetupView: View {
         )
         onSave(regimen)
         dismiss()
+    }
+    
+    private func formatGrams(_ mg: Double) -> String {
+        let grams = mg / 1000.0
+        return String(format: "%.2fg", grams)
     }
 }
 
