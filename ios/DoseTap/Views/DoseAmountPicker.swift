@@ -285,6 +285,7 @@ private struct SplitDosePreview: View {
 /// Selector for choosing split ratio
 public struct SplitRatioSelector: View {
     @Binding var splitRatio: [Double]
+    @State private var customMode: Bool = false
     
     let presets: [(name: String, ratio: [Double])] = [
         ("50/50", [0.5, 0.5]),
@@ -294,29 +295,90 @@ public struct SplitRatioSelector: View {
         ("45/55", [0.45, 0.55])
     ]
     
+    // Computed binding for the slider (first dose percentage)
+    private var dose1Percentage: Binding<Double> {
+        Binding(
+            get: { (splitRatio.first ?? 0.5) * 100 },
+            set: { newValue in
+                let ratio1 = newValue / 100.0
+                let ratio2 = 1.0 - ratio1
+                splitRatio = [ratio1, ratio2]
+            }
+        )
+    }
+    
     public var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             Text("Split Ratio")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
             
+            // Preset buttons
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(presets, id: \.name) { preset in
                         Button(action: {
                             splitRatio = preset.ratio
+                            customMode = false
                         }) {
                             Text(preset.name)
                                 .font(.caption)
                                 .fontWeight(isSelected(preset.ratio) ? .bold : .regular)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 8)
-                                .background(isSelected(preset.ratio) ? Color.blue : Color.gray.opacity(0.2))
-                                .foregroundColor(isSelected(preset.ratio) ? .white : .primary)
+                                .background(isSelected(preset.ratio) && !customMode ? Color.blue : Color.gray.opacity(0.2))
+                                .foregroundColor(isSelected(preset.ratio) && !customMode ? .white : .primary)
                                 .cornerRadius(8)
                         }
                     }
+                    
+                    // Custom button
+                    Button(action: {
+                        customMode = true
+                    }) {
+                        Text("Custom")
+                            .font(.caption)
+                            .fontWeight(customMode ? .bold : .regular)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(customMode ? Color.orange : Color.gray.opacity(0.2))
+                            .foregroundColor(customMode ? .white : .primary)
+                            .cornerRadius(8)
+                    }
                 }
+            }
+            
+            // Custom slider for fine adjustment
+            VStack(spacing: 4) {
+                HStack {
+                    Text("Dose 1")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text("\(Int(round(dose1Percentage.wrappedValue)))%")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.blue)
+                }
+                
+                Slider(value: dose1Percentage, in: 30...70, step: 1)
+                    .accentColor(.blue)
+                
+                HStack {
+                    Text("30%")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text("70%")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(.top, 8)
+            .onChange(of: dose1Percentage.wrappedValue) { _ in
+                // Auto-detect custom mode
+                let matchesPreset = presets.contains { isSelected($0.ratio) }
+                customMode = !matchesPreset
             }
         }
     }
@@ -509,6 +571,12 @@ public struct RegimenSetupView: View {
                     Button("Cancel") {
                         dismiss()
                     }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        saveRegimen()
+                    }
+                    .fontWeight(.bold)
                 }
             }
         }
