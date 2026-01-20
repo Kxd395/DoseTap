@@ -562,7 +562,12 @@ public struct RegimenSetupView: View {
                         .cornerRadius(12)
                     }
                     .padding()
+                    
+                    // Extra padding for tab bar
+                    Spacer()
+                        .frame(height: 100)
                 }
+                .padding(.bottom, 20)
             }
             .navigationTitle("Setup Regimen")
             .navigationBarTitleDisplayMode(.inline)
