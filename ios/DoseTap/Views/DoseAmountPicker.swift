@@ -12,6 +12,7 @@
 //
 
 import SwiftUI
+import DoseCore
 
 // MARK: - Dose Amount Configuration
 
@@ -228,9 +229,12 @@ public struct TotalNightlyDosePicker: View {
                     }
                 }
 
+
+            // Split ratio selector
+            SplitRatioSelector(splitRatio: $splitRatio)
+
             // Off-label warning if any dose exceeds 4.5g
-            let maxSingleDose = splitRatio.map { totalAmountMg * $0 }.max() ?? 0
-            if maxSingleDose > 4500 {
+            if (splitRatio.map { totalAmountMg * $0 }.max() ?? 0) > 4500 {
                 HStack {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundColor(.orange)
@@ -240,9 +244,7 @@ public struct TotalNightlyDosePicker: View {
                 }
                 .padding(.top, 4)
             }
-            
-            // Split ratio selector
-            SplitRatioSelector(splitRatio: $splitRatio)
+            }
         }
         .padding()
     }

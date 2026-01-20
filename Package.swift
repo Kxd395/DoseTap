@@ -36,7 +36,8 @@ let package = Package(
                 "EventStore.swift",
                 "TimeIntervalMath.swift",
                 "DiagnosticEvent.swift",
-                "DiagnosticLogger.swift"
+                "DiagnosticLogger.swift",
+                "DosingModels.swift"
             ]
         ),
         .testTarget(
