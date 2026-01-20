@@ -10,6 +10,8 @@ struct SettingsView: View {
     @State private var showingExportSuccess = false
     @State private var showingExportSheet = false
     @State private var exportURL: URL?
+    @State private var savedRegimenTotalMg: Double = UserDefaults.standard.double(forKey: "regimen_total_mg")
+    @State private var savedRegimenSplitRatio: [Double] = UserDefaults.standard.array(forKey: "regimen_split_ratio") as? [Double] ?? []
     @ObservedObject private var urlRouter = URLRouter.shared
     @ObservedObject private var sleepPlanStore = SleepPlanStore.shared
     
@@ -68,17 +70,19 @@ struct SettingsView: View {
                 Section {
                     NavigationLink {
                         RegimenSetupView { regimen in
-                            // Save regimen to UserDefaults for now
+                            // Save regimen to UserDefaults
                             UserDefaults.standard.set(regimen.targetTotalAmountValue, forKey: "regimen_total_mg")
                             UserDefaults.standard.set(regimen.splitPartsRatio, forKey: "regimen_split_ratio")
+                            // Update state to refresh the view
+                            savedRegimenTotalMg = regimen.targetTotalAmountValue
+                            savedRegimenSplitRatio = regimen.splitPartsRatio
                         }
                     } label: {
                         HStack {
                             Label("Dose Amount", systemImage: "scalemass.fill")
                             Spacer()
-                            let totalMg = UserDefaults.standard.double(forKey: "regimen_total_mg")
-                            if totalMg > 0 {
-                                Text(String(format: "%.2fg", totalMg / 1000))
+                            if savedRegimenTotalMg > 0 {
+                                Text(String(format: "%.2fg", savedRegimenTotalMg / 1000))
                                     .foregroundColor(.secondary)
                             } else {
                                 Text("Not set")
@@ -88,13 +92,12 @@ struct SettingsView: View {
                     }
                     
                     // Show current split if configured
-                    if let ratios = UserDefaults.standard.array(forKey: "regimen_split_ratio") as? [Double],
-                       ratios.count >= 2 {
+                    if savedRegimenSplitRatio.count >= 2 {
                         HStack {
                             Text("Split Ratio")
                                 .foregroundColor(.secondary)
                             Spacer()
-                            Text(String(format: "%.0f/%.0f", ratios[0] * 100, ratios[1] * 100))
+                            Text(String(format: "%.0f/%.0f", savedRegimenSplitRatio[0] * 100, savedRegimenSplitRatio[1] * 100))
                                 .foregroundColor(.secondary)
                         }
                         .font(.caption)
