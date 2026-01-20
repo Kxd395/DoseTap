@@ -41,6 +41,11 @@ struct DoseTapApp: App {
                 tier3Enabled: settings.diagnosticTier3Enabled
             )
         }
+
+        // Ensure storage migrations run at app launch.
+        Task { @MainActor in
+            _ = EventStorage.shared
+        }
         
         // Register for timezone change notifications
         NotificationCenter.default.addObserver(

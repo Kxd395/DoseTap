@@ -61,6 +61,25 @@ final class SessionIdBackfillTests: XCTestCase {
         let date = formatter.date(from: dateStr)
         XCTAssertNotNil(date, "Should parse ISO8601 without fractional seconds")
     }
+
+    // MARK: - Deterministic UUID Tests
+
+    func test_deterministicUUID_sameInputSameOutput() {
+        let uuid1 = deterministicSessionUUID(for: "2026-01-03")
+        let uuid2 = deterministicSessionUUID(for: "2026-01-03")
+        XCTAssertEqual(uuid1, uuid2)
+    }
+
+    func test_deterministicUUID_differentInputDifferentOutput() {
+        let uuid1 = deterministicSessionUUID(for: "2026-01-03")
+        let uuid2 = deterministicSessionUUID(for: "2026-01-04")
+        XCTAssertNotEqual(uuid1, uuid2)
+    }
+
+    func test_deterministicUUID_validFormat() {
+        let uuid = deterministicSessionUUID(for: "2026-01-03")
+        XCTAssertNotNil(UUID(uuidString: uuid))
+    }
     
     // MARK: - Helpers
     

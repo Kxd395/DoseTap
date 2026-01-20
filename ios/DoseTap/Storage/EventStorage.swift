@@ -234,6 +234,8 @@ public class EventStorage {
         // Migration: Add new columns to existing tables (safe to run multiple times)
         migrateDatabase()
         migrateEventTypesIfNeeded()
+        migrateSessionIdsToUUIDIfNeeded()
+        deduplicateLegacyEntriesIfNeeded()
     }
     
     /// Add new columns if they don't exist (safe migration)
@@ -320,6 +322,115 @@ public class EventStorage {
 
         UserDefaults.standard.set(true, forKey: flagKey)
         print("🔧 EventStorage: Normalized sleep_events types and purged dose rows")
+    }
+
+    // MARK: - Session ID UUID Migration
+
+    private func migrateSessionIdsToUUIDIfNeeded() {
+        let flagKey = "session_id_uuid_migration_v1"
+        guard !UserDefaults.standard.bool(forKey: flagKey) else { return }
+
+        let legacyIds = fetchLegacySessionIds()
+        guard !legacyIds.isEmpty else {
+            UserDefaults.standard.set(true, forKey: flagKey)
+            return
+        }
+
+        sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
+        for legacyId in legacyIds {
+            let newId = deterministicSessionUUID(for: legacyId)
+            if legacyId == newId { continue }
+            updateSessionId(in: "dose_events", oldId: legacyId, newId: newId)
+            updateSessionId(in: "sleep_events", oldId: legacyId, newId: newId)
+            updateSessionId(in: "sleep_sessions", oldId: legacyId, newId: newId)
+            updateSessionId(in: "current_session", oldId: legacyId, newId: newId)
+            updateSessionId(in: "morning_checkins", oldId: legacyId, newId: newId)
+            updateSessionId(in: "pre_sleep_logs", oldId: legacyId, newId: newId)
+            updateSessionId(in: "medication_events", oldId: legacyId, newId: newId)
+        }
+        sqlite3_exec(db, "COMMIT", nil, nil, nil)
+
+        UserDefaults.standard.set(true, forKey: flagKey)
+        print("🔧 EventStorage: Migrated \(legacyIds.count) legacy session IDs to UUIDs")
+    }
+
+    private func fetchLegacySessionIds() -> [String] {
+        let sql = """
+        SELECT DISTINCT session_id FROM dose_events WHERE session_id IS NOT NULL
+        UNION SELECT DISTINCT session_id FROM sleep_events WHERE session_id IS NOT NULL
+        UNION SELECT DISTINCT session_id FROM sleep_sessions WHERE session_id IS NOT NULL
+        UNION SELECT DISTINCT session_id FROM current_session WHERE session_id IS NOT NULL
+        UNION SELECT DISTINCT session_id FROM morning_checkins WHERE session_id IS NOT NULL
+        UNION SELECT DISTINCT session_id FROM pre_sleep_logs WHERE session_id IS NOT NULL
+        UNION SELECT DISTINCT session_id FROM medication_events WHERE session_id IS NOT NULL
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
+        defer { sqlite3_finalize(stmt) }
+
+        var results: [String] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            guard let valuePtr = sqlite3_column_text(stmt, 0) else { continue }
+            let value = String(cString: valuePtr)
+            if isLegacySessionKey(value) {
+                results.append(value)
+            }
+        }
+        return results
+    }
+
+    private func isLegacySessionKey(_ value: String) -> Bool {
+        guard value.count == 10 else { return false }
+        let chars = Array(value)
+        guard chars[4] == "-", chars[7] == "-" else { return false }
+        let digitIndices = [0, 1, 2, 3, 5, 6, 8, 9]
+        return digitIndices.allSatisfy { chars[$0].isNumber }
+    }
+
+    private func updateSessionId(in table: String, oldId: String, newId: String) {
+        let sql = "UPDATE \(table) SET session_id = ? WHERE session_id = ?"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(stmt) }
+
+        sqlite3_bind_text(stmt, 1, newId, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 2, oldId, -1, SQLITE_TRANSIENT)
+        sqlite3_step(stmt)
+    }
+
+    // MARK: - Deduplication
+
+    private func deduplicateLegacyEntriesIfNeeded() {
+        let flagKey = "event_deduplication_v1"
+        guard !UserDefaults.standard.bool(forKey: flagKey) else { return }
+
+        let statements = [
+            """
+            DELETE FROM dose_events
+            WHERE rowid NOT IN (
+                SELECT MIN(rowid)
+                FROM dose_events
+                GROUP BY event_type, session_id, SUBSTR(timestamp, 1, 22)
+            )
+            """,
+            """
+            DELETE FROM sleep_events
+            WHERE rowid NOT IN (
+                SELECT MIN(rowid)
+                FROM sleep_events
+                GROUP BY event_type, session_id, SUBSTR(timestamp, 1, 22)
+            )
+            """
+        ]
+
+        sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
+        for sql in statements {
+            sqlite3_exec(db, sql, nil, nil, nil)
+        }
+        sqlite3_exec(db, "COMMIT", nil, nil, nil)
+
+        UserDefaults.standard.set(true, forKey: flagKey)
+        print("🔧 EventStorage: Deduplicated legacy dose/sleep events")
     }
     
     // MARK: - Session ID Backfill Migration

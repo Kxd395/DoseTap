@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 /// Computes the canonical session key for a given timestamp.
 /// A session starts at `rolloverHour` (default 18 / 6PM) in the provided timezone.
@@ -79,4 +80,43 @@ public func nextRollover(after date: Date, timeZone: TimeZone, rolloverHour: Int
     // Move to next day rollover
     let nextDay = calendar.date(byAdding: .day, value: 1, to: todayRollover) ?? todayRollover
     return nextDay
+}
+
+/// Deterministically generates a UUID from a legacy session key (yyyy-MM-dd).
+public func deterministicSessionUUID(for sessionKey: String) -> String {
+    if #available(macOS 10.15, iOS 13, watchOS 6, tvOS 13, *) {
+        return deterministicUUIDCrypto(for: sessionKey)
+    }
+    return deterministicUUIDFallback(for: sessionKey)
+}
+
+@available(macOS 10.15, iOS 13, watchOS 6, tvOS 13, *)
+private func deterministicUUIDCrypto(for sessionKey: String) -> String {
+    let data = Data(sessionKey.utf8)
+    let hash = SHA256.hash(data: data)
+    let hex = hash.map { String(format: "%02x", $0) }.joined()
+    return uuidFromHex(hex)
+}
+
+private func deterministicUUIDFallback(for sessionKey: String) -> String {
+    let bytes = sessionKey.utf8
+    var hash1: UInt64 = 14695981039346656037
+    let prime: UInt64 = 1099511628211
+    for byte in bytes {
+        hash1 ^= UInt64(byte)
+        hash1 &*= prime
+    }
+    var hash2 = hash1 ^ 0x9E3779B97F4A7C15
+    for byte in bytes {
+        hash2 ^= UInt64(byte) &* prime
+        hash2 &*= prime
+    }
+    let hex = String(format: "%016llx%016llx", hash1, hash2)
+    return uuidFromHex(hex)
+}
+
+private func uuidFromHex(_ hex: String) -> String {
+    let trimmed = hex.count >= 32 ? String(hex.prefix(32)) : hex.padding(toLength: 32, withPad: "0", startingAt: 0)
+    let uuid = "\(trimmed.prefix(8))-\(trimmed.dropFirst(8).prefix(4))-\(trimmed.dropFirst(12).prefix(4))-\(trimmed.dropFirst(16).prefix(4))-\(trimmed.dropFirst(20).prefix(12))"
+    return uuid.uppercased()
 }
