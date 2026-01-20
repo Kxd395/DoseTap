@@ -461,26 +461,44 @@ public struct DoseEventWithAmount: Identifiable, Codable, Sendable, Equatable {
 // MARK: - Default Regimen Presets
 
 extension Regimen {
-    /// Common preset: Xyrem 4.5g 50/50 split
-    public static func xyremDefault(startAt: Date = Date()) -> Regimen {
-        Regimen(
+    // Xyrem/Xywav dosing range:
+    // - FDA approved: 4.5g to 9g total nightly dose
+    // - Most common starting: 4.5g (2.25g + 2.25g)
+    // - Maximum: 9g (4.5g + 4.5g)
+    // - Increments: 0.25g (250mg) at a time
+    
+    /// Create a Xyrem/Xywav regimen with custom total dose.
+    /// - Parameter totalGrams: Total nightly dose in grams (range: 2.25g to 9g)
+    /// - Parameter splitRatio: How to split the doses (default: 50/50)
+    /// - Parameter startAt: When this regimen becomes effective
+    public static func xyrem(
+        totalGrams: Double,
+        splitRatio: [Double] = [0.5, 0.5],
+        startAt: Date = Date()
+    ) -> Regimen {
+        let totalMg = totalGrams * 1000
+        let splitMode: SplitMode = splitRatio == [0.5, 0.5] ? .equal : .custom
+        return Regimen(
             medicationId: "xyrem",
             startAt: startAt,
-            targetTotalAmountValue: 4500,  // 4.5g in mg
+            targetTotalAmountValue: totalMg,
             targetTotalAmountUnit: .mg,
-            splitMode: .equal,
-            splitPartsCount: 2,
-            splitPartsRatio: [0.5, 0.5],
-            notes: "Standard Xyrem 50/50 split"
+            splitMode: splitMode,
+            splitPartsCount: splitRatio.count,
+            splitPartsRatio: splitRatio,
+            notes: String(format: "Xyrem %.2fg total", totalGrams)
         )
     }
     
-    /// Bigger earlier dose (60/40)
-    public static func biggerEarlier(
-        medicationId: String,
-        totalMg: Double,
-        startAt: Date = Date()
-    ) -> Regimen {
+    /// Common preset: Xyrem 4.5g 50/50 split (starting dose)
+    public static func xyremDefault(startAt: Date = Date()) -> Regimen {
+        xyrem(totalGrams: 4.5, startAt: startAt)
+    }
+    
+    /// Common preset: Xyrem at maximum dose 9g 50/50 split
+    public static func xyremMax(startAt: Date = Date()) -> Regimen {
+        xyrem(totalGrams: 9.0, startAt: startAt)
+    }
         Regimen(
             medicationId: medicationId,
             startAt: startAt,

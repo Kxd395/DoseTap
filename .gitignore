@@ -17,3 +17,4 @@ ios/DoseTap/Secrets.swift
 
 # Logs
 *.log
+ios/build/
