@@ -71,6 +71,7 @@
 		E9AD7E6058C34B8FBB03E87D /* FullApp/DoseCoreIntegration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55547FD4D707466DAA743FE8 /* FullApp/DoseCoreIntegration.swift */; };
 		EA02466EA69547DF963A8BA7 /* WHOOPService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7084981AA100483EB6E6ADE1 /* WHOOPService.swift */; };
 		EDIT002 /* EditDoseTimeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDIT001 /* EditDoseTimeView.swift */; };
+				DOSE002 /* DoseAmountPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = DOSE001 /* DoseAmountPicker.swift */; };
 		F3296BD6A65A57599A202642 /* InputValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1CBF59D219929011DD8A4A8 /* InputValidator.swift */; };
 		F6A54D65D1B84EFF863C73C3 /* FullApp/DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F65B22283DEE43E8AA554209 /* FullApp/DashboardView.swift */; };
 		F94248D37BBE47A5A2E90C9B /* PreSleepLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE3796A887B24D9FBBD40758 /* PreSleepLogView.swift */; };
@@ -177,6 +178,7 @@
 		E0BC9035E4ACF20D1D40B9A9 /* SleepTimelineOverlays.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SleepTimelineOverlays.swift; sourceTree = "<group>"; };
 		E4E2B992A9FD423E84206CCE /* FullApp/InventoryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/InventoryService.swift; sourceTree = "<group>"; };
 		EDIT001 /* EditDoseTimeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditDoseTimeView.swift; sourceTree = "<group>"; };
+				DOSE001 /* DoseAmountPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseAmountPicker.swift; sourceTree = "<group>"; };
 		F3CED6FC4A7543E68CDF0BA0 /* TimeZoneMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeZoneMonitor.swift; sourceTree = "<group>"; };
 		F65B22283DEE43E8AA554209 /* FullApp/DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/DashboardView.swift; sourceTree = "<group>"; };
 		F90DAD707525490DB491F5EA /* CSVExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVExporter.swift; sourceTree = "<group>"; };
@@ -389,6 +391,7 @@
 				8FABFEE0765C943A32E6ACC2 /* NightReviewView.swift */,
 				707FF265ADBBA04484376264 /* ThemeSettingsView.swift */,
 				EDIT001 /* EditDoseTimeView.swift */,
+								DOSE001 /* DoseAmountPicker.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -568,6 +571,7 @@
 				UNDO005 /* MedicationSettingsView.swift in Sources */,
 				UNDO007 /* MedicationPickerView.swift in Sources */,
 				EDIT002 /* EditDoseTimeView.swift in Sources */,
+								DOSE002 /* DoseAmountPicker.swift in Sources */,
 				0A777B0D5CC54803B060A980 /* UserSettingsManager.swift in Sources */,
 				626911F284B24C54BA73D7F8 /* SettingsView.swift in Sources */,
 				68B3DB1D97734922B659 /* SleepPlanDetailView.swift in Sources */,
