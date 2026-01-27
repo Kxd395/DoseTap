@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(CryptoKit)
+import CryptoKit
+#endif
 
 /// Computes the canonical session key for a given timestamp.
 /// A session starts at `rolloverHour` (default 18 / 6PM) in the provided timezone.
@@ -79,4 +82,33 @@ public func nextRollover(after date: Date, timeZone: TimeZone, rolloverHour: Int
     // Move to next day rollover
     let nextDay = calendar.date(byAdding: .day, value: 1, to: todayRollover) ?? todayRollover
     return nextDay
+}
+
+/// Generates a deterministic UUID from a date-string session ID
+/// Used for migrating legacy date-based session IDs to UUID format
+/// - Parameter dateString: Legacy session ID in format "yyyy-MM-dd"
+/// - Returns: Deterministic UUID string
+public func deterministicSessionUUID(for dateString: String) -> String {
+    #if canImport(CryptoKit)
+    if #available(iOS 13.0, macOS 10.15, watchOS 6.0, *) {
+        let data = Data(dateString.utf8)
+        let hash = SHA256.hash(data: data)
+        let hashString = hash.compactMap { String(format: "%02x", $0) }.joined()
+        // Format as UUID: 8-4-4-4-12
+        let uuid = "\(hashString.prefix(8))-\(hashString.dropFirst(8).prefix(4))-\(hashString.dropFirst(12).prefix(4))-\(hashString.dropFirst(16).prefix(4))-\(hashString.dropFirst(20).prefix(12))"
+        return uuid.uppercased()
+    } else {
+        return fallbackDeterministicUUID(for: dateString)
+    }
+    #else
+    return fallbackDeterministicUUID(for: dateString)
+    #endif
+}
+
+private func fallbackDeterministicUUID(for dateString: String) -> String {
+    // Fallback for platforms without CryptoKit: use simple hash
+    let hash = abs(dateString.hashValue)
+    let hashString = String(format: "%016llx", UInt64(hash))
+    let uuid = "\(hashString.prefix(8))-\(hashString.dropFirst(8).prefix(4))-\(hashString.dropFirst(12).prefix(4))-0000-000000000000"
+    return uuid.uppercased()
 }

@@ -10,8 +10,6 @@ struct SettingsView: View {
     @State private var showingExportSuccess = false
     @State private var showingExportSheet = false
     @State private var exportURL: URL?
-    @State private var savedRegimenTotalMg: Double = UserDefaults.standard.double(forKey: "regimen_total_mg")
-    @State private var savedRegimenSplitRatio: [Double] = UserDefaults.standard.array(forKey: "regimen_split_ratio") as? [Double] ?? []
     @ObservedObject private var urlRouter = URLRouter.shared
     @ObservedObject private var sleepPlanStore = SleepPlanStore.shared
     
@@ -65,50 +63,6 @@ struct SettingsView: View {
                 } footer: {
                     Text("Configure when you'll be reminded to take Dose 2, and how long you have to undo actions.")
                 }
-
-                // MARK: - Dose Amount Settings
-                Section {
-                    NavigationLink {
-                        RegimenSetupView { regimen in
-                            // Save regimen to UserDefaults
-                            UserDefaults.standard.set(regimen.targetTotalAmountValue, forKey: "regimen_total_mg")
-                            UserDefaults.standard.set(regimen.splitPartsRatio, forKey: "regimen_split_ratio")
-                            // Update state to refresh the view
-                            savedRegimenTotalMg = regimen.targetTotalAmountValue
-                            savedRegimenSplitRatio = regimen.splitPartsRatio
-                        }
-                    } label: {
-                        HStack {
-                            Label("Dose Amount", systemImage: "scalemass.fill")
-                            Spacer()
-                            if savedRegimenTotalMg > 0 {
-                                Text(String(format: "%.2fg", savedRegimenTotalMg / 1000))
-                                    .foregroundColor(.secondary)
-                            } else {
-                                Text("Not set")
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                    }
-                    
-                    // Show current split if configured
-                    if savedRegimenSplitRatio.count >= 2 {
-                        HStack {
-                            Text("Split Ratio")
-                                .foregroundColor(.secondary)
-                            Spacer()
-                            Text(String(format: "%.0f/%.0f", savedRegimenSplitRatio[0] * 100, savedRegimenSplitRatio[1] * 100))
-                                .foregroundColor(.secondary)
-                        }
-                        .font(.caption)
-                    }
-                } header: {
-                    Label("Dose Amount", systemImage: "pills.fill")
-                        .font(.headline)
-                } footer: {
-                    Text("Set your prescribed total nightly dose and split ratio. Amounts can be adjusted when logging each dose.")
-                }
-
 
                 // MARK: - Night Schedule
                 Section {
@@ -605,7 +559,8 @@ struct SettingsView: View {
     }
     
     private func exportData() {
-        let csvContent = SessionRepository.shared.exportToCSV()
+        // Use comprehensive V2 export format with all tables
+        let csvContent = SessionRepository.shared.exportToCSVv2()
         
         // Create temporary file
         let tempDir = FileManager.default.temporaryDirectory

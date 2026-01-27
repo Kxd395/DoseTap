@@ -233,6 +233,9 @@ public class EventStorage {
         
         // Migration: Add new columns to existing tables (safe to run multiple times)
         migrateDatabase()
+        migrateEventTypesIfNeeded()
+        migrateSessionIdsToUUIDIfNeeded()
+        deduplicateLegacyEntriesIfNeeded()
     }
     
     /// Add new columns if they don't exist (safe migration)
@@ -272,6 +275,162 @@ public class EventStorage {
         
         // Backfill NULL session_id values (P0 data integrity fix)
         backfillNullSessionIds()
+    }
+
+    // MARK: - Event Type Normalization Migration
+
+    private func migrateEventTypesIfNeeded() {
+        let flagKey = "event_types_normalized_v1"
+        guard !UserDefaults.standard.bool(forKey: flagKey) else { return }
+
+        let updates = [
+            // Lights out
+            "UPDATE sleep_events SET event_type = 'lights_out' WHERE lower(event_type) IN ('lights out', 'lightsout', 'lights_out', 'lightout')",
+            // Brief wake
+            "UPDATE sleep_events SET event_type = 'brief_wake' WHERE lower(event_type) IN ('brief wake', 'briefwake', 'brief_wake')",
+            // In bed
+            "UPDATE sleep_events SET event_type = 'in_bed' WHERE lower(event_type) IN ('in bed', 'inbed', 'in_bed')",
+            // Heart racing
+            "UPDATE sleep_events SET event_type = 'heart_racing' WHERE lower(event_type) IN ('heart racing', 'heartracing', 'heart_racing')",
+            // Nap start/end
+            "UPDATE sleep_events SET event_type = 'nap_start' WHERE lower(event_type) IN ('nap start', 'napstart', 'nap_start')",
+            "UPDATE sleep_events SET event_type = 'nap_end' WHERE lower(event_type) IN ('nap end', 'napend', 'nap_end')",
+            // Wake final variants
+            "UPDATE sleep_events SET event_type = 'wake_final' WHERE lower(event_type) IN ('wake final', 'wakefinal', 'wake_final', 'wake up', 'wakeup')",
+            // Common canonical lowercase for simple types
+            "UPDATE sleep_events SET event_type = lower(event_type) WHERE lower(event_type) IN ('bathroom','water','snack','pain','anxiety','noise','dream','temperature')"
+        ]
+
+        let deleteDoseEvents = """
+        DELETE FROM sleep_events
+        WHERE lower(event_type) IN (
+            'dose 1','dose1','dose_1','dose1_taken',
+            'dose 2','dose2','dose_2','dose2_taken',
+            'dose 2 (early)','dose2 (early)','dose2_early',
+            'dose 2 (late)','dose2 (late)','dose2_late',
+            'dose 2 skipped','dose2 skipped','dose2_skipped','dose2skipped',
+            'extra dose','extra_dose'
+        )
+        """
+
+        sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
+        for sql in updates {
+            sqlite3_exec(db, sql, nil, nil, nil)
+        }
+        sqlite3_exec(db, deleteDoseEvents, nil, nil, nil)
+        sqlite3_exec(db, "COMMIT", nil, nil, nil)
+
+        UserDefaults.standard.set(true, forKey: flagKey)
+        print("🔧 EventStorage: Normalized sleep_events types and purged dose rows")
+    }
+
+    // MARK: - Session ID UUID Migration
+
+    private func migrateSessionIdsToUUIDIfNeeded() {
+        let flagKey = "session_id_uuid_migration_v1"
+        guard !UserDefaults.standard.bool(forKey: flagKey) else { return }
+
+        let legacyIds = fetchLegacySessionIds()
+        guard !legacyIds.isEmpty else {
+            UserDefaults.standard.set(true, forKey: flagKey)
+            return
+        }
+
+        sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
+        for legacyId in legacyIds {
+            let newId = deterministicSessionUUID(for: legacyId)
+            if legacyId == newId { continue }
+            updateSessionId(in: "dose_events", oldId: legacyId, newId: newId)
+            updateSessionId(in: "sleep_events", oldId: legacyId, newId: newId)
+            updateSessionId(in: "sleep_sessions", oldId: legacyId, newId: newId)
+            updateSessionId(in: "current_session", oldId: legacyId, newId: newId)
+            updateSessionId(in: "morning_checkins", oldId: legacyId, newId: newId)
+            updateSessionId(in: "pre_sleep_logs", oldId: legacyId, newId: newId)
+            updateSessionId(in: "medication_events", oldId: legacyId, newId: newId)
+        }
+        sqlite3_exec(db, "COMMIT", nil, nil, nil)
+
+        UserDefaults.standard.set(true, forKey: flagKey)
+        print("🔧 EventStorage: Migrated \(legacyIds.count) legacy session IDs to UUIDs")
+    }
+
+    private func fetchLegacySessionIds() -> [String] {
+        let sql = """
+        SELECT DISTINCT session_id FROM dose_events WHERE session_id IS NOT NULL
+        UNION SELECT DISTINCT session_id FROM sleep_events WHERE session_id IS NOT NULL
+        UNION SELECT DISTINCT session_id FROM sleep_sessions WHERE session_id IS NOT NULL
+        UNION SELECT DISTINCT session_id FROM current_session WHERE session_id IS NOT NULL
+        UNION SELECT DISTINCT session_id FROM morning_checkins WHERE session_id IS NOT NULL
+        UNION SELECT DISTINCT session_id FROM pre_sleep_logs WHERE session_id IS NOT NULL
+        UNION SELECT DISTINCT session_id FROM medication_events WHERE session_id IS NOT NULL
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
+        defer { sqlite3_finalize(stmt) }
+
+        var results: [String] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            guard let valuePtr = sqlite3_column_text(stmt, 0) else { continue }
+            let value = String(cString: valuePtr)
+            if isLegacySessionKey(value) {
+                results.append(value)
+            }
+        }
+        return results
+    }
+
+    private func isLegacySessionKey(_ value: String) -> Bool {
+        guard value.count == 10 else { return false }
+        let chars = Array(value)
+        guard chars[4] == "-", chars[7] == "-" else { return false }
+        let digitIndices = [0, 1, 2, 3, 5, 6, 8, 9]
+        return digitIndices.allSatisfy { chars[$0].isNumber }
+    }
+
+    private func updateSessionId(in table: String, oldId: String, newId: String) {
+        let sql = "UPDATE \(table) SET session_id = ? WHERE session_id = ?"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(stmt) }
+
+        sqlite3_bind_text(stmt, 1, newId, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 2, oldId, -1, SQLITE_TRANSIENT)
+        sqlite3_step(stmt)
+    }
+
+    // MARK: - Deduplication
+
+    private func deduplicateLegacyEntriesIfNeeded() {
+        let flagKey = "event_deduplication_v1"
+        guard !UserDefaults.standard.bool(forKey: flagKey) else { return }
+
+        let statements = [
+            """
+            DELETE FROM dose_events
+            WHERE rowid NOT IN (
+                SELECT MIN(rowid)
+                FROM dose_events
+                GROUP BY event_type, session_id, SUBSTR(timestamp, 1, 22)
+            )
+            """,
+            """
+            DELETE FROM sleep_events
+            WHERE rowid NOT IN (
+                SELECT MIN(rowid)
+                FROM sleep_events
+                GROUP BY event_type, session_id, SUBSTR(timestamp, 1, 22)
+            )
+            """
+        ]
+
+        sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
+        for sql in statements {
+            sqlite3_exec(db, sql, nil, nil, nil)
+        }
+        sqlite3_exec(db, "COMMIT", nil, nil, nil)
+
+        UserDefaults.standard.set(true, forKey: flagKey)
+        print("🔧 EventStorage: Deduplicated legacy dose/sleep events")
     }
     
     // MARK: - Session ID Backfill Migration
@@ -2139,40 +2298,104 @@ public class EventStorage {
     /// Fetch recent sessions as summaries (internal - use protocol method externally)
     func fetchRecentSessionsLocal(days: Int = 7) -> [SessionSummary] {
         var sessions: [SessionSummary] = []
+        var sessionDates = Set<String>()
         
-        // Get unique session dates from current_session and sleep_events
-        let sql = """
-            SELECT DISTINCT cs.session_date, cs.dose1_time, cs.dose2_time, cs.dose2_skipped, cs.snooze_count,
-                   (SELECT COUNT(*) FROM sleep_events se WHERE se.session_date = cs.session_date) as event_count
-            FROM current_session cs
-            ORDER BY cs.session_date DESC
+        // Step 1: Get session dates from sleep_sessions table (most comprehensive)
+        let sleepSessionsSql = """
+            SELECT DISTINCT session_date FROM sleep_sessions
+            ORDER BY session_date DESC
             LIMIT ?
         """
         
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return sessions }
-        defer { sqlite3_finalize(stmt) }
+        if sqlite3_prepare_v2(db, sleepSessionsSql, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_int(stmt, 1, Int32(days * 2)) // Get more to account for duplicates
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                if let datePtr = sqlite3_column_text(stmt, 0) {
+                    sessionDates.insert(String(cString: datePtr))
+                }
+            }
+            sqlite3_finalize(stmt)
+        }
         
-        sqlite3_bind_int(stmt, 1, Int32(days))
+        // Step 2: Also get dates from dose_events (in case sleep_sessions is incomplete)
+        let doseEventsSql = """
+            SELECT DISTINCT session_date FROM dose_events
+            ORDER BY session_date DESC
+            LIMIT ?
+        """
+        if sqlite3_prepare_v2(db, doseEventsSql, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_bind_int(stmt, 1, Int32(days * 2))
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                if let datePtr = sqlite3_column_text(stmt, 0) {
+                    sessionDates.insert(String(cString: datePtr))
+                }
+            }
+            sqlite3_finalize(stmt)
+        }
         
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            let sessionDate = String(cString: sqlite3_column_text(stmt, 0))
-            
+        // Step 3: Also include current_session date
+        let currentSessionSql = "SELECT session_date FROM current_session LIMIT 1"
+        if sqlite3_prepare_v2(db, currentSessionSql, -1, &stmt, nil) == SQLITE_OK {
+            if sqlite3_step(stmt) == SQLITE_ROW {
+                if let datePtr = sqlite3_column_text(stmt, 0) {
+                    sessionDates.insert(String(cString: datePtr))
+                }
+            }
+            sqlite3_finalize(stmt)
+        }
+        
+        // Step 4: For each session date, aggregate dose data from dose_events
+        let sortedDates = sessionDates.sorted().reversed().prefix(days)
+        
+        for sessionDate in sortedDates {
             var dose1Time: Date? = nil
             var dose2Time: Date? = nil
+            var dose2Skipped = false
+            var snoozeCount = 0
             
-            if let d1Str = sqlite3_column_text(stmt, 1) {
-                dose1Time = isoFormatter.date(from: String(cString: d1Str))
+            // Get dose times from dose_events
+            let dosesSql = """
+                SELECT event_type, timestamp, metadata FROM dose_events
+                WHERE session_date = ?
+                ORDER BY timestamp ASC
+            """
+            if sqlite3_prepare_v2(db, dosesSql, -1, &stmt, nil) == SQLITE_OK {
+                sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
+                while sqlite3_step(stmt) == SQLITE_ROW {
+                    guard let typePtr = sqlite3_column_text(stmt, 0),
+                          let timestampPtr = sqlite3_column_text(stmt, 1) else { continue }
+                    let eventType = String(cString: typePtr)
+                    let timestamp = isoFormatter.date(from: String(cString: timestampPtr))
+                    
+                    switch eventType {
+                    case "dose1":
+                        if dose1Time == nil { dose1Time = timestamp }
+                    case "dose2":
+                        if dose2Time == nil { dose2Time = timestamp }
+                    case "dose2_skipped":
+                        dose2Skipped = true
+                    case "snooze":
+                        snoozeCount += 1
+                    default:
+                        break
+                    }
+                }
+                sqlite3_finalize(stmt)
             }
-            if let d2Str = sqlite3_column_text(stmt, 2) {
-                dose2Time = isoFormatter.date(from: String(cString: d2Str))
+            
+            // Get event count from sleep_events
+            var eventCount = 0
+            let eventCountSql = "SELECT COUNT(*) FROM sleep_events WHERE session_date = ?"
+            if sqlite3_prepare_v2(db, eventCountSql, -1, &stmt, nil) == SQLITE_OK {
+                sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
+                if sqlite3_step(stmt) == SQLITE_ROW {
+                    eventCount = Int(sqlite3_column_int(stmt, 0))
+                }
+                sqlite3_finalize(stmt)
             }
             
-            let dose2Skipped = sqlite3_column_int(stmt, 3) != 0
-            let snoozeCount = Int(sqlite3_column_int(stmt, 4))
-            let eventCount = Int(sqlite3_column_int(stmt, 5))
-            
-            let summary = SessionSummary(
+            sessions.append(SessionSummary(
                 sessionDate: sessionDate,
                 dose1Time: dose1Time,
                 dose2Time: dose2Time,
@@ -2180,8 +2403,7 @@ public class EventStorage {
                 snoozeCount: snoozeCount,
                 sleepEvents: [],
                 eventCount: eventCount
-            )
-            sessions.append(summary)
+            ))
         }
         
         return sessions
@@ -2293,6 +2515,155 @@ public class EventStorage {
         return fetchAllSleepEventsLocal(limit: limit)
     }
     
+    // MARK: - Pain Snapshot Storage
+    
+    /// Save a pain snapshot as a sleep event.
+    /// Event type: "pain.pre_sleep" or "pain.wake"
+    /// Notes field contains JSON payload with 0-10 level, detailed locations, radiation, flags.
+    public func savePainSnapshot(_ snapshot: PainSnapshot) {
+        // Encode snapshot data to JSON for notes field
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        var notesJson: String? = nil
+        
+        struct LocationPayload: Encodable {
+            let region: String
+            let side: String
+        }
+        
+        struct PainPayload: Encodable {
+            let overallLevel: Int
+            let locations: [LocationPayload]
+            let primaryLocation: LocationPayload?
+            let radiation: String?
+            let painWokeUser: Bool
+            let delta: String?
+        }
+        
+        let payload = PainPayload(
+            overallLevel: snapshot.overallLevel,
+            locations: snapshot.locations.map { LocationPayload(region: $0.region.rawValue, side: $0.side.rawValue) },
+            primaryLocation: snapshot.primaryLocation.map { LocationPayload(region: $0.region.rawValue, side: $0.side.rawValue) },
+            radiation: snapshot.radiation?.rawValue,
+            painWokeUser: snapshot.painWokeUser,
+            delta: snapshot.delta?.rawValue
+        )
+        
+        if let data = try? encoder.encode(payload) {
+            notesJson = String(data: data, encoding: .utf8)
+        }
+        
+        insertSleepEvent(
+            id: snapshot.id,
+            eventType: snapshot.context.eventType,
+            timestamp: snapshot.timestamp,
+            sessionDate: snapshot.sessionId, // session_date = session_id for linking
+            sessionId: snapshot.sessionId,
+            colorHex: nil,
+            notes: notesJson
+        )
+        
+        print("💊 Saved pain snapshot: \(snapshot.context.eventType) - \(snapshot.summary)")
+    }
+    
+    /// Retrieve pain snapshot for a session (pre-sleep or wake).
+    /// Returns nil if no pain snapshot exists for that context.
+    public func getPainSnapshot(sessionId: String, context: PainSnapshot.Context) -> PainSnapshot? {
+        let sql = """
+        SELECT id, event_type, timestamp, session_id, notes
+        FROM sleep_events
+        WHERE session_id = ? AND event_type = ?
+        ORDER BY timestamp DESC LIMIT 1
+        """
+        
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            return nil
+        }
+        defer { sqlite3_finalize(stmt) }
+        
+        sqlite3_bind_text(stmt, 1, sessionId, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 2, context.eventType, -1, SQLITE_TRANSIENT)
+        
+        guard sqlite3_step(stmt) == SQLITE_ROW else {
+            return nil
+        }
+        
+        let id = String(cString: sqlite3_column_text(stmt, 0))
+        let timestampStr = String(cString: sqlite3_column_text(stmt, 2))
+        let sessionIdResult = String(cString: sqlite3_column_text(stmt, 3))
+        let notesJson = sqlite3_column_text(stmt, 4).map { String(cString: $0) }
+        
+        guard let timestamp = isoFormatter.date(from: timestampStr) else {
+            return nil
+        }
+        
+        // Parse notes JSON
+        var overallLevel = 0
+        var locations: [PainLocationDetail] = []
+        var primaryLocation: PainLocationDetail? = nil
+        var radiation: PainRadiation? = nil
+        var painWokeUser = false
+        var delta: PainSnapshot.Delta? = nil
+        
+        if let json = notesJson, let data = json.data(using: .utf8) {
+            struct LocationPayload: Decodable {
+                let region: String
+                let side: String
+            }
+            
+            struct PainPayload: Decodable {
+                let overallLevel: Int
+                let locations: [LocationPayload]
+                let primaryLocation: LocationPayload?
+                let radiation: String?
+                let painWokeUser: Bool
+                let delta: String?
+            }
+            
+            if let payload = try? JSONDecoder().decode(PainPayload.self, from: data) {
+                overallLevel = payload.overallLevel
+                locations = payload.locations.compactMap { loc in
+                    guard let region = PainRegion(rawValue: loc.region),
+                          let side = PainSide(rawValue: loc.side) else {
+                        return nil
+                    }
+                    return PainLocationDetail(region: region, side: side)
+                }
+                if let primary = payload.primaryLocation,
+                   let region = PainRegion(rawValue: primary.region),
+                   let side = PainSide(rawValue: primary.side) {
+                    primaryLocation = PainLocationDetail(region: region, side: side)
+                }
+                if let rad = payload.radiation {
+                    radiation = PainRadiation(rawValue: rad)
+                }
+                painWokeUser = payload.painWokeUser
+                if let d = payload.delta {
+                    delta = PainSnapshot.Delta(rawValue: d)
+                }
+            }
+        }
+        
+        return PainSnapshot(
+            id: id,
+            context: context,
+            overallLevel: overallLevel,
+            locations: locations,
+            primaryLocation: primaryLocation,
+            radiation: radiation,
+            painWokeUser: painWokeUser,
+            timestamp: timestamp,
+            sessionId: sessionIdResult,
+            delta: delta
+        )
+    }
+    
+    /// Check if a pre-sleep pain snapshot exists for the given session.
+    public func hasPreSleepPain(sessionId: String) -> Bool {
+        return getPainSnapshot(sessionId: sessionId, context: .preSleep) != nil
+    }
+    
     /// Insert an event record (for compatibility)
     public func insertEvent(_ record: EventRecord) {
         insertSleepEvent(
@@ -2348,6 +2719,302 @@ public class EventStorage {
         let dosesCSV = exportDoseEventsToCSV()
         let medicationsCSV = exportMedicationEventsToCSV()
         return (eventsCSV, dosesCSV, medicationsCSV)
+    }
+    
+    // MARK: - Comprehensive Export V2
+    
+    /// Export all data to comprehensive CSV (V2 format with all tables)
+    public func exportToCSVv2() -> String {
+        let schemaVersion = getSchemaVersion()
+        var csv = "# DoseTap Export V2 | schema_version=\(schemaVersion) | constants_version=\(EventStorage.constantsVersion)\n"
+        csv += "# Export timestamp: \(isoFormatter.string(from: Date()))\n"
+        csv += "\n"
+        
+        // Section 1: Sleep Events (with full details)
+        csv += "# === SLEEP EVENTS ===\n"
+        csv += "table,id,event_type,timestamp,session_date,color_hex,notes\n"
+        let events = fetchAllSleepEventsLocal(limit: 10000)
+        for event in events {
+            let escapedNotes = escapeCSV(event.notes ?? "")
+            csv += "sleep_event,\(event.id),\(event.eventType),\(isoFormatter.string(from: event.timestamp)),\(event.sessionDate),\(event.colorHex ?? ""),\(escapedNotes)\n"
+        }
+        csv += "\n"
+        
+        // Section 2: Dose Events (from dose_events table)
+        csv += "# === DOSE EVENTS ===\n"
+        csv += "table,id,event_type,timestamp,session_date,metadata\n"
+        let doseEvents = fetchAllDoseEventsLocal(limit: 10000)
+        for dose in doseEvents {
+            let escapedMeta = escapeCSV(dose.metadata ?? "")
+            csv += "dose_event,\(dose.id),\(dose.eventType),\(isoFormatter.string(from: dose.timestamp)),\(dose.sessionDate),\(escapedMeta)\n"
+        }
+        csv += "\n"
+        
+        // Section 3: Sessions (comprehensive session data)
+        // Note: SessionSummary has dose times, snooze, skipped, event count
+        // Session start/end/terminal_state come from sleep_sessions table (Section 7)
+        csv += "# === SESSIONS ===\n"
+        csv += "table,session_date,dose1_time,dose2_time,snooze_count,dose2_skipped,interval_minutes,event_count\n"
+        let sessions = fetchRecentSessionsLocal(days: 365)
+        for session in sessions {
+            let d1 = session.dose1Time.map { isoFormatter.string(from: $0) } ?? ""
+            let d2 = session.dose2Time.map { isoFormatter.string(from: $0) } ?? ""
+            let interval = session.intervalMinutes.map { String($0) } ?? ""
+            csv += "session,\(session.sessionDate),\(d1),\(d2),\(session.snoozeCount),\(session.dose2Skipped ? 1 : 0),\(interval),\(session.eventCount)\n"
+        }
+        csv += "\n"
+        
+        // Section 4: Morning Check-ins (full health data)
+        csv += "# === MORNING CHECK-INS ===\n"
+        csv += "table,session_date,timestamp,sleep_quality,feel_rested,grogginess,sleep_inertia_duration,dream_recall,mental_clarity,mood,anxiety_level,readiness_for_day,had_sleep_paralysis,had_hallucinations,had_automatic_behavior,fell_out_of_bed,had_confusion_on_waking,physical_symptoms,respiratory_symptoms,sleep_therapy,sleep_environment,notes\n"
+        let checkIns = fetchAllMorningCheckInsLocal(limit: 1000)
+        for checkIn in checkIns {
+            let physicalSymptoms = escapeCSV(checkIn.physicalSymptomsJson ?? "")
+            let respiratorySymptoms = escapeCSV(checkIn.respiratorySymptomsJson ?? "")
+            let sleepTherapy = escapeCSV(checkIn.sleepTherapyJson ?? "")
+            let sleepEnv = escapeCSV(checkIn.sleepEnvironmentJson ?? "")
+            let notes = escapeCSV(checkIn.notes ?? "")
+            csv += "morning_checkin,\(checkIn.sessionDate),\(isoFormatter.string(from: checkIn.timestamp)),\(checkIn.sleepQuality),\(checkIn.feelRested),\(checkIn.grogginess),\(checkIn.sleepInertiaDuration),\(checkIn.dreamRecall),\(checkIn.mentalClarity),\(checkIn.mood),\(checkIn.anxietyLevel),\(checkIn.readinessForDay),\(checkIn.hadSleepParalysis ? 1 : 0),\(checkIn.hadHallucinations ? 1 : 0),\(checkIn.hadAutomaticBehavior ? 1 : 0),\(checkIn.fellOutOfBed ? 1 : 0),\(checkIn.hadConfusionOnWaking ? 1 : 0),\(physicalSymptoms),\(respiratorySymptoms),\(sleepTherapy),\(sleepEnv),\(notes)\n"
+        }
+        csv += "\n"
+        
+        // Section 5: Pre-Sleep Logs
+        csv += "# === PRE-SLEEP LOGS ===\n"
+        csv += "table,id,session_id,created_at,completion_state,answers_json\n"
+        let preSleepLogs = fetchAllPreSleepLogsLocal(limit: 1000)
+        for log in preSleepLogs {
+            // StoredPreSleepLog uses createdAtUtc (String) and answers (PreSleepLogAnswers?)
+            let answersJson = log.answers.flatMap { encodeAnswersToJson($0) } ?? "{}"
+            let escapedAnswers = escapeCSV(answersJson)
+            csv += "pre_sleep_log,\(log.id),\(log.sessionId ?? ""),\(log.createdAtUtc),\(log.completionState),\(escapedAnswers)\n"
+        }
+        csv += "\n"
+        
+        // Section 6: Medication Events
+        csv += "# === MEDICATION EVENTS ===\n"
+        csv += "table,id,session_date,medication_id,dose_mg,dose_unit,formulation,taken_at,notes\n"
+        let medications = fetchAllMedicationEvents(limit: 10000)
+        for med in medications {
+            let notes = escapeCSV(med.notes ?? "")
+            csv += "medication,\(med.id),\(med.sessionDate),\(med.medicationId),\(med.doseMg),\(med.doseUnit),\(med.formulation),\(isoFormatter.string(from: med.takenAtUTC)),\(notes)\n"
+        }
+        csv += "\n"
+        
+        // Section 7: Sleep Sessions (from sleep_sessions table)
+        csv += "# === SLEEP SESSIONS (Boundaries) ===\n"
+        csv += "table,session_id,session_date,start_utc,end_utc,terminal_state\n"
+        let sleepSessions = fetchAllSleepSessionsLocal(limit: 1000)
+        for ss in sleepSessions {
+            let startTime = isoFormatter.string(from: ss.startUTC)
+            let endTime = ss.endUTC.map { isoFormatter.string(from: $0) } ?? ""
+            csv += "sleep_session,\(ss.sessionId),\(ss.sessionDate),\(startTime),\(endTime),\(ss.terminalState ?? "")\n"
+        }
+        
+        return csv
+    }
+    
+    /// Helper to escape CSV fields with quotes and special characters
+    private func escapeCSV(_ value: String) -> String {
+        if value.isEmpty { return "" }
+        // If contains comma, newline, or quote, wrap in quotes and escape internal quotes
+        if value.contains(",") || value.contains("\n") || value.contains("\"") {
+            let escaped = value.replacingOccurrences(of: "\"", with: "\"\"")
+            return "\"\(escaped)\""
+        }
+        return value
+    }
+    
+    /// Helper to encode PreSleepLogAnswers to JSON string for export
+    private func encodeAnswersToJson(_ answers: PreSleepLogAnswers) -> String? {
+        guard let data = try? JSONEncoder().encode(answers) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+    
+    /// Fetch all dose events (from dose_events table)
+    private func fetchAllDoseEventsLocal(limit: Int) -> [StoredDoseEvent] {
+        var events: [StoredDoseEvent] = []
+        let sql = """
+        SELECT id, event_type, timestamp, session_date, session_id, metadata
+        FROM dose_events
+        ORDER BY timestamp DESC
+        LIMIT ?
+        """
+        
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return events }
+        defer { sqlite3_finalize(stmt) }
+        
+        sqlite3_bind_int(stmt, 1, Int32(limit))
+        
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            guard let idPtr = sqlite3_column_text(stmt, 0),
+                  let typePtr = sqlite3_column_text(stmt, 1),
+                  let timestampPtr = sqlite3_column_text(stmt, 2),
+                  let sessionDatePtr = sqlite3_column_text(stmt, 3) else { continue }
+            
+            let timestamp = isoFormatter.date(from: String(cString: timestampPtr)) ?? Date()
+            let metadata = sqlite3_column_text(stmt, 5).map { String(cString: $0) }
+            
+            events.append(StoredDoseEvent(
+                id: String(cString: idPtr),
+                eventType: String(cString: typePtr),
+                timestamp: timestamp,
+                sessionDate: String(cString: sessionDatePtr),
+                metadata: metadata
+            ))
+        }
+        return events
+    }
+    
+    /// Fetch all morning check-ins for export
+    private func fetchAllMorningCheckInsLocal(limit: Int) -> [StoredMorningCheckIn] {
+        var checkIns: [StoredMorningCheckIn] = []
+        let sql = """
+        SELECT id, session_id, timestamp, session_date, sleep_quality, feel_rested, grogginess,
+               sleep_inertia_duration, dream_recall, has_physical_symptoms, physical_symptoms_json,
+               has_respiratory_symptoms, respiratory_symptoms_json, mental_clarity, mood, anxiety_level,
+               readiness_for_day, had_sleep_paralysis, had_hallucinations, had_automatic_behavior,
+               fell_out_of_bed, had_confusion_on_waking, used_sleep_therapy, sleep_therapy_json,
+               has_sleep_environment, sleep_environment_json, notes
+        FROM morning_checkins
+        ORDER BY timestamp DESC
+        LIMIT ?
+        """
+        
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return checkIns }
+        defer { sqlite3_finalize(stmt) }
+        
+        sqlite3_bind_int(stmt, 1, Int32(limit))
+        
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            guard let idPtr = sqlite3_column_text(stmt, 0),
+                  let sessionIdPtr = sqlite3_column_text(stmt, 1),
+                  let timestampPtr = sqlite3_column_text(stmt, 2),
+                  let sessionDatePtr = sqlite3_column_text(stmt, 3) else { continue }
+            
+            let timestamp = isoFormatter.date(from: String(cString: timestampPtr)) ?? Date()
+            
+            checkIns.append(StoredMorningCheckIn(
+                id: String(cString: idPtr),
+                sessionId: String(cString: sessionIdPtr),
+                timestamp: timestamp,
+                sessionDate: String(cString: sessionDatePtr),
+                sleepQuality: Int(sqlite3_column_int(stmt, 4)),
+                feelRested: sqlite3_column_text(stmt, 5).map { String(cString: $0) } ?? "moderate",
+                grogginess: sqlite3_column_text(stmt, 6).map { String(cString: $0) } ?? "mild",
+                sleepInertiaDuration: sqlite3_column_text(stmt, 7).map { String(cString: $0) } ?? "fiveToFifteen",
+                dreamRecall: sqlite3_column_text(stmt, 8).map { String(cString: $0) } ?? "none",
+                hasPhysicalSymptoms: sqlite3_column_int(stmt, 9) != 0,
+                physicalSymptomsJson: sqlite3_column_text(stmt, 10).map { String(cString: $0) },
+                hasRespiratorySymptoms: sqlite3_column_int(stmt, 11) != 0,
+                respiratorySymptomsJson: sqlite3_column_text(stmt, 12).map { String(cString: $0) },
+                mentalClarity: Int(sqlite3_column_int(stmt, 13)),
+                mood: sqlite3_column_text(stmt, 14).map { String(cString: $0) } ?? "neutral",
+                anxietyLevel: sqlite3_column_text(stmt, 15).map { String(cString: $0) } ?? "none",
+                readinessForDay: Int(sqlite3_column_int(stmt, 16)),
+                hadSleepParalysis: sqlite3_column_int(stmt, 17) != 0,
+                hadHallucinations: sqlite3_column_int(stmt, 18) != 0,
+                hadAutomaticBehavior: sqlite3_column_int(stmt, 19) != 0,
+                fellOutOfBed: sqlite3_column_int(stmt, 20) != 0,
+                hadConfusionOnWaking: sqlite3_column_int(stmt, 21) != 0,
+                usedSleepTherapy: sqlite3_column_int(stmt, 22) != 0,
+                sleepTherapyJson: sqlite3_column_text(stmt, 23).map { String(cString: $0) },
+                hasSleepEnvironment: sqlite3_column_int(stmt, 24) != 0,
+                sleepEnvironmentJson: sqlite3_column_text(stmt, 25).map { String(cString: $0) },
+                notes: sqlite3_column_text(stmt, 26).map { String(cString: $0) }
+            ))
+        }
+        return checkIns
+    }
+    
+    /// Fetch all pre-sleep logs for export
+    private func fetchAllPreSleepLogsLocal(limit: Int) -> [StoredPreSleepLog] {
+        var logs: [StoredPreSleepLog] = []
+        let sql = """
+        SELECT id, session_id, created_at_utc, local_offset_minutes, completion_state, answers_json
+        FROM pre_sleep_logs
+        ORDER BY created_at_utc DESC
+        LIMIT ?
+        """
+        
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return logs }
+        defer { sqlite3_finalize(stmt) }
+        
+        sqlite3_bind_int(stmt, 1, Int32(limit))
+        
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            guard let idPtr = sqlite3_column_text(stmt, 0),
+                  let createdAtPtr = sqlite3_column_text(stmt, 2) else { continue }
+            
+            let sessionId = sqlite3_column_text(stmt, 1).map { String(cString: $0) }
+            let createdAtUtc = String(cString: createdAtPtr)
+            let localOffset = Int(sqlite3_column_int(stmt, 3))
+            let completionState = sqlite3_column_text(stmt, 4).map { String(cString: $0) } ?? "partial"
+            let answersJson = sqlite3_column_text(stmt, 5).map { String(cString: $0) }
+            
+            // Parse answersJson into PreSleepLogAnswers if present
+            let answers: PreSleepLogAnswers? = answersJson.flatMap { json in
+                guard let data = json.data(using: .utf8) else { return nil }
+                return try? JSONDecoder().decode(PreSleepLogAnswers.self, from: data)
+            }
+            
+            logs.append(StoredPreSleepLog(
+                id: String(cString: idPtr),
+                sessionId: sessionId,
+                createdAtUtc: createdAtUtc,
+                localOffsetMinutes: localOffset,
+                completionState: completionState,
+                answers: answers
+            ))
+        }
+        return logs
+    }
+    
+    /// Fetch all sleep sessions (from sleep_sessions table) for export
+    private func fetchAllSleepSessionsLocal(limit: Int) -> [SleepSessionRecord] {
+        var sessions: [SleepSessionRecord] = []
+        let sql = """
+        SELECT session_id, session_date, start_utc, end_utc, terminal_state
+        FROM sleep_sessions
+        ORDER BY start_utc DESC
+        LIMIT ?
+        """
+        
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return sessions }
+        defer { sqlite3_finalize(stmt) }
+        
+        sqlite3_bind_int(stmt, 1, Int32(limit))
+        
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            guard let sessionIdPtr = sqlite3_column_text(stmt, 0),
+                  let sessionDatePtr = sqlite3_column_text(stmt, 1),
+                  let startUtcPtr = sqlite3_column_text(stmt, 2) else { continue }
+            
+            let startUTC = isoFormatter.date(from: String(cString: startUtcPtr)) ?? Date()
+            let endUTC = sqlite3_column_text(stmt, 3).flatMap { isoFormatter.date(from: String(cString: $0)) }
+            let terminalState = sqlite3_column_text(stmt, 4).map { String(cString: $0) }
+            
+            sessions.append(SleepSessionRecord(
+                sessionId: String(cString: sessionIdPtr),
+                sessionDate: String(cString: sessionDatePtr),
+                startUTC: startUTC,
+                endUTC: endUTC,
+                terminalState: terminalState
+            ))
+        }
+        return sessions
+    }
+    
+    /// Sleep session record for export
+    private struct SleepSessionRecord {
+        let sessionId: String
+        let sessionDate: String
+        let startUTC: Date
+        let endUTC: Date?
+        let terminalState: String?
     }
 
     /// SSOT constants version (mirrors docs/SSOT/constants.json)
@@ -2860,8 +3527,189 @@ public struct StoredMorningCheckIn: Identifiable {
     }
 }
 
+// MARK: - Pain Tracking Types (Top-Level for cross-file visibility)
+
+/// Pain region categories for structured location tracking
+public enum PainRegion: String, Codable, CaseIterable, Identifiable {
+    // Head and Neck
+    case head = "head"
+    case jaw = "jaw"
+    case face = "face"
+    case neck = "neck"
+    
+    // Shoulder and Arms
+    case shoulder = "shoulder"
+    case upperArm = "upper_arm"
+    case elbow = "elbow"
+    case forearm = "forearm"
+    case wrist = "wrist"
+    case hand = "hand"
+    
+    // Torso and Back
+    case upperBack = "upper_back"
+    case midBack = "mid_back"
+    case lowBack = "low_back"
+    case chest = "chest"
+    case abdomen = "abdomen"
+    
+    // Hips and Legs
+    case hip = "hip"
+    case thigh = "thigh"
+    case knee = "knee"
+    case shin = "shin"
+    case ankle = "ankle"
+    case foot = "foot"
+    
+    // General
+    case jointsWidespread = "joints_widespread"
+    case muscleWidespread = "muscle_widespread"
+    case other = "other"
+    
+    public var id: String { rawValue }
+    
+    public var displayText: String {
+        switch self {
+        case .head: return "Head"
+        case .jaw: return "Jaw/TMJ"
+        case .face: return "Face/Sinuses"
+        case .neck: return "Neck"
+        case .shoulder: return "Shoulder"
+        case .upperArm: return "Upper arm"
+        case .elbow: return "Elbow"
+        case .forearm: return "Forearm"
+        case .wrist: return "Wrist"
+        case .hand: return "Hand"
+        case .upperBack: return "Upper back"
+        case .midBack: return "Mid back"
+        case .lowBack: return "Low back"
+        case .chest: return "Chest"
+        case .abdomen: return "Abdomen"
+        case .hip: return "Hip"
+        case .thigh: return "Thigh"
+        case .knee: return "Knee"
+        case .shin: return "Shin/Calf"
+        case .ankle: return "Ankle"
+        case .foot: return "Foot"
+        case .jointsWidespread: return "Joints (widespread)"
+        case .muscleWidespread: return "Muscle (widespread)"
+        case .other: return "Other"
+        }
+    }
+    
+    public var category: String {
+        switch self {
+        case .head, .jaw, .face, .neck:
+            return "Head & Neck"
+        case .shoulder, .upperArm, .elbow, .forearm, .wrist, .hand:
+            return "Shoulder & Arms"
+        case .upperBack, .midBack, .lowBack, .chest, .abdomen:
+            return "Torso & Back"
+        case .hip, .thigh, .knee, .shin, .ankle, .foot:
+            return "Hips & Legs"
+        case .jointsWidespread, .muscleWidespread, .other:
+            return "General"
+        }
+    }
+    
+    public var supportsLaterality: Bool {
+        switch self {
+        case .head, .face, .neck, .chest, .abdomen, .jointsWidespread, .muscleWidespread, .other:
+            return false
+        default:
+            return true
+        }
+    }
+    
+    public var supportsRadiation: Bool {
+        switch self {
+        case .neck, .upperBack, .midBack, .lowBack, .hip, .thigh:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
+/// Laterality for pain location
+public enum PainSide: String, Codable, CaseIterable {
+    case left = "left"
+    case right = "right"
+    case both = "both"
+    case center = "center"
+    
+    public var displayText: String {
+        switch self {
+        case .left: return "Left"
+        case .right: return "Right"
+        case .both: return "Both"
+        case .center: return "Center"
+        }
+    }
+    
+    public var emoji: String {
+        switch self {
+        case .left: return "⬅️"
+        case .right: return "➡️"
+        case .both: return "↔️"
+        case .center: return "•"
+        }
+    }
+}
+
+/// Radiation pattern for back/neck/leg pain
+public enum PainRadiation: String, Codable, CaseIterable {
+    case none = "none"
+    case downLeft = "down_left"
+    case downRight = "down_right"
+    case intoShoulders = "into_shoulders"
+    case intoHip = "into_hip"
+    case intoLeg = "into_leg"
+    
+    public var displayText: String {
+        switch self {
+        case .none: return "None"
+        case .downLeft: return "Down left"
+        case .downRight: return "Down right"
+        case .intoShoulders: return "Into shoulders"
+        case .intoHip: return "Into hip"
+        case .intoLeg: return "Into leg"
+        }
+    }
+}
+
+/// Detailed pain location with region + side
+public struct PainLocationDetail: Codable, Equatable, Hashable {
+    public let region: PainRegion
+    public let side: PainSide
+    
+    public init(region: PainRegion, side: PainSide) {
+        self.region = region
+        self.side = side
+    }
+    
+    public var displayText: String {
+        if region.supportsLaterality {
+            return "\(region.displayText) \(side.displayText.lowercased())"
+        } else {
+            return region.displayText
+        }
+    }
+    
+    public var compactText: String {
+        if region.supportsLaterality {
+            return "\(region.displayText) \(side.emoji)"
+        } else {
+            return region.displayText
+        }
+    }
+}
+
 /// Pre-sleep log answers model with nested enums for type-safe options
 public struct PreSleepLogAnswers: Codable {
+    
+    // Note: PainRegion, PainSide, PainRadiation, and PainLocationDetail are now
+    // top-level types for cross-file visibility. Use them directly without
+    // PreSleepLogAnswers prefix.
     
     // MARK: - Nested Enums for Question Options
     
@@ -2870,7 +3718,9 @@ public struct PreSleepLogAnswers: Codable {
         case fifteenMin = "15min"
         case thirtyMin = "30min"
         case hour = "1hr"
-        case later = "later"
+        case twoHours = "2hr"
+        case threeHours = "3hr"
+        case notSure = "not_sure"
         
         public var displayText: String {
             switch self {
@@ -2878,7 +3728,9 @@ public struct PreSleepLogAnswers: Codable {
             case .fifteenMin: return "~15 min"
             case .thirtyMin: return "~30 min"
             case .hour: return "~1 hour"
-            case .later: return "Later"
+            case .twoHours: return "~2 hours"
+            case .threeHours: return "~3 hours"
+            case .notSure: return "Not sure"
             }
         }
     }
@@ -2903,6 +3755,9 @@ public struct PreSleepLogAnswers: Codable {
         }
     }
     
+    // MARK: - Legacy Pain Enums (Deprecated, kept for backwards compatibility)
+    
+    @available(*, deprecated, message: "Use 0-10 pain scale instead")
     public enum PainLevel: String, Codable, CaseIterable {
         case none = "none"
         case mild = "mild"
@@ -2917,8 +3772,19 @@ public struct PreSleepLogAnswers: Codable {
             case .severe: return "Severe"
             }
         }
+        
+        /// Convert to 0-10 scale
+        public var numericEquivalent: Int {
+            switch self {
+            case .none: return 0
+            case .mild: return 2
+            case .moderate: return 5
+            case .severe: return 8
+            }
+        }
     }
     
+    @available(*, deprecated, message: "Use PainLocationDetail instead")
     public enum PainLocation: String, Codable, CaseIterable {
         case head = "head"
         case neck = "neck"
@@ -2967,7 +3833,6 @@ public struct PreSleepLogAnswers: Codable {
         case tea = "tea"
         case soda = "soda"
         case energyDrink = "energy_drink"
-        case multiple = "multiple"
         
         public var displayText: String {
             switch self {
@@ -2976,7 +3841,32 @@ public struct PreSleepLogAnswers: Codable {
             case .tea: return "Tea"
             case .soda: return "Soda"
             case .energyDrink: return "Energy Drink"
-            case .multiple: return "Multiple"
+            }
+        }
+        
+        /// Exclude 'none' from multi-select options
+        public static var multiSelectOptions: [Stimulants] {
+            allCases.filter { $0 != .none }
+        }
+    }
+    
+    /// Time bucket for when stimulant was consumed
+    public enum StimulantTime: String, Codable, CaseIterable {
+        case before2pm = "before_2pm"
+        case twoPM = "2pm"
+        case fourPM = "4pm"
+        case sixPM = "6pm"
+        case eightPM = "8pm"
+        case afterEight = "after_8pm"
+        
+        public var displayText: String {
+            switch self {
+            case .before2pm: return "Before 2pm"
+            case .twoPM: return "2pm"
+            case .fourPM: return "4pm"
+            case .sixPM: return "6pm"
+            case .eightPM: return "8pm"
+            case .afterEight: return "After 8pm"
             }
         }
     }
@@ -3114,104 +4004,339 @@ public struct PreSleepLogAnswers: Codable {
     }
     
     public enum SleepAid: String, Codable, CaseIterable {
-        case none = "none"
         case eyeMask = "eye_mask"
         case earplugs = "earplugs"
         case whiteNoise = "white_noise"
         case fan = "fan"
         case blackoutCurtains = "blackout_curtains"
-        case multiple = "multiple"
+        case weightedBlanket = "weighted_blanket"
+        case coolingSleep = "cooling"
         
         public var displayText: String {
             switch self {
-            case .none: return "None"
             case .eyeMask: return "Eye Mask"
             case .earplugs: return "Earplugs"
             case .whiteNoise: return "White Noise"
             case .fan: return "Fan"
-            case .blackoutCurtains: return "Blackout Curtains"
-            case .multiple: return "Multiple"
+            case .blackoutCurtains: return "Blackout"
+            case .weightedBlanket: return "Weighted"
+            case .coolingSleep: return "Cooling"
             }
         }
         
         public var icon: String {
             switch self {
-            case .none: return "moon.zzz"
             case .eyeMask: return "eye"
             case .earplugs: return "ear"
             case .whiteNoise: return "waveform"
             case .fan: return "wind"
             case .blackoutCurtains: return "curtains.closed"
-            case .multiple: return "square.grid.2x2"
+            case .weightedBlanket: return "bed.double"
+            case .coolingSleep: return "snowflake"
             }
         }
     }
     
     // MARK: - Properties
     
-    // Card 1: Timing + Stress
+    // Card 1: Timing + Stress + Sleepiness
     public var intendedSleepTime: IntendedSleepTime?
     public var stressLevel: Int?
     public var stressDriver: StressDriver?
-    public var laterReason: LaterReason?
+    public var sleepinessLevel: Int?  // 1-5 for narcolepsy tracking
+    public var alarmSet: Bool?
+    public var alarmTime: Date?
     
     // Card 2: Body + Substances
-    public var bodyPain: PainLevel?
-    public var painLocations: [PainLocation]?
-    public var painType: PainType?
-    public var stimulants: Stimulants?
+    // New pain tracking (0-10 scale)
+    public var painLevel010: Int?  // 0-10 numeric rating scale
+    public var painDetailedLocations: [PainLocationDetail]?  // Granular regions with laterality
+    public var painPrimaryLocation: PainLocationDetail?  // Main area if multiple selected
+    public var painRadiation: PainRadiation?  // For back/neck/leg pain
+    
+    // Legacy pain fields (internal storage for Codable, use legacyBodyPain/legacyPainLocations accessors)
+    private var _bodyPain: PainLevel?
+    private var _painLocations: [PainLocation]?
+    private var _painType: PainType?
+    
+    @available(*, deprecated, message: "Use painLevel010 instead")
+    public var bodyPain: PainLevel? {
+        get { _bodyPain }
+        set { _bodyPain = newValue }
+    }
+    @available(*, deprecated, message: "Use painDetailedLocations instead")
+    public var painLocations: [PainLocation]? {
+        get { _painLocations }
+        set { _painLocations = newValue }
+    }
+    @available(*, deprecated, message: "Radiation tracking moved to painRadiation")
+    public var painType: PainType? {
+        get { _painType }
+        set { _painType = newValue }
+    }
+    
+    // MARK: - Legacy Pain Accessors (for backward compatibility without warnings)
+    
+    /// Access legacy bodyPain without triggering deprecation warning.
+    /// Use only for backward compatibility with old data.
+    public var legacyBodyPain: PainLevel? {
+        get { _bodyPain }
+    }
+    
+    /// Access legacy painLocations without triggering deprecation warning.
+    /// Use only for backward compatibility with old data.
+    public var legacyPainLocations: [PainLocation]? {
+        get { _painLocations }
+    }
+    
+    public var stimulantsConsumed: [Stimulants]?  // Multi-select (replaces single stimulants)
+    public var lastCaffeineTime: StimulantTime?   // Time bucket for last caffeine
     public var alcohol: AlcoholLevel?
+    public var lastAlcoholTime: StimulantTime?    // Time bucket for last alcohol
     
     // Card 3: Activity + Naps
     public var exercise: ExerciseLevel?
     public var napToday: NapDuration?
+    public var napLoggedMinutes: Int?  // From actual nap events (readonly display)
     
-    // Optional details
+    // Optional details (Advanced mode)
     public var lateMeal: LateMeal?
+    public var lastMealTime: StimulantTime?       // Time bucket for last meal
     public var screensInBed: ScreensInBed?
     public var roomTemp: RoomTemp?
     public var noiseLevel: NoiseLevel?
-    public var sleepAids: SleepAid?
+    public var sleepAidsUsed: [SleepAid]?         // Multi-select (replaces single sleepAids)
     
     // Legacy fields (for backwards compatibility)
+    public var stimulants: Stimulants?            // Deprecated: use stimulantsConsumed
+    public var sleepAids: SleepAid?               // Deprecated: use sleepAidsUsed
+    public var laterReason: LaterReason?          // Deprecated: removed with new time options
     public var notes: String?
     
     public init(
         intendedSleepTime: IntendedSleepTime? = nil,
         stressLevel: Int? = nil,
         stressDriver: StressDriver? = nil,
-        laterReason: LaterReason? = nil,
-        bodyPain: PainLevel? = nil,
-        painLocations: [PainLocation]? = nil,
-        painType: PainType? = nil,
-        stimulants: Stimulants? = nil,
+        sleepinessLevel: Int? = nil,
+        alarmSet: Bool? = nil,
+        alarmTime: Date? = nil,
+        // New pain tracking
+        painLevel010: Int? = nil,
+        painDetailedLocations: [PainLocationDetail]? = nil,
+        painPrimaryLocation: PainLocationDetail? = nil,
+        painRadiation: PainRadiation? = nil,
+        // Legacy pain (internal storage for Codable decoding of old data)
+        _bodyPain: PainLevel? = nil,
+        _painLocations: [PainLocation]? = nil,
+        _painType: PainType? = nil,
+        stimulantsConsumed: [Stimulants]? = nil,
+        lastCaffeineTime: StimulantTime? = nil,
         alcohol: AlcoholLevel? = nil,
+        lastAlcoholTime: StimulantTime? = nil,
         exercise: ExerciseLevel? = nil,
         napToday: NapDuration? = nil,
+        napLoggedMinutes: Int? = nil,
         lateMeal: LateMeal? = nil,
+        lastMealTime: StimulantTime? = nil,
         screensInBed: ScreensInBed? = nil,
         roomTemp: RoomTemp? = nil,
         noiseLevel: NoiseLevel? = nil,
+        sleepAidsUsed: [SleepAid]? = nil,
+        stimulants: Stimulants? = nil,
         sleepAids: SleepAid? = nil,
+        laterReason: LaterReason? = nil,
         notes: String? = nil
     ) {
         self.intendedSleepTime = intendedSleepTime
         self.stressLevel = stressLevel
         self.stressDriver = stressDriver
-        self.laterReason = laterReason
-        self.bodyPain = bodyPain
-        self.painLocations = painLocations
-        self.painType = painType
-        self.stimulants = stimulants
+        self.sleepinessLevel = sleepinessLevel
+        self.alarmSet = alarmSet
+        self.alarmTime = alarmTime
+        self.painLevel010 = painLevel010
+        self.painDetailedLocations = painDetailedLocations
+        self.painPrimaryLocation = painPrimaryLocation
+        self.painRadiation = painRadiation
+        self._bodyPain = _bodyPain
+        self._painLocations = _painLocations
+        self._painType = _painType
+        self.stimulantsConsumed = stimulantsConsumed
+        self.lastCaffeineTime = lastCaffeineTime
         self.alcohol = alcohol
+        self.lastAlcoholTime = lastAlcoholTime
         self.exercise = exercise
         self.napToday = napToday
+        self.napLoggedMinutes = napLoggedMinutes
         self.lateMeal = lateMeal
+        self.lastMealTime = lastMealTime
         self.screensInBed = screensInBed
         self.roomTemp = roomTemp
         self.noiseLevel = noiseLevel
+        self.sleepAidsUsed = sleepAidsUsed
+        self.stimulants = stimulants
         self.sleepAids = sleepAids
+        self.laterReason = laterReason
         self.notes = notes
+    }
+    
+    // Custom CodingKeys to map underscore-prefixed private storage to JSON keys
+    private enum CodingKeys: String, CodingKey {
+        case intendedSleepTime, stressLevel, stressDriver, sleepinessLevel
+        case alarmSet, alarmTime
+        case painLevel010, painDetailedLocations, painPrimaryLocation, painRadiation
+        case _bodyPain = "bodyPain"
+        case _painLocations = "painLocations"
+        case _painType = "painType"
+        case stimulantsConsumed, lastCaffeineTime, alcohol, lastAlcoholTime
+        case exercise, napToday, napLoggedMinutes
+        case lateMeal, lastMealTime, screensInBed, roomTemp, noiseLevel
+        case sleepAidsUsed, stimulants, sleepAids, laterReason, notes
+    }
+}
+
+// MARK: - Pain Snapshot Model
+/// Represents a pain snapshot captured at pre-sleep or wake time for delta tracking.
+/// Uses 0-10 numeric rating scale with detailed location tracking.
+/// Stored as sleep_events with event_type "pain.pre_sleep" or "pain.wake".
+public struct PainSnapshot: Codable, Equatable {
+    
+    /// Context: when the pain was recorded
+    public enum Context: String, Codable, CaseIterable {
+        case preSleep = "pre_sleep"
+        case wake = "wake"
+        
+        public var eventType: String {
+            return "pain.\(rawValue)"
+        }
+    }
+    
+    /// Pain delta comparison result
+    public enum Delta: String, Codable, CaseIterable {
+        case same = "same"
+        case better = "better"
+        case worse = "worse"
+        case muchBetter = "much_better"
+        case muchWorse = "much_worse"
+        
+        public var displayText: String {
+            switch self {
+            case .same: return "Same"
+            case .better: return "Better"
+            case .worse: return "Worse"
+            case .muchBetter: return "Much Better"
+            case .muchWorse: return "Much Worse"
+            }
+        }
+        
+        public var emoji: String {
+            switch self {
+            case .same: return "↔️"
+            case .better: return "⬆️"
+            case .worse: return "⬇️"
+            case .muchBetter: return "🎉"
+            case .muchWorse: return "😣"
+            }
+        }
+    }
+    
+    public let id: String
+    public let context: Context
+    
+    // Core pain data (0-10 scale)
+    public let overallLevel: Int  // 0-10 numeric rating scale
+    public let locations: [PainLocationDetail]
+    public let primaryLocation: PainLocationDetail?  // Main pain area if multiple
+    public let radiation: PainRadiation?
+    
+    // Context flags
+    public let painWokeUser: Bool  // For wake surveys: did pain interrupt sleep?
+    
+    // Metadata
+    public let timestamp: Date
+    public let sessionId: String
+    
+    /// For wake snapshots: comparison to pre-sleep baseline
+    public var delta: Delta?
+    
+    // Legacy support
+    @available(*, deprecated, message: "Use overallLevel instead")
+    public var level: PreSleepLogAnswers.PainLevel {
+        switch overallLevel {
+        case 0: return .none
+        case 1...3: return .mild
+        case 4...6: return .moderate
+        default: return .severe
+        }
+    }
+    
+    public init(
+        id: String = UUID().uuidString,
+        context: Context,
+        overallLevel: Int,
+        locations: [PainLocationDetail] = [],
+        primaryLocation: PainLocationDetail? = nil,
+        radiation: PainRadiation? = nil,
+        painWokeUser: Bool = false,
+        timestamp: Date = Date(),
+        sessionId: String,
+        delta: Delta? = nil
+    ) {
+        self.id = id
+        self.context = context
+        self.overallLevel = max(0, min(10, overallLevel))  // Clamp to 0-10
+        self.locations = locations
+        self.primaryLocation = primaryLocation
+        self.radiation = radiation
+        self.painWokeUser = painWokeUser
+        self.timestamp = timestamp
+        self.sessionId = sessionId
+        self.delta = delta
+    }
+    
+    /// Anchor text for 0-10 scale
+    public static func anchorText(for level: Int) -> String {
+        switch level {
+        case 0: return "No pain"
+        case 1...3: return "Mild – noticeable but easy to ignore"
+        case 4...6: return "Moderate – hard to ignore, interferes with focus"
+        case 7...8: return "Severe – limits activity, difficult to sleep"
+        case 9...10: return "Very severe – unbearable, cannot function"
+        default: return ""
+        }
+    }
+    
+    /// Summary for display (e.g., "6/10 – Low back left, radiating down left")
+    public var summary: String {
+        var parts: [String] = ["\(overallLevel)/10"]
+        
+        if let primary = primaryLocation {
+            parts.append(primary.compactText)
+        } else if let first = locations.first {
+            if locations.count == 1 {
+                parts.append(first.compactText)
+            } else {
+                parts.append("\(locations.count) areas")
+            }
+        }
+        
+        if let rad = radiation, rad != .none {
+            parts.append("radiating \(rad.displayText.lowercased())")
+        }
+        
+        return parts.joined(separator: " – ")
+    }
+    
+    /// Compact display: "6 Low back ⬅️"
+    public var compactSummary: String {
+        var parts: [String] = ["\(overallLevel)"]
+        
+        if let primary = primaryLocation {
+            parts.append(primary.displayText)
+        } else if let first = locations.first {
+            parts.append(first.displayText)
+        }
+        
+        return parts.joined(separator: " ")
     }
 }
 

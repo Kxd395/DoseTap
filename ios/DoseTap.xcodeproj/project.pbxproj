@@ -64,6 +64,7 @@
 		C0E47E55D0CB89F0CCE49C2A /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1FBB8D30211AB1F43A21D65 /* AppTheme.swift */; };
 		D3796BF7DA596F5F9D63F096 /* TimeIntervalMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B2779FB31708024300E8E5 /* TimeIntervalMath.swift */; };
 		D8746EA078A54AF7A8CE92B3 /* MorningCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3941DD4936B4FD0BD5A8837 /* MorningCheckInView.swift */; };
+		1C3633B630D571CB6FE58C2F /* MorningCheckInViewV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6B3B338A337AA6015B732B8 /* MorningCheckInViewV2.swift */; };
 		D9B47E5F3E91E2F68102BA13 /* NightReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FABFEE0765C943A32E6ACC2 /* NightReviewView.swift */; };
 		DD45B910AB7B414A9948C5A9 /* URLRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D565C0B5A1804860B23307B9 /* URLRouter.swift */; };
 		E67E1CC8E48846A3850E2568 /* FullApp/UserConfigurationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 652F871BE504479F9D73CC0D /* FullApp/UserConfigurationManager.swift */; };
@@ -71,10 +72,10 @@
 		E9AD7E6058C34B8FBB03E87D /* FullApp/DoseCoreIntegration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55547FD4D707466DAA743FE8 /* FullApp/DoseCoreIntegration.swift */; };
 		EA02466EA69547DF963A8BA7 /* WHOOPService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7084981AA100483EB6E6ADE1 /* WHOOPService.swift */; };
 		EDIT002 /* EditDoseTimeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDIT001 /* EditDoseTimeView.swift */; };
-				DOSE002 /* DoseAmountPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = DOSE001 /* DoseAmountPicker.swift */; };
 		F3296BD6A65A57599A202642 /* InputValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1CBF59D219929011DD8A4A8 /* InputValidator.swift */; };
 		F6A54D65D1B84EFF863C73C3 /* FullApp/DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F65B22283DEE43E8AA554209 /* FullApp/DashboardView.swift */; };
 		F94248D37BBE47A5A2E90C9B /* PreSleepLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE3796A887B24D9FBBD40758 /* PreSleepLogView.swift */; };
+		724D3FD1F3B968EE20CB2AF9 /* PreSleepLogViewV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B0D2C424B1B7A1C6FC90C5D /* PreSleepLogViewV2.swift */; };
 		FC82425609210406E72373A8 /* FlicButtonService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFF67F0048CFBF2716448CC5 /* FlicButtonService.swift */; };
 		FF9B9D3487C94D99934BC6FB /* FullApp/TimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96266670665C4D408EB337B4 /* FullApp/TimelineView.swift */; };
 		FFCE63C8C666930BEE06D38F /* ThemeSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 707FF265ADBBA04484376264 /* ThemeSettingsView.swift */; };
@@ -85,6 +86,40 @@
 		UNDO005 /* MedicationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNDO006 /* MedicationSettingsView.swift */; };
 		UNDO007 /* MedicationPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNDO008 /* MedicationPickerView.swift */; };
 		WP001 /* WeeklyPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP002 /* WeeklyPlanner.swift */; };
+
+		AAAAAAAA3AB0BEC022B44EB0 /* EventStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAAB02476599B474F92 /* EventStore.swift */; };
+		AAAAAAAA463DF7E9C62C4C24 /* EventStoreAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA9375A01D60D544D2 /* EventStoreAdapter.swift */; };
+		AAAAAAAAE4DFC6726C9B4259 /* UndoManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAACCC40E5F81D54017 /* UndoManager.swift */; };
+		AAAAAAAA15D073E22CE84C30 /* TimeEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAAF69DA694C7F34699 /* TimeEngine.swift */; };
+		AAAAAAAA61BD2B67F4DD47F3 /* SnoozeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA36A53D4523F64747 /* SnoozeController.swift */; };
+		AAAAAAAACDF883FB59F8493F /* OfflineQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA46AE8D34C2D94D9D /* OfflineQueue.swift */; };
+		AAAAAAAA77A45818FD0C4E86 /* AccessibilitySupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAAE2FB6FF6020E4E36 /* AccessibilitySupport.swift */; };
+		AAAAAAAA907A580B72F944A0 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAAF69BA9AFFAB74745 /* DashboardView.swift */; };
+		AAAAAAAACA54162103F7438E /* DoseTapCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA3EF87F819B014E9B /* DoseTapCore.swift */; };
+		AAAAAAAA3C4E7986BED64381 /* UndoSnackbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAAEF2523A9850A4CF8 /* UndoSnackbar.swift */; };
+		AAAAAAAAEB68515963164734 /* UndoStateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA266467DE5211473F /* UndoStateManager.swift */; };
+		AAAAAAAA3B743705C16C4B12 /* Views/UndoSnackbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA1102B654170D4ADC /* Views/UndoSnackbarView.swift */; };
+		AAAAAAAA93CDD0E06292428D /* Views/MedicationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAAB606BA649CD54E05 /* Views/MedicationSettingsView.swift */; };
+		AAAAAAAA34B366E7343741AA /* Views/MedicationPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA3BF5D92071644CB2 /* Views/MedicationPickerView.swift */; };
+		AAAAAAAA081E03F4B9DC42DF /* Views/MorningCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA14C81298FE11402B /* Views/MorningCheckInView.swift */; };
+		AAAAAAAAC8B96F3653CE447E /* Views/PreSleepLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA7B78B34FD10446C2 /* Views/PreSleepLogView.swift */; };
+
+		AAAAAAAA695063B6C4CE43A2 /* EventStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA0D3D35F79C43471F /* EventStore.swift */; };
+		AAAAAAAA3A7CFD4595EB4D03 /* EventStoreAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAAD92534DFD95145D2 /* EventStoreAdapter.swift */; };
+		AAAAAAAA9B0EE10FDD1D4AA6 /* UndoManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAABD35693C406049F4 /* UndoManager.swift */; };
+		AAAAAAAA508BDC1CEA504CEE /* TimeEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA2598FDF8C1C140E3 /* TimeEngine.swift */; };
+		AAAAAAAABB20888861504CF1 /* SnoozeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA8FCCB98DB3DB4121 /* SnoozeController.swift */; };
+		AAAAAAAA3E5A2ABE59BB4183 /* OfflineQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA2F3F30A38401485A /* OfflineQueue.swift */; };
+		AAAAAAAA01CF8D65B8F445EB /* AccessibilitySupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA052DCA952CCB44F2 /* AccessibilitySupport.swift */; };
+		AAAAAAAAD59E71DCF30B418D /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA35A412F788544481 /* DashboardView.swift */; };
+		AAAAAAAACF5EF686836D4D4D /* DoseTapCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA650495A0710A45ED /* DoseTapCore.swift */; };
+		AAAAAAAA06D9336B83194149 /* UndoSnackbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA5349B76669DE4457 /* UndoSnackbar.swift */; };
+		AAAAAAAAE6D6980B4843401C /* UndoStateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA89C0D961999A4C68 /* UndoStateManager.swift */; };
+		AAAAAAAA9B874B5A54564E97 /* Views/UndoSnackbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA691E6CB99B2045F5 /* Views/UndoSnackbarView.swift */; };
+		AAAAAAAA32CDE55D0E244FE4 /* Views/MedicationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAAF0F574B0146D4A3C /* Views/MedicationSettingsView.swift */; };
+		AAAAAAAAE3C9AA4AFF654FD5 /* Views/MedicationPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA9CC811F1C8164120 /* Views/MedicationPickerView.swift */; };
+		AAAAAAAA472DE0EFDA7345D0 /* Views/MorningCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAA1A6584B77C104BCF /* Views/MorningCheckInView.swift */; };
+		AAAAAAAA8FC15668ACC24E7B /* Views/PreSleepLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAAAAAAD5E8956243C749FC /* Views/PreSleepLogView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -158,10 +193,12 @@
 		B1CBF59D219929011DD8A4A8 /* InputValidator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InputValidator.swift; sourceTree = "<group>"; };
 		B358CDCA949364F93BD996D6 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		B3941DD4936B4FD0BD5A8837 /* MorningCheckInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckInView.swift; sourceTree = "<group>"; };
+		A6B3B338A337AA6015B732B8 /* MorningCheckInViewV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckInViewV2.swift; sourceTree = "<group>"; };
 		B5D8DC9D91D38419C97E97FA /* EventStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventStorage.swift; sourceTree = "<group>"; };
 		BACAE6FF95D948B09DD2 /* SleepPlanDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepPlanDetailView.swift; sourceTree = "<group>"; };
 		BB4C5084D06D74163A5C71A9 /* UserSettingsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserSettingsManager.swift; sourceTree = "<group>"; };
 		BE3796A887B24D9FBBD40758 /* PreSleepLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreSleepLogView.swift; sourceTree = "<group>"; };
+		1B0D2C424B1B7A1C6FC90C5D /* PreSleepLogViewV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreSleepLogViewV2.swift; sourceTree = "<group>"; };
 		C01 /* DoseTap.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DoseTap.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C1FBB8D30211AB1F43A21D65 /* AppTheme.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
 		C39612EB02A94A3BADDD204B /* FullApp/EnhancedNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/EnhancedNotificationService.swift; sourceTree = "<group>"; };
@@ -178,7 +215,6 @@
 		E0BC9035E4ACF20D1D40B9A9 /* SleepTimelineOverlays.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SleepTimelineOverlays.swift; sourceTree = "<group>"; };
 		E4E2B992A9FD423E84206CCE /* FullApp/InventoryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/InventoryService.swift; sourceTree = "<group>"; };
 		EDIT001 /* EditDoseTimeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditDoseTimeView.swift; sourceTree = "<group>"; };
-				DOSE001 /* DoseAmountPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseAmountPicker.swift; sourceTree = "<group>"; };
 		F3CED6FC4A7543E68CDF0BA0 /* TimeZoneMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeZoneMonitor.swift; sourceTree = "<group>"; };
 		F65B22283DEE43E8AA554209 /* FullApp/DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/DashboardView.swift; sourceTree = "<group>"; };
 		F90DAD707525490DB491F5EA /* CSVExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVExporter.swift; sourceTree = "<group>"; };
@@ -191,6 +227,40 @@
 		UNDO006 /* MedicationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationSettingsView.swift; sourceTree = "<group>"; };
 		UNDO008 /* MedicationPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationPickerView.swift; sourceTree = "<group>"; };
 		WP002 /* WeeklyPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyPlanner.swift; sourceTree = "<group>"; };
+
+		AAAAAAAAB02476599B474F92 /* EventStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventStore.swift; sourceTree = "<group>"; };
+		AAAAAAAA9375A01D60D544D2 /* EventStoreAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventStoreAdapter.swift; sourceTree = "<group>"; };
+		AAAAAAAACCC40E5F81D54017 /* UndoManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoManager.swift; sourceTree = "<group>"; };
+		AAAAAAAAF69DA694C7F34699 /* TimeEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeEngine.swift; sourceTree = "<group>"; };
+		AAAAAAAA36A53D4523F64747 /* SnoozeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnoozeController.swift; sourceTree = "<group>"; };
+		AAAAAAAA46AE8D34C2D94D9D /* OfflineQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueue.swift; sourceTree = "<group>"; };
+		AAAAAAAAE2FB6FF6020E4E36 /* AccessibilitySupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilitySupport.swift; sourceTree = "<group>"; };
+		AAAAAAAAF69BA9AFFAB74745 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		AAAAAAAA3EF87F819B014E9B /* DoseTapCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseTapCore.swift; sourceTree = "<group>"; };
+		AAAAAAAAEF2523A9850A4CF8 /* UndoSnackbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoSnackbar.swift; sourceTree = "<group>"; };
+		AAAAAAAA266467DE5211473F /* UndoStateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoStateManager.swift; sourceTree = "<group>"; };
+		AAAAAAAA1102B654170D4ADC /* Views/UndoSnackbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/UndoSnackbarView.swift; sourceTree = "<group>"; };
+		AAAAAAAAB606BA649CD54E05 /* Views/MedicationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/MedicationSettingsView.swift; sourceTree = "<group>"; };
+		AAAAAAAA3BF5D92071644CB2 /* Views/MedicationPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/MedicationPickerView.swift; sourceTree = "<group>"; };
+		AAAAAAAA14C81298FE11402B /* Views/MorningCheckInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/MorningCheckInView.swift; sourceTree = "<group>"; };
+		AAAAAAAA7B78B34FD10446C2 /* Views/PreSleepLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/PreSleepLogView.swift; sourceTree = "<group>"; };
+
+		AAAAAAAA0D3D35F79C43471F /* EventStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventStore.swift; sourceTree = "<group>"; };
+		AAAAAAAAD92534DFD95145D2 /* EventStoreAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventStoreAdapter.swift; sourceTree = "<group>"; };
+		AAAAAAAABD35693C406049F4 /* UndoManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoManager.swift; sourceTree = "<group>"; };
+		AAAAAAAA2598FDF8C1C140E3 /* TimeEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeEngine.swift; sourceTree = "<group>"; };
+		AAAAAAAA8FCCB98DB3DB4121 /* SnoozeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnoozeController.swift; sourceTree = "<group>"; };
+		AAAAAAAA2F3F30A38401485A /* OfflineQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueue.swift; sourceTree = "<group>"; };
+		AAAAAAAA052DCA952CCB44F2 /* AccessibilitySupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilitySupport.swift; sourceTree = "<group>"; };
+		AAAAAAAA35A412F788544481 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		AAAAAAAA650495A0710A45ED /* DoseTapCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseTapCore.swift; sourceTree = "<group>"; };
+		AAAAAAAA5349B76669DE4457 /* UndoSnackbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoSnackbar.swift; sourceTree = "<group>"; };
+		AAAAAAAA89C0D961999A4C68 /* UndoStateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoStateManager.swift; sourceTree = "<group>"; };
+		AAAAAAAA691E6CB99B2045F5 /* Views/UndoSnackbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/UndoSnackbarView.swift; sourceTree = "<group>"; };
+		AAAAAAAAF0F574B0146D4A3C /* Views/MedicationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/MedicationSettingsView.swift; sourceTree = "<group>"; };
+		AAAAAAAA9CC811F1C8164120 /* Views/MedicationPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/MedicationPickerView.swift; sourceTree = "<group>"; };
+		AAAAAAAA1A6584B77C104BCF /* Views/MorningCheckInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/MorningCheckInView.swift; sourceTree = "<group>"; };
+		AAAAAAAAD5E8956243C749FC /* Views/PreSleepLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/PreSleepLogView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -238,6 +308,38 @@
 				AAAAAAAA180FECDFD1A34BF9 /* Views/MedicationPickerView.swift */,
 				AAAAAAAADA901C7481C5490B /* Views/MorningCheckInView.swift */,
 				AAAAAAAA7DFB77385FC541DB /* Views/PreSleepLogView.swift */,
+				AAAAAAAAB02476599B474F92 /* EventStore.swift */,
+				AAAAAAAA9375A01D60D544D2 /* EventStoreAdapter.swift */,
+				AAAAAAAACCC40E5F81D54017 /* UndoManager.swift */,
+				AAAAAAAAF69DA694C7F34699 /* TimeEngine.swift */,
+				AAAAAAAA36A53D4523F64747 /* SnoozeController.swift */,
+				AAAAAAAA46AE8D34C2D94D9D /* OfflineQueue.swift */,
+				AAAAAAAAE2FB6FF6020E4E36 /* AccessibilitySupport.swift */,
+				AAAAAAAAF69BA9AFFAB74745 /* DashboardView.swift */,
+				AAAAAAAA3EF87F819B014E9B /* DoseTapCore.swift */,
+				AAAAAAAAEF2523A9850A4CF8 /* UndoSnackbar.swift */,
+				AAAAAAAA266467DE5211473F /* UndoStateManager.swift */,
+				AAAAAAAA1102B654170D4ADC /* Views/UndoSnackbarView.swift */,
+				AAAAAAAAB606BA649CD54E05 /* Views/MedicationSettingsView.swift */,
+				AAAAAAAA3BF5D92071644CB2 /* Views/MedicationPickerView.swift */,
+				AAAAAAAA14C81298FE11402B /* Views/MorningCheckInView.swift */,
+				AAAAAAAA7B78B34FD10446C2 /* Views/PreSleepLogView.swift */,
+				AAAAAAAA0D3D35F79C43471F /* EventStore.swift */,
+				AAAAAAAAD92534DFD95145D2 /* EventStoreAdapter.swift */,
+				AAAAAAAABD35693C406049F4 /* UndoManager.swift */,
+				AAAAAAAA2598FDF8C1C140E3 /* TimeEngine.swift */,
+				AAAAAAAA8FCCB98DB3DB4121 /* SnoozeController.swift */,
+				AAAAAAAA2F3F30A38401485A /* OfflineQueue.swift */,
+				AAAAAAAA052DCA952CCB44F2 /* AccessibilitySupport.swift */,
+				AAAAAAAA35A412F788544481 /* DashboardView.swift */,
+				AAAAAAAA650495A0710A45ED /* DoseTapCore.swift */,
+				AAAAAAAA5349B76669DE4457 /* UndoSnackbar.swift */,
+				AAAAAAAA89C0D961999A4C68 /* UndoStateManager.swift */,
+				AAAAAAAA691E6CB99B2045F5 /* Views/UndoSnackbarView.swift */,
+				AAAAAAAAF0F574B0146D4A3C /* Views/MedicationSettingsView.swift */,
+				AAAAAAAA9CC811F1C8164120 /* Views/MedicationPickerView.swift */,
+				AAAAAAAA1A6584B77C104BCF /* Views/MorningCheckInView.swift */,
+				AAAAAAAAD5E8956243C749FC /* Views/PreSleepLogView.swift */,
 			);
 			path = Security;
 			sourceTree = "<group>";
@@ -383,7 +485,9 @@
 			isa = PBXGroup;
 			children = (
 				B3941DD4936B4FD0BD5A8837 /* MorningCheckInView.swift */,
+				A6B3B338A337AA6015B732B8 /* MorningCheckInViewV2.swift */,
 				BE3796A887B24D9FBBD40758 /* PreSleepLogView.swift */,
+				1B0D2C424B1B7A1C6FC90C5D /* PreSleepLogViewV2.swift */,
 				UNDO004 /* UndoSnackbarView.swift */,
 				UNDO006 /* MedicationSettingsView.swift */,
 				UNDO008 /* MedicationPickerView.swift */,
@@ -391,7 +495,6 @@
 				8FABFEE0765C943A32E6ACC2 /* NightReviewView.swift */,
 				707FF265ADBBA04484376264 /* ThemeSettingsView.swift */,
 				EDIT001 /* EditDoseTimeView.swift */,
-								DOSE001 /* DoseAmountPicker.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -534,8 +637,7 @@
 		8017D52D2EFCDF6A00BF9683 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
-			files = (
-				AAAAAAAAB87941E7DF594E24 /* EventStore.swift in Sources */,
+			files = (AAAAAAAAB87941E7DF594E24 /* EventStore.swift in Sources */,
 				AAAAAAAAD50C5D1A26974F56 /* EventStoreAdapter.swift in Sources */,
 				AAAAAAAAD21C1DC5F3AB4657 /* UndoManager.swift in Sources */,
 				AAAAAAAAA0CFD7C48F0B4D39 /* TimeEngine.swift in Sources */,
@@ -551,6 +653,38 @@
 				AAAAAAAA9D0D4CF2EFB54BCB /* Views/MedicationPickerView.swift in Sources */,
 				AAAAAAAA6F8992926A284D92 /* Views/MorningCheckInView.swift in Sources */,
 				AAAAAAAA35286560CB464309 /* Views/PreSleepLogView.swift in Sources */,
+				AAAAAAAA3AB0BEC022B44EB0 /* EventStore.swift in Sources */,
+				AAAAAAAA463DF7E9C62C4C24 /* EventStoreAdapter.swift in Sources */,
+				AAAAAAAAE4DFC6726C9B4259 /* UndoManager.swift in Sources */,
+				AAAAAAAA15D073E22CE84C30 /* TimeEngine.swift in Sources */,
+				AAAAAAAA61BD2B67F4DD47F3 /* SnoozeController.swift in Sources */,
+				AAAAAAAACDF883FB59F8493F /* OfflineQueue.swift in Sources */,
+				AAAAAAAA77A45818FD0C4E86 /* AccessibilitySupport.swift in Sources */,
+				AAAAAAAA907A580B72F944A0 /* DashboardView.swift in Sources */,
+				AAAAAAAACA54162103F7438E /* DoseTapCore.swift in Sources */,
+				AAAAAAAA3C4E7986BED64381 /* UndoSnackbar.swift in Sources */,
+				AAAAAAAAEB68515963164734 /* UndoStateManager.swift in Sources */,
+				AAAAAAAA3B743705C16C4B12 /* Views/UndoSnackbarView.swift in Sources */,
+				AAAAAAAA93CDD0E06292428D /* Views/MedicationSettingsView.swift in Sources */,
+				AAAAAAAA34B366E7343741AA /* Views/MedicationPickerView.swift in Sources */,
+				AAAAAAAA081E03F4B9DC42DF /* Views/MorningCheckInView.swift in Sources */,
+				AAAAAAAAC8B96F3653CE447E /* Views/PreSleepLogView.swift in Sources */,
+				AAAAAAAA695063B6C4CE43A2 /* EventStore.swift in Sources */,
+				AAAAAAAA3A7CFD4595EB4D03 /* EventStoreAdapter.swift in Sources */,
+				AAAAAAAA9B0EE10FDD1D4AA6 /* UndoManager.swift in Sources */,
+				AAAAAAAA508BDC1CEA504CEE /* TimeEngine.swift in Sources */,
+				AAAAAAAABB20888861504CF1 /* SnoozeController.swift in Sources */,
+				AAAAAAAA3E5A2ABE59BB4183 /* OfflineQueue.swift in Sources */,
+				AAAAAAAA01CF8D65B8F445EB /* AccessibilitySupport.swift in Sources */,
+				AAAAAAAAD59E71DCF30B418D /* DashboardView.swift in Sources */,
+				AAAAAAAACF5EF686836D4D4D /* DoseTapCore.swift in Sources */,
+				AAAAAAAA06D9336B83194149 /* UndoSnackbar.swift in Sources */,
+				AAAAAAAAE6D6980B4843401C /* UndoStateManager.swift in Sources */,
+				AAAAAAAA9B874B5A54564E97 /* Views/UndoSnackbarView.swift in Sources */,
+				AAAAAAAA32CDE55D0E244FE4 /* Views/MedicationSettingsView.swift in Sources */,
+				AAAAAAAAE3C9AA4AFF654FD5 /* Views/MedicationPickerView.swift in Sources */,
+				AAAAAAAA472DE0EFDA7345D0 /* Views/MorningCheckInView.swift in Sources */,
+				AAAAAAAA8FC15668ACC24E7B /* Views/PreSleepLogView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -571,7 +705,6 @@
 				UNDO005 /* MedicationSettingsView.swift in Sources */,
 				UNDO007 /* MedicationPickerView.swift in Sources */,
 				EDIT002 /* EditDoseTimeView.swift in Sources */,
-								DOSE002 /* DoseAmountPicker.swift in Sources */,
 				0A777B0D5CC54803B060A980 /* UserSettingsManager.swift in Sources */,
 				626911F284B24C54BA73D7F8 /* SettingsView.swift in Sources */,
 				68B3DB1D97734922B659 /* SleepPlanDetailView.swift in Sources */,
@@ -579,7 +712,9 @@
 				81A5CD7A3DD244DEB70FA0B2 /* EventStorage.swift in Sources */,
 				92518D93643945F4B64E860F /* SessionRepository.swift in Sources */,
 				D8746EA078A54AF7A8CE92B3 /* MorningCheckInView.swift in Sources */,
+				1C3633B630D571CB6FE58C2F /* MorningCheckInViewV2.swift in Sources */,
 				F94248D37BBE47A5A2E90C9B /* PreSleepLogView.swift in Sources */,
+				724D3FD1F3B968EE20CB2AF9 /* PreSleepLogViewV2.swift in Sources */,
 				2AC2BB5E8B07470DAC87BF98 /* FullApp/SQLiteStorage.swift in Sources */,
 				FF9B9D3487C94D99934BC6FB /* FullApp/TimelineView.swift in Sources */,
 				626D4BF0DD5F45C9BE4DADD3 /* FullApp/QuickLogPanel.swift in Sources */,
@@ -664,7 +799,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.0.5;
+				MARKETING_VERSION = 2.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.dosetap.staging;
 				PRODUCT_NAME = DoseTapStaging;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -705,7 +840,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.0.5;
+				MARKETING_VERSION = 2.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.dosetap.staging;
 				PRODUCT_NAME = DoseTapStaging;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -755,7 +890,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 0.0.5;
+				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = AxxessPhilly.DoseTapTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -810,7 +945,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 0.0.5;
+				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = AxxessPhilly.DoseTapTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -914,7 +1049,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.0.5;
+				MARKETING_VERSION = 2.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.dosetap.ios;
 				PRODUCT_NAME = DoseTap;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -956,7 +1091,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.0.5;
+				MARKETING_VERSION = 2.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.dosetap.ios;
 				PRODUCT_NAME = DoseTap;
 				SWIFT_EMIT_LOC_STRINGS = YES;
