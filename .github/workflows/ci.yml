@@ -190,18 +190,50 @@ jobs:
         run: |
           set -euo pipefail
 
-          DESTINATION="platform=iOS Simulator,name=iPhone 15"
+          SIMULATOR_NAME="iPhone 15"
+          DESTINATION="platform=iOS Simulator,name=$SIMULATOR_NAME"
           DERIVED_DATA="$RUNNER_TEMP/DerivedData"
+          FINAL_LOG="$RUNNER_TEMP/xcodebuild-test.log"
 
-          xcodebuild test \
-            -project ios/DoseTap.xcodeproj \
-            -scheme DoseTap \
-            -destination "$DESTINATION" \
-            -derivedDataPath "$DERIVED_DATA" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGN_IDENTITY="" \
-            DEVELOPMENT_TEAM="" \
-            | tee "$RUNNER_TEMP/xcodebuild-test.log"
+          # Reduce simulator boot/install flakiness on GitHub hosted runners.
+          xcrun simctl shutdown all || true
+          xcrun simctl boot "$SIMULATOR_NAME" || true
+          xcrun simctl bootstatus "$SIMULATOR_NAME" -b || true
+
+          run_tests() {
+            local attempt="$1"
+            local attempt_log="$RUNNER_TEMP/xcodebuild-test-attempt-${attempt}.log"
+            echo "Running xcodebuild test (attempt $attempt)..."
+
+            set +e
+            xcodebuild test \
+              -project ios/DoseTap.xcodeproj \
+              -scheme DoseTap \
+              -destination "$DESTINATION" \
+              -derivedDataPath "$DERIVED_DATA" \
+              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGN_IDENTITY="" \
+              DEVELOPMENT_TEAM="" \
+              | tee "$attempt_log"
+            local status=${PIPESTATUS[0]}
+            set -e
+
+            cp "$attempt_log" "$FINAL_LOG"
+            return "$status"
+          }
+
+          if ! run_tests 1; then
+            if rg -q 'Invalid device state|Failed to install or launch the test runner|Mach error -308|server died' "$FINAL_LOG"; then
+              echo "Transient simulator failure detected; rebooting simulator and retrying once."
+              xcrun simctl shutdown all || true
+              xcrun simctl boot "$SIMULATOR_NAME" || true
+              xcrun simctl bootstatus "$SIMULATOR_NAME" -b || true
+              run_tests 2
+            else
+              echo "xcodebuild failed with non-transient error."
+              exit 1
+            fi
+          fi
 
       - name: Verify required test suites executed
         run: |
