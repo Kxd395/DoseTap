@@ -202,7 +202,7 @@ struct PreSleepLogView: View {
                     painWokeUser: false,  // N/A for pre-sleep
                     sessionId: sessionId
                 )
-                EventStorage.shared.savePainSnapshot(snapshot)
+                sessionRepo.savePainSnapshot(snapshot)
             }
             // Fallback: Legacy pain tracking (deprecated - backwards compatibility only)
             else if let legacyPain = answers.legacyBodyPain, legacyPain != .none {
@@ -213,7 +213,7 @@ struct PreSleepLogView: View {
                     locations: [],  // Legacy doesn't have detailed locations
                     sessionId: sessionId
                 )
-                EventStorage.shared.savePainSnapshot(snapshot)
+                sessionRepo.savePainSnapshot(snapshot)
             }
             
             dismiss()

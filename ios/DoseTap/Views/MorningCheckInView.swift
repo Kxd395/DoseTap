@@ -293,7 +293,7 @@ class MorningCheckInViewModel: ObservableObject {
     
     private func loadPreSleepPain() {
         // Check if there's a pre-sleep pain snapshot for this session
-        if let snapshot = EventStorage.shared.getPainSnapshot(sessionId: sessionId, context: .preSleep) {
+        if let snapshot = SessionRepository.shared.getPainSnapshot(sessionId: sessionId, context: .preSleep) {
             preSleepPain = snapshot
             showPainDeltaSection = true
         }
@@ -432,7 +432,7 @@ class MorningCheckInViewModel: ObservableObject {
                 sessionId: sessionId,
                 delta: delta
             )
-            EventStorage.shared.savePainSnapshot(wakeSnapshot)
+            SessionRepository.shared.savePainSnapshot(wakeSnapshot)
         }
         // Priority 2: If no pre-sleep but user reported wake pain directly, save that
         else if let wakeLevel = wakePainLevel, wakeLevel > 0 {
@@ -446,7 +446,7 @@ class MorningCheckInViewModel: ObservableObject {
                 sessionId: sessionId,
                 delta: nil  // No baseline to compare to
             )
-            EventStorage.shared.savePainSnapshot(wakeSnapshot)
+            SessionRepository.shared.savePainSnapshot(wakeSnapshot)
         }
         
         isSubmitting = false

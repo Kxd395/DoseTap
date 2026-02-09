@@ -1724,6 +1724,34 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     public func fetchDoseLogAsync(forSession sessionDate: String) async -> StoredDoseLog? {
         await storageActor.fetchDoseLog(for: sessionDate)
     }
+
+    /// Persist a pain snapshot through the repository facade.
+    public func savePainSnapshot(_ snapshot: PainSnapshot) {
+        storage.savePainSnapshot(snapshot)
+    }
+
+    /// Fetch a persisted pain snapshot through the repository facade.
+    public func getPainSnapshot(sessionId: String, context: PainSnapshot.Context) -> PainSnapshot? {
+        storage.getPainSnapshot(sessionId: sessionId, context: context)
+    }
+
+    /// Insert a sleep event for a specific session via repository facade.
+    public func insertSleepEventForSession(
+        eventType: String,
+        timestamp: Date = Date(),
+        sessionDate: String,
+        sessionId: String? = nil,
+        notes: String? = nil
+    ) {
+        storage.insertSleepEvent(
+            eventType: eventType,
+            timestamp: timestamp,
+            sessionDate: sessionDate,
+            sessionId: sessionId,
+            notes: notes
+        )
+        sessionDidChange.send()
+    }
     
     /// Most recent incomplete session (for check-in prompts)
     public func mostRecentIncompleteSession() -> String? {

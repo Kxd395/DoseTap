@@ -218,7 +218,7 @@ struct PreSleepLogViewV2: View {
                     painWokeUser: false,
                     sessionId: sessionId
                 )
-                EventStorage.shared.savePainSnapshot(snapshot)
+                sessionRepo.savePainSnapshot(snapshot)
             }
             
             dismiss()

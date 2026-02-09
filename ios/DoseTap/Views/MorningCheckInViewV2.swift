@@ -189,14 +189,14 @@ struct MorningCheckInViewV2: View {
                     painWokeUser: viewModel.painWokeUser,
                     sessionId: sessionId
                 )
-                EventStorage.shared.savePainSnapshot(snapshot)
+                sessionRepo.savePainSnapshot(snapshot)
             }
             
             // 3. Mark session closed via SessionRepository
             sessionRepo.completeCheckIn()
             
             // 4. Log diagnostic event
-            EventStorage.shared.insertSleepEvent(
+            sessionRepo.insertSleepEventForSession(
                 eventType: "session_closed",
                 timestamp: Date(),
                 sessionDate: sessionDate,
@@ -222,7 +222,7 @@ struct MorningCheckInViewV2: View {
         // Mark session as skipped
         sessionRepo.completeCheckIn()
         
-        EventStorage.shared.insertSleepEvent(
+        sessionRepo.insertSleepEventForSession(
             eventType: "session_closed",
             timestamp: Date(),
             sessionDate: sessionDate,
@@ -354,7 +354,7 @@ class MorningCheckInViewModelV2: ObservableObject {
     
     func loadPreSleepPain(sessionId: String) {
         // Load pre-sleep pain from storage
-        if let snapshot = EventStorage.shared.getPainSnapshot(sessionId: sessionId, context: .preSleep) {
+        if let snapshot = SessionRepository.shared.getPainSnapshot(sessionId: sessionId, context: .preSleep) {
             preSleepPainLevel = snapshot.overallLevel
             preSleepPainLocation = snapshot.primaryLocation
         }
@@ -377,7 +377,7 @@ class MorningCheckInViewModelV2: ObservableObject {
         let payloadJson = String(data: payloadData, encoding: .utf8)
         
         // Save via EventStorage sleep event
-        EventStorage.shared.insertSleepEvent(
+        SessionRepository.shared.insertSleepEventForSession(
             eventType: "wake_survey",
             timestamp: Date(),
             sessionDate: sessionDate,
