@@ -25,6 +25,7 @@ final class AnalyticsService: ObservableObject {
     
     // MARK: - Providers
     private var providers: [AnalyticsProvider] = []
+    private var settingsObserver: AnyCancellable?
     
     // MARK: - Event Names per SSOT
     
@@ -194,6 +195,7 @@ final class AnalyticsService: ObservableObject {
         isEnabled = UserSettingsManager.shared.analyticsEnabled
         setupProviders()
         startFlushTimer()
+        observeSettings()
     }
     
     private func setupProviders() {
@@ -214,6 +216,22 @@ final class AnalyticsService: ObservableObject {
             Task { @MainActor in
                 self?.flush()
             }
+        }
+    }
+
+    private func observeSettings() {
+        settingsObserver = NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.handleAnalyticsSettingChange(UserSettingsManager.shared.analyticsEnabled)
+            }
+    }
+
+    private func handleAnalyticsSettingChange(_ newValue: Bool) {
+        guard isEnabled != newValue else { return }
+        isEnabled = newValue
+        if !newValue {
+            clearQueue()
         }
     }
     

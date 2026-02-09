@@ -1296,8 +1296,7 @@ struct NapSummaryCompact: View {
     @ObservedObject private var sessionRepo = SessionRepository.shared
     
     private var napsLogged: (count: Int, totalMinutes: Int) {
-        // TODO: Fetch actual nap events
-        return (0, 0)
+        sessionRepo.napSummary(for: sessionRepo.currentSessionDateString())
     }
     
     var body: some View {
@@ -1310,8 +1309,9 @@ struct NapSummaryCompact: View {
                     Text("Naps logged: \(napsLogged.count), total \(napsLogged.totalMinutes)m")
                         .font(.subheadline)
                     Spacer()
-                    Button("View") { }
+                    Text("See Tonight events")
                         .font(.caption)
+                        .foregroundColor(.secondary)
                 }
                 .padding()
                 .background(Color.green.opacity(0.1))

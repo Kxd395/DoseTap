@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import UserNotifications
 
 // MARK: - Setup Wizard Models
 
@@ -47,6 +48,7 @@ struct NotificationConfig: Codable {
     var focusModeOverride: Bool = false
     var notificationsAuthorized: Bool = false
     var criticalAlertsAuthorized: Bool = false
+    var acknowledgedNotificationRisk: Bool = false
 }
 
 struct PrivacyConfig: Codable {
@@ -59,10 +61,22 @@ struct PrivacyConfig: Codable {
 
 @MainActor
 class SetupWizardService: ObservableObject {
-    @Published var userConfig = UserConfig()
-    @Published var currentStep: Int = 1
+    static let setupCompletedKey = "setup_completed_v2"
+    @Published var userConfig = UserConfig() {
+        didSet {
+            // Keep validation state in sync with user edits so button disabled/enabled
+            // state updates immediately while typing/toggling controls.
+            validateCurrentStep()
+        }
+    }
+    @Published var currentStep: Int = 1 {
+        didSet {
+            validateCurrentStep()
+        }
+    }
     @Published var isLoading = false
     @Published var validationErrors: [String] = []
+    @Published var validationWarnings: [String] = []
     
     private let maxSteps = 5
     
@@ -76,6 +90,7 @@ class SetupWizardService: ObservableObject {
     
     func validateCurrentStep() {
         validationErrors.removeAll()
+        validationWarnings.removeAll()
         
         switch currentStep {
         case 1: validateSleepSchedule()
@@ -108,7 +123,7 @@ class SetupWizardService: ObservableObject {
         }
         
         if sleepDuration > 12 {
-            validationErrors.append("Sleep duration seems unusually long (>12 hours)")
+            validationWarnings.append("Sleep duration seems unusually long (>12 hours)")
         }
     }
     
@@ -126,7 +141,7 @@ class SetupWizardService: ObservableObject {
         }
         
         if userConfig.medicationProfile.doseMgDose2 > userConfig.medicationProfile.doseMgDose1 {
-            validationErrors.append("Warning: Dose 2 is typically smaller than Dose 1")
+            validationWarnings.append("Dose 2 is typically smaller than Dose 1")
         }
         
         if userConfig.medicationProfile.dosesPerBottle <= 0 {
@@ -142,17 +157,18 @@ class SetupWizardService: ObservableObject {
         }
         
         if target <= userConfig.doseWindow.minMinutes + 10 {
-            validationErrors.append("Warning: Target is very close to minimum window")
+            validationWarnings.append("Target is very close to minimum window")
         }
         
         if target >= userConfig.doseWindow.maxMinutes - 10 {
-            validationErrors.append("Warning: Target is very close to maximum window")
+            validationWarnings.append("Target is very close to maximum window")
         }
     }
     
     private func validateNotifications() {
-        // Validation happens during permission requests
-        // No additional validation needed for this step
+        if !userConfig.notifications.notificationsAuthorized && !userConfig.notifications.acknowledgedNotificationRisk {
+            validationErrors.append("Grant notifications or acknowledge the no-reminder risk to continue")
+        }
     }
     
     private func validatePrivacy() {
@@ -161,6 +177,7 @@ class SetupWizardService: ObservableObject {
     }
     
     func nextStep() {
+        validateCurrentStep()
         guard canProceed else { return }
         
         if currentStep < maxSteps {
@@ -189,6 +206,13 @@ class SetupWizardService: ObservableObject {
                 // Persist to UserDefaults (later syncs with SQLite EventStorage)
                 let data = try JSONEncoder().encode(userConfig)
                 UserDefaults.standard.set(data, forKey: "DoseTapUserConfig")
+                UserDefaults.standard.set(true, forKey: Self.setupCompletedKey)
+                UserDefaults.standard.set(userConfig.setupCompletedAt, forKey: "setup_completed_at")
+
+                // Apply setup values to active app settings so install flow has immediate effect.
+                await MainActor.run {
+                    applyConfigToAppSettings()
+                }
                 
                 // Schedule initial notifications if authorized
                 if userConfig.notifications.notificationsAuthorized {
@@ -206,6 +230,28 @@ class SetupWizardService: ObservableObject {
                 }
             }
         }
+    }
+
+    private func applyConfigToAppSettings() {
+        let settings = UserSettingsManager.shared
+        let calendar = Calendar.current
+
+        settings.sleepStartMinutes = minutesSinceMidnight(userConfig.sleepSchedule.usualBedtime, calendar: calendar)
+        settings.wakeTimeMinutes = minutesSinceMidnight(userConfig.sleepSchedule.usualWakeTime, calendar: calendar)
+        settings.targetIntervalMinutes = userConfig.doseWindow.defaultTargetMinutes
+        settings.snoozeDurationMinutes = userConfig.doseWindow.snoozeStepMinutes
+        settings.maxSnoozes = userConfig.doseWindow.maxSnoozes
+        settings.undoWindowSeconds = Double(userConfig.doseWindow.undoWindowSeconds)
+
+        settings.notificationsEnabled = userConfig.notifications.notificationsAuthorized
+        settings.analyticsEnabled = userConfig.privacy.analyticsEnabled
+    }
+
+    private func minutesSinceMidnight(_ date: Date, calendar: Calendar) -> Int {
+        let components = calendar.dateComponents([.hour, .minute], from: date)
+        let hour = components.hour ?? 0
+        let minute = components.minute ?? 0
+        return max(0, min(23 * 60 + 59, hour * 60 + minute))
     }
     
     private func scheduleInitialNotifications() async {

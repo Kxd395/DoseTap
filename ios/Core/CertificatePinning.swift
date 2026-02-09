@@ -54,22 +54,41 @@ public final class CertificatePinning: NSObject, URLSessionDelegate, @unchecked 
     // MARK: - Default Pins
     
     /// Create pinning configuration for DoseTap API
-    /// Replace these with actual certificate pins before release
     public static func forDoseTapAPI() -> CertificatePinning {
-        // TODO: Replace with actual SPKI hashes from your API certificates
-        // You can have multiple pins for certificate rotation
-        let pins = [
-            // Primary certificate pin (replace with actual)
-            "sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-            // Backup certificate pin (for rotation)
-            "sha256/BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB="
-        ]
-        
+        let pins = configuredPins()
         return CertificatePinning(
             pins: pins,
             domains: ["api.dosetap.com", "auth.dosetap.com"],
             allowFallback: false
         )
+    }
+
+    private static func configuredPins() -> [String] {
+        if let envValue = ProcessInfo.processInfo.environment["DOSETAP_CERT_PINS"] {
+            let parsed = parsePins(envValue)
+            if !parsed.isEmpty { return parsed }
+        }
+
+        if let plistValue = Bundle.main.object(forInfoDictionaryKey: "DOSETAP_CERT_PINS") as? String {
+            let parsed = parsePins(plistValue)
+            if !parsed.isEmpty { return parsed }
+        }
+
+        if let plistArray = Bundle.main.object(forInfoDictionaryKey: "DOSETAP_CERT_PINS") as? [String] {
+            let parsed = plistArray.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+            if !parsed.isEmpty { return parsed }
+        }
+
+        #if DEBUG
+        print("⚠️ CertificatePinning: No pins configured (DOSETAP_CERT_PINS). Falling back to default TLS trust evaluation.")
+        #endif
+        return []
+    }
+
+    private static func parsePins(_ raw: String) -> [String] {
+        raw.split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
     }
     
     // MARK: - URLSessionDelegate
@@ -89,6 +108,11 @@ public final class CertificatePinning: NSObject, URLSessionDelegate, @unchecked 
         
         // Skip pinning for domains not in our list (if list is not empty)
         if !pinnedDomains.isEmpty && !pinnedDomains.contains(host) {
+            completionHandler(.performDefaultHandling, nil)
+            return
+        }
+
+        if pinnedHashes.isEmpty {
             completionHandler(.performDefaultHandling, nil)
             return
         }

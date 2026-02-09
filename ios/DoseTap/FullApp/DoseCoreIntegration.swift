@@ -1,6 +1,9 @@
 import SwiftUI
 import Combine
 import DoseCore
+#if canImport(Network)
+import Network
+#endif
 
 // MARK: - Configuration
 /// API configuration - loads from Info.plist or uses defaults
@@ -32,6 +35,7 @@ public struct APIConfiguration {
 public class DoseCoreIntegration: ObservableObject {
     // Core services from the tested DoseCore module
     private let dosingService: DosingService
+    private let networkStatus = LiveNetworkStatus.shared
     
     // MARK: - State is now derived from SessionRepository (P0-1 FIX)
     
@@ -63,7 +67,7 @@ public class DoseCoreIntegration: ObservableObject {
         // Initialize core services with configurable base URL
         let transport = URLSessionTransport()
         let apiClient = APIClient(baseURL: APIConfiguration.baseURL, transport: transport)
-        let offlineQueue = InMemoryOfflineQueue(isOnline: { true }) // TODO: Use real network monitor
+        let offlineQueue = InMemoryOfflineQueue(isOnline: { [networkStatus] in networkStatus.isOnline })
         let rateLimiter = EventRateLimiter.default // Use all 13 event cooldowns
         
         self.dosingService = DosingService(
@@ -315,3 +319,36 @@ public class DoseCoreIntegration: ObservableObject {
     }
 }
 
+private final class LiveNetworkStatus: @unchecked Sendable {
+    static let shared = LiveNetworkStatus()
+
+    #if canImport(Network)
+    private let monitor = NWPathMonitor()
+    #endif
+    private let monitorQueue = DispatchQueue(label: "com.dosetap.network-status")
+    private let lock = NSLock()
+    private var online = true
+
+    var isOnline: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return online
+    }
+
+    private init() {
+        #if canImport(Network)
+        monitor.pathUpdateHandler = { [weak self] path in
+            self?.setOnline(path.status == .satisfied)
+        }
+        monitor.start(queue: monitorQueue)
+        #else
+        setOnline(true)
+        #endif
+    }
+
+    private func setOnline(_ value: Bool) {
+        lock.lock()
+        online = value
+        lock.unlock()
+    }
+}

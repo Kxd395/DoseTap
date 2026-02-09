@@ -123,12 +123,31 @@ public class DoseTapCore: ObservableObject {
     
     public init() {
         self.windowCalculator = DoseWindowCalculator()
-        
-        // Initialize with mock transport for development
-        let mockTransport = MockAPITransport()
-        let apiClient = APIClient(baseURL: URL(string: "https://api.dosetap.com")!, transport: mockTransport)
-        let offlineQueue = InMemoryOfflineQueue(isOnline: { true }) // Always online for development
+
+        let apiClient = APIClient(baseURL: Self.apiBaseURL, transport: Self.makeTransport())
+        let offlineQueue = InMemoryOfflineQueue(isOnline: { true })
         self.dosingService = DosingService(client: apiClient, queue: offlineQueue)
+    }
+
+    private static var apiBaseURL: URL {
+        if let envURL = ProcessInfo.processInfo.environment["DOSETAP_API_URL"],
+           let url = URL(string: envURL) {
+            return url
+        }
+        #if DEBUG
+        return URL(string: "https://api-dev.dosetap.com")!
+        #else
+        return URL(string: "https://api.dosetap.com")!
+        #endif
+    }
+
+    private static func makeTransport() -> APITransport {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["DOSETAP_USE_MOCK_TRANSPORT"] == "1" {
+            return MockAPITransport()
+        }
+        #endif
+        return URLSessionTransport()
     }
     
     /// Set the session repository and observe changes

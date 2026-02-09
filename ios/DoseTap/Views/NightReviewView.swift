@@ -545,42 +545,50 @@ struct SleepEventRow: View {
 // MARK: - Health Data Card
 struct HealthDataCard: View {
     let sessionKey: String
+    @StateObject private var dataStorage = DataStorageService.shared
     
-    // TODO: Integrate with HealthKitManager and WHOOPManager
+    private var sessionData: DoseSessionData? {
+        dataStorage.getAllSessions().first { $0.sessionKey == sessionKey }
+    }
+
+    private var healthData: HealthData? {
+        sessionData?.healthData
+    }
+
+    private var whoopData: WHOOPData? {
+        sessionData?.whoopData
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("📊 Health Integrations")
                 .font(.headline)
             
-            VStack(spacing: 12) {
-                // Apple Health
-                HealthIntegrationRow(
-                    source: "Apple Health",
-                    icon: "heart.fill",
-                    iconColor: .red,
-                    data: [
-                        ("Total Sleep", "7h 23m"),
-                        ("Deep Sleep", "1h 45m"),
-                        ("REM", "2h 10m")
-                    ]
-                )
-                
-                Divider()
-                
-                // WHOOP
-                HealthIntegrationRow(
-                    source: "WHOOP",
-                    icon: "waveform.path.ecg",
-                    iconColor: .green,
-                    data: [
-                        ("Recovery", "68%"),
-                        ("HRV", "45ms"),
-                        ("Sleep Score", "82")
-                    ]
-                )
+            if healthData == nil && whoopData == nil {
+                Text("No synced health data found for this night yet.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            } else {
+                VStack(spacing: 12) {
+                    HealthIntegrationRow(
+                        source: "Apple Health",
+                        icon: "heart.fill",
+                        iconColor: .red,
+                        data: appleHealthRows
+                    )
+
+                    Divider()
+
+                    HealthIntegrationRow(
+                        source: "WHOOP",
+                        icon: "waveform.path.ecg",
+                        iconColor: .green,
+                        data: whoopRows
+                    )
+                }
             }
             
-            Text("Sync health data in Settings → Integrations")
+            Text("Sync from Settings -> Integrations, then refresh this report.")
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
@@ -588,6 +596,35 @@ struct HealthDataCard: View {
         .background(Color(.systemBackground))
         .cornerRadius(12)
         .shadow(radius: 2)
+    }
+
+    private var appleHealthRows: [(String, String)] {
+        guard let healthData else {
+            return [("Status", "Not synced")]
+        }
+        return [
+            ("Total Sleep", formatDuration(healthData.totalSleepTime)),
+            ("Deep Sleep", formatDuration(healthData.deepSleepTime)),
+            ("REM", formatDuration(healthData.remSleepTime))
+        ]
+    }
+
+    private var whoopRows: [(String, String)] {
+        guard let whoopData else {
+            return [("Status", "Not synced")]
+        }
+        return [
+            ("Recovery", whoopData.recoveryScore.map { "\($0)%" } ?? "—"),
+            ("HRV", whoopData.hrv.map { String(format: "%.0f ms", $0) } ?? "—"),
+            ("Sleep Score", whoopData.sleepScore.map(String.init) ?? "—")
+        ]
+    }
+
+    private func formatDuration(_ duration: TimeInterval?) -> String {
+        guard let duration else { return "—" }
+        let hours = Int(duration) / 3600
+        let minutes = (Int(duration) % 3600) / 60
+        return "\(hours)h \(minutes)m"
     }
 }
 
@@ -625,8 +662,30 @@ struct HealthIntegrationRow: View {
 // MARK: - Export Card
 struct ExportCard: View {
     let sessionKey: String
+    @ObservedObject private var sessionRepo = SessionRepository.shared
+    @StateObject private var dataStorage = DataStorageService.shared
     @State private var showingShareSheet = false
     @State private var exportContent: String = ""
+
+    private var doseLog: StoredDoseLog? {
+        sessionRepo.fetchDoseLog(forSession: sessionKey)
+    }
+
+    private var preSleepLog: StoredPreSleepLog? {
+        sessionRepo.fetchMostRecentPreSleepLog(sessionId: sessionKey)
+    }
+
+    private var morningCheckIn: StoredMorningCheckIn? {
+        sessionRepo.fetchMorningCheckIn(for: sessionKey)
+    }
+
+    private var sleepEvents: [StoredSleepEvent] {
+        sessionRepo.fetchSleepEventsLocal(for: sessionKey)
+    }
+
+    private var sessionData: DoseSessionData? {
+        dataStorage.getAllSessions().first { $0.sessionKey == sessionKey }
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -668,8 +727,147 @@ struct ExportCard: View {
     enum ExportFormat { case text, csv }
     
     private func generateExportContent(format: ExportFormat) -> String {
-        // TODO: Generate actual export content from session data
-        return "DoseTap Night Report - \(sessionKey)\n\nExport your full night data for review."
+        switch format {
+        case .text:
+            return generateTextReport()
+        case .csv:
+            return generateCSVReport()
+        }
+    }
+
+    private func generateTextReport() -> String {
+        var lines: [String] = []
+        lines.append("DoseTap Night Report")
+        lines.append("Session: \(sessionKey)")
+        lines.append("Generated: \(Date().formatted(date: .abbreviated, time: .shortened))")
+        lines.append("")
+        lines.append("Dose Summary")
+        if let doseLog {
+            lines.append("- Dose 1: \(formatTime(doseLog.dose1Time))")
+            if let dose2 = doseLog.dose2Time {
+                lines.append("- Dose 2: \(formatTime(dose2))")
+            } else {
+                lines.append("- Dose 2: \(doseLog.dose2Skipped ? "Skipped" : "Not recorded")")
+            }
+            lines.append("- Snoozes: \(doseLog.snoozeCount)")
+            if let interval = doseLog.intervalMinutes {
+                lines.append("- Interval: \(interval) minutes")
+            }
+        } else {
+            lines.append("- No dose log available")
+        }
+        lines.append("")
+        lines.append("Pre-Sleep Log")
+        if let preSleepLog {
+            lines.append("- Completion: \(preSleepLog.completionState)")
+            if let answers = preSleepLog.answers {
+                lines.append("- Stress: \(answers.stressLevel.map(String.init) ?? "—")")
+                lines.append("- Exercise: \(answers.exercise?.displayText ?? "—")")
+                lines.append("- Nap: \(answers.napToday?.displayText ?? "—")")
+                lines.append("- Screens: \(answers.screensInBed?.displayText ?? "—")")
+            }
+        } else {
+            lines.append("- Not recorded")
+        }
+        lines.append("")
+        lines.append("Morning Check-in")
+        if let morningCheckIn {
+            lines.append("- Sleep quality: \(morningCheckIn.sleepQuality)/5")
+            lines.append("- Feel rested: \(morningCheckIn.feelRested)")
+            lines.append("- Grogginess: \(morningCheckIn.grogginess)")
+            lines.append("- Readiness: \(morningCheckIn.readinessForDay)/5")
+        } else {
+            lines.append("- Not recorded")
+        }
+        lines.append("")
+        lines.append("Sleep Events (\(sleepEvents.count))")
+        if sleepEvents.isEmpty {
+            lines.append("- No events logged")
+        } else {
+            for event in sleepEvents {
+                let display = event.eventType.replacingOccurrences(of: "_", with: " ").capitalized
+                lines.append("- \(formatTime(event.timestamp))  \(display)")
+            }
+        }
+        lines.append("")
+        lines.append("Health Integrations")
+        if let health = sessionData?.healthData {
+            lines.append("- Apple Health total sleep: \(formatDuration(health.totalSleepTime))")
+            lines.append("- Apple Health deep sleep: \(formatDuration(health.deepSleepTime))")
+            lines.append("- Apple Health REM: \(formatDuration(health.remSleepTime))")
+        } else {
+            lines.append("- Apple Health: Not synced")
+        }
+        if let whoop = sessionData?.whoopData {
+            lines.append("- WHOOP sleep score: \(whoop.sleepScore.map(String.init) ?? "—")")
+            lines.append("- WHOOP recovery: \(whoop.recoveryScore.map { "\($0)%" } ?? "—")")
+            lines.append("- WHOOP HRV: \(whoop.hrv.map { String(format: "%.0f ms", $0) } ?? "—")")
+        } else {
+            lines.append("- WHOOP: Not synced")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private func generateCSVReport() -> String {
+        var rows = ["section,key,value"]
+
+        appendCSVRow(&rows, section: "session", key: "session_key", value: sessionKey)
+        appendCSVRow(&rows, section: "session", key: "generated_at", value: Date().ISO8601Format())
+
+        appendCSVRow(&rows, section: "dose", key: "dose1_time", value: doseLog.map { $0.dose1Time.ISO8601Format() } ?? "")
+        appendCSVRow(&rows, section: "dose", key: "dose2_time", value: doseLog?.dose2Time?.ISO8601Format() ?? "")
+        appendCSVRow(&rows, section: "dose", key: "dose2_skipped", value: doseLog?.dose2Skipped == true ? "1" : "0")
+        appendCSVRow(&rows, section: "dose", key: "snooze_count", value: String(doseLog?.snoozeCount ?? 0))
+        appendCSVRow(&rows, section: "dose", key: "interval_minutes", value: doseLog?.intervalMinutes.map(String.init) ?? "")
+
+        appendCSVRow(&rows, section: "pre_sleep", key: "completion_state", value: preSleepLog?.completionState ?? "")
+        appendCSVRow(&rows, section: "pre_sleep", key: "stress_level", value: preSleepLog?.answers?.stressLevel.map(String.init) ?? "")
+        appendCSVRow(&rows, section: "pre_sleep", key: "exercise", value: preSleepLog?.answers?.exercise?.displayText ?? "")
+        appendCSVRow(&rows, section: "pre_sleep", key: "nap", value: preSleepLog?.answers?.napToday?.displayText ?? "")
+        appendCSVRow(&rows, section: "pre_sleep", key: "screens_in_bed", value: preSleepLog?.answers?.screensInBed?.displayText ?? "")
+
+        appendCSVRow(&rows, section: "morning", key: "sleep_quality", value: morningCheckIn.map { String($0.sleepQuality) } ?? "")
+        appendCSVRow(&rows, section: "morning", key: "feel_rested", value: morningCheckIn?.feelRested ?? "")
+        appendCSVRow(&rows, section: "morning", key: "grogginess", value: morningCheckIn?.grogginess ?? "")
+        appendCSVRow(&rows, section: "morning", key: "readiness", value: morningCheckIn.map { String($0.readinessForDay) } ?? "")
+
+        for (index, event) in sleepEvents.enumerated() {
+            appendCSVRow(&rows, section: "sleep_event", key: "event_\(index + 1)_type", value: event.eventType)
+            appendCSVRow(&rows, section: "sleep_event", key: "event_\(index + 1)_timestamp", value: event.timestamp.ISO8601Format())
+        }
+
+        appendCSVRow(&rows, section: "health", key: "total_sleep_seconds", value: sessionData?.healthData?.totalSleepTime.map { String(Int($0)) } ?? "")
+        appendCSVRow(&rows, section: "health", key: "deep_sleep_seconds", value: sessionData?.healthData?.deepSleepTime.map { String(Int($0)) } ?? "")
+        appendCSVRow(&rows, section: "health", key: "rem_sleep_seconds", value: sessionData?.healthData?.remSleepTime.map { String(Int($0)) } ?? "")
+        appendCSVRow(&rows, section: "whoop", key: "sleep_score", value: sessionData?.whoopData?.sleepScore.map(String.init) ?? "")
+        appendCSVRow(&rows, section: "whoop", key: "recovery_score", value: sessionData?.whoopData?.recoveryScore.map(String.init) ?? "")
+        appendCSVRow(&rows, section: "whoop", key: "hrv", value: sessionData?.whoopData?.hrv.map { String(format: "%.1f", $0) } ?? "")
+
+        return rows.joined(separator: "\n")
+    }
+
+    private func appendCSVRow(_ rows: inout [String], section: String, key: String, value: String) {
+        rows.append("\(escapeCSV(section)),\(escapeCSV(key)),\(escapeCSV(value))")
+    }
+
+    private func escapeCSV(_ value: String) -> String {
+        if value.contains(",") || value.contains("\"") || value.contains("\n") {
+            let escaped = value.replacingOccurrences(of: "\"", with: "\"\"")
+            return "\"\(escaped)\""
+        }
+        return value
+    }
+
+    private func formatDuration(_ duration: TimeInterval?) -> String {
+        guard let duration else { return "—" }
+        let hours = Int(duration) / 3600
+        let minutes = (Int(duration) % 3600) / 60
+        return "\(hours)h \(minutes)m"
+    }
+
+    private func formatTime(_ date: Date?) -> String {
+        guard let date else { return "—" }
+        return date.formatted(date: .omitted, time: .shortened)
     }
 }
 

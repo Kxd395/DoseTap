@@ -9,7 +9,7 @@
 import XCTest
 @testable import DoseTap
 import DoseCore
-import UserNotifications
+@preconcurrency import UserNotifications
 
 // MARK: - Fake Notification Scheduler (conforms to production protocol)
 
@@ -375,7 +375,7 @@ final class DataIntegrityTests: XCTestCase {
 final class NotificationCenterIntegrationTests: XCTestCase {
     
     /// Notification scheduler that forwards to UNUserNotificationCenter while recording IDs.
-    private final class RecordingUNNotificationScheduler: NotificationScheduling {
+    private final class RecordingUNNotificationScheduler: NotificationScheduling, @unchecked Sendable {
         let center: UNUserNotificationCenter
         private(set) var cancelled: [String] = []
         
@@ -999,7 +999,7 @@ final class URLRouterTests: XCTestCase {
     /// Verify all valid URL schemes are recognized
     func test_validScheme_isHandled() {
         let dose1URL = URL(string: "dosetap://dose1")!
-        let result = router.handle(dose1URL)
+        _ = router.handle(dose1URL)
         // Should return true (handled) or false (missing dependencies)
         // The key is it doesn't crash and recognizes the scheme
         XCTAssertNotNil(router.lastAction, "Should set lastAction for valid URL")
@@ -1735,7 +1735,7 @@ final class NavigationFlowTests: XCTestCase {
     func test_quickEventFlow() {
         // Log bathroom via deep link
         let url = URL(string: "dosetap://log?event=bathroom")!
-        let result = router.handle(url)
+        _ = router.handle(url)
         
         // Should be recognized (execution depends on session state)
         if case .logEvent(let name, _) = router.lastAction {
@@ -1785,5 +1785,200 @@ final class PreSleepCardStateTests: XCTestCase {
         )
         let state = PreSleepCardState(log: log)
         XCTAssertEqual(state.action, .edit(id: "log-999"))
+    }
+}
+
+// MARK: - Regression: Alarm / Setup / Snooze
+
+@MainActor
+final class AlarmAndSetupRegressionTests: XCTestCase {
+    private var previousNotificationsEnabled = true
+    private var previousMaxSnoozes = 3
+    private var previousSnoozeDuration = 10
+
+    private let alarm = AlarmService.shared
+    private let repo = SessionRepository.shared
+    private let router = URLRouter.shared
+
+    override func setUp() async throws {
+        let settings = UserSettingsManager.shared
+        previousNotificationsEnabled = settings.notificationsEnabled
+        previousMaxSnoozes = settings.maxSnoozes
+        previousSnoozeDuration = settings.snoozeDurationMinutes
+
+        settings.notificationsEnabled = true
+        settings.maxSnoozes = 3
+        settings.snoozeDurationMinutes = 10
+
+        repo.clearTonight()
+        alarm.clearWakeAlarmState()
+        alarm.cancelAllAlarms()
+
+        router.lastAction = nil
+        router.feedbackMessage = ""
+        router.core = nil
+    }
+
+    override func tearDown() async throws {
+        let settings = UserSettingsManager.shared
+        settings.notificationsEnabled = previousNotificationsEnabled
+        settings.maxSnoozes = previousMaxSnoozes
+        settings.snoozeDurationMinutes = previousSnoozeDuration
+
+        alarm.clearWakeAlarmState()
+        alarm.cancelAllAlarms()
+        repo.clearTonight()
+    }
+
+    func test_dueAlarm_doesNotRing_afterSessionCompleted() async {
+        let now = Date()
+        repo.setDose1Time(now.addingTimeInterval(-180 * 60))
+        repo.setDose2Time(now.addingTimeInterval(-5 * 60))
+
+        alarm.targetWakeTime = now.addingTimeInterval(-60)
+        alarm.alarmScheduled = true
+        alarm.checkForDueAlarm(now: now)
+
+        XCTAssertFalse(alarm.isAlarmRinging, "Completed sessions must never re-trigger alarm ringing.")
+        XCTAssertNil(alarm.targetWakeTime, "Completed sessions should clear stale wake target.")
+        XCTAssertFalse(alarm.alarmScheduled, "Completed sessions should clear scheduled wake-alarm state.")
+    }
+
+    func test_setupWarnings_doNotBlockProceed() async {
+        let service = SetupWizardService()
+        service.currentStep = 2
+        service.userConfig.medicationProfile.medicationName = "XYWAV"
+        service.userConfig.medicationProfile.doseMgDose1 = 225
+        service.userConfig.medicationProfile.doseMgDose2 = 300 // Warning only
+        service.userConfig.medicationProfile.dosesPerBottle = 60
+
+        service.validateCurrentStep()
+
+        XCTAssertTrue(service.validationErrors.isEmpty, "Warning-only config should not produce blocking errors.")
+        XCTAssertFalse(service.validationWarnings.isEmpty, "Warning should still be surfaced to the user.")
+        XCTAssertTrue(service.canProceed, "Warnings should not block navigation.")
+
+        service.nextStep()
+        XCTAssertEqual(service.currentStep, 3, "Wizard should advance when only warnings are present.")
+    }
+
+    func test_setupErrors_stillBlockProceed() async {
+        let service = SetupWizardService()
+        service.currentStep = 2
+        service.userConfig.medicationProfile.medicationName = ""
+        service.userConfig.medicationProfile.doseMgDose1 = 0
+        service.userConfig.medicationProfile.doseMgDose2 = 0
+        service.userConfig.medicationProfile.dosesPerBottle = 0
+
+        service.validateCurrentStep()
+
+        XCTAssertFalse(service.validationErrors.isEmpty, "Hard validation errors must still be enforced.")
+        XCTAssertFalse(service.canProceed, "Wizard must block continuation on blocking errors.")
+    }
+
+    func test_setupValidation_refreshesImmediately_whenUserEditsStepFields() async {
+        let service = SetupWizardService()
+        service.currentStep = 4
+        service.validateCurrentStep()
+
+        XCTAssertFalse(service.canProceed, "Notifications step should block until risk is acknowledged or permissions are granted.")
+
+        service.userConfig.notifications.acknowledgedNotificationRisk = true
+
+        XCTAssertTrue(service.validationErrors.isEmpty, "Editing the step should refresh validation without requiring manual revalidation.")
+        XCTAssertTrue(service.canProceed, "Continue should re-enable immediately after resolving blocking setup errors.")
+    }
+
+    func test_morningCheckIn_useLast_appliesMostRecentWakeSurveyPayload() async {
+        let viewModel = MorningCheckInViewModelV2()
+        let now = Date()
+
+        let older = DoseTap.StoredSleepEvent(
+            id: UUID().uuidString,
+            eventType: "wake_survey",
+            timestamp: now.addingTimeInterval(-3600),
+            sessionDate: "2026-01-08",
+            notes: #"{"feeling":"Rough","sleep_quality":2,"sleepiness_now":4,"pain_level":6,"pain_woke_user":true,"awakenings":"3-4","long_awake":"1h+","notes":"older"}"#
+        )
+
+        let newest = DoseTap.StoredSleepEvent(
+            id: UUID().uuidString,
+            eventType: "wake_survey",
+            timestamp: now.addingTimeInterval(-60),
+            sessionDate: "2026-01-09",
+            notes: #"{"feeling":"Great","sleep_quality":5,"sleepiness_now":1,"pain_level":1,"pain_woke_user":false,"awakenings":"1-2","long_awake":"<15m","notes":"latest"}"#
+        )
+
+        let applied = viewModel.applyLastWakeSurvey(
+            from: [older, newest],
+            excludingSessionDate: "2026-01-10"
+        )
+
+        XCTAssertTrue(applied, "Use Last should apply when a valid historical wake_survey exists.")
+        XCTAssertEqual(viewModel.feelingNow, .great)
+        XCTAssertEqual(viewModel.sleepQuality, 5)
+        XCTAssertEqual(viewModel.sleepinessNow, 1)
+        XCTAssertEqual(viewModel.wakePainLevel, 1)
+        XCTAssertFalse(viewModel.painWokeUser)
+        XCTAssertEqual(viewModel.awakeningsCount, .oneTwo)
+        XCTAssertEqual(viewModel.longAwakePeriod, .lessThan15)
+        XCTAssertEqual(viewModel.notes, "latest")
+    }
+
+    func test_napSummary_pairsStartsAndEnds_andTracksInProgressNap() async {
+        let now = Date()
+
+        repo.insertSleepEvent(
+            id: UUID().uuidString,
+            eventType: "nap_start",
+            timestamp: now.addingTimeInterval(-3600),
+            colorHex: nil
+        )
+        repo.insertSleepEvent(
+            id: UUID().uuidString,
+            eventType: "nap_end",
+            timestamp: now.addingTimeInterval(-3300),
+            colorHex: nil
+        )
+        repo.insertSleepEvent(
+            id: UUID().uuidString,
+            eventType: "nap_start",
+            timestamp: now.addingTimeInterval(-900),
+            colorHex: nil
+        )
+
+        let summary = repo.napSummary(for: repo.currentSessionDateString())
+        XCTAssertEqual(summary.count, 2, "One completed nap plus one in-progress nap should both count.")
+        XCTAssertEqual(summary.totalMinutes, 5, "Only completed nap pairs should contribute to duration.")
+    }
+
+    func test_napSummary_countsUnmatchedNapEnd_asLoggedNap() async {
+        repo.insertSleepEvent(
+            id: UUID().uuidString,
+            eventType: "nap_end",
+            timestamp: Date().addingTimeInterval(-600),
+            colorHex: nil
+        )
+
+        let summary = repo.napSummary(for: repo.currentSessionDateString())
+        XCTAssertEqual(summary.count, 1)
+        XCTAssertEqual(summary.totalMinutes, 0)
+    }
+
+    func test_snoozeDeepLink_doesNotIncrement_whenRescheduleFails() async {
+        let now = Date()
+        repo.setDose1Time(now.addingTimeInterval(-160 * 60)) // Active window
+        XCTAssertEqual(repo.snoozeCount, 0)
+
+        alarm.clearWakeAlarmState() // No target wake time -> snoozeAlarm returns nil
+
+        let handled = router.handle(URL(string: "dosetap://snooze")!)
+        XCTAssertTrue(handled, "Snooze deep link should be recognized while in active window.")
+
+        // Wait for async deep-link task to complete.
+        await Task.yield()
+        try? await Task.sleep(nanoseconds: 150_000_000)
+
+        XCTAssertEqual(repo.snoozeCount, 0, "Failed alarm reschedule must not consume snooze count.")
     }
 }

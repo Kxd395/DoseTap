@@ -41,6 +41,10 @@ public class HealthDataService: ObservableObject {
             }
         }
     }
+
+    public func refreshAuthorizationStatus() {
+        checkAuthorizationStatus()
+    }
     
     private func checkAuthorizationStatus() {
         let status = healthStore.authorizationStatus(for: sleepType)
@@ -49,6 +53,7 @@ public class HealthDataService: ObservableObject {
     
     // MARK: - Data Fetching
     public func fetchRecentSleepData(days: Int = 30) async throws -> [HealthSleepData] {
+        refreshAuthorizationStatus()
         guard isAuthorized else { throw HealthDataError.notAuthorized }
         
         let endDate = Date()
@@ -179,10 +184,15 @@ public class WHOOPDataService: ObservableObject {
     
     // MARK: - Authentication
     public func connect() async throws {
-        // TODO: Implement OAuth flow
-        // For now, simulate connection
+        loadStoredTokens()
+        guard accessToken != nil else {
+            throw WHOOPDataError.oauthFlowRequired
+        }
         isConnected = true
-        lastSyncDate = Date()
+    }
+
+    public func refreshConnectionStatus() {
+        loadStoredTokens()
     }
     
     public func disconnect() {
@@ -195,49 +205,9 @@ public class WHOOPDataService: ObservableObject {
     }
     
     // MARK: - Data Fetching
-    public func fetchRecentSleepData(days: Int = 30) async throws -> [WHOOPSleepData] {
+    public func fetchRecentSleepData(days _: Int = 30) async throws -> [WHOOPSleepData] {
         guard isConnected else { throw WHOOPDataError.notConnected }
-        
-        // TODO: Implement actual WHOOP API calls
-        // For now, return mock data
-        let mockData = generateMockWHOOPData(days: days)
-        
-        DispatchQueue.main.async {
-            self.recentWHOOPData = mockData
-            self.lastSyncDate = Date()
-        }
-        
-        return mockData
-    }
-    
-    private func generateMockWHOOPData(days: Int) -> [WHOOPSleepData] {
-        let calendar = Calendar.current
-        var data: [WHOOPSleepData] = []
-        
-        for i in 0..<days {
-            guard let date = calendar.date(byAdding: .day, value: -i, to: Date()) else { continue }
-            
-            let sleepStart = calendar.date(bySettingHour: 22, minute: Int.random(in: 30...59), second: 0, of: date)
-            let sleepDuration = TimeInterval.random(in: 6*3600...9*3600) // 6-9 hours
-            let sleepEnd = sleepStart?.addingTimeInterval(sleepDuration)
-            
-            let whoopData = WHOOPSleepData(
-                sleepDate: date,
-                cycleId: "cycle_\(UUID().uuidString.prefix(8))",
-                sleepStart: sleepStart,
-                sleepEnd: sleepEnd,
-                timeToFirstWake: TimeInterval.random(in: 150*60...240*60), // 2.5-4 hours
-                sleepScore: Int.random(in: 60...95),
-                recoveryScore: Int.random(in: 50...90),
-                strain: Double.random(in: 8...18),
-                hrv: Double.random(in: 20...80),
-                restingHeartRate: Int.random(in: 45...70)
-            )
-            
-            data.append(whoopData)
-        }
-        
-        return data.sorted { $0.sleepDate > $1.sleepDate }
+        throw WHOOPDataError.oauthFlowRequired
     }
     
     // MARK: - Integration with DataStorageService
@@ -333,6 +303,7 @@ public enum HealthDataError: Error, LocalizedError {
 
 public enum WHOOPDataError: Error, LocalizedError {
     case notConnected
+    case oauthFlowRequired
     case authenticationFailed
     case dataFetchFailed
     case networkError
@@ -341,6 +312,8 @@ public enum WHOOPDataError: Error, LocalizedError {
         switch self {
         case .notConnected:
             return "WHOOP account not connected"
+        case .oauthFlowRequired:
+            return "WHOOP OAuth connection flow is required before data can be synced."
         case .authenticationFailed:
             return "WHOOP authentication failed"
         case .dataFetchFailed:

@@ -6,7 +6,7 @@ import DoseCore
 /// Supported URLs:
 /// - dosetap://dose1 - Take Dose 1
 /// - dosetap://dose2 - Take Dose 2
-/// - dosetap://snooze - Snooze alarm (+10 min)
+/// - dosetap://snooze - Snooze alarm (+configured minutes)
 /// - dosetap://skip - Skip Dose 2
 /// - dosetap://log?event=bathroom - Log a quick event
 /// - dosetap://log?event=bathroom&notes=urgent - Log event with notes
@@ -27,6 +27,11 @@ public class URLRouter: ObservableObject {
     // MARK: - Dependencies (set by app)
     weak var core: DoseTapCore?
     weak var eventLogger: EventLogger?
+    private lazy var fallbackCore: DoseTapCore = {
+        let core = DoseTapCore()
+        core.setSessionRepository(SessionRepository.shared)
+        return core
+    }()
     
     // MARK: - URL Actions
     enum URLAction: Equatable {
@@ -106,11 +111,7 @@ public class URLRouter: ObservableObject {
     
     private func handleDose1() -> Bool {
         lastAction = .takeDose1
-        
-        guard let core = core else {
-            showFeedback("App not ready")
-            return true
-        }
+        let core = resolveCore()
         
         guard core.dose1Time == nil else {
             showFeedback("Dose 1 already taken")
@@ -135,11 +136,7 @@ public class URLRouter: ObservableObject {
     
     private func handleDose2() -> Bool {
         lastAction = .takeDose2
-        
-        guard let core = core else {
-            showFeedback("App not ready")
-            return true
-        }
+        let core = resolveCore()
         
         guard core.dose1Time != nil else {
             showFeedback("Take Dose 1 first")
@@ -162,6 +159,7 @@ public class URLRouter: ObservableObject {
             await core.takeDose()
             eventLogger?.logEvent(name: "Dose 2", color: .green, cooldownSeconds: 3600 * 8)
             AlarmService.shared.cancelAllAlarms()
+            AlarmService.shared.clearWakeAlarmState()
             
             showFeedback("✓ Dose 2 logged")
         }
@@ -170,14 +168,18 @@ public class URLRouter: ObservableObject {
     
     private func handleSnooze() -> Bool {
         lastAction = .snooze
+        let core = resolveCore()
+        let settings = UserSettingsManager.shared
+        let maxSnoozes = max(0, settings.maxSnoozes)
+        let snoozeMinutes = max(1, settings.snoozeDurationMinutes)
         
-        guard let core = core else {
-            showFeedback("App not ready")
-            return true
+        guard maxSnoozes > 0 else {
+            showFeedback("Snooze is disabled in settings")
+            return false
         }
         
-        guard core.snoozeCount < 3 else {
-            showFeedback("Max snoozes reached (3/3)")
+        guard core.snoozeCount < maxSnoozes else {
+            showFeedback("Max snoozes reached (\(maxSnoozes)/\(maxSnoozes))")
             return false
         }
         
@@ -192,8 +194,7 @@ public class URLRouter: ObservableObject {
                 await core.snooze()
                 showFeedback("✓ Snoozed to \(newTime.formatted(date: .omitted, time: .shortened))")
             } else {
-                await core.snooze()
-                showFeedback("✓ Snoozed +10 min")
+                showFeedback("Snooze +\(snoozeMinutes)m unavailable right now")
             }
         }
         return true
@@ -201,11 +202,7 @@ public class URLRouter: ObservableObject {
     
     private func handleSkip() -> Bool {
         lastAction = .skip
-        
-        guard let core = core else {
-            showFeedback("App not ready")
-            return true
-        }
+        let core = resolveCore()
         
         guard core.dose1Time != nil else {
             showFeedback("Take Dose 1 first")
@@ -223,6 +220,7 @@ public class URLRouter: ObservableObject {
         Task {
             await core.skipDose()
             AlarmService.shared.cancelAllAlarms()
+            AlarmService.shared.clearWakeAlarmState()
             showFeedback("✓ Dose 2 skipped")
         }
         return true
@@ -301,6 +299,10 @@ public class URLRouter: ObservableObject {
         default:
             return (lowercased, .gray)
         }
+    }
+
+    private func resolveCore() -> DoseTapCore {
+        core ?? fallbackCore
     }
     
     private func showFeedback(_ message: String) {

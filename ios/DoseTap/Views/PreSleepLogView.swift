@@ -91,8 +91,13 @@ struct PreSleepLogView: View {
                                 Text("Back")
                             }
                             .font(.headline)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.primary)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .background(Color(.secondarySystemBackground))
+                            .cornerRadius(10)
                         }
+                        .accessibilityLabel("Back to previous card")
                     } else {
                         Spacer()
                     }
@@ -112,9 +117,11 @@ struct PreSleepLogView: View {
                             .foregroundColor(.white)
                             .padding(.horizontal, 24)
                             .padding(.vertical, 12)
+                            .frame(minHeight: 44)
                             .background(Color.blue)
                             .cornerRadius(12)
                         }
+                        .accessibilityLabel("Next card")
                     } else {
                         Button {
                             saveAndComplete()
@@ -127,9 +134,11 @@ struct PreSleepLogView: View {
                             .foregroundColor(.white)
                             .padding(.horizontal, 24)
                             .padding(.vertical, 12)
+                            .frame(minHeight: 44)
                             .background(Color.green)
                             .cornerRadius(12)
                         }
+                        .accessibilityLabel(existingLog == nil ? "Save pre sleep check" : "Save changes")
                     }
                 }
                 .padding()
@@ -280,38 +289,49 @@ private struct PlanInlineHint: View {
     }
     
     var body: some View {
-        Button {
-            onTap?()
-        } label: {
-            HStack {
-                Image(systemName: "bed.double.fill")
-                    .foregroundColor(.blue)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Wake by \(formatter.string(from: plan.wakeBy))")
-                        .font(.subheadline.bold())
-                    Text("In bed by \(formatter.string(from: plan.inBed)); wind down \(formatter.string(from: plan.windDown))")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+        Group {
+            if let onTap {
+                Button(action: onTap) {
+                    hintContent(showChevron: true)
                 }
-                Spacer()
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(sleepDurationFormatted)
-                        .font(.subheadline.bold())
-                        .foregroundColor(.blue)
-                    Text("planned sleep")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-                if onTap != nil {
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
+                .buttonStyle(.plain)
+            } else {
+                hintContent(showChevron: false)
             }
-            .padding(8)
-            .background(RoundedRectangle(cornerRadius: 10).fill(Color(.secondarySystemBackground)))
         }
-        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Tonight's sleep plan")
+        .accessibilityValue("Wake by \(formatter.string(from: plan.wakeBy)), in bed by \(formatter.string(from: plan.inBed)), planned sleep \(sleepDurationFormatted)")
+    }
+
+    private func hintContent(showChevron: Bool) -> some View {
+        HStack {
+            Image(systemName: "bed.double.fill")
+                .foregroundColor(.blue)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Wake by \(formatter.string(from: plan.wakeBy))")
+                    .font(.subheadline.bold())
+                Text("In bed by \(formatter.string(from: plan.inBed)); wind down \(formatter.string(from: plan.windDown))")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(sleepDurationFormatted)
+                    .font(.subheadline.bold())
+                    .foregroundColor(.blue)
+                Text("planned sleep")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            if showChevron {
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(8)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color(.secondarySystemBackground)))
     }
 }
 
@@ -485,9 +505,7 @@ struct Card3ActivityNaps: View {
     
     /// Fetch today's nap events from storage
     private var napsLoggedToday: (count: Int, totalMinutes: Int) {
-        let napEvents = sessionRepo.fetchTonightSleepEvents().filter { $0.eventType.contains("nap") }
-        // TODO: Calculate actual duration from nap_start/nap_end pairs
-        return (napEvents.count, 0)
+        sessionRepo.napSummary(for: sessionRepo.currentSessionDateString())
     }
     
     var body: some View {
@@ -1190,10 +1208,9 @@ struct NapSummaryView: View {
                             .foregroundColor(.secondary)
                     }
                     Spacer()
-                    Button("Edit") {
-                        // TODO: Navigate to nap events
-                    }
-                    .font(.caption)
+                    Text("See Tonight events")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
                 .padding(10)
                 .background(RoundedRectangle(cornerRadius: 8).fill(Color.green.opacity(0.1)))
@@ -1231,9 +1248,6 @@ protocol DisplayTextProvider {
 // Conform all enums
 extension PreSleepLogAnswers.IntendedSleepTime: DisplayTextProvider {}
 extension PreSleepLogAnswers.StressDriver: DisplayTextProvider {}
-// Legacy pain enums (kept for backward compatibility display - deprecation warnings expected)
-extension PreSleepLogAnswers.PainLevel: DisplayTextProvider {}
-extension PreSleepLogAnswers.PainLocation: DisplayTextProvider {}
 extension PreSleepLogAnswers.PainType: DisplayTextProvider {}
 extension PreSleepLogAnswers.Stimulants: DisplayTextProvider {}
 extension PreSleepLogAnswers.StimulantTime: DisplayTextProvider {}

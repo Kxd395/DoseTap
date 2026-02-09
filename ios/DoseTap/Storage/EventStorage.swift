@@ -876,13 +876,27 @@ public class EventStorage {
         sessionId: String? = nil,
         sessionDate: String? = nil
     ) {
-        let resolvedSessionDate = sessionDate ?? currentSessionDate()
+        let currentState = loadCurrentSessionState()
+        let useOpenActiveSession =
+            currentState.terminalState == nil &&
+            currentState.sessionDate != nil &&
+            currentState.dose1Time != nil &&
+            currentState.dose2Time == nil &&
+            !currentState.dose2Skipped
+
+        let eventSessionDate = sessionDateString(for: timestamp)
+        let fallbackSessionDate = useOpenActiveSession ? currentState.sessionDate! : eventSessionDate
+        let fallbackSessionId = useOpenActiveSession
+            ? currentState.sessionId
+            : fetchSessionId(forSessionDate: fallbackSessionDate)
+        let resolvedSessionDate = sessionDate ?? fallbackSessionDate
+        let resolvedSessionId = sessionId ?? fallbackSessionId
         insertSleepEvent(
             id: id,
             eventType: eventType,
             timestamp: timestamp,
             sessionDate: resolvedSessionDate,
-            sessionId: sessionId,
+            sessionId: resolvedSessionId,
             colorHex: colorHex,
             notes: notes
         )
@@ -3757,7 +3771,6 @@ public struct PreSleepLogAnswers: Codable {
     
     // MARK: - Legacy Pain Enums (Deprecated, kept for backwards compatibility)
     
-    @available(*, deprecated, message: "Use 0-10 pain scale instead")
     public enum PainLevel: String, Codable, CaseIterable {
         case none = "none"
         case mild = "mild"
@@ -3784,7 +3797,6 @@ public struct PreSleepLogAnswers: Codable {
         }
     }
     
-    @available(*, deprecated, message: "Use PainLocationDetail instead")
     public enum PainLocation: String, Codable, CaseIterable {
         case head = "head"
         case neck = "neck"

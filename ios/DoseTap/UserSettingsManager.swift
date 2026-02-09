@@ -54,6 +54,7 @@ extension Color {
 // Shared singleton for persisting user preferences across the app
 class UserSettingsManager: ObservableObject {
     static let shared = UserSettingsManager()
+    private var settingsCancellables = Set<AnyCancellable>()
     
     // MARK: - Appearance
     @AppStorage("appearance_mode") var appearanceMode: AppearanceMode = .system
@@ -173,6 +174,59 @@ class UserSettingsManager: ObservableObject {
         QuickLogButtonConfig(id: "temperature", name: "Temperature", icon: "thermometer.medium", colorHex: "#30B0C7"),
         QuickLogButtonConfig(id: "pain", name: "Pain", icon: "bandage.fill", colorHex: "#FF3B30")
     ]
+
+    private init() {
+        normalizePersistedValues()
+        NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification, object: UserDefaults.standard)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &settingsCancellables)
+    }
+
+    private func normalizePersistedValues() {
+        if !validTargetOptions.contains(targetIntervalMinutes) {
+            targetIntervalMinutes = 165
+        }
+
+        if !validUndoWindowOptions.contains(undoWindowSeconds) {
+            undoWindowSeconds = 5.0
+        }
+
+        if !adderallDoseOptions.contains(defaultAdderallDose) {
+            defaultAdderallDose = 10
+        }
+
+        snoozeDurationMinutes = max(1, min(30, snoozeDurationMinutes))
+        maxSnoozes = max(0, min(10, maxSnoozes))
+        missedCheckInCutoffHours = max(1, min(12, missedCheckInCutoffHours))
+
+        sleepStartMinutes = Self.clampMinutesSinceMidnight(sleepStartMinutes)
+        wakeTimeMinutes = Self.clampMinutesSinceMidnight(wakeTimeMinutes)
+        prepTimeMinutes = Self.clampMinutesSinceMidnight(prepTimeMinutes)
+
+        cooldownBathroom = Self.clampCooldown(cooldownBathroom)
+        cooldownWater = Self.clampCooldown(cooldownWater)
+        cooldownBriefWake = Self.clampCooldown(cooldownBriefWake)
+        cooldownAnxiety = Self.clampCooldown(cooldownAnxiety)
+        cooldownDream = Self.clampCooldown(cooldownDream)
+        cooldownNoise = Self.clampCooldown(cooldownNoise)
+        cooldownLightsOut = Self.clampCooldown(cooldownLightsOut)
+        cooldownWakeUp = Self.clampCooldown(cooldownWakeUp)
+        cooldownSnack = Self.clampCooldown(cooldownSnack)
+        cooldownHeartRacing = Self.clampCooldown(cooldownHeartRacing)
+        cooldownTemperature = Self.clampCooldown(cooldownTemperature)
+        cooldownPain = Self.clampCooldown(cooldownPain)
+    }
+
+    private static func clampMinutesSinceMidnight(_ minutes: Int) -> Int {
+        max(0, min((24 * 60) - 1, minutes))
+    }
+
+    private static func clampCooldown(_ seconds: Int) -> Int {
+        max(10, min(24 * 60 * 60, seconds))
+    }
     
     var quickLogButtons: [QuickLogButtonConfig] {
         get {
@@ -257,21 +311,22 @@ class UserSettingsManager: ObservableObject {
     
     // Get cooldown for event name
     func cooldown(for eventName: String) -> TimeInterval {
-        switch eventName {
-        case "Bathroom": return TimeInterval(cooldownBathroom)
-        case "Water": return TimeInterval(cooldownWater)
-        case "Brief Wake": return TimeInterval(cooldownBriefWake)
-        case "Anxiety": return TimeInterval(cooldownAnxiety)
-        case "Dream": return TimeInterval(cooldownDream)
-        case "Noise": return TimeInterval(cooldownNoise)
-        case "Lights Out": return TimeInterval(cooldownLightsOut)
-        case "Wake Up": return TimeInterval(cooldownWakeUp)
-        case "Snack": return TimeInterval(cooldownSnack)
-        case "Heart Racing": return TimeInterval(cooldownHeartRacing)
-        case "Temperature": return TimeInterval(cooldownTemperature)
-        case "Pain": return TimeInterval(cooldownPain)
-        case "Nap Start": return 30
-        case "Nap End": return 30
+        let normalized = eventName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch normalized {
+        case "bathroom": return TimeInterval(cooldownBathroom)
+        case "water": return TimeInterval(cooldownWater)
+        case "brief wake", "brief_wake": return TimeInterval(cooldownBriefWake)
+        case "anxiety": return TimeInterval(cooldownAnxiety)
+        case "dream": return TimeInterval(cooldownDream)
+        case "noise": return TimeInterval(cooldownNoise)
+        case "lights out", "lights_out": return TimeInterval(cooldownLightsOut)
+        case "wake up", "wake_final", "wake": return TimeInterval(cooldownWakeUp)
+        case "snack": return TimeInterval(cooldownSnack)
+        case "heart racing", "heart_racing": return TimeInterval(cooldownHeartRacing)
+        case "temperature", "temp": return TimeInterval(cooldownTemperature)
+        case "pain": return TimeInterval(cooldownPain)
+        case "nap start", "nap_start": return 30
+        case "nap end", "nap_end": return 30
         default: return 30
         }
     }
@@ -365,11 +420,13 @@ final class SleepPlanStore: ObservableObject {
     private let defaults: UserDefaults
     private let scheduleKey = "sleepPlan.schedule.v1"
     private let settingsKey = "sleepPlan.settings.v1"
+    private var defaultsObserver: AnyCancellable?
     
     init(userDefaults: UserDefaults = .standard) {
         self.defaults = userDefaults
         self.schedule = Self.loadSchedule(defaults: userDefaults)
         self.settings = Self.loadSettings(defaults: userDefaults)
+        observeDefaultsChanges()
     }
     
     private static func loadSchedule(defaults: UserDefaults) -> TypicalWeekSchedule {
@@ -397,6 +454,29 @@ final class SleepPlanStore: ObservableObject {
     private func persistSettings() {
         if let data = try? JSONEncoder().encode(settings) {
             defaults.set(data, forKey: settingsKey)
+        }
+    }
+
+    private func observeDefaultsChanges() {
+        defaultsObserver = NotificationCenter.default.publisher(
+            for: UserDefaults.didChangeNotification,
+            object: defaults
+        )
+        .receive(on: RunLoop.main)
+        .sink { [weak self] _ in
+            self?.reloadFromDefaultsIfNeeded()
+        }
+    }
+
+    private func reloadFromDefaultsIfNeeded() {
+        let latestSchedule = Self.loadSchedule(defaults: defaults)
+        let latestSettings = Self.loadSettings(defaults: defaults)
+
+        if latestSchedule != schedule {
+            schedule = latestSchedule
+        }
+        if latestSettings != settings {
+            settings = latestSettings
         }
     }
     
@@ -510,13 +590,14 @@ extension UserSettingsManager {
         cooldownPain = 60
         
         // QuickLog buttons - reset to defaults
-        quickLogButtonsJSON = "[]"
+        quickLogButtonsJSON = ""
         
         // Integrations
         healthKitEnabled = false
+        whoopEnabled = false
         
         // Privacy
-        analyticsEnabled = true
+        analyticsEnabled = false
         crashReportsEnabled = true
         
         #if DEBUG

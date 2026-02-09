@@ -18,6 +18,7 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
     // MARK: - Published State
     @Published var isAuthorized = false
     @Published var authorizationStatus: HKAuthorizationStatus = .notDetermined
+    @Published var lastTimelineSyncAt: Date?
     
     // MARK: - Initialization
     private init() {
@@ -477,7 +478,9 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
     ///   - to: End date of the range
     /// - Returns: Array of SleepSegment for timeline display
     func fetchSegmentsForTimeline(from start: Date, to end: Date) async throws -> [SleepSegment] {
-        try await fetchSleepSegments(from: start, to: end)
+        let segments = try await fetchSleepSegments(from: start, to: end)
+        lastTimelineSyncAt = Date()
+        return segments
     }
     
     /// Convert HealthKit sleep stage to timeline display stage
