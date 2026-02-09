@@ -1296,7 +1296,7 @@ struct NapSummaryCompact: View {
     @ObservedObject private var sessionRepo = SessionRepository.shared
     
     private var napsLogged: (count: Int, totalMinutes: Int) {
-        sessionRepo.napSummary(for: sessionRepo.currentSessionDateString())
+        sessionRepo.napSummary(for: sessionRepo.plannerSessionKey(for: Date()))
     }
     
     var body: some View {
