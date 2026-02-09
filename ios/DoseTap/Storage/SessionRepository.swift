@@ -94,7 +94,12 @@ public actor SessionStorageActor {
 public final class SessionRepository: ObservableObject, @preconcurrency DoseTapSessionRepository {
     
     // MARK: - Singleton
-    public static let shared = SessionRepository()
+    public static let shared: SessionRepository = {
+        SessionRepository(
+            storage: EventStorage.shared,
+            notificationScheduler: SystemNotificationScheduler.shared
+        )
+    }()
     
     // MARK: - Published State (UI binds to these)
     @Published public private(set) var activeSessionDate: String?
@@ -152,11 +157,6 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     ]
     
     // MARK: - Initialization
-    
-    /// Initialize with default shared storage and system notification scheduler
-    public convenience init() {
-        self.init(storage: EventStorage.shared, notificationScheduler: SystemNotificationScheduler.shared)
-    }
     
     /// Initialize with injected storage (for testing)
     public init(
@@ -313,7 +313,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             #endif
             
             // Diagnostic logging: reporting key rollover
-            Task {
+            enqueueDiagnostic {
                 await DiagnosticLogger.shared.log(.sessionRollover, sessionId: oldKey) { entry in
                     entry.reason = reason
                 }
@@ -385,6 +385,12 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             }
         )
         #endif
+    }
+
+    private func enqueueDiagnostic(_ operation: @escaping @Sendable () async -> Void) {
+        Task(priority: .utility) {
+            await operation()
+        }
     }
 
     // MARK: - Schedule Helpers
@@ -529,7 +535,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         
         storage.startSession(sessionId: sessionId, sessionDate: sessionDate, start: timestamp)
         
-        Task {
+        enqueueDiagnostic {
             await DiagnosticLogger.shared.ensureSessionMetadata(sessionId: sessionId)
             await DiagnosticLogger.shared.logSessionStarted(sessionId: sessionId)
         }
@@ -545,12 +551,14 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         
         storage.closeSession(sessionId: sessionId, sessionDate: sessionDate, end: endTime, terminalState: terminalState)
         
-        Task {
+        let dose1Snapshot = dose1Time
+        let dose2Snapshot = dose2Time
+        enqueueDiagnostic {
             await DiagnosticLogger.shared.logSessionCompleted(
                 sessionId: sessionId,
                 terminalState: terminalState,
-                dose1Time: dose1Time,
-                dose2Time: dose2Time
+                dose1Time: dose1Snapshot,
+                dose2Time: dose2Snapshot
             )
             await DiagnosticLogger.shared.log(.sessionRollover, sessionId: sessionId) { entry in
                 entry.reason = reason
@@ -673,7 +681,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         storage.linkPreSleepLogToSession(sessionId: session.sessionId, sessionDate: session.sessionDate)
         
         // Diagnostic logging: session started + dose 1 taken
-        Task {
+        enqueueDiagnostic {
             await DiagnosticLogger.shared.logDoseTaken(sessionId: session.sessionId, doseIndex: 1, at: time)
         }
         
@@ -699,7 +707,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         let nextDoseIndex = baseDoseCount + followupDoseCount + 1
         let isExtra = nextDoseIndex >= 3
         if isExtraDose && !isExtra {
-            Task {
+            enqueueDiagnostic {
                 await DiagnosticLogger.shared.log(.invariantViolation, sessionId: session.sessionId) { entry in
                     entry.invariantName = "extra_dose_without_dose2"
                 }
@@ -733,7 +741,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         )
         
         // Diagnostic logging: dose taken with index + elapsed info
-        Task {
+        enqueueDiagnostic {
             await DiagnosticLogger.shared.logDoseTaken(
                 sessionId: session.sessionId,
                 doseIndex: nextDoseIndex,
@@ -758,9 +766,10 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         storage.saveSnooze(count: snoozeCount, sessionId: session.sessionId, sessionDateOverride: session.sessionDate)
         
         // Diagnostic logging: snooze activated
-        Task {
+        let snoozeCountSnapshot = snoozeCount
+        enqueueDiagnostic {
             await DiagnosticLogger.shared.log(.snoozeActivated, sessionId: session.sessionId) { entry in
-                entry.snoozeCount = self.snoozeCount
+                entry.snoozeCount = snoozeCountSnapshot
             }
         }
         
@@ -778,9 +787,10 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         storage.saveDoseSkipped(sessionId: session.sessionId, sessionDateOverride: session.sessionDate)
         
         // Diagnostic logging: dose 2 skipped + session completed
-        Task {
+        let dose1Snapshot = dose1Time
+        enqueueDiagnostic {
             await DiagnosticLogger.shared.log(.dose2Skipped, sessionId: session.sessionId) { entry in
-                entry.dose1Time = self.dose1Time
+                entry.dose1Time = dose1Snapshot
             }
         }
         
@@ -827,7 +837,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         
         // Diagnostic logging: Pre-sleep started (Tier 2) - log on first save, not edits
         if existingLog == nil {
-            Task {
+            enqueueDiagnostic {
                 await DiagnosticLogger.shared.log(.preSleepLogStarted, sessionId: sessionKey)
             }
         }
@@ -842,7 +852,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         )
         
         // Diagnostic logging: Pre-sleep saved or skipped (Tier 2)
-        Task {
+        enqueueDiagnostic {
             let event: DiagnosticEvent = completionState == "skipped" ? .preSleepLogAbandoned : .preSleepLogSaved
             await DiagnosticLogger.shared.log(event, sessionId: sessionKey)
         }
@@ -1001,7 +1011,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         storage.updateTerminalState(sessionDate: session.sessionDate, sessionId: session.sessionId, state: "finalizing_wake")
         
         // Diagnostic logging: Check-in flow started (Tier 2)
-        Task {
+        enqueueDiagnostic {
             await DiagnosticLogger.shared.log(.checkinStarted, sessionId: session.sessionId)
         }
 
@@ -1021,7 +1031,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         
         awaitingRolloverMessage = nil
         
-        Task {
+        enqueueDiagnostic {
             await DiagnosticLogger.shared.log(.checkinCompleted, sessionId: sessionId)
         }
         
@@ -1033,7 +1043,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     public func clearWakeFinal() {
         // Diagnostic logging: Check-in skipped/abandoned (Tier 2)
         if let sessionId = activeSessionDate, wakeFinalTime != nil {
-            Task {
+            enqueueDiagnostic {
                 await DiagnosticLogger.shared.log(.checkinSkipped, sessionId: sessionId)
             }
         }
@@ -1082,10 +1092,11 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         storage.updateTerminalState(sessionDate: sessionDate, sessionId: sessionId, state: "incomplete_slept_through")
         
         // Diagnostic logging: session auto-expired
-        Task {
+        let dose1Snapshot = dose1Time
+        enqueueDiagnostic {
             await DiagnosticLogger.shared.log(.sessionAutoExpired, sessionId: sessionId) { entry in
                 entry.terminalState = "incomplete_slept_through"
-                entry.dose1Time = self.dose1Time
+                entry.dose1Time = dose1Snapshot
                 entry.reason = "slept_through"
             }
         }
@@ -1168,10 +1179,12 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         let elapsed = context.elapsedSinceDose1.map { Int($0 / 60) }
         let remaining = context.remainingToMax.map { Int($0 / 60) }
         
-        Task {
+        let phaseDescription = String(describing: newPhase)
+        let previousPhaseDescription = previousPhase.map { String(describing: $0) }
+        enqueueDiagnostic {
             await DiagnosticLogger.shared.log(event, sessionId: sessionId) { entry in
-                entry.phase = String(describing: newPhase)
-                entry.previousPhase = previousPhase.map { String(describing: $0) }
+                entry.phase = phaseDescription
+                entry.previousPhase = previousPhaseDescription
                 entry.elapsedMinutes = elapsed
                 entry.remainingMinutes = remaining
                 entry.snoozeCount = context.snoozeCount
@@ -1349,7 +1362,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             // Mark check-in completed for the active session
             completeCheckIn()
         } else {
-            Task {
+            enqueueDiagnostic {
                 await DiagnosticLogger.shared.log(.checkinCompleted, sessionId: resolvedSessionId)
             }
             storage.closeHistoricalSession(
@@ -1441,7 +1454,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         )
         
         // Diagnostic logging (Tier 2: Session Context)
-        Task {
+        enqueueDiagnostic {
             await DiagnosticLogger.shared.logSleepEventLogged(
                 sessionId: session.sessionId,
                 eventType: eventType,
@@ -1508,9 +1521,10 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         storage.deleteSleepEvent(id: id)
         
         // Diagnostic logging (Tier 2: Session Context)
-        Task {
+        let sessionKeySnapshot = currentSessionKey
+        enqueueDiagnostic {
             await DiagnosticLogger.shared.logSleepEventDeleted(
-                sessionId: currentSessionKey,
+                sessionId: sessionKeySnapshot,
                 eventType: eventType,
                 eventId: id
             )
@@ -1653,7 +1667,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         }
         
         // Log the edit
-        Task {
+        enqueueDiagnostic {
             await DiagnosticLogger.shared.log(.dose1Taken, sessionId: sessionDate) { entry in
                 entry.dose1Time = newTime
                 entry.reason = "time_adjusted"
@@ -1675,7 +1689,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         }
         
         // Log the edit
-        Task {
+        enqueueDiagnostic {
             await DiagnosticLogger.shared.log(.dose2Taken, sessionId: sessionDate) { entry in
                 entry.dose2Time = newTime
                 entry.reason = "time_adjusted"
