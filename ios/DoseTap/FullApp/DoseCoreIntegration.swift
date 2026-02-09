@@ -319,7 +319,7 @@ public class DoseCoreIntegration: ObservableObject {
     }
 }
 
-private final class LiveNetworkStatus: @unchecked Sendable {
+final class LiveNetworkStatus: @unchecked Sendable {
     static let shared = LiveNetworkStatus()
 
     #if canImport(Network)

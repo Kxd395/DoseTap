@@ -20,9 +20,6 @@ final class WHOOPService: NSObject, ObservableObject {
     /// WHOOP API OAuth Configuration
     /// Register at: https://developer-dashboard.whoop.com
     private struct Config {
-        static let clientId = "edf2495a-adff-4b87-b845-9529051a7b39"
-        static let clientSecret = "0aca5c56ec53b210260d85ac24cf57ced13dc4b4e77cbf7cf2ca20b7d3a9ed9e"
-        static let redirectURI = "dosetap://whoop/callback"
         static let apiHostname = "https://api.prod.whoop.com"
         static let authURL = "https://api.prod.whoop.com/oauth/oauth2/auth"
         static let tokenURL = "https://api.prod.whoop.com/oauth/oauth2/token"
@@ -30,6 +27,10 @@ final class WHOOPService: NSObject, ObservableObject {
         // Required scopes for sleep data
         static let scopes = ["read:recovery", "read:sleep", "read:cycles", "read:profile"]
     }
+
+    private var clientID: String { SecureConfig.shared.whoopClientID }
+    private var clientSecret: String { SecureConfig.shared.whoopClientSecret }
+    private var redirectURI: String { SecureConfig.shared.whoopRedirectURI }
     
     // MARK: - Keychain Keys
     
@@ -80,8 +81,8 @@ final class WHOOPService: NSObject, ObservableObject {
         var components = URLComponents(string: Config.authURL)!
         components.queryItems = [
             URLQueryItem(name: "response_type", value: "code"),
-            URLQueryItem(name: "client_id", value: Config.clientId),
-            URLQueryItem(name: "redirect_uri", value: Config.redirectURI),
+            URLQueryItem(name: "client_id", value: clientID),
+            URLQueryItem(name: "redirect_uri", value: redirectURI),
             URLQueryItem(name: "scope", value: Config.scopes.joined(separator: " ")),
             URLQueryItem(name: "state", value: state)
         ]
@@ -175,9 +176,9 @@ final class WHOOPService: NSObject, ObservableObject {
         let body = [
             "grant_type": "authorization_code",
             "code": code,
-            "redirect_uri": Config.redirectURI,
-            "client_id": Config.clientId,
-            "client_secret": Config.clientSecret
+            "redirect_uri": redirectURI,
+            "client_id": clientID,
+            "client_secret": clientSecret
         ]
         
         request.httpBody = body
@@ -216,8 +217,8 @@ final class WHOOPService: NSObject, ObservableObject {
         let body = [
             "grant_type": "refresh_token",
             "refresh_token": refreshToken,
-            "client_id": Config.clientId,
-            "client_secret": Config.clientSecret
+            "client_id": clientID,
+            "client_secret": clientSecret
         ]
         
         request.httpBody = body

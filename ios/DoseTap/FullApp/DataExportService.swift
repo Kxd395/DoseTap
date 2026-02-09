@@ -113,7 +113,26 @@ public class DataExportService: ObservableObject {
         
         // Get WHOOP data
         if options.includeWHOOPData {
-            whoopData = WHOOPDataService.shared.recentWHOOPData
+            let whoopService = WHOOPDataService.shared
+            whoopService.refreshConnectionStatus()
+
+            if whoopService.isConnected {
+                let fetchDays: Int = {
+                    guard let dateRange = options.dateRange else { return 30 }
+                    let rangeDays = Calendar.current.dateComponents([.day], from: dateRange.start, to: dateRange.end).day ?? 0
+                    return max(1, rangeDays + 1)
+                }()
+
+                do {
+                    whoopData = try await whoopService.fetchRecentSleepData(days: fetchDays)
+                } catch {
+                    // Keep export non-blocking: fall back to latest cached WHOOP data
+                    whoopData = whoopService.recentWHOOPData
+                }
+            } else {
+                whoopData = whoopService.recentWHOOPData
+            }
+
             if let dateRange = options.dateRange {
                 whoopData = whoopData.filter { data in
                     data.sleepDate >= dateRange.start && data.sleepDate <= dateRange.end

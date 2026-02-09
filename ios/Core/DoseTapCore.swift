@@ -121,11 +121,11 @@ public class DoseTapCore: ObservableObject {
     private let dosingService: DosingService
     private var repositoryObserver: AnyCancellable?
     
-    public init() {
+    public init(isOnline: @escaping () -> Bool = { true }) {
         self.windowCalculator = DoseWindowCalculator()
 
         let apiClient = APIClient(baseURL: Self.apiBaseURL, transport: Self.makeTransport())
-        let offlineQueue = InMemoryOfflineQueue(isOnline: { true })
+        let offlineQueue = InMemoryOfflineQueue(isOnline: isOnline)
         self.dosingService = DosingService(client: apiClient, queue: offlineQueue)
     }
 

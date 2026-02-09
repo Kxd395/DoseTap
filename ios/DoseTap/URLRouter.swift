@@ -28,7 +28,7 @@ public class URLRouter: ObservableObject {
     weak var core: DoseTapCore?
     weak var eventLogger: EventLogger?
     private lazy var fallbackCore: DoseTapCore = {
-        let core = DoseTapCore()
+        let core = DoseTapCore(isOnline: { LiveNetworkStatus.shared.isOnline })
         core.setSessionRepository(SessionRepository.shared)
         return core
     }()

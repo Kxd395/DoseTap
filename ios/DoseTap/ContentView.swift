@@ -339,7 +339,7 @@ struct SleepSessionDateFormatter {
 
 // MARK: - Main Tab View with Swipe Navigation
 struct ContentView: View {
-    @StateObject private var core = DoseTapCore()
+    @StateObject private var core = DoseTapCore(isOnline: { LiveNetworkStatus.shared.isOnline })
     @StateObject private var settings = UserSettingsManager.shared
     @StateObject private var eventLogger = EventLogger.shared
     @StateObject private var sessionRepo = SessionRepository.shared
