@@ -192,8 +192,10 @@ jobs:
           set -euo pipefail
 
           AVAILABLE_IPHONES="$(
-            xcrun simctl list devices available \
-              | sed -n 's/^[[:space:]]*\\(iPhone[^()]*\\) (\\([0-9A-F-]*\\)) (.*$/\\1|\\2/p'
+            xcrun simctl list devices \
+              | grep -E '^[[:space:]]*iPhone' \
+              | grep -Ev 'unavailable' \
+              | sed -E 's/^[[:space:]]*(.*) \(([0-9A-Fa-f-]+)\) \([^)]*\)[[:space:]]*$/\1|\2/'
           )"
 
           if [[ -z "$AVAILABLE_IPHONES" ]]; then
