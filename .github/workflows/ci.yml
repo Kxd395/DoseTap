@@ -126,6 +126,50 @@ jobs:
             exit 1
           fi
 
+  release-pin-script-tests:
+    name: Release pin script regression checks
+    runs-on: macos-latest
+    needs: ssot-lint
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate release pin script pass/fail behavior
+        run: |
+          set -euo pipefail
+          SCRIPT="tools/validate_release_pins.sh"
+          chmod +x "$SCRIPT"
+
+          VALID_PINS="sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=,sha256/BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB="
+
+          expect_fail() {
+            local desc="$1"
+            shift
+            if "$@"; then
+              echo "❌ Expected failure but command succeeded: $desc"
+              exit 1
+            fi
+            echo "✅ Expected failure observed: $desc"
+          }
+
+          echo "🔎 Non-release build should skip validation"
+          CONFIGURATION=Debug bash "$SCRIPT"
+
+          echo "🔎 Release build with valid pins should pass"
+          CONFIGURATION=Release DOSETAP_CERT_PINS="$VALID_PINS" bash "$SCRIPT"
+
+          echo "🔎 Release build should fail for missing pins"
+          expect_fail "missing pins" env CONFIGURATION=Release DOSETAP_CERT_PINS="" bash "$SCRIPT"
+
+          echo "🔎 Release build should fail for placeholders"
+          expect_fail "placeholder pins" env CONFIGURATION=Release DOSETAP_CERT_PINS="sha256/REPLACE_ME==" bash "$SCRIPT"
+
+          echo "🔎 Release build should fail for malformed format"
+          expect_fail "malformed pin format" env CONFIGURATION=Release DOSETAP_CERT_PINS="sha256/not_base64,sha256/BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=" bash "$SCRIPT"
+
+          echo "🔎 Release build should fail when only one unique pin exists"
+          expect_fail "single unique pin" env CONFIGURATION=Release DOSETAP_CERT_PINS="sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=,sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" bash "$SCRIPT"
+
   xcode-tests:
     name: Xcode simulator tests
     runs-on: macos-latest
@@ -200,7 +244,7 @@ jobs:
   release-pinning-check:
     name: Release pinning validation
     runs-on: macos-latest
-    needs: [swiftpm-tests, xcode-tests]
+    needs: [swiftpm-tests, xcode-tests, release-pin-script-tests]
     if: startsWith(github.ref, 'refs/tags/')
     env:
       CONFIGURATION: Release

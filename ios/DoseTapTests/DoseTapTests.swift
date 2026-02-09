@@ -987,11 +987,16 @@ final class WatchOSSmokeTests: XCTestCase {
 final class URLRouterTests: XCTestCase {
     
     private var router: URLRouter!
+    private var core: DoseTapCore!
     
     override func setUp() async throws {
         router = URLRouter.shared
+        core = DoseTapCore(isOnline: { true })
+        core.setSessionRepository(SessionRepository.shared)
+        router.configure(core: core, eventLogger: EventLogger.shared)
         router.lastAction = nil
         router.feedbackMessage = ""
+        SessionRepository.shared.clearTonight()
     }
     
     // MARK: - URL Parsing Tests
@@ -1799,6 +1804,7 @@ final class AlarmAndSetupRegressionTests: XCTestCase {
     private let alarm = AlarmService.shared
     private let repo = SessionRepository.shared
     private let router = URLRouter.shared
+    private var core: DoseTapCore!
 
     override func setUp() async throws {
         let settings = UserSettingsManager.shared
@@ -1814,9 +1820,11 @@ final class AlarmAndSetupRegressionTests: XCTestCase {
         alarm.clearWakeAlarmState()
         alarm.cancelAllAlarms()
 
+        core = DoseTapCore(isOnline: { true })
+        core.setSessionRepository(repo)
+        router.configure(core: core, eventLogger: EventLogger.shared)
         router.lastAction = nil
         router.feedbackMessage = ""
-        router.core = nil
     }
 
     override func tearDown() async throws {

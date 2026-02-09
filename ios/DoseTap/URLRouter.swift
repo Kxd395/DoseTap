@@ -27,11 +27,11 @@ public class URLRouter: ObservableObject {
     // MARK: - Dependencies (set by app)
     weak var core: DoseTapCore?
     weak var eventLogger: EventLogger?
-    private lazy var fallbackCore: DoseTapCore = {
-        let core = DoseTapCore(isOnline: { LiveNetworkStatus.shared.isOnline })
-        core.setSessionRepository(SessionRepository.shared)
-        return core
-    }()
+
+    func configure(core: DoseTapCore, eventLogger: EventLogger) {
+        self.core = core
+        self.eventLogger = eventLogger
+    }
     
     // MARK: - URL Actions
     enum URLAction: Equatable {
@@ -111,7 +111,7 @@ public class URLRouter: ObservableObject {
     
     private func handleDose1() -> Bool {
         lastAction = .takeDose1
-        let core = resolveCore()
+        guard let core = resolveCore() else { return false }
         
         guard core.dose1Time == nil else {
             showFeedback("Dose 1 already taken")
@@ -136,7 +136,7 @@ public class URLRouter: ObservableObject {
     
     private func handleDose2() -> Bool {
         lastAction = .takeDose2
-        let core = resolveCore()
+        guard let core = resolveCore() else { return false }
         
         guard core.dose1Time != nil else {
             showFeedback("Take Dose 1 first")
@@ -168,7 +168,7 @@ public class URLRouter: ObservableObject {
     
     private func handleSnooze() -> Bool {
         lastAction = .snooze
-        let core = resolveCore()
+        guard let core = resolveCore() else { return false }
         let settings = UserSettingsManager.shared
         let maxSnoozes = max(0, settings.maxSnoozes)
         let snoozeMinutes = max(1, settings.snoozeDurationMinutes)
@@ -202,7 +202,7 @@ public class URLRouter: ObservableObject {
     
     private func handleSkip() -> Bool {
         lastAction = .skip
-        let core = resolveCore()
+        guard let core = resolveCore() else { return false }
         
         guard core.dose1Time != nil else {
             showFeedback("Take Dose 1 first")
@@ -243,7 +243,7 @@ public class URLRouter: ObservableObject {
         
         guard let eventLogger = eventLogger else {
             showFeedback("App not ready")
-            return true
+            return false
         }
         
         // Map common event names to colors but preserve normalized name for action/tests
@@ -301,8 +301,12 @@ public class URLRouter: ObservableObject {
         }
     }
 
-    private func resolveCore() -> DoseTapCore {
-        core ?? fallbackCore
+    private func resolveCore() -> DoseTapCore? {
+        guard let core else {
+            showFeedback("App not ready")
+            return nil
+        }
+        return core
     }
     
     private func showFeedback(_ message: String) {

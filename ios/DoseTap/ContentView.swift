@@ -337,17 +337,56 @@ struct SleepSessionDateFormatter {
     }
 }
 
+@MainActor
+private final class AppServices {
+    static let shared = AppServices()
+
+    let sessionRepository: SessionRepository
+    let settings: UserSettingsManager
+    let eventLogger: EventLogger
+    let themeManager: ThemeManager
+    let alarmService: AlarmService
+    let urlRouter: URLRouter
+    let core: DoseTapCore
+
+    private init() {
+        self.sessionRepository = .shared
+        self.settings = .shared
+        self.eventLogger = .shared
+        self.themeManager = .shared
+        self.alarmService = .shared
+        self.urlRouter = .shared
+
+        let core = DoseTapCore(isOnline: { LiveNetworkStatus.shared.isOnline })
+        core.setSessionRepository(self.sessionRepository)
+        self.core = core
+
+        self.urlRouter.configure(core: core, eventLogger: self.eventLogger)
+    }
+}
+
 // MARK: - Main Tab View with Swipe Navigation
 struct ContentView: View {
-    @StateObject private var core = DoseTapCore(isOnline: { LiveNetworkStatus.shared.isOnline })
-    @StateObject private var settings = UserSettingsManager.shared
-    @StateObject private var eventLogger = EventLogger.shared
-    @StateObject private var sessionRepo = SessionRepository.shared
+    @ObservedObject private var core: DoseTapCore
+    @ObservedObject private var settings: UserSettingsManager
+    @ObservedObject private var eventLogger: EventLogger
+    @ObservedObject private var sessionRepo: SessionRepository
     @StateObject private var undoState = UndoStateManager()
-    @StateObject private var themeManager = ThemeManager.shared
-    @StateObject private var alarmService = AlarmService.shared
-    @ObservedObject private var urlRouter = URLRouter.shared
+    @ObservedObject private var themeManager: ThemeManager
+    @ObservedObject private var alarmService: AlarmService
+    @ObservedObject private var urlRouter: URLRouter
     private let tabBarHeight: CGFloat = 64
+
+    init() {
+        let appServices = AppServices.shared
+        self._core = ObservedObject(wrappedValue: appServices.core)
+        self._settings = ObservedObject(wrappedValue: appServices.settings)
+        self._eventLogger = ObservedObject(wrappedValue: appServices.eventLogger)
+        self._sessionRepo = ObservedObject(wrappedValue: appServices.sessionRepository)
+        self._themeManager = ObservedObject(wrappedValue: appServices.themeManager)
+        self._alarmService = ObservedObject(wrappedValue: appServices.alarmService)
+        self._urlRouter = ObservedObject(wrappedValue: appServices.urlRouter)
+    }
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -394,14 +433,6 @@ struct ContentView: View {
             AlarmRingingFullscreenView()
         }
         .onAppear {
-            // P0 FIX: Wire DoseTapCore to SessionRepository (single source of truth)
-            // All state reads/writes now go through SessionRepository
-            core.setSessionRepository(sessionRepo)
-            
-            // Wire URLRouter dependencies for deep link handling
-            urlRouter.core = core
-            urlRouter.eventLogger = eventLogger
-            
             // Setup undo callbacks
             setupUndoCallbacks()
         }
