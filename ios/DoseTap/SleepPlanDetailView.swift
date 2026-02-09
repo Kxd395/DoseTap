@@ -12,8 +12,14 @@ struct SleepPlanDetailView: View {
     var body: some View {
         List {
             Section {
-                DatePicker("Workday Wake", selection: $workdayWake, displayedComponents: .hourAndMinute)
-                DatePicker("Off-day Wake", selection: $offdayWake, displayedComponents: .hourAndMinute)
+                TimePickerSheetRow(
+                    title: "Workday Wake",
+                    selection: $workdayWake
+                )
+                TimePickerSheetRow(
+                    title: "Off-day Wake",
+                    selection: $offdayWake
+                )
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Workdays")

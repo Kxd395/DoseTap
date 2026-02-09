@@ -7,6 +7,60 @@ import UIKit
 
 // UserSettingsManager and AppearanceMode are defined in UserSettingsManager.swift
 
+/// Theme-stable time picker row that always uses a wheel picker in a modal sheet.
+/// This avoids compact DatePicker rendering differences across light/dark/night themes.
+struct TimePickerSheetRow: View {
+    let title: String
+    @Binding var selection: Date
+    var accessibilityLabel: String?
+
+    @State private var showingPicker = false
+
+    var body: some View {
+        Button {
+            showingPicker = true
+        } label: {
+            HStack {
+                Text(title)
+                Spacer()
+                Text(selection, style: .time)
+                    .monospacedDigit()
+                    .foregroundColor(.secondary)
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel ?? title)
+        .sheet(isPresented: $showingPicker) {
+            NavigationStack {
+                DatePicker(
+                    title,
+                    selection: $selection,
+                    displayedComponents: .hourAndMinute
+                )
+                .datePickerStyle(.wheel)
+                .labelsHidden()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .padding(.top, 12)
+                .navigationTitle(title)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") {
+                            showingPicker = false
+                        }
+                    }
+                }
+            }
+            .presentationDetents([.height(320)])
+            .presentationDragIndicator(.visible)
+        }
+    }
+}
+
 private enum SettingsExportFormat: String, CaseIterable {
     case csv = "CSV"
     case json = "JSON"
@@ -105,8 +159,14 @@ struct SettingsView: View {
 
                 // MARK: - Night Schedule
                 Section {
-                    DatePicker("Default Sleep Start", selection: sleepStartBinding, displayedComponents: .hourAndMinute)
-                    DatePicker("Default Wake Time", selection: wakeTimeBinding, displayedComponents: .hourAndMinute)
+                    TimePickerSheetRow(
+                        title: "Default Sleep Start",
+                        selection: sleepStartBinding
+                    )
+                    TimePickerSheetRow(
+                        title: "Default Wake Time",
+                        selection: wakeTimeBinding
+                    )
 
                     NavigationLink {
                         SleepPlanDetailView()
@@ -122,7 +182,10 @@ struct SettingsView: View {
                     Toggle("After check-in, show upcoming night", isOn: $settings.plannerUsesUpcomingNightAfterCheckIn)
 
                     DisclosureGroup("Evening Prep & Auto-Close") {
-                        DatePicker("Prep Time", selection: prepTimeBinding, displayedComponents: .hourAndMinute)
+                        TimePickerSheetRow(
+                            title: "Prep Time",
+                            selection: prepTimeBinding
+                        )
                         Stepper("Missed check-in cutoff +\(settings.missedCheckInCutoffHours)h", value: $settings.missedCheckInCutoffHours, in: 1...12)
                         Text("Auto-close at \(cutoffTimeText)")
                             .font(.caption)

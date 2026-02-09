@@ -1,6 +1,6 @@
 # DoseTap Documentation Index
 
-Last updated: 2026-01-14
+Last updated: 2026-02-09
 
 ## Canonical Docs
 
@@ -15,9 +15,9 @@ Last updated: 2026-01-14
 
 - Dose + rollover plan: `docs/PLAN_DOSE_AND_ROLLOVER_FIX.md`
 - Docs + SSOT refresh plan: `docs/PLAN_DOCS_AND_SSOT_REFRESH.md`
+- Active roadmap/todo: `docs/ROADMAP_TODO.md`
 
 ## Reference
 
 - Architecture overview: `docs/architecture.md`
 - Feature triage: `docs/FEATURE_TRIAGE.md`
-

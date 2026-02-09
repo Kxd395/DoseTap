@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Planner turnover control for Tonight UI**
+  - Added `After check-in, show upcoming night` setting in Night Schedule.
+  - Added `plannerSessionKey(for:)` path to keep planner-facing screens consistent after morning check-in.
+  - Added regression tests for planner key behavior with toggle on/off.
+
+- **Weekly workday sleep setup flow**
+  - Added quick "workday/off-day" weekly schedule template controls.
+  - Added setup-wizard entry point to configure weekly workday patterns.
+
 - **Forensic Improvements to Diagnostic Logging (v2.15.0)** - Aviation-grade forensic hardening
   - Per-session `seq` counter for event ordering under timestamp collision
   - `constants_hash` on terminal events (`session.completed`, `timezone.changed`) for drift detection
@@ -48,6 +57,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dynamic test count references in documentation (GAP E)
 
 ### Changed
+
+- **Theme-stable schedule time pickers**
+  - Replaced compact schedule DatePickers with sheet-based wheel pickers in Settings, Setup Wizard, and Weekly Schedule.
+  - Prevents light/dark/night-specific rendering differences for sleep schedule controls.
+
+- **Tonight surface consistency**
+  - Aligned remaining planner-facing views (timeline, quick log, night review, pre-sleep nap summary) to planner key behavior after check-in.
 
 - Repository cleanup: Archived dated audit reports to `docs/archive/`
 - Archived WHOOP OAuth test scripts to `archive/tools_whoop/`

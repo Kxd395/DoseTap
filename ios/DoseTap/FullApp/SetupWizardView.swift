@@ -158,30 +158,17 @@ struct SleepScheduleStepView: View {
             )
             
             VStack(spacing: 16) {
-                HStack {
-                    VStack(alignment: .leading) {
-                        Text("Usual Bedtime")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                        
-                        DatePicker("", selection: $config.usualBedtime, displayedComponents: .hourAndMinute)
-                            .labelsHidden()
-                            .datePickerStyle(CompactDatePickerStyle())
-                            .accessibilityLabel("Usual bedtime")
-                    }
-                    
-                    Spacer()
-                    
-                    VStack(alignment: .leading) {
-                        Text("Usual Wake Time")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                        
-                        DatePicker("", selection: $config.usualWakeTime, displayedComponents: .hourAndMinute)
-                            .labelsHidden()
-                            .datePickerStyle(CompactDatePickerStyle())
-                            .accessibilityLabel("Usual wake time")
-                    }
+                VStack(spacing: 10) {
+                    TimePickerSheetRow(
+                        title: "Usual Bedtime",
+                        selection: $config.usualBedtime,
+                        accessibilityLabel: "Usual bedtime"
+                    )
+                    TimePickerSheetRow(
+                        title: "Usual Wake Time",
+                        selection: $config.usualWakeTime,
+                        accessibilityLabel: "Usual wake time"
+                    )
                 }
                 .padding(16)
                 .background(Color(UIColor.secondarySystemGroupedBackground))
