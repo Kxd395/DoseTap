@@ -119,6 +119,8 @@ struct SettingsView: View {
                         }
                     }
 
+                    Toggle("After check-in, show upcoming night", isOn: $settings.plannerUsesUpcomingNightAfterCheckIn)
+
                     DisclosureGroup("Evening Prep & Auto-Close") {
                         DatePicker("Prep Time", selection: prepTimeBinding, displayedComponents: .hourAndMinute)
                         Stepper("Missed check-in cutoff +\(settings.missedCheckInCutoffHours)h", value: $settings.missedCheckInCutoffHours, in: 1...12)
@@ -130,7 +132,7 @@ struct SettingsView: View {
                     Label("Night Schedule", systemImage: "moon.stars.fill")
                         .font(.headline)
                 } footer: {
-                    Text("Default times control session rollover. Use Weekly Wake Setup for workdays vs non-workdays.")
+                    Text("Default times control session rollover. Enable upcoming-night mode if you want Tonight to flip to the next day right after morning check-in.")
                 }
                 
                 // MARK: - Notifications

@@ -79,6 +79,10 @@ class UserSettingsManager: ObservableObject {
     @AppStorage("wake_time_minutes") var wakeTimeMinutes: Int = 7 * 60       // 7:00 AM
     @AppStorage("prep_time_minutes") var prepTimeMinutes: Int = 18 * 60      // 6:00 PM
     @AppStorage("missed_checkin_cutoff_hours") var missedCheckInCutoffHours: Int = 4
+    /// UI-only behavior toggle:
+    /// when true, after check-in completion and no active session, Tonight/planner points to upcoming night.
+    /// when false, Tonight follows storage boundary key (6 PM rollover).
+    @AppStorage("planner_use_upcoming_night_after_checkin") var plannerUsesUpcomingNightAfterCheckIn: Bool = true
     
     // MARK: - Undo Settings
     // How long the undo snackbar appears after dose actions (seconds)
@@ -609,6 +613,7 @@ extension UserSettingsManager {
         wakeTimeMinutes = 7 * 60
         prepTimeMinutes = 18 * 60
         missedCheckInCutoffHours = 4
+        plannerUsesUpcomingNightAfterCheckIn = true
         
         // Undo
         undoWindowSeconds = 5.0

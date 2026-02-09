@@ -484,6 +484,63 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertEqual(afterKey, "2025-12-25")
     }
 
+    func test_plannerSessionKey_afterMorningCheckIn_targetsUpcomingNightByDefault() {
+        let tz = TimeZone(identifier: "America/New_York")!
+        let morning = makeDate(2025, 12, 29, 7, 30, tz: tz)
+        let clock = TestClock(now: morning, timeZone: tz)
+        let settings = UserSettingsManager.shared
+        let previousToggle = settings.plannerUsesUpcomingNightAfterCheckIn
+        settings.plannerUsesUpcomingNightAfterCheckIn = true
+        defer { settings.plannerUsesUpcomingNightAfterCheckIn = previousToggle }
+
+        let localRepo = SessionRepository(
+            storage: storage,
+            notificationScheduler: FakeNotificationScheduler(),
+            clock: { clock.now },
+            timeZoneProvider: { clock.timeZone },
+            rolloverHour: 18
+        )
+
+        // Prior-night session (Sunday) closes after wake/check-in on Monday morning.
+        localRepo.setDose1Time(makeDate(2025, 12, 28, 23, 0, tz: tz))
+        localRepo.setWakeFinalTime(makeDate(2025, 12, 29, 7, 0, tz: tz))
+        localRepo.completeCheckIn()
+
+        XCTAssertNil(localRepo.activeSessionDate, "Session should be closed after check-in")
+        XCTAssertEqual(localRepo.currentSessionKey, "2025-12-28", "Storage session key remains prior night until 6 PM")
+        XCTAssertEqual(
+            localRepo.plannerSessionKey(for: clock.now),
+            "2025-12-29",
+            "UI planning key should move to upcoming night after morning check-in"
+        )
+    }
+
+    func test_plannerSessionKey_canFollowStorageBoundaryWhenToggleOff() {
+        let tz = TimeZone(identifier: "America/New_York")!
+        let morning = makeDate(2025, 12, 29, 7, 30, tz: tz)
+        let clock = TestClock(now: morning, timeZone: tz)
+        let settings = UserSettingsManager.shared
+        let previousToggle = settings.plannerUsesUpcomingNightAfterCheckIn
+        settings.plannerUsesUpcomingNightAfterCheckIn = false
+        defer { settings.plannerUsesUpcomingNightAfterCheckIn = previousToggle }
+
+        let localRepo = SessionRepository(
+            storage: storage,
+            notificationScheduler: FakeNotificationScheduler(),
+            clock: { clock.now },
+            timeZoneProvider: { clock.timeZone },
+            rolloverHour: 18
+        )
+
+        XCTAssertNil(localRepo.activeSessionDate)
+        XCTAssertEqual(localRepo.currentSessionKey, "2025-12-28")
+        XCTAssertEqual(
+            localRepo.plannerSessionKey(for: clock.now),
+            "2025-12-28",
+            "When toggle is off, planner should follow 6 PM storage boundary key"
+        )
+    }
+
     func test_preSleepLog_upsertSameSession() async throws {
         storage.clearAllData()
         var firstAnswers = DoseTap.PreSleepLogAnswers()

@@ -27,7 +27,7 @@ class EventLogger: ObservableObject {
     
     /// Load events from SQLite for tonight's session
     private func loadEventsFromStorage() {
-        let sessionKey = sessionRepo.activeSessionDate ?? sessionRepo.currentSessionKey
+        let sessionKey = sessionRepo.plannerSessionKey(for: Date())
         let storedEvents = sessionRepo.fetchSleepEvents(for: sessionKey)
         let storedDoseEvents = sessionRepo.fetchDoseEvents(forSessionDate: sessionKey)
 
@@ -682,10 +682,10 @@ struct LegacyTonightView: View {
                     overrideEnabled: $overrideEnabled,
                     overrideWake: $overrideWake,
                     onUpdate: { date in
-                        sleepPlanStore.setTonightOverride(sessionKey: sessionRepo.currentSessionKey, wakeBy: date)
+                        sleepPlanStore.setTonightOverride(sessionKey: displaySessionKey, wakeBy: date)
                     },
                     onClear: {
-                        sleepPlanStore.setTonightOverride(sessionKey: sessionRepo.currentSessionKey, wakeBy: nil)
+                        sleepPlanStore.setTonightOverride(sessionKey: displaySessionKey, wakeBy: nil)
                     },
                     baselineWake: plan.wakeBy
                 )
@@ -900,6 +900,7 @@ struct LegacyTonightView: View {
             reloadPreSleepLog()
         }
         .onReceive(sessionRepo.sessionDidChange) { _ in
+            syncOverrideState()
             reloadPreSleepLog()
         }
         .onChange(of: showPreSleepLog) { newValue in
@@ -910,8 +911,12 @@ struct LegacyTonightView: View {
         }
     }
 
+    private var displaySessionKey: String {
+        sessionRepo.plannerSessionKey(for: Date())
+    }
+
     private func syncOverrideState() {
-        let key = sessionRepo.currentSessionKey
+        let key = displaySessionKey
         sleepPlanStore.clearObsoleteOverrides(currentSessionKey: key)
         if let override = sleepPlanStore.overrideForSession(key) {
             overrideEnabled = true
@@ -924,7 +929,7 @@ struct LegacyTonightView: View {
     }
     
     private var sleepPlanSummary: (wakeBy: Date, recommendedInBed: Date, windDown: Date, expectedSleepMinutes: Double)? {
-        let key = sessionRepo.currentSessionKey
+        let key = displaySessionKey
         return sleepPlanStore.plan(for: key, now: Date(), tz: TimeZone.current)
     }
     
@@ -951,9 +956,9 @@ struct TonightDateLabel: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE, MMM d"
         
-        // Use the session key to determine the "Tonight" date
-        // If the session key is 2025-12-26, we want to show Friday, Dec 26
-        let key = sessionRepo.currentSessionKey
+        // Planner key can optionally target upcoming night immediately after
+        // morning check-in (before storage rollover at 6 PM).
+        let key = sessionRepo.plannerSessionKey(for: Date())
         let keyFormatter = DateFormatter()
         keyFormatter.dateFormat = "yyyy-MM-dd"
         keyFormatter.timeZone = TimeZone.current

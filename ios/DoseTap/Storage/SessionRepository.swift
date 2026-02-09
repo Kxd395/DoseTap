@@ -803,6 +803,18 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         return preSleepSessionKey(for: date, timeZone: timeZoneProvider(), rolloverHour: rolloverHour)
     }
 
+    /// Session key to drive Tonight/planning UI.
+    /// Storage/session integrity still uses `currentSessionKey` (6 PM boundary).
+    public func plannerSessionKey(for date: Date = Date()) -> String {
+        if activeSessionDate != nil {
+            return preSleepDisplaySessionKey(for: date)
+        }
+        if UserSettingsManager.shared.plannerUsesUpcomingNightAfterCheckIn {
+            return preSleepDisplaySessionKey(for: date)
+        }
+        return currentSessionKey
+    }
+
     /// Session key to use for pre-sleep log storage (prefers active session id).
     public func preSleepLogSessionKey(for date: Date = Date()) -> String {
         if let activeSessionId = activeSessionId {
@@ -1470,7 +1482,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         if let sessionDate = activeSessionDate {
             return storage.fetchSleepEvents(forSession: sessionDate)
         }
-        return storage.fetchSleepEvents(forSession: currentSessionKey)
+        return storage.fetchSleepEvents(forSession: plannerSessionKey(for: clock()))
     }
     
     /// Fetch sleep events for a specific session date
