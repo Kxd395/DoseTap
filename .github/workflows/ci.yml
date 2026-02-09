@@ -62,9 +62,9 @@ jobs:
             exit 1
           fi
 
-          MATCHES="$(rg -n --glob '!ios/DoseTap/Secrets.template.swift' 'whoopClient(ID|Secret)\s*=\s*\"' ios/DoseTap ios/Core || true)"
+          MATCHES="$(grep -RInE --exclude='Secrets.template.swift' 'whoopClient(ID|Secret)[[:space:]]*=[[:space:]]*\"' ios/DoseTap ios/Core || true)"
           if [ -n "$MATCHES" ]; then
-            BAD="$(printf "%s\n" "$MATCHES" | rg -v 'YOUR_WHOOP_CLIENT_(ID|SECRET)|\"\"' || true)"
+            BAD="$(printf "%s\n" "$MATCHES" | grep -Ev 'YOUR_WHOOP_CLIENT_(ID|SECRET)|\"\"' || true)"
             if [ -n "$BAD" ]; then
               echo "❌ FAIL: Potential hardcoded WHOOP credentials found:"
               printf "%s\n" "$BAD"
@@ -110,7 +110,7 @@ jobs:
           )
           echo "Verifying critical SwiftPM test suites executed..."
           for SUITE in "${CRITICAL_SUITES[@]}"; do
-            if rg -q "Test [Ss]uite '$SUITE'" "$LOG"; then
+            if grep -Eq "Test [Ss]uite '$SUITE'" "$LOG"; then
               echo "✅ $SUITE executed"
             else
               echo "⚠️ Could not verify $SUITE (may use different log format)"
@@ -188,15 +188,45 @@ jobs:
         run: |
           set -euo pipefail
 
-          SIMULATOR_NAME="iPhone 15"
-          DESTINATION="platform=iOS Simulator,name=$SIMULATOR_NAME"
+          AVAILABLE_IPHONES="$(
+            xcrun simctl list devices available \
+              | sed -n 's/^[[:space:]]*\\(iPhone[^()]*\\) (\\([0-9A-F-]*\\)) (.*$/\\1|\\2/p'
+          )"
+
+          if [[ -z "$AVAILABLE_IPHONES" ]]; then
+            echo "❌ No available iPhone simulators found on runner."
+            xcrun simctl list devices
+            exit 1
+          fi
+
+          SIMULATOR_NAME=""
+          SIMULATOR_UDID=""
+          PREFERRED_NAMES=("iPhone 16 Pro" "iPhone 16" "iPhone 15 Pro" "iPhone 15" "iPhone 14 Pro" "iPhone 14")
+
+          for candidate in "${PREFERRED_NAMES[@]}"; do
+            candidate_udid="$(printf "%s\n" "$AVAILABLE_IPHONES" | awk -F'|' -v target="$candidate" '$1 == target { print $2; exit }')"
+            if [[ -n "$candidate_udid" ]]; then
+              SIMULATOR_NAME="$candidate"
+              SIMULATOR_UDID="$candidate_udid"
+              break
+            fi
+          done
+
+          if [[ -z "$SIMULATOR_UDID" ]]; then
+            first_entry="$(printf "%s\n" "$AVAILABLE_IPHONES" | head -n1)"
+            SIMULATOR_NAME="${first_entry%%|*}"
+            SIMULATOR_UDID="${first_entry##*|}"
+          fi
+
+          echo "Using simulator: $SIMULATOR_NAME ($SIMULATOR_UDID)"
+          DESTINATION="platform=iOS Simulator,id=$SIMULATOR_UDID"
           DERIVED_DATA="$RUNNER_TEMP/DerivedData"
           FINAL_LOG="$RUNNER_TEMP/xcodebuild-test.log"
 
           # Reduce simulator boot/install flakiness on GitHub hosted runners.
           xcrun simctl shutdown all || true
-          xcrun simctl boot "$SIMULATOR_NAME" || true
-          xcrun simctl bootstatus "$SIMULATOR_NAME" -b || true
+          xcrun simctl boot "$SIMULATOR_UDID" || true
+          xcrun simctl bootstatus "$SIMULATOR_UDID" -b || true
 
           run_tests() {
             local attempt="$1"
@@ -221,11 +251,11 @@ jobs:
           }
 
           if ! run_tests 1; then
-            if rg -q 'Invalid device state|Failed to install or launch the test runner|Mach error -308|server died' "$FINAL_LOG"; then
+            if grep -Eq 'Invalid device state|Failed to install or launch the test runner|Mach error -308|server died|Early unexpected exit|test runner crashed before establishing connection|operation never finished bootstrapping' "$FINAL_LOG"; then
               echo "Transient simulator failure detected; rebooting simulator and retrying once."
               xcrun simctl shutdown all || true
-              xcrun simctl boot "$SIMULATOR_NAME" || true
-              xcrun simctl bootstatus "$SIMULATOR_NAME" -b || true
+              xcrun simctl boot "$SIMULATOR_UDID" || true
+              xcrun simctl bootstatus "$SIMULATOR_UDID" -b || true
               run_tests 2
             else
               echo "xcodebuild failed with non-transient error."
@@ -251,7 +281,7 @@ jobs:
           echo "Verifying required test suites executed..."
           MISSING=0
           for SUITE in "${REQUIRED_SUITES[@]}"; do
-            if rg -q "Test [Ss]uite '$SUITE'" "$LOG"; then
+            if grep -Eq "Test [Ss]uite '$SUITE'" "$LOG"; then
               echo "✅ $SUITE executed"
             else
               echo "❌ MISSING: $SUITE did not execute"
@@ -293,7 +323,7 @@ jobs:
             -project ios/DoseTap.xcodeproj \
             -scheme DoseTap \
             -configuration Release \
-            -destination "platform=iOS Simulator,name=iPhone 16" \
+            -destination "generic/platform=iOS Simulator" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
             DEVELOPMENT_TEAM=""

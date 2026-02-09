@@ -33,12 +33,14 @@ for pin in "${RAW_PINS[@]}"; do
   fi
 
   duplicate=false
-  for existing in "${UNIQUE_PINS[@]}"; do
-    if [[ "$existing" == "$trimmed" ]]; then
-      duplicate=true
-      break
-    fi
-  done
+  if (( ${#UNIQUE_PINS[@]} > 0 )); then
+    for existing in "${UNIQUE_PINS[@]}"; do
+      if [[ "$existing" == "$trimmed" ]]; then
+        duplicate=true
+        break
+      fi
+    done
+  fi
 
   if [[ "$duplicate" == false ]]; then
     UNIQUE_PINS+=("$trimmed")
