@@ -32,6 +32,78 @@ final class FakeNotificationScheduler: NotificationScheduling, @unchecked Sendab
     }
 }
 
+@MainActor
+final class SleepPlanStoreTemplateTests: XCTestCase {
+    private var defaults: UserDefaults!
+    private var suiteName: String!
+    private var store: SleepPlanStore!
+
+    override func setUp() async throws {
+        suiteName = "SleepPlanStoreTemplateTests.\(UUID().uuidString)"
+        defaults = UserDefaults(suiteName: suiteName)
+        defaults.removePersistentDomain(forName: suiteName)
+        store = SleepPlanStore(userDefaults: defaults)
+    }
+
+    override func tearDown() async throws {
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
+    func test_applyWorkWeekTemplate_assignsWorkdaysAndOffdays() async {
+        let workWake = makeTime(hour: 5, minute: 45)
+        let offWake = makeTime(hour: 8, minute: 30)
+        let workdays: Set<Int> = [2, 4, 6] // Mon/Wed/Fri
+
+        store.applyWorkWeekTemplate(
+            workdays: workdays,
+            workdayWake: workWake,
+            offdayWake: offWake,
+            offdaysEnabled: true
+        )
+
+        for weekday in 1...7 {
+            let entry = store.schedule.entry(for: weekday)
+            if workdays.contains(weekday) {
+                XCTAssertEqual(entry.wakeByHour, 5)
+                XCTAssertEqual(entry.wakeByMinute, 45)
+                XCTAssertTrue(entry.enabled)
+            } else {
+                XCTAssertEqual(entry.wakeByHour, 8)
+                XCTAssertEqual(entry.wakeByMinute, 30)
+                XCTAssertTrue(entry.enabled)
+            }
+        }
+    }
+
+    func test_applyWorkWeekTemplate_respectsOffdayEnabledFlag() async {
+        let workWake = makeTime(hour: 6, minute: 0)
+        let offWake = makeTime(hour: 9, minute: 0)
+
+        store.applyWorkWeekTemplate(
+            workdays: [2, 3, 4],
+            workdayWake: workWake,
+            offdayWake: offWake,
+            offdaysEnabled: false
+        )
+
+        XCTAssertTrue(store.schedule.entry(for: 2).enabled)
+        XCTAssertTrue(store.schedule.entry(for: 3).enabled)
+        XCTAssertTrue(store.schedule.entry(for: 4).enabled)
+        XCTAssertFalse(store.schedule.entry(for: 1).enabled)
+        XCTAssertFalse(store.schedule.entry(for: 5).enabled)
+        XCTAssertFalse(store.schedule.entry(for: 6).enabled)
+        XCTAssertFalse(store.schedule.entry(for: 7).enabled)
+    }
+
+    private func makeTime(hour: Int, minute: Int) -> Date {
+        var components = DateComponents()
+        components.hour = hour
+        components.minute = minute
+        components.second = 0
+        return Calendar.current.date(from: components) ?? Date()
+    }
+}
+
 /// Data integrity tests that verify cascade behaviors and notification lifecycle.
 /// These tests protect against P0 bugs: ghost doses, orphan notifications, data corruption.
 @MainActor
@@ -334,10 +406,15 @@ final class DataIntegrityTests: XCTestCase {
         // Arrange
         repo.setDose1Time(Date().addingTimeInterval(-160 * 60))
         repo.setDose2Time(Date())
+        let sessionDate = repo.currentSessionDateString()
         
         XCTAssertNotNil(repo.dose1Time)
         XCTAssertNotNil(repo.dose2Time)
+        XCTAssertNotNil(repo.activeSessionId)
+        XCTAssertNotNil(repo.activeSessionStart)
         
+        fakeScheduler.reset()
+
         // Act
         repo.clearTonight()
         
@@ -345,6 +422,37 @@ final class DataIntegrityTests: XCTestCase {
         XCTAssertNil(repo.dose1Time, "Dose 1 cleared")
         XCTAssertNil(repo.dose2Time, "Dose 2 cleared")
         XCTAssertNil(repo.activeSessionDate, "Session cleared")
+        XCTAssertNil(repo.activeSessionId, "Session id cleared")
+        XCTAssertNil(repo.activeSessionStart, "Session start cleared")
+        XCTAssertNil(repo.activeSessionEnd, "Session end cleared")
+        XCTAssertEqual(repo.currentSessionKey, sessionDate, "Current session key should remain on today's bucket after clear")
+
+        let cancelledSet = Set(fakeScheduler.cancelledIdentifiers)
+        let expectedSet = Set(SessionRepository.sessionNotificationIdentifiers)
+        XCTAssertEqual(cancelledSet, expectedSet, "clearTonight should cancel canonical session notifications")
+    }
+
+    func test_clearAllData_clearsIdentityAndCancelsNotifications() async throws {
+        repo.setDose1Time(Date().addingTimeInterval(-150 * 60))
+        repo.incrementSnooze()
+        XCTAssertNotNil(repo.activeSessionId, "Session id should exist before clearAllData")
+        XCTAssertNotNil(repo.activeSessionStart, "Session start should exist before clearAllData")
+
+        fakeScheduler.reset()
+        repo.clearAllData()
+
+        XCTAssertNil(repo.activeSessionDate, "Session date should clear on clearAllData")
+        XCTAssertNil(repo.activeSessionId, "Session id should clear on clearAllData")
+        XCTAssertNil(repo.activeSessionStart, "Session start should clear on clearAllData")
+        XCTAssertNil(repo.activeSessionEnd, "Session end should clear on clearAllData")
+        XCTAssertNil(repo.dose1Time, "Dose1 should clear on clearAllData")
+        XCTAssertNil(repo.dose2Time, "Dose2 should clear on clearAllData")
+        XCTAssertEqual(repo.snoozeCount, 0, "Snooze should reset on clearAllData")
+        XCTAssertEqual(repo.currentContext.phase, .noDose1, "Context should return to noDose1 after clearAllData")
+
+        let cancelledSet = Set(fakeScheduler.cancelledIdentifiers)
+        let expectedSet = Set(SessionRepository.sessionNotificationIdentifiers)
+        XCTAssertEqual(cancelledSet, expectedSet, "clearAllData should cancel canonical session notifications")
     }
     
     // MARK: - Data Consistency Tests

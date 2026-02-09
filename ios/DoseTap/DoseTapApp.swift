@@ -6,6 +6,8 @@ import DoseCore
 struct DoseTapApp: App {
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var urlRouter = URLRouter.shared
+    @StateObject private var settings = UserSettingsManager.shared
+    @StateObject private var themeManager = ThemeManager.shared
     @AppStorage(SetupWizardService.setupCompletedKey) private var isSetupComplete: Bool = false
     
     /// Track when app went to background for duration logging
@@ -75,6 +77,13 @@ struct DoseTapApp: App {
                         }
                 } else {
                     SetupWizardView(isSetupComplete: $isSetupComplete)
+                        .preferredColorScheme(
+                            themeManager.currentTheme == .night
+                                ? .dark
+                                : (themeManager.currentTheme.colorScheme ?? settings.colorScheme)
+                        )
+                        .accentColor(themeManager.currentTheme.accentColor)
+                        .applyNightModeFilter(themeManager.currentTheme)
                 }
             }
             .onChange(of: isSetupComplete) { completed in

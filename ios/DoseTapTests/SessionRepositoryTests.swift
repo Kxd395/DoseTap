@@ -67,6 +67,9 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertNil(repo.dose1Time, "Dose 1 should be nil after delete")
         XCTAssertNil(repo.dose2Time, "Dose 2 should be nil after delete")
         XCTAssertNil(repo.activeSessionDate, "Active session should be nil after delete")
+        XCTAssertNil(repo.activeSessionId, "Active session id should be nil after delete")
+        XCTAssertNil(repo.activeSessionStart, "Active session start should be nil after delete")
+        XCTAssertNil(repo.activeSessionEnd, "Active session end should be nil after delete")
         XCTAssertEqual(repo.snoozeCount, 0, "Snooze count should reset")
         XCTAssertFalse(repo.dose2Skipped, "Skip state should reset")
     }
@@ -133,6 +136,9 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertNil(repo.dose1Time, "Dose 1 should be nil after async delete")
         XCTAssertNil(repo.dose2Time, "Dose 2 should be nil after async delete")
         XCTAssertNil(repo.activeSessionDate, "Active session should be nil after async delete")
+        XCTAssertNil(repo.activeSessionId, "Active session id should be nil after async delete")
+        XCTAssertNil(repo.activeSessionStart, "Active session start should be nil after async delete")
+        XCTAssertNil(repo.activeSessionEnd, "Active session end should be nil after async delete")
         XCTAssertEqual(repo.snoozeCount, 0, "Snooze count should reset after async delete")
     }
 
@@ -182,6 +188,29 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertNil(repo.dose2Time)
         XCTAssertEqual(repo.snoozeCount, 0)
         XCTAssertNil(repo.activeSessionDate)
+        XCTAssertNil(repo.activeSessionId)
+        XCTAssertNil(repo.activeSessionStart)
+        XCTAssertNil(repo.activeSessionEnd)
+    }
+
+    func test_clearAllData_clearsSessionIdentityState() async throws {
+        repo.setDose1Time(Date().addingTimeInterval(-120 * 60))
+        repo.incrementSnooze()
+
+        XCTAssertNotNil(repo.activeSessionDate)
+        XCTAssertNotNil(repo.activeSessionId)
+        XCTAssertNotNil(repo.activeSessionStart)
+
+        repo.clearAllData()
+
+        XCTAssertNil(repo.activeSessionDate, "clearAllData should clear active session date")
+        XCTAssertNil(repo.activeSessionId, "clearAllData should clear active session id")
+        XCTAssertNil(repo.activeSessionStart, "clearAllData should clear active session start")
+        XCTAssertNil(repo.activeSessionEnd, "clearAllData should clear active session end")
+        XCTAssertNil(repo.dose1Time, "clearAllData should clear dose1 time")
+        XCTAssertNil(repo.dose2Time, "clearAllData should clear dose2 time")
+        XCTAssertEqual(repo.snoozeCount, 0, "clearAllData should reset snooze count")
+        XCTAssertEqual(repo.currentContext.phase, .noDose1, "clearAllData should return to noDose1 phase")
     }
     
     // MARK: - Test: Mutations Broadcast Changes

@@ -497,6 +497,49 @@ final class SleepPlanStore: ObservableObject {
         schedule = TypicalWeekSchedule(entries: entries.sorted { $0.weekdayIndex < $1.weekdayIndex })
         persistSchedule()
     }
+
+    /// Apply a two-profile weekly template (workdays vs off days).
+    /// - Parameters:
+    ///   - workdays: Calendar weekday indexes (1 = Sunday ... 7 = Saturday) treated as workdays.
+    ///   - workdayWake: Wake time to apply to selected workdays.
+    ///   - offdayWake: Wake time to apply to non-workdays.
+    ///   - offdaysEnabled: Whether non-workdays are enabled in the planner schedule.
+    func applyWorkWeekTemplate(
+        workdays: Set<Int>,
+        workdayWake: Date,
+        offdayWake: Date,
+        offdaysEnabled: Bool = true
+    ) {
+        let calendar = Calendar.current
+        let normalizedWorkdays = Set(workdays.filter { (1...7).contains($0) })
+
+        let workComps = calendar.dateComponents([.hour, .minute], from: workdayWake)
+        let offComps = calendar.dateComponents([.hour, .minute], from: offdayWake)
+        let workHour = workComps.hour ?? 7
+        let workMinute = workComps.minute ?? 30
+        let offHour = offComps.hour ?? 8
+        let offMinute = offComps.minute ?? 30
+
+        let entries: [TypicalWeekEntry] = (1...7).map { weekday in
+            if normalizedWorkdays.contains(weekday) {
+                return TypicalWeekEntry(
+                    weekdayIndex: weekday,
+                    wakeByHour: workHour,
+                    wakeByMinute: workMinute,
+                    enabled: true
+                )
+            }
+            return TypicalWeekEntry(
+                weekdayIndex: weekday,
+                wakeByHour: offHour,
+                wakeByMinute: offMinute,
+                enabled: offdaysEnabled
+            )
+        }
+
+        schedule = TypicalWeekSchedule(entries: entries)
+        persistSchedule()
+    }
     
     func updateSettings(targetSleepMinutes: Int? = nil, sleepLatencyMinutes: Int? = nil, windDownMinutes: Int? = nil) {
         var updated = settings

@@ -105,8 +105,19 @@ struct SettingsView: View {
 
                 // MARK: - Night Schedule
                 Section {
-                    DatePicker("Sleep Start", selection: sleepStartBinding, displayedComponents: .hourAndMinute)
-                    DatePicker("Wake Time", selection: wakeTimeBinding, displayedComponents: .hourAndMinute)
+                    DatePicker("Default Sleep Start", selection: sleepStartBinding, displayedComponents: .hourAndMinute)
+                    DatePicker("Default Wake Time", selection: wakeTimeBinding, displayedComponents: .hourAndMinute)
+
+                    NavigationLink {
+                        SleepPlanDetailView()
+                    } label: {
+                        HStack {
+                            Label("Weekly Wake Setup", systemImage: "calendar.badge.clock")
+                            Spacer()
+                            Text(weeklyScheduleSummary)
+                                .foregroundColor(.secondary)
+                        }
+                    }
 
                     DisclosureGroup("Evening Prep & Auto-Close") {
                         DatePicker("Prep Time", selection: prepTimeBinding, displayedComponents: .hourAndMinute)
@@ -119,7 +130,7 @@ struct SettingsView: View {
                     Label("Night Schedule", systemImage: "moon.stars.fill")
                         .font(.headline)
                 } footer: {
-                    Text("These times control session rollover. Midnight is not a boundary; the morning check-in (or cutoff) closes the night.")
+                    Text("Default times control session rollover. Use Weekly Wake Setup for workdays vs non-workdays.")
                 }
                 
                 // MARK: - Notifications
@@ -440,7 +451,6 @@ struct SettingsView: View {
                 }
             }
         }
-        .preferredColorScheme(settings.colorScheme)
         .alert("Clear All Data", isPresented: $showingResetConfirmation) {
             Button("Cancel", role: .cancel) { }
             Button("Clear All", role: .destructive) {
@@ -549,6 +559,21 @@ struct SettingsView: View {
         let formatter = DateFormatter()
         formatter.timeStyle = .short
         return formatter.string(from: cutoff)
+    }
+
+    private var weeklyScheduleSummary: String {
+        let entries = sleepPlanStore.schedule.entries
+        let enabledEntries = entries.filter(\.enabled)
+        let uniqueTimes = Set(enabledEntries.map { "\($0.wakeByHour):\($0.wakeByMinute)" })
+
+        switch uniqueTimes.count {
+        case 0:
+            return "No days enabled"
+        case 1:
+            return "\(enabledEntries.count)d same"
+        default:
+            return "\(enabledEntries.count)d custom"
+        }
     }
 
     // MARK: - Appearance Picker

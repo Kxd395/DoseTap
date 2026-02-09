@@ -590,18 +590,11 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         
         // If we deleted the active session, clear in-memory state AND cancel notifications
         if wasActiveSession {
-            activeSessionDate = nil
-            dose1Time = nil
-            dose2Time = nil
-            snoozeCount = 0
-            dose2Skipped = false
-            wakeFinalTime = nil
-            checkInCompleted = false
-            dose1TimezoneOffsetMinutes = nil
-            
-            // P0-3 FIX: Cancel any pending notifications for this session
-            // Notifications should not fire for deleted sessions
+            clearInMemoryState()
             cancelPendingNotifications()
+            AlarmService.shared.resetForNewSession()
+            currentSessionKey = storage.currentSessionDate()
+            scheduleRolloverTimer()
             
             print("🗑️ SessionRepository: Active session deleted, state and notifications cleared")
             #if canImport(OSLog)
@@ -625,15 +618,11 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         await storageActor.deleteSession(sessionDate: sessionDate)
 
         if wasActiveSession {
-            activeSessionDate = nil
-            dose1Time = nil
-            dose2Time = nil
-            snoozeCount = 0
-            dose2Skipped = false
-            wakeFinalTime = nil
-            checkInCompleted = false
-            dose1TimezoneOffsetMinutes = nil
+            clearInMemoryState()
             cancelPendingNotifications()
+            AlarmService.shared.resetForNewSession()
+            currentSessionKey = storage.currentSessionDate()
+            scheduleRolloverTimer()
             print("🗑️ SessionRepository: Active session deleted async, state and notifications cleared")
             #if canImport(OSLog)
             logger.info("Active session \(sessionDate, privacy: .public) deleted async; state + notifications cleared")
@@ -873,6 +862,10 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         storage.deleteSession(sessionDate: currentDate)
         
         clearInMemoryState()
+        cancelPendingNotifications()
+        AlarmService.shared.resetForNewSession()
+        currentSessionKey = storage.currentSessionDate()
+        scheduleRolloverTimer()
         
         sessionDidChange.send()
     }
@@ -1540,19 +1533,13 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     public func clearAllData() {
         storage.clearAllData()
         
-        // Reset in-memory state
-        activeSessionDate = nil
-        dose1Time = nil
-        dose2Time = nil
-        snoozeCount = 0
-        dose2Skipped = false
-        wakeFinalTime = nil
-        checkInCompleted = false
-        dose1TimezoneOffsetMinutes = nil
-        awaitingRolloverMessage = nil
+        clearInMemoryState()
         
         // Recompute session key
         currentSessionKey = sessionKey(for: clock(), timeZone: timeZoneProvider(), rolloverHour: rolloverHour)
+        cancelPendingNotifications()
+        AlarmService.shared.resetForNewSession()
+        scheduleRolloverTimer()
         
         #if canImport(OSLog)
         logger.info("All data cleared")

@@ -4,9 +4,44 @@ import DoseCore
 /// Detailed view for configuring typical week schedule
 struct SleepPlanDetailView: View {
     @ObservedObject private var sleepPlanStore = SleepPlanStore.shared
+    @State private var workdayWake = SleepPlanDetailView.makeDate(hour: 6, minute: 30)
+    @State private var offdayWake = SleepPlanDetailView.makeDate(hour: 8, minute: 0)
+    @State private var workdays: Set<Int> = [2, 4, 6] // Mon / Wed / Fri default
+    @State private var offdaysEnabled = true
     
     var body: some View {
         List {
+            Section {
+                DatePicker("Workday Wake", selection: $workdayWake, displayedComponents: .hourAndMinute)
+                DatePicker("Off-day Wake", selection: $offdayWake, displayedComponents: .hourAndMinute)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Workdays")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+
+                    WorkdaySelector(selectedDays: $workdays)
+                }
+
+                Toggle("Keep off-days enabled", isOn: $offdaysEnabled)
+
+                Button {
+                    sleepPlanStore.applyWorkWeekTemplate(
+                        workdays: workdays,
+                        workdayWake: workdayWake,
+                        offdayWake: offdayWake,
+                        offdaysEnabled: offdaysEnabled
+                    )
+                } label: {
+                    Label("Apply Workday Pattern", systemImage: "calendar.badge.clock")
+                }
+            } header: {
+                Label("Quick Weekly Setup", systemImage: "briefcase.fill")
+            } footer: {
+                Text("Set one wake time for your workdays and another for non-workdays. This is ideal for split schedules, including 3-day work weeks.")
+                    .font(.caption)
+            }
+
             Section {
                 ForEach(1...7, id: \.self) { weekday in
                     TypicalWeekRowInternal(
@@ -31,6 +66,37 @@ struct SleepPlanDetailView: View {
         }
         .navigationTitle("Weekly Schedule")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            seedTemplateFields()
+        }
+    }
+
+    private func seedTemplateFields() {
+        // Preserve current custom choices once user starts editing in this session.
+        guard workdays == Set([2, 4, 6]) else { return }
+
+        let monday = sleepPlanStore.schedule.entry(for: 2)
+        let sunday = sleepPlanStore.schedule.entry(for: 1)
+
+        workdayWake = SleepPlanDetailView.makeDate(from: monday)
+        offdayWake = SleepPlanDetailView.makeDate(from: sunday)
+
+        let offdayIndexes = Set(1...7).subtracting(workdays)
+        offdaysEnabled = sleepPlanStore.schedule.entries
+            .filter { offdayIndexes.contains($0.weekdayIndex) }
+            .allSatisfy(\.enabled)
+    }
+
+    private static func makeDate(from entry: TypicalWeekEntry) -> Date {
+        makeDate(hour: entry.wakeByHour, minute: entry.wakeByMinute)
+    }
+
+    private static func makeDate(hour: Int, minute: Int) -> Date {
+        var components = DateComponents()
+        components.hour = hour
+        components.minute = minute
+        components.second = 0
+        return Calendar.current.date(from: components) ?? Date()
     }
 }
 
@@ -43,9 +109,9 @@ private struct TypicalWeekRowInternal: View {
     @State private var showPicker = false
     
     private var weekdayName: String {
-        let formatter = DateFormatter()
-        formatter.weekdaySymbols = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
-        return formatter.weekdaySymbols[weekday % 7]
+        let symbols = Calendar.current.weekdaySymbols
+        let normalized = (weekday - 1 + symbols.count) % symbols.count
+        return symbols[normalized]
     }
     
     private var wakeTime: Date {
@@ -102,6 +168,42 @@ private struct TypicalWeekRowInternal: View {
                 }
             }
         }
+    }
+}
+
+private struct WorkdaySelector: View {
+    @Binding var selectedDays: Set<Int>
+    private let orderedWeekdays = [2, 3, 4, 5, 6, 7, 1] // Mon ... Sun
+
+    var body: some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
+            ForEach(orderedWeekdays, id: \.self) { weekday in
+                let isSelected = selectedDays.contains(weekday)
+                Button {
+                    if isSelected {
+                        selectedDays.remove(weekday)
+                    } else {
+                        selectedDays.insert(weekday)
+                    }
+                } label: {
+                    Text(shortName(for: weekday))
+                        .font(.caption.weight(.semibold))
+                        .frame(maxWidth: .infinity, minHeight: 32)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(isSelected ? Color.accentColor : Color(.secondarySystemFill))
+                        )
+                        .foregroundColor(isSelected ? .white : .primary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func shortName(for weekday: Int) -> String {
+        let symbols = Calendar.current.shortWeekdaySymbols
+        let normalized = (weekday - 1 + symbols.count) % symbols.count
+        return symbols[normalized]
     }
 }
 

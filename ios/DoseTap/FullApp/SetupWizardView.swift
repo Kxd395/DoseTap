@@ -200,6 +200,22 @@ struct SleepScheduleStepView: View {
                 .padding(16)
                 .background(Color(UIColor.secondarySystemGroupedBackground))
                 .cornerRadius(12)
+
+                NavigationLink {
+                    SleepPlanDetailView()
+                } label: {
+                    HStack {
+                        Label("Set Weekly Workday Pattern", systemImage: "calendar.badge.clock")
+                        Spacer()
+                        Text("Optional")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(16)
+                    .background(Color(UIColor.secondarySystemGroupedBackground))
+                    .cornerRadius(12)
+                }
+                .buttonStyle(.plain)
             }
             
             InfoBoxView(
