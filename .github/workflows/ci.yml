@@ -55,6 +55,27 @@ jobs:
           fi
           echo "✅ No ghost test directories found"
 
+      - name: Guard against committed app secrets
+        run: |
+          set -euo pipefail
+
+          if git ls-files --error-unmatch ios/DoseTap/Secrets.swift >/dev/null 2>&1; then
+            echo "❌ FAIL: ios/DoseTap/Secrets.swift must never be tracked."
+            exit 1
+          fi
+
+          MATCHES="$(rg -n --glob '!ios/DoseTap/Secrets.template.swift' 'whoopClient(ID|Secret)\s*=\s*\"' ios/DoseTap ios/Core || true)"
+          if [ -n "$MATCHES" ]; then
+            BAD="$(printf "%s\n" "$MATCHES" | rg -v 'YOUR_WHOOP_CLIENT_(ID|SECRET)|\"\"' || true)"
+            if [ -n "$BAD" ]; then
+              echo "❌ FAIL: Potential hardcoded WHOOP credentials found:"
+              printf "%s\n" "$BAD"
+              exit 1
+            fi
+          fi
+
+          echo "✅ No tracked hardcoded app secrets detected"
+
       - name: Xcode version
         run: xcodebuild -version
 

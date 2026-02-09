@@ -63,6 +63,11 @@ public final class CertificatePinning: NSObject, URLSessionDelegate, @unchecked 
         )
     }
 
+    /// Returns true when at least one pin is configured via env or Info.plist.
+    public static var hasConfiguredPins: Bool {
+        !configuredPins().isEmpty
+    }
+
     private static func configuredPins() -> [String] {
         if let envValue = ProcessInfo.processInfo.environment["DOSETAP_CERT_PINS"] {
             let parsed = parsePins(envValue)

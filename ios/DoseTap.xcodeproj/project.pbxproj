@@ -15,7 +15,7 @@
 		194E929BA46514E973F8ACEE /* WHOOPSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 403FF1A5371F4BA427EC1520 /* WHOOPSettingsView.swift */; };
 		1A539DC8315840749C5671D7 /* FullApp/TonightView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2988FA865D94BD982491694 /* FullApp/TonightView.swift */; };
 		1B86C969549644B2A31C /* DiagnosticLoggingSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 237C573EA83946FE8AFC /* DiagnosticLoggingSettingsView.swift */; };
-		1B95E3AD96741FD0E9FED120 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = D049AFCF96FC4AFF9120309E /* Secrets.swift */; };
+		1B95E3AD96741FD0E9FED120 /* Secrets.template.swift in Sources */ = {isa = PBXBuildFile; fileRef = D049AFCF96FC4AFF9120309E /* Secrets.template.swift */; };
 		1C3633B630D571CB6FE58C2F /* MorningCheckInViewV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6B3B338A337AA6015B732B8 /* MorningCheckInViewV2.swift */; };
 		1CB467AF229E4760A2F4A18A /* FullApp/InventoryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4E2B992A9FD423E84206CCE /* FullApp/InventoryService.swift */; };
 		24CA1B0499D673C5227DA6EC /* SleepTimelineOverlays.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BC9035E4ACF20D1D40B9A9 /* SleepTimelineOverlays.swift */; };
@@ -235,7 +235,7 @@
 		C64168860F0E76DF93919D76 /* HighContrastColors.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HighContrastColors.swift; sourceTree = "<group>"; };
 		CEF16E4224E846ADAE92B1C6 /* DevelopmentHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevelopmentHelper.swift; sourceTree = "<group>"; };
 		CFF67F0048CFBF2716448CC5 /* FlicButtonService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FlicButtonService.swift; sourceTree = "<group>"; };
-		D049AFCF96FC4AFF9120309E /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
+		D049AFCF96FC4AFF9120309E /* Secrets.template.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.template.swift; sourceTree = "<group>"; };
 		D1BA2E6CCFB845E6BFC919FA /* FullApp/SetupWizardService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/SetupWizardService.swift; sourceTree = "<group>"; };
 		D24FAD994B0C407F929BD3AC /* FullApp/QuickLogPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/QuickLogPanel.swift; sourceTree = "<group>"; };
 		D2988FA865D94BD982491694 /* FullApp/TonightView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/TonightView.swift; sourceTree = "<group>"; };
@@ -388,7 +388,7 @@
 				108C602480AF4A41B98FD22B /* EnhancedSettings.swift */,
 				HK002 /* HealthKitService.swift */,
 				6FEE161A09D6441A8D4448DA /* InsightsCalculator.swift */,
-				D049AFCF96FC4AFF9120309E /* Secrets.swift */,
+				D049AFCF96FC4AFF9120309E /* Secrets.template.swift */,
 				B358CDCA949364F93BD996D6 /* SettingsView.swift */,
 				576700D19A9F4B35BA54 /* SleepPlanDetailView.swift */,
 				237C573EA83946FE8AFC /* DiagnosticLoggingSettingsView.swift */,
@@ -701,7 +701,7 @@
 				D9B47E5F3E91E2F68102BA13 /* NightReviewView.swift in Sources */,
 				FFCE63C8C666930BEE06D38F /* ThemeSettingsView.swift in Sources */,
 				251486320D35FEA58E9D81CA /* EncryptedEventStorage.swift in Sources */,
-				1B95E3AD96741FD0E9FED120 /* Secrets.swift in Sources */,
+				1B95E3AD96741FD0E9FED120 /* Secrets.template.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

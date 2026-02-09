@@ -65,7 +65,7 @@ public class DoseCoreIntegration: ObservableObject {
     
     public init() {
         // Initialize core services with configurable base URL
-        let transport = URLSessionTransport()
+        let transport = Self.makeTransport()
         let apiClient = APIClient(baseURL: APIConfiguration.baseURL, transport: transport)
         let offlineQueue = InMemoryOfflineQueue(isOnline: { [networkStatus] in networkStatus.isOnline })
         let rateLimiter = EventRateLimiter.default // Use all 13 event cooldowns
@@ -91,6 +91,24 @@ public class DoseCoreIntegration: ObservableObject {
         
         // Start periodic updates for time-based context changes
         startPeriodicUpdates()
+    }
+
+    private static func makeTransport() -> APITransport {
+        let env = ProcessInfo.processInfo.environment
+
+        #if DEBUG
+        if env["DOSETAP_USE_PINNED_TRANSPORT"] == "1",
+           CertificatePinning.hasConfiguredPins {
+            return PinnedURLSessionTransport()
+        }
+        return URLSessionTransport()
+        #else
+        if CertificatePinning.hasConfiguredPins {
+            return PinnedURLSessionTransport()
+        }
+        assertionFailure("Certificate pinning is not configured; set DOSETAP_CERT_PINS for release builds.")
+        return URLSessionTransport()
+        #endif
     }
     
     // MARK: - Load Recent Events (for display only)

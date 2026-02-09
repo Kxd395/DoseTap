@@ -142,12 +142,24 @@ public class DoseTapCore: ObservableObject {
     }
 
     private static func makeTransport() -> APITransport {
+        let env = ProcessInfo.processInfo.environment
+
         #if DEBUG
-        if ProcessInfo.processInfo.environment["DOSETAP_USE_MOCK_TRANSPORT"] == "1" {
+        if env["DOSETAP_USE_MOCK_TRANSPORT"] == "1" {
             return MockAPITransport()
         }
-        #endif
+        if env["DOSETAP_USE_PINNED_TRANSPORT"] == "1",
+           CertificatePinning.hasConfiguredPins {
+            return PinnedURLSessionTransport()
+        }
         return URLSessionTransport()
+        #else
+        if CertificatePinning.hasConfiguredPins {
+            return PinnedURLSessionTransport()
+        }
+        assertionFailure("Certificate pinning is not configured; set DOSETAP_CERT_PINS for release builds.")
+        return URLSessionTransport()
+        #endif
     }
     
     /// Set the session repository and observe changes
