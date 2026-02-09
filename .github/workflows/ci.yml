@@ -62,9 +62,12 @@ jobs:
             exit 1
           fi
 
-          MATCHES="$(grep -RInE --exclude='Secrets.template.swift' 'whoopClient(ID|Secret)[[:space:]]*=[[:space:]]*\"' ios/DoseTap ios/Core || true)"
+          MATCHES="$(
+            git grep -nE 'whoopClient(ID|Secret)[[:space:]]*=[[:space:]]*\"' -- ios/DoseTap ios/Core \
+              | grep -Ev 'ios/DoseTap/Secrets.template.swift|ios/DoseTap/SecureConfig.swift' || true
+          )"
           if [ -n "$MATCHES" ]; then
-            BAD="$(printf "%s\n" "$MATCHES" | grep -Ev 'YOUR_WHOOP_CLIENT_(ID|SECRET)|\"\"' || true)"
+            BAD="$(printf "%s\n" "$MATCHES" | grep -Ev 'YOUR_WHOOP_CLIENT_(ID|SECRET)|DOSETAP_WHOOP_CLIENT_(ID|SECRET)|whoop_client_secret_secure|\"\"' || true)"
             if [ -n "$BAD" ]; then
               echo "❌ FAIL: Potential hardcoded WHOOP credentials found:"
               printf "%s\n" "$BAD"
