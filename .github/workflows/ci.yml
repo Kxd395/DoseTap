@@ -15,8 +15,6 @@ jobs:
   ssot-lint:
     name: SSOT integrity check
     runs-on: macos-latest
-    # Non-blocking until roadmap items implemented; review warnings manually
-    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -112,7 +110,7 @@ jobs:
           )
           echo "Verifying critical SwiftPM test suites executed..."
           for SUITE in "${CRITICAL_SUITES[@]}"; do
-            if grep -q "Test Suite '$SUITE'" "$LOG"; then
+            if rg -q "Test [Ss]uite '$SUITE'" "$LOG"; then
               echo "✅ $SUITE executed"
             else
               echo "⚠️ Could not verify $SUITE (may use different log format)"
@@ -253,7 +251,7 @@ jobs:
           echo "Verifying required test suites executed..."
           MISSING=0
           for SUITE in "${REQUIRED_SUITES[@]}"; do
-            if grep -q "Test Suite '$SUITE'" "$LOG"; then
+            if rg -q "Test [Ss]uite '$SUITE'" "$LOG"; then
               echo "✅ $SUITE executed"
             else
               echo "❌ MISSING: $SUITE did not execute"
