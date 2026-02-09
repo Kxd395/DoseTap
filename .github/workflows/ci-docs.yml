@@ -35,6 +35,4 @@ jobs:
         config-file: '.github/workflows/markdown-link-check-config.json'
         
     - name: Validate OpenAPI spec
-      uses: char0n/swagger-editor-validate@v1
-      with:
-        definition-file: docs/SSOT/contracts/api.openapi.yaml
+      run: npx --yes @apidevtools/swagger-cli@4.0.4 validate docs/SSOT/contracts/api.openapi.yaml
