@@ -1,0 +1,6 @@
+openapi: 3.0.3
+info:
+  title: DoseTap API Contract
+  version: 1.0.0
+  description: Canonical API contract placeholder for CI validation.
+paths: {}
