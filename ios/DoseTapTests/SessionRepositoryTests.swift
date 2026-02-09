@@ -120,6 +120,33 @@ final class SessionRepositoryTests: XCTestCase {
         await fulfillment(of: [expectation], timeout: 1.0)
         XCTAssertTrue(changeReceived, "sessionDidChange should fire on delete")
     }
+
+    /// Async deletion path should mirror sync deletion semantics for active sessions.
+    func test_deleteSessionAsync_clearsActiveSessionState() async throws {
+        let now = Date()
+        repo.setDose1Time(now.addingTimeInterval(-60 * 60))
+        repo.setDose2Time(now.addingTimeInterval(-30 * 60))
+        let sessionDate = repo.currentSessionDateString()
+
+        await repo.deleteSessionAsync(sessionDate: sessionDate)
+
+        XCTAssertNil(repo.dose1Time, "Dose 1 should be nil after async delete")
+        XCTAssertNil(repo.dose2Time, "Dose 2 should be nil after async delete")
+        XCTAssertNil(repo.activeSessionDate, "Active session should be nil after async delete")
+        XCTAssertEqual(repo.snoozeCount, 0, "Snooze count should reset after async delete")
+    }
+
+    /// Async timeline/history query path should stay functionally equivalent to sync facade.
+    func test_fetchRecentSessionsAsync_matchesSyncResults() async throws {
+        let dose1 = Date().addingTimeInterval(-160 * 60)
+        repo.setDose1Time(dose1)
+        repo.setDose2Time(dose1.addingTimeInterval(165 * 60))
+
+        let sync = repo.fetchRecentSessions(days: 7)
+        let async = await repo.fetchRecentSessionsAsync(days: 7)
+
+        XCTAssertEqual(async.map(\.sessionDate), sync.map(\.sessionDate), "Async and sync recent sessions should match")
+    }
     
     // MARK: - Test: Reload Syncs from Storage
     

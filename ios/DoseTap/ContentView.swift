@@ -357,8 +357,7 @@ struct ContentView: View {
                     .environmentObject(themeManager)
                     .tag(0)
                 
-                DetailsView()
-                    .environmentObject(themeManager)
+                TimelineView()
                     .tag(1)
                 
                 HistoryView()
@@ -2631,13 +2630,8 @@ struct DetailsView: View {
 
 // MARK: - History View (Past Days)
 struct HistoryView: View {
-    @State private var selectedDate = Date()
-    @State private var pastSessions: [SessionSummary] = []
-    @State private var showDeleteDayConfirmation = false
-    @State private var refreshTrigger = false  // Toggled to force SelectedDayView refresh
     @EnvironmentObject var themeManager: ThemeManager
-    
-    private let sessionRepo = SessionRepository.shared
+    @ObservedObject private var urlRouter = URLRouter.shared
     
     var body: some View {
         NavigationView {
@@ -2649,29 +2643,31 @@ struct HistoryView: View {
                             .font(.headline)
                         InsightsSummaryCard()
                     }
-                    
-                    // Date Picker
-                    DatePicker(
-                        "Select Date",
-                        selection: $selectedDate,
-                        in: ...Date(),
-                        displayedComponents: [.date]
-                    )
-                    .datePickerStyle(.graphical)
+
+                    // Flow handoff: session-level review lives in Timeline.
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Session Review")
+                            .font(.headline)
+                        Text("Timeline is the canonical session report. Use it to inspect night-by-night dose timing and logged events.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        Button {
+                            withAnimation {
+                                urlRouter.selectedTab = 1
+                            }
+                        } label: {
+                            Label("Open Timeline", systemImage: "chart.bar.xaxis")
+                                .frame(maxWidth: .infinity, alignment: .center)
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
                     .padding()
                     .background(
                         RoundedRectangle(cornerRadius: 16)
                             .fill(Color(.systemGray6))
                     )
-                    
-                    // Selected Day Summary with Delete Option
-                    SelectedDayView(
-                        date: selectedDate,
-                        refreshTrigger: refreshTrigger,
-                        onDeleteRequested: { showDeleteDayConfirmation = true }
-                    )
-                    
-                    // Recent Sessions List
+
+                    // Recent sessions snapshot
                     RecentSessionsList()
                 }
                 .padding()
@@ -2683,28 +2679,7 @@ struct HistoryView: View {
                     ThemeToggleButton()
                 }
             }
-            .onAppear { loadHistory() }
-            .alert("Delete This Day's Data?", isPresented: $showDeleteDayConfirmation) {
-                Button("Cancel", role: .cancel) { }
-                Button("Delete", role: .destructive) {
-                    deleteSelectedDay()
-                }
-            } message: {
-                Text("This will delete all dose data and events for this day. This cannot be undone.")
-            }
         }
-    }
-    
-    private func loadHistory() {
-        pastSessions = sessionRepo.fetchRecentSessions(days: 7)
-    }
-    
-    private func deleteSelectedDay() {
-        let sessionDate = sessionRepo.sessionDateString(for: selectedDate)
-        // Use SessionRepository to delete - this broadcasts change to Tonight tab
-        sessionRepo.deleteSession(sessionDate: sessionDate)
-        refreshTrigger.toggle()  // Force SelectedDayView to reload
-        loadHistory()
     }
 }
 
@@ -3045,6 +3020,7 @@ struct SelectedDayView: View {
 // MARK: - Recent Sessions List
 struct RecentSessionsList: View {
     @State private var sessions: [SessionSummary] = []
+    @State private var isLoading = false
     private let sessionRepo = SessionRepository.shared
     
     var body: some View {
@@ -3053,11 +3029,17 @@ struct RecentSessionsList: View {
                 .font(.headline)
             
             if sessions.isEmpty {
-                Text("No recent sessions found")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .padding()
+                if isLoading {
+                    ProgressView("Loading sessions…")
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                } else {
+                    Text("No recent sessions found")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                }
             } else {
                 ForEach(sessions, id: \.sessionDate) { session in
                     SessionRow(session: session)
@@ -3069,11 +3051,16 @@ struct RecentSessionsList: View {
             RoundedRectangle(cornerRadius: 16)
                 .fill(Color(.systemGray6))
         )
-        .onAppear { loadSessions() }
+        .task { await loadSessions() }
+        .onReceive(sessionRepo.sessionDidChange) { _ in
+            Task { await loadSessions() }
+        }
     }
     
-    private func loadSessions() {
-        sessions = sessionRepo.fetchRecentSessions(days: 7)
+    private func loadSessions() async {
+        isLoading = true
+        sessions = await sessionRepo.fetchRecentSessionsAsync(days: 7)
+        isLoading = false
     }
 }
 

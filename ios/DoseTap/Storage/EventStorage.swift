@@ -10,7 +10,6 @@ private let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.sel
 
 // MARK: - Event Storage (SQLite)
 /// Persists sleep events and dose logs to local SQLite database
-@MainActor
 public class EventStorage {
     public static let shared = EventStorage()
     
@@ -38,15 +37,30 @@ public class EventStorage {
         public let terminalState: String?
     }
     
-    private init() {
+    private static func defaultDatabasePath() -> String {
         // Store in Documents directory for persistence
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        dbPath = documentsPath.appendingPathComponent("dosetap_events.sqlite").path
-        
+        return documentsPath.appendingPathComponent("dosetap_events.sqlite").path
+    }
+
+    private init(dbPath: String, logInitialization: Bool) {
+        self.dbPath = dbPath
         openDatabase()
         createTables()
-        
-        print("📦 EventStorage initialized at: \(dbPath)")
+
+        if logInitialization {
+            print("📦 EventStorage initialized at: \(dbPath)")
+        }
+    }
+
+    private convenience init() {
+        self.init(dbPath: Self.defaultDatabasePath(), logInitialization: true)
+    }
+
+    /// Create an independent SQLite connection pointing at the same database file.
+    /// Useful for actor-isolated background reads/writes without sharing a raw sqlite handle.
+    public func makeBackgroundConnection(logInitialization: Bool = false) -> EventStorage {
+        EventStorage(dbPath: dbPath, logInitialization: logInitialization)
     }
     
     deinit {
@@ -59,10 +73,18 @@ public class EventStorage {
         if sqlite3_open(dbPath, &db) != SQLITE_OK {
             print("❌ Failed to open database: \(String(cString: sqlite3_errmsg(db)))")
         }
-        
-        // Enable foreign key enforcement (required for CASCADE to work)
+
+        // Use WAL + busy timeout for better multi-connection read/write behavior.
+        sqlite3_busy_timeout(db, 5_000)
+        executePragma("PRAGMA journal_mode = WAL")
+
+        // Enable foreign key enforcement (required for CASCADE to work).
+        executePragma("PRAGMA foreign_keys = ON")
+    }
+
+    private func executePragma(_ pragmaSQL: String) {
         var stmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, "PRAGMA foreign_keys = ON", -1, &stmt, nil) == SQLITE_OK {
+        if sqlite3_prepare_v2(db, pragmaSQL, -1, &stmt, nil) == SQLITE_OK {
             sqlite3_step(stmt)
         }
         sqlite3_finalize(stmt)

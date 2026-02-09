@@ -7,6 +7,7 @@ import DoseCore
 public struct TimelineView: View {
     @StateObject private var viewModel = TimelineViewModel()
     @Environment(\.colorScheme) var colorScheme
+    private let sessionRepo = SessionRepository.shared
     
     // Multi-select state - uses canonical session key (yyyy-MM-dd, 6PM rollover)
     @State private var isEditMode = false
@@ -97,16 +98,19 @@ public struct TimelineView: View {
         .task {
             await viewModel.load()
         }
+        .onReceive(sessionRepo.sessionDidChange) { _ in
+            Task {
+                await viewModel.load(showLoadingState: false)
+            }
+        }
     }
     
     private func deleteSelectedSessions() {
-        for key in selectedSessionKeys {
-            viewModel.deleteSession(sessionKey: key)
-        }
+        let keys = Array(selectedSessionKeys)
         selectedSessionKeys.removeAll()
         isEditMode = false
         Task {
-            await viewModel.load()
+            await viewModel.deleteSessions(sessionKeys: keys)
         }
     }
     
@@ -593,9 +597,11 @@ class TimelineViewModel: ObservableObject {
             state = .loading
         }
         
-        // Use SessionRepository as the single source of truth
-        let sleepEvents = sessionRepo.fetchAllSleepEvents(limit: 500)
-        let doseLogs = sessionRepo.fetchAllDoseLogs(limit: 500)
+        // Use SessionRepository as the single source of truth, via async storage actor.
+        async let sleepEventsTask = sessionRepo.fetchAllSleepEventsAsync(limit: 500)
+        async let doseLogsTask = sessionRepo.fetchAllDoseLogsAsync(limit: 500)
+        let sleepEvents = await sleepEventsTask
+        let doseLogs = await doseLogsTask
 
         let fingerprint = timelineDataFingerprint(doseLogs: doseLogs, sleepEvents: sleepEvents)
         if lastDataFingerprint == fingerprint, !groupedSessions.isEmpty {
@@ -614,7 +620,7 @@ class TimelineViewModel: ObservableObject {
         // Filter out sessions that no longer exist (deleted/soft-deleted)
         let formatter = dateFormatter
         let sessionDates = sessions.map { formatter.string(from: $0.date) }
-        let allowedDates = Set(sessionRepo.filterExistingSessionDates(sessionDates))
+        let allowedDates = Set(await sessionRepo.filterExistingSessionDatesAsync(sessionDates))
         sessions = sessions.filter { allowedDates.contains(formatter.string(from: $0.date)) }
         
         if sessions.isEmpty {
@@ -664,15 +670,19 @@ class TimelineViewModel: ObservableObject {
     func deleteSession(sessionKey: String) {
         // Validate session key format (yyyy-MM-dd)
         guard dateFormatter.date(from: sessionKey) != nil else { return }
-        
-        // Route through SessionRepository - this ensures:
-        // 1. If this is the active session, in-memory state is cleared
-        // 2. Pending notifications are cancelled
-        // 3. sessionDidChange signal is broadcast
-        sessionRepo.deleteSession(sessionDate: sessionKey)
-        
-        // Refresh to reflect changes
-        refresh()
+
+        Task {
+            // Route through SessionRepository async path to keep DB mutation off main path.
+            await sessionRepo.deleteSessionAsync(sessionDate: sessionKey)
+            await load(showLoadingState: false)
+        }
+    }
+
+    func deleteSessions(sessionKeys: [String]) async {
+        for key in sessionKeys where dateFormatter.date(from: key) != nil {
+            await sessionRepo.deleteSessionAsync(sessionDate: key)
+        }
+        await load(showLoadingState: false)
     }
     
     /// Build sessions from EventStorage dose logs and sleep events

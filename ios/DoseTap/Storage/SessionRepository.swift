@@ -28,6 +28,64 @@ public final class SystemNotificationScheduler: NotificationScheduling {
     }
 }
 
+// MARK: - Dedicated Storage Actor
+/// Serialized DB access for async UI flows (timeline/history) to avoid main-thread IO.
+public actor SessionStorageActor {
+    private let storage: EventStorage
+
+    public init(storage: EventStorage) {
+        // Use a dedicated SQLite connection to avoid sharing one raw handle across actors.
+        self.storage = storage.makeBackgroundConnection()
+    }
+
+    public func fetchAllSleepEvents(limit: Int) -> [StoredSleepEvent] {
+        storage.fetchAllSleepEventsLocal(limit: limit)
+    }
+
+    public func fetchAllDoseLogs(limit: Int) -> [StoredDoseLog] {
+        let sessions = storage.fetchRecentSessionsLocal(days: 365)
+        return sessions.prefix(limit).compactMap { session in
+            guard let dose1Time = session.dose1Time else { return nil }
+            return StoredDoseLog(
+                id: session.sessionDate,
+                sessionDate: session.sessionDate,
+                dose1Time: dose1Time,
+                dose2Time: session.dose2Time,
+                dose2Skipped: session.dose2Skipped,
+                snoozeCount: session.snoozeCount
+            )
+        }
+    }
+
+    public func filterExistingSessionDates(_ dates: [String]) -> [String] {
+        storage.filterExistingSessionDates(dates)
+    }
+
+    public func fetchSleepEvents(for sessionDate: String) -> [StoredSleepEvent] {
+        storage.fetchSleepEvents(forSession: sessionDate)
+    }
+
+    public func fetchDoseLog(for sessionDate: String) -> StoredDoseLog? {
+        storage.fetchDoseLog(forSession: sessionDate)
+    }
+
+    public func fetchSessionId(for sessionDate: String) -> String? {
+        storage.fetchSessionId(forSessionDate: sessionDate)
+    }
+
+    public func fetchDoseEvents(sessionId: String?, sessionDate: String) -> [DoseCore.StoredDoseEvent] {
+        storage.fetchDoseEvents(sessionId: sessionId, sessionDate: sessionDate)
+    }
+
+    public func fetchRecentSessions(days: Int) -> [SessionSummary] {
+        storage.fetchRecentSessionsLocal(days: days)
+    }
+
+    public func deleteSession(sessionDate: String) {
+        storage.deleteSession(sessionDate: sessionDate)
+    }
+}
+
 // MARK: - Session Repository
 /// Single source of truth for session state. UI should bind to this, not DoseTapCore directly.
 /// All mutations flow through here and automatically notify observers.
@@ -61,6 +119,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     
     // MARK: - Dependencies
     private let storage: EventStorage
+    private let storageActor: SessionStorageActor
     private let notificationScheduler: NotificationScheduling
     private let clock: () -> Date
     private let timeZoneProvider: () -> TimeZone
@@ -108,6 +167,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         rolloverHour: Int = 18
     ) {
         self.storage = storage
+        self.storageActor = SessionStorageActor(storage: storage)
         self.notificationScheduler = notificationScheduler
         self.clock = clock
         self.timeZoneProvider = timeZoneProvider
@@ -546,6 +606,37 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             #endif
         }
         
+        sessionDidChange.send()
+    }
+
+    /// Async variant of session deletion that performs DB mutation on SessionStorageActor.
+    public func deleteSessionAsync(sessionDate: String) async {
+        let wasActiveSession = (sessionDate == activeSessionDate) ||
+                               (sessionDate == storage.currentSessionDate())
+
+        await storageActor.deleteSession(sessionDate: sessionDate)
+
+        if wasActiveSession {
+            activeSessionDate = nil
+            dose1Time = nil
+            dose2Time = nil
+            snoozeCount = 0
+            dose2Skipped = false
+            wakeFinalTime = nil
+            checkInCompleted = false
+            dose1TimezoneOffsetMinutes = nil
+            cancelPendingNotifications()
+            print("🗑️ SessionRepository: Active session deleted async, state and notifications cleared")
+            #if canImport(OSLog)
+            logger.info("Active session \(sessionDate, privacy: .public) deleted async; state + notifications cleared")
+            #endif
+        } else {
+            print("🗑️ SessionRepository: Inactive session \(sessionDate) deleted async, active state preserved")
+            #if canImport(OSLog)
+            logger.info("Inactive session \(sessionDate, privacy: .public) deleted async; active state preserved")
+            #endif
+        }
+
         sessionDidChange.send()
     }
     
@@ -1380,6 +1471,11 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     public func fetchSleepEvents(for sessionDate: String) -> [StoredSleepEvent] {
         return storage.fetchSleepEvents(forSession: sessionDate)
     }
+
+    /// Async variant backed by SessionStorageActor.
+    public func fetchSleepEventsAsync(for sessionDate: String) async -> [StoredSleepEvent] {
+        await storageActor.fetchSleepEvents(for: sessionDate)
+    }
     
     /// Fetch sleep events for a specific session (alternate label)
     public func fetchSleepEvents(forSession sessionDate: String) -> [StoredSleepEvent] {
@@ -1395,6 +1491,12 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     /// Fetch dose events for a specific session date (ordered by timestamp asc).
     public func fetchDoseEvents(forSessionDate sessionDate: String) -> [DoseCore.StoredDoseEvent] {
         loadDoseEvents(sessionId: fetchSessionId(forSessionDate: sessionDate), sessionDate: sessionDate)
+    }
+
+    /// Async variant backed by SessionStorageActor.
+    public func fetchDoseEventsAsync(forSessionDate sessionDate: String) async -> [DoseCore.StoredDoseEvent] {
+        let sessionId = await storageActor.fetchSessionId(for: sessionDate)
+        return await storageActor.fetchDoseEvents(sessionId: sessionId, sessionDate: sessionDate)
     }
     
     /// Delete a sleep event by ID
@@ -1487,15 +1589,35 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             )
         }
     }
+
+    /// Async variant backed by SessionStorageActor.
+    public func fetchAllSleepEventsAsync(limit: Int = 500) async -> [StoredSleepEvent] {
+        await storageActor.fetchAllSleepEvents(limit: limit)
+    }
+
+    /// Async variant backed by SessionStorageActor.
+    public func fetchAllDoseLogsAsync(limit: Int = 500) async -> [StoredDoseLog] {
+        await storageActor.fetchAllDoseLogs(limit: limit)
+    }
     
     /// Filter session dates to those that still exist
     public func filterExistingSessionDates(_ dates: [String]) -> [String] {
         return storage.filterExistingSessionDates(dates)
     }
 
+    /// Async variant backed by SessionStorageActor.
+    public func filterExistingSessionDatesAsync(_ dates: [String]) async -> [String] {
+        await storageActor.filterExistingSessionDates(dates)
+    }
+
     /// Fetch session id for a given session date (if available).
     public func fetchSessionId(forSessionDate sessionDate: String) -> String? {
         return storage.fetchSessionId(forSessionDate: sessionDate)
+    }
+
+    /// Async variant backed by SessionStorageActor.
+    public func fetchSessionIdAsync(forSessionDate sessionDate: String) async -> String? {
+        await storageActor.fetchSessionId(for: sessionDate)
     }
     
     /// Export all data to CSV (basic format)
@@ -1587,10 +1709,20 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         // Use local method that returns local types
         return storage.fetchRecentSessionsLocal(days: days)
     }
+
+    /// Async variant backed by SessionStorageActor.
+    public func fetchRecentSessionsAsync(days: Int = 7) async -> [SessionSummary] {
+        await storageActor.fetchRecentSessions(days: days)
+    }
     
     /// Fetch dose log for a specific session
     public func fetchDoseLog(forSession sessionDate: String) -> StoredDoseLog? {
         return storage.fetchDoseLog(forSession: sessionDate)
+    }
+
+    /// Async variant backed by SessionStorageActor.
+    public func fetchDoseLogAsync(forSession sessionDate: String) async -> StoredDoseLog? {
+        await storageActor.fetchDoseLog(for: sessionDate)
     }
     
     /// Most recent incomplete session (for check-in prompts)

@@ -196,3 +196,30 @@ jobs:
         with:
           name: xcodebuild-test-log
           path: ${{ runner.temp }}/xcodebuild-test.log
+
+  release-pinning-check:
+    name: Release pinning validation
+    runs-on: macos-latest
+    needs: [swiftpm-tests, xcode-tests]
+    if: startsWith(github.ref, 'refs/tags/')
+    env:
+      CONFIGURATION: Release
+      DOSETAP_CERT_PINS: ${{ secrets.DOSETAP_CERT_PINS }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate release certificate pins
+        run: bash tools/validate_release_pins.sh
+
+      - name: Build Release (non-debug) with pinning env
+        run: |
+          set -euo pipefail
+          xcodebuild build \
+            -project ios/DoseTap.xcodeproj \
+            -scheme DoseTap \
+            -configuration Release \
+            -destination "platform=iOS Simulator,name=iPhone 16" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM=""
