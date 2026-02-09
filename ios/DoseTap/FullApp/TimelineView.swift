@@ -7,6 +7,7 @@ import DoseCore
 public struct TimelineView: View {
     @StateObject private var viewModel = TimelineViewModel()
     @Environment(\.colorScheme) var colorScheme
+    private let sessionRepo = SessionRepository.shared
     
     // Multi-select state - uses canonical session key (yyyy-MM-dd, 6PM rollover)
     @State private var isEditMode = false
@@ -41,6 +42,7 @@ public struct TimelineView: View {
                             }
                         }
                     }
+                    .accessibilityHint(isEditMode ? "Exit multi-select mode" : "Select multiple sessions to delete")
                 }
                 
                 // Delete button when in edit mode (trailing)
@@ -79,20 +81,36 @@ public struct TimelineView: View {
                     ShareSheet(items: [url])
                 }
             }
+            .alert("Export Failed", isPresented: Binding(
+                get: { viewModel.exportErrorMessage != nil },
+                set: { if !$0 { viewModel.exportErrorMessage = nil } }
+            )) {
+                Button("Retry") {
+                    viewModel.exportCSV()
+                }
+                Button("OK", role: .cancel) {
+                    viewModel.exportErrorMessage = nil
+                }
+            } message: {
+                Text(viewModel.exportErrorMessage ?? "Unable to export timeline data.")
+            }
         }
         .task {
             await viewModel.load()
         }
+        .onReceive(sessionRepo.sessionDidChange) { _ in
+            Task {
+                await viewModel.load(showLoadingState: false)
+            }
+        }
     }
     
     private func deleteSelectedSessions() {
-        for key in selectedSessionKeys {
-            viewModel.deleteSession(sessionKey: key)
-        }
+        let keys = Array(selectedSessionKeys)
         selectedSessionKeys.removeAll()
         isEditMode = false
         Task {
-            await viewModel.load()
+            await viewModel.deleteSessions(sessionKeys: keys)
         }
     }
     
@@ -137,6 +155,9 @@ public struct TimelineView: View {
                                                 .foregroundColor(isSelected(session) ? .blue : .gray)
                                         }
                                         .buttonStyle(.plain)
+                                        .frame(minWidth: 44, minHeight: 44)
+                                        .accessibilityLabel(isSelected(session) ? "Deselect session" : "Select session")
+                                        .accessibilityValue(SleepSessionDateFormatter.compact(session.date))
                                     }
                                     
                                     TimelineSessionCard(session: session)
@@ -170,6 +191,8 @@ public struct TimelineView: View {
                                         .font(.caption)
                                         .foregroundColor(.blue)
                                 }
+                                .padding(.vertical, 8)
+                                .accessibilityLabel(sessionKeys.isSubset(of: selectedSessionKeys) ? "Deselect all sessions in this section" : "Select all sessions in this section")
                             }
                         }
                     }
@@ -279,7 +302,10 @@ struct TimelineSectionHeader: View {
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 4)
-        .background(.ultraThinMaterial)
+        .background(Color(.secondarySystemBackground))
+        .cornerRadius(8)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(displayText)
     }
     
     private var displayText: String {
@@ -391,6 +417,8 @@ struct TimelineSessionCard: View {
                     }
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(isExpanded ? "Hide sleep events" : "Show sleep events")
+                .accessibilityValue("\(session.sleepEvents.count) events")
                 
                 if isExpanded {
                     VStack(alignment: .leading, spacing: 8) {
@@ -405,7 +433,7 @@ struct TimelineSessionCard: View {
         .padding()
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(colorScheme == .dark ? Color(.systemGray6) : Color.white)
+                .fill(colorScheme == .dark ? Color(.secondarySystemBackground) : Color(.systemBackground))
                 .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: 2)
         )
     }
@@ -546,9 +574,13 @@ class TimelineViewModel: ObservableObject {
     @Published var groupedSessions: [Date: [TimelineSession]] = [:]
     @Published var showExportSheet = false
     @Published var exportURL: URL?
+    @Published var exportErrorMessage: String?
     
     // Use SessionRepository as the single source of truth
     private let sessionRepo = SessionRepository.shared
+    private var hasLoadedAtLeastOnce = false
+    private var isLoading = false
+    private var lastDataFingerprint: Int?
     
     private let dateFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -556,12 +588,26 @@ class TimelineViewModel: ObservableObject {
         return f
     }()
     
-    func load() async {
-        state = .loading
+    func load(showLoadingState: Bool = true) async {
+        guard !isLoading else { return }
+        isLoading = true
+        defer { isLoading = false }
+
+        if showLoadingState || !hasLoadedAtLeastOnce {
+            state = .loading
+        }
         
-        // Use SessionRepository as the single source of truth
-        let sleepEvents = sessionRepo.fetchAllSleepEvents(limit: 500)
-        let doseLogs = sessionRepo.fetchAllDoseLogs(limit: 500)
+        // Use SessionRepository as the single source of truth, via async storage actor.
+        async let sleepEventsTask = sessionRepo.fetchAllSleepEventsAsync(limit: 500)
+        async let doseLogsTask = sessionRepo.fetchAllDoseLogsAsync(limit: 500)
+        let sleepEvents = await sleepEventsTask
+        let doseLogs = await doseLogsTask
+
+        let fingerprint = timelineDataFingerprint(doseLogs: doseLogs, sleepEvents: sleepEvents)
+        if lastDataFingerprint == fingerprint, !groupedSessions.isEmpty {
+            state = .ready
+            return
+        }
         
         if sleepEvents.isEmpty && doseLogs.isEmpty {
             state = .empty
@@ -574,7 +620,7 @@ class TimelineViewModel: ObservableObject {
         // Filter out sessions that no longer exist (deleted/soft-deleted)
         let formatter = dateFormatter
         let sessionDates = sessions.map { formatter.string(from: $0.date) }
-        let allowedDates = Set(sessionRepo.filterExistingSessionDates(sessionDates))
+        let allowedDates = Set(await sessionRepo.filterExistingSessionDatesAsync(sessionDates))
         sessions = sessions.filter { allowedDates.contains(formatter.string(from: $0.date)) }
         
         if sessions.isEmpty {
@@ -587,12 +633,14 @@ class TimelineViewModel: ObservableObject {
             Calendar.current.startOfDay(for: session.date)
         }
         
+        hasLoadedAtLeastOnce = true
+        lastDataFingerprint = fingerprint
         state = .ready
     }
     
     func refresh() {
         Task {
-            await load()
+            await load(showLoadingState: false)
         }
     }
     
@@ -611,6 +659,7 @@ class TimelineViewModel: ObservableObject {
             showExportSheet = true
             print("✅ CSV exported to: \(tempURL.path)")
         } catch {
+            exportErrorMessage = "Failed to export CSV: \(error.localizedDescription)"
             print("❌ CSV export failed: \(error.localizedDescription)")
         }
     }
@@ -621,20 +670,24 @@ class TimelineViewModel: ObservableObject {
     func deleteSession(sessionKey: String) {
         // Validate session key format (yyyy-MM-dd)
         guard dateFormatter.date(from: sessionKey) != nil else { return }
-        
-        // Route through SessionRepository - this ensures:
-        // 1. If this is the active session, in-memory state is cleared
-        // 2. Pending notifications are cancelled
-        // 3. sessionDidChange signal is broadcast
-        sessionRepo.deleteSession(sessionDate: sessionKey)
-        
-        // Refresh to reflect changes
-        refresh()
+
+        Task {
+            // Route through SessionRepository async path to keep DB mutation off main path.
+            await sessionRepo.deleteSessionAsync(sessionDate: sessionKey)
+            await load(showLoadingState: false)
+        }
+    }
+
+    func deleteSessions(sessionKeys: [String]) async {
+        for key in sessionKeys where dateFormatter.date(from: key) != nil {
+            await sessionRepo.deleteSessionAsync(sessionDate: key)
+        }
+        await load(showLoadingState: false)
     }
     
     /// Build sessions from EventStorage dose logs and sleep events
     private func buildSessionsFromEventStorage(doseLogs: [StoredDoseLog], sleepEvents: [StoredSleepEvent]) -> [TimelineSession] {
-        var sessionMap: [String: TimelineSession] = [:]
+        var sessionMap: [String: TimelineSessionAccumulator] = [:]
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
         
@@ -642,7 +695,7 @@ class TimelineViewModel: ObservableObject {
         for log in doseLogs {
             let sessionDate = dateFormatter.date(from: log.sessionDate) ?? Date()
             
-            let session = TimelineSession(
+            let session = TimelineSessionAccumulator(
                 id: UUID(),
                 sessionKey: log.sessionDate,
                 date: sessionDate,
@@ -658,7 +711,7 @@ class TimelineViewModel: ObservableObject {
         // Associate sleep events with sessions by sessionDate
         for event in sleepEvents {
             let sessionKey = event.sessionDate
-            if var session = sessionMap[sessionKey] {
+            if let session = sessionMap[sessionKey] {
                 let sleepEvent = TimelineSleepEvent(
                     id: event.id,
                     eventType: event.eventType,
@@ -666,17 +719,10 @@ class TimelineViewModel: ObservableObject {
                     notes: event.notes,
                     source: "manual"
                 )
-                session = TimelineSession(
-                    id: session.id,
-                    sessionKey: session.sessionKey,
-                    date: session.date,
-                    dose1Time: session.dose1Time,
-                    dose2Time: session.dose2Time,
-                    dose2Skipped: session.dose2Skipped,
-                    snoozeCount: session.snoozeCount,
-                    sleepEvents: session.sleepEvents + [sleepEvent]
-                )
-                sessionMap[sessionKey] = session
+                session.sleepEvents.append(sleepEvent)
+                if event.timestamp < session.dose1Time {
+                    session.dose1Time = event.timestamp
+                }
             } else {
                 // Create a session just from sleep events if no dose log exists
                 let sessionDate = dateFormatter.date(from: sessionKey) ?? event.timestamp
@@ -687,7 +733,7 @@ class TimelineViewModel: ObservableObject {
                     notes: event.notes,
                     source: "manual"
                 )
-                sessionMap[sessionKey] = TimelineSession(
+                sessionMap[sessionKey] = TimelineSessionAccumulator(
                     id: UUID(),
                     sessionKey: sessionKey,
                     date: sessionDate,
@@ -699,8 +745,74 @@ class TimelineViewModel: ObservableObject {
                 )
             }
         }
-        
-        return Array(sessionMap.values).sorted { $0.date > $1.date }
+
+        return sessionMap.values
+            .map { accumulator in
+                TimelineSession(
+                    id: accumulator.id,
+                    sessionKey: accumulator.sessionKey,
+                    date: accumulator.date,
+                    dose1Time: accumulator.dose1Time,
+                    dose2Time: accumulator.dose2Time,
+                    dose2Skipped: accumulator.dose2Skipped,
+                    snoozeCount: accumulator.snoozeCount,
+                    sleepEvents: accumulator.sleepEvents.sorted { $0.timestamp < $1.timestamp }
+                )
+            }
+            .sorted { $0.date > $1.date }
+    }
+
+    private func timelineDataFingerprint(doseLogs: [StoredDoseLog], sleepEvents: [StoredSleepEvent]) -> Int {
+        var hasher = Hasher()
+        hasher.combine(doseLogs.count)
+        hasher.combine(sleepEvents.count)
+        for log in doseLogs {
+            hasher.combine(log.id)
+            hasher.combine(log.sessionDate)
+            hasher.combine(log.dose1Time.timeIntervalSince1970)
+            hasher.combine(log.dose2Time?.timeIntervalSince1970)
+            hasher.combine(log.dose2Skipped)
+            hasher.combine(log.snoozeCount)
+        }
+        for event in sleepEvents {
+            hasher.combine(event.id)
+            hasher.combine(event.eventType)
+            hasher.combine(event.timestamp.timeIntervalSince1970)
+            hasher.combine(event.sessionDate)
+            hasher.combine(event.notes)
+        }
+        return hasher.finalize()
+    }
+}
+
+private final class TimelineSessionAccumulator {
+    let id: UUID
+    let sessionKey: String
+    let date: Date
+    var dose1Time: Date
+    let dose2Time: Date?
+    let dose2Skipped: Bool
+    let snoozeCount: Int
+    var sleepEvents: [TimelineSleepEvent]
+
+    init(
+        id: UUID,
+        sessionKey: String,
+        date: Date,
+        dose1Time: Date,
+        dose2Time: Date?,
+        dose2Skipped: Bool,
+        snoozeCount: Int,
+        sleepEvents: [TimelineSleepEvent]
+    ) {
+        self.id = id
+        self.sessionKey = sessionKey
+        self.date = date
+        self.dose1Time = dose1Time
+        self.dose2Time = dose2Time
+        self.dose2Skipped = dose2Skipped
+        self.snoozeCount = snoozeCount
+        self.sleepEvents = sleepEvents
     }
 }
 

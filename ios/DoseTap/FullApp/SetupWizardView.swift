@@ -62,6 +62,9 @@ struct SetupWizardView: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Setup progress")
+        .accessibilityValue("Step \(setupService.currentStep) of 5")
         .padding(.vertical, 16)
         .background(Color(UIColor.systemBackground))
     }
@@ -90,14 +93,29 @@ struct SetupWizardView: View {
     private var navigationButtons: some View {
         VStack(spacing: 12) {
             // Validation errors
-            if !setupService.validationErrors.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
+            if !setupService.validationErrors.isEmpty || !setupService.validationWarnings.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Review before continuing")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(.secondary)
+
                     ForEach(setupService.validationErrors, id: \.self) { error in
-                        Label(error, systemImage: error.hasPrefix("Warning:") ? "exclamationmark.triangle" : "exclamationmark.circle")
+                        Label(error, systemImage: "exclamationmark.circle")
                             .font(.caption)
-                            .foregroundColor(error.hasPrefix("Warning:") ? .orange : .red)
+                            .foregroundColor(.red)
+                            .accessibilityElement(children: .combine)
+                    }
+                    ForEach(setupService.validationWarnings, id: \.self) { warning in
+                        Label(warning, systemImage: "exclamationmark.triangle")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                            .accessibilityElement(children: .combine)
                     }
                 }
+                .padding(.vertical, 10)
+                .padding(.horizontal, 12)
+                .background(Color(UIColor.secondarySystemBackground))
+                .cornerRadius(10)
                 .padding(.horizontal, 20)
             }
             
@@ -120,6 +138,7 @@ struct SetupWizardView: View {
                 .disabled(!setupService.canProceed)
             }
             .padding(.horizontal, 20)
+            .frame(minHeight: 48)
         }
         .padding(.vertical, 16)
         .background(Color(UIColor.systemBackground))
@@ -139,28 +158,17 @@ struct SleepScheduleStepView: View {
             )
             
             VStack(spacing: 16) {
-                HStack {
-                    VStack(alignment: .leading) {
-                        Text("Usual Bedtime")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                        
-                        DatePicker("", selection: $config.usualBedtime, displayedComponents: .hourAndMinute)
-                            .labelsHidden()
-                            .datePickerStyle(CompactDatePickerStyle())
-                    }
-                    
-                    Spacer()
-                    
-                    VStack(alignment: .leading) {
-                        Text("Usual Wake Time")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                        
-                        DatePicker("", selection: $config.usualWakeTime, displayedComponents: .hourAndMinute)
-                            .labelsHidden()
-                            .datePickerStyle(CompactDatePickerStyle())
-                    }
+                VStack(spacing: 10) {
+                    TimePickerSheetRow(
+                        title: "Usual Bedtime",
+                        selection: $config.usualBedtime,
+                        accessibilityLabel: "Usual bedtime"
+                    )
+                    TimePickerSheetRow(
+                        title: "Usual Wake Time",
+                        selection: $config.usualWakeTime,
+                        accessibilityLabel: "Usual wake time"
+                    )
                 }
                 .padding(16)
                 .background(Color(UIColor.secondarySystemGroupedBackground))
@@ -179,6 +187,22 @@ struct SleepScheduleStepView: View {
                 .padding(16)
                 .background(Color(UIColor.secondarySystemGroupedBackground))
                 .cornerRadius(12)
+
+                NavigationLink {
+                    SleepPlanDetailView()
+                } label: {
+                    HStack {
+                        Label("Set Weekly Workday Pattern", systemImage: "calendar.badge.clock")
+                        Spacer()
+                        Text("Optional")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(16)
+                    .background(Color(UIColor.secondarySystemGroupedBackground))
+                    .cornerRadius(12)
+                }
+                .buttonStyle(.plain)
             }
             
             InfoBoxView(
@@ -337,6 +361,7 @@ struct DoseWindowStepView: View {
                             Text("15 min").tag(15)
                         }
                         .pickerStyle(SegmentedPickerStyle())
+                        .accessibilityLabel("Snooze step")
                     }
                     
                     VStack(alignment: .leading, spacing: 8) {
@@ -351,6 +376,7 @@ struct DoseWindowStepView: View {
                             Text("5").tag(5)
                         }
                         .pickerStyle(SegmentedPickerStyle())
+                        .accessibilityLabel("Max snoozes")
                     }
                 }
                 .padding(16)
@@ -430,6 +456,18 @@ struct NotificationStepView: View {
                             }
                             .pickerStyle(MenuPickerStyle())
                         }
+                    }
+                    .padding(16)
+                    .background(Color(UIColor.secondarySystemGroupedBackground))
+                    .cornerRadius(12)
+                } else {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Label("Notifications are strongly recommended for safety-critical reminders.", systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+
+                        Toggle("I understand reminders may not fire without notifications", isOn: $config.acknowledgedNotificationRisk)
+                            .font(.caption)
                     }
                     .padding(16)
                     .background(Color(UIColor.secondarySystemGroupedBackground))
@@ -580,8 +618,10 @@ struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundColor(.white)
+            .font(.headline)
             .padding(.horizontal, 24)
             .padding(.vertical, 12)
+            .frame(minHeight: 44)
             .background(configuration.isPressed ? Color.blue.opacity(0.8) : Color.blue)
             .cornerRadius(8)
             .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
@@ -593,9 +633,11 @@ struct SecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundColor(.blue)
+            .font(.headline)
             .padding(.horizontal, 24)
             .padding(.vertical, 12)
-            .background(Color.clear)
+            .frame(minHeight: 44)
+            .background(Color.blue.opacity(configuration.isPressed ? 0.16 : 0.1))
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(Color.blue, lineWidth: 1)

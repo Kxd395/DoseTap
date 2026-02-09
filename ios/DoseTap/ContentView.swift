@@ -27,7 +27,7 @@ class EventLogger: ObservableObject {
     
     /// Load events from SQLite for tonight's session
     private func loadEventsFromStorage() {
-        let sessionKey = sessionRepo.activeSessionDate ?? sessionRepo.currentSessionKey
+        let sessionKey = sessionRepo.plannerSessionKey(for: Date())
         let storedEvents = sessionRepo.fetchSleepEvents(for: sessionKey)
         let storedDoseEvents = sessionRepo.fetchDoseEvents(forSessionDate: sessionKey)
 
@@ -337,15 +337,56 @@ struct SleepSessionDateFormatter {
     }
 }
 
+@MainActor
+private final class AppServices {
+    static let shared = AppServices()
+
+    let sessionRepository: SessionRepository
+    let settings: UserSettingsManager
+    let eventLogger: EventLogger
+    let themeManager: ThemeManager
+    let alarmService: AlarmService
+    let urlRouter: URLRouter
+    let core: DoseTapCore
+
+    private init() {
+        self.sessionRepository = .shared
+        self.settings = .shared
+        self.eventLogger = .shared
+        self.themeManager = .shared
+        self.alarmService = .shared
+        self.urlRouter = .shared
+
+        let core = DoseTapCore(isOnline: { LiveNetworkStatus.shared.isOnline })
+        core.setSessionRepository(self.sessionRepository)
+        self.core = core
+
+        self.urlRouter.configure(core: core, eventLogger: self.eventLogger)
+    }
+}
+
 // MARK: - Main Tab View with Swipe Navigation
 struct ContentView: View {
-    @StateObject private var core = DoseTapCore()
-    @StateObject private var settings = UserSettingsManager.shared
-    @StateObject private var eventLogger = EventLogger.shared
-    @StateObject private var sessionRepo = SessionRepository.shared
+    @ObservedObject private var core: DoseTapCore
+    @ObservedObject private var settings: UserSettingsManager
+    @ObservedObject private var eventLogger: EventLogger
+    @ObservedObject private var sessionRepo: SessionRepository
     @StateObject private var undoState = UndoStateManager()
-    @StateObject private var themeManager = ThemeManager.shared
-    @ObservedObject private var urlRouter = URLRouter.shared
+    @ObservedObject private var themeManager: ThemeManager
+    @ObservedObject private var alarmService: AlarmService
+    @ObservedObject private var urlRouter: URLRouter
+    private let tabBarHeight: CGFloat = 64
+
+    init() {
+        let appServices = AppServices.shared
+        self._core = ObservedObject(wrappedValue: appServices.core)
+        self._settings = ObservedObject(wrappedValue: appServices.settings)
+        self._eventLogger = ObservedObject(wrappedValue: appServices.eventLogger)
+        self._sessionRepo = ObservedObject(wrappedValue: appServices.sessionRepository)
+        self._themeManager = ObservedObject(wrappedValue: appServices.themeManager)
+        self._alarmService = ObservedObject(wrappedValue: appServices.alarmService)
+        self._urlRouter = ObservedObject(wrappedValue: appServices.urlRouter)
+    }
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -355,8 +396,7 @@ struct ContentView: View {
                     .environmentObject(themeManager)
                     .tag(0)
                 
-                DetailsView(core: core, eventLogger: eventLogger)
-                    .environmentObject(themeManager)
+                TimelineView()
                     .tag(1)
                 
                 HistoryView()
@@ -368,10 +408,13 @@ struct ContentView: View {
                     .tag(3)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
-            .ignoresSafeArea(.container, edges: .bottom)
+            .safeAreaInset(edge: .bottom) {
+                Color.clear.frame(height: tabBarHeight)
+            }
             
             // Custom Tab Bar
             CustomTabBar(selectedTab: $urlRouter.selectedTab)
+                .frame(height: tabBarHeight)
             
             // Undo Snackbar Overlay
             UndoOverlayView(stateManager: undoState)
@@ -386,15 +429,10 @@ struct ContentView: View {
         .preferredColorScheme(themeManager.currentTheme == .night ? .dark : (themeManager.currentTheme.colorScheme ?? settings.colorScheme))
         .accentColor(themeManager.currentTheme.accentColor)
         .applyNightModeFilter(themeManager.currentTheme)
+        .fullScreenCover(isPresented: $alarmService.isAlarmRinging) {
+            AlarmRingingFullscreenView()
+        }
         .onAppear {
-            // P0 FIX: Wire DoseTapCore to SessionRepository (single source of truth)
-            // All state reads/writes now go through SessionRepository
-            core.setSessionRepository(sessionRepo)
-            
-            // Wire URLRouter dependencies for deep link handling
-            urlRouter.core = core
-            urlRouter.eventLogger = eventLogger
-            
             // Setup undo callbacks
             setupUndoCallbacks()
         }
@@ -440,7 +478,7 @@ struct CustomTabBar: View {
     @Binding var selectedTab: Int
     
     // Tab names per SSOT: Tonight / Timeline / History / Settings
-    // (Insights will be merged into Timeline; Devices tab is future work)
+    // (Insights live in History → Trends; Devices tab is future work)
     private let tabs: [(icon: String, label: String)] = [
         ("moon.fill", "Tonight"),
         ("chart.bar.xaxis", "Timeline"),  // Renamed from "Details"
@@ -464,16 +502,106 @@ struct CustomTabBar: View {
                     }
                     .foregroundColor(selectedTab == index ? .blue : .gray)
                     .frame(maxWidth: .infinity)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
                 }
+                .accessibilityLabel(tabs[index].label)
+                .accessibilityHint(selectedTab == index ? "Current tab" : "Switch to \(tabs[index].label)")
+                .accessibilityAddTraits(selectedTab == index ? [.isSelected] : [])
             }
         }
-        .padding(.vertical, 8)
-        .padding(.bottom, 20)
+        .padding(.vertical, 6)
+        .overlay(alignment: .top) {
+            Divider()
+        }
         .background(
             Color(.systemBackground)
                 .shadow(color: .black.opacity(0.1), radius: 8, y: -4)
-                .ignoresSafeArea()
         )
+    }
+}
+
+// MARK: - Alarm Ringing Overlay
+/// Local fallback view to avoid hard dependency on separate target membership.
+/// Kept in ContentView.swift so alarm UI always compiles with the main app target.
+struct AlarmRingingFullscreenView: View {
+    @ObservedObject private var alarmService = AlarmService.shared
+    @ObservedObject private var sessionRepo = SessionRepository.shared
+    @ObservedObject private var settings = UserSettingsManager.shared
+    @State private var snoozeError: String?
+    
+    private var remainingSnoozes: Int {
+        max(0, settings.maxSnoozes - alarmService.snoozeCount)
+    }
+    
+    private var snoozeDisabled: Bool {
+        remainingSnoozes <= 0
+    }
+
+    var body: some View {
+        VStack(spacing: 24) {
+            Spacer()
+            Text("Wake Up")
+                .font(.largeTitle.bold())
+            Text("Time for Dose 2")
+                .font(.title3)
+                .foregroundColor(.secondary)
+                .accessibilityAddTraits(.isHeader)
+
+            Text("\(remainingSnoozes) snooze\(remainingSnoozes == 1 ? "" : "s") remaining")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            if let snoozeError {
+                Text(snoozeError)
+                    .font(.caption)
+                    .foregroundColor(.orange)
+            }
+
+            Spacer()
+
+            Button {
+                alarmService.acknowledgeAlarm()
+            } label: {
+                Text("I'm Awake")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .frame(minHeight: 44)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.green)
+            .padding(.horizontal)
+            .accessibilityHint("Stops alarm and confirms Dose 2 wake prompt")
+
+            Button {
+                Task {
+                    let newTime = await alarmService.snoozeAlarm(dose1Time: sessionRepo.dose1Time)
+                    if newTime == nil {
+                        snoozeError = "Snooze not available near window close"
+                    } else {
+                        sessionRepo.incrementSnooze()
+                        snoozeError = nil
+                        alarmService.stopRinging(acknowledge: false)
+                    }
+                }
+            } label: {
+                Text("Snooze \(max(1, settings.snoozeDurationMinutes)) min")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .frame(minHeight: 44)
+            }
+            .buttonStyle(.bordered)
+            .padding(.horizontal)
+            .disabled(snoozeDisabled)
+            .accessibilityHint(snoozeDisabled ? "No snoozes remaining" : "Delay alarm by \(max(1, settings.snoozeDurationMinutes)) minutes")
+
+            Spacer()
+        }
+        .padding()
+        .background(Color.black.opacity(0.9).ignoresSafeArea())
+        .foregroundColor(.white)
     }
 }
 
@@ -554,10 +682,10 @@ struct LegacyTonightView: View {
                     overrideEnabled: $overrideEnabled,
                     overrideWake: $overrideWake,
                     onUpdate: { date in
-                        sleepPlanStore.setTonightOverride(sessionKey: sessionRepo.currentSessionKey, wakeBy: date)
+                        sleepPlanStore.setTonightOverride(sessionKey: displaySessionKey, wakeBy: date)
                     },
                     onClear: {
-                        sleepPlanStore.setTonightOverride(sessionKey: sessionRepo.currentSessionKey, wakeBy: nil)
+                        sleepPlanStore.setTonightOverride(sessionKey: displaySessionKey, wakeBy: nil)
                     },
                     baselineWake: plan.wakeBy
                 )
@@ -656,7 +784,7 @@ struct LegacyTonightView: View {
         }
         .scrollIndicators(.hidden)
         .sheet(isPresented: $showMorningCheckIn) {
-            MorningCheckInView(
+            MorningCheckInViewV2(
                 sessionId: sessionRepo.currentSessionIdString(),
                 sessionDate: sessionRepo.currentSessionDateString(),
                 onComplete: {
@@ -751,7 +879,7 @@ struct LegacyTonightView: View {
         .sheet(isPresented: $showIncompleteCheckIn) {
             if let sessionDate = incompleteSessionDate {
                 let sessionId = sessionRepo.fetchSessionId(forSessionDate: sessionDate) ?? sessionDate
-                MorningCheckInView(
+                MorningCheckInViewV2(
                     sessionId: sessionId,
                     sessionDate: sessionDate,
                     onComplete: {
@@ -772,6 +900,7 @@ struct LegacyTonightView: View {
             reloadPreSleepLog()
         }
         .onReceive(sessionRepo.sessionDidChange) { _ in
+            syncOverrideState()
             reloadPreSleepLog()
         }
         .onChange(of: showPreSleepLog) { newValue in
@@ -782,8 +911,12 @@ struct LegacyTonightView: View {
         }
     }
 
+    private var displaySessionKey: String {
+        sessionRepo.plannerSessionKey(for: Date())
+    }
+
     private func syncOverrideState() {
-        let key = sessionRepo.currentSessionKey
+        let key = displaySessionKey
         sleepPlanStore.clearObsoleteOverrides(currentSessionKey: key)
         if let override = sleepPlanStore.overrideForSession(key) {
             overrideEnabled = true
@@ -796,7 +929,7 @@ struct LegacyTonightView: View {
     }
     
     private var sleepPlanSummary: (wakeBy: Date, recommendedInBed: Date, windDown: Date, expectedSleepMinutes: Double)? {
-        let key = sessionRepo.currentSessionKey
+        let key = displaySessionKey
         return sleepPlanStore.plan(for: key, now: Date(), tz: TimeZone.current)
     }
     
@@ -823,9 +956,9 @@ struct TonightDateLabel: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE, MMM d"
         
-        // Use the session key to determine the "Tonight" date
-        // If the session key is 2025-12-26, we want to show Friday, Dec 26
-        let key = sessionRepo.currentSessionKey
+        // Planner key can optionally target upcoming night immediately after
+        // morning check-in (before storage rollover at 6 PM).
+        let key = sessionRepo.plannerSessionKey(for: Date())
         let keyFormatter = DateFormatter()
         keyFormatter.dateFormat = "yyyy-MM-dd"
         keyFormatter.timeZone = TimeZone.current
@@ -1092,6 +1225,7 @@ struct PreSleepCard: View {
 struct AlarmIndicatorView: View {
     let dose1Time: Date?
     @ObservedObject private var alarmService = AlarmService.shared
+    @ObservedObject private var settings = UserSettingsManager.shared
     @AppStorage("target_interval_minutes") private var targetIntervalMinutes: Int = 165
     
     var body: some View {
@@ -1112,7 +1246,7 @@ struct AlarmIndicatorView: View {
                         .foregroundColor(alarmService.alarmScheduled ? .orange : .gray)
                     
                     if snoozeCount > 0 {
-                        Text("(+\(snoozeCount * 10)m)")
+                        Text("(+\(snoozeCount * max(1, settings.snoozeDurationMinutes))m)")
                             .font(.caption2)
                             .foregroundColor(.secondary)
                     }
@@ -1505,6 +1639,7 @@ struct CompactDoseButton: View {
     @ObservedObject var eventLogger: EventLogger
     @ObservedObject var undoState: UndoStateManager
     @ObservedObject var sessionRepo: SessionRepository
+    @ObservedObject private var settings = UserSettingsManager.shared
     @EnvironmentObject var themeManager: ThemeManager
     @Binding var showEarlyDoseAlert: Bool
     @Binding var earlyDoseMinutes: Int
@@ -1543,17 +1678,14 @@ struct CompactDoseButton: View {
                 HStack(spacing: 12) {
                     Button {
                         Task {
-                            // Snooze the alarm (+10 min) and increment count
+                            // Snooze alarm and only persist snooze event when reschedule succeeds.
                             if let newTime = await AlarmService.shared.snoozeAlarm(dose1Time: core.dose1Time) {
                                 await core.snooze()
                                 print("✅ Snoozed to \(newTime.formatted(date: .omitted, time: .shortened))")
-                            } else {
-                                // Still increment count even if alarm couldn't be rescheduled
-                                await core.snooze()
                             }
                         }
                     } label: {
-                        Label("Snooze +10m", systemImage: "bell.badge")
+                        Label("Snooze +\(snoozeStepMinutes)m", systemImage: "bell.badge")
                             .font(.caption)
                     }
                     .buttonStyle(.bordered)
@@ -1564,6 +1696,7 @@ struct CompactDoseButton: View {
                             await core.skipDose()
                             // Cancel wake alarm since Dose 2 was skipped
                             AlarmService.shared.cancelAllAlarms()
+                            AlarmService.shared.clearWakeAlarmState()
                         }
                     } label: {
                         Label("Skip", systemImage: "forward.fill")
@@ -1638,6 +1771,7 @@ struct CompactDoseButton: View {
             undoState.register(.takeDose2(at: now))
             // Cancel wake alarm since Dose 2 was taken
             AlarmService.shared.cancelAllAlarms()
+            AlarmService.shared.clearWakeAlarmState()
         }
     }
     
@@ -1650,6 +1784,8 @@ struct CompactDoseButton: View {
             eventLogger.logEvent(name: "Dose 2 (Late)", color: .orange, cooldownSeconds: 3600 * 8, persist: false)
             // Register for undo (late doses can also be undone)
             undoState.register(.takeDose2(at: now))
+            AlarmService.shared.cancelAllAlarms()
+            AlarmService.shared.clearWakeAlarmState()
         }
     }
     
@@ -1702,11 +1838,19 @@ struct CompactDoseButton: View {
     }
     
     private var snoozeEnabled: Bool {
-        (core.currentStatus == .active || core.currentStatus == .nearClose) && core.snoozeCount < 3
+        (core.currentStatus == .active || core.currentStatus == .nearClose) && core.snoozeCount < maxSnoozes
     }
     
     private var skipEnabled: Bool {
         core.currentStatus == .active || core.currentStatus == .nearClose || core.currentStatus == .closed
+    }
+
+    private var snoozeStepMinutes: Int {
+        max(1, settings.snoozeDurationMinutes)
+    }
+
+    private var maxSnoozes: Int {
+        max(0, settings.maxSnoozes)
     }
 }
 
@@ -1714,6 +1858,7 @@ struct CompactDoseButton: View {
 struct CompactSessionSummary: View {
     @ObservedObject var core: DoseTapCore
     @ObservedObject var eventLogger: EventLogger
+    @ObservedObject private var settings = UserSettingsManager.shared
     @State private var showEventsPopover = false
     
     var body: some View {
@@ -1761,7 +1906,7 @@ struct CompactSessionSummary: View {
             
             CompactSummaryItem(
                 icon: "bell.fill",
-                value: "\(core.snoozeCount)/3",
+                value: "\(core.snoozeCount)/\(max(0, settings.maxSnoozes))",
                 label: "Snooze",
                 color: core.snoozeCount > 0 ? .orange : .gray
             )
@@ -2314,6 +2459,7 @@ struct UndoSnackbarView: View {
 // MARK: - Session Summary Card
 struct SessionSummaryCard: View {
     @ObservedObject var core: DoseTapCore
+    @ObservedObject private var settings = UserSettingsManager.shared
     let eventCount: Int
     
     var body: some View {
@@ -2346,7 +2492,7 @@ struct SessionSummaryCard: View {
                 SummaryItem(
                     icon: "bell.fill",
                     label: "Snoozes",
-                    value: "\(core.snoozeCount)/3",
+                    value: "\(core.snoozeCount)/\(max(0, settings.maxSnoozes))",
                     color: core.snoozeCount > 0 ? .orange : .gray
                 )
             }
@@ -2423,109 +2569,20 @@ struct LoggedEvent: Identifiable {
     }
 }
 
-// MARK: - Details View (Second Tab)
+// MARK: - Timeline View (Second Tab)
 struct DetailsView: View {
-    @ObservedObject var core: DoseTapCore
-    @ObservedObject var eventLogger: EventLogger
-    @ObservedObject var settings = UserSettingsManager.shared
     @EnvironmentObject var themeManager: ThemeManager
-    @State private var showFullTimeline = false
-    @State private var showEventsSheet = false
-    
-    // Use customized QuickLog buttons from settings
-    private var quickLogEventTypes: [(name: String, icon: String, color: Color)] {
-        settings.quickLogButtons.map { ($0.name, $0.icon, $0.color) }
-    }
+    @State private var selectedNight: Date = Date()
+    @State private var showDatePicker = false
+    private let calendar = Calendar.current
     
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(spacing: 20) {
-                    // Insights Summary Card (on-time %, avg interval, etc.)
-                    InsightsSummaryCard()
+                VStack(spacing: 16) {
+                    timelineHeader
                     
-                    // Sleep Stage Timeline (live from HealthKit)
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            // Show day range for last night's sleep
-                            Text(sleepTimelineHeader)
-                                .font(.headline)
-                            Spacer()
-                            NavigationLink(destination: SleepTimelineContainer()) {
-                                Text("View Full")
-                                    .font(.caption)
-                                    .foregroundColor(.blue)
-                            }
-                        }
-                        
-                        LiveSleepTimelineView()
-                    }
-                    .padding()
-                    .background(
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(Color(.systemGray6))
-                    )
-                    
-                    // Full Session Details (dose times, window status)
-                    FullSessionDetails(core: core)
-                    
-                    // Tonight's Events (same source as History)
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text("Tonight's Events")
-                                .font(.headline)
-                            Spacer()
-                            Button("View All") {
-                                showEventsSheet = true
-                            }
-                            .font(.caption)
-                            .foregroundColor(.blue)
-                        }
-                        
-                        if eventLogger.events.isEmpty {
-                            Text("No events logged tonight")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                                .padding(.vertical, 6)
-                        } else {
-                            ForEach(eventLogger.events.sorted(by: { $0.time > $1.time }).prefix(6)) { event in
-                                HStack(spacing: 10) {
-                                    Circle()
-                                        .fill(event.color)
-                                        .frame(width: 10, height: 10)
-                                    Text(event.name)
-                                        .font(.subheadline)
-                                    Spacer()
-                                    Text(event.time.formatted(date: .omitted, time: .shortened))
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                                .padding(.vertical, 2)
-                            }
-                        }
-                    }
-                    .padding()
-                    .background(
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(Color(.systemGray6))
-                    )
-                    .sheet(isPresented: $showEventsSheet) {
-                        TonightEventsSheet(events: eventLogger.events, onDelete: { id in
-                            eventLogger.deleteEvent(id: id)
-                        })
-                        .presentationDetents([.medium, .large])
-                        .presentationDragIndicator(.visible)
-                    }
-                    
-                    // Full Event Log Grid (buttons to log events) - uses customized buttons
-                    FullEventLogGrid(
-                        eventTypes: quickLogEventTypes,
-                        eventLogger: eventLogger,
-                        settings: settings
-                    )
-                    
-                    // Note: Event history is viewed in the History tab, not here
-                    // This keeps Details focused on current session actions
+                    LiveSleepTimelineView(nightDate: selectedNight)
                 }
                 .padding()
                 .padding(.bottom, 80) // Space for tab bar
@@ -2536,53 +2593,117 @@ struct DetailsView: View {
                     ThemeToggleButton()
                 }
             }
+            .sheet(isPresented: $showDatePicker) {
+                NavigationView {
+                    DatePicker(
+                        "Select Night",
+                        selection: $selectedNight,
+                        in: ...Date(),
+                        displayedComponents: [.date]
+                    )
+                    .datePickerStyle(.graphical)
+                    .navigationTitle("Choose Night")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button("Done") { showDatePicker = false }
+                        }
+                    }
+                    .padding()
+                }
+            }
         }
     }
     
-    /// Header for sleep timeline showing day range
-    private var sleepTimelineHeader: String {
-        // Yesterday's date = last night's sleep session start
-        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date()
-        return SleepSessionDateFormatter.format(yesterday) + " Sleep"
+    private var timelineHeader: some View {
+        HStack(spacing: 12) {
+            Button {
+                selectedNight = calendar.date(byAdding: .day, value: -1, to: selectedNight) ?? selectedNight
+            } label: {
+                Image(systemName: "chevron.left")
+            }
+            .buttonStyle(.plain)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(SleepSessionDateFormatter.format(selectedNight))
+                    .font(.headline)
+                Text("Session report")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+            
+            Button {
+                showDatePicker = true
+            } label: {
+                Image(systemName: "calendar")
+            }
+            .buttonStyle(.plain)
+            
+            Button {
+                let next = calendar.date(byAdding: .day, value: 1, to: selectedNight) ?? selectedNight
+                if !calendar.isDateInToday(next) && next < Date() {
+                    selectedNight = next
+                } else if calendar.isDateInToday(next) {
+                    selectedNight = next
+                }
+            } label: {
+                Image(systemName: "chevron.right")
+                    .foregroundColor(canGoForward ? .primary : .secondary)
+            }
+            .buttonStyle(.plain)
+            .disabled(!canGoForward)
+        }
+    }
+    
+    private var canGoForward: Bool {
+        let startOfSelected = calendar.startOfDay(for: selectedNight)
+        let startOfToday = calendar.startOfDay(for: Date())
+        return startOfSelected < startOfToday
     }
 }
 
 // MARK: - History View (Past Days)
 struct HistoryView: View {
-    @State private var selectedDate = Date()
-    @State private var pastSessions: [SessionSummary] = []
-    @State private var showDeleteDayConfirmation = false
-    @State private var refreshTrigger = false  // Toggled to force SelectedDayView refresh
     @EnvironmentObject var themeManager: ThemeManager
-    
-    private let sessionRepo = SessionRepository.shared
+    @ObservedObject private var urlRouter = URLRouter.shared
     
     var body: some View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 16) {
-                    // Date Picker
-                    DatePicker(
-                        "Select Date",
-                        selection: $selectedDate,
-                        in: ...Date(),
-                        displayedComponents: [.date]
-                    )
-                    .datePickerStyle(.graphical)
+                    // Trends
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Trends")
+                            .font(.headline)
+                        InsightsSummaryCard()
+                    }
+
+                    // Flow handoff: session-level review lives in Timeline.
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Session Review")
+                            .font(.headline)
+                        Text("Timeline is the canonical session report. Use it to inspect night-by-night dose timing and logged events.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        Button {
+                            withAnimation {
+                                urlRouter.selectedTab = 1
+                            }
+                        } label: {
+                            Label("Open Timeline", systemImage: "chart.bar.xaxis")
+                                .frame(maxWidth: .infinity, alignment: .center)
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
                     .padding()
                     .background(
                         RoundedRectangle(cornerRadius: 16)
                             .fill(Color(.systemGray6))
                     )
-                    
-                    // Selected Day Summary with Delete Option
-                    SelectedDayView(
-                        date: selectedDate,
-                        refreshTrigger: refreshTrigger,
-                        onDeleteRequested: { showDeleteDayConfirmation = true }
-                    )
-                    
-                    // Recent Sessions List
+
+                    // Recent sessions snapshot
                     RecentSessionsList()
                 }
                 .padding()
@@ -2594,28 +2715,7 @@ struct HistoryView: View {
                     ThemeToggleButton()
                 }
             }
-            .onAppear { loadHistory() }
-            .alert("Delete This Day's Data?", isPresented: $showDeleteDayConfirmation) {
-                Button("Cancel", role: .cancel) { }
-                Button("Delete", role: .destructive) {
-                    deleteSelectedDay()
-                }
-            } message: {
-                Text("This will delete all dose data and events for this day. This cannot be undone.")
-            }
         }
-    }
-    
-    private func loadHistory() {
-        pastSessions = sessionRepo.fetchRecentSessions(days: 7)
-    }
-    
-    private func deleteSelectedDay() {
-        let sessionDate = sessionRepo.sessionDateString(for: selectedDate)
-        // Use SessionRepository to delete - this broadcasts change to Tonight tab
-        sessionRepo.deleteSession(sessionDate: sessionDate)
-        refreshTrigger.toggle()  // Force SelectedDayView to reload
-        loadHistory()
     }
 }
 
@@ -2956,6 +3056,7 @@ struct SelectedDayView: View {
 // MARK: - Recent Sessions List
 struct RecentSessionsList: View {
     @State private var sessions: [SessionSummary] = []
+    @State private var isLoading = false
     private let sessionRepo = SessionRepository.shared
     
     var body: some View {
@@ -2964,11 +3065,17 @@ struct RecentSessionsList: View {
                 .font(.headline)
             
             if sessions.isEmpty {
-                Text("No recent sessions found")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .padding()
+                if isLoading {
+                    ProgressView("Loading sessions…")
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                } else {
+                    Text("No recent sessions found")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                }
             } else {
                 ForEach(sessions, id: \.sessionDate) { session in
                     SessionRow(session: session)
@@ -2980,11 +3087,16 @@ struct RecentSessionsList: View {
             RoundedRectangle(cornerRadius: 16)
                 .fill(Color(.systemGray6))
         )
-        .onAppear { loadSessions() }
+        .task { await loadSessions() }
+        .onReceive(sessionRepo.sessionDidChange) { _ in
+            Task { await loadSessions() }
+        }
     }
     
-    private func loadSessions() {
-        sessions = sessionRepo.fetchRecentSessions(days: 7)
+    private func loadSessions() async {
+        isLoading = true
+        sessions = await sessionRepo.fetchRecentSessionsAsync(days: 7)
+        isLoading = false
     }
 }
 
@@ -3039,6 +3151,7 @@ struct SessionRow: View {
 struct FullSessionDetails: View {
     @ObservedObject var core: DoseTapCore
     @ObservedObject private var sessionRepo = SessionRepository.shared
+    @ObservedObject private var settings = UserSettingsManager.shared
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -3090,7 +3203,7 @@ struct FullSessionDetails: View {
                 DetailRow(
                     icon: "bell.badge.fill",
                     title: "Snoozes Used",
-                    value: "\(sessionRepo.snoozeCount) of 3",
+                    value: "\(sessionRepo.snoozeCount) of \(max(0, settings.maxSnoozes))",
                     color: .orange
                 )
             }
@@ -3410,6 +3523,7 @@ struct TimeUntilWindowCard: View {
 
 struct DoseButtonsSection: View {
     @ObservedObject var core: DoseTapCore
+    @ObservedObject private var settings = UserSettingsManager.shared
     @Binding var showEarlyDoseAlert: Bool
     @Binding var earlyDoseMinutes: Int
     
@@ -3444,14 +3558,22 @@ struct DoseButtonsSection: View {
             }
             
             HStack(spacing: 12) {
-                Button("Snooze +10m") {
-                    Task { await core.snooze() }
+                Button("Snooze +\(max(1, settings.snoozeDurationMinutes))m") {
+                    Task {
+                        if await AlarmService.shared.snoozeAlarm(dose1Time: core.dose1Time) != nil {
+                            await core.snooze()
+                        }
+                    }
                 }
                 .buttonStyle(.bordered)
                 .disabled(!snoozeEnabled)
                 
                 Button("Skip Dose") {
-                    Task { await core.skipDose() }
+                    Task {
+                        await core.skipDose()
+                        AlarmService.shared.cancelAllAlarms()
+                        AlarmService.shared.clearWakeAlarmState()
+                    }
                 }
                 .buttonStyle(.bordered)
                 .disabled(!skipEnabled)
@@ -3474,7 +3596,11 @@ struct DoseButtonsSection: View {
             return
         }
         
-        Task { await core.takeDose() }
+        Task {
+            await core.takeDose()
+            AlarmService.shared.cancelAllAlarms()
+            AlarmService.shared.clearWakeAlarmState()
+        }
     }
     
     private var primaryButtonText: String {
@@ -3501,7 +3627,7 @@ struct DoseButtonsSection: View {
     }
     
     private var snoozeEnabled: Bool {
-        (core.currentStatus == .active || core.currentStatus == .nearClose) && core.snoozeCount < 3
+        (core.currentStatus == .active || core.currentStatus == .nearClose) && core.snoozeCount < max(0, settings.maxSnoozes)
     }
     
     private var skipEnabled: Bool {

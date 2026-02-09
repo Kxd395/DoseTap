@@ -37,7 +37,8 @@ let package = Package(
                 "TimeIntervalMath.swift",
                 "DiagnosticEvent.swift",
                 "DiagnosticLogger.swift",
-                "DosingModels.swift"
+                "DosingModels.swift",
+                "CertificatePinning.swift"
             ]
         ),
         .testTarget(
@@ -62,7 +63,8 @@ let package = Package(
                 "MedicationLoggerTests.swift",
                 "TimeCorrectnessTests.swift",
                 "SleepPlanCalculatorTests.swift",
-                "SessionIdBackfillTests.swift"
+                "SessionIdBackfillTests.swift",
+                "DosingAmountTests.swift"
             ]
         )
     ]

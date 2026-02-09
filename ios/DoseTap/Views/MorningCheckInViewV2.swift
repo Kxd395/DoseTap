@@ -20,6 +20,9 @@ struct MorningCheckInViewV2: View {
     @State private var showSkipConfirmation = false
     @State private var showSaveError = false
     @State private var saveErrorMessage = ""
+    @State private var showUseLastMessage = false
+    @State private var useLastMessage = ""
+    @State private var isSaving = false
     
     // Section expansion states
     @State private var quickOutcomeExpanded = true
@@ -114,6 +117,7 @@ struct MorningCheckInViewV2: View {
                 
                 // Sticky Bottom Bar with End Night + Save
                 EndNightBottomBar(
+                    isSaving: isSaving,
                     onSkip: { showSkipConfirmation = true },
                     onSave: endNightAndSave
                 )
@@ -135,6 +139,7 @@ struct MorningCheckInViewV2: View {
                         .background(Color.blue.opacity(0.1))
                         .cornerRadius(8)
                     }
+                    .disabled(isSaving)
                 }
             }
         }
@@ -152,6 +157,11 @@ struct MorningCheckInViewV2: View {
         } message: {
             Text(saveErrorMessage)
         }
+        .alert("Use Last", isPresented: $showUseLastMessage) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(useLastMessage)
+        }
         .onAppear {
             viewModel.loadPreSleepPain(sessionId: sessionId)
         }
@@ -160,6 +170,10 @@ struct MorningCheckInViewV2: View {
     // MARK: - Actions
     
     private func endNightAndSave() {
+        guard !isSaving else { return }
+        isSaving = true
+        defer { isSaving = false }
+
         do {
             // 1. Persist wake survey event
             try viewModel.saveWakeSurvey(sessionId: sessionId, sessionDate: sessionDate)
@@ -175,14 +189,14 @@ struct MorningCheckInViewV2: View {
                     painWokeUser: viewModel.painWokeUser,
                     sessionId: sessionId
                 )
-                EventStorage.shared.savePainSnapshot(snapshot)
+                sessionRepo.savePainSnapshot(snapshot)
             }
             
             // 3. Mark session closed via SessionRepository
             sessionRepo.completeCheckIn()
             
             // 4. Log diagnostic event
-            EventStorage.shared.insertSleepEvent(
+            sessionRepo.insertSleepEventForSession(
                 eventType: "session_closed",
                 timestamp: Date(),
                 sessionDate: sessionDate,
@@ -201,10 +215,14 @@ struct MorningCheckInViewV2: View {
     }
     
     private func closeSessionWithoutSurvey() {
+        guard !isSaving else { return }
+        isSaving = true
+        defer { isSaving = false }
+
         // Mark session as skipped
         sessionRepo.completeCheckIn()
         
-        EventStorage.shared.insertSleepEvent(
+        sessionRepo.insertSleepEventForSession(
             eventType: "session_closed",
             timestamp: Date(),
             sessionDate: sessionDate,
@@ -217,8 +235,15 @@ struct MorningCheckInViewV2: View {
     }
     
     private func loadLastAnswers() {
-        // Load from last wake survey
-        // TODO: Implement
+        let events = sessionRepo.fetchAllSleepEvents(limit: 250)
+        let applied = viewModel.applyLastWakeSurvey(from: events, excludingSessionDate: sessionDate)
+
+        if applied {
+            useLastMessage = "Loaded values from your most recent wake survey."
+        } else {
+            useLastMessage = "No previous wake survey data is available yet."
+        }
+        showUseLastMessage = true
     }
 }
 
@@ -329,7 +354,7 @@ class MorningCheckInViewModelV2: ObservableObject {
     
     func loadPreSleepPain(sessionId: String) {
         // Load pre-sleep pain from storage
-        if let snapshot = EventStorage.shared.getPainSnapshot(sessionId: sessionId, context: .preSleep) {
+        if let snapshot = SessionRepository.shared.getPainSnapshot(sessionId: sessionId, context: .preSleep) {
             preSleepPainLevel = snapshot.overallLevel
             preSleepPainLocation = snapshot.primaryLocation
         }
@@ -352,13 +377,82 @@ class MorningCheckInViewModelV2: ObservableObject {
         let payloadJson = String(data: payloadData, encoding: .utf8)
         
         // Save via EventStorage sleep event
-        EventStorage.shared.insertSleepEvent(
+        SessionRepository.shared.insertSleepEventForSession(
             eventType: "wake_survey",
             timestamp: Date(),
             sessionDate: sessionDate,
             sessionId: sessionId,
             notes: payloadJson
         )
+    }
+
+    /// Apply fields from the latest valid wake_survey payload.
+    /// Returns true when previous answers were found and applied.
+    func applyLastWakeSurvey(from events: [StoredSleepEvent], excludingSessionDate: String) -> Bool {
+        let sorted = events
+            .filter { $0.eventType == "wake_survey" && $0.sessionDate != excludingSessionDate }
+            .sorted { $0.timestamp > $1.timestamp }
+
+        for event in sorted {
+            guard let notes = event.notes,
+                  let data = notes.data(using: .utf8),
+                  let payload = try? JSONDecoder().decode(LastWakeSurveyPayload.self, from: data) else {
+                continue
+            }
+
+            if let feelingRaw = payload.feeling, let feeling = Feeling(rawValue: feelingRaw) {
+                feelingNow = feeling
+            }
+            if let sleepQuality = payload.sleepQuality {
+                self.sleepQuality = min(5, max(1, sleepQuality))
+            }
+            if let sleepiness = payload.sleepinessNow {
+                sleepinessNow = min(5, max(1, sleepiness))
+            }
+            if let painLevel = payload.painLevel {
+                wakePainLevel = min(10, max(0, painLevel))
+            }
+            if let painWokeUser = payload.painWokeUser {
+                self.painWokeUser = painWokeUser
+            }
+            if let awakeningsRaw = payload.awakenings,
+               let awakenings = AwakeningsCount(rawValue: awakeningsRaw) {
+                awakeningsCount = awakenings
+            }
+            if let longAwakeRaw = payload.longAwake,
+               let longAwake = LongAwakePeriod(rawValue: longAwakeRaw) {
+                longAwakePeriod = longAwake
+            }
+            if let notes = payload.notes {
+                self.notes = notes
+            }
+
+            return true
+        }
+
+        return false
+    }
+
+    private struct LastWakeSurveyPayload: Decodable {
+        let feeling: String?
+        let sleepQuality: Int?
+        let sleepinessNow: Int?
+        let painLevel: Int?
+        let painWokeUser: Bool?
+        let awakenings: String?
+        let longAwake: String?
+        let notes: String?
+
+        enum CodingKeys: String, CodingKey {
+            case feeling
+            case sleepQuality = "sleep_quality"
+            case sleepinessNow = "sleepiness_now"
+            case painLevel = "pain_level"
+            case painWokeUser = "pain_woke_user"
+            case awakenings
+            case longAwake = "long_awake"
+            case notes
+        }
     }
 }
 
@@ -367,6 +461,7 @@ class MorningCheckInViewModelV2: ObservableObject {
 struct NightInfoHeaderV2: View {
     let sessionId: String
     let sessionDate: String
+    @ObservedObject private var sessionRepo = SessionRepository.shared
     
     var body: some View {
         HStack(spacing: 16) {
@@ -409,23 +504,32 @@ struct NightInfoHeaderV2: View {
         }
     }
     
-    private var sessionIdDisplay: String {
-        sessionId
+    private var doseLog: StoredDoseLog? {
+        sessionRepo.fetchDoseLog(forSession: sessionDate)
+    }
+
+    private var timeFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter
     }
     
     private var startTime: String {
-        // TODO: Load from session data
-        return "—"
+        guard let dose1 = doseLog?.dose1Time else { return "—" }
+        return timeFormatter.string(from: dose1)
     }
     
     private var dosesSummary: String {
-        // TODO: Get actual dose count from session
-        return "2"
+        guard let doseLog else { return "0 of 2" }
+        if doseLog.dose2Time != nil || doseLog.dose2Skipped {
+            return "2 of 2"
+        }
+        return "1 of 2"
     }
     
     private var hasLateDose: Bool {
-        // TODO: Check if dose 2 was late
-        return false
+        guard let minutes = doseLog?.intervalMinutes else { return false }
+        return minutes > 240
     }
 }
 
@@ -653,6 +757,8 @@ struct WakePainContentV2: View {
 struct NightEventsReviewV2: View {
     let sessionId: String
     let sessionDate: String
+    @ObservedObject private var sessionRepo = SessionRepository.shared
+    @State private var showNightReview = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -669,8 +775,8 @@ struct NightEventsReviewV2: View {
                 Label("Dose 2", systemImage: "2.circle.fill")
                     .font(.subheadline)
                 Spacer()
-                Text(dose2Time)
-                    .foregroundColor(dose2Late ? .orange : .secondary)
+                Text(dose2Summary)
+                    .foregroundColor(dose2Late || dose2Skipped ? .orange : .secondary)
                 if dose2Late {
                     Text("(Late)")
                         .font(.caption)
@@ -715,11 +821,11 @@ struct NightEventsReviewV2: View {
             
             // Edit button
             Button {
-                // Open night details editor
+                showNightReview = true
             } label: {
                 HStack {
                     Image(systemName: "pencil")
-                    Text("Edit night details")
+                    Text("Open full night review")
                 }
                 .font(.subheadline)
                 .frame(maxWidth: .infinity)
@@ -729,16 +835,98 @@ struct NightEventsReviewV2: View {
             }
             .buttonStyle(.plain)
         }
+        .sheet(isPresented: $showNightReview) {
+            NightReviewView(sessionKey: sessionDate)
+        }
     }
     
-    // TODO: Implement actual data fetching
-    private var dose1Time: String { "11:05 PM" }
-    private var dose2Time: String { "2:41 AM" }
-    private var dose2Late: Bool { true }
-    private var interval: String { "3h 36m" }
-    private var sleepPlan: String { "Now" }
-    private var caffeineSummary: String { "Coffee @ 4pm" }
-    private var alcoholSummary: String { "None" }
+    private var doseLog: StoredDoseLog? {
+        sessionRepo.fetchDoseLog(forSession: sessionDate)
+    }
+
+    private var preSleepLog: StoredPreSleepLog? {
+        sessionRepo.fetchMostRecentPreSleepLog(sessionId: sessionDate)
+    }
+
+    private var answers: PreSleepLogAnswers? {
+        preSleepLog?.answers
+    }
+
+    private var dose2Skipped: Bool {
+        doseLog?.dose2Skipped == true
+    }
+
+    private var timeFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter
+    }
+
+    private var dose1Time: String {
+        guard let dose1 = doseLog?.dose1Time else { return "Not logged" }
+        return timeFormatter.string(from: dose1)
+    }
+
+    private var dose2Summary: String {
+        if dose2Skipped {
+            return "Skipped"
+        }
+        guard let dose2 = doseLog?.dose2Time else { return "Not logged" }
+        return timeFormatter.string(from: dose2)
+    }
+
+    private var dose2Late: Bool {
+        guard let intervalMinutes = doseLog?.intervalMinutes else { return false }
+        return intervalMinutes > 240
+    }
+
+    private var interval: String {
+        guard let intervalMinutes = doseLog?.intervalMinutes else { return "—" }
+        let hours = intervalMinutes / 60
+        let minutes = intervalMinutes % 60
+        return "\(hours)h \(minutes)m"
+    }
+
+    private var sleepPlan: String {
+        guard let preSleepLog else { return "Not logged" }
+        if preSleepLog.completionState == "skipped" {
+            return "Skipped"
+        }
+        return answers?.intendedSleepTime?.displayText ?? "Not set"
+    }
+
+    private var caffeineSummary: String {
+        guard let answers else { return "Not logged" }
+
+        if let stimulants = answers.stimulantsConsumed, !stimulants.isEmpty {
+            var summary = stimulants.map(\.displayText).joined(separator: ", ")
+            if let time = answers.lastCaffeineTime {
+                summary += " @ \(time.displayText)"
+            }
+            return summary
+        }
+
+        if let legacy = answers.stimulants, legacy != .none {
+            var summary = legacy.displayText
+            if let time = answers.lastCaffeineTime {
+                summary += " @ \(time.displayText)"
+            }
+            return summary
+        }
+
+        return "None"
+    }
+
+    private var alcoholSummary: String {
+        guard let answers else { return "Not logged" }
+        guard let alcohol = answers.alcohol, alcohol != .none else {
+            return "None"
+        }
+        if let time = answers.lastAlcoholTime {
+            return "\(alcohol.displayText) @ \(time.displayText)"
+        }
+        return alcohol.displayText
+    }
 }
 
 // MARK: - Sleep Disruption Content
@@ -805,6 +993,7 @@ struct SleepDisruptionContentV2: View {
 // MARK: - End Night Bottom Bar
 
 struct EndNightBottomBar: View {
+    let isSaving: Bool
     let onSkip: () -> Void
     let onSave: () -> Void
     
@@ -817,13 +1006,19 @@ struct EndNightBottomBar: View {
                         .font(.headline)
                         .foregroundColor(.secondary)
                 }
+                .disabled(isSaving)
                 
                 Spacer()
                 
                 Button(action: onSave) {
                     HStack {
-                        Image(systemName: "checkmark.circle.fill")
-                        Text("End Night + Save")
+                        if isSaving {
+                            ProgressView()
+                                .tint(.white)
+                        } else {
+                            Image(systemName: "checkmark.circle.fill")
+                        }
+                        Text(isSaving ? "Saving..." : "End Night + Save")
                     }
                     .font(.headline)
                     .foregroundColor(.white)
@@ -832,6 +1027,7 @@ struct EndNightBottomBar: View {
                     .background(Color.green)
                     .cornerRadius(12)
                 }
+                .disabled(isSaving)
             }
             
             // Helper text

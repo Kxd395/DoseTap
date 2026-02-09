@@ -1,17 +1,110 @@
 import SwiftUI
 import DoseCore
+import UserNotifications
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // UserSettingsManager and AppearanceMode are defined in UserSettingsManager.swift
+
+/// Theme-stable time picker row that always uses a wheel picker in a modal sheet.
+/// This avoids compact DatePicker rendering differences across light/dark/night themes.
+struct TimePickerSheetRow: View {
+    let title: String
+    @Binding var selection: Date
+    var accessibilityLabel: String?
+
+    @State private var showingPicker = false
+
+    var body: some View {
+        Button {
+            showingPicker = true
+        } label: {
+            HStack {
+                Text(title)
+                Spacer()
+                Text(selection, style: .time)
+                    .monospacedDigit()
+                    .foregroundColor(.secondary)
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel ?? title)
+        .sheet(isPresented: $showingPicker) {
+            NavigationStack {
+                DatePicker(
+                    title,
+                    selection: $selection,
+                    displayedComponents: .hourAndMinute
+                )
+                .datePickerStyle(.wheel)
+                .labelsHidden()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .padding(.top, 12)
+                .navigationTitle(title)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") {
+                            showingPicker = false
+                        }
+                    }
+                }
+            }
+            .presentationDetents([.height(320)])
+            .presentationDragIndicator(.visible)
+        }
+    }
+}
+
+private enum SettingsExportFormat: String, CaseIterable {
+    case csv = "CSV"
+    case json = "JSON"
+
+    var fileExtension: String {
+        switch self {
+        case .csv: return "csv"
+        case .json: return "json"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .csv: return "Spreadsheet-friendly table export"
+        case .json: return "Structured export for tooling and automation"
+        }
+    }
+}
 
 // MARK: - Settings View
 struct SettingsView: View {
     @StateObject private var settings = UserSettingsManager.shared
+    @StateObject private var whoopService = WHOOPService.shared
+    @ObservedObject private var alarmService = AlarmService.shared
+    @AppStorage(SetupWizardService.setupCompletedKey) private var setupCompleted = true
     @State private var showingResetConfirmation = false
+    @State private var showingSetupWizardConfirmation = false
     @State private var showingExportSuccess = false
     @State private var showingExportSheet = false
+    @State private var showingExportConfigurator = false
+    @State private var isExportingData = false
     @State private var exportURL: URL?
+    @State private var exportSuccessMessage = "Your data was exported."
+    @State private var exportErrorMessage: String?
+    @State private var notificationPermissionMessage: String?
+    @State private var selectedExportFormat: SettingsExportFormat = .csv
+    @State private var redactSensitiveExportData = true
+    @State private var exportPreviewText = ""
+    @State private var exportEstimatedBytes = 0
+    @State private var exportEstimatedRecords = 0
+    @State private var isPreparingExportPreview = false
     @ObservedObject private var urlRouter = URLRouter.shared
     @ObservedObject private var sleepPlanStore = SleepPlanStore.shared
+    private let tabBarInsetHeight: CGFloat = 64
     
     var body: some View {
         NavigationView {
@@ -66,11 +159,33 @@ struct SettingsView: View {
 
                 // MARK: - Night Schedule
                 Section {
-                    DatePicker("Sleep Start", selection: sleepStartBinding, displayedComponents: .hourAndMinute)
-                    DatePicker("Wake Time", selection: wakeTimeBinding, displayedComponents: .hourAndMinute)
+                    TimePickerSheetRow(
+                        title: "Default Sleep Start",
+                        selection: sleepStartBinding
+                    )
+                    TimePickerSheetRow(
+                        title: "Default Wake Time",
+                        selection: wakeTimeBinding
+                    )
+
+                    NavigationLink {
+                        SleepPlanDetailView()
+                    } label: {
+                        HStack {
+                            Label("Weekly Wake Setup", systemImage: "calendar.badge.clock")
+                            Spacer()
+                            Text(weeklyScheduleSummary)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+
+                    Toggle("After check-in, show upcoming night", isOn: $settings.plannerUsesUpcomingNightAfterCheckIn)
 
                     DisclosureGroup("Evening Prep & Auto-Close") {
-                        DatePicker("Prep Time", selection: prepTimeBinding, displayedComponents: .hourAndMinute)
+                        TimePickerSheetRow(
+                            title: "Prep Time",
+                            selection: prepTimeBinding
+                        )
                         Stepper("Missed check-in cutoff +\(settings.missedCheckInCutoffHours)h", value: $settings.missedCheckInCutoffHours, in: 1...12)
                         Text("Auto-close at \(cutoffTimeText)")
                             .font(.caption)
@@ -80,7 +195,7 @@ struct SettingsView: View {
                     Label("Night Schedule", systemImage: "moon.stars.fill")
                         .font(.headline)
                 } footer: {
-                    Text("These times control session rollover. Midnight is not a boundary; the morning check-in (or cutoff) closes the night.")
+                    Text("Default times control session rollover. Enable upcoming-night mode if you want Tonight to flip to the next day right after morning check-in.")
                 }
                 
                 // MARK: - Notifications
@@ -259,22 +374,46 @@ struct SettingsView: View {
                             }
                         }
                     }
-                    
-                    Label("WHOOP (coming soon)", systemImage: "figure.run")
-                        .foregroundColor(.secondary)
+
+                    NavigationLink {
+                        InstallHealthCheckView()
+                    } label: {
+                        Label("Install Health Check", systemImage: "checklist")
+                    }
+
+                    NavigationLink {
+                        WHOOPSettingsView()
+                    } label: {
+                        HStack {
+                            Label("WHOOP", systemImage: "figure.run")
+                            Spacer()
+                            if whoopService.isConnected {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                            }
+                        }
+                    }
                 } header: {
                     Label("Integrations", systemImage: "link")
                 } footer: {
-                    Text("Connect with Apple Health to sync sleep data and view integrated insights.")
+                    Text("Connect Apple Health and WHOOP to sync sleep data and view integrated insights.")
                 }
                 
                 // MARK: - Data Management
                 Section {
                     Button {
-                        exportData()
+                        showingExportConfigurator = true
+                        Task { await refreshExportPreview() }
                     } label: {
-                        Label("Export Data (CSV)", systemImage: "square.and.arrow.up")
+                        HStack {
+                            Label("Export Data", systemImage: "square.and.arrow.up")
+                            if isExportingData {
+                                Spacer()
+                                ProgressView()
+                            }
+                        }
                     }
+                    .disabled(isExportingData)
                     
                     NavigationLink {
                         DiagnosticExportView()
@@ -286,6 +425,12 @@ struct SettingsView: View {
                         DataManagementView()
                     } label: {
                         Label("Manage History", systemImage: "clock.arrow.circlepath")
+                    }
+
+                    Button {
+                        showingSetupWizardConfirmation = true
+                    } label: {
+                        Label("Run Setup Wizard Again", systemImage: "wand.and.stars")
                     }
                     
                     Divider()
@@ -358,7 +503,7 @@ struct SettingsView: View {
             .navigationBarTitleDisplayMode(.large)
             .safeAreaInset(edge: .bottom) {
                 // Add padding to prevent tab bar from covering content
-                Color.clear.frame(height: 0)
+                Color.clear.frame(height: tabBarInsetHeight)
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -371,7 +516,6 @@ struct SettingsView: View {
                 }
             }
         }
-        .preferredColorScheme(settings.colorScheme)
         .alert("Clear All Data", isPresented: $showingResetConfirmation) {
             Button("Cancel", role: .cancel) { }
             Button("Clear All", role: .destructive) {
@@ -380,15 +524,75 @@ struct SettingsView: View {
         } message: {
             Text("This will permanently delete all your dose history, sleep events, and settings. This action cannot be undone.")
         }
+        .alert("Run Setup Wizard Again", isPresented: $showingSetupWizardConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Continue", role: .destructive) {
+                rerunSetupWizard()
+            }
+        } message: {
+            Text("This will reopen the setup wizard and re-check install configuration.")
+        }
         .alert("Export Complete", isPresented: $showingExportSuccess) {
             Button("OK", role: .cancel) { }
         } message: {
-            Text("Your data has been exported to the Files app.")
+            Text(exportSuccessMessage)
         }
-        .sheet(isPresented: $showingExportSheet) {
+        .sheet(isPresented: $showingExportSheet, onDismiss: {
+            cleanupExportFile()
+        }) {
             if let url = exportURL {
-                ActivityViewController(activityItems: [url])
+                ExportActivityViewController(activityItems: [url]) { completed, error in
+                    handleExportShareCompletion(completed: completed, error: error)
+                }
             }
+        }
+        .sheet(isPresented: $showingExportConfigurator) {
+            exportConfigurationSheet
+        }
+        .alert("Export Failed", isPresented: Binding(
+            get: { exportErrorMessage != nil },
+            set: { if !$0 { exportErrorMessage = nil } }
+        )) {
+            Button("Retry") {
+                Task { await exportData() }
+            }
+            Button("Cancel", role: .cancel) {
+                exportErrorMessage = nil
+            }
+        } message: {
+            Text(exportErrorMessage ?? "Unable to export data.")
+        }
+        .alert("Notification Permission", isPresented: Binding(
+            get: { notificationPermissionMessage != nil },
+            set: { if !$0 { notificationPermissionMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {
+                notificationPermissionMessage = nil
+            }
+        } message: {
+            Text(notificationPermissionMessage ?? "Notifications are unavailable.")
+        }
+        .onChange(of: settings.notificationsEnabled) { enabled in
+            Task { await handleNotificationToggle(enabled) }
+        }
+        .onChange(of: settings.criticalAlertsEnabled) { enabled in
+            guard settings.notificationsEnabled else { return }
+            Task { await handleCriticalAlertToggle(enabled) }
+        }
+        .onChange(of: settings.windowOpenAlert) { _ in
+            Task { await resyncDose2RemindersIfNeeded() }
+        }
+        .onChange(of: settings.fifteenMinWarning) { _ in
+            Task { await resyncDose2RemindersIfNeeded() }
+        }
+        .onChange(of: settings.fiveMinWarning) { _ in
+            Task { await resyncDose2RemindersIfNeeded() }
+        }
+        .onChange(of: settings.soundEnabled) { _ in
+            Task { await applyNotificationConfigLive() }
+        }
+        .onChange(of: settings.hapticsEnabled) { _ in
+            refreshActiveRingingFeedback()
         }
     }
 
@@ -420,6 +624,21 @@ struct SettingsView: View {
         let formatter = DateFormatter()
         formatter.timeStyle = .short
         return formatter.string(from: cutoff)
+    }
+
+    private var weeklyScheduleSummary: String {
+        let entries = sleepPlanStore.schedule.entries
+        let enabledEntries = entries.filter(\.enabled)
+        let uniqueTimes = Set(enabledEntries.map { "\($0.wakeByHour):\($0.wakeByMinute)" })
+
+        switch uniqueTimes.count {
+        case 0:
+            return "No days enabled"
+        case 1:
+            return "\(enabledEntries.count)d same"
+        default:
+            return "\(enabledEntries.count)d custom"
+        }
     }
 
     // MARK: - Appearance Picker
@@ -557,24 +776,302 @@ struct SettingsView: View {
         // In real app, this would request HealthKit authorization
         print("Requesting HealthKit permissions...")
     }
-    
-    private func exportData() {
-        // Use comprehensive V2 export format with all tables
-        let csvContent = SessionRepository.shared.exportToCSVv2()
-        
-        // Create temporary file
+
+    private var exportConfigurationSheet: some View {
+        NavigationView {
+            Form {
+                Section("Format") {
+                    Picker("Format", selection: $selectedExportFormat) {
+                        ForEach(SettingsExportFormat.allCases, id: \.self) { format in
+                            Text(format.rawValue).tag(format)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    Text(selectedExportFormat.description)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Section("Privacy") {
+                    Toggle("Redact sensitive identifiers", isOn: $redactSensitiveExportData)
+                    Text("When enabled, timestamps, UUIDs, and email-like strings are masked in the shared export.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Section("Estimated Size") {
+                    HStack {
+                        Label("File Size", systemImage: "internaldrive")
+                        Spacer()
+                        if isPreparingExportPreview {
+                            ProgressView()
+                        } else {
+                            Text(ByteCountFormatter.string(fromByteCount: Int64(exportEstimatedBytes), countStyle: .file))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    HStack {
+                        Label("Records", systemImage: "number")
+                        Spacer()
+                        Text("\(exportEstimatedRecords)")
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Section("Redaction Preview") {
+                    if isPreparingExportPreview {
+                        ProgressView("Building preview...")
+                    } else if exportPreviewText.isEmpty {
+                        Text("No preview available yet.")
+                            .foregroundColor(.secondary)
+                    } else {
+                        Text(exportPreviewText)
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                    }
+                }
+            }
+            .navigationTitle("Export Data")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        showingExportConfigurator = false
+                    }
+                }
+
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        Task {
+                            await exportData()
+                            if exportErrorMessage == nil {
+                                showingExportConfigurator = false
+                            }
+                        }
+                    } label: {
+                        if isExportingData {
+                            ProgressView()
+                        } else {
+                            Text("Share")
+                        }
+                    }
+                    .disabled(isExportingData || isPreparingExportPreview || exportEstimatedRecords == 0)
+                }
+            }
+        }
+        .onAppear {
+            Task { await refreshExportPreview() }
+        }
+        .onChange(of: selectedExportFormat) { _ in
+            Task { await refreshExportPreview() }
+        }
+        .onChange(of: redactSensitiveExportData) { _ in
+            Task { await refreshExportPreview() }
+        }
+    }
+
+    private func exportData() async {
+        await exportData(format: selectedExportFormat, redactSensitive: redactSensitiveExportData)
+    }
+
+    private func exportData(format: SettingsExportFormat, redactSensitive: Bool) async {
+        guard !isExportingData else { return }
+        isExportingData = true
+        defer { isExportingData = false }
+        exportErrorMessage = nil
+        cleanupExportFile()
+
+        let exportBuild = buildExportContent(format: format, redactSensitive: redactSensitive)
+        guard exportBuild.recordCount > 0 else {
+            exportErrorMessage = "No exportable history yet. Log at least one session before exporting."
+            return
+        }
+
         let tempDir = FileManager.default.temporaryDirectory
-        let fileName = "DoseTap_Export_\(DateFormatter.exportDateFormatter.string(from: Date())).csv"
+        let fileName = "DoseTap_Export_\(DateFormatter.exportDateFormatter.string(from: Date())).\(format.fileExtension)"
         let fileURL = tempDir.appendingPathComponent(fileName)
-        
+
         do {
-            try csvContent.write(to: fileURL, atomically: true, encoding: .utf8)
+            try exportBuild.content.write(to: fileURL, atomically: true, encoding: .utf8)
             exportURL = fileURL
             showingExportSheet = true
             print("✅ Export file created: \(fileURL.lastPathComponent)")
         } catch {
             print("❌ Failed to create export file: \(error)")
+            exportErrorMessage = "Could not write export file. \(error.localizedDescription)"
         }
+    }
+
+    private func refreshExportPreview() async {
+        isPreparingExportPreview = true
+        defer { isPreparingExportPreview = false }
+
+        let exportBuild = buildExportContent(
+            format: selectedExportFormat,
+            redactSensitive: redactSensitiveExportData
+        )
+        exportEstimatedBytes = exportBuild.byteCount
+        exportEstimatedRecords = exportBuild.recordCount
+        exportPreviewText = previewText(for: exportBuild.content, format: selectedExportFormat)
+    }
+
+    private func buildExportContent(
+        format: SettingsExportFormat,
+        redactSensitive: Bool
+    ) -> (content: String, byteCount: Int, recordCount: Int) {
+        let rawContent: String
+        let recordCount: Int
+
+        switch format {
+        case .csv:
+            let csvContent = SessionRepository.shared.exportToCSVv2()
+            rawContent = csvContent
+            recordCount = max(0, csvContent.split(whereSeparator: \.isNewline).count - 1)
+        case .json:
+            let document = buildJSONExportDocument()
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            encoder.dateEncodingStrategy = .iso8601
+            let data = (try? encoder.encode(document)) ?? Data()
+            rawContent = String(data: data, encoding: .utf8) ?? "{}"
+            recordCount = document.sessions.count + document.sleepEvents.count
+        }
+
+        let finalContent = redactSensitive ? redactSensitiveData(in: rawContent) : rawContent
+        let byteCount = finalContent.lengthOfBytes(using: .utf8)
+        return (finalContent, byteCount, recordCount)
+    }
+
+    private func buildJSONExportDocument() -> SettingsJSONExportDocument {
+        let repo = SessionRepository.shared
+        let sessions = repo.fetchRecentSessions(days: 365).map { session in
+            SettingsJSONExportSession(
+                sessionDate: session.sessionDate,
+                dose1Time: session.dose1Time,
+                dose2Time: session.dose2Time,
+                dose2Skipped: session.dose2Skipped,
+                snoozeCount: session.snoozeCount,
+                intervalMinutes: session.intervalMinutes,
+                eventCount: session.eventCount
+            )
+        }
+        let sleepEvents = repo.fetchAllSleepEvents(limit: 10_000).map { event in
+            SettingsJSONExportSleepEvent(
+                id: event.id,
+                eventType: event.eventType,
+                timestamp: event.timestamp,
+                sessionDate: event.sessionDate,
+                notes: event.notes
+            )
+        }
+
+        return SettingsJSONExportDocument(
+            generatedAt: Date(),
+            appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
+            sessions: sessions,
+            sleepEvents: sleepEvents
+        )
+    }
+
+    private func redactSensitiveData(in content: String) -> String {
+        var redacted = DataRedactor(config: .default).redact(content).redactedText
+        redacted = redacted.replacingOccurrences(
+            of: #"\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})"#,
+            with: "[redacted-timestamp]",
+            options: [.regularExpression]
+        )
+        return redacted
+    }
+
+    private func previewText(for content: String, format: SettingsExportFormat) -> String {
+        let maxLines = format == .csv ? 8 : 16
+        let lines = content.components(separatedBy: .newlines)
+            .prefix(maxLines)
+            .joined(separator: "\n")
+        if lines.isEmpty {
+            return "No preview available."
+        }
+        return lines
+    }
+
+    private func handleExportShareCompletion(completed: Bool, error: Error?) {
+        let fileName = exportURL?.lastPathComponent ?? "DoseTap export file"
+
+        if let error {
+            exportErrorMessage = "Export file was created but sharing failed. \(error.localizedDescription)"
+        } else if completed {
+            exportSuccessMessage = "Shared \(fileName) successfully."
+            showingExportSuccess = true
+        }
+    }
+
+    private func cleanupExportFile() {
+        guard let url = exportURL else { return }
+        try? FileManager.default.removeItem(at: url)
+        exportURL = nil
+    }
+
+    private func handleNotificationToggle(_ enabled: Bool) async {
+        if enabled {
+            let granted = await AlarmService.shared.requestPermission()
+            if !granted {
+                settings.notificationsEnabled = false
+                notificationPermissionMessage = "iOS notification permission is denied. Enable notifications in system settings to receive dose reminders."
+            } else {
+                await applyNotificationConfigLive()
+            }
+            return
+        }
+
+        AlarmService.shared.stopRinging(acknowledge: false)
+        AlarmService.shared.cancelAllAlarms()
+    }
+
+    private func handleCriticalAlertToggle(_ enabled: Bool) async {
+        if enabled {
+            let granted = await AlarmService.shared.requestPermission()
+            if !granted {
+                settings.criticalAlertsEnabled = false
+                notificationPermissionMessage = "Critical alerts were not granted. Standard alerts will be used when available."
+                return
+            }
+        }
+        await applyNotificationConfigLive()
+    }
+
+    private func applyNotificationConfigLive() async {
+        refreshActiveRingingFeedback()
+        await resyncWakeAlarmIfNeeded()
+        await resyncDose2RemindersIfNeeded()
+    }
+
+    private func refreshActiveRingingFeedback() {
+        guard alarmService.isAlarmRinging else { return }
+        alarmService.stopRinging(acknowledge: false)
+        if settings.soundEnabled || settings.hapticsEnabled {
+            alarmService.startRinging()
+        }
+    }
+
+    private func resyncWakeAlarmIfNeeded() async {
+        guard settings.notificationsEnabled else { return }
+        guard let targetWakeTime = alarmService.targetWakeTime else { return }
+        guard targetWakeTime > Date(), let dose1Time = SessionRepository.shared.dose1Time else { return }
+        await alarmService.scheduleWakeAlarm(at: targetWakeTime, dose1Time: dose1Time)
+    }
+
+    private func resyncDose2RemindersIfNeeded() async {
+        guard settings.notificationsEnabled else { return }
+        let repo = SessionRepository.shared
+        guard let dose1Time = repo.dose1Time else { return }
+        guard repo.dose2Time == nil, !repo.dose2Skipped else { return }
+        alarmService.cancelDose2Reminders()
+        await alarmService.scheduleDose2Reminders(dose1Time: dose1Time)
+    }
+
+    private func rerunSetupWizard() {
+        setupCompleted = false
     }
     
     private func clearAllData() {
@@ -605,6 +1102,626 @@ struct SettingsView: View {
         print("✅ All data cleared successfully")
         #endif
     }
+}
+
+private struct SettingsJSONExportDocument: Codable {
+    let generatedAt: Date
+    let appVersion: String
+    let sessions: [SettingsJSONExportSession]
+    let sleepEvents: [SettingsJSONExportSleepEvent]
+}
+
+private struct SettingsJSONExportSession: Codable {
+    let sessionDate: String
+    let dose1Time: Date?
+    let dose2Time: Date?
+    let dose2Skipped: Bool
+    let snoozeCount: Int
+    let intervalMinutes: Int?
+    let eventCount: Int
+}
+
+private struct SettingsJSONExportSleepEvent: Codable {
+    let id: String
+    let eventType: String
+    let timestamp: Date
+    let sessionDate: String
+    let notes: String?
+}
+
+private enum InstallCheckState: Equatable {
+    case pass
+    case warning
+    case fail
+
+    var color: Color {
+        switch self {
+        case .pass: return .green
+        case .warning: return .orange
+        case .fail: return .red
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .pass: return "checkmark.circle.fill"
+        case .warning: return "exclamationmark.triangle.fill"
+        case .fail: return "xmark.circle.fill"
+        }
+    }
+}
+
+private struct InstallCheckItem: Identifiable {
+    let id: String
+    let title: String
+    let detail: String
+    let state: InstallCheckState
+}
+
+struct InstallHealthCheckView: View {
+    @AppStorage(SetupWizardService.setupCompletedKey) private var setupCompleted = false
+    @ObservedObject private var appSettings = UserSettingsManager.shared
+    @ObservedObject private var sessionRepo = SessionRepository.shared
+    @ObservedObject private var alarmService = AlarmService.shared
+    @ObservedObject private var healthKit = HealthKitService.shared
+    @Environment(\.openURL) private var openURL
+
+    @State private var notificationAuthorizationStatus: UNAuthorizationStatus = .notDetermined
+    @State private var criticalAlertSetting: UNNotificationSetting = .notSupported
+    @State private var pendingDoseTapNotificationCount = 0
+    @State private var pendingWakeNotificationCount = 0
+    @State private var isRefreshing = false
+    @State private var lastCheckedAt: Date?
+    @State private var actionStatusMessage: String?
+
+    var body: some View {
+        List {
+            Section("Overall") {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Install Readiness")
+                        Spacer()
+                        Text("\(passingChecks)/\(checkItems.count)")
+                            .font(.headline)
+                    }
+                    ProgressView(value: checkScore)
+                    if let lastCheckedAt {
+                        Text("Last checked \(relativeTimeText(for: lastCheckedAt))")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Button {
+                    Task { await refreshChecks() }
+                } label: {
+                    HStack {
+                        Label("Run Health Check", systemImage: "arrow.clockwise")
+                        if isRefreshing {
+                            Spacer()
+                            ProgressView()
+                        }
+                    }
+                }
+                .disabled(isRefreshing)
+            }
+
+            Section("Checks") {
+                ForEach(checkItems) { item in
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: item.state.icon)
+                            .foregroundColor(item.state.color)
+                            .padding(.top, 2)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.title)
+                                .font(.subheadline.weight(.semibold))
+                            Text(item.detail)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+
+            Section("Actions") {
+                Button("Open iOS Settings") {
+                    openSystemSettings()
+                }
+                Button {
+                    Task { await runNotificationAutoRepair() }
+                } label: {
+                    HStack {
+                        Label("Run Auto-Repair", systemImage: "wrench.and.screwdriver")
+                        if isRefreshing {
+                            Spacer()
+                            ProgressView()
+                        }
+                    }
+                }
+                .disabled(isRefreshing)
+                Button {
+                    Task { await sendTestReminder() }
+                } label: {
+                    Label("Send Test Reminder", systemImage: "bell.badge")
+                }
+                .disabled(isRefreshing)
+                Button("Run Setup Wizard Again") {
+                    setupCompleted = false
+                }
+            }
+        }
+        .navigationTitle("Install Health Check")
+        .alert("Install Health Check", isPresented: Binding(
+            get: { actionStatusMessage != nil },
+            set: { if !$0 { actionStatusMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {
+                actionStatusMessage = nil
+            }
+        } message: {
+            Text(actionStatusMessage ?? "")
+        }
+        .onAppear {
+            Task { await refreshChecks() }
+        }
+    }
+
+    private var checkItems: [InstallCheckItem] {
+        [
+            checkSetupCompletion,
+            checkNotifications,
+            checkNotificationQueue,
+            checkCriticalAlerts,
+            checkReminderCoverage,
+            checkHealthKitAvailability,
+            checkHealthKitPermission,
+            checkHealthDataFreshness,
+            checkBackgroundRefresh,
+            checkTimeZone
+        ]
+    }
+
+    private var passingChecks: Int {
+        checkItems.filter { $0.state == .pass }.count
+    }
+
+    private var checkScore: Double {
+        guard !checkItems.isEmpty else { return 0 }
+        return Double(passingChecks) / Double(checkItems.count)
+    }
+
+    private var checkSetupCompletion: InstallCheckItem {
+        if setupCompleted {
+            return InstallCheckItem(
+                id: "setup_completed",
+                title: "Setup wizard completed",
+                detail: "Install flow has been completed on this device.",
+                state: .pass
+            )
+        }
+        return InstallCheckItem(
+            id: "setup_incomplete",
+            title: "Setup wizard incomplete",
+            detail: "DoseTap install setup has not been completed.",
+            state: .fail
+        )
+    }
+
+    private var checkNotifications: InstallCheckItem {
+        let authorized = notificationAuthorizationStatus == .authorized || notificationAuthorizationStatus == .provisional
+        if appSettings.notificationsEnabled && authorized {
+            return InstallCheckItem(
+                id: "notifications_ok",
+                title: "Notifications",
+                detail: "Enabled in app and granted by iOS.",
+                state: .pass
+            )
+        }
+        if !appSettings.notificationsEnabled {
+            return InstallCheckItem(
+                id: "notifications_disabled_app",
+                title: "Notifications disabled in app",
+                detail: "Dose reminders are currently disabled in Settings.",
+                state: .warning
+            )
+        }
+        return InstallCheckItem(
+            id: "notifications_denied_ios",
+            title: "Notifications denied by iOS",
+            detail: "Enable notifications in iOS Settings to receive reminders.",
+            state: .fail
+        )
+    }
+
+    private var checkNotificationQueue: InstallCheckItem {
+        if !appSettings.notificationsEnabled && pendingDoseTapNotificationCount == 0 {
+            return InstallCheckItem(
+                id: "queue_off_clean",
+                title: "Notification queue",
+                detail: "Notifications are off and no pending DoseTap reminders were found.",
+                state: .pass
+            )
+        }
+
+        if !appSettings.notificationsEnabled && pendingDoseTapNotificationCount > 0 {
+            return InstallCheckItem(
+                id: "queue_off_stale",
+                title: "Stale notifications queued",
+                detail: "\(pendingDoseTapNotificationCount) DoseTap notification(s) still pending while notifications are disabled.",
+                state: .warning
+            )
+        }
+
+        if pendingDoseTapNotificationCount > 0 {
+            return InstallCheckItem(
+                id: "queue_active",
+                title: "Notification queue",
+                detail: "\(pendingDoseTapNotificationCount) DoseTap reminder(s) pending (\(pendingWakeNotificationCount) wake alarm).",
+                state: .pass
+            )
+        }
+
+        if alarmService.alarmScheduled {
+            return InstallCheckItem(
+                id: "queue_missing_wake",
+                title: "Wake alarm state mismatch",
+                detail: "Alarm marked scheduled in app state, but no pending wake notification was found.",
+                state: .fail
+            )
+        }
+
+        if sessionRepo.dose1Time != nil && sessionRepo.dose2Time == nil && !sessionRepo.dose2Skipped {
+            return InstallCheckItem(
+                id: "queue_expected_missing",
+                title: "No reminders queued for active session",
+                detail: "Dose 1 exists and Dose 2 is pending, but no queued reminder notifications were found.",
+                state: .warning
+            )
+        }
+
+        return InstallCheckItem(
+            id: "queue_empty",
+            title: "No pending notifications",
+            detail: "No DoseTap reminders are currently queued for delivery.",
+            state: .warning
+        )
+    }
+
+    private var checkCriticalAlerts: InstallCheckItem {
+        guard appSettings.criticalAlertsEnabled else {
+            return InstallCheckItem(
+                id: "critical_off",
+                title: "Critical alerts disabled",
+                detail: "Only standard notifications will be used.",
+                state: .warning
+            )
+        }
+        if criticalAlertSetting == .enabled {
+            return InstallCheckItem(
+                id: "critical_enabled",
+                title: "Critical alerts",
+                detail: "Critical alert permission is enabled.",
+                state: .pass
+            )
+        }
+        return InstallCheckItem(
+            id: "critical_not_granted",
+            title: "Critical alerts not granted",
+            detail: "App requests critical alerts but iOS has not granted them.",
+            state: .warning
+        )
+    }
+
+    private var checkReminderCoverage: InstallCheckItem {
+        if appSettings.criticalAlertsEnabled && !appSettings.notificationsEnabled {
+            return InstallCheckItem(
+                id: "coverage_inconsistent_critical",
+                title: "Settings mismatch",
+                detail: "Critical alerts are enabled while notifications are disabled.",
+                state: .fail
+            )
+        }
+
+        guard appSettings.notificationsEnabled else {
+            return InstallCheckItem(
+                id: "coverage_notifications_off",
+                title: "Reminder coverage",
+                detail: "Notifications are disabled, so reminder coverage checks are skipped.",
+                state: .warning
+            )
+        }
+
+        let warningTogglesEnabled = appSettings.windowOpenAlert || appSettings.fifteenMinWarning || appSettings.fiveMinWarning
+        if warningTogglesEnabled {
+            return InstallCheckItem(
+                id: "coverage_ok",
+                title: "Reminder coverage",
+                detail: "At least one dose-window reminder warning is enabled.",
+                state: .pass
+            )
+        }
+
+        return InstallCheckItem(
+            id: "coverage_none",
+            title: "No dose-window warnings enabled",
+            detail: "Window-open, 15m, and 5m warnings are all off.",
+            state: .warning
+        )
+    }
+
+    private var checkHealthKitAvailability: InstallCheckItem {
+        if healthKit.isAvailable {
+            return InstallCheckItem(
+                id: "healthkit_available",
+                title: "HealthKit availability",
+                detail: "HealthKit APIs are available on this install.",
+                state: .pass
+            )
+        }
+        return InstallCheckItem(
+            id: "healthkit_unavailable",
+            title: "HealthKit unavailable",
+            detail: "Common on simulator/unsigned builds; timeline falls back to local events.",
+            state: .warning
+        )
+    }
+
+    private var checkHealthKitPermission: InstallCheckItem {
+        if appSettings.healthKitEnabled && healthKit.isAuthorized {
+            return InstallCheckItem(
+                id: "healthkit_permission_ok",
+                title: "HealthKit permission",
+                detail: "Sleep data access is enabled and authorized.",
+                state: .pass
+            )
+        }
+        if !appSettings.healthKitEnabled {
+            return InstallCheckItem(
+                id: "healthkit_permission_disabled",
+                title: "HealthKit disabled in app",
+                detail: "Timeline will not load Apple Health sleep stages until enabled.",
+                state: .warning
+            )
+        }
+        return InstallCheckItem(
+            id: "healthkit_permission_missing",
+            title: "HealthKit authorization missing",
+            detail: "App expects HealthKit but authorization is not granted.",
+            state: .fail
+        )
+    }
+
+    private var checkHealthDataFreshness: InstallCheckItem {
+        guard appSettings.healthKitEnabled && healthKit.isAuthorized else {
+            return InstallCheckItem(
+                id: "health_freshness_na",
+                title: "Health data freshness",
+                detail: "Not applicable until HealthKit is enabled and authorized.",
+                state: .warning
+            )
+        }
+        guard let syncAt = healthKit.lastTimelineSyncAt else {
+            return InstallCheckItem(
+                id: "health_freshness_missing",
+                title: "Health data not synced yet",
+                detail: "Open Timeline once to perform initial HealthKit sync.",
+                state: .warning
+            )
+        }
+        let minutes = max(0, Int(Date().timeIntervalSince(syncAt) / 60))
+        if minutes <= 120 {
+            return InstallCheckItem(
+                id: "health_freshness_ok",
+                title: "Health data freshness",
+                detail: "Last timeline sync was \(minutes)m ago.",
+                state: .pass
+            )
+        }
+        return InstallCheckItem(
+            id: "health_freshness_stale",
+            title: "Health data may be stale",
+            detail: "Last timeline sync was \(minutes)m ago.",
+            state: .warning
+        )
+    }
+
+    private var checkBackgroundRefresh: InstallCheckItem {
+        #if canImport(UIKit)
+        let status = UIApplication.shared.backgroundRefreshStatus
+        switch status {
+        case .available:
+            return InstallCheckItem(
+                id: "bg_refresh_available",
+                title: "Background refresh",
+                detail: "Background refresh is available.",
+                state: .pass
+            )
+        case .restricted:
+            return InstallCheckItem(
+                id: "bg_refresh_restricted",
+                title: "Background refresh restricted",
+                detail: "System policies may delay reminders and sync.",
+                state: .warning
+            )
+        case .denied:
+            return InstallCheckItem(
+                id: "bg_refresh_denied",
+                title: "Background refresh denied",
+                detail: "Enable Background App Refresh for better reliability.",
+                state: .warning
+            )
+        @unknown default:
+            return InstallCheckItem(
+                id: "bg_refresh_unknown",
+                title: "Background refresh unknown",
+                detail: "Unable to determine background refresh state.",
+                state: .warning
+            )
+        }
+        #else
+        return InstallCheckItem(
+            id: "bg_refresh_unavailable",
+            title: "Background refresh",
+            detail: "Unavailable on this platform.",
+            state: .warning
+        )
+        #endif
+    }
+
+    private var checkTimeZone: InstallCheckItem {
+        let current = TimeZone.current.identifier
+        let auto = TimeZone.autoupdatingCurrent.identifier
+        if current == auto {
+            return InstallCheckItem(
+                id: "timezone_consistent",
+                title: "Timezone consistency",
+                detail: "Current timezone is \(current).",
+                state: .pass
+            )
+        }
+        return InstallCheckItem(
+            id: "timezone_mismatch",
+            title: "Timezone mismatch detected",
+            detail: "Current: \(current), auto-updating: \(auto).",
+            state: .warning
+        )
+    }
+
+    private func refreshChecks() async {
+        isRefreshing = true
+        defer { isRefreshing = false }
+
+        healthKit.checkAuthorizationStatus()
+        let notificationSettings = await loadNotificationSettings()
+        notificationAuthorizationStatus = notificationSettings.authorizationStatus
+        criticalAlertSetting = notificationSettings.criticalAlertSetting
+        let pendingRequests = await loadPendingNotificationRequests()
+        pendingDoseTapNotificationCount = pendingRequests.count
+        pendingWakeNotificationCount = pendingRequests.filter { $0.identifier == "dosetap_wake_alarm" }.count
+        lastCheckedAt = Date()
+    }
+
+    private func loadNotificationSettings() async -> UNNotificationSettings {
+        await withCheckedContinuation { continuation in
+            UNUserNotificationCenter.current().getNotificationSettings { settings in
+                continuation.resume(returning: settings)
+            }
+        }
+    }
+
+    private func loadPendingNotificationRequests() async -> [UNNotificationRequest] {
+        await withCheckedContinuation { continuation in
+            UNUserNotificationCenter.current().getPendingNotificationRequests { requests in
+                let doseTapRequests = requests.filter {
+                    $0.identifier.hasPrefix("dosetap_") && !$0.identifier.hasPrefix("dosetap_install_test_")
+                }
+                continuation.resume(returning: doseTapRequests)
+            }
+        }
+    }
+
+    private func openSystemSettings() {
+        #if canImport(UIKit)
+        if let url = URL(string: UIApplication.openSettingsURLString) {
+            openURL(url)
+        }
+        #endif
+    }
+
+    private func runNotificationAutoRepair() async {
+        isRefreshing = true
+        defer { isRefreshing = false }
+
+        alarmService.stopRinging(acknowledge: false)
+        alarmService.cancelAllAlarms()
+
+        var repairedItems: [String] = ["Cleared pending DoseTap notifications"]
+
+        if appSettings.notificationsEnabled,
+           let dose1Time = sessionRepo.dose1Time,
+           sessionRepo.dose2Time == nil,
+           !sessionRepo.dose2Skipped {
+            if let targetWake = alarmService.targetWakeTime, targetWake > Date() {
+                await alarmService.scheduleWakeAlarm(at: targetWake, dose1Time: dose1Time)
+                repairedItems.append("Rescheduled wake alarm")
+            }
+            await alarmService.scheduleDose2Reminders(dose1Time: dose1Time)
+            repairedItems.append("Rescheduled dose-window reminders")
+        }
+
+        await refreshChecks()
+        actionStatusMessage = repairedItems.joined(separator: "\n").prependedBulletList
+    }
+
+    private func sendTestReminder() async {
+        guard appSettings.notificationsEnabled else {
+            actionStatusMessage = "Enable notifications in Settings first, then run test reminder."
+            return
+        }
+
+        let granted = await alarmService.requestPermission()
+        guard granted else {
+            actionStatusMessage = "iOS notification permission is denied. Enable it in system settings, then retry."
+            return
+        }
+
+        let content = UNMutableNotificationContent()
+        content.title = "DoseTap Install Test"
+        content.body = "If you received this, local notification delivery is working."
+        content.sound = appSettings.soundEnabled ? .default : nil
+        content.interruptionLevel = appSettings.criticalAlertsEnabled ? .timeSensitive : .active
+
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 3, repeats: false)
+        let id = "dosetap_install_test_\(UUID().uuidString)"
+        let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
+
+        do {
+            try await UNUserNotificationCenter.current().add(request)
+            actionStatusMessage = "Test reminder scheduled for ~3 seconds from now."
+            await refreshChecks()
+        } catch {
+            actionStatusMessage = "Failed to schedule test reminder: \(error.localizedDescription)"
+        }
+    }
+
+    private func relativeTimeText(for date: Date) -> String {
+        let minutes = max(0, Int(Date().timeIntervalSince(date) / 60))
+        return "\(minutes)m ago"
+    }
+}
+
+private extension String {
+    var prependedBulletList: String {
+        split(separator: "\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .map { line in
+                if line.hasPrefix("•") {
+                    return String(line.drop(while: { $0 == "•" || $0 == " " }))
+                }
+                return line
+            }
+            .map { "• \($0)" }
+            .joined(separator: "\n")
+    }
+}
+
+private struct ExportActivityViewController: UIViewControllerRepresentable {
+    let activityItems: [Any]
+    let completion: @MainActor (Bool, Error?) -> Void
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+        controller.completionWithItemsHandler = { _, completed, _, error in
+            Task { @MainActor in
+                completion(completed, error)
+            }
+        }
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) { }
 }
 
 // MARK: - HealthKit Settings View

@@ -46,7 +46,7 @@ struct TonightView: View {
                 showingError = error != nil
             }
             .sheet(isPresented: $showMorningCheckIn) {
-                MorningCheckInView(
+                MorningCheckInViewV2(
                     sessionId: SessionRepository.shared.currentSessionIdString(),
                     sessionDate: SessionRepository.shared.currentSessionDateString(),
                     onComplete: {

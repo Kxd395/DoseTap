@@ -218,7 +218,7 @@ struct PreSleepLogViewV2: View {
                     painWokeUser: false,
                     sessionId: sessionId
                 )
-                EventStorage.shared.savePainSnapshot(snapshot)
+                sessionRepo.savePainSnapshot(snapshot)
             }
             
             dismiss()
@@ -1296,8 +1296,7 @@ struct NapSummaryCompact: View {
     @ObservedObject private var sessionRepo = SessionRepository.shared
     
     private var napsLogged: (count: Int, totalMinutes: Int) {
-        // TODO: Fetch actual nap events
-        return (0, 0)
+        sessionRepo.napSummary(for: sessionRepo.plannerSessionKey(for: Date()))
     }
     
     var body: some View {
@@ -1310,8 +1309,9 @@ struct NapSummaryCompact: View {
                     Text("Naps logged: \(napsLogged.count), total \(napsLogged.totalMinutes)m")
                         .font(.subheadline)
                     Spacer()
-                    Button("View") { }
+                    Text("See Tonight events")
                         .font(.caption)
+                        .foregroundColor(.secondary)
                 }
                 .padding()
                 .background(Color.green.opacity(0.1))
@@ -1329,6 +1329,48 @@ struct NapSummaryCompact: View {
                 }
             }
         }
+    }
+}
+
+/// Lightweight flow layout used by pain chips/selectors.
+struct PainFlowLayout: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.replacingUnspecifiedDimensions().width
+        return flowResult(in: width, subviews: subviews).size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let result = flowResult(in: bounds.width, subviews: subviews)
+        for (index, subview) in subviews.enumerated() {
+            subview.place(
+                at: CGPoint(x: bounds.minX + result.positions[index].x, y: bounds.minY + result.positions[index].y),
+                proposal: .unspecified
+            )
+        }
+    }
+
+    private func flowResult(in maxWidth: CGFloat, subviews: Subviews) -> (size: CGSize, positions: [CGPoint]) {
+        var positions: [CGPoint] = []
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var lineHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > maxWidth && x > 0 {
+                x = 0
+                y += lineHeight + spacing
+                lineHeight = 0
+            }
+
+            positions.append(CGPoint(x: x, y: y))
+            lineHeight = max(lineHeight, size.height)
+            x += size.width + spacing
+        }
+
+        return (CGSize(width: maxWidth, height: y + lineHeight), positions)
     }
 }
 

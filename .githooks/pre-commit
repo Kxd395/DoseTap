@@ -1,0 +1,81 @@
+#!/bin/bash
+# DoseTap pre-commit hook
+# Enforces build safety, print() ban, and file-size limits locally.
+# Install: git config core.hooksPath .githooks
+set -euo pipefail
+
+echo "🔒 DoseTap pre-commit checks..."
+
+# ─── 1. SwiftPM build must succeed ───────────────────────────────
+if command -v xcrun >/dev/null 2>&1; then
+  SWIFT_CMD=(xcrun swift)
+else
+  SWIFT_CMD=(swift)
+fi
+if [ "$(sysctl -in hw.optional.arm64 2>/dev/null || echo 0)" = "1" ]; then
+  NATIVE_PREFIX=(arch -arm64)
+else
+  NATIVE_PREFIX=()
+fi
+echo "  ▸ ${NATIVE_PREFIX[*]} ${SWIFT_CMD[*]} build -q"
+if ! env -u SDKROOT -u MACOSX_DEPLOYMENT_TARGET -u IPHONEOS_DEPLOYMENT_TARGET -u WATCHOS_DEPLOYMENT_TARGET -u TVOS_DEPLOYMENT_TARGET "${NATIVE_PREFIX[@]}" "${SWIFT_CMD[@]}" build -q; then
+  echo "❌ FAIL: swift build failed. Fix compile errors before committing."
+  exit 1
+fi
+echo "  ✅ SwiftPM build OK"
+
+# ─── 2. No print() in ios/Core/ (production code) ───────────────
+if command -v rg >/dev/null 2>&1; then
+  PRINT_VIOLATIONS=$(rg -n 'print\(' ios/Core --glob '*.swift' || true)
+else
+  PRINT_VIOLATIONS=$(grep -rn 'print(' ios/Core --include='*.swift' || true)
+fi
+if [ -n "$PRINT_VIOLATIONS" ]; then
+  echo "❌ FAIL: print() found in ios/Core — use os.Logger instead:"
+  echo "$PRINT_VIOLATIONS"
+  exit 1
+fi
+echo "  ✅ No print() in DoseCore"
+
+# ─── 3. File size warning (>2000 lines) ─────────────────────────
+LARGE_FILES=$(find ios/ -name "*.swift" -exec awk 'END{if(NR>2000) print FILENAME": "NR" lines"}' {} \; 2>/dev/null || true)
+if [ -n "$LARGE_FILES" ]; then
+  echo "⚠️  WARNING: Large files detected (>2000 lines). Consider refactoring:"
+  echo "$LARGE_FILES"
+  # Warning only — does not block commit
+fi
+
+# ─── 4. If app layer changed, Xcode build must succeed ──────────
+if git diff --cached --name-only | grep -q '^ios/DoseTap/'; then
+  if ! command -v xcodebuild >/dev/null 2>&1; then
+    echo "❌ FAIL: xcodebuild not found, but ios/DoseTap/ files are staged."
+    exit 1
+  fi
+  echo "  ▸ xcodebuild build (ios/DoseTap changes detected)"
+  if ! xcodebuild build \
+      -project ios/DoseTap.xcodeproj \
+      -scheme DoseTap \
+      -destination 'generic/platform=iOS Simulator' \
+      CODE_SIGNING_ALLOWED=NO \
+      CODE_SIGN_IDENTITY="" \
+      DEVELOPMENT_TEAM="" >/tmp/dosetap-precommit-xcode.log 2>&1; then
+    echo "❌ FAIL: xcodebuild failed for ios/DoseTap/ changes."
+    tail -50 /tmp/dosetap-precommit-xcode.log || true
+    exit 1
+  fi
+  echo "  ✅ Xcode build OK"
+fi
+
+# ─── 5. Commit size cap (Constitution Principle IX) ─────────────
+DIFF_LINES=$(git diff --cached --numstat | awk '{add += $1; del += $2} END {print add + del + 0}')
+if [ "$DIFF_LINES" -gt 500 ]; then
+  if [ "${DOSETAP_ALLOW_LARGE_COMMIT:-0}" = "1" ]; then
+    echo "  ⚠️  Large commit override enabled (DOSETAP_ALLOW_LARGE_COMMIT=1): $DIFF_LINES lines"
+  else
+    echo "❌ FAIL: Staged diff is $DIFF_LINES lines (>500). Split into smaller atomic commits."
+    echo "   Override only if absolutely necessary: DOSETAP_ALLOW_LARGE_COMMIT=1 git commit ..."
+    exit 1
+  fi
+fi
+
+echo "✅ All pre-commit checks passed."

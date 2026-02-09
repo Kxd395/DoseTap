@@ -396,6 +396,8 @@ struct DoseIntervalData: Identifiable {
 
 struct SleepDataCard: View {
     let timeRange: DashboardView.TimeRange
+    @StateObject private var healthService = HealthDataService.shared
+    @StateObject private var whoopService = WHOOPDataService.shared
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -405,28 +407,35 @@ struct SleepDataCard: View {
             VStack(spacing: 12) {
                 SleepDataRow(
                     title: "Apple Health",
-                    status: "Connected",
-                    lastSync: "2 hours ago",
-                    statusColor: .green
+                    status: healthService.isAuthorized ? "Connected" : "Not Connected",
+                    lastSync: relativeSyncText(healthService.lastSyncDate),
+                    statusColor: healthService.isAuthorized ? .green : .orange
                 )
                 
                 SleepDataRow(
                     title: "WHOOP",
-                    status: "Not Connected",
-                    lastSync: "Never",
-                    statusColor: .orange
+                    status: whoopService.isConnected ? "Connected" : "Not Connected",
+                    lastSync: relativeSyncText(whoopService.lastSyncDate),
+                    statusColor: whoopService.isConnected ? .green : .orange
                 )
             }
             
-            Button("Configure Health Integrations") {
-                // TODO: Navigate to health settings
-            }
-            .font(.caption)
-            .foregroundColor(.blue)
+            Text("Manage integrations in Settings -> Integrations.")
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
         .padding()
         .background(Color(.systemGray6))
         .cornerRadius(12)
+        .onAppear {
+            healthService.refreshAuthorizationStatus()
+            whoopService.refreshConnectionStatus()
+        }
+    }
+
+    private func relativeSyncText(_ date: Date?) -> String {
+        guard let date else { return "Never" }
+        return date.formatted(.relative(presentation: .named))
     }
 }
 

@@ -7,7 +7,7 @@
 //
 
 import XCTest
-@testable import DoseTap
+@testable import DoseCore
 
 final class DosingAmountTests: XCTestCase {
     

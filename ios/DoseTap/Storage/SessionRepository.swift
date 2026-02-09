@@ -28,6 +28,64 @@ public final class SystemNotificationScheduler: NotificationScheduling {
     }
 }
 
+// MARK: - Dedicated Storage Actor
+/// Serialized DB access for async UI flows (timeline/history) to avoid main-thread IO.
+public actor SessionStorageActor {
+    private let storage: EventStorage
+
+    public init(storage: EventStorage) {
+        // Use a dedicated SQLite connection to avoid sharing one raw handle across actors.
+        self.storage = storage.makeBackgroundConnection()
+    }
+
+    public func fetchAllSleepEvents(limit: Int) -> [StoredSleepEvent] {
+        storage.fetchAllSleepEventsLocal(limit: limit)
+    }
+
+    public func fetchAllDoseLogs(limit: Int) -> [StoredDoseLog] {
+        let sessions = storage.fetchRecentSessionsLocal(days: 365)
+        return sessions.prefix(limit).compactMap { session in
+            guard let dose1Time = session.dose1Time else { return nil }
+            return StoredDoseLog(
+                id: session.sessionDate,
+                sessionDate: session.sessionDate,
+                dose1Time: dose1Time,
+                dose2Time: session.dose2Time,
+                dose2Skipped: session.dose2Skipped,
+                snoozeCount: session.snoozeCount
+            )
+        }
+    }
+
+    public func filterExistingSessionDates(_ dates: [String]) -> [String] {
+        storage.filterExistingSessionDates(dates)
+    }
+
+    public func fetchSleepEvents(for sessionDate: String) -> [StoredSleepEvent] {
+        storage.fetchSleepEvents(forSession: sessionDate)
+    }
+
+    public func fetchDoseLog(for sessionDate: String) -> StoredDoseLog? {
+        storage.fetchDoseLog(forSession: sessionDate)
+    }
+
+    public func fetchSessionId(for sessionDate: String) -> String? {
+        storage.fetchSessionId(forSessionDate: sessionDate)
+    }
+
+    public func fetchDoseEvents(sessionId: String?, sessionDate: String) -> [DoseCore.StoredDoseEvent] {
+        storage.fetchDoseEvents(sessionId: sessionId, sessionDate: sessionDate)
+    }
+
+    public func fetchRecentSessions(days: Int) -> [SessionSummary] {
+        storage.fetchRecentSessionsLocal(days: days)
+    }
+
+    public func deleteSession(sessionDate: String) {
+        storage.deleteSession(sessionDate: sessionDate)
+    }
+}
+
 // MARK: - Session Repository
 /// Single source of truth for session state. UI should bind to this, not DoseTapCore directly.
 /// All mutations flow through here and automatically notify observers.
@@ -36,7 +94,12 @@ public final class SystemNotificationScheduler: NotificationScheduling {
 public final class SessionRepository: ObservableObject, @preconcurrency DoseTapSessionRepository {
     
     // MARK: - Singleton
-    public static let shared = SessionRepository()
+    public static let shared: SessionRepository = {
+        SessionRepository(
+            storage: EventStorage.shared,
+            notificationScheduler: SystemNotificationScheduler.shared
+        )
+    }()
     
     // MARK: - Published State (UI binds to these)
     @Published public private(set) var activeSessionDate: String?
@@ -61,6 +124,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     
     // MARK: - Dependencies
     private let storage: EventStorage
+    private let storageActor: SessionStorageActor
     private let notificationScheduler: NotificationScheduling
     private let clock: () -> Date
     private let timeZoneProvider: () -> TimeZone
@@ -94,11 +158,6 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     
     // MARK: - Initialization
     
-    /// Initialize with default shared storage and system notification scheduler
-    public convenience init() {
-        self.init(storage: EventStorage.shared, notificationScheduler: SystemNotificationScheduler.shared)
-    }
-    
     /// Initialize with injected storage (for testing)
     public init(
         storage: EventStorage,
@@ -108,6 +167,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         rolloverHour: Int = 18
     ) {
         self.storage = storage
+        self.storageActor = SessionStorageActor(storage: storage)
         self.notificationScheduler = notificationScheduler
         self.clock = clock
         self.timeZoneProvider = timeZoneProvider
@@ -132,24 +192,36 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     public func reload() {
         currentSessionKey = storage.currentSessionDate()
         var state = storage.loadCurrentSessionState()
+        var carriedRecentSessionAcrossRollover = false
 
-        // CRITICAL: Check if stored session matches today's session key
-        // If stored session is for a DIFFERENT date, it's from a past night
-        // We should NOT hydrate past session data into tonight's in-memory state
-        // Instead, clear in-memory (fresh Tonight) and let IncompleteSessionBanner handle late check-in
+        // Check whether a stored session from an adjacent rollover boundary should be kept.
         if let storedSessionDate = state.sessionDate, storedSessionDate != currentSessionKey {
-            if state.terminalState != nil {
-                print("📊 SessionRepository: Stored session \(storedSessionDate) completed, current key \(currentSessionKey) → fresh start")
+            let hasPersistedActivity =
+                state.dose1Time != nil ||
+                state.dose2Time != nil ||
+                state.snoozeCount > 0 ||
+                state.dose2Skipped
+            let dayDistance = sessionDayDistance(from: storedSessionDate, to: currentSessionKey) ?? .max
+            let preserveRecentActiveSession =
+                state.terminalState == nil &&
+                hasPersistedActivity &&
+                dayDistance <= 1
+
+            if preserveRecentActiveSession {
+                print("📊 SessionRepository: Carrying recent session \(storedSessionDate) across rollover to \(currentSessionKey)")
+                carriedRecentSessionAcrossRollover = true
             } else {
-                // Past incomplete session exists but UI should show fresh Tonight
-                // mostRecentIncompleteSession() will surface banner for late check-in
-                print("📊 SessionRepository: Stored session \(storedSessionDate) incomplete, current key \(currentSessionKey) → fresh Tonight + banner for late check-in")
+                if state.terminalState != nil {
+                    print("📊 SessionRepository: Stored session \(storedSessionDate) completed, current key \(currentSessionKey) → fresh start")
+                } else {
+                    print("📊 SessionRepository: Stored session \(storedSessionDate) incomplete, current key \(currentSessionKey) → fresh Tonight + banner for late check-in")
+                }
+                clearInMemoryState()
+                sessionDidChange.send()
+                evaluateSessionBoundaries(reason: "reload_stale_session")
+                scheduleRolloverTimer()
+                return
             }
-            clearInMemoryState()
-            sessionDidChange.send()
-            evaluateSessionBoundaries(reason: "reload_stale_session")
-            scheduleRolloverTimer()
-            return
         }
 
         if let d1 = state.dose1Time, let d2 = state.dose2Time {
@@ -195,7 +267,12 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         }
         
         sessionDidChange.send()
-        evaluateSessionBoundaries(reason: "reload")
+        if carriedRecentSessionAcrossRollover {
+            print("📊 SessionRepository: Evaluating boundaries for carried rollover session")
+            evaluateSessionBoundaries(reason: "reload_carried_rollover")
+        } else {
+            evaluateSessionBoundaries(reason: "reload")
+        }
         
         print("📊 SessionRepository reloaded: session=\(activeSessionDate ?? "none"), dose1=\(dose1Time?.description ?? "nil"), dose2=\(dose2Time?.description ?? "nil")")
         scheduleRolloverTimer()
@@ -204,6 +281,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     /// Manual hook to recompute session key after external time or timezone changes.
     public func refreshForTimeChange() {
         updateSessionKeyIfNeeded(reason: "manual_refresh", forceReload: true)
+        evaluateSessionBoundaries(reason: "manual_refresh_post_reload")
     }
 
     private func clearInMemoryState() {
@@ -235,7 +313,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             #endif
             
             // Diagnostic logging: reporting key rollover
-            Task {
+            enqueueDiagnostic {
                 await DiagnosticLogger.shared.log(.sessionRollover, sessionId: oldKey) { entry in
                     entry.reason = reason
                 }
@@ -309,6 +387,12 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         #endif
     }
 
+    private func enqueueDiagnostic(_ operation: @escaping @Sendable () async -> Void) {
+        Task(priority: .utility) {
+            await operation()
+        }
+    }
+
     // MARK: - Schedule Helpers
 
     private func timeFromMinutes(_ minutes: Int, on date: Date, timeZone: TimeZone) -> Date {
@@ -362,6 +446,20 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         return formatter.date(from: sessionDate)
     }
 
+    private func sessionDayDistance(from lhs: String, to rhs: String) -> Int? {
+        guard let lhsDate = sessionDateToDate(lhs), let rhsDate = sessionDateToDate(rhs) else {
+            return nil
+        }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZoneProvider()
+        let startLHS = calendar.startOfDay(for: lhsDate)
+        let startRHS = calendar.startOfDay(for: rhsDate)
+        guard let dayDelta = calendar.dateComponents([.day], from: startLHS, to: startRHS).day else {
+            return nil
+        }
+        return abs(dayDelta)
+    }
+
     private func scheduledSleepStart(for sessionDate: String) -> Date? {
         guard let day = sessionDateToDate(sessionDate) else { return nil }
         let minutes = UserSettingsManager.shared.sleepStartMinutes
@@ -401,7 +499,8 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
 
     /// Ensure there is an active session for the given timestamp.
     private func ensureActiveSession(for timestamp: Date, reason: String) -> (sessionId: String, sessionDate: String) {
-        evaluateSessionBoundaries(reason: "ensure_active_session.\(reason)")
+        // User-triggered writes should not auto-close an in-flight session immediately
+        // before persisting the action. Boundary enforcement runs via reload/timers.
 
         if let activeSessionId = activeSessionId, let activeSessionDate = activeSessionDate, activeSessionEnd == nil {
             return (activeSessionId, activeSessionDate)
@@ -436,7 +535,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         
         storage.startSession(sessionId: sessionId, sessionDate: sessionDate, start: timestamp)
         
-        Task {
+        enqueueDiagnostic {
             await DiagnosticLogger.shared.ensureSessionMetadata(sessionId: sessionId)
             await DiagnosticLogger.shared.logSessionStarted(sessionId: sessionId)
         }
@@ -452,12 +551,14 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         
         storage.closeSession(sessionId: sessionId, sessionDate: sessionDate, end: endTime, terminalState: terminalState)
         
-        Task {
+        let dose1Snapshot = dose1Time
+        let dose2Snapshot = dose2Time
+        enqueueDiagnostic {
             await DiagnosticLogger.shared.logSessionCompleted(
                 sessionId: sessionId,
                 terminalState: terminalState,
-                dose1Time: dose1Time,
-                dose2Time: dose2Time
+                dose1Time: dose1Snapshot,
+                dose2Time: dose2Snapshot
             )
             await DiagnosticLogger.shared.log(.sessionRollover, sessionId: sessionId) { entry in
                 entry.reason = reason
@@ -489,18 +590,11 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         
         // If we deleted the active session, clear in-memory state AND cancel notifications
         if wasActiveSession {
-            activeSessionDate = nil
-            dose1Time = nil
-            dose2Time = nil
-            snoozeCount = 0
-            dose2Skipped = false
-            wakeFinalTime = nil
-            checkInCompleted = false
-            dose1TimezoneOffsetMinutes = nil
-            
-            // P0-3 FIX: Cancel any pending notifications for this session
-            // Notifications should not fire for deleted sessions
+            clearInMemoryState()
             cancelPendingNotifications()
+            AlarmService.shared.resetForNewSession()
+            currentSessionKey = storage.currentSessionDate()
+            scheduleRolloverTimer()
             
             print("🗑️ SessionRepository: Active session deleted, state and notifications cleared")
             #if canImport(OSLog)
@@ -513,6 +607,33 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             #endif
         }
         
+        sessionDidChange.send()
+    }
+
+    /// Async variant of session deletion that performs DB mutation on SessionStorageActor.
+    public func deleteSessionAsync(sessionDate: String) async {
+        let wasActiveSession = (sessionDate == activeSessionDate) ||
+                               (sessionDate == storage.currentSessionDate())
+
+        await storageActor.deleteSession(sessionDate: sessionDate)
+
+        if wasActiveSession {
+            clearInMemoryState()
+            cancelPendingNotifications()
+            AlarmService.shared.resetForNewSession()
+            currentSessionKey = storage.currentSessionDate()
+            scheduleRolloverTimer()
+            print("🗑️ SessionRepository: Active session deleted async, state and notifications cleared")
+            #if canImport(OSLog)
+            logger.info("Active session \(sessionDate, privacy: .public) deleted async; state + notifications cleared")
+            #endif
+        } else {
+            print("🗑️ SessionRepository: Inactive session \(sessionDate) deleted async, active state preserved")
+            #if canImport(OSLog)
+            logger.info("Inactive session \(sessionDate, privacy: .public) deleted async; active state preserved")
+            #endif
+        }
+
         sessionDidChange.send()
     }
     
@@ -544,12 +665,12 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         // Record timezone offset when Dose 1 is taken (track both autoupdating and default time zones)
         dose1TimezoneOffsetMinutes = timeZoneProvider().secondsFromGMT(for: time) / 60
         
-        // Persist to storage
+        // Persist to storage.
         storage.saveDose1(timestamp: time, sessionId: session.sessionId, sessionDateOverride: session.sessionDate)
         storage.linkPreSleepLogToSession(sessionId: session.sessionId, sessionDate: session.sessionDate)
         
         // Diagnostic logging: session started + dose 1 taken
-        Task {
+        enqueueDiagnostic {
             await DiagnosticLogger.shared.logDoseTaken(sessionId: session.sessionId, doseIndex: 1, at: time)
         }
         
@@ -563,11 +684,19 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         let doseEvents = loadDoseEvents(sessionId: session.sessionId, sessionDate: session.sessionDate)
         let doseTakenEvents = doseEvents.filter { isDoseEventType($0.eventType) }
         let sortedEvents = doseTakenEvents.sorted { $0.timestamp < $1.timestamp }
-        
-        let nextDoseIndex = sortedEvents.count + 1
+
+        // Treat multiple dose1 rows as one logical first dose.
+        let hasDose1Event = sortedEvents.contains { $0.eventType == "dose1" }
+        let followupDoseCount = sortedEvents.reduce(into: 0) { count, event in
+            if event.eventType == "dose2" || event.eventType == "extra_dose" {
+                count += 1
+            }
+        }
+        let baseDoseCount = (hasDose1Event || dose1Time != nil) ? 1 : 0
+        let nextDoseIndex = baseDoseCount + followupDoseCount + 1
         let isExtra = nextDoseIndex >= 3
         if isExtraDose && !isExtra {
-            Task {
+            enqueueDiagnostic {
                 await DiagnosticLogger.shared.log(.invariantViolation, sessionId: session.sessionId) { entry in
                     entry.invariantName = "extra_dose_without_dose2"
                 }
@@ -601,7 +730,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         )
         
         // Diagnostic logging: dose taken with index + elapsed info
-        Task {
+        enqueueDiagnostic {
             await DiagnosticLogger.shared.logDoseTaken(
                 sessionId: session.sessionId,
                 doseIndex: nextDoseIndex,
@@ -626,9 +755,10 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         storage.saveSnooze(count: snoozeCount, sessionId: session.sessionId, sessionDateOverride: session.sessionDate)
         
         // Diagnostic logging: snooze activated
-        Task {
+        let snoozeCountSnapshot = snoozeCount
+        enqueueDiagnostic {
             await DiagnosticLogger.shared.log(.snoozeActivated, sessionId: session.sessionId) { entry in
-                entry.snoozeCount = self.snoozeCount
+                entry.snoozeCount = snoozeCountSnapshot
             }
         }
         
@@ -637,18 +767,19 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     
     /// Mark dose 2 as skipped
     public func skipDose2() {
-        dose2Skipped = true
         let now = clock()
         let session = ensureActiveSession(for: now, reason: "skip")
+        dose2Skipped = true
         activeSessionDate = session.sessionDate
         
         // Persist to storage
         storage.saveDoseSkipped(sessionId: session.sessionId, sessionDateOverride: session.sessionDate)
         
         // Diagnostic logging: dose 2 skipped + session completed
-        Task {
+        let dose1Snapshot = dose1Time
+        enqueueDiagnostic {
             await DiagnosticLogger.shared.log(.dose2Skipped, sessionId: session.sessionId) { entry in
-                entry.dose1Time = self.dose1Time
+                entry.dose1Time = dose1Snapshot
             }
         }
         
@@ -670,6 +801,18 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             return activeSessionDate
         }
         return preSleepSessionKey(for: date, timeZone: timeZoneProvider(), rolloverHour: rolloverHour)
+    }
+
+    /// Session key to drive Tonight/planning UI.
+    /// Storage/session integrity still uses `currentSessionKey` (6 PM boundary).
+    public func plannerSessionKey(for date: Date = Date()) -> String {
+        if activeSessionDate != nil {
+            return preSleepDisplaySessionKey(for: date)
+        }
+        if UserSettingsManager.shared.plannerUsesUpcomingNightAfterCheckIn {
+            return preSleepDisplaySessionKey(for: date)
+        }
+        return currentSessionKey
     }
 
     /// Session key to use for pre-sleep log storage (prefers active session id).
@@ -695,7 +838,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         
         // Diagnostic logging: Pre-sleep started (Tier 2) - log on first save, not edits
         if existingLog == nil {
-            Task {
+            enqueueDiagnostic {
                 await DiagnosticLogger.shared.log(.preSleepLogStarted, sessionId: sessionKey)
             }
         }
@@ -710,7 +853,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         )
         
         // Diagnostic logging: Pre-sleep saved or skipped (Tier 2)
-        Task {
+        enqueueDiagnostic {
             let event: DiagnosticEvent = completionState == "skipped" ? .preSleepLogAbandoned : .preSleepLogSaved
             await DiagnosticLogger.shared.log(event, sessionId: sessionKey)
         }
@@ -731,6 +874,10 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         storage.deleteSession(sessionDate: currentDate)
         
         clearInMemoryState()
+        cancelPendingNotifications()
+        AlarmService.shared.resetForNewSession()
+        currentSessionKey = storage.currentSessionDate()
+        scheduleRolloverTimer()
         
         sessionDidChange.send()
     }
@@ -869,7 +1016,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         storage.updateTerminalState(sessionDate: session.sessionDate, sessionId: session.sessionId, state: "finalizing_wake")
         
         // Diagnostic logging: Check-in flow started (Tier 2)
-        Task {
+        enqueueDiagnostic {
             await DiagnosticLogger.shared.log(.checkinStarted, sessionId: session.sessionId)
         }
 
@@ -889,7 +1036,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         
         awaitingRolloverMessage = nil
         
-        Task {
+        enqueueDiagnostic {
             await DiagnosticLogger.shared.log(.checkinCompleted, sessionId: sessionId)
         }
         
@@ -901,7 +1048,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     public func clearWakeFinal() {
         // Diagnostic logging: Check-in skipped/abandoned (Tier 2)
         if let sessionId = activeSessionDate, wakeFinalTime != nil {
-            Task {
+            enqueueDiagnostic {
                 await DiagnosticLogger.shared.log(.checkinSkipped, sessionId: sessionId)
             }
         }
@@ -950,10 +1097,11 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         storage.updateTerminalState(sessionDate: sessionDate, sessionId: sessionId, state: "incomplete_slept_through")
         
         // Diagnostic logging: session auto-expired
-        Task {
+        let dose1Snapshot = dose1Time
+        enqueueDiagnostic {
             await DiagnosticLogger.shared.log(.sessionAutoExpired, sessionId: sessionId) { entry in
                 entry.terminalState = "incomplete_slept_through"
-                entry.dose1Time = self.dose1Time
+                entry.dose1Time = dose1Snapshot
                 entry.reason = "slept_through"
             }
         }
@@ -1036,10 +1184,12 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         let elapsed = context.elapsedSinceDose1.map { Int($0 / 60) }
         let remaining = context.remainingToMax.map { Int($0 / 60) }
         
-        Task {
+        let phaseDescription = String(describing: newPhase)
+        let previousPhaseDescription = previousPhase.map { String(describing: $0) }
+        enqueueDiagnostic {
             await DiagnosticLogger.shared.log(event, sessionId: sessionId) { entry in
-                entry.phase = String(describing: newPhase)
-                entry.previousPhase = previousPhase.map { String(describing: $0) }
+                entry.phase = phaseDescription
+                entry.previousPhase = previousPhaseDescription
                 entry.elapsedMinutes = elapsed
                 entry.remainingMinutes = remaining
                 entry.snoozeCount = context.snoozeCount
@@ -1217,7 +1367,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             // Mark check-in completed for the active session
             completeCheckIn()
         } else {
-            Task {
+            enqueueDiagnostic {
                 await DiagnosticLogger.shared.log(.checkinCompleted, sessionId: resolvedSessionId)
             }
             storage.closeHistoricalSession(
@@ -1309,7 +1459,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         )
         
         // Diagnostic logging (Tier 2: Session Context)
-        Task {
+        enqueueDiagnostic {
             await DiagnosticLogger.shared.logSleepEventLogged(
                 sessionId: session.sessionId,
                 eventType: eventType,
@@ -1332,12 +1482,17 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         if let sessionDate = activeSessionDate {
             return storage.fetchSleepEvents(forSession: sessionDate)
         }
-        return storage.fetchSleepEvents(forSession: currentSessionKey)
+        return storage.fetchSleepEvents(forSession: plannerSessionKey(for: clock()))
     }
     
     /// Fetch sleep events for a specific session date
     public func fetchSleepEvents(for sessionDate: String) -> [StoredSleepEvent] {
         return storage.fetchSleepEvents(forSession: sessionDate)
+    }
+
+    /// Async variant backed by SessionStorageActor.
+    public func fetchSleepEventsAsync(for sessionDate: String) async -> [StoredSleepEvent] {
+        await storageActor.fetchSleepEvents(for: sessionDate)
     }
     
     /// Fetch sleep events for a specific session (alternate label)
@@ -1355,6 +1510,12 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     public func fetchDoseEvents(forSessionDate sessionDate: String) -> [DoseCore.StoredDoseEvent] {
         loadDoseEvents(sessionId: fetchSessionId(forSessionDate: sessionDate), sessionDate: sessionDate)
     }
+
+    /// Async variant backed by SessionStorageActor.
+    public func fetchDoseEventsAsync(forSessionDate sessionDate: String) async -> [DoseCore.StoredDoseEvent] {
+        let sessionId = await storageActor.fetchSessionId(for: sessionDate)
+        return await storageActor.fetchDoseEvents(sessionId: sessionId, sessionDate: sessionDate)
+    }
     
     /// Delete a sleep event by ID
     public func deleteSleepEvent(id: String) {
@@ -1365,9 +1526,10 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         storage.deleteSleepEvent(id: id)
         
         // Diagnostic logging (Tier 2: Session Context)
-        Task {
+        let sessionKeySnapshot = currentSessionKey
+        enqueueDiagnostic {
             await DiagnosticLogger.shared.logSleepEventDeleted(
-                sessionId: currentSessionKey,
+                sessionId: sessionKeySnapshot,
                 eventType: eventType,
                 eventId: id
             )
@@ -1383,19 +1545,13 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     public func clearAllData() {
         storage.clearAllData()
         
-        // Reset in-memory state
-        activeSessionDate = nil
-        dose1Time = nil
-        dose2Time = nil
-        snoozeCount = 0
-        dose2Skipped = false
-        wakeFinalTime = nil
-        checkInCompleted = false
-        dose1TimezoneOffsetMinutes = nil
-        awaitingRolloverMessage = nil
+        clearInMemoryState()
         
         // Recompute session key
         currentSessionKey = sessionKey(for: clock(), timeZone: timeZoneProvider(), rolloverHour: rolloverHour)
+        cancelPendingNotifications()
+        AlarmService.shared.resetForNewSession()
+        scheduleRolloverTimer()
         
         #if canImport(OSLog)
         logger.info("All data cleared")
@@ -1446,15 +1602,35 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             )
         }
     }
+
+    /// Async variant backed by SessionStorageActor.
+    public func fetchAllSleepEventsAsync(limit: Int = 500) async -> [StoredSleepEvent] {
+        await storageActor.fetchAllSleepEvents(limit: limit)
+    }
+
+    /// Async variant backed by SessionStorageActor.
+    public func fetchAllDoseLogsAsync(limit: Int = 500) async -> [StoredDoseLog] {
+        await storageActor.fetchAllDoseLogs(limit: limit)
+    }
     
     /// Filter session dates to those that still exist
     public func filterExistingSessionDates(_ dates: [String]) -> [String] {
         return storage.filterExistingSessionDates(dates)
     }
 
+    /// Async variant backed by SessionStorageActor.
+    public func filterExistingSessionDatesAsync(_ dates: [String]) async -> [String] {
+        await storageActor.filterExistingSessionDates(dates)
+    }
+
     /// Fetch session id for a given session date (if available).
     public func fetchSessionId(forSessionDate sessionDate: String) -> String? {
         return storage.fetchSessionId(forSessionDate: sessionDate)
+    }
+
+    /// Async variant backed by SessionStorageActor.
+    public func fetchSessionIdAsync(forSessionDate sessionDate: String) async -> String? {
+        await storageActor.fetchSessionId(for: sessionDate)
     }
     
     /// Export all data to CSV (basic format)
@@ -1490,7 +1666,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         }
         
         // Log the edit
-        Task {
+        enqueueDiagnostic {
             await DiagnosticLogger.shared.log(.dose1Taken, sessionId: sessionDate) { entry in
                 entry.dose1Time = newTime
                 entry.reason = "time_adjusted"
@@ -1512,7 +1688,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         }
         
         // Log the edit
-        Task {
+        enqueueDiagnostic {
             await DiagnosticLogger.shared.log(.dose2Taken, sessionId: sessionDate) { entry in
                 entry.dose2Time = newTime
                 entry.reason = "time_adjusted"
@@ -1546,10 +1722,48 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         // Use local method that returns local types
         return storage.fetchRecentSessionsLocal(days: days)
     }
+
+    /// Async variant backed by SessionStorageActor.
+    public func fetchRecentSessionsAsync(days: Int = 7) async -> [SessionSummary] {
+        await storageActor.fetchRecentSessions(days: days)
+    }
     
     /// Fetch dose log for a specific session
     public func fetchDoseLog(forSession sessionDate: String) -> StoredDoseLog? {
         return storage.fetchDoseLog(forSession: sessionDate)
+    }
+
+    /// Async variant backed by SessionStorageActor.
+    public func fetchDoseLogAsync(forSession sessionDate: String) async -> StoredDoseLog? {
+        await storageActor.fetchDoseLog(for: sessionDate)
+    }
+
+    /// Persist a pain snapshot through the repository facade.
+    public func savePainSnapshot(_ snapshot: PainSnapshot) {
+        storage.savePainSnapshot(snapshot)
+    }
+
+    /// Fetch a persisted pain snapshot through the repository facade.
+    public func getPainSnapshot(sessionId: String, context: PainSnapshot.Context) -> PainSnapshot? {
+        storage.getPainSnapshot(sessionId: sessionId, context: context)
+    }
+
+    /// Insert a sleep event for a specific session via repository facade.
+    public func insertSleepEventForSession(
+        eventType: String,
+        timestamp: Date = Date(),
+        sessionDate: String,
+        sessionId: String? = nil,
+        notes: String? = nil
+    ) {
+        storage.insertSleepEvent(
+            eventType: eventType,
+            timestamp: timestamp,
+            sessionDate: sessionDate,
+            sessionId: sessionId,
+            notes: notes
+        )
+        sessionDidChange.send()
     }
     
     /// Most recent incomplete session (for check-in prompts)
@@ -1611,5 +1825,53 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     /// Fetch sleep events for a specific session (local type)
     public func fetchSleepEventsLocal(for sessionKey: String) -> [StoredSleepEvent] {
         return storage.fetchSleepEvents(forSession: sessionKey)
+    }
+
+    /// Returns nap marker count and total minutes from paired nap_start/nap_end events.
+    public func napSummary(for sessionKey: String) -> (count: Int, totalMinutes: Int) {
+        let events = fetchSleepEventsLocal(for: sessionKey).sorted { $0.timestamp < $1.timestamp }
+        var napCount = 0
+        var totalMinutes = 0
+        var pendingStart: Date?
+
+        for event in events {
+            guard let boundary = napBoundary(for: event.eventType) else { continue }
+            switch boundary {
+            case .start:
+                pendingStart = event.timestamp
+            case .end:
+                if let start = pendingStart {
+                    let minutes = max(0, TimeIntervalMath.minutesBetween(start: start, end: event.timestamp))
+                    totalMinutes += minutes
+                    napCount += 1
+                    pendingStart = nil
+                } else {
+                    // An unmatched end is still user-visible nap logging activity.
+                    napCount += 1
+                }
+            }
+        }
+
+        if pendingStart != nil {
+            napCount += 1
+        }
+
+        return (napCount, totalMinutes)
+    }
+
+    private enum NapBoundary {
+        case start
+        case end
+    }
+
+    private func napBoundary(for eventType: String) -> NapBoundary? {
+        let normalized = eventType
+            .lowercased()
+            .replacingOccurrences(of: "_", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let compact = normalized.replacingOccurrences(of: " ", with: "")
+        if normalized == "nap start" || compact == "napstart" { return .start }
+        if normalized == "nap end" || compact == "napend" { return .end }
+        return nil
     }
 }

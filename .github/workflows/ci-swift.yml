@@ -16,7 +16,14 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+        run: |
+          set -euo pipefail
+          if [ -d /Applications/Xcode_15.4.app/Contents/Developer ]; then
+            sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+          else
+            echo "Xcode 15.4 not found on runner; using default selected Xcode."
+          fi
+          xcodebuild -version
       
       - name: Show Swift Version
         run: swift --version
@@ -98,6 +105,27 @@ jobs:
           fi
           echo "✅ No stale references in active docs"
 
+  print-ban:
+    name: Production print() Ban
+    runs-on: macos-14
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Check for any print() in ios/Core
+        run: |
+          set -euo pipefail
+          echo "🔍 Checking for print() in ios/Core..."
+          VIOLATIONS="$(rg -n '\bprint\s*\(' ios/Core --glob '*.swift' || true)"
+          if [ -n "$VIOLATIONS" ]; then
+            echo "❌ FAIL: print() found in ios/Core (use os.Logger instead):"
+            echo ""
+            printf "%s\n" "$VIOLATIONS"
+            exit 1
+          fi
+          echo "✅ No print() in ios/Core"
+
   xcode-build:
     name: Xcode iOS Build
     runs-on: macos-14
@@ -107,7 +135,14 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+        run: |
+          set -euo pipefail
+          if [ -d /Applications/Xcode_15.4.app/Contents/Developer ]; then
+            sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+          else
+            echo "Xcode 15.4 not found on runner; using default selected Xcode."
+          fi
+          xcodebuild -version
       
       - name: Build iOS App
         run: |

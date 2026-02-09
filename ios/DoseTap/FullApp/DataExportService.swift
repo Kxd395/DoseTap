@@ -113,7 +113,26 @@ public class DataExportService: ObservableObject {
         
         // Get WHOOP data
         if options.includeWHOOPData {
-            whoopData = WHOOPDataService.shared.recentWHOOPData
+            let whoopService = WHOOPDataService.shared
+            whoopService.refreshConnectionStatus()
+
+            if whoopService.isConnected {
+                let fetchDays: Int = {
+                    guard let dateRange = options.dateRange else { return 30 }
+                    let rangeDays = Calendar.current.dateComponents([.day], from: dateRange.start, to: dateRange.end).day ?? 0
+                    return max(1, rangeDays + 1)
+                }()
+
+                do {
+                    whoopData = try await whoopService.fetchRecentSleepData(days: fetchDays)
+                } catch {
+                    // Keep export non-blocking: fall back to latest cached WHOOP data
+                    whoopData = whoopService.recentWHOOPData
+                }
+            } else {
+                whoopData = whoopService.recentWHOOPData
+            }
+
             if let dateRange = options.dateRange {
                 whoopData = whoopData.filter { data in
                     data.sleepDate >= dateRange.start && data.sleepDate <= dateRange.end
@@ -634,8 +653,8 @@ struct DataExportView: View {
     @State private var startDate = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
     @State private var endDate = Date()
     @State private var showingShareSheet = false
-    @State private var exportContent = ""
-    @State private var exportFilename = ""
+    @State private var exportFileURL: URL?
+    @State private var exportErrorMessage: String?
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
@@ -695,11 +714,38 @@ struct DataExportView: View {
             }
         }
         .sheet(isPresented: $showingShareSheet) {
-            ShareSheet(items: [exportContent])
+            if let exportFileURL {
+                ShareSheet(items: [exportFileURL])
+            } else {
+                EmptyView()
+            }
+        }
+        .alert("Export Failed", isPresented: Binding(
+            get: { exportErrorMessage != nil },
+            set: { if !$0 { exportErrorMessage = nil } }
+        )) {
+            Button("Retry") {
+                Task { await performExport() }
+            }
+            Button("OK", role: .cancel) {
+                exportErrorMessage = nil
+            }
+        } message: {
+            Text(exportErrorMessage ?? "An unknown error occurred while exporting.")
         }
     }
     
     private func performExport() async {
+        guard includeDoseEvents || includeHealthData || includeWHOOPData || includeAnalytics else {
+            exportErrorMessage = "Select at least one data source to export."
+            return
+        }
+
+        if useCustomDateRange, startDate > endDate {
+            exportErrorMessage = "Start date must be on or before end date."
+            return
+        }
+
         let dateRange = useCustomDateRange ? 
             DataExportService.DateRange(start: startDate, end: endDate) : nil
         
@@ -716,13 +762,22 @@ struct DataExportView: View {
         
         switch result {
         case .success(let content, let filename, _):
-            exportContent = content
-            exportFilename = filename
-            showingShareSheet = true
+            do {
+                let fileURL = try writeExportFile(content: content, filename: filename)
+                exportFileURL = fileURL
+                showingShareSheet = true
+            } catch {
+                exportErrorMessage = "Failed to prepare export file: \(error.localizedDescription)"
+            }
         case .failure(let error):
-            print("Export failed: \(error)")
-            // TODO: Show error alert
+            exportErrorMessage = "Export failed: \(error.localizedDescription)"
         }
+    }
+
+    private func writeExportFile(content: String, filename: String) throws -> URL {
+        let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+        try content.write(to: fileURL, atomically: true, encoding: .utf8)
+        return fileURL
     }
 }
 

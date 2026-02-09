@@ -67,6 +67,9 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertNil(repo.dose1Time, "Dose 1 should be nil after delete")
         XCTAssertNil(repo.dose2Time, "Dose 2 should be nil after delete")
         XCTAssertNil(repo.activeSessionDate, "Active session should be nil after delete")
+        XCTAssertNil(repo.activeSessionId, "Active session id should be nil after delete")
+        XCTAssertNil(repo.activeSessionStart, "Active session start should be nil after delete")
+        XCTAssertNil(repo.activeSessionEnd, "Active session end should be nil after delete")
         XCTAssertEqual(repo.snoozeCount, 0, "Snooze count should reset")
         XCTAssertFalse(repo.dose2Skipped, "Skip state should reset")
     }
@@ -120,6 +123,36 @@ final class SessionRepositoryTests: XCTestCase {
         await fulfillment(of: [expectation], timeout: 1.0)
         XCTAssertTrue(changeReceived, "sessionDidChange should fire on delete")
     }
+
+    /// Async deletion path should mirror sync deletion semantics for active sessions.
+    func test_deleteSessionAsync_clearsActiveSessionState() async throws {
+        let now = Date()
+        repo.setDose1Time(now.addingTimeInterval(-60 * 60))
+        repo.setDose2Time(now.addingTimeInterval(-30 * 60))
+        let sessionDate = repo.currentSessionDateString()
+
+        await repo.deleteSessionAsync(sessionDate: sessionDate)
+
+        XCTAssertNil(repo.dose1Time, "Dose 1 should be nil after async delete")
+        XCTAssertNil(repo.dose2Time, "Dose 2 should be nil after async delete")
+        XCTAssertNil(repo.activeSessionDate, "Active session should be nil after async delete")
+        XCTAssertNil(repo.activeSessionId, "Active session id should be nil after async delete")
+        XCTAssertNil(repo.activeSessionStart, "Active session start should be nil after async delete")
+        XCTAssertNil(repo.activeSessionEnd, "Active session end should be nil after async delete")
+        XCTAssertEqual(repo.snoozeCount, 0, "Snooze count should reset after async delete")
+    }
+
+    /// Async timeline/history query path should stay functionally equivalent to sync facade.
+    func test_fetchRecentSessionsAsync_matchesSyncResults() async throws {
+        let dose1 = Date().addingTimeInterval(-160 * 60)
+        repo.setDose1Time(dose1)
+        repo.setDose2Time(dose1.addingTimeInterval(165 * 60))
+
+        let sync = repo.fetchRecentSessions(days: 7)
+        let async = await repo.fetchRecentSessionsAsync(days: 7)
+
+        XCTAssertEqual(async.map(\.sessionDate), sync.map(\.sessionDate), "Async and sync recent sessions should match")
+    }
     
     // MARK: - Test: Reload Syncs from Storage
     
@@ -155,6 +188,29 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertNil(repo.dose2Time)
         XCTAssertEqual(repo.snoozeCount, 0)
         XCTAssertNil(repo.activeSessionDate)
+        XCTAssertNil(repo.activeSessionId)
+        XCTAssertNil(repo.activeSessionStart)
+        XCTAssertNil(repo.activeSessionEnd)
+    }
+
+    func test_clearAllData_clearsSessionIdentityState() async throws {
+        repo.setDose1Time(Date().addingTimeInterval(-120 * 60))
+        repo.incrementSnooze()
+
+        XCTAssertNotNil(repo.activeSessionDate)
+        XCTAssertNotNil(repo.activeSessionId)
+        XCTAssertNotNil(repo.activeSessionStart)
+
+        repo.clearAllData()
+
+        XCTAssertNil(repo.activeSessionDate, "clearAllData should clear active session date")
+        XCTAssertNil(repo.activeSessionId, "clearAllData should clear active session id")
+        XCTAssertNil(repo.activeSessionStart, "clearAllData should clear active session start")
+        XCTAssertNil(repo.activeSessionEnd, "clearAllData should clear active session end")
+        XCTAssertNil(repo.dose1Time, "clearAllData should clear dose1 time")
+        XCTAssertNil(repo.dose2Time, "clearAllData should clear dose2 time")
+        XCTAssertEqual(repo.snoozeCount, 0, "clearAllData should reset snooze count")
+        XCTAssertEqual(repo.currentContext.phase, .noDose1, "clearAllData should return to noDose1 phase")
     }
     
     // MARK: - Test: Mutations Broadcast Changes
@@ -426,6 +482,63 @@ final class SessionRepositoryTests: XCTestCase {
         
         XCTAssertEqual(beforeKey, "2025-12-25")
         XCTAssertEqual(afterKey, "2025-12-25")
+    }
+
+    func test_plannerSessionKey_afterMorningCheckIn_targetsUpcomingNightByDefault() {
+        let tz = TimeZone(identifier: "America/New_York")!
+        let morning = makeDate(2025, 12, 29, 7, 30, tz: tz)
+        let clock = TestClock(now: morning, timeZone: tz)
+        let settings = UserSettingsManager.shared
+        let previousToggle = settings.plannerUsesUpcomingNightAfterCheckIn
+        settings.plannerUsesUpcomingNightAfterCheckIn = true
+        defer { settings.plannerUsesUpcomingNightAfterCheckIn = previousToggle }
+
+        let localRepo = SessionRepository(
+            storage: storage,
+            notificationScheduler: FakeNotificationScheduler(),
+            clock: { clock.now },
+            timeZoneProvider: { clock.timeZone },
+            rolloverHour: 18
+        )
+
+        // Prior-night session (Sunday) closes after wake/check-in on Monday morning.
+        localRepo.setDose1Time(makeDate(2025, 12, 28, 23, 0, tz: tz))
+        localRepo.setWakeFinalTime(makeDate(2025, 12, 29, 7, 0, tz: tz))
+        localRepo.completeCheckIn()
+
+        XCTAssertNil(localRepo.activeSessionDate, "Session should be closed after check-in")
+        XCTAssertEqual(localRepo.currentSessionKey, "2025-12-28", "Storage session key remains prior night until 6 PM")
+        XCTAssertEqual(
+            localRepo.plannerSessionKey(for: clock.now),
+            "2025-12-29",
+            "UI planning key should move to upcoming night after morning check-in"
+        )
+    }
+
+    func test_plannerSessionKey_canFollowStorageBoundaryWhenToggleOff() {
+        let tz = TimeZone(identifier: "America/New_York")!
+        let morning = makeDate(2025, 12, 29, 7, 30, tz: tz)
+        let clock = TestClock(now: morning, timeZone: tz)
+        let settings = UserSettingsManager.shared
+        let previousToggle = settings.plannerUsesUpcomingNightAfterCheckIn
+        settings.plannerUsesUpcomingNightAfterCheckIn = false
+        defer { settings.plannerUsesUpcomingNightAfterCheckIn = previousToggle }
+
+        let localRepo = SessionRepository(
+            storage: storage,
+            notificationScheduler: FakeNotificationScheduler(),
+            clock: { clock.now },
+            timeZoneProvider: { clock.timeZone },
+            rolloverHour: 18
+        )
+
+        XCTAssertNil(localRepo.activeSessionDate)
+        XCTAssertEqual(localRepo.currentSessionKey, "2025-12-28")
+        XCTAssertEqual(
+            localRepo.plannerSessionKey(for: clock.now),
+            "2025-12-28",
+            "When toggle is off, planner should follow 6 PM storage boundary key"
+        )
     }
 
     func test_preSleepLog_upsertSameSession() async throws {

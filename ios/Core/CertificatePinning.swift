@@ -1,6 +1,9 @@
 import Foundation
 import Security
 import CryptoKit
+#if canImport(OSLog)
+import OSLog
+#endif
 
 /// Certificate pinning delegate for URLSession
 /// 
@@ -16,6 +19,19 @@ import CryptoKit
 /// ```
 @available(iOS 15.0, watchOS 8.0, macOS 12.0, *)
 public final class CertificatePinning: NSObject, URLSessionDelegate, @unchecked Sendable {
+    private static func logWarning(_ message: String) {
+        #if canImport(OSLog)
+        Logger(subsystem: "com.dosetap.core", category: "CertificatePinning")
+            .warning("\(message, privacy: .public)")
+        #endif
+    }
+
+    private static func logError(_ message: String) {
+        #if canImport(OSLog)
+        Logger(subsystem: "com.dosetap.core", category: "CertificatePinning")
+            .error("\(message, privacy: .public)")
+        #endif
+    }
     
     // MARK: - Configuration
     
@@ -54,22 +70,48 @@ public final class CertificatePinning: NSObject, URLSessionDelegate, @unchecked 
     // MARK: - Default Pins
     
     /// Create pinning configuration for DoseTap API
-    /// Replace these with actual certificate pins before release
     public static func forDoseTapAPI() -> CertificatePinning {
-        // TODO: Replace with actual SPKI hashes from your API certificates
-        // You can have multiple pins for certificate rotation
-        let pins = [
-            // Primary certificate pin (replace with actual)
-            "sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-            // Backup certificate pin (for rotation)
-            "sha256/BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB="
-        ]
-        
+        let pins = configuredPins()
         return CertificatePinning(
             pins: pins,
             domains: ["api.dosetap.com", "auth.dosetap.com"],
             allowFallback: false
         )
+    }
+
+    /// Returns true when at least one pin is configured via env or Info.plist.
+    public static var hasConfiguredPins: Bool {
+        !configuredPins().isEmpty
+    }
+
+    private static func configuredPins() -> [String] {
+        if let envValue = ProcessInfo.processInfo.environment["DOSETAP_CERT_PINS"] {
+            let parsed = parsePins(envValue)
+            if !parsed.isEmpty { return parsed }
+        }
+
+        if let plistValue = Bundle.main.object(forInfoDictionaryKey: "DOSETAP_CERT_PINS") as? String {
+            let parsed = parsePins(plistValue)
+            if !parsed.isEmpty { return parsed }
+        }
+
+        if let plistArray = Bundle.main.object(forInfoDictionaryKey: "DOSETAP_CERT_PINS") as? [String] {
+            let parsed = plistArray.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+            if !parsed.isEmpty { return parsed }
+        }
+
+        #if DEBUG
+        #if canImport(OSLog)
+        Self.logWarning("No pins configured (DOSETAP_CERT_PINS); falling back to default TLS trust evaluation")
+        #endif
+        #endif
+        return []
+    }
+
+    private static func parsePins(_ raw: String) -> [String] {
+        raw.split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
     }
     
     // MARK: - URLSessionDelegate
@@ -92,6 +134,11 @@ public final class CertificatePinning: NSObject, URLSessionDelegate, @unchecked 
             completionHandler(.performDefaultHandling, nil)
             return
         }
+
+        if pinnedHashes.isEmpty {
+            completionHandler(.performDefaultHandling, nil)
+            return
+        }
         
         // Evaluate server trust
         var error: CFError?
@@ -99,7 +146,9 @@ public final class CertificatePinning: NSObject, URLSessionDelegate, @unchecked 
         
         guard isValid else {
             #if DEBUG
-            print("⚠️ CertificatePinning: Trust evaluation failed for \(host): \(error?.localizedDescription ?? "unknown")")
+            #if canImport(OSLog)
+            Self.logWarning("Trust evaluation failed for \(host): \(error?.localizedDescription ?? "unknown")")
+            #endif
             #endif
             completionHandler(.cancelAuthenticationChallenge, nil)
             return
@@ -124,12 +173,16 @@ public final class CertificatePinning: NSObject, URLSessionDelegate, @unchecked 
             completionHandler(.useCredential, credential)
         } else if allowFallback {
             #if DEBUG
-            print("⚠️ CertificatePinning: Pin mismatch for \(host), allowing fallback (DEBUG only)")
+            #if canImport(OSLog)
+            Self.logWarning("Pin mismatch for \(host), allowing fallback (DEBUG only)")
+            #endif
             #endif
             completionHandler(.performDefaultHandling, nil)
         } else {
             #if DEBUG
-            print("❌ CertificatePinning: Pin mismatch for \(host), rejecting connection")
+            #if canImport(OSLog)
+            Self.logError("Pin mismatch for \(host), rejecting connection")
+            #endif
             #endif
             completionHandler(.cancelAuthenticationChallenge, nil)
         }

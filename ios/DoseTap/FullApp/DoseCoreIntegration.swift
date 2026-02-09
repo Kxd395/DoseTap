@@ -1,6 +1,9 @@
 import SwiftUI
 import Combine
 import DoseCore
+#if canImport(Network)
+import Network
+#endif
 
 // MARK: - Configuration
 /// API configuration - loads from Info.plist or uses defaults
@@ -32,6 +35,7 @@ public struct APIConfiguration {
 public class DoseCoreIntegration: ObservableObject {
     // Core services from the tested DoseCore module
     private let dosingService: DosingService
+    private let networkStatus = LiveNetworkStatus.shared
     
     // MARK: - State is now derived from SessionRepository (P0-1 FIX)
     
@@ -61,9 +65,9 @@ public class DoseCoreIntegration: ObservableObject {
     
     public init() {
         // Initialize core services with configurable base URL
-        let transport = URLSessionTransport()
+        let transport = Self.makeTransport()
         let apiClient = APIClient(baseURL: APIConfiguration.baseURL, transport: transport)
-        let offlineQueue = InMemoryOfflineQueue(isOnline: { true }) // TODO: Use real network monitor
+        let offlineQueue = InMemoryOfflineQueue(isOnline: { [networkStatus] in networkStatus.isOnline })
         let rateLimiter = EventRateLimiter.default // Use all 13 event cooldowns
         
         self.dosingService = DosingService(
@@ -87,6 +91,24 @@ public class DoseCoreIntegration: ObservableObject {
         
         // Start periodic updates for time-based context changes
         startPeriodicUpdates()
+    }
+
+    private static func makeTransport() -> APITransport {
+        let env = ProcessInfo.processInfo.environment
+
+        #if DEBUG
+        if env["DOSETAP_USE_PINNED_TRANSPORT"] == "1",
+           CertificatePinning.hasConfiguredPins {
+            return PinnedURLSessionTransport()
+        }
+        return URLSessionTransport()
+        #else
+        if CertificatePinning.hasConfiguredPins {
+            return PinnedURLSessionTransport()
+        }
+        assertionFailure("Certificate pinning is not configured; set DOSETAP_CERT_PINS for release builds.")
+        return URLSessionTransport()
+        #endif
     }
     
     // MARK: - Load Recent Events (for display only)
@@ -315,3 +337,36 @@ public class DoseCoreIntegration: ObservableObject {
     }
 }
 
+final class LiveNetworkStatus: @unchecked Sendable {
+    static let shared = LiveNetworkStatus()
+
+    #if canImport(Network)
+    private let monitor = NWPathMonitor()
+    #endif
+    private let monitorQueue = DispatchQueue(label: "com.dosetap.network-status")
+    private let lock = NSLock()
+    private var online = true
+
+    var isOnline: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return online
+    }
+
+    private init() {
+        #if canImport(Network)
+        monitor.pathUpdateHandler = { [weak self] path in
+            self?.setOnline(path.status == .satisfied)
+        }
+        monitor.start(queue: monitorQueue)
+        #else
+        setOnline(true)
+        #endif
+    }
+
+    private func setOnline(_ value: Bool) {
+        lock.lock()
+        online = value
+        lock.unlock()
+    }
+}
