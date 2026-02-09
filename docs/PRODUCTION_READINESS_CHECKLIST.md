@@ -12,7 +12,7 @@
 
 | Item | Status | Evidence |
 |------|--------|----------|
-| **CoreData layer removed** | ✅ Done | Commit `ae4e7f1` - PersistentStore gutted, xcdatamodel deleted |
+| **Legacy persistence layer removed** | ✅ Done | Commit `ae4e7f1` - PersistentStore gutted, xcdatamodel deleted |
 | **Event type normalization migration** | ✅ Done | `EventStorage.migrateEventTypes()` added |
 | **Dose duplication fix (new data)** | ✅ Done | ContentView no longer writes doses to sleep_events |
 | **iCloud toggle disabled** | ✅ Done | SetupWizardView toggle hidden |

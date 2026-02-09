@@ -41,6 +41,12 @@ Schedule settings used by rollover logic (from `UserSettingsManager`):
 - `prepTimeMinutes` (default 18:00)
 - `missedCheckInCutoffHours` (default 4)
 
+Safety constraints (authoritative):
+- Dose 2 clinical window is 150-240 minutes after Dose 1.
+- Default target interval is 165 minutes (valid planner targets: 165, 180, 195, 210, 225).
+- Session day grouping rolls over at 18:00 (6 PM) local time.
+- Undo window is 5 seconds by default for dose/event actions.
+
 ### DoseEvent
 
 - Storage: `dose_events` table with `session_id` and `session_date`. See `EventStorage.saveDose1/saveDose2/saveDoseSkipped/saveSnooze`.
