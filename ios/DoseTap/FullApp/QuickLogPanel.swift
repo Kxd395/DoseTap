@@ -199,16 +199,8 @@ public class QuickLogViewModel: ObservableObject {
             let now = Date()
             repository.logSleepEvent(eventType: eventKey, timestamp: now, notes: nil, source: "manual")
             
-            // Update local recent events list from storage
-            let newEvent = StoredSleepEvent(
-                id: UUID().uuidString,
-                eventType: eventKey,
-                timestamp: now,
-                sessionDate: repository.currentSessionKey,
-                colorHex: nil,
-                notes: nil
-            )
-            recentEvents.insert(newEvent, at: 0)
+            // Refresh from storage so planner/display key behavior stays consistent.
+            recentEvents = repository.fetchTonightSleepEvents()
             
             // Update button state with cooldown
             buttonStates[eventKey] = QuickLogButtonState(

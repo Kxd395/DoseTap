@@ -20,7 +20,7 @@ struct NightReviewView: View {
     @State private var availableSessions: [String] = []
     
     init(sessionKey: String? = nil) {
-        let defaultKey = SessionRepository.shared.currentSessionKey
+        let defaultKey = SessionRepository.shared.plannerSessionKey(for: Date())
         _selectedSessionKey = State(initialValue: sessionKey ?? defaultKey)
     }
     

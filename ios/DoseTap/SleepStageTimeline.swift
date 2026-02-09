@@ -464,8 +464,8 @@ struct LiveSleepTimelineView: View {
         if let date = nightDate {
             return sessionDateKey(for: date)
         }
-        // Use current session key from repository (unified source of truth)
-        return sessionRepo.currentSessionKey
+        // Use planner key for Tonight-facing flow consistency after morning check-in.
+        return sessionRepo.plannerSessionKey(for: Date())
     }
     
     /// Convert a Date to the session key format (YYYY-MM-DD) used by SessionRepository
@@ -579,7 +579,7 @@ struct LiveSleepTimelineView: View {
             }
         }
         .onReceive(sessionRepo.sessionDidChange) { _ in
-            guard nightDate == nil || sessionRepo.currentSessionKey == effectiveSessionKey else { return }
+            guard nightDate == nil || sessionRepo.plannerSessionKey(for: Date()) == effectiveSessionKey else { return }
             Task {
                 await refreshTimelineData(forceSessionReload: true, forceHealthKitReload: false)
             }
