@@ -1,5 +1,8 @@
 import Foundation
 import System
+#if canImport(OSLog)
+import OSLog
+#endif
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -17,7 +20,6 @@ import UIKit
 /// Thread Safety: Uses actor isolation for all file operations.
 ///
 public actor DiagnosticLogger {
-    
     // MARK: - Singleton
     
     public static let shared = DiagnosticLogger()
@@ -87,7 +89,9 @@ public actor DiagnosticLogger {
     ) {
         guard isEnabled else { return }
         guard !sessionId.isEmpty else {
-            print("⚠️ DiagnosticLogger: Rejected event \(event.rawValue) - missing session_id")
+            #if canImport(OSLog)
+            Self.logWarning("Rejected event \(event.rawValue) - missing session_id")
+            #endif
             return
         }
         
@@ -117,7 +121,9 @@ public actor DiagnosticLogger {
         }
         
         #if DEBUG
-        print("📋 \(event.rawValue) [\(sessionId)]")
+        #if canImport(OSLog)
+        Self.logDebug("\(event.rawValue) [\(sessionId)]")
+        #endif
         #endif
     }
     
@@ -151,7 +157,9 @@ public actor DiagnosticLogger {
             let data = try encoder.encode(metadata)
             try data.write(to: metaFile)
         } catch {
-            print("⚠️ DiagnosticLogger: Failed to write meta.json: \(error)")
+            #if canImport(OSLog)
+            Self.logWarning("Failed to write meta.json: \(error)")
+            #endif
         }
     }
     
@@ -181,18 +189,24 @@ public actor DiagnosticLogger {
                 try fileManager.copyItem(at: zipReadURL, to: zipURL)
                 success = true
             } catch {
-                print("⚠️ DiagnosticLogger: Failed to copy zip: \(error)")
+                #if canImport(OSLog)
+                Self.logWarning("Failed to copy zip: \(error)")
+                #endif
             }
         }
         
         if coordinatorError != nil {
-            print("⚠️ DiagnosticLogger: Coordinator error: \(coordinatorError!)")
+            #if canImport(OSLog)
+            Self.logWarning("Coordinator error: \(String(describing: coordinatorError!))")
+            #endif
         }
         
         if !success || !fileManager.fileExists(atPath: zipURL.path) {
             // Fallback: if coordinator fails, just return the directory
             // (Some share targets like Files app can handle directories)
-            print("⚠️ DiagnosticLogger: Failed to create zip, returning directory")
+            #if canImport(OSLog)
+            Self.logWarning("Failed to create zip, returning directory")
+            #endif
             return sessionDir
         }
         
@@ -202,7 +216,9 @@ public actor DiagnosticLogger {
         var mutableURL = zipURL
         try? mutableURL.setResourceValues(resourceValues)
         
-        print("✅ DiagnosticLogger: Exported zip to: \(zipURL.path)")
+        #if canImport(OSLog)
+        Self.logNotice("Exported zip to: \(zipURL.path)")
+        #endif
         return zipURL
     }
     
@@ -231,7 +247,9 @@ public actor DiagnosticLogger {
                 let sessionDir = sessionDirectory(for: sessionId)
                 try? fileManager.removeItem(at: sessionDir)
                 #if DEBUG
-                print("🗑️ DiagnosticLogger: Pruned old session \(sessionId)")
+                #if canImport(OSLog)
+                Self.logDebug("Pruned old session \(sessionId)")
+                #endif
                 #endif
             }
         }
@@ -330,6 +348,33 @@ public actor DiagnosticLogger {
         // Simple hash: first 8 chars of SHA-256 would be ideal, but we'll use count + checksum for simplicity
         let checksum = data.reduce(0) { ($0 &+ UInt32($1)) & 0xFFFFFFFF }
         return String(format: "%08x", checksum)
+    }
+
+    private static func logDebug(_ message: String) {
+        #if canImport(OSLog)
+        if #available(iOS 14.0, watchOS 7.0, macOS 11.0, tvOS 14.0, *) {
+            Logger(subsystem: "com.dosetap.core", category: "DiagnosticLogger")
+                .debug("\(message, privacy: .public)")
+        }
+        #endif
+    }
+
+    private static func logNotice(_ message: String) {
+        #if canImport(OSLog)
+        if #available(iOS 14.0, watchOS 7.0, macOS 11.0, tvOS 14.0, *) {
+            Logger(subsystem: "com.dosetap.core", category: "DiagnosticLogger")
+                .notice("\(message, privacy: .public)")
+        }
+        #endif
+    }
+
+    private static func logWarning(_ message: String) {
+        #if canImport(OSLog)
+        if #available(iOS 14.0, watchOS 7.0, macOS 11.0, tvOS 14.0, *) {
+            Logger(subsystem: "com.dosetap.core", category: "DiagnosticLogger")
+                .warning("\(message, privacy: .public)")
+        }
+        #endif
     }
 }
 

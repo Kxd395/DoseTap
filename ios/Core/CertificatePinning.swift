@@ -1,6 +1,9 @@
 import Foundation
 import Security
 import CryptoKit
+#if canImport(OSLog)
+import OSLog
+#endif
 
 /// Certificate pinning delegate for URLSession
 /// 
@@ -16,6 +19,19 @@ import CryptoKit
 /// ```
 @available(iOS 15.0, watchOS 8.0, macOS 12.0, *)
 public final class CertificatePinning: NSObject, URLSessionDelegate, @unchecked Sendable {
+    private static func logWarning(_ message: String) {
+        #if canImport(OSLog)
+        Logger(subsystem: "com.dosetap.core", category: "CertificatePinning")
+            .warning("\(message, privacy: .public)")
+        #endif
+    }
+
+    private static func logError(_ message: String) {
+        #if canImport(OSLog)
+        Logger(subsystem: "com.dosetap.core", category: "CertificatePinning")
+            .error("\(message, privacy: .public)")
+        #endif
+    }
     
     // MARK: - Configuration
     
@@ -85,7 +101,9 @@ public final class CertificatePinning: NSObject, URLSessionDelegate, @unchecked 
         }
 
         #if DEBUG
-        print("⚠️ CertificatePinning: No pins configured (DOSETAP_CERT_PINS). Falling back to default TLS trust evaluation.")
+        #if canImport(OSLog)
+        Self.logWarning("No pins configured (DOSETAP_CERT_PINS); falling back to default TLS trust evaluation")
+        #endif
         #endif
         return []
     }
@@ -128,7 +146,9 @@ public final class CertificatePinning: NSObject, URLSessionDelegate, @unchecked 
         
         guard isValid else {
             #if DEBUG
-            print("⚠️ CertificatePinning: Trust evaluation failed for \(host): \(error?.localizedDescription ?? "unknown")")
+            #if canImport(OSLog)
+            Self.logWarning("Trust evaluation failed for \(host): \(error?.localizedDescription ?? "unknown")")
+            #endif
             #endif
             completionHandler(.cancelAuthenticationChallenge, nil)
             return
@@ -153,12 +173,16 @@ public final class CertificatePinning: NSObject, URLSessionDelegate, @unchecked 
             completionHandler(.useCredential, credential)
         } else if allowFallback {
             #if DEBUG
-            print("⚠️ CertificatePinning: Pin mismatch for \(host), allowing fallback (DEBUG only)")
+            #if canImport(OSLog)
+            Self.logWarning("Pin mismatch for \(host), allowing fallback (DEBUG only)")
+            #endif
             #endif
             completionHandler(.performDefaultHandling, nil)
         } else {
             #if DEBUG
-            print("❌ CertificatePinning: Pin mismatch for \(host), rejecting connection")
+            #if canImport(OSLog)
+            Self.logError("Pin mismatch for \(host), rejecting connection")
+            #endif
             #endif
             completionHandler(.cancelAuthenticationChallenge, nil)
         }

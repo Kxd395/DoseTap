@@ -1,9 +1,20 @@
 import Foundation
+#if canImport(OSLog)
+import OSLog
+#endif
 
 /// Shared helpers for time/interval math.
 ///
 /// SSOT (normative): intervals MUST be computed from absolute timestamps.
 public enum TimeIntervalMath {
+    private static func logWarning(_ message: String) {
+        #if canImport(OSLog)
+        if #available(iOS 14.0, watchOS 7.0, macOS 11.0, tvOS 14.0, *) {
+            Logger(subsystem: "com.dosetap.core", category: "TimeIntervalMath")
+                .warning("\(message, privacy: .public)")
+        }
+        #endif
+    }
 
     /// Computes minutes between two absolute timestamps.
     ///
@@ -21,7 +32,9 @@ public enum TimeIntervalMath {
 
         // Non-rollover negative: log in debug but don't crash tests
         #if DEBUG
-        print("⚠️ TimeIntervalMath: Non-sensical interval \(delta) seconds (start=\(start), end=\(end))")
+        #if canImport(OSLog)
+        logWarning("Non-sensical interval \(delta) seconds")
+        #endif
         #endif
         return Int(delta / 60)
     }

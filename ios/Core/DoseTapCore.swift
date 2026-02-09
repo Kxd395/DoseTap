@@ -1,5 +1,8 @@
 import Foundation
 import Combine
+#if canImport(OSLog)
+import OSLog
+#endif
 #if canImport(SwiftUI)
 import SwiftUI
 #endif
@@ -56,7 +59,6 @@ public protocol DoseTapSessionRepository: AnyObject {
 @available(iOS 15.0, watchOS 8.0, macOS 12.0, *)
 @MainActor
 public class DoseTapCore: ObservableObject {
-    
     // MARK: - State is now computed from repository (P0 FIX)
     
     /// Session repository for state storage - set by the app
@@ -120,6 +122,20 @@ public class DoseTapCore: ObservableObject {
     private let windowCalculator: DoseWindowCalculator
     private let dosingService: DosingService
     private var repositoryObserver: AnyCancellable?
+
+    private static func logWarning(_ message: String) {
+        #if canImport(OSLog)
+        Logger(subsystem: "com.dosetap.core", category: "DoseTapCore")
+            .warning("\(message, privacy: .public)")
+        #endif
+    }
+
+    private static func logError(_ message: String) {
+        #if canImport(OSLog)
+        Logger(subsystem: "com.dosetap.core", category: "DoseTapCore")
+            .error("\(message, privacy: .public)")
+        #endif
+    }
     
     public init(isOnline: @escaping () -> Bool = { true }) {
         self.windowCalculator = DoseWindowCalculator()
@@ -157,8 +173,7 @@ public class DoseTapCore: ObservableObject {
         if CertificatePinning.hasConfiguredPins {
             return PinnedURLSessionTransport()
         }
-        assertionFailure("Certificate pinning is not configured; set DOSETAP_CERT_PINS for release builds.")
-        return URLSessionTransport()
+        fatalError("Certificate pinning is not configured; set DOSETAP_CERT_PINS for release builds.")
         #endif
     }
     
@@ -192,22 +207,31 @@ public class DoseTapCore: ObservableObject {
                     sessionRepository?.setDose2Time(now, isEarly: earlyOverride, isExtraDose: false)
                     #if DEBUG
                     if earlyOverride {
-                        Swift.print("⚠️ Dose 2 taken early with user override")
+                        #if canImport(OSLog)
+                        Self.logWarning("Dose 2 taken early with user override")
+                        #endif
                     } else if lateOverride {
-                        Swift.print("⚠️ Dose 2 taken late with user override")
+                        #if canImport(OSLog)
+                        Self.logWarning("Dose 2 taken late with user override")
+                        #endif
                     }
                     #endif
                 } else {
                     // Window not open and no override - block
                     #if DEBUG
-                    Swift.print("❌ Cannot take Dose 2: window not open (status: \(currentStatus))")
+                    #if canImport(OSLog)
+                    let status = self.currentStatus
+                    Self.logError("Cannot take Dose 2: window not open (status: \(status))")
+                    #endif
                     #endif
                     return
                 }
             } else {
                 // Dose 2 already taken - this should be blocked by UI
                 #if DEBUG
-                Swift.print("⚠️ Dose 2 already taken, ignoring duplicate")
+                #if canImport(OSLog)
+                Self.logWarning("Dose 2 already taken, ignoring duplicate")
+                #endif
                 #endif
                 return
             }
