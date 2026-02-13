@@ -10,7 +10,6 @@ import CoreData
 // MARK: - Enhanced Settings View
 
 struct EnhancedSettingsView: View {
-    @State private var selectedTab = 0
     @State private var showingAbout = false
     @State private var showingDataExport = false
     

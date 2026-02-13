@@ -2,6 +2,51 @@ import Foundation
 import SwiftUI
 import DoseCore
 
+enum AppTab: Int, CaseIterable {
+    case tonight = 0
+    case timeline = 1
+    case history = 2
+    case dashboard = 3
+    case settings = 4
+
+    var icon: String {
+        switch self {
+        case .tonight: return "moon.fill"
+        case .timeline: return "chart.bar.xaxis"
+        case .history: return "calendar"
+        case .dashboard: return "chart.xyaxis.line"
+        case .settings: return "gear"
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .tonight: return "Tonight"
+        case .timeline: return "Timeline"
+        case .history: return "History"
+        case .dashboard: return "Dashboard"
+        case .settings: return "Settings"
+        }
+    }
+
+    static let navigationDeepLinks: [(host: String, tab: AppTab)] = [
+        ("tonight", .tonight),
+        ("timeline", .timeline),
+        ("details", .timeline),
+        ("history", .history),
+        ("dashboard", .dashboard),
+        ("settings", .settings),
+    ]
+
+    private static let navigationLookup: [String: AppTab] = Dictionary(
+        uniqueKeysWithValues: navigationDeepLinks.map { ($0.host, $0.tab) }
+    )
+
+    static func tab(forDeepLinkHost host: String) -> AppTab? {
+        navigationLookup[host.lowercased()]
+    }
+}
+
 /// URL Router for handling deep links
 /// Supported URLs:
 /// - dosetap://dose1 - Take Dose 1
@@ -11,6 +56,7 @@ import DoseCore
 /// - dosetap://log?event=bathroom - Log a quick event
 /// - dosetap://log?event=bathroom&notes=urgent - Log event with notes
 /// - dosetap://tonight - Navigate to Tonight tab
+/// - dosetap://dashboard - Navigate to Dashboard tab
 /// - dosetap://history - Navigate to History tab
 /// - dosetap://settings - Navigate to Settings tab
 @MainActor
@@ -19,7 +65,7 @@ public class URLRouter: ObservableObject {
     static let shared = URLRouter()
     
     // MARK: - Published State
-    @Published var selectedTab: Int = 0
+    @Published var selectedTab: AppTab = .tonight
     @Published var lastAction: URLAction?
     @Published var showActionFeedback: Bool = false
     @Published var feedbackMessage: String = ""
@@ -40,7 +86,7 @@ public class URLRouter: ObservableObject {
         case snooze
         case skip
         case logEvent(name: String, notes: String?)
-        case navigate(tab: Int)
+        case navigate(tab: AppTab)
     }
     
     // MARK: - Handle URL
@@ -67,6 +113,10 @@ public class URLRouter: ObservableObject {
         print("🔗 URLRouter: Handling \(InputValidator.sanitizeForLogging(url.absoluteString))")
         #endif
         
+        if let tab = AppTab.tab(forDeepLinkHost: host) {
+            return handleNavigate(tab: tab)
+        }
+
         switch host {
         case "dose1":
             return handleDose1()
@@ -84,18 +134,6 @@ public class URLRouter: ObservableObject {
             let eventName = queryItems.first(where: { $0.name == "event" })?.value ?? "unknown"
             let notes = queryItems.first(where: { $0.name == "notes" })?.value
             return handleLogEvent(name: eventName, notes: notes)
-            
-        case "tonight":
-            return handleNavigate(tab: 0)
-            
-        case "details", "timeline":
-            return handleNavigate(tab: 1)
-            
-        case "history":
-            return handleNavigate(tab: 2)
-            
-        case "settings":
-            return handleNavigate(tab: 3)
             
         case "oauth":
             // OAuth callback is handled separately by WHOOP integration
@@ -121,7 +159,7 @@ public class URLRouter: ObservableObject {
         Task {
             let now = Date()
             await core.takeDose()
-            eventLogger?.logEvent(name: "Dose 1", color: .green, cooldownSeconds: 3600 * 8)
+            eventLogger?.logEvent(name: "Dose 1", color: .green, cooldownSeconds: 3600 * 8, persist: false)
             
             // Schedule wake alarm
             let targetMinutes = UserDefaults.standard.integer(forKey: "target_interval_minutes")
@@ -148,20 +186,28 @@ public class URLRouter: ObservableObject {
             return false
         }
         
-        // Check if window is open
         let status = core.currentStatus
-        guard status == .active || status == .nearClose else {
+        if status == .beforeWindow {
             showFeedback("Window not open yet")
             return false
         }
-        
+        if status == .noDose1 || status == .completed || status == .finalizing {
+            showFeedback("Dose 2 unavailable right now")
+            return false
+        }
+
         Task {
-            await core.takeDose()
-            eventLogger?.logEvent(name: "Dose 2", color: .green, cooldownSeconds: 3600 * 8)
+            if status == .closed {
+                await core.takeDose(lateOverride: true)
+                eventLogger?.logEvent(name: "Dose 2 (Late)", color: .orange, cooldownSeconds: 3600 * 8, persist: false)
+                showFeedback("✓ Dose 2 logged late (override)")
+            } else {
+                await core.takeDose()
+                eventLogger?.logEvent(name: "Dose 2", color: .green, cooldownSeconds: 3600 * 8, persist: false)
+                showFeedback("✓ Dose 2 logged")
+            }
             AlarmService.shared.cancelAllAlarms()
             AlarmService.shared.clearWakeAlarmState()
-            
-            showFeedback("✓ Dose 2 logged")
         }
         return true
     }
@@ -246,24 +292,46 @@ public class URLRouter: ObservableObject {
             return false
         }
         
-        // Map common event names to colors but preserve normalized name for action/tests
-        let (displayName, color) = mapEventName(normalizedName)
+        // Canonicalize event type for storage + diagnostics while preserving display label.
+        let mapped = mapEventName(normalizedName)
         
         // Check cooldown
-        let cooldown = UserSettingsManager.shared.cooldown(for: displayName)
-        if let cooldownEnd = eventLogger.cooldownEnd(for: displayName), Date() < cooldownEnd {
+        let cooldown = UserSettingsManager.shared.cooldown(for: mapped.canonicalType)
+        if let cooldownEnd = eventLogger.cooldownEnd(for: mapped.canonicalType), Date() < cooldownEnd {
             let remaining = Int(cooldownEnd.timeIntervalSince(Date()))
             showFeedback("On cooldown (\(remaining)s)")
             return false
         }
+
+        // Wake events must flow through SessionRepository to transition to finalizing state.
+        if mapped.canonicalType == "wake_final" {
+            let timestamp = Date()
+            SessionRepository.shared.setWakeFinalTime(timestamp)
+            eventLogger.logEvent(
+                name: mapped.displayName,
+                color: mapped.color,
+                cooldownSeconds: cooldown,
+                persist: false,
+                eventTypeOverride: mapped.canonicalType
+            )
+            showFeedback("✓ \(mapped.displayName) logged")
+            return true
+        }
         
-        eventLogger.logEvent(name: displayName, color: color, cooldownSeconds: cooldown)
-        showFeedback("✓ \(displayName) logged")
+        eventLogger.logEvent(
+            name: mapped.displayName,
+            color: mapped.color,
+            cooldownSeconds: cooldown,
+            persist: true,
+            notes: sanitizedNotes,
+            eventTypeOverride: mapped.canonicalType
+        )
+        showFeedback("✓ \(mapped.displayName) logged")
         
         return true
     }
     
-    private func handleNavigate(tab: Int) -> Bool {
+    private func handleNavigate(tab: AppTab) -> Bool {
         selectedTab = tab
         lastAction = .navigate(tab: tab)
         return true
@@ -271,33 +339,45 @@ public class URLRouter: ObservableObject {
     
     // MARK: - Helpers
     
-    private func mapEventName(_ name: String) -> (String, Color) {
+    private func mapEventName(_ name: String) -> (canonicalType: String, displayName: String, color: Color) {
         let lowercased = name.lowercased()
         switch lowercased {
         case "bathroom", "🚽":
-            return ("bathroom", .blue)
+            return ("bathroom", "Bathroom", .blue)
         case "water", "💧":
-            return ("water", .cyan)
+            return ("water", "Water", .cyan)
         case "snack", "🍿":
-            return ("snack", .orange)
+            return ("snack", "Snack", .orange)
         case "pain", "💊":
-            return ("pain", .red)
+            return ("pain", "Pain", .red)
         case "restless", "😰":
-            return ("restless", .purple)
+            return ("anxiety", "Anxiety", .purple)
         case "noise", "🔊":
-            return ("noise", .yellow)
+            return ("noise", "Noise", .yellow)
         case "temp", "temperature", "🌡️":
-            return ("temp", .orange)
+            return ("temperature", "Temperature", .orange)
         case "dream", "💭":
-            return ("dream", .indigo)
+            return ("dream", "Dream", .indigo)
+        case "brief_wake", "wake_temp", "waketemp":
+            return ("wake_temp", "Brief Wake", .indigo)
         case "lightsout", "lights_out", "🌙":
-            return ("lights_out", .indigo)
-        case "wake", "wakefinal", "wake_final", "☀️":
-            return ("wake", .yellow)
+            return ("lights_out", "Lights Out", .indigo)
+        case "wake", "wakefinal", "wake_final", "wake_up", "wakeup", "☀️":
+            return ("wake_final", "Wake Up", .yellow)
+        case "inbed", "in_bed":
+            return ("in_bed", "In Bed", .indigo)
+        case "heart_racing", "heartracing":
+            return ("heart_racing", "Heart Racing", .red)
+        case "nap_start", "napstart":
+            return ("nap_start", "Nap Start", .green)
+        case "nap_end", "napend":
+            return ("nap_end", "Nap End", .orange)
         case "unknown":
-            return ("unknown", .gray)
+            return ("unknown", "Unknown", .gray)
         default:
-            return (lowercased, .gray)
+            let canonical = lowercased.replacingOccurrences(of: " ", with: "_")
+            let display = canonical.replacingOccurrences(of: "_", with: " ").capitalized
+            return (canonical, display, .gray)
         }
     }
 

@@ -1,6 +1,13 @@
 import SwiftUI
 import Combine
 import DoseCore
+import UIKit
+#if canImport(Charts)
+import Charts
+#endif
+#if canImport(CloudKit)
+import CloudKit
+#endif
 
 // MARK: - Shared Event Logger (Observable with SQLite persistence)
 @MainActor
@@ -27,34 +34,32 @@ class EventLogger: ObservableObject {
     
     /// Load events from SQLite for tonight's session
     private func loadEventsFromStorage() {
-        let sessionKey = sessionRepo.plannerSessionKey(for: Date())
-        let storedEvents = sessionRepo.fetchSleepEvents(for: sessionKey)
-        let storedDoseEvents = sessionRepo.fetchDoseEvents(forSessionDate: sessionKey)
-
-        var mergedEvents: [LoggedEvent] = []
-
-        mergedEvents.append(contentsOf: storedEvents.map { stored in
+        let storedEvents = sessionRepo.fetchTonightSleepEvents()
+        events = storedEvents.map { stored in
             LoggedEvent(
                 id: UUID(uuidString: stored.id) ?? UUID(),
-                name: EventDisplayName.displayName(for: stored.eventType),
+                name: Self.displayName(forEventType: stored.eventType),
                 time: stored.timestamp,
                 color: stored.colorHex.flatMap { Color(hex: $0) } ?? .gray
             )
-        })
-
-        mergedEvents.append(contentsOf: storedDoseEvents.compactMap { stored in
-            LoggedEvent.fromDoseEvent(stored)
-        })
-
-        events = mergedEvents.sorted(by: { $0.time > $1.time })
+        }
         print("📦 Loaded \(events.count) events from SQLite")
     }
     
-    func logEvent(name: String, color: Color, cooldownSeconds: TimeInterval, persist: Bool = true) {
+    func logEvent(
+        name: String,
+        color: Color,
+        cooldownSeconds: TimeInterval,
+        persist: Bool = true,
+        notes: String? = nil,
+        eventTypeOverride: String? = nil
+    ) {
         let now = Date()
+        let cooldownKey = Self.canonicalEventType(name)
+        let persistedEventType = eventTypeOverride ?? cooldownKey
         
         // Check cooldown
-        if let end = cooldowns[name], now < end {
+        if let end = cooldowns[cooldownKey], now < end {
             return // Still in cooldown
         }
         
@@ -64,17 +69,16 @@ class EventLogger: ObservableObject {
         events.insert(event, at: 0)
         
         // Set cooldown
-        cooldowns[name] = now.addingTimeInterval(cooldownSeconds)
+        cooldowns[cooldownKey] = now.addingTimeInterval(cooldownSeconds)
         
         if persist {
             // Persist to SQLite via SessionRepository
-            let normalizedType = EventTypeNormalizer.normalizedType(for: name)
             sessionRepo.insertSleepEvent(
                 id: eventId.uuidString,
-                eventType: normalizedType,
+                eventType: persistedEventType,
                 timestamp: now,
                 colorHex: color.toHex(),
-                notes: nil
+                notes: notes
             )
         }
         
@@ -83,19 +87,20 @@ class EventLogger: ObservableObject {
     }
     
     func isOnCooldown(_ name: String) -> Bool {
-        guard let end = cooldowns[name] else { return false }
+        guard let end = cooldowns[Self.canonicalEventType(name)] else { return false }
         return Date() < end
     }
     
     func cooldownEnd(for name: String) -> Date? {
-        cooldowns[name]
+        cooldowns[Self.canonicalEventType(name)]
     }
     
     /// Clear cooldown for a specific event (for undo)
     func clearCooldown(for name: String) {
-        cooldowns.removeValue(forKey: name)
+        let cooldownKey = Self.canonicalEventType(name)
+        cooldowns.removeValue(forKey: cooldownKey)
         // Also remove the event from the in-memory list
-        events.removeAll { $0.name == name }
+        events.removeAll { Self.canonicalEventType($0.name) == cooldownKey }
     }
     
     /// Delete a specific event by ID
@@ -115,278 +120,73 @@ class EventLogger: ObservableObject {
         cooldowns.removeAll()
         sessionRepo.clearTonightsEvents()
     }
-}
 
-// MARK: - Event Display Name Helper
-/// Centralized mapping from internal event type strings to user-friendly display names
-struct EventDisplayName {
-    static func displayName(for eventType: String) -> String {
-        switch eventType.lowercased() {
-        // Dose events
-        case "dose1", "dose_1", "dose1_taken":
-            return "Dose 1"
-        case "dose2", "dose_2", "dose2_taken":
-            return "Dose 2"
-        case "dose2_skipped", "dose2skipped":
-            return "Dose 2 Skipped"
-        case "dose 2 (early)", "dose2_early":
-            return "Dose 2 (Early)"
-        case "dose 2 (late)", "dose2_late":
-            return "Dose 2 (Late)"
-        case "extra_dose", "extradose":
-            return "Extra Dose"
-        case "snooze":
-            return "Snooze"
-            
-        // Sleep events
-        case "lightsout", "lights_out", "lightout":
-            return "Lights Out"
-        case "wake_final", "wakefinal", "wake":
-            return "Final Wake"
-        case "brief_wake", "briefwake":
-            return "Brief Wake"
-        case "heart_racing", "heartracing":
-            return "Heart Racing"
-        case "bathroom":
-            return "Bathroom"
-        case "water":
-            return "Water"
-        case "snack":
-            return "Snack"
-        case "pain":
-            return "Pain"
-        case "anxiety":
-            return "Anxiety"
-        case "noise":
-            return "Noise"
-        case "dream":
-            return "Dream"
-        case "nap_start", "napstart":
-            return "Nap Start"
-        case "nap_end", "napend":
-            return "Nap End"
-        case "in_bed", "inbed":
-            return "In Bed"
-        case "pain.pre_sleep":
-            return "Pain (Pre-Sleep)"
-        case "pain.wake":
-            return "Pain (Wake)"
-            
-        // Default: capitalize and replace underscores
-        default:
-            return eventType
-                .replacingOccurrences(of: "_", with: " ")
-                .split(separator: " ")
-                .map { $0.prefix(1).uppercased() + $0.dropFirst().lowercased() }
-                .joined(separator: " ")
-        }
-    }
-}
+    private static func canonicalEventType(_ raw: String) -> String {
+        let normalized = raw
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "_")
 
-// MARK: - Event Type Normalization
-/// Normalize display names and legacy strings to canonical storage types.
-struct EventTypeNormalizer {
-    static func normalizedType(for displayName: String) -> String {
-        let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let lower = trimmed.lowercased()
-        switch lower {
-        case "dose 1", "dose1", "dose_1", "dose1_taken":
-            return "dose1"
-        case "dose 2", "dose2", "dose_2", "dose2_taken":
-            return "dose2"
-        case "dose 2 (early)", "dose2 early", "dose2_early":
-            return "dose2_early"
-        case "dose 2 (late)", "dose2 late", "dose2_late":
-            return "dose2_late"
-        case "dose 2 skipped", "dose2_skipped", "dose2 skipped":
-            return "dose2_skipped"
-        case "extra dose", "extra_dose", "extra dose ⚠️":
-            return "extra_dose"
-        case "lights out", "lightsout", "lights_out", "lightout":
+        switch normalized {
+        case "lightsout", "lights_out":
             return "lights_out"
-        case "brief wake", "briefwake", "brief_wake":
-            return "brief_wake"
-        case "wake final", "wakefinal", "wake_final", "wake":
+        case "wakefinal", "wake_final", "wake", "wakeup", "wake_up":
             return "wake_final"
-        case "in bed", "inbed", "in_bed":
+        case "waketemp", "wake_temp", "brief_wake":
+            return "wake_temp"
+        case "inbed", "in_bed":
             return "in_bed"
-        case "nap start", "nap_start", "napstart":
-            return "nap_start"
-        case "nap end", "nap_end", "napend":
-            return "nap_end"
-        case "heart racing", "heart_racing":
+        case "temp", "temperature":
+            return "temperature"
+        case "heartracing", "heart_racing":
             return "heart_racing"
-        case "pain (pre-sleep)", "pain pre sleep", "pain.pre_sleep":
-            return "pain.pre_sleep"
-        case "pain (wake)", "pain wake", "pain.wake":
-            return "pain.wake"
+        case "napstart", "nap_start":
+            return "nap_start"
+        case "napend", "nap_end":
+            return "nap_end"
         default:
-            return lower.replacingOccurrences(of: " ", with: "_")
+            return normalized
         }
     }
-}
 
-// MARK: - Dose Event Display Mapping
-struct DoseEventDisplay {
-    static func displayNameAndColor(for event: DoseCore.StoredDoseEvent) -> (String, Color) {
-        let metadata = parseMetadata(event.metadata)
-        switch event.eventType {
-        case "dose1":
-            return ("Dose 1", .green)
-        case "dose2":
-            if metadata.isEarly {
-                return ("Dose 2 (Early)", .orange)
-            }
-            if metadata.isLate {
-                return ("Dose 2 (Late)", .orange)
-            }
-            return ("Dose 2", .green)
-        case "dose2_skipped":
-            return ("Dose 2 Skipped", .orange)
-        case "extra_dose":
-            return ("Extra Dose", .red)
-        case "snooze":
-            return ("Snooze", .orange)
+    private static func displayName(forEventType raw: String) -> String {
+        switch canonicalEventType(raw) {
+        case "bathroom": return "Bathroom"
+        case "water": return "Water"
+        case "snack": return "Snack"
+        case "lights_out": return "Lights Out"
+        case "wake_temp": return "Brief Wake"
+        case "in_bed": return "In Bed"
+        case "wake_final": return "Wake Up"
+        case "anxiety": return "Anxiety"
+        case "dream": return "Dream"
+        case "heart_racing": return "Heart Racing"
+        case "noise": return "Noise"
+        case "temperature": return "Temperature"
+        case "pain": return "Pain"
+        case "nap_start": return "Nap Start"
+        case "nap_end": return "Nap End"
         default:
-            return (EventDisplayName.displayName(for: event.eventType), .gray)
+            return raw.replacingOccurrences(of: "_", with: " ").capitalized
         }
-    }
-
-    private static func parseMetadata(_ metadata: String?) -> (isEarly: Bool, isLate: Bool) {
-        guard let metadata = metadata, let data = metadata.data(using: .utf8) else {
-            return (false, false)
-        }
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return (false, false)
-        }
-        return (
-            (json["is_early"] as? Bool) == true,
-            (json["is_late"] as? Bool) == true
-        )
-    }
-}
-
-// MARK: - Sleep Session Date Formatter
-/// Formats session dates as day ranges (e.g., "Thu → Fri, Jan 16-17")
-/// Since sleep sessions span two calendar days (night to morning)
-struct SleepSessionDateFormatter {
-    private static let calendar = Calendar.current
-    
-    /// Format a session start date as a day range
-    /// - Parameter date: The session start date (night of)
-    /// - Returns: Formatted string like "Thu → Fri, Jan 16-17" or "Last Night (Sat → Sun)"
-    static func format(_ date: Date) -> String {
-        let nextDay = calendar.date(byAdding: .day, value: 1, to: date) ?? date
-        let dayRange = "\(shortWeekday(date)) → \(shortWeekday(nextDay))"
-        
-        if calendar.isDateInToday(date) {
-            return "Tonight (\(dayRange))"
-        } else if calendar.isDateInYesterday(date) {
-            return "Last Night (\(dayRange))"
-        } else {
-            return "\(dayRange), \(dateRangeText(date, nextDay))"
-        }
-    }
-    
-    /// Format just the day range part (e.g., "Thu → Fri")
-    static func dayRangeOnly(_ date: Date) -> String {
-        let nextDay = calendar.date(byAdding: .day, value: 1, to: date) ?? date
-        return "\(shortWeekday(date)) → \(shortWeekday(nextDay))"
-    }
-    
-    /// Format for compact display (e.g., "Thu→Fri 1/16")
-    static func compact(_ date: Date) -> String {
-        let nextDay = calendar.date(byAdding: .day, value: 1, to: date) ?? date
-        let f = DateFormatter()
-        f.dateFormat = "M/d"
-        return "\(shortWeekday(date))→\(shortWeekday(nextDay)) \(f.string(from: date))"
-    }
-    
-    /// Format from a session date string (yyyy-MM-dd)
-    static func format(sessionDateString: String) -> String {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd"
-        guard let date = f.date(from: sessionDateString) else {
-            return sessionDateString
-        }
-        return format(date)
-    }
-    
-    private static func shortWeekday(_ date: Date) -> String {
-        let f = DateFormatter()
-        f.dateFormat = "EEE"
-        return f.string(from: date)
-    }
-    
-    private static func dateRangeText(_ start: Date, _ end: Date) -> String {
-        let f = DateFormatter()
-        f.dateFormat = "MMM d"
-        
-        let startMonth = calendar.component(.month, from: start)
-        let endMonth = calendar.component(.month, from: end)
-        
-        if startMonth == endMonth {
-            // Same month: "Jan 16-17"
-            let dayFormatter = DateFormatter()
-            dayFormatter.dateFormat = "d"
-            return "\(f.string(from: start))-\(dayFormatter.string(from: end))"
-        } else {
-            // Different months: "Dec 31 – Jan 1"
-            return "\(f.string(from: start)) – \(f.string(from: end))"
-        }
-    }
-}
-
-@MainActor
-private final class AppServices {
-    static let shared = AppServices()
-
-    let sessionRepository: SessionRepository
-    let settings: UserSettingsManager
-    let eventLogger: EventLogger
-    let themeManager: ThemeManager
-    let alarmService: AlarmService
-    let urlRouter: URLRouter
-    let core: DoseTapCore
-
-    private init() {
-        self.sessionRepository = .shared
-        self.settings = .shared
-        self.eventLogger = .shared
-        self.themeManager = .shared
-        self.alarmService = .shared
-        self.urlRouter = .shared
-
-        let core = DoseTapCore(isOnline: { LiveNetworkStatus.shared.isOnline })
-        core.setSessionRepository(self.sessionRepository)
-        self.core = core
-
-        self.urlRouter.configure(core: core, eventLogger: self.eventLogger)
     }
 }
 
 // MARK: - Main Tab View with Swipe Navigation
 struct ContentView: View {
-    @ObservedObject private var core: DoseTapCore
-    @ObservedObject private var settings: UserSettingsManager
-    @ObservedObject private var eventLogger: EventLogger
-    @ObservedObject private var sessionRepo: SessionRepository
+    @StateObject private var core = DoseTapCore()
+    @StateObject private var settings = UserSettingsManager.shared
+    @StateObject private var eventLogger = EventLogger.shared
+    @StateObject private var sessionRepo = SessionRepository.shared
     @StateObject private var undoState = UndoStateManager()
-    @ObservedObject private var themeManager: ThemeManager
-    @ObservedObject private var alarmService: AlarmService
-    @ObservedObject private var urlRouter: URLRouter
+    @StateObject private var themeManager = ThemeManager.shared
+    @StateObject private var alarmService = AlarmService.shared
+    @ObservedObject private var urlRouter = URLRouter.shared
+    @State private var sharedPageImage: UIImage?
+    @State private var showPageShareSheet = false
+    @State private var isPreparingPageShare = false
+    @State private var pageShareErrorMessage: String?
     private let tabBarHeight: CGFloat = 64
-
-    init() {
-        let appServices = AppServices.shared
-        self._core = ObservedObject(wrappedValue: appServices.core)
-        self._settings = ObservedObject(wrappedValue: appServices.settings)
-        self._eventLogger = ObservedObject(wrappedValue: appServices.eventLogger)
-        self._sessionRepo = ObservedObject(wrappedValue: appServices.sessionRepository)
-        self._themeManager = ObservedObject(wrappedValue: appServices.themeManager)
-        self._alarmService = ObservedObject(wrappedValue: appServices.alarmService)
-        self._urlRouter = ObservedObject(wrappedValue: appServices.urlRouter)
-    }
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -394,18 +194,23 @@ struct ContentView: View {
             TabView(selection: $urlRouter.selectedTab) {
                 LegacyTonightView(core: core, eventLogger: eventLogger, undoState: undoState)
                     .environmentObject(themeManager)
-                    .tag(0)
+                    .tag(AppTab.tonight)
                 
-                TimelineView()
-                    .tag(1)
+                DetailsView(core: core, eventLogger: eventLogger)
+                    .environmentObject(themeManager)
+                    .tag(AppTab.timeline)
                 
                 HistoryView()
                     .environmentObject(themeManager)
-                    .tag(2)
+                    .tag(AppTab.history)
+
+                DashboardTabView(core: core, eventLogger: eventLogger)
+                    .environmentObject(themeManager)
+                    .tag(AppTab.dashboard)
                 
                 SettingsView()
                     .environmentObject(themeManager)
-                    .tag(3)
+                    .tag(AppTab.settings)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
             .safeAreaInset(edge: .bottom) {
@@ -425,16 +230,101 @@ struct ContentView: View {
                 Spacer()
             }
             .padding(.top, 50)
+
+            VStack {
+                HStack {
+                    Spacer()
+                    Button {
+                        shareVisiblePage()
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .fill(.ultraThinMaterial)
+                                .frame(width: 52, height: 52)
+                            if isPreparingPageShare {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Image(systemName: "square.and.arrow.up")
+                                    .font(.system(size: 22, weight: .semibold))
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isPreparingPageShare)
+                    .accessibilityLabel("Share current page screenshot")
+                }
+                .padding(.top, 54)
+                .padding(.trailing, 16)
+                Spacer()
+            }
         }
         .preferredColorScheme(themeManager.currentTheme == .night ? .dark : (themeManager.currentTheme.colorScheme ?? settings.colorScheme))
         .accentColor(themeManager.currentTheme.accentColor)
         .applyNightModeFilter(themeManager.currentTheme)
         .fullScreenCover(isPresented: $alarmService.isAlarmRinging) {
-            AlarmRingingFullscreenView()
+            AlarmRingingView()
+        }
+        .sheet(isPresented: $showPageShareSheet) {
+            if let sharedPageImage {
+                ActivityViewController(activityItems: [sharedPageImage])
+            }
+        }
+        .alert("Unable to Share Screen", isPresented: Binding(
+            get: { pageShareErrorMessage != nil },
+            set: { if !$0 { pageShareErrorMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {
+                pageShareErrorMessage = nil
+            }
+        } message: {
+            Text(pageShareErrorMessage ?? "Unknown error.")
         }
         .onAppear {
+            // P0 FIX: Wire DoseTapCore to SessionRepository (single source of truth)
+            // All state reads/writes now go through SessionRepository
+            core.setSessionRepository(sessionRepo)
+            
+            // Wire URLRouter dependencies for deep link handling
+            urlRouter.core = core
+            urlRouter.eventLogger = eventLogger
+            
             // Setup undo callbacks
             setupUndoCallbacks()
+        }
+    }
+
+    private func shareVisiblePage() {
+        guard !isPreparingPageShare else { return }
+        isPreparingPageShare = true
+        pageShareErrorMessage = nil
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            if let image = captureCurrentWindowScreenshot() {
+                sharedPageImage = image
+                showPageShareSheet = true
+            } else {
+                pageShareErrorMessage = "Could not capture the current screen."
+            }
+            isPreparingPageShare = false
+        }
+    }
+
+    private func captureCurrentWindowScreenshot() -> UIImage? {
+        guard
+            let windowScene = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene })
+                .first(where: { $0.activationState == .foregroundActive }),
+            let keyWindow = windowScene.windows.first(where: { $0.isKeyWindow }) ?? windowScene.windows.first
+        else {
+            return nil
+        }
+
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = UIScreen.main.scale
+        let renderer = UIGraphicsImageRenderer(bounds: keyWindow.bounds, format: format)
+        return renderer.image { _ in
+            keyWindow.drawHierarchy(in: keyWindow.bounds, afterScreenUpdates: true)
         }
     }
     
@@ -473,135 +363,74 @@ struct ContentView: View {
     }
 }
 
+struct AlarmRingingView: View {
+    @ObservedObject private var alarmService = AlarmService.shared
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [.red.opacity(0.9), .orange.opacity(0.9)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+
+            VStack(spacing: 20) {
+                Image(systemName: "alarm.fill")
+                    .font(.system(size: 64))
+                    .foregroundColor(.white)
+                Text("Wake Alarm")
+                    .font(.largeTitle.bold())
+                    .foregroundColor(.white)
+                Text("It is time to wake up and complete your morning check-in.")
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(.white.opacity(0.95))
+                    .padding(.horizontal, 24)
+                Button {
+                    alarmService.stopRinging(acknowledge: true)
+                } label: {
+                    Text("Stop Alarm")
+                        .font(.headline)
+                        .foregroundColor(.red)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color.white)
+                        .cornerRadius(12)
+                }
+                .padding(.horizontal, 24)
+            }
+        }
+    }
+}
+
 // MARK: - Custom Tab Bar
 struct CustomTabBar: View {
-    @Binding var selectedTab: Int
-    
-    // Tab names per SSOT: Tonight / Timeline / History / Settings
-    // (Insights live in History → Trends; Devices tab is future work)
-    private let tabs: [(icon: String, label: String)] = [
-        ("moon.fill", "Tonight"),
-        ("chart.bar.xaxis", "Timeline"),  // Renamed from "Details"
-        ("calendar", "History"),
-        ("gear", "Settings")
-    ]
+    @Binding var selectedTab: AppTab
     
     var body: some View {
         HStack(spacing: 0) {
-            ForEach(0..<tabs.count, id: \.self) { index in
+            ForEach(AppTab.allCases, id: \.self) { tab in
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) {
-                        selectedTab = index
+                        selectedTab = tab
                     }
                 } label: {
                     VStack(spacing: 4) {
-                        Image(systemName: tabs[index].icon)
+                        Image(systemName: tab.icon)
                             .font(.system(size: 20))
-                        Text(tabs[index].label)
+                        Text(tab.label)
                             .font(.caption2)
                     }
-                    .foregroundColor(selectedTab == index ? .blue : .gray)
+                    .foregroundColor(selectedTab == tab ? .blue : .gray)
                     .frame(maxWidth: .infinity)
-                    .frame(minHeight: 44)
-                    .contentShape(Rectangle())
                 }
-                .accessibilityLabel(tabs[index].label)
-                .accessibilityHint(selectedTab == index ? "Current tab" : "Switch to \(tabs[index].label)")
-                .accessibilityAddTraits(selectedTab == index ? [.isSelected] : [])
             }
         }
         .padding(.vertical, 6)
-        .overlay(alignment: .top) {
-            Divider()
-        }
         .background(
             Color(.systemBackground)
                 .shadow(color: .black.opacity(0.1), radius: 8, y: -4)
         )
-    }
-}
-
-// MARK: - Alarm Ringing Overlay
-/// Local fallback view to avoid hard dependency on separate target membership.
-/// Kept in ContentView.swift so alarm UI always compiles with the main app target.
-struct AlarmRingingFullscreenView: View {
-    @ObservedObject private var alarmService = AlarmService.shared
-    @ObservedObject private var sessionRepo = SessionRepository.shared
-    @ObservedObject private var settings = UserSettingsManager.shared
-    @State private var snoozeError: String?
-    
-    private var remainingSnoozes: Int {
-        max(0, settings.maxSnoozes - alarmService.snoozeCount)
-    }
-    
-    private var snoozeDisabled: Bool {
-        remainingSnoozes <= 0
-    }
-
-    var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
-            Text("Wake Up")
-                .font(.largeTitle.bold())
-            Text("Time for Dose 2")
-                .font(.title3)
-                .foregroundColor(.secondary)
-                .accessibilityAddTraits(.isHeader)
-
-            Text("\(remainingSnoozes) snooze\(remainingSnoozes == 1 ? "" : "s") remaining")
-                .font(.caption)
-                .foregroundColor(.secondary)
-
-            if let snoozeError {
-                Text(snoozeError)
-                    .font(.caption)
-                    .foregroundColor(.orange)
-            }
-
-            Spacer()
-
-            Button {
-                alarmService.acknowledgeAlarm()
-            } label: {
-                Text("I'm Awake")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .frame(minHeight: 44)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(.green)
-            .padding(.horizontal)
-            .accessibilityHint("Stops alarm and confirms Dose 2 wake prompt")
-
-            Button {
-                Task {
-                    let newTime = await alarmService.snoozeAlarm(dose1Time: sessionRepo.dose1Time)
-                    if newTime == nil {
-                        snoozeError = "Snooze not available near window close"
-                    } else {
-                        sessionRepo.incrementSnooze()
-                        snoozeError = nil
-                        alarmService.stopRinging(acknowledge: false)
-                    }
-                }
-            } label: {
-                Text("Snooze \(max(1, settings.snoozeDurationMinutes)) min")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .frame(minHeight: 44)
-            }
-            .buttonStyle(.bordered)
-            .padding(.horizontal)
-            .disabled(snoozeDisabled)
-            .accessibilityHint(snoozeDisabled ? "No snoozes remaining" : "Delay alarm by \(max(1, settings.snoozeDurationMinutes)) minutes")
-
-            Spacer()
-        }
-        .padding()
-        .background(Color.black.opacity(0.9).ignoresSafeArea())
-        .foregroundColor(.white)
     }
 }
 
@@ -631,20 +460,16 @@ struct LegacyTonightView: View {
             VStack(spacing: 0) {
                 // Header - add extra top padding to account for safe area in page-style TabView
                 VStack(spacing: 2) {
-                    HStack {
-                        Spacer()
-                        VStack(spacing: 2) {
-                            Text("DoseTap")
-                                .font(.largeTitle.bold())
-                            TonightDateLabel()
+                    ZStack {
+                        Text("DoseTap")
+                            .font(.largeTitle.bold())
+                        HStack {
+                            Spacer()
+                            QuickThemeSwitchButton()
                         }
-                        Spacer()
                     }
-                    .overlay(alignment: .topTrailing) {
-                        // Theme toggle in top-right corner
-                        ThemeToggleButton()
-                            .padding(.trailing, 8)
-                    }
+                    .frame(maxWidth: .infinity)
+                    TonightDateLabel()
                     
                     // Show scheduled wake alarm when dose 1 taken
                     AlarmIndicatorView(dose1Time: core.dose1Time)
@@ -682,10 +507,10 @@ struct LegacyTonightView: View {
                     overrideEnabled: $overrideEnabled,
                     overrideWake: $overrideWake,
                     onUpdate: { date in
-                        sleepPlanStore.setTonightOverride(sessionKey: displaySessionKey, wakeBy: date)
+                        sleepPlanStore.setTonightOverride(sessionKey: sessionRepo.currentSessionKey, wakeBy: date)
                     },
                     onClear: {
-                        sleepPlanStore.setTonightOverride(sessionKey: displaySessionKey, wakeBy: nil)
+                        sleepPlanStore.setTonightOverride(sessionKey: sessionRepo.currentSessionKey, wakeBy: nil)
                     },
                     baselineWake: plan.wakeBy
                 )
@@ -784,7 +609,7 @@ struct LegacyTonightView: View {
         }
         .scrollIndicators(.hidden)
         .sheet(isPresented: $showMorningCheckIn) {
-            MorningCheckInViewV2(
+            MorningCheckInView(
                 sessionId: sessionRepo.currentSessionIdString(),
                 sessionDate: sessionRepo.currentSessionDateString(),
                 onComplete: {
@@ -794,7 +619,7 @@ struct LegacyTonightView: View {
             )
         }
         .sheet(isPresented: $showPreSleepLog) {
-                PreSleepLogViewV2(
+                PreSleepLogView(
                     existingLog: preSleepEditingLog,
                     onComplete: { answers in
                         let log = try sessionRepo.savePreSleepLog(
@@ -879,7 +704,7 @@ struct LegacyTonightView: View {
         .sheet(isPresented: $showIncompleteCheckIn) {
             if let sessionDate = incompleteSessionDate {
                 let sessionId = sessionRepo.fetchSessionId(forSessionDate: sessionDate) ?? sessionDate
-                MorningCheckInViewV2(
+                MorningCheckInView(
                     sessionId: sessionId,
                     sessionDate: sessionDate,
                     onComplete: {
@@ -900,7 +725,6 @@ struct LegacyTonightView: View {
             reloadPreSleepLog()
         }
         .onReceive(sessionRepo.sessionDidChange) { _ in
-            syncOverrideState()
             reloadPreSleepLog()
         }
         .onChange(of: showPreSleepLog) { newValue in
@@ -911,12 +735,8 @@ struct LegacyTonightView: View {
         }
     }
 
-    private var displaySessionKey: String {
-        sessionRepo.plannerSessionKey(for: Date())
-    }
-
     private func syncOverrideState() {
-        let key = displaySessionKey
+        let key = sessionRepo.currentSessionKey
         sleepPlanStore.clearObsoleteOverrides(currentSessionKey: key)
         if let override = sleepPlanStore.overrideForSession(key) {
             overrideEnabled = true
@@ -929,7 +749,7 @@ struct LegacyTonightView: View {
     }
     
     private var sleepPlanSummary: (wakeBy: Date, recommendedInBed: Date, windDown: Date, expectedSleepMinutes: Double)? {
-        let key = displaySessionKey
+        let key = sessionRepo.currentSessionKey
         return sleepPlanStore.plan(for: key, now: Date(), tz: TimeZone.current)
     }
     
@@ -938,6 +758,58 @@ struct LegacyTonightView: View {
         preSleepLog = sessionRepo.fetchMostRecentPreSleepLog(sessionId: key)
         if preSleepLog == nil {
             preSleepEditingLog = nil
+        }
+    }
+}
+
+struct QuickThemeSwitchButton: View {
+    @EnvironmentObject var themeManager: ThemeManager
+
+    private var nextTheme: AppTheme {
+        switch themeManager.currentTheme {
+        case .light:
+            return .dark
+        case .dark:
+            return .night
+        case .night:
+            return .light
+        }
+    }
+
+    var body: some View {
+        Button {
+            themeManager.applyTheme(nextTheme)
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: themeManager.currentTheme.icon)
+                    .font(.caption.bold())
+                Text(themeManager.currentTheme.rawValue)
+                    .font(.caption2.weight(.semibold))
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                Capsule()
+                    .fill(Color(.secondarySystemBackground))
+            )
+            .overlay(
+                Capsule()
+                    .stroke(themeManager.currentTheme.accentColor.opacity(0.35), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Theme quick switch")
+        .accessibilityHint("Switches to \(nextTheme.rawValue)")
+        .contextMenu {
+            ForEach(AppTheme.allCases) { theme in
+                Button {
+                    themeManager.applyTheme(theme)
+                } label: {
+                    Label(theme.rawValue, systemImage: theme.icon)
+                }
+            }
         }
     }
 }
@@ -956,9 +828,9 @@ struct TonightDateLabel: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE, MMM d"
         
-        // Planner key can optionally target upcoming night immediately after
-        // morning check-in (before storage rollover at 6 PM).
-        let key = sessionRepo.plannerSessionKey(for: Date())
+        // Use the session key to determine the "Tonight" date
+        // If the session key is 2025-12-26, we want to show Friday, Dec 26
+        let key = sessionRepo.currentSessionKey
         let keyFormatter = DateFormatter()
         keyFormatter.dateFormat = "yyyy-MM-dd"
         keyFormatter.timeZone = TimeZone.current
@@ -1225,7 +1097,6 @@ struct PreSleepCard: View {
 struct AlarmIndicatorView: View {
     let dose1Time: Date?
     @ObservedObject private var alarmService = AlarmService.shared
-    @ObservedObject private var settings = UserSettingsManager.shared
     @AppStorage("target_interval_minutes") private var targetIntervalMinutes: Int = 165
     
     var body: some View {
@@ -1246,7 +1117,7 @@ struct AlarmIndicatorView: View {
                         .foregroundColor(alarmService.alarmScheduled ? .orange : .gray)
                     
                     if snoozeCount > 0 {
-                        Text("(+\(snoozeCount * max(1, settings.snoozeDurationMinutes))m)")
+                        Text("(+\(snoozeCount * 10)m)")
                             .font(.caption2)
                             .foregroundColor(.secondary)
                     }
@@ -1639,7 +1510,6 @@ struct CompactDoseButton: View {
     @ObservedObject var eventLogger: EventLogger
     @ObservedObject var undoState: UndoStateManager
     @ObservedObject var sessionRepo: SessionRepository
-    @ObservedObject private var settings = UserSettingsManager.shared
     @EnvironmentObject var themeManager: ThemeManager
     @Binding var showEarlyDoseAlert: Bool
     @Binding var earlyDoseMinutes: Int
@@ -1674,18 +1544,21 @@ struct CompactDoseButton: View {
             }
             
             // Secondary buttons row
-            if core.currentStatus != .noDose1 && core.currentStatus != .completed && core.currentStatus != .closed {
+            if core.currentStatus != .noDose1 && core.currentStatus != .completed {
                 HStack(spacing: 12) {
                     Button {
                         Task {
-                            // Snooze alarm and only persist snooze event when reschedule succeeds.
+                            // Snooze the alarm (+10 min) and increment count
                             if let newTime = await AlarmService.shared.snoozeAlarm(dose1Time: core.dose1Time) {
                                 await core.snooze()
                                 print("✅ Snoozed to \(newTime.formatted(date: .omitted, time: .shortened))")
+                            } else {
+                                // Still increment count even if alarm couldn't be rescheduled
+                                await core.snooze()
                             }
                         }
                     } label: {
-                        Label("Snooze +\(snoozeStepMinutes)m", systemImage: "bell.badge")
+                        Label("Snooze +10m", systemImage: "bell.badge")
                             .font(.caption)
                     }
                     .buttonStyle(.bordered)
@@ -1696,7 +1569,6 @@ struct CompactDoseButton: View {
                             await core.skipDose()
                             // Cancel wake alarm since Dose 2 was skipped
                             AlarmService.shared.cancelAllAlarms()
-                            AlarmService.shared.clearWakeAlarmState()
                         }
                     } label: {
                         Label("Skip", systemImage: "forward.fill")
@@ -1771,7 +1643,6 @@ struct CompactDoseButton: View {
             undoState.register(.takeDose2(at: now))
             // Cancel wake alarm since Dose 2 was taken
             AlarmService.shared.cancelAllAlarms()
-            AlarmService.shared.clearWakeAlarmState()
         }
     }
     
@@ -1784,8 +1655,6 @@ struct CompactDoseButton: View {
             eventLogger.logEvent(name: "Dose 2 (Late)", color: .orange, cooldownSeconds: 3600 * 8, persist: false)
             // Register for undo (late doses can also be undone)
             undoState.register(.takeDose2(at: now))
-            AlarmService.shared.cancelAllAlarms()
-            AlarmService.shared.clearWakeAlarmState()
         }
     }
     
@@ -1838,19 +1707,11 @@ struct CompactDoseButton: View {
     }
     
     private var snoozeEnabled: Bool {
-        (core.currentStatus == .active || core.currentStatus == .nearClose) && core.snoozeCount < maxSnoozes
+        (core.currentStatus == .active || core.currentStatus == .nearClose) && core.snoozeCount < 3
     }
     
     private var skipEnabled: Bool {
         core.currentStatus == .active || core.currentStatus == .nearClose || core.currentStatus == .closed
-    }
-
-    private var snoozeStepMinutes: Int {
-        max(1, settings.snoozeDurationMinutes)
-    }
-
-    private var maxSnoozes: Int {
-        max(0, settings.maxSnoozes)
     }
 }
 
@@ -1858,7 +1719,6 @@ struct CompactDoseButton: View {
 struct CompactSessionSummary: View {
     @ObservedObject var core: DoseTapCore
     @ObservedObject var eventLogger: EventLogger
-    @ObservedObject private var settings = UserSettingsManager.shared
     @State private var showEventsPopover = false
     
     var body: some View {
@@ -1906,7 +1766,7 @@ struct CompactSessionSummary: View {
             
             CompactSummaryItem(
                 icon: "bell.fill",
-                value: "\(core.snoozeCount)/\(max(0, settings.maxSnoozes))",
+                value: "\(core.snoozeCount)/3",
                 label: "Snooze",
                 color: core.snoozeCount > 0 ? .orange : .gray
             )
@@ -2459,7 +2319,6 @@ struct UndoSnackbarView: View {
 // MARK: - Session Summary Card
 struct SessionSummaryCard: View {
     @ObservedObject var core: DoseTapCore
-    @ObservedObject private var settings = UserSettingsManager.shared
     let eventCount: Int
     
     var body: some View {
@@ -2492,7 +2351,7 @@ struct SessionSummaryCard: View {
                 SummaryItem(
                     icon: "bell.fill",
                     label: "Snoozes",
-                    value: "\(core.snoozeCount)/\(max(0, settings.maxSnoozes))",
+                    value: "\(core.snoozeCount)/3",
                     color: core.snoozeCount > 0 ? .orange : .gray
                 )
             }
@@ -2545,6 +2404,47 @@ struct SummaryItem: View {
 }
 
 // MARK: - Logged Event Model
+enum DoseEventDisplay {
+    static func displayNameAndColor(for event: DoseCore.StoredDoseEvent) -> (String, Color) {
+        switch event.eventType {
+        case "dose1":
+            return ("Dose 1", .blue)
+        case "dose2":
+            return ("Dose 2", .green)
+        case "extra_dose":
+            return ("Extra Dose", .orange)
+        case "snooze":
+            return ("Snooze", .yellow)
+        case "skip":
+            return ("Dose Skipped", .orange)
+        default:
+            return (event.eventType.replacingOccurrences(of: "_", with: " ").capitalized, .gray)
+        }
+    }
+}
+
+enum EventDisplayName {
+    static func displayName(for eventType: String) -> String {
+        switch eventType {
+        case "bathroom": return "Bathroom"
+        case "water": return "Water"
+        case "lightsOut", "lights_out": return "Lights Out"
+        case "inBed", "in_bed": return "In Bed"
+        case "wakeFinal", "wake_final": return "Wake Up"
+        case "wakeTemp", "wake_temp": return "Brief Wake"
+        case "anxiety": return "Anxiety"
+        case "pain": return "Pain"
+        case "noise": return "Noise"
+        case "snack": return "Snack"
+        case "dream": return "Dream"
+        case "temperature": return "Temperature"
+        case "heartRacing", "heart_racing": return "Heart Racing"
+        default:
+            return eventType.replacingOccurrences(of: "_", with: " ").capitalized
+        }
+    }
+}
+
 struct LoggedEvent: Identifiable {
     let id: UUID
     let name: String
@@ -2569,105 +2469,3212 @@ struct LoggedEvent: Identifiable {
     }
 }
 
-// MARK: - Timeline View (Second Tab)
+// MARK: - Details View (Second Tab)
+private enum TimelineMode: String, CaseIterable, Identifiable {
+    case live = "Live"
+    case review = "Review"
+
+    var id: String { rawValue }
+}
+
 struct DetailsView: View {
-    @EnvironmentObject var themeManager: ThemeManager
-    @State private var selectedNight: Date = Date()
-    @State private var showDatePicker = false
-    private let calendar = Calendar.current
+    @Environment(\.colorScheme) private var colorScheme
+    @ObservedObject var core: DoseTapCore
+    @ObservedObject var eventLogger: EventLogger
+    @ObservedObject private var sessionRepo = SessionRepository.shared
+    @ObservedObject var settings = UserSettingsManager.shared
+    @State private var selectedMode: TimelineMode = .live
+    @State private var showLiveEventsSheet = false
+    @State private var showPlanForTonight = false
+    @State private var reviewSessions: [SessionSummary] = []
+    @State private var selectedReviewSessionKey: String?
+    @State private var reviewEvents: [StoredSleepEvent] = []
+    @State private var reviewNightDate: Date = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date()
+    @State private var reviewShareImage: UIImage?
+    @State private var showReviewShareSheet = false
+    @State private var isPreparingReviewShare = false
+    @State private var reviewShareErrorMessage: String?
+    
+    // Use customized QuickLog buttons from settings
+    private var quickLogEventTypes: [(name: String, icon: String, color: Color)] {
+        settings.quickLogButtons.map { ($0.name, $0.icon, $0.color) }
+    }
+
+    private var reviewSession: SessionSummary? {
+        guard let selectedReviewSessionKey else {
+            return reviewSessions.first
+        }
+        return reviewSessions.first(where: { $0.sessionDate == selectedReviewSessionKey }) ?? reviewSessions.first
+    }
+
+    private var selectedReviewIndex: Int? {
+        guard let selectedReviewSessionKey else { return nil }
+        return reviewSessions.firstIndex(where: { $0.sessionDate == selectedReviewSessionKey })
+    }
+
+    private var canGoToOlderReviewNight: Bool {
+        guard let index = selectedReviewIndex else { return false }
+        return index < (reviewSessions.count - 1)
+    }
+
+    private var canGoToNewerReviewNight: Bool {
+        guard let index = selectedReviewIndex else { return false }
+        return index > 0
+    }
     
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(spacing: 16) {
-                    timelineHeader
-                    
-                    LiveSleepTimelineView(nightDate: selectedNight)
+                if selectedMode == .review {
+                    VStack(spacing: 20) {
+                        Picker("Timeline Mode", selection: $selectedMode) {
+                            ForEach(TimelineMode.allCases) { mode in
+                                Text(mode.rawValue).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
+                        reviewContent
+                    }
+                    .padding()
+                    .padding(.bottom, 80)
+                } else {
+                    VStack(spacing: 20) {
+                        Picker("Timeline Mode", selection: $selectedMode) {
+                            ForEach(TimelineMode.allCases) { mode in
+                                Text(mode.rawValue).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
+                        liveContent
+                    }
+                    .padding()
+                    .padding(.bottom, 80)
                 }
-                .padding()
-                .padding(.bottom, 80) // Space for tab bar
             }
             .navigationTitle("Timeline")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    ThemeToggleButton()
-                }
-            }
-            .sheet(isPresented: $showDatePicker) {
-                NavigationView {
-                    DatePicker(
-                        "Select Night",
-                        selection: $selectedNight,
-                        in: ...Date(),
-                        displayedComponents: [.date]
-                    )
-                    .datePickerStyle(.graphical)
-                    .navigationTitle("Choose Night")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .navigationBarTrailing) {
-                            Button("Done") { showDatePicker = false }
+                    if selectedMode == .review, reviewSession != nil {
+                        Button {
+                            shareReviewSnapshot()
+                        } label: {
+                            if isPreparingReviewShare {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Image(systemName: "square.and.arrow.up")
+                            }
                         }
+                        .disabled(isPreparingReviewShare)
+                        .accessibilityLabel("Share review screenshot")
                     }
-                    .padding()
                 }
             }
+            .onAppear {
+                refreshReviewContext()
+                selectedMode = defaultMode()
+            }
+            .onReceive(sessionRepo.sessionDidChange) { _ in
+                refreshReviewContext()
+                if selectedMode == .review, reviewSession == nil {
+                    selectedMode = .live
+                }
+            }
+            .sheet(isPresented: $showLiveEventsSheet) {
+                TonightEventsSheet(events: eventLogger.events, onDelete: { id in
+                    eventLogger.deleteEvent(id: id)
+                })
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            }
+            .sheet(isPresented: $showReviewShareSheet) {
+                if let reviewShareImage {
+                    ActivityViewController(activityItems: [reviewShareImage])
+                }
+            }
+            .alert("Unable to Share Review", isPresented: Binding(
+                get: { reviewShareErrorMessage != nil },
+                set: { if !$0 { reviewShareErrorMessage = nil } }
+            )) {
+                Button("OK", role: .cancel) {
+                    reviewShareErrorMessage = nil
+                }
+            } message: {
+                Text(reviewShareErrorMessage ?? "Unknown error.")
+            }
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarBackground(Color(.systemBackground), for: .navigationBar)
         }
     }
-    
-    private var timelineHeader: some View {
-        HStack(spacing: 12) {
-            Button {
-                selectedNight = calendar.date(byAdding: .day, value: -1, to: selectedNight) ?? selectedNight
-            } label: {
-                Image(systemName: "chevron.left")
+
+    @ViewBuilder
+    private var liveContent: some View {
+        LiveNextActionCard(core: core)
+
+        TonightTimelineProgressCard(core: core, events: eventLogger.events)
+
+        FullEventLogGrid(
+            eventTypes: quickLogEventTypes,
+            eventLogger: eventLogger,
+            settings: settings
+        )
+
+        LiveEventsPreviewCard(
+            events: eventLogger.events,
+            onViewAll: { showLiveEventsSheet = true }
+        )
+    }
+
+    @ViewBuilder
+    private var reviewContent: some View {
+        if let session = reviewSession {
+            VStack(spacing: 20) {
+                ReviewStickyHeaderBar(
+                    session: session,
+                    events: reviewEvents,
+                    nightDate: reviewNightDate,
+                    hasMorningCheckIn: sessionRepo.fetchMorningCheckIn(for: session.sessionDate) != nil,
+                    canGoToOlderNight: canGoToOlderReviewNight,
+                    canGoToNewerNight: canGoToNewerReviewNight,
+                    nightPositionText: reviewNightPositionText,
+                    onGoOlder: goToOlderReviewNight,
+                    onGoNewer: goToNewerReviewNight
+                )
+
+                CoachSummaryCard(
+                    session: session,
+                    events: reviewEvents
+                )
+
+                MergedNightTimelineCard(
+                    session: session,
+                    events: reviewEvents,
+                    nightDate: reviewNightDate,
+                    fullViewDestination: AnyView(
+                        TimelineReviewDetailView(
+                            core: core,
+                            initialSessionKey: session.sessionDate
+                        )
+                    ),
+                    fullViewLabel: "Full view"
+                )
+
+                InsightsSummaryCard(title: "Key Metrics", showDefinitions: true)
+
+                ReviewEventsAndNotesCard(
+                    events: reviewEvents,
+                    onKeepEvent: { event, group in
+                        keepDuplicateEvent(event, in: group)
+                    },
+                    onDeleteEvent: { event in
+                        deleteDuplicateEvent(event)
+                    },
+                    onMergeGroup: { group in
+                        mergeDuplicateEvents(in: group)
+                    }
+                )
+
+                DisclosureGroup(isExpanded: $showPlanForTonight) {
+                    FullSessionDetails(core: core)
+                        .padding(.top, 10)
+                } label: {
+                    Text("Plan for Tonight")
+                        .font(.headline)
+                }
+                .padding()
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color(.systemGray6))
+                )
             }
-            .buttonStyle(.plain)
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text(SleepSessionDateFormatter.format(selectedNight))
-                    .font(.headline)
-                Text("Session report")
+        } else {
+            VStack(spacing: 12) {
+                Image(systemName: "moon.zzz")
+                    .font(.title2)
+                    .foregroundColor(.secondary)
+                Text("No completed night to review yet")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                Text("Switch to Live mode to track tonight's session.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
-            
-            Spacer()
-            
-            Button {
-                showDatePicker = true
-            } label: {
-                Image(systemName: "calendar")
-            }
-            .buttonStyle(.plain)
-            
-            Button {
-                let next = calendar.date(byAdding: .day, value: 1, to: selectedNight) ?? selectedNight
-                if !calendar.isDateInToday(next) && next < Date() {
-                    selectedNight = next
-                } else if calendar.isDateInToday(next) {
-                    selectedNight = next
-                }
-            } label: {
-                Image(systemName: "chevron.right")
-                    .foregroundColor(canGoForward ? .primary : .secondary)
-            }
-            .buttonStyle(.plain)
-            .disabled(!canGoForward)
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color(.systemGray6))
+            )
         }
     }
-    
-    private var canGoForward: Bool {
-        let startOfSelected = calendar.startOfDay(for: selectedNight)
-        let startOfToday = calendar.startOfDay(for: Date())
-        return startOfSelected < startOfToday
+
+    private func refreshReviewContext() {
+        let fetchedSessions = sessionRepo.fetchRecentSessions(days: 120)
+        var sessionByKey: [String: SessionSummary] = [:]
+        for session in fetchedSessions {
+            sessionByKey[session.sessionDate] = session
+        }
+
+        let calendar = Calendar.current
+        let candidates: [SessionSummary] = (1...90).compactMap { offset in
+            guard let date = calendar.date(byAdding: .day, value: -offset, to: Date()) else {
+                return nil
+            }
+            let key = sessionRepo.sessionDateString(for: eveningAnchorDate(for: date))
+            return sessionByKey[key] ?? SessionSummary(sessionDate: key)
+        }
+
+        reviewSessions = candidates
+        if let key = selectedReviewSessionKey, candidates.contains(where: { $0.sessionDate == key }) {
+            selectedReviewSessionKey = key
+        } else {
+            selectedReviewSessionKey = candidates.first?.sessionDate
+        }
+        loadSelectedReviewSessionData()
     }
+
+    private func loadSelectedReviewSessionData() {
+        guard let selected = reviewSession else {
+            reviewEvents = []
+            reviewNightDate = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date()
+            return
+        }
+
+        reviewEvents = sessionRepo.fetchSleepEvents(for: selected.sessionDate).sorted(by: { $0.timestamp < $1.timestamp })
+        reviewNightDate = Self.sessionDateFormatter.date(from: selected.sessionDate)
+            ?? Calendar.current.date(byAdding: .day, value: -1, to: Date())
+            ?? Date()
+    }
+
+    private func defaultMode() -> TimelineMode {
+        if core.currentStatus == .completed || core.currentStatus == .finalizing || core.currentStatus == .closed {
+            return .review
+        }
+        let hour = Calendar.current.component(.hour, from: Date())
+        if (7...15).contains(hour), reviewSession != nil, core.dose1Time == nil {
+            return .review
+        }
+        return .live
+    }
+
+    private func keepDuplicateEvent(_ keep: StoredSleepEvent, in group: StoredEventDuplicateGroup) {
+        for event in group.events where event.id != keep.id {
+            sessionRepo.deleteSleepEvent(id: event.id)
+        }
+        refreshReviewContext()
+    }
+
+    private func deleteDuplicateEvent(_ event: StoredSleepEvent) {
+        sessionRepo.deleteSleepEvent(id: event.id)
+        refreshReviewContext()
+    }
+
+    private func mergeDuplicateEvents(in group: StoredEventDuplicateGroup) {
+        guard let canonical = group.events.sorted(by: { $0.timestamp < $1.timestamp }).first else {
+            return
+        }
+        keepDuplicateEvent(canonical, in: group)
+    }
+
+    private var reviewNightPositionText: String {
+        guard let index = selectedReviewIndex else { return "" }
+        return "\(index + 1) of \(reviewSessions.count)"
+    }
+
+    private func goToOlderReviewNight() {
+        guard let index = selectedReviewIndex, canGoToOlderReviewNight else { return }
+        selectedReviewSessionKey = reviewSessions[index + 1].sessionDate
+        loadSelectedReviewSessionData()
+    }
+
+    private func goToNewerReviewNight() {
+        guard let index = selectedReviewIndex, canGoToNewerReviewNight else { return }
+        selectedReviewSessionKey = reviewSessions[index - 1].sessionDate
+        loadSelectedReviewSessionData()
+    }
+
+    private func shareReviewSnapshot() {
+        guard let session = reviewSession else { return }
+        isPreparingReviewShare = true
+        reviewShareErrorMessage = nil
+
+        Task { @MainActor in
+            let snapshotTimeline = await fetchSnapshotSleepTimeline(for: reviewNightDate)
+            InsightsCalculator.shared.computeInsights()
+
+            let content = TimelineReviewShareSnapshotView(
+                session: session,
+                events: reviewEvents,
+                nightDate: reviewNightDate,
+                hasMorningCheckIn: sessionRepo.fetchMorningCheckIn(for: session.sessionDate) != nil,
+                core: core,
+                snapshotTimeline: snapshotTimeline
+            )
+            .frame(width: UIScreen.main.bounds.width - 24)
+            .padding(.vertical, 8)
+            .environment(\.colorScheme, colorScheme)
+            .preferredColorScheme(colorScheme)
+
+            let renderer = ImageRenderer(content: content)
+            renderer.scale = UIScreen.main.scale
+
+            if let image = renderer.uiImage {
+                reviewShareImage = image
+                showReviewShareSheet = true
+            } else {
+                reviewShareErrorMessage = "Could not generate a screenshot for this review."
+            }
+
+            isPreparingReviewShare = false
+        }
+    }
+
+    private func fetchSnapshotSleepTimeline(for nightDate: Date) async -> ReviewSnapshotSleepTimeline? {
+        let healthKit = HealthKitService.shared
+        guard UserSettingsManager.shared.healthKitEnabled else { return nil }
+        healthKit.checkAuthorizationStatus()
+        guard healthKit.isAuthorized else { return nil }
+
+        let queryStart = eveningAnchorDate(for: nightDate, hour: 18)
+        guard let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: nightDate) else { return nil }
+        let queryEnd = eveningAnchorDate(for: nextDay, hour: 12)
+
+        do {
+            let segments = try await healthKit.fetchSegmentsForTimeline(from: queryStart, to: queryEnd)
+            let stages = segments
+                .map { segment in
+                    SleepStageBand(
+                        stage: mapHealthStageToTimeline(segment.stage),
+                        startTime: segment.start,
+                        endTime: segment.end
+                    )
+                }
+                .sorted(by: { $0.startTime < $1.startTime })
+
+            guard !stages.isEmpty else { return nil }
+
+            let start = stages.map(\.startTime).min() ?? queryStart
+            let end = stages.map(\.endTime).max() ?? queryEnd
+            return ReviewSnapshotSleepTimeline(stages: stages, start: start, end: end)
+        } catch {
+            return nil
+        }
+    }
+
+    private func mapHealthStageToTimeline(_ stage: HealthKitService.SleepStage) -> SleepStage {
+        switch HealthKitService.mapToDisplayStage(stage) {
+        case .awake:
+            return .awake
+        case .light, .core:
+            return .light
+        case .deep:
+            return .deep
+        case .rem:
+            return .rem
+        }
+    }
+
+    private static let sessionDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = .current
+        return formatter
+    }()
+}
+
+private struct DashboardNightAggregate: Identifiable {
+    let sessionDate: String
+    let dose1Time: Date?
+    let dose2Time: Date?
+    let dose2Skipped: Bool
+    let snoozeCount: Int
+    let extraDoseCount: Int
+    let events: [StoredSleepEvent]
+    let morningCheckIn: StoredMorningCheckIn?
+    let preSleepLog: StoredPreSleepLog?
+    let healthSummary: HealthKitService.SleepNightSummary?
+    let duplicateClusterCount: Int
+    let napSummary: SessionRepository.NapSummary
+
+    var id: String { sessionDate }
+
+    var intervalMinutes: Int? {
+        guard let dose1Time, let dose2Time else { return nil }
+        let minutes = TimeIntervalMath.minutesBetween(start: dose1Time, end: dose2Time)
+        return minutes >= 0 ? minutes : nil
+    }
+
+    var onTimeDosing: Bool? {
+        guard let intervalMinutes else { return nil }
+        return (150...240).contains(intervalMinutes)
+    }
+
+    var totalSleepMinutes: Double? { healthSummary?.totalSleepMinutes }
+    var ttfwMinutes: Double? { healthSummary?.ttfwMinutes }
+    var wakeCount: Int? { healthSummary?.wakeCount }
+
+    var bathroomEventCount: Int {
+        events.filter { normalizeStoredEventType($0.eventType) == "bathroom" }.count
+    }
+
+    var hasAnyData: Bool {
+        dose1Time != nil || dose2Time != nil || dose2Skipped || !events.isEmpty || morningCheckIn != nil || preSleepLog != nil || healthSummary != nil
+    }
+
+    var dataCompletenessScore: Double {
+        var score = 0.0
+        if dose1Time != nil && (dose2Time != nil || dose2Skipped) { score += 0.25 }
+        if healthSummary != nil { score += 0.25 }
+        if morningCheckIn != nil { score += 0.25 }
+        if preSleepLog != nil { score += 0.25 }
+        return score
+    }
+
+    var qualityFlags: [String] {
+        var flags: [String] = []
+        if duplicateClusterCount > 0 {
+            flags.append("Duplicate event cluster")
+        }
+        if dose1Time != nil && dose2Time == nil && !dose2Skipped {
+            flags.append("Dose 2 outcome missing")
+        }
+        if healthSummary == nil {
+            flags.append("No HealthKit sleep summary")
+        }
+        if morningCheckIn == nil {
+            flags.append("No morning check-in")
+        }
+        return flags
+    }
+}
+
+private struct DashboardIntegrationState: Identifiable {
+    let id: String
+    let name: String
+    let status: String
+    let detail: String
+    let color: Color
+}
+
+private struct DashboardMetricCategory: Identifiable {
+    let id: String
+    let title: String
+    let metrics: [String]
+}
+
+@MainActor
+private final class DashboardAnalyticsModel: ObservableObject {
+    @Published var nights: [DashboardNightAggregate] = []
+    @Published var integrationStates: [DashboardIntegrationState] = []
+    @Published var isLoading = false
+    @Published var lastRefresh: Date?
+    @Published var errorMessage: String?
+
+    private let sessionRepo = SessionRepository.shared
+    private let settings = UserSettingsManager.shared
+    private let healthKit = HealthKitService.shared
+    private let whoop = WHOOPService.shared
+    private let cloudSync = CloudKitSyncService.shared
+
+    var populatedNights: [DashboardNightAggregate] {
+        nights.filter(\.hasAnyData)
+    }
+
+    var trendNights: [DashboardNightAggregate] {
+        Array(populatedNights.prefix(14))
+    }
+
+    var onTimePercentage: Double? {
+        let values = populatedNights.compactMap(\.onTimeDosing)
+        guard !values.isEmpty else { return nil }
+        let onTime = values.filter { $0 }.count
+        return (Double(onTime) / Double(values.count)) * 100
+    }
+
+    var averageIntervalMinutes: Double? {
+        let intervals = populatedNights.compactMap(\.intervalMinutes)
+        guard !intervals.isEmpty else { return nil }
+        return Double(intervals.reduce(0, +)) / Double(intervals.count)
+    }
+
+    var completionRate: Double? {
+        let eligible = populatedNights.filter { $0.dose1Time != nil }
+        guard !eligible.isEmpty else { return nil }
+        let completed = eligible.filter { $0.dose2Time != nil || $0.dose2Skipped }.count
+        return (Double(completed) / Double(eligible.count)) * 100
+    }
+
+    var averageSnoozeCount: Double? {
+        guard !populatedNights.isEmpty else { return nil }
+        let total = populatedNights.reduce(0) { $0 + $1.snoozeCount }
+        return Double(total) / Double(populatedNights.count)
+    }
+
+    var averageSleepMinutes: Double? {
+        let values = populatedNights.compactMap(\.totalSleepMinutes)
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +) / Double(values.count)
+    }
+
+    var averageTTFW: Double? {
+        let values = populatedNights.compactMap(\.ttfwMinutes)
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +) / Double(values.count)
+    }
+
+    var averageWakeCount: Double? {
+        let values = populatedNights.compactMap(\.wakeCount).map(Double.init)
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +) / Double(values.count)
+    }
+
+    var averageBathroomWakeMinutes: Double? {
+        let nightsWithBathroom = populatedNights.filter { $0.bathroomEventCount > 0 }
+        guard !nightsWithBathroom.isEmpty else { return nil }
+        let estimatedMinutes = nightsWithBathroom.reduce(0) { $0 + ($1.bathroomEventCount * 5) }
+        return Double(estimatedMinutes) / Double(nightsWithBathroom.count)
+    }
+
+    var duplicateNightCount: Int {
+        populatedNights.filter { $0.duplicateClusterCount > 0 }.count
+    }
+
+    var missingHealthSummaryCount: Int {
+        populatedNights.filter { $0.healthSummary == nil }.count
+    }
+
+    var highConfidenceNightCount: Int {
+        populatedNights.filter { $0.dataCompletenessScore >= 0.75 }.count
+    }
+
+    var qualityIssueCount: Int {
+        populatedNights.reduce(0) { $0 + $1.qualityFlags.count }
+    }
+
+    let metricsCatalog: [DashboardMetricCategory] = [
+        DashboardMetricCategory(
+            id: "dosing",
+            title: "Dosing & Timing",
+            metrics: [
+                "Dose 1 timestamp",
+                "Dose 2 timestamp",
+                "Dose 2 skipped status",
+                "Inter-dose interval (minutes)",
+                "On-time dosing (150-240m window)",
+                "Snooze count",
+                "Extra dose count"
+            ]
+        ),
+        DashboardMetricCategory(
+            id: "sleep",
+            title: "Sleep (HealthKit + Manual)",
+            metrics: [
+                "Total sleep minutes",
+                "Time to first wake (TTFW)",
+                "Wake count (HealthKit)",
+                "Sleep source",
+                "Bathroom wake count",
+                "Lights Out and Wake Up events",
+                "Nap count and duration"
+            ]
+        ),
+        DashboardMetricCategory(
+            id: "checkins",
+            title: "Check-Ins & Symptoms",
+            metrics: [
+                "Morning check-in completion",
+                "Sleep quality and restedness",
+                "Grogginess and sleep inertia",
+                "Dream recall",
+                "Physical and respiratory symptom flags",
+                "Mood, anxiety, readiness",
+                "Sleep therapy and environment flags"
+            ]
+        ),
+        DashboardMetricCategory(
+            id: "quality",
+            title: "Data Quality & Reliability",
+            metrics: [
+                "Duplicate event cluster count",
+                "Completeness score (0.0-1.0)",
+                "Missing Dose 2 outcome",
+                "Missing HealthKit summary",
+                "Missing morning check-in",
+                "Integration authorization state"
+            ]
+        )
+    ]
+
+    func refresh(days: Int = 90) async {
+        isLoading = true
+        errorMessage = nil
+
+        let sessions = sessionRepo.fetchRecentSessions(days: days)
+        var sessionByKey: [String: SessionSummary] = [:]
+        for session in sessions {
+            sessionByKey[session.sessionDate] = session
+        }
+
+        var healthByKey: [String: HealthKitService.SleepNightSummary] = [:]
+        if settings.healthKitEnabled {
+            healthKit.checkAuthorizationStatus()
+            if healthKit.isAuthorized {
+                await healthKit.computeTTFWBaseline(days: max(14, min(days, 120)))
+                for summary in healthKit.sleepHistory {
+                    let key = sessionRepo.sessionDateString(for: eveningAnchorDate(for: summary.date))
+                    if healthByKey[key] == nil {
+                        healthByKey[key] = summary
+                    }
+                }
+            } else if let lastError = healthKit.lastError, !lastError.isEmpty {
+                errorMessage = lastError
+            }
+        }
+
+        let calendar = Calendar.current
+        let sessionKeys: [String] = (0..<days).compactMap { offset in
+            guard let date = calendar.date(byAdding: .day, value: -offset, to: Date()) else { return nil }
+            return sessionRepo.sessionDateString(for: eveningAnchorDate(for: date))
+        }
+
+        let aggregates: [DashboardNightAggregate] = sessionKeys.map { key in
+            let summary = sessionByKey[key] ?? SessionSummary(sessionDate: key)
+            let doseLog = sessionRepo.fetchDoseLog(forSession: key)
+            let doseEvents = sessionRepo.fetchDoseEvents(forSessionDate: key)
+            let extraDoseCount = doseEvents.filter {
+                $0.eventType.lowercased().contains("extra")
+            }.count
+            let events = sessionRepo.fetchSleepEvents(for: key).sorted { $0.timestamp < $1.timestamp }
+            let duplicateClusters = buildStoredEventDuplicateGroups(events: events).count
+            let sessionId = sessionRepo.fetchSessionId(forSessionDate: key) ?? key
+
+            return DashboardNightAggregate(
+                sessionDate: key,
+                dose1Time: summary.dose1Time ?? doseLog?.dose1Time,
+                dose2Time: summary.dose2Time ?? doseLog?.dose2Time,
+                dose2Skipped: summary.dose2Skipped || doseLog?.dose2Skipped == true,
+                snoozeCount: summary.snoozeCount,
+                extraDoseCount: extraDoseCount,
+                events: events,
+                morningCheckIn: sessionRepo.fetchMorningCheckIn(for: key),
+                preSleepLog: sessionRepo.fetchMostRecentPreSleepLog(sessionId: sessionId),
+                healthSummary: healthByKey[key],
+                duplicateClusterCount: duplicateClusters,
+                napSummary: sessionRepo.napSummary(for: key)
+            )
+        }
+
+        nights = aggregates.sorted { $0.sessionDate > $1.sessionDate }
+        integrationStates = buildIntegrationStates(healthMatches: healthByKey.count)
+        lastRefresh = Date()
+        isLoading = false
+    }
+
+    private func buildIntegrationStates(healthMatches: Int) -> [DashboardIntegrationState] {
+        let healthState = DashboardIntegrationState(
+            id: "healthkit",
+            name: "Apple HealthKit",
+            status: settings.healthKitEnabled
+                ? (healthKit.isAuthorized ? "Connected" : "Needs Authorization")
+                : "Disabled",
+            detail: settings.healthKitEnabled
+                ? (healthKit.isAuthorized
+                    ? "\(healthMatches) nights with sleep summaries mapped"
+                    : (healthKit.lastError ?? "Enable read access for sleep analysis"))
+                : "Enable in Settings to ingest sleep stages automatically.",
+            color: settings.healthKitEnabled ? (healthKit.isAuthorized ? .green : .orange) : .gray
+        )
+
+        let whoopState = DashboardIntegrationState(
+            id: "whoop",
+            name: "WHOOP",
+            status: settings.whoopEnabled
+                ? (whoop.isConnected ? "Connected" : "Not Connected")
+                : "Disabled",
+            detail: settings.whoopEnabled
+                ? (whoop.isConnected
+                    ? "OAuth active\(whoop.lastSyncTime.map { " • Last sync \($0.formatted(date: .omitted, time: .shortened))" } ?? "")"
+                    : "Connect in Settings to ingest recovery/strain metrics.")
+                : "Turn on WHOOP integration in Settings when ready.",
+            color: settings.whoopEnabled ? (whoop.isConnected ? .green : .orange) : .gray
+        )
+
+        let cloudState = DashboardIntegrationState(
+            id: "cloud",
+            name: "Cloud Sync",
+            status: cloudSync.cloudSyncAvailableInBuild
+                ? (cloudSync.lastSyncDate == nil ? "Not Synced" : "Active")
+                : "Disabled",
+            detail: cloudSync.cloudSyncAvailableInBuild
+                ? (cloudSync.lastSyncDate == nil
+                    ? cloudSync.statusMessage
+                    : "Last sync \(cloudSync.lastSyncDate?.formatted(date: .omitted, time: .shortened) ?? "") • \(cloudSync.statusMessage)")
+                : "Cloud sync requires iCloud entitlements and a paid Apple Developer team profile.",
+            color: cloudSync.cloudSyncAvailableInBuild
+                ? (cloudSync.lastSyncDate == nil ? .orange : .green)
+                : .gray
+        )
+
+        let exportState = DashboardIntegrationState(
+            id: "export",
+            name: "Share & Export",
+            status: "Ready",
+            detail: "Timeline review snapshot sharing is active (theme-aware export).",
+            color: .teal
+        )
+
+        return [healthState, whoopState, cloudState, exportState]
+    }
+}
+
+@MainActor
+private final class CloudKitSyncService: ObservableObject {
+    static let shared = CloudKitSyncService()
+
+    @Published var isSyncing = false
+    @Published var lastSyncDate: Date?
+    @Published var statusMessage: String = "Not synced yet"
+
+    private let sessionRepo = SessionRepository.shared
+    private let sessionDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = .current
+        return formatter
+    }()
+
+    #if canImport(CloudKit)
+    private let container = CKContainer.default()
+    private lazy var db = container.privateCloudDatabase
+    private let zoneID = CKRecordZone.ID(zoneName: "DoseTapZone", ownerName: CKCurrentUserDefaultName)
+    private let zoneChangeTokenDefaultsKey = "cloudkit.zone.token.dosetap.v1"
+    private let sessionRecordType = "DoseTapSession"
+    private let sleepEventRecordType = "DoseTapSleepEvent"
+    private let doseEventRecordType = "DoseTapDoseEvent"
+    private let morningCheckInRecordType = "DoseTapMorningCheckIn"
+
+    private struct ZoneDeletedRecord {
+        let recordID: CKRecord.ID
+        let recordType: String?
+    }
+
+    private struct ZoneChangeBatch {
+        let changedRecords: [CKRecord]
+        let deletedRecords: [ZoneDeletedRecord]
+        let newToken: CKServerChangeToken?
+    }
+
+    private lazy var hasCloudKitEntitlement: Bool = {
+        // iOS does not provide a public entitlements API here.
+        // Prefer explicit config if present; otherwise allow runtime account checks
+        // to decide availability.
+        if let flag = Bundle.main.object(forInfoDictionaryKey: "DoseTapCloudSyncEnabled") {
+            if let boolValue = flag as? Bool {
+                return boolValue
+            }
+            if let numberValue = flag as? NSNumber {
+                return numberValue.boolValue
+            }
+            if let stringValue = flag as? String {
+                return ["1", "true", "yes"].contains(stringValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+            }
+        }
+        return true
+    }()
+    #endif
+
+    enum SyncError: LocalizedError {
+        case cloudKitUnavailable
+        case accountNotAvailable
+        case zoneSetupFailed
+        case syncDisabledByBuild
+
+        var errorDescription: String? {
+            switch self {
+            case .cloudKitUnavailable:
+                return "CloudKit is unavailable on this platform build."
+            case .accountNotAvailable:
+                return "iCloud account is not available for private database sync."
+            case .zoneSetupFailed:
+                return "Could not initialize CloudKit zone."
+            case .syncDisabledByBuild:
+                return "Cloud sync is disabled for this build."
+            }
+        }
+    }
+
+    var cloudSyncAvailableInBuild: Bool {
+        #if canImport(CloudKit)
+        return hasCloudKitEntitlement
+        #else
+        return false
+        #endif
+    }
+
+    func syncNow(days: Int = 120) async throws {
+        guard days > 0 else { return }
+        isSyncing = true
+        defer { isSyncing = false }
+
+        #if canImport(CloudKit)
+        guard hasCloudKitEntitlement else {
+            statusMessage = "Cloud sync unavailable in this build (missing iCloud entitlement)."
+            throw SyncError.syncDisabledByBuild
+        }
+
+        statusMessage = "Checking iCloud account…"
+        let accountStatus = try await fetchAccountStatus()
+        guard accountStatus == .available else {
+            throw SyncError.accountNotAvailable
+        }
+
+        statusMessage = "Preparing CloudKit zone…"
+        try await ensureZoneExists()
+
+        let cutoffDate = Calendar.current.date(byAdding: .day, value: -days, to: Date()) ?? .distantPast
+        let cutoffKey = sessionDateFormatter.string(from: cutoffDate)
+
+        statusMessage = "Uploading local records…"
+        let uploadRecords = buildUploadRecords(cutoffKey: cutoffKey)
+        try await saveRecordsInChunks(uploadRecords, chunkSize: 200)
+
+        statusMessage = "Uploading deletions…"
+        let tombstones = sessionRepo.fetchCloudKitTombstones(limit: 5000)
+        let clearedTombstoneKeys = try await applyCloudKitDeletesInChunks(tombstones, chunkSize: 200)
+        if !clearedTombstoneKeys.isEmpty {
+            sessionRepo.clearCloudKitTombstones(keys: Array(clearedTombstoneKeys))
+        }
+
+        statusMessage = "Downloading incremental changes…"
+        let previousToken = loadServerChangeToken()
+        let changes = try await fetchZoneChangesWithRecovery(previousToken: previousToken)
+
+        applyChangedRecords(changes.changedRecords)
+        applyDeletedRecords(changes.deletedRecords)
+        sessionRepo.finalizeSyncImport()
+        saveServerChangeToken(changes.newToken)
+
+        lastSyncDate = Date()
+        statusMessage = "Sync complete (\(uploadRecords.count) up, \(clearedTombstoneKeys.count) outbound deletes, \(changes.changedRecords.count) changed, \(changes.deletedRecords.count) inbound deletes)"
+        #else
+        throw SyncError.cloudKitUnavailable
+        #endif
+    }
+
+    #if canImport(CloudKit)
+    private func buildUploadRecords(cutoffKey: String) -> [CKRecord] {
+        let keys = sessionRepo
+            .allSessionDatesForSync()
+            .filter { $0 >= cutoffKey }
+
+        var records: [CKRecord] = []
+        for sessionDate in keys {
+            let sessionId = sessionRepo.fetchSessionId(forSessionDate: sessionDate) ?? sessionDate
+            let doseLog = sessionRepo.fetchDoseLog(forSession: sessionDate)
+            let sleepEvents = sessionRepo.fetchSleepEvents(for: sessionDate)
+            let doseEvents = sessionRepo.fetchDoseEvents(forSessionDate: sessionDate)
+            let morningCheckIn = sessionRepo.fetchMorningCheckIn(for: sessionDate)
+
+            if doseLog != nil || !sleepEvents.isEmpty || !doseEvents.isEmpty || morningCheckIn != nil {
+                records.append(sessionRecord(
+                    sessionDate: sessionDate,
+                    sessionId: sessionId,
+                    doseLog: doseLog,
+                    sleepEvents: sleepEvents.count,
+                    doseEvents: doseEvents.count,
+                    hasMorningCheckIn: morningCheckIn != nil
+                ))
+            }
+
+            for event in sleepEvents {
+                records.append(sleepEventRecord(event: event, sessionId: sessionId))
+            }
+
+            for event in doseEvents {
+                records.append(doseEventRecord(event: event, sessionId: sessionId))
+            }
+
+            if let checkIn = morningCheckIn {
+                records.append(morningCheckInRecord(checkIn: checkIn))
+            }
+        }
+        return records
+    }
+
+    private func sessionRecord(
+        sessionDate: String,
+        sessionId: String,
+        doseLog: StoredDoseLog?,
+        sleepEvents: Int,
+        doseEvents: Int,
+        hasMorningCheckIn: Bool
+    ) -> CKRecord {
+        let recordID = CKRecord.ID(recordName: sessionDate, zoneID: zoneID)
+        let record = CKRecord(recordType: sessionRecordType, recordID: recordID)
+        record["sessionDate"] = sessionDate as CKRecordValue
+        record["sessionId"] = sessionId as CKRecordValue
+        record["dose1At"] = doseLog?.dose1Time as CKRecordValue?
+        record["dose2At"] = doseLog?.dose2Time as CKRecordValue?
+        record["dose2Skipped"] = (doseLog?.dose2Skipped ?? false) as CKRecordValue
+        record["snoozeCount"] = (doseLog?.snoozeCount ?? 0) as CKRecordValue
+        record["sleepEventCount"] = sleepEvents as CKRecordValue
+        record["doseEventCount"] = doseEvents as CKRecordValue
+        record["hasMorningCheckIn"] = hasMorningCheckIn as CKRecordValue
+        record["updatedAt"] = Date() as CKRecordValue
+        return record
+    }
+
+    private func sleepEventRecord(event: StoredSleepEvent, sessionId: String) -> CKRecord {
+        let recordID = CKRecord.ID(recordName: event.id, zoneID: zoneID)
+        let record = CKRecord(recordType: sleepEventRecordType, recordID: recordID)
+        record["eventType"] = event.eventType as CKRecordValue
+        record["timestamp"] = event.timestamp as CKRecordValue
+        record["sessionDate"] = event.sessionDate as CKRecordValue
+        record["sessionId"] = sessionId as CKRecordValue
+        record["colorHex"] = event.colorHex as CKRecordValue?
+        record["notes"] = event.notes as CKRecordValue?
+        record["updatedAt"] = Date() as CKRecordValue
+        return record
+    }
+
+    private func doseEventRecord(event: DoseCore.StoredDoseEvent, sessionId: String) -> CKRecord {
+        let recordID = CKRecord.ID(recordName: event.id, zoneID: zoneID)
+        let record = CKRecord(recordType: doseEventRecordType, recordID: recordID)
+        record["eventType"] = event.eventType as CKRecordValue
+        record["timestamp"] = event.timestamp as CKRecordValue
+        record["sessionDate"] = event.sessionDate as CKRecordValue
+        record["sessionId"] = sessionId as CKRecordValue
+        record["metadata"] = event.metadata as CKRecordValue?
+        record["updatedAt"] = Date() as CKRecordValue
+        return record
+    }
+
+    private func morningCheckInRecord(checkIn: StoredMorningCheckIn) -> CKRecord {
+        let recordID = CKRecord.ID(recordName: checkIn.id, zoneID: zoneID)
+        let record = CKRecord(recordType: morningCheckInRecordType, recordID: recordID)
+        record["sessionId"] = checkIn.sessionId as CKRecordValue
+        record["sessionDate"] = checkIn.sessionDate as CKRecordValue
+        record["timestamp"] = checkIn.timestamp as CKRecordValue
+        record["sleepQuality"] = checkIn.sleepQuality as CKRecordValue
+        record["feelRested"] = checkIn.feelRested as CKRecordValue
+        record["grogginess"] = checkIn.grogginess as CKRecordValue
+        record["sleepInertiaDuration"] = checkIn.sleepInertiaDuration as CKRecordValue
+        record["dreamRecall"] = checkIn.dreamRecall as CKRecordValue
+        record["hasPhysicalSymptoms"] = checkIn.hasPhysicalSymptoms as CKRecordValue
+        record["physicalSymptomsJson"] = checkIn.physicalSymptomsJson as CKRecordValue?
+        record["hasRespiratorySymptoms"] = checkIn.hasRespiratorySymptoms as CKRecordValue
+        record["respiratorySymptomsJson"] = checkIn.respiratorySymptomsJson as CKRecordValue?
+        record["mentalClarity"] = checkIn.mentalClarity as CKRecordValue
+        record["mood"] = checkIn.mood as CKRecordValue
+        record["anxietyLevel"] = checkIn.anxietyLevel as CKRecordValue
+        record["readinessForDay"] = checkIn.readinessForDay as CKRecordValue
+        record["hadSleepParalysis"] = checkIn.hadSleepParalysis as CKRecordValue
+        record["hadHallucinations"] = checkIn.hadHallucinations as CKRecordValue
+        record["hadAutomaticBehavior"] = checkIn.hadAutomaticBehavior as CKRecordValue
+        record["fellOutOfBed"] = checkIn.fellOutOfBed as CKRecordValue
+        record["hadConfusionOnWaking"] = checkIn.hadConfusionOnWaking as CKRecordValue
+        record["usedSleepTherapy"] = checkIn.usedSleepTherapy as CKRecordValue
+        record["sleepTherapyJson"] = checkIn.sleepTherapyJson as CKRecordValue?
+        record["hasSleepEnvironment"] = checkIn.hasSleepEnvironment as CKRecordValue
+        record["sleepEnvironmentJson"] = checkIn.sleepEnvironmentJson as CKRecordValue?
+        record["notes"] = checkIn.notes as CKRecordValue?
+        record["updatedAt"] = Date() as CKRecordValue
+        return record
+    }
+
+    private func applySleepRecords(_ records: [CKRecord]) {
+        for record in records {
+            guard
+                let eventType = record["eventType"] as? String,
+                let timestamp = record["timestamp"] as? Date,
+                let sessionDate = record["sessionDate"] as? String
+            else {
+                continue
+            }
+            let sessionId = record["sessionId"] as? String
+            let colorHex = record["colorHex"] as? String
+            let notes = record["notes"] as? String
+            sessionRepo.upsertSleepEventFromSync(
+                id: record.recordID.recordName,
+                eventType: eventType,
+                timestamp: timestamp,
+                sessionDate: sessionDate,
+                sessionId: sessionId,
+                colorHex: colorHex,
+                notes: notes
+            )
+        }
+    }
+
+    private func applyDoseRecords(_ records: [CKRecord]) {
+        for record in records {
+            guard
+                let eventType = record["eventType"] as? String,
+                let timestamp = record["timestamp"] as? Date,
+                let sessionDate = record["sessionDate"] as? String
+            else {
+                continue
+            }
+            let sessionId = record["sessionId"] as? String
+            let metadata = record["metadata"] as? String
+            sessionRepo.upsertDoseEventFromSync(
+                id: record.recordID.recordName,
+                eventType: eventType,
+                timestamp: timestamp,
+                sessionDate: sessionDate,
+                sessionId: sessionId,
+                metadata: metadata
+            )
+        }
+    }
+
+    private func applyMorningCheckInRecords(_ records: [CKRecord]) {
+        for record in records {
+            guard
+                let sessionId = record["sessionId"] as? String,
+                let sessionDate = record["sessionDate"] as? String,
+                let timestamp = record["timestamp"] as? Date
+            else {
+                continue
+            }
+
+            let checkIn = StoredMorningCheckIn(
+                id: record.recordID.recordName,
+                sessionId: sessionId,
+                timestamp: timestamp,
+                sessionDate: sessionDate,
+                sleepQuality: record["sleepQuality"] as? Int ?? 3,
+                feelRested: record["feelRested"] as? String ?? "moderate",
+                grogginess: record["grogginess"] as? String ?? "mild",
+                sleepInertiaDuration: record["sleepInertiaDuration"] as? String ?? "fiveToFifteen",
+                dreamRecall: record["dreamRecall"] as? String ?? "none",
+                hasPhysicalSymptoms: record["hasPhysicalSymptoms"] as? Bool ?? false,
+                physicalSymptomsJson: record["physicalSymptomsJson"] as? String,
+                hasRespiratorySymptoms: record["hasRespiratorySymptoms"] as? Bool ?? false,
+                respiratorySymptomsJson: record["respiratorySymptomsJson"] as? String,
+                mentalClarity: record["mentalClarity"] as? Int ?? 5,
+                mood: record["mood"] as? String ?? "neutral",
+                anxietyLevel: record["anxietyLevel"] as? String ?? "none",
+                readinessForDay: record["readinessForDay"] as? Int ?? 3,
+                hadSleepParalysis: record["hadSleepParalysis"] as? Bool ?? false,
+                hadHallucinations: record["hadHallucinations"] as? Bool ?? false,
+                hadAutomaticBehavior: record["hadAutomaticBehavior"] as? Bool ?? false,
+                fellOutOfBed: record["fellOutOfBed"] as? Bool ?? false,
+                hadConfusionOnWaking: record["hadConfusionOnWaking"] as? Bool ?? false,
+                usedSleepTherapy: record["usedSleepTherapy"] as? Bool ?? false,
+                sleepTherapyJson: record["sleepTherapyJson"] as? String,
+                hasSleepEnvironment: record["hasSleepEnvironment"] as? Bool ?? false,
+                sleepEnvironmentJson: record["sleepEnvironmentJson"] as? String,
+                notes: record["notes"] as? String
+            )
+            sessionRepo.upsertMorningCheckInFromSync(checkIn)
+        }
+    }
+
+    private func applyChangedRecords(_ records: [CKRecord]) {
+        var sleepRecords: [CKRecord] = []
+        var doseRecords: [CKRecord] = []
+        var morningRecords: [CKRecord] = []
+
+        for record in records {
+            switch record.recordType {
+            case sleepEventRecordType:
+                sleepRecords.append(record)
+            case doseEventRecordType:
+                doseRecords.append(record)
+            case morningCheckInRecordType:
+                morningRecords.append(record)
+            default:
+                continue
+            }
+        }
+
+        applySleepRecords(sleepRecords)
+        applyDoseRecords(doseRecords)
+        applyMorningCheckInRecords(morningRecords)
+    }
+
+    private func applyDeletedRecords(_ records: [ZoneDeletedRecord]) {
+        guard !records.isEmpty else { return }
+
+        for deleted in records {
+            switch deleted.recordType {
+            case sessionRecordType:
+                let key = deleted.recordID.recordName
+                if looksLikeSessionDate(key) {
+                    sessionRepo.deleteSessionFromSync(sessionDate: key)
+                }
+            case sleepEventRecordType:
+                sessionRepo.deleteSleepEventFromSync(id: deleted.recordID.recordName)
+            case doseEventRecordType:
+                sessionRepo.deleteDoseEventFromSync(id: deleted.recordID.recordName)
+            case morningCheckInRecordType:
+                sessionRepo.deleteMorningCheckInFromSync(id: deleted.recordID.recordName)
+            default:
+                let key = deleted.recordID.recordName
+                if looksLikeSessionDate(key) {
+                    sessionRepo.deleteSessionFromSync(sessionDate: key)
+                }
+            }
+        }
+    }
+
+    private func fetchAccountStatus() async throws -> CKAccountStatus {
+        try await withCheckedThrowingContinuation { continuation in
+            container.accountStatus { status, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: status)
+                }
+            }
+        }
+    }
+
+    private func ensureZoneExists() async throws {
+        let zone = CKRecordZone(zoneID: zoneID)
+        try await withCheckedThrowingContinuation { continuation in
+            let op = CKModifyRecordZonesOperation(recordZonesToSave: [zone], recordZoneIDsToDelete: nil)
+            op.modifyRecordZonesResultBlock = { result in
+                switch result {
+                case .success:
+                    continuation.resume(returning: ())
+                case .failure(let error):
+                    print("⚠️ CloudKit zone ensure failed: \(error.localizedDescription)")
+                    continuation.resume(throwing: SyncError.zoneSetupFailed)
+                }
+            }
+            db.add(op)
+        }
+    }
+
+    private func saveRecordsInChunks(_ records: [CKRecord], chunkSize: Int) async throws {
+        guard !records.isEmpty else { return }
+        var index = 0
+        while index < records.count {
+            let end = min(index + chunkSize, records.count)
+            let chunk = Array(records[index..<end])
+            try await withCheckedThrowingContinuation { continuation in
+                let op = CKModifyRecordsOperation(recordsToSave: chunk, recordIDsToDelete: nil)
+                op.savePolicy = .changedKeys
+                op.modifyRecordsResultBlock = { result in
+                    switch result {
+                    case .success:
+                        continuation.resume(returning: ())
+                    case .failure(let error):
+                        continuation.resume(throwing: error)
+                    }
+                }
+                db.add(op)
+            }
+            index = end
+        }
+    }
+
+    private func applyCloudKitDeletesInChunks(_ tombstones: [CloudKitTombstone], chunkSize: Int) async throws -> Set<String> {
+        guard !tombstones.isEmpty else { return [] }
+
+        var clearedKeys: Set<String> = []
+        var index = 0
+        while index < tombstones.count {
+            let end = min(index + chunkSize, tombstones.count)
+            let chunk = Array(tombstones[index..<end])
+            let succeeded = try await deleteCloudKitChunk(chunk)
+            clearedKeys.formUnion(succeeded)
+            index = end
+        }
+
+        return clearedKeys
+    }
+
+    private func deleteCloudKitChunk(_ chunk: [CloudKitTombstone]) async throws -> Set<String> {
+        guard !chunk.isEmpty else { return [] }
+
+        let ids = chunk.map { CKRecord.ID(recordName: $0.recordName, zoneID: zoneID) }
+        var keyByRecordID: [CKRecord.ID: String] = [:]
+        for tombstone in chunk {
+            let recordID = CKRecord.ID(recordName: tombstone.recordName, zoneID: zoneID)
+            keyByRecordID[recordID] = tombstone.key
+        }
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let op = CKModifyRecordsOperation(recordsToSave: nil, recordIDsToDelete: ids)
+            op.modifyRecordsResultBlock = { result in
+                switch result {
+                case .success:
+                    continuation.resume(returning: Set(chunk.map(\.key)))
+                case .failure(let error):
+                    if let ckError = error as? CKError {
+                        if ckError.code == .unknownItem {
+                            continuation.resume(returning: Set(chunk.map(\.key)))
+                            return
+                        }
+
+                        if ckError.code == .partialFailure,
+                           let partial = ckError.userInfo[CKPartialErrorsByItemIDKey] as? [AnyHashable: Error] {
+                            var failedKeys: Set<String> = []
+                            for (key, itemError) in partial {
+                                guard let recordID = key as? CKRecord.ID else { continue }
+                                if let itemCKError = itemError as? CKError, itemCKError.code == .unknownItem {
+                                    continue
+                                }
+                                if let tombstoneKey = keyByRecordID[recordID] {
+                                    failedKeys.insert(tombstoneKey)
+                                }
+                            }
+
+                            let allKeys = Set(chunk.map(\.key))
+                            let succeeded = allKeys.subtracting(failedKeys)
+                            if !succeeded.isEmpty {
+                                continuation.resume(returning: succeeded)
+                                return
+                            }
+                        }
+                    }
+                    continuation.resume(throwing: error)
+                }
+            }
+            db.add(op)
+        }
+    }
+
+    private func fetchZoneChangesWithRecovery(previousToken: CKServerChangeToken?) async throws -> ZoneChangeBatch {
+        do {
+            return try await fetchZoneChanges(previousToken: previousToken)
+        } catch let ckError as CKError where ckError.code == .changeTokenExpired {
+            statusMessage = "Cloud history token expired, refreshing full state…"
+            clearServerChangeToken()
+            return try await fetchZoneChanges(previousToken: nil)
+        }
+    }
+
+    private func fetchZoneChanges(previousToken: CKServerChangeToken?) async throws -> ZoneChangeBatch {
+        try await withCheckedThrowingContinuation { continuation in
+            let config = CKFetchRecordZoneChangesOperation.ZoneConfiguration()
+            config.previousServerChangeToken = previousToken
+
+            let op = CKFetchRecordZoneChangesOperation(
+                recordZoneIDs: [zoneID],
+                configurationsByRecordZoneID: [zoneID: config]
+            )
+
+            let lock = NSLock()
+            var changedRecords: [CKRecord] = []
+            var deletedRecords: [ZoneDeletedRecord] = []
+            var newestToken: CKServerChangeToken? = previousToken
+
+            op.recordWasChangedBlock = { _, result in
+                if case let .success(record) = result {
+                    lock.lock()
+                    changedRecords.append(record)
+                    lock.unlock()
+                }
+            }
+
+            op.recordWithIDWasDeletedBlock = { recordID, recordType in
+                lock.lock()
+                deletedRecords.append(ZoneDeletedRecord(recordID: recordID, recordType: recordType))
+                lock.unlock()
+            }
+
+            op.recordZoneChangeTokensUpdatedBlock = { _, token, _ in
+                guard let token else { return }
+                lock.lock()
+                newestToken = token
+                lock.unlock()
+            }
+
+            op.recordZoneFetchResultBlock = { _, result in
+                if case let .success(zoneResult) = result {
+                    let token = zoneResult.serverChangeToken
+                    lock.lock()
+                    newestToken = token
+                    lock.unlock()
+                }
+            }
+
+            op.fetchRecordZoneChangesResultBlock = { result in
+                switch result {
+                case .success:
+                    lock.lock()
+                    let output = ZoneChangeBatch(
+                        changedRecords: changedRecords,
+                        deletedRecords: deletedRecords,
+                        newToken: newestToken
+                    )
+                    lock.unlock()
+                    continuation.resume(returning: output)
+                case .failure(let error):
+                    continuation.resume(throwing: error)
+                }
+            }
+
+            db.add(op)
+        }
+    }
+
+    private func looksLikeSessionDate(_ value: String) -> Bool {
+        guard value.count == 10 else { return false }
+        return sessionDateFormatter.date(from: value) != nil
+    }
+
+    private func loadServerChangeToken() -> CKServerChangeToken? {
+        guard let data = UserDefaults.standard.data(forKey: zoneChangeTokenDefaultsKey) else {
+            return nil
+        }
+        return try? NSKeyedUnarchiver.unarchivedObject(ofClass: CKServerChangeToken.self, from: data)
+    }
+
+    private func saveServerChangeToken(_ token: CKServerChangeToken?) {
+        guard let token else {
+            clearServerChangeToken()
+            return
+        }
+        if let data = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true) {
+            UserDefaults.standard.set(data, forKey: zoneChangeTokenDefaultsKey)
+        }
+    }
+
+    private func clearServerChangeToken() {
+        UserDefaults.standard.removeObject(forKey: zoneChangeTokenDefaultsKey)
+    }
+    #endif
+}
+
+struct DashboardTabView: View {
+    @ObservedObject var core: DoseTapCore
+    @ObservedObject var eventLogger: EventLogger
+    @ObservedObject private var sessionRepo = SessionRepository.shared
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @StateObject private var model = DashboardAnalyticsModel()
+    @StateObject private var cloudSync = CloudKitSyncService.shared
+    @State private var resolvingDuplicateGroup: StoredEventDuplicateGroup?
+    @State private var cloudSyncError: String?
+
+    private var isWideLayout: Bool {
+        UIDevice.current.userInterfaceIdiom == .pad || horizontalSizeClass == .regular
+    }
+
+    private var columns: [GridItem] {
+        isWideLayout
+            ? [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
+            : [GridItem(.flexible())]
+    }
+
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: 12) {
+                    DashboardExecutiveSummaryCard(model: model, core: core)
+                        .gridCellColumns(columns.count)
+
+                    DashboardDosingSnapshotCard(model: model)
+                    DashboardSleepSnapshotCard(model: model)
+                    DashboardDataQualityCard(model: model)
+                    DashboardIntegrationsCard(states: model.integrationStates)
+
+                    DashboardTrendChartsCard(model: model)
+                        .gridCellColumns(columns.count)
+
+                    DashboardRecentNightsCard(
+                        nights: model.trendNights,
+                        onResolveDuplicateGroup: { group in
+                            resolvingDuplicateGroup = group
+                        }
+                    )
+                        .gridCellColumns(columns.count)
+
+                    DashboardCapturedMetricsCard(categories: model.metricsCatalog)
+                        .gridCellColumns(columns.count)
+                }
+                .padding()
+                .padding(.bottom, 90)
+            }
+            .navigationTitle("Dashboard")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    if cloudSync.isSyncing {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Button {
+                            Task {
+                                do {
+                                    try await cloudSync.syncNow(days: 120)
+                                    await model.refresh()
+                                } catch {
+                                    cloudSyncError = error.localizedDescription
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "icloud.and.arrow.up")
+                        }
+                        .accessibilityLabel("Sync with iCloud")
+                    }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    if model.isLoading {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Button {
+                            Task { await model.refresh() }
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                        .accessibilityLabel("Refresh dashboard")
+                    }
+                }
+            }
+            .overlay {
+                if model.isLoading && model.nights.isEmpty {
+                    ProgressView("Building dashboard…")
+                }
+            }
+            .task {
+                await model.refresh()
+            }
+            .onReceive(sessionRepo.sessionDidChange) { _ in
+                Task { await model.refresh() }
+            }
+            .sheet(item: $resolvingDuplicateGroup) { group in
+                DuplicateResolutionSheet(
+                    group: group,
+                    onKeepEvent: { keep in
+                        for event in group.events where event.id != keep.id {
+                            sessionRepo.deleteSleepEvent(id: event.id)
+                        }
+                        Task { await model.refresh() }
+                    },
+                    onDeleteEvent: { event in
+                        sessionRepo.deleteSleepEvent(id: event.id)
+                        Task { await model.refresh() }
+                    },
+                    onMergeGroup: {
+                        if let canonical = group.events.sorted(by: { $0.timestamp < $1.timestamp }).first {
+                            for event in group.events where event.id != canonical.id {
+                                sessionRepo.deleteSleepEvent(id: event.id)
+                            }
+                            Task { await model.refresh() }
+                        }
+                    }
+                )
+            }
+            .alert("Cloud Sync", isPresented: Binding(
+                get: { cloudSyncError != nil },
+                set: { if !$0 { cloudSyncError = nil } }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(cloudSyncError ?? "Unknown cloud sync error")
+            }
+        }
+    }
+}
+
+private struct DashboardExecutiveSummaryCard: View {
+    @ObservedObject var model: DashboardAnalyticsModel
+    @ObservedObject var core: DoseTapCore
+
+    private var nextActionText: String {
+        switch core.currentStatus {
+        case .noDose1:
+            return "Tonight: Take Dose 1 to start session tracking."
+        case .beforeWindow:
+            return "Tonight: Dose 2 window has not opened yet."
+        case .active, .nearClose:
+            return "Tonight: Dose 2 is active. Keep interval in the 150-240m range."
+        case .closed:
+            return "Tonight: Dose 2 window closed. Review trend for drift."
+        case .completed, .finalizing:
+            return "Tonight: Session complete. Use review findings to adjust next night."
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Operations Snapshot")
+                .font(.headline)
+            Text("Nights with any data: \(model.populatedNights.count)")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+
+            HStack(spacing: 10) {
+                dashboardKPI(
+                    title: "On-Time",
+                    value: model.onTimePercentage.map { String(format: "%.0f%%", $0) } ?? "No data",
+                    color: .green
+                )
+                dashboardKPI(
+                    title: "Completion",
+                    value: model.completionRate.map { String(format: "%.0f%%", $0) } ?? "No data",
+                    color: .blue
+                )
+                dashboardKPI(
+                    title: "High Confidence",
+                    value: "\(model.highConfidenceNightCount)",
+                    color: .purple
+                )
+            }
+
+            Text(nextActionText)
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            if let lastRefresh = model.lastRefresh {
+                Text("Updated \(lastRefresh.formatted(date: .omitted, time: .shortened))")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemGray6))
+        )
+    }
+
+    private func dashboardKPI(title: String, value: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+            Text(value)
+                .font(.subheadline.bold())
+                .foregroundColor(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 4)
+    }
+}
+
+private struct DashboardDosingSnapshotCard: View {
+    @ObservedObject var model: DashboardAnalyticsModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Dosing Performance")
+                .font(.headline)
+            metricRow(title: "Avg Interval", value: formatInterval(minutes: model.averageIntervalMinutes))
+            metricRow(title: "Avg Snoozes", value: model.averageSnoozeCount.map { String(format: "%.1f", $0) } ?? "No data")
+            metricRow(title: "Duplicate Nights", value: "\(model.duplicateNightCount)")
+            metricRow(title: "Quality Issues", value: "\(model.qualityIssueCount)")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemGray6))
+        )
+    }
+
+    private func metricRow(title: String, value: String) -> some View {
+        HStack {
+            Text(title)
+                .font(.subheadline)
+            Spacer()
+            Text(value)
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(.secondary)
+        }
+    }
+
+    private func formatInterval(minutes: Double?) -> String {
+        guard let minutes else { return "No data" }
+        return TimeIntervalMath.formatMinutes(Int(minutes.rounded()))
+    }
+}
+
+private struct DashboardSleepSnapshotCard: View {
+    @ObservedObject var model: DashboardAnalyticsModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Sleep Outcomes")
+                .font(.headline)
+            metricRow(title: "Avg Total Sleep", value: formatMinutes(model.averageSleepMinutes))
+            metricRow(title: "Avg TTFW", value: formatMinutes(model.averageTTFW))
+            metricRow(title: "Avg Wake Count", value: model.averageWakeCount.map { String(format: "%.1f", $0) } ?? "No data")
+            metricRow(title: "Avg Bathroom Wake", value: formatMinutes(model.averageBathroomWakeMinutes))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemGray6))
+        )
+    }
+
+    private func metricRow(title: String, value: String) -> some View {
+        HStack {
+            Text(title)
+                .font(.subheadline)
+            Spacer()
+            Text(value)
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(.secondary)
+        }
+    }
+
+    private func formatMinutes(_ value: Double?) -> String {
+        guard let value else { return "No data" }
+        return TimeIntervalMath.formatMinutes(Int(value.rounded()))
+    }
+}
+
+private struct DashboardDataQualityCard: View {
+    @ObservedObject var model: DashboardAnalyticsModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Data Quality")
+                .font(.headline)
+            Text("Nights missing HealthKit summary: \(model.missingHealthSummaryCount)")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            Text("Nights with duplicate event clusters: \(model.duplicateNightCount)")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            Text("High confidence nights (>=0.75 completeness): \(model.highConfidenceNightCount)")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            if let error = model.errorMessage, !error.isEmpty {
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(.orange)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemGray6))
+        )
+    }
+}
+
+private struct DashboardIntegrationsCard: View {
+    let states: [DashboardIntegrationState]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Integrations")
+                .font(.headline)
+
+            if states.isEmpty {
+                Text("No integration states available yet.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            } else {
+                ForEach(states) { state in
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack {
+                            Circle()
+                                .fill(state.color)
+                                .frame(width: 8, height: 8)
+                            Text(state.name)
+                                .font(.subheadline.bold())
+                            Spacer()
+                            Text(state.status)
+                                .font(.caption)
+                                .foregroundColor(state.color)
+                        }
+                        Text(state.detail)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemGray6))
+        )
+    }
+}
+
+private enum DashboardTrendMode: String, CaseIterable, Identifiable {
+    case intervalVsSleep = "Interval vs Sleep"
+    case cohorts = "Cohorts"
+    case weekday = "Weekday"
+
+    var id: String { rawValue }
+}
+
+private struct DashboardTrendChartsCard: View {
+    @ObservedObject var model: DashboardAnalyticsModel
+    @State private var trendMode: DashboardTrendMode = .intervalVsSleep
+
+    private struct IntervalSleepPoint: Identifiable {
+        let id = UUID()
+        let intervalMinutes: Double
+        let sleepMinutes: Double
+        let onTime: Bool
+    }
+
+    private struct NamedValue: Identifiable {
+        let id = UUID()
+        let name: String
+        let value: Double
+    }
+
+    private var intervalSleepPoints: [IntervalSleepPoint] {
+        model.populatedNights.compactMap { night in
+            guard let interval = night.intervalMinutes, let sleep = night.totalSleepMinutes else { return nil }
+            return IntervalSleepPoint(intervalMinutes: Double(interval), sleepMinutes: sleep, onTime: night.onTimeDosing ?? false)
+        }
+    }
+
+    private var cohortSleepValues: [NamedValue] {
+        let withScreens = model.populatedNights.filter {
+            guard let screens = $0.preSleepLog?.answers?.screensInBed else { return false }
+            return screens != .none && $0.totalSleepMinutes != nil
+        }
+        let withoutScreens = model.populatedNights.filter {
+            guard let screens = $0.preSleepLog?.answers?.screensInBed else { return false }
+            return screens == .none && $0.totalSleepMinutes != nil
+        }
+        let withAvg = averageSleep(for: withScreens)
+        let withoutAvg = averageSleep(for: withoutScreens)
+        return [
+            NamedValue(name: "Screens", value: withAvg),
+            NamedValue(name: "No Screens", value: withoutAvg)
+        ]
+    }
+
+    private var weekdayOnTimeValues: [NamedValue] {
+        let calendar = Calendar.current
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = .current
+        let weekdaySymbols = calendar.shortWeekdaySymbols
+
+        var buckets: [Int: [Bool]] = [:]
+        for night in model.populatedNights {
+            guard let onTime = night.onTimeDosing, let date = formatter.date(from: night.sessionDate) else { continue }
+            let weekday = calendar.component(.weekday, from: date)
+            buckets[weekday, default: []].append(onTime)
+        }
+
+        return (1...7).map { weekday in
+            let values = buckets[weekday] ?? []
+            let ratio = values.isEmpty ? 0 : (Double(values.filter { $0 }.count) / Double(values.count)) * 100
+            return NamedValue(name: weekdaySymbols[weekday - 1], value: ratio)
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Interactive Trends")
+                    .font(.headline)
+                Spacer()
+                Picker("Trend", selection: $trendMode) {
+                    ForEach(DashboardTrendMode.allCases) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .pickerStyle(.menu)
+            }
+
+            #if canImport(Charts)
+            chartBody
+                .frame(height: 220)
+            #else
+            Text("Charts are unavailable on this platform build.")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            #endif
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemGray6))
+        )
+    }
+
+    #if canImport(Charts)
+    @ViewBuilder
+    private var chartBody: some View {
+        switch trendMode {
+        case .intervalVsSleep:
+            if intervalSleepPoints.isEmpty {
+                emptyChartState("Need nights with both interval and sleep data.")
+            } else {
+                Chart(intervalSleepPoints) { point in
+                    PointMark(
+                        x: .value("Interval (min)", point.intervalMinutes),
+                        y: .value("Total Sleep (min)", point.sleepMinutes)
+                    )
+                    .foregroundStyle(point.onTime ? .green : .orange)
+                }
+                .chartXAxisLabel("Dose Interval")
+                .chartYAxisLabel("Sleep Minutes")
+            }
+
+        case .cohorts:
+            let values = cohortSleepValues
+            if values.allSatisfy({ $0.value <= 0 }) {
+                emptyChartState("Need pre-sleep screen/no-screen data with sleep totals.")
+            } else {
+                Chart(values) { entry in
+                    BarMark(
+                        x: .value("Cohort", entry.name),
+                        y: .value("Avg Sleep (min)", entry.value)
+                    )
+                    .foregroundStyle(entry.name == "No Screens" ? .green : .indigo)
+                }
+                .chartYAxisLabel("Avg Sleep Minutes")
+            }
+
+        case .weekday:
+            if weekdayOnTimeValues.allSatisfy({ $0.value == 0 }) {
+                emptyChartState("Need completed dose intervals to compute on-time weekdays.")
+            } else {
+                Chart(weekdayOnTimeValues) { entry in
+                    BarMark(
+                        x: .value("Weekday", entry.name),
+                        y: .value("On-Time %", entry.value)
+                    )
+                    .foregroundStyle(.blue.gradient)
+                }
+                .chartYScale(domain: 0...100)
+                .chartYAxisLabel("On-Time %")
+            }
+        }
+    }
+
+    private func emptyChartState(_ text: String) -> some View {
+        VStack(spacing: 6) {
+            Image(systemName: "chart.bar.doc.horizontal")
+                .font(.title3)
+                .foregroundColor(.secondary)
+            Text(text)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    #endif
+
+    private func averageSleep(for nights: [DashboardNightAggregate]) -> Double {
+        let values = nights.compactMap(\.totalSleepMinutes)
+        guard !values.isEmpty else { return 0 }
+        return values.reduce(0, +) / Double(values.count)
+    }
+}
+
+private struct DashboardRecentNightsCard: View {
+    let nights: [DashboardNightAggregate]
+    var onResolveDuplicateGroup: (StoredEventDuplicateGroup) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Recent Night Aggregates")
+                .font(.headline)
+
+            if nights.isEmpty {
+                Text("No nights with dashboard data yet.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            } else {
+                ForEach(nights) { night in
+                    HStack(spacing: 10) {
+                        Text(shortDate(night.sessionDate))
+                            .font(.caption.bold())
+                            .frame(width: 58, alignment: .leading)
+
+                        Text(intervalText(night))
+                            .font(.caption)
+                            .foregroundColor(night.onTimeDosing == true ? .green : .secondary)
+                            .frame(width: 88, alignment: .leading)
+
+                        Text(sleepText(night))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .frame(width: 84, alignment: .leading)
+
+                        Text("Q \(Int((night.dataCompletenessScore * 100).rounded()))%")
+                            .font(.caption2)
+                            .foregroundColor(night.dataCompletenessScore >= 0.75 ? .green : .orange)
+                            .frame(width: 50, alignment: .leading)
+
+                        Spacer()
+
+                        let duplicates = buildStoredEventDuplicateGroups(events: night.events)
+                        if let firstGroup = duplicates.first {
+                            Button {
+                                onResolveDuplicateGroup(firstGroup)
+                            } label: {
+                                Label("\(duplicates.count)", systemImage: "exclamationmark.triangle.fill")
+                                    .font(.caption2)
+                                    .foregroundColor(.orange)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Resolve duplicates for \(night.sessionDate)")
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemGray6))
+        )
+    }
+
+    private func shortDate(_ sessionDate: String) -> String {
+        let input = DateFormatter()
+        input.dateFormat = "yyyy-MM-dd"
+        input.timeZone = .current
+        let output = DateFormatter()
+        output.dateFormat = "MMM d"
+        output.timeZone = .current
+        guard let date = input.date(from: sessionDate) else { return sessionDate }
+        return output.string(from: date)
+    }
+
+    private func intervalText(_ night: DashboardNightAggregate) -> String {
+        if night.dose2Skipped {
+            return "Skipped"
+        }
+        if let interval = night.intervalMinutes {
+            return TimeIntervalMath.formatMinutes(interval)
+        }
+        return "No interval"
+    }
+
+    private func sleepText(_ night: DashboardNightAggregate) -> String {
+        guard let totalSleepMinutes = night.totalSleepMinutes else { return "No sleep data" }
+        return TimeIntervalMath.formatMinutes(Int(totalSleepMinutes.rounded()))
+    }
+}
+
+private struct DashboardCapturedMetricsCard: View {
+    let categories: [DashboardMetricCategory]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Captured Metrics Inventory")
+                .font(.headline)
+            Text("This is the complete metric surface currently modeled for dashboarding.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            ForEach(categories) { category in
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(category.title)
+                        .font(.subheadline.bold())
+                    ForEach(category.metrics, id: \.self) { metric in
+                        HStack(alignment: .top, spacing: 8) {
+                            Text("•")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text(metric)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemGray6))
+        )
+    }
+}
+
+private struct LiveNextActionCard: View {
+    @ObservedObject var core: DoseTapCore
+
+    private var headline: String {
+        switch core.currentStatus {
+        case .noDose1:
+            return "Next Action: Take Dose 1"
+        case .beforeWindow:
+            return "Next Action: Wait for Dose 2 Window"
+        case .active, .nearClose:
+            return "Next Action: Take Dose 2"
+        case .closed:
+            return "Dose 2 Window Closed"
+        case .completed, .finalizing:
+            return "Session Complete"
+        }
+    }
+
+    private var detail: String {
+        guard let dose1 = core.dose1Time else {
+            return "Start tonight's session to unlock timeline guidance."
+        }
+        let windowOpen = dose1.addingTimeInterval(150 * 60)
+        let windowClose = dose1.addingTimeInterval(240 * 60)
+        switch core.currentStatus {
+        case .beforeWindow:
+            return "Dose 2 window opens at \(windowOpen.formatted(date: .omitted, time: .shortened))."
+        case .active, .nearClose:
+            return "Sleep window: \(windowOpen.formatted(date: .omitted, time: .shortened)) - \(windowClose.formatted(date: .omitted, time: .shortened))."
+        case .closed:
+            return "Window closed at \(windowClose.formatted(date: .omitted, time: .shortened))."
+        case .completed, .finalizing:
+            return "Review last night for tonight's adjustments."
+        case .noDose1:
+            return "Take Dose 1 when you're ready to begin."
+        }
+    }
+
+    private var accent: Color {
+        switch core.currentStatus {
+        case .active: return .green
+        case .nearClose: return .orange
+        case .closed: return .red
+        case .completed, .finalizing: return .blue
+        default: return .indigo
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(headline)
+                .font(.headline)
+                .foregroundColor(accent)
+            Text(detail)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(accent.opacity(0.12))
+        )
+    }
+}
+
+private struct LiveTimelineItem: Identifiable {
+    let id: String
+    let title: String
+    let time: Date
+    let color: Color
+    let isUpcoming: Bool
+}
+
+private struct TonightTimelineProgressCard: View {
+    @ObservedObject var core: DoseTapCore
+    let events: [LoggedEvent]
+
+    private var items: [LiveTimelineItem] {
+        var markers: [LiveTimelineItem] = []
+
+        if let dose1 = core.dose1Time {
+            markers.append(LiveTimelineItem(
+                id: "dose1",
+                title: "Dose 1",
+                time: dose1,
+                color: .blue,
+                isUpcoming: false
+            ))
+
+            let windowOpen = dose1.addingTimeInterval(150 * 60)
+            let windowClose = dose1.addingTimeInterval(240 * 60)
+            markers.append(LiveTimelineItem(
+                id: "window_open",
+                title: "Window Opens",
+                time: windowOpen,
+                color: .orange,
+                isUpcoming: windowOpen > Date()
+            ))
+            markers.append(LiveTimelineItem(
+                id: "window_close",
+                title: "Window Closes",
+                time: windowClose,
+                color: .red,
+                isUpcoming: windowClose > Date()
+            ))
+        }
+
+        if let dose2 = core.dose2Time {
+            markers.append(LiveTimelineItem(
+                id: "dose2",
+                title: "Dose 2",
+                time: dose2,
+                color: .green,
+                isUpcoming: false
+            ))
+        }
+
+        for event in events {
+            markers.append(LiveTimelineItem(
+                id: event.id.uuidString,
+                title: EventDisplayName.displayName(for: event.name),
+                time: event.time,
+                color: event.color,
+                isUpcoming: false
+            ))
+        }
+
+        return markers.sorted(by: { $0.time < $1.time })
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Tonight Timeline (So Far)")
+                .font(.headline)
+
+            if items.isEmpty {
+                Text("No timeline events yet.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            } else {
+                ForEach(items) { item in
+                    HStack(spacing: 10) {
+                        Circle()
+                            .fill(item.color.opacity(item.isUpcoming ? 0.45 : 1))
+                            .frame(width: 10, height: 10)
+                        Text(item.title)
+                            .font(.subheadline)
+                        Spacer()
+                        Text(item.time.formatted(date: .omitted, time: .shortened))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        if item.isUpcoming {
+                            Text("Up next")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemGray6))
+        )
+    }
+}
+
+private struct LiveEventsPreviewCard: View {
+    let events: [LoggedEvent]
+    let onViewAll: () -> Void
+
+    private var duplicateGroups: [LoggedEventDuplicateGroup] {
+        buildLoggedEventDuplicateGroups(events: events)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Tonight's Events")
+                    .font(.headline)
+                Spacer()
+                Button("View All") {
+                    onViewAll()
+                }
+                .font(.caption)
+                .foregroundColor(.blue)
+            }
+
+            if !duplicateGroups.isEmpty {
+                ForEach(duplicateGroups) { group in
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.orange)
+                        Text("Possible duplicate: \(group.displayName) (\(group.events.count))")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+
+            if events.isEmpty {
+                Text("No events logged tonight")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .padding(.vertical, 6)
+            } else {
+                ForEach(events.sorted(by: { $0.time > $1.time }).prefix(6)) { event in
+                    HStack(spacing: 10) {
+                        Circle()
+                            .fill(event.color)
+                            .frame(width: 10, height: 10)
+                        Text(EventDisplayName.displayName(for: event.name))
+                            .font(.subheadline)
+                        Spacer()
+                        Text(event.time.formatted(date: .omitted, time: .shortened))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemGray6))
+        )
+    }
+}
+
+private struct ReviewHeaderCard: View {
+    let session: SessionSummary
+    let events: [StoredSleepEvent]
+    let nightDate: Date
+    let hasMorningCheckIn: Bool
+
+    private var titleText: String {
+        let dateText = nightDate.formatted(date: .abbreviated, time: .omitted)
+        if Calendar.current.isDateInYesterday(nightDate) {
+            return "Last Night - \(dateText)"
+        }
+        return "Review - \(dateText)"
+    }
+
+    private var subtitleText: String {
+        let start = session.dose1Time ?? events.first?.timestamp
+        let end = events.last?.timestamp ?? session.dose2Time
+        let status = hasMorningCheckIn ? "Session complete" : "Session recorded"
+
+        if let start, let end {
+            return "\(status) • \(start.formatted(date: .omitted, time: .shortened))-\(end.formatted(date: .omitted, time: .shortened))"
+        }
+        return status
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(titleText)
+                .font(.headline)
+            Text(subtitleText)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemGray6))
+        )
+    }
+}
+
+private struct ReviewStickyHeaderBar: View {
+    let session: SessionSummary
+    let events: [StoredSleepEvent]
+    let nightDate: Date
+    let hasMorningCheckIn: Bool
+    let canGoToOlderNight: Bool
+    let canGoToNewerNight: Bool
+    let nightPositionText: String
+    let onGoOlder: () -> Void
+    let onGoNewer: () -> Void
+
+    private var titleText: String {
+        let dateText = nightDate.formatted(date: .abbreviated, time: .omitted)
+        if Calendar.current.isDateInYesterday(nightDate) {
+            return "Last Night - \(dateText)"
+        }
+        return "Review - \(dateText)"
+    }
+
+    private var subtitleText: String {
+        let start = session.dose1Time ?? events.first?.timestamp
+        let end = events.last?.timestamp ?? session.dose2Time
+        let status = hasMorningCheckIn ? "Session complete" : "Session recorded"
+        if let start, let end {
+            return "\(status) • \(start.formatted(date: .omitted, time: .shortened))-\(end.formatted(date: .omitted, time: .shortened))"
+        }
+        if session.dose1Time == nil, session.dose2Time == nil, events.isEmpty {
+            return "No data recorded for this night"
+        }
+        return status
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 10) {
+                Button(action: onGoOlder) {
+                    Image(systemName: "chevron.left")
+                        .font(.caption.bold())
+                        .frame(width: 28, height: 28)
+                        .background(Circle().fill(Color(.tertiarySystemFill)))
+                }
+                .buttonStyle(.plain)
+                .disabled(!canGoToOlderNight)
+                .opacity(canGoToOlderNight ? 1 : 0.35)
+                .accessibilityLabel("Older night")
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(titleText)
+                        .font(.subheadline.bold())
+                    Text(subtitleText)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                Text((canGoToOlderNight || canGoToNewerNight) ? nightPositionText : "Only night")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(Color(.tertiarySystemFill)))
+
+                Button(action: onGoNewer) {
+                    Image(systemName: "chevron.right")
+                        .font(.caption.bold())
+                        .frame(width: 28, height: 28)
+                        .background(Circle().fill(Color(.tertiarySystemFill)))
+                }
+                .buttonStyle(.plain)
+                .disabled(!canGoToNewerNight)
+                .opacity(canGoToNewerNight ? 1 : 0.35)
+                .accessibilityLabel("Newer night")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemGray6))
+        )
+    }
+}
+
+private struct CoachSummaryCard: View {
+    let session: SessionSummary
+    let events: [StoredSleepEvent]
+
+    private var doseWindow: (open: Date, close: Date)? {
+        guard let dose1 = session.dose1Time else { return nil }
+        return (dose1.addingTimeInterval(150 * 60), dose1.addingTimeInterval(240 * 60))
+    }
+
+    private var lightsOutTime: Date? {
+        events
+            .filter { normalizeStoredEventType($0.eventType) == "lights_out" }
+            .map(\.timestamp)
+            .min()
+    }
+
+    private var totalInBedText: String {
+        guard
+            let lightsOut = lightsOutTime,
+            let wake = events
+                .filter({ normalizeStoredEventType($0.eventType) == "wake_final" })
+                .map(\.timestamp)
+                .max()
+        else {
+            return session.intervalMinutes.map { "Dose interval was \(TimeIntervalMath.formatMinutes($0))." }
+                ?? "Session data captured."
+        }
+        return "Top outcome: \(TimeIntervalMath.formatMinutes(TimeIntervalMath.minutesBetween(start: lightsOut, end: wake))) in bed."
+    }
+
+    private var frictionText: String {
+        let disruptions = events.filter {
+            let normalized = normalizeStoredEventType($0.eventType)
+            return normalized == "bathroom" || normalized == "wake_temp" || normalized == "noise" || normalized == "pain"
+        }
+        if disruptions.isEmpty {
+            return "Biggest friction: no major disruptions logged."
+        }
+        return "Biggest friction: \(disruptions.count) overnight disruptions logged."
+    }
+
+    private var actions: [String] {
+        var suggestions: [String] = []
+
+        if let window = doseWindow, let lightsOut = lightsOutTime {
+            if lightsOut < window.open || lightsOut > window.close {
+                suggestions.append("Aim lights-out inside the window (\(window.open.formatted(date: .omitted, time: .shortened))-\(window.close.formatted(date: .omitted, time: .shortened))).")
+            }
+        }
+
+        if let interval = session.intervalMinutes, !(150...240).contains(interval) {
+            suggestions.append("Move Dose 2 toward the 150-240 minute window after Dose 1.")
+        }
+
+        let duplicates = buildStoredEventDuplicateGroups(events: events)
+        if !duplicates.isEmpty {
+            suggestions.append("Resolve duplicate event logs before relying on trend metrics.")
+        }
+
+        if suggestions.isEmpty {
+            suggestions.append("Keep timing consistent tonight and log only meaningful wake events.")
+        }
+
+        return Array(suggestions.prefix(2))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Coach Summary")
+                .font(.headline)
+            Text(totalInBedText)
+                .font(.subheadline)
+            Text(frictionText)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            Divider()
+            Text("Tonight's focus")
+                .font(.subheadline.bold())
+            ForEach(actions, id: \.self) { action in
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.blue)
+                        .font(.caption)
+                        .padding(.top, 2)
+                    Text(action)
+                        .font(.subheadline)
+                }
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemGray6))
+        )
+    }
+}
+
+private struct MergedNightTimelineItem: Identifiable {
+    let id: String
+    let title: String
+    let time: Date
+    let color: Color
+}
+
+private struct MergedNightTimelineCard: View {
+    let session: SessionSummary
+    let events: [StoredSleepEvent]
+    let nightDate: Date
+    var showFullViewLink: Bool = true
+    var fullViewDestination: AnyView?
+    var fullViewLabel: String = "Full view"
+    var snapshotTimeline: ReviewSnapshotSleepTimeline?
+    var allowLiveTimelineFallback: Bool = true
+
+    private var mergedItems: [MergedNightTimelineItem] {
+        var rows: [MergedNightTimelineItem] = []
+
+        if let dose1 = session.dose1Time {
+            rows.append(MergedNightTimelineItem(id: "dose1", title: "Dose 1", time: dose1, color: .blue))
+            rows.append(MergedNightTimelineItem(id: "window_open", title: "Window Opens", time: dose1.addingTimeInterval(150 * 60), color: .orange))
+            rows.append(MergedNightTimelineItem(id: "window_close", title: "Window Closes", time: dose1.addingTimeInterval(240 * 60), color: .red))
+        }
+        if let dose2 = session.dose2Time {
+            rows.append(MergedNightTimelineItem(id: "dose2", title: "Dose 2", time: dose2, color: .green))
+        }
+
+        for event in events {
+            rows.append(
+                MergedNightTimelineItem(
+                    id: event.id,
+                    title: EventDisplayName.displayName(for: event.eventType),
+                    time: event.timestamp,
+                    color: Color(hex: event.colorHex ?? "#888888") ?? .gray
+                )
+            )
+        }
+
+        return rows.sorted(by: { $0.time < $1.time })
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Night Timeline (Merged)")
+                    .font(.headline)
+                Spacer()
+                if showFullViewLink {
+                    NavigationLink(
+                        destination: fullViewDestination ?? AnyView(SleepTimelineContainer())
+                    ) {
+                        Text(fullViewLabel)
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                    }
+                }
+            }
+
+            if let snapshotTimeline {
+                SleepStageTimeline(
+                    stages: snapshotTimeline.stages,
+                    events: [],
+                    startTime: snapshotTimeline.start,
+                    endTime: snapshotTimeline.end
+                )
+                StageSummaryCard(stages: snapshotTimeline.stages)
+            } else if allowLiveTimelineFallback {
+                LiveSleepTimelineView(nightDate: nightDate)
+            } else {
+                VStack(spacing: 8) {
+                    Image(systemName: "moon.zzz")
+                        .font(.title3)
+                        .foregroundColor(.secondary)
+                    Text("Sleep timeline unavailable for this export.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(.secondarySystemBackground))
+                )
+            }
+
+            if !mergedItems.isEmpty {
+                Divider()
+                ForEach(mergedItems) { item in
+                    HStack(spacing: 10) {
+                        Circle()
+                            .fill(item.color)
+                            .frame(width: 8, height: 8)
+                        Text(item.title)
+                            .font(.caption)
+                        Spacer()
+                        Text(item.time.formatted(date: .omitted, time: .shortened))
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemGray6))
+        )
+    }
+}
+
+private struct TimelineReviewDetailView: View {
+    @ObservedObject var core: DoseTapCore
+    let initialSessionKey: String
+    @ObservedObject private var sessionRepo = SessionRepository.shared
+    @State private var reviewSessions: [SessionSummary] = []
+    @State private var selectedReviewSessionKey: String?
+    @State private var reviewEvents: [StoredSleepEvent] = []
+    @State private var reviewNightDate: Date = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date()
+    @State private var showPlanForTonight = false
+
+    init(core: DoseTapCore, initialSessionKey: String) {
+        self.core = core
+        self.initialSessionKey = initialSessionKey
+        _selectedReviewSessionKey = State(initialValue: initialSessionKey)
+    }
+
+    private var reviewSession: SessionSummary? {
+        guard let selectedReviewSessionKey else {
+            return reviewSessions.first
+        }
+        return reviewSessions.first(where: { $0.sessionDate == selectedReviewSessionKey }) ?? reviewSessions.first
+    }
+
+    private var selectedReviewIndex: Int? {
+        guard let selectedReviewSessionKey else { return nil }
+        return reviewSessions.firstIndex(where: { $0.sessionDate == selectedReviewSessionKey })
+    }
+
+    private var canGoToOlderReviewNight: Bool {
+        guard let index = selectedReviewIndex else { return false }
+        return index < (reviewSessions.count - 1)
+    }
+
+    private var canGoToNewerReviewNight: Bool {
+        guard let index = selectedReviewIndex else { return false }
+        return index > 0
+    }
+
+    private var reviewNightPositionText: String {
+        guard let index = selectedReviewIndex else { return "" }
+        return "\(index + 1) of \(reviewSessions.count)"
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                if let session = reviewSession {
+                    ReviewStickyHeaderBar(
+                        session: session,
+                        events: reviewEvents,
+                        nightDate: reviewNightDate,
+                        hasMorningCheckIn: sessionRepo.fetchMorningCheckIn(for: session.sessionDate) != nil,
+                        canGoToOlderNight: canGoToOlderReviewNight,
+                        canGoToNewerNight: canGoToNewerReviewNight,
+                        nightPositionText: reviewNightPositionText,
+                        onGoOlder: goToOlderReviewNight,
+                        onGoNewer: goToNewerReviewNight
+                    )
+
+                    CoachSummaryCard(
+                        session: session,
+                        events: reviewEvents
+                    )
+
+                    MergedNightTimelineCard(
+                        session: session,
+                        events: reviewEvents,
+                        nightDate: reviewNightDate,
+                        showFullViewLink: false
+                    )
+
+                    InsightsSummaryCard(title: "Key Metrics", showDefinitions: true)
+
+                    ReviewEventsAndNotesCard(
+                        events: reviewEvents,
+                        onKeepEvent: { event, group in
+                            keepDuplicateEvent(event, in: group)
+                        },
+                        onDeleteEvent: { event in
+                            deleteDuplicateEvent(event)
+                        },
+                        onMergeGroup: { group in
+                            mergeDuplicateEvents(in: group)
+                        }
+                    )
+
+                    DisclosureGroup(isExpanded: $showPlanForTonight) {
+                        FullSessionDetails(core: core)
+                            .padding(.top, 10)
+                    } label: {
+                        Text("Plan for Tonight")
+                            .font(.headline)
+                    }
+                    .padding()
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color(.systemGray6))
+                    )
+                } else {
+                    VStack(spacing: 12) {
+                        Image(systemName: "moon.zzz")
+                            .font(.title2)
+                            .foregroundColor(.secondary)
+                        Text("No completed night to review yet")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color(.systemGray6))
+                    )
+                }
+            }
+            .padding()
+            .padding(.bottom, 24)
+        }
+        .navigationTitle("Full Review")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarBackground(Color(.systemBackground), for: .navigationBar)
+        .onAppear {
+            refreshReviewContext()
+        }
+        .onReceive(sessionRepo.sessionDidChange) { _ in
+            refreshReviewContext()
+        }
+    }
+
+    private func refreshReviewContext() {
+        let fetchedSessions = sessionRepo.fetchRecentSessions(days: 120)
+        var sessionByKey: [String: SessionSummary] = [:]
+        for session in fetchedSessions {
+            sessionByKey[session.sessionDate] = session
+        }
+
+        let calendar = Calendar.current
+        let candidates: [SessionSummary] = (1...90).compactMap { offset in
+            guard let date = calendar.date(byAdding: .day, value: -offset, to: Date()) else {
+                return nil
+            }
+            let key = sessionRepo.sessionDateString(for: eveningAnchorDate(for: date))
+            return sessionByKey[key] ?? SessionSummary(sessionDate: key)
+        }
+
+        reviewSessions = candidates
+        if let key = selectedReviewSessionKey, candidates.contains(where: { $0.sessionDate == key }) {
+            selectedReviewSessionKey = key
+        } else if candidates.contains(where: { $0.sessionDate == initialSessionKey }) {
+            selectedReviewSessionKey = initialSessionKey
+        } else {
+            selectedReviewSessionKey = candidates.first?.sessionDate
+        }
+        loadSelectedReviewSessionData()
+    }
+
+    private func loadSelectedReviewSessionData() {
+        guard let selected = reviewSession else {
+            reviewEvents = []
+            reviewNightDate = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date()
+            return
+        }
+
+        reviewEvents = sessionRepo.fetchSleepEvents(for: selected.sessionDate).sorted(by: { $0.timestamp < $1.timestamp })
+        reviewNightDate = Self.sessionDateFormatter.date(from: selected.sessionDate)
+            ?? Calendar.current.date(byAdding: .day, value: -1, to: Date())
+            ?? Date()
+    }
+
+    private func keepDuplicateEvent(_ keep: StoredSleepEvent, in group: StoredEventDuplicateGroup) {
+        for event in group.events where event.id != keep.id {
+            sessionRepo.deleteSleepEvent(id: event.id)
+        }
+        refreshReviewContext()
+    }
+
+    private func deleteDuplicateEvent(_ event: StoredSleepEvent) {
+        sessionRepo.deleteSleepEvent(id: event.id)
+        refreshReviewContext()
+    }
+
+    private func mergeDuplicateEvents(in group: StoredEventDuplicateGroup) {
+        guard let canonical = group.events.sorted(by: { $0.timestamp < $1.timestamp }).first else {
+            return
+        }
+        keepDuplicateEvent(canonical, in: group)
+    }
+
+    private func goToOlderReviewNight() {
+        guard let index = selectedReviewIndex, canGoToOlderReviewNight else { return }
+        selectedReviewSessionKey = reviewSessions[index + 1].sessionDate
+        loadSelectedReviewSessionData()
+    }
+
+    private func goToNewerReviewNight() {
+        guard let index = selectedReviewIndex, canGoToNewerReviewNight else { return }
+        selectedReviewSessionKey = reviewSessions[index - 1].sessionDate
+        loadSelectedReviewSessionData()
+    }
+
+    private static let sessionDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = .current
+        return formatter
+    }()
+}
+
+private struct ReviewSnapshotSleepTimeline {
+    let stages: [SleepStageBand]
+    let start: Date
+    let end: Date
+}
+
+private struct TimelineReviewShareSnapshotView: View {
+    let session: SessionSummary
+    let events: [StoredSleepEvent]
+    let nightDate: Date
+    let hasMorningCheckIn: Bool
+    @ObservedObject var core: DoseTapCore
+    let snapshotTimeline: ReviewSnapshotSleepTimeline?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("DoseTap Timeline Review")
+                .font(.headline)
+            Text("Generated \(Date().formatted(date: .abbreviated, time: .shortened))")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+
+            ReviewHeaderCard(
+                session: session,
+                events: events,
+                nightDate: nightDate,
+                hasMorningCheckIn: hasMorningCheckIn
+            )
+
+            CoachSummaryCard(session: session, events: events)
+
+            MergedNightTimelineCard(
+                session: session,
+                events: events,
+                nightDate: nightDate,
+                showFullViewLink: false,
+                snapshotTimeline: snapshotTimeline,
+                allowLiveTimelineFallback: false
+            )
+
+            InsightsSummaryCard(title: "Key Metrics", showDefinitions: true)
+
+            ReviewEventsSnapshotCard(events: events)
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Plan for Tonight")
+                    .font(.headline)
+                FullSessionDetails(core: core)
+                    .padding(.top, 4)
+            }
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color(.systemGray6))
+            )
+        }
+        .padding(16)
+        .background(Color(.systemBackground))
+    }
+}
+
+private struct ReviewEventsSnapshotCard: View {
+    let events: [StoredSleepEvent]
+
+    private var duplicateGroups: [StoredEventDuplicateGroup] {
+        buildStoredEventDuplicateGroups(events: events)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Events & Notes")
+                .font(.headline)
+
+            if !duplicateGroups.isEmpty {
+                ForEach(duplicateGroups) { group in
+                    Text("Possible duplicate: \(group.displayName) (\(group.events.count))")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                }
+            }
+
+            if events.isEmpty {
+                Text("No review events for this night.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            } else {
+                ForEach(events.sorted(by: { $0.timestamp > $1.timestamp }).prefix(20), id: \.id) { event in
+                    HStack(spacing: 10) {
+                        Circle()
+                            .fill(Color(hex: event.colorHex ?? "#888888") ?? .gray)
+                            .frame(width: 8, height: 8)
+                        Text(EventDisplayName.displayName(for: event.eventType))
+                            .font(.caption)
+                        Spacer()
+                        Text(event.timestamp.formatted(date: .omitted, time: .shortened))
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemGray6))
+        )
+    }
+}
+
+private struct ReviewEventsAndNotesCard: View {
+    let events: [StoredSleepEvent]
+    let onKeepEvent: (StoredSleepEvent, StoredEventDuplicateGroup) -> Void
+    let onDeleteEvent: (StoredSleepEvent) -> Void
+    let onMergeGroup: (StoredEventDuplicateGroup) -> Void
+    @State private var selectedDuplicateGroup: StoredEventDuplicateGroup?
+
+    private var duplicateGroups: [StoredEventDuplicateGroup] {
+        buildStoredEventDuplicateGroups(events: events)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Events & Notes")
+                .font(.headline)
+
+            if !duplicateGroups.isEmpty {
+                ForEach(duplicateGroups) { group in
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Label("Possible duplicate: \(group.displayName) (\(group.events.count))", systemImage: "exclamationmark.triangle.fill")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                            Spacer()
+                            Button("Resolve") {
+                                selectedDuplicateGroup = group
+                            }
+                            .font(.caption)
+                        }
+                    }
+                    .padding(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.orange.opacity(0.12))
+                    )
+                }
+            }
+
+            if events.isEmpty {
+                Text("No review events for this night.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            } else {
+                ForEach(events.sorted(by: { $0.timestamp > $1.timestamp }), id: \.id) { event in
+                    HStack(spacing: 10) {
+                        Circle()
+                            .fill(Color(hex: event.colorHex ?? "#888888") ?? .gray)
+                            .frame(width: 10, height: 10)
+                        Text(EventDisplayName.displayName(for: event.eventType))
+                            .font(.subheadline)
+                        Spacer()
+                        Text(event.timestamp.formatted(date: .omitted, time: .shortened))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemGray6))
+        )
+        .sheet(item: $selectedDuplicateGroup) { group in
+            DuplicateResolutionSheet(
+                group: group,
+                onKeepEvent: { event in
+                    onKeepEvent(event, group)
+                },
+                onDeleteEvent: onDeleteEvent,
+                onMergeGroup: {
+                    onMergeGroup(group)
+                }
+            )
+        }
+    }
+}
+
+private struct DuplicateResolutionSheet: View {
+    let group: StoredEventDuplicateGroup
+    let onKeepEvent: (StoredSleepEvent) -> Void
+    let onDeleteEvent: (StoredSleepEvent) -> Void
+    let onMergeGroup: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    private var sortedEvents: [StoredSleepEvent] {
+        group.events.sorted(by: { $0.timestamp < $1.timestamp })
+    }
+
+    var body: some View {
+        NavigationView {
+            List {
+                Section {
+                    Text("Resolve these \(group.events.count) \(group.displayName) logs.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    Button("Merge") {
+                        onMergeGroup()
+                        dismiss()
+                    }
+                    .foregroundColor(.blue)
+                }
+
+                Section("Choose an event") {
+                    ForEach(sortedEvents, id: \.id) { event in
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text(event.timestamp.formatted(date: .omitted, time: .shortened))
+                                    .font(.subheadline.bold())
+                                Spacer()
+                                if let notes = event.notes, !notes.isEmpty {
+                                    Text("Has notes")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+
+                            HStack(spacing: 8) {
+                                Button("Keep this") {
+                                    onKeepEvent(event)
+                                    dismiss()
+                                }
+                                .buttonStyle(.borderedProminent)
+
+                                Button("Delete") {
+                                    onDeleteEvent(event)
+                                    dismiss()
+                                }
+                                .buttonStyle(.bordered)
+                                .tint(.red)
+                            }
+                            .font(.caption)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+            }
+            .navigationTitle("Resolve Duplicates")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct LoggedEventDuplicateGroup: Identifiable {
+    let id: String
+    let displayName: String
+    let events: [LoggedEvent]
+}
+
+private struct StoredEventDuplicateGroup: Identifiable {
+    let id: String
+    let displayName: String
+    let events: [StoredSleepEvent]
+}
+
+private func buildLoggedEventDuplicateGroups(events: [LoggedEvent], threshold: TimeInterval = 30 * 60) -> [LoggedEventDuplicateGroup] {
+    let grouped = Dictionary(grouping: events.sorted(by: { $0.time < $1.time })) { normalizeLoggedEventName($0.name) }
+    var duplicates: [LoggedEventDuplicateGroup] = []
+
+    for (normalizedName, group) in grouped {
+        let clusters = clusterEventsByTime(events: group, threshold: threshold)
+        for cluster in clusters where cluster.count > 1 {
+            duplicates.append(
+                LoggedEventDuplicateGroup(
+                    id: "\(normalizedName)-\(cluster.first?.id.uuidString ?? UUID().uuidString)",
+                    displayName: EventDisplayName.displayName(for: normalizedName),
+                    events: cluster
+                )
+            )
+        }
+    }
+    return duplicates.sorted(by: { ($0.events.first?.time ?? .distantPast) > ($1.events.first?.time ?? .distantPast) })
+}
+
+private func buildStoredEventDuplicateGroups(events: [StoredSleepEvent], threshold: TimeInterval = 30 * 60) -> [StoredEventDuplicateGroup] {
+    let grouped = Dictionary(grouping: events.sorted(by: { $0.timestamp < $1.timestamp })) { normalizeStoredEventType($0.eventType) }
+    var duplicates: [StoredEventDuplicateGroup] = []
+
+    for (normalizedType, group) in grouped {
+        let clusters = clusterEventsByTime(events: group, threshold: threshold)
+        for cluster in clusters where cluster.count > 1 {
+            duplicates.append(
+                StoredEventDuplicateGroup(
+                    id: "\(normalizedType)-\(cluster.first?.id ?? UUID().uuidString)",
+                    displayName: EventDisplayName.displayName(for: normalizedType),
+                    events: cluster
+                )
+            )
+        }
+    }
+    return duplicates.sorted(by: { ($0.events.first?.timestamp ?? .distantPast) > ($1.events.first?.timestamp ?? .distantPast) })
+}
+
+private func clusterEventsByTime(events: [LoggedEvent], threshold: TimeInterval) -> [[LoggedEvent]] {
+    var clusters: [[LoggedEvent]] = []
+    var current: [LoggedEvent] = []
+
+    for event in events.sorted(by: { $0.time < $1.time }) {
+        guard let last = current.last else {
+            current = [event]
+            continue
+        }
+        if event.time.timeIntervalSince(last.time) <= threshold {
+            current.append(event)
+        } else {
+            clusters.append(current)
+            current = [event]
+        }
+    }
+
+    if !current.isEmpty {
+        clusters.append(current)
+    }
+    return clusters
+}
+
+private func clusterEventsByTime(events: [StoredSleepEvent], threshold: TimeInterval) -> [[StoredSleepEvent]] {
+    var clusters: [[StoredSleepEvent]] = []
+    var current: [StoredSleepEvent] = []
+
+    for event in events.sorted(by: { $0.timestamp < $1.timestamp }) {
+        guard let last = current.last else {
+            current = [event]
+            continue
+        }
+        if event.timestamp.timeIntervalSince(last.timestamp) <= threshold {
+            current.append(event)
+        } else {
+            clusters.append(current)
+            current = [event]
+        }
+    }
+
+    if !current.isEmpty {
+        clusters.append(current)
+    }
+    return clusters
+}
+
+private func normalizeLoggedEventName(_ raw: String) -> String {
+    raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+        .replacingOccurrences(of: " ", with: "_")
+}
+
+private func normalizeStoredEventType(_ raw: String) -> String {
+    let normalized = raw
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+        .replacingOccurrences(of: " ", with: "_")
+
+    switch normalized {
+    case "lightsout", "lights_out":
+        return "lights_out"
+    case "wakefinal", "wake_final", "wake":
+        return "wake_final"
+    case "inbed":
+        return "in_bed"
+    default:
+        return normalized
+    }
+}
+
+private func eveningAnchorDate(for date: Date, hour: Int = 20, timeZone: TimeZone = .current) -> Date {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = timeZone
+    var components = calendar.dateComponents([.year, .month, .day], from: date)
+    components.hour = hour
+    components.minute = 0
+    components.second = 0
+    return calendar.date(from: components) ?? date
 }
 
 // MARK: - History View (Past Days)
 struct HistoryView: View {
-    @EnvironmentObject var themeManager: ThemeManager
-    @ObservedObject private var urlRouter = URLRouter.shared
+    @State private var selectedDate = Date()
+    @State private var pastSessions: [SessionSummary] = []
+    @State private var showDeleteDayConfirmation = false
+    @State private var refreshTrigger = false  // Toggled to force SelectedDayView refresh
+    
+    private let sessionRepo = SessionRepository.shared
     
     var body: some View {
         NavigationView {
@@ -2679,43 +5686,57 @@ struct HistoryView: View {
                             .font(.headline)
                         InsightsSummaryCard()
                     }
-
-                    // Flow handoff: session-level review lives in Timeline.
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Session Review")
-                            .font(.headline)
-                        Text("Timeline is the canonical session report. Use it to inspect night-by-night dose timing and logged events.")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                        Button {
-                            withAnimation {
-                                urlRouter.selectedTab = 1
-                            }
-                        } label: {
-                            Label("Open Timeline", systemImage: "chart.bar.xaxis")
-                                .frame(maxWidth: .infinity, alignment: .center)
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
+                    
+                    // Date Picker
+                    DatePicker(
+                        "Select Date",
+                        selection: $selectedDate,
+                        in: ...Date(),
+                        displayedComponents: [.date]
+                    )
+                    .datePickerStyle(.graphical)
                     .padding()
                     .background(
                         RoundedRectangle(cornerRadius: 16)
                             .fill(Color(.systemGray6))
                     )
-
-                    // Recent sessions snapshot
+                    
+                    // Selected Day Summary with Delete Option
+                    SelectedDayView(
+                        date: selectedDate,
+                        refreshTrigger: refreshTrigger,
+                        onDeleteRequested: { showDeleteDayConfirmation = true }
+                    )
+                    
+                    // Recent Sessions List
                     RecentSessionsList()
                 }
                 .padding()
                 .padding(.bottom, 80)
             }
             .navigationTitle("History")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    ThemeToggleButton()
+            .onAppear { loadHistory() }
+            .alert("Delete This Day's Data?", isPresented: $showDeleteDayConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Delete", role: .destructive) {
+                    deleteSelectedDay()
                 }
+            } message: {
+                Text("This will delete all dose data and events for this day. This cannot be undone.")
             }
         }
+    }
+    
+    private func loadHistory() {
+        pastSessions = sessionRepo.fetchRecentSessions(days: 7)
+    }
+    
+    private func deleteSelectedDay() {
+        let sessionDate = sessionRepo.sessionDateString(for: eveningAnchorDate(for: selectedDate))
+        // Use SessionRepository to delete - this broadcasts change to Tonight tab
+        sessionRepo.deleteSession(sessionDate: sessionDate)
+        refreshTrigger.toggle()  // Force SelectedDayView to reload
+        loadHistory()
     }
 }
 
@@ -2725,9 +5746,14 @@ struct SelectedDayView: View {
     var refreshTrigger: Bool = false  // External trigger to force reload
     var onDeleteRequested: (() -> Void)? = nil
     
+    @ObservedObject private var settings = UserSettingsManager.shared
+    @StateObject private var healthKit = HealthKitService.shared
     @State private var events: [StoredSleepEvent] = []
     @State private var doseLog: StoredDoseLog?
     @State private var doseEvents: [DoseCore.StoredDoseEvent] = []
+    @State private var healthSleepRangeText: String?
+    @State private var healthSleepStatusText: String?
+    @State private var healthSleepSourceText: String?
     @State private var editingDose1 = false
     @State private var editingDose2 = false
     @State private var editingEvent: StoredSleepEvent?
@@ -2769,7 +5795,7 @@ struct SelectedDayView: View {
     }
     
     private var sessionDateString: String {
-        sessionRepo.sessionDateString(for: date)
+        sessionRepo.sessionDateString(for: eveningAnchorDate(for: date))
     }
     
     var body: some View {
@@ -2792,6 +5818,34 @@ struct SelectedDayView: View {
                     }
                 }
             }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Apple Health Cross-Check")
+                    .font(.subheadline.bold())
+                Text("Session key: \(sessionDateString)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                if let healthSleepRangeText {
+                    Text("Sleep range: \(healthSleepRangeText)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                if let healthSleepSourceText {
+                    Text(healthSleepSourceText)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                if let healthSleepStatusText {
+                    Text(healthSleepStatusText)
+                        .font(.caption)
+                        .foregroundColor(healthSleepStatusText.hasPrefix("Matches") ? .green : .orange)
+                }
+            }
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color(.secondarySystemBackground))
+            )
             
             if let dose = doseLog {
                 // Dose info - now tappable
@@ -2806,7 +5860,7 @@ struct SelectedDayView: View {
                             Text("Dose 1")
                                 .foregroundColor(.primary)
                             Spacer()
-                            Text(formatDoseTime(dose.dose1Time, referenceDate: dose.dose1Time))
+                            Text(dose.dose1Time.formatted(date: .omitted, time: .shortened))
                                 .foregroundColor(.secondary)
                             Image(systemName: "pencil")
                                 .font(.caption)
@@ -2826,7 +5880,7 @@ struct SelectedDayView: View {
                                 Text("Dose 2")
                                     .foregroundColor(.primary)
                                 Spacer()
-                                Text(formatDoseTime(d2, referenceDate: dose.dose1Time))
+                                Text(d2.formatted(date: .omitted, time: .shortened))
                                     .foregroundColor(.secondary)
                                 Image(systemName: "pencil")
                                     .font(.caption)
@@ -2971,28 +6025,17 @@ struct SelectedDayView: View {
     }
     
     private var dateTitle: String {
-        // Get the session date key for the selected date
-        let sessionKey = sessionRepo.sessionDateString(for: date)
-        
-        // Parse session key back to date (it's in "yyyy-MM-dd" format)
-        let keyFormatter = DateFormatter()
-        keyFormatter.dateFormat = "yyyy-MM-dd"
-        keyFormatter.timeZone = .current
-        
-        if let sessionDate = keyFormatter.date(from: sessionKey) {
-            // Use day range format for sleep sessions
-            return SleepSessionDateFormatter.format(sessionDate)
-        }
-        
-        // Fallback to day range for the selected date
-        return SleepSessionDateFormatter.format(date)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE, MMM d"
+        return formatter.string(from: eveningAnchorDate(for: date))
     }
     
     private func loadData() {
-        let sessionDate = sessionRepo.sessionDateString(for: date)
+        let sessionDate = sessionDateString
         events = sessionRepo.fetchSleepEvents(for: sessionDate)
         doseLog = sessionRepo.fetchDoseLog(forSession: sessionDate)
         doseEvents = sessionRepo.fetchDoseEvents(forSessionDate: sessionDate)
+        loadHealthCrossCheck(for: sessionDate)
     }
     
     private func saveDose1Time(_ newTime: Date) {
@@ -3008,6 +6051,65 @@ struct SelectedDayView: View {
     private func saveEventTime(event: StoredSleepEvent, newTime: Date) {
         sessionRepo.updateEventTime(eventId: event.id, newTime: newTime)
         loadData()
+    }
+
+    private func loadHealthCrossCheck(for sessionDate: String) {
+        healthSleepRangeText = nil
+        healthSleepSourceText = nil
+        healthSleepStatusText = nil
+
+        Task { @MainActor in
+            guard settings.healthKitEnabled else {
+                healthSleepStatusText = "HealthKit disabled in Settings."
+                return
+            }
+
+            healthKit.checkAuthorizationStatus()
+            guard healthKit.isAuthorized else {
+                healthSleepStatusText = "HealthKit not authorized."
+                return
+            }
+
+            guard let nightDate = Self.sessionDateFormatter.date(from: sessionDate) else {
+                healthSleepStatusText = "Unable to parse session date."
+                return
+            }
+
+            let queryStart = eveningAnchorDate(for: nightDate, hour: 18)
+            guard let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: nightDate) else {
+                healthSleepStatusText = "Unable to compute HealthKit query window."
+                return
+            }
+            let queryEnd = eveningAnchorDate(for: nextDay, hour: 12)
+
+            do {
+                let segments = try await healthKit.fetchSegmentsForTimeline(from: queryStart, to: queryEnd)
+                guard !segments.isEmpty else {
+                    healthSleepStatusText = "No Apple Health sleep samples in this night window."
+                    return
+                }
+
+                let start = segments.map(\.start).min() ?? queryStart
+                let end = segments.map(\.end).max() ?? queryEnd
+
+                let formatter = DateFormatter()
+                formatter.dateStyle = .medium
+                formatter.timeStyle = .short
+                healthSleepRangeText = "\(formatter.string(from: start)) -> \(formatter.string(from: end))"
+
+                let sourceNames = Set(segments.map(\.source)).sorted()
+                if !sourceNames.isEmpty {
+                    healthSleepSourceText = "Source: \(sourceNames.joined(separator: ", "))"
+                }
+
+                let derivedKey = sessionRepo.sessionDateString(for: start)
+                healthSleepStatusText = derivedKey == sessionDate
+                    ? "Matches: Health sleep start maps to session \(derivedKey)."
+                    : "Mismatch: Health sleep start maps to \(derivedKey), session is \(sessionDate)."
+            } catch {
+                healthSleepStatusText = "HealthKit error: \(error.localizedDescription)"
+            }
+        }
     }
 
     private func napEventKind(_ eventType: String) -> String? {
@@ -3037,26 +6139,18 @@ struct SelectedDayView: View {
         }
         return "Started at \(start) (no end logged)"
     }
-    
-    /// Format dose time - shows weekday abbreviation if on different calendar day than reference
-    private func formatDoseTime(_ time: Date, referenceDate: Date) -> String {
-        let cal = Calendar.current
-        if cal.isDate(time, inSameDayAs: referenceDate) {
-            // Same calendar day - just show time
-            return time.formatted(date: .omitted, time: .shortened)
-        } else {
-            // Different calendar day - show "Thu 1:08 AM" format
-            let formatter = DateFormatter()
-            formatter.dateFormat = "EEE h:mm a"
-            return formatter.string(from: time)
-        }
-    }
+
+    private static let sessionDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = .current
+        return formatter
+    }()
 }
 
 // MARK: - Recent Sessions List
 struct RecentSessionsList: View {
     @State private var sessions: [SessionSummary] = []
-    @State private var isLoading = false
     private let sessionRepo = SessionRepository.shared
     
     var body: some View {
@@ -3065,17 +6159,11 @@ struct RecentSessionsList: View {
                 .font(.headline)
             
             if sessions.isEmpty {
-                if isLoading {
-                    ProgressView("Loading sessions…")
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                } else {
-                    Text("No recent sessions found")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                }
+                Text("No recent sessions found")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding()
             } else {
                 ForEach(sessions, id: \.sessionDate) { session in
                     SessionRow(session: session)
@@ -3087,31 +6175,21 @@ struct RecentSessionsList: View {
             RoundedRectangle(cornerRadius: 16)
                 .fill(Color(.systemGray6))
         )
-        .task { await loadSessions() }
-        .onReceive(sessionRepo.sessionDidChange) { _ in
-            Task { await loadSessions() }
-        }
+        .onAppear { loadSessions() }
     }
     
-    private func loadSessions() async {
-        isLoading = true
-        sessions = await sessionRepo.fetchRecentSessionsAsync(days: 7)
-        isLoading = false
+    private func loadSessions() {
+        sessions = sessionRepo.fetchRecentSessions(days: 7)
     }
 }
 
 struct SessionRow: View {
     let session: SessionSummary
     
-    /// Format session date as day range
-    private var formattedSessionDate: String {
-        SleepSessionDateFormatter.format(sessionDateString: session.sessionDate)
-    }
-    
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(formattedSessionDate)
+                Text(session.sessionDate)
                     .font(.subheadline.bold())
                 HStack(spacing: 8) {
                     if session.dose1Time != nil {
@@ -3150,31 +6228,29 @@ struct SessionRow: View {
 // MARK: - Full Session Details
 struct FullSessionDetails: View {
     @ObservedObject var core: DoseTapCore
-    @ObservedObject private var sessionRepo = SessionRepository.shared
-    @ObservedObject private var settings = UserSettingsManager.shared
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Session Details")
                 .font(.headline)
             
-            // Dose Times - now using sessionRepo directly for consistency
+            // Dose Times
             VStack(spacing: 12) {
                 DetailRow(
                     icon: "1.circle.fill",
                     title: "Dose 1",
-                    value: sessionRepo.dose1Time?.formatted(date: .abbreviated, time: .shortened) ?? "Not taken",
-                    color: sessionRepo.dose1Time != nil ? .green : .blue
+                    value: core.dose1Time?.formatted(date: .abbreviated, time: .shortened) ?? "Not taken",
+                    color: .blue
                 )
                 
                 DetailRow(
                     icon: "2.circle.fill",
                     title: "Dose 2",
                     value: dose2String,
-                    color: dose2Color
+                    color: .green
                 )
                 
-                if let dose1 = sessionRepo.dose1Time {
+                if let dose1 = core.dose1Time {
                     DetailRow(
                         icon: "clock.fill",
                         title: "Window Opens",
@@ -3189,7 +6265,7 @@ struct FullSessionDetails: View {
                         color: .red
                     )
                     
-                    if let dose2 = sessionRepo.dose2Time {
+                    if let dose2 = core.dose2Time {
                         let interval = TimeIntervalMath.minutesBetween(start: dose1, end: dose2)
                         DetailRow(
                             icon: "timer",
@@ -3203,7 +6279,7 @@ struct FullSessionDetails: View {
                 DetailRow(
                     icon: "bell.badge.fill",
                     title: "Snoozes Used",
-                    value: "\(sessionRepo.snoozeCount) of \(max(0, settings.maxSnoozes))",
+                    value: "\(core.snoozeCount) of 3",
                     color: .orange
                 )
             }
@@ -3216,17 +6292,11 @@ struct FullSessionDetails: View {
     }
     
     private var dose2String: String {
-        if let time = sessionRepo.dose2Time {
+        if let time = core.dose2Time {
             return time.formatted(date: .abbreviated, time: .shortened)
         }
-        if sessionRepo.dose2Skipped { return "Skipped" }
+        if core.isSkipped { return "Skipped" }
         return "Pending"
-    }
-    
-    private var dose2Color: Color {
-        if sessionRepo.dose2Time != nil { return .green }
-        if sessionRepo.dose2Skipped { return .orange }
-        return .blue
     }
 }
 
@@ -3523,9 +6593,9 @@ struct TimeUntilWindowCard: View {
 
 struct DoseButtonsSection: View {
     @ObservedObject var core: DoseTapCore
-    @ObservedObject private var settings = UserSettingsManager.shared
     @Binding var showEarlyDoseAlert: Bool
     @Binding var earlyDoseMinutes: Int
+    @State private var showWindowExpiredOverride = false
     
     private let windowOpenMinutes: Double = 150
     
@@ -3540,7 +6610,15 @@ struct DoseButtonsSection: View {
                     .background(primaryButtonColor)
                     .cornerRadius(12)
             }
-            .disabled(core.currentStatus == .completed || core.currentStatus == .closed)
+            .disabled(core.currentStatus == .completed)
+            .alert("Window Expired", isPresented: $showWindowExpiredOverride) {
+                Button("Cancel", role: .cancel) { }
+                Button("Take Dose 2 Anyway", role: .destructive) {
+                    Task { await core.takeDose(lateOverride: true) }
+                }
+            } message: {
+                Text("The 240-minute window has passed. Taking Dose 2 late may affect efficacy.")
+            }
             
             if core.currentStatus == .beforeWindow {
                 HStack(spacing: 8) {
@@ -3558,22 +6636,14 @@ struct DoseButtonsSection: View {
             }
             
             HStack(spacing: 12) {
-                Button("Snooze +\(max(1, settings.snoozeDurationMinutes))m") {
-                    Task {
-                        if await AlarmService.shared.snoozeAlarm(dose1Time: core.dose1Time) != nil {
-                            await core.snooze()
-                        }
-                    }
+                Button("Snooze +10m") {
+                    Task { await core.snooze() }
                 }
                 .buttonStyle(.bordered)
                 .disabled(!snoozeEnabled)
                 
                 Button("Skip Dose") {
-                    Task {
-                        await core.skipDose()
-                        AlarmService.shared.cancelAllAlarms()
-                        AlarmService.shared.clearWakeAlarmState()
-                    }
+                    Task { await core.skipDose() }
                 }
                 .buttonStyle(.bordered)
                 .disabled(!skipEnabled)
@@ -3595,12 +6665,13 @@ struct DoseButtonsSection: View {
             showEarlyDoseAlert = true
             return
         }
-        
-        Task {
-            await core.takeDose()
-            AlarmService.shared.cancelAllAlarms()
-            AlarmService.shared.clearWakeAlarmState()
+
+        if core.currentStatus == .closed {
+            showWindowExpiredOverride = true
+            return
         }
+        
+        Task { await core.takeDose() }
     }
     
     private var primaryButtonText: String {
@@ -3608,7 +6679,7 @@ struct DoseButtonsSection: View {
         case .noDose1: return "Take Dose 1"
         case .beforeWindow: return "Waiting..."
         case .active, .nearClose: return "Take Dose 2"
-        case .closed: return "Window Closed"
+        case .closed: return "Take Dose 2 (Late)"
         case .completed: return "Complete ✓"
         case .finalizing: return "Check-In"
         }
@@ -3620,18 +6691,18 @@ struct DoseButtonsSection: View {
         case .beforeWindow: return .gray
         case .active: return .green
         case .nearClose: return .orange
-        case .closed: return .gray
+        case .closed: return .orange
         case .completed: return .purple
         case .finalizing: return .yellow
         }
     }
     
     private var snoozeEnabled: Bool {
-        (core.currentStatus == .active || core.currentStatus == .nearClose) && core.snoozeCount < max(0, settings.maxSnoozes)
+        (core.currentStatus == .active || core.currentStatus == .nearClose) && core.snoozeCount < 3
     }
     
     private var skipEnabled: Bool {
-        core.currentStatus == .active || core.currentStatus == .nearClose
+        core.currentStatus == .active || core.currentStatus == .nearClose || core.currentStatus == .closed
     }
 }
 
@@ -3743,130 +6814,6 @@ struct WarningRow: View {
                 .frame(width: 24)
             Text(text)
                 .font(.subheadline)
-        }
-    }
-}
-
-// MARK: - Theme Toggle Components
-
-/// Compact theme toggle button for quick access on any screen
-struct ThemeToggleButton: View {
-    @EnvironmentObject var themeManager: ThemeManager
-    @State private var showPicker = false
-    
-    var body: some View {
-        Button {
-            showPicker = true
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: themeManager.currentTheme.icon)
-                    .font(.system(size: 14, weight: .semibold))
-            }
-            .foregroundColor(themeManager.currentTheme.accentColor)
-            .frame(width: 36, height: 36)
-            .background(themeManager.currentTheme.cardBackground)
-            .clipShape(Circle())
-            .overlay(
-                Circle()
-                    .strokeBorder(themeManager.currentTheme.accentColor.opacity(0.3), lineWidth: 1)
-            )
-        }
-        .confirmationDialog("Theme", isPresented: $showPicker, titleVisibility: .hidden) {
-            ForEach(AppTheme.allCases) { theme in
-                Button {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        themeManager.applyTheme(theme)
-                    }
-                } label: {
-                    HStack {
-                        Image(systemName: theme.icon)
-                        Text(theme.rawValue)
-                    }
-                }
-            }
-            Button("Cancel", role: .cancel) {}
-        }
-    }
-}
-
-/// Alternative: Segmented control style for inline placement
-struct ThemeSegmentedControl: View {
-    @EnvironmentObject var themeManager: ThemeManager
-    
-    var body: some View {
-        HStack(spacing: 8) {
-            ForEach(AppTheme.allCases) { theme in
-                Button {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        themeManager.applyTheme(theme)
-                    }
-                } label: {
-                    VStack(spacing: 2) {
-                        Image(systemName: theme.icon)
-                            .font(.system(size: 16, weight: .semibold))
-                        Text(theme == .night ? "Night" : theme.rawValue)
-                            .font(.caption2)
-                            .lineLimit(1)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
-                    .foregroundColor(
-                        themeManager.currentTheme == theme
-                            ? themeManager.currentTheme.buttonText
-                            : themeManager.currentTheme.secondaryText
-                    )
-                    .background(
-                        themeManager.currentTheme == theme
-                            ? themeManager.currentTheme.buttonBackground
-                            : themeManager.currentTheme.cardBackground
-                    )
-                    .cornerRadius(8)
-                }
-            }
-        }
-        .padding(4)
-        .background(themeManager.currentTheme.secondaryBackground)
-        .cornerRadius(10)
-    }
-}
-
-/// Alternative: Quick cycle button (tap to cycle through themes)
-struct ThemeCycleButton: View {
-    @EnvironmentObject var themeManager: ThemeManager
-    
-    var body: some View {
-        Button {
-            cycleTheme()
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: themeManager.currentTheme.icon)
-                    .font(.system(size: 14, weight: .semibold))
-                Text(shortLabel)
-                    .font(.caption.weight(.semibold))
-            }
-            .foregroundColor(themeManager.currentTheme.buttonText)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(themeManager.currentTheme.buttonBackground.opacity(0.8))
-            .cornerRadius(20)
-        }
-    }
-    
-    private var shortLabel: String {
-        switch themeManager.currentTheme {
-        case .light: return "Light"
-        case .dark: return "Dark"
-        case .night: return "Night"
-        }
-    }
-    
-    private func cycleTheme() {
-        withAnimation(.easeInOut(duration: 0.3)) {
-            let current = themeManager.currentTheme
-            let all = AppTheme.allCases
-            guard let index = all.firstIndex(of: current) else { return }
-            let nextIndex = (index + 1) % all.count
-            themeManager.applyTheme(all[nextIndex])
         }
     }
 }

@@ -148,6 +148,7 @@ final class DataIntegrityTests: XCTestCase {
             "dose_events",
             "pre_sleep_logs",
             "morning_checkins",
+            "checkin_submissions",
             "medication_events"
         ]
         
@@ -166,7 +167,7 @@ final class DataIntegrityTests: XCTestCase {
         // 3. fetchRowCount() allowedTables list
         // 4. test_sessionDelete_cascadesAllDependentTables assertions
         
-        XCTAssertEqual(tablesRequiringManualCascade.count, 5, 
+        XCTAssertEqual(tablesRequiringManualCascade.count, 6, 
             "If you added a new table, add it to manual cascade in deleteSession()")
     }
     
@@ -1133,36 +1134,55 @@ final class URLRouterTests: XCTestCase {
     }
     
     // MARK: - Navigation Tests
+
+    func test_navigationDeepLinkContract_isStable() {
+        let expected: [(host: String, tab: AppTab)] = [
+            ("tonight", .tonight),
+            ("timeline", .timeline),
+            ("details", .timeline),
+            ("history", .history),
+            ("dashboard", .dashboard),
+            ("settings", .settings),
+        ]
+        XCTAssertEqual(AppTab.navigationDeepLinks.map { $0.host }, expected.map { $0.host })
+        XCTAssertEqual(AppTab.navigationDeepLinks.map { $0.tab }, expected.map { $0.tab })
+    }
     
     /// Verify navigation URLs change selected tab
     func test_navigate_tonight_setsTab0() {
         let url = URL(string: "dosetap://tonight")!
         _ = router.handle(url)
-        XCTAssertEqual(router.selectedTab, 0, "tonight should navigate to tab 0")
+        XCTAssertEqual(router.selectedTab, .tonight, "tonight should navigate to tab 0")
     }
     
     func test_navigate_timeline_setsTab1() {
         let url = URL(string: "dosetap://timeline")!
         _ = router.handle(url)
-        XCTAssertEqual(router.selectedTab, 1, "timeline should navigate to tab 1")
+        XCTAssertEqual(router.selectedTab, .timeline, "timeline should navigate to tab 1")
     }
     
     func test_navigate_details_setsTab1() {
         let url = URL(string: "dosetap://details")!
         _ = router.handle(url)
-        XCTAssertEqual(router.selectedTab, 1, "details should navigate to tab 1")
+        XCTAssertEqual(router.selectedTab, .timeline, "details should navigate to tab 1")
     }
     
     func test_navigate_history_setsTab2() {
         let url = URL(string: "dosetap://history")!
         _ = router.handle(url)
-        XCTAssertEqual(router.selectedTab, 2, "history should navigate to tab 2")
+        XCTAssertEqual(router.selectedTab, .history, "history should navigate to tab 2")
     }
     
-    func test_navigate_settings_setsTab3() {
+    func test_navigate_dashboard_setsTab3() {
+        let url = URL(string: "dosetap://dashboard")!
+        _ = router.handle(url)
+        XCTAssertEqual(router.selectedTab, .dashboard, "dashboard should navigate to tab 3")
+    }
+
+    func test_navigate_settings_setsTab4() {
         let url = URL(string: "dosetap://settings")!
         _ = router.handle(url)
-        XCTAssertEqual(router.selectedTab, 3, "settings should navigate to tab 3")
+        XCTAssertEqual(router.selectedTab, .settings, "settings should navigate to tab 4")
     }
     
     // MARK: - Log Event URL Tests
@@ -1190,6 +1210,20 @@ final class URLRouterTests: XCTestCase {
             XCTFail("lastAction should be .logEvent")
         }
     }
+
+    /// Regression: notes in deep-link log events must be persisted (not dropped).
+    func test_logEvent_persistsNotes_andCanonicalEventType() {
+        let url = URL(string: "dosetap://log?event=lightsOut&notes=urgent%20bathroom%20trip")!
+        let result = router.handle(url)
+        XCTAssertTrue(result, "Valid log event URL should be handled")
+
+        let events = SessionRepository.shared.fetchTonightSleepEvents()
+        guard let saved = events.first(where: { $0.notes == "urgent bathroom trip" }) else {
+            XCTFail("Expected log event notes to persist to storage")
+            return
+        }
+        XCTAssertEqual(saved.eventType, "lights_out", "Event type should be canonicalized before persistence")
+    }
     
     /// Verify log event with missing event is rejected (security validation)
     func test_logEvent_missingEvent_isRejected() {
@@ -1209,6 +1243,24 @@ final class URLRouterTests: XCTestCase {
         _ = router.handle(url)
         XCTAssertEqual(router.lastAction, .takeDose1, "Should set lastAction to .takeDose1")
     }
+
+    /// Regression: Dose deep links should not write dose rows into sleep_events.
+    func test_dose1_deepLink_doesNotPersistSleepEventDose() async {
+        let url = URL(string: "dosetap://dose1")!
+        let handled = router.handle(url)
+        XCTAssertTrue(handled, "Dose 1 deep link should be handled")
+
+        // Router dose handlers execute inside async Task.
+        await Task.yield()
+        try? await Task.sleep(nanoseconds: 120_000_000)
+
+        let sleepEvents = SessionRepository.shared.fetchTonightSleepEvents()
+        let hasDoseSleepEvent = sleepEvents.contains { event in
+            let normalized = event.eventType.lowercased()
+            return normalized == "dose1" || normalized == "dose2" || normalized == "extra_dose"
+        }
+        XCTAssertFalse(hasDoseSleepEvent, "Dose deep links must only persist dose_events, not sleep_events")
+    }
     
     /// Verify dose2 URL sets correct lastAction (even if it fails validation)
     func test_dose2_setsLastAction_whenDose1Missing() {
@@ -1217,6 +1269,50 @@ final class URLRouterTests: XCTestCase {
         // Dose2 without Dose1 should fail but still be recognized
         XCTAssertFalse(result, "Dose2 without Dose1 should return false")
         XCTAssertTrue(router.feedbackMessage.contains("Dose 1"), "Should show Dose 1 required message")
+    }
+
+    /// Regression: closed-window Dose 2 deep link must allow explicit late override.
+    func test_dose2_deepLink_allowsLateOverride_whenWindowClosed() async {
+        let repo = SessionRepository.shared
+        repo.setDose1Time(Date().addingTimeInterval(-250 * 60)) // Closed window (> 240 min)
+        XCTAssertEqual(repo.currentContext.phase, .closed, "Precondition: phase should be closed.")
+        XCTAssertNil(repo.dose2Time, "Precondition: Dose 2 should not be logged yet.")
+
+        let url = URL(string: "dosetap://dose2")!
+        let handled = router.handle(url)
+        XCTAssertTrue(handled, "Dose 2 deep link should be handled in closed window via override.")
+
+        // Router uses async Task; let state mutation propagate.
+        await Task.yield()
+        try? await Task.sleep(nanoseconds: 120_000_000)
+
+        XCTAssertNotNil(repo.dose2Time, "Late override should log Dose 2.")
+        XCTAssertEqual(repo.currentContext.phase, .completed, "Session should complete after late Dose 2.")
+    }
+
+    /// Regression: before-window Dose 2 deep link must still be blocked.
+    func test_dose2_deepLink_rejectsBeforeWindow_withoutOverride() {
+        let repo = SessionRepository.shared
+        repo.setDose1Time(Date().addingTimeInterval(-100 * 60)) // Before window (< 150 min)
+        XCTAssertEqual(repo.currentContext.phase, .beforeWindow, "Precondition: phase should be beforeWindow.")
+        XCTAssertNil(repo.dose2Time, "Precondition: Dose 2 should not be logged yet.")
+
+        let url = URL(string: "dosetap://dose2")!
+        let handled = router.handle(url)
+        XCTAssertFalse(handled, "Dose 2 deep link should be rejected before the window opens.")
+        XCTAssertNil(repo.dose2Time, "Dose 2 should remain unset when request is rejected.")
+    }
+
+    /// Regression: wake_final deep-link must move session to finalizing state.
+    func test_logEvent_wakeFinal_setsSessionFinalizingState() {
+        let repo = SessionRepository.shared
+        repo.setDose1Time(Date().addingTimeInterval(-180 * 60))
+        XCTAssertNil(repo.wakeFinalTime, "Precondition: wakeFinalTime should be nil")
+
+        let handled = router.handle(URL(string: "dosetap://log?event=wake_final")!)
+        XCTAssertTrue(handled, "Wake final deep-link should be handled")
+        XCTAssertNotNil(repo.wakeFinalTime, "Wake final deep-link should persist wake final time")
+        XCTAssertEqual(repo.currentContext.phase, .finalizing, "Session should enter finalizing phase after wake_final")
     }
     
     /// Verify snooze URL sets correct lastAction
@@ -1508,6 +1604,19 @@ final class UIStateTests: XCTestCase {
             // Good - disabled after completion
         } else {
             XCTFail("Primary should be disabled after completion")
+        }
+    }
+
+    /// Regression: closed phase should expose explicit override CTA.
+    func test_primaryCTA_closedPhase_requiresOverride() async throws {
+        repo.setDose1Time(Date().addingTimeInterval(-250 * 60))
+        XCTAssertEqual(repo.currentContext.phase, .closed)
+
+        switch repo.currentContext.primary {
+        case .takeWithOverride(let reason):
+            XCTAssertFalse(reason.isEmpty, "Override CTA should include rationale.")
+        default:
+            XCTFail("Closed phase should surface .takeWithOverride.")
         }
     }
     
@@ -1806,26 +1915,22 @@ final class NavigationFlowTests: XCTestCase {
         router = URLRouter.shared
         router.lastAction = nil
         router.feedbackMessage = ""
-        router.selectedTab = 0
+        router.selectedTab = .tonight
     }
     
     // MARK: - Tab Selection Tests
     
     /// Verify all tabs can be selected via URL
     func test_allTabs_selectableViaURL() {
-        let tabURLs: [(String, Int)] = [
-            ("dosetap://tonight", 0),
-            ("dosetap://timeline", 1),
-            ("dosetap://details", 1),
-            ("dosetap://history", 2),
-            ("dosetap://settings", 3),
-        ]
+        let tabURLs: [(String, AppTab)] = AppTab.navigationDeepLinks.map {
+            ("dosetap://\($0.host)", $0.tab)
+        }
         
         for (urlString, expectedTab) in tabURLs {
             let url = URL(string: urlString)!
             _ = router.handle(url)
             XCTAssertEqual(router.selectedTab, expectedTab, 
-                "\(urlString) should select tab \(expectedTab)")
+                "\(urlString) should select tab \(expectedTab.rawValue)")
         }
     }
     
@@ -1833,13 +1938,13 @@ final class NavigationFlowTests: XCTestCase {
     func test_tabSelection_persistsAfterAction() {
         // Select settings tab
         _ = router.handle(URL(string: "dosetap://settings")!)
-        XCTAssertEqual(router.selectedTab, 3)
+        XCTAssertEqual(router.selectedTab, .settings)
         
         // Perform action (which doesn't change tab)
         _ = router.handle(URL(string: "dosetap://dose1")!)
         
         // Tab should still be settings (action doesn't force tab change)
-        // Note: Actual behavior depends on implementation - may navigate to Tonight
+        XCTAssertEqual(router.selectedTab, .settings)
     }
     
     // MARK: - Deep Link Flow Tests

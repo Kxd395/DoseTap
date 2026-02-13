@@ -1,11 +1,17 @@
 import SwiftUI
 import DoseCore
 
+private enum LegacyMainTab: Int {
+    case tonight = 0
+    case details = 1
+    case settings = 2
+}
+
 // MARK: - Main Tab View
 struct ContentView: View {
     @StateObject private var core = DoseTapCore()
     @StateObject private var settings = UserSettingsManager.shared
-    @State private var selectedTab = 0
+    @State private var selectedTab: LegacyMainTab = .tonight
     
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -15,7 +21,7 @@ struct ContentView: View {
                     Image(systemName: "moon.fill")
                     Text("Tonight")
                 }
-                .tag(0)
+                .tag(LegacyMainTab.tonight)
             
             // Details Tab (More info, full event log)
             DetailsView(core: core)
@@ -23,7 +29,7 @@ struct ContentView: View {
                     Image(systemName: "list.bullet.clipboard")
                     Text("Details")
                 }
-                .tag(1)
+                .tag(LegacyMainTab.details)
             
             // Settings Tab
             SettingsView()
@@ -31,7 +37,7 @@ struct ContentView: View {
                     Image(systemName: "gear")
                     Text("Settings")
                 }
-                .tag(2)
+                .tag(LegacyMainTab.settings)
         }
         .preferredColorScheme(settings.colorScheme)
     }
