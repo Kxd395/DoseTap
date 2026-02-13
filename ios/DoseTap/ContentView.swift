@@ -2852,12 +2852,13 @@ struct DetailsView: View {
                     )
                 }
                 .sorted(by: { $0.startTime < $1.startTime })
+            let filteredStages = primaryNightSleepBands(from: stages)
 
-            guard !stages.isEmpty else { return nil }
+            guard !filteredStages.isEmpty else { return nil }
 
-            let start = stages.map(\.startTime).min() ?? queryStart
-            let end = stages.map(\.endTime).max() ?? queryEnd
-            return ReviewSnapshotSleepTimeline(stages: stages, start: start, end: end)
+            let start = filteredStages.map(\.startTime).min() ?? queryStart
+            let end = filteredStages.map(\.endTime).max() ?? queryEnd
+            return ReviewSnapshotSleepTimeline(stages: filteredStages, start: start, end: end)
         } catch {
             return nil
         }
@@ -2940,12 +2941,6 @@ private struct DashboardNightAggregate: Identifiable {
         if dose1Time != nil && dose2Time == nil && !dose2Skipped {
             flags.append("Dose 2 outcome missing")
         }
-        if healthSummary == nil {
-            flags.append("No HealthKit sleep summary")
-        }
-        if morningCheckIn == nil {
-            flags.append("No morning check-in")
-        }
         return flags
     }
 }
@@ -2986,30 +2981,34 @@ private final class DashboardAnalyticsModel: ObservableObject {
         Array(populatedNights.prefix(14))
     }
 
+    var dosingNights: [DashboardNightAggregate] {
+        populatedNights.filter { $0.dose1Time != nil || $0.dose2Time != nil || $0.dose2Skipped }
+    }
+
     var onTimePercentage: Double? {
-        let values = populatedNights.compactMap(\.onTimeDosing)
+        let values = dosingNights.compactMap(\.onTimeDosing)
         guard !values.isEmpty else { return nil }
         let onTime = values.filter { $0 }.count
         return (Double(onTime) / Double(values.count)) * 100
     }
 
     var averageIntervalMinutes: Double? {
-        let intervals = populatedNights.compactMap(\.intervalMinutes)
+        let intervals = dosingNights.compactMap(\.intervalMinutes)
         guard !intervals.isEmpty else { return nil }
         return Double(intervals.reduce(0, +)) / Double(intervals.count)
     }
 
     var completionRate: Double? {
-        let eligible = populatedNights.filter { $0.dose1Time != nil }
+        let eligible = dosingNights.filter { $0.dose1Time != nil }
         guard !eligible.isEmpty else { return nil }
         let completed = eligible.filter { $0.dose2Time != nil || $0.dose2Skipped }.count
         return (Double(completed) / Double(eligible.count)) * 100
     }
 
     var averageSnoozeCount: Double? {
-        guard !populatedNights.isEmpty else { return nil }
-        let total = populatedNights.reduce(0) { $0 + $1.snoozeCount }
-        return Double(total) / Double(populatedNights.count)
+        guard !dosingNights.isEmpty else { return nil }
+        let total = dosingNights.reduce(0) { $0 + $1.snoozeCount }
+        return Double(total) / Double(dosingNights.count)
     }
 
     var averageSleepMinutes: Double? {
@@ -3042,7 +3041,10 @@ private final class DashboardAnalyticsModel: ObservableObject {
     }
 
     var missingHealthSummaryCount: Int {
-        populatedNights.filter { $0.healthSummary == nil }.count
+        guard settings.healthKitEnabled else { return 0 }
+        return trendNights.filter {
+            $0.healthSummary == nil && ($0.dose1Time != nil || !$0.events.isEmpty || $0.morningCheckIn != nil)
+        }.count
     }
 
     var highConfidenceNightCount: Int {
@@ -3050,7 +3052,75 @@ private final class DashboardAnalyticsModel: ObservableObject {
     }
 
     var qualityIssueCount: Int {
-        populatedNights.reduce(0) { $0 + $1.qualityFlags.count }
+        trendNights.reduce(0) { $0 + $1.qualityFlags.count }
+    }
+
+    private enum DoseEventKind {
+        case dose1
+        case dose2
+        case dose2Skipped
+        case extraDose
+        case other
+    }
+
+    private struct DerivedDoseMetrics {
+        let dose1Time: Date?
+        let dose2Time: Date?
+        let dose2Skipped: Bool
+        let extraDoseCount: Int
+    }
+
+    private func normalizedDoseEventKind(_ rawType: String) -> DoseEventKind {
+        let normalized = rawType
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "_")
+            .replacingOccurrences(of: "-", with: "_")
+
+        switch normalized {
+        case "dose1", "dose_1", "dose1_taken", "dose_1_taken":
+            return .dose1
+        case "dose2", "dose_2", "dose2_taken", "dose_2_taken", "dose2_early", "dose_2_early", "dose2_late", "dose_2_late", "dose_2_(early)", "dose_2_(late)":
+            return .dose2
+        case "dose2_skipped", "dose_2_skipped", "dose2skipped", "dose_2_skipped_reason", "skip", "skipped":
+            return .dose2Skipped
+        case "extra_dose", "extra_dose_taken", "extra", "dose3", "dose_3", "dose_3_taken":
+            return .extraDose
+        default:
+            return .other
+        }
+    }
+
+    private func deriveDoseMetrics(from doseEvents: [DoseCore.StoredDoseEvent]) -> DerivedDoseMetrics {
+        let sorted = doseEvents.sorted { $0.timestamp < $1.timestamp }
+        let dose1 = sorted.first { normalizedDoseEventKind($0.eventType) == .dose1 }?.timestamp
+        let dose2 = sorted.first { normalizedDoseEventKind($0.eventType) == .dose2 }?.timestamp
+        let skipped = sorted.contains { normalizedDoseEventKind($0.eventType) == .dose2Skipped }
+        let extraCount = sorted.filter { normalizedDoseEventKind($0.eventType) == .extraDose }.count
+
+        // Legacy fallback when explicit dose1 markers are missing.
+        if dose1 == nil {
+            let doseLike = sorted.filter {
+                let kind = normalizedDoseEventKind($0.eventType)
+                return kind == .dose1 || kind == .dose2 || kind == .extraDose
+            }
+            if let inferredDose1 = doseLike.first?.timestamp {
+                let inferredDose2 = dose2 ?? (doseLike.count > 1 ? doseLike[1].timestamp : nil)
+                return DerivedDoseMetrics(
+                    dose1Time: inferredDose1,
+                    dose2Time: inferredDose2,
+                    dose2Skipped: skipped,
+                    extraDoseCount: extraCount
+                )
+            }
+        }
+
+        return DerivedDoseMetrics(
+            dose1Time: dose1,
+            dose2Time: dose2,
+            dose2Skipped: skipped,
+            extraDoseCount: extraCount
+        )
     }
 
     let metricsCatalog: [DashboardMetricCategory] = [
@@ -3143,20 +3213,18 @@ private final class DashboardAnalyticsModel: ObservableObject {
             let summary = sessionByKey[key] ?? SessionSummary(sessionDate: key)
             let doseLog = sessionRepo.fetchDoseLog(forSession: key)
             let doseEvents = sessionRepo.fetchDoseEvents(forSessionDate: key)
-            let extraDoseCount = doseEvents.filter {
-                $0.eventType.lowercased().contains("extra")
-            }.count
+            let derivedDose = deriveDoseMetrics(from: doseEvents)
             let events = sessionRepo.fetchSleepEvents(for: key).sorted { $0.timestamp < $1.timestamp }
             let duplicateClusters = buildStoredEventDuplicateGroups(events: events).count
             let sessionId = sessionRepo.fetchSessionId(forSessionDate: key) ?? key
 
             return DashboardNightAggregate(
                 sessionDate: key,
-                dose1Time: summary.dose1Time ?? doseLog?.dose1Time,
-                dose2Time: summary.dose2Time ?? doseLog?.dose2Time,
-                dose2Skipped: summary.dose2Skipped || doseLog?.dose2Skipped == true,
+                dose1Time: summary.dose1Time ?? doseLog?.dose1Time ?? derivedDose.dose1Time,
+                dose2Time: summary.dose2Time ?? doseLog?.dose2Time ?? derivedDose.dose2Time,
+                dose2Skipped: summary.dose2Skipped || doseLog?.dose2Skipped == true || derivedDose.dose2Skipped,
                 snoozeCount: summary.snoozeCount,
-                extraDoseCount: extraDoseCount,
+                extraDoseCount: derivedDose.extraDoseCount,
                 events: events,
                 morningCheckIn: sessionRepo.fetchMorningCheckIn(for: key),
                 preSleepLog: sessionRepo.fetchMostRecentPreSleepLog(sessionId: sessionId),
@@ -4788,6 +4856,9 @@ private struct ReviewHeaderCard: View {
         if let start, let end {
             return "\(status) • \(start.formatted(date: .omitted, time: .shortened))-\(end.formatted(date: .omitted, time: .shortened))"
         }
+        if session.dose1Time == nil, session.dose2Time == nil, events.isEmpty {
+            return "No manual logs for this night"
+        }
         return status
     }
 
@@ -4835,7 +4906,7 @@ private struct ReviewStickyHeaderBar: View {
             return "\(status) • \(start.formatted(date: .omitted, time: .shortened))-\(end.formatted(date: .omitted, time: .shortened))"
         }
         if session.dose1Time == nil, session.dose2Time == nil, events.isEmpty {
-            return "No data recorded for this night"
+            return "No manual logs for this night"
         }
         return status
     }
@@ -4897,6 +4968,10 @@ private struct CoachSummaryCard: View {
     let session: SessionSummary
     let events: [StoredSleepEvent]
 
+    private var hasAnySessionData: Bool {
+        session.dose1Time != nil || session.dose2Time != nil || !events.isEmpty
+    }
+
     private var doseWindow: (open: Date, close: Date)? {
         guard let dose1 = session.dose1Time else { return nil }
         return (dose1.addingTimeInterval(150 * 60), dose1.addingTimeInterval(240 * 60))
@@ -4917,6 +4992,9 @@ private struct CoachSummaryCard: View {
                 .map(\.timestamp)
                 .max()
         else {
+            if !hasAnySessionData {
+                return "No session data recorded."
+            }
             return session.intervalMinutes.map { "Dose interval was \(TimeIntervalMath.formatMinutes($0))." }
                 ?? "Session data captured."
         }
@@ -4928,6 +5006,9 @@ private struct CoachSummaryCard: View {
             let normalized = normalizeStoredEventType($0.eventType)
             return normalized == "bathroom" || normalized == "wake_temp" || normalized == "noise" || normalized == "pain"
         }
+        if !hasAnySessionData {
+            return "Biggest friction: insufficient data logged."
+        }
         if disruptions.isEmpty {
             return "Biggest friction: no major disruptions logged."
         }
@@ -4936,6 +5017,10 @@ private struct CoachSummaryCard: View {
 
     private var actions: [String] {
         var suggestions: [String] = []
+
+        if !hasAnySessionData {
+            return ["Log lights out, final wake, and only meaningful overnight disruptions tonight."]
+        }
 
         if let window = doseWindow, let lightsOut = lightsOutTime {
             if lightsOut < window.open || lightsOut > window.close {

@@ -836,6 +836,71 @@ final class ExportIntegrityTests: XCTestCase {
             XCTAssertFalse(session.isEmpty, "Session date should not be empty")
         }
     }
+
+    /// Regression: fetch by session_id must also include legacy rows keyed only by session_date.
+    func test_fetchDoseEvents_fallsBackToSessionDate_whenSessionIdMismatches() async throws {
+        let now = Date()
+        repo.setDose1Time(now)
+        let sessionDate = repo.currentSessionDateString()
+
+        guard let canonicalSessionId = repo.fetchSessionId(forSessionDate: sessionDate) else {
+            XCTFail("Expected canonical session ID for active session")
+            return
+        }
+        XCTAssertNotEqual(canonicalSessionId, sessionDate, "Test requires session_id and session_date to differ")
+
+        // Remove canonical rows so only legacy session_date-keyed row remains.
+        let canonicalRows = repo.fetchDoseEvents(forSessionDate: sessionDate)
+        for row in canonicalRows {
+            storage.deleteDoseEvent(id: row.id, recordCloudKitDeletion: false)
+        }
+
+        storage.insertDoseEvent(
+            eventType: "dose1",
+            timestamp: now,
+            sessionDate: sessionDate,
+            sessionId: nil
+        )
+
+        let fetched = repo.fetchDoseEvents(forSessionDate: sessionDate)
+        XCTAssertEqual(fetched.count, 1, "Should fetch legacy session_date keyed dose row")
+        XCTAssertEqual(fetched.first?.eventType, "dose1")
+    }
+
+    /// Regression: primary sleep cluster should ignore long awake spans that bridge separate sleep blocks.
+    func test_primaryNightSleepBands_excludesLongAwakeBridgesAndSecondaryCluster() async throws {
+        let calendar = Calendar(identifier: .gregorian)
+        let start = calendar.date(from: DateComponents(year: 2026, month: 2, day: 10, hour: 22, minute: 0)) ?? Date()
+
+        let bands: [SleepStageBand] = [
+            // Long leading in-bed/awake period should not be retained.
+            SleepStageBand(stage: .awake, startTime: start, endTime: start.addingTimeInterval(2 * 3600)),
+            // Primary sleep cluster.
+            SleepStageBand(stage: .light, startTime: start.addingTimeInterval(2 * 3600 + 10 * 60), endTime: start.addingTimeInterval(2 * 3600 + 50 * 60)),
+            SleepStageBand(stage: .deep, startTime: start.addingTimeInterval(3 * 3600 + 10 * 60), endTime: start.addingTimeInterval(3 * 3600 + 50 * 60)),
+            // Long awake bridge between clusters should not force a single giant timeline.
+            SleepStageBand(stage: .awake, startTime: start.addingTimeInterval(4 * 3600), endTime: start.addingTimeInterval(8 * 3600)),
+            // Secondary smaller sleep cluster.
+            SleepStageBand(stage: .light, startTime: start.addingTimeInterval(8 * 3600 + 10 * 60), endTime: start.addingTimeInterval(9 * 3600))
+        ]
+
+        let filtered = primaryNightSleepBands(from: bands)
+        XCTAssertFalse(filtered.isEmpty, "Expected a retained primary sleep cluster")
+
+        let filteredStart = filtered.map(\.startTime).min()
+        let filteredEnd = filtered.map(\.endTime).max()
+
+        XCTAssertEqual(
+            filteredStart,
+            start.addingTimeInterval(2 * 3600 + 10 * 60),
+            "Filtered cluster should begin at first primary sleep segment, not long leading awake time"
+        )
+        XCTAssertEqual(
+            filteredEnd,
+            start.addingTimeInterval(3 * 3600 + 50 * 60),
+            "Filtered cluster should end at primary cluster, excluding later secondary cluster"
+        )
+    }
     
     // MARK: - Support Bundle Secrets Tests
     
