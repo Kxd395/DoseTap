@@ -3246,8 +3246,6 @@ private final class CloudKitSyncService: ObservableObject {
     }()
 
     #if canImport(CloudKit)
-    private let container = CKContainer.default()
-    private lazy var db = container.privateCloudDatabase
     private let zoneID = CKRecordZone.ID(zoneName: "DoseTapZone", ownerName: CKCurrentUserDefaultName)
     private let zoneChangeTokenDefaultsKey = "cloudkit.zone.token.dosetap.v1"
     private let sessionRecordType = "DoseTapSession"
@@ -3281,8 +3279,28 @@ private final class CloudKitSyncService: ObservableObject {
                 return ["1", "true", "yes"].contains(stringValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
             }
         }
-        return true
+        // Fail closed if the build has no explicit cloud-sync toggle.
+        return false
     }()
+
+    private struct CloudKitContext {
+        let container: CKContainer
+        let privateDatabase: CKDatabase
+    }
+
+    private lazy var cloudKitContext: CloudKitContext? = {
+        guard hasCloudKitEntitlement else { return nil }
+        let container = CKContainer.default()
+        return CloudKitContext(container: container, privateDatabase: container.privateCloudDatabase)
+    }()
+
+    private var cloudKitContainer: CKContainer? {
+        cloudKitContext?.container
+    }
+
+    private var cloudKitDatabase: CKDatabase? {
+        cloudKitContext?.privateDatabase
+    }
     #endif
 
     enum SyncError: LocalizedError {
@@ -3622,7 +3640,10 @@ private final class CloudKitSyncService: ObservableObject {
     }
 
     private func fetchAccountStatus() async throws -> CKAccountStatus {
-        try await withCheckedThrowingContinuation { continuation in
+        guard let container = cloudKitContainer else {
+            throw SyncError.syncDisabledByBuild
+        }
+        return try await withCheckedThrowingContinuation { continuation in
             container.accountStatus { status, error in
                 if let error {
                     continuation.resume(throwing: error)
@@ -3634,6 +3655,9 @@ private final class CloudKitSyncService: ObservableObject {
     }
 
     private func ensureZoneExists() async throws {
+        guard let db = cloudKitDatabase else {
+            throw SyncError.syncDisabledByBuild
+        }
         let zone = CKRecordZone(zoneID: zoneID)
         try await withCheckedThrowingContinuation { continuation in
             let op = CKModifyRecordZonesOperation(recordZonesToSave: [zone], recordZoneIDsToDelete: nil)
@@ -3652,6 +3676,9 @@ private final class CloudKitSyncService: ObservableObject {
 
     private func saveRecordsInChunks(_ records: [CKRecord], chunkSize: Int) async throws {
         guard !records.isEmpty else { return }
+        guard let db = cloudKitDatabase else {
+            throw SyncError.syncDisabledByBuild
+        }
         var index = 0
         while index < records.count {
             let end = min(index + chunkSize, records.count)
@@ -3691,6 +3718,9 @@ private final class CloudKitSyncService: ObservableObject {
 
     private func deleteCloudKitChunk(_ chunk: [CloudKitTombstone]) async throws -> Set<String> {
         guard !chunk.isEmpty else { return [] }
+        guard let db = cloudKitDatabase else {
+            throw SyncError.syncDisabledByBuild
+        }
 
         let ids = chunk.map { CKRecord.ID(recordName: $0.recordName, zoneID: zoneID) }
         var keyByRecordID: [CKRecord.ID: String] = [:]
@@ -3751,7 +3781,10 @@ private final class CloudKitSyncService: ObservableObject {
     }
 
     private func fetchZoneChanges(previousToken: CKServerChangeToken?) async throws -> ZoneChangeBatch {
-        try await withCheckedThrowingContinuation { continuation in
+        guard let db = cloudKitDatabase else {
+            throw SyncError.syncDisabledByBuild
+        }
+        return try await withCheckedThrowingContinuation { continuation in
             let config = CKFetchRecordZoneChangesOperation.ZoneConfiguration()
             config.previousServerChangeToken = previousToken
 
