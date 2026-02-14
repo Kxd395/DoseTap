@@ -1,6 +1,7 @@
 # Build artifacts
 .build/
 *.xcuserdatad
+build/
 
 # Secrets and configuration
 ios/DoseTap/Config.plist
@@ -24,3 +25,15 @@ ios/build/
 
 # Xcode derived data (local)
 .xcode-derived/
+
+# Archived / one-off artifacts (removed from tracking 2026-02-13)
+archive/
+agent/
+shadcn-ui/
+ios/TempProject/
+ios/DoseTapProject/
+ios/DoseTapNative/
+ios/TestBuild.swift
+
+# Added by ggshield
+.cache_ggshield
