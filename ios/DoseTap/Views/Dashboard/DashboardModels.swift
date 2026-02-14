@@ -9,7 +9,7 @@ import UIKit
 import CloudKit
 #endif
 
-private let appLogger = Logger(subsystem: "com.dosetap.app", category: "Dashboard")
+private let dashboardLogger = Logger(subsystem: "com.dosetap.app", category: "Dashboard")
 
 enum DashboardDateRange: String, CaseIterable, Identifiable {
     case week = "7D"
@@ -1211,7 +1211,7 @@ final class CloudKitSyncService: ObservableObject {
                 case .success:
                     continuation.resume(returning: ())
                 case .failure(let error):
-                    appLogger.error("CloudKit zone ensure failed: \(error.localizedDescription)")
+                    dashboardLogger.error("CloudKit zone ensure failed: \(error.localizedDescription)")
                     continuation.resume(throwing: SyncError.zoneSetupFailed)
                 }
             }
