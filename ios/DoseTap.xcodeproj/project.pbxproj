@@ -77,10 +77,19 @@
 		36C1109C06A24E03A747B9E6 /* SessionSummaryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0C7941006B40BEA391DD9A /* SessionSummaryViews.swift */; };
 		B5040368A01046D0AA5193F1 /* QuickEventViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAE0B98FC8F48BAB6219546 /* QuickEventViews.swift */; };
 		AD5F630A482E47B183CDE516 /* DetailsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D42A891F4758470783F7565F /* DetailsView.swift */; };
+		UI_B01 /* DoseTapUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI_F01 /* DoseTapUITests.swift */; };
+		UI_B02 /* DoseTapUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI_F02 /* DoseTapUITestsLaunchTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
 		8017D5352EFCDF6A00BF9683 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = L01 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = H01;
+			remoteInfo = DoseTap;
+		};
+		UI_PROXY01 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = L01 /* Project object */;
 			proxyType = 1;
@@ -191,6 +200,9 @@
 		AA0C7941006B40BEA391DD9A /* SessionSummaryViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionSummaryViews.swift; sourceTree = "<group>"; };
 		BEAE0B98FC8F48BAB6219546 /* QuickEventViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuickEventViews.swift; sourceTree = "<group>"; };
 		D42A891F4758470783F7565F /* DetailsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsView.swift; sourceTree = "<group>"; };
+		UI_F01 /* DoseTapUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseTapUITests.swift; sourceTree = "<group>"; };
+		UI_F02 /* DoseTapUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseTapUITestsLaunchTests.swift; sourceTree = "<group>"; };
+		UI_PROD01 /* DoseTapUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DoseTapUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -199,6 +211,13 @@
 
 /* Begin PBXFrameworksBuildPhase section */
 		8017D52E2EFCDF6A00BF9683 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		UI_FW01 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -255,6 +274,7 @@
 			children = (
 				F01 /* DoseTap */,
 				8017D5322EFCDF6A00BF9683 /* DoseTapTests */,
+				UI_GRP01 /* DoseTapUITests */,
 				G01 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -319,6 +339,7 @@
 				C01 /* DoseTap.app */,
 				8017D5312EFCDF6A00BF9683 /* DoseTapTests.xctest */,
 				7797EE7911D146B6A7456454 /* DoseTapStaging.app */,
+				UI_PROD01 /* DoseTapUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -428,6 +449,15 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
+		UI_GRP01 /* DoseTapUITests */ = {
+			isa = PBXGroup;
+			children = (
+				UI_F01 /* DoseTapUITests.swift */,
+				UI_F02 /* DoseTapUITestsLaunchTests.swift */,
+			);
+			path = DoseTapUITests;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -492,6 +522,24 @@
 			productReference = C01 /* DoseTap.app */;
 			productType = "com.apple.product-type.application";
 		};
+		UI_TGT01 /* DoseTapUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = UI_CFGL01 /* Build configuration list for PBXNativeTarget "DoseTapUITests" */;
+			buildPhases = (
+				UI_SRC01 /* Sources */,
+				UI_FW01 /* Frameworks */,
+				UI_RES01 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				UI_DEP01 /* PBXTargetDependency */,
+			);
+			name = DoseTapUITests;
+			productName = DoseTapUITests;
+			productReference = UI_PROD01 /* DoseTapUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -510,6 +558,10 @@
 					};
 					H01 = {
 						CreatedOnToolsVersion = 15.0;
+					};
+					UI_TGT01 = {
+						CreatedOnToolsVersion = 15.0;
+						TestTargetID = H01;
 					};
 				};
 			};
@@ -532,12 +584,20 @@
 				H01 /* DoseTap */,
 				8017D5302EFCDF6A00BF9683 /* DoseTapTests */,
 				1A41D2556A7043ADB5D0C63B /* DoseTapStaging */,
+				UI_TGT01 /* DoseTapUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		8017D52F2EFCDF6A00BF9683 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		UI_RES01 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -559,6 +619,15 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		UI_SRC01 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				UI_B01 /* DoseTapUITests.swift in Sources */,
+				UI_B02 /* DoseTapUITestsLaunchTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -644,6 +713,11 @@
 			isa = PBXTargetDependency;
 			target = H01 /* DoseTap */;
 			targetProxy = 8017D5352EFCDF6A00BF9683 /* PBXContainerItemProxy */;
+		};
+		UI_DEP01 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = H01 /* DoseTap */;
+			targetProxy = UI_PROXY01 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -1050,6 +1124,42 @@
 			};
 			name = Release;
 		};
+		UI_CFG_D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = PJ487S8PS6;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = AxxessPhilly.DoseTapUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = DoseTap;
+			};
+			name = Debug;
+		};
+		UI_CFG_R /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = PJ487S8PS6;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = AxxessPhilly.DoseTapUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = DoseTap;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -1085,6 +1195,15 @@
 			buildConfigurations = (
 				N01 /* Debug */,
 				N02 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		UI_CFGL01 /* Build configuration list for PBXNativeTarget "DoseTapUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				UI_CFG_D /* Debug */,
+				UI_CFG_R /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
