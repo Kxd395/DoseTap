@@ -26,6 +26,9 @@ ios/build/
 # Xcode derived data (local)
 .xcode-derived/
 
+# Xcode backup files
+*.pbxproj.backup*
+
 # Archived / one-off artifacts (removed from tracking 2026-02-13)
 archive/
 agent/
@@ -34,6 +37,8 @@ ios/TempProject/
 ios/DoseTapProject/
 ios/DoseTapNative/
 ios/TestBuild.swift
+# Added by ggshield
+.cache_ggshield
 
 # Added by ggshield
 .cache_ggshield
