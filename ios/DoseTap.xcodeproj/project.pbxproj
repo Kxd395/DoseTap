@@ -20,7 +20,6 @@
 		46EBB63DD7FE446C8EEF4021 /* AnalyticsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCEDF0A0E4BE41F582C2221F /* AnalyticsService.swift */; };
 		49BABB381D1350BB62368638 /* ReducedMotionSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A3C6B3DB1EBBE10E2F3E7FB /* ReducedMotionSupport.swift */; };
 		51117520922E2EF076DD4A81 /* DiagnosticExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EF211068DBC684F390BC8F9 /* DiagnosticExportView.swift */; };
-		ACTB001 /* ActivityViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACTF001 /* ActivityViewController.swift */; };
 		54E3599B814B4ACFBD87EA6B /* FullApp/SetupWizardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CB34E7F86084B24991BD7CA /* FullApp/SetupWizardView.swift */; };
 		626911F284B24C54BA73D7F8 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B358CDCA949364F93BD996D6 /* SettingsView.swift */; };
 		68B3DB1D97734922B659 /* SleepPlanDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 576700D19A9F4B35BA54 /* SleepPlanDetailView.swift */; };
@@ -33,6 +32,7 @@
 		A01 /* DoseTapApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B01 /* DoseTapApp.swift */; };
 		A02 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B02 /* ContentView.swift */; };
 		A03 /* DoseCore in Frameworks */ = {isa = PBXBuildFile; productRef = P01 /* DoseCore */; };
+		ACTB001 /* ActivityViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACTF001 /* ActivityViewController.swift */; };
 		APC001 /* AppContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = APC002 /* AppContainer.swift */; };
 		ASSETSBUILD01 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = ASSETS01 /* Assets.xcassets */; };
 		B264C67A3D970638F91FC1ED /* UndoStateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D7115779119154483A7838A /* UndoStateManager.swift */; };
@@ -87,7 +87,6 @@
 		237C573EA83946FE8AFC /* DiagnosticLoggingSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLoggingSettingsView.swift; sourceTree = "<group>"; };
 		2980209556A04B5F8CE5 /* DiagnosticLoggingSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLoggingSettingsView.swift; sourceTree = "<group>"; };
 		2EF211068DBC684F390BC8F9 /* DiagnosticExportView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DiagnosticExportView.swift; sourceTree = "<group>"; };
-		ACTF001 /* ActivityViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityViewController.swift; sourceTree = "<group>"; };
 		3E912715BD5C4BBAAA735378 /* AlarmService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmService.swift; sourceTree = "<group>"; };
 		403FF1A5371F4BA427EC1520 /* WHOOPSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WHOOPSettingsView.swift; sourceTree = "<group>"; };
 		418F7D12D4A2473F800C75ED /* FullApp/DoseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/DoseModels.swift; sourceTree = "<group>"; };
@@ -124,6 +123,7 @@
 		AAAAAAAADE3CE12CAC8D4F6A /* SnoozeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnoozeController.swift; sourceTree = "<group>"; };
 		AAAAAAAAE2F91D7AC1EF43C1 /* Views/MedicationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/MedicationSettingsView.swift; sourceTree = "<group>"; };
 		AAAAAAAAF2660D49646040A0 /* OfflineQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueue.swift; sourceTree = "<group>"; };
+		ACTF001 /* ActivityViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityViewController.swift; sourceTree = "<group>"; };
 		APC002 /* AppContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppContainer.swift; sourceTree = "<group>"; };
 		ASSETS01 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B01 /* DoseTapApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseTapApp.swift; sourceTree = "<group>"; };
