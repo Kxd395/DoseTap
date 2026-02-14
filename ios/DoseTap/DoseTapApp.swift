@@ -8,6 +8,7 @@ struct DoseTapApp: App {
     @StateObject private var urlRouter = URLRouter.shared
     @StateObject private var settings = UserSettingsManager.shared
     @StateObject private var themeManager = ThemeManager.shared
+    @StateObject private var container = AppContainer()
     @AppStorage(SetupWizardService.setupCompletedKey) private var isSetupComplete: Bool = false
     
     /// Track when app went to background for duration logging
@@ -55,6 +56,7 @@ struct DoseTapApp: App {
                 if isSetupComplete {
                     ContentView()
                         .environmentObject(urlRouter)
+                        .environmentObject(container)
                         .onOpenURL { url in
                             // Handle deep links
                             let handled = urlRouter.handle(url)

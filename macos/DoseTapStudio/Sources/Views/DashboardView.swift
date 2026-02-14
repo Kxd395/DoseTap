@@ -1,106 +1,107 @@
 import SwiftUI
+import Charts
 
 /// Main dashboard view showing key metrics and recent activity
 struct DashboardView: View {
     @ObservedObject var dataStore: DataStore
+    @State private var trendMode: DashboardTrendMode = .intervalVsQuality
     
     var body: some View {
-        let analytics = dataStore.analytics
-        let adherenceRate = analytics.adherenceRate30d
-        let averageWindow = analytics.averageWindow30d
-        let missedDoses = analytics.missedDoses30d
-        let avgRecovery = analytics.averageRecovery30d
-        let avgHR = analytics.averageHR30d
-        
         ScrollView {
-            LazyVStack(spacing: 20) {
-                // Header
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("DoseTap Analytics Dashboard")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-                    
-                    if let folderURL = dataStore.folderURL {
-                        Text("Data from: \(folderURL.lastPathComponent)")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal)
-                
-                // Key Metrics Grid
-                LazyVGrid(columns: [
-                    GridItem(.flexible()),
-                    GridItem(.flexible()),
-                    GridItem(.flexible())
-                ], spacing: 16) {
-                                        // Adherence Card
+            VStack(spacing: 16) {
+                DashboardHeader(dataStore: dataStore)
+
+                LazyVGrid(
+                    columns: [
+                        GridItem(.flexible(minimum: 180)),
+                        GridItem(.flexible(minimum: 180)),
+                        GridItem(.flexible(minimum: 180))
+                    ],
+                    spacing: 12
+                ) {
+                    DashboardSummaryCard(analytics: dataStore.analytics)
+                        .gridCellColumns(3)
+
                     MetricCard(
                         title: "30-Day Adherence",
-                        value: String(format: "%.1f%%", adherenceRate),
-                        subtitle: analytics.adherenceStatusText,
-                        color: getAdherenceColor(adherenceRate),
+                        value: String(format: "%.1f%%", dataStore.analytics.adherenceRate30d),
+                        subtitle: dataStore.analytics.adherenceStatusText,
+                        color: getAdherenceColor(dataStore.analytics.adherenceRate30d),
                         icon: "checkmark.circle.fill"
                     )
-                    
-                    // Average Window Card
                     MetricCard(
                         title: "Avg Dose Window",
-                        value: String(format: "%.0f min", averageWindow),
-                        subtitle: getWindowStatusText(averageWindow),
+                        value: String(format: "%.0f min", dataStore.analytics.averageWindow30d),
+                        subtitle: dataStore.analytics.windowStatusText,
                         color: .blue,
                         icon: "clock.fill"
                     )
-                    
-                    // Missed Doses Card
                     MetricCard(
                         title: "Missed Doses",
-                        value: "\(missedDoses)",
+                        value: "\(dataStore.analytics.missedDoses30d)",
                         subtitle: "Last 30 days",
-                        color: missedDoses > 3 ? .red : .green,
+                        color: dataStore.analytics.missedDoses30d > 3 ? .red : .green,
                         icon: "exclamationmark.triangle.fill"
                     )
-                }
-                .padding(.horizontal)
-                
-                // WHOOP Metrics (if available)
-                if let avgRecovery = avgRecovery,
-                   let avgHR = avgHR {
-                    LazyVGrid(columns: [
-                        GridItem(.flexible()),
-                        GridItem(.flexible())
-                    ], spacing: 16) {
+
+                    MetricCard(
+                        title: "Avg Sleep Efficiency",
+                        value: dataStore.analytics.averageSleepEfficiency30d
+                            .map { String(format: "%.1f%%", $0) } ?? "No data",
+                        subtitle: "Imported sessions",
+                        color: .indigo,
+                        icon: "moon.zzz.fill"
+                    )
+                    MetricCard(
+                        title: "Quality Issue Nights",
+                        value: "\(dataStore.analytics.qualityIssueNights30d)",
+                        subtitle: "Duplicate/missing-night flags",
+                        color: .orange,
+                        icon: "exclamationmark.shield.fill"
+                    )
+                    MetricCard(
+                        title: "High Confidence Nights",
+                        value: "\(dataStore.analytics.highConfidenceNights30d)",
+                        subtitle: "Completeness >= 70%",
+                        color: .green,
+                        icon: "checkmark.seal.fill"
+                    )
+
+                    if let avgRecovery = dataStore.analytics.averageRecovery30d {
                         MetricCard(
                             title: "Avg Recovery",
                             value: String(format: "%.0f%%", avgRecovery),
-                            subtitle: "WHOOP data",
+                            subtitle: "WHOOP imported values",
                             color: .purple,
                             icon: "heart.fill"
                         )
-                        
+                    }
+
+                    if let avgHR = dataStore.analytics.averageHR30d {
                         MetricCard(
                             title: "Avg Heart Rate",
                             value: String(format: "%.0f bpm", avgHR),
-                            subtitle: "During sessions",
-                            color: .orange,
+                            subtitle: "Session average HR",
+                            color: .pink,
                             icon: "waveform.path.ecg"
                         )
                     }
-                    .padding(.horizontal)
                 }
-                
-                // Current Inventory Status
+
+                DashboardRecentNightsTable(nights: dataStore.analytics.nights)
+
+                DashboardTrendChartsPanel(nights: dataStore.analytics.nights, trendMode: $trendMode)
+
+                DashboardIntegrationsPanel(analytics: dataStore.analytics)
+
                 if let inventory = dataStore.currentInventory {
                     InventoryStatusCard(inventory: inventory)
-                        .padding(.horizontal)
                 }
-                
-                // Recent Activity
+
                 RecentActivityView(dataStore: dataStore)
-                    .padding(.horizontal)
             }
-            .padding(.vertical)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
         }
         .navigationTitle("Dashboard")
     }
@@ -113,14 +114,58 @@ struct DashboardView: View {
         default: return .red
         }
     }
-    
-    private func getWindowStatusText(_ averageWindow: Double) -> String {
-        switch averageWindow {
-        case 150...180: return "Optimal Window"
-        case 181...210: return "Good Window"
-        case 211...240: return "Late Window"
-        default: return averageWindow < 150 ? "Early Window" : "Missed Window"
+}
+
+private enum DashboardTrendMode: String, CaseIterable, Identifiable {
+    case intervalVsQuality = "Interval vs Quality"
+    case weekdayAdherence = "Weekday Adherence"
+
+    var id: String { rawValue }
+}
+
+private struct DashboardHeader: View {
+    @ObservedObject var dataStore: DataStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("DoseTap Analytics Dashboard")
+                .font(.largeTitle.bold())
+            if let folderURL = dataStore.folderURL {
+                Text("Data source: \(folderURL.lastPathComponent)")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+            if let lastImported = dataStore.lastImported {
+                Text("Last import: \(lastImported.formatted(date: .abbreviated, time: .shortened))")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct DashboardSummaryCard: View {
+    let analytics: DoseTapAnalytics
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Operational Summary")
+                .font(.headline)
+            Text("Sessions: \(analytics.totalSessions) • Events: \(analytics.totalEvents)")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            Text("Avg events per night: \(String(format: "%.1f", analytics.averageEventsPerNight30d))")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            Text("This dashboard uses nightly aggregates to keep dosing, events, and recovery metrics aligned.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(Color(.controlBackgroundColor))
+        .cornerRadius(12)
     }
 }
 
@@ -267,6 +312,238 @@ struct RecentActivityView: View {
                 .background(Color(.controlBackgroundColor))
                 .cornerRadius(12)
             }
+        }
+    }
+}
+
+private struct DashboardRecentNightsTable: View {
+    let nights: [StudioNightAggregate]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Recent Night Aggregates")
+                .font(.headline)
+
+            if nights.isEmpty {
+                Text("No nightly aggregates in the selected data range.")
+                    .foregroundColor(.secondary)
+                    .padding(.vertical, 8)
+            } else {
+                Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
+                    GridRow {
+                        Text("Night").font(.caption.bold())
+                        Text("Interval").font(.caption.bold())
+                        Text("On-Time").font(.caption.bold())
+                        Text("Events").font(.caption.bold())
+                        Text("Quality").font(.caption.bold())
+                    }
+
+                    ForEach(nights.prefix(12)) { night in
+                        GridRow {
+                            Text(night.id).font(.caption)
+                            Text(intervalText(for: night)).font(.caption)
+                            Text(onTimeText(for: night))
+                                .font(.caption)
+                                .foregroundColor(onTimeColor(for: night))
+                            Text("\(night.eventCount)").font(.caption)
+                            Text("\(Int((night.completenessScore * 100).rounded()))%")
+                                .font(.caption)
+                                .foregroundColor(night.completenessScore >= 0.7 ? .green : .orange)
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(Color(.controlBackgroundColor))
+        .cornerRadius(12)
+    }
+
+    private func intervalText(for night: StudioNightAggregate) -> String {
+        if night.dose2Skipped {
+            return "Skipped"
+        }
+        guard let minutes = night.intervalMinutes else { return "No interval" }
+        return "\(minutes)m"
+    }
+
+    private func onTimeText(for night: StudioNightAggregate) -> String {
+        guard let onTime = night.onTimeFlag else { return "N/A" }
+        return onTime ? "Yes" : "No"
+    }
+
+    private func onTimeColor(for night: StudioNightAggregate) -> Color {
+        guard let onTime = night.onTimeFlag else { return .secondary }
+        return onTime ? .green : .orange
+    }
+}
+
+private struct DashboardTrendChartsPanel: View {
+    let nights: [StudioNightAggregate]
+    @Binding var trendMode: DashboardTrendMode
+
+    private struct XYPoint: Identifiable {
+        let id = UUID()
+        let x: Double
+        let y: Double
+        let onTime: Bool
+    }
+
+    private struct NamedValue: Identifiable {
+        let id = UUID()
+        let name: String
+        let value: Double
+    }
+
+    private var intervalVsQualityPoints: [XYPoint] {
+        nights.compactMap { night in
+            guard let interval = night.intervalMinutes, let efficiency = night.sleepEfficiency else { return nil }
+            return XYPoint(x: Double(interval), y: efficiency, onTime: night.onTimeFlag ?? false)
+        }
+    }
+
+    private var weekdayAdherenceValues: [NamedValue] {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = .current
+        let calendar = Calendar.current
+        let symbols = calendar.shortWeekdaySymbols
+        var buckets: [Int: [Bool]] = [:]
+        for night in nights {
+            guard let onTime = night.onTimeFlag, let date = formatter.date(from: night.id) else { continue }
+            let weekday = calendar.component(.weekday, from: date)
+            buckets[weekday, default: []].append(onTime)
+        }
+        return (1...7).map { weekday in
+            let values = buckets[weekday] ?? []
+            let rate = values.isEmpty ? 0 : (Double(values.filter { $0 }.count) / Double(values.count)) * 100
+            return NamedValue(name: symbols[weekday - 1], value: rate)
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Interactive Trends")
+                    .font(.headline)
+                Spacer()
+                Picker("Trend", selection: $trendMode) {
+                    ForEach(DashboardTrendMode.allCases) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 280)
+            }
+
+            switch trendMode {
+            case .intervalVsQuality:
+                if intervalVsQualityPoints.isEmpty {
+                    emptyState("Need interval + sleep efficiency values to plot this trend.")
+                } else {
+                    Chart(intervalVsQualityPoints) { point in
+                        PointMark(
+                            x: .value("Interval (min)", point.x),
+                            y: .value("Sleep Efficiency %", point.y)
+                        )
+                        .foregroundStyle(point.onTime ? .green : .orange)
+                    }
+                    .frame(height: 220)
+                }
+
+            case .weekdayAdherence:
+                if weekdayAdherenceValues.allSatisfy({ $0.value == 0 }) {
+                    emptyState("Need completed dose intervals to compute weekday adherence.")
+                } else {
+                    Chart(weekdayAdherenceValues) { entry in
+                        BarMark(
+                            x: .value("Weekday", entry.name),
+                            y: .value("On-Time %", entry.value)
+                        )
+                        .foregroundStyle(.blue.gradient)
+                    }
+                    .chartYScale(domain: 0...100)
+                    .frame(height: 220)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(Color(.controlBackgroundColor))
+        .cornerRadius(12)
+    }
+
+    private func emptyState(_ text: String) -> some View {
+        VStack(spacing: 8) {
+            Image(systemName: "chart.xyaxis.line")
+                .font(.title2)
+                .foregroundColor(.secondary)
+            Text(text)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 40)
+    }
+}
+
+private struct DashboardIntegrationsPanel: View {
+    let analytics: DoseTapAnalytics
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Integration Readiness")
+                .font(.headline)
+
+            integrationRow(
+                name: "WHOOP",
+                status: analytics.averageRecovery30d != nil ? "Imported" : "Not present",
+                detail: analytics.averageRecovery30d != nil
+                    ? "Recovery/HR metrics are flowing in imported sessions."
+                    : "Import WHOOP-enriched sessions to unlock recovery views.",
+                color: analytics.averageRecovery30d != nil ? .green : .orange
+            )
+
+            integrationRow(
+                name: "Apple Health",
+                status: analytics.averageSleepEfficiency30d != nil ? "Imported" : "Not present",
+                detail: analytics.averageSleepEfficiency30d != nil
+                    ? "Sleep efficiency fields are available for trend analysis."
+                    : "Import sessions with sleep efficiency to power sleep quality tiles.",
+                color: analytics.averageSleepEfficiency30d != nil ? .green : .orange
+            )
+
+            integrationRow(
+                name: "Cloud Sync",
+                status: "Planned",
+                detail: "Nightly aggregate model is ready to map into CloudKit records.",
+                color: .blue
+            )
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(Color(.controlBackgroundColor))
+        .cornerRadius(12)
+    }
+
+    private func integrationRow(name: String, status: String, detail: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Circle()
+                    .fill(color)
+                    .frame(width: 8, height: 8)
+                Text(name)
+                    .font(.subheadline.bold())
+                Spacer()
+                Text(status)
+                    .font(.caption)
+                    .foregroundColor(color)
+            }
+            Text(detail)
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
     }
 }

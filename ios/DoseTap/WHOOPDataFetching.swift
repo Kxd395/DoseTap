@@ -17,7 +17,7 @@ extension WHOOPService {
         let start = formatter.string(from: startDate)
         let end = formatter.string(from: endDate)
         
-        let endpoint = "/developer/v1/activity/sleep?start=\(start)&end=\(end)"
+        let endpoint = "/developer/v2/activity/sleep?start=\(start)&end=\(end)"
         let response: WHOOPPaginatedResponse<WHOOPSleep> = try await apiRequest(endpoint, type: WHOOPPaginatedResponse<WHOOPSleep>.self)
         
         lastSyncTime = Date()
@@ -30,7 +30,7 @@ extension WHOOPService {
         let start = formatter.string(from: startDate)
         let end = formatter.string(from: endDate)
         
-        let endpoint = "/developer/v1/recovery?start=\(start)&end=\(end)"
+        let endpoint = "/developer/v2/recovery?start=\(start)&end=\(end)"
         let response: WHOOPPaginatedResponse<WHOOPRecovery> = try await apiRequest(endpoint, type: WHOOPPaginatedResponse<WHOOPRecovery>.self)
         
         return response.records
@@ -42,7 +42,7 @@ extension WHOOPService {
         let start = formatter.string(from: startDate)
         let end = formatter.string(from: endDate)
         
-        let endpoint = "/developer/v1/cycle?start=\(start)&end=\(end)"
+        let endpoint = "/developer/v2/cycle?start=\(start)&end=\(end)"
         let response: WHOOPPaginatedResponse<WHOOPCycle> = try await apiRequest(endpoint, type: WHOOPPaginatedResponse<WHOOPCycle>.self)
         
         return response.records
@@ -66,8 +66,8 @@ extension WHOOPService {
     }
     
     /// Fetch sleep stages for a specific sleep ID
-    func fetchSleepStages(sleepId: Int) async throws -> WHOOPSleepStages {
-        let endpoint = "/developer/v1/activity/sleep/\(sleepId)"
+    func fetchSleepStages(sleepId: String) async throws -> WHOOPSleepStages {
+        let endpoint = "/developer/v2/activity/sleep/\(sleepId)"
         return try await apiRequest(endpoint, type: WHOOPSleepStages.self)
     }
     
@@ -79,10 +79,34 @@ extension WHOOPService {
         let start = formatter.string(from: startDate)
         let end = formatter.string(from: endDate)
         
-        let endpoint = "/developer/v1/activity/heart_rate?start=\(start)&end=\(end)"
+        let endpoint = "/developer/v2/activity/heart_rate?start=\(start)&end=\(end)"
         let response: WHOOPPaginatedResponse<WHOOPHeartRate> = try await apiRequest(endpoint, type: WHOOPPaginatedResponse<WHOOPHeartRate>.self)
         
         return response.records
+    }
+}
+
+// MARK: - Flexible ID Decoding Helpers
+
+extension KeyedDecodingContainer {
+    func decodeStringOrIntIfPresent(forKey key: Key) -> String? {
+        if let stringValue = try? decodeIfPresent(String.self, forKey: key) {
+            return stringValue
+        }
+        if let intValue = try? decodeIfPresent(Int.self, forKey: key) {
+            return String(intValue)
+        }
+        return nil
+    }
+
+    func decodeStringOrInt(forKey key: Key) throws -> String {
+        if let stringValue = try? decode(String.self, forKey: key) {
+            return stringValue
+        }
+        if let intValue = try? decode(Int.self, forKey: key) {
+            return String(intValue)
+        }
+        throw DecodingError.dataCorruptedError(forKey: key, in: self, debugDescription: "Expected String or Int")
     }
 }
 
@@ -103,8 +127,8 @@ typealias WHOOPSleepRecord = WHOOPSleep
 
 /// WHOOP Sleep Record
 struct WHOOPSleep: Codable, Identifiable {
-    let id: Int
-    let userId: Int?
+    let id: String
+    let userId: String?
     let createdAt: Date?
     let updatedAt: Date?
     let start: Date?
@@ -125,6 +149,20 @@ struct WHOOPSleep: Codable, Identifiable {
         case nap
         case scoreState = "score_state"
         case score
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeStringOrInt(forKey: .id)
+        userId = c.decodeStringOrIntIfPresent(forKey: .userId)
+        createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt)
+        updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt)
+        start = try c.decodeIfPresent(Date.self, forKey: .start)
+        end = try c.decodeIfPresent(Date.self, forKey: .end)
+        timezoneOffset = try c.decodeIfPresent(String.self, forKey: .timezoneOffset)
+        nap = try c.decodeIfPresent(Bool.self, forKey: .nap)
+        scoreState = try c.decodeIfPresent(String.self, forKey: .scoreState)
+        score = try c.decodeIfPresent(WHOOPSleepScore.self, forKey: .score)
     }
     
     /// Duration in minutes
@@ -222,8 +260,19 @@ struct WHOOPSleepNeeded: Codable {
 
 /// Detailed sleep stages for visualization
 struct WHOOPSleepStages: Codable {
-    let id: Int
+    let id: String
     let stages: [WHOOPStage]?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case stages
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeStringOrInt(forKey: .id)
+        stages = try c.decodeIfPresent([WHOOPStage].self, forKey: .stages)
+    }
     
     struct WHOOPStage: Codable {
         let stage: String  // "wake", "light", "slow_wave", "rem"
@@ -251,15 +300,15 @@ struct WHOOPSleepStages: Codable {
 
 /// WHOOP Recovery Record
 struct WHOOPRecovery: Codable, Identifiable {
-    let cycleId: Int
-    let sleepId: Int?
-    let userId: Int?
+    let cycleId: String
+    let sleepId: String?
+    let userId: String?
     let createdAt: Date?
     let updatedAt: Date?
     let scoreState: String?
     let score: WHOOPRecoveryScore?
     
-    var id: Int { cycleId }
+    var id: String { cycleId }
     
     enum CodingKeys: String, CodingKey {
         case cycleId = "cycle_id"
@@ -269,6 +318,17 @@ struct WHOOPRecovery: Codable, Identifiable {
         case updatedAt = "updated_at"
         case scoreState = "score_state"
         case score
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        cycleId = try c.decodeStringOrInt(forKey: .cycleId)
+        sleepId = c.decodeStringOrIntIfPresent(forKey: .sleepId)
+        userId = c.decodeStringOrIntIfPresent(forKey: .userId)
+        createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt)
+        updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt)
+        scoreState = try c.decodeIfPresent(String.self, forKey: .scoreState)
+        score = try c.decodeIfPresent(WHOOPRecoveryScore.self, forKey: .score)
     }
 }
 
@@ -297,8 +357,8 @@ struct WHOOPRecoveryScore: Codable {
 
 /// WHOOP Cycle (daily) Record
 struct WHOOPCycle: Codable, Identifiable {
-    let id: Int
-    let userId: Int?
+    let id: String
+    let userId: String?
     let createdAt: Date?
     let updatedAt: Date?
     let start: Date?
@@ -317,6 +377,19 @@ struct WHOOPCycle: Codable, Identifiable {
         case timezoneOffset = "timezone_offset"
         case scoreState = "score_state"
         case score
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeStringOrInt(forKey: .id)
+        userId = c.decodeStringOrIntIfPresent(forKey: .userId)
+        createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt)
+        updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt)
+        start = try c.decodeIfPresent(Date.self, forKey: .start)
+        end = try c.decodeIfPresent(Date.self, forKey: .end)
+        timezoneOffset = try c.decodeIfPresent(String.self, forKey: .timezoneOffset)
+        scoreState = try c.decodeIfPresent(String.self, forKey: .scoreState)
+        score = try c.decodeIfPresent(WHOOPCycleScore.self, forKey: .score)
     }
 }
 
@@ -388,7 +461,7 @@ extension WHOOPSleep {
 /// Simplified night summary for UI display
 struct WHOOPNightSummary: Identifiable {
     let date: Date
-    let sleepId: Int
+    let sleepId: String
     let totalSleepMinutes: Int
     let remMinutes: Int
     let deepMinutes: Int
@@ -398,7 +471,7 @@ struct WHOOPNightSummary: Identifiable {
     let sleepEfficiency: Double?
     let respiratoryRate: Double?
     
-    var id: Int { sleepId }
+    var id: String { sleepId }
     
     var formattedTotalSleep: String {
         let hours = totalSleepMinutes / 60

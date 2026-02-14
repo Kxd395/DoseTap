@@ -9,6 +9,7 @@ struct WHOOPSettingsView: View {
     @State private var showDisconnectConfirm = false
     @State private var sleepHistory: [WHOOPNightSummary] = []
     @State private var isLoadingHistory = false
+    private let isConfigured = SecureConfig.shared.isConfigured
     
     var body: some View {
         List {
@@ -48,6 +49,12 @@ struct WHOOPSettingsView: View {
                         Label("Disconnect WHOOP", systemImage: "link.badge.minus")
                     }
                 } else {
+                    if !isConfigured {
+                        Label("WHOOP credentials not configured for this build", systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                    }
+
                     Button(action: connectWHOOP) {
                         HStack {
                             Label("Connect WHOOP", systemImage: "link.badge.plus")
@@ -57,7 +64,7 @@ struct WHOOPSettingsView: View {
                             }
                         }
                     }
-                    .disabled(isAuthorizing)
+                    .disabled(isAuthorizing || !isConfigured)
                 }
             } header: {
                 Label("Actions", systemImage: "hand.tap")
@@ -254,6 +261,10 @@ struct WHOOPSettingsView: View {
         do {
             let sleeps = try await whoop.fetchRecentSleep(nights: 7)
             sleepHistory = sleeps.map { $0.toNightSummary() }
+        } catch WHOOPError.httpError(404) {
+            sleepHistory = []
+            errorMessage = "WHOOP sleep data endpoint was not found for this account/app configuration. Try reconnecting WHOOP and verifying API app permissions."
+            showError = true
         } catch {
             errorMessage = "Failed to load sleep data: \(error.localizedDescription)"
             showError = true

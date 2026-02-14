@@ -57,7 +57,7 @@
 
 ## Medium Priority
 
-- [ ] Additional edge tests (239-240m boundary, DST shifts)
+- [x] Additional edge tests (239-240m boundary, DST shifts)
 
 ## watchOS (Completed in v2.8.0)
 - [x] Watch app: Dose1/Dose2/Bathroom buttons
@@ -66,7 +66,7 @@
 - [x] QuickEventGrid: bathroom, lights_out, wake_final
 - [x] Local state persistence (session-based)
 - [x] WatchConnectivity with queued message delivery
-- [ ] Press-and-hold (1s) Take interaction (optional UX polish)
+- [x] Press-and-hold (1s) Take interaction (optional UX polish)
 
 ---
 
@@ -93,22 +93,22 @@ Progress (2025-12-25): Core networking + state machine + offline queue in place 
 - [x] Insights metrics calculations (on-time %, interval stats, natural wake %, WASO)
 - [x] CSV export hook integration
 - [x] Settings: High Contrast color tokens
-- [ ] Settings: Reduced Motion toggle
+- [x] Settings: Reduced Motion toggle
 - [x] VoiceOver timed announcements & large tap targets
 
 ### PR-3: watchOS + Flic (PARTIALLY COMPLETE)
 
-- [ ] Press-and-hold (1s) Take interaction
+- [x] Press-and-hold (1s) Take interaction
 - [x] Snooze 10m + Skip actions
 - [x] Dose1 guardrail (require Dose1 before Dose2)
-- [ ] Flic single/long/double mapping implementation
+- [x] Flic single/long/double mapping implementation
 
 ### PR-4: Weekly Planner + Deep Links + Analytics
 
 - [x] Planner engine (discrete set {165,180,195,210,225})
 - [x] Generate 7-day plan + rationale storage
 - [x] Deep link router `dosetap://log?event=...`
-- [ ] Analytics dispatcher + exact event names
+- [x] Analytics dispatcher + exact event names
 
 ### PR-5: Tests + CI
 

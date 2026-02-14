@@ -96,6 +96,7 @@ final class DataStore: ObservableObject {
         // Get last 30 days of data
         let thirtyDaysAgo = Calendar.current.date(byAdding: .day, value: -30, to: Date()) ?? Date.distantPast
         let recentSessions = sessions.filter { $0.startedUTC >= thirtyDaysAgo }
+        let recentEvents = events.filter { $0.occurredAtUTC >= thirtyDaysAgo }
         
         // Calculate adherence rate
         let adherentSessions = recentSessions.filter { ($0.adherenceFlag ?? "") == "ok" }
@@ -116,6 +117,63 @@ final class DataStore: ObservableObject {
         // Calculate average heart rate
         let hrValues = recentSessions.compactMap { $0.avgHR }
         let averageHR = hrValues.isEmpty ? nil : hrValues.reduce(0, +) / Double(hrValues.count)
+
+        // Calculate average sleep efficiency
+        let sleepEfficiencies = recentSessions.compactMap { $0.sleepEfficiency }
+        let averageSleepEfficiency = sleepEfficiencies.isEmpty ? nil : sleepEfficiencies.reduce(0, +) / Double(sleepEfficiencies.count)
+
+        // Build nightly aggregates for dashboard drill-down
+        var sessionByNight: [String: DoseSession] = [:]
+        for session in recentSessions {
+            sessionByNight[sessionKey(for: session.startedUTC)] = session
+        }
+        let eventsByNight = Dictionary(grouping: recentEvents) { sessionKey(for: $0.occurredAtUTC) }
+        let allNightKeys = Set(sessionByNight.keys).union(eventsByNight.keys)
+        let nightAggregates = allNightKeys.compactMap { key -> StudioNightAggregate? in
+            let nightEvents = eventsByNight[key] ?? []
+            let sortedEvents = nightEvents.sorted { $0.occurredAtUTC < $1.occurredAtUTC }
+            let session = sessionByNight[key]
+
+            let dose1FromEvents = sortedEvents.first(where: { $0.eventType == .dose1_taken })?.occurredAtUTC
+            let dose2FromEvents = sortedEvents.first(where: { $0.eventType == .dose2_taken })?.occurredAtUTC
+            let dose2SkippedFromEvents = sortedEvents.contains(where: { $0.eventType == .dose2_skipped })
+
+            let dose1 = dose1FromEvents ?? session?.startedUTC
+            let dose2 = dose2FromEvents ?? session?.endedUTC
+            let dose2Skipped = dose2SkippedFromEvents || (session?.adherenceFlag == "missed")
+
+            let intervalMinutes: Int? = {
+                guard let dose1, let dose2 else { return nil }
+                let delta = Int(dose2.timeIntervalSince(dose1) / 60)
+                return delta >= 0 ? delta : nil
+            }()
+
+            let bathroomEvents = sortedEvents.filter { $0.eventType == .bathroom }.count
+            let lightsOutEvents = sortedEvents.filter { $0.eventType == .lights_out }.count
+            let wakeFinalEvents = sortedEvents.filter { $0.eventType == .wake_final }.count
+
+            return StudioNightAggregate(
+                id: key,
+                dose1: dose1,
+                dose2: dose2,
+                dose2Skipped: dose2Skipped,
+                intervalMinutes: intervalMinutes,
+                eventCount: sortedEvents.count,
+                bathroomEvents: bathroomEvents,
+                lightsOutEvents: lightsOutEvents,
+                wakeFinalEvents: wakeFinalEvents,
+                sleepEfficiency: session?.sleepEfficiency,
+                whoopRecovery: session?.whoopRecovery,
+                avgHR: session?.avgHR
+            )
+        }
+        .sorted { $0.id > $1.id }
+
+        let qualityIssueNights = nightAggregates.filter { !$0.qualityFlags.isEmpty }.count
+        let highConfidenceNights = nightAggregates.filter { $0.completenessScore >= 0.7 }.count
+        let averageEventsPerNight = nightAggregates.isEmpty
+            ? 0
+            : Double(nightAggregates.reduce(0) { $0 + $1.eventCount }) / Double(nightAggregates.count)
         
         return DoseTapAnalytics(
             totalEvents: totalEvents,
@@ -124,9 +182,25 @@ final class DataStore: ObservableObject {
             averageWindow30d: averageWindow,
             missedDoses30d: missedDoses,
             averageRecovery30d: averageRecovery,
-            averageHR30d: averageHR
+            averageHR30d: averageHR,
+            averageSleepEfficiency30d: averageSleepEfficiency,
+            averageEventsPerNight30d: averageEventsPerNight,
+            qualityIssueNights30d: qualityIssueNights,
+            highConfidenceNights30d: highConfidenceNights,
+            nights: nightAggregates
         )
     }
+
+    private func sessionKey(for date: Date) -> String {
+        Self.sessionDateFormatter.string(from: date)
+    }
+
+    private static let sessionDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = .current
+        return formatter
+    }()
     
     // MARK: - Filtered Data Access
     

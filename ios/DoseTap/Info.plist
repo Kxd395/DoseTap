@@ -2,15 +2,6 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>NSHealthShareUsageDescription</key>
-	<string>DoseTap reads your sleep data to learn your patterns and optimize second-dose wake times.</string>
-	<key>NSHealthUpdateUsageDescription</key>
-	<string>DoseTap may write simple log markers if you enable it.</string>
-	<key>UIRequiredDeviceCapabilities</key>
-	<array>
-		<string>armv7</string>
-		<string>healthkit</string>
-	</array>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

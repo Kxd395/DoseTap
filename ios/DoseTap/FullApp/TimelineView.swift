@@ -1,18 +1,22 @@
 import SwiftUI
 import Combine
 import DoseCore
+import os.log
+
+private let timelineLogger = Logger(subsystem: "com.dosetap.app", category: "Timeline")
 
 /// Timeline view showing historical dose sessions and sleep events
 /// Per SSOT: Timeline Screen shows historical dose events and patterns
 public struct TimelineView: View {
     @StateObject private var viewModel = TimelineViewModel()
     @Environment(\.colorScheme) var colorScheme
-    private let sessionRepo = SessionRepository.shared
     
     // Multi-select state - uses canonical session key (yyyy-MM-dd, 6PM rollover)
     @State private var isEditMode = false
     @State private var selectedSessionKeys: Set<String> = []
     @State private var showingDeleteConfirmation = false
+    @State private var showingCSVShareSheet = false
+    @State private var csvExportURL: URL?
     
     public init() {}
     
@@ -42,7 +46,6 @@ public struct TimelineView: View {
                             }
                         }
                     }
-                    .accessibilityHint(isEditMode ? "Exit multi-select mode" : "Select multiple sessions to delete")
                 }
                 
                 // Delete button when in edit mode (trailing)
@@ -56,7 +59,12 @@ public struct TimelineView: View {
                         }
                     } else {
                         Menu {
-                            Button(action: { viewModel.exportCSV() }) {
+                            Button(action: {
+                                csvExportURL = viewModel.exportCSVToFile()
+                                if csvExportURL != nil {
+                                    showingCSVShareSheet = true
+                                }
+                            }) {
                                 Label("Export CSV", systemImage: "square.and.arrow.up")
                             }
                             Button(action: { viewModel.refresh() }) {
@@ -76,41 +84,25 @@ public struct TimelineView: View {
             } message: {
                 Text("This will permanently delete the selected session\(selectedSessionKeys.count == 1 ? "" : "s") and all associated events. This cannot be undone.")
             }
-            .sheet(isPresented: $viewModel.showExportSheet) {
-                if let url = viewModel.exportURL {
-                    ShareSheet(items: [url])
+            .sheet(isPresented: $showingCSVShareSheet) {
+                if let url = csvExportURL {
+                    ActivityViewController(activityItems: [url])
                 }
-            }
-            .alert("Export Failed", isPresented: Binding(
-                get: { viewModel.exportErrorMessage != nil },
-                set: { if !$0 { viewModel.exportErrorMessage = nil } }
-            )) {
-                Button("Retry") {
-                    viewModel.exportCSV()
-                }
-                Button("OK", role: .cancel) {
-                    viewModel.exportErrorMessage = nil
-                }
-            } message: {
-                Text(viewModel.exportErrorMessage ?? "Unable to export timeline data.")
             }
         }
         .task {
             await viewModel.load()
         }
-        .onReceive(sessionRepo.sessionDidChange) { _ in
-            Task {
-                await viewModel.load(showLoadingState: false)
-            }
-        }
     }
     
     private func deleteSelectedSessions() {
-        let keys = Array(selectedSessionKeys)
+        for key in selectedSessionKeys {
+            viewModel.deleteSession(sessionKey: key)
+        }
         selectedSessionKeys.removeAll()
         isEditMode = false
         Task {
-            await viewModel.deleteSessions(sessionKeys: keys)
+            await viewModel.load()
         }
     }
     
@@ -155,9 +147,6 @@ public struct TimelineView: View {
                                                 .foregroundColor(isSelected(session) ? .blue : .gray)
                                         }
                                         .buttonStyle(.plain)
-                                        .frame(minWidth: 44, minHeight: 44)
-                                        .accessibilityLabel(isSelected(session) ? "Deselect session" : "Select session")
-                                        .accessibilityValue(SleepSessionDateFormatter.compact(session.date))
                                     }
                                     
                                     TimelineSessionCard(session: session)
@@ -191,8 +180,6 @@ public struct TimelineView: View {
                                         .font(.caption)
                                         .foregroundColor(.blue)
                                 }
-                                .padding(.vertical, 8)
-                                .accessibilityLabel(sessionKeys.isSubset(of: selectedSessionKeys) ? "Deselect all sessions in this section" : "Select all sessions in this section")
                             }
                         }
                     }
@@ -245,51 +232,22 @@ public struct TimelineView: View {
     }
 }
 
-/// Section header with date range (e.g., "Thu → Fri, Jan 16-17")
+/// Section header with date
 struct TimelineSectionHeader: View {
-    let date: Date  // The session start date (night of)
+    let date: Date
     
-    private let calendar = Calendar.current
-    
-    /// The next day (morning after)
-    private var nextDay: Date {
-        calendar.date(byAdding: .day, value: 1, to: date) ?? date
-    }
-    
-    /// Short weekday name (e.g., "Thu")
-    private func shortWeekday(_ date: Date) -> String {
+    private var dateFormatter: DateFormatter {
         let f = DateFormatter()
-        f.dateFormat = "EEE"
-        return f.string(from: date)
+        f.dateStyle = .medium
+        return f
     }
     
-    /// Format: "Jan 16-17" or "Dec 31-Jan 1" if months differ
-    private var dateRangeText: String {
-        let f = DateFormatter()
-        f.dateFormat = "MMM d"
-        
-        let startMonth = calendar.component(.month, from: date)
-        let endMonth = calendar.component(.month, from: nextDay)
-        
-        if startMonth == endMonth {
-            // Same month: "Jan 16-17"
-            let dayFormatter = DateFormatter()
-            dayFormatter.dateFormat = "d"
-            return "\(f.string(from: date))-\(dayFormatter.string(from: nextDay))"
-        } else {
-            // Different months: "Dec 31 – Jan 1"
-            return "\(f.string(from: date)) – \(f.string(from: nextDay))"
-        }
+    private var isToday: Bool {
+        Calendar.current.isDateInToday(date)
     }
     
-    private var isLastNight: Bool {
-        // "Last night" = session started yesterday evening
-        calendar.isDateInYesterday(date)
-    }
-    
-    private var isTonight: Bool {
-        // "Tonight" = session started today (current night in progress)
-        calendar.isDateInToday(date)
+    private var isYesterday: Bool {
+        Calendar.current.isDateInYesterday(date)
     }
     
     var body: some View {
@@ -302,22 +260,13 @@ struct TimelineSectionHeader: View {
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 4)
-        .background(Color(.secondarySystemBackground))
-        .cornerRadius(8)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(displayText)
+        .background(.ultraThinMaterial)
     }
     
     private var displayText: String {
-        let dayRange = "\(shortWeekday(date)) → \(shortWeekday(nextDay))"
-        
-        if isTonight {
-            return "Tonight (\(dayRange))"
-        } else if isLastNight {
-            return "Last Night (\(dayRange))"
-        } else {
-            return "\(dayRange), \(dateRangeText)"
-        }
+        if isToday { return "Today" }
+        if isYesterday { return "Yesterday" }
+        return dateFormatter.string(from: date)
     }
 }
 
@@ -327,43 +276,12 @@ struct TimelineSessionCard: View {
     @Environment(\.colorScheme) var colorScheme
     @State private var isExpanded = false
     
-    private let calendar = Calendar.current
-    
-    // Reference date for the session (used to detect cross-midnight)
-    private var sessionStartOfDay: Date {
-        calendar.startOfDay(for: session.dose1Time)
-    }
-    
-    /// Short weekday format for session range display
-    private var sessionNightLabel: String {
-        let f = DateFormatter()
-        f.dateFormat = "EEE"
-        let startDay = f.string(from: session.dose1Time)
-        
-        // Determine end day from dose2 or estimate next morning
-        let endDate: Date
-        if let dose2 = session.dose2Time {
-            endDate = dose2
-        } else {
-            // Assume next morning if no dose2
-            endDate = calendar.date(byAdding: .day, value: 1, to: session.dose1Time) ?? session.dose1Time
-        }
-        let endDay = f.string(from: endDate)
-        
-        // Only show range if days differ
-        if startDay != endDay {
-            return "\(startDay) → \(endDay) Sleep"
-        } else {
-            return "\(startDay) Sleep"
-        }
-    }
-    
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Header with dose times
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(sessionNightLabel)
+                    Text("Session")
                         .font(.caption)
                         .foregroundColor(.secondary)
                     
@@ -417,8 +335,6 @@ struct TimelineSessionCard: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(isExpanded ? "Hide sleep events" : "Show sleep events")
-                .accessibilityValue("\(session.sleepEvents.count) events")
                 
                 if isExpanded {
                     VStack(alignment: .leading, spacing: 8) {
@@ -433,23 +349,9 @@ struct TimelineSessionCard: View {
         .padding()
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(colorScheme == .dark ? Color(.secondarySystemBackground) : Color(.systemBackground))
+                .fill(colorScheme == .dark ? Color(.systemGray6) : Color.white)
                 .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: 2)
         )
-    }
-    
-    /// Check if a date is on a different calendar day than session start
-    private func isDifferentDay(_ date: Date) -> Bool {
-        !calendar.isDate(date, inSameDayAs: sessionStartOfDay)
-    }
-    
-    /// Format time, adding date indicator if it's a different day
-    private func formatDateTime(_ date: Date) -> String {
-        if isDifferentDay(date) {
-            return dateTimeFormatter.string(from: date)
-        } else {
-            return timeFormatter.string(from: date)
-        }
     }
     
     private func doseTimeView(label: String, time: Date, color: Color) -> some View {
@@ -457,20 +359,10 @@ struct TimelineSessionCard: View {
             Text(label)
                 .font(.caption2)
                 .foregroundColor(.secondary)
-            
-            VStack(alignment: .leading, spacing: 1) {
-                Text(timeFormatter.string(from: time))
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(color)
-                
-                // Show date if different from session start day
-                if isDifferentDay(time) {
-                    Text(shortDateFormatter.string(from: time))
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-            }
+            Text(timeFormatter.string(from: time))
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .foregroundColor(color)
         }
     }
     
@@ -525,36 +417,15 @@ struct TimelineSessionCard: View {
             
             Spacer()
             
-            // Show date+time if event is on different day than session start
-            VStack(alignment: .trailing, spacing: 1) {
-                Text(timeFormatter.string(from: event.timestamp))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                if isDifferentDay(event.timestamp) {
-                    Text(shortDateFormatter.string(from: event.timestamp))
-                        .font(.caption2)
-                        .foregroundColor(.secondary.opacity(0.7))
-                }
-            }
+            Text(timeFormatter.string(from: event.timestamp))
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
     }
     
     private var timeFormatter: DateFormatter {
         let f = DateFormatter()
         f.timeStyle = .short
-        return f
-    }
-    
-    private var shortDateFormatter: DateFormatter {
-        let f = DateFormatter()
-        f.dateFormat = "MMM d"  // e.g., "Jan 19"
-        return f
-    }
-    
-    private var dateTimeFormatter: DateFormatter {
-        let f = DateFormatter()
-        f.dateFormat = "MMM d, h:mm a"  // e.g., "Jan 19, 3:00 AM"
         return f
     }
 }
@@ -572,15 +443,9 @@ class TimelineViewModel: ObservableObject {
     
     @Published var state: State = .loading
     @Published var groupedSessions: [Date: [TimelineSession]] = [:]
-    @Published var showExportSheet = false
-    @Published var exportURL: URL?
-    @Published var exportErrorMessage: String?
     
     // Use SessionRepository as the single source of truth
     private let sessionRepo = SessionRepository.shared
-    private var hasLoadedAtLeastOnce = false
-    private var isLoading = false
-    private var lastDataFingerprint: Int?
     
     private let dateFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -588,26 +453,12 @@ class TimelineViewModel: ObservableObject {
         return f
     }()
     
-    func load(showLoadingState: Bool = true) async {
-        guard !isLoading else { return }
-        isLoading = true
-        defer { isLoading = false }
-
-        if showLoadingState || !hasLoadedAtLeastOnce {
-            state = .loading
-        }
+    func load() async {
+        state = .loading
         
-        // Use SessionRepository as the single source of truth, via async storage actor.
-        async let sleepEventsTask = sessionRepo.fetchAllSleepEventsAsync(limit: 500)
-        async let doseLogsTask = sessionRepo.fetchAllDoseLogsAsync(limit: 500)
-        let sleepEvents = await sleepEventsTask
-        let doseLogs = await doseLogsTask
-
-        let fingerprint = timelineDataFingerprint(doseLogs: doseLogs, sleepEvents: sleepEvents)
-        if lastDataFingerprint == fingerprint, !groupedSessions.isEmpty {
-            state = .ready
-            return
-        }
+        // Use SessionRepository as the single source of truth
+        let sleepEvents = sessionRepo.fetchAllSleepEvents(limit: 500)
+        let doseLogs = sessionRepo.fetchAllDoseLogs(limit: 500)
         
         if sleepEvents.isEmpty && doseLogs.isEmpty {
             state = .empty
@@ -620,7 +471,7 @@ class TimelineViewModel: ObservableObject {
         // Filter out sessions that no longer exist (deleted/soft-deleted)
         let formatter = dateFormatter
         let sessionDates = sessions.map { formatter.string(from: $0.date) }
-        let allowedDates = Set(await sessionRepo.filterExistingSessionDatesAsync(sessionDates))
+        let allowedDates = Set(sessionRepo.filterExistingSessionDates(sessionDates))
         sessions = sessions.filter { allowedDates.contains(formatter.string(from: $0.date)) }
         
         if sessions.isEmpty {
@@ -633,34 +484,32 @@ class TimelineViewModel: ObservableObject {
             Calendar.current.startOfDay(for: session.date)
         }
         
-        hasLoadedAtLeastOnce = true
-        lastDataFingerprint = fingerprint
         state = .ready
     }
     
     func refresh() {
         Task {
-            await load(showLoadingState: false)
+            await load()
         }
     }
     
-    /// Export session data to CSV and present share sheet
     func exportCSV() {
-        // Use comprehensive V2 export format with all tables
-        let csv = sessionRepo.exportToCSVv2()
-        
-        // Write CSV to temporary file
-        let fileName = "DoseTap_Export_\(dateFormatter.string(from: Date())).csv"
-        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
-        
+        _ = exportCSVToFile()
+    }
+
+    /// Export session data as CSV to a temporary file and return the URL for sharing.
+    func exportCSVToFile() -> URL? {
+        let csv = sessionRepo.exportToCSV()
+        let tempDir = FileManager.default.temporaryDirectory
+        let fileName = "DoseTap_Export_\(DateFormatter.localizedString(from: Date(), dateStyle: .short, timeStyle: .none).replacingOccurrences(of: "/", with: "-")).csv"
+        let fileURL = tempDir.appendingPathComponent(fileName)
         do {
-            try csv.write(to: tempURL, atomically: true, encoding: .utf8)
-            exportURL = tempURL
-            showExportSheet = true
-            print("✅ CSV exported to: \(tempURL.path)")
+            try csv.write(to: fileURL, atomically: true, encoding: .utf8)
+            timelineLogger.info("CSV exported to temp file: \(fileURL.lastPathComponent)")
+            return fileURL
         } catch {
-            exportErrorMessage = "Failed to export CSV: \(error.localizedDescription)"
-            print("❌ CSV export failed: \(error.localizedDescription)")
+            timelineLogger.error("Failed to write CSV export: \(error.localizedDescription)")
+            return nil
         }
     }
     
@@ -670,24 +519,20 @@ class TimelineViewModel: ObservableObject {
     func deleteSession(sessionKey: String) {
         // Validate session key format (yyyy-MM-dd)
         guard dateFormatter.date(from: sessionKey) != nil else { return }
-
-        Task {
-            // Route through SessionRepository async path to keep DB mutation off main path.
-            await sessionRepo.deleteSessionAsync(sessionDate: sessionKey)
-            await load(showLoadingState: false)
-        }
-    }
-
-    func deleteSessions(sessionKeys: [String]) async {
-        for key in sessionKeys where dateFormatter.date(from: key) != nil {
-            await sessionRepo.deleteSessionAsync(sessionDate: key)
-        }
-        await load(showLoadingState: false)
+        
+        // Route through SessionRepository - this ensures:
+        // 1. If this is the active session, in-memory state is cleared
+        // 2. Pending notifications are cancelled
+        // 3. sessionDidChange signal is broadcast
+        sessionRepo.deleteSession(sessionDate: sessionKey)
+        
+        // Refresh to reflect changes
+        refresh()
     }
     
     /// Build sessions from EventStorage dose logs and sleep events
     private func buildSessionsFromEventStorage(doseLogs: [StoredDoseLog], sleepEvents: [StoredSleepEvent]) -> [TimelineSession] {
-        var sessionMap: [String: TimelineSessionAccumulator] = [:]
+        var sessionMap: [String: TimelineSession] = [:]
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
         
@@ -695,7 +540,7 @@ class TimelineViewModel: ObservableObject {
         for log in doseLogs {
             let sessionDate = dateFormatter.date(from: log.sessionDate) ?? Date()
             
-            let session = TimelineSessionAccumulator(
+            let session = TimelineSession(
                 id: UUID(),
                 sessionKey: log.sessionDate,
                 date: sessionDate,
@@ -711,7 +556,7 @@ class TimelineViewModel: ObservableObject {
         // Associate sleep events with sessions by sessionDate
         for event in sleepEvents {
             let sessionKey = event.sessionDate
-            if let session = sessionMap[sessionKey] {
+            if var session = sessionMap[sessionKey] {
                 let sleepEvent = TimelineSleepEvent(
                     id: event.id,
                     eventType: event.eventType,
@@ -719,10 +564,17 @@ class TimelineViewModel: ObservableObject {
                     notes: event.notes,
                     source: "manual"
                 )
-                session.sleepEvents.append(sleepEvent)
-                if event.timestamp < session.dose1Time {
-                    session.dose1Time = event.timestamp
-                }
+                session = TimelineSession(
+                    id: session.id,
+                    sessionKey: session.sessionKey,
+                    date: session.date,
+                    dose1Time: session.dose1Time,
+                    dose2Time: session.dose2Time,
+                    dose2Skipped: session.dose2Skipped,
+                    snoozeCount: session.snoozeCount,
+                    sleepEvents: session.sleepEvents + [sleepEvent]
+                )
+                sessionMap[sessionKey] = session
             } else {
                 // Create a session just from sleep events if no dose log exists
                 let sessionDate = dateFormatter.date(from: sessionKey) ?? event.timestamp
@@ -733,7 +585,7 @@ class TimelineViewModel: ObservableObject {
                     notes: event.notes,
                     source: "manual"
                 )
-                sessionMap[sessionKey] = TimelineSessionAccumulator(
+                sessionMap[sessionKey] = TimelineSession(
                     id: UUID(),
                     sessionKey: sessionKey,
                     date: sessionDate,
@@ -745,74 +597,8 @@ class TimelineViewModel: ObservableObject {
                 )
             }
         }
-
-        return sessionMap.values
-            .map { accumulator in
-                TimelineSession(
-                    id: accumulator.id,
-                    sessionKey: accumulator.sessionKey,
-                    date: accumulator.date,
-                    dose1Time: accumulator.dose1Time,
-                    dose2Time: accumulator.dose2Time,
-                    dose2Skipped: accumulator.dose2Skipped,
-                    snoozeCount: accumulator.snoozeCount,
-                    sleepEvents: accumulator.sleepEvents.sorted { $0.timestamp < $1.timestamp }
-                )
-            }
-            .sorted { $0.date > $1.date }
-    }
-
-    private func timelineDataFingerprint(doseLogs: [StoredDoseLog], sleepEvents: [StoredSleepEvent]) -> Int {
-        var hasher = Hasher()
-        hasher.combine(doseLogs.count)
-        hasher.combine(sleepEvents.count)
-        for log in doseLogs {
-            hasher.combine(log.id)
-            hasher.combine(log.sessionDate)
-            hasher.combine(log.dose1Time.timeIntervalSince1970)
-            hasher.combine(log.dose2Time?.timeIntervalSince1970)
-            hasher.combine(log.dose2Skipped)
-            hasher.combine(log.snoozeCount)
-        }
-        for event in sleepEvents {
-            hasher.combine(event.id)
-            hasher.combine(event.eventType)
-            hasher.combine(event.timestamp.timeIntervalSince1970)
-            hasher.combine(event.sessionDate)
-            hasher.combine(event.notes)
-        }
-        return hasher.finalize()
-    }
-}
-
-private final class TimelineSessionAccumulator {
-    let id: UUID
-    let sessionKey: String
-    let date: Date
-    var dose1Time: Date
-    let dose2Time: Date?
-    let dose2Skipped: Bool
-    let snoozeCount: Int
-    var sleepEvents: [TimelineSleepEvent]
-
-    init(
-        id: UUID,
-        sessionKey: String,
-        date: Date,
-        dose1Time: Date,
-        dose2Time: Date?,
-        dose2Skipped: Bool,
-        snoozeCount: Int,
-        sleepEvents: [TimelineSleepEvent]
-    ) {
-        self.id = id
-        self.sessionKey = sessionKey
-        self.date = date
-        self.dose1Time = dose1Time
-        self.dose2Time = dose2Time
-        self.dose2Skipped = dose2Skipped
-        self.snoozeCount = snoozeCount
-        self.sleepEvents = sleepEvents
+        
+        return Array(sessionMap.values).sorted { $0.date > $1.date }
     }
 }
 

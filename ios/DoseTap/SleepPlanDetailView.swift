@@ -177,6 +177,47 @@ private struct TypicalWeekRowInternal: View {
     }
 }
 
+struct TimePickerSheetRow: View {
+    let title: String
+    @Binding var selection: Date
+    var accessibilityLabel: String?
+    @State private var showPicker = false
+
+    var body: some View {
+        HStack {
+            Text(title)
+            Spacer()
+            Button {
+                showPicker = true
+            } label: {
+                Text(selection, style: .time)
+                    .foregroundColor(.primary)
+            }
+            .accessibilityLabel(accessibilityLabel ?? title)
+        }
+        .sheet(isPresented: $showPicker) {
+            NavigationView {
+                DatePicker(
+                    title,
+                    selection: $selection,
+                    displayedComponents: [.hourAndMinute]
+                )
+                .datePickerStyle(.wheel)
+                .labelsHidden()
+                .navigationTitle(title)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") {
+                            showPicker = false
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 private struct WorkdaySelector: View {
     @Binding var selectedDays: Set<Int>
     private let orderedWeekdays = [2, 3, 4, 5, 6, 7, 1] // Mon ... Sun

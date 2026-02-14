@@ -221,10 +221,20 @@ public struct DoseWindowCalculator {
         return sessionKey(for: timestamp, timeZone: timeZone ?? .current, rolloverHour: 18)
     }
     
-    /// Get remaining minutes until window closes
-    /// Returns nil if no dose 1 or window already closed
-    public var remainingMinutes: Int? {
-        let ctx = context(dose1At: nil, dose2TakenAt: nil, dose2Skipped: false, snoozeCount: 0)
+    /// Get remaining minutes until window closes for a specific session state.
+    /// Returns nil if no dose 1 or window already closed.
+    public func remainingMinutes(
+        dose1At: Date?,
+        dose2TakenAt: Date?,
+        dose2Skipped: Bool,
+        snoozeCount: Int
+    ) -> Int? {
+        let ctx = context(
+            dose1At: dose1At,
+            dose2TakenAt: dose2TakenAt,
+            dose2Skipped: dose2Skipped,
+            snoozeCount: snoozeCount
+        )
         guard let remaining = ctx.remainingToMax else { return nil }
         return Int(remaining / 60)
     }

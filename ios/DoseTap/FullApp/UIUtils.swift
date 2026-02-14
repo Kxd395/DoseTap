@@ -15,3 +15,15 @@ public struct ShareSheet: UIViewControllerRepresentable {
     
     public func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
+
+// MARK: - Activity View Controller
+/// Legacy-compatible share sheet used by ContentView, SettingsView, NightReviewView, etc.
+struct ActivityViewController: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}

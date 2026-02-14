@@ -1,6 +1,9 @@
 import Foundation
 import Combine
 import DoseCore
+import os.log
+
+private let storageLogger = Logger(subsystem: "com.dosetap.app", category: "DataStorage")
 
 
 // MARK: - Health Data Models
@@ -309,7 +312,7 @@ public class DataStorageService: ObservableObject {
             let data = try Data(contentsOf: eventsFileURL)
             allEvents = try JSONDecoder().decode([DoseEvent].self, from: data)
         } catch {
-            print("Failed to load events: \(error)")
+            storageLogger.error("Failed to load events: \(error.localizedDescription)")
         }
     }
     
@@ -326,7 +329,7 @@ public class DataStorageService: ObservableObject {
             currentSession = incompleteSessions.last // Take most recent incomplete session
             currentSessionKey = currentSession?.sessionKey
         } catch {
-            print("Failed to load sessions: \(error)")
+            storageLogger.error("Failed to load sessions: \(error.localizedDescription)")
         }
     }
     
@@ -335,7 +338,7 @@ public class DataStorageService: ObservableObject {
             let data = try JSONEncoder().encode(allEvents)
             try data.write(to: eventsFileURL)
         } catch {
-            print("Failed to save events: \(error)")
+            storageLogger.error("Failed to save events: \(error.localizedDescription)")
         }
     }
     
@@ -349,7 +352,7 @@ public class DataStorageService: ObservableObject {
             let data = try JSONEncoder().encode(allSessions)
             try data.write(to: sessionsFileURL)
         } catch {
-            print("Failed to save sessions: \(error)")
+            storageLogger.error("Failed to save sessions: \(error.localizedDescription)")
         }
     }
     

@@ -13,12 +13,11 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
     
     private let healthStore = HKHealthStore()
     private let readTypes: Set<HKObjectType> = [HKCategoryType(.sleepAnalysis)]
-    private let authorizationTimeoutSeconds: UInt64 = 10  // Reduced from 15 for faster feedback
+    private let authorizationTimeoutSeconds: UInt64 = 15
     
     // MARK: - Published State
     @Published var isAuthorized = false
     @Published var authorizationStatus: HKAuthorizationStatus = .notDetermined
-    @Published var lastTimelineSyncAt: Date?
     
     // MARK: - Initialization
     private init() {
@@ -36,12 +35,6 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
 
     private enum AuthorizationError: Error {
         case timedOut
-    }
-
-    nonisolated private static func debugLog(_ message: String) {
-        #if DEBUG
-        print(message)
-        #endif
     }
     
     // MARK: - Data Types
@@ -102,86 +95,32 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
     
     /// Request HealthKit authorization for sleep data
     func requestAuthorization() async -> Bool {
-        Self.debugLog("🏥 HealthKitService.requestAuthorization: Starting...")
-        
         guard isAvailable else {
             lastError = "HealthKit is not available on this device"
-            Self.debugLog("🏥 HealthKitService.requestAuthorization: HealthKit not available")
             return false
         }
 
-        Self.debugLog("🏥 HealthKitService.requestAuthorization: Calling authorization (timeout=\(authorizationTimeoutSeconds)s)")
-        
         do {
-            let result = try await requestAuthorizationWithTimeout()
-            Self.debugLog("🏥 HealthKitService.requestAuthorization: Authorization returned \(result)")
-            
-            // Refresh our state
+            _ = try await withTimeout(seconds: authorizationTimeoutSeconds) {
+                try await self.requestAuthorizationViaCallback()
+            }
             await refreshReadAuthorization()
-            Self.debugLog("🏥 HealthKitService.requestAuthorization: After refresh - isAuthorized=\(isAuthorized)")
-            
             if isAuthorized {
                 lastError = nil
-                Self.debugLog("✅ HealthKitService: Authorization granted")
+                print("✅ HealthKitService: Authorization granted")
             } else {
-                lastError = "HealthKit permission not granted. Go to Settings → Health → DoseTap to enable Sleep access."
-                Self.debugLog("⚠️ HealthKitService: Authorization completed but not authorized (user may have denied)")
+                lastError = "HealthKit permission not granted"
+                print("⚠️ HealthKitService: Authorization denied")
             }
             return isAuthorized
         } catch AuthorizationError.timedOut {
-            lastError = "HealthKit authorization timed out. Open Settings → Health → DoseTap to grant access."
-            Self.debugLog("⚠️ HealthKitService: Authorization timed out after \(authorizationTimeoutSeconds) seconds")
+            lastError = "HealthKit authorization timed out. Open Health and try again."
+            print("⚠️ HealthKitService: Authorization timed out")
             return false
         } catch {
-            lastError = "HealthKit error: \(error.localizedDescription)"
-            Self.debugLog("❌ HealthKitService: Authorization failed with error: \(error)")
+            lastError = error.localizedDescription
+            print("❌ HealthKitService: Authorization failed: \(error)")
             return false
-        }
-    }
-    
-    /// Request authorization with a timeout using continuation
-    private func requestAuthorizationWithTimeout() async throws -> Bool {
-        Self.debugLog("🏥 requestAuthorizationWithTimeout: Starting")
-        
-        return try await withCheckedThrowingContinuation { continuation in
-            var hasResumed = false
-            let lock = NSLock()
-            
-            // Set up timeout
-            let timeoutSeconds = self.authorizationTimeoutSeconds
-            DispatchQueue.global().asyncAfter(deadline: .now() + .seconds(Int(timeoutSeconds))) {
-                lock.lock()
-                defer { lock.unlock() }
-                if !hasResumed {
-                    hasResumed = true
-                    Self.debugLog("🏥 requestAuthorizationWithTimeout: TIMEOUT after \(timeoutSeconds)s")
-                    continuation.resume(throwing: AuthorizationError.timedOut)
-                }
-            }
-            
-            // Request authorization
-            Self.debugLog("🏥 requestAuthorizationWithTimeout: Calling healthStore.requestAuthorization")
-            self.healthStore.requestAuthorization(toShare: [], read: self.readTypes) { success, error in
-                lock.lock()
-                defer { lock.unlock() }
-                
-                Self.debugLog("🏥 requestAuthorizationWithTimeout: Callback received - success=\(success), error=\(String(describing: error))")
-                
-                if hasResumed {
-                    Self.debugLog("🏥 requestAuthorizationWithTimeout: Already resumed (timeout happened first)")
-                    return
-                }
-                hasResumed = true
-                
-                if let error = error {
-                    Self.debugLog("🏥 requestAuthorizationWithTimeout: Resuming with error")
-                    continuation.resume(throwing: error)
-                } else {
-                    Self.debugLog("🏥 requestAuthorizationWithTimeout: Resuming with success=\(success)")
-                    continuation.resume(returning: success)
-                }
-            }
-            Self.debugLog("🏥 requestAuthorizationWithTimeout: healthStore.requestAuthorization called, waiting for callback...")
         }
     }
     
@@ -196,7 +135,6 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
 
         let sleepType = HKCategoryType(.sleepAnalysis)
         authorizationStatus = healthStore.authorizationStatus(for: sleepType)
-        Self.debugLog("🏥 HealthKitService.checkAuthorizationStatus: status=\(authorizationStatus.rawValue)")
 
         Task { @MainActor in
             await refreshReadAuthorization()
@@ -277,6 +215,38 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
             return false
         }
         return code == .errorAuthorizationDenied || code == .errorHealthDataUnavailable
+    }
+
+    private func requestAuthorizationViaCallback() async throws -> Bool {
+        try await withCheckedThrowingContinuation { continuation in
+            healthStore.requestAuthorization(toShare: [], read: readTypes) { success, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: success)
+                }
+            }
+        }
+    }
+
+    private func withTimeout<T>(
+        seconds: UInt64,
+        operation: @MainActor @Sendable @escaping () async throws -> T
+    ) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await operation()
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: seconds * 1_000_000_000)
+                throw AuthorizationError.timedOut
+            }
+            guard let result = try await group.next() else {
+                throw AuthorizationError.timedOut
+            }
+            group.cancelAll()
+            return result
+        }
     }
     
     // MARK: - Sleep Data Queries
@@ -419,15 +389,15 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
             let validTTFWs = nightSummaries.compactMap { $0.ttfwMinutes }
             if !validTTFWs.isEmpty {
                 ttfwBaseline = validTTFWs.reduce(0, +) / Double(validTTFWs.count)
-                Self.debugLog("✅ HealthKitService: TTFW baseline computed: \(ttfwBaseline ?? 0) min from \(validTTFWs.count) nights")
+                print("✅ HealthKitService: TTFW baseline computed: \(ttfwBaseline ?? 0) min from \(validTTFWs.count) nights")
             } else {
                 ttfwBaseline = nil
-                Self.debugLog("⚠️ HealthKitService: No TTFW data found in \(days) nights")
+                print("⚠️ HealthKitService: No TTFW data found in \(days) nights")
             }
             
         } catch {
             lastError = error.localizedDescription
-            Self.debugLog("❌ HealthKitService: Failed to fetch sleep data: \(error)")
+            print("❌ HealthKitService: Failed to fetch sleep data: \(error)")
         }
     }
     
@@ -482,9 +452,7 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
     ///   - to: End date of the range
     /// - Returns: Array of SleepSegment for timeline display
     func fetchSegmentsForTimeline(from start: Date, to end: Date) async throws -> [SleepSegment] {
-        let segments = try await fetchSleepSegments(from: start, to: end)
-        lastTimelineSyncAt = Date()
-        return segments
+        try await fetchSleepSegments(from: start, to: end)
     }
     
     /// Convert HealthKit sleep stage to timeline display stage

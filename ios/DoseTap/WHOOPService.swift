@@ -280,11 +280,11 @@ final class WHOOPService: NSObject, ObservableObject {
     
     /// Fetch user profile
     func fetchUserProfile() async throws {
-        let profile: WHOOPProfile = try await apiRequest("/developer/v1/user/profile/basic", type: WHOOPProfile.self)
+        let profile: WHOOPProfile = try await apiRequest("/developer/v2/user/profile/basic", type: WHOOPProfile.self)
         userProfile = profile
         
         if let userId = profile.userId {
-            saveToKeychain(key: .userId, value: String(userId))
+            saveToKeychain(key: .userId, value: userId)
         }
     }
     
@@ -439,7 +439,7 @@ struct WHOOPErrorResponse: Codable {
 }
 
 struct WHOOPProfile: Codable {
-    let userId: Int?
+    let userId: String?
     let firstName: String?
     let lastName: String?
     let email: String?
@@ -449,5 +449,13 @@ struct WHOOPProfile: Codable {
         case firstName = "first_name"
         case lastName = "last_name"
         case email
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        userId = c.decodeStringOrIntIfPresent(forKey: .userId)
+        firstName = try c.decodeIfPresent(String.self, forKey: .firstName)
+        lastName = try c.decodeIfPresent(String.self, forKey: .lastName)
+        email = try c.decodeIfPresent(String.self, forKey: .email)
     }
 }

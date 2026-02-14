@@ -340,45 +340,8 @@ public class URLRouter: ObservableObject {
     // MARK: - Helpers
     
     private func mapEventName(_ name: String) -> (canonicalType: String, displayName: String, color: Color) {
-        let lowercased = name.lowercased()
-        switch lowercased {
-        case "bathroom", "🚽":
-            return ("bathroom", "Bathroom", .blue)
-        case "water", "💧":
-            return ("water", "Water", .cyan)
-        case "snack", "🍿":
-            return ("snack", "Snack", .orange)
-        case "pain", "💊":
-            return ("pain", "Pain", .red)
-        case "restless", "😰":
-            return ("anxiety", "Anxiety", .purple)
-        case "noise", "🔊":
-            return ("noise", "Noise", .yellow)
-        case "temp", "temperature", "🌡️":
-            return ("temperature", "Temperature", .orange)
-        case "dream", "💭":
-            return ("dream", "Dream", .indigo)
-        case "brief_wake", "wake_temp", "waketemp":
-            return ("wake_temp", "Brief Wake", .indigo)
-        case "lightsout", "lights_out", "🌙":
-            return ("lights_out", "Lights Out", .indigo)
-        case "wake", "wakefinal", "wake_final", "wake_up", "wakeup", "☀️":
-            return ("wake_final", "Wake Up", .yellow)
-        case "inbed", "in_bed":
-            return ("in_bed", "In Bed", .indigo)
-        case "heart_racing", "heartracing":
-            return ("heart_racing", "Heart Racing", .red)
-        case "nap_start", "napstart":
-            return ("nap_start", "Nap Start", .green)
-        case "nap_end", "napend":
-            return ("nap_end", "Nap End", .orange)
-        case "unknown":
-            return ("unknown", "Unknown", .gray)
-        default:
-            let canonical = lowercased.replacingOccurrences(of: " ", with: "_")
-            let display = canonical.replacingOccurrences(of: "_", with: " ").capitalized
-            return (canonical, display, .gray)
-        }
+        let eventType = EventType(name)
+        return (eventType.canonicalString, eventType.displayName, eventType.displayColor)
     }
 
     private func resolveCore() -> DoseTapCore? {

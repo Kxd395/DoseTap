@@ -1,8 +1,11 @@
 import SwiftUI
 import Combine
+import os.log
 #if canImport(DoseCore)
 import DoseCore
 #endif
+
+private let quickLogLogger = Logger(subsystem: "com.dosetap.app", category: "QuickLog")
 
 /// Quick log panel for sleep events - displays a grid of event buttons
 /// with cooldown states and haptic feedback
@@ -166,7 +169,7 @@ public class QuickLogViewModel: ObservableObject {
         ) { [weak self] _ in
             Task { @MainActor in
                 self?.recentEvents.removeAll()
-                print("✅ QuickLogViewModel: Recent events cleared")
+                quickLogLogger.debug("Recent events cleared")
             }
         }
     }

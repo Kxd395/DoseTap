@@ -1,5 +1,8 @@
 import SwiftUI
 import DoseCore
+import os.log
+
+private let tonightLogger = Logger(subsystem: "com.dosetap.app", category: "TonightView")
 
 struct TonightView: View {
     @StateObject private var doseCore = DoseCoreIntegration()
@@ -46,11 +49,11 @@ struct TonightView: View {
                 showingError = error != nil
             }
             .sheet(isPresented: $showMorningCheckIn) {
-                MorningCheckInViewV2(
+                MorningCheckInView(
                     sessionId: SessionRepository.shared.currentSessionIdString(),
                     sessionDate: SessionRepository.shared.currentSessionDateString(),
                     onComplete: {
-                        print("✅ Morning check-in complete")
+                        tonightLogger.info("Morning check-in complete")
                     }
                 )
             }
@@ -143,59 +146,81 @@ struct TonightEventRow: View {
         .padding(.vertical, 4)
     }
     
+    /// Normalize event type to canonical snake_case format
+    private func normalized(_ eventType: String) -> String {
+        let lower = eventType
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        switch lower {
+        case "lightsout", "lights_out":   return "lights_out"
+        case "inbed", "in_bed":           return "in_bed"
+        case "wakefinal", "wake_final":   return "wake_final"
+        case "waketemp", "wake_temp", "brief_wake": return "brief_wake"
+        case "heartracing", "heart_racing": return "heart_racing"
+        case "napstart", "nap_start":     return "nap_start"
+        case "napend", "nap_end":         return "nap_end"
+        default: return lower.replacingOccurrences(of: " ", with: "_")
+        }
+    }
+
     private func displayName(for eventType: String) -> String {
-        switch eventType {
+        switch normalized(eventType) {
         case "bathroom": return "Bathroom"
         case "water": return "Water"
-        case "lightsOut": return "Lights Out"
-        case "inBed": return "In Bed"
-        case "wakeFinal": return "Wake Up"
-        case "wakeTemp": return "Brief Wake"
+        case "lights_out": return "Lights Out"
+        case "in_bed": return "In Bed"
+        case "wake_final": return "Wake Up"
+        case "brief_wake": return "Brief Wake"
         case "anxiety": return "Anxiety"
         case "pain": return "Pain"
         case "noise": return "Noise"
         case "snack": return "Snack"
         case "dream": return "Dream"
         case "temperature": return "Temperature"
-        case "heartRacing": return "Heart Racing"
-        default: return eventType.capitalized
+        case "heart_racing": return "Heart Racing"
+        case "nap_start": return "Nap Start"
+        case "nap_end": return "Nap End"
+        default: return eventType.replacingOccurrences(of: "_", with: " ").capitalized
         }
     }
     
     private func iconForEvent(_ eventType: String) -> String {
-        switch eventType {
+        switch normalized(eventType) {
         case "bathroom": return "toilet.fill"
         case "water": return "drop.fill"
-        case "lightsOut": return "light.max"
-        case "inBed": return "bed.double.fill"
-        case "wakeFinal": return "sun.max.fill"
-        case "wakeTemp": return "moon.zzz.fill"
+        case "lights_out": return "light.max"
+        case "in_bed": return "bed.double.fill"
+        case "wake_final": return "sun.max.fill"
+        case "brief_wake": return "moon.zzz.fill"
         case "anxiety": return "brain.head.profile"
         case "pain": return "bandage.fill"
         case "noise": return "speaker.wave.3.fill"
         case "snack": return "fork.knife"
         case "dream": return "cloud.moon.fill"
         case "temperature": return "thermometer.medium"
-        case "heartRacing": return "heart.fill"
+        case "heart_racing": return "heart.fill"
+        case "nap_start": return "powersleep"
+        case "nap_end": return "sun.min.fill"
         default: return "circle.fill"
         }
     }
     
     private func colorForEvent(_ eventType: String) -> Color {
-        switch eventType {
+        switch normalized(eventType) {
         case "bathroom": return .blue
         case "water": return .cyan
-        case "lightsOut": return .purple
-        case "inBed": return .indigo
-        case "wakeFinal": return .orange
-        case "wakeTemp": return .indigo
+        case "lights_out": return .purple
+        case "in_bed": return .indigo
+        case "wake_final": return .orange
+        case "brief_wake": return .indigo
         case "anxiety": return .pink
         case "pain": return .red
         case "noise": return .gray
         case "snack": return .brown
         case "dream": return .purple
         case "temperature": return .orange
-        case "heartRacing": return .red
+        case "heart_racing": return .red
+        case "nap_start", "nap_end": return .teal
         default: return .gray
         }
     }

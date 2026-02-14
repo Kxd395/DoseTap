@@ -106,8 +106,7 @@ public class DoseCoreIntegration: ObservableObject {
         if CertificatePinning.hasConfiguredPins {
             return PinnedURLSessionTransport()
         }
-        assertionFailure("Certificate pinning is not configured; set DOSETAP_CERT_PINS for release builds.")
-        return URLSessionTransport()
+        fatalError("Certificate pinning is not configured; set DOSETAP_CERT_PINS for release builds.")
         #endif
     }
     

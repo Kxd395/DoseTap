@@ -4,6 +4,9 @@ import UserNotifications
 import SwiftUI
 import DoseCore
 import AVFoundation
+import os.log
+
+private let notifLogger = Logger(subsystem: "com.dosetap.app", category: "Notifications")
 
 /// Enhanced notification service with medical-grade critical alerts and actionable buttons
 @MainActor
@@ -144,7 +147,7 @@ public class EnhancedNotificationService: NSObject, ObservableObject {
         }
         
         targetWakeTime = time
-        print("Scheduled wake alarm for \(formatTime(time))")
+        notifLogger.info("Scheduled wake alarm for \(self.formatTime(time))")
     }
     
     /// Schedule hard stop warnings (escalating alerts as window closes)
@@ -236,9 +239,9 @@ public class EnhancedNotificationService: NSObject, ObservableObject {
         
         notificationCenter.add(request) { error in
             if let error = error {
-                print("Failed to schedule alarm notification \(id): \(error)")
+                notifLogger.error("Failed to schedule alarm notification \(id): \(error.localizedDescription)")
             } else {
-                print("Scheduled alarm: \(title) at \(date)")
+                notifLogger.debug("Scheduled alarm: \(title) at \(date)")
             }
         }
     }
@@ -263,7 +266,7 @@ public class EnhancedNotificationService: NSObject, ObservableObject {
             "\(NotificationID.hardStop)_expired"
         ])
         
-        print("All alarms stopped")
+        notifLogger.info("All alarms stopped")
     }
     
     // MARK: - Audio Configuration
@@ -273,7 +276,7 @@ public class EnhancedNotificationService: NSObject, ObservableObject {
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers, .duckOthers])
             try AVAudioSession.sharedInstance().setActive(true)
         } catch {
-            print("Failed to configure audio session: \(error)")
+            notifLogger.error("Failed to configure audio session: \(error.localizedDescription)")
         }
     }
     
@@ -293,7 +296,7 @@ public class EnhancedNotificationService: NSObject, ObservableObject {
             
             return granted
         } catch {
-            print("Failed to request notification permissions: \(error)")
+            notifLogger.error("Failed to request notification permissions: \(error.localizedDescription)")
             return false
         }
     }
@@ -304,7 +307,7 @@ public class EnhancedNotificationService: NSObject, ObservableObject {
         notificationCenter.removeAllPendingNotificationRequests()
         
         guard let dose1Time = dose1Time else {
-            print("No Dose 1 time available for scheduling")
+            notifLogger.debug("No Dose 1 time available for scheduling")
             return
         }
         
@@ -369,7 +372,7 @@ public class EnhancedNotificationService: NSObject, ObservableObject {
         
         Task {
             let count = await getPendingNotificationCount()
-            print("Scheduled \(count) dose notifications")
+            notifLogger.info("Scheduled \(count) dose notifications")
         }
     }
     
@@ -411,7 +414,7 @@ public class EnhancedNotificationService: NSObject, ObservableObject {
     /// Cancel all pending notifications
     public func cancelAllNotifications() {
         notificationCenter.removeAllPendingNotificationRequests()
-        print("Cancelled all pending notifications")
+        notifLogger.info("Cancelled all pending notifications")
     }
     
     /// Get count of pending notifications for debugging
@@ -565,9 +568,9 @@ public class EnhancedNotificationService: NSObject, ObservableObject {
         
         notificationCenter.add(request) { error in
             if let error = error {
-                print("Failed to schedule notification \(id): \(error)")
+                notifLogger.error("Failed to schedule notification \(id): \(error.localizedDescription)")
             } else {
-                print("Scheduled notification: \(title) at \(date)")
+                notifLogger.debug("Scheduled notification: \(title) at \(date)")
             }
         }
     }
@@ -604,7 +607,7 @@ extension EnhancedNotificationService: @preconcurrency UNUserNotificationCenterD
                 break
                 
             default:
-                print("Unknown notification action: \(actionIdentifier)")
+                notifLogger.warning("Unknown notification action: \(actionIdentifier)")
             }
             
             completionHandler()
@@ -626,7 +629,7 @@ extension EnhancedNotificationService: @preconcurrency UNUserNotificationCenterD
     
     private func handleTakeAction() async {
         guard let doseCore = doseCore else {
-            print("DoseCore integration not available")
+            notifLogger.warning("DoseCore integration not available for take action")
             return
         }
         
@@ -645,12 +648,12 @@ extension EnhancedNotificationService: @preconcurrency UNUserNotificationCenterD
         // Cancel remaining notifications since dose was taken
         cancelAllNotifications()
         
-        print("Handled take action via notification")
+        notifLogger.info("Handled take action via notification")
     }
     
     private func handleSnoozeAction() async {
         guard let doseCore = doseCore else {
-            print("DoseCore integration not available")
+            notifLogger.warning("DoseCore integration not available for snooze action")
             return
         }
         
@@ -661,12 +664,12 @@ extension EnhancedNotificationService: @preconcurrency UNUserNotificationCenterD
         
         // Reschedule notifications with new snooze time
         // This would need access to current dose1 time and context
-        print("Handled snooze action via notification")
+        notifLogger.info("Handled snooze action via notification")
     }
     
     private func handleSkipAction() async {
         guard let doseCore = doseCore else {
-            print("DoseCore integration not available")
+            notifLogger.warning("DoseCore integration not available for skip action")
             return
         }
         
@@ -678,12 +681,12 @@ extension EnhancedNotificationService: @preconcurrency UNUserNotificationCenterD
         // Cancel remaining notifications since dose was skipped
         cancelAllNotifications()
         
-        print("Handled skip action via notification")
+        notifLogger.info("Handled skip action via notification")
     }
     
     private func handleStopAlarmAction() {
         // Stop alarms without taking any dose action
         stopAllAlarms()
-        print("Handled stop alarm action via notification")
+        notifLogger.info("Handled stop alarm action via notification")
     }
 }

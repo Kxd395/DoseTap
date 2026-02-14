@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(SwiftUI)
+import SwiftUI
+#endif
 
 /// Unified dose event model for DoseTap
 public struct DoseEvent: Codable, Identifiable, Equatable {
@@ -211,4 +214,71 @@ public struct SQLiteStoredMedicationEntry: Codable, Identifiable {
         self.confirmedDuplicate = confirmedDuplicate
         self.createdAt = createdAt
     }
+}
+
+// MARK: - Quick Log Event Types (extracted from QuickLogPanel)
+
+public enum QuickLogEventType: String, CaseIterable {
+    case bathroom
+    case water
+    case lightsOut
+    case wakeFinal
+    case wakeTemp
+    case anxiety
+    case pain
+    case noise
+
+    public var iconName: String {
+        switch self {
+        case .bathroom:   return "toilet.fill"
+        case .water:      return "drop.fill"
+        case .lightsOut:  return "light.max"
+        case .wakeFinal:  return "sun.max.fill"
+        case .wakeTemp:   return "moon.zzz.fill"
+        case .anxiety:    return "brain.head.profile"
+        case .pain:       return "bandage.fill"
+        case .noise:      return "speaker.wave.3.fill"
+        }
+    }
+
+    public var displayName: String {
+        switch self {
+        case .bathroom:   return "Bathroom"
+        case .water:      return "Water"
+        case .lightsOut:  return "Lights Out"
+        case .wakeFinal:  return "Wake Up"
+        case .wakeTemp:   return "Brief Wake"
+        case .anxiety:    return "Anxiety"
+        case .pain:       return "Pain"
+        case .noise:      return "Noise"
+        }
+    }
+
+    public var defaultCooldownSeconds: TimeInterval {
+        switch self {
+        case .bathroom:   return 60
+        case .water:      return 300
+        case .lightsOut:  return 3600
+        case .wakeFinal:  return 3600
+        case .wakeTemp:   return 300
+        case .anxiety:    return 300
+        case .pain:       return 300
+        case .noise:      return 60
+        }
+    }
+
+    #if canImport(SwiftUI)
+    public var color: Color {
+        switch self {
+        case .bathroom:   return .blue
+        case .water:      return .cyan
+        case .lightsOut:  return .purple
+        case .wakeFinal:  return .orange
+        case .wakeTemp:   return .indigo
+        case .anxiety:    return .pink
+        case .pain:       return .red
+        case .noise:      return .gray
+        }
+    }
+    #endif
 }

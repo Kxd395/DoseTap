@@ -1,6 +1,9 @@
 import SwiftUI
 import Combine
 import UserNotifications
+import os.log
+
+private let setupLogger = Logger(subsystem: "com.dosetap.app", category: "SetupWizard")
 
 // MARK: - Setup Wizard Models
 
@@ -257,7 +260,7 @@ class SetupWizardService: ObservableObject {
     private func scheduleInitialNotifications() async {
         // Placeholder for notification scheduling
         // Will be implemented with full notification system
-        print("Scheduling initial notifications...")
+        setupLogger.info("Scheduling initial notifications")
     }
     
     func requestNotificationPermissions() async {
@@ -292,6 +295,6 @@ class SetupWizardService: ObservableObject {
         // Critical alerts require special entitlement
         // For now, just mark as attempted
         userConfig.notifications.criticalAlertsAuthorized = false
-        print("Critical alerts would be requested here (requires entitlement)")
+        setupLogger.info("Critical alerts require entitlement - marking as not available")
     }
 }

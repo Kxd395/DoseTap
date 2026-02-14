@@ -3,6 +3,9 @@ import Combine
 import SQLite3
 import DoseCore
 import CryptoKit
+import os.log
+
+private let storageLog = Logger(subsystem: "com.dosetap.app", category: "EventStorage")
 
 // MARK: - SQLite Helpers
 // SQLITE_TRANSIENT is a C macro that doesn't exist in Swift
@@ -57,7 +60,7 @@ public class EventStorage {
         openDatabase()
         createTables()
         
-        print("📦 EventStorage initialized at: \(dbPath)")
+        storageLog.info("EventStorage initialized at: \(self.dbPath)")
     }
     
     deinit {
@@ -68,7 +71,7 @@ public class EventStorage {
     
     private func openDatabase() {
         if sqlite3_open(dbPath, &db) != SQLITE_OK {
-            print("❌ Failed to open database: \(String(cString: sqlite3_errmsg(db)))")
+            storageLog.error("Failed to open database: \(String(cString: sqlite3_errmsg(self.db)))")
         }
         
         // Enable foreign key enforcement (required for CASCADE to work)
@@ -272,7 +275,7 @@ public class EventStorage {
         var errMsg: UnsafeMutablePointer<CChar>?
         if sqlite3_exec(db, createSQL, nil, nil, &errMsg) != SQLITE_OK {
             if let errMsg = errMsg {
-                print("❌ Failed to create tables: \(String(cString: errMsg))")
+                storageLog.error("Failed to create tables: \(String(cString: errMsg))")
                 sqlite3_free(errMsg)
             }
         }
@@ -367,7 +370,7 @@ public class EventStorage {
         sqlite3_exec(db, "COMMIT", nil, nil, nil)
 
         UserDefaults.standard.set(true, forKey: flagKey)
-        print("🔧 EventStorage: Normalized sleep_events types and purged dose rows")
+        storageLog.info("EventStorage: Normalized sleep_events types and purged dose rows")
     }
 
     // MARK: - Session ID UUID Migration
@@ -397,7 +400,7 @@ public class EventStorage {
         sqlite3_exec(db, "COMMIT", nil, nil, nil)
 
         UserDefaults.standard.set(true, forKey: flagKey)
-        print("🔧 EventStorage: Migrated \(legacyIds.count) legacy session IDs to UUIDs")
+        storageLog.info("EventStorage: Migrated \(legacyIds.count) legacy session IDs to UUIDs")
     }
 
     private func fetchLegacySessionIds() -> [String] {
@@ -487,7 +490,7 @@ public class EventStorage {
         sqlite3_exec(db, "COMMIT", nil, nil, nil)
 
         UserDefaults.standard.set(true, forKey: flagKey)
-        print("🔧 EventStorage: Deduplicated legacy dose/sleep events")
+        storageLog.info("EventStorage: Deduplicated legacy dose/sleep events")
     }
     
     // MARK: - Session ID Backfill Migration
@@ -545,7 +548,7 @@ public class EventStorage {
         }
         
         if !rowsToUpdate.isEmpty {
-            print("✅ EventStorage: Backfilled \(rowsToUpdate.count) pre_sleep_logs with session_id")
+            storageLog.debug("EventStorage: Backfilled \(rowsToUpdate.count) pre_sleep_logs with session_id")
         }
     }
     
@@ -590,7 +593,7 @@ public class EventStorage {
         }
         
         if !rowsToUpdate.isEmpty {
-            print("✅ EventStorage: Backfilled \(rowsToUpdate.count) medication_events with session_id")
+            storageLog.debug("EventStorage: Backfilled \(rowsToUpdate.count) medication_events with session_id")
         }
     }
 
@@ -626,7 +629,7 @@ public class EventStorage {
         }
 
         if !rowsToUpdate.isEmpty {
-            print("✅ EventStorage: Backfilled \(rowsToUpdate.count) dose_events with session_id")
+            storageLog.debug("EventStorage: Backfilled \(rowsToUpdate.count) dose_events with session_id")
         }
     }
 
@@ -662,7 +665,7 @@ public class EventStorage {
         }
 
         if !rowsToUpdate.isEmpty {
-            print("✅ EventStorage: Backfilled \(rowsToUpdate.count) sleep_events with session_id")
+            storageLog.debug("EventStorage: Backfilled \(rowsToUpdate.count) sleep_events with session_id")
         }
     }
 
@@ -684,7 +687,7 @@ public class EventStorage {
                 sqlite3_bind_text(updateStmt, 1, fallback, -1, SQLITE_TRANSIENT)
                 sqlite3_step(updateStmt)
                 sqlite3_finalize(updateStmt)
-                print("✅ EventStorage: Backfilled current_session.session_id with \(fallback)")
+                storageLog.debug("EventStorage: Backfilled current_session.session_id with \(fallback)")
             }
         }
     }
@@ -829,7 +832,7 @@ public class EventStorage {
         
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            print("❌ Failed to prepare insert statement")
+            storageLog.error("Failed to prepare insert statement")
             return
         }
         defer { sqlite3_finalize(stmt) }
@@ -956,7 +959,7 @@ public class EventStorage {
         )
         #if DEBUG
         let timestampStr = isoFormatter.string(from: timestamp)
-        print("✅ Sleep event saved: \(eventType) at \(timestampStr)")
+        storageLog.debug("Sleep event saved: \(eventType, privacy: .public) at \(timestampStr, privacy: .public)")
         #endif
     }
     
@@ -1208,7 +1211,7 @@ public class EventStorage {
             sqlite3_finalize(stmt)
         }
         
-        print("↩️ EventStorage: Cleared dose1 for session \(sessionDate)")
+        storageLog.info("Undo: Cleared dose1 for session \(sessionDate)")
     }
     
     /// Clear dose 2 from current session (for undo)
@@ -1232,7 +1235,7 @@ public class EventStorage {
             sqlite3_finalize(stmt)
         }
         
-        print("↩️ EventStorage: Cleared dose2 for session \(sessionDate)")
+        storageLog.info("Undo: Cleared dose2 for session \(sessionDate)")
     }
     
     /// Clear skip status from current session (for undo)
@@ -1256,7 +1259,7 @@ public class EventStorage {
             sqlite3_finalize(stmt)
         }
         
-        print("↩️ EventStorage: Cleared skip for session \(sessionDate)")
+        storageLog.info("Undo: Cleared skip for session \(sessionDate)")
     }
     
     // MARK: - Time Editing Methods (Manual Entry Support)
@@ -1284,7 +1287,7 @@ public class EventStorage {
             sqlite3_finalize(stmt)
         }
         
-        print("✏️ EventStorage: Updated dose1 time to \(timestampStr) for session \(sessionDate)")
+        storageLog.info("Edit: Updated dose1 time to \(timestampStr) for session \(sessionDate)")
     }
     
     /// Update Dose 2 time for a session
@@ -1310,7 +1313,7 @@ public class EventStorage {
             sqlite3_finalize(stmt)
         }
         
-        print("✏️ EventStorage: Updated dose2 time to \(timestampStr) for session \(sessionDate)")
+        storageLog.info("Edit: Updated dose2 time to \(timestampStr) for session \(sessionDate)")
     }
     
     /// Update sleep event time
@@ -1326,7 +1329,7 @@ public class EventStorage {
             sqlite3_finalize(stmt)
         }
         
-        print("✏️ EventStorage: Updated event \(eventId) time to \(timestampStr)")
+        storageLog.info("Edit: Updated event \(eventId) time to \(timestampStr)")
     }
     
     private func insertDoseEventInternal(eventType: String, timestamp: Date, sessionDate: String? = nil, sessionId: String? = nil, metadata: String? = nil) {
@@ -1360,7 +1363,7 @@ public class EventStorage {
         }
         
         if sqlite3_step(stmt) == SQLITE_DONE {
-            print("✅ Dose event saved: \(eventType)")
+            storageLog.debug("Dose event saved: \(eventType, privacy: .public)")
         }
     }
     
@@ -1372,7 +1375,7 @@ public class EventStorage {
         
         // Check for existing dose of this type in this session
         if !isHazard && hasDose(type: type, sessionDate: sessionDate) {
-            print("⚠️ Dose \(type) already exists for \(sessionDate). Use isHazard=true to force log.")
+            storageLog.warning("Dose \(type, privacy: .public) already exists for \(sessionDate). Use isHazard=true to force log.")
             return false
         }
         
@@ -1385,7 +1388,7 @@ public class EventStorage {
         
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            print("❌ Failed to prepare dose insert statement")
+            storageLog.error("Failed to prepare dose insert statement")
             return false
         }
         defer { sqlite3_finalize(stmt) }
@@ -1404,10 +1407,10 @@ public class EventStorage {
         }
         
         if sqlite3_step(stmt) == SQLITE_DONE {
-            print("✅ Dose event saved: \(type) at \(timestampStr) (Hazard: \(isHazard))")
+            storageLog.debug("Dose event saved: \(type, privacy: .public) at \(timestampStr, privacy: .public) hazard=\(isHazard)")
             return true
         } else {
-            print("❌ Failed to insert dose event: \(String(cString: sqlite3_errmsg(db)))")
+            storageLog.error("Failed to insert dose event: \(String(cString: sqlite3_errmsg(self.db)))")
             return false
         }
     }
@@ -1656,7 +1659,7 @@ public class EventStorage {
                 sqlite3_step(resetStmt)
             }
             sqlite3_finalize(resetStmt)
-            print("🧹 EventStorage: Reset stale current_session for new session_date \(sessionDate)")
+            storageLog.info("EventStorage: Reset stale current_session for new session_date \(sessionDate)")
         }
         
         // First, ensure a row exists for this session
@@ -1705,7 +1708,7 @@ public class EventStorage {
         
         var updateStmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, updateSQL, -1, &updateStmt, nil) == SQLITE_OK else {
-            print("❌ Failed to prepare session update")
+            storageLog.error("Failed to prepare session update")
             return
         }
         defer { sqlite3_finalize(updateStmt) }
@@ -1721,9 +1724,9 @@ public class EventStorage {
         }
         
         if sqlite3_step(updateStmt) == SQLITE_DONE {
-            print("✅ Current session updated")
+            storageLog.debug("Current session updated")
         } else {
-            print("❌ Failed to update session: \(String(cString: sqlite3_errmsg(db)))")
+            storageLog.error("Failed to update session: \(String(cString: sqlite3_errmsg(self.db)))")
         }
     }
     
@@ -1804,7 +1807,7 @@ public class EventStorage {
         
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            print("❌ Failed to prepare terminal state update")
+            storageLog.error("Failed to prepare terminal state update")
             return
         }
         defer { sqlite3_finalize(stmt) }
@@ -1813,9 +1816,9 @@ public class EventStorage {
         sqlite3_bind_text(stmt, 2, sessionId ?? sessionDate, -1, SQLITE_TRANSIENT)
         
         if sqlite3_step(stmt) == SQLITE_DONE {
-            print("✅ Terminal state updated to '\(state)' for session \(sessionDate)")
+            storageLog.debug("Terminal state updated to '\(state)' for session \(sessionDate)")
         } else {
-            print("❌ Failed to update terminal state: \(String(cString: sqlite3_errmsg(db)))")
+            storageLog.error("Failed to update terminal state: \(String(cString: sqlite3_errmsg(self.db)))")
         }
 
         let sessionSQL = "UPDATE sleep_sessions SET terminal_state = ?, updated_at = CURRENT_TIMESTAMP WHERE \(whereClause)"
@@ -2193,7 +2196,7 @@ public class EventStorage {
         responsesByQuestionID: [String: Any]
     ) {
         guard let responsesJson = jsonString(from: responsesByQuestionID) else {
-            print("⚠️ Failed to encode check-in responses for \(sourceRecordId)")
+            storageLog.warning("Failed to encode check-in responses for \(sourceRecordId)")
             return
         }
 
@@ -2206,7 +2209,7 @@ public class EventStorage {
         """
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            print("❌ Failed to prepare check-in submission upsert: \(String(cString: sqlite3_errmsg(db)))")
+            storageLog.error("Failed to prepare check-in submission upsert: \(String(cString: sqlite3_errmsg(self.db)))")
             return
         }
         defer { sqlite3_finalize(stmt) }
@@ -2230,7 +2233,7 @@ public class EventStorage {
         sqlite3_bind_text(stmt, 10, responsesJson, -1, SQLITE_TRANSIENT)
 
         guard sqlite3_step(stmt) == SQLITE_DONE else {
-            print("❌ Failed to upsert check-in submission: \(String(cString: sqlite3_errmsg(db)))")
+            storageLog.error("Failed to upsert check-in submission: \(String(cString: sqlite3_errmsg(self.db)))")
             return
         }
     }
@@ -2525,9 +2528,9 @@ public class EventStorage {
                 now: Date(),
                 timeZone: .current
             )
-            print("✅ Pre-sleep log saved")
+            storageLog.debug("Pre-sleep log saved")
         } catch {
-            print("❌ Failed to save pre-sleep log: \(error.localizedDescription)")
+            storageLog.error("Failed to save pre-sleep log: \(error.localizedDescription)")
         }
     }
     
@@ -2552,7 +2555,7 @@ public class EventStorage {
         
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            print("❌ Failed to prepare morning check-in insert: \(String(cString: sqlite3_errmsg(db)))")
+            storageLog.error("Failed to prepare morning check-in insert: \(String(cString: sqlite3_errmsg(self.db)))")
             return
         }
         defer { sqlite3_finalize(stmt) }
@@ -2617,9 +2620,9 @@ public class EventStorage {
                 submittedAt: checkIn.timestamp,
                 responsesByQuestionID: morningResponsesByQuestionID(checkIn)
             )
-            print("✅ Morning check-in saved: \(checkIn.id)")
+            storageLog.debug("Morning check-in saved: \(checkIn.id)")
         } else {
-            print("❌ Failed to save morning check-in: \(String(cString: sqlite3_errmsg(db)))")
+            storageLog.error("Failed to save morning check-in: \(String(cString: sqlite3_errmsg(self.db)))")
         }
     }
 
@@ -2737,7 +2740,7 @@ public class EventStorage {
                 sqlite3_free(errMsg)
             }
         }
-        print("🗑️ All EventStorage data cleared")
+        storageLog.info("All EventStorage data cleared")
     }
     
     /// Fetch row count for a table filtered by session_date (for test assertions)
@@ -2749,7 +2752,7 @@ public class EventStorage {
             "morning_checkins", "checkin_submissions", "medication_events"
         ]
         guard allowedTables.contains(table) else {
-            print("⚠️ fetchRowCount: Unknown table '\(table)'")
+            storageLog.warning("fetchRowCount: Unknown table '\(table)'")
             return 0
         }
 
@@ -2781,7 +2784,7 @@ public class EventStorage {
         if errMsg != nil {
             sqlite3_free(errMsg)
         }
-        print("🗑️ All sleep events cleared")
+        storageLog.info("All sleep events cleared")
     }
     
     /// Clear data older than specified days
@@ -2823,7 +2826,7 @@ public class EventStorage {
         }
         
         sqlite3_exec(db, "COMMIT", nil, nil, nil)
-        print("🗑️ Data older than \(days) days cleared")
+        storageLog.info("Data older than \(days) days cleared")
     }
     
     /// Delete a session by date
@@ -2879,7 +2882,7 @@ public class EventStorage {
         }
         
         sqlite3_exec(db, "COMMIT", nil, nil, nil)
-        print("🗑️ Session \(sessionDate) deleted from EventStorage")
+        storageLog.info("Session \(sessionDate, privacy: .public) deleted")
     }
     
     // MARK: - Additional Methods Required by ContentView
@@ -2902,7 +2905,7 @@ public class EventStorage {
         sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
         
         if sqlite3_step(stmt) == SQLITE_DONE {
-            print("🗑️ Sleep event deleted: \(id)")
+            storageLog.debug("Sleep event deleted: \(id, privacy: .private)")
         }
     }
 
@@ -2924,7 +2927,7 @@ public class EventStorage {
         sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
 
         if sqlite3_step(stmt) == SQLITE_DONE {
-            print("🗑️ Dose event deleted: \(id)")
+            storageLog.debug("Dose event deleted: \(id, privacy: .private)")
         }
     }
 
@@ -2947,7 +2950,7 @@ public class EventStorage {
 
         if sqlite3_step(stmt) == SQLITE_DONE {
             deleteCheckInSubmission(sourceRecordId: id, checkInType: .morning)
-            print("🗑️ Morning check-in deleted: \(id)")
+            storageLog.debug("Morning check-in deleted: \(id, privacy: .private)")
         }
     }
 
@@ -3057,7 +3060,7 @@ public class EventStorage {
         
         sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
         sqlite3_step(stmt)
-        print("🗑️ Tonight's events cleared")
+        storageLog.info("Tonight events cleared")
     }
     
     /// Get session date string for a given Date
@@ -3134,92 +3137,153 @@ public class EventStorage {
     /// Fetch recent sessions as summaries (internal - use protocol method externally)
     func fetchRecentSessionsLocal(days: Int = 7) -> [SessionSummary] {
         var sessions: [SessionSummary] = []
-        
-        // Get unique session dates from current_session and sleep_events
+
+        // Collect all distinct session_dates from sleep_sessions, dose_events,
+        // and sleep_events — not from current_session (which is single-row).
         let sql = """
-            SELECT DISTINCT cs.session_date, cs.dose1_time, cs.dose2_time, cs.dose2_skipped, cs.snooze_count,
-                   (SELECT COUNT(*) FROM sleep_events se WHERE se.session_date = cs.session_date) as event_count
-            FROM current_session cs
-            ORDER BY cs.session_date DESC
+            SELECT session_date FROM sleep_sessions
+            UNION
+            SELECT session_date FROM dose_events
+            UNION
+            SELECT session_date FROM sleep_events
+            ORDER BY session_date DESC
             LIMIT ?
         """
-        
+
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return sessions }
         defer { sqlite3_finalize(stmt) }
-        
+
         sqlite3_bind_int(stmt, 1, Int32(days))
-        
+
+        var sessionDates: [String] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
-            let sessionDate = String(cString: sqlite3_column_text(stmt, 0))
-            
-            var dose1Time: Date? = nil
-            var dose2Time: Date? = nil
-            
-            if let d1Str = sqlite3_column_text(stmt, 1) {
-                dose1Time = isoFormatter.date(from: String(cString: d1Str))
-            }
-            if let d2Str = sqlite3_column_text(stmt, 2) {
-                dose2Time = isoFormatter.date(from: String(cString: d2Str))
-            }
-            
-            let dose2Skipped = sqlite3_column_int(stmt, 3) != 0
-            let snoozeCount = Int(sqlite3_column_int(stmt, 4))
-            let eventCount = Int(sqlite3_column_int(stmt, 5))
-            
-            let summary = SessionSummary(
+            sessionDates.append(String(cString: sqlite3_column_text(stmt, 0)))
+        }
+
+        for sessionDate in sessionDates {
+            let doseEvents = fetchDoseEvents(sessionId: nil, sessionDate: sessionDate)
+            let dose1 = doseEvents.first { isDose1EventType($0.eventType) }
+            let dose2 = doseEvents.first { isDose2EventType($0.eventType) }
+            let dose2Skipped = doseEvents.contains { isDose2SkippedEventType($0.eventType) }
+            let snoozeCount = doseEvents.filter { $0.eventType.lowercased().hasPrefix("snooze") }.count
+
+            let eventCount = countSleepEvents(for: sessionDate)
+
+            sessions.append(SessionSummary(
                 sessionDate: sessionDate,
-                dose1Time: dose1Time,
-                dose2Time: dose2Time,
+                dose1Time: dose1?.timestamp,
+                dose2Time: dose2?.timestamp,
                 dose2Skipped: dose2Skipped,
                 snoozeCount: snoozeCount,
                 sleepEvents: [],
                 eventCount: eventCount
-            )
-            sessions.append(summary)
+            ))
         }
-        
+
         return sessions
     }
+
+    // MARK: - Dose event type helpers
+
+    private func isDose1EventType(_ raw: String) -> Bool {
+        let t = raw.lowercased().replacingOccurrences(of: " ", with: "_").replacingOccurrences(of: "-", with: "_")
+        return t == "dose1" || t == "dose_1" || t == "dose1_taken" || t == "dose_1_taken"
+    }
+
+    private func isDose2EventType(_ raw: String) -> Bool {
+        let t = raw.lowercased().replacingOccurrences(of: " ", with: "_").replacingOccurrences(of: "-", with: "_")
+        return t == "dose2" || t == "dose_2" || t == "dose2_taken" || t == "dose_2_taken"
+            || t == "dose2_early" || t == "dose_2_early" || t == "dose2_late" || t == "dose_2_late"
+            || t == "dose_2_(early)" || t == "dose_2_(late)"
+    }
+
+    private func isDose2SkippedEventType(_ raw: String) -> Bool {
+        let t = raw.lowercased().replacingOccurrences(of: " ", with: "_").replacingOccurrences(of: "-", with: "_")
+        return t == "dose2_skipped" || t == "dose_2_skipped" || t == "skip" || t == "skipped"
+    }
+
+    private func countSleepEvents(for sessionDate: String) -> Int {
+        let sql = "SELECT COUNT(*) FROM sleep_events WHERE session_date = ?"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return 0 }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
+        return sqlite3_step(stmt) == SQLITE_ROW ? Int(sqlite3_column_int(stmt, 0)) : 0
+    }
     
-    /// Fetch dose log for a specific session
+    /// Fetch dose log for a specific session.
+    /// Tries `current_session` first (fast path for the active session), then
+    /// falls back to reconstructing from `dose_events` for historical sessions.
     public func fetchDoseLog(forSession sessionDate: String) -> StoredDoseLog? {
+        // --- Fast path: current_session (single-row table, only matches active session) ---
         let sql = "SELECT dose1_time, dose2_time, dose2_skipped, snooze_count FROM current_session WHERE session_date = ?"
         
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return nil }
-        defer { sqlite3_finalize(stmt) }
-        
-        sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
-        
-        if sqlite3_step(stmt) == SQLITE_ROW {
-            var dose1Time: Date? = nil
-            var dose2Time: Date? = nil
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            defer { sqlite3_finalize(stmt) }
+            sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
             
-            if let d1Str = sqlite3_column_text(stmt, 0) {
-                dose1Time = isoFormatter.date(from: String(cString: d1Str))
+            if sqlite3_step(stmt) == SQLITE_ROW {
+                var dose1Time: Date? = nil
+                var dose2Time: Date? = nil
+                
+                if let d1Str = sqlite3_column_text(stmt, 0) {
+                    dose1Time = isoFormatter.date(from: String(cString: d1Str))
+                }
+                if let d2Str = sqlite3_column_text(stmt, 1) {
+                    dose2Time = isoFormatter.date(from: String(cString: d2Str))
+                }
+                
+                let dose2Skipped = sqlite3_column_int(stmt, 2) != 0
+                let snoozeCount = Int(sqlite3_column_int(stmt, 3))
+                
+                if let d1 = dose1Time {
+                    return StoredDoseLog(
+                        id: sessionDate,
+                        sessionDate: sessionDate,
+                        dose1Time: d1,
+                        dose2Time: dose2Time,
+                        dose2Skipped: dose2Skipped,
+                        snoozeCount: snoozeCount
+                    )
+                }
             }
-            if let d2Str = sqlite3_column_text(stmt, 1) {
-                dose2Time = isoFormatter.date(from: String(cString: d2Str))
-            }
-            
-            let dose2Skipped = sqlite3_column_int(stmt, 2) != 0
-            let snoozeCount = Int(sqlite3_column_int(stmt, 3))
-            
-            // Only return if there's at least dose1
-            guard dose1Time != nil else { return nil }
-            
-            return StoredDoseLog(
-                id: sessionDate,
-                sessionDate: sessionDate,
-                dose1Time: dose1Time!,
-                dose2Time: dose2Time,
-                dose2Skipped: dose2Skipped,
-                snoozeCount: snoozeCount
-            )
+        } else {
+            sqlite3_finalize(stmt)
         }
-        
-        return nil
+
+        // --- Fallback: reconstruct from dose_events for historical sessions ---
+        let doseEvents = fetchDoseEvents(sessionId: nil, sessionDate: sessionDate)
+        guard !doseEvents.isEmpty else { return nil }
+
+        var dose1Time: Date? = nil
+        var dose2Time: Date? = nil
+        var dose2Skipped = false
+        var snoozeCount = 0
+
+        for event in doseEvents {
+            if isDose1EventType(event.eventType) {
+                dose1Time = event.timestamp
+            } else if isDose2EventType(event.eventType) {
+                dose2Time = event.timestamp
+            } else if isDose2SkippedEventType(event.eventType) {
+                dose2Skipped = true
+            } else if event.eventType.lowercased() == "snooze" {
+                snoozeCount += 1
+            }
+        }
+
+        guard let d1 = dose1Time else { return nil }
+
+        return StoredDoseLog(
+            id: sessionDate,
+            sessionDate: sessionDate,
+            dose1Time: d1,
+            dose2Time: dose2Time,
+            dose2Skipped: dose2Skipped,
+            snoozeCount: snoozeCount
+        )
     }
     
     /// Save a pre-sleep log from PreSleepLog model
@@ -3233,7 +3297,7 @@ public class EventStorage {
                 timeZone: .current
             )
         } catch {
-            print("❌ Failed to save pre-sleep log: \(error.localizedDescription)")
+            storageLog.error("Failed to save pre-sleep log: \(error.localizedDescription)")
         }
     }
     
@@ -3382,7 +3446,7 @@ public class EventStorage {
         
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            print("❌ Failed to prepare medication event insert")
+            storageLog.error("Failed to prepare medication event insert")
             return
         }
         defer { sqlite3_finalize(stmt) }
@@ -3412,9 +3476,9 @@ public class EventStorage {
         sqlite3_bind_int(stmt, 11, entry.confirmedDuplicate ? 1 : 0)
         
         if sqlite3_step(stmt) != SQLITE_DONE {
-            print("❌ Failed to insert medication event: \(String(cString: sqlite3_errmsg(db)))")
+            storageLog.error("Failed to insert medication event: \(String(cString: sqlite3_errmsg(self.db)))")
         } else {
-            print("💊 Medication event inserted: \(entry.medicationId) \(entry.doseMg)\(entry.doseUnit)")
+            storageLog.debug("Medication event inserted: \(entry.medicationId) \(entry.doseMg)\(entry.doseUnit)")
         }
     }
     
@@ -3478,7 +3542,7 @@ public class EventStorage {
         sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
         
         if sqlite3_step(stmt) != SQLITE_DONE {
-            print("❌ Failed to delete medication event")
+            storageLog.error("Failed to delete medication event")
         }
     }
     

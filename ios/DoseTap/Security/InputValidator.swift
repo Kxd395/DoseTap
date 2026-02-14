@@ -24,12 +24,15 @@ public struct InputValidator {
         // Physical
         "bathroom", "water", "snack",
         // Sleep Cycle
-        "lightsOut", "lights_out", "wakeTemp", "wake_temp", "inBed", "in_bed", "wake_final",
+        "lightsout", "lights_out",
+        "waketemp", "wake_temp",
+        "inbed", "in_bed",
+        "wake_final", "wakefinal", "wake", "wake_up", "wakeup",
         "nap start", "nap end", "nap_start", "nap_end", "napstart", "napend",
         // Mental
-        "anxiety", "dream", "heartRacing", "heart_racing",
+        "anxiety", "restless", "dream", "heartracing", "heart_racing",
         // Environment
-        "noise", "temperature", "pain",
+        "noise", "temperature", "temp", "pain",
         // Dose Events (internal)
         "dose1", "dose2", "dose2_skipped", "snooze", "extra_dose"
     ]

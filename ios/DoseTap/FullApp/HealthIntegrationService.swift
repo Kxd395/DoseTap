@@ -227,7 +227,7 @@ public class WHOOPDataService: ObservableObject {
         let recoveryRecords = (try? await whoopService.fetchRecoveryData(from: startDate, to: endDate)) ?? []
         let cycleRecords = (try? await whoopService.fetchCycleData(from: startDate, to: endDate)) ?? []
 
-        var recoveryBySleepId: [Int: WHOOPRecovery] = [:]
+        var recoveryBySleepId: [String: WHOOPRecovery] = [:]
         for recovery in recoveryRecords {
             if let sleepId = recovery.sleepId {
                 recoveryBySleepId[sleepId] = recovery
@@ -250,7 +250,7 @@ public class WHOOPDataService: ObservableObject {
 
                 return WHOOPSleepData(
                     sleepDate: sleep.start ?? sleep.end ?? Date(),
-                    cycleId: String(sleep.id),
+                    cycleId: sleep.id,
                     sleepStart: sleep.start,
                     sleepEnd: sleep.end,
                     timeToFirstWake: nil,
