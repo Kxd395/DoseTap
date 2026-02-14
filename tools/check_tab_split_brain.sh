@@ -5,7 +5,7 @@ echo "Running tab split-brain guard..."
 
 URL_ROUTER_FILE="ios/DoseTap/URLRouter.swift"
 CONTENT_VIEW_FILE="ios/DoseTap/ContentView.swift"
-TESTS_FILE="ios/DoseTapTests/DoseTapTests.swift"
+TESTS_FILE="ios/DoseTapTests/URLRouterAndNavigationTests.swift"
 
 if ! grep -q "static let navigationDeepLinks" "$URL_ROUTER_FILE"; then
   echo "❌ Missing AppTab.navigationDeepLinks in $URL_ROUTER_FILE"

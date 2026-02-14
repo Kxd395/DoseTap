@@ -354,10 +354,6 @@ struct SupportBundleExporter {
         self.storage = storage
     }
 
-    init() {
-        self.storage = EventStorage.shared
-    }
-
     func makeBundleSummary() -> String {
         let schemaVersion = storage.getSchemaVersion()
         let constantsVersion = EventStorage.constantsVersion

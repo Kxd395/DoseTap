@@ -50,8 +50,10 @@ jobs:
       
       - name: Check Views don't touch EventStorage.shared
         run: |
+          set -euo pipefail
           echo "🔍 Checking for EventStorage.shared violations in Views..."
-          VIOLATIONS=$(grep -rn "EventStorage\.shared" ios/DoseTap ios/DoseTapiOSApp --include="*.swift" | grep -v "Storage/EventStorage.swift" | grep -v "Storage/SessionRepository.swift" || true)
+          # Storage/ directory is allowed (it IS the storage layer). Only views/helpers are violations.
+          VIOLATIONS=$(grep -rn "EventStorage\.shared" ios/DoseTap --include="*.swift" | grep -v "Storage/" || true)
           if [ -n "$VIOLATIONS" ]; then
             echo "❌ FAIL: Views/helpers are directly accessing EventStorage.shared"
             echo "All storage access must go through SessionRepository."
@@ -64,9 +66,10 @@ jobs:
       
       - name: Check SQLiteStorage is not used in production code
         run: |
+          set -euo pipefail
           echo "🔍 Checking for SQLiteStorage usage in production code..."
           # Exclude: SQLiteStorage.swift itself, test files (tests may reference for setup)
-          VIOLATIONS=$(grep -rn "SQLiteStorage\.shared\|: SQLiteStorage\|= SQLiteStorage" ios/DoseTap ios/DoseTapiOSApp --include="*.swift" | grep -v "SQLiteStorage.swift" || true)
+          VIOLATIONS=$(grep -rn "SQLiteStorage\.shared\|: SQLiteStorage\|= SQLiteStorage" ios/DoseTap --include="*.swift" | grep -v "SQLiteStorage.swift" || true)
           if [ -n "$VIOLATIONS" ]; then
             echo "❌ FAIL: SQLiteStorage is being used in production code"
             echo "SQLiteStorage is banned (#if false wrapper). Use SessionRepository.shared instead."
