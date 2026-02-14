@@ -5,11 +5,11 @@ Status: **Decided — iOS Data Protection sufficient for v1**
 
 ## Question
 
-Should DoseTap add SQLCipher (or equivalent) database-level encryption to the Core Data SQLite store, or rely on iOS Data Protection?
+Should DoseTap add SQLCipher (or equivalent) database-level encryption to the SQLite store, or rely on iOS Data Protection?
 
 ## Context
 
-DoseTap stores sensitive medication timing data (XYWAV dose times, sleep events, health integrations). The storage layer uses Core Data backed by SQLite on-device. No PHI (Protected Health Information) as defined by HIPAA is stored — the app tracks timing only, not prescriptions, diagnoses, or provider records.
+DoseTap stores sensitive medication timing data (XYWAV dose times, sleep events, health integrations). The storage layer uses SQLite on-device. No PHI (Protected Health Information) as defined by HIPAA is stored — the app tracks timing only, not prescriptions, diagnoses, or provider records.
 
 ## Decision
 
