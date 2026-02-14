@@ -603,11 +603,11 @@ final class DashboardAnalyticsModel: ObservableObject {
         ),
         DashboardMetricCategory(
             id: "sleep",
-            title: "Sleep (HealthKit + Manual)",
+            title: "Sleep (Apple Health + Manual)",
             metrics: [
                 "Total sleep minutes",
                 "Time to first wake (TTFW)",
-                "Wake count (HealthKit)",
+                "Wake count (Apple Health)",
                 "Sleep source",
                 "Bathroom wake count",
                 "Lights Out and Wake Up events",
@@ -720,7 +720,7 @@ final class DashboardAnalyticsModel: ObservableObject {
     private func buildIntegrationStates(healthMatches: Int) -> [DashboardIntegrationState] {
         let healthState = DashboardIntegrationState(
             id: "healthkit",
-            name: "Apple HealthKit",
+            name: "Apple Health",
             status: settings.healthKitEnabled
                 ? (healthKit.isAuthorized ? "Connected" : "Needs Authorization")
                 : "Disabled",

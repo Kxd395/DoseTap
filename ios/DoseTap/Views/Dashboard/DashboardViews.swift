@@ -348,7 +348,7 @@ struct DashboardDataQualityCard: View {
             Text("Pre-sleep log rate: \(model.preSleepLogRate.map { String(format: "%.0f%%", $0) } ?? "No data")")
                 .font(.subheadline)
                 .foregroundColor(rateColor(model.preSleepLogRate))
-            Text("Nights missing HealthKit summary: \(model.missingHealthSummaryCount)")
+            Text("Nights missing Apple Health summary: \(model.missingHealthSummaryCount)")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
             Text("Nights with duplicate event clusters: \(model.duplicateNightCount)")

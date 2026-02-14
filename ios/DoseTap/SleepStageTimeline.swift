@@ -588,13 +588,13 @@ struct LiveSleepTimelineView: View {
                     Image(systemName: "heart.text.square")
                         .font(.largeTitle)
                         .foregroundColor(.secondary)
-                    Text("HealthKit Access Required")
+                    Text("Apple Health Access Required")
                         .font(.headline)
-                    Text("Enable HealthKit in Settings to view your sleep timeline")
+                    Text("Enable Apple Health in Settings to view your sleep timeline")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
-                    Button("Enable HealthKit") {
+                    Button("Enable Apple Health") {
                         Task {
                             settings.healthKitEnabled = true
                             let authorized = await healthKit.requestAuthorization()
@@ -735,8 +735,8 @@ struct LiveSleepTimelineView: View {
         } else if !healthKit.isAuthorized {
             healthKitPrompt(
                 icon: "heart.text.square",
-                title: "HealthKit Access Required",
-                message: "Enable HealthKit in Settings to view your sleep timeline"
+                title: "Apple Health Access Required",
+                message: "Enable Apple Health in Settings to view your sleep timeline"
             )
         } else if isLoading {
             ProgressView("Loading sleep data...")

@@ -397,13 +397,13 @@ struct SelectedDayView: View {
 
         Task { @MainActor in
             guard settings.healthKitEnabled else {
-                healthSleepStatusText = "HealthKit disabled in Settings."
+                healthSleepStatusText = "Apple Health disabled in Settings."
                 return
             }
 
             healthKit.checkAuthorizationStatus()
             guard healthKit.isAuthorized else {
-                healthSleepStatusText = "HealthKit not authorized."
+                healthSleepStatusText = "Apple Health not authorized."
                 return
             }
 
@@ -414,7 +414,7 @@ struct SelectedDayView: View {
 
             let queryStart = eveningAnchorDate(for: nightDate, hour: 18)
             guard let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: nightDate) else {
-                healthSleepStatusText = "Unable to compute HealthKit query window."
+                healthSleepStatusText = "Unable to compute Apple Health query window."
                 return
             }
             let queryEnd = eveningAnchorDate(for: nextDay, hour: 12)
@@ -444,7 +444,7 @@ struct SelectedDayView: View {
                     ? "Matches: Health sleep start maps to session \(derivedKey)."
                     : "Mismatch: Health sleep start maps to \(derivedKey), session is \(sessionDate)."
             } catch {
-                healthSleepStatusText = "HealthKit error: \(error.localizedDescription)"
+                healthSleepStatusText = "Apple Health error: \(error.localizedDescription)"
             }
         }
     }

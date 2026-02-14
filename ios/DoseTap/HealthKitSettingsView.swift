@@ -14,10 +14,10 @@ struct HealthKitSettingsView: View {
         List {
             if defaultProvider is NoOpHealthKitProvider {
                 Section {
-                    Label("HealthKit is disabled (simulator or missing entitlements)", systemImage: "heart.slash")
+                    Label("Apple Health is unavailable (simulator or missing entitlements)", systemImage: "heart.slash")
                         .foregroundColor(.secondary)
                 } footer: {
-                    Text("On simulator and unsigned builds, HealthKit is unavailable. App defaults to NoOp provider for safety.")
+                    Text("On simulator and unsigned builds, Apple Health is unavailable. The app defaults to a no-op provider for safety.")
                 }
             } else {
                 Section {

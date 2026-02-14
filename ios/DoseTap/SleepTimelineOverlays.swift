@@ -451,7 +451,7 @@ struct LiveEnhancedTimelineView: View {
                         HStack {
                             Image(systemName: whoop.isConnected ? "w.circle.fill" : "heart.fill")
                                 .foregroundColor(whoop.isConnected ? .black : .red)
-                            Text(whoop.isConnected ? "WHOOP + HealthKit" : "HealthKit")
+                            Text(whoop.isConnected ? "WHOOP + Apple Health" : "Apple Health")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
