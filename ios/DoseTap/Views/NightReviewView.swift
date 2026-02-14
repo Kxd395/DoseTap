@@ -583,7 +583,7 @@ struct SleepEventRow: View {
 struct HealthDataCard: View {
     let sessionKey: String
     
-    // TODO: Integrate with HealthKitManager and WHOOPManager
+    // TODO: Integrate with HealthKitService and WHOOPService
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("📊 Health Integrations")

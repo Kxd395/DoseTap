@@ -131,7 +131,6 @@
 		80A27C7D2EFAC24D0005C000 /* DoseTap.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DoseTap.entitlements; sourceTree = "<group>"; };
 		80B7FD26BB9CFDD4F25097AC /* DatabaseSecurity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DatabaseSecurity.swift; sourceTree = "<group>"; };
 		8FABFEE0765C943A32E6ACC2 /* NightReviewView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NightReviewView.swift; sourceTree = "<group>"; };
-		A600946C6A16447E86DD31CC /* WHOOP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WHOOP.swift; sourceTree = "<group>"; };
 		AAAAAAAA08C80B4B155C4F1F /* UndoSnackbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoSnackbar.swift; sourceTree = "<group>"; };
 		AAAAAAAA0C2B781536614815 /* UndoManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoManager.swift; sourceTree = "<group>"; };
 		AAAAAAAA180FECDFD1A34BF9 /* Views/MedicationPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/MedicationPickerView.swift; sourceTree = "<group>"; };
@@ -327,7 +326,6 @@
 				D565C0B5A1804860B23307B9 /* URLRouter.swift */,
 				BB4C5084D06D74163A5C71A9 /* UserSettingsManager.swift */,
 				WP002 /* WeeklyPlanner.swift */,
-				A600946C6A16447E86DD31CC /* WHOOP.swift */,
 				7084981AA100483EB6E6ADE1 /* WHOOPService.swift */,
 				GRP_EXPORT /* Export */,
 				GRP_FOUNDATION /* Foundation */,
