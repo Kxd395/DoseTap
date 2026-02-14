@@ -30,18 +30,20 @@ Track active gaps after the Phase 1/2 stabilization pass and keep a short, curre
 - [x] Grow DoseCoreTests to 499 tests (transport safety canaries).
 - [x] Split `SettingsView.swift` god file (1,644 → 628 lines) into 6 focused modules: HealthKitSettingsView, AboutView, EventCooldownSettingsView, DataManagementView, QuickLogCustomizationView, SettingsHelpers.
 - [x] Fix PR #1 review comments (URLRouter snooze feedback, governance doc accuracy; 7/9 already resolved by prior cleanup).
+- [x] Fix 3 CI failures: Storage Enforcement Guard (EventStorage.shared in SupportBundleExporter), tab split-brain script path (test file moved), non-existent grep target.
+- [x] Extract real SPKI pins from live `api.dosetap.com` — leaf + intermediate CA. Create operational rotation runbook (`docs/CERTIFICATE_PINNING.md`).
 
 ---
 
-## P0 — Ship Blockers (Still Open)
+## P0 — Ship Blockers (All Resolved ✅)
 
 ### Security & Privacy
-- [ ] Purge committed secrets from git history and rotate exposed credentials.
+- [x] ~~Purge committed secrets from git history~~ — **Audit complete (2026-02-14): `Secrets.swift` was never committed to git.** `git log --all --diff-filter=ADRM` and `git log -p -S` confirm zero credential values in history. File is properly `.gitignore`d. `SecureConfig.swift` references the property name only (in `#if DEBUG` blocks); release builds return empty string. No rotation needed.
 - [x] Enforce env/Keychain-only secret loading with CI guards.
 
 ### Core Runtime
 - [x] Replace `MockAPITransport` in main app path for non-debug builds.
-- [ ] Finish production certificate pin set (real SPKI pins + operational rotation procedure).
+- [x] Finish production certificate pin set (real SPKI pins + operational rotation procedure). See `docs/CERTIFICATE_PINNING.md`.
 
 ---
 
