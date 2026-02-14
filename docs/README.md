@@ -23,6 +23,7 @@ Last updated: 2026-02-14
 ## Operations
 
 - Certificate pinning runbook: `docs/CERTIFICATE_PINNING.md`
+- Encryption at rest decision: `docs/SSOT/encryption-at-rest.md`
 - Production readiness checklist: `docs/PRODUCTION_READINESS_CHECKLIST.md`
 - Release checklist: `docs/RELEASE_CHECKLIST.md`
 - TestFlight guide: `docs/TESTFLIGHT_GUIDE.md`

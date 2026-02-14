@@ -74,7 +74,8 @@ let package = Package(
                 "DiagnosticLoggerTests.swift",
                 "RecommendationEngineTests.swift",
                 "EventStoreModelsTests.swift",
-                "TimeEngineTests.swift"
+                "TimeEngineTests.swift",
+                "SessionRolloverRegressionTests.swift"
             ]
         )
     ]
