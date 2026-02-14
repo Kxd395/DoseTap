@@ -8,6 +8,9 @@
 
 import Foundation
 import SQLite3
+import os.log
+
+private let dosingSchemaLog = Logger(subsystem: "com.dosetap.app", category: "DosingAmountSchema")
 
 // MARK: - Schema SQL Definitions
 
@@ -115,7 +118,7 @@ extension EventStorage {
     /// Run all dosing amount schema migrations.
     /// Safe to call multiple times - all operations are idempotent.
     func runDosingAmountMigrations() {
-        print("📊 Running dosing amount schema migrations...")
+        dosingSchemaLog.info("Running dosing amount schema migrations")
         
         // 1. Create new tables
         createDosingTables()
@@ -126,7 +129,7 @@ extension EventStorage {
         // 3. Mark legacy rows
         markLegacyDoseEventsAsMigrated()
         
-        print("✅ Dosing amount schema migrations complete")
+        dosingSchemaLog.info("Dosing amount schema migrations complete")
     }
     
     private func createDosingTables() {
@@ -144,7 +147,7 @@ extension EventStorage {
                     // Only log if it's not an "already exists" error
                     let error = String(cString: errMsg)
                     if !error.contains("already exists") {
-                        print("⚠️ Dosing schema warning: \(error)")
+                        dosingSchemaLog.warning("Dosing schema warning: \(error, privacy: .public)")
                     }
                     sqlite3_free(errMsg)
                 }
@@ -220,7 +223,7 @@ extension EventStorage {
         }
         
         if sqlite3_step(stmt) != SQLITE_DONE {
-            print("❌ Failed to insert regimen: \(String(cString: sqlite3_errmsg(db)))")
+            dosingSchemaLog.error("Failed to insert regimen: \(String(cString: sqlite3_errmsg(db)), privacy: .public)")
         }
     }
     
@@ -391,7 +394,7 @@ extension EventStorage {
         }
         
         if sqlite3_step(stmt) != SQLITE_DONE {
-            print("❌ Failed to insert dose bundle: \(String(cString: sqlite3_errmsg(db)))")
+            dosingSchemaLog.error("Failed to insert dose bundle: \(String(cString: sqlite3_errmsg(db)), privacy: .public)")
         }
     }
     
@@ -496,7 +499,7 @@ extension EventStorage {
         
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            print("❌ Failed to prepare dose event insert: \(String(cString: sqlite3_errmsg(db)))")
+            dosingSchemaLog.error("Failed to prepare dose event insert: \(String(cString: sqlite3_errmsg(db)), privacy: .public)")
             return
         }
         defer { sqlite3_finalize(stmt) }
@@ -554,7 +557,7 @@ extension EventStorage {
         sqlite3_bind_int(stmt, 14, event.isHazard ? 1 : 0)
         
         if sqlite3_step(stmt) != SQLITE_DONE {
-            print("❌ Failed to insert dose event: \(String(cString: sqlite3_errmsg(db)))")
+            dosingSchemaLog.error("Failed to insert dose event: \(String(cString: sqlite3_errmsg(db)), privacy: .public)")
         }
     }
     
