@@ -259,7 +259,8 @@ public class DoseTapCore: ObservableObject {
     }
 }
 
-// MARK: - Mock Transport for Development
+// MARK: - Mock Transport for Development (DEBUG only)
+#if DEBUG
 struct MockAPITransport: APITransport {
     func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         // Return mock success response
@@ -272,4 +273,5 @@ struct MockAPITransport: APITransport {
         return (Data(), response)
     }
 }
-#endif
+#endif // DEBUG
+#endif // canImport(SwiftUI)

@@ -83,9 +83,10 @@ public final class SecureConfig {
         #if DEBUG
         return Secrets.whoopClientSecret
         #else
-        // In release builds, log warning if falling back to hardcoded
-        logSecurityWarning("WHOOP client secret not found in Keychain or environment")
-        return Secrets.whoopClientSecret
+        // In release builds, NEVER fall through to hardcoded Secrets.swift.
+        // Return empty string and let isConfigured gate API calls.
+        logSecurityWarning("WHOOP client secret not found in Keychain or environment — configure before release")
+        return ""
         #endif
     }
     

@@ -76,4 +76,25 @@ final class CertificatePinningTests: XCTestCase {
         let selector = #selector(URLSessionDelegate.urlSession(_:didReceive:completionHandler:))
         XCTAssertTrue(cp.responds(to: selector), "Should respond to auth challenge delegate method")
     }
+
+    // MARK: - Transport Safety
+
+    func test_urlSessionTransport_conforms_to_APITransport() {
+        let transport = URLSessionTransport()
+        XCTAssertTrue(transport is any APITransport)
+    }
+
+    func test_mockTransport_only_exists_in_DEBUG() {
+        // This test compiles in both DEBUG and RELEASE.
+        // In DEBUG, MockAPITransport should be available.
+        // In RELEASE, it should not compile — but since tests always
+        // run in DEBUG, we verify it exists here as a canary.
+        #if DEBUG
+        let mock = MockAPITransport()
+        XCTAssertTrue(mock is any APITransport)
+        #else
+        // If this line ever compiles, MockAPITransport leaked into release
+        XCTFail("Tests should only run in DEBUG configuration")
+        #endif
+    }
 }

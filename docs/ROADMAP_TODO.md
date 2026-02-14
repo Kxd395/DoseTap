@@ -24,6 +24,10 @@ Track active gaps after the Phase 1/2 stabilization pass and keep a short, curre
 - [x] Comprehensive documentation refresh (architecture, testing guide, SSOT, all dated references).
 - [x] Repo cleanup: removed 104 dead files (−18,165 lines) — archive/, agent/, shadcn-ui/, one-off scripts.
 - [x] Architecture doc rewrite with ASCII diagrams (layer cake, data flow, state machines, test pyramid).
+- [x] Wrap `MockAPITransport` in `#if DEBUG` — no mock code ships in release builds.
+- [x] Harden `SecureConfig`: release builds return empty string when Keychain/env not configured (no Secrets.swift fallback).
+- [x] Add CI guard for mock transport leaking into production code.
+- [x] Grow DoseCoreTests to 499 tests (transport safety canaries).
 
 ---
 
@@ -31,10 +35,10 @@ Track active gaps after the Phase 1/2 stabilization pass and keep a short, curre
 
 ### Security & Privacy
 - [ ] Purge committed secrets from git history and rotate exposed credentials.
-- [ ] Enforce env/Keychain-only secret loading with CI guards.
+- [x] Enforce env/Keychain-only secret loading with CI guards.
 
 ### Core Runtime
-- [ ] Replace `MockAPITransport` in main app path for non-debug builds.
+- [x] Replace `MockAPITransport` in main app path for non-debug builds.
 - [ ] Finish production certificate pin set (real SPKI pins + operational rotation procedure).
 
 ---

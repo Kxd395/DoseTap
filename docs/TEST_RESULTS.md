@@ -9,8 +9,8 @@ Run on: macOS (arm64e-apple-macos14.0), Swift Package Manager
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│  497 tests executed, 0 failures, 0 unexpected       │
-│  Duration: 3.064 seconds (wall: 3.150s)             │
+│  499 tests executed, 0 failures, 0 unexpected       │
+│  Duration: 3.799 seconds (wall: 4.078s)             │
 │  36 test suites, all passing                        │
 └─────────────────────────────────────────────────────┘
 ```
@@ -104,14 +104,14 @@ Diagnostics & Compliance ████████████           6 suites
 | DoseTapTests (Xcode) | `ios/DoseTapTests/` (11 files) | ~134 | `xcodebuild test` |
 | DoseTapUITests (XCUITest) | `ios/DoseTapUITests/` (2 files) | 12 | `xcodebuild test` |
 
-**Grand total across all targets: 643+ automated tests.**
+**Grand total across all targets: 645+ automated tests.**
 
 ---
 
 ## How to Run
 
 ```bash
-# SwiftPM (primary — 497 tests)
+# SwiftPM (primary — 499 tests)
 swift test -q
 
 # Xcode unit tests
@@ -135,4 +135,4 @@ xcodebuild test -project ios/DoseTap.xcodeproj -scheme DoseTapUITests \
 | 2026-01-19 | 296 | Initial audit (all passing) |
 | 2026-02-09 | 356 | 60 new tests across 3 files |
 | 2026-02-12 | 497 | 7 new test files for untested modules |
-| 2026-02-13 | 497 | Post-cleanup verification (all passing) |
+| 2026-02-13 | 499 | Transport safety + SecureConfig hardening |

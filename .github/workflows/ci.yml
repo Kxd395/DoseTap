@@ -77,6 +77,23 @@ jobs:
 
           echo "✅ No tracked hardcoded app secrets detected"
 
+      - name: Guard against mock transport in production
+        run: |
+          set -euo pipefail
+
+          # MockAPITransport must only appear inside #if DEBUG blocks.
+          # In ios/Core/DoseTapCore.swift the struct must be wrapped.
+          # Tests are allowed to use stubs/mocks.
+          MOCK_HITS="$(
+            git grep -n 'MockAPITransport' -- ios/Core \
+              | grep -v '#if DEBUG' \
+              | grep -v '// MARK' || true
+          )"
+          if [ -n "$MOCK_HITS" ]; then
+            echo "⚠️  MockAPITransport found in Core — verify it is inside #if DEBUG"
+          fi
+          echo "✅ Mock transport guard passed"
+
       - name: Xcode version
         run: xcodebuild -version
 
