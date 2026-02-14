@@ -10,6 +10,7 @@ Last updated: 2026-02-13
 - Diagnostic logging: `docs/DIAGNOSTIC_LOGGING.md`
 - Session trace guide: `docs/HOW_TO_READ_A_SESSION_TRACE.md`
 - Testing guide: `docs/TESTING_GUIDE.md`
+- Test results: `docs/TEST_RESULTS.md`
 - Architecture overview: `docs/architecture.md`
 - Branch protection: `docs/BRANCH_PROTECTION.md`
 

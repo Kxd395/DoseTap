@@ -39,6 +39,7 @@ This file is a pointer map for the SSOT. The canonical spec lives in `docs/SSOT/
 - Project README: `README.md`
 - Architecture overview: `docs/architecture.md`
 - Testing guide: `docs/TESTING_GUIDE.md`
+- Test results: `docs/TEST_RESULTS.md`
 - Feature triage: `docs/FEATURE_TRIAGE.md`
 - Production readiness: `docs/PRODUCTION_READINESS_CHECKLIST.md`
 

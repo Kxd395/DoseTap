@@ -22,6 +22,8 @@ Track active gaps after the Phase 1/2 stabilization pass and keep a short, curre
 - [x] Grow DoseCoreTests from 296 → 497 tests across 29 test files (7 new test files for untested modules).
 - [x] CI governance: 3 workflows (ci.yml, ci-swift.yml, ci-docs.yml) + branch protection on main.
 - [x] Comprehensive documentation refresh (architecture, testing guide, SSOT, all dated references).
+- [x] Repo cleanup: removed 104 dead files (−18,165 lines) — archive/, agent/, shadcn-ui/, one-off scripts.
+- [x] Architecture doc rewrite with ASCII diagrams (layer cake, data flow, state machines, test pyramid).
 
 ---
 
