@@ -24,18 +24,30 @@ if ! env -u SDKROOT -u MACOSX_DEPLOYMENT_TARGET -u IPHONEOS_DEPLOYMENT_TARGET -u
 fi
 echo "  ✅ SwiftPM build OK"
 
-# ─── 2. No print() in ios/Core/ (production code) ───────────────
+# ─── 2. print() policy checks ────────────────────────────────────
 if command -v rg >/dev/null 2>&1; then
-  PRINT_VIOLATIONS=$(rg -n 'print\(' ios/Core --glob '*.swift' || true)
+  CORE_PRINT_VIOLATIONS=$(rg -n '\bprint\s*\(' ios/Core --glob '*.swift' || true)
+  APP_PRINT_VIOLATIONS=$(rg -n '\bprint\s*\(' ios/DoseTap --glob '*.swift' \
+    --glob '!ios/DoseTap/Security/SecureLogger.swift' \
+    || true)
 else
-  PRINT_VIOLATIONS=$(grep -rn 'print(' ios/Core --include='*.swift' || true)
+  CORE_PRINT_VIOLATIONS=$(grep -rn 'print(' ios/Core --include='*.swift' || true)
+  APP_PRINT_VIOLATIONS=$(grep -rn 'print(' ios/DoseTap --include='*.swift' \
+    --exclude='SecureLogger.swift' \
+    || true)
 fi
-if [ -n "$PRINT_VIOLATIONS" ]; then
+if [ -n "$CORE_PRINT_VIOLATIONS" ]; then
   echo "❌ FAIL: print() found in ios/Core — use os.Logger instead:"
-  echo "$PRINT_VIOLATIONS"
+  echo "$CORE_PRINT_VIOLATIONS"
   exit 1
 fi
 echo "  ✅ No print() in DoseCore"
+if [ -n "$APP_PRINT_VIOLATIONS" ]; then
+  echo "❌ FAIL: print() found in ios/DoseTap — use os.Logger instead:"
+  echo "$APP_PRINT_VIOLATIONS"
+  exit 1
+fi
+echo "  ✅ No print() in ios/DoseTap"
 
 # ─── 3. File size warning (>2000 lines) ─────────────────────────
 LARGE_FILES=$(find ios/ -name "*.swift" -exec awk 'END{if(NR>2000) print FILENAME": "NR" lines"}' {} \; 2>/dev/null || true)

@@ -126,6 +126,21 @@ jobs:
           fi
           echo "✅ No print() in ios/Core"
 
+      - name: Check for any print() in ios/DoseTap
+        run: |
+          set -euo pipefail
+          echo "🔍 Checking for print() in ios/DoseTap..."
+          VIOLATIONS="$(rg -n '\bprint\s*\(' ios/DoseTap --glob '*.swift' \
+            --glob '!ios/DoseTap/Security/SecureLogger.swift' \
+            || true)"
+          if [ -n "$VIOLATIONS" ]; then
+            echo "❌ FAIL: print() found in ios/DoseTap (use os.Logger instead):"
+            echo ""
+            printf "%s\n" "$VIOLATIONS"
+            exit 1
+          fi
+          echo "✅ No print() in ios/DoseTap"
+
   xcode-build:
     name: Xcode iOS Build
     runs-on: macos-14
