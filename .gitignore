@@ -38,9 +38,9 @@ ios/DoseTapProject/
 ios/DoseTapNative/
 ios/TestBuild.swift
 
-# Added by ggshield
-.cache_ggshield
-
 # One-off project fix scripts
 ios/*.py
 ios/*.sh
+
+# Added by ggshield
+.cache_ggshield
