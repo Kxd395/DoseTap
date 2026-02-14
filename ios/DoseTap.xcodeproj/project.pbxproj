@@ -54,6 +54,9 @@
 		ESB003 /* EventStorage+Exports.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF003 /* EventStorage+Exports.swift */; };
 		ESB004 /* EventStorage+EventStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF004 /* EventStorage+EventStore.swift */; };
 		ESB005 /* StorageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF005 /* StorageModels.swift */; };
+		ESB006 /* EventStorage+Dose.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF006 /* EventStorage+Dose.swift */; };
+		ESB007 /* EventStorage+CheckIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF007 /* EventStorage+CheckIn.swift */; };
+		ESB008 /* EventStorage+Maintenance.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF008 /* EventStorage+Maintenance.swift */; };
 		EVT001 /* EventType.swift in Sources */ = {isa = PBXBuildFile; fileRef = EVT002 /* EventType.swift */; };
 		F3296BD6A65A57599A202642 /* InputValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1CBF59D219929011DD8A4A8 /* InputValidator.swift */; };
 		F94248D37BBE47A5A2E90C9B /* PreSleepLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE3796A887B24D9FBBD40758 /* PreSleepLogView.swift */; };
@@ -165,6 +168,9 @@
 		ESF003 /* EventStorage+Exports.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+Exports.swift"; sourceTree = "<group>"; };
 		ESF004 /* EventStorage+EventStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+EventStore.swift"; sourceTree = "<group>"; };
 		ESF005 /* StorageModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageModels.swift; sourceTree = "<group>"; };
+		ESF006 /* EventStorage+Dose.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+Dose.swift"; sourceTree = "<group>"; };
+		ESF007 /* EventStorage+CheckIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+CheckIn.swift"; sourceTree = "<group>"; };
+		ESF008 /* EventStorage+Maintenance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+Maintenance.swift"; sourceTree = "<group>"; };
 		EVT002 /* EventType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventType.swift; sourceTree = "<group>"; };
 		F3CED6FC4A7543E68CDF0BA0 /* TimeZoneMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeZoneMonitor.swift; sourceTree = "<group>"; };
 		F90DAD707525490DB491F5EA /* CSVExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVExporter.swift; sourceTree = "<group>"; };
@@ -377,6 +383,9 @@
 				ESF003 /* EventStorage+Exports.swift */,
 				ESF004 /* EventStorage+EventStore.swift */,
 				ESF005 /* StorageModels.swift */,
+				ESF006 /* EventStorage+Dose.swift */,
+				ESF007 /* EventStorage+CheckIn.swift */,
+				ESF008 /* EventStorage+Maintenance.swift */,
 				64641673735B464BB4E4B02F /* SessionRepository.swift */,
 				6CFBD921F6074479AF4FF155 /* JSONMigrator.swift */,
 				FCC2762A054AE377C80CF2B0 /* EncryptedEventStorage.swift */,
@@ -590,6 +599,9 @@
 				ESB003 /* EventStorage+Exports.swift in Sources */,
 				ESB004 /* EventStorage+EventStore.swift in Sources */,
 				ESB005 /* StorageModels.swift in Sources */,
+				ESB006 /* EventStorage+Dose.swift in Sources */,
+				ESB007 /* EventStorage+CheckIn.swift in Sources */,
+				ESB008 /* EventStorage+Maintenance.swift in Sources */,
 				92518D93643945F4B64E860F /* SessionRepository.swift in Sources */,
 				D8746EA078A54AF7A8CE92B3 /* MorningCheckInView.swift in Sources */,
 				F94248D37BBE47A5A2E90C9B /* PreSleepLogView.swift in Sources */,
