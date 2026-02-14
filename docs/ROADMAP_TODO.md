@@ -66,7 +66,7 @@ Track active gaps after the Phase 1/2 stabilization pass and keep a short, curre
 
 ### Integrations
 - [x] Consolidate duplicate HealthKit/WHOOP service paths to one source of truth. — **Fixed 2026-02-14 (93c443a):** deleted dead `WHOOPManager` (`WHOOP.swift`, −704 lines). `WHOOPService.swift` is the sole WHOOP path.
-- [ ] Complete WHOOP OAuth + production API path with resilient retry/error handling. *(WHOOPService.isEnabled = false; awaiting WHOOP developer credentials.)*
+- [ ] Complete WHOOP OAuth + production API path with resilient retry/error handling. *(Code hardened 2026-02-14: added retry with exponential backoff, os.Logger, 429/5xx resilience. Blocked on WHOOP developer credentials. See `docs/WHOOP_INTEGRATION.md` for enablement steps.)*
 
 ---
 

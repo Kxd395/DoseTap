@@ -3,6 +3,7 @@ import Combine
 import SwiftUI
 import AuthenticationServices
 import Security
+import os
 
 /// WHOOP Integration Service for sleep and recovery data
 /// Implements OAuth 2.0 authorization flow and API data fetching
@@ -14,6 +15,8 @@ final class WHOOPService: NSObject, ObservableObject {
     
     static let shared = WHOOPService()
     static let isEnabled: Bool = false  // Disabled by default until hardened
+    
+    private static let logger = Logger(subsystem: "com.dosetap", category: "WHOOP")
     
     // MARK: - Configuration
     
@@ -71,6 +74,7 @@ final class WHOOPService: NSObject, ObservableObject {
     
     /// Start OAuth authorization flow
     func authorize() async throws {
+        Self.logger.info("Starting WHOOP OAuth authorization")
         isLoading = true
         lastError = nil
         
@@ -145,6 +149,7 @@ final class WHOOPService: NSObject, ObservableObject {
     
     /// Disconnect and clear tokens
     func disconnect() {
+        Self.logger.info("Disconnecting WHOOP — clearing tokens")
         clearTokensFromKeychain()
         accessToken = nil
         refreshToken = nil
@@ -231,6 +236,7 @@ final class WHOOPService: NSObject, ObservableObject {
         guard let httpResponse = response as? HTTPURLResponse,
               (200..<300).contains(httpResponse.statusCode) else {
             // Refresh token invalid - disconnect
+            Self.logger.warning("WHOOP token refresh failed — disconnecting")
             disconnect()
             throw WHOOPError.refreshFailed
         }
@@ -246,8 +252,8 @@ final class WHOOPService: NSObject, ObservableObject {
     
     // MARK: - API Requests
     
-    /// Make authenticated API request
-    func apiRequest<T: Decodable>(_ endpoint: String, type: T.Type) async throws -> T {
+    /// Make authenticated API request with resilient retry
+    func apiRequest<T: Decodable>(_ endpoint: String, type: T.Type, maxRetries: Int = 2) async throws -> T {
         try await refreshTokenIfNeeded()
         
         guard let token = accessToken else {
@@ -257,25 +263,57 @@ final class WHOOPService: NSObject, ObservableObject {
         var request = URLRequest(url: URL(string: "\(Config.apiHostname)\(endpoint)")!)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw WHOOPError.invalidResponse
-        }
-        
-        guard (200..<300).contains(httpResponse.statusCode) else {
-            if httpResponse.statusCode == 401 {
-                disconnect()
-                throw WHOOPError.notAuthenticated
+        var lastError: Error = WHOOPError.invalidResponse
+        for attempt in 0...maxRetries {
+            if attempt > 0 {
+                // Exponential backoff: 1s, 2s
+                let delay = UInt64(pow(2.0, Double(attempt - 1))) * 1_000_000_000
+                try await Task.sleep(nanoseconds: delay)
+                Self.logger.info("WHOOP API retry attempt \(attempt) for \(endpoint, privacy: .public)")
             }
-            throw WHOOPError.httpError(httpResponse.statusCode)
+            
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
+                
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    throw WHOOPError.invalidResponse
+                }
+                
+                guard (200..<300).contains(httpResponse.statusCode) else {
+                    if httpResponse.statusCode == 401 {
+                        Self.logger.warning("WHOOP 401 — disconnecting")
+                        disconnect()
+                        throw WHOOPError.notAuthenticated
+                    }
+                    if httpResponse.statusCode == 429 || (500..<600).contains(httpResponse.statusCode) {
+                        // Retryable errors
+                        Self.logger.warning("WHOOP \(httpResponse.statusCode) — will retry")
+                        lastError = WHOOPError.httpError(httpResponse.statusCode)
+                        continue
+                    }
+                    throw WHOOPError.httpError(httpResponse.statusCode)
+                }
+                
+                let decoder = JSONDecoder()
+                decoder.keyDecodingStrategy = .convertFromSnakeCase
+                decoder.dateDecodingStrategy = .iso8601
+                
+                Self.logger.debug("WHOOP API success: \(endpoint, privacy: .public)")
+                return try decoder.decode(T.self, from: data)
+            } catch let error as WHOOPError {
+                throw error  // Don't retry auth/client errors
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                // Network errors are retryable
+                Self.logger.warning("WHOOP network error: \(error.localizedDescription, privacy: .public)")
+                lastError = error
+                continue
+            }
         }
         
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        decoder.dateDecodingStrategy = .iso8601
-        
-        return try decoder.decode(T.self, from: data)
+        Self.logger.error("WHOOP API failed after \(maxRetries + 1) attempts: \(endpoint, privacy: .public)")
+        throw lastError
     }
     
     /// Fetch user profile
