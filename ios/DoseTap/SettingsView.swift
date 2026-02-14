@@ -12,6 +12,8 @@ struct SettingsView: View {
     @State private var showingResetConfirmation = false
     @State private var showingExportSuccess = false
     @State private var showingExportSheet = false
+    @State private var showingExportError = false
+    @State private var exportErrorMessage = ""
     @State private var exportURL: URL?
     @ObservedObject private var urlRouter = URLRouter.shared
     @ObservedObject private var sleepPlanStore = SleepPlanStore.shared
@@ -388,6 +390,12 @@ struct SettingsView: View {
         } message: {
             Text("Your data has been exported to the Files app.")
         }
+        .alert("Export Failed", isPresented: $showingExportError) {
+            Button("Try Again") { exportData() }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Could not export your data: \(exportErrorMessage). Check available storage and try again.")
+        }
         .sheet(isPresented: $showingExportSheet) {
             if let url = exportURL {
                 ActivityViewController(activityItems: [url])
@@ -576,6 +584,8 @@ struct SettingsView: View {
             settingsLog.info("Export file created: \(fileURL.lastPathComponent, privacy: .private)")
         } catch {
             settingsLog.error("Failed to create export file: \(error.localizedDescription, privacy: .public)")
+            exportErrorMessage = error.localizedDescription
+            showingExportError = true
         }
     }
     
