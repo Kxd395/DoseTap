@@ -33,6 +33,7 @@ Track active gaps after the Phase 1/2 stabilization pass and keep a short, curre
 - [x] Fix 3 CI failures: Storage Enforcement Guard (EventStorage.shared in SupportBundleExporter), tab split-brain script path (test file moved), non-existent grep target.
 - [x] Extract real SPKI pins from live `api.dosetap.com` — leaf + intermediate CA. Create operational rotation runbook (`docs/CERTIFICATE_PINNING.md`).
 - [x] Remove 13 empty dead files (10 `.swift` emptied during prior refactoring, 3 `.md` docs). No pbxproj impact — none were referenced.
+- [x] Fix `Build & Test` CI job: align with proven `ci.yml` pattern (strip SDKROOT/deployment target env vars, use `macos-latest` runner, parallel tests, tee log output).
 
 ---
 

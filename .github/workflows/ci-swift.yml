@@ -9,36 +9,39 @@ on:
 jobs:
   build-and-test:
     name: Build & Test
-    runs-on: macos-14
+    runs-on: macos-latest
     
     steps:
       - name: Checkout
         uses: actions/checkout@v4
       
-      - name: Select Xcode
-        run: |
-          set -euo pipefail
-          if [ -d /Applications/Xcode_15.4.app/Contents/Developer ]; then
-            sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
-          else
-            echo "Xcode 15.4 not found on runner; using default selected Xcode."
-          fi
-          xcodebuild -version
-      
       - name: Show Swift Version
         run: swift --version
       
       - name: Build
-        run: swift build -v
+        run: |
+          set -euo pipefail
+          env -u SDKROOT -u MACOSX_DEPLOYMENT_TARGET -u IPHONEOS_DEPLOYMENT_TARGET \
+              -u WATCHOS_DEPLOYMENT_TARGET -u TVOS_DEPLOYMENT_TARGET \
+              swift build -v
       
       - name: Run Tests
-        run: swift test -v
+        run: |
+          set -euo pipefail
+          env -u SDKROOT -u MACOSX_DEPLOYMENT_TARGET -u IPHONEOS_DEPLOYMENT_TARGET \
+              -u WATCHOS_DEPLOYMENT_TARGET -u TVOS_DEPLOYMENT_TARGET \
+              swift test --parallel -v 2>&1 | tee "$RUNNER_TEMP/swiftpm-ci-swift.log"
       
       - name: Test Summary
         if: always()
         run: |
           echo "### Test Results" >> $GITHUB_STEP_SUMMARY
-          swift test 2>&1 | grep -E "Executed|passed|failed" | tail -3 >> $GITHUB_STEP_SUMMARY
+          LOG="$RUNNER_TEMP/swiftpm-ci-swift.log"
+          if [ -f "$LOG" ]; then
+            grep -E "Executed|passed|failed" "$LOG" | tail -5 >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No test log found — tests may have failed to start." >> $GITHUB_STEP_SUMMARY
+          fi
 
   storage-enforcement:
     name: Storage Enforcement Guard
