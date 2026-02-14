@@ -1,6 +1,6 @@
 # DoseTap Documentation Index
 
-Last updated: 2026-02-09
+Last updated: 2026-02-13
 
 ## Canonical Docs
 
@@ -10,6 +10,8 @@ Last updated: 2026-02-09
 - Diagnostic logging: `docs/DIAGNOSTIC_LOGGING.md`
 - Session trace guide: `docs/HOW_TO_READ_A_SESSION_TRACE.md`
 - Testing guide: `docs/TESTING_GUIDE.md`
+- Architecture overview: `docs/architecture.md`
+- Branch protection: `docs/BRANCH_PROTECTION.md`
 
 ## Plans
 
@@ -17,7 +19,13 @@ Last updated: 2026-02-09
 - Docs + SSOT refresh plan: `docs/PLAN_DOCS_AND_SSOT_REFRESH.md`
 - Active roadmap/todo: `docs/ROADMAP_TODO.md`
 
+## Operations
+
+- Production readiness checklist: `docs/PRODUCTION_READINESS_CHECKLIST.md`
+- Release checklist: `docs/RELEASE_CHECKLIST.md`
+- TestFlight guide: `docs/TESTFLIGHT_GUIDE.md`
+
 ## Reference
 
-- Architecture overview: `docs/architecture.md`
 - Feature triage: `docs/FEATURE_TRIAGE.md`
+- Privacy policy: `docs/privacy-policy.html`

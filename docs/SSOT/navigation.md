@@ -1,5 +1,7 @@
 # DoseTap SSOT Navigation
 
+Last updated: 2026-02-13
+
 This file is a pointer map for the SSOT. The canonical spec lives in `docs/SSOT/README.md`.
 
 ## Quick Links
@@ -12,6 +14,19 @@ This file is a pointer map for the SSOT. The canonical spec lives in `docs/SSOT/
 - Storage and persistence: `docs/SSOT/README.md` (Storage and Persistence Truth)
 - HealthKit model: `docs/SSOT/README.md` (HealthKit Interaction Diagram)
 
+## Key Source Files
+
+- Dose button actions: `ios/DoseTap/Views/CompactDoseButton.swift`
+- Tonight tab: `ios/DoseTap/Views/TonightView.swift`
+- Quick log grid: `ios/DoseTap/Views/QuickEventViews.swift`
+- Event logger: `ios/DoseTap/EventLogger.swift`
+- Session repository: `ios/DoseTap/Storage/SessionRepository.swift`
+- Storage core: `ios/DoseTap/Storage/EventStorage.swift` (+ 7 extensions)
+- Dose storage: `ios/DoseTap/Storage/EventStorage+Dose.swift`
+- Check-in storage: `ios/DoseTap/Storage/EventStorage+CheckIn.swift`
+- Domain core: `ios/Core/DoseTapCore.swift`
+- Window calculator: `ios/Core/DoseWindowState.swift`
+
 ## Related Canonical Docs
 
 - Database schema: `docs/DATABASE_SCHEMA.md`
@@ -23,5 +38,7 @@ This file is a pointer map for the SSOT. The canonical spec lives in `docs/SSOT/
 
 - Project README: `README.md`
 - Architecture overview: `docs/architecture.md`
+- Testing guide: `docs/TESTING_GUIDE.md`
 - Feature triage: `docs/FEATURE_TRIAGE.md`
+- Production readiness: `docs/PRODUCTION_READINESS_CHECKLIST.md`
 

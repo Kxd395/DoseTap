@@ -1,13 +1,15 @@
 # DoseTap SSOT (Single Source of Truth)
 
-Last updated: 2026-01-14
-Version: 3.0.0
+Last updated: 2026-02-13
+Version: 3.1.0
 
 This document is the authoritative specification for the current DoseTap behavior. It describes what the code does today. If code and this SSOT diverge, the SSOT must be updated to match the code.
 
 ## Canonical References
 
 - Code entry points: `ios/DoseTap/Storage/SessionRepository.swift`, `ios/Core/DoseTapCore.swift`, `ios/DoseTap/ContentView.swift`
+- Views: `ios/DoseTap/Views/TonightView.swift`, `ios/DoseTap/Views/CompactDoseButton.swift`, `ios/DoseTap/Views/DetailsView.swift`
+- Storage: `ios/DoseTap/Storage/EventStorage.swift` + 7 extensions (`+Schema`, `+Session`, `+Exports`, `+EventStore`, `+Dose`, `+CheckIn`, `+Maintenance`)
 - Storage schema: `docs/DATABASE_SCHEMA.md`
 - Data dictionary: `docs/SSOT/contracts/DataDictionary.md`
 - Diagnostic logging: `docs/DIAGNOSTIC_LOGGING.md`
@@ -49,7 +51,7 @@ Safety constraints (authoritative):
 
 ### DoseEvent
 
-- Storage: `dose_events` table with `session_id` and `session_date`. See `EventStorage.saveDose1/saveDose2/saveDoseSkipped/saveSnooze`.
+- Storage: `dose_events` table with `session_id` and `session_date`. See `EventStorage+Dose.swift` for `saveDose1/saveDose2/saveDoseSkipped/saveSnooze`.
 - Event types (exact strings): `dose1`, `dose2`, `extra_dose`, `dose2_skipped`, `snooze`.
 - Dose index rule: `doseIndex = (count of dose events in session) + 1` where count includes `dose1`, `dose2`, `extra_dose` only.
 - Dose 2 late flag: `is_late = true` if `doseIndex == 2` and `timestamp > dose1 + maxInterval`.
@@ -60,14 +62,14 @@ Code references:
 - `SessionRepository.setDose1Time(_:)`
 - `SessionRepository.setDose2Time(_:isEarly:isExtraDose:)`
 - `SessionRepository.loadDoseEvents(sessionId:sessionDate:)`
-- `EventStorage.saveDose2(timestamp:isEarly:isExtraDose:isLate:sessionId:sessionDateOverride:)`
+- `EventStorage+Dose.saveDose2(timestamp:isEarly:isExtraDose:isLate:sessionId:sessionDateOverride:)`
 
 ### SleepEvent
 
 Sleep events are stored as free-form strings in `sleep_events.event_type`. The Quick Log buttons are the only authoritative source of event names for the app UI.
 
 - Storage: `sleep_events` table with `session_id` and `session_date`.
-- Inserted via `SessionRepository.insertSleepEvent(...)` (used by `EventLogger.logEvent(...)` in `ios/DoseTap/ContentView.swift`).
+- Inserted via `SessionRepository.insertSleepEvent(...)` (used by `EventLogger.logEvent(...)` in `ios/DoseTap/EventLogger.swift`).
 - There is no enforced canonical enum for UI event strings in the app target; `InputValidator` provides a whitelist for deep links only.
 
 Current Quick Log event names (from `UserSettingsManager.allAvailableEvents`):
@@ -206,10 +208,10 @@ Code references:
 Dose 1 example:
 
 ```
-CompactDoseButton.takeDose() (ios/DoseTap/ContentView.swift)
+CompactDoseButton.takeDose() (ios/DoseTap/Views/CompactDoseButton.swift)
   -> DoseTapCore.takeDose()
     -> SessionRepository.setDose1Time(_:) (ios/DoseTap/Storage/SessionRepository.swift)
-      -> EventStorage.saveDose1(...) (ios/DoseTap/Storage/EventStorage.swift)
+      -> EventStorage.saveDose1(...) (ios/DoseTap/Storage/EventStorage+Dose.swift)
       -> DiagnosticLogger.logDoseTaken(...) (ios/Core/DiagnosticLogger.swift)
       -> SessionRepository.sessionDidChange.send()
          -> UI redraw via Combine subscription
@@ -218,10 +220,10 @@ CompactDoseButton.takeDose() (ios/DoseTap/ContentView.swift)
 Dose 2 example:
 
 ```
-CompactDoseButton.takeDose2WithOverride() (ContentView)
+CompactDoseButton.takeDose2WithOverride() (ios/DoseTap/Views/CompactDoseButton.swift)
   -> DoseTapCore.takeDose(lateOverride: true)
     -> SessionRepository.setDose2Time(_:isEarly:isExtraDose:)
-      -> EventStorage.saveDose2(..., isLate: true)
+      -> EventStorage.saveDose2(..., isLate: true) (ios/DoseTap/Storage/EventStorage+Dose.swift)
       -> DiagnosticLogger.logDoseTaken(..., doseIndex: 2, isLate: true)
       -> sessionDidChange -> UI updates
 ```
@@ -229,8 +231,8 @@ CompactDoseButton.takeDose2WithOverride() (ContentView)
 Sleep event example:
 
 ```
-Quick Log button (ContentView)
-  -> EventLogger.logEvent(...)
+Quick Log button (ios/DoseTap/Views/QuickEventViews.swift)
+  -> EventLogger.logEvent(...) (ios/DoseTap/EventLogger.swift)
     -> SessionRepository.insertSleepEvent(...)
       -> EventStorage.insertSleepEvent(...)
       -> DiagnosticLogger.logSleepEventLogged(...)

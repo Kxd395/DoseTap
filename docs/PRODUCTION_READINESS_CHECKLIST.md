@@ -1,8 +1,8 @@
 # DoseTap Production Readiness Checklist
 
-**Date:** 2026-01-19  
-**Branch:** `003-timeline-refinements`  
-**Version:** 2.0.2
+**Date:** 2026-02-13  
+**Branch:** `004-dosing-amount-model`  
+**Version:** 2.1.0
 
 ---
 
@@ -17,9 +17,13 @@
 | **Dose duplication fix (new data)** | ✅ Done | ContentView no longer writes doses to sleep_events |
 | **iCloud toggle disabled** | ✅ Done | SetupWizardView toggle hidden |
 | **Privacy manifest added** | ✅ Done | `PrivacyInfo.xcprivacy` in bundle |
-| **SwiftPM build passes** | ✅ Done | 0 errors, 1 warning |
-| **277 unit tests pass** | ✅ Done | `swift test -q` |
+| **SwiftPM build passes** | ✅ Done | 0 errors, 0 warnings |
+| **497 SwiftPM unit tests pass** | ✅ Done | `swift test -q` (29 test files) |
+| **12 XCUITest smoke tests added** | ✅ Done | DoseTapUITests target |
 | **Xcode app build passes** | ✅ Done | BUILD SUCCEEDED |
+| **ContentView god file split** | ✅ Done | 2,850 → 228 lines, 8 extracted files |
+| **EventStorage god file split** | ✅ Done | 1,948 → 277 lines, 3 extension files |
+| **CI governance active** | ✅ Done | 3 workflows + branch protection |
 | **ios/build/ added to gitignore** | ✅ Done | Commit `ae4e7f1` |
 
 ### ⏳ PENDING VERIFICATION (Requires Runtime Testing)
@@ -131,7 +135,7 @@ EOF
 |----------|--------|
 | **Code changes committed** | ✅ Yes |
 | **Build passes** | ✅ Yes |
-| **Tests pass** | ✅ Yes (277) |
+| **Tests pass** | ✅ Yes (497 SwiftPM + 134 Xcode + 12 XCUITest) |
 | **Runtime verified** | ⏳ Pending (needs manual testing) |
 | **P0 issues resolved** | ⚠️ Partial (1 of 3 done) |
 | **P1 issues resolved** | 🔴 Not started |

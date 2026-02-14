@@ -1,6 +1,6 @@
 # DoseTap TODO + Feature Roadmap
 
-Last updated: 2026-02-09
+Last updated: 2026-02-13
 Owner: Product/Engineering
 
 ## Purpose
@@ -16,6 +16,12 @@ Track active gaps after the Phase 1/2 stabilization pass and keep a short, curre
 - [x] Add planner turnover setting (`After check-in, show upcoming night`) and wire planner key through Tonight-facing surfaces.
 - [x] Add weekly workday/off-day setup template for split schedules (including 3-day work week setups).
 - [x] Add theme-stable schedule picker UX (sheet-based wheel pickers) across Settings, Setup Wizard, and Weekly Schedule.
+- [x] Split `ContentView.swift` god file (2,850 → 228 lines) into 8 domain files: TonightView, CompactDoseButton, CompactStatusCard, SleepPlanCards, SessionSummaryViews, QuickEventViews, DetailsView, EventLogger.
+- [x] Split `EventStorage.swift` god file (1,948 → 277 lines) into 3 extension files: +Dose, +CheckIn, +Maintenance.
+- [x] Add `DoseTapUITests` XCUITest target with 12 smoke tests (launch, navigation, dose flow).
+- [x] Grow DoseCoreTests from 296 → 497 tests across 29 test files (7 new test files for untested modules).
+- [x] CI governance: 3 workflows (ci.yml, ci-swift.yml, ci-docs.yml) + branch protection on main.
+- [x] Comprehensive documentation refresh (architecture, testing guide, SSOT, all dated references).
 
 ---
 
