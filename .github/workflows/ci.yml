@@ -353,6 +353,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Run release preflight checks
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          bash tools/release_preflight.sh "$TAG"
+
       - name: Validate release certificate pins
         run: bash tools/validate_release_pins.sh
 

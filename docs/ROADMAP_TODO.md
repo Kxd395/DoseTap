@@ -1,6 +1,6 @@
 # DoseTap TODO + Feature Roadmap
 
-Last updated: 2026-02-15
+Last updated: 2026-02-14
 Owner: Product/Engineering
 
 ## Purpose
@@ -35,6 +35,13 @@ Track active gaps after the Phase 1/2 stabilization pass and keep a short, curre
 - [x] Remove 13 empty dead files (10 `.swift` emptied during prior refactoring, 3 `.md` docs). No pbxproj impact — none were referenced.
 - [x] Fix `Build & Test` CI job: align with proven `ci.yml` pattern (strip SDKROOT/deployment target env vars, use `macos-latest` runner, parallel tests, tee log output).
 - [x] Fix Xcode simulator tests CI: generate `Secrets.swift` stub from template on CI (file is `.gitignore`d but required by `.xcodeproj`). All 10/10 CI checks now green ✅.
+- [x] Audit and confirm one canonical settings flow (no duplicate settings surfaces).
+- [x] Normalize user-facing "HealthKit" → "Apple Health" in 6 UI files (693339e).
+- [x] Add export failure alerts with retry to `SettingsView` and `SupportBundleExportManager` (298967d).
+- [x] Remove dead `WHOOPManager` (`WHOOP.swift`, −704 lines) — zero callers, not in compile sources (93c443a).
+- [x] Document encrypted-at-rest decision: iOS Data Protection sufficient for v1 (`docs/SSOT/encryption-at-rest.md`).
+- [x] Add 26 session rollover regression tests: DST, timezone travel, leap year, nextRollover(), preSleepSessionKey (a330c66).
+- [x] Deduplicate `.gitignore` (ggshield entries, bc8fa6c).
 
 ---
 
@@ -53,24 +60,24 @@ Track active gaps after the Phase 1/2 stabilization pass and keep a short, curre
 ## P1 — High Priority
 
 ### UX / Product
-- [ ] Retire duplicate/legacy settings surfaces and keep one canonical settings flow.
-- [ ] Finish timeline terminology normalization and polish remaining low-signal cards.
-- [ ] Complete export failure UX for all code paths (alert + retry + reason).
+- [x] Retire duplicate/legacy settings surfaces and keep one canonical settings flow. — **Audited 2026-02-14: confirmed clean.** One canonical `SettingsView` with `NavigationLink`s to focused sub-views. No duplicates.
+- [x] Finish timeline terminology normalization and polish remaining low-signal cards. — **Fixed 2026-02-14 (693339e):** normalized "HealthKit" → "Apple Health" in 6 user-facing files.
+- [x] Complete export failure UX for all code paths (alert + retry + reason). — **Fixed 2026-02-14 (298967d):** error alerts with retry added to `SettingsView.exportData()` and `SupportBundleExportManager`.
 
 ### Integrations
-- [ ] Consolidate duplicate HealthKit/WHOOP service paths to one source of truth.
-- [ ] Complete WHOOP OAuth + production API path with resilient retry/error handling.
+- [x] Consolidate duplicate HealthKit/WHOOP service paths to one source of truth. — **Fixed 2026-02-14 (93c443a):** deleted dead `WHOOPManager` (`WHOOP.swift`, −704 lines). `WHOOPService.swift` is the sole WHOOP path.
+- [ ] Complete WHOOP OAuth + production API path with resilient retry/error handling. *(WHOOPService.isEnabled = false; awaiting WHOOP developer credentials.)*
 
 ---
 
 ## P2 — Medium Priority
 
 ### Data & Trust
-- [ ] Decide and document encrypted-at-rest storage requirement (SQLCipher or explicit non-goal).
-- [ ] Add regression coverage for remaining edge cases around session rollover + timezone + planner toggle interaction.
+- [x] Decide and document encrypted-at-rest storage requirement (SQLCipher or explicit non-goal). — **Documented 2026-02-14 (a330c66):** `docs/SSOT/encryption-at-rest.md` — iOS Data Protection sufficient for v1; SQLCipher optional for v2.
+- [x] Add regression coverage for remaining edge cases around session rollover + timezone + planner toggle interaction. — **Added 2026-02-14 (a330c66):** 26 tests in `SessionRolloverRegressionTests` covering DST, timezone travel, custom rollover hours, leap year, nextRollover(), preSleepSessionKey, dose window midnight spanning.
 
 ### Operations
-- [ ] Add release checklist enforcement for secret scanning + pin freshness checks.
+- [x] Add release checklist enforcement for secret scanning + pin freshness checks. — **Added 2026-02-14:** `tools/release_preflight.sh` (8 automated checks), CI runs on tag pushes, `RELEASE_CHECKLIST.md` updated with quick-start command.
 
 ---
 

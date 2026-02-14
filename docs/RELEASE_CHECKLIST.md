@@ -2,11 +2,27 @@
 
 Use this checklist before tagging any release. Every item must pass.
 
+## Quick Start — Automated Preflight
+
+Run the automated preflight script to verify all gate-able items at once:
+
+```bash
+bash tools/release_preflight.sh v1.2.3
+```
+
+This checks: tag format, SSOT integrity, no tracked secrets, no hardcoded credentials,
+certificate pin validation, mock transport confinement, CHANGELOG updated, SwiftPM
+build + tests. The same script runs on CI for tag pushes.
+
 ## Automated (CI must be green)
 
 - [ ] `ssot-lint` — SSOT integrity check passes (no drift between docs and code)
 - [ ] `swiftpm-tests` — All DoseCore unit tests pass (see CI output for current count)
 - [ ] `xcode-tests` — All SessionRepository and app-level tests pass
+- [ ] `release-pin-script-tests` — Pin validation script regression checks pass
+- [ ] `release-pinning-check` — (tag builds only) Release preflight + real pin validation + Release build
+- [ ] Secret scanning — No `Secrets.swift` tracked, no hardcoded credentials in source
+- [ ] Mock transport guard — `MockAPITransport` confined to `#if DEBUG`
 
 ## Manual Verification
 
