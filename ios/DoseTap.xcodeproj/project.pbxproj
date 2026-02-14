@@ -79,6 +79,12 @@
 		AD5F630A482E47B183CDE516 /* DetailsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D42A891F4758470783F7565F /* DetailsView.swift */; };
 		UI_B01 /* DoseTapUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI_F01 /* DoseTapUITests.swift */; };
 		UI_B02 /* DoseTapUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI_F02 /* DoseTapUITestsLaunchTests.swift */; };
+		SVS_BF01 /* HealthKitSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SVS_FR01 /* HealthKitSettingsView.swift */; };
+		SVS_BF02 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SVS_FR02 /* AboutView.swift */; };
+		SVS_BF03 /* EventCooldownSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SVS_FR03 /* EventCooldownSettingsView.swift */; };
+		SVS_BF04 /* DataManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SVS_FR04 /* DataManagementView.swift */; };
+		SVS_BF05 /* QuickLogCustomizationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SVS_FR05 /* QuickLogCustomizationView.swift */; };
+		SVS_BF06 /* SettingsHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = SVS_FR06 /* SettingsHelpers.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -202,6 +208,12 @@
 		UI_F01 /* DoseTapUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseTapUITests.swift; sourceTree = "<group>"; };
 		UI_F02 /* DoseTapUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseTapUITestsLaunchTests.swift; sourceTree = "<group>"; };
 		UI_PROD01 /* DoseTapUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DoseTapUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		SVS_FR01 /* HealthKitSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitSettingsView.swift; sourceTree = "<group>"; };
+		SVS_FR02 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
+		SVS_FR03 /* EventCooldownSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventCooldownSettingsView.swift; sourceTree = "<group>"; };
+		SVS_FR04 /* DataManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataManagementView.swift; sourceTree = "<group>"; };
+		SVS_FR05 /* QuickLogCustomizationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickLogCustomizationView.swift; sourceTree = "<group>"; };
+		SVS_FR06 /* SettingsHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsHelpers.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -299,6 +311,12 @@
 				6FEE161A09D6441A8D4448DA /* InsightsCalculator.swift */,
 				D049AFCF96FC4AFF9120309E /* Secrets.swift */,
 				B358CDCA949364F93BD996D6 /* SettingsView.swift */,
+				SVS_FR01 /* HealthKitSettingsView.swift */,
+				SVS_FR02 /* AboutView.swift */,
+				SVS_FR03 /* EventCooldownSettingsView.swift */,
+				SVS_FR04 /* DataManagementView.swift */,
+				SVS_FR05 /* QuickLogCustomizationView.swift */,
+				SVS_FR06 /* SettingsHelpers.swift */,
 				576700D19A9F4B35BA54 /* SleepPlanDetailView.swift */,
 				237C573EA83946FE8AFC /* DiagnosticLoggingSettingsView.swift */,
 				BACAE6FF95D948B09DD2 /* SleepPlanDetailView.swift */,
@@ -658,6 +676,12 @@
 				EDIT002 /* EditDoseTimeView.swift in Sources */,
 				0A777B0D5CC54803B060A980 /* UserSettingsManager.swift in Sources */,
 				626911F284B24C54BA73D7F8 /* SettingsView.swift in Sources */,
+				SVS_BF01 /* HealthKitSettingsView.swift in Sources */,
+				SVS_BF02 /* AboutView.swift in Sources */,
+				SVS_BF03 /* EventCooldownSettingsView.swift in Sources */,
+				SVS_BF04 /* DataManagementView.swift in Sources */,
+				SVS_BF05 /* QuickLogCustomizationView.swift in Sources */,
+				SVS_BF06 /* SettingsHelpers.swift in Sources */,
 				68B3DB1D97734922B659 /* SleepPlanDetailView.swift in Sources */,
 				1B86C969549644B2A31C /* DiagnosticLoggingSettingsView.swift in Sources */,
 				81A5CD7A3DD244DEB70FA0B2 /* EventStorage.swift in Sources */,
