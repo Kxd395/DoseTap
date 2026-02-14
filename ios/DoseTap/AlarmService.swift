@@ -3,6 +3,9 @@ import UserNotifications
 import AVFoundation
 import AudioToolbox
 import DoseCore
+import os.log
+
+private let alarmLog = Logger(subsystem: "com.dosetap.app", category: "AlarmService")
 
 /// Alarm service for scheduling and managing wake alarms
 /// Handles snooze functionality with proper notification rescheduling
@@ -90,7 +93,7 @@ public class AlarmService: NSObject, ObservableObject {
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.duckOthers])
             try AVAudioSession.sharedInstance().setActive(true)
         } catch {
-            print("⚠️ AlarmService: Failed to configure audio session: \(error)")
+            alarmLog.error("Failed to configure audio session: \(error.localizedDescription, privacy: .public)")
         }
     }
     
@@ -103,10 +106,10 @@ public class AlarmService: NSObject, ObservableObject {
                 ? [.alert, .sound, .badge, .criticalAlert]
                 : [.alert, .sound, .badge]
             let granted = try await notificationCenter.requestAuthorization(options: options)
-            print("✅ AlarmService: Notification permission \(granted ? "granted" : "denied")")
+            alarmLog.info("Notification permission \(granted ? "granted" : "denied", privacy: .public)")
             return granted
         } catch {
-            print("⚠️ AlarmService: Permission request failed: \(error)")
+            alarmLog.error("Permission request failed: \(error.localizedDescription, privacy: .public)")
             return false
         }
     }
@@ -137,7 +140,7 @@ public class AlarmService: NSObject, ObservableObject {
                 at: windowOpen,
                 sound: .default
             )
-            print("📅 AlarmService: Dose 2 window open reminder scheduled for \(formatTime(windowOpen))")
+            alarmLog.info("Dose 2 window reminder scheduled for \(self.formatTime(windowOpen), privacy: .private)")
         }
         
         // Schedule 15 min warning
@@ -175,7 +178,7 @@ public class AlarmService: NSObject, ObservableObject {
         notificationCenter.removePendingNotificationRequests(withIdentifiers: ids)
         notificationCenter.removeDeliveredNotifications(withIdentifiers: ids)
         reminderScheduled = false
-        print("🔕 AlarmService: Dose 2 reminders cancelled")
+        alarmLog.info("Dose 2 reminders cancelled")
         
         // Diagnostic logging: alarms cancelled
         let sessionId = SessionRepository.shared.currentSessionIdString()
@@ -204,7 +207,7 @@ public class AlarmService: NSObject, ObservableObject {
         
         // Validate wake time is in the future
         guard time > Date() else {
-            print("⚠️ AlarmService: Cannot schedule alarm in the past")
+            alarmLog.warning("Cannot schedule alarm in the past")
             clearWakeAlarmState()
             return
         }
@@ -258,7 +261,7 @@ public class AlarmService: NSObject, ObservableObject {
         alarmScheduled = true
         saveTargetWakeTime()
         
-        print("✅ AlarmService: Wake alarm scheduled for \(formatTime(time))")
+        alarmLog.info("Wake alarm scheduled for \(self.formatTime(time), privacy: .private)")
     }
     
     // MARK: - Snooze
@@ -269,19 +272,19 @@ public class AlarmService: NSObject, ObservableObject {
     public func snoozeAlarm(dose1Time: Date?) async -> Date? {
         let maxSnoozes = configuredMaxSnoozes
         guard maxSnoozes > 0 else {
-            print("⚠️ AlarmService: Snooze disabled (max snoozes set to 0)")
+            alarmLog.warning("Snooze disabled; max snoozes is 0")
             return nil
         }
         guard snoozeCount < maxSnoozes else {
-            print("⚠️ AlarmService: Max snoozes reached (\(maxSnoozes))")
+            alarmLog.warning("Max snoozes reached: \(maxSnoozes, privacy: .public)")
             return nil
         }
         guard let currentTarget = targetWakeTime, let d1 = dose1Time else {
-            print("⚠️ AlarmService: No alarm to snooze")
+            alarmLog.warning("No alarm to snooze")
             return nil
         }
         guard UserSettingsManager.shared.notificationsEnabled else {
-            print("⚠️ AlarmService: Snooze unavailable while notifications are disabled")
+            alarmLog.warning("Snooze unavailable while notifications are disabled")
             return nil
         }
         
@@ -292,19 +295,19 @@ public class AlarmService: NSObject, ObservableObject {
         let nearCloseThreshold = windowClose.addingTimeInterval(-15 * 60)
         
         if newTarget > nearCloseThreshold {
-            print("⚠️ AlarmService: Snooze would exceed near-close threshold")
+            alarmLog.warning("Snooze would exceed near-close threshold")
             return nil
         }
         
         // Schedule new alarm at snoozed time
         await scheduleWakeAlarm(at: newTarget, dose1Time: d1)
         guard targetWakeTime == newTarget && alarmScheduled else {
-            print("⚠️ AlarmService: Snooze reschedule failed")
+            alarmLog.error("Snooze reschedule failed")
             return nil
         }
         snoozeCount += 1
         
-        print("✅ AlarmService: Alarm snoozed +\(snoozeMinutes)min to \(formatTime(newTarget)) (snooze \(snoozeCount)/\(maxSnoozes))")
+        alarmLog.info("Alarm snoozed +\(snoozeMinutes, privacy: .public)m to \(self.formatTime(newTarget), privacy: .private) (snooze \(self.snoozeCount, privacy: .public)/\(maxSnoozes, privacy: .public))")
         
         return newTarget
     }
@@ -372,7 +375,7 @@ public class AlarmService: NSObject, ObservableObject {
         
         alarmScheduled = false
         reminderScheduled = false
-        print("🔕 AlarmService: All alarms cancelled")
+        alarmLog.info("All alarms cancelled")
     }
 
     /// Clear in-memory and persisted wake-alarm target state.
@@ -418,13 +421,13 @@ public class AlarmService: NSObject, ObservableObject {
         
         do {
             try await notificationCenter.add(request)
-            print("📅 AlarmService: Scheduled '\(id)' for \(formatTime(date))")
+            alarmLog.info("Scheduled \(id, privacy: .public) for \(self.formatTime(date), privacy: .private)")
             
             // Diagnostic logging: alarm scheduled
             let sessionId = SessionRepository.shared.currentSessionIdString()
             await DiagnosticLogger.shared.logAlarm(.alarmScheduled, sessionId: sessionId, alarmId: id)
         } catch {
-            print("⚠️ AlarmService: Failed to schedule notification: \(error)")
+            alarmLog.error("Failed to schedule notification: \(error.localizedDescription, privacy: .public)")
             
             // Diagnostic logging: notification error
             let sessionId = SessionRepository.shared.currentSessionIdString()
@@ -493,7 +496,7 @@ public class AlarmService: NSObject, ObservableObject {
         } catch {
             usesSystemSoundFallback = true
             AudioServicesPlaySystemSound(Self.fallbackAlarmSystemSoundID)
-            print("⚠️ AlarmService: Failed to play alarm sound: \(error)")
+            alarmLog.error("Failed to play alarm sound: \(error.localizedDescription, privacy: .public)")
         }
     }
 

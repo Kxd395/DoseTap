@@ -1,5 +1,8 @@
 import Foundation
 import Combine
+import os.log
+
+private let analyticsLog = Logger(subsystem: "com.dosetap.app", category: "AnalyticsService")
 
 /// Analytics Service for tracking user events and app metrics
 /// Dispatches events to configured providers (local storage, remote API)
@@ -252,7 +255,7 @@ final class AnalyticsService: ObservableObject {
         
         // Debug logging
         if debugLogging {
-            print("📊 Analytics: \(name.rawValue) - \(parameters)")
+            analyticsLog.debug("Event: \(name.rawValue, privacy: .public) - \(String(describing: parameters), privacy: .private)")
         }
         
         // Flush if queue is full
@@ -319,7 +322,7 @@ final class AnalyticsService: ObservableObject {
         }
         
         if debugLogging {
-            print("📊 Analytics: Flushed \(events.count) events")
+            analyticsLog.debug("Flushed \(events.count, privacy: .public) events")
         }
     }
     
@@ -339,7 +342,7 @@ protocol AnalyticsProvider {
 class ConsoleAnalyticsProvider: AnalyticsProvider {
     func send(events: [AnalyticsService.AnalyticsEvent]) {
         for event in events {
-            print("📊 [\(event.timestamp.formatted(date: .omitted, time: .shortened))] \(event.name)")
+            analyticsLog.debug("[\(event.timestamp.formatted(date: .omitted, time: .shortened), privacy: .private)] \(event.name, privacy: .public)")
         }
     }
 }
@@ -385,7 +388,7 @@ class LocalFileAnalyticsProvider: AnalyticsProvider {
             let data = try encoder.encode(events)
             try data.write(to: fileURL)
         } catch {
-            print("❌ AnalyticsService: Failed to save events: \(error)")
+            analyticsLog.error("Failed to save events: \(error.localizedDescription, privacy: .public)")
         }
     }
     

@@ -1,5 +1,8 @@
 import SwiftUI
 import DoseCore
+import os.log
+
+private let undoStateLog = Logger(subsystem: "com.dosetap.app", category: "UndoStateManager")
 
 // MARK: - Undo State Manager (Observable)
 /// Observable wrapper around DoseUndoManager for SwiftUI integration.
@@ -81,11 +84,11 @@ class UndoStateManager: ObservableObject {
                     #if DEBUG
                     switch result {
                     case .success(let action):
-                        Swift.print("✅ Undo successful: \(action)")
+                        undoStateLog.debug("Undo successful: \(String(describing: action), privacy: .private)")
                     case .expired:
-                        Swift.print("⏰ Undo window expired")
+                        undoStateLog.debug("Undo window expired")
                     case .noAction:
-                        Swift.print("⚠️ No action to undo")
+                        undoStateLog.debug("No action to undo")
                     }
                     #endif
                     

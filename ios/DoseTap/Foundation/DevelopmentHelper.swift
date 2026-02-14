@@ -1,6 +1,9 @@
 #if DEBUG
 import Foundation
 import CoreData
+import os.log
+
+private let developmentLog = Logger(subsystem: "com.dosetap.app", category: "DevelopmentHelper")
 
 struct DevelopmentHelper {
     static let isLocalDevelopment = Bundle.main.object(forInfoDictionaryKey: "LOCAL_ONLY") as? Bool ?? false
@@ -61,10 +64,10 @@ struct DevelopmentHelper {
         store.saveContext()
         
         if enableDebugLogging {
-            print("✅ Test data populated for local development")
-            print("   - Session: \(session.sessionID ?? "unknown")")
-            print("   - Dose 1 taken: \(session.dose1TakenUTC?.description ?? "none")")
-            print("   - Inventory: \(inventory.remainingDoses) doses remaining")
+            developmentLog.debug("Test data populated for local development")
+            developmentLog.debug("Session: \(session.sessionID ?? "unknown", privacy: .private)")
+            developmentLog.debug("Dose 1 taken: \(session.dose1TakenUTC?.description ?? "none", privacy: .private)")
+            developmentLog.debug("Inventory: \(inventory.remainingDoses, privacy: .public) doses remaining")
         }
     }
     
@@ -99,7 +102,7 @@ struct DevelopmentHelper {
             store.saveContext()
         } catch {
             if enableDebugLogging {
-                print("⚠️ Failed to clear test data: \(error)")
+                developmentLog.error("Failed to clear test data: \(error.localizedDescription, privacy: .public)")
             }
         }
     }
@@ -154,7 +157,7 @@ struct DevelopmentHelper {
             try await Task.sleep(for: .milliseconds(50))
             
             if enableDebugLogging {
-                print("🔄 Mock API: \(request.httpMethod ?? "GET") \(path)")
+                developmentLog.debug("Mock API: \(request.httpMethod ?? "GET", privacy: .public) \(path, privacy: .private)")
             }
             
             return (mockData, response)
@@ -165,7 +168,7 @@ struct DevelopmentHelper {
     
     static func debugLog(_ message: String, category: String = "DEBUG") {
         guard enableDebugLogging else { return }
-        print("[\(category)] \(message)")
+        developmentLog.debug("[\(category, privacy: .public)] \(message, privacy: .private)")
     }
     
     // MARK: - Development Menu Actions

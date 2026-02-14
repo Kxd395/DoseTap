@@ -216,7 +216,7 @@ class WHOOPManager {
                 }
             }
         } else {
-            print("WHOOP: iOS 15.0+ required for async operations")
+            whoopLog.warning("iOS 15.0+ required for async operations")
         }
         #endif
     }
@@ -412,11 +412,11 @@ class WHOOPManager {
                     return parseSingleSleepRecord(record)
                 }
             } else {
-                print("WHOOP: iOS 15.0+ required for async URLSession")
+                whoopLog.warning("iOS 15.0+ required for async URLSession")
             }
             #endif
         } catch {
-            print("WHOOP cycle sleep fetch error: \(error)")
+            whoopLog.error("Cycle sleep fetch error: \(error.localizedDescription, privacy: .public)")
         }
         return nil
     }
@@ -613,7 +613,7 @@ class WHOOPManager {
                 }
                 #endif
             } catch {
-                print("WHOOP metric fetch error for \(p): \(error)")
+                whoopLog.error("Metric fetch error for \(p, privacy: .public): \(error.localizedDescription, privacy: .public)")
             }
         }
         return nil
@@ -678,7 +678,7 @@ class WHOOPManager {
             }
             #endif
         } catch {
-            print("WHOOP configured metric fetch error for \(metricKey): \(error)")
+            whoopLog.error("Configured metric fetch error for \(metricKey, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
         return nil
     }

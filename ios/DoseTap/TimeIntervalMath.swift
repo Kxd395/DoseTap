@@ -1,4 +1,7 @@
 import Foundation
+import os.log
+
+private let timeMathLog = Logger(subsystem: "com.dosetap.app", category: "TimeIntervalMath")
 
 /// Shared helpers for time/interval math.
 ///
@@ -23,7 +26,7 @@ public enum TimeIntervalMath {
 
         // Non-rollover negative: log in debug but don't crash
         #if DEBUG
-        print("⚠️ TimeIntervalMath: Non-sensical interval \(delta) seconds (start=\(start), end=\(end))")
+        timeMathLog.warning("Non-sensical interval \(delta, privacy: .public)s (start=\(start, privacy: .private), end=\(end, privacy: .private))")
         #endif
         return Int(delta / 60)
     }

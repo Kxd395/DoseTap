@@ -192,7 +192,7 @@ public final class DatabaseSecurity {
     var stmt: OpaquePointer?
     if sqlite3_prepare_v2(db, "SELECT count(*) FROM sqlite_master", -1, &stmt, nil) == SQLITE_OK {
         if sqlite3_step(stmt) == SQLITE_ROW {
-            print("Database encrypted and accessible")
+            logger.info("Database encrypted and accessible")
         }
     }
     sqlite3_finalize(stmt)

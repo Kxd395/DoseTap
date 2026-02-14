@@ -1434,11 +1434,7 @@ extension PreSleepLogAnswers.SleepAid: DisplayTextProvider {}
 // MARK: - Preview
 #Preview {
     PreSleepLogView(
-        onComplete: { answers in
-            print("Completed with answers: \(answers)")
-        },
-        onSkip: {
-            print("Skipped")
-        }
+        onComplete: { _ in },
+        onSkip: {}
     )
 }

@@ -1,6 +1,9 @@
 // DoseTapApp_Simple.swift
 import SwiftUI
 import DoseCore
+import os.log
+
+private let appLifecycleLog = Logger(subsystem: "com.dosetap.app", category: "DoseTapApp")
 
 @main
 struct DoseTapApp: App {
@@ -20,7 +23,7 @@ struct DoseTapApp: App {
     
     init() {
         #if DEBUG
-        Swift.print("DoseTap app initialized (simplified)")
+        appLifecycleLog.debug("App initialized (simplified)")
         #endif
         Self.migrateSetupStateIfNeeded()
         
@@ -61,7 +64,7 @@ struct DoseTapApp: App {
                             // Handle deep links
                             let handled = urlRouter.handle(url)
                             #if DEBUG
-                            Swift.print("🔗 URL handled: \(handled)")
+                            appLifecycleLog.debug("URL handled: \(handled, privacy: .public)")
                             #endif
                         }
                         .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
@@ -126,7 +129,7 @@ struct DoseTapApp: App {
             Task { @MainActor in
                 if SessionRepository.shared.checkAndHandleExpiredSession() {
                     #if DEBUG
-                    Swift.print("😴 App: Auto-marked session as slept-through on foreground")
+                    appLifecycleLog.debug("Auto-marked session as slept-through on foreground")
                     #endif
                 }
             }
@@ -181,7 +184,7 @@ struct DoseTapApp: App {
             )
         }
         #if DEBUG
-        Swift.print("⏰ Timezone changed: \(oldTz.identifier) → \(newTz.identifier)")
+        appLifecycleLog.debug("Timezone changed: \(oldTz.identifier, privacy: .private) -> \(newTz.identifier, privacy: .private)")
         #endif
     }
     
@@ -197,7 +200,7 @@ struct DoseTapApp: App {
             await DiagnosticLogger.shared.logTimeSignificantChange(sessionId: sessionId, timeDeltaSeconds: 0)
         }
         #if DEBUG
-        Swift.print("⏰ Significant time change detected")
+        appLifecycleLog.debug("Significant time change detected")
         #endif
         
         // Trigger session refresh
@@ -242,7 +245,7 @@ struct DoseTapApp: App {
         }
 
         #if DEBUG
-        Swift.print("🔔 Post-setup notification permission: \(granted ? "granted" : "denied")")
+        appLifecycleLog.debug("Post-setup notification permission: \(granted ? "granted" : "denied", privacy: .public)")
         #endif
     }
 }

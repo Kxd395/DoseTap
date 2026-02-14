@@ -1,6 +1,9 @@
 import Foundation
 import Combine
 import DoseCore
+import os.log
+
+private let flicLog = Logger(subsystem: "com.dosetap.app", category: "FlicButtonService")
 
 /// Flic Button Service for hardware button integration
 /// Maps single/double/long press gestures to DoseTap actions
@@ -407,7 +410,7 @@ final class FlicButtonService: ObservableObject {
     /// Note: Actual implementation requires Flic SDK integration
     func startPairing() {
         // Stub - would call Flic SDK's pairing manager
-        print("📱 FlicButtonService: Starting pairing (stub)")
+        flicLog.debug("Starting pairing (stub)")
     }
     
     /// Unpair the current Flic button
@@ -415,12 +418,12 @@ final class FlicButtonService: ObservableObject {
         isPaired = false
         isConnected = false
         batteryLevel = nil
-        print("📱 FlicButtonService: Unpaired button")
+        flicLog.debug("Unpaired button")
     }
     
     /// Simulate a button press (for testing)
     func simulateGesture(_ gesture: FlicGesture) async -> FlicActionResult {
-        print("📱 FlicButtonService: Simulating \(gesture.rawValue)")
+        flicLog.debug("Simulating \(gesture.rawValue, privacy: .public)")
         return await handleGesture(gesture)
     }
 }

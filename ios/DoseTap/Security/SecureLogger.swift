@@ -189,7 +189,7 @@ public func logError(_ message: String, error: Error? = nil, category: SecureLog
 public func debugPrint(_ items: Any..., separator: String = " ", terminator: String = "\n") {
     #if DEBUG
     let output = items.map { String(describing: $0) }.joined(separator: separator)
-    Swift.print(output, terminator: terminator)
+    fputs(output + terminator, stderr)
     #endif
 }
 
@@ -198,7 +198,7 @@ public func debugPrint(_ items: Any..., separator: String = " ", terminator: Str
 public func debugLog(_ message: String, file: String = #file, line: Int = #line) {
     #if DEBUG
     let filename = (file as NSString).lastPathComponent
-    Swift.print("[\(filename):\(line)] \(message)")
+    fputs("[\(filename):\(line)] \(message)\n", stderr)
     #endif
 }
 
@@ -210,7 +210,7 @@ public func log(_ message: String, category: SecureLogger.Category, file: String
         SecureLogger.shared.debug(message, category: category, file: file, line: line)
     } else {
         let filename = (file as NSString).lastPathComponent
-        Swift.print("[\(category.rawValue)] [\(filename):\(line)] \(message)")
+        fputs("[\(category.rawValue)] [\(filename):\(line)] \(message)\n", stderr)
     }
     #endif
 }

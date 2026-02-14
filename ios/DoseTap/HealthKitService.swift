@@ -1,5 +1,8 @@
 import Foundation
 import HealthKit
+import os.log
+
+private let healthKitLog = Logger(subsystem: "com.dosetap.app", category: "HealthKitService")
 
 /// HealthKit service for reading sleep data and computing TTFW baselines
 /// TTFW = Time to First Wake (minutes from "asleep" to first "awake" segment)
@@ -25,7 +28,7 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
             // Restore authorization status on init so state is consistent after app restart.
             checkAuthorizationStatus()
             #if DEBUG
-            print("🏥 HealthKitService: Init - authorization status: \(authorizationStatus.rawValue), isAuthorized: \(isAuthorized)")
+            healthKitLog.debug("Init authorization status: \(self.authorizationStatus.rawValue, privacy: .public), isAuthorized: \(self.isAuthorized, privacy: .public)")
             #endif
         }
     }
@@ -107,19 +110,19 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
             await refreshReadAuthorization()
             if isAuthorized {
                 lastError = nil
-                print("✅ HealthKitService: Authorization granted")
+                healthKitLog.info("Authorization granted")
             } else {
                 lastError = "HealthKit permission not granted"
-                print("⚠️ HealthKitService: Authorization denied")
+                healthKitLog.warning("Authorization denied")
             }
             return isAuthorized
         } catch AuthorizationError.timedOut {
             lastError = "HealthKit authorization timed out. Open Health and try again."
-            print("⚠️ HealthKitService: Authorization timed out")
+            healthKitLog.warning("Authorization timed out")
             return false
         } catch {
             lastError = error.localizedDescription
-            print("❌ HealthKitService: Authorization failed: \(error)")
+            healthKitLog.error("Authorization failed: \(error.localizedDescription, privacy: .public)")
             return false
         }
     }
@@ -389,15 +392,15 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
             let validTTFWs = nightSummaries.compactMap { $0.ttfwMinutes }
             if !validTTFWs.isEmpty {
                 ttfwBaseline = validTTFWs.reduce(0, +) / Double(validTTFWs.count)
-                print("✅ HealthKitService: TTFW baseline computed: \(ttfwBaseline ?? 0) min from \(validTTFWs.count) nights")
+                healthKitLog.info("TTFW baseline computed: \(self.ttfwBaseline ?? 0, privacy: .private) min from \(validTTFWs.count, privacy: .public) nights")
             } else {
                 ttfwBaseline = nil
-                print("⚠️ HealthKitService: No TTFW data found in \(days) nights")
+                healthKitLog.warning("No TTFW data found in \(days, privacy: .public) nights")
             }
             
         } catch {
             lastError = error.localizedDescription
-            print("❌ HealthKitService: Failed to fetch sleep data: \(error)")
+            healthKitLog.error("Failed to fetch sleep data: \(error.localizedDescription, privacy: .public)")
         }
     }
     

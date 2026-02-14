@@ -146,7 +146,7 @@ public final class SecureConfig {
         #if canImport(OSLog)
         logger.warning("⚠️ Security: \(message, privacy: .public)")
         #else
-        print("⚠️ Security: \(message)")
+        NSLog("⚠️ Security: \(message)")
         #endif
     }
 }

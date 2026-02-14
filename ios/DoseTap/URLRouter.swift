@@ -1,6 +1,9 @@
 import Foundation
 import SwiftUI
 import DoseCore
+import os.log
+
+private let urlRouterLog = Logger(subsystem: "com.dosetap.app", category: "URLRouter")
 
 enum AppTab: Int, CaseIterable {
     case tonight = 0
@@ -98,7 +101,7 @@ public class URLRouter: ObservableObject {
         let validation = InputValidator.validateDeepLink(url)
         guard validation.isValid else {
             #if DEBUG
-            print("⚠️ URLRouter: Invalid deep link - \(validation.errors.joined(separator: ", "))")
+            urlRouterLog.warning("Invalid deep link: \(validation.errors.joined(separator: ", "), privacy: .public)")
             #endif
             showFeedback("Invalid link")
             return false
@@ -110,7 +113,7 @@ public class URLRouter: ObservableObject {
         let queryItems = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
         
         #if DEBUG
-        print("🔗 URLRouter: Handling \(InputValidator.sanitizeForLogging(url.absoluteString))")
+        urlRouterLog.debug("Handling deep link: \(InputValidator.sanitizeForLogging(url.absoluteString), privacy: .private)")
         #endif
         
         if let tab = AppTab.tab(forDeepLinkHost: host) {
@@ -140,7 +143,7 @@ public class URLRouter: ObservableObject {
             return false
             
         default:
-            print("⚠️ URLRouter: Unknown host '\(host)'")
+            urlRouterLog.warning("Unknown deep-link host: \(host, privacy: .public)")
             return false
         }
     }
@@ -277,7 +280,7 @@ public class URLRouter: ObservableObject {
         let eventValidation = InputValidator.validateEventType(name)
         guard eventValidation.isValid else {
             #if DEBUG
-            print("⚠️ URLRouter: Invalid event type - \(eventValidation.errors.joined(separator: ", "))")
+            urlRouterLog.warning("Invalid event type: \(eventValidation.errors.joined(separator: ", "), privacy: .public)")
             #endif
             showFeedback("Invalid event")
             return false

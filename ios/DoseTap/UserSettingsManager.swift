@@ -3,6 +3,9 @@ import SwiftUI
 import Foundation
 import Combine
 import DoseCore
+import os.log
+
+private let settingsManagerLog = Logger(subsystem: "com.dosetap.app", category: "UserSettingsManager")
 
 // MARK: - Color Hex Extension
 extension Color {
@@ -589,7 +592,7 @@ final class SleepPlanStore: ObservableObject {
         persistSettings()
         persistSchedule()
         #if DEBUG
-        Swift.print("✅ SleepPlanStore reset to defaults")
+        settingsManagerLog.debug("SleepPlanStore reset to defaults")
         #endif
     }
 }
@@ -649,7 +652,7 @@ extension UserSettingsManager {
         crashReportsEnabled = true
         
         #if DEBUG
-        Swift.print("✅ UserSettingsManager reset to defaults")
+        settingsManagerLog.debug("UserSettingsManager reset to defaults")
         #endif
     }
 }

@@ -188,8 +188,8 @@ struct UndoSnackbarView_Previews: PreviewProvider {
                 action: .takeDose1(at: Date()),
                 remainingTime: 3.5,
                 totalTime: 5.0,
-                onUndo: { print("Undo tapped") },
-                onDismiss: { print("Dismissed") }
+                onUndo: {},
+                onDismiss: {}
             )
             .padding()
             
@@ -197,8 +197,8 @@ struct UndoSnackbarView_Previews: PreviewProvider {
                 action: .takeDose2(at: Date()),
                 remainingTime: 1.2,
                 totalTime: 5.0,
-                onUndo: { print("Undo tapped") },
-                onDismiss: { print("Dismissed") }
+                onUndo: {},
+                onDismiss: {}
             )
             .padding()
             

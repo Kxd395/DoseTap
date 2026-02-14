@@ -1,5 +1,8 @@
 import SwiftUI
 import DoseCore
+import os.log
+
+private let settingsLog = Logger(subsystem: "com.dosetap.app", category: "SettingsView")
 
 // UserSettingsManager and AppearanceMode are defined in UserSettingsManager.swift
 
@@ -555,7 +558,7 @@ struct SettingsView: View {
     
     private func requestHealthKitPermissions() {
         // In real app, this would request HealthKit authorization
-        print("Requesting HealthKit permissions...")
+        settingsLog.info("Requesting HealthKit permissions")
     }
     
     private func exportData() {
@@ -570,16 +573,16 @@ struct SettingsView: View {
             try csvContent.write(to: fileURL, atomically: true, encoding: .utf8)
             exportURL = fileURL
             showingExportSheet = true
-            print("✅ Export file created: \(fileURL.lastPathComponent)")
+            settingsLog.info("Export file created: \(fileURL.lastPathComponent, privacy: .private)")
         } catch {
-            print("❌ Failed to create export file: \(error)")
+            settingsLog.error("Failed to create export file: \(error.localizedDescription, privacy: .public)")
         }
     }
     
     private func clearAllData() {
         // Clear all data sources - SSOT pattern
         #if DEBUG
-        print("🗑️ Clearing all data...")
+        settingsLog.debug("Clearing all data")
         #endif
         
         // 1. Clear EventStorage (database)
@@ -601,7 +604,7 @@ struct SettingsView: View {
         SessionRepository.shared.reload()
         
         #if DEBUG
-        print("✅ All data cleared successfully")
+        settingsLog.debug("All data cleared successfully")
         #endif
     }
 }
