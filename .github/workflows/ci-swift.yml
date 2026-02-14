@@ -165,6 +165,13 @@ jobs:
           fi
           xcodebuild -version
       
+      - name: Generate CI Secrets stub
+        run: |
+          if [ ! -f ios/DoseTap/Secrets.swift ]; then
+            cp ios/DoseTap/Secrets.template.swift ios/DoseTap/Secrets.swift
+            echo "✅ Created Secrets.swift from template for CI build"
+          fi
+
       - name: Build iOS App
         run: |
           cd ios

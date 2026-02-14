@@ -202,6 +202,15 @@ jobs:
       - name: Xcode version
         run: xcodebuild -version
 
+      - name: Generate CI Secrets stub
+        run: |
+          # Secrets.swift is .gitignored (contains real credentials locally).
+          # Copy the checked-in template so the Xcode project compiles on CI.
+          if [ ! -f ios/DoseTap/Secrets.swift ]; then
+            cp ios/DoseTap/Secrets.template.swift ios/DoseTap/Secrets.swift
+            echo "✅ Created Secrets.swift from template for CI build"
+          fi
+
       - name: List schemes (debug)
         run: |
           set -euo pipefail
@@ -346,6 +355,13 @@ jobs:
 
       - name: Validate release certificate pins
         run: bash tools/validate_release_pins.sh
+
+      - name: Generate CI Secrets stub
+        run: |
+          if [ ! -f ios/DoseTap/Secrets.swift ]; then
+            cp ios/DoseTap/Secrets.template.swift ios/DoseTap/Secrets.swift
+            echo "✅ Created Secrets.swift from template for CI build"
+          fi
 
       - name: Build Release (non-debug) with pinning env
         run: |
