@@ -99,7 +99,6 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		108C602480AF4A41B98FD22B /* EnhancedSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnhancedSettings.swift; sourceTree = "<group>"; };
 		12B2779FB31708024300E8E5 /* TimeIntervalMath.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TimeIntervalMath.swift; sourceTree = "<group>"; };
 		15C51DD55054436BA1B68CD7 /* SupportBundleExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportBundleExport.swift; sourceTree = "<group>"; };
 		1BD7AD6DA76F4E548669A489 /* FullApp/KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/KeychainHelper.swift; sourceTree = "<group>"; };
@@ -296,7 +295,6 @@
 				DD0E5B5C6E684F7796F9B9FC /* EventLogger.swift */,
 				EVT002 /* EventType.swift */,
 				B01 /* DoseTapApp.swift */,
-				108C602480AF4A41B98FD22B /* EnhancedSettings.swift */,
 				HK002 /* HealthKitService.swift */,
 				6FEE161A09D6441A8D4448DA /* InsightsCalculator.swift */,
 				D049AFCF96FC4AFF9120309E /* Secrets.swift */,
