@@ -20,7 +20,7 @@
 | 6 | Created pre-commit hook + activated | `.githooks/pre-commit` (new) | +44 |
 | 7 | Created branch protection guide | `docs/BRANCH_PROTECTION.md` (new) | +40 |
 
-**Total:** +169 lines / −16 lines across governance infrastructure. Zero production code touched. Build: ✅ `swift build -q`. Tests: ✅ 296/296 pass.
+**Total:** +169 lines / −16 lines across governance infrastructure (governance-only counts; additional production code changes shipped in the same PR). Build: ✅ `swift build -q`. Tests: ✅ 296/296 pass.
 
 Post-review hardening updates (same date):
 - CI suite verification made case-robust (`Test Suite` vs `Test suite`) to avoid false negatives.

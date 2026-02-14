@@ -228,7 +228,7 @@ public class URLRouter: ObservableObject {
         }
         
         guard core.snoozeCount < maxSnoozes else {
-            showFeedback("Max snoozes reached (\(maxSnoozes)/\(maxSnoozes))")
+            showFeedback("Max snoozes reached (\(core.snoozeCount)/\(maxSnoozes))")
             return false
         }
         

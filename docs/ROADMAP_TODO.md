@@ -1,6 +1,6 @@
 # DoseTap TODO + Feature Roadmap
 
-Last updated: 2026-02-13
+Last updated: 2026-02-14
 Owner: Product/Engineering
 
 ## Purpose
@@ -28,6 +28,8 @@ Track active gaps after the Phase 1/2 stabilization pass and keep a short, curre
 - [x] Harden `SecureConfig`: release builds return empty string when Keychain/env not configured (no Secrets.swift fallback).
 - [x] Add CI guard for mock transport leaking into production code.
 - [x] Grow DoseCoreTests to 499 tests (transport safety canaries).
+- [x] Split `SettingsView.swift` god file (1,644 → 628 lines) into 6 focused modules: HealthKitSettingsView, AboutView, EventCooldownSettingsView, DataManagementView, QuickLogCustomizationView, SettingsHelpers.
+- [x] Fix PR #1 review comments (URLRouter snooze feedback, governance doc accuracy; 7/9 already resolved by prior cleanup).
 
 ---
 
