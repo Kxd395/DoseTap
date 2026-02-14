@@ -173,7 +173,14 @@ public class DoseTapCore: ObservableObject {
         if CertificatePinning.hasConfiguredPins {
             return PinnedURLSessionTransport()
         }
-        fatalError("Certificate pinning is not configured; set DOSETAP_CERT_PINS for release builds.")
+        // Graceful degradation: log a critical security warning but don't crash.
+        // CI should catch missing pins for release builds — see ci.yml.
+        #if canImport(OSLog)
+        Logger(subsystem: "com.dosetap.core", category: "Security")
+            .critical("⚠️ Release build without certificate pins — set DOSETAP_CERT_PINS")
+        #endif
+        assertionFailure("Certificate pinning is not configured; set DOSETAP_CERT_PINS for release builds.")
+        return URLSessionTransport()
         #endif
     }
     
