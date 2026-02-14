@@ -67,7 +67,14 @@ let package = Package(
                 "DosingAmountTests.swift",
                 "UnifiedSleepSessionTests.swift",
                 "DiagnosticEventTests.swift",
-                "MorningCheckInTests.swift"
+                "MorningCheckInTests.swift",
+                "DosingModelsTests.swift",
+                "DosingServiceTests.swift",
+                "CertificatePinningTests.swift",
+                "DiagnosticLoggerTests.swift",
+                "RecommendationEngineTests.swift",
+                "EventStoreModelsTests.swift",
+                "TimeEngineTests.swift"
             ]
         )
     ]
