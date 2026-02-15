@@ -270,10 +270,8 @@ final class SessionRepositoryTests: XCTestCase {
         // without mocking UNUserNotificationCenter. This test documents the requirement.
         // Integration tests should verify: getPendingNotificationRequests returns empty array
         
-        // The implementation calls cancelPendingNotifications() which removes:
-        // - dose_reminder, window_opening, window_closing, window_critical
-        // - wake_alarm and its follow-ups
-        // - hard_stop warnings
+        // The implementation calls cancelPendingNotifications() which removes
+        // the canonical dosetap_* alarm identifiers used by AlarmService.
     }
     
     // MARK: - Test: currentContext Reflects Repository State (P0-1 Verification)

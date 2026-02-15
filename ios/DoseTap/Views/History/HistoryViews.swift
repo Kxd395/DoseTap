@@ -947,11 +947,15 @@ struct DoseButtonsSection: View {
                     .background(primaryButtonColor)
                     .cornerRadius(12)
             }
-            .disabled(core.currentStatus == .completed)
+            .disabled(primaryButtonDisabled)
             .alert("Window Expired", isPresented: $showWindowExpiredOverride) {
                 Button("Cancel", role: .cancel) { }
                 Button("Take Dose 2 Anyway", role: .destructive) {
-                    Task { await core.takeDose(lateOverride: true) }
+                    Task {
+                        await core.takeDose(lateOverride: true)
+                        AlarmService.shared.cancelAllAlarms()
+                        AlarmService.shared.clearWakeAlarmState()
+                    }
                 }
             } message: {
                 Text("The 240-minute window has passed. Taking Dose 2 late may affect efficacy.")
@@ -1007,6 +1011,11 @@ struct DoseButtonsSection: View {
             showWindowExpiredOverride = true
             return
         }
+
+        if core.currentStatus == .completed, core.isSkipped, core.dose2Time == nil {
+            showWindowExpiredOverride = true
+            return
+        }
         
         Task { await core.takeDose() }
     }
@@ -1040,6 +1049,13 @@ struct DoseButtonsSection: View {
     
     private var skipEnabled: Bool {
         core.currentStatus == .active || core.currentStatus == .nearClose || core.currentStatus == .closed
+    }
+
+    private var primaryButtonDisabled: Bool {
+        if core.currentStatus == .completed && core.isSkipped && core.dose2Time == nil {
+            return false
+        }
+        return core.currentStatus == .completed
     }
 }
 
@@ -1159,4 +1175,3 @@ struct WarningRow: View {
 #Preview {
     ContentView()
 }
-

@@ -185,7 +185,13 @@ final class FlicButtonService: ObservableObject {
         switch context.phase {
         case .noDose1:
             // Take Dose 1 via SSOT
-            sessionRepository.saveDose1(timestamp: Date())
+            let now = Date()
+            sessionRepository.saveDose1(timestamp: now)
+            let configuredTarget = UserSettingsManager.shared.targetIntervalMinutes
+            let targetMinutes = configuredTarget > 0 ? configuredTarget : 165
+            let wakeTime = now.addingTimeInterval(Double(targetMinutes) * 60)
+            await AlarmService.shared.scheduleWakeAlarm(at: wakeTime, dose1Time: now)
+            await AlarmService.shared.scheduleDose2Reminders(dose1Time: now)
             provideHapticFeedback(.success)
             return FlicActionResult(
                 gesture: gesture,
@@ -209,6 +215,8 @@ final class FlicButtonService: ObservableObject {
         case .active, .nearClose:
             // Take Dose 2 via SSOT
             sessionRepository.saveDose2(timestamp: Date())
+            AlarmService.shared.cancelAllAlarms()
+            AlarmService.shared.clearWakeAlarmState()
             provideHapticFeedback(.success)
             return FlicActionResult(
                 gesture: gesture,
@@ -221,6 +229,8 @@ final class FlicButtonService: ObservableObject {
         case .closed:
             // Window closed - log with warning (user should confirm via UI)
             sessionRepository.saveDose2(timestamp: Date())
+            AlarmService.shared.cancelAllAlarms()
+            AlarmService.shared.clearWakeAlarmState()
             provideHapticFeedback(.warning)
             return FlicActionResult(
                 gesture: gesture,
@@ -230,8 +240,45 @@ final class FlicButtonService: ObservableObject {
                 canUndo: true
             )
             
-        case .completed, .finalizing:
-            // Already done for tonight
+        case .completed:
+            let now = Date()
+            if sessionRepository.dose2Time == nil, sessionRepository.dose1Time != nil {
+                // Allow post-skip correction as explicit override.
+                sessionRepository.saveDose2(timestamp: now)
+                AlarmService.shared.cancelAllAlarms()
+                AlarmService.shared.clearWakeAlarmState()
+                provideHapticFeedback(.warning)
+                return FlicActionResult(
+                    gesture: gesture,
+                    action: .takeDose,
+                    success: true,
+                    message: "Dose 2 logged (override)",
+                    canUndo: true
+                )
+            }
+            if sessionRepository.dose2Time != nil {
+                // Additional dose entries are preserved as extra_dose.
+                sessionRepository.saveDose2(timestamp: now, isExtraDose: true)
+                provideHapticFeedback(.warning)
+                return FlicActionResult(
+                    gesture: gesture,
+                    action: .takeDose,
+                    success: true,
+                    message: "Extra dose logged",
+                    canUndo: true
+                )
+            }
+            provideHapticFeedback(.error)
+            return FlicActionResult(
+                gesture: gesture,
+                action: .takeDose,
+                success: false,
+                message: "Dose action unavailable",
+                canUndo: false
+            )
+
+        case .finalizing:
+            // Already ending for tonight.
             provideHapticFeedback(.error)
             return FlicActionResult(
                 gesture: gesture,
@@ -325,6 +372,8 @@ final class FlicButtonService: ObservableObject {
         
         // Skip via SSOT
         sessionRepository.skipDose2()
+        AlarmService.shared.cancelAllAlarms()
+        AlarmService.shared.clearWakeAlarmState()
         provideHapticFeedback(.warning)
         
         return FlicActionResult(

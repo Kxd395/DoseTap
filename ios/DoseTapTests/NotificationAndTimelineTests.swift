@@ -68,7 +68,13 @@ final class NotificationCenterIntegrationTests: XCTestCase {
     func test_skipDose_cancelsWakeAlarms() async throws {
         let center = UNUserNotificationCenter.current()
         
-        let wakeIds = ["wake_alarm", "wake_alarm_pre", "wake_alarm_follow1", "wake_alarm_follow2", "wake_alarm_follow3"]
+        let wakeIds = [
+            "dosetap_wake_alarm",
+            "dosetap_pre_alarm",
+            "dosetap_followup_1",
+            "dosetap_followup_2",
+            "dosetap_followup_3",
+        ]
         for id in wakeIds {
             let content = UNMutableNotificationContent()
             content.title = "Wake Alarm"

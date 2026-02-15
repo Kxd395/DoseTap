@@ -1,6 +1,10 @@
 import SwiftUI
 import DoseCore
 import os.log
+import UserNotifications
+#if canImport(UIKit)
+import UIKit
+#endif
 
 private let settingsLog = Logger(subsystem: "com.dosetap.app", category: "SettingsView")
 
@@ -14,6 +18,8 @@ struct SettingsView: View {
     @State private var showingExportSheet = false
     @State private var showingExportError = false
     @State private var exportErrorMessage = ""
+    @State private var showingNotificationPermissionAlert = false
+    @State private var notificationPermissionMessage = ""
     @State private var exportURL: URL?
     @ObservedObject private var urlRouter = URLRouter.shared
     @ObservedObject private var sleepPlanStore = SleepPlanStore.shared
@@ -401,6 +407,20 @@ struct SettingsView: View {
                 ActivityViewController(activityItems: [url])
             }
         }
+        .onChange(of: settings.notificationsEnabled) { enabled in
+            guard enabled else { return }
+            Task {
+                await validateNotificationAuthorization()
+            }
+        }
+        .alert("Notifications Disabled in iOS", isPresented: $showingNotificationPermissionAlert) {
+            Button("Open Settings") {
+                openSystemNotificationSettings()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text(notificationPermissionMessage)
+        }
     }
 
     // MARK: - Night Schedule Bindings
@@ -522,6 +542,45 @@ struct SettingsView: View {
                 }
             }
         }
+    }
+
+    @MainActor
+    private func validateNotificationAuthorization() async {
+        let status = await notificationAuthorizationStatus()
+        switch status {
+        case .authorized, .provisional, .ephemeral:
+            return
+        case .notDetermined:
+            let granted = await AlarmService.shared.requestPermission()
+            if !granted {
+                settings.notificationsEnabled = false
+                notificationPermissionMessage = "DoseTap cannot play notification alarms until you grant notification permission."
+                showingNotificationPermissionAlert = true
+            }
+        case .denied:
+            settings.notificationsEnabled = false
+            notificationPermissionMessage = "Notifications are denied for DoseTap in iOS Settings. Enable them to receive wake alarms when the app is backgrounded or the phone is locked."
+            showingNotificationPermissionAlert = true
+        @unknown default:
+            settings.notificationsEnabled = false
+            notificationPermissionMessage = "DoseTap could not verify notification permission. Please enable notifications in iOS Settings."
+            showingNotificationPermissionAlert = true
+        }
+    }
+
+    private func notificationAuthorizationStatus() async -> UNAuthorizationStatus {
+        await withCheckedContinuation { continuation in
+            UNUserNotificationCenter.current().getNotificationSettings { settings in
+                continuation.resume(returning: settings.authorizationStatus)
+            }
+        }
+    }
+
+    private func openSystemNotificationSettings() {
+        #if canImport(UIKit)
+        guard let settingsURL = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(settingsURL)
+        #endif
     }
     
     // MARK: - Medication Summary

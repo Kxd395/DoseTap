@@ -38,7 +38,7 @@ struct CompactDoseButton: View {
                     takeDose2WithOverride()
                 }
             } message: {
-                Text("The 240-minute window has passed. Taking Dose 2 late may affect efficacy. Are you sure you want to proceed?")
+                Text(overrideConfirmationMessage)
             }
             
             // Secondary buttons row
@@ -116,6 +116,11 @@ struct CompactDoseButton: View {
             showExtraDoseWarning = true
             return
         }
+
+        if core.currentStatus == .completed, core.isSkipped, core.dose2Time == nil {
+            showWindowExpiredOverride = true
+            return
+        }
         
         // Window expired - show override confirmation
         if core.currentStatus == .closed {
@@ -148,12 +153,22 @@ struct CompactDoseButton: View {
     private func takeDose2WithOverride() {
         Task {
             let now = Date()
+            let wasSkipped = core.isSkipped && core.dose2Time == nil
             await core.takeDose(lateOverride: true)
-            // Log with late indicator
-            eventLogger.logEvent(name: "Dose 2 (Late)", color: .orange, cooldownSeconds: 3600 * 8, persist: false)
+            AlarmService.shared.cancelAllAlarms()
+            AlarmService.shared.clearWakeAlarmState()
+            let eventName = wasSkipped ? "Dose 2 (After Skip)" : "Dose 2 (Late)"
+            eventLogger.logEvent(name: eventName, color: .orange, cooldownSeconds: 3600 * 8, persist: false)
             // Register for undo (late doses can also be undone)
             undoState.register(.takeDose2(at: now))
         }
+    }
+
+    private var overrideConfirmationMessage: String {
+        if core.currentStatus == .completed && core.isSkipped && core.dose2Time == nil {
+            return "Dose 2 was previously marked as skipped. This will record Dose 2 now and clear skipped status. Are you sure you want to proceed?"
+        }
+        return "The 240-minute window has passed. Taking Dose 2 late may affect efficacy. Are you sure you want to proceed?"
     }
     
     private var primaryButtonText: String {

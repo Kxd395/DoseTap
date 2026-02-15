@@ -161,7 +161,8 @@ public class AlarmService: NSObject, ObservableObject {
                 title: "🚨 5 Minutes Remaining!",
                 body: "Final warning - take Dose 2 NOW or skip!",
                 at: warning5,
-                sound: notificationSound(isCritical: true)
+                sound: notificationSound(isCritical: true),
+                isCritical: settings.criticalAlertsEnabled
             )
         }
         
@@ -238,6 +239,7 @@ public class AlarmService: NSObject, ObservableObject {
             body: "Take your second dose now! \(TimeIntervalMath.formatMinutes(minutesRemaining)) remaining in window.",
             at: time,
             sound: alarmNotificationSound(),
+            isCritical: UserSettingsManager.shared.criticalAlertsEnabled,
             category: NotificationCategory.alarm
         )
         
@@ -251,6 +253,7 @@ public class AlarmService: NSObject, ObservableObject {
                     body: "\(TimeIntervalMath.formatMinutes(max(0, minutesRemaining - (i * 2)))) left in window!",
                     at: followUpTime,
                     sound: alarmNotificationSound(),
+                    isCritical: UserSettingsManager.shared.criticalAlertsEnabled,
                     category: NotificationCategory.alarm
                 )
             }
@@ -403,13 +406,14 @@ public class AlarmService: NSObject, ObservableObject {
         body: String,
         at date: Date,
         sound: UNNotificationSound?,
+        isCritical: Bool = false,
         category: String? = nil
     ) async {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
         content.sound = sound
-        content.interruptionLevel = .timeSensitive
+        content.interruptionLevel = isCritical ? .critical : .timeSensitive
         if let category {
             content.categoryIdentifier = category
         }
@@ -451,9 +455,6 @@ public class AlarmService: NSObject, ObservableObject {
     }
 
     private func alarmNotificationSound() -> UNNotificationSound? {
-        if Bundle.main.url(forResource: "alarm_tone", withExtension: "caf") != nil {
-            return UNNotificationSound(named: UNNotificationSoundName("alarm_tone.caf"))
-        }
         return notificationSound(isCritical: true)
     }
     
@@ -480,24 +481,8 @@ public class AlarmService: NSObject, ObservableObject {
 
     private func playAlarmSound() {
         guard UserSettingsManager.shared.soundEnabled else { return }
-        usesSystemSoundFallback = false
-        guard let url = Bundle.main.url(forResource: "alarm_tone", withExtension: "caf") else {
-            usesSystemSoundFallback = true
-            AudioServicesPlaySystemSound(Self.fallbackAlarmSystemSoundID)
-            return
-        }
-        do {
-            audioPlayer = try AVAudioPlayer(contentsOf: url)
-            audioPlayer?.numberOfLoops = -1
-            if audioPlayer?.play() != true {
-                usesSystemSoundFallback = true
-                AudioServicesPlaySystemSound(Self.fallbackAlarmSystemSoundID)
-            }
-        } catch {
-            usesSystemSoundFallback = true
-            AudioServicesPlaySystemSound(Self.fallbackAlarmSystemSoundID)
-            alarmLog.error("Failed to play alarm sound: \(error.localizedDescription, privacy: .public)")
-        }
+        usesSystemSoundFallback = true
+        AudioServicesPlaySystemSound(Self.fallbackAlarmSystemSoundID)
     }
 
     private func stopAlarmSound() {

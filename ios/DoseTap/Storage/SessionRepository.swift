@@ -78,21 +78,19 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     /// Canonical list of notification identifiers that are session-scoped.
     /// Tests and production code should both use this list to ensure consistency.
     public static let sessionNotificationIdentifiers: [String] = [
-        "dose_reminder",
-        "window_opening",
-        "window_closing",
-        "window_critical",
-        "wake_alarm",
-        "wake_alarm_pre",
-        "wake_alarm_follow1",
-        "wake_alarm_follow2",
-        "wake_alarm_follow3",
-        "hard_stop",
-        "hard_stop_5min",
-        "hard_stop_2min",
-        "hard_stop_30sec",
-        "hard_stop_expired",
-        "snooze_reminder"
+        // AlarmService.NotificationID.wakeAlarm
+        "dosetap_wake_alarm",
+        // AlarmService.NotificationID.preAlarm
+        "dosetap_pre_alarm",
+        // AlarmService.NotificationID.followUp_1..._3
+        "dosetap_followup_1",
+        "dosetap_followup_2",
+        "dosetap_followup_3",
+        // AlarmService.NotificationID.secondDose
+        "dosetap_second_dose",
+        // AlarmService.NotificationID.windowWarning15/windowWarning5
+        "dosetap_window_15min",
+        "dosetap_window_5min"
     ]
     
     // MARK: - Initialization

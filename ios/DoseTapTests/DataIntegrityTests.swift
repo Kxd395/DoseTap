@@ -228,21 +228,14 @@ final class DataIntegrityTests: XCTestCase {
     func test_sessionNotificationIdentifiers_containsAllExpected() {
         let ids = SessionRepository.sessionNotificationIdentifiers
         
-        XCTAssertTrue(ids.contains("dose_reminder"), "Missing dose_reminder")
-        XCTAssertTrue(ids.contains("window_opening"), "Missing window_opening")
-        XCTAssertTrue(ids.contains("window_closing"), "Missing window_closing")
-        XCTAssertTrue(ids.contains("window_critical"), "Missing window_critical")
-        XCTAssertTrue(ids.contains("wake_alarm"), "Missing wake_alarm")
-        XCTAssertTrue(ids.contains("wake_alarm_pre"), "Missing wake_alarm_pre")
-        XCTAssertTrue(ids.contains("wake_alarm_follow1"), "Missing wake_alarm_follow1")
-        XCTAssertTrue(ids.contains("wake_alarm_follow2"), "Missing wake_alarm_follow2")
-        XCTAssertTrue(ids.contains("wake_alarm_follow3"), "Missing wake_alarm_follow3")
-        XCTAssertTrue(ids.contains("hard_stop"), "Missing hard_stop")
-        XCTAssertTrue(ids.contains("hard_stop_5min"), "Missing hard_stop_5min")
-        XCTAssertTrue(ids.contains("hard_stop_2min"), "Missing hard_stop_2min")
-        XCTAssertTrue(ids.contains("hard_stop_30sec"), "Missing hard_stop_30sec")
-        XCTAssertTrue(ids.contains("hard_stop_expired"), "Missing hard_stop_expired")
-        XCTAssertTrue(ids.contains("snooze_reminder"), "Missing snooze_reminder")
+        XCTAssertTrue(ids.contains("dosetap_wake_alarm"), "Missing dosetap_wake_alarm")
+        XCTAssertTrue(ids.contains("dosetap_pre_alarm"), "Missing dosetap_pre_alarm")
+        XCTAssertTrue(ids.contains("dosetap_followup_1"), "Missing dosetap_followup_1")
+        XCTAssertTrue(ids.contains("dosetap_followup_2"), "Missing dosetap_followup_2")
+        XCTAssertTrue(ids.contains("dosetap_followup_3"), "Missing dosetap_followup_3")
+        XCTAssertTrue(ids.contains("dosetap_second_dose"), "Missing dosetap_second_dose")
+        XCTAssertTrue(ids.contains("dosetap_window_15min"), "Missing dosetap_window_15min")
+        XCTAssertTrue(ids.contains("dosetap_window_5min"), "Missing dosetap_window_5min")
     }
     
     // MARK: - Database Cascade Assertions

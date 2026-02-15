@@ -169,6 +169,7 @@ public class URLRouter: ObservableObject {
             let targetInterval = targetMinutes > 0 ? targetMinutes : 165
             let wakeTime = now.addingTimeInterval(Double(targetInterval) * 60)
             await AlarmService.shared.scheduleWakeAlarm(at: wakeTime, dose1Time: now)
+            await AlarmService.shared.scheduleDose2Reminders(dose1Time: now)
             
             showFeedback("✓ Dose 1 logged")
         }
@@ -184,26 +185,27 @@ public class URLRouter: ObservableObject {
             return false
         }
         
-        guard core.dose2Time == nil else {
-            showFeedback("Dose 2 already taken")
-            return false
-        }
-        
         let status = core.currentStatus
         if status == .beforeWindow {
             showFeedback("Window not open yet")
             return false
         }
-        if status == .noDose1 || status == .completed || status == .finalizing {
+        if status == .noDose1 || status == .finalizing {
             showFeedback("Dose 2 unavailable right now")
             return false
         }
 
         Task {
-            if status == .closed {
+            if core.dose2Time != nil {
+                SessionRepository.shared.saveDose2(timestamp: Date(), isExtraDose: true)
+                eventLogger?.logEvent(name: "Extra Dose ⚠️", color: .red, cooldownSeconds: 0, persist: false)
+                showFeedback("⚠️ Extra dose logged")
+            } else if status == .closed || (status == .completed && core.isSkipped) {
                 await core.takeDose(lateOverride: true)
                 eventLogger?.logEvent(name: "Dose 2 (Late)", color: .orange, cooldownSeconds: 3600 * 8, persist: false)
-                showFeedback("✓ Dose 2 logged late (override)")
+                showFeedback("✓ Dose 2 logged (override)")
+            } else if status == .completed {
+                showFeedback("Dose 2 unavailable right now")
             } else {
                 await core.takeDose()
                 eventLogger?.logEvent(name: "Dose 2", color: .green, cooldownSeconds: 3600 * 8, persist: false)
