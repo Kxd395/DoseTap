@@ -44,3 +44,6 @@ ios/*.sh
 
 # Added by ggshield
 .cache_ggshield
+
+# Downloaded reference PDFs
+docs/review/*.pdf
