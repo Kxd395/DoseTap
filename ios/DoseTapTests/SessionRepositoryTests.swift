@@ -26,11 +26,21 @@ final class SessionRepositoryTests: XCTestCase {
     private var repo: SessionRepository!
     private var cancellables: Set<AnyCancellable> = []
     
+    /// Fixed clock well after the 18:00 UTC rollover so dose times at
+    /// `Date() - N min` never cross a session boundary on CI (UTC).
+    private let fixedNow: Date = {
+        ISO8601DateFormatter().date(from: "2026-01-15T23:00:00Z")!
+    }()
+    
     override func setUp() async throws {
         // Use shared storage for integration tests
         // Note: In production, we'd want an in-memory SQLite mode for isolation
         storage = EventStorage.shared
-        repo = SessionRepository(storage: storage)
+        repo = SessionRepository(
+            storage: storage,
+            clock: { [fixedNow] in fixedNow },
+            timeZoneProvider: { TimeZone(identifier: "UTC")! }
+        )
         
         // Clear any existing data for clean test state
         storage.clearAllData()
@@ -162,7 +172,11 @@ final class SessionRepositoryTests: XCTestCase {
         storage.saveDose1(timestamp: now)
         
         // Create fresh repo that hasn't seen this data
-        let freshRepo = SessionRepository(storage: storage)
+        let freshRepo = SessionRepository(
+            storage: storage,
+            clock: { [fixedNow] in fixedNow },
+            timeZoneProvider: { TimeZone(identifier: "UTC")! }
+        )
         
         // Assert: Fresh repo loaded the data
         XCTAssertNotNil(freshRepo.dose1Time, "Fresh repo should load existing dose1")

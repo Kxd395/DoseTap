@@ -18,9 +18,19 @@ final class ExportIntegrityTests: XCTestCase {
     private var storage: EventStorage!
     private var repo: SessionRepository!
     
+    /// Fixed clock well after the 18:00 UTC rollover so dose times at
+    /// `Date() - N min` never cross a session boundary on CI (UTC).
+    private let fixedNow: Date = {
+        ISO8601DateFormatter().date(from: "2026-01-15T23:00:00Z")!
+    }()
+    
     override func setUp() async throws {
         storage = EventStorage.shared
-        repo = SessionRepository(storage: storage)
+        repo = SessionRepository(
+            storage: storage,
+            clock: { [fixedNow] in fixedNow },
+            timeZoneProvider: { TimeZone(identifier: "UTC")! }
+        )
         storage.clearAllData()
         repo.reload()
     }
@@ -205,9 +215,20 @@ final class ExportImportRoundTripTests: XCTestCase {
         return f
     }()
     
+    /// Fixed clock well after the 18:00 UTC rollover so dose times at
+    /// `Date() - N min` never cross a session boundary on CI (UTC).
+    private let fixedNow: Date = {
+        ISO8601DateFormatter().date(from: "2026-01-15T23:00:00Z")!
+    }()
+    
     override func setUp() async throws {
         storage.clearAllData()
-        repo = SessionRepository(storage: storage, notificationScheduler: FakeNotificationScheduler())
+        repo = SessionRepository(
+            storage: storage,
+            notificationScheduler: FakeNotificationScheduler(),
+            clock: { [fixedNow] in fixedNow },
+            timeZoneProvider: { TimeZone(identifier: "UTC")! }
+        )
     }
     
     override func tearDown() async throws {

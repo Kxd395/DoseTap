@@ -18,9 +18,19 @@ final class UISmokeTests: XCTestCase {
     private var storage: EventStorage!
     private var repo: SessionRepository!
     
+    /// Fixed clock well after the 18:00 UTC rollover so dose times at
+    /// `Date() - 180 min` never cross a session boundary on CI (UTC).
+    private let fixedNow: Date = {
+        ISO8601DateFormatter().date(from: "2026-01-15T23:00:00Z")!
+    }()
+    
     override func setUp() async throws {
         storage = EventStorage.shared
-        repo = SessionRepository(storage: storage)
+        repo = SessionRepository(
+            storage: storage,
+            clock: { [fixedNow] in fixedNow },
+            timeZoneProvider: { TimeZone(identifier: "UTC")! }
+        )
         storage.clearAllData()
         repo.reload()
     }
@@ -106,9 +116,19 @@ final class UIStateTests: XCTestCase {
     private var storage: EventStorage!
     private var repo: SessionRepository!
     
+    /// Fixed clock well after the 18:00 UTC rollover so dose times at
+    /// `Date() - N min` never cross a session boundary on CI (UTC).
+    private let fixedNow: Date = {
+        ISO8601DateFormatter().date(from: "2026-01-15T23:00:00Z")!
+    }()
+    
     override func setUp() async throws {
         storage = EventStorage.shared
-        repo = SessionRepository(storage: storage)
+        repo = SessionRepository(
+            storage: storage,
+            clock: { [fixedNow] in fixedNow },
+            timeZoneProvider: { TimeZone(identifier: "UTC")! }
+        )
         storage.clearAllData()
         repo.reload()
     }
