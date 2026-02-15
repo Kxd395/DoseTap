@@ -58,7 +58,7 @@ Destination split:
 
 Rules:
 - Preserve existing symbol names first; refactor names only after all references are stable.
-- Avoid introducing duplicate `DoseEvent` symbol ambiguity with Core Data entity classes.
+- Avoid introducing duplicate `DoseEvent` symbol ambiguity with existing SQLite model classes.
 - Keep `StoredMedicationEntry` typealias behavior unchanged.
 
 Acceptance criteria:
@@ -84,7 +84,7 @@ Acceptance criteria:
 
 ## Risks to Watch
 
-- `DoseEvent` naming collision between compatibility model and Core Data model class.
+- `DoseEvent` naming collision between compatibility model and existing SQLite model class.
 - `SetupWizardView` previews/imports after folder move.
 - Missed hidden reference in `project.pbxproj` causing compile-source drift.
 

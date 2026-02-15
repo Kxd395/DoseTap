@@ -1,7 +1,7 @@
 # DoseTap SSOT (Single Source of Truth)
 
-Last updated: 2026-02-13
-Version: 3.1.0
+Last updated: 2026-02-15
+Version: 3.2.0
 
 This document is the authoritative specification for the current DoseTap behavior. It describes what the code does today. If code and this SSOT diverge, the SSOT must be updated to match the code.
 
@@ -141,12 +141,12 @@ Transition table (subset):
 
 | Current | Trigger | Guard | Writes | Next |
 | --- | --- | --- | --- | --- |
-| `noDose1` | Take Dose 1 | none | `saveDose1` + `dose_events` | `beforeWindow` |
-| `beforeWindow` | Take Dose 2 | requires early override | `saveDose2(is_early)` | `completed` |
-| `active` | Take Dose 2 | none | `saveDose2` | `completed` |
-| `nearClose` | Take Dose 2 | none | `saveDose2` | `completed` |
-| `closed` | Take Dose 2 | requires late override | `saveDose2(is_late)` | `completed` |
-| `active|nearClose|closed` | Skip Dose 2 | none | `saveDoseSkipped` | `completed` |
+| `noDose1` | Take Dose 1 | none | `saveDose1` + `dose_events` + schedule alarms | `beforeWindow` |
+| `beforeWindow` | Take Dose 2 | requires early override | `saveDose2(is_early)` + cancel alarms | `completed` |
+| `active` | Take Dose 2 | none | `saveDose2` + cancel alarms | `completed` |
+| `nearClose` | Take Dose 2 | none | `saveDose2` + cancel alarms | `completed` |
+| `closed` | Take Dose 2 | requires late override | `saveDose2(is_late)` + cancel alarms | `completed` |
+| `active\|nearClose\|closed` | Skip Dose 2 | none | `saveDoseSkipped` + cancel alarms | `completed` |
 | `any` | Wake Final | none | `insertSleepEvent(wake_final)` | `finalizing` |
 | `finalizing` | Submit Check-In | none | `saveMorningCheckIn` + `closeSession` | `completed` |
 
@@ -299,3 +299,83 @@ Code references:
 - `HealthKitService.checkAuthorizationStatus()`
 - `HealthKitSettingsView` (Settings)
 - `LiveSleepTimelineView` (Timeline)
+
+---
+
+## Alarm and Notification System
+
+### Notification Identifiers (Canonical)
+
+All session-scoped notification identifiers use the `dosetap_` prefix. These are defined in `AlarmService.NotificationID` and mirrored in `SessionRepository.sessionNotificationIdentifiers`.
+
+| Identifier | Scheduled By | Purpose |
+| --- | --- | --- |
+| `dosetap_wake_alarm` | `AlarmService.scheduleWakeAlarm(at:dose1Time:)` | Primary wake alarm at target time |
+| `dosetap_pre_alarm` | `AlarmService.scheduleWakeAlarm(at:dose1Time:)` | 15-minute pre-alarm warning |
+| `dosetap_followup_1` | `AlarmService.scheduleWakeAlarm(at:dose1Time:)` | Follow-up alarm +2 min |
+| `dosetap_followup_2` | `AlarmService.scheduleWakeAlarm(at:dose1Time:)` | Follow-up alarm +4 min |
+| `dosetap_followup_3` | `AlarmService.scheduleWakeAlarm(at:dose1Time:)` | Follow-up alarm +6 min |
+| `dosetap_second_dose` | `AlarmService.scheduleDose2Reminders(dose1Time:)` | Dose 2 window opening reminder |
+| `dosetap_window_15min` | `AlarmService.scheduleDose2Reminders(dose1Time:)` | 15-minute window closing warning |
+| `dosetap_window_5min` | `AlarmService.scheduleDose2Reminders(dose1Time:)` | 5-minute final warning (critical) |
+
+Cancellation:
+- `SessionRepository.cancelPendingNotifications()` cancels all identifiers in `sessionNotificationIdentifiers`.
+- `AlarmService.cancelAllAlarms()` cancels the same set via `UNUserNotificationCenter`.
+- `AlarmService.cancelDose2Reminders()` cancels window reminder identifiers specifically.
+
+Code references:
+- `ios/DoseTap/AlarmService.swift` (scheduling, cancellation, notification categories)
+- `ios/DoseTap/Storage/SessionRepository.swift` (`sessionNotificationIdentifiers`, `cancelPendingNotifications()`)
+
+### Critical Alerts Entitlement
+
+The app supports the `com.apple.developer.usernotifications.critical-alerts` entitlement for time-sensitive dose reminders that must bypass Do Not Disturb and Silent Mode.
+
+- Capability gating: `AlarmService.canUseCriticalAlerts` checks both `UserSettingsManager.criticalAlertsEnabled` AND the `CriticalAlertsCapabilityEnabled` Info.plist flag. If either is false, notifications fall back to `.timeSensitive` interruption level.
+- Entitlements files (`DoseTap.entitlements`, `DoseTap.NoCloud.entitlements`): add the `com.apple.developer.usernotifications.critical-alerts` key only after Apple approves the entitlement request.
+- 5-minute final warning (`dosetap_window_5min`) and wake alarms use `.critical` interruption level when `canUseCriticalAlerts` is true.
+- All other notifications use `.timeSensitive` interruption level.
+
+### Notification Permission Recovery
+
+If the user enables notifications in Settings but iOS authorization is `.denied`:
+1. `SettingsView` detects the mismatch via `validateNotificationAuthorization()`.
+2. Resets `settings.notificationsEnabled = false`.
+3. Shows an alert explaining the issue with a button to open iOS Settings (`UIApplication.openSettingsURLString`).
+
+If authorization is `.notDetermined`:
+1. Requests permission via `AlarmService.requestPermission()`.
+2. If denied, resets preference and shows alert.
+
+Code references:
+- `ios/DoseTap/SettingsView.swift` (`validateNotificationAuthorization()`, `openSystemNotificationSettings()`)
+
+---
+
+## Channel Parity (Dose Entry Surfaces)
+
+All dose entry channels MUST trigger identical side effects for the same action. This is a patient-safety invariant.
+
+Entry surfaces:
+1. **Tonight UI** — `CompactDoseButton` in `TonightView`
+2. **History UI** — `DoseButtonsSection` in `HistoryViews`
+3. **Deep link** — `URLRouter` (e.g., `dosetap://dose1`, `dosetap://dose2`)
+4. **Hardware button** — `FlicButtonService`
+
+Required side effects per action:
+
+| Action | Domain Write | Alarm Schedule | Alarm Cancel | Diagnostic Log |
+| --- | --- | --- | --- | --- |
+| Take Dose 1 | `SessionRepository.saveDose1(timestamp:)` | `AlarmService.scheduleWakeAlarm(...)` + `scheduleDose2Reminders(...)` | — | Yes |
+| Take Dose 2 | `SessionRepository.saveDose2(timestamp:...)` | — | `AlarmService.cancelAllAlarms()` + `clearWakeAlarmState()` | Yes |
+| Take Dose 2 (late) | `SessionRepository.saveDose2(timestamp:...)` | — | `AlarmService.cancelAllAlarms()` + `clearWakeAlarmState()` | Yes |
+| Skip Dose 2 | `SessionRepository.skipDose2()` | — | `AlarmService.cancelAllAlarms()` + `clearWakeAlarmState()` | Yes |
+| Extra Dose | `SessionRepository.saveDose2(timestamp:..., isExtraDose: true)` | — | — | Yes |
+| Snooze | `AlarmService.snoozeAlarm(dose1Time:)` | Reschedule alarm | — | Yes |
+
+Code references:
+- `ios/DoseTap/Views/CompactDoseButton.swift`
+- `ios/DoseTap/Views/History/HistoryViews.swift` (`DoseButtonsSection`)
+- `ios/DoseTap/URLRouter.swift`
+- `ios/DoseTap/FlicButtonService.swift`

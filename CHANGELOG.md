@@ -75,6 +75,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Archived historical code review docs to `archive/audits_2025-12-24/`
 
 ### Fixed
+- **P1: Notification ID mismatch** — Unified `SessionRepository.sessionNotificationIdentifiers` with `AlarmService.NotificationID` (`dosetap_*` prefix). Previously 6 cancel call sites used IDs that had zero overlap with what AlarmService actually schedules, leaving orphan notifications.
+- **P1: Flic alarm parity** — `FlicButtonService` dose 1 path now schedules wake alarm + dose 2 reminders; dose 2 / skip paths now cancel all alarms. Previously Flic dose actions had no alarm side effects.
+- **P2: Critical alerts capability gating** — Added `canUseCriticalAlerts` guard in `AlarmService` that checks both `UserSettingsManager.criticalAlertsEnabled` and an Info.plist `CriticalAlertsCapabilityEnabled` flag. Notifications gracefully fall back to `.timeSensitive` when the Apple entitlement is not yet approved. Entitlement key is added to `.entitlements` files only after Apple approval.
+- **P2: Notification permission recovery** — `SettingsView` now detects iOS `.denied` authorization when user enables notifications, resets the toggle, and offers a button to open iOS Settings. Previously permission denial was a one-shot dead end.
+- **P2: Channel parity for dose actions** — URLRouter, History `DoseButtonsSection`, and CompactDoseButton now all cancel alarms on dose 2 / skip / late override. Post-skip dose 2 override enabled across all surfaces (was UI-only).
+- **P2: Extra dose via deep link** — URLRouter `dose2` path now supports extra dose (dose 3+) when dose 2 is already taken.
+- **P3: Alarm sound fallback** — Removed dead `alarm_tone.caf` lookup; alarm sound now uses system sound fallback directly.
 - Foreign key enforcement in SQLite (`PRAGMA foreign_keys = ON`)
 - HealthKitService syntax error preventing compilation
 - Missing source file references in Xcode project
