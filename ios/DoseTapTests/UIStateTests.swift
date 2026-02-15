@@ -65,7 +65,7 @@ final class UISmokeTests: XCTestCase {
     }
     
     func test_exportProducesData_whenSessionExists() async throws {
-        let now = Date()
+        let now = fixedNow
         repo.setDose1Time(now.addingTimeInterval(-180 * 60))
         repo.setDose2Time(now.addingTimeInterval(-15 * 60))
         
