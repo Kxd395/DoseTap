@@ -3,8 +3,8 @@
   "$id": "https://dosetap.com/ssot/constants.json",
   "title": "DoseTap SSOT Constants",
   "description": "Single source of truth for all numeric and enum constants. Generate code and validate docs from this file.",
-  "version": "1.0.1",
-  "lastUpdated": "2026-02-09",
+  "version": "0.1.1",
+  "lastUpdated": "2026-02-15",
   
   "doseWindow": {
     "description": "Core dose timing window constraints (non-negotiable medical safety)",
