@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		01FF500944CC4F14A6E163C4 /* FullApp/DoseModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 418F7D12D4A2473F800C75ED /* FullApp/DoseModels.swift */; };
 		05D399B5B86749ACB9CD89BF /* FullApp/KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BD7AD6DA76F4E548669A489 /* FullApp/KeychainHelper.swift */; };
+		07D79FDC36E045FCB5590A15 /* TonightView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E03D9DEC5D04B32AACF98BA /* TonightView.swift */; };
 		0A777B0D5CC54803B060A980 /* UserSettingsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB4C5084D06D74163A5C71A9 /* UserSettingsManager.swift */; };
 		11C08ABBAF24106F948991D3 /* HighContrastColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = C64168860F0E76DF93919D76 /* HighContrastColors.swift */; };
 		194E929BA46514E973F8ACEE /* WHOOPSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 403FF1A5371F4BA427EC1520 /* WHOOPSettingsView.swift */; };
@@ -16,6 +17,7 @@
 		1B95E3AD96741FD0E9FED120 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = D049AFCF96FC4AFF9120309E /* Secrets.swift */; };
 		24CA1B0499D673C5227DA6EC /* SleepTimelineOverlays.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BC9035E4ACF20D1D40B9A9 /* SleepTimelineOverlays.swift */; };
 		251486320D35FEA58E9D81CA /* EncryptedEventStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCC2762A054AE377C80CF2B0 /* EncryptedEventStorage.swift */; };
+		36C1109C06A24E03A747B9E6 /* SessionSummaryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0C7941006B40BEA391DD9A /* SessionSummaryViews.swift */; };
 		40BDAEDF308A4508940C55F7 /* AlarmService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E912715BD5C4BBAAA735378 /* AlarmService.swift */; };
 		46EBB63DD7FE446C8EEF4021 /* AnalyticsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCEDF0A0E4BE41F582C2221F /* AnalyticsService.swift */; };
 		49BABB381D1350BB62368638 /* ReducedMotionSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A3C6B3DB1EBBE10E2F3E7FB /* ReducedMotionSupport.swift */; };
@@ -27,21 +29,27 @@
 		7C57BE36F02F850F7FE909C1 /* SecureLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = DED8B35BAB0493115DB99CA4 /* SecureLogger.swift */; };
 		801008E9567E13B12BC52116 /* DatabaseSecurity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80B7FD26BB9CFDD4F25097AC /* DatabaseSecurity.swift */; };
 		81A5CD7A3DD244DEB70FA0B2 /* EventStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5D8DC9D91D38419C97E97FA /* EventStorage.swift */; };
+		837A745C7B9B471695166AEC /* CompactDoseButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60E7491C7A9D4FDE812F4BFB /* CompactDoseButton.swift */; };
 		8DA90A6B025231EACF48A8AD /* SecureConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7772A3ACA248F927B3008122 /* SecureConfig.swift */; };
 		92518D93643945F4B64E860F /* SessionRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64641673735B464BB4E4B02F /* SessionRepository.swift */; };
 		A01 /* DoseTapApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B01 /* DoseTapApp.swift */; };
 		A02 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B02 /* ContentView.swift */; };
 		A03 /* DoseCore in Frameworks */ = {isa = PBXBuildFile; productRef = P01 /* DoseCore */; };
 		ACTB001 /* ActivityViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACTF001 /* ActivityViewController.swift */; };
+		AD5F630A482E47B183CDE516 /* DetailsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D42A891F4758470783F7565F /* DetailsView.swift */; };
 		APC001 /* AppContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = APC002 /* AppContainer.swift */; };
 		ASSETSBUILD01 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = ASSETS01 /* Assets.xcassets */; };
 		B264C67A3D970638F91FC1ED /* UndoStateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D7115779119154483A7838A /* UndoStateManager.swift */; };
+		B3A59BFBC74549279C21803D /* SleepPlanCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = B44F86E9E72D452CAFED6B16 /* SleepPlanCards.swift */; };
+		B5040368A01046D0AA5193F1 /* QuickEventViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAE0B98FC8F48BAB6219546 /* QuickEventViews.swift */; };
 		BC3BD8377E674DB98BB83F35 /* InsightsCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FEE161A09D6441A8D4448DA /* InsightsCalculator.swift */; };
 		C0E47E55D0CB89F0CCE49C2A /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1FBB8D30211AB1F43A21D65 /* AppTheme.swift */; };
+		C2E1898433FE4503AD4765DB /* CompactStatusCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22B9CA2EF895428EA7912896 /* CompactStatusCard.swift */; };
 		CLUST101 /* DashboardModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST001 /* DashboardModels.swift */; };
 		CLUST102 /* DashboardViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST002 /* DashboardViews.swift */; };
 		CLUST103 /* TimelineReviewViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST003 /* TimelineReviewViews.swift */; };
 		CLUST104 /* HistoryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST004 /* HistoryViews.swift */; };
+		D2AFCB94D52D4B168AC1CAD6 /* EventLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0E5B5C6E684F7796F9B9FC /* EventLogger.swift */; };
 		D3796BF7DA596F5F9D63F096 /* TimeIntervalMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B2779FB31708024300E8E5 /* TimeIntervalMath.swift */; };
 		D8746EA078A54AF7A8CE92B3 /* MorningCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3941DD4936B4FD0BD5A8837 /* MorningCheckInView.swift */; };
 		D9B47E5F3E91E2F68102BA13 /* NightReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FABFEE0765C943A32E6ACC2 /* NightReviewView.swift */; };
@@ -65,26 +73,18 @@
 		HK001 /* HealthKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = HK002 /* HealthKitService.swift */; };
 		HKP001 /* HealthKitProviding.swift in Sources */ = {isa = PBXBuildFile; fileRef = HKP002 /* HealthKitProviding.swift */; };
 		SST001 /* SleepStageTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = SST002 /* SleepStageTimeline.swift */; };
-		UNDO003 /* UndoSnackbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNDO004 /* UndoSnackbarView.swift */; };
-		UNDO005 /* MedicationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNDO006 /* MedicationSettingsView.swift */; };
-		UNDO007 /* MedicationPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNDO008 /* MedicationPickerView.swift */; };
-		WP001 /* WeeklyPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP002 /* WeeklyPlanner.swift */; };
-		D2AFCB94D52D4B168AC1CAD6 /* EventLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0E5B5C6E684F7796F9B9FC /* EventLogger.swift */; };
-		07D79FDC36E045FCB5590A15 /* TonightView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E03D9DEC5D04B32AACF98BA /* TonightView.swift */; };
-		B3A59BFBC74549279C21803D /* SleepPlanCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = B44F86E9E72D452CAFED6B16 /* SleepPlanCards.swift */; };
-		C2E1898433FE4503AD4765DB /* CompactStatusCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22B9CA2EF895428EA7912896 /* CompactStatusCard.swift */; };
-		837A745C7B9B471695166AEC /* CompactDoseButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60E7491C7A9D4FDE812F4BFB /* CompactDoseButton.swift */; };
-		36C1109C06A24E03A747B9E6 /* SessionSummaryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0C7941006B40BEA391DD9A /* SessionSummaryViews.swift */; };
-		B5040368A01046D0AA5193F1 /* QuickEventViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAE0B98FC8F48BAB6219546 /* QuickEventViews.swift */; };
-		AD5F630A482E47B183CDE516 /* DetailsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D42A891F4758470783F7565F /* DetailsView.swift */; };
-		UI_B01 /* DoseTapUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI_F01 /* DoseTapUITests.swift */; };
-		UI_B02 /* DoseTapUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI_F02 /* DoseTapUITestsLaunchTests.swift */; };
 		SVS_BF01 /* HealthKitSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SVS_FR01 /* HealthKitSettingsView.swift */; };
 		SVS_BF02 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SVS_FR02 /* AboutView.swift */; };
 		SVS_BF03 /* EventCooldownSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SVS_FR03 /* EventCooldownSettingsView.swift */; };
 		SVS_BF04 /* DataManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SVS_FR04 /* DataManagementView.swift */; };
 		SVS_BF05 /* QuickLogCustomizationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SVS_FR05 /* QuickLogCustomizationView.swift */; };
 		SVS_BF06 /* SettingsHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = SVS_FR06 /* SettingsHelpers.swift */; };
+		UI_B01 /* DoseTapUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI_F01 /* DoseTapUITests.swift */; };
+		UI_B02 /* DoseTapUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI_F02 /* DoseTapUITestsLaunchTests.swift */; };
+		UNDO003 /* UndoSnackbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNDO004 /* UndoSnackbarView.swift */; };
+		UNDO005 /* MedicationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNDO006 /* MedicationSettingsView.swift */; };
+		UNDO007 /* MedicationPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNDO008 /* MedicationPickerView.swift */; };
+		WP001 /* WeeklyPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP002 /* WeeklyPlanner.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -109,6 +109,7 @@
 		15C51DD55054436BA1B68CD7 /* SupportBundleExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportBundleExport.swift; sourceTree = "<group>"; };
 		1BD7AD6DA76F4E548669A489 /* FullApp/KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/KeychainHelper.swift; sourceTree = "<group>"; };
 		1CB34E7F86084B24991BD7CA /* FullApp/SetupWizardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/SetupWizardView.swift; sourceTree = "<group>"; };
+		22B9CA2EF895428EA7912896 /* CompactStatusCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CompactStatusCard.swift; sourceTree = "<group>"; };
 		237C573EA83946FE8AFC /* DiagnosticLoggingSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLoggingSettingsView.swift; sourceTree = "<group>"; };
 		2980209556A04B5F8CE5 /* DiagnosticLoggingSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLoggingSettingsView.swift; sourceTree = "<group>"; };
 		2EF211068DBC684F390BC8F9 /* DiagnosticExportView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DiagnosticExportView.swift; sourceTree = "<group>"; };
@@ -117,7 +118,9 @@
 		418F7D12D4A2473F800C75ED /* FullApp/DoseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/DoseModels.swift; sourceTree = "<group>"; };
 		42C70AB54EEE44A19DF24685 /* FetchHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FetchHelpers.swift; sourceTree = "<group>"; };
 		4A3C6B3DB1EBBE10E2F3E7FB /* ReducedMotionSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReducedMotionSupport.swift; sourceTree = "<group>"; };
+		4E03D9DEC5D04B32AACF98BA /* TonightView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TonightView.swift; sourceTree = "<group>"; };
 		576700D19A9F4B35BA54 /* SleepPlanDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepPlanDetailView.swift; sourceTree = "<group>"; };
+		60E7491C7A9D4FDE812F4BFB /* CompactDoseButton.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CompactDoseButton.swift; sourceTree = "<group>"; };
 		64641673735B464BB4E4B02F /* SessionRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepository.swift; sourceTree = "<group>"; };
 		67D4EB39451985378B4E5D61 /* WHOOPDataFetching.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WHOOPDataFetching.swift; sourceTree = "<group>"; };
 		6CFBD921F6074479AF4FF155 /* JSONMigrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONMigrator.swift; sourceTree = "<group>"; };
@@ -131,6 +134,7 @@
 		80A27C7D2EFAC24D0005C000 /* DoseTap.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DoseTap.entitlements; sourceTree = "<group>"; };
 		80B7FD26BB9CFDD4F25097AC /* DatabaseSecurity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DatabaseSecurity.swift; sourceTree = "<group>"; };
 		8FABFEE0765C943A32E6ACC2 /* NightReviewView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NightReviewView.swift; sourceTree = "<group>"; };
+		AA0C7941006B40BEA391DD9A /* SessionSummaryViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionSummaryViews.swift; sourceTree = "<group>"; };
 		AAAAAAAA08C80B4B155C4F1F /* UndoSnackbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoSnackbar.swift; sourceTree = "<group>"; };
 		AAAAAAAA0C2B781536614815 /* UndoManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoManager.swift; sourceTree = "<group>"; };
 		AAAAAAAA180FECDFD1A34BF9 /* Views/MedicationPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/MedicationPickerView.swift; sourceTree = "<group>"; };
@@ -157,10 +161,12 @@
 		B1CBF59D219929011DD8A4A8 /* InputValidator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InputValidator.swift; sourceTree = "<group>"; };
 		B358CDCA949364F93BD996D6 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		B3941DD4936B4FD0BD5A8837 /* MorningCheckInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckInView.swift; sourceTree = "<group>"; };
+		B44F86E9E72D452CAFED6B16 /* SleepPlanCards.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SleepPlanCards.swift; sourceTree = "<group>"; };
 		B5D8DC9D91D38419C97E97FA /* EventStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventStorage.swift; sourceTree = "<group>"; };
 		BACAE6FF95D948B09DD2 /* SleepPlanDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepPlanDetailView.swift; sourceTree = "<group>"; };
 		BB4C5084D06D74163A5C71A9 /* UserSettingsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserSettingsManager.swift; sourceTree = "<group>"; };
 		BE3796A887B24D9FBBD40758 /* PreSleepLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreSleepLogView.swift; sourceTree = "<group>"; };
+		BEAE0B98FC8F48BAB6219546 /* QuickEventViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuickEventViews.swift; sourceTree = "<group>"; };
 		C01 /* DoseTap.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DoseTap.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C1FBB8D30211AB1F43A21D65 /* AppTheme.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
 		C64168860F0E76DF93919D76 /* HighContrastColors.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HighContrastColors.swift; sourceTree = "<group>"; };
@@ -172,7 +178,9 @@
 		CLUST004 /* HistoryViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryViews.swift; sourceTree = "<group>"; };
 		D049AFCF96FC4AFF9120309E /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
 		D1BA2E6CCFB845E6BFC919FA /* FullApp/SetupWizardService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/SetupWizardService.swift; sourceTree = "<group>"; };
+		D42A891F4758470783F7565F /* DetailsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsView.swift; sourceTree = "<group>"; };
 		D565C0B5A1804860B23307B9 /* URLRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLRouter.swift; sourceTree = "<group>"; };
+		DD0E5B5C6E684F7796F9B9FC /* EventLogger.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EventLogger.swift; sourceTree = "<group>"; };
 		DED8B35BAB0493115DB99CA4 /* SecureLogger.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SecureLogger.swift; sourceTree = "<group>"; };
 		E0BC9035E4ACF20D1D40B9A9 /* SleepTimelineOverlays.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SleepTimelineOverlays.swift; sourceTree = "<group>"; };
 		EDIT001 /* EditDoseTimeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditDoseTimeView.swift; sourceTree = "<group>"; };
@@ -192,27 +200,19 @@
 		HK002 /* HealthKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitService.swift; sourceTree = "<group>"; };
 		HKP002 /* HealthKitProviding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitProviding.swift; sourceTree = "<group>"; };
 		SST002 /* SleepStageTimeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepStageTimeline.swift; sourceTree = "<group>"; };
-		UNDO004 /* UndoSnackbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoSnackbarView.swift; sourceTree = "<group>"; };
-		UNDO006 /* MedicationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationSettingsView.swift; sourceTree = "<group>"; };
-		UNDO008 /* MedicationPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationPickerView.swift; sourceTree = "<group>"; };
-		WP002 /* WeeklyPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyPlanner.swift; sourceTree = "<group>"; };
-		DD0E5B5C6E684F7796F9B9FC /* EventLogger.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EventLogger.swift; sourceTree = "<group>"; };
-		4E03D9DEC5D04B32AACF98BA /* TonightView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TonightView.swift; sourceTree = "<group>"; };
-		B44F86E9E72D452CAFED6B16 /* SleepPlanCards.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SleepPlanCards.swift; sourceTree = "<group>"; };
-		22B9CA2EF895428EA7912896 /* CompactStatusCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CompactStatusCard.swift; sourceTree = "<group>"; };
-		60E7491C7A9D4FDE812F4BFB /* CompactDoseButton.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CompactDoseButton.swift; sourceTree = "<group>"; };
-		AA0C7941006B40BEA391DD9A /* SessionSummaryViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionSummaryViews.swift; sourceTree = "<group>"; };
-		BEAE0B98FC8F48BAB6219546 /* QuickEventViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuickEventViews.swift; sourceTree = "<group>"; };
-		D42A891F4758470783F7565F /* DetailsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsView.swift; sourceTree = "<group>"; };
-		UI_F01 /* DoseTapUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseTapUITests.swift; sourceTree = "<group>"; };
-		UI_F02 /* DoseTapUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseTapUITestsLaunchTests.swift; sourceTree = "<group>"; };
-		UI_PROD01 /* DoseTapUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DoseTapUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		SVS_FR01 /* HealthKitSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitSettingsView.swift; sourceTree = "<group>"; };
 		SVS_FR02 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
 		SVS_FR03 /* EventCooldownSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventCooldownSettingsView.swift; sourceTree = "<group>"; };
 		SVS_FR04 /* DataManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataManagementView.swift; sourceTree = "<group>"; };
 		SVS_FR05 /* QuickLogCustomizationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickLogCustomizationView.swift; sourceTree = "<group>"; };
 		SVS_FR06 /* SettingsHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsHelpers.swift; sourceTree = "<group>"; };
+		UI_F01 /* DoseTapUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseTapUITests.swift; sourceTree = "<group>"; };
+		UI_F02 /* DoseTapUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseTapUITestsLaunchTests.swift; sourceTree = "<group>"; };
+		UI_PROD01 /* DoseTapUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DoseTapUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		UNDO004 /* UndoSnackbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoSnackbarView.swift; sourceTree = "<group>"; };
+		UNDO006 /* MedicationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationSettingsView.swift; sourceTree = "<group>"; };
+		UNDO008 /* MedicationPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationPickerView.swift; sourceTree = "<group>"; };
+		WP002 /* WeeklyPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyPlanner.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -227,18 +227,18 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		UI_FW01 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		D01 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				A03 /* DoseCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		UI_FW01 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -452,14 +452,14 @@
 				GRP_DASHBOARD /* Dashboard */,
 				GRP_TIMELINE /* Timeline */,
 				GRP_HISTORY /* History */,
-			
 				4E03D9DEC5D04B32AACF98BA /* TonightView.swift */,
 				B44F86E9E72D452CAFED6B16 /* SleepPlanCards.swift */,
 				22B9CA2EF895428EA7912896 /* CompactStatusCard.swift */,
 				60E7491C7A9D4FDE812F4BFB /* CompactDoseButton.swift */,
 				AA0C7941006B40BEA391DD9A /* SessionSummaryViews.swift */,
 				BEAE0B98FC8F48BAB6219546 /* QuickEventViews.swift */,
-				D42A891F4758470783F7565F /* DetailsView.swift */,);
+				D42A891F4758470783F7565F /* DetailsView.swift */,
+			);
 			path = Views;
 			sourceTree = "<group>";
 		};
@@ -611,18 +611,18 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		UI_RES01 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		K01 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				ASSETSBUILD01 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		UI_RES01 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -633,15 +633,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		UI_SRC01 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				UI_B01 /* DoseTapUITests.swift in Sources */,
-				UI_B02 /* DoseTapUITestsLaunchTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -723,6 +714,15 @@
 				CLUST102 /* DashboardViews.swift in Sources */,
 				CLUST103 /* TimelineReviewViews.swift in Sources */,
 				CLUST104 /* HistoryViews.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		UI_SRC01 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				UI_B01 /* DoseTapUITests.swift in Sources */,
+				UI_B02 /* DoseTapUITestsLaunchTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
