@@ -41,3 +41,6 @@ ios/TestBuild.swift
 # One-off project fix scripts
 ios/*.py
 ios/*.sh
+
+# Added by ggshield
+.cache_ggshield
