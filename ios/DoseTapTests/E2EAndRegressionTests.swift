@@ -12,17 +12,30 @@ import DoseCore
 
 // MARK: - E2E Integration Tests
 
+/// End-to-end integration tests for session lifecycle.
+///
+/// Uses a deterministic clock (23:00 UTC) to avoid flaky failures when CI runs
+/// near the 18:00 session rollover boundary.
 @MainActor
 final class E2EIntegrationTests: XCTestCase {
     
     private var storage: EventStorage!
     private var repo: SessionRepository!
     private var fakeScheduler: FakeNotificationScheduler!
+    /// Fixed reference time: 23:00 UTC — 5 hours past rollover, so offsets up to -300 min stay in-session.
+    private var fixedNow: Date!
     
     override func setUp() async throws {
+        fixedNow = ISO8601DateFormatter().date(from: "2026-01-15T23:00:00Z")!
+        let now = fixedNow!
         storage = EventStorage.shared
         fakeScheduler = FakeNotificationScheduler()
-        repo = SessionRepository(storage: storage, notificationScheduler: fakeScheduler)
+        repo = SessionRepository(
+            storage: storage,
+            notificationScheduler: fakeScheduler,
+            clock: { now },
+            timeZoneProvider: { TimeZone(identifier: "UTC")! }
+        )
         storage.clearAllData()
         repo.reload()
     }
@@ -95,14 +108,14 @@ final class E2EIntegrationTests: XCTestCase {
     }
     
     func test_e2e_sessionDeletion() async throws {
-        repo.setDose1Time(Date().addingTimeInterval(-180 * 60))
-        repo.setDose2Time(Date().addingTimeInterval(-15 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-180 * 60))
+        repo.setDose2Time(fixedNow.addingTimeInterval(-15 * 60))
         repo.incrementSnooze()
         
         storage.insertSleepEvent(
             id: UUID().uuidString,
             eventType: "bathroom",
-            timestamp: Date().addingTimeInterval(-60 * 60),
+            timestamp: fixedNow.addingTimeInterval(-60 * 60),
             colorHex: nil
         )
         
@@ -127,7 +140,7 @@ final class E2EIntegrationTests: XCTestCase {
     }
     
     func test_e2e_eventLogging() async throws {
-        repo.setDose1Time(Date().addingTimeInterval(-160 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-160 * 60))
         let sessionDate = repo.currentSessionDateString()
         
         let events = ["bathroom", "lights_out", "bathroom", "wake_final"]
@@ -135,7 +148,7 @@ final class E2EIntegrationTests: XCTestCase {
             storage.insertSleepEvent(
                 id: UUID().uuidString,
                 eventType: event,
-                timestamp: Date(),
+                timestamp: fixedNow,
                 colorHex: nil
             )
         }
@@ -151,7 +164,7 @@ final class E2EIntegrationTests: XCTestCase {
     
     func test_e2e_rapidStateChanges() async throws {
         for i in 0..<5 {
-            repo.setDose1Time(Date().addingTimeInterval(Double(-160 * 60 - i)))
+            repo.setDose1Time(fixedNow.addingTimeInterval(Double(-160 * 60 - i)))
             XCTAssertNotNil(repo.dose1Time)
             repo.clearTonight()
             XCTAssertNil(repo.dose1Time)
@@ -165,7 +178,7 @@ final class E2EIntegrationTests: XCTestCase {
     func test_e2e_databaseIntegrity() async throws {
         for day in 0..<3 {
             let offset = TimeInterval(day * 24 * 60 * 60)
-            let dose1 = Date().addingTimeInterval(-offset - 180 * 60)
+            let dose1 = fixedNow.addingTimeInterval(-offset - 180 * 60)
             repo.setDose1Time(dose1)
             repo.setDose2Time(dose1.addingTimeInterval(165 * 60))
             

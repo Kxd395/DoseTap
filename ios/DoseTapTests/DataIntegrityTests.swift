@@ -88,17 +88,29 @@ final class SleepPlanStoreTemplateTests: XCTestCase {
 
 /// Data integrity tests that verify cascade behaviors and notification lifecycle.
 /// These tests protect against P0 bugs: ghost doses, orphan notifications, data corruption.
+///
+/// Uses a deterministic clock (23:00 UTC) to avoid flaky failures when CI runs
+/// near the 18:00 session rollover boundary.
 @MainActor
 final class DataIntegrityTests: XCTestCase {
     
     private var storage: EventStorage!
     private var repo: SessionRepository!
     private var fakeScheduler: FakeNotificationScheduler!
+    /// Fixed reference time: 23:00 UTC — 5 hours past rollover, so offsets up to -300 min stay in-session.
+    private var fixedNow: Date!
     
     override func setUp() async throws {
+        fixedNow = ISO8601DateFormatter().date(from: "2026-01-15T23:00:00Z")!
+        let now = fixedNow!
         storage = EventStorage.shared
         fakeScheduler = FakeNotificationScheduler()
-        repo = SessionRepository(storage: storage, notificationScheduler: fakeScheduler)
+        repo = SessionRepository(
+            storage: storage,
+            notificationScheduler: fakeScheduler,
+            clock: { now },
+            timeZoneProvider: { TimeZone(identifier: "UTC")! }
+        )
         storage.clearAllData()
         repo.reload()
     }
@@ -133,7 +145,7 @@ final class DataIntegrityTests: XCTestCase {
     // MARK: - Cascade Delete Tests
     
     func test_sessionDelete_cascadesToDoseEvents() async throws {
-        let now = Date()
+        let now = fixedNow!
         let dose1Time = now.addingTimeInterval(-120 * 60)
         repo.setDose1Time(dose1Time)
         
@@ -151,7 +163,7 @@ final class DataIntegrityTests: XCTestCase {
     }
     
     func test_sessionDelete_cascadesBothDoses() async throws {
-        let now = Date()
+        let now = fixedNow!
         let dose1Time = now.addingTimeInterval(-180 * 60)
         let dose2Time = now.addingTimeInterval(-15 * 60)
         
@@ -174,7 +186,7 @@ final class DataIntegrityTests: XCTestCase {
     }
     
     func test_sessionDelete_resetsEphemeralState() async throws {
-        repo.setDose1Time(Date().addingTimeInterval(-160 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-160 * 60))
         repo.incrementSnooze()
         repo.incrementSnooze()
         repo.skipDose2()
@@ -193,7 +205,7 @@ final class DataIntegrityTests: XCTestCase {
     // MARK: - Notification Cancellation Tests
     
     func test_deleteActiveSession_cancelsExactNotificationIdentifiers() async throws {
-        let dose1Time = Date().addingTimeInterval(-150 * 60)
+        let dose1Time = fixedNow.addingTimeInterval(-150 * 60)
         repo.setDose1Time(dose1Time)
         
         let sessionDate = repo.currentSessionDateString()
@@ -213,7 +225,7 @@ final class DataIntegrityTests: XCTestCase {
     }
     
     func test_deleteInactiveSession_doesNotCancelNotifications() async throws {
-        repo.setDose1Time(Date())
+        repo.setDose1Time(fixedNow)
         XCTAssertNotNil(repo.activeSessionDate)
         
         fakeScheduler.reset()
@@ -243,19 +255,19 @@ final class DataIntegrityTests: XCTestCase {
     func test_sessionDelete_cascadesAllDependentTables() async throws {
         let sessionDate = storage.currentSessionDate()
         
-        repo.setDose1Time(Date().addingTimeInterval(-180 * 60))
-        repo.setDose2Time(Date().addingTimeInterval(-15 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-180 * 60))
+        repo.setDose2Time(fixedNow.addingTimeInterval(-15 * 60))
         
         storage.insertSleepEvent(
             id: UUID().uuidString,
             eventType: "bathroom",
-            timestamp: Date(),
+            timestamp: fixedNow,
             colorHex: nil
         )
         storage.insertSleepEvent(
             id: UUID().uuidString,
             eventType: "lights_out",
-            timestamp: Date(),
+            timestamp: fixedNow,
             colorHex: nil
         )
         
@@ -281,7 +293,7 @@ final class DataIntegrityTests: XCTestCase {
     }
     
     func test_sessionDelete_clearsCurrentSessionTable() async throws {
-        repo.setDose1Time(Date().addingTimeInterval(-160 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-160 * 60))
         repo.incrementSnooze()
         
         let sessionDate = repo.currentSessionDateString()
@@ -296,8 +308,8 @@ final class DataIntegrityTests: XCTestCase {
     // MARK: - Legacy Tests (kept for backward compatibility)
 
     func test_clearTonight_managedNotificationState() async throws {
-        repo.setDose1Time(Date().addingTimeInterval(-160 * 60))
-        repo.setDose2Time(Date())
+        repo.setDose1Time(fixedNow.addingTimeInterval(-160 * 60))
+        repo.setDose2Time(fixedNow)
         let sessionDate = repo.currentSessionDateString()
         
         XCTAssertNotNil(repo.dose1Time)
@@ -322,7 +334,7 @@ final class DataIntegrityTests: XCTestCase {
     }
 
     func test_clearAllData_clearsIdentityAndCancelsNotifications() async throws {
-        repo.setDose1Time(Date().addingTimeInterval(-150 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-150 * 60))
         repo.incrementSnooze()
         XCTAssertNotNil(repo.activeSessionId, "Session id should exist before clearAllData")
         XCTAssertNotNil(repo.activeSessionStart, "Session start should exist before clearAllData")
@@ -349,7 +361,7 @@ final class DataIntegrityTests: XCTestCase {
     func test_contextConsistency_throughStateTransitions() async throws {
         XCTAssertEqual(repo.currentContext.phase, .noDose1, "Start with noDose1")
         
-        repo.setDose1Time(Date().addingTimeInterval(-155 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-155 * 60))
         XCTAssertNotEqual(repo.currentContext.phase, .noDose1, "Phase changes after dose1")
         
         let sessionDate = repo.currentSessionDateString()
