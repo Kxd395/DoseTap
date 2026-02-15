@@ -27,13 +27,10 @@ echo "  ✅ SwiftPM build OK"
 # ─── 2. print() policy checks ────────────────────────────────────
 if command -v rg >/dev/null 2>&1; then
   CORE_PRINT_VIOLATIONS=$(rg -n '\bprint\s*\(' ios/Core --glob '*.swift' || true)
-  APP_PRINT_VIOLATIONS=$(rg -n '\bprint\s*\(' ios/DoseTap --glob '*.swift' \
-    --glob '!ios/DoseTap/Security/SecureLogger.swift' \
-    || true)
+  APP_PRINT_VIOLATIONS=$(rg -n '\bprint\s*\(' ios/DoseTap --glob '*.swift' || true)
 else
   CORE_PRINT_VIOLATIONS=$(grep -rn 'print(' ios/Core --include='*.swift' || true)
   APP_PRINT_VIOLATIONS=$(grep -rn 'print(' ios/DoseTap --include='*.swift' \
-    --exclude='SecureLogger.swift' \
     || true)
 fi
 if [ -n "$CORE_PRINT_VIOLATIONS" ]; then
