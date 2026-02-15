@@ -46,6 +46,12 @@ public class AlarmService: NSObject, ObservableObject {
     private var vibrationTimer: Timer?
     private var usesSystemSoundFallback: Bool = false
     private var alarmAcknowledged: Bool = false
+    private let criticalAlertsCapabilityFlag = "CriticalAlertsCapabilityEnabled"
+    
+    private var canUseCriticalAlerts: Bool {
+        let capabilityEnabled = (Bundle.main.object(forInfoDictionaryKey: criticalAlertsCapabilityFlag) as? Bool) == true
+        return UserSettingsManager.shared.criticalAlertsEnabled && capabilityEnabled
+    }
     
     // MARK: - Initialization
     
@@ -101,8 +107,7 @@ public class AlarmService: NSObject, ObservableObject {
     
     public func requestPermission() async -> Bool {
         do {
-            let settings = UserSettingsManager.shared
-            let options: UNAuthorizationOptions = settings.criticalAlertsEnabled
+            let options: UNAuthorizationOptions = canUseCriticalAlerts
                 ? [.alert, .sound, .badge, .criticalAlert]
                 : [.alert, .sound, .badge]
             let granted = try await notificationCenter.requestAuthorization(options: options)
@@ -162,7 +167,7 @@ public class AlarmService: NSObject, ObservableObject {
                 body: "Final warning - take Dose 2 NOW or skip!",
                 at: warning5,
                 sound: notificationSound(isCritical: true),
-                isCritical: settings.criticalAlertsEnabled
+                isCritical: canUseCriticalAlerts
             )
         }
         
@@ -239,7 +244,7 @@ public class AlarmService: NSObject, ObservableObject {
             body: "Take your second dose now! \(TimeIntervalMath.formatMinutes(minutesRemaining)) remaining in window.",
             at: time,
             sound: alarmNotificationSound(),
-            isCritical: UserSettingsManager.shared.criticalAlertsEnabled,
+            isCritical: canUseCriticalAlerts,
             category: NotificationCategory.alarm
         )
         
@@ -253,7 +258,7 @@ public class AlarmService: NSObject, ObservableObject {
                     body: "\(TimeIntervalMath.formatMinutes(max(0, minutesRemaining - (i * 2)))) left in window!",
                     at: followUpTime,
                     sound: alarmNotificationSound(),
-                    isCritical: UserSettingsManager.shared.criticalAlertsEnabled,
+                    isCritical: canUseCriticalAlerts,
                     category: NotificationCategory.alarm
                 )
             }
@@ -446,9 +451,8 @@ public class AlarmService: NSObject, ObservableObject {
     }
 
     private func notificationSound(isCritical: Bool) -> UNNotificationSound? {
-        let settings = UserSettingsManager.shared
-        guard settings.soundEnabled else { return nil }
-        if isCritical && settings.criticalAlertsEnabled {
+        guard UserSettingsManager.shared.soundEnabled else { return nil }
+        if isCritical && canUseCriticalAlerts {
             return .defaultCritical
         }
         return .default
