@@ -185,7 +185,7 @@ struct PreSleepLogView: View {
             let last = answers.caffeineLastAmountMg ?? 0
             let total = answers.caffeineDailyTotalMg ?? 0
             if last <= 0 {
-                saveErrorMessage = "Caffeine last amount must be greater than 0 mg."
+                saveErrorMessage = "Caffeine last amount must be greater than 0 oz."
                 showSaveError = true
                 return
             }
@@ -457,23 +457,25 @@ struct Card2BodySubstances: View {
                                         set: { answers.caffeineLastIntakeAt = $0 }
                                     )
                                 )
+                                // Unit displayed as "oz" (fluid ounces of beverage).
+                                // Model property retains legacy "Mg" suffix for storage compatibility.
                                 SubstanceIntStepperRow(
                                     label: "Last amount",
-                                    unit: "mg",
-                                    range: 5...600,
-                                    step: 5,
+                                    unit: "oz",
+                                    range: 2...48,
+                                    step: 2,
                                     value: Binding(
-                                        get: { answers.caffeineLastAmountMg ?? defaultCaffeineAmountMg() },
+                                        get: { answers.caffeineLastAmountMg ?? defaultCaffeineAmountOz() },
                                         set: { answers.caffeineLastAmountMg = $0 }
                                     )
                                 )
                                 SubstanceIntStepperRow(
                                     label: "Daily total",
-                                    unit: "mg",
-                                    range: max(answers.caffeineLastAmountMg ?? defaultCaffeineAmountMg(), 5)...1200,
-                                    step: 10,
+                                    unit: "oz",
+                                    range: max(answers.caffeineLastAmountMg ?? defaultCaffeineAmountOz(), 2)...96,
+                                    step: 4,
                                     value: Binding(
-                                        get: { answers.caffeineDailyTotalMg ?? max(answers.caffeineLastAmountMg ?? defaultCaffeineAmountMg(), defaultCaffeineAmountMg()) },
+                                        get: { answers.caffeineDailyTotalMg ?? max(answers.caffeineLastAmountMg ?? defaultCaffeineAmountOz(), defaultCaffeineAmountOz()) },
                                         set: { answers.caffeineDailyTotalMg = $0 }
                                     )
                                 )
@@ -565,8 +567,8 @@ struct Card2BodySubstances: View {
                 answers.caffeineDailyTotalMg = nil
             } else {
                 if answers.caffeineLastIntakeAt == nil { answers.caffeineLastIntakeAt = Date() }
-                if answers.caffeineLastAmountMg == nil { answers.caffeineLastAmountMg = defaultCaffeineAmountMg() }
-                if answers.caffeineDailyTotalMg == nil { answers.caffeineDailyTotalMg = max(defaultCaffeineAmountMg(), answers.caffeineLastAmountMg ?? 0) }
+                if answers.caffeineLastAmountMg == nil { answers.caffeineLastAmountMg = defaultCaffeineAmountOz() }
+                if answers.caffeineDailyTotalMg == nil { answers.caffeineDailyTotalMg = max(defaultCaffeineAmountOz(), answers.caffeineLastAmountMg ?? 0) }
                 normalizeCaffeineDetails()
             }
         }
@@ -716,14 +718,16 @@ struct Card2BodySubstances: View {
         }
     }
 
-    private func defaultCaffeineAmountMg() -> Int {
+    /// Default beverage oz based on selected stimulant type.
+    /// Property name retains legacy "Mg" suffix in the model for storage compatibility.
+    private func defaultCaffeineAmountOz() -> Int {
         switch answers.stimulants ?? PreSleepLogAnswers.Stimulants.none {
         case .none: return 0
-        case .tea: return 40
-        case .soda: return 45
-        case .coffee: return 95
-        case .energyDrink: return 150
-        case .multiple: return 200
+        case .tea: return 8
+        case .soda: return 12
+        case .coffee: return 12
+        case .energyDrink: return 16
+        case .multiple: return 24
         }
     }
 
@@ -739,10 +743,10 @@ struct Card2BodySubstances: View {
     private func normalizeCaffeineDetails() {
         guard (answers.stimulants ?? PreSleepLogAnswers.Stimulants.none) != .none else { return }
         if let amount = answers.caffeineLastAmountMg {
-            answers.caffeineLastAmountMg = max(5, amount)
+            answers.caffeineLastAmountMg = max(2, amount)
         }
         if let total = answers.caffeineDailyTotalMg {
-            answers.caffeineDailyTotalMg = max(5, total)
+            answers.caffeineDailyTotalMg = max(2, total)
         }
         if let amount = answers.caffeineLastAmountMg,
            let total = answers.caffeineDailyTotalMg,
@@ -769,8 +773,8 @@ struct Card2BodySubstances: View {
     private func bootstrapSubstanceDetailsIfNeeded() {
         if (answers.stimulants ?? PreSleepLogAnswers.Stimulants.none) != .none {
             if answers.caffeineLastIntakeAt == nil { answers.caffeineLastIntakeAt = Date() }
-            if answers.caffeineLastAmountMg == nil { answers.caffeineLastAmountMg = defaultCaffeineAmountMg() }
-            if answers.caffeineDailyTotalMg == nil { answers.caffeineDailyTotalMg = max(defaultCaffeineAmountMg(), answers.caffeineLastAmountMg ?? 0) }
+            if answers.caffeineLastAmountMg == nil { answers.caffeineLastAmountMg = defaultCaffeineAmountOz() }
+            if answers.caffeineDailyTotalMg == nil { answers.caffeineDailyTotalMg = max(defaultCaffeineAmountOz(), answers.caffeineLastAmountMg ?? 0) }
             normalizeCaffeineDetails()
         }
 
