@@ -38,7 +38,8 @@ let package = Package(
                 "DiagnosticEvent.swift",
                 "DiagnosticLogger.swift",
                 "DosingModels.swift",
-                "CertificatePinning.swift"
+                "CertificatePinning.swift",
+                "NightScoreCalculator.swift"
             ]
         ),
         .testTarget(
@@ -75,7 +76,8 @@ let package = Package(
                 "RecommendationEngineTests.swift",
                 "EventStoreModelsTests.swift",
                 "TimeEngineTests.swift",
-                "SessionRolloverRegressionTests.swift"
+                "SessionRolloverRegressionTests.swift",
+                "NightScoreCalculatorTests.swift"
             ]
         )
     ]
