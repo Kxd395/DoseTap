@@ -884,6 +884,18 @@ final class DashboardAnalyticsModel: ObservableObject {
 }
 
 @MainActor
+// MARK: - CloudKit Sync (P1-5: DEFERRED — requires iCloud entitlement + Apple Developer Team)
+//
+// This service is a complete implementation (~600 LOC) but is non-functional because:
+// 1. iCloud entitlement is not enabled in the Xcode project
+// 2. Requires a paid Apple Developer Team profile for CloudKit container
+//
+// The code is guarded behind `DoseTapCloudSyncEnabled` Info.plist flag (defaults to false).
+// Dashboard shows "Cloud Sync · Disabled" with explanation when inactive.
+//
+// To enable: add iCloud entitlement → create CloudKit container → set DoseTapCloudSyncEnabled=true
+// See: docs/IMPROVEMENT_ROADMAP.md P1-5 for full plan.
+
 final class CloudKitSyncService: ObservableObject {
     static let shared = CloudKitSyncService()
 

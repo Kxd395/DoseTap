@@ -132,8 +132,9 @@ struct SleepNightSummary {
 ## WHOOPService
 
 File: `ios/DoseTap/WHOOPService.swift` (~543 lines)
+Data: `ios/DoseTap/WHOOPDataFetching.swift` (~492 lines)
 
-**Status: Feature flag OFF (`isEnabled = false`)**
+**Status: Feature flag OFF (`isEnabled = false`) — code fully wired, pending credential rotation**
 
 ```text
 ┌─────────────────────────────────────────────┐
@@ -143,20 +144,30 @@ File: `ios/DoseTap/WHOOPService.swift` (~543 lines)
 │                                             │
 │  OAuth 2.0 + PKCE:                          │
 │  ├── client_id (from SecureConfig)          │
-│  ├── client_secret (restored dc51cfd)       │
-│  ├── code_verifier + code_challenge         │
+│  ├── code_verifier + code_challenge (S256)  │
 │  └── redirect_uri                           │
 │                                             │
-│  Endpoints:                                 │
-│  ├── /oauth/token                           │
-│  ├── /v1/recovery                           │
-│  ├── /v1/sleep                              │
-│  └── /v1/cycle                              │
+│  API Endpoints (all implemented):           │
+│  ├── /developer/v2/activity/sleep           │
+│  ├── /developer/v2/activity/sleep/{id}      │
+│  ├── /developer/v2/recovery                 │
+│  ├── /developer/v2/cycle                    │
+│  └── /developer/v2/activity/heart_rate      │
 │                                             │
-│  State: Decorative only                     │
-│  ├── All data display uses simulated values │
-│  ├── No real WHOOP API calls in production  │
-│  └── Auth flow implemented but not tested   │
+│  Data Models:                               │
+│  ├── WHOOPSleep → WHOOPNightSummary         │
+│  ├── WHOOPRecovery (recovery + HRV merge)   │
+│  ├── WHOOPHeartRate (per-minute HR)         │
+│  ├── WHOOPSleepStages → SleepStageBand      │
+│  └── WHOOPSleepScore (efficiency, RR, etc)  │
+│                                             │
+│  Integration Points (when enabled):         │
+│  ├── Dashboard: whoopSummary on aggregate   │
+│  ├── Dashboard: recovery/HRV/efficiency avg │
+│  ├── Night Review: per-session WHOOP card   │
+│  ├── Timeline: real HR from API             │
+│  ├── Settings: sleep history with recovery  │
+│  └── DoseEffectivenessCalculator: HRV/rec.  │
 └─────────────────────────────────────────────┘
 ```
 

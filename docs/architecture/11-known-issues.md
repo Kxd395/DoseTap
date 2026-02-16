@@ -1,40 +1,18 @@
 # 11 — Known Issues & Technical Debt
 
-## Open P1 Items (from IMPROVEMENT_ROADMAP.md)
+## P1 Status Summary
 
-### P1-2: Timeline Simulated Biometrics
+All P1 items from IMPROVEMENT_ROADMAP.md are resolved or explicitly deferred:
 
-- **File:** `ios/DoseTap/SleepTimelineOverlays.swift:354-394`
-- **Issue:** Heart rate and HRV overlays use `sin()` and `Double.random()` to generate fake data
-- **Impact:** Users see simulated biometrics that look real
-- **Fix:** Guard behind WHOOP feature flag, show "Connect device" placeholder when off
-- **Blocked by:** WHOOP `isEnabled = false`
+- ✅ P1-1: Night Review hardcoded health data — replaced with real WHOOP/HealthKit data
+- ✅ P1-2: Timeline simulated biometrics — `extractBiometricData()` now uses real WHOOP API calls
+- ✅ P1-3: Dashboard WHOOP fields — `whoopSummary` on aggregate, recovery/HRV/efficiency in views
+- ✅ P1-4: Dose-sleep correlation — `DoseEffectivenessCalculator` with 43 tests + `IntervalFormat`
+- ⏸️ P1-5: CloudKit sync — deferred (requires iCloud entitlement + paid developer team)
+- ✅ P1-6: NightScoreCalculator surfaced in Night Review
+- ✅ P1-7: Wake alarm semantic naming fixed
 
-### P1-3: Dashboard WHOOP Fields
-
-- **File:** `ios/DoseTap/Views/Dashboard/DashboardModels.swift`
-- **Issue:** `DashboardNightAggregate` has no WHOOP-specific fields
-- **Impact:** Recovery score, HRV, strain not available in dashboard
-- **Fix:** Add optional WHOOP fields to aggregate model
-- **Blocked by:** WHOOP `isEnabled = false`
-
-### P1-4: Dose-Sleep Correlation View
-
-- **Issue:** No view correlating dose timing with sleep quality
-- **Impact:** Users can't see if earlier/later D2 affects sleep
-- **Fix:** New view using NightScoreCalculator + interval data
-- **Effort:** Large (new view + data aggregation)
-
-### P1-5: CloudKit Sync Decision
-
-- **Issue:** CloudKit sync code exists but is not fully wired
-- **Impact:** Data is local-only
-- **Fix:** Either enable and test, or remove dead CloudKit code
-- **Decision needed from user**
-
----
-
-## Dose Registration Findings (from review 2026-02-15)
+## Remaining Technical Debt
 
 ### P0: Flic Late Dose Without Confirmation
 

@@ -96,25 +96,38 @@ A deep code audit of the running app versus source reveals five critical themes:
 
 ---
 
-### P1-2: Timeline Biometric Overlays Are Simulated
+### ✅ P1-2: Timeline Biometric Overlays Are Simulated — RESOLVED
 
-**Problem:** `extractBiometricData(from:)` generates heart rate, respiratory rate, and HRV data using mathematical functions (`sin()`, `random()`), not actual WHOOP API data. The comment explicitly says "In a real implementation, this would come from the WHOOP sleep stages endpoint."
+**Problem:** `extractBiometricData(from:)` generated heart rate, respiratory rate, and HRV data using `sin()` and `random()` — not actual WHOOP API data.
 
-**File:** `SleepTimelineOverlays.swift:354-394`
-
-**Fix:** Replace with `WHOOPDataFetching.fetchHeartRateData()` and `fetchSleepStages()` calls. The endpoints already exist.
-
-**Effort:** M (2-3 days)
+**Resolution:**
+- `extractBiometricData()` is now `async` and calls real WHOOP APIs:
+  - Heart rate: `fetchHeartRateData()` returns actual per-minute HR from WHOOP
+  - Respiratory rate: uses WHOOP score-level `respiratoryRate` (best available from API)
+  - HRV: uses session-level HRV from recovery merge (per-epoch HRV not available in WHOOP public API)
+- Removed all `sin()`/`random()` simulated data generation
+- Graceful fallback: empty arrays when WHOOP disabled or API fails
+- Call site in `LiveEnhancedTimelineView.loadData()` updated with `await`
 
 ---
 
-### P1-3: DashboardNightAggregate Has No WHOOP Fields
+### ✅ P1-3: DashboardNightAggregate Has No WHOOP Fields — RESOLVED
 
-**Problem:** The night aggregate model that powers all Dashboard analytics has `healthSummary` for HealthKit data but absolutely no fields for WHOOP metrics. Even when WHOOP is connected, recovery/strain/HRV can't appear in trend charts.
+**Problem:** The night aggregate model had `healthSummary` for HealthKit but no WHOOP fields. Recovery/HRV/strain couldn't appear in Dashboard analytics.
 
-**Fix:** Add `whoopSummary: WHOOPNightSummary?` to `DashboardNightAggregate` and populate during `refreshData()`. Add WHOOP metric cards/charts to Dashboard.
-
-**Effort:** L (3-5 days) — model change + view work + trend chart integration
+**Resolution:**
+- Added `whoopSummary: WHOOPNightSummary?` to `DashboardNightAggregate`
+- `totalSleepMinutes` now prefers WHOOP data, falls back to HealthKit
+- WHOOP computed properties: `whoopRecoveryScore`, `whoopHRV`, `whoopSleepEfficiency`, `whoopRespiratoryRate`, `whoopDisturbances`, `whoopDeepSleepMinutes`
+- `dataCompletenessScore` and `hasAnyData` include WHOOP presence
+- `DashboardAnalyticsModel`: added `whoopNights`, `averageWhoopRecovery/HRV/Efficiency/RR`
+- `performRefresh` fetches WHOOP sleep + recovery data, merges by session key
+- `buildIntegrationStates` shows real WHOOP night count when connected
+- `DashboardSleepSnapshotCard`: WHOOP Metrics section with recovery/HRV/efficiency/RR
+- `DashboardRecentNightsCard`: per-night recovery badge (color-coded green/orange/red)
+- `WHOOPNightSummary` gains `recoveryScore`, `hrvMs`, `restingHeartRate`, `hasValidSleepData`
+- Night Review `HealthDataCard` loads real WHOOP data per-session with loading state
+- `WHOOPSettingsView`: filters unscored nights, shows recovery/HRV, fixes 0h 0m display
 
 ---
 
@@ -136,13 +149,19 @@ A deep code audit of the running app versus source reveals five critical themes:
 
 ---
 
-### P1-5: CloudKit Sync Is Non-Functional Skeleton
+### ⏸️ P1-5: CloudKit Sync Is Non-Functional Skeleton — DEFERRED
 
-**Problem:** Dashboard shows "Cloud Sync · Disabled" with "requires iCloud entitlements" message. The `CloudKitSyncService` has a full implementation (~600 LOC) but the iCloud entitlement is not enabled in the project.
+**Problem:** Dashboard shows "Cloud Sync · Disabled" with "requires iCloud entitlements" message. `CloudKitSyncService` has a complete implementation (~600 LOC) but the iCloud entitlement is not enabled.
 
-**Fix:** Decide: enable iCloud entitlement and test sync, or remove the skeleton to avoid confusion.
+**Decision:** Keep skeleton, defer activation. The code is:
+- Well-structured with zone-based sync, change tokens, conflict resolution
+- Properly guarded behind `DoseTapCloudSyncEnabled` Info.plist flag (defaults to false)
+- Dashboard shows clear "Disabled" status with explanation when inactive
+- Added prominent documentation header explaining the deferred state
 
-**Effort:** M (3-5 days) if enabling, S (1 day) if removing
+**To enable later:** Add iCloud entitlement → create CloudKit container → set `DoseTapCloudSyncEnabled=true` in Info.plist → test sync with real iCloud account.
+
+**Blocked by:** Paid Apple Developer Team profile requirement.
 
 ---
 
@@ -289,24 +308,31 @@ All P0 items resolved on `chore/audit-2026-02-15`:
 5. ✅ P0-6: WHOOP OAuth PKCE migration — client_secret removed
 6. ✅ P0-1: WHOOP decorative guards — hardcoded data removed, feature-flag honoured
 
-**Phase 2 — WHOOP for Real (2-3 weeks)**
-5. P0-1: Wire WHOOP data to Dashboard + Night Review + Timeline
-6. P1-2: Replace simulated biometric overlays with real data
-7. P1-3: Add WHOOP fields to DashboardNightAggregate
-8. P1-6: Surface NightScoreCalculator
+**Phase 2 — WHOOP for Real ✅ COMPLETE**
 
-**Phase 3 — User Value (2-4 weeks)**
-9. P1-4: Dose-sleep quality correlation view
-10. P2-1: Widget support
-11. P2-2: Siri Shortcuts / AppIntents
-12. P2-5: Pull-to-refresh
-13. P2-4: DateFormatter performance
+All WHOOP data integration resolved on `chore/audit-2026-02-15`:
 
-**Phase 4 — Platform Expansion (3-6 weeks)**
-14. P2-3: watchOS companion
-15. P2-8: iPad / landscape
-16. P1-5: CloudKit sync decision
-17. P2-6: History search
+5. ✅ P0-1: WHOOP data wired to Dashboard + Night Review + Timeline
+6. ✅ P1-2: Simulated biometrics replaced with real WHOOP API data
+7. ✅ P1-3: WHOOP fields added to DashboardNightAggregate + views
+8. ✅ P1-6: NightScoreCalculator surfaced in Night Review
+
+**Phase 3 — Analytics & Core ✅ COMPLETE**
+
+9. ✅ P1-4: DoseEffectivenessCalculator + IntervalFormat (43 tests)
+10. ✅ P1-7: Wake alarm semantic naming fixed
+11. ⏸️ P1-5: CloudKit sync deferred (requires iCloud entitlement)
+
+**Phase 4 — User Value (next up)**
+12. P2-1: Widget support
+13. P2-2: Siri Shortcuts / AppIntents
+14. P2-5: Pull-to-refresh
+15. P2-4: DateFormatter performance
+
+**Phase 5 — Platform Expansion (3-6 weeks)**
+16. P2-3: watchOS companion
+17. P2-8: iPad / landscape
+18. P2-6: History search
 
 ---
 
@@ -320,4 +346,4 @@ All P0 items resolved on `chore/audit-2026-02-15`:
 
 ---
 
-*Generated: 2026-02-16 | Version: 0.3.2 alpha*
+*Updated: 2026-02-15 | Version: 0.3.3 alpha | All P0 + P1 resolved (P1-5 deferred)*
