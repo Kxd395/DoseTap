@@ -13,6 +13,7 @@
 
 import Foundation
 import SwiftUI
+import DoseCore
 
 // MARK: - Night Review View
 struct NightReviewView: View {
@@ -37,6 +38,9 @@ struct NightReviewView: View {
                     
                     // Dose Timing Summary
                     DoseTimingCard(sessionKey: selectedSessionKey)
+                    
+                    // Night Score
+                    NightScoreCard(sessionKey: selectedSessionKey)
                     
                     // Pre-Sleep Log Section
                     PreSleepLogCard(sessionKey: selectedSessionKey)
@@ -573,6 +577,159 @@ struct SleepEventRow: View {
     }
 }
 
+// MARK: - Night Score Card
+struct NightScoreCard: View {
+    let sessionKey: String
+    @ObservedObject private var sessionRepo = SessionRepository.shared
+
+    private var result: NightScoreResult? {
+        let doseLog = sessionRepo.fetchDoseLog(forSession: sessionKey)
+        let events = sessionRepo.fetchSleepEventsLocal(for: sessionKey)
+        let checkIn = sessionRepo.fetchMorningCheckIn(for: sessionKey)
+        let hasLightsOut = events.contains { $0.eventType == "lights_out" }
+        let hasWakeFinal = events.contains { $0.eventType == "wake_final" }
+        let interval: Double? = doseLog?.intervalMinutes.map { Double($0) }
+
+        let input = NightScoreInput(
+            intervalMinutes: interval,
+            dose2Skipped: doseLog?.dose2Skipped ?? false,
+            dose1Taken: doseLog?.dose1Time != nil,
+            dose2Taken: doseLog?.dose2Time != nil,
+            checkInCompleted: checkIn != nil,
+            lightsOutLogged: hasLightsOut,
+            wakeFinalLogged: hasWakeFinal
+        )
+        return NightScoreCalculator.calculate(input)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("🌙 Night Score")
+                    .font(.headline)
+                Spacer()
+                if let r = result {
+                    Text(r.label)
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(labelColor(r.label))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(labelColor(r.label).opacity(0.15))
+                        .cornerRadius(8)
+                }
+            }
+
+            if let r = result {
+                // Score circle
+                HStack {
+                    Spacer()
+                    ZStack {
+                        Circle()
+                            .stroke(scoreColor(r.score).opacity(0.2), lineWidth: 8)
+                            .frame(width: 80, height: 80)
+                        Circle()
+                            .trim(from: 0, to: Double(r.score) / 100.0)
+                            .stroke(scoreColor(r.score), style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                            .frame(width: 80, height: 80)
+                        VStack(spacing: 0) {
+                            Text("\(r.score)")
+                                .font(.title2)
+                                .fontWeight(.bold)
+                            Text("/ 100")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    Spacer()
+                }
+
+                // Component breakdown
+                VStack(spacing: 6) {
+                    componentRow("Interval Accuracy", value: r.components.intervalAccuracy, weight: "40%")
+                    componentRow("Dose Completeness", value: r.components.doseCompleteness, weight: "25%")
+                    componentRow("Session Logging", value: r.components.sessionCompleteness, weight: "20%")
+                    if let sq = r.components.sleepQuality {
+                        componentRow("Sleep Quality", value: sq, weight: "15%")
+                    } else {
+                        HStack {
+                            Text("Sleep Quality")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Text("No data")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            } else {
+                Text("No dose data to calculate a score")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding()
+            }
+        }
+        .padding()
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+        .shadow(radius: 2)
+    }
+
+    private func componentRow(_ label: String, value: Double, weight: String) -> some View {
+        HStack {
+            Text(label)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Spacer()
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.gray.opacity(0.15))
+                        .frame(height: 6)
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(barColor(value))
+                        .frame(width: geo.size.width * value, height: 6)
+                }
+            }
+            .frame(width: 80, height: 6)
+            Text("\(Int(value * 100))%")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .frame(width: 32, alignment: .trailing)
+        }
+    }
+
+    private func scoreColor(_ score: Int) -> Color {
+        switch score {
+        case 85...100: return .green
+        case 70..<85: return .blue
+        case 50..<70: return .orange
+        default: return .red
+        }
+    }
+
+    private func labelColor(_ label: String) -> Color {
+        switch label {
+        case "Excellent": return .green
+        case "Good": return .blue
+        case "Fair": return .orange
+        default: return .red
+        }
+    }
+
+    private func barColor(_ value: Double) -> Color {
+        switch value {
+        case 0.85...1.0: return .green
+        case 0.7..<0.85: return .blue
+        case 0.5..<0.7: return .orange
+        default: return .red
+        }
+    }
+}
+
 // MARK: - Health Data Card
 struct HealthDataCard: View {
     let sessionKey: String
@@ -583,16 +740,12 @@ struct HealthDataCard: View {
                 .font(.headline)
             
             VStack(spacing: 12) {
-                // Apple Health
+                // Apple Health — placeholder until HealthKit integration wired
                 HealthIntegrationRow(
                     source: "Apple Health",
                     icon: "heart.fill",
                     iconColor: .red,
-                    data: [
-                        ("Total Sleep", "7h 23m"),
-                        ("Deep Sleep", "1h 45m"),
-                        ("REM", "2h 10m")
-                    ]
+                    data: [("Status", "Connect in Settings → Integrations")]
                 )
                 
                 if WHOOPService.isEnabled {
