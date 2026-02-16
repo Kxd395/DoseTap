@@ -2,9 +2,9 @@
 
 > **Last updated:** 2026-02-16  
 > **Version:** 0.3.2 alpha  
-> **Branch:** `004-dosing-amount-model`  
-> **Codebase:** ~44,400 LOC across 139 Swift files  
-> **Tests:** 525 SwiftPM + 134 Xcode unit + 12 XCUITest = 671 total
+> **Branch:** `chore/audit-2026-02-15`  
+> **Codebase:** ~52,000 LOC across ~155 Swift files  
+> **Tests:** 559 SwiftPM + 134 Xcode unit + 12 XCUITest = 705 total
 
 ---
 
@@ -930,7 +930,7 @@ Performance indexes on: `session_date`, `timestamp`, `session_id`, `event_type`,
 
 ### DoseCore (SwiftPM target: `ios/Core/`)
 
-24 files, platform-free (no UIKit/SwiftUI).
+25 files, platform-free (no UIKit/SwiftUI).
 
 | Category | Files |
 | --- | --- |
@@ -967,7 +967,7 @@ Performance indexes on: `session_date`, `timestamp`, `session_id`, `event_type`,
            ╱────╲
           ╱      ╲        134 Xcode Unit Tests (integration)
          ╱────────╲
-        ╱          ╲      525 SwiftPM Unit Tests (fast, isolated)
+        ╱          ╲      559 SwiftPM Unit Tests (fast, isolated)
        ╱────────────╲
       Total: 671 tests
 ```
@@ -1014,7 +1014,7 @@ Performance indexes on: `session_date`, `timestamp`, `session_id`, `event_type`,
 
 ```
 main ──────────────────────────── production-ready
-  └── 004-dosing-amount-model ─── active development (PR #1, 101 commits ahead)
+  └── chore/audit-2026-02-15 ─── active development (PR #1, 101 commits ahead)
        └── chore/audit-2026-02-15  audit findings
 ```
 
@@ -1104,7 +1104,7 @@ DoseTap/
 │   ├── DoseTap.xcodeproj/          # Xcode project
 │   └── DoseTapTests/               # Xcode unit + UI tests (13 files)
 ├── Tests/
-│   └── DoseCoreTests/              # SwiftPM unit tests (30 files, 525 tests)
+│   └── DoseCoreTests/              # SwiftPM unit tests (31 files, 559 tests)
 ├── docs/
 │   ├── architecture.md             # This document
 │   ├── SSOT/
