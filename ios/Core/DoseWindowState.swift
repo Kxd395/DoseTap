@@ -41,7 +41,7 @@ public enum DoseSecondaryActionState: Equatable {
     case skipDisabled(reason: String)
 }
 
-public enum DoseWindowPhase: Equatable {
+public enum DoseWindowPhase: Equatable, Sendable {
     case noDose1
     case beforeWindow
     case active
