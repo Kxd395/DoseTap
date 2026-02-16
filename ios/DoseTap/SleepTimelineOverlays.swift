@@ -352,55 +352,59 @@ struct BiometricToggle: View {
 // MARK: - WHOOP Data Integration
 
 extension WHOOPService {
-    /// Convert WHOOP sleep record to biometric data points
-    /// NOTE: Currently generates simulated data from sleep record timestamps.
-    /// Real biometric data requires WHOOP sleep stages API integration (feature-flagged OFF).
-    func extractBiometricData(from sleep: WHOOPSleepRecord) -> (
+    /// Fetch real biometric data from WHOOP APIs for a sleep record.
+    ///
+    /// Uses `fetchHeartRateData` for HR and `fetchSleepStages` for respiratory rate estimates.
+    /// Falls back to empty arrays when WHOOP is disabled or the API fails.
+    func extractBiometricData(from sleep: WHOOPSleepRecord) async -> (
         heartRate: [HeartRateDataPoint],
         respiratoryRate: [RespiratoryRateDataPoint],
         hrv: [HRVDataPoint]
     ) {
-        // Guard: if WHOOP feature is disabled, return empty data
         guard WHOOPService.isEnabled else {
             return ([], [], [])
         }
         
-        // Simulated data from the sleep record — NOT real biometrics
-        // TODO: Replace with WHOOP sleep stages API when PKCE + real OAuth is wired
+        guard let startTime = sleep.start, let endTime = sleep.end else {
+            return ([], [], [])
+        }
+        
         var hrPoints: [HeartRateDataPoint] = []
         var rrPoints: [RespiratoryRateDataPoint] = []
         var hrvPoints: [HRVDataPoint] = []
         
-        guard let startTime = sleep.start, let endTime = sleep.end else {
-            return (hrPoints, rrPoints, hrvPoints)
+        // Fetch real heart rate data from WHOOP API
+        do {
+            let heartRates = try await fetchHeartRateData(from: startTime, to: endTime)
+            hrPoints = heartRates.map { HeartRateDataPoint(timestamp: $0.time, bpm: Double($0.heartRate)) }
+        } catch {
+            // Heart rate fetch failed — non-fatal
         }
-        let totalDuration = endTime.timeIntervalSince(startTime)
-        guard totalDuration > 0 else {
-            return (hrPoints, rrPoints, hrvPoints)
+        
+        // Use sleep record's respiratory rate as a stable value across the period.
+        // WHOOP doesn't expose per-minute RR via API; the score-level value is the best available.
+        if let baseRR = sleep.score?.respiratoryRate, baseRR > 0 {
+            // Place a single data point at the midpoint so the overlay renders a baseline
+            let midpoint = startTime.addingTimeInterval(endTime.timeIntervalSince(startTime) / 2)
+            rrPoints = [
+                RespiratoryRateDataPoint(timestamp: startTime, breathsPerMinute: baseRR),
+                RespiratoryRateDataPoint(timestamp: midpoint, breathsPerMinute: baseRR),
+                RespiratoryRateDataPoint(timestamp: endTime, breathsPerMinute: baseRR)
+            ]
         }
         
-        // Generate sample points (every 10 minutes)
-        let interval: TimeInterval = 600 // 10 minutes
-        var currentTime = startTime
-        
-        // Base values from WHOOP data
-        let baseRR = sleep.score?.respiratoryRate ?? 15.0
-        
-        while currentTime < endTime {
-            // Heart rate varies with sleep stage
-            let progress = currentTime.timeIntervalSince(startTime) / totalDuration
-            let baseHR = 55 + sin(progress * .pi * 4) * 10 // Simulated variation
-            hrPoints.append(HeartRateDataPoint(timestamp: currentTime, bpm: baseHR))
-            
-            // Respiratory rate stays relatively stable
-            let rrVariation = (Double.random(in: -0.5...0.5))
-            rrPoints.append(RespiratoryRateDataPoint(timestamp: currentTime, breathsPerMinute: baseRR + rrVariation))
-            
-            // HRV varies inversely with HR
-            let baseHRV = 40 - sin(progress * .pi * 4) * 15
-            hrvPoints.append(HRVDataPoint(timestamp: currentTime, rmssd: max(20, baseHRV)))
-            
-            currentTime = currentTime.addingTimeInterval(interval)
+        // HRV: use session-level value from WHOOP (via recovery merge on WHOOPNightSummary).
+        // WHOOP doesn't expose per-epoch HRV via public API.
+        if sleep.score != nil {
+            let summary = sleep.toNightSummary()
+            if let hrvValue = summary.hrvMs, hrvValue > 0 {
+                let midpoint = startTime.addingTimeInterval(endTime.timeIntervalSince(startTime) / 2)
+                hrvPoints = [
+                    HRVDataPoint(timestamp: startTime, rmssd: hrvValue),
+                    HRVDataPoint(timestamp: midpoint, rmssd: hrvValue),
+                    HRVDataPoint(timestamp: endTime, rmssd: hrvValue)
+                ]
+            }
         }
         
         return (hrPoints, rrPoints, hrvPoints)
@@ -528,7 +532,7 @@ struct LiveEnhancedTimelineView: View {
             do {
                 let sleepRecords = try await whoop.fetchRecentSleep(nights: 1)
                 if let record = sleepRecords.first {
-                    let biometrics = whoop.extractBiometricData(from: record)
+                    let biometrics = await whoop.extractBiometricData(from: record)
                     heartRateData = biometrics.heartRate
                     respiratoryRateData = biometrics.respiratoryRate
                     hrvData = biometrics.hrv
