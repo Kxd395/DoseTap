@@ -118,13 +118,21 @@ A deep code audit of the running app versus source reveals five critical themes:
 
 ---
 
-### P1-4: No Dose-Sleep Quality Correlation View
+### ✅ P1-4: Dose-Sleep Quality Correlation Analytics — RESOLVED
 
-**Problem:** The most valuable insight for XYWAV users — "how does my dose timing affect my sleep quality?" — doesn't exist anywhere in the app. The data is there (dose intervals + HealthKit sleep + WHOOP recovery) but no view correlates them.
+**Problem:** The most valuable insight for XYWAV users — "how does my dose timing affect my sleep quality?" — didn't exist anywhere in the app. The data was there (dose intervals + HealthKit sleep + WHOOP recovery) but nothing correlated them.
 
-**Fix:** Add a "Dose Effectiveness" card to Dashboard showing scatter plot: X=interval minutes, Y=sleep quality metrics. Highlight optimal timing zone (150-165m) vs outliers.
+**Resolution:** Created `DoseEffectivenessCalculator` — a pure analytics model that:
+- Partitions nights into optimal (150-165m), acceptable (166-240m), and non-compliant zones
+- Computes zone-level averages: interval, total sleep, deep sleep, recovery, HRV, awakenings
+- Calculates compliance rate and pairable nights count
+- Detects trend (improving/worsening/stable) comparing recent vs prior interval averages
+- Includes `IntervalFormat` enum (`.minutes` → "165m", `.hoursMinutes` → "2:45") so users can choose their preferred display format
+- `IntervalFormat` is `Codable`/`Sendable`/`CaseIterable` for persistence in user preferences
+- Convenience init from `UnifiedSleepSession` for seamless integration
+- 43 Swift Testing tests covering zones, boundaries, averages, trends, and formatting
 
-**Effort:** L (5-7 days) — new view + analytics model + chart
+**Remaining:** Wire into a "Dose Effectiveness" card in Dashboard with chart visualisation.
 
 ---
 
