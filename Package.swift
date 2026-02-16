@@ -40,7 +40,8 @@ let package = Package(
                 "DosingModels.swift",
                 "CertificatePinning.swift",
                 "NightScoreCalculator.swift",
-                "DoseRegistrationPolicy.swift"
+                "DoseRegistrationPolicy.swift",
+                "DoseEffectivenessCalculator.swift"
             ]
         ),
         .testTarget(
@@ -79,7 +80,8 @@ let package = Package(
                 "TimeEngineTests.swift",
                 "SessionRolloverRegressionTests.swift",
                 "NightScoreCalculatorTests.swift",
-                "DoseRegistrationPolicyTests.swift"
+                "DoseRegistrationPolicyTests.swift",
+                "DoseEffectivenessCalculatorTests.swift"
             ]
         )
     ]
