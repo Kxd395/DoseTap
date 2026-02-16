@@ -33,7 +33,7 @@ final class WHOOPService: NSObject, ObservableObject {
     }
 
     private var clientID: String { SecureConfig.shared.whoopClientID }
-    // P0-6: client_secret removed — PKCE replaces it for public (mobile) clients
+    private var clientSecret: String { SecureConfig.shared.whoopClientSecret }
     private var redirectURI: String { SecureConfig.shared.whoopRedirectURI }
     
     // MARK: - Keychain Keys
@@ -213,7 +213,7 @@ final class WHOOPService: NSObject, ObservableObject {
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         
-        // P0-6 PKCE: Send code_verifier instead of client_secret
+        // PKCE + client_secret: WHOOP requires both (confidential client with PKCE)
         guard let verifier = codeVerifier else {
             throw WHOOPError.noAuthCode // verifier should always exist during auth flow
         }
@@ -223,6 +223,7 @@ final class WHOOPService: NSObject, ObservableObject {
             "code": code,
             "redirect_uri": redirectURI,
             "client_id": clientID,
+            "client_secret": clientSecret,
             "code_verifier": verifier
         ]
         
@@ -262,11 +263,12 @@ final class WHOOPService: NSObject, ObservableObject {
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         
-        // P0-6 PKCE: Refresh tokens use client_id only — no client_secret on public clients
+        // WHOOP requires client_secret for refresh (confidential client)
         let body = [
             "grant_type": "refresh_token",
             "refresh_token": refreshToken,
-            "client_id": clientID
+            "client_id": clientID,
+            "client_secret": clientSecret
         ]
         
         request.httpBody = body
