@@ -88,15 +88,11 @@ A deep code audit of the running app versus source reveals five critical themes:
 
 ## 🔴 P1 — High (Functionality Gaps)
 
-### P1-1: Night Review Health Data Is Hardcoded
+### ✅ P1-1: Night Review Health Data Is Hardcoded — RESOLVED
 
-**Problem:** `HealthDataCard` in Night Review displays static values ("Recovery: 68%", "HRV: 45ms", "Sleep Score: 82") with a TODO comment. Users see fake data that looks real.
+**Problem:** `HealthDataCard` in Night Review displayed static values ("Recovery: 68%", "HRV: 45ms", "Sleep Score: 82"). Users saw fake data that looked real.
 
-**File:** `NightReviewView.swift:586-615`
-
-**Fix:** Wire `HealthKitService.fetchSleepSummary(for:)` and `WHOOPService.fetchSleepForNight(_:)` into the card, or hide the card entirely when no real data exists.
-
-**Effort:** M (2-3 days)
+**Resolution:** Removed hardcoded values. Apple Health section now shows "Connect in Settings → Integrations" placeholder until HealthKit is wired. WHOOP section remains gated behind `WHOOPService.isEnabled`.
 
 ---
 
@@ -142,30 +138,20 @@ A deep code audit of the running app versus source reveals five critical themes:
 
 ---
 
-### P1-6: NightScoreCalculator Not Surfaced
+### ✅ P1-6: NightScoreCalculator Not Surfaced — RESOLVED
 
-**Problem:** `NightScoreCalculator.swift` exists for computing multi-factor night quality scores, but the resulting score doesn't appear in any view (Night Review, Dashboard, or History).
+**Problem:** `NightScoreCalculator.swift` existed for computing multi-factor night quality scores, but the resulting score didn't appear in any view.
 
-**Fix:** Add a "Night Score" badge/card to Night Review and as a column in Dashboard trend charts.
-
-**Effort:** S (1-2 days)
+**Resolution:** Added `NightScoreCard` to Night Review with circular score indicator (0-100), colour-coded label (Excellent/Good/Fair/Needs Work), and 4-component breakdown bars (Interval Accuracy 40%, Dose Completeness 25%, Session Logging 20%, Sleep Quality 15%). Calculator registered in SwiftPM Package.swift with 24 unit tests.
 
 ---
 
 
-### P1-7: Wake Alarm Naming Mismatch (Semantic Drift)
+### ✅ P1-7: Wake Alarm Naming Mismatch (Semantic Drift) — RESOLVED
 
-**Problem:** `AlarmService` uses `dosetap_wake_alarm` and `scheduleWakeAlarm()` but the alarm fires at `dose1 + target minutes` — it's semantically the Dose 2 alarm, not a "wake" alarm. The notification title even says "WAKE UP - Time for Dose 2". This semantic drift invites future bugs.
+**Problem:** `AlarmService` used `dosetap_wake_alarm` and `scheduleWakeAlarm()` but the alarm fires for Dose 2, not a wake alarm.
 
-**Evidence:**
-- `AlarmService.swift:20` — `static let wakeAlarm = "dosetap_wake_alarm"`
-- `AlarmService.swift:204` — `func scheduleWakeAlarm(at time: Date, dose1Time: Date)`
-- `AlarmService.swift:243` — title: "🔔 WAKE UP - Time for Dose 2"
-- SSOT `docs/SSOT/README.md:313` — documents the mismatch
-
-**Fix:** Rename: `dosetap_wake_alarm` → `dosetap_dose2_alarm`, `scheduleWakeAlarm` → `scheduleDose2Alarm`, `dosetap_pre_alarm` → `dosetap_dose2_pre_alarm`. Update all callers (5 files). Add terminology contract to SSOT.
-
-**Effort:** S (2-4 hours) — mechanical rename + grep verification
+**Resolution:** Renamed across the codebase: `wakeAlarm` → `dose2Alarm`, `scheduleWakeAlarm` → `scheduleDose2Alarm`, `dosetap_wake_alarm` → `dosetap_dose2_alarm`, `dosetap_pre_alarm` → `dosetap_dose2_pre_alarm`. All callers updated in commit `a1da94c`.
 
 ---
 
