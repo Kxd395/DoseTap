@@ -732,19 +732,31 @@ final class DashboardAnalyticsModel: ObservableObject {
             color: settings.healthKitEnabled ? (healthKit.isAuthorized ? .green : .orange) : .gray
         )
 
-        let whoopState = DashboardIntegrationState(
-            id: "whoop",
-            name: "WHOOP",
-            status: settings.whoopEnabled
-                ? (whoop.isConnected ? "Connected" : "Not Connected")
-                : "Disabled",
-            detail: settings.whoopEnabled
-                ? (whoop.isConnected
-                    ? "OAuth active\(whoop.lastSyncTime.map { " • Last sync \($0.formatted(date: .omitted, time: .shortened))" } ?? "")"
-                    : "Connect in Settings to ingest recovery/strain metrics.")
-                : "Turn on WHOOP integration in Settings when ready.",
-            color: settings.whoopEnabled ? (whoop.isConnected ? .green : .orange) : .gray
-        )
+        let whoopState: DashboardIntegrationState
+        if !WHOOPService.isEnabled {
+            // P0-1 FIX: Feature-flagged OFF — show unambiguous disabled status
+            whoopState = DashboardIntegrationState(
+                id: "whoop",
+                name: "WHOOP",
+                status: "Disabled (Feature Flag)",
+                detail: "WHOOP integration is not yet available. Coming in a future update.",
+                color: .gray
+            )
+        } else {
+            whoopState = DashboardIntegrationState(
+                id: "whoop",
+                name: "WHOOP",
+                status: settings.whoopEnabled
+                    ? (whoop.isConnected ? "Connected" : "Not Connected")
+                    : "Disabled",
+                detail: settings.whoopEnabled
+                    ? (whoop.isConnected
+                        ? "OAuth active\(whoop.lastSyncTime.map { " • Last sync \($0.formatted(date: .omitted, time: .shortened))" } ?? "")"
+                        : "Connect in Settings to ingest recovery/strain metrics.")
+                    : "Turn on WHOOP integration in Settings when ready.",
+                color: settings.whoopEnabled ? (whoop.isConnected ? .green : .orange) : .gray
+            )
+        }
 
         let cloudState = DashboardIntegrationState(
             id: "cloud",

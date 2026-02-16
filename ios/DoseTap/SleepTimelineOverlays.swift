@@ -353,13 +353,20 @@ struct BiometricToggle: View {
 
 extension WHOOPService {
     /// Convert WHOOP sleep record to biometric data points
+    /// NOTE: Currently generates simulated data from sleep record timestamps.
+    /// Real biometric data requires WHOOP sleep stages API integration (feature-flagged OFF).
     func extractBiometricData(from sleep: WHOOPSleepRecord) -> (
         heartRate: [HeartRateDataPoint],
         respiratoryRate: [RespiratoryRateDataPoint],
         hrv: [HRVDataPoint]
     ) {
-        // For now, create sample data from the sleep record
-        // In a real implementation, this would come from the WHOOP sleep stages endpoint
+        // Guard: if WHOOP feature is disabled, return empty data
+        guard WHOOPService.isEnabled else {
+            return ([], [], [])
+        }
+        
+        // Simulated data from the sleep record — NOT real biometrics
+        // TODO: Replace with WHOOP sleep stages API when PKCE + real OAuth is wired
         var hrPoints: [HeartRateDataPoint] = []
         var rrPoints: [RespiratoryRateDataPoint] = []
         var hrvPoints: [HRVDataPoint] = []

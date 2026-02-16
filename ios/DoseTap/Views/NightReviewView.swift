@@ -583,7 +583,6 @@ struct SleepEventRow: View {
 struct HealthDataCard: View {
     let sessionKey: String
     
-    // TODO: Integrate with HealthKitService and WHOOPService
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("📊 Health Integrations")
@@ -602,19 +601,26 @@ struct HealthDataCard: View {
                     ]
                 )
                 
-                Divider()
-                
-                // WHOOP
-                HealthIntegrationRow(
-                    source: "WHOOP",
-                    icon: "waveform.path.ecg",
-                    iconColor: .green,
-                    data: [
-                        ("Recovery", "68%"),
-                        ("HRV", "45ms"),
-                        ("Sleep Score", "82")
-                    ]
-                )
+                if WHOOPService.isEnabled {
+                    Divider()
+                    
+                    // WHOOP — only show when feature is enabled
+                    if WHOOPService.shared.isConnected {
+                        HealthIntegrationRow(
+                            source: "WHOOP",
+                            icon: "waveform.path.ecg",
+                            iconColor: .green,
+                            data: [("Status", "Connected — no data yet")]
+                        )
+                    } else {
+                        HealthIntegrationRow(
+                            source: "WHOOP",
+                            icon: "waveform.path.ecg",
+                            iconColor: .gray,
+                            data: [("Status", "Not connected")]
+                        )
+                    }
+                }
             }
             
             Text("Sync health data in Settings → Integrations")

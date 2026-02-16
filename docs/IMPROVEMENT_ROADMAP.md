@@ -20,100 +20,69 @@ A deep code audit of the running app versus source reveals five critical themes:
 
 ## ⛔ P0 — Critical (Safety & Integrity)
 
-### P0-1: WHOOP Data Is Decorative Only
+### ✅ P0-1: WHOOP Data Is Decorative Only — RESOLVED
 
-**Problem:** Dashboard shows "WHOOP · Connected" with a green dot (visible in the screenshot), but NO actual WHOOP data (recovery, strain, HRV, sleep score) flows to any view.
+**Status:** Fixed in commit on `chore/audit-2026-02-15`
 
-| Surface | What Happens | Evidence |
-|---------|-------------|----------|
-| **Dashboard** | Integration status card only — shows "Connected" string, no metrics | `DashboardModels.swift:735-746` — only builds status text |
-| **Timeline** | Calls `fetchRecentSleep()` then generates **SIMULATED** data via `sin()` curves | `SleepTimelineOverlays.swift:361-394` — comment: "For now, create sample data" |
-| **Night Review** | Shows **HARDCODED** values: "Recovery: 68%", "HRV: 45ms", "Sleep Score: 82" | `NightReviewView.swift:607-615` — TODO comment present |
-| **DashboardNightAggregate** | Has `healthSummary` (HealthKit) but **no WHOOP fields at all** | `DashboardModels.swift:60-97` — struct definition |
+**Changes:**
+- `NightReviewView.swift` `HealthDataCard`: Removed hardcoded "Recovery: 68%, HRV: 45ms, Sleep Score: 82". WHOOP section now guarded behind `WHOOPService.isEnabled` and shows real connection status or "Not connected".
+- `SleepTimelineOverlays.swift` `extractBiometricData()`: Early-returns empty arrays when `!WHOOPService.isEnabled`. Added clear "simulated data" documentation.
+- `DashboardModels.swift` `buildIntegrationStates()`: When `!WHOOPService.isEnabled`, shows "Disabled (Feature Flag)" with "Coming in a future update" text instead of misleading "Connected" status.
 
-**Fix:** Either wire `WHOOPDataFetching` (which has 7 real fetch functions built) into `DashboardNightAggregate` and views, or remove the "Connected" status entirely to avoid misleading users.
-
-**Effort:** M (3-5 days) — fetching infrastructure exists, needs view plumbing + per-night storage
+**Remaining:** When WHOOP is re-enabled (P0-6 PKCE is done), wire `WHOOPDataFetching` fetch methods into views for real data. See P1-1, P1-2, P1-3.
 
 ---
 
-### P0-2: Snooze <15m Check Missing from UI Buttons
+### ✅ P0-2: Snooze <15m Check Missing from UI Buttons — RESOLVED
 
-**Problem:** The SSOT states "Snooze disabled when <15m remain" but both `CompactDoseButton` and `DoseButtonsSection` only check `snoozeCount < 3`. The Flic path correctly uses `DoseWindowContext.snooze` which enforces both limits.
+**Status:** Fixed in commit `5948293` on `chore/audit-2026-02-15`
 
-**Evidence:**
-- Tonight: `snoozeEnabled = (core.currentStatus == .active || core.currentStatus == .nearClose) && core.snoozeCount < 3` — **no time check** (`CompactDoseButton.swift:223`)
-- History: identical logic (`HistoryViews.swift:1049`)
-- Flic: `guard case .snoozeEnabled = context.snooze` — **correctly checks both** (`FlicButtonService.swift:297`)
-
-**Fix:** Replace the manual boolean with `DoseWindowContext.snooze` enum check in all button views.
-
-**Effort:** S (1-2 hours)
+**Changes:** All UI surfaces (CompactDoseButton, DoseButtonsSection) now use `DoseWindowContext.snooze` enum instead of manual `snoozeCount < 3` check, matching Flic's correct behavior.
 
 ---
 
-### P0-3: Flic Button Bypasses Late-Dose Confirmation
+### ✅ P0-3: Flic Button Bypasses Late-Dose Confirmation — RESOLVED
 
-**Problem:** When status is `.closed`, the Flic button logs Dose 2 directly with only a haptic warning. The Tonight UI correctly shows an alert requiring explicit "Take Dose 2 Anyway" confirmation. Same issue for extra-dose (3rd dose) path.
+**Status:** Fixed in commit `5948293` on `chore/audit-2026-02-15`
 
-**Evidence:**
-- Flic `.closed`: `sessionRepository.saveDose2(timestamp: now)` + `provideHapticFeedback(.warning)` — no confirmation (`FlicButtonService.swift:233-247`)
-- Flic extra-dose: `sessionRepository.saveDose2(timestamp: now, isExtraDose: true)` — no safety dialog (`FlicButtonService.swift:261`)
-- Tonight `.closed`: Shows `showWindowExpiredOverride` alert requiring destructive button tap (`CompactDoseButton.swift:38-43`)
-
-**Fix:** Either block late/extra doses from Flic entirely, or queue a local notification asking user to confirm via the app UI before persisting.
-
-**Effort:** S (2-4 hours)
+**Changes:** Flic `.closed` and extra-dose paths now block direct persistence. Instead they send a local notification prompting user to open the app for confirmation.
 
 ---
 
-### P0-4: Dose Button Logic Duplicated Across 4 Surfaces
+### ✅ P0-4: Dose Button Logic Duplicated Across 4 Surfaces — RESOLVED
 
-**Problem:** Nearly identical dose registration logic exists in 4 places with subtle but important differences:
+**Status:** Fixed on `chore/audit-2026-02-15`
 
-| Surface | File | EventLogger | Undo | Alarm Schedule | Extra Dose Warning | Theme Colors | Late Confirm |
-|---------|------|:-----------:|:----:|:--------------:|:-----------------:|:------------:|:------------:|
-| **Tonight** (CompactDoseButton) | `CompactDoseButton.swift` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **History** (DoseButtonsSection) | `HistoryViews.swift:931` | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
-| **Flic** (FlicButtonService) | `FlicButtonService.swift` | ❌ | ❌ | ✅ | ❌ | N/A | ❌ |
-| **Deep Link** (URLRouter) | `URLRouter.swift` | ❌ | ❌ | ❌ | ❌ | N/A | ❌ |
-
-**Fix:** Extract a unified `DoseActionCoordinator` that all 4 surfaces call. This coordinator handles: validation → confirmation routing → persistence → alarm scheduling → event logging → undo registration.
-
-**Effort:** L (3-5 days) — architectural refactor touching 4 files + tests
+**Changes:**
+- Created `DoseActionCoordinator.swift` (~230 lines): centralised coordinator handling validation → confirmation routing → persistence → alarm scheduling → event logging → undo registration.
+- Wired into **CompactDoseButton** (Tonight tab) and **DoseButtonsSection** (History tab) with legacy fallback when coordinator is nil.
+- **FlicButtonService** and **URLRouter** retain independent-but-equivalent safety validation (P0-3 blocks + P0-5 foreground guards). Coordinator available for future consolidation.
+- `ActionResult` enum: `.success(message)`, `.needsConfirm(ConfirmationType)`, `.blocked(reason)`
+- `ConfirmationType`: `.earlyDose(minutesRemaining)`, `.lateDose`, `.afterSkip`, `.extraDose`
 
 ---
 
 
-### P0-5: Deep Links Mutate Medication State Without Authorization
+### ✅ P0-5: Deep Links Mutate Medication State Without Authorization — RESOLVED
 
-**Problem:** Any app on the device can fire `dosetap://dose1`, `dosetap://dose2`, `dosetap://snooze`, or `dosetap://skip` — and `URLRouter` will execute them. `InputValidator.validateDeepLink()` only checks scheme + XSS patterns. There is no foreground/unlocked check, no confirmation UI, and no source-origin logging.
+**Status:** Fixed in commit `5948293` on `chore/audit-2026-02-15`
 
-**Evidence:**
-- `InputValidator.swift:169-199` — validates scheme and suspicious patterns only
-- `URLRouter.swift:155-175` — `handleDose1()` calls `core.takeDose()` directly, no confirmation
-- `URLRouter.swift:178-210` — `handleDose2()` same pattern
-- No `scenePhase` or `isProtectedDataAvailable` guard anywhere in URLRouter
-
-**Fix:** Require foreground + unlocked for state-changing deep links. For dose actions, require confirmation UI unless invoked from own notification action or trusted App Intent. Log deep-link origin context.
-
-**Effort:** M (2-3 days)
+**Changes:** URLRouter now requires `UIApplication.shared.applicationState == .active` and `isProtectedDataAvailable` for all state-changing deep links (dose1, dose2, snooze, skip). Late-dose and extra-dose deep links are blocked with "open app to confirm" feedback.
 
 ---
 
-### P0-6: WHOOP OAuth Uses Client Secret Without PKCE
+### ✅ P0-6: WHOOP OAuth Uses Client Secret Without PKCE — RESOLVED
 
-**Problem:** `WHOOPService.exchangeCodeForTokens()` sends `client_secret` directly in the token exchange body (Authorization Code flow without PKCE). A client secret should not exist in a public mobile client — Keychain is just "hardcoded, but encrypted-at-rest."
+**Status:** Fixed on `chore/audit-2026-02-15`
 
-**Evidence:**
-- `WHOOPService.swift:188` — `"client_secret": clientSecret` in token exchange
-- `WHOOPService.swift:230` — same in refresh token flow
-- `SecureConfig.swift:73-89` — Keychain > Env > Secrets.swift fallback chain
-- No PKCE (`code_verifier`/`code_challenge`) anywhere in codebase
+**Changes:**
+- Added PKCE support to `WHOOPService.swift`: `generateCodeVerifier()` (32 random bytes → base64url), `codeChallenge(from:)` (SHA256 → base64url).
+- `authorize()`: Sends `code_challenge` + `code_challenge_method=S256` in auth URL.
+- `exchangeCodeForTokens()`: Sends `code_verifier` instead of `client_secret`.
+- `refreshAccessToken()`: Uses `client_id` only — no `client_secret` (public client per PKCE spec).
+- Removed `clientSecret` property from service. `SecureConfig.whoopClientSecret` infrastructure retained for potential backend-mediated flow.
 
-**Fix:** Switch to Authorization Code + PKCE (public client) with no embedded secret. If WHOOP requires a secret, move token exchange to a backend mediator. Rotate existing credentials.
-
-**Effort:** M (2-3 days) — or L if backend mediator needed
+**Note:** WHOOP feature remains behind `isEnabled = false` flag. Credential rotation recommended before enabling.
 
 ---
 
@@ -315,13 +284,16 @@ A deep code audit of the running app versus source reveals five critical themes:
 
 ## Recommended Priority Order
 
-**Phase 1 — Safety & Trust (1-2 weeks)**
-1. P0-2: Fix snooze <15m check in UI buttons
-2. P0-3: Fix Flic late-dose bypass
-3. P0-5: Fix deep link dose authorization
-4. P0-4: Extract DoseActionCoordinator (unifies all 4 surfaces)
-5. P0-6: WHOOP OAuth PKCE migration
-6. P1-1: Remove hardcoded health data from Night Review
+**Phase 1 — Safety & Trust ✅ COMPLETE**
+
+All P0 items resolved on `chore/audit-2026-02-15`:
+
+1. ✅ P0-2: Snooze <15m check — all surfaces use `DoseWindowContext.snooze` enum
+2. ✅ P0-3: Flic late-dose bypass — blocked with local notification
+3. ✅ P0-5: Deep link dose authorization — foreground + unlocked guard
+4. ✅ P0-4: DoseActionCoordinator extracted for UI surfaces
+5. ✅ P0-6: WHOOP OAuth PKCE migration — client_secret removed
+6. ✅ P0-1: WHOOP decorative guards — hardcoded data removed, feature-flag honoured
 
 **Phase 2 — WHOOP for Real (2-3 weeks)**
 5. P0-1: Wire WHOOP data to Dashboard + Night Review + Timeline

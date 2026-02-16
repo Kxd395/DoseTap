@@ -14,6 +14,9 @@ struct CompactDoseButton: View {
     @Binding var showExtraDoseWarning: Bool  // For second dose 2 attempt
     @State private var showWindowExpiredOverride = false  // For taking dose after window expired
     
+    /// P0-4: Centralised coordinator for all dose actions
+    var coordinator: DoseActionCoordinator?
+    
     private let windowOpenMinutes: Double = 150
     
     var body: some View {
@@ -46,13 +49,16 @@ struct CompactDoseButton: View {
                 HStack(spacing: 12) {
                     Button {
                         Task {
-                            // Snooze the alarm (+10 min) and increment count
-                            if let newTime = await AlarmService.shared.snoozeAlarm(dose1Time: core.dose1Time) {
-                                await core.snooze()
-                                appLogger.info("Snoozed to \(newTime.formatted(date: .omitted, time: .shortened))")
+                            if let coord = coordinator {
+                                let _ = await coord.snooze()
                             } else {
-                                // Still increment count even if alarm couldn't be rescheduled
-                                await core.snooze()
+                                // Legacy fallback
+                                if let newTime = await AlarmService.shared.snoozeAlarm(dose1Time: core.dose1Time) {
+                                    await core.snooze()
+                                    appLogger.info("Snoozed to \(newTime.formatted(date: .omitted, time: .shortened))")
+                                } else {
+                                    await core.snooze()
+                                }
                             }
                         }
                     } label: {
@@ -64,9 +70,12 @@ struct CompactDoseButton: View {
                     
                     Button {
                         Task {
-                            await core.skipDose()
-                            // Cancel wake alarm since Dose 2 was skipped
-                            AlarmService.shared.cancelAllAlarms()
+                            if let coord = coordinator {
+                                let _ = await coord.skipDose()
+                            } else {
+                                await core.skipDose()
+                                AlarmService.shared.cancelAllAlarms()
+                            }
                         }
                     } label: {
                         Label("Skip", systemImage: "forward.fill")
@@ -80,6 +89,36 @@ struct CompactDoseButton: View {
     }
     
     private func handlePrimaryButtonTap() {
+        // P0-4: Use coordinator when available
+        if let coord = coordinator {
+            Task {
+                let result: DoseActionCoordinator.ActionResult
+                if core.dose1Time == nil {
+                    result = await coord.takeDose1()
+                } else {
+                    result = await coord.takeDose2()
+                }
+                switch result {
+                case .success:
+                    break // UI updates via ObservableObject
+                case .needsConfirm(let type):
+                    switch type {
+                    case .earlyDose(let minutes):
+                        earlyDoseMinutes = minutes
+                        showEarlyDoseAlert = true
+                    case .lateDose, .afterSkip:
+                        showWindowExpiredOverride = true
+                    case .extraDose:
+                        showExtraDoseWarning = true
+                    }
+                case .blocked:
+                    break // Nothing to show
+                }
+            }
+            return
+        }
+
+        // Legacy fallback (no coordinator injected)
         guard core.dose1Time != nil else {
             Task {
                 let now = Date()
@@ -152,15 +191,19 @@ struct CompactDoseButton: View {
     /// Take Dose 2 after window expired with explicit user override
     private func takeDose2WithOverride() {
         Task {
-            let now = Date()
-            let wasSkipped = core.isSkipped && core.dose2Time == nil
-            await core.takeDose(lateOverride: true)
-            AlarmService.shared.cancelAllAlarms()
-            AlarmService.shared.clearWakeAlarmState()
-            let eventName = wasSkipped ? "Dose 2 (After Skip)" : "Dose 2 (Late)"
-            eventLogger.logEvent(name: eventName, color: .orange, cooldownSeconds: 3600 * 8, persist: false)
-            // Register for undo (late doses can also be undone)
-            undoState.register(.takeDose2(at: now))
+            if let coord = coordinator {
+                let _ = await coord.takeDose2(override: .lateConfirmed)
+            } else {
+                // Legacy fallback
+                let now = Date()
+                let wasSkipped = core.isSkipped && core.dose2Time == nil
+                await core.takeDose(lateOverride: true)
+                AlarmService.shared.cancelAllAlarms()
+                AlarmService.shared.clearWakeAlarmState()
+                let eventName = wasSkipped ? "Dose 2 (After Skip)" : "Dose 2 (Late)"
+                eventLogger.logEvent(name: eventName, color: .orange, cooldownSeconds: 3600 * 8, persist: false)
+                undoState.register(.takeDose2(at: now))
+            }
         }
     }
 

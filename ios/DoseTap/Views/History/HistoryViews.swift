@@ -934,6 +934,9 @@ struct DoseButtonsSection: View {
     @Binding var earlyDoseMinutes: Int
     @State private var showWindowExpiredOverride = false
     
+    /// P0-4: Centralised coordinator for all dose actions
+    var coordinator: DoseActionCoordinator?
+    
     private let windowOpenMinutes: Double = 150
     
     var body: some View {
@@ -952,9 +955,13 @@ struct DoseButtonsSection: View {
                 Button("Cancel", role: .cancel) { }
                 Button("Take Dose 2 Anyway", role: .destructive) {
                     Task {
-                        await core.takeDose(lateOverride: true)
-                        AlarmService.shared.cancelAllAlarms()
-                        AlarmService.shared.clearWakeAlarmState()
+                        if let coord = coordinator {
+                            let _ = await coord.takeDose2(override: .lateConfirmed)
+                        } else {
+                            await core.takeDose(lateOverride: true)
+                            AlarmService.shared.cancelAllAlarms()
+                            AlarmService.shared.clearWakeAlarmState()
+                        }
                     }
                 }
             } message: {
@@ -978,13 +985,25 @@ struct DoseButtonsSection: View {
             
             HStack(spacing: 12) {
                 Button("Snooze +10m") {
-                    Task { await core.snooze() }
+                    Task {
+                        if let coord = coordinator {
+                            let _ = await coord.snooze()
+                        } else {
+                            await core.snooze()
+                        }
+                    }
                 }
                 .buttonStyle(.bordered)
                 .disabled(!snoozeEnabled)
                 
                 Button("Skip Dose") {
-                    Task { await core.skipDose() }
+                    Task {
+                        if let coord = coordinator {
+                            let _ = await coord.skipDose()
+                        } else {
+                            await core.skipDose()
+                        }
+                    }
                 }
                 .buttonStyle(.bordered)
                 .disabled(!skipEnabled)
@@ -993,6 +1012,30 @@ struct DoseButtonsSection: View {
     }
     
     private func handlePrimaryButtonTap() {
+        if let coord = coordinator {
+            Task {
+                let isDose1 = core.dose1Time == nil
+                let result = isDose1 ? await coord.takeDose1() : await coord.takeDose2()
+                switch result {
+                case .success:
+                    break
+                case .needsConfirm(let confirmation):
+                    switch confirmation {
+                    case .earlyDose(let minutes):
+                        earlyDoseMinutes = minutes
+                        showEarlyDoseAlert = true
+                    case .lateDose, .afterSkip:
+                        showWindowExpiredOverride = true
+                    case .extraDose:
+                        showWindowExpiredOverride = true
+                    }
+                case .blocked:
+                    break
+                }
+            }
+            return
+        }
+        // Legacy fallback
         guard core.dose1Time != nil else {
             Task { await core.takeDose() }
             return

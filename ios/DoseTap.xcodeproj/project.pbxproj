@@ -69,6 +69,7 @@
 		F3296BD6A65A57599A202642 /* InputValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1CBF59D219929011DD8A4A8 /* InputValidator.swift */; };
 		F94248D37BBE47A5A2E90C9B /* PreSleepLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE3796A887B24D9FBBD40758 /* PreSleepLogView.swift */; };
 		FC82425609210406E72373A8 /* FlicButtonService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFF67F0048CFBF2716448CC5 /* FlicButtonService.swift */; };
+		DAC001 /* DoseActionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAC002 /* DoseActionCoordinator.swift */; };
 		FFCE63C8C666930BEE06D38F /* ThemeSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 707FF265ADBBA04484376264 /* ThemeSettingsView.swift */; };
 		HK001 /* HealthKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = HK002 /* HealthKitService.swift */; };
 		HKP001 /* HealthKitProviding.swift in Sources */ = {isa = PBXBuildFile; fileRef = HKP002 /* HealthKitProviding.swift */; };
@@ -172,6 +173,7 @@
 		C64168860F0E76DF93919D76 /* HighContrastColors.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HighContrastColors.swift; sourceTree = "<group>"; };
 		CEF16E4224E846ADAE92B1C6 /* DevelopmentHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevelopmentHelper.swift; sourceTree = "<group>"; };
 		CFF67F0048CFBF2716448CC5 /* FlicButtonService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FlicButtonService.swift; sourceTree = "<group>"; };
+		DAC002 /* DoseActionCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DoseActionCoordinator.swift; sourceTree = "<group>"; };
 		CLUST001 /* DashboardModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardModels.swift; sourceTree = "<group>"; };
 		CLUST002 /* DashboardViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardViews.swift; sourceTree = "<group>"; };
 		CLUST003 /* TimelineReviewViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineReviewViews.swift; sourceTree = "<group>"; };
@@ -338,6 +340,7 @@
 				7772A3ACA248F927B3008122 /* SecureConfig.swift */,
 				403FF1A5371F4BA427EC1520 /* WHOOPSettingsView.swift */,
 				CFF67F0048CFBF2716448CC5 /* FlicButtonService.swift */,
+						DAC002 /* DoseActionCoordinator.swift */,
 				C64168860F0E76DF93919D76 /* HighContrastColors.swift */,
 				7D7115779119154483A7838A /* UndoStateManager.swift */,
 				67D4EB39451985378B4E5D61 /* WHOOPDataFetching.swift */,
@@ -701,6 +704,7 @@
 				8DA90A6B025231EACF48A8AD /* SecureConfig.swift in Sources */,
 				194E929BA46514E973F8ACEE /* WHOOPSettingsView.swift in Sources */,
 				FC82425609210406E72373A8 /* FlicButtonService.swift in Sources */,
+						DAC001 /* DoseActionCoordinator.swift in Sources */,
 				11C08ABBAF24106F948991D3 /* HighContrastColors.swift in Sources */,
 				B264C67A3D970638F91FC1ED /* UndoStateManager.swift in Sources */,
 				75396BE379F85EF05DC1AEE6 /* WHOOPDataFetching.swift in Sources */,

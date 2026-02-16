@@ -3,6 +3,7 @@ import Combine
 import SwiftUI
 import AuthenticationServices
 import Security
+import CryptoKit
 import os
 
 /// WHOOP Integration Service for sleep and recovery data
@@ -32,7 +33,7 @@ final class WHOOPService: NSObject, ObservableObject {
     }
 
     private var clientID: String { SecureConfig.shared.whoopClientID }
-    private var clientSecret: String { SecureConfig.shared.whoopClientSecret }
+    // P0-6: client_secret removed — PKCE replaces it for public (mobile) clients
     private var redirectURI: String { SecureConfig.shared.whoopRedirectURI }
     
     // MARK: - Keychain Keys
@@ -62,6 +63,33 @@ final class WHOOPService: NSObject, ObservableObject {
     
     private var webAuthSession: ASWebAuthenticationSession?
     
+    // MARK: - PKCE (P0-6)
+    
+    /// Transient code verifier — lives only during a single auth flow
+    private var codeVerifier: String?
+    
+    /// Generate a cryptographically random PKCE code verifier (43-128 chars, unreserved chars)
+    private static func generateCodeVerifier() -> String {
+        var bytes = [UInt8](repeating: 0, count: 32)
+        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        return Data(bytes)
+            .base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+    }
+    
+    /// Derive S256 code challenge from a code verifier
+    private static func codeChallenge(from verifier: String) -> String {
+        let data = Data(verifier.utf8)
+        let hash = SHA256.hash(data: data)
+        return Data(hash)
+            .base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+    }
+    
     // MARK: - Initialization
     
     private override init() {
@@ -80,7 +108,12 @@ final class WHOOPService: NSObject, ObservableObject {
         
         defer { isLoading = false }
         
-        // Build authorization URL
+        // PKCE: Generate code verifier and challenge
+        let verifier = Self.generateCodeVerifier()
+        codeVerifier = verifier
+        let challenge = Self.codeChallenge(from: verifier)
+        
+        // Build authorization URL with PKCE
         let state = UUID().uuidString
         var components = URLComponents(string: Config.authURL)!
         components.queryItems = [
@@ -88,7 +121,9 @@ final class WHOOPService: NSObject, ObservableObject {
             URLQueryItem(name: "client_id", value: clientID),
             URLQueryItem(name: "redirect_uri", value: redirectURI),
             URLQueryItem(name: "scope", value: Config.scopes.joined(separator: " ")),
-            URLQueryItem(name: "state", value: state)
+            URLQueryItem(name: "state", value: state),
+            URLQueryItem(name: "code_challenge", value: challenge),
+            URLQueryItem(name: "code_challenge_method", value: "S256")
         ]
         
         guard let authURL = components.url else {
@@ -178,13 +213,21 @@ final class WHOOPService: NSObject, ObservableObject {
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         
+        // P0-6 PKCE: Send code_verifier instead of client_secret
+        guard let verifier = codeVerifier else {
+            throw WHOOPError.noAuthCode // verifier should always exist during auth flow
+        }
+        
         let body = [
             "grant_type": "authorization_code",
             "code": code,
             "redirect_uri": redirectURI,
             "client_id": clientID,
-            "client_secret": clientSecret
+            "code_verifier": verifier
         ]
+        
+        // Clear verifier after use — single use per PKCE spec
+        codeVerifier = nil
         
         request.httpBody = body
             .map { "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? $0.value)" }
@@ -219,11 +262,11 @@ final class WHOOPService: NSObject, ObservableObject {
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         
+        // P0-6 PKCE: Refresh tokens use client_id only — no client_secret on public clients
         let body = [
             "grant_type": "refresh_token",
             "refresh_token": refreshToken,
-            "client_id": clientID,
-            "client_secret": clientSecret
+            "client_id": clientID
         ]
         
         request.httpBody = body
