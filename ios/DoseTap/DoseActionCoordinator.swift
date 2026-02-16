@@ -61,7 +61,7 @@ final class DoseActionCoordinator: ObservableObject {
 
     init(
         core: DoseTapCore,
-        alarmService: AlarmService = .shared,
+        alarmService: AlarmService,
         eventLogger: EventLogger? = nil,
         undoState: UndoStateManager? = nil,
         sessionRepo: SessionRepository? = nil
@@ -96,7 +96,7 @@ final class DoseActionCoordinator: ObservableObject {
         let targetMinutes = UserSettingsManager.shared.targetIntervalMinutes
         let target = targetMinutes > 0 ? targetMinutes : 165
         let wakeTime = now.addingTimeInterval(Double(target) * 60)
-        await alarmService.scheduleWakeAlarm(at: wakeTime, dose1Time: now)
+        await alarmService.scheduleDose2Alarm(at: wakeTime, dose1Time: now)
         await alarmService.scheduleDose2Reminders(dose1Time: now)
 
         coordinatorLog.info("Dose 1 logged via coordinator")
@@ -194,7 +194,7 @@ final class DoseActionCoordinator: ObservableObject {
 
         await core.skipDose()
         alarmService.cancelAllAlarms()
-        alarmService.clearWakeAlarmState()
+        alarmService.clearDose2AlarmState()
 
         eventLogger?.logEvent(
             name: "Skip Dose 2", color: .orange,
@@ -216,7 +216,7 @@ final class DoseActionCoordinator: ObservableObject {
         await core.takeDose(earlyOverride: isEarly, lateOverride: isLate)
 
         alarmService.cancelAllAlarms()
-        alarmService.clearWakeAlarmState()
+        alarmService.clearDose2AlarmState()
 
         eventLogger?.logEvent(
             name: eventName,

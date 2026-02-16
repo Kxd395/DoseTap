@@ -69,8 +69,8 @@ final class NotificationCenterIntegrationTests: XCTestCase {
         let center = UNUserNotificationCenter.current()
         
         let wakeIds = [
-            "dosetap_wake_alarm",
-            "dosetap_pre_alarm",
+            "dosetap_dose2_alarm",
+            "dosetap_dose2_pre_alarm",
             "dosetap_followup_1",
             "dosetap_followup_2",
             "dosetap_followup_3",

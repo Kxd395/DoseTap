@@ -5,11 +5,7 @@ import DoseCore
 
 // MARK: - DateFormatter Extension for Export
 extension DateFormatter {
-    static let exportDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd_HHmmss"
-        return formatter
-    }()
+    static let exportDateFormatter: DateFormatter = AppFormatters.exportFilename
 }
 
 // MARK: - Typical Week Row

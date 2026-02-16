@@ -132,7 +132,7 @@ struct CompactDoseButton: View {
                 let targetMinutes = UserDefaults.standard.integer(forKey: "target_interval_minutes")
                 let targetInterval = targetMinutes > 0 ? targetMinutes : 165
                 let wakeTime = now.addingTimeInterval(Double(targetInterval) * 60)
-                await AlarmService.shared.scheduleWakeAlarm(at: wakeTime, dose1Time: now)
+                await AlarmService.shared.scheduleDose2Alarm(at: wakeTime, dose1Time: now)
                 
                 // Schedule Dose 2 reminders (window open, 15 min warning, 5 min warning)
                 await AlarmService.shared.scheduleDose2Reminders(dose1Time: now)
@@ -199,7 +199,7 @@ struct CompactDoseButton: View {
                 let wasSkipped = core.isSkipped && core.dose2Time == nil
                 await core.takeDose(lateOverride: true)
                 AlarmService.shared.cancelAllAlarms()
-                AlarmService.shared.clearWakeAlarmState()
+                AlarmService.shared.clearDose2AlarmState()
                 let eventName = wasSkipped ? "Dose 2 (After Skip)" : "Dose 2 (Late)"
                 eventLogger.logEvent(name: eventName, color: .orange, cooldownSeconds: 3600 * 8, persist: false)
                 undoState.register(.takeDose2(at: now))

@@ -719,9 +719,7 @@ struct LiveSleepTimelineView: View {
         let start = displayRangeEffective.start
         let end = displayRangeEffective.end
         guard end > start else { return nil }
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        return "\(formatter.string(from: start)) → \(formatter.string(from: end))"
+        return "\(AppFormatters.shortTime.string(from: start)) → \(AppFormatters.shortTime.string(from: end))"
     }
 
     @ViewBuilder

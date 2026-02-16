@@ -240,8 +240,8 @@ final class DataIntegrityTests: XCTestCase {
     func test_sessionNotificationIdentifiers_containsAllExpected() {
         let ids = SessionRepository.sessionNotificationIdentifiers
         
-        XCTAssertTrue(ids.contains("dosetap_wake_alarm"), "Missing dosetap_wake_alarm")
-        XCTAssertTrue(ids.contains("dosetap_pre_alarm"), "Missing dosetap_pre_alarm")
+        XCTAssertTrue(ids.contains("dosetap_dose2_alarm"), "Missing dosetap_dose2_alarm")
+        XCTAssertTrue(ids.contains("dosetap_dose2_pre_alarm"), "Missing dosetap_dose2_pre_alarm")
         XCTAssertTrue(ids.contains("dosetap_followup_1"), "Missing dosetap_followup_1")
         XCTAssertTrue(ids.contains("dosetap_followup_2"), "Missing dosetap_followup_2")
         XCTAssertTrue(ids.contains("dosetap_followup_3"), "Missing dosetap_followup_3")

@@ -149,9 +149,7 @@ final class DashboardAnalyticsModel: ObservableObject {
     /// Cancels in-flight refresh when a new one starts (prevents race on rapid range changes).
     private var refreshTask: Task<Void, Never>?
 
-    private static let keyFormatter: DateFormatter = {
-        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.timeZone = .current; return f
-    }()
+    private static let keyFormatter: DateFormatter = AppFormatters.sessionDate
 
     // MARK: - Range-filtered views
 
@@ -795,12 +793,7 @@ final class CloudKitSyncService: ObservableObject {
     @Published var statusMessage: String = "Not synced yet"
 
     private let sessionRepo = SessionRepository.shared
-    private let sessionDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = .current
-        return formatter
-    }()
+    private let sessionDateFormatter: DateFormatter = AppFormatters.sessionDate
 
     #if canImport(CloudKit)
     private let zoneID = CKRecordZone.ID(zoneName: "DoseTapZone", ownerName: CKCurrentUserDefaultName)

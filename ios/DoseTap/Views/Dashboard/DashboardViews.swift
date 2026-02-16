@@ -83,6 +83,9 @@ struct DashboardTabView: View {
                 .padding(.bottom, 90)
             }
             .navigationTitle("Dashboard")
+            .refreshable {
+                model.refresh()
+            }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if cloudSync.isSyncing {
@@ -472,14 +475,11 @@ struct DashboardTrendChartsCard: View {
 
     private var weekdayOnTimeValues: [NamedValue] {
         let calendar = Calendar.current
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = .current
         let weekdaySymbols = calendar.shortWeekdaySymbols
 
         var buckets: [Int: [Bool]] = [:]
         for night in model.populatedNights {
-            guard let onTime = night.onTimeDosing, let date = formatter.date(from: night.sessionDate) else { continue }
+            guard let onTime = night.onTimeDosing, let date = AppFormatters.sessionDate.date(from: night.sessionDate) else { continue }
             let weekday = calendar.component(.weekday, from: date)
             buckets[weekday, default: []].append(onTime)
         }
@@ -657,14 +657,8 @@ struct DashboardRecentNightsCard: View {
     }
 
     private func shortDate(_ sessionDate: String) -> String {
-        let input = DateFormatter()
-        input.dateFormat = "yyyy-MM-dd"
-        input.timeZone = .current
-        let output = DateFormatter()
-        output.dateFormat = "MMM d"
-        output.timeZone = .current
-        guard let date = input.date(from: sessionDate) else { return sessionDate }
-        return output.string(from: date)
+        guard let date = AppFormatters.sessionDate.date(from: sessionDate) else { return sessionDate }
+        return AppFormatters.shortDate.string(from: date)
     }
 
     private func intervalText(_ night: DashboardNightAggregate) -> String {

@@ -756,7 +756,7 @@ struct TimelineReviewDetailView: View {
         }
 
         reviewEvents = sessionRepo.fetchSleepEvents(for: selected.sessionDate).sorted(by: { $0.timestamp < $1.timestamp })
-        reviewNightDate = Self.sessionDateFormatter.date(from: selected.sessionDate)
+        reviewNightDate = AppFormatters.sessionDate.date(from: selected.sessionDate)
             ?? Calendar.current.date(byAdding: .day, value: -1, to: Date())
             ?? Date()
     }
@@ -791,13 +791,6 @@ struct TimelineReviewDetailView: View {
         selectedReviewSessionKey = reviewSessions[index - 1].sessionDate
         loadSelectedReviewSessionData()
     }
-
-    private static let sessionDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = .current
-        return formatter
-    }()
 }
 
 struct ReviewSnapshotSleepTimeline {

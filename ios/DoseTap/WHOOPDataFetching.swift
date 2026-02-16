@@ -13,7 +13,7 @@ extension WHOOPService {
     ///   - endDate: End of range (inclusive)
     /// - Returns: Array of sleep records
     func fetchSleepData(from startDate: Date, to endDate: Date) async throws -> [WHOOPSleep] {
-        let formatter = ISO8601DateFormatter()
+        let formatter = AppFormatters.iso8601
         let start = formatter.string(from: startDate)
         let end = formatter.string(from: endDate)
         
@@ -26,7 +26,7 @@ extension WHOOPService {
     
     /// Fetch recovery data for date range
     func fetchRecoveryData(from startDate: Date, to endDate: Date) async throws -> [WHOOPRecovery] {
-        let formatter = ISO8601DateFormatter()
+        let formatter = AppFormatters.iso8601
         let start = formatter.string(from: startDate)
         let end = formatter.string(from: endDate)
         
@@ -38,7 +38,7 @@ extension WHOOPService {
     
     /// Fetch cycle (daily) data for date range
     func fetchCycleData(from startDate: Date, to endDate: Date) async throws -> [WHOOPCycle] {
-        let formatter = ISO8601DateFormatter()
+        let formatter = AppFormatters.iso8601
         let start = formatter.string(from: startDate)
         let end = formatter.string(from: endDate)
         
@@ -75,7 +75,7 @@ extension WHOOPService {
     
     /// Fetch heart rate data for date range
     func fetchHeartRateData(from startDate: Date, to endDate: Date) async throws -> [WHOOPHeartRate] {
-        let formatter = ISO8601DateFormatter()
+        let formatter = AppFormatters.iso8601
         let start = formatter.string(from: startDate)
         let end = formatter.string(from: endDate)
         

@@ -191,7 +191,7 @@ final class FlicButtonService: ObservableObject {
             let configuredTarget = UserSettingsManager.shared.targetIntervalMinutes
             let targetMinutes = configuredTarget > 0 ? configuredTarget : 165
             let wakeTime = now.addingTimeInterval(Double(targetMinutes) * 60)
-            await AlarmService.shared.scheduleWakeAlarm(at: wakeTime, dose1Time: now)
+            await AlarmService.shared.scheduleDose2Alarm(at: wakeTime, dose1Time: now)
             await AlarmService.shared.scheduleDose2Reminders(dose1Time: now)
             provideHapticFeedback(.success)
             return FlicActionResult(
@@ -217,7 +217,7 @@ final class FlicButtonService: ObservableObject {
             // Take Dose 2 via SSOT
             sessionRepository.saveDose2(timestamp: Date())
             AlarmService.shared.cancelAllAlarms()
-            AlarmService.shared.clearWakeAlarmState()
+            AlarmService.shared.clearDose2AlarmState()
             provideHapticFeedback(.success)
             return FlicActionResult(
                 gesture: gesture,
@@ -258,7 +258,7 @@ final class FlicButtonService: ObservableObject {
                 // Allow post-skip correction as explicit override.
                 sessionRepository.saveDose2(timestamp: now)
                 AlarmService.shared.cancelAllAlarms()
-                AlarmService.shared.clearWakeAlarmState()
+                AlarmService.shared.clearDose2AlarmState()
                 provideHapticFeedback(.warning)
                 return FlicActionResult(
                     gesture: gesture,
@@ -384,7 +384,7 @@ final class FlicButtonService: ObservableObject {
         // Skip via SSOT
         sessionRepository.skipDose2()
         AlarmService.shared.cancelAllAlarms()
-        AlarmService.shared.clearWakeAlarmState()
+        AlarmService.shared.clearDose2AlarmState()
         provideHapticFeedback(.warning)
         
         return FlicActionResult(

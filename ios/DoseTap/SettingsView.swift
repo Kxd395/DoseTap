@@ -448,9 +448,7 @@ struct SettingsView: View {
     private var cutoffTimeText: String {
         let wake = settings.dateFromMinutes(settings.wakeTimeMinutes)
         let cutoff = Calendar.current.date(byAdding: .hour, value: settings.missedCheckInCutoffHours, to: wake) ?? wake
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        return formatter.string(from: cutoff)
+        return AppFormatters.shortTime.string(from: cutoff)
     }
 
     // MARK: - Appearance Picker

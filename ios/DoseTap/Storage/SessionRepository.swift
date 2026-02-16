@@ -79,9 +79,9 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     /// Tests and production code should both use this list to ensure consistency.
     public static let sessionNotificationIdentifiers: [String] = [
         // AlarmService.NotificationID.wakeAlarm
-        "dosetap_wake_alarm",
+        "dosetap_dose2_alarm",
         // AlarmService.NotificationID.preAlarm
-        "dosetap_pre_alarm",
+        "dosetap_dose2_pre_alarm",
         // AlarmService.NotificationID.followUp_1..._3
         "dosetap_followup_1",
         "dosetap_followup_2",

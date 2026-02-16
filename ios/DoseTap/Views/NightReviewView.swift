@@ -97,12 +97,8 @@ struct SessionPickerCard: View {
     }
     
     private func formatSessionDate(_ key: String) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        guard let date = formatter.date(from: key) else { return key }
-        
-        formatter.dateFormat = "EEEE, MMM d"
-        return formatter.string(from: date)
+        guard let date = AppFormatters.sessionDate.date(from: key) else { return key }
+        return AppFormatters.weekdayMedium.string(from: date)
     }
 }
 
@@ -354,9 +350,7 @@ struct PreSleepLogCard: View {
     }
 
     private var shortTimeFormatter: DateFormatter {
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        return formatter
+        AppFormatters.shortTime
     }
 
     private func formatDrinks(_ value: Double) -> String {

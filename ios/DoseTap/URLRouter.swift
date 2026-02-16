@@ -182,7 +182,7 @@ public class URLRouter: ObservableObject {
             let targetMinutes = UserDefaults.standard.integer(forKey: "target_interval_minutes")
             let targetInterval = targetMinutes > 0 ? targetMinutes : 165
             let wakeTime = now.addingTimeInterval(Double(targetInterval) * 60)
-            await AlarmService.shared.scheduleWakeAlarm(at: wakeTime, dose1Time: now)
+            await AlarmService.shared.scheduleDose2Alarm(at: wakeTime, dose1Time: now)
             await AlarmService.shared.scheduleDose2Reminders(dose1Time: now)
             
             showFeedback("✓ Dose 1 logged")
@@ -223,7 +223,7 @@ public class URLRouter: ObservableObject {
                 eventLogger?.logEvent(name: "Dose 2", color: .green, cooldownSeconds: 3600 * 8, persist: false)
                 showFeedback("✓ Dose 2 logged")
                 AlarmService.shared.cancelAllAlarms()
-                AlarmService.shared.clearWakeAlarmState()
+                AlarmService.shared.clearDose2AlarmState()
             }
         }
         return true
@@ -277,7 +277,7 @@ public class URLRouter: ObservableObject {
         Task {
             await core.skipDose()
             AlarmService.shared.cancelAllAlarms()
-            AlarmService.shared.clearWakeAlarmState()
+            AlarmService.shared.clearDose2AlarmState()
             showFeedback("✓ Dose 2 skipped")
         }
         return true

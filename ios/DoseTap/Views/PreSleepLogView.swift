@@ -291,9 +291,7 @@ private struct PlanInlineHint: View {
     let plan: (wakeBy: Date, inBed: Date, windDown: Date, expectedSleep: Double)
     
     private var formatter: DateFormatter {
-        let f = DateFormatter()
-        f.timeStyle = .short
-        return f
+        AppFormatters.shortTime
     }
     
     var body: some View {

@@ -52,6 +52,9 @@ struct HistoryView: View {
                 .padding(.bottom, 80)
             }
             .navigationTitle("History")
+            .refreshable {
+                loadHistory()
+            }
             .onAppear { loadHistory() }
             .alert("Delete This Day's Data?", isPresented: $showDeleteDayConfirmation) {
                 Button("Cancel", role: .cancel) { }
@@ -362,9 +365,7 @@ struct SelectedDayView: View {
     }
     
     private var dateTitle: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE, MMM d"
-        return formatter.string(from: eveningAnchorDate(for: date))
+        return AppFormatters.weekdayMedium.string(from: eveningAnchorDate(for: date))
     }
     
     private func loadData() {
@@ -407,7 +408,7 @@ struct SelectedDayView: View {
                 return
             }
 
-            guard let nightDate = Self.sessionDateFormatter.date(from: sessionDate) else {
+            guard let nightDate = AppFormatters.sessionDate.date(from: sessionDate) else {
                 healthSleepStatusText = "Unable to parse session date."
                 return
             }
@@ -429,9 +430,7 @@ struct SelectedDayView: View {
                 let start = segments.map(\.start).min() ?? queryStart
                 let end = segments.map(\.end).max() ?? queryEnd
 
-                let formatter = DateFormatter()
-                formatter.dateStyle = .medium
-                formatter.timeStyle = .short
+                let formatter = AppFormatters.mediumDateTime
                 healthSleepRangeText = "\(formatter.string(from: start)) -> \(formatter.string(from: end))"
 
                 let sourceNames = Set(segments.map(\.source)).sorted()
@@ -476,13 +475,6 @@ struct SelectedDayView: View {
         }
         return "Started at \(start) (no end logged)"
     }
-
-    private static let sessionDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = .current
-        return formatter
-    }()
 }
 
 // MARK: - Recent Sessions List
@@ -960,7 +952,7 @@ struct DoseButtonsSection: View {
                         } else {
                             await core.takeDose(lateOverride: true)
                             AlarmService.shared.cancelAllAlarms()
-                            AlarmService.shared.clearWakeAlarmState()
+                            AlarmService.shared.clearDose2AlarmState()
                         }
                     }
                 }

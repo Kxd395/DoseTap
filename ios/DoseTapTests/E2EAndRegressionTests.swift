@@ -225,7 +225,7 @@ final class AlarmAndSetupRegressionTests: XCTestCase {
         settings.snoozeDurationMinutes = 10
 
         repo.clearTonight()
-        alarm.clearWakeAlarmState()
+        alarm.clearDose2AlarmState()
         alarm.cancelAllAlarms()
 
         core = DoseTapCore(isOnline: { true })
@@ -241,7 +241,7 @@ final class AlarmAndSetupRegressionTests: XCTestCase {
         settings.maxSnoozes = previousMaxSnoozes
         settings.snoozeDurationMinutes = previousSnoozeDuration
 
-        alarm.clearWakeAlarmState()
+        alarm.clearDose2AlarmState()
         alarm.cancelAllAlarms()
         repo.clearTonight()
     }
@@ -386,7 +386,7 @@ final class AlarmAndSetupRegressionTests: XCTestCase {
         repo.setDose1Time(now.addingTimeInterval(-160 * 60))
         XCTAssertEqual(repo.snoozeCount, 0)
 
-        alarm.clearWakeAlarmState()
+        alarm.clearDose2AlarmState()
 
         let handled = router.handle(URL(string: "dosetap://snooze")!)
         XCTAssertTrue(handled, "Snooze deep link should be recognized while in active window.")

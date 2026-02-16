@@ -393,21 +393,15 @@ struct TonightDateLabel: View {
     }
     
     private var tonightDateString: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE, MMM d"
-        
         // Use the session key to determine the "Tonight" date
         // If the session key is 2025-12-26, we want to show Friday, Dec 26
         let key = sessionRepo.currentSessionKey
-        let keyFormatter = DateFormatter()
-        keyFormatter.dateFormat = "yyyy-MM-dd"
-        keyFormatter.timeZone = TimeZone.current
         
-        if let date = keyFormatter.date(from: key) {
-            return "Tonight – " + formatter.string(from: date)
+        if let date = AppFormatters.sessionDate.date(from: key) {
+            return "Tonight – " + AppFormatters.weekdayMedium.string(from: date)
         }
         
-        return "Tonight – " + formatter.string(from: Date())
+        return "Tonight – " + AppFormatters.weekdayMedium.string(from: Date())
     }
 }
 

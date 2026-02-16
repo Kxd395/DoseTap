@@ -453,10 +453,5 @@ struct DetailsView: View {
         }
     }
 
-    private static let sessionDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = .current
-        return formatter
-    }()
+    private static let sessionDateFormatter: DateFormatter = AppFormatters.sessionDate
 }

@@ -17,8 +17,8 @@ public class AlarmService: NSObject, ObservableObject {
     
     // MARK: - Notification IDs
     private enum NotificationID {
-        static let wakeAlarm = "dosetap_wake_alarm"
-        static let preAlarm = "dosetap_pre_alarm"
+        static let dose2Alarm = "dosetap_dose2_alarm"
+        static let dose2PreAlarm = "dosetap_dose2_pre_alarm"
         static let followUp = "dosetap_followup"
         static let secondDose = "dosetap_second_dose"         // Window open reminder
         static let windowWarning15 = "dosetap_window_15min"   // 15 min warning
@@ -201,20 +201,20 @@ public class AlarmService: NSObject, ObservableObject {
     /// - Parameters:
     ///   - time: Target wake time
     ///   - dose1Time: Time of Dose 1 (for window calculations)
-    public func scheduleWakeAlarm(at time: Date, dose1Time: Date) async {
+    public func scheduleDose2Alarm(at time: Date, dose1Time: Date) async {
         // Keep action titles in sync with current user snooze settings.
         registerNotificationCategories()
         // Cancel any existing alarms first
         cancelAllAlarms()
         guard UserSettingsManager.shared.notificationsEnabled else {
-            clearWakeAlarmState()
+            clearDose2AlarmState()
             return
         }
         
         // Validate wake time is in the future
         guard time > Date() else {
             alarmLog.warning("Cannot schedule alarm in the past")
-            clearWakeAlarmState()
+            clearDose2AlarmState()
             return
         }
         
@@ -228,8 +228,8 @@ public class AlarmService: NSObject, ObservableObject {
         let preAlarmTime = time.addingTimeInterval(-5 * 60)
         if preAlarmTime > Date() {
             await scheduleNotification(
-                id: NotificationID.preAlarm,
-                title: "⏰ Wake Alarm in 5 Minutes",
+                id: NotificationID.dose2PreAlarm,
+                title: "⏰ Dose 2 Alarm in 5 Minutes",
                 body: "Your Dose 2 alarm will sound soon",
                 at: preAlarmTime,
                 sound: .default,
@@ -239,7 +239,7 @@ public class AlarmService: NSObject, ObservableObject {
         
         // Schedule main wake alarm
         await scheduleNotification(
-            id: NotificationID.wakeAlarm,
+            id: NotificationID.dose2Alarm,
             title: "🔔 WAKE UP - Time for Dose 2",
             body: "Take your second dose now! \(TimeIntervalMath.formatMinutes(minutesRemaining)) remaining in window.",
             at: time,
@@ -269,7 +269,7 @@ public class AlarmService: NSObject, ObservableObject {
         alarmScheduled = true
         saveTargetWakeTime()
         
-        alarmLog.info("Wake alarm scheduled for \(self.formatTime(time), privacy: .private)")
+        alarmLog.info("Dose 2 alarm scheduled for \(self.formatTime(time), privacy: .private)")
     }
     
     // MARK: - Snooze
@@ -308,7 +308,7 @@ public class AlarmService: NSObject, ObservableObject {
         }
         
         // Schedule new alarm at snoozed time
-        await scheduleWakeAlarm(at: newTarget, dose1Time: d1)
+        await scheduleDose2Alarm(at: newTarget, dose1Time: d1)
         guard targetWakeTime == newTarget && alarmScheduled else {
             alarmLog.error("Snooze reschedule failed")
             return nil
@@ -325,14 +325,14 @@ public class AlarmService: NSObject, ObservableObject {
     public func checkForDueAlarm(now: Date = Date()) {
         guard let target = targetWakeTime else { return }
         if SessionRepository.shared.dose2Time != nil || SessionRepository.shared.dose2Skipped {
-            clearWakeAlarmState()
+            clearDose2AlarmState()
             cancelAllAlarms()
             return
         }
         guard alarmScheduled else { return }
         guard !alarmAcknowledged else {
             // Defensive cleanup in case a stale target survives an acknowledged alarm.
-            clearWakeAlarmState()
+            clearDose2AlarmState()
             return
         }
         if target <= now {
@@ -360,7 +360,7 @@ public class AlarmService: NSObject, ObservableObject {
     }
 
     public func acknowledgeAlarm() {
-        clearWakeAlarmState()
+        clearDose2AlarmState()
         cancelAllAlarms()
     }
     
@@ -369,8 +369,8 @@ public class AlarmService: NSObject, ObservableObject {
     /// Cancel all scheduled alarms
     public func cancelAllAlarms() {
         let ids = [
-            NotificationID.wakeAlarm,
-            NotificationID.preAlarm,
+            NotificationID.dose2Alarm,
+            NotificationID.dose2PreAlarm,
             "\(NotificationID.followUp)_1",
             "\(NotificationID.followUp)_2",
             "\(NotificationID.followUp)_3",
@@ -387,7 +387,7 @@ public class AlarmService: NSObject, ObservableObject {
     }
 
     /// Clear in-memory and persisted wake-alarm target state.
-    public func clearWakeAlarmState() {
+    public func clearDose2AlarmState() {
         stopRinging(acknowledge: true)
         targetWakeTime = nil
         clearSavedTargetWakeTime()
@@ -399,7 +399,7 @@ public class AlarmService: NSObject, ObservableObject {
     public func resetForNewSession() {
         cancelAllAlarms()
         cancelDose2Reminders()
-        clearWakeAlarmState()
+        clearDose2AlarmState()
         reminderScheduled = false
     }
     
@@ -546,7 +546,7 @@ extension AlarmService: UNUserNotificationCenterDelegate {
                 category: notification.request.content.categoryIdentifier
             )
 
-            if notificationId == NotificationID.wakeAlarm || notificationId.hasPrefix(NotificationID.followUp) {
+            if notificationId == NotificationID.dose2Alarm || notificationId.hasPrefix(NotificationID.followUp) {
                 self.startRinging()
             }
         }
@@ -595,7 +595,7 @@ extension AlarmService: UNUserNotificationCenterDelegate {
             } else if actionId == NotificationAction.stop {
                 self.acknowledgeAlarm()
             } else if actionId == UNNotificationDefaultActionIdentifier {
-                if notificationId == NotificationID.wakeAlarm || notificationId.hasPrefix(NotificationID.followUp) {
+                if notificationId == NotificationID.dose2Alarm || notificationId.hasPrefix(NotificationID.followUp) {
                     self.startRinging()
                 }
             }

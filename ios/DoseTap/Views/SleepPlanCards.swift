@@ -7,12 +7,7 @@ struct SleepPlanSummaryCard: View {
     let windDown: Date
     let expectedSleepMinutes: Double
     
-    private var timeFormatter: DateFormatter {
-        let f = DateFormatter()
-        f.timeStyle = .short
-        f.timeZone = TimeZone.current
-        return f
-    }
+    private var timeFormatter: DateFormatter { AppFormatters.shortTime }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -64,12 +59,7 @@ struct SleepPlanOverrideCard: View {
     let onClear: () -> Void
     let baselineWake: Date
     
-    private var timeFormatter: DateFormatter {
-        let f = DateFormatter()
-        f.timeStyle = .short
-        f.timeZone = TimeZone.current
-        return f
-    }
+    private var timeFormatter: DateFormatter { AppFormatters.shortTime }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -185,9 +175,7 @@ struct PreSleepCard: View {
         guard let createdAtUtc = state.createdAtUtc else {
             return "unknown"
         }
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        guard let date = iso.date(from: createdAtUtc) else {
+        guard let date = AppFormatters.iso8601Fractional.date(from: createdAtUtc) else {
             return "unknown"
         }
         let formatter = DateFormatter()
@@ -290,9 +278,7 @@ struct AlarmIndicatorView: View {
     }
     
     private func formattedTime(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
-        return formatter.string(from: date)
+        AppFormatters.shortTime.string(from: date)
     }
 }
 
@@ -347,15 +333,9 @@ struct IncompleteSessionBanner: View {
     }
     
     private var formattedDate: String {
-        let inputFormatter = DateFormatter()
-        inputFormatter.dateFormat = "yyyy-MM-dd"
-        
-        guard let date = inputFormatter.date(from: sessionDate) else {
+        guard let date = AppFormatters.sessionDate.date(from: sessionDate) else {
             return sessionDate
         }
-        
-        let outputFormatter = DateFormatter()
-        outputFormatter.dateFormat = "MMM d"
-        return outputFormatter.string(from: date)
+        return AppFormatters.shortDate.string(from: date)
     }
 }
