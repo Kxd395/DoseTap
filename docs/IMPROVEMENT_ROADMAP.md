@@ -256,13 +256,20 @@ A deep code audit of the running app versus source reveals five critical themes:
 
 ---
 
-### P2-8: No iPad / Landscape Layout
+### ✅ P2-8: No iPad / Landscape Layout — RESOLVED
 
-**Problem:** All views appear to be phone-only. Dashboard charts and Timeline would benefit significantly from wider layouts.
+**Problem:** All views appeared phone-only. Dashboard charts and Timeline would benefit significantly from wider layouts.
 
-**Fix:** Add `NavigationSplitView` for iPad and landscape-aware layouts for chart views.
+**Resolution:**
+- `ContentView` checks `horizontalSizeClass`: compact uses existing swipeable `TabView` + `CustomTabBar` (zero regression); regular uses `NavigationSplitView` with sidebar
+- New `AdaptiveLayouts.swift`: `isInSplitView` environment key, `AdaptiveSidebarView`, `AdaptiveHStack` helper
+- Child tab views (`HistoryView`, `DashboardTabView`, `DetailsView`, `SettingsView`) conditionally skip their `NavigationView` wrapper when inside split view detail column
+- `LegacyTonightView` uses `AdaptiveHStack` for side-by-side dose controls + event log on wide screens
+- `HistoryView` uses `AdaptiveHStack` for side-by-side calendar + selected day detail on iPad
+- `DashboardTabView` already had 2-column grid for iPad (unchanged)
+- Tab selection synced via `URLRouter.selectedTab` across both layouts; deep links work identically
 
-**Effort:** L (5-7 days)
+**Effort:** L (completed)
 
 ---
 
@@ -331,7 +338,7 @@ All WHOOP data integration resolved on `chore/audit-2026-02-15`:
 
 **Phase 5 — Platform Expansion (3-6 weeks)**
 16. P2-3: watchOS companion
-17. P2-8: iPad / landscape
+17. ✅ P2-8: iPad / landscape — NavigationSplitView + adaptive layouts
 18. P2-6: History search
 
 ---

@@ -12,6 +12,7 @@ private let settingsLog = Logger(subsystem: "com.dosetap.app", category: "Settin
 
 // MARK: - Settings View
 struct SettingsView: View {
+    @Environment(\.isInSplitView) private var isInSplitView
     @StateObject private var settings = UserSettingsManager.shared
     @State private var showingResetConfirmation = false
     @State private var showingExportSuccess = false
@@ -26,7 +27,16 @@ struct SettingsView: View {
     private let tabBarInsetHeight: CGFloat = 64
     
     var body: some View {
-        NavigationView {
+        if isInSplitView {
+            settingsContent
+        } else {
+            NavigationView {
+                settingsContent
+            }
+        }
+    }
+
+    private var settingsContent: some View {
             List {
                 // MARK: - Dose & Timing (Most Important)
                 Section {
@@ -381,7 +391,6 @@ struct SettingsView: View {
                     }
                 }
             }
-        }
         .preferredColorScheme(settings.colorScheme)
         .alert("Clear All Data", isPresented: $showingResetConfirmation) {
             Button("Cancel", role: .cancel) { }

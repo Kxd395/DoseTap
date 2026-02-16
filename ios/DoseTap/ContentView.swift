@@ -14,13 +14,107 @@ struct ContentView: View {
     @StateObject private var themeManager = ThemeManager.shared
     @StateObject private var alarmService = AlarmService.shared
     @ObservedObject private var urlRouter = URLRouter.shared
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var sharedPageImage: UIImage?
     @State private var showPageShareSheet = false
     @State private var isPreparingPageShare = false
     @State private var pageShareErrorMessage: String?
+    @State private var isSidebarVisible: NavigationSplitViewVisibility = .automatic
     private let tabBarHeight: CGFloat = 64
+
+    /// `true` when running on iPad or in a regular-width environment (e.g. large iPhone landscape).
+    private var usesSplitView: Bool { horizontalSizeClass == .regular }
     
     var body: some View {
+        Group {
+            if usesSplitView {
+                iPadBody
+            } else {
+                compactBody
+            }
+        }
+        .preferredColorScheme(themeManager.currentTheme == .night ? .dark : (themeManager.currentTheme.colorScheme ?? settings.colorScheme))
+        .accentColor(themeManager.currentTheme.accentColor)
+        .applyNightModeFilter(themeManager.currentTheme)
+        .fullScreenCover(isPresented: $alarmService.isAlarmRinging) {
+            AlarmRingingView()
+        }
+        .sheet(isPresented: $showPageShareSheet) {
+            if let sharedPageImage {
+                ActivityViewController(activityItems: [sharedPageImage])
+            }
+        }
+        .alert("Unable to Share Screen", isPresented: Binding(
+            get: { pageShareErrorMessage != nil },
+            set: { if !$0 { pageShareErrorMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {
+                pageShareErrorMessage = nil
+            }
+        } message: {
+            Text(pageShareErrorMessage ?? "Unknown error.")
+        }
+        .onAppear {
+            // P0 FIX: Wire DoseTapCore to SessionRepository (single source of truth)
+            core.setSessionRepository(sessionRepo)
+            urlRouter.core = core
+            urlRouter.eventLogger = eventLogger
+            setupUndoCallbacks()
+        }
+    }
+
+    // MARK: - iPad / Regular Width Layout (NavigationSplitView)
+
+    private var iPadBody: some View {
+        NavigationSplitView(columnVisibility: $isSidebarVisible) {
+            AdaptiveSidebarView(selectedTab: $urlRouter.selectedTab)
+        } detail: {
+            NavigationStack {
+                detailContent(for: urlRouter.selectedTab)
+                    .environment(\.isInSplitView, true)
+            }
+            .overlay(alignment: .topTrailing) {
+                shareButton
+                    .padding(.top, 8)
+                    .padding(.trailing, 16)
+            }
+        }
+        // Undo Snackbar Overlay (iPad)
+        .overlay(alignment: .bottom) {
+            UndoOverlayView(stateManager: undoState)
+        }
+        // URL Action Feedback Banner (iPad)
+        .overlay(alignment: .top) {
+            URLFeedbackBanner()
+                .padding(.top, 50)
+        }
+    }
+
+    /// Returns the content view for the given tab, suitable for the NavigationSplitView detail column.
+    @ViewBuilder
+    private func detailContent(for tab: AppTab) -> some View {
+        switch tab {
+        case .tonight:
+            LegacyTonightView(core: core, eventLogger: eventLogger, undoState: undoState)
+                .environmentObject(themeManager)
+        case .timeline:
+            DetailsView(core: core, eventLogger: eventLogger)
+                .environmentObject(themeManager)
+        case .history:
+            HistoryView()
+                .environmentObject(themeManager)
+        case .dashboard:
+            DashboardTabView(core: core, eventLogger: eventLogger)
+                .environmentObject(themeManager)
+        case .settings:
+            SettingsView()
+                .environmentObject(themeManager)
+        }
+    }
+
+    // MARK: - Compact Layout (iPhone TabView — unchanged)
+
+    private var compactBody: some View {
         ZStack(alignment: .bottom) {
             // Swipeable Page View
             TabView(selection: $urlRouter.selectedTab) {
@@ -66,64 +160,37 @@ struct ContentView: View {
             VStack {
                 HStack {
                     Spacer()
-                    Button {
-                        shareVisiblePage()
-                    } label: {
-                        ZStack {
-                            Circle()
-                                .fill(.ultraThinMaterial)
-                                .frame(width: 52, height: 52)
-                            if isPreparingPageShare {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Image(systemName: "square.and.arrow.up")
-                                    .font(.system(size: 22, weight: .semibold))
-                            }
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(isPreparingPageShare)
-                    .accessibilityLabel("Share current page screenshot")
+                    shareButton
                 }
                 .padding(.top, 54)
                 .padding(.trailing, 16)
                 Spacer()
             }
         }
-        .preferredColorScheme(themeManager.currentTheme == .night ? .dark : (themeManager.currentTheme.colorScheme ?? settings.colorScheme))
-        .accentColor(themeManager.currentTheme.accentColor)
-        .applyNightModeFilter(themeManager.currentTheme)
-        .fullScreenCover(isPresented: $alarmService.isAlarmRinging) {
-            AlarmRingingView()
-        }
-        .sheet(isPresented: $showPageShareSheet) {
-            if let sharedPageImage {
-                ActivityViewController(activityItems: [sharedPageImage])
+    }
+
+    // MARK: - Shared Components
+
+    private var shareButton: some View {
+        Button {
+            shareVisiblePage()
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(.ultraThinMaterial)
+                    .frame(width: 52, height: 52)
+                if isPreparingPageShare {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 22, weight: .semibold))
+                }
             }
         }
-        .alert("Unable to Share Screen", isPresented: Binding(
-            get: { pageShareErrorMessage != nil },
-            set: { if !$0 { pageShareErrorMessage = nil } }
-        )) {
-            Button("OK", role: .cancel) {
-                pageShareErrorMessage = nil
-            }
-        } message: {
-            Text(pageShareErrorMessage ?? "Unknown error.")
-        }
-        .onAppear {
-            // P0 FIX: Wire DoseTapCore to SessionRepository (single source of truth)
-            // All state reads/writes now go through SessionRepository
-            core.setSessionRepository(sessionRepo)
-            
-            // Wire URLRouter dependencies for deep link handling
-            urlRouter.core = core
-            urlRouter.eventLogger = eventLogger
-            
-            // Setup undo callbacks
-            setupUndoCallbacks()
-        }
+        .buttonStyle(.plain)
+        .disabled(isPreparingPageShare)
+        .accessibilityLabel("Share current page screenshot")
     }
 
     private func shareVisiblePage() {

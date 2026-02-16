@@ -87,6 +87,7 @@
 		UNDO007 /* MedicationPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNDO008 /* MedicationPickerView.swift */; };
 		WP001 /* WeeklyPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP002 /* WeeklyPlanner.swift */; };
 		8E967A52E8644DF89EEF23B9 /* Formatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49D083E0EC7947B795F0DD57 /* Formatters.swift */; };
+		E3B41D5FFE162C7FC40E4FD4 /* AdaptiveLayouts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ED119801E1E497EB929C45B /* AdaptiveLayouts.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -217,6 +218,7 @@
 		UNDO008 /* MedicationPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationPickerView.swift; sourceTree = "<group>"; };
 		WP002 /* WeeklyPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyPlanner.swift; sourceTree = "<group>"; };
 		49D083E0EC7947B795F0DD57 /* Formatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Formatters.swift; sourceTree = "<group>"; };
+		4ED119801E1E497EB929C45B /* AdaptiveLayouts.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AdaptiveLayouts.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -462,6 +464,7 @@
 				B44F86E9E72D452CAFED6B16 /* SleepPlanCards.swift */,
 				22B9CA2EF895428EA7912896 /* CompactStatusCard.swift */,
 				60E7491C7A9D4FDE812F4BFB /* CompactDoseButton.swift */,
+				4ED119801E1E497EB929C45B /* AdaptiveLayouts.swift */,
 				AA0C7941006B40BEA391DD9A /* SessionSummaryViews.swift */,
 				BEAE0B98FC8F48BAB6219546 /* QuickEventViews.swift */,
 				D42A891F4758470783F7565F /* DetailsView.swift */,
@@ -655,6 +658,7 @@
 				B3A59BFBC74549279C21803D /* SleepPlanCards.swift in Sources */,
 				C2E1898433FE4503AD4765DB /* CompactStatusCard.swift in Sources */,
 				837A745C7B9B471695166AEC /* CompactDoseButton.swift in Sources */,
+				E3B41D5FFE162C7FC40E4FD4 /* AdaptiveLayouts.swift in Sources */,
 				36C1109C06A24E03A747B9E6 /* SessionSummaryViews.swift in Sources */,
 				B5040368A01046D0AA5193F1 /* QuickEventViews.swift in Sources */,
 				AD5F630A482E47B183CDE516 /* DetailsView.swift in Sources */,

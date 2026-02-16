@@ -6,25 +6,68 @@ import UIKit
 #endif
 
 struct HistoryView: View {
+    @Environment(\.isInSplitView) private var isInSplitView
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var selectedDate = Date()
     @State private var pastSessions: [SessionSummary] = []
     @State private var showDeleteDayConfirmation = false
     @State private var refreshTrigger = false  // Toggled to force SelectedDayView refresh
     
     private let sessionRepo = SessionRepository.shared
+
+    private var isWideLayout: Bool { horizontalSizeClass == .regular }
     
     var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: 16) {
-                    // Trends
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Trends")
-                            .font(.headline)
-                        InsightsSummaryCard()
-                    }
-                    
-                    // Date Picker
+        if isInSplitView {
+            historyContent
+        } else {
+            NavigationView {
+                historyContent
+            }
+        }
+    }
+
+    private var historyContent: some View {
+        ScrollView {
+            if isWideLayout {
+                // iPad: side-by-side calendar + selected day detail
+                wideHistoryLayout
+            } else {
+                // iPhone: stacked vertical layout
+                compactHistoryLayout
+            }
+        }
+        .navigationTitle("History")
+        .refreshable {
+            loadHistory()
+        }
+        .onAppear { loadHistory() }
+        .alert("Delete This Day's Data?", isPresented: $showDeleteDayConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                deleteSelectedDay()
+            }
+        } message: {
+            Text("This will delete all dose data and events for this day. This cannot be undone.")
+        }
+    }
+
+    // MARK: - Wide Layout (iPad)
+
+    private var wideHistoryLayout: some View {
+        VStack(spacing: 16) {
+            // Trends (full width)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Trends")
+                    .font(.headline)
+                InsightsSummaryCard()
+            }
+            .padding(.horizontal)
+
+            // Side-by-side: Calendar | Selected Day
+            HStack(alignment: .top, spacing: 16) {
+                // Left: Calendar picker
+                VStack {
                     DatePicker(
                         "Select Date",
                         selection: $selectedDate,
@@ -37,34 +80,63 @@ struct HistoryView: View {
                         RoundedRectangle(cornerRadius: 16)
                             .fill(Color(.systemGray6))
                     )
-                    
-                    // Selected Day Summary with Delete Option
+                }
+                .frame(maxWidth: .infinity)
+
+                // Right: Selected day + recent sessions
+                VStack(spacing: 16) {
                     SelectedDayView(
                         date: selectedDate,
                         refreshTrigger: refreshTrigger,
                         onDeleteRequested: { showDeleteDayConfirmation = true }
                     )
-                    
-                    // Recent Sessions List
                     RecentSessionsList()
                 }
-                .padding()
-                .padding(.bottom, 80)
+                .frame(maxWidth: .infinity)
             }
-            .navigationTitle("History")
-            .refreshable {
-                loadHistory()
-            }
-            .onAppear { loadHistory() }
-            .alert("Delete This Day's Data?", isPresented: $showDeleteDayConfirmation) {
-                Button("Cancel", role: .cancel) { }
-                Button("Delete", role: .destructive) {
-                    deleteSelectedDay()
-                }
-            } message: {
-                Text("This will delete all dose data and events for this day. This cannot be undone.")
-            }
+            .padding(.horizontal)
         }
+        .padding(.vertical)
+        .padding(.bottom, 80)
+    }
+
+    // MARK: - Compact Layout (iPhone — unchanged)
+
+    private var compactHistoryLayout: some View {
+        VStack(spacing: 16) {
+            // Trends
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Trends")
+                    .font(.headline)
+                InsightsSummaryCard()
+            }
+            
+            // Date Picker
+            DatePicker(
+                "Select Date",
+                selection: $selectedDate,
+                in: ...Date(),
+                displayedComponents: [.date]
+            )
+            .datePickerStyle(.graphical)
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color(.systemGray6))
+            )
+            
+            // Selected Day Summary with Delete Option
+            SelectedDayView(
+                date: selectedDate,
+                refreshTrigger: refreshTrigger,
+                onDeleteRequested: { showDeleteDayConfirmation = true }
+            )
+            
+            // Recent Sessions List
+            RecentSessionsList()
+        }
+        .padding()
+        .padding(.bottom, 80)
     }
     
     private func loadHistory() {

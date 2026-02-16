@@ -8,6 +8,8 @@ struct LegacyTonightView: View {
     @ObservedObject var eventLogger: EventLogger
     @ObservedObject var undoState: UndoStateManager
     @EnvironmentObject var themeManager: ThemeManager
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.isInSplitView) private var isInSplitView
     @ObservedObject private var sessionRepo = SessionRepository.shared
     @ObservedObject private var sleepPlanStore = SleepPlanStore.shared
     @State private var overrideEnabled: Bool = false
@@ -43,7 +45,7 @@ struct LegacyTonightView: View {
                     AlarmIndicatorView(dose1Time: core.dose1Time)
                         .padding(.top, 4)
                 }
-                .padding(.top, 50) // Safe area offset for page-style TabView
+                .padding(.top, isInSplitView ? 16 : 50) // Safe area offset for page-style TabView (less needed in split view)
                 
                 if let message = sessionRepo.awaitingRolloverMessage {
                     HStack(spacing: 8) {
@@ -132,6 +134,41 @@ struct LegacyTonightView: View {
                 Spacer().frame(height: 12)
             }
             
+            // Wide layout: dose controls left, events right
+            // Compact layout: stacked vertically (default)
+            if horizontalSizeClass == .regular {
+                HStack(alignment: .top, spacing: 16) {
+                    // LEFT: Dose controls + status
+                    VStack(spacing: 12) {
+                        CompactDoseButton(
+                            core: core,
+                            eventLogger: eventLogger,
+                            undoState: undoState,
+                            sessionRepo: sessionRepo,
+                            showEarlyDoseAlert: $showEarlyDoseAlert,
+                            earlyDoseMinutes: $earlyDoseMinutesRemaining,
+                            showExtraDoseWarning: $showExtraDoseWarning
+                        )
+                        
+                        WakeUpButton(
+                            eventLogger: eventLogger,
+                            showMorningCheckIn: $showMorningCheckIn
+                        )
+                        
+                        LiveDoseIntervalsCard(sessionRepo: sessionRepo)
+                    }
+                    .frame(maxWidth: .infinity)
+                    
+                    // RIGHT: Event log + session summary
+                    VStack(spacing: 12) {
+                        QuickEventPanel(eventLogger: eventLogger)
+                        
+                        CompactSessionSummary(core: core, eventLogger: eventLogger)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .padding(.horizontal)
+            } else {
             // Main Dose Button
             CompactDoseButton(
                 core: core,
@@ -169,6 +206,7 @@ struct LegacyTonightView: View {
             // Inter-dose intervals for this session
             LiveDoseIntervalsCard(sessionRepo: sessionRepo)
                 .padding(.horizontal)
+            } // end compact layout
             
             Spacer()
                 .frame(height: 100) // Space for tab bar (increased from 80)

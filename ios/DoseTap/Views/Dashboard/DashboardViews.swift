@@ -11,6 +11,7 @@ struct DashboardTabView: View {
     @ObservedObject var eventLogger: EventLogger
     @ObservedObject private var sessionRepo = SessionRepository.shared
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.isInSplitView) private var isInSplitView
     @StateObject private var model = DashboardAnalyticsModel()
     @StateObject private var cloudSync = CloudKitSyncService.shared
     @State private var resolvingDuplicateGroup: StoredEventDuplicateGroup?
@@ -27,7 +28,16 @@ struct DashboardTabView: View {
     }
 
     var body: some View {
-        NavigationView {
+        if isInSplitView {
+            dashboardContent
+        } else {
+            NavigationView {
+                dashboardContent
+            }
+        }
+    }
+
+    private var dashboardContent: some View {
             ScrollView {
                 VStack(spacing: 0) {
                     // MARK: Date Range Picker
@@ -163,7 +173,6 @@ struct DashboardTabView: View {
             } message: {
                 Text(cloudSyncError ?? "Unknown cloud sync error")
             }
-        }
     }
 }
 

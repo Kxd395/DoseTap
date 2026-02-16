@@ -55,6 +55,7 @@ struct AlarmRingingView: View {
 // MARK: - Details View (Second Tab)
 struct DetailsView: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.isInSplitView) private var isInSplitView
     @ObservedObject var core: DoseTapCore
     @ObservedObject var eventLogger: EventLogger
     @ObservedObject private var sessionRepo = SessionRepository.shared
@@ -99,7 +100,16 @@ struct DetailsView: View {
     }
     
     var body: some View {
-        NavigationView {
+        if isInSplitView {
+            timelineContent
+        } else {
+            NavigationView {
+                timelineContent
+            }
+        }
+    }
+
+    private var timelineContent: some View {
             ScrollView {
                 if selectedMode == .review {
                     VStack(spacing: 20) {
@@ -182,7 +192,6 @@ struct DetailsView: View {
             }
             .toolbarBackground(.hidden, for: .navigationBar)
             .navigationBarTitleDisplayMode(.inline)
-        }
     }
 
     @ViewBuilder

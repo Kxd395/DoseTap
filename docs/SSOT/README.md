@@ -1,7 +1,7 @@
 # DoseTap SSOT (Single Source of Truth)
 
-Last updated: 2026-02-15
-Version: 0.3.2
+Last updated: 2026-02-16
+Version: 0.3.3
 
 This document is the authoritative specification for the current DoseTap behavior. It describes what the code does today. If code and this SSOT diverge, the SSOT must be updated to match the code.
 
@@ -248,6 +248,30 @@ Quick Log button (ios/DoseTap/Views/QuickEventViews.swift)
       -> DiagnosticLogger.logSleepEventLogged(...)
       -> sessionDidChange -> UI updates
 ```
+
+---
+
+## Navigation and Layout (Adaptive)
+
+The app uses an adaptive navigation pattern based on horizontal size class:
+
+- **Compact** (iPhone portrait, iPhone landscape): Swipeable `TabView(.page)` with a custom `CustomTabBar` at the bottom. 5 tabs: Tonight, Timeline, History, Dashboard, Settings.
+- **Regular** (iPad, large iPhone landscape): `NavigationSplitView` with a sidebar listing all 5 sections. The selected section's content appears in the detail column. Each tab's view uses `NavigationStack` for internal push navigation.
+
+Environment key `isInSplitView` (from `AdaptiveLayouts.swift`) signals child views whether they are embedded in a `NavigationSplitView` detail column. When `true`, child views skip their own `NavigationView`/`NavigationStack` wrapper since the split view provides the navigation context. When `false` (default, compact), they wrap themselves.
+
+Wide-layout adaptations:
+- **Dashboard**: 2-column `LazyVGrid` when `isWideLayout` (already present).
+- **Tonight**: Side-by-side layout — dose controls on the left, quick event log on the right — when `horizontalSizeClass == .regular`.
+- **History**: Side-by-side calendar picker (left) and selected day detail (right) on iPad.
+- **Timeline/Settings**: Benefit from wider content area; no structural change needed.
+
+Tab selection is synced between compact (TabView `$urlRouter.selectedTab`) and regular (sidebar selection `$urlRouter.selectedTab`) layouts. Deep links work identically in both modes.
+
+Code references:
+- `ios/DoseTap/ContentView.swift` (adaptive root)
+- `ios/DoseTap/Views/AdaptiveLayouts.swift` (environment key, sidebar, helpers)
+- `ios/DoseTap/URLRouter.swift` (`AppTab` enum, `selectedTab`)
 
 ---
 
