@@ -22,6 +22,7 @@
 10. [Session Lifecycle](#10-session-lifecycle)
 11. [Data Flow — User Actions](#11-data-flow--user-actions)
 12. [Deep Link Routing](#12-deep-link-routing)
+12b. [Dose Registration Surface Matrix](#12b-dose-registration-surface-matrix)
 13. [Notification & Alarm System](#13-notification--alarm-system)
 14. [Storage & Persistence](#14-storage--persistence)
 15. [Service Layer](#15-service-layer)
@@ -623,6 +624,43 @@ All deep links are validated by `InputValidator.validateDeepLink()` and sanitize
 
 ---
 
+## 12b. Dose Registration Surface Matrix
+
+Dose actions can be triggered from 4 independent surfaces. **These implementations diverge in important ways:**
+
+### Feature Parity Matrix
+
+| Capability | Tonight (CompactDoseButton) | History (DoseButtonsSection) | Flic (FlicButtonService) | Deep Link (URLRouter) |
+|---|---|---|---|---|
+| Take Dose 1 | ✅ | ✅ | ✅ | ✅ |
+| Take Dose 2 | ✅ | ✅ | ✅ | ✅ |
+| Late override confirm | ✅ Alert | ✅ Alert | ❌ Haptic only | ❌ Blocks |
+| Extra-dose (3rd) warning | ✅ Alert | ❌ Missing | ❌ Logs silently | ❌ Not supported |
+| Snooze | ✅ | ✅ | ✅ | ✅ |
+| Snooze <15m check | ❌ Count only | ❌ Count only | ✅ Via context | N/A |
+| Skip | ✅ | ✅ | ✅ | ✅ |
+| Event logging (EventLogger) | ✅ | ❌ | ❌ | ❌ |
+| Undo registration | ✅ | ❌ | ❌ | ❌ |
+| Alarm scheduling | ✅ | ❌ | ✅ | ❌ |
+| Theme-aware colors | ✅ | ❌ | N/A | N/A |
+
+### Button State per Phase
+
+| Phase | Primary Button | Color | Snooze | Skip | Notes |
+|---|---|---|---|---|---|
+| `noDose1` | "Take Dose 1" | Blue | Disabled | Disabled | |
+| `beforeWindow` | "Waiting..." | Gray | Disabled | Disabled | Tap shows early-override alert |
+| `active` | "Take Dose 2" | Green | Enabled (if count<3) | Enabled | |
+| `nearClose` | "Take Dose 2" | Orange | **Should check <15m** | Enabled | SSOT: disable at <15m |
+| `closed` | "Take Dose 2 (Late)" | Red | Disabled | Enabled | Requires confirmation |
+| `completed` | "Complete ✓" | Purple | Disabled | Disabled | Tap checks for extra-dose |
+| `finalizing` | "Check-In" | Yellow | Disabled | Disabled | |
+
+> **⚠️ Known issue:** Snooze enable logic in UI buttons checks only `snoozeCount < 3`, not `remaining < 15m`. See `docs/IMPROVEMENT_ROADMAP.md` P0-2.
+
+
+---
+
 ## 13. Notification & Alarm System
 
 **File:** `ios/DoseTap/AlarmService.swift` (607 LOC)
@@ -827,27 +865,42 @@ Performance indexes on: `session_date`, `timestamp`, `session_id`, `event_type`,
 
 ## 18. WHOOP Integration
 
-**File:** `ios/DoseTap/WhoopManager.swift`
+**Files:** `ios/DoseTap/WHOOPService.swift` (~470 LOC), `WHOOPDataFetching.swift` (~480 LOC), `WHOOPSettingsView.swift` (~280 LOC), `SleepTimelineOverlays.swift` (609 LOC)
+
+### Feature Flag
+
+`WHOOPService.isEnabled = false` — disabled by default until credentials hardened.
 
 ### OAuth Flow
 
-1. User taps "Connect WHOOP" in Settings > Integrations
-2. `ASWebAuthenticationSession` opens WHOOP OAuth consent page
-3. Callback URL returns auth code
-4. Token exchanged and stored in Keychain
-5. Token refresh handled automatically on 401
+1. User initiates from `WHOOPSettingsView` → Settings > Integrations
+2. `WHOOPService.authorize()` → `ASWebAuthenticationSession` opens WHOOP OAuth consent
+3. Callback via `dosetap://whoop-callback` → token exchange
+4. Access + refresh tokens stored in Keychain
+5. Auto-refresh on 401 via `refreshTokenIfNeeded()`
 
-### Data Fetched
+### API Endpoints (WHOOPDataFetching — 7 functions built)
 
-| Endpoint | Data | Usage |
-| --- | --- | --- |
-| `/v1/cycle` | Strain, calories | Dashboard trends |
-| `/v1/recovery` | Recovery score, HRV, RHR | Recovery card in Dashboard |
-| `/v1/sleep` | Sleep performance, stages | Cross-reference with HealthKit |
+| Function | Endpoint | Data |
+|---|---|---|
+| `fetchSleepData(from:to:)` | `/v1/activity/sleep` | Sleep records with scores |
+| `fetchRecoveryData(from:to:)` | `/v1/recovery` | Recovery score, HRV, RHR |
+| `fetchCycleData(from:to:)` | `/v1/cycle` | Strain, calories |
+| `fetchRecentSleep(nights:)` | `/v1/activity/sleep` | Last N nights |
+| `fetchSleepForNight(_:)` | `/v1/activity/sleep` | Single night lookup |
+| `fetchSleepStages(sleepId:)` | `/v1/activity/sleep/:id` | Per-stage breakdown |
+| `fetchHeartRateData(from:to:)` | `/v1/cycle/:id/heart_rate` | HR time series |
 
-### Status
+### Current Data Flow Status ⚠️
 
-- ⚠️ **P0 audit finding**: Client secret needs rotation (hardcoded in prior version, now in Keychain but original secret compromised)
+| Surface | Status | Detail |
+|---|---|---|
+| **Dashboard** | 🟡 Status only | Shows "Connected"/"Disabled" in integrations card; NO metrics in analytics |
+| **Timeline** | 🔴 Simulated | Calls `fetchRecentSleep()` but `extractBiometricData()` generates fake HR/RR/HRV via `sin()` curves |
+| **Night Review** | 🔴 Hardcoded | `HealthDataCard` shows static "Recovery: 68%, HRV: 45ms, Sleep Score: 82" |
+| **DashboardNightAggregate** | 🔴 No fields | Has `healthSummary` (HealthKit) but no WHOOP properties |
+
+> **See:** `docs/IMPROVEMENT_ROADMAP.md` P0-1, P1-2, P1-3 for remediation plan.
 
 ---
 
@@ -984,21 +1037,27 @@ main ─────────────────────────
 
 ## 23. Known Issues & Technical Debt
 
+> Full roadmap: `docs/IMPROVEMENT_ROADMAP.md` (4 P0 + 6 P1 + 8 P2 + 10 P3)
+
 ### P0 (Critical)
 
-| # | Issue | Impact |
-| --- | --- | --- |
-| 1 | WHOOP client secret needs rotation | Security: compromised credential |
-| 2 | DiagnosticLogger force-unwraps DateFormatter | Crash risk on locale edge cases |
+| # | Issue | Impact | Roadmap |
+| --- | --- | --- | --- |
+| 1 | WHOOP client secret needs rotation | Security: compromised credential | Audit |
+| 2 | WHOOP data decorative only — no real metrics flow to views | Users see fake/no data | P0-1 |
+| 3 | Snooze <15m check missing from UI buttons | SSOT violation, clinical risk | P0-2 |
+| 4 | Flic bypasses late-dose confirmation | Safety: no user confirmation | P0-3 |
+| 5 | Dose logic duplicated across 4 surfaces | Divergent safety behavior | P0-4 |
 
 ### P1 (High)
 
-| # | Issue | Impact |
-| --- | --- | --- |
-| 1 | SessionRepository (1712 LOC) needs decomposition | Maintainability |
-| 2 | EventStorage+CheckIn (824 LOC) god-method risk | Complexity |
-| 3 | Missing doc comments on 40% of public APIs | Onboarding friction |
-| 4 | 6 quarantined legacy files still in project | Compilation noise |
+| # | Issue | Impact | Roadmap |
+| --- | --- | --- | --- |
+| 6 | Night Review health data is hardcoded | Users see fake numbers | P1-1 |
+| 7 | Timeline biometrics are simulated (sin() curves) | Misleading visualization | P1-2 |
+| 8 | DashboardNightAggregate has no WHOOP fields | WHOOP data can't appear in trends | P1-3 |
+| 9 | SessionRepository (1712 LOC) needs decomposition | Maintainability | Audit |
+| 10 | NightScoreCalculator exists but not surfaced | Dead code | P1-6 |
 
 ### Technical Debt
 
@@ -1007,6 +1066,8 @@ main ─────────────────────────
 - Duplicate model types between `StorageModels` and `DoseCore`
 - ~44,400 LOC total -- opportunity to extract shared frameworks
 - Manual session date rollover logic duplicated in 3 places
+- CloudKit sync is non-functional skeleton (~600 LOC)
+- 6 quarantined legacy files still in project
 
 ---
 
@@ -1148,6 +1209,18 @@ Undo state tracked via `@Published var undoAction: UndoableAction?` with auto-ex
 - **Navigation contracts:** `docs/SSOT/navigation.md`
 - **API contracts:** `docs/SSOT/contracts/`
 - **Audit findings:** `docs/audit/2026-02-15/`
+- **Changelog:** `CHANGELOG.md`
+
+---
+
+## Cross-References
+
+- **Behavior spec:** `docs/SSOT/README.md`
+- **Database schema:** `docs/DATABASE_SCHEMA.md`
+- **Test patterns:** `docs/TESTING_GUIDE.md`
+- **Improvement roadmap:** `docs/IMPROVEMENT_ROADMAP.md`
+- **WHOOP integration:** `docs/WHOOP_INTEGRATION.md`
+- **Dose registration review:** `docs/review/dose_registration_architecture_2026-02-15.md`
 - **Changelog:** `CHANGELOG.md`
 
 ---
