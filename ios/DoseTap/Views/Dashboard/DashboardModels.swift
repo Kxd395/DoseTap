@@ -68,6 +68,7 @@ struct DashboardNightAggregate: Identifiable {
     let morningCheckIn: StoredMorningCheckIn?
     let preSleepLog: StoredPreSleepLog?
     let healthSummary: HealthKitService.SleepNightSummary?
+    let whoopSummary: WHOOPNightSummary?
     let duplicateClusterCount: Int
     let napSummary: SessionRepository.NapSummary
 
@@ -84,22 +85,43 @@ struct DashboardNightAggregate: Identifiable {
         return (150...240).contains(intervalMinutes)
     }
 
-    var totalSleepMinutes: Double? { healthSummary?.totalSleepMinutes }
+    var totalSleepMinutes: Double? {
+        // Prefer WHOOP when available, fall back to HealthKit
+        if let whoopMin = whoopSummary?.totalSleepMinutes, whoopMin > 0 {
+            return Double(whoopMin)
+        }
+        return healthSummary?.totalSleepMinutes
+    }
     var ttfwMinutes: Double? { healthSummary?.ttfwMinutes }
     var wakeCount: Int? { healthSummary?.wakeCount }
+
+    // MARK: - WHOOP-specific computed properties
+
+    /// Recovery score from WHOOP (0-100).
+    var whoopRecoveryScore: Double? { whoopSummary?.recoveryScore }
+    /// HRV in ms from WHOOP recovery data.
+    var whoopHRV: Double? { whoopSummary?.hrvMs }
+    /// Sleep efficiency percentage from WHOOP.
+    var whoopSleepEfficiency: Double? { whoopSummary?.sleepEfficiency }
+    /// Respiratory rate from WHOOP.
+    var whoopRespiratoryRate: Double? { whoopSummary?.respiratoryRate }
+    /// Disturbance count from WHOOP.
+    var whoopDisturbances: Int? { whoopSummary.map(\.disturbanceCount) }
+    /// Deep sleep minutes from WHOOP.
+    var whoopDeepSleepMinutes: Int? { whoopSummary?.deepMinutes }
 
     var bathroomEventCount: Int {
         events.filter { normalizeStoredEventType($0.eventType) == "bathroom" }.count
     }
 
     var hasAnyData: Bool {
-        dose1Time != nil || dose2Time != nil || dose2Skipped || !events.isEmpty || morningCheckIn != nil || preSleepLog != nil || healthSummary != nil
+        dose1Time != nil || dose2Time != nil || dose2Skipped || !events.isEmpty || morningCheckIn != nil || preSleepLog != nil || healthSummary != nil || whoopSummary != nil
     }
 
     var dataCompletenessScore: Double {
         var score = 0.0
         if dose1Time != nil && (dose2Time != nil || dose2Skipped) { score += 0.25 }
-        if healthSummary != nil { score += 0.25 }
+        if healthSummary != nil || whoopSummary != nil { score += 0.25 }
         if morningCheckIn != nil { score += 0.25 }
         if preSleepLog != nil { score += 0.25 }
         return score
@@ -231,6 +253,37 @@ final class DashboardAnalyticsModel: ObservableObject {
         guard !nightsWithBathroom.isEmpty else { return nil }
         let estimatedMinutes = nightsWithBathroom.reduce(0) { $0 + ($1.bathroomEventCount * 5) }
         return Double(estimatedMinutes) / Double(nightsWithBathroom.count)
+    }
+
+    // MARK: - WHOOP Aggregate Metrics
+
+    /// Nights that have WHOOP data with valid sleep scores.
+    var whoopNights: [DashboardNightAggregate] {
+        populatedNights.filter { $0.whoopSummary?.hasValidSleepData == true }
+    }
+
+    var averageWhoopRecovery: Double? {
+        let values = whoopNights.compactMap(\.whoopRecoveryScore)
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +) / Double(values.count)
+    }
+
+    var averageWhoopHRV: Double? {
+        let values = whoopNights.compactMap(\.whoopHRV)
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +) / Double(values.count)
+    }
+
+    var averageWhoopSleepEfficiency: Double? {
+        let values = whoopNights.compactMap(\.whoopSleepEfficiency)
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +) / Double(values.count)
+    }
+
+    var averageWhoopRespiratoryRate: Double? {
+        let values = whoopNights.compactMap(\.whoopRespiratoryRate)
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +) / Double(values.count)
     }
 
     // MARK: - Check-in & Pre-Sleep Completion
@@ -678,6 +731,42 @@ final class DashboardAnalyticsModel: ObservableObject {
             }
         }
 
+        // WHOOP data — fetch when enabled and connected
+        var whoopByKey: [String: WHOOPNightSummary] = [:]
+        if WHOOPService.isEnabled && settings.whoopEnabled && whoop.isConnected {
+            do {
+                let fetchDays = min(days, 30) // WHOOP API: limit to 30 days per request
+                let sleeps = try await whoop.fetchRecentSleep(nights: fetchDays)
+                guard !Task.isCancelled else { return }
+                for sleep in sleeps where sleep.scoreState == "SCORED" {
+                    let summary = sleep.toNightSummary()
+                    let key = sessionRepo.sessionDateString(for: eveningAnchorDate(for: summary.date))
+                    if whoopByKey[key] == nil {
+                        whoopByKey[key] = summary
+                    }
+                }
+                // Also fetch recovery data and merge
+                let recoveries = try await whoop.fetchRecoveryData(
+                    from: Calendar.current.date(byAdding: .day, value: -fetchDays, to: Date()) ?? Date(),
+                    to: Date()
+                )
+                guard !Task.isCancelled else { return }
+                for recovery in recoveries {
+                    if let sleepId = recovery.sleepId,
+                       let existingKey = whoopByKey.first(where: { $0.value.sleepId == sleepId })?.key {
+                        var updated = whoopByKey[existingKey]!
+                        updated.recoveryScore = recovery.score?.recoveryScore
+                        updated.hrvMs = recovery.score?.hrvMs
+                        updated.restingHeartRate = recovery.score?.restingHeartRate
+                        whoopByKey[existingKey] = updated
+                    }
+                }
+            } catch {
+                dashboardLogger.warning("WHOOP fetch failed: \(error.localizedDescription)")
+                // Non-fatal: dashboard still loads with local data
+            }
+        }
+
         let calendar = Calendar.current
         let sessionKeys: [String] = (0..<days).compactMap { offset in
             guard let date = calendar.date(byAdding: .day, value: -offset, to: Date()) else { return nil }
@@ -704,18 +793,19 @@ final class DashboardAnalyticsModel: ObservableObject {
                 morningCheckIn: sessionRepo.fetchMorningCheckIn(for: key),
                 preSleepLog: sessionRepo.fetchMostRecentPreSleepLog(sessionId: sessionId),
                 healthSummary: healthByKey[key],
+                whoopSummary: whoopByKey[key],
                 duplicateClusterCount: duplicateClusters,
                 napSummary: sessionRepo.napSummary(for: key)
             )
         }
 
         nights = aggregates.sorted { $0.sessionDate > $1.sessionDate }
-        integrationStates = buildIntegrationStates(healthMatches: healthByKey.count)
+        integrationStates = buildIntegrationStates(healthMatches: healthByKey.count, whoopMatches: whoopByKey.count)
         lastRefresh = Date()
         isLoading = false
     }
 
-    private func buildIntegrationStates(healthMatches: Int) -> [DashboardIntegrationState] {
+    private func buildIntegrationStates(healthMatches: Int, whoopMatches: Int = 0) -> [DashboardIntegrationState] {
         let healthState = DashboardIntegrationState(
             id: "healthkit",
             name: "Apple Health",
@@ -741,17 +831,26 @@ final class DashboardAnalyticsModel: ObservableObject {
                 color: .gray
             )
         } else {
+            let whoopDetail: String
+            if settings.whoopEnabled {
+                if whoop.isConnected {
+                    let syncInfo = whoop.lastSyncTime.map { " • Last sync \($0.formatted(date: .omitted, time: .shortened))" } ?? ""
+                    whoopDetail = whoopMatches > 0
+                        ? "\(whoopMatches) nights with sleep data\(syncInfo)"
+                        : "Connected — no scored sleep data yet\(syncInfo)"
+                } else {
+                    whoopDetail = "Connect in Settings to ingest recovery/strain metrics."
+                }
+            } else {
+                whoopDetail = "Turn on WHOOP integration in Settings when ready."
+            }
             whoopState = DashboardIntegrationState(
                 id: "whoop",
                 name: "WHOOP",
                 status: settings.whoopEnabled
                     ? (whoop.isConnected ? "Connected" : "Not Connected")
                     : "Disabled",
-                detail: settings.whoopEnabled
-                    ? (whoop.isConnected
-                        ? "OAuth active\(whoop.lastSyncTime.map { " • Last sync \($0.formatted(date: .omitted, time: .shortened))" } ?? "")"
-                        : "Connect in Settings to ingest recovery/strain metrics.")
-                    : "Turn on WHOOP integration in Settings when ready.",
+                detail: whoopDetail,
                 color: settings.whoopEnabled ? (whoop.isConnected ? .green : .orange) : .gray
             )
         }

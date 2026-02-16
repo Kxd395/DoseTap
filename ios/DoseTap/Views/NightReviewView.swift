@@ -733,6 +733,8 @@ struct NightScoreCard: View {
 // MARK: - Health Data Card
 struct HealthDataCard: View {
     let sessionKey: String
+    @State private var whoopSummary: WHOOPNightSummary?
+    @State private var isLoading = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -751,13 +753,55 @@ struct HealthDataCard: View {
                 if WHOOPService.isEnabled {
                     Divider()
                     
-                    // WHOOP — only show when feature is enabled
-                    if WHOOPService.shared.isConnected {
+                    if isLoading {
+                        HStack {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text("Loading WHOOP data…")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    } else if let summary = whoopSummary, summary.hasValidSleepData {
+                        // WHOOP — show real data
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Image(systemName: "waveform.path.ecg")
+                                    .foregroundColor(.green)
+                                Text("WHOOP")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                            }
+                            
+                            HStack(spacing: 16) {
+                                whoopMetric(value: summary.formattedTotalSleep, label: "Sleep")
+                                if let recovery = summary.recoveryScore {
+                                    whoopMetric(value: String(format: "%.0f%%", recovery), label: "Recovery")
+                                }
+                                if let hrv = summary.hrvMs {
+                                    whoopMetric(value: String(format: "%.0f", hrv), label: "HRV ms")
+                                }
+                                if let efficiency = summary.sleepEfficiency {
+                                    whoopMetric(value: String(format: "%.0f%%", efficiency), label: "Efficiency")
+                                }
+                            }
+                            
+                            HStack(spacing: 16) {
+                                if let rr = summary.respiratoryRate {
+                                    whoopMetric(value: String(format: "%.1f", rr), label: "RR brpm")
+                                }
+                                if summary.disturbanceCount > 0 {
+                                    whoopMetric(value: "\(summary.disturbanceCount)", label: "Disturbances")
+                                }
+                                whoopMetric(value: "\(summary.deepMinutes)m", label: "Deep")
+                                whoopMetric(value: "\(summary.remMinutes)m", label: "REM")
+                            }
+                        }
+                    } else if WHOOPService.shared.isConnected {
                         HealthIntegrationRow(
                             source: "WHOOP",
                             icon: "waveform.path.ecg",
                             iconColor: .green,
-                            data: [("Status", "Connected — no data yet")]
+                            data: [("Status", "No scored data for this night")]
                         )
                     } else {
                         HealthIntegrationRow(
@@ -778,6 +822,50 @@ struct HealthDataCard: View {
         .background(Color(.systemBackground))
         .cornerRadius(12)
         .shadow(radius: 2)
+        .task {
+            await loadWHOOPData()
+        }
+    }
+    
+    private func whoopMetric(value: String, label: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value)
+                .font(.headline)
+            Text(label)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+    }
+    
+    private func loadWHOOPData() async {
+        guard WHOOPService.isEnabled, WHOOPService.shared.isConnected else { return }
+        isLoading = true
+        defer { isLoading = false }
+        
+        do {
+            let sleeps = try await WHOOPService.shared.fetchRecentSleep(nights: 7)
+            // Match to session date (sessionKey is YYYY-MM-DD)
+            let calendar = Calendar.current
+            let summaries = sleeps.map { $0.toNightSummary() }
+                .filter { $0.hasValidSleepData }
+            
+            // Find the summary whose date matches this session
+            if let sessionDate = AppFormatters.sessionDate.date(from: sessionKey) {
+                whoopSummary = summaries.first { summary in
+                    calendar.isDate(summary.date, inSameDayAs: sessionDate)
+                }
+                
+                // If no same-day match, try the night before (sessions are date of sleep onset)
+                if whoopSummary == nil {
+                    let nextDay = calendar.date(byAdding: .day, value: 1, to: sessionDate) ?? sessionDate
+                    whoopSummary = summaries.first { summary in
+                        calendar.isDate(summary.date, inSameDayAs: nextDay)
+                    }
+                }
+            }
+        } catch {
+            // WHOOP data is optional — don't show error
+        }
     }
 }
 

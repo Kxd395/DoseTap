@@ -312,6 +312,32 @@ struct DashboardSleepSnapshotCard: View {
                 metricRow(title: "Nap Nights", value: "\(model.napNightCount)")
                 metricRow(title: "Avg Nap Duration", value: formatMinutes(model.averageNapMinutes))
             }
+
+            // WHOOP metrics (only when data exists)
+            if model.averageWhoopRecovery != nil || model.averageWhoopHRV != nil {
+                Divider()
+                HStack(spacing: 4) {
+                    Image(systemName: "w.circle.fill")
+                        .font(.caption)
+                    Text("WHOOP Metrics")
+                        .font(.caption.bold())
+                }
+                .foregroundColor(.secondary)
+                .padding(.top, 2)
+
+                if let recovery = model.averageWhoopRecovery {
+                    metricRow(title: "Avg Recovery", value: String(format: "%.0f%%", recovery), color: recoveryColor(recovery))
+                }
+                if let hrv = model.averageWhoopHRV {
+                    metricRow(title: "Avg HRV", value: String(format: "%.0f ms", hrv))
+                }
+                if let efficiency = model.averageWhoopSleepEfficiency {
+                    metricRow(title: "Avg Sleep Efficiency", value: String(format: "%.0f%%", efficiency))
+                }
+                if let rr = model.averageWhoopRespiratoryRate {
+                    metricRow(title: "Avg Respiratory Rate", value: String(format: "%.1f brpm", rr))
+                }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
@@ -321,20 +347,26 @@ struct DashboardSleepSnapshotCard: View {
         )
     }
 
-    private func metricRow(title: String, value: String) -> some View {
+    private func metricRow(title: String, value: String, color: Color = .secondary) -> some View {
         HStack {
             Text(title)
                 .font(.subheadline)
             Spacer()
             Text(value)
                 .font(.subheadline.weight(.semibold))
-                .foregroundColor(.secondary)
+                .foregroundColor(color)
         }
     }
 
     private func formatMinutes(_ value: Double?) -> String {
         guard let value else { return "No data" }
         return TimeIntervalMath.formatMinutes(Int(value.rounded()))
+    }
+
+    private func recoveryColor(_ score: Double) -> Color {
+        if score >= 67 { return .green }
+        if score >= 34 { return .orange }
+        return .red
     }
 }
 
@@ -623,6 +655,13 @@ struct DashboardRecentNightsCard: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                             .frame(width: 84, alignment: .leading)
+
+                        if let recovery = night.whoopRecoveryScore {
+                            Text("\(Int(recovery))%")
+                                .font(.caption2.bold())
+                                .foregroundColor(recovery >= 67 ? .green : recovery >= 34 ? .orange : .red)
+                                .frame(width: 36, alignment: .leading)
+                        }
 
                         Text("Q \(Int((night.dataCompletenessScore * 100).rounded()))%")
                             .font(.caption2)

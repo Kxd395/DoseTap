@@ -471,11 +471,21 @@ struct WHOOPNightSummary: Identifiable {
     let sleepEfficiency: Double?
     let respiratoryRate: Double?
     
+    // Recovery data (merged from WHOOPRecovery — set after initial creation)
+    var recoveryScore: Double?
+    var hrvMs: Double?
+    var restingHeartRate: Double?
+    
     var id: String { sleepId }
     
     var formattedTotalSleep: String {
         let hours = totalSleepMinutes / 60
         let mins = totalSleepMinutes % 60
         return "\(hours)h \(mins)m"
+    }
+
+    /// True when the sleep record has actual scored data (not all zeros).
+    var hasValidSleepData: Bool {
+        totalSleepMinutes > 0 || deepMinutes > 0 || remMinutes > 0 || lightMinutes > 0
     }
 }
