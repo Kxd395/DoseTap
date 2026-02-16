@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import DoseCore
+import UserNotifications
 import os.log
 
 private let flicLog = Logger(subsystem: "com.dosetap.app", category: "FlicButtonService")
@@ -227,17 +228,28 @@ final class FlicButtonService: ObservableObject {
             )
             
         case .closed:
-            // Window closed - log with warning (user should confirm via UI)
-            sessionRepository.saveDose2(timestamp: Date())
-            AlarmService.shared.cancelAllAlarms()
-            AlarmService.shared.clearWakeAlarmState()
-            provideHapticFeedback(.warning)
+            // P0-3 FIX: Window closed — do NOT persist directly. Require confirmation via app UI.
+            // Late doses need user to consciously confirm, which can't be done via a physical button.
+            provideHapticFeedback(.error)
+            
+            // Send a local notification prompting user to open the app to confirm
+            let content = UNMutableNotificationContent()
+            content.title = "Late Dose — Confirmation Required"
+            content.body = "The 240-minute window has passed. Open DoseTap to confirm late dose."
+            content.sound = .default
+            let request = UNNotificationRequest(
+                identifier: "dosetap_flic_late_confirm",
+                content: content,
+                trigger: nil // immediate
+            )
+            try? await UNUserNotificationCenter.current().add(request)
+            
             return FlicActionResult(
                 gesture: gesture,
                 action: .takeDose,
-                success: true,
-                message: "Dose 2 logged (late)",
-                canUndo: true
+                success: false,
+                message: "Window closed — confirm in app",
+                canUndo: false
             )
             
         case .completed:
@@ -257,15 +269,14 @@ final class FlicButtonService: ObservableObject {
                 )
             }
             if sessionRepository.dose2Time != nil {
-                // Additional dose entries are preserved as extra_dose.
-                sessionRepository.saveDose2(timestamp: now, isExtraDose: true)
-                provideHapticFeedback(.warning)
+                // P0-3 FIX: Extra doses (3rd+) need confirmation via app UI — too risky for blind button press.
+                provideHapticFeedback(.error)
                 return FlicActionResult(
                     gesture: gesture,
                     action: .takeDose,
-                    success: true,
-                    message: "Extra dose logged",
-                    canUndo: true
+                    success: false,
+                    message: "Extra dose — confirm in app",
+                    canUndo: false
                 )
             }
             provideHapticFeedback(.error)

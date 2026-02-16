@@ -1044,7 +1044,8 @@ struct DoseButtonsSection: View {
     }
     
     private var snoozeEnabled: Bool {
-        (core.currentStatus == .active || core.currentStatus == .nearClose) && core.snoozeCount < 3
+        if case .snoozeEnabled = core.windowContext.snooze { return true }
+        return false
     }
     
     private var skipEnabled: Bool {

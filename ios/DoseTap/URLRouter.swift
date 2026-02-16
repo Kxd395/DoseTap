@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import DoseCore
+import UIKit
 import os.log
 
 private let urlRouterLog = Logger(subsystem: "com.dosetap.app", category: "URLRouter")
@@ -116,6 +117,19 @@ public class URLRouter: ObservableObject {
         urlRouterLog.debug("Handling deep link: \(InputValidator.sanitizeForLogging(url.absoluteString), privacy: .private)")
         #endif
         
+        // P0-5 FIX: State-changing deep links require foreground + unlocked
+        let stateChangingHosts: Set<String> = ["dose1", "dose2", "snooze", "skip"]
+        if stateChangingHosts.contains(host) {
+            guard UIApplication.shared.applicationState == .active else {
+                urlRouterLog.warning("Blocked state-changing deep link '\(host, privacy: .public)' — app not in foreground")
+                return false
+            }
+            guard UIApplication.shared.isProtectedDataAvailable else {
+                urlRouterLog.warning("Blocked state-changing deep link '\(host, privacy: .public)' — device locked")
+                return false
+            }
+        }
+        
         if let tab = AppTab.tab(forDeepLinkHost: host) {
             return handleNavigate(tab: tab)
         }
@@ -197,22 +211,20 @@ public class URLRouter: ObservableObject {
 
         Task {
             if core.dose2Time != nil {
-                SessionRepository.shared.saveDose2(timestamp: Date(), isExtraDose: true)
-                eventLogger?.logEvent(name: "Extra Dose ⚠️", color: .red, cooldownSeconds: 0, persist: false)
-                showFeedback("⚠️ Extra dose logged")
+                // P0-5 FIX: Block extra dose via deep link — requires confirmation in app UI
+                showFeedback("⚠️ Extra dose — open app to confirm")
             } else if status == .closed || (status == .completed && core.isSkipped) {
-                await core.takeDose(lateOverride: true)
-                eventLogger?.logEvent(name: "Dose 2 (Late)", color: .orange, cooldownSeconds: 3600 * 8, persist: false)
-                showFeedback("✓ Dose 2 logged (override)")
+                // P0-5 FIX: Block late-dose via deep link — requires confirmation in app UI
+                showFeedback("⚠️ Window closed — open app to confirm late dose")
             } else if status == .completed {
                 showFeedback("Dose 2 unavailable right now")
             } else {
                 await core.takeDose()
                 eventLogger?.logEvent(name: "Dose 2", color: .green, cooldownSeconds: 3600 * 8, persist: false)
                 showFeedback("✓ Dose 2 logged")
+                AlarmService.shared.cancelAllAlarms()
+                AlarmService.shared.clearWakeAlarmState()
             }
-            AlarmService.shared.cancelAllAlarms()
-            AlarmService.shared.clearWakeAlarmState()
         }
         return true
     }
@@ -220,23 +232,17 @@ public class URLRouter: ObservableObject {
     private func handleSnooze() -> Bool {
         lastAction = .snooze
         guard let core = resolveCore() else { return false }
-        let settings = UserSettingsManager.shared
-        let maxSnoozes = max(0, settings.maxSnoozes)
-        let snoozeMinutes = max(1, settings.snoozeDurationMinutes)
         
-        guard maxSnoozes > 0 else {
-            showFeedback("Snooze is disabled in settings")
-            return false
-        }
-        
-        guard core.snoozeCount < maxSnoozes else {
-            showFeedback("Max snoozes reached (\(core.snoozeCount)/\(maxSnoozes))")
-            return false
-        }
-        
-        let status = core.currentStatus
-        guard status == .active || status == .nearClose else {
-            showFeedback("Snooze only available in window")
+        // Use DoseWindowContext.snooze enum — enforces both maxSnoozes AND <15m remaining per SSOT
+        let ctx = core.windowContext
+        guard case .snoozeEnabled = ctx.snooze else {
+            let reason: String
+            if case .snoozeDisabled(let r) = ctx.snooze {
+                reason = r
+            } else {
+                reason = "Snooze not available"
+            }
+            showFeedback(reason)
             return false
         }
         
@@ -245,7 +251,7 @@ public class URLRouter: ObservableObject {
                 await core.snooze()
                 showFeedback("✓ Snoozed to \(newTime.formatted(date: .omitted, time: .shortened))")
             } else {
-                showFeedback("Snooze +\(snoozeMinutes)m unavailable right now")
+                showFeedback("Snooze unavailable right now")
             }
         }
         return true

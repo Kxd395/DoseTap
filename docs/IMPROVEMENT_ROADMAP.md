@@ -8,11 +8,13 @@
 
 ## Executive Summary
 
-A deep code audit of the running app versus source reveals three critical themes:
+A deep code audit of the running app versus source reveals five critical themes:
 
 1. **WHOOP shows "Connected" but delivers zero real data to any view** — the integration is cosmetic
 2. **Dose button logic is duplicated across 4 surfaces with divergent safety behavior** — creating real clinical risk
-3. **Several features are skeleton/placeholder** — Night Review health data is hardcoded, Timeline biometrics are simulated, CloudKit sync is non-functional
+3. **Deep links can mutate medication state without user authorization** — any app can fire dose URLs
+4. **WHOOP OAuth sends client_secret from mobile app without PKCE** — security anti-pattern
+5. **Several features are skeleton/placeholder** — Night Review health data is hardcoded, Timeline biometrics are simulated, CloudKit sync is non-functional
 
 ---
 
@@ -82,6 +84,39 @@ A deep code audit of the running app versus source reveals three critical themes
 
 ---
 
+
+### P0-5: Deep Links Mutate Medication State Without Authorization
+
+**Problem:** Any app on the device can fire `dosetap://dose1`, `dosetap://dose2`, `dosetap://snooze`, or `dosetap://skip` — and `URLRouter` will execute them. `InputValidator.validateDeepLink()` only checks scheme + XSS patterns. There is no foreground/unlocked check, no confirmation UI, and no source-origin logging.
+
+**Evidence:**
+- `InputValidator.swift:169-199` — validates scheme and suspicious patterns only
+- `URLRouter.swift:155-175` — `handleDose1()` calls `core.takeDose()` directly, no confirmation
+- `URLRouter.swift:178-210` — `handleDose2()` same pattern
+- No `scenePhase` or `isProtectedDataAvailable` guard anywhere in URLRouter
+
+**Fix:** Require foreground + unlocked for state-changing deep links. For dose actions, require confirmation UI unless invoked from own notification action or trusted App Intent. Log deep-link origin context.
+
+**Effort:** M (2-3 days)
+
+---
+
+### P0-6: WHOOP OAuth Uses Client Secret Without PKCE
+
+**Problem:** `WHOOPService.exchangeCodeForTokens()` sends `client_secret` directly in the token exchange body (Authorization Code flow without PKCE). A client secret should not exist in a public mobile client — Keychain is just "hardcoded, but encrypted-at-rest."
+
+**Evidence:**
+- `WHOOPService.swift:188` — `"client_secret": clientSecret` in token exchange
+- `WHOOPService.swift:230` — same in refresh token flow
+- `SecureConfig.swift:73-89` — Keychain > Env > Secrets.swift fallback chain
+- No PKCE (`code_verifier`/`code_challenge`) anywhere in codebase
+
+**Fix:** Switch to Authorization Code + PKCE (public client) with no embedded secret. If WHOOP requires a secret, move token exchange to a backend mediator. Rotate existing credentials.
+
+**Effort:** M (2-3 days) — or L if backend mediator needed
+
+---
+
 ## 🔴 P1 — High (Functionality Gaps)
 
 ### P1-1: Night Review Health Data Is Hardcoded
@@ -145,6 +180,23 @@ A deep code audit of the running app versus source reveals three critical themes
 **Fix:** Add a "Night Score" badge/card to Night Review and as a column in Dashboard trend charts.
 
 **Effort:** S (1-2 days)
+
+---
+
+
+### P1-7: Wake Alarm Naming Mismatch (Semantic Drift)
+
+**Problem:** `AlarmService` uses `dosetap_wake_alarm` and `scheduleWakeAlarm()` but the alarm fires at `dose1 + target minutes` — it's semantically the Dose 2 alarm, not a "wake" alarm. The notification title even says "WAKE UP - Time for Dose 2". This semantic drift invites future bugs.
+
+**Evidence:**
+- `AlarmService.swift:20` — `static let wakeAlarm = "dosetap_wake_alarm"`
+- `AlarmService.swift:204` — `func scheduleWakeAlarm(at time: Date, dose1Time: Date)`
+- `AlarmService.swift:243` — title: "🔔 WAKE UP - Time for Dose 2"
+- SSOT `docs/SSOT/README.md:313` — documents the mismatch
+
+**Fix:** Rename: `dosetap_wake_alarm` → `dosetap_dose2_alarm`, `scheduleWakeAlarm` → `scheduleDose2Alarm`, `dosetap_pre_alarm` → `dosetap_dose2_pre_alarm`. Update all callers (5 files). Add terminology contract to SSOT.
+
+**Effort:** S (2-4 hours) — mechanical rename + grep verification
 
 ---
 
@@ -266,8 +318,10 @@ A deep code audit of the running app versus source reveals three critical themes
 **Phase 1 — Safety & Trust (1-2 weeks)**
 1. P0-2: Fix snooze <15m check in UI buttons
 2. P0-3: Fix Flic late-dose bypass
-3. P0-4: Extract DoseActionCoordinator (unifies all 4 surfaces)
-4. P1-1: Remove hardcoded health data from Night Review
+3. P0-5: Fix deep link dose authorization
+4. P0-4: Extract DoseActionCoordinator (unifies all 4 surfaces)
+5. P0-6: WHOOP OAuth PKCE migration
+6. P1-1: Remove hardcoded health data from Night Review
 
 **Phase 2 — WHOOP for Real (2-3 weeks)**
 5. P0-1: Wire WHOOP data to Dashboard + Night Review + Timeline

@@ -66,7 +66,14 @@ public class DoseTapCore: ObservableObject {
     
     /// Current status computed from repository state
     public var currentStatus: DoseStatus {
-        let context = windowCalculator.context(
+        let context = windowContext
+        return DoseStatus(from: context.phase)
+    }
+    
+    /// Full window context — use for snooze/skip state checks.
+    /// All surfaces MUST use this instead of manual boolean checks per SSOT.
+    public var windowContext: DoseWindowContext {
+        windowCalculator.context(
             dose1At: sessionRepository?.dose1Time,
             dose2TakenAt: sessionRepository?.dose2Time,
             dose2Skipped: sessionRepository?.dose2Skipped ?? false,
@@ -74,7 +81,6 @@ public class DoseTapCore: ObservableObject {
             wakeFinalAt: sessionRepository?.wakeFinalTime,
             checkInCompleted: sessionRepository?.checkInCompleted ?? false
         )
-        return DoseStatus(from: context.phase)
     }
     
     /// Dose 1 time - computed from repository

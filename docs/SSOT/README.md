@@ -137,6 +137,16 @@ Key transitions:
 - `any` -> `finalizing`: wake final logged; check-in pending.
 - `finalizing` -> `completed`: morning check-in submitted.
 
+Snooze rules (authoritative):
+- Snooze is enabled ONLY in `active` phase AND `snoozeCount < maxSnoozes` (default 3).
+- Snooze is disabled in `nearClose` phase (remaining < 15 minutes) regardless of count.
+- Snooze is disabled in all other phases (`noDose1`, `beforeWindow`, `closed`, `completed`, `finalizing`).
+- All surfaces (UI buttons, Flic, deep links) MUST use `DoseWindowContext.snooze` enum to enforce these rules — not manual boolean checks.
+
+Deep link authorization rules (authoritative):
+- State-changing deep links (`dose1`, `dose2`, `snooze`, `skip`) require the app to be in the foreground.
+- Late-dose and extra-dose actions via deep link require confirmation UI before persisting.
+
 Transition table (subset):
 
 | Current | Trigger | Guard | Writes | Next |
