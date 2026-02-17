@@ -822,12 +822,12 @@ final class DashboardAnalyticsModel: ObservableObject {
 
         let whoopState: DashboardIntegrationState
         if !WHOOPService.isEnabled {
-            // P0-1 FIX: Feature-flagged OFF — show unambiguous disabled status
+            // WHOOP not connected — user hasn't linked their account yet
             whoopState = DashboardIntegrationState(
                 id: "whoop",
                 name: "WHOOP",
-                status: "Disabled (Feature Flag)",
-                detail: "WHOOP integration is not yet available. Coming in a future update.",
+                status: "Not Connected",
+                detail: "Connect WHOOP in Settings → Integrations to import sleep & recovery data.",
                 color: .gray
             )
         } else {

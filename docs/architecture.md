@@ -869,7 +869,7 @@ Performance indexes on: `session_date`, `timestamp`, `session_id`, `event_type`,
 
 ### Feature Flag
 
-`WHOOPService.isEnabled = false` — disabled by default until credentials hardened.
+`WHOOPService.isEnabled` is dynamic — reads `UserDefaults("whoop_enabled")`. Auto-set to `true` when user connects WHOOP via OAuth, `false` on disconnect. No hardcoded kill switch.
 
 ### OAuth Flow
 

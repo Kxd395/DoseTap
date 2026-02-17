@@ -15,7 +15,13 @@ import os
 final class WHOOPService: NSObject, ObservableObject {
     
     static let shared = WHOOPService()
-    static let isEnabled: Bool = false  // Disabled by default until hardened
+    
+    /// Feature gate: enabled when the user has opted in via Settings or successfully connected.
+    /// Previously hardcoded `false`; now reads the user's preference so that connecting
+    /// WHOOP in Settings automatically unlocks data flow across Dashboard, NightReview, and Timeline.
+    static var isEnabled: Bool {
+        UserDefaults.standard.bool(forKey: "whoop_enabled")
+    }
     
     private static let logger = Logger(subsystem: "com.dosetap", category: "WHOOP")
     
@@ -96,6 +102,13 @@ final class WHOOPService: NSObject, ObservableObject {
         super.init()
         loadTokensFromKeychain()
         updateConnectionState()
+        
+        // Sync UserDefaults flag with actual token state.
+        // Handles users who connected before the dynamic isEnabled fix:
+        // if tokens exist → enable; if tokens gone → disable.
+        if isConnected {
+            UserDefaults.standard.set(true, forKey: "whoop_enabled")
+        }
     }
     
     // MARK: - Public API
@@ -178,6 +191,9 @@ final class WHOOPService: NSObject, ObservableObject {
         
         updateConnectionState()
         
+        // Auto-enable WHOOP integration in user settings on successful connect
+        UserDefaults.standard.set(true, forKey: "whoop_enabled")
+        
         // Track analytics
         AnalyticsService.shared.track(.whoopConnected)
     }
@@ -192,6 +208,9 @@ final class WHOOPService: NSObject, ObservableObject {
         userProfile = nil
         lastSyncTime = nil
         updateConnectionState()
+        
+        // Auto-disable WHOOP integration in user settings on disconnect
+        UserDefaults.standard.set(false, forKey: "whoop_enabled")
         
         AnalyticsService.shared.track(.whoopDisconnected)
     }

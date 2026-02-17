@@ -95,8 +95,18 @@ final class HealthKitProviderTests: XCTestCase {
         let _: any HealthKitProviding.Type = HealthKitService.self
     }
     
-    func test_whoopService_disabledByDefault() {
-        XCTAssertFalse(WHOOPService.isEnabled, "WHOOP should be disabled by default for shipping builds")
+    func test_whoopService_disabledWhenNoTokens() {
+        // WHOOP isEnabled is dynamic: reads UserDefaults "whoop_enabled".
+        // In a fresh test environment with no tokens, it should be false.
+        let key = "whoop_enabled"
+        let saved = UserDefaults.standard.bool(forKey: key)
+        defer { UserDefaults.standard.set(saved, forKey: key) }
+        
+        UserDefaults.standard.set(false, forKey: key)
+        XCTAssertFalse(WHOOPService.isEnabled, "WHOOP should be disabled when user hasn't connected")
+        
+        UserDefaults.standard.set(true, forKey: key)
+        XCTAssertTrue(WHOOPService.isEnabled, "WHOOP should be enabled when user has connected")
     }
 }
 

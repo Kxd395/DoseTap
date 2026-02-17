@@ -11,7 +11,7 @@ Last updated: 2026-02-14
 | API client | ✅ Sleep, recovery, cycle, heart rate |
 | Retry/resilience | ✅ Exponential backoff, 429/5xx retries |
 | Logging | ✅ os.Logger (no print) |
-| Feature flag | 🔒 `WHOOPService.isEnabled = false` |
+| Feature flag | ✅ Dynamic — auto-enabled on connect, disabled on disconnect |
 | Credentials | ❌ Need WHOOP developer app registration |
 | E2E testing | ❌ Blocked on credentials |
 
@@ -50,11 +50,8 @@ DOSETAP_WHOOP_CLIENT_SECRET=...
 DOSETAP_WHOOP_REDIRECT_URI=dosetap://whoop-callback
 ```
 
-### 3. Enable Feature Flag
-In `WHOOPService.swift`, change:
-```swift
-static let isEnabled: Bool = true
-```
+### 3. Connect in App
+In Settings → Integrations → WHOOP, tap "Connect WHOOP". The feature flag is now dynamic — `isEnabled` reads `UserDefaults("whoop_enabled")` and is automatically set to `true` on successful OAuth connect, `false` on disconnect. No code change needed.
 
 ### 4. Test Checklist
 - [ ] OAuth flow completes (authorize → callback → token exchange)
