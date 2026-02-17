@@ -286,6 +286,42 @@ final class DashboardAnalyticsModel: ObservableObject {
         return values.reduce(0, +) / Double(values.count)
     }
 
+    var averageWhoopRestingHR: Double? {
+        let values = whoopNights.compactMap { $0.whoopSummary?.restingHeartRate }
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +) / Double(values.count)
+    }
+
+    var averageWhoopDeepMinutes: Double? {
+        let values = whoopNights.compactMap(\.whoopDeepSleepMinutes).map { Double($0) }
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +) / Double(values.count)
+    }
+
+    var averageWhoopREMMinutes: Double? {
+        let values = whoopNights.compactMap { $0.whoopSummary?.remMinutes }.map { Double($0) }
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +) / Double(values.count)
+    }
+
+    var averageWhoopLightMinutes: Double? {
+        let values = whoopNights.compactMap { $0.whoopSummary?.lightMinutes }.map { Double($0) }
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +) / Double(values.count)
+    }
+
+    var averageWhoopAwakeMinutes: Double? {
+        let values = whoopNights.compactMap { $0.whoopSummary?.awakeMinutes }.map { Double($0) }
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +) / Double(values.count)
+    }
+
+    var averageWhoopDisturbances: Double? {
+        let values = whoopNights.compactMap(\.whoopDisturbances).map { Double($0) }
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +) / Double(values.count)
+    }
+
     // MARK: - Check-in & Pre-Sleep Completion
 
     var morningCheckInRate: Double? {
@@ -561,12 +597,27 @@ final class DashboardAnalyticsModel: ObservableObject {
         let priorAvgSleep = avg(prior.compactMap(\.totalSleepMinutes))
         let priorAvgQuality = avg(prior.compactMap { $0.morningCheckIn?.sleepQuality }.map { Double($0) })
 
-        return [
+        // WHOOP prior-period metrics
+        let priorWhoopNights = prior.filter { $0.whoopSummary?.hasValidSleepData == true }
+        let priorAvgRecovery = avg(priorWhoopNights.compactMap(\.whoopRecoveryScore))
+        let priorAvgHRV = avg(priorWhoopNights.compactMap(\.whoopHRV))
+
+        var deltas = [
             PeriodDelta(metricName: "On-Time %", current: onTimePercentage, prior: priorOnTime),
             PeriodDelta(metricName: "Avg Interval", current: averageIntervalMinutes, prior: priorAvgInterval),
             PeriodDelta(metricName: "Avg Sleep", current: averageSleepMinutes, prior: priorAvgSleep),
             PeriodDelta(metricName: "Sleep Quality", current: averageSleepQuality, prior: priorAvgQuality),
         ]
+
+        // Add WHOOP deltas only when both periods have data
+        if averageWhoopRecovery != nil || priorAvgRecovery != nil {
+            deltas.append(PeriodDelta(metricName: "Recovery", current: averageWhoopRecovery, prior: priorAvgRecovery))
+        }
+        if averageWhoopHRV != nil || priorAvgHRV != nil {
+            deltas.append(PeriodDelta(metricName: "HRV", current: averageWhoopHRV, prior: priorAvgHRV))
+        }
+
+        return deltas
     }
 
     private enum DoseEventKind {

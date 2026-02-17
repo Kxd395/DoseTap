@@ -69,6 +69,12 @@ struct DashboardTabView: View {
                     DashboardDosingSnapshotCard(model: model)
                     DashboardSleepSnapshotCard(model: model)
 
+                    // WHOOP Recovery & Biometrics (only when data exists)
+                    if !model.whoopNights.isEmpty {
+                        DashboardWHOOPCard(model: model)
+                            .gridCellColumns(columns.count)
+                    }
+
                     DashboardLifestyleFactorsCard(model: model)
                     DashboardMoodSymptomsCard(model: model)
 
@@ -225,6 +231,25 @@ struct DashboardExecutiveSummaryCard: View {
                 )
             }
 
+            // Recovery KPI from WHOOP (when available)
+            if let recovery = model.averageWhoopRecovery {
+                HStack(spacing: 10) {
+                    dashboardKPI(
+                        title: "Recovery",
+                        value: String(format: "%.0f%%", recovery),
+                        color: recovery >= 67 ? .green : recovery >= 34 ? .orange : .red
+                    )
+                    if let hrv = model.averageWhoopHRV {
+                        dashboardKPI(
+                            title: "HRV",
+                            value: String(format: "%.0f ms", hrv),
+                            color: .blue
+                        )
+                    }
+                    Spacer()
+                }
+            }
+
             Text(nextActionText)
                 .font(.caption)
                 .foregroundColor(.secondary)
@@ -379,6 +404,205 @@ struct DashboardSleepSnapshotCard: View {
     }
 }
 
+// MARK: - WHOOP Recovery & Biometrics Card
+
+struct DashboardWHOOPCard: View {
+    @ObservedObject var model: DashboardAnalyticsModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Header
+            HStack(spacing: 6) {
+                Image(systemName: "w.circle.fill")
+                    .font(.headline)
+                    .foregroundColor(.green)
+                Text("WHOOP Recovery & Biometrics")
+                    .font(.headline)
+                Spacer()
+                Text("\(model.whoopNights.count) nights")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            // Recovery gauge row
+            if let recovery = model.averageWhoopRecovery {
+                HStack(spacing: 16) {
+                    recoveryGauge(score: recovery)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Avg Recovery")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text(String(format: "%.0f%%", recovery))
+                            .font(.title2.bold())
+                            .foregroundColor(whoopRecoveryColor(recovery))
+                        Text(recoveryLabel(recovery))
+                            .font(.caption2)
+                            .foregroundColor(whoopRecoveryColor(recovery))
+                    }
+                    Spacer()
+                }
+                .padding(.vertical, 4)
+            }
+
+            Divider()
+
+            // Biometrics grid
+            LazyVGrid(columns: [
+                GridItem(.flexible(), spacing: 12),
+                GridItem(.flexible(), spacing: 12)
+            ], spacing: 10) {
+                if let hrv = model.averageWhoopHRV {
+                    biometricTile(
+                        icon: "waveform.path.ecg",
+                        title: "HRV",
+                        value: String(format: "%.0f ms", hrv),
+                        color: .blue
+                    )
+                }
+                if let rhr = model.averageWhoopRestingHR {
+                    biometricTile(
+                        icon: "heart.fill",
+                        title: "Resting HR",
+                        value: String(format: "%.0f bpm", rhr),
+                        color: .red
+                    )
+                }
+                if let efficiency = model.averageWhoopSleepEfficiency {
+                    biometricTile(
+                        icon: "moon.fill",
+                        title: "Sleep Efficiency",
+                        value: String(format: "%.0f%%", efficiency),
+                        color: .purple
+                    )
+                }
+                if let rr = model.averageWhoopRespiratoryRate {
+                    biometricTile(
+                        icon: "lungs.fill",
+                        title: "Respiratory Rate",
+                        value: String(format: "%.1f brpm", rr),
+                        color: .teal
+                    )
+                }
+            }
+
+            // Sleep stages breakdown
+            if model.averageWhoopDeepMinutes != nil || model.averageWhoopREMMinutes != nil {
+                Divider()
+                Text("Avg Sleep Stages")
+                    .font(.caption.bold())
+                    .foregroundColor(.secondary)
+
+                sleepStageBar
+
+                HStack(spacing: 12) {
+                    if let deep = model.averageWhoopDeepMinutes {
+                        stageLegend(label: "Deep", value: formatMin(deep), color: .indigo)
+                    }
+                    if let rem = model.averageWhoopREMMinutes {
+                        stageLegend(label: "REM", value: formatMin(rem), color: .cyan)
+                    }
+                    if let dist = model.averageWhoopDisturbances {
+                        stageLegend(label: "Disturbances", value: String(format: "%.1f", dist), color: .orange)
+                    }
+                }
+                .font(.caption2)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemGray6))
+        )
+    }
+
+    // MARK: - Sub-views
+
+    private func recoveryGauge(score: Double) -> some View {
+        ZStack {
+            Circle()
+                .stroke(Color(.systemGray4), lineWidth: 6)
+                .frame(width: 56, height: 56)
+            Circle()
+                .trim(from: 0, to: CGFloat(min(score, 100)) / 100)
+                .stroke(whoopRecoveryColor(score), style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .frame(width: 56, height: 56)
+            Text(String(format: "%.0f", score))
+                .font(.caption.bold())
+                .foregroundColor(whoopRecoveryColor(score))
+        }
+    }
+
+    private func biometricTile(icon: String, title: String, value: String, color: Color) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.caption)
+                .foregroundColor(color)
+                .frame(width: 20)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                Text(value)
+                    .font(.subheadline.bold())
+                    .foregroundColor(.primary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var sleepStageBar: some View {
+        let deep = model.averageWhoopDeepMinutes ?? 0
+        let rem = model.averageWhoopREMMinutes ?? 0
+        let total = deep + rem
+        if total > 0 {
+            GeometryReader { geo in
+                HStack(spacing: 2) {
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(Color.indigo)
+                        .frame(width: max(geo.size.width * CGFloat(deep / total) - 1, 4))
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(Color.cyan)
+                        .frame(width: max(geo.size.width * CGFloat(rem / total) - 1, 4))
+                }
+            }
+            .frame(height: 10)
+            .clipShape(RoundedRectangle(cornerRadius: 3))
+        }
+    }
+
+    private func stageLegend(label: String, value: String, color: Color) -> some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(color)
+                .frame(width: 6, height: 6)
+            Text("\(label): \(value)")
+                .foregroundColor(.secondary)
+        }
+    }
+
+    private func whoopRecoveryColor(_ score: Double) -> Color {
+        if score >= 67 { return .green }
+        if score >= 34 { return .orange }
+        return .red
+    }
+
+    private func recoveryLabel(_ score: Double) -> String {
+        if score >= 67 { return "Green — Ready" }
+        if score >= 34 { return "Yellow — Strained" }
+        return "Red — Rest"
+    }
+
+    private func formatMin(_ minutes: Double) -> String {
+        let h = Int(minutes) / 60
+        let m = Int(minutes) % 60
+        if h > 0 { return "\(h)h \(m)m" }
+        return "\(m)m"
+    }
+}
+
 struct DashboardDataQualityCard: View {
     @ObservedObject var model: DashboardAnalyticsModel
 
@@ -467,6 +691,7 @@ struct DashboardIntegrationsCard: View {
 
 enum DashboardTrendMode: String, CaseIterable, Identifiable {
     case intervalVsSleep = "Interval vs Sleep"
+    case recoveryTrend = "Recovery Trend"
     case cohorts = "Cohorts"
     case weekday = "Weekday"
 
@@ -488,6 +713,25 @@ struct DashboardTrendChartsCard: View {
         let id = UUID()
         let name: String
         let value: Double
+    }
+
+    /// Recovery trend: per-night recovery + HRV, sorted chronologically
+    private struct RecoveryPoint: Identifiable {
+        let id = UUID()
+        let date: Date
+        let recovery: Double
+        let hrv: Double?
+    }
+
+    private var recoveryTrendPoints: [RecoveryPoint] {
+        model.whoopNights
+            .compactMap { night -> RecoveryPoint? in
+                guard let recovery = night.whoopRecoveryScore,
+                      let date = AppFormatters.sessionDate.date(from: night.sessionDate)
+                else { return nil }
+                return RecoveryPoint(date: date, recovery: recovery, hrv: night.whoopHRV)
+            }
+            .sorted { $0.date < $1.date }
     }
 
     private var intervalSleepPoints: [IntervalSleepPoint] {
@@ -580,6 +824,37 @@ struct DashboardTrendChartsCard: View {
                 }
                 .chartXAxisLabel("Dose Interval")
                 .chartYAxisLabel("Sleep Minutes")
+            }
+
+        case .recoveryTrend:
+            let points = recoveryTrendPoints
+            if points.isEmpty {
+                emptyChartState("Need WHOOP recovery data. Connect WHOOP in Settings → Integrations.")
+            } else {
+                Chart {
+                    ForEach(points) { point in
+                        LineMark(
+                            x: .value("Date", point.date),
+                            y: .value("Recovery %", point.recovery)
+                        )
+                        .foregroundStyle(.green)
+                        .interpolationMethod(.catmullRom)
+
+                        PointMark(
+                            x: .value("Date", point.date),
+                            y: .value("Recovery %", point.recovery)
+                        )
+                        .foregroundStyle(point.recovery >= 67 ? .green : point.recovery >= 34 ? .orange : .red)
+                        .symbolSize(30)
+                    }
+
+                    // Target zone band (67-100 = green zone)
+                    RuleMark(y: .value("Green Zone", 67))
+                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                        .foregroundStyle(.green.opacity(0.4))
+                }
+                .chartYScale(domain: 0...100)
+                .chartYAxisLabel("Recovery %")
             }
 
         case .cohorts:
