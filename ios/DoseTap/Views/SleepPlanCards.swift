@@ -178,12 +178,15 @@ struct PreSleepCard: View {
         guard let date = AppFormatters.iso8601Fractional.date(from: createdAtUtc) else {
             return "unknown"
         }
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
+        // Use shortTime formatter with custom timezone if needed
         if let offset = state.localOffsetMinutes {
-            formatter.timeZone = TimeZone(secondsFromGMT: offset * 60) ?? .current
+            let f = DateFormatter()
+            f.timeStyle = .short
+            f.timeZone = TimeZone(secondsFromGMT: offset * 60) ?? .current
+            return f.string(from: date)
+        } else {
+            return AppFormatters.shortTime.string(from: date)
         }
-        return formatter.string(from: date)
     }
     
     var body: some View {

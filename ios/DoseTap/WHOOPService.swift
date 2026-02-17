@@ -387,7 +387,7 @@ final class WHOOPService: NSObject, ObservableObject {
             saveToKeychain(key: .refreshToken, value: refresh)
         }
         if let expiry = tokenExpiry {
-            saveToKeychain(key: .tokenExpiry, value: ISO8601DateFormatter().string(from: expiry))
+            saveToKeychain(key: .tokenExpiry, value: AppFormatters.iso8601.string(from: expiry))
         }
     }
     
@@ -395,7 +395,7 @@ final class WHOOPService: NSObject, ObservableObject {
         accessToken = loadFromKeychain(key: .accessToken)
         refreshToken = loadFromKeychain(key: .refreshToken)
         if let expiryString = loadFromKeychain(key: .tokenExpiry) {
-            tokenExpiry = ISO8601DateFormatter().date(from: expiryString)
+            tokenExpiry = AppFormatters.iso8601.date(from: expiryString)
         }
     }
     

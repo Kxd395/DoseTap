@@ -327,10 +327,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     }
 
     private func sessionDateToDate(_ sessionDate: String) -> Date? {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = timeZoneProvider()
-        return formatter.date(from: sessionDate)
+        AppFormatters.sessionDate.date(from: sessionDate)
     }
 
     private func scheduledSleepStart(for sessionDate: String) -> Date? {

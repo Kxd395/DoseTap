@@ -33,12 +33,8 @@ public class EventStorage {
     var nowProvider: () -> Date = { Date() }
     var timeZoneProvider: () -> TimeZone = { TimeZone.current }
     
-    // ISO8601 formatter for date serialization
-    let isoFormatter: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
-    }()
+    // ISO8601 formatter for date serialization — reuse shared instance
+    var isoFormatter: ISO8601DateFormatter { AppFormatters.iso8601Fractional }
 
     public struct CurrentSessionState {
         public let sessionId: String?

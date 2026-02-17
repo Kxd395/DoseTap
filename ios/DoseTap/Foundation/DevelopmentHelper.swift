@@ -129,15 +129,15 @@ struct DevelopmentHelper {
             switch path {
             case "/doses/take":
                 mockData = Data("""
-                {"success": true, "message": "Dose recorded", "timestamp": "\(ISO8601DateFormatter().string(from: Date()))"}
+                {"success": true, "message": "Dose recorded", "timestamp": "\(AppFormatters.iso8601.string(from: Date()))"}
                 """.utf8)
             case "/doses/skip":
                 mockData = Data("""
-                {"success": true, "message": "Dose skipped", "timestamp": "\(ISO8601DateFormatter().string(from: Date()))"}
+                {"success": true, "message": "Dose skipped", "timestamp": "\(AppFormatters.iso8601.string(from: Date()))"}
                 """.utf8)
             case "/doses/snooze":
                 mockData = Data("""
-                {"success": true, "message": "Dose snoozed", "snooze_until": "\(ISO8601DateFormatter().string(from: Date().addingTimeInterval(600)))"}
+                {"success": true, "message": "Dose snoozed", "snooze_until": "\(AppFormatters.iso8601.string(from: Date().addingTimeInterval(600)))"}
                 """.utf8)
             case "/events/log":
                 mockData = Data("""
@@ -145,7 +145,7 @@ struct DevelopmentHelper {
                 """.utf8)
             case "/analytics/export":
                 mockData = Data("""
-                {"export_id": "mock-export-123", "data": [{"event": "dose1", "timestamp": "\(ISO8601DateFormatter().string(from: Date()))"}]}
+                {"export_id": "mock-export-123", "data": [{"event": "dose1", "timestamp": "\(AppFormatters.iso8601.string(from: Date()))"}]}
                 """.utf8)
             default:
                 mockData = Data("""

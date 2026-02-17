@@ -60,6 +60,13 @@ enum AppFormatters {
         return f
     }()
 
+    /// `"EEE, MMM d"` — e.g. "Sat, Jun 15"
+    static let shortWeekday: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "EEE, MMM d"
+        return f
+    }()
+
     // MARK: - Export / Filenames
 
     /// `"yyyy-MM-dd_HHmmss"` — safe for filenames.

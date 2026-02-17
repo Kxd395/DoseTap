@@ -268,9 +268,7 @@ struct SessionDeleteRow: View {
     private var formattedDate: String {
         // Convert session date string to formatted display
         if let date = AppFormatters.sessionDate.date(from: session.sessionDate) {
-            let f = DateFormatter()
-            f.dateFormat = "EEE, MMM d"
-            return f.string(from: date)
+            return AppFormatters.shortWeekday.string(from: date)
         }
         return session.sessionDate
     }
