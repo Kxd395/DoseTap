@@ -445,9 +445,7 @@ public class AlarmService: NSObject, ObservableObject {
     }
     
     private func formatTime(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm:ss a"
-        return formatter.string(from: date)
+        AppFormatters.detailedTime.string(from: date)
     }
 
     private func notificationSound(isCritical: Bool) -> UNNotificationSound? {

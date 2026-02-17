@@ -4,6 +4,10 @@ import os.log
 #if canImport(SwiftUI)
 import SwiftUI
 #endif
+#if canImport(UIKit)
+import UIKit
+import AudioToolbox
+#endif
 
 private let coordinatorLog = Logger(subsystem: "com.dosetap.app", category: "DoseActionCoordinator")
 
@@ -99,6 +103,9 @@ final class DoseActionCoordinator: ObservableObject {
         await alarmService.scheduleDose2Alarm(at: wakeTime, dose1Time: now)
         await alarmService.scheduleDose2Reminders(dose1Time: now)
 
+        playHaptic(.dose)
+        playConfirmationSound()
+
         coordinatorLog.info("Dose 1 logged via coordinator")
         return .success(message: "✓ Dose 1 logged")
     }
@@ -174,10 +181,12 @@ final class DoseActionCoordinator: ObservableObject {
             await core.snooze()
             let formatted = newTime.formatted(date: .omitted, time: .shortened)
             coordinatorLog.info("Snoozed to \(formatted, privacy: .public)")
+            playHaptic(.action)
             return .success(message: "✓ Snoozed to \(formatted)")
         } else {
             // Still increment snooze count even if alarm couldn't be rescheduled
             await core.snooze()
+            playHaptic(.action)
             return .success(message: "✓ Snoozed (+10m)")
         }
     }
@@ -200,6 +209,8 @@ final class DoseActionCoordinator: ObservableObject {
             name: "Skip Dose 2", color: .orange,
             cooldownSeconds: 3600 * 8, persist: false
         )
+
+        playHaptic(.action)
 
         coordinatorLog.info("Dose 2 skipped via coordinator")
         return .success(message: "✓ Dose 2 skipped")
@@ -227,6 +238,9 @@ final class DoseActionCoordinator: ObservableObject {
 
         undoState?.register(.takeDose2(at: now))
 
+        playHaptic(.dose)
+        playConfirmationSound()
+
         coordinatorLog.info("\(eventName, privacy: .public) logged via coordinator")
         return .success(message: "✓ \(eventName) logged")
     }
@@ -236,5 +250,36 @@ final class DoseActionCoordinator: ObservableObject {
         let windowOpen = dose1Time.addingTimeInterval(150 * 60)
         let remaining = windowOpen.timeIntervalSince(Date())
         return max(1, Int(ceil(remaining / 60)))
+    }
+
+    // MARK: - Sensory Feedback (P3-1, P3-2)
+
+    /// Standard system sound for dose confirmation (subtle "tick").
+    private static let confirmationSoundID: SystemSoundID = 1057
+
+    enum FeedbackIntensity {
+        case dose      // Dose taken — strongest
+        case action    // Snooze / skip — medium
+    }
+
+    /// Haptic feedback respecting user preference. P3-1.
+    private func playHaptic(_ intensity: FeedbackIntensity) {
+        #if canImport(UIKit)
+        guard UserSettingsManager.shared.hapticsEnabled else { return }
+        switch intensity {
+        case .dose:
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+        case .action:
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        }
+        #endif
+    }
+
+    /// Audible confirmation respecting user preference. P3-2.
+    private func playConfirmationSound() {
+        #if canImport(AudioToolbox)
+        guard UserSettingsManager.shared.soundEnabled else { return }
+        AudioServicesPlaySystemSound(Self.confirmationSoundID)
+        #endif
     }
 }

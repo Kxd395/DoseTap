@@ -67,6 +67,13 @@ enum AppFormatters {
         return f
     }()
 
+    /// `"h:mm:ss a"` — e.g. "9:41:05 PM" (alarm/notification diagnostics)
+    static let detailedTime: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "h:mm:ss a"
+        return f
+    }()
+
     // MARK: - Export / Filenames
 
     /// `"yyyy-MM-dd_HHmmss"` — safe for filenames.
@@ -89,4 +96,12 @@ enum AppFormatters {
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return f
     }()
+
+    // MARK: - Flexible Parsing
+
+    /// Parse an ISO 8601 string, trying fractional seconds first then plain.
+    /// Avoids creating new formatter instances on each call.
+    static func parseISO8601Flexible(_ string: String) -> Date? {
+        iso8601Fractional.date(from: string) ?? iso8601.date(from: string)
+    }
 }

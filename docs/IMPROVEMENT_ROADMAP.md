@@ -253,13 +253,16 @@ A deep code audit of the running app versus source reveals five critical themes:
 
 ---
 
-### P2-7: Coach Insight Generator Visibility
+### ✅ P2-7: Coach Insight Generator Visibility — RESOLVED (N/A)
 
-**Problem:** `CoachInsightGenerator.swift` exists for generating AI-style narrative summaries but it's unclear if it's surfaced to users in any prominent way.
+**Status:** Audited 2026-02-16 — `CoachInsightGenerator.swift` does not exist in the codebase.
 
-**Fix:** Audit usage and either promote to a visible "Night Coach" card in Night Review/Dashboard, or remove dead code.
+**Findings:**
+- Referenced in `docs/architecture.md` (line 812, 862) but no Swift file exists
+- No code references found in any `.swift` file under `ios/`
+- The feature was likely planned but never implemented, or removed during a prior cleanup
 
-**Effort:** S (1-2 days)
+**Resolution:** Stale documentation reference only — no code to promote or remove. Feature could be built fresh in the future as a new P2/P3 item. Docs reference retained in architecture.md as a planned component.
 
 ---
 
@@ -282,18 +285,18 @@ A deep code audit of the running app versus source reveals five critical themes:
 
 ## 🟢 P3 — Low (Nice to Have)
 
-| # | Improvement | Effort |
-|---|------------|--------|
-| 1 | Add haptic feedback to all dose buttons (Tonight has it, History doesn't) | XS |
-| 2 | Add confirmation sound when dose is logged (accessibility) | XS |
-| 3 | Show WHOOP connection status in Tonight tab header | XS |
-| 4 | Add "time since last event" badges on QuickLog buttons | S |
-| 5 | Add swipe-to-delete on History event rows | S |
-| 6 | Add session comparison view (compare two nights side-by-side) | M |
-| 7 | Add data export scheduling (weekly auto-export to Files) | M |
-| 8 | Add medication interaction warnings based on dosing amounts | L |
-| 9 | Dark mode audit — verify all custom colors in both modes | S |
-| 10 | Add animation to dose window countdown (progress ring) | M |
+| # | Improvement | Effort | Status |
+|---|------------|--------|--------|
+| 1 | ~~Add haptic feedback to all dose buttons~~ | XS | ✅ Resolved — added to DoseActionCoordinator |
+| 2 | ~~Add confirmation sound when dose is logged~~ | XS | ✅ Resolved — added to DoseActionCoordinator |
+| 3 | Show WHOOP connection status in Tonight tab header | XS | Deferred (WHOOP behind feature flag) |
+| 4 | Add "time since last event" badges on QuickLog buttons | S | – |
+| 5 | Add swipe-to-delete on History event rows | S | – |
+| 6 | Add session comparison view (compare two nights side-by-side) | M | – |
+| 7 | Add data export scheduling (weekly auto-export to Files) | M | – |
+| 8 | Add medication interaction warnings based on dosing amounts | L | – |
+| 9 | ~~Dark mode audit — verify all custom colors in both modes~~ | S | ✅ Audited — AppTheme (3 modes) + HighContrastColors + DoseColors comprehensive |
+| 10 | Add animation to dose window countdown (progress ring) | M | – |
 
 ---
 
@@ -339,14 +342,21 @@ All WHOOP data integration resolved on `chore/audit-2026-02-15`:
 
 **Phase 4 — User Value ✅ QUICK WINS COMPLETE**
 12. ✅ P2-5: Pull-to-refresh (verified already present)
-13. ✅ P2-4: DateFormatter performance (15+ inline instances → cached static)
-14. P2-7: Coach Insight Generator visibility (next candidate)
+13. ✅ P2-4: DateFormatter performance (18 inline instances → cached static, added parseISO8601Flexible utility)
+14. ✅ P2-7: Coach Insight Generator (N/A — file doesn't exist, stale doc ref only)
 15. P2-1: Widget support
+16. P2-2: Siri Shortcuts / AppIntents
 
-**Phase 5 — Platform Expansion (3-6 weeks)**
-16. P2-3: watchOS companion
-17. ✅ P2-8: iPad / landscape — NavigationSplitView + adaptive layouts
-18. P2-6: History search
+**Phase 5 — Polish ✅ QUICK WINS COMPLETE**
+17. ✅ P3-1: Haptic feedback on all dose buttons (via DoseActionCoordinator)
+18. ✅ P3-2: Confirmation sound on dose actions (via DoseActionCoordinator)
+19. ✅ P3-9: Dark mode audit (AppTheme 3-mode + HighContrastColors confirmed comprehensive)
+20. P3-3: WHOOP status in Tonight (deferred — behind feature flag)
+
+**Phase 6 — Platform Expansion (3-6 weeks)**
+21. P2-3: watchOS companion
+22. ✅ P2-8: iPad / landscape — NavigationSplitView + adaptive layouts
+23. P2-6: History search
 
 ---
 
@@ -360,4 +370,4 @@ All WHOOP data integration resolved on `chore/audit-2026-02-15`:
 
 ---
 
-*Updated: 2026-02-15 | Version: 0.3.3 alpha | All P0 + P1 resolved (P1-5 deferred)*
+*Updated: 2026-02-16 | Version: 0.3.3 alpha | All P0 + P1 resolved (P1-5 deferred) | P2/P3 quick wins complete*

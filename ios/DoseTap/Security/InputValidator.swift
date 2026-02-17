@@ -280,17 +280,7 @@ public struct InputValidator {
     /// Validate ISO8601 date string
     public static func validateISO8601Date(_ input: String?) -> Date? {
         guard let input = input else { return nil }
-        
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        
-        if let date = formatter.date(from: input) {
-            return date
-        }
-        
-        // Try without fractional seconds
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: input)
+        return AppFormatters.parseISO8601Flexible(input)
     }
     
     // MARK: - Session Key Validation
