@@ -41,13 +41,23 @@ struct SleepPlanSummaryCard: View {
                     Text("If in bed now")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    Text("\(Int(expectedSleepMinutes)) min")
+                    Text(formatSleepDuration(expectedSleepMinutes))
                         .font(.body.bold())
                 }
             }
         }
         .padding()
         .background(RoundedRectangle(cornerRadius: 12).fill(Color(.secondarySystemBackground)))
+    }
+
+    /// Format sleep minutes as "Xh Ym" for readability (e.g. 500 min → "8h 20m")
+    private func formatSleepDuration(_ minutes: Double) -> String {
+        let total = Int(minutes)
+        let h = total / 60
+        let m = total % 60
+        if h > 0 && m > 0 { return "\(h)h \(m)m" }
+        if h > 0 { return "\(h)h" }
+        return "\(m)m"
     }
 }
 
