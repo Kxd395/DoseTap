@@ -413,3 +413,41 @@ Code references:
 - `ios/DoseTap/Views/History/HistoryViews.swift` (`DoseButtonsSection`)
 - `ios/DoseTap/URLRouter.swift`
 - `ios/DoseTap/FlicButtonService.swift`
+
+---
+
+## WHOOP Integration
+
+### Feature Flag
+
+`WHOOPService.isEnabled` is a dynamic computed property reading `UserDefaults("whoop_enabled")`.
+
+State transitions:
+- **On connect:** `authorize()` sets `UserSettingsManager.shared.whoopEnabled = true` after successful OAuth token exchange.
+- **On disconnect:** `disconnect()` sets `UserSettingsManager.shared.whoopEnabled = false` and clears Keychain tokens.
+- **Migration (init):** If tokens exist in Keychain but `whoopEnabled` is `false`, auto-sets to `true`.
+- There is no hardcoded kill switch.
+
+### Data Surface Gating
+
+All WHOOP data display is gated behind `WHOOPService.isEnabled` and/or data presence checks:
+- **Dashboard:** WHOOP Card shown only when `!model.whoopNights.isEmpty`. Recovery KPIs in Executive Summary conditional on `averageWhoopRecovery != nil`.
+- **Timeline:** `extractBiometricData()` returns empty arrays when `!WHOOPService.isEnabled`.
+- **Night Review:** `HealthDataCard` WHOOP section guarded behind `WHOOPService.isEnabled`.
+- **Sleep Snapshot:** WHOOP Metrics section guarded behind `averageWhoopRecovery != nil || averageWhoopHRV != nil`.
+
+Code references:
+- `ios/DoseTap/WHOOPService.swift` (`isEnabled`, `authorize()`, `disconnect()`)
+- `ios/DoseTap/UserSettingsManager.swift` (`whoopEnabled`)
+- `ios/DoseTap/Views/Dashboard/DashboardViews.swift` (all WHOOP-gated sections)
+- `ios/DoseTap/Views/SleepTimelineOverlays.swift` (`extractBiometricData()`)
+
+### Sleep Plan Display
+
+`SleepPlanSummaryCard` displays "If in bed now" as hours+minutes (e.g. "8h 20m"), not raw minutes.
+
+Calculation: `expectedSleepMinutes = wakeBy - now - sleepLatencyMinutes` (always ≥ 0).
+
+Code references:
+- `ios/Core/SleepPlan.swift` (`expectedSleepIfInBedNow`)
+- `ios/DoseTap/Views/SleepPlanCards.swift` (`formatSleepDuration`)

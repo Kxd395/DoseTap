@@ -1,10 +1,10 @@
 # DoseTap Architecture
 
 > **Last updated:** 2026-02-16  
-> **Version:** 0.3.2 alpha  
+> **Version:** 0.3.3 alpha  
 > **Branch:** `chore/audit-2026-02-15`  
 > **Codebase:** ~52,000 LOC across ~155 Swift files  
-> **Tests:** 559 SwiftPM + 134 Xcode unit + 12 XCUITest = 705 total
+> **Tests:** 587 XCTest + 43 Swift Testing (SwiftPM) = 630 total
 
 ---
 
@@ -166,20 +166,25 @@ LegacyTonightView
  +-- QuickThemeSwitchButton
  +-- Sleep Plan Cards (from SleepPlanCards.swift)
  |    +-- Tonight schedule, wind-down, target times
+ |    +-- "If in bed now" shows hours+minutes (e.g. "8h 20m")
  +-- CompactStatusCard
  |    +-- Session phase, countdown, dose window status
+ |    +-- .beforeWindow: animated progress ring (Circle().trim)
  +-- CompactDoseButton (primary CTA)
  |    +-- Take Dose 1    (pre-dose state)
  |    +-- Take Dose 2    (window open)
+ |    +-- Take Dose 2 (Late) (window closed — override confirmation)
  |    +-- Snooze (+10m)  (window open, <maxSnoozes, >=15m remain)
  |    +-- Skip Dose 2    (window open)
  |    +-- Morning Check-In (finalizing state)
+ |    +-- DoseActionCoordinator: haptic feedback + confirmation sound
  +-- QuickEventViews (grid of event buttons)
  |    +-- bathroom, water, snack, lights_out, in_bed, etc.
+ |    +-- "time since" badges (EventLogger.relativeBadge)
  +-- Pre-Sleep Log button -> PreSleepLogView (sheet)
  +-- Session summary (SessionSummaryViews)
  +-- Undo Snackbar overlay (UndoSnackbarView)
- +-- Early dose override confirmation dialogs
+ +-- Early/late dose override confirmation dialogs
 ```
 
 ### Tonight User Actions
@@ -270,31 +275,39 @@ HistoryView
 
 ## 7. Dashboard Tab
 
-**Files:** `ios/DoseTap/Views/Dashboard/DashboardModels.swift` (1423 LOC) + `DashboardViews.swift` (974 LOC)
+**Files:** `ios/DoseTap/Views/Dashboard/DashboardModels.swift` (~1580 LOC) + `DashboardViews.swift` (~1270 LOC)
 
 ```text
 DashboardTabView
  +-- Date range picker (7d / 14d / 30d / 90d / all)
  +-- DashboardExecutiveSummaryCard
- |    +-- Night count, avg interval, compliance rate, streaks
+ |    +-- KPIs: On-Time %, Completion %, Streak, Confidence
+ |    +-- WHOOP KPIs (conditional): Recovery %, HRV ms
+ +-- DashboardPeriodComparisonCard
+ |    +-- This period vs. previous period deltas
+ |    +-- Includes WHOOP Recovery + HRV deltas when available
  +-- DashboardDosingSnapshotCard
  |    +-- Dose 1/2 timing averages, skip rate
  +-- DashboardSleepSnapshotCard
  |    +-- Avg sleep quality, grogginess, restedness
+ |    +-- WHOOP Metrics section: recovery, HRV, efficiency, respiratory rate
+ +-- DashboardWHOOPCard (conditional: only when WHOOP nights exist)
+ |    +-- Recovery gauge (circular ring, color-coded green/orange/red)
+ |    +-- Biometrics grid: HRV, Resting HR, Sleep Efficiency, Respiratory Rate
+ |    +-- Sleep stage breakdown bar (deep/REM proportional) + disturbance count
+ +-- DashboardLifestyleFactorsCard
+ |    +-- Substance usage, activity, nap correlations
+ +-- DashboardMoodSymptomsCard
+ |    +-- Mood trends, anxiety, symptom frequency
  +-- DashboardDataQualityCard
  |    +-- Missing data indicators, completion rates
  +-- DashboardIntegrationsCard
  |    +-- HealthKit, WHOOP connection status
  +-- DashboardTrendChartsCard
- |    +-- Interval trend line, sleep quality over time
+ |    +-- Modes: Interval, Sleep, Compliance, Recovery (WHOOP)
+ |    +-- Recovery trend: dual-axis (recovery line + dose interval scatter)
  +-- DashboardRecentNightsCard
- |    +-- Last 5 sessions mini-view
- +-- DashboardPeriodComparisonCard
- |    +-- This period vs. previous period deltas
- +-- DashboardLifestyleFactorsCard
- |    +-- Substance usage, activity, nap correlations
- +-- DashboardMoodSymptomsCard
- |    +-- Mood trends, anxiety, symptom frequency
+ |    +-- Last 5 sessions with per-night recovery badge
  +-- DashboardCapturedMetricsCard
       +-- Total data points captured across all categories
 ```
@@ -891,16 +904,16 @@ Performance indexes on: `session_date`, `timestamp`, `session_id`, `event_type`,
 | `fetchSleepStages(sleepId:)` | `/v1/activity/sleep/:id` | Per-stage breakdown |
 | `fetchHeartRateData(from:to:)` | `/v1/cycle/:id/heart_rate` | HR time series |
 
-### Current Data Flow Status ⚠️
+### Current Data Flow Status ✅
 
 | Surface | Status | Detail |
 |---|---|---|
-| **Dashboard** | 🟡 Status only | Shows "Connected"/"Disabled" in integrations card; NO metrics in analytics |
-| **Timeline** | 🔴 Simulated | Calls `fetchRecentSleep()` but `extractBiometricData()` generates fake HR/RR/HRV via `sin()` curves |
-| **Night Review** | 🔴 Hardcoded | `HealthDataCard` shows static "Recovery: 68%, HRV: 45ms, Sleep Score: 82" |
-| **DashboardNightAggregate** | 🔴 No fields | Has `healthSummary` (HealthKit) but no WHOOP properties |
+| **Dashboard** | � Full | Executive Summary Recovery/HRV KPIs, dedicated WHOOP Card (gauge + biometrics + sleep stages), Period Comparison deltas, Recovery Trend chart, Sleep Snapshot WHOOP section, Recent Nights recovery badges |
+| **Timeline** | � Real data | `extractBiometricData()` calls real WHOOP APIs (heart rate, respiratory rate, HRV). Empty arrays when WHOOP disabled or API fails. |
+| **Night Review** | � Real data | `HealthDataCard` loads WHOOP sleep + recovery data per-session with loading state. Shows recovery, HRV, efficiency, respiratory rate. |
+| **DashboardNightAggregate** | � Full | `whoopSummary: WHOOPNightSummary?` with computed properties for recovery, HRV, sleep efficiency, respiratory rate, deep/REM/light/awake minutes, disturbances, resting HR |
 
-> **See:** `docs/IMPROVEMENT_ROADMAP.md` P0-1, P1-2, P1-3 for remediation plan.
+> **Feature flag:** `WHOOPService.isEnabled` reads `UserDefaults("whoop_enabled")` — dynamically set on connect/disconnect. No hardcoded kill switch.
 
 ---
 
@@ -965,11 +978,11 @@ Performance indexes on: `session_date`, `timestamp`, `session_id`, `event_type`,
              ╱╲
             ╱  ╲          12 XCUITests (UI flows)
            ╱────╲
-          ╱      ╲        134 Xcode Unit Tests (integration)
+          ╱      ╲        587 XCTest unit tests (SwiftPM)
          ╱────────╲
-        ╱          ╲      559 SwiftPM Unit Tests (fast, isolated)
+        ╱          ╲      43 Swift Testing tests (SwiftPM)
        ╱────────────╲
-      Total: 671 tests
+      Total: 630 SwiftPM tests + Xcode tests
 ```
 
 ### SwiftPM Tests (`Tests/DoseCoreTests/`)
@@ -1037,27 +1050,39 @@ main ─────────────────────────
 
 ## 23. Known Issues & Technical Debt
 
-> Full roadmap: `docs/IMPROVEMENT_ROADMAP.md` (4 P0 + 6 P1 + 8 P2 + 10 P3)
+> Full roadmap: `docs/IMPROVEMENT_ROADMAP.md` (6 P0 resolved + 7 P1 resolved + 8 P2 + 10 P3)
 
-### P0 (Critical)
+### P0 (Critical) — ALL RESOLVED ✅
 
-| # | Issue | Impact | Roadmap |
-| --- | --- | --- | --- |
-| 1 | WHOOP client secret needs rotation | Security: compromised credential | Audit |
-| 2 | WHOOP data decorative only — no real metrics flow to views | Users see fake/no data | P0-1 |
-| 3 | Snooze <15m check missing from UI buttons | SSOT violation, clinical risk | P0-2 |
-| 4 | Flic bypasses late-dose confirmation | Safety: no user confirmation | P0-3 |
-| 5 | Dose logic duplicated across 4 surfaces | Divergent safety behavior | P0-4 |
+| # | Issue | Resolution |
+| --- | --- | --- |
+| 1 | ~~WHOOP client secret needs rotation~~ | PKCE migration (P0-6), client_secret removed |
+| 2 | ~~WHOOP data decorative only~~ | Real data wired to all surfaces (P0-1, P1-1/2/3) |
+| 3 | ~~Snooze <15m check missing~~ | All UI surfaces use `DoseWindowContext.snooze` enum (P0-2) |
+| 4 | ~~Flic bypasses late-dose confirmation~~ | Blocks with local notification (P0-3) |
+| 5 | ~~Dose logic duplicated across 4 surfaces~~ | `DoseActionCoordinator` centralises (P0-4) |
 
-### P1 (High)
+### P1 (High) — ALL RESOLVED (P1-5 deferred) ✅
 
-| # | Issue | Impact | Roadmap |
-| --- | --- | --- | --- |
-| 6 | Night Review health data is hardcoded | Users see fake numbers | P1-1 |
-| 7 | Timeline biometrics are simulated (sin() curves) | Misleading visualization | P1-2 |
-| 8 | DashboardNightAggregate has no WHOOP fields | WHOOP data can't appear in trends | P1-3 |
-| 9 | SessionRepository (1712 LOC) needs decomposition | Maintainability | Audit |
-| 10 | NightScoreCalculator exists but not surfaced | Dead code | P1-6 |
+| # | Issue | Resolution |
+| --- | --- | --- |
+| 6 | ~~Night Review health data hardcoded~~ | Real WHOOP + HealthKit data per-session (P1-1) |
+| 7 | ~~Timeline biometrics simulated~~ | Async real WHOOP API calls (P1-2) |
+| 8 | ~~DashboardNightAggregate no WHOOP fields~~ | Full `whoopSummary` + 10+ computed properties (P1-3) |
+| 9 | SessionRepository (1712 LOC) needs decomposition | Open — maintainability |
+| 10 | ~~NightScoreCalculator not surfaced~~ | Night Review NightScoreCard (P1-6) |
+
+### Remaining Open Items
+
+| Priority | Issue | Roadmap |
+| --- | --- | --- |
+| P2-1 | No Widget support | Phase 6 |
+| P2-2 | No Siri Shortcuts / AppIntents | Phase 6 |
+| P2-3 | No watchOS companion | Phase 6 |
+| P2-6 | No History search | Phase 6 |
+| P3-6 | Session comparison view | Backlog |
+| P3-7 | Data export scheduling | Backlog |
+| P3-8 | Medication interaction warnings | Backlog |
 
 ### Technical Debt
 
@@ -1225,4 +1250,4 @@ Undo state tracked via `@Published var undoAction: UndoableAction?` with auto-ex
 
 ---
 
-*Generated: 2026-02-16 | Version: 0.3.2 alpha | Branch: chore/audit-2026-02-15*
+*Generated: 2026-02-16 | Version: 0.3.3 alpha | Branch: chore/audit-2026-02-15*

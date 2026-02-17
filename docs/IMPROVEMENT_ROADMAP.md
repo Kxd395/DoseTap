@@ -82,7 +82,51 @@ A deep code audit of the running app versus source reveals five critical themes:
 - `refreshAccessToken()`: Uses `client_id` only — no `client_secret` (public client per PKCE spec).
 - Removed `clientSecret` property from service. `SecureConfig.whoopClientSecret` infrastructure retained for potential backend-mediated flow.
 
-**Note:** WHOOP feature remains behind `isEnabled = false` flag. Credential rotation recommended before enabling.
+**Note:** WHOOP feature remains behind dynamic `isEnabled` flag (reads `UserDefaults("whoop_enabled")`). Auto-enabled on OAuth connect, auto-disabled on disconnect. Credential rotation recommended before production launch.
+
+---
+
+### ✅ P0-7: WHOOP Feature Flag Inconsistency — RESOLVED
+
+**Status:** Fixed in commit `b070263` on `chore/audit-2026-02-15`
+
+**Problem:** WHOOP Settings showed "Connected" but Dashboard said "Disabled (Feature Flag)". Three conflicting flags: `isEnabled` was hardcoded `false`, `whoopEnabled` UserDefaults was `false`, and `isConnected` was `true` (valid tokens in Keychain).
+
+**Changes:**
+- `WHOOPService.isEnabled` changed from `static let = false` to dynamic computed property: reads `UserDefaults("whoop_enabled")`
+- `authorize()` auto-sets `whoopEnabled = true` after successful OAuth
+- `disconnect()` auto-sets `whoopEnabled = false`
+- `init()` migration: if tokens exist in Keychain but `whoopEnabled` is false, auto-enables
+- Updated `docs/WHOOP_INTEGRATION.md` and `docs/architecture.md` to reflect dynamic flag
+
+---
+
+### ✅ P0-8: Dashboard Missing WHOOP Data Integration — RESOLVED
+
+**Status:** Fixed in commit `c397115` on `chore/audit-2026-02-15`
+
+**Problem:** Even with WHOOP connected, the Dashboard showed minimal WHOOP data — no dedicated card, no recovery/HRV in Executive Summary, no period comparison.
+
+**Changes:**
+- Added `DashboardWHOOPCard`: recovery gauge, biometrics grid (HRV, resting HR, sleep efficiency, respiratory rate), sleep stage breakdown bar (deep/REM) with disturbance count
+- Added Recovery + HRV KPIs to `DashboardExecutiveSummaryCard` (conditional on WHOOP data)
+- Added Recovery Trend chart mode to `DashboardTrendChartsCard` (dual-axis: recovery line + dose interval scatter)
+- Added WHOOP Recovery + HRV deltas to `DashboardPeriodComparisonCard`
+- Added 6 aggregate computed properties to `DashboardAnalyticsModel`: `averageWhoopRestingHR`, `averageWhoopDeepMinutes`, `averageWhoopREMMinutes`, `averageWhoopLightMinutes`, `averageWhoopAwakeMinutes`, `averageWhoopDisturbances`
+- Updated integration status copy: shows "Not Connected — tap to connect in Settings" when WHOOP disabled
+
+---
+
+### ✅ P0-9: Sleep Plan "If in bed now" Display — RESOLVED
+
+**Status:** Fixed in commit `9306a3d` on `chore/audit-2026-02-15`
+
+**Problem:** Sleep Plan card showed raw minutes (e.g. "500 min") which is confusing for 8+ hour values. Users expect hours and minutes.
+
+**Changes:**
+- `SleepPlanSummaryCard` now formats with `formatSleepDuration()`: "500 min" → "8h 20m"
+- Underlying calculation unchanged (wakeBy - now - sleepLatencyMinutes)
+- Display-only fix, no behavioral change
 
 ---
 
@@ -324,6 +368,9 @@ All P0 items resolved on `chore/audit-2026-02-15`:
 4. ✅ P0-4: DoseActionCoordinator extracted for UI surfaces
 5. ✅ P0-6: WHOOP OAuth PKCE migration — client_secret removed
 6. ✅ P0-1: WHOOP decorative guards — hardcoded data removed, feature-flag honoured
+7. ✅ P0-7: WHOOP feature flag inconsistency — dynamic isEnabled, auto-enable on connect
+8. ✅ P0-8: Dashboard WHOOP integration — dedicated card, Executive Summary KPIs, recovery trend
+9. ✅ P0-9: Sleep Plan display — "500 min" → "8h 20m" formatting
 
 **Phase 2 — WHOOP for Real ✅ COMPLETE**
 
@@ -373,4 +420,4 @@ All WHOOP data integration resolved on `chore/audit-2026-02-15`:
 
 ---
 
-*Updated: 2026-02-16 | Version: 0.3.3 alpha | All P0 + P1 resolved (P1-5 deferred) | P2/P3 quick wins + polish complete (7/10 P3 items done)*
+*Updated: 2026-02-16 | Version: 0.3.3 alpha | All P0 (9/9) + P1 (7/7) resolved (P1-5 deferred) | P2/P3 quick wins + polish complete (7/10 P3 items done) | Dashboard WHOOP integration complete*
