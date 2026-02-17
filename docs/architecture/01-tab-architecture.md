@@ -21,7 +21,7 @@ File: `ios/DoseTap/ContentView.swift` (229 lines)
 
 ## Tab 0: Tonight (Primary)
 
-File: `ios/DoseTap/Views/TonightView.swift` (478 lines)
+File: `ios/DoseTap/Views/TonightView.swift` (516 lines)
 
 ```text
 ┌─────────────────────────────────────────────────┐
@@ -63,8 +63,10 @@ File: `ios/DoseTap/Views/TonightView.swift` (478 lines)
 │  └─────────────────────────────────────┘         │
 │                                                  │
 │  ┌──────── SleepPlanSummaryCard ───────┐         │
-│  │ Wake by: 6:30 AM · In bed: 10:00 PM│         │
-│  │ Wind down: 9:30 PM                  │         │
+│  │ Live TimelineView (60s refresh)     │         │
+│  │ Phase: beforeWindDown / windingDown │         │
+│  │        / pastBedtime                │         │
+│  │ Wake by: 6:30 AM · Sleep: 7h 45m   │         │
 │  └─────────────────────────────────────┘         │
 │                                                  │
 │  ┌──────── SleepPlanOverrideCard ──────┐         │
@@ -84,7 +86,7 @@ File: `ios/DoseTap/Views/TonightView.swift` (478 lines)
 | CompactSessionSummary | `Views/SessionSummaryViews.swift` | Event timeline |
 | LiveDoseIntervalsCard | `Views/SessionSummaryViews.swift` | D1→D2 timing |
 | PreSleepCard | `Views/PreSleepLogView.swift` | Pre-sleep log CTA/summary |
-| SleepPlanSummaryCard | `Views/SleepPlanCards.swift` | Sleep schedule |
+| SleepPlanSummaryCard | `Views/SleepPlanCards.swift` | Live sleep schedule (TimelineView, 3-phase) |
 | AlarmIndicatorView | `AlarmService.swift` | Scheduled alarm time |
 
 ### Tonight Actions
@@ -192,14 +194,19 @@ File: `ios/DoseTap/Views/History/HistoryViews.swift` (1214 lines)
 
 Files:
 
-- `Views/Dashboard/DashboardModels.swift` (1429 lines)
-- `Views/Dashboard/DashboardViews.swift`
+- `Views/Dashboard/DashboardModels.swift` (~1591 lines)
+- `Views/Dashboard/DashboardViews.swift` (~1270 lines)
 
 ```text
 ┌─────────────────────────────────────────────────┐
 │                   Dashboard                      │
 │                                                  │
 │  [7D] [14D] [30D] [90D] [1Y] [All]  ← range    │
+│                                                  │
+│  ┌──────── Executive Summary ──────────┐         │
+│  │ Adherence gauge + KPIs              │         │
+│  │ Recovery % · HRV ms (when WHOOP)    │         │
+│  └─────────────────────────────────────┘         │
 │                                                  │
 │  ┌──────── Interval Chart ─────────────┐         │
 │  │ Line/bar chart: D1→D2 minutes       │         │
@@ -216,9 +223,22 @@ Files:
 │  │ Bathroom avg: 1.5/night            │         │
 │  └─────────────────────────────────────┘         │
 │                                                  │
+│  ┌──────── DashboardWHOOPCard ─────────┐         │
+│  │ Recovery gauge (0-100%, color-coded) │         │
+│  │ Biometrics: HRV, RHR, Efficiency,  │         │
+│  │   Respiratory Rate                  │         │
+│  │ Sleep Stages bar (Deep/REM/Light)   │         │
+│  │ Recovery Trend chart                │         │
+│  └─────────────────────────────────────┘         │
+│                                                  │
 │  ┌──────── Event Breakdown ────────────┐         │
 │  │ Bathroom: 45 · Lights Out: 30      │         │
 │  │ Anxiety: 8 · Pain: 5               │         │
+│  └─────────────────────────────────────┘         │
+│                                                  │
+│  ┌──────── Period Comparison ──────────┐         │
+│  │ This vs prior period deltas         │         │
+│  │ Includes WHOOP recovery/HRV deltas  │         │
 │  └─────────────────────────────────────┘         │
 │                                                  │
 │  ┌──────── Export Card ────────────────┐         │
@@ -230,8 +250,10 @@ Files:
 ### Dashboard Models
 
 - `DashboardDateRange` — 7D/14D/30D/90D/1Y/All with cutoff date math
-- `DashboardNightAggregate` — per-night summary with doses, events, health, check-ins
-- `DashboardViewModel` — aggregation engine with Charts data
+- `DashboardNightAggregate` — per-night summary with doses, events, health, WHOOP, check-ins
+- `DashboardViewModel` — aggregation engine with Charts data, WHOOP averages, period comparison deltas
+- `DashboardWHOOPCard` — recovery gauge, biometrics grid, sleep stage breakdown, recovery trend chart
+- `RecoveryTrendPoint` — data point for recovery trend overlay
 
 ---
 
@@ -265,7 +287,7 @@ File: `ios/DoseTap/SettingsView.swift` (696 lines)
 │                                                  │
 │  ═══ Integrations ═══                             │
 │  Apple Health >                                  │
-│  WHOOP > (isEnabled: false)                      │
+│  WHOOP > (dynamic: UserDefaults flag)            │
 │                                                  │
 │  ═══ Appearance ═══                               │
 │  Theme >                                         │

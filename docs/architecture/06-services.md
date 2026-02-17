@@ -131,16 +131,19 @@ struct SleepNightSummary {
 
 ## WHOOPService
 
-File: `ios/DoseTap/WHOOPService.swift` (~543 lines)
+File: `ios/DoseTap/WHOOPService.swift` (~564 lines)
 Data: `ios/DoseTap/WHOOPDataFetching.swift` (~492 lines)
 
-**Status: Feature flag OFF (`isEnabled = false`) — code fully wired, pending credential rotation**
+**Status: Dynamic feature flag — reads `UserDefaults("whoop_enabled")`, auto-set on connect/disconnect**
 
 ```text
 ┌─────────────────────────────────────────────┐
 │            WHOOPService                      │
 │                                             │
-│  static let isEnabled = false   ← OFF      │
+│  static var isEnabled: Bool                 │
+│   → UserDefaults("whoop_enabled")           │
+│   (auto-set true on connect,               │
+│    false on disconnect)                     │
 │                                             │
 │  OAuth 2.0 + PKCE:                          │
 │  ├── client_id (from SecureConfig)          │
@@ -161,14 +164,61 @@ Data: `ios/DoseTap/WHOOPDataFetching.swift` (~492 lines)
 │  ├── WHOOPSleepStages → SleepStageBand      │
 │  └── WHOOPSleepScore (efficiency, RR, etc)  │
 │                                             │
-│  Integration Points (when enabled):         │
+│  Integration Points:                        │
+│  ├── Dashboard: DashboardWHOOPCard          │
+│  │   (recovery gauge, biometrics, stages)   │
+│  ├── Dashboard: Executive Summary KPIs      │
+│  │   (recovery %, HRV ms)                   │
+│  ├── Dashboard: Recovery Trend chart        │
+│  ├── Dashboard: period comparison deltas    │
 │  ├── Dashboard: whoopSummary on aggregate   │
-│  ├── Dashboard: recovery/HRV/efficiency avg │
 │  ├── Night Review: per-session WHOOP card   │
-│  ├── Timeline: real HR from API             │
+│  ├── Timeline: HR/RR/HRV overlays          │
 │  ├── Settings: sleep history with recovery  │
 │  └── DoseEffectivenessCalculator: HRV/rec.  │
 └─────────────────────────────────────────────┘
+```
+
+### WHOOP Data Flow
+
+```text
+WHOOP API
+  │
+  ├── fetchRecentSleep(nights:) ─► [WHOOPSleep]
+  │     └── .toNightSummary() ─► WHOOPNightSummary
+  │           (totalSleep, deep, REM, light, awake,
+  │            efficiency, respiratoryRate)
+  │
+  ├── fetchRecoveryData(from:to:) ─► [WHOOPRecovery]
+  │     └── merged into WHOOPNightSummary by sleepId
+  │           (+recoveryScore, +hrvMs, +restingHR)
+  │
+  ├── fetchHeartRateData(from:to:) ─► [WHOOPHeartRate]
+  │     └── Timeline: per-minute HR overlay
+  │
+  └── fetchCycleData(from:to:) ─► [WHOOPCycle]
+
+DashboardModels.loadNights()
+  │  gate: isEnabled && whoopEnabled && isConnected
+  │  fetches sleep + recovery, keys by session date
+  ▼
+DashboardNightAggregate.whoopSummary
+  │  accessed via: .whoopRecoveryScore, .whoopHRV,
+  │  .whoopSleepEfficiency, .whoopRespiratoryRate, etc.
+  ▼
+DashboardViewModel computed averages
+  │  averageWhoopRecovery, averageWhoopHRV,
+  │  averageWhoopRestingHR, averageWhoopDeepMinutes, ...
+  ▼
+Views: DashboardWHOOPCard, ExecutiveSummary KPIs,
+       RecoveryTrend chart, period comparison deltas
+
+LiveEnhancedTimelineView (SleepTimelineOverlays.swift)
+  │  fetches HR data → heartRateData overlay
+  │  uses sleep.score.respiratoryRate → RR baseline overlay
+  │  uses WHOOPNightSummary.hrvMs → HRV baseline overlay
+  ▼
+EnhancedSleepTimeline: toggleable HR/RR/HRV overlays
 ```
 
 ---

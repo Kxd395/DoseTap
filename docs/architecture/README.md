@@ -1,6 +1,6 @@
 # DoseTap Architecture Reference
 
-> **Version:** 0.3.2 alpha | **Updated:** 2026-02-16 | **Branch:** `chore/audit-2026-02-15`
+> **Version:** 0.3.3 alpha | **Updated:** 2026-02-16 | **Branch:** `chore/audit-2026-02-15`
 
 This folder breaks the full architecture into reviewable files by domain.
 
@@ -24,7 +24,7 @@ This folder breaks the full architecture into reviewable files by domain.
 ## Quick Stats
 
 - **LOC:** ~52,000 across ~155 Swift files
-- **Tests:** 559 SwiftPM + 134 Xcode unit + 12 XCUITest = **705 total**
+- **Tests:** 587 XCTest + 43 Swift Testing + 134 Xcode unit + 12 XCUITest = **630+ total**
 - **Core module:** 25 platform-free Swift files (DoseCore)
 - **Storage:** SQLite (WAL mode, encrypted at rest)
 - **Min iOS:** 16.0

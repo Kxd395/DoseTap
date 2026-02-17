@@ -55,7 +55,7 @@ DoseTap App  (~130 files, Xcode project)
    │
    │  import DoseCore
    ▼
-DoseCoreTests  (31 test files, 559 tests)
+DoseCoreTests  (31 test files, 587 XCTest + 43 Swift Testing)
 ```
 
 ## Tech Stack
@@ -81,10 +81,10 @@ DoseCoreTests  (31 test files, 559 tests)
 | Lines of code | ~52,000 |
 | DoseCore files | 25 |
 | App files | ~130 |
-| SwiftPM tests | 559 |
+| SwiftPM tests | 587 (XCTest) + 43 (Swift Testing) |
 | Xcode unit tests | 134 |
 | XCUITest tests | 12 |
-| **Total tests** | **705** |
+| **Total tests** | **630+** |
 | SQLite tables | 12 |
 | API endpoints | 5 |
 | Deep link routes | 10 |
