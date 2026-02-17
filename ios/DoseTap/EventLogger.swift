@@ -118,6 +118,24 @@ class EventLogger: ObservableObject {
         sessionRepo.clearTonightsEvents()
     }
 
+    /// Last time a given event type was logged tonight. Used for "time since" badges (P3-4).
+    func lastEventTime(for name: String) -> Date? {
+        let canonical = Self.canonicalEventType(name)
+        return events.first { Self.canonicalEventType($0.name) == canonical }?.time
+    }
+
+    /// Human-readable relative time: "just now", "3m ago", "1h ago", or nil if >12h / never.
+    static func relativeBadge(since date: Date?) -> String? {
+        guard let date = date else { return nil }
+        let seconds = Date().timeIntervalSince(date)
+        guard seconds >= 0, seconds < 12 * 3600 else { return nil }
+        if seconds < 60 { return "just now" }
+        let minutes = Int(seconds / 60)
+        if minutes < 60 { return "\(minutes)m ago" }
+        let hours = minutes / 60
+        return "\(hours)h ago"
+    }
+
     private static func canonicalEventType(_ raw: String) -> String {
         EventType(raw).canonicalString
     }

@@ -290,13 +290,13 @@ A deep code audit of the running app versus source reveals five critical themes:
 | 1 | ~~Add haptic feedback to all dose buttons~~ | XS | ✅ Resolved — added to DoseActionCoordinator |
 | 2 | ~~Add confirmation sound when dose is logged~~ | XS | ✅ Resolved — added to DoseActionCoordinator |
 | 3 | Show WHOOP connection status in Tonight tab header | XS | Deferred (WHOOP behind feature flag) |
-| 4 | Add "time since last event" badges on QuickLog buttons | S | – |
-| 5 | Add swipe-to-delete on History event rows | S | – |
+| 4 | ~~Add "time since last event" badges on QuickLog buttons~~ | S | ✅ Resolved — EventLogger.lastEventTime + relativeBadge wired to CompactQuickButton & EventGridButton |
+| 5 | ~~Add swipe-to-delete on History event rows~~ | S | ✅ Resolved — contextMenu delete + confirmation alert on SelectedDayView event rows |
 | 6 | Add session comparison view (compare two nights side-by-side) | M | – |
 | 7 | Add data export scheduling (weekly auto-export to Files) | M | – |
 | 8 | Add medication interaction warnings based on dosing amounts | L | – |
 | 9 | ~~Dark mode audit — verify all custom colors in both modes~~ | S | ✅ Audited — AppTheme (3 modes) + HighContrastColors + DoseColors comprehensive |
-| 10 | Add animation to dose window countdown (progress ring) | M | – |
+| 10 | ~~Add animation to dose window countdown (progress ring)~~ | M | ✅ Resolved — ZStack ring with Circle().trim in CompactStatusCard .beforeWindow state |
 
 ---
 
@@ -347,11 +347,14 @@ All WHOOP data integration resolved on `chore/audit-2026-02-15`:
 15. P2-1: Widget support
 16. P2-2: Siri Shortcuts / AppIntents
 
-**Phase 5 — Polish ✅ QUICK WINS COMPLETE**
+**Phase 5 — Polish ✅ ALL QUICK WINS COMPLETE**
 17. ✅ P3-1: Haptic feedback on all dose buttons (via DoseActionCoordinator)
 18. ✅ P3-2: Confirmation sound on dose actions (via DoseActionCoordinator)
 19. ✅ P3-9: Dark mode audit (AppTheme 3-mode + HighContrastColors confirmed comprehensive)
 20. P3-3: WHOOP status in Tonight (deferred — behind feature flag)
+21. ✅ P3-4: "Time since" badges on QuickLog buttons (EventLogger + CompactQuickButton + EventGridButton)
+22. ✅ P3-5: Delete events from History (contextMenu + confirmation alert on SelectedDayView)
+23. ✅ P3-10: Progress ring countdown (Circle().trim animation in CompactStatusCard)
 
 **Phase 6 — Platform Expansion (3-6 weeks)**
 21. P2-3: watchOS companion
@@ -370,4 +373,4 @@ All WHOOP data integration resolved on `chore/audit-2026-02-15`:
 
 ---
 
-*Updated: 2026-02-16 | Version: 0.3.3 alpha | All P0 + P1 resolved (P1-5 deferred) | P2/P3 quick wins complete*
+*Updated: 2026-02-16 | Version: 0.3.3 alpha | All P0 + P1 resolved (P1-5 deferred) | P2/P3 quick wins + polish complete (7/10 P3 items done)*

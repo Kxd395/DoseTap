@@ -131,12 +131,35 @@ struct CompactStatusCard: View {
             
             // Timer (waiting for window to open)
             if core.currentStatus == .beforeWindow, core.dose1Time != nil {
-                Text(formatTimeRemaining)
-                    .font(.system(size: 48, weight: .bold, design: .rounded))
-                    .foregroundColor(.orange)
-                    .monospacedDigit()
-                    .accessibilityLabel(accessibleTimeRemaining)
-                
+                // P3-10: Progress ring countdown
+                ZStack {
+                    // Background track
+                    Circle()
+                        .stroke(Color.orange.opacity(0.15), lineWidth: 6)
+
+                    // Filled progress arc
+                    Circle()
+                        .trim(from: 0, to: windowProgress)
+                        .stroke(Color.orange, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                        .animation(.linear(duration: 1), value: windowProgress)
+
+                    // Countdown text inside the ring
+                    VStack(spacing: 2) {
+                        Text(formatTimeRemaining)
+                            .font(.system(size: 32, weight: .bold, design: .rounded))
+                            .foregroundColor(.orange)
+                            .monospacedDigit()
+                            .accessibilityLabel(accessibleTimeRemaining)
+
+                        Text("until window")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .frame(width: 140, height: 140)
+                .padding(.vertical, 4)
+
                 Text("Window opens at \(formatWindowOpenTime)")
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -176,6 +199,13 @@ struct CompactStatusCard: View {
         let windowCloseTime = dose1.addingTimeInterval(windowCloseMinutes * 60)
         timeRemaining = max(0, windowOpenTime.timeIntervalSince(Date()))
         windowCloseRemaining = max(0, windowCloseTime.timeIntervalSince(Date()))
+    }
+    
+    /// P3-10: Progress toward window open (0.0 → 1.0 as time elapses)
+    private var windowProgress: CGFloat {
+        let totalWait = windowOpenMinutes * 60  // 150 min in seconds
+        guard totalWait > 0 else { return 1.0 }
+        return CGFloat(1.0 - (timeRemaining / totalWait))
     }
     
     /// Announce time at key intervals for VoiceOver users

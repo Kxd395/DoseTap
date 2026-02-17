@@ -169,6 +169,7 @@ struct SelectedDayView: View {
     @State private var editingDose1 = false
     @State private var editingDose2 = false
     @State private var editingEvent: StoredSleepEvent?
+    @State private var eventToDelete: StoredSleepEvent?  // P3-5: swipe/long-press delete
     
     private let sessionRepo = SessionRepository.shared
     
@@ -360,6 +361,19 @@ struct SelectedDayView: View {
                     }
                     .buttonStyle(.plain)
                     .padding(.vertical, 4)
+                    // P3-5: Long-press context menu with delete
+                    .contextMenu {
+                        Button {
+                            editingEvent = event
+                        } label: {
+                            Label("Edit Time", systemImage: "pencil")
+                        }
+                        Button(role: .destructive) {
+                            eventToDelete = event
+                        } label: {
+                            Label("Delete Event", systemImage: "trash")
+                        }
+                    }
                 }
             } else {
                 Text("No events logged")
@@ -433,6 +447,24 @@ struct SelectedDayView: View {
                     saveEventTime(event: event, newTime: newTime)
                 }
             )
+        }
+        // P3-5: Delete event confirmation
+        .alert("Delete Event?", isPresented: Binding<Bool>(
+            get: { eventToDelete != nil },
+            set: { if !$0 { eventToDelete = nil } }
+        )) {
+            Button("Cancel", role: .cancel) { eventToDelete = nil }
+            Button("Delete", role: .destructive) {
+                if let event = eventToDelete {
+                    sessionRepo.deleteSleepEvent(id: event.id)
+                    loadData()
+                }
+                eventToDelete = nil
+            }
+        } message: {
+            if let event = eventToDelete {
+                Text("Delete \"\(EventDisplayName.displayName(for: event.eventType))\" at \(event.timestamp.formatted(date: .omitted, time: .shortened))?")
+            }
         }
     }
     
@@ -753,6 +785,7 @@ struct FullEventLogGrid: View {
                         color: event.color,
                         cooldownEnd: eventLogger.cooldownEnd(for: event.name),
                         cooldownDuration: cooldown,
+                        lastLogTime: eventLogger.lastEventTime(for: event.name),
                         onTap: {
                             eventLogger.logEvent(name: event.name, color: event.color, cooldownSeconds: cooldown)
                         }
@@ -774,6 +807,7 @@ struct EventGridButton: View {
     let color: Color
     let cooldownEnd: Date?
     let cooldownDuration: TimeInterval
+    let lastLogTime: Date?
     let onTap: () -> Void
     
     @State private var progress: CGFloat = 1.0
@@ -782,6 +816,12 @@ struct EventGridButton: View {
     private var isOnCooldown: Bool {
         guard let end = cooldownEnd else { return false }
         return Date() < end
+    }
+    
+    /// P3-4: Relative "time since" badge text
+    private var timeSinceBadge: String? {
+        guard !isOnCooldown else { return nil }
+        return EventLogger.relativeBadge(since: lastLogTime)
     }
     
     var body: some View {
@@ -809,6 +849,17 @@ struct EventGridButton: View {
                     .foregroundColor(isOnCooldown ? .secondary : .primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
+
+                // P3-4: "time since" badge
+                if let badge = timeSinceBadge {
+                    Text(badge)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundColor(color.opacity(0.7))
+                        .lineLimit(1)
+                } else {
+                    Text(" ")
+                        .font(.system(size: 9))
+                }
             }
         }
         .disabled(isOnCooldown)

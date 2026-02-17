@@ -92,6 +92,7 @@ struct QuickEventPanel: View {
             color: event.color,
             cooldownSeconds: cooldown,
             cooldownEnd: eventLogger.cooldownEnd(for: event.name),
+            lastLogTime: eventLogger.lastEventTime(for: event.name),
             onTap: {
                 eventLogger.logEvent(name: event.name, color: event.color, cooldownSeconds: cooldown)
             }
@@ -106,6 +107,7 @@ struct CompactQuickButton: View {
     let color: Color
     let cooldownSeconds: TimeInterval
     let cooldownEnd: Date?
+    let lastLogTime: Date?
     let onTap: () -> Void
     
     @State private var progress: CGFloat = 1.0
@@ -114,6 +116,12 @@ struct CompactQuickButton: View {
     private var isOnCooldown: Bool {
         guard let end = cooldownEnd else { return false }
         return Date() < end
+    }
+    
+    /// P3-4: Relative "time since" badge text
+    private var timeSinceBadge: String? {
+        guard !isOnCooldown else { return nil }
+        return EventLogger.relativeBadge(since: lastLogTime)
     }
     
     var body: some View {
@@ -142,6 +150,18 @@ struct CompactQuickButton: View {
                     .foregroundColor(isOnCooldown ? .secondary : .primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
+
+                // P3-4: "time since" badge
+                if let badge = timeSinceBadge {
+                    Text(badge)
+                        .font(.system(size: 8, weight: .medium))
+                        .foregroundColor(color.opacity(0.7))
+                        .lineLimit(1)
+                } else {
+                    // Invisible spacer to maintain consistent layout
+                    Text(" ")
+                        .font(.system(size: 8))
+                }
             }
         }
         .disabled(isOnCooldown)
