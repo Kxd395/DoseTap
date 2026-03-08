@@ -15,7 +15,7 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
     static let shared = HealthKitService()
     
     private let healthStore = HKHealthStore()
-    private let readTypes: Set<HKObjectType> = [HKCategoryType(.sleepAnalysis)]
+    private let readTypes: Set<HKObjectType>
     private let authorizationTimeoutSeconds: UInt64 = 15
     
     // MARK: - Published State
@@ -24,6 +24,7 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
     
     // MARK: - Initialization
     private init() {
+        self.readTypes = Self.defaultReadTypes()
         if HKHealthStore.isHealthDataAvailable() {
             // Restore authorization status on init so state is consistent after app restart.
             checkAuthorizationStatus()
@@ -88,12 +89,52 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
         let stage: SleepStage
         let source: String
     }
+
+    struct NightBiometricsSummary {
+        let averageHeartRate: Double?
+        let respiratoryRate: Double?
+        let hrvMs: Double?
+        let restingHeartRate: Double?
+
+        var hasAnyMetric: Bool {
+            averageHeartRate != nil || respiratoryRate != nil || hrvMs != nil || restingHeartRate != nil
+        }
+    }
+
+    struct TimelineBiometrics {
+        let heartRate: [HeartRateDataPoint]
+        let respiratoryRate: [RespiratoryRateDataPoint]
+        let hrv: [HRVDataPoint]
+        let summary: NightBiometricsSummary
+
+        var hasAnyData: Bool {
+            !heartRate.isEmpty || !respiratoryRate.isEmpty || !hrv.isEmpty || summary.hasAnyMetric
+        }
+    }
     
     // MARK: - Authorization
     
     /// Check if HealthKit is available
     var isAvailable: Bool {
         HKHealthStore.isHealthDataAvailable()
+    }
+
+    private static func defaultReadTypes() -> Set<HKObjectType> {
+        var types: Set<HKObjectType> = [HKCategoryType(.sleepAnalysis)]
+        let additionalIdentifiers: [HKQuantityTypeIdentifier] = [
+            .heartRate,
+            .respiratoryRate,
+            .heartRateVariabilitySDNN,
+            .restingHeartRate
+        ]
+
+        for identifier in additionalIdentifiers {
+            if let quantityType = HKQuantityType.quantityType(forIdentifier: identifier) {
+                types.insert(quantityType)
+            }
+        }
+
+        return types
     }
     
     /// Request HealthKit authorization for sleep data
@@ -285,6 +326,44 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
             healthStore.execute(query)
         }
     }
+
+    private func fetchQuantitySamples(
+        type: HKQuantityTypeIdentifier,
+        from start: Date,
+        to end: Date
+    ) async throws -> [HKQuantitySample] {
+        guard let quantityType = HKQuantityType.quantityType(forIdentifier: type) else {
+            return []
+        }
+
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: quantityType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [sortDescriptor]
+            ) { _, samples, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                continuation.resume(returning: samples as? [HKQuantitySample] ?? [])
+            }
+            healthStore.execute(query)
+        }
+    }
+
+    private func averageQuantityValue(samples: [HKQuantitySample], unit: HKUnit) -> Double? {
+        guard !samples.isEmpty else { return nil }
+        let total = samples.reduce(0.0) { partial, sample in
+            partial + sample.quantity.doubleValue(for: unit)
+        }
+        return total / Double(samples.count)
+    }
     
     /// Analyze a single night's sleep data
     private func analyzeSleepNight(segments: [SleepSegment], nightStart: Date) -> SleepNightSummary? {
@@ -456,6 +535,51 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
     /// - Returns: Array of SleepSegment for timeline display
     func fetchSegmentsForTimeline(from start: Date, to end: Date) async throws -> [SleepSegment] {
         try await fetchSleepSegments(from: start, to: end)
+    }
+
+    func fetchNightBiometrics(from start: Date, to end: Date) async throws -> NightBiometricsSummary {
+        let timeline = try await fetchTimelineBiometrics(from: start, to: end)
+        return timeline.summary
+    }
+
+    func fetchTimelineBiometrics(from start: Date, to end: Date) async throws -> TimelineBiometrics {
+        async let heartRateSamples = fetchQuantitySamples(type: .heartRate, from: start, to: end)
+        async let respiratorySamples = fetchQuantitySamples(type: .respiratoryRate, from: start, to: end)
+        async let hrvSamples = fetchQuantitySamples(type: .heartRateVariabilitySDNN, from: start, to: end)
+        async let restingHeartRateSamples = fetchQuantitySamples(type: .restingHeartRate, from: start, to: end)
+
+        let heartUnit = HKUnit.count().unitDivided(by: .minute())
+        let respiratoryUnit = HKUnit.count().unitDivided(by: .minute())
+        let hrvUnit = HKUnit.secondUnit(with: .milli)
+
+        let heartSamples = try await heartRateSamples
+        let respiratory = try await respiratorySamples
+        let hrv = try await hrvSamples
+        let resting = try await restingHeartRateSamples
+
+        let heartRate = heartSamples.map {
+            HeartRateDataPoint(timestamp: $0.startDate, bpm: $0.quantity.doubleValue(for: heartUnit))
+        }
+        let respiratoryRate = respiratory.map {
+            RespiratoryRateDataPoint(timestamp: $0.startDate, breathsPerMinute: $0.quantity.doubleValue(for: respiratoryUnit))
+        }
+        let hrvData = hrv.map {
+            HRVDataPoint(timestamp: $0.startDate, rmssd: $0.quantity.doubleValue(for: hrvUnit))
+        }
+
+        let summary = NightBiometricsSummary(
+            averageHeartRate: averageQuantityValue(samples: heartSamples, unit: heartUnit),
+            respiratoryRate: averageQuantityValue(samples: respiratory, unit: respiratoryUnit),
+            hrvMs: averageQuantityValue(samples: hrv, unit: hrvUnit),
+            restingHeartRate: averageQuantityValue(samples: resting, unit: heartUnit)
+        )
+
+        return TimelineBiometrics(
+            heartRate: heartRate,
+            respiratoryRate: respiratoryRate,
+            hrv: hrvData,
+            summary: summary
+        )
     }
     
     /// Convert HealthKit sleep stage to timeline display stage

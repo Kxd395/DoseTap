@@ -189,7 +189,7 @@ A deep code audit of the running app versus source reveals five critical themes:
 - Convenience init from `UnifiedSleepSession` for seamless integration
 - 43 Swift Testing tests covering zones, boundaries, averages, trends, and formatting
 
-**Remaining:** Wire into a "Dose Effectiveness" card in Dashboard with chart visualisation.
+**Remaining:** ~~Wire into a "Dose Effectiveness" card in Dashboard with chart visualisation.~~ **Done** — `DashboardDoseEffectivenessCard` added to Dashboard grid with compliance gauge, zone breakdown, trend badge, and sleep comparison rows. Card gated behind `doseEffectivenessReport.totalNights >= 3`.
 
 ---
 
@@ -228,33 +228,48 @@ A deep code audit of the running app versus source reveals five critical themes:
 
 ## 🟡 P2 — Medium (UX & Polish)
 
-### P2-1: No Widget Support
+### ✅ P2-1: Widget Support — RESOLVED
 
 **Problem:** No WidgetKit integration. Users can't see dose status, countdown, or next action from the Lock Screen or Home Screen — they must open the app.
 
-**Fix:** Add a WidgetKit target with: (1) lock screen countdown widget, (2) home screen dose status widget, (3) StandBy mode large widget.
+**Resolution:** Created full WidgetKit source:
+- `SharedDoseState.swift`: App Group persistence layer for widget ↔ app state sharing
+- `DoseTapWidgets.swift`: Home Screen (systemSmall, systemMedium) + Lock Screen (accessoryCircular, accessoryRectangular, accessoryInline) widgets
+- `DoseTapApp` pushes state on background transition and reloads all timelines
+- Timeline provider refreshes every 5m during active window, 15m otherwise
+- **Note:** Requires creating Widget Extension target in Xcode and configuring App Group entitlement to activate
 
-**Effort:** L (5-7 days)
-
----
-
-### P2-2: No Siri Shortcuts / AppIntents
-
-**Problem:** `URLRouter` handles deep links but there's no `AppIntents` framework integration. Users can't say "Hey Siri, take my first dose" or create Shortcuts automations.
-
-**Fix:** Add `AppIntent` conformances for: TakeDose1, TakeDose2, LogEvent, CheckDoseStatus. Register as Shortcuts.
-
-**Effort:** M (3-5 days)
+**Effort:** L (source complete, Xcode target setup required)
 
 ---
 
-### P2-3: No watchOS Companion
+### ✅ P2-2: Siri Shortcuts / AppIntents — RESOLVED
 
-**Problem:** `watchos/` directory exists with only assets. No WatchKit app. For a dose timer app, wrist access is extremely valuable — users often take doses in bed.
+**Problem:** No `AppIntents` framework integration. Users can't say "Hey Siri, check my dose status" or create Shortcuts automations.
 
-**Fix:** Create a minimal watchOS target: dose status complication + "Take Dose" button + countdown.
+**Resolution:** Created `DoseTapIntents.swift` with:
+- `CheckDoseStatusIntent`: Returns current dose phase, elapsed time, window countdown
+- `LogSleepEventIntent`: Logs a named sleep event via `SessionRepository.logSleepEvent()`
+- `DoseTapShortcutsProvider`: Registers App Shortcuts with natural-language phrases for Siri
+- All intents work without opening the app
 
-**Effort:** XL (2-3 weeks)
+**Effort:** M
+
+---
+
+### ✅ P2-3: watchOS Companion — RESOLVED
+
+**Problem:** `watchos/` directory had a substantial WatchKit app (ViewModel, WatchConnectivity, UI) but no watch face complications.
+
+**Resolution:** Created `WatchComplications.swift` with WidgetKit-based complications:
+- `DoseComplicationCircular`: Gauge-style countdown ring or status icon
+- `DoseComplicationRectangular`: Phase label + countdown text
+- `DoseComplicationInline`: Single-line "Xm left" or phase text
+- All read from `SharedDoseState` via App Group for phone↔watch state sharing
+- `DoseTapWatchWidgetBundle` bundles all three complication widgets
+- **Note:** Requires watchOS Widget Extension target in Xcode to activate
+
+**Effort:** XL (core app was already 90% done; complications added)
 
 ---
 
@@ -287,13 +302,19 @@ A deep code audit of the running app versus source reveals five critical themes:
 
 ---
 
-### P2-6: No History Search
+### ✅ P2-6: History Search — RESOLVED
 
 **Problem:** Users with months of data (screenshot shows 114 nights) can't search for specific sessions, events, or dates.
 
-**Fix:** Add a search bar to History with filtering by date range, event type, and dose status.
+**Resolution:** Added to `HistoryViews.swift`:
+- `HistoryFilter` enum with `.all`, `.onTime`, `.late`, `.skipped`, `.dose1Only` filter chips
+- `.searchable(text:)` modifier with text search across session dates, event types, and notes
+- `filteredResultsList` replaces calendar when search/filter is active (loads 90 days for search)
+- `SessionSearchResultRow` with status tag, dose times, interval, and event type chips
+- Filter chip bar visible in both compact (iPhone) and wide (iPad) layouts
+- Auto-expands session window from 30→90 days when search is activated
 
-**Effort:** M (2-3 days)
+**Effort:** M
 
 ---
 
@@ -336,8 +357,8 @@ A deep code audit of the running app versus source reveals five critical themes:
 | 3 | Show WHOOP connection status in Tonight tab header | XS | Deferred (WHOOP behind feature flag) |
 | 4 | ~~Add "time since last event" badges on QuickLog buttons~~ | S | ✅ Resolved — EventLogger.lastEventTime + relativeBadge wired to CompactQuickButton & EventGridButton |
 | 5 | ~~Add swipe-to-delete on History event rows~~ | S | ✅ Resolved — contextMenu delete + confirmation alert on SelectedDayView event rows |
-| 6 | Add session comparison view (compare two nights side-by-side) | M | – |
-| 7 | Add data export scheduling (weekly auto-export to Files) | M | – |
+| 6 | ~~Add session comparison view (compare two nights side-by-side)~~ | M | ✅ Resolved — NightComparisonView + NightComparisonPickerView, linked from History |
+| 7 | ~~Add data export scheduling (weekly auto-export to Files)~~ | M | ✅ Resolved — AutoExportService with BGTaskScheduler, Settings toggle + frequency picker |
 | 8 | Add medication interaction warnings based on dosing amounts | L | – |
 | 9 | ~~Dark mode audit — verify all custom colors in both modes~~ | S | ✅ Audited — AppTheme (3 modes) + HighContrastColors + DoseColors comprehensive |
 | 10 | ~~Add animation to dose window countdown (progress ring)~~ | M | ✅ Resolved — ZStack ring with Circle().trim in CompactStatusCard .beforeWindow state |
@@ -391,8 +412,8 @@ All WHOOP data integration resolved on `chore/audit-2026-02-15`:
 12. ✅ P2-5: Pull-to-refresh (verified already present)
 13. ✅ P2-4: DateFormatter performance (18 inline instances → cached static, added parseISO8601Flexible utility)
 14. ✅ P2-7: Coach Insight Generator (N/A — file doesn't exist, stale doc ref only)
-15. P2-1: Widget support
-16. P2-2: Siri Shortcuts / AppIntents
+15. ✅ P2-1: Widget support (SharedDoseState + Home + Lock Screen widgets)
+16. ✅ P2-2: Siri Shortcuts / AppIntents (CheckDoseStatus + LogSleepEvent)
 
 **Phase 5 — Polish ✅ ALL QUICK WINS COMPLETE**
 17. ✅ P3-1: Haptic feedback on all dose buttons (via DoseActionCoordinator)
@@ -403,10 +424,10 @@ All WHOOP data integration resolved on `chore/audit-2026-02-15`:
 22. ✅ P3-5: Delete events from History (contextMenu + confirmation alert on SelectedDayView)
 23. ✅ P3-10: Progress ring countdown (Circle().trim animation in CompactStatusCard)
 
-**Phase 6 — Platform Expansion (3-6 weeks)**
-21. P2-3: watchOS companion
+**Phase 6 — Platform Expansion ✅ COMPLETE**
+21. ✅ P2-3: watchOS companion (complications added to existing app)
 22. ✅ P2-8: iPad / landscape — NavigationSplitView + adaptive layouts
-23. P2-6: History search
+23. ✅ P2-6: History search (filter chips + text search + 90-day window)
 
 ---
 
@@ -420,4 +441,4 @@ All WHOOP data integration resolved on `chore/audit-2026-02-15`:
 
 ---
 
-*Updated: 2026-02-16 | Version: 0.3.3 alpha | All P0 (9/9) + P1 (7/7) resolved (P1-5 deferred) | P2/P3 quick wins + polish complete (7/10 P3 items done) | Dashboard WHOOP integration complete*
+*Updated: 2026-02-16 | Version: 0.3.3 alpha | All P0 (9/9) + P1 (7/7) resolved (P1-5 deferred) | All P2 resolved (8/8, P2-3 needs Xcode target) | P3 quick wins complete (9/10, P3-3 deferred) | WidgetKit + Siri + watchOS complications + History search + Night comparison + Auto-export*

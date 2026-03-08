@@ -138,8 +138,13 @@ extension EventStorage {
     
     /// Insert a medication event (Adderall, etc.)
     public func insertMedicationEvent(_ entry: StoredMedicationEntry) {
+        upsertMedicationEvent(entry)
+    }
+
+    /// Upsert a medication event by primary key. Used by local logging and sync import.
+    public func upsertMedicationEvent(_ entry: StoredMedicationEntry) {
         let sql = """
-        INSERT INTO medication_events (id, session_id, session_date, medication_id, dose_mg, dose_unit, formulation, taken_at_utc, local_offset_minutes, notes, confirmed_duplicate)
+        INSERT OR REPLACE INTO medication_events (id, session_id, session_date, medication_id, dose_mg, dose_unit, formulation, taken_at_utc, local_offset_minutes, notes, confirmed_duplicate)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         
@@ -175,9 +180,9 @@ extension EventStorage {
         sqlite3_bind_int(stmt, 11, entry.confirmedDuplicate ? 1 : 0)
         
         if sqlite3_step(stmt) != SQLITE_DONE {
-            storageLog.error("Failed to insert medication event: \(String(cString: sqlite3_errmsg(self.db)))")
+            storageLog.error("Failed to upsert medication event: \(String(cString: sqlite3_errmsg(self.db)))")
         } else {
-            storageLog.debug("Medication event inserted: \(entry.medicationId) \(entry.doseMg)\(entry.doseUnit)")
+            storageLog.debug("Medication event upserted: \(entry.medicationId) \(entry.doseMg)\(entry.doseUnit)")
         }
     }
     
@@ -232,7 +237,10 @@ extension EventStorage {
     }
     
     /// Delete a medication event
-    public func deleteMedicationEvent(id: String) {
+    public func deleteMedicationEvent(id: String, recordCloudKitDeletion: Bool = true) {
+        if recordCloudKitDeletion {
+            enqueueCloudKitTombstone(recordType: "DoseTapMedicationEvent", recordName: id)
+        }
         let sql = "DELETE FROM medication_events WHERE id = ?"
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }

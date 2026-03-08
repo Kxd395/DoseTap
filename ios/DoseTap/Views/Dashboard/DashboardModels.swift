@@ -147,6 +147,36 @@ struct DashboardIntegrationState: Identifiable {
     let color: Color
 }
 
+struct DashboardStressTrendPoint: Identifiable {
+    let sessionDate: String
+    let date: Date
+    let bedtimeStress: Double?
+    let wakeStress: Double?
+    let sleepQuality: Double?
+    let readiness: Double?
+    let intervalMinutes: Double?
+    let bedtimeDrivers: [CommonStressDriver]
+    let wakeDrivers: [CommonStressDriver]
+
+    var id: String { sessionDate }
+
+    var carryoverDrivers: [CommonStressDriver] {
+        let wakeSet = Set(wakeDrivers)
+        var seen: Set<CommonStressDriver> = []
+        return bedtimeDrivers.filter { driver in
+            wakeSet.contains(driver) && seen.insert(driver).inserted
+        }
+    }
+}
+
+struct DashboardStressDriverFrequency: Identifiable {
+    let driver: CommonStressDriver
+    let totalCount: Int
+    let carryoverCount: Int
+
+    var id: String { driver.rawValue }
+}
+
 struct DashboardMetricCategory: Identifiable {
     let id: String
     let title: String
@@ -324,6 +354,25 @@ final class DashboardAnalyticsModel: ObservableObject {
 
     // MARK: - Check-in & Pre-Sleep Completion
 
+    // MARK: - Dose Effectiveness Analysis
+
+    /// Maps dashboard aggregates to DoseEffectivenessDataPoints and runs the calculator.
+    var doseEffectivenessReport: DoseEffectivenessReport {
+        let dataPoints: [DoseEffectivenessDataPoint] = populatedNights.map { night in
+            DoseEffectivenessDataPoint(
+                date: Self.keyFormatter.date(from: night.sessionDate) ?? Date(),
+                intervalMinutes: night.intervalMinutes.map(Double.init),
+                dose2Skipped: night.dose2Skipped,
+                totalSleepMinutes: night.totalSleepMinutes,
+                deepSleepMinutes: night.whoopDeepSleepMinutes.map(Double.init),
+                recoveryScore: night.whoopRecoveryScore.map(Int.init),
+                averageHRV: night.whoopHRV,
+                awakenings: night.wakeCount ?? night.whoopDisturbances
+            )
+        }
+        return DoseEffectivenessCalculator.analyze(dataPoints)
+    }
+
     var morningCheckInRate: Double? {
         guard !populatedNights.isEmpty else { return nil }
         let withCheckIn = populatedNights.filter { $0.morningCheckIn != nil }.count
@@ -404,11 +453,168 @@ final class DashboardAnalyticsModel: ObservableObject {
         return Double(values.reduce(0, +)) / Double(values.count)
     }
 
+    var highPreSleepStressRate: Double? {
+        percentage(
+            matching: nightsWithPreSleep.compactMap { $0.preSleepLog?.answers?.stressLevel },
+            where: { $0 >= 4 }
+        )
+    }
+
+    var preSleepStressDriverCounts: [CommonStressDriver: Int] {
+        let drivers = nightsWithPreSleep.flatMap { $0.preSleepLog?.answers?.resolvedStressDrivers ?? [] }
+        return counts(for: drivers)
+    }
+
+    var topPreSleepStressDriver: CommonStressDriver? {
+        topKey(in: preSleepStressDriverCounts)
+    }
+
+    var stressTrendPoints: [DashboardStressTrendPoint] {
+        populatedNights.compactMap { night -> DashboardStressTrendPoint? in
+            guard let date = Self.keyFormatter.date(from: night.sessionDate) else {
+                return nil
+            }
+            let bedtimeDrivers = night.preSleepLog?.answers?.resolvedStressDrivers ?? []
+            let wakeDrivers = night.morningCheckIn?.resolvedStressDrivers ?? []
+            let point = DashboardStressTrendPoint(
+                sessionDate: night.sessionDate,
+                date: date,
+                bedtimeStress: night.preSleepLog?.answers?.stressLevel.map(Double.init),
+                wakeStress: night.morningCheckIn?.stressLevel.map(Double.init),
+                sleepQuality: night.morningCheckIn.map { Double($0.sleepQuality) },
+                readiness: night.morningCheckIn.map { Double($0.readinessForDay) },
+                intervalMinutes: night.intervalMinutes.map(Double.init),
+                bedtimeDrivers: bedtimeDrivers,
+                wakeDrivers: wakeDrivers
+            )
+            if point.bedtimeStress == nil &&
+                point.wakeStress == nil &&
+                point.sleepQuality == nil &&
+                point.readiness == nil &&
+                bedtimeDrivers.isEmpty &&
+                wakeDrivers.isEmpty {
+                return nil
+            }
+            return point
+        }
+        .sorted { $0.date < $1.date }
+    }
+
+    var stressTrendNightCount: Int {
+        stressTrendPoints.count
+    }
+
+    var combinedStressDriverCounts: [CommonStressDriver: Int] {
+        counts(for: stressTrendPoints.flatMap { $0.bedtimeDrivers + $0.wakeDrivers })
+    }
+
+    var carryoverStressDriverCounts: [CommonStressDriver: Int] {
+        counts(for: stressTrendPoints.flatMap(\.carryoverDrivers))
+    }
+
+    var recurringStressDrivers: [DashboardStressDriverFrequency] {
+        combinedStressDriverCounts.map { driver, totalCount in
+            DashboardStressDriverFrequency(
+                driver: driver,
+                totalCount: totalCount,
+                carryoverCount: carryoverStressDriverCounts[driver, default: 0]
+            )
+        }
+        .sorted { lhs, rhs in
+            if lhs.totalCount == rhs.totalCount {
+                if lhs.carryoverCount == rhs.carryoverCount {
+                    return lhs.driver.displayText < rhs.driver.displayText
+                }
+                return lhs.carryoverCount > rhs.carryoverCount
+            }
+            return lhs.totalCount > rhs.totalCount
+        }
+    }
+
+    var topRecurringStressDriver: CommonStressDriver? {
+        recurringStressDrivers.first?.driver
+    }
+
+    var topCarryoverStressDriver: CommonStressDriver? {
+        topKey(in: carryoverStressDriverCounts)
+    }
+
+    var stressCarryoverNightRate: Double? {
+        percentage(
+            matching: stressTrendPoints.compactMap { point -> Bool? in
+                guard !point.bedtimeDrivers.isEmpty, !point.wakeDrivers.isEmpty else {
+                    return nil
+                }
+                return !point.carryoverDrivers.isEmpty
+            },
+            where: { $0 }
+        )
+    }
+
+    var sleepQualityByHighBedtimeStress: (high: Double?, lower: Double?) {
+        let high = populatedNights.compactMap { night -> Double? in
+            guard let stress = night.preSleepLog?.answers?.stressLevel, stress >= 4 else {
+                return nil
+            }
+            guard let sleepQuality = night.morningCheckIn?.sleepQuality else {
+                return nil
+            }
+            return Double(sleepQuality)
+        }
+        let lower = populatedNights.compactMap { night -> Double? in
+            guard let stress = night.preSleepLog?.answers?.stressLevel, stress <= 3 else {
+                return nil
+            }
+            guard let sleepQuality = night.morningCheckIn?.sleepQuality else {
+                return nil
+            }
+            return Double(sleepQuality)
+        }
+        return (average(high), average(lower))
+    }
+
+    var readinessByHighBedtimeStress: (high: Double?, lower: Double?) {
+        let high = populatedNights.compactMap { night -> Double? in
+            guard let stress = night.preSleepLog?.answers?.stressLevel, stress >= 4 else {
+                return nil
+            }
+            guard let readiness = night.morningCheckIn?.readinessForDay else {
+                return nil
+            }
+            return Double(readiness)
+        }
+        let lower = populatedNights.compactMap { night -> Double? in
+            guard let stress = night.preSleepLog?.answers?.stressLevel, stress <= 3 else {
+                return nil
+            }
+            guard let readiness = night.morningCheckIn?.readinessForDay else {
+                return nil
+            }
+            return Double(readiness)
+        }
+        return (average(high), average(lower))
+    }
+
+    var intervalByHighBedtimeStress: (high: Double?, lower: Double?) {
+        let high = populatedNights.compactMap { night -> Double? in
+            guard let stress = night.preSleepLog?.answers?.stressLevel, stress >= 4 else {
+                return nil
+            }
+            return night.intervalMinutes.map(Double.init)
+        }
+        let lower = populatedNights.compactMap { night -> Double? in
+            guard let stress = night.preSleepLog?.answers?.stressLevel, stress <= 3 else {
+                return nil
+            }
+            return night.intervalMinutes.map(Double.init)
+        }
+        return (average(high), average(lower))
+    }
+
     var caffeineRate: Double? {
         guard !nightsWithPreSleep.isEmpty else { return nil }
         let withCaffeine = nightsWithPreSleep.filter {
-            guard let s = $0.preSleepLog?.answers?.stimulants else { return false }
-            return s != PreSleepLogAnswers.Stimulants.none
+            $0.preSleepLog?.answers?.hasCaffeineIntake == true
         }.count
         return (Double(withCaffeine) / Double(nightsWithPreSleep.count)) * 100
     }
@@ -452,11 +658,10 @@ final class DashboardAnalyticsModel: ObservableObject {
     /// Average sleep quality on caffeine vs. no-caffeine nights.
     var sleepQualityByCaffeine: (with: Double?, without: Double?) {
         let withCaff = populatedNights.filter {
-            guard let s = $0.preSleepLog?.answers?.stimulants else { return false }
-            return s != PreSleepLogAnswers.Stimulants.none
+            $0.preSleepLog?.answers?.hasCaffeineIntake == true
         }.compactMap { $0.morningCheckIn?.sleepQuality }
         let noCaff = populatedNights.filter {
-            $0.preSleepLog?.answers?.stimulants == PreSleepLogAnswers.Stimulants.none || $0.preSleepLog?.answers?.stimulants == nil
+            $0.preSleepLog?.answers?.hasCaffeineIntake != true
         }.compactMap { $0.morningCheckIn?.sleepQuality }
         let avgWith = withCaff.isEmpty ? nil : Double(withCaff.reduce(0, +)) / Double(withCaff.count)
         let avgWithout = noCaff.isEmpty ? nil : Double(noCaff.reduce(0, +)) / Double(noCaff.count)
@@ -519,6 +724,54 @@ final class DashboardAnalyticsModel: ObservableObject {
             counts[level, default: 0] += 1
         }
         return counts
+    }
+
+    var averageMorningStressLevel: Double? {
+        let values = nightsWithCheckIn.compactMap { $0.morningCheckIn?.stressLevel }
+        guard !values.isEmpty else { return nil }
+        return Double(values.reduce(0, +)) / Double(values.count)
+    }
+
+    var highMorningStressRate: Double? {
+        percentage(
+            matching: nightsWithCheckIn.compactMap { $0.morningCheckIn?.stressLevel },
+            where: { $0 >= 4 }
+        )
+    }
+
+    var averageStressDeltaToWake: Double? {
+        let deltas = populatedNights.compactMap { night -> Double? in
+            guard
+                let preSleep = night.preSleepLog?.answers?.stressLevel,
+                let morning = night.morningCheckIn?.stressLevel
+            else {
+                return nil
+            }
+            return Double(morning - preSleep)
+        }
+        guard !deltas.isEmpty else { return nil }
+        return deltas.reduce(0, +) / Double(deltas.count)
+    }
+
+    var morningStressDriverCounts: [CommonStressDriver: Int] {
+        let drivers = nightsWithCheckIn.flatMap { $0.morningCheckIn?.resolvedStressDrivers ?? [] }
+        return counts(for: drivers)
+    }
+
+    var topMorningStressDriver: CommonStressDriver? {
+        topKey(in: morningStressDriverCounts)
+    }
+
+    var morningStressProgressionCounts: [CommonStressProgression: Int] {
+        let progression = nightsWithCheckIn.compactMap { $0.morningCheckIn?.stressProgression }
+        return counts(for: progression)
+    }
+
+    var worseByWakeStressRate: Double? {
+        percentage(
+            matching: nightsWithCheckIn.compactMap { $0.morningCheckIn?.stressProgression },
+            where: { $0 == .worse || $0 == .muchWorse }
+        )
     }
 
     var grogginessDistribution: [String: Int] {
@@ -727,7 +980,8 @@ final class DashboardAnalyticsModel: ObservableObject {
                 "Grogginess and sleep inertia",
                 "Dream recall",
                 "Physical and respiratory symptom flags",
-                "Mood, anxiety, readiness",
+                "Mood, anxiety, stress, readiness",
+                "Stressors and stress progression",
                 "Sleep therapy and environment flags"
             ]
         ),
@@ -789,28 +1043,32 @@ final class DashboardAnalyticsModel: ObservableObject {
                 let fetchDays = min(days, 30) // WHOOP API: limit to 30 days per request
                 let sleeps = try await whoop.fetchRecentSleep(nights: fetchDays)
                 guard !Task.isCancelled else { return }
-                for sleep in sleeps where sleep.scoreState == "SCORED" {
+                for sleep in sleeps where sleep.scoreState?.uppercased() == "SCORED" {
                     let summary = sleep.toNightSummary()
-                    let key = sessionRepo.sessionDateString(for: eveningAnchorDate(for: summary.date))
+                    let key = sessionRepo.sessionDateString(for: summary.date)
                     if whoopByKey[key] == nil {
                         whoopByKey[key] = summary
                     }
                 }
-                // Also fetch recovery data and merge
-                let recoveries = try await whoop.fetchRecoveryData(
-                    from: Calendar.current.date(byAdding: .day, value: -fetchDays, to: Date()) ?? Date(),
-                    to: Date()
-                )
-                guard !Task.isCancelled else { return }
-                for recovery in recoveries {
-                    if let sleepId = recovery.sleepId,
-                       let existingKey = whoopByKey.first(where: { $0.value.sleepId == sleepId })?.key {
-                        var updated = whoopByKey[existingKey]!
-                        updated.recoveryScore = recovery.score?.recoveryScore
-                        updated.hrvMs = recovery.score?.hrvMs
-                        updated.restingHeartRate = recovery.score?.restingHeartRate
-                        whoopByKey[existingKey] = updated
+                // Recovery is enrichment, not a hard requirement for showing WHOOP sleep.
+                do {
+                    let recoveries = try await whoop.fetchRecoveryData(
+                        from: Calendar.current.date(byAdding: .day, value: -fetchDays, to: Date()) ?? Date(),
+                        to: Date()
+                    )
+                    guard !Task.isCancelled else { return }
+                    for recovery in recoveries {
+                        if let sleepId = recovery.sleepId,
+                           let existingKey = whoopByKey.first(where: { $0.value.sleepId == sleepId })?.key {
+                            var updated = whoopByKey[existingKey]!
+                            updated.recoveryScore = recovery.score?.recoveryScore
+                            updated.hrvMs = recovery.score?.hrvMs
+                            updated.restingHeartRate = recovery.score?.restingHeartRate
+                            whoopByKey[existingKey] = updated
+                        }
                     }
+                } catch {
+                    dashboardLogger.warning("WHOOP recovery fetch failed: \(error.localizedDescription)")
                 }
             } catch {
                 dashboardLogger.warning("WHOOP fetch failed: \(error.localizedDescription)")
@@ -854,6 +1112,37 @@ final class DashboardAnalyticsModel: ObservableObject {
         integrationStates = buildIntegrationStates(healthMatches: healthByKey.count, whoopMatches: whoopByKey.count)
         lastRefresh = Date()
         isLoading = false
+    }
+
+    private func counts<T: Hashable>(for values: [T]) -> [T: Int] {
+        var result: [T: Int] = [:]
+        for value in values {
+            result[value, default: 0] += 1
+        }
+        return result
+    }
+
+    private func topKey<T: Hashable>(in counts: [T: Int]) -> T? {
+        counts.max(by: { lhs, rhs in
+            if lhs.value == rhs.value {
+                return String(describing: lhs.key) > String(describing: rhs.key)
+            }
+            return lhs.value < rhs.value
+        })?.key
+    }
+
+    private func percentage<T>(
+        matching values: [T],
+        where predicate: (T) -> Bool
+    ) -> Double? {
+        guard !values.isEmpty else { return nil }
+        let matches = values.filter(predicate).count
+        return (Double(matches) / Double(values.count)) * 100
+    }
+
+    private func average(_ values: [Double]) -> Double? {
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +) / Double(values.count)
     }
 
     private func buildIntegrationStates(healthMatches: Int, whoopMatches: Int = 0) -> [DashboardIntegrationState] {
@@ -964,6 +1253,8 @@ final class CloudKitSyncService: ObservableObject {
     private let sleepEventRecordType = "DoseTapSleepEvent"
     private let doseEventRecordType = "DoseTapDoseEvent"
     private let morningCheckInRecordType = "DoseTapMorningCheckIn"
+    private let preSleepLogRecordType = "DoseTapPreSleepLog"
+    private let medicationEventRecordType = "DoseTapMedicationEvent"
 
     private struct ZoneDeletedRecord {
         let recordID: CKRecord.ID
@@ -1106,15 +1397,19 @@ final class CloudKitSyncService: ObservableObject {
             let sleepEvents = sessionRepo.fetchSleepEvents(for: sessionDate)
             let doseEvents = sessionRepo.fetchDoseEvents(forSessionDate: sessionDate)
             let morningCheckIn = sessionRepo.fetchMorningCheckIn(for: sessionDate)
+            let preSleepLog = sessionRepo.fetchPreSleepLog(forSessionDate: sessionDate)
+            let medicationEvents = sessionRepo.fetchStoredMedicationEntries(for: sessionDate)
 
-            if doseLog != nil || !sleepEvents.isEmpty || !doseEvents.isEmpty || morningCheckIn != nil {
+            if doseLog != nil || !sleepEvents.isEmpty || !doseEvents.isEmpty || morningCheckIn != nil || preSleepLog != nil || !medicationEvents.isEmpty {
                 records.append(sessionRecord(
                     sessionDate: sessionDate,
                     sessionId: sessionId,
                     doseLog: doseLog,
                     sleepEvents: sleepEvents.count,
                     doseEvents: doseEvents.count,
-                    hasMorningCheckIn: morningCheckIn != nil
+                    hasMorningCheckIn: morningCheckIn != nil,
+                    hasPreSleepLog: preSleepLog != nil,
+                    medicationEvents: medicationEvents.count
                 ))
             }
 
@@ -1129,6 +1424,12 @@ final class CloudKitSyncService: ObservableObject {
             if let checkIn = morningCheckIn {
                 records.append(morningCheckInRecord(checkIn: checkIn))
             }
+            if let preSleepLog {
+                records.append(preSleepLogRecord(log: preSleepLog, sessionDate: sessionDate))
+            }
+            for medication in medicationEvents {
+                records.append(medicationEventRecord(entry: medication))
+            }
         }
         return records
     }
@@ -1139,7 +1440,9 @@ final class CloudKitSyncService: ObservableObject {
         doseLog: StoredDoseLog?,
         sleepEvents: Int,
         doseEvents: Int,
-        hasMorningCheckIn: Bool
+        hasMorningCheckIn: Bool,
+        hasPreSleepLog: Bool,
+        medicationEvents: Int
     ) -> CKRecord {
         let recordID = CKRecord.ID(recordName: sessionDate, zoneID: zoneID)
         let record = CKRecord(recordType: sessionRecordType, recordID: recordID)
@@ -1152,6 +1455,8 @@ final class CloudKitSyncService: ObservableObject {
         record["sleepEventCount"] = sleepEvents as CKRecordValue
         record["doseEventCount"] = doseEvents as CKRecordValue
         record["hasMorningCheckIn"] = hasMorningCheckIn as CKRecordValue
+        record["hasPreSleepLog"] = hasPreSleepLog as CKRecordValue
+        record["medicationEventCount"] = medicationEvents as CKRecordValue
         record["updatedAt"] = Date() as CKRecordValue
         return record
     }
@@ -1199,6 +1504,8 @@ final class CloudKitSyncService: ObservableObject {
         record["mentalClarity"] = checkIn.mentalClarity as CKRecordValue
         record["mood"] = checkIn.mood as CKRecordValue
         record["anxietyLevel"] = checkIn.anxietyLevel as CKRecordValue
+        record["stressLevel"] = checkIn.stressLevel as CKRecordValue?
+        record["stressContextJson"] = checkIn.stressContextJson as CKRecordValue?
         record["readinessForDay"] = checkIn.readinessForDay as CKRecordValue
         record["hadSleepParalysis"] = checkIn.hadSleepParalysis as CKRecordValue
         record["hadHallucinations"] = checkIn.hadHallucinations as CKRecordValue
@@ -1210,6 +1517,42 @@ final class CloudKitSyncService: ObservableObject {
         record["hasSleepEnvironment"] = checkIn.hasSleepEnvironment as CKRecordValue
         record["sleepEnvironmentJson"] = checkIn.sleepEnvironmentJson as CKRecordValue?
         record["notes"] = checkIn.notes as CKRecordValue?
+        record["updatedAt"] = Date() as CKRecordValue
+        return record
+    }
+
+    private func preSleepLogRecord(log: StoredPreSleepLog, sessionDate: String) -> CKRecord {
+        let recordID = CKRecord.ID(recordName: log.id, zoneID: zoneID)
+        let record = CKRecord(recordType: preSleepLogRecordType, recordID: recordID)
+        record["sessionId"] = log.sessionId as CKRecordValue?
+        record["sessionDate"] = sessionDate as CKRecordValue
+        record["createdAtUTC"] = (AppFormatters.iso8601Fractional.date(from: log.createdAtUtc) ?? Date()) as CKRecordValue
+        record["localOffsetMinutes"] = log.localOffsetMinutes as CKRecordValue
+        record["completionState"] = log.completionState as CKRecordValue
+        if let answers = log.answers,
+           let data = try? JSONEncoder().encode(answers),
+           let json = String(data: data, encoding: .utf8) {
+            record["answersJson"] = json as CKRecordValue
+        } else {
+            record["answersJson"] = "{}" as CKRecordValue
+        }
+        record["updatedAt"] = Date() as CKRecordValue
+        return record
+    }
+
+    private func medicationEventRecord(entry: StoredMedicationEntry) -> CKRecord {
+        let recordID = CKRecord.ID(recordName: entry.id, zoneID: zoneID)
+        let record = CKRecord(recordType: medicationEventRecordType, recordID: recordID)
+        record["sessionId"] = entry.sessionId as CKRecordValue?
+        record["sessionDate"] = entry.sessionDate as CKRecordValue
+        record["medicationId"] = entry.medicationId as CKRecordValue
+        record["doseMg"] = entry.doseMg as CKRecordValue
+        record["doseUnit"] = entry.doseUnit as CKRecordValue
+        record["formulation"] = entry.formulation as CKRecordValue
+        record["takenAtUTC"] = entry.takenAtUTC as CKRecordValue
+        record["localOffsetMinutes"] = entry.localOffsetMinutes as CKRecordValue
+        record["notes"] = entry.notes as CKRecordValue?
+        record["confirmedDuplicate"] = entry.confirmedDuplicate as CKRecordValue
         record["updatedAt"] = Date() as CKRecordValue
         return record
     }
@@ -1287,6 +1630,8 @@ final class CloudKitSyncService: ObservableObject {
                 mentalClarity: record["mentalClarity"] as? Int ?? 5,
                 mood: record["mood"] as? String ?? "neutral",
                 anxietyLevel: record["anxietyLevel"] as? String ?? "none",
+                stressLevel: record["stressLevel"] as? Int,
+                stressContextJson: record["stressContextJson"] as? String,
                 readinessForDay: record["readinessForDay"] as? Int ?? 3,
                 hadSleepParalysis: record["hadSleepParalysis"] as? Bool ?? false,
                 hadHallucinations: record["hadHallucinations"] as? Bool ?? false,
@@ -1303,10 +1648,74 @@ final class CloudKitSyncService: ObservableObject {
         }
     }
 
+    private func applyPreSleepLogRecords(_ records: [CKRecord]) {
+        for record in records {
+            guard
+                let sessionDate = record["sessionDate"] as? String,
+                let createdAtUTC = record["createdAtUTC"] as? Date,
+                let completionState = record["completionState"] as? String
+            else {
+                continue
+            }
+
+            let sessionId = record["sessionId"] as? String
+            let localOffsetMinutes = record["localOffsetMinutes"] as? Int ?? 0
+            let answersJson = record["answersJson"] as? String ?? "{}"
+            let answers: PreSleepLogAnswers?
+            if let data = answersJson.data(using: .utf8) {
+                answers = try? JSONDecoder().decode(PreSleepLogAnswers.self, from: data)
+            } else {
+                answers = nil
+            }
+
+            let log = StoredPreSleepLog(
+                id: record.recordID.recordName,
+                sessionId: sessionId,
+                createdAtUtc: AppFormatters.iso8601Fractional.string(from: createdAtUTC),
+                localOffsetMinutes: localOffsetMinutes,
+                completionState: completionState,
+                answers: answers
+            )
+            sessionRepo.upsertPreSleepLogFromSync(log, sessionDate: sessionDate)
+        }
+    }
+
+    private func applyMedicationRecords(_ records: [CKRecord]) {
+        for record in records {
+            guard
+                let sessionDate = record["sessionDate"] as? String,
+                let medicationId = record["medicationId"] as? String,
+                let doseMg = record["doseMg"] as? Int,
+                let doseUnit = record["doseUnit"] as? String,
+                let formulation = record["formulation"] as? String,
+                let takenAtUTC = record["takenAtUTC"] as? Date
+            else {
+                continue
+            }
+
+            let entry = StoredMedicationEntry(
+                id: record.recordID.recordName,
+                sessionId: record["sessionId"] as? String,
+                sessionDate: sessionDate,
+                medicationId: medicationId,
+                doseMg: doseMg,
+                takenAtUTC: takenAtUTC,
+                doseUnit: doseUnit,
+                formulation: formulation,
+                localOffsetMinutes: record["localOffsetMinutes"] as? Int ?? 0,
+                notes: record["notes"] as? String,
+                confirmedDuplicate: record["confirmedDuplicate"] as? Bool ?? false
+            )
+            sessionRepo.upsertMedicationEventFromSync(entry)
+        }
+    }
+
     private func applyChangedRecords(_ records: [CKRecord]) {
         var sleepRecords: [CKRecord] = []
         var doseRecords: [CKRecord] = []
         var morningRecords: [CKRecord] = []
+        var preSleepRecords: [CKRecord] = []
+        var medicationRecords: [CKRecord] = []
 
         for record in records {
             switch record.recordType {
@@ -1316,6 +1725,10 @@ final class CloudKitSyncService: ObservableObject {
                 doseRecords.append(record)
             case morningCheckInRecordType:
                 morningRecords.append(record)
+            case preSleepLogRecordType:
+                preSleepRecords.append(record)
+            case medicationEventRecordType:
+                medicationRecords.append(record)
             default:
                 continue
             }
@@ -1324,6 +1737,8 @@ final class CloudKitSyncService: ObservableObject {
         applySleepRecords(sleepRecords)
         applyDoseRecords(doseRecords)
         applyMorningCheckInRecords(morningRecords)
+        applyPreSleepLogRecords(preSleepRecords)
+        applyMedicationRecords(medicationRecords)
     }
 
     private func applyDeletedRecords(_ records: [ZoneDeletedRecord]) {
@@ -1342,6 +1757,10 @@ final class CloudKitSyncService: ObservableObject {
                 sessionRepo.deleteDoseEventFromSync(id: deleted.recordID.recordName)
             case morningCheckInRecordType:
                 sessionRepo.deleteMorningCheckInFromSync(id: deleted.recordID.recordName)
+            case preSleepLogRecordType:
+                sessionRepo.deletePreSleepLogFromSync(id: deleted.recordID.recordName)
+            case medicationEventRecordType:
+                sessionRepo.deleteMedicationEventFromSync(id: deleted.recordID.recordName)
             default:
                 let key = deleted.recordID.recordName
                 if looksLikeSessionDate(key) {
@@ -1587,4 +2006,3 @@ final class CloudKitSyncService: ObservableObject {
     }
     #endif
 }
-

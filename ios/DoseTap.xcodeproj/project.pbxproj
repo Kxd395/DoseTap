@@ -17,21 +17,29 @@
 		1B95E3AD96741FD0E9FED120 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = D049AFCF96FC4AFF9120309E /* Secrets.swift */; };
 		24CA1B0499D673C5227DA6EC /* SleepTimelineOverlays.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BC9035E4ACF20D1D40B9A9 /* SleepTimelineOverlays.swift */; };
 		251486320D35FEA58E9D81CA /* EncryptedEventStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCC2762A054AE377C80CF2B0 /* EncryptedEventStorage.swift */; };
+		270FF25D2FCE5D7505B259FB /* AutoExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5347FFF5FFC1A4A33C32C8D /* AutoExportService.swift */; };
+		2F7B4009B1F4BB8976B7E89E /* SharedDoseState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F45A7B56E2E0D80B5D5CBDD /* SharedDoseState.swift */; };
 		36C1109C06A24E03A747B9E6 /* SessionSummaryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0C7941006B40BEA391DD9A /* SessionSummaryViews.swift */; };
 		40BDAEDF308A4508940C55F7 /* AlarmService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E912715BD5C4BBAAA735378 /* AlarmService.swift */; };
 		46EBB63DD7FE446C8EEF4021 /* AnalyticsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCEDF0A0E4BE41F582C2221F /* AnalyticsService.swift */; };
 		49BABB381D1350BB62368638 /* ReducedMotionSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A3C6B3DB1EBBE10E2F3E7FB /* ReducedMotionSupport.swift */; };
 		51117520922E2EF076DD4A81 /* DiagnosticExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EF211068DBC684F390BC8F9 /* DiagnosticExportView.swift */; };
 		54E3599B814B4ACFBD87EA6B /* FullApp/SetupWizardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CB34E7F86084B24991BD7CA /* FullApp/SetupWizardView.swift */; };
+		5A7A4083ACC81A0C1659AF4B /* NightComparisonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B909173F1168B426E065A13A /* NightComparisonView.swift */; };
 		626911F284B24C54BA73D7F8 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B358CDCA949364F93BD996D6 /* SettingsView.swift */; };
 		68B3DB1D97734922B659 /* SleepPlanDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 576700D19A9F4B35BA54 /* SleepPlanDetailView.swift */; };
+		74CB1E6BE7206ADBD4DD9C7F /* DoseTapIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDD477019FF746C3DB7E7EE7 /* DoseTapIntents.swift */; };
 		75396BE379F85EF05DC1AEE6 /* WHOOPDataFetching.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67D4EB39451985378B4E5D61 /* WHOOPDataFetching.swift */; };
 		7C57BE36F02F850F7FE909C1 /* SecureLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = DED8B35BAB0493115DB99CA4 /* SecureLogger.swift */; };
 		801008E9567E13B12BC52116 /* DatabaseSecurity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80B7FD26BB9CFDD4F25097AC /* DatabaseSecurity.swift */; };
+		80D996622F5CFA280092DB29 /* Formatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49D083E0EC7947B795F0DD57 /* Formatters.swift */; };
+		80D996632F5CFA280092DB29 /* Formatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49D083E0EC7947B795F0DD57 /* Formatters.swift */; };
 		81A5CD7A3DD244DEB70FA0B2 /* EventStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5D8DC9D91D38419C97E97FA /* EventStorage.swift */; };
 		837A745C7B9B471695166AEC /* CompactDoseButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60E7491C7A9D4FDE812F4BFB /* CompactDoseButton.swift */; };
 		8DA90A6B025231EACF48A8AD /* SecureConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7772A3ACA248F927B3008122 /* SecureConfig.swift */; };
+		8E967A52E8644DF89EEF23B9 /* Formatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49D083E0EC7947B795F0DD57 /* Formatters.swift */; };
 		92518D93643945F4B64E860F /* SessionRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64641673735B464BB4E4B02F /* SessionRepository.swift */; };
+		96A6B3D448ADF27325ED20CD /* DoseTapWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5EC28B4CBE024116041F88A /* DoseTapWidgets.swift */; };
 		A01 /* DoseTapApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B01 /* DoseTapApp.swift */; };
 		A02 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B02 /* ContentView.swift */; };
 		A03 /* DoseCore in Frameworks */ = {isa = PBXBuildFile; productRef = P01 /* DoseCore */; };
@@ -45,6 +53,7 @@
 		BC3BD8377E674DB98BB83F35 /* InsightsCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FEE161A09D6441A8D4448DA /* InsightsCalculator.swift */; };
 		C0E47E55D0CB89F0CCE49C2A /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1FBB8D30211AB1F43A21D65 /* AppTheme.swift */; };
 		C2E1898433FE4503AD4765DB /* CompactStatusCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22B9CA2EF895428EA7912896 /* CompactStatusCard.swift */; };
+		CAPB001 /* CapturePreviewSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAPF001 /* CapturePreviewSheet.swift */; };
 		CLUST101 /* DashboardModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST001 /* DashboardModels.swift */; };
 		CLUST102 /* DashboardViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST002 /* DashboardViews.swift */; };
 		CLUST103 /* TimelineReviewViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST003 /* TimelineReviewViews.swift */; };
@@ -53,7 +62,9 @@
 		D3796BF7DA596F5F9D63F096 /* TimeIntervalMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B2779FB31708024300E8E5 /* TimeIntervalMath.swift */; };
 		D8746EA078A54AF7A8CE92B3 /* MorningCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3941DD4936B4FD0BD5A8837 /* MorningCheckInView.swift */; };
 		D9B47E5F3E91E2F68102BA13 /* NightReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FABFEE0765C943A32E6ACC2 /* NightReviewView.swift */; };
+		DAC001 /* DoseActionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAC002 /* DoseActionCoordinator.swift */; };
 		DD45B910AB7B414A9948C5A9 /* URLRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D565C0B5A1804860B23307B9 /* URLRouter.swift */; };
+		E3B41D5FFE162C7FC40E4FD4 /* AdaptiveLayouts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ED119801E1E497EB929C45B /* AdaptiveLayouts.swift */; };
 		E7EA21EC3FE949B3890BF69A /* FullApp/SetupWizardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1BA2E6CCFB845E6BFC919FA /* FullApp/SetupWizardService.swift */; };
 		EA02466EA69547DF963A8BA7 /* WHOOPService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7084981AA100483EB6E6ADE1 /* WHOOPService.swift */; };
 		EDIT002 /* EditDoseTimeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDIT001 /* EditDoseTimeView.swift */; };
@@ -69,7 +80,6 @@
 		F3296BD6A65A57599A202642 /* InputValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1CBF59D219929011DD8A4A8 /* InputValidator.swift */; };
 		F94248D37BBE47A5A2E90C9B /* PreSleepLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE3796A887B24D9FBBD40758 /* PreSleepLogView.swift */; };
 		FC82425609210406E72373A8 /* FlicButtonService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFF67F0048CFBF2716448CC5 /* FlicButtonService.swift */; };
-		DAC001 /* DoseActionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAC002 /* DoseActionCoordinator.swift */; };
 		FFCE63C8C666930BEE06D38F /* ThemeSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 707FF265ADBBA04484376264 /* ThemeSettingsView.swift */; };
 		HK001 /* HealthKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = HK002 /* HealthKitService.swift */; };
 		HKP001 /* HealthKitProviding.swift in Sources */ = {isa = PBXBuildFile; fileRef = HKP002 /* HealthKitProviding.swift */; };
@@ -86,8 +96,6 @@
 		UNDO005 /* MedicationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNDO006 /* MedicationSettingsView.swift */; };
 		UNDO007 /* MedicationPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNDO008 /* MedicationPickerView.swift */; };
 		WP001 /* WeeklyPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP002 /* WeeklyPlanner.swift */; };
-		8E967A52E8644DF89EEF23B9 /* Formatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49D083E0EC7947B795F0DD57 /* Formatters.swift */; };
-		E3B41D5FFE162C7FC40E4FD4 /* AdaptiveLayouts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ED119801E1E497EB929C45B /* AdaptiveLayouts.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -120,8 +128,11 @@
 		403FF1A5371F4BA427EC1520 /* WHOOPSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WHOOPSettingsView.swift; sourceTree = "<group>"; };
 		418F7D12D4A2473F800C75ED /* FullApp/DoseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/DoseModels.swift; sourceTree = "<group>"; };
 		42C70AB54EEE44A19DF24685 /* FetchHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FetchHelpers.swift; sourceTree = "<group>"; };
+		49D083E0EC7947B795F0DD57 /* Formatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Formatters.swift; sourceTree = "<group>"; };
 		4A3C6B3DB1EBBE10E2F3E7FB /* ReducedMotionSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReducedMotionSupport.swift; sourceTree = "<group>"; };
 		4E03D9DEC5D04B32AACF98BA /* TonightView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TonightView.swift; sourceTree = "<group>"; };
+		4ED119801E1E497EB929C45B /* AdaptiveLayouts.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AdaptiveLayouts.swift; sourceTree = "<group>"; };
+		4F45A7B56E2E0D80B5D5CBDD /* SharedDoseState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedDoseState.swift; sourceTree = "<group>"; };
 		576700D19A9F4B35BA54 /* SleepPlanDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepPlanDetailView.swift; sourceTree = "<group>"; };
 		60E7491C7A9D4FDE812F4BFB /* CompactDoseButton.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CompactDoseButton.swift; sourceTree = "<group>"; };
 		64641673735B464BB4E4B02F /* SessionRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepository.swift; sourceTree = "<group>"; };
@@ -137,6 +148,7 @@
 		80A27C7D2EFAC24D0005C000 /* DoseTap.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DoseTap.entitlements; sourceTree = "<group>"; };
 		80B7FD26BB9CFDD4F25097AC /* DatabaseSecurity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DatabaseSecurity.swift; sourceTree = "<group>"; };
 		8FABFEE0765C943A32E6ACC2 /* NightReviewView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NightReviewView.swift; sourceTree = "<group>"; };
+		A5EC28B4CBE024116041F88A /* DoseTapWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseTapWidgets.swift; sourceTree = "<group>"; };
 		AA0C7941006B40BEA391DD9A /* SessionSummaryViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionSummaryViews.swift; sourceTree = "<group>"; };
 		AAAAAAAA08C80B4B155C4F1F /* UndoSnackbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoSnackbar.swift; sourceTree = "<group>"; };
 		AAAAAAAA0C2B781536614815 /* UndoManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoManager.swift; sourceTree = "<group>"; };
@@ -166,16 +178,19 @@
 		B3941DD4936B4FD0BD5A8837 /* MorningCheckInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckInView.swift; sourceTree = "<group>"; };
 		B44F86E9E72D452CAFED6B16 /* SleepPlanCards.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SleepPlanCards.swift; sourceTree = "<group>"; };
 		B5D8DC9D91D38419C97E97FA /* EventStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventStorage.swift; sourceTree = "<group>"; };
+		B909173F1168B426E065A13A /* NightComparisonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightComparisonView.swift; sourceTree = "<group>"; };
 		BACAE6FF95D948B09DD2 /* SleepPlanDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepPlanDetailView.swift; sourceTree = "<group>"; };
 		BB4C5084D06D74163A5C71A9 /* UserSettingsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserSettingsManager.swift; sourceTree = "<group>"; };
+		BDD477019FF746C3DB7E7EE7 /* DoseTapIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseTapIntents.swift; sourceTree = "<group>"; };
 		BE3796A887B24D9FBBD40758 /* PreSleepLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreSleepLogView.swift; sourceTree = "<group>"; };
 		BEAE0B98FC8F48BAB6219546 /* QuickEventViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuickEventViews.swift; sourceTree = "<group>"; };
 		C01 /* DoseTap.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DoseTap.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C1FBB8D30211AB1F43A21D65 /* AppTheme.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
+		C5347FFF5FFC1A4A33C32C8D /* AutoExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoExportService.swift; sourceTree = "<group>"; };
 		C64168860F0E76DF93919D76 /* HighContrastColors.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HighContrastColors.swift; sourceTree = "<group>"; };
+		CAPF001 /* CapturePreviewSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePreviewSheet.swift; sourceTree = "<group>"; };
 		CEF16E4224E846ADAE92B1C6 /* DevelopmentHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevelopmentHelper.swift; sourceTree = "<group>"; };
 		CFF67F0048CFBF2716448CC5 /* FlicButtonService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FlicButtonService.swift; sourceTree = "<group>"; };
-		DAC002 /* DoseActionCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DoseActionCoordinator.swift; sourceTree = "<group>"; };
 		CLUST001 /* DashboardModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardModels.swift; sourceTree = "<group>"; };
 		CLUST002 /* DashboardViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardViews.swift; sourceTree = "<group>"; };
 		CLUST003 /* TimelineReviewViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineReviewViews.swift; sourceTree = "<group>"; };
@@ -184,6 +199,7 @@
 		D1BA2E6CCFB845E6BFC919FA /* FullApp/SetupWizardService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/SetupWizardService.swift; sourceTree = "<group>"; };
 		D42A891F4758470783F7565F /* DetailsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsView.swift; sourceTree = "<group>"; };
 		D565C0B5A1804860B23307B9 /* URLRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLRouter.swift; sourceTree = "<group>"; };
+		DAC002 /* DoseActionCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DoseActionCoordinator.swift; sourceTree = "<group>"; };
 		DD0E5B5C6E684F7796F9B9FC /* EventLogger.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EventLogger.swift; sourceTree = "<group>"; };
 		DED8B35BAB0493115DB99CA4 /* SecureLogger.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SecureLogger.swift; sourceTree = "<group>"; };
 		E0BC9035E4ACF20D1D40B9A9 /* SleepTimelineOverlays.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SleepTimelineOverlays.swift; sourceTree = "<group>"; };
@@ -217,8 +233,6 @@
 		UNDO006 /* MedicationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationSettingsView.swift; sourceTree = "<group>"; };
 		UNDO008 /* MedicationPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationPickerView.swift; sourceTree = "<group>"; };
 		WP002 /* WeeklyPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyPlanner.swift; sourceTree = "<group>"; };
-		49D083E0EC7947B795F0DD57 /* Formatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Formatters.swift; sourceTree = "<group>"; };
-		4ED119801E1E497EB929C45B /* AdaptiveLayouts.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AdaptiveLayouts.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -277,6 +291,14 @@
 			path = Security;
 			sourceTree = "<group>";
 		};
+		31738B20830B32ACB5ACB677 /* Intents */ = {
+			isa = PBXGroup;
+			children = (
+				BDD477019FF746C3DB7E7EE7 /* DoseTapIntents.swift */,
+			);
+			path = Intents;
+			sourceTree = "<group>";
+		};
 		77E2CF15B939DBF00AEEA465 /* Theme */ = {
 			isa = PBXGroup;
 			children = (
@@ -295,9 +317,20 @@
 			);
 			sourceTree = "<group>";
 		};
+		E471299E6268F81CAB46EE00 /* Widget */ = {
+			isa = PBXGroup;
+			children = (
+				A5EC28B4CBE024116041F88A /* DoseTapWidgets.swift */,
+				4F45A7B56E2E0D80B5D5CBDD /* SharedDoseState.swift */,
+			);
+			path = Widget;
+			sourceTree = "<group>";
+		};
 		F01 /* DoseTap */ = {
 			isa = PBXGroup;
 			children = (
+				31738B20830B32ACB5ACB677 /* Intents */,
+				E471299E6268F81CAB46EE00 /* Widget */,
 				80A27C7D2EFAC24D0005C000 /* DoseTap.entitlements */,
 				B03 /* Info.plist */,
 				ASSETS01 /* Assets.xcassets */,
@@ -344,7 +377,7 @@
 				7772A3ACA248F927B3008122 /* SecureConfig.swift */,
 				403FF1A5371F4BA427EC1520 /* WHOOPSettingsView.swift */,
 				CFF67F0048CFBF2716448CC5 /* FlicButtonService.swift */,
-						DAC002 /* DoseActionCoordinator.swift */,
+				DAC002 /* DoseActionCoordinator.swift */,
 				49D083E0EC7947B795F0DD57 /* Formatters.swift */,
 				C64168860F0E76DF93919D76 /* HighContrastColors.swift */,
 				7D7115779119154483A7838A /* UndoStateManager.swift */,
@@ -378,6 +411,7 @@
 		GRP_EXPORT /* Export */ = {
 			isa = PBXGroup;
 			children = (
+				C5347FFF5FFC1A4A33C32C8D /* AutoExportService.swift */,
 				F90DAD707525490DB491F5EA /* CSVExporter.swift */,
 			);
 			path = Export;
@@ -395,6 +429,7 @@
 		GRP_HISTORY /* History */ = {
 			isa = PBXGroup;
 			children = (
+				B909173F1168B426E065A13A /* NightComparisonView.swift */,
 				CLUST004 /* HistoryViews.swift */,
 			);
 			path = History;
@@ -448,6 +483,7 @@
 			isa = PBXGroup;
 			children = (
 				ACTF001 /* ActivityViewController.swift */,
+				CAPF001 /* CapturePreviewSheet.swift */,
 				B3941DD4936B4FD0BD5A8837 /* MorningCheckInView.swift */,
 				BE3796A887B24D9FBBD40758 /* PreSleepLogView.swift */,
 				UNDO004 /* UndoSnackbarView.swift */,
@@ -642,7 +678,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				8E967A52E8644DF89EEF23B9 /* Formatters.swift in Sources */,
+				80D996622F5CFA280092DB29 /* Formatters.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -650,6 +686,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5A7A4083ACC81A0C1659AF4B /* NightComparisonView.swift in Sources */,
+				74CB1E6BE7206ADBD4DD9C7F /* DoseTapIntents.swift in Sources */,
+				96A6B3D448ADF27325ED20CD /* DoseTapWidgets.swift in Sources */,
+				2F7B4009B1F4BB8976B7E89E /* SharedDoseState.swift in Sources */,
+				270FF25D2FCE5D7505B259FB /* AutoExportService.swift in Sources */,
 				8E967A52E8644DF89EEF23B9 /* Formatters.swift in Sources */,
 				A01 /* DoseTapApp.swift in Sources */,
 				A02 /* ContentView.swift in Sources */,
@@ -698,6 +739,7 @@
 				D8746EA078A54AF7A8CE92B3 /* MorningCheckInView.swift in Sources */,
 				F94248D37BBE47A5A2E90C9B /* PreSleepLogView.swift in Sources */,
 				ACTB001 /* ActivityViewController.swift in Sources */,
+				CAPB001 /* CapturePreviewSheet.swift in Sources */,
 				01FF500944CC4F14A6E163C4 /* FullApp/DoseModels.swift in Sources */,
 				05D399B5B86749ACB9CD89BF /* FullApp/KeychainHelper.swift in Sources */,
 				E7EA21EC3FE949B3890BF69A /* FullApp/SetupWizardService.swift in Sources */,
@@ -713,7 +755,7 @@
 				8DA90A6B025231EACF48A8AD /* SecureConfig.swift in Sources */,
 				194E929BA46514E973F8ACEE /* WHOOPSettingsView.swift in Sources */,
 				FC82425609210406E72373A8 /* FlicButtonService.swift in Sources */,
-						DAC001 /* DoseActionCoordinator.swift in Sources */,
+				DAC001 /* DoseActionCoordinator.swift in Sources */,
 				11C08ABBAF24106F948991D3 /* HighContrastColors.swift in Sources */,
 				B264C67A3D970638F91FC1ED /* UndoStateManager.swift in Sources */,
 				75396BE379F85EF05DC1AEE6 /* WHOOPDataFetching.swift in Sources */,
@@ -734,7 +776,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				8E967A52E8644DF89EEF23B9 /* Formatters.swift in Sources */,
+				80D996632F5CFA280092DB29 /* Formatters.swift in Sources */,
 				UI_B01 /* DoseTapUITests.swift in Sources */,
 				UI_B02 /* DoseTapUITestsLaunchTests.swift in Sources */,
 			);
@@ -803,7 +845,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.NoCloud.entitlements;
+				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
@@ -813,7 +855,7 @@
 				INFOPLIST_FILE = DoseTap/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "DoseTap Staging";
 				INFOPLIST_KEY_CFBundleName = "DoseTap Staging";
-				INFOPLIST_KEY_DoseTapCloudSyncEnabled = NO;
+				INFOPLIST_KEY_DoseTapCloudSyncEnabled = YES;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.medical";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "DoseTap can use Bluetooth if you connect a button directly.";
 				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "DoseTap can use Bluetooth if you connect a button directly.";
@@ -1077,7 +1119,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.NoCloud.entitlements;
+				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
@@ -1088,7 +1130,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = DoseTap/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = DoseTap;
-				INFOPLIST_KEY_DoseTapCloudSyncEnabled = NO;
+				INFOPLIST_KEY_DoseTapCloudSyncEnabled = YES;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.medical";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "DoseTap can use Bluetooth if you connect a button directly.";

@@ -5,6 +5,42 @@ import os.log
 import UIKit
 #endif
 
+// MARK: - History Filter Chips
+enum HistoryFilter: String, CaseIterable, Identifiable {
+    case all = "All"
+    case onTime = "On Time"
+    case late = "Late"
+    case skipped = "Skipped"
+    case dose1Only = "D1 Only"
+
+    var id: String { rawValue }
+    var icon: String {
+        switch self {
+        case .all: return "line.3.horizontal.decrease.circle"
+        case .onTime: return "checkmark.circle.fill"
+        case .late: return "clock.badge.exclamationmark"
+        case .skipped: return "forward.fill"
+        case .dose1Only: return "1.circle"
+        }
+    }
+
+    func matches(_ session: SessionSummary) -> Bool {
+        switch self {
+        case .all: return true
+        case .onTime:
+            guard let iv = session.intervalMinutes else { return false }
+            return (150...165).contains(iv)
+        case .late:
+            guard let iv = session.intervalMinutes else { return false }
+            return iv > 165 && iv <= 240
+        case .skipped:
+            return session.dose2Skipped
+        case .dose1Only:
+            return session.dose1Time != nil && session.dose2Time == nil && !session.dose2Skipped
+        }
+    }
+}
+
 struct HistoryView: View {
     @Environment(\.isInSplitView) private var isInSplitView
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -12,10 +48,40 @@ struct HistoryView: View {
     @State private var pastSessions: [SessionSummary] = []
     @State private var showDeleteDayConfirmation = false
     @State private var refreshTrigger = false  // Toggled to force SelectedDayView refresh
+    @State private var searchText = ""
+    @State private var activeFilter: HistoryFilter = .all
     
     private let sessionRepo = SessionRepository.shared
 
     private var isWideLayout: Bool { horizontalSizeClass == .regular }
+
+    /// True when search or filter is active — show filtered results instead of calendar
+    private var isSearchActive: Bool {
+        !searchText.isEmpty || activeFilter != .all
+    }
+
+    private var filteredSessions: [SessionSummary] {
+        var result = pastSessions
+        // Apply filter chip
+        if activeFilter != .all {
+            result = result.filter { activeFilter.matches($0) }
+        }
+        // Apply text search
+        if !searchText.isEmpty {
+            let query = searchText.lowercased()
+            result = result.filter { session in
+                if session.sessionDate.lowercased().contains(query) { return true }
+                if session.sleepEvents.contains(where: {
+                    $0.eventType.lowercased().contains(query)
+                    || ($0.notes?.lowercased().contains(query) ?? false)
+                }) { return true }
+                if let iv = session.intervalMinutes, "\(iv)m".contains(query) { return true }
+                if session.dose2Skipped && "skipped".contains(query) { return true }
+                return false
+            }
+        }
+        return result
+    }
     
     var body: some View {
         if isInSplitView {
@@ -29,15 +95,25 @@ struct HistoryView: View {
 
     private var historyContent: some View {
         ScrollView {
-            if isWideLayout {
-                // iPad: side-by-side calendar + selected day detail
+            // Filter chip bar (always visible)
+            historyFilterBar
+
+            if isSearchActive {
+                // Search / filter results replace calendar
+                filteredResultsList
+            } else if isWideLayout {
                 wideHistoryLayout
             } else {
-                // iPhone: stacked vertical layout
                 compactHistoryLayout
             }
         }
         .navigationTitle("History")
+        .searchable(text: $searchText, prompt: "Search sessions, events…")
+        .onChange(of: searchText) { _ in
+            if isSearchActive {
+                ensureExpandedHistory()
+            }
+        }
         .refreshable {
             loadHistory()
         }
@@ -50,6 +126,73 @@ struct HistoryView: View {
         } message: {
             Text("This will delete all dose data and events for this day. This cannot be undone.")
         }
+    }
+
+    // MARK: - Filter Chip Bar
+    private var historyFilterBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(HistoryFilter.allCases) { filter in
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            if activeFilter == filter {
+                                activeFilter = .all
+                            } else {
+                                activeFilter = filter
+                                if filter != .all {
+                                    ensureExpandedHistory()
+                                }
+                            }
+                        }
+                    } label: {
+                        Label(filter.rawValue, systemImage: filter.icon)
+                            .font(.caption.weight(.medium))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(
+                                Capsule().fill(activeFilter == filter ? Color.accentColor : Color(.systemGray5))
+                            )
+                            .foregroundColor(activeFilter == filter ? .white : .primary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 4)
+        }
+    }
+
+    // MARK: - Filtered Results List
+    private var filteredResultsList: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("\(filteredSessions.count) result\(filteredSessions.count == 1 ? "" : "s")")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .padding(.horizontal)
+
+            if filteredSessions.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.largeTitle)
+                        .foregroundColor(.secondary)
+                    Text("No matching sessions")
+                        .font(.headline)
+                    Text("Try a different search term or filter.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 40)
+            } else {
+                LazyVStack(spacing: 8) {
+                    ForEach(filteredSessions, id: \.sessionDate) { session in
+                        SessionSearchResultRow(session: session)
+                    }
+                }
+                .padding(.horizontal)
+            }
+        }
+        .padding(.bottom, 80)
     }
 
     // MARK: - Wide Layout (iPad)
@@ -95,6 +238,19 @@ struct HistoryView: View {
                 .frame(maxWidth: .infinity)
             }
             .padding(.horizontal)
+            
+            // P3-6: Compare two nights
+            NavigationLink {
+                NightComparisonPickerView()
+            } label: {
+                Label("Compare Nights", systemImage: "arrow.left.arrow.right")
+                    .font(.subheadline.weight(.medium))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Color(.systemGray6)))
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal)
         }
         .padding(.vertical)
         .padding(.bottom, 80)
@@ -134,13 +290,30 @@ struct HistoryView: View {
             
             // Recent Sessions List
             RecentSessionsList()
+            
+            // P3-6: Compare two nights
+            NavigationLink {
+                NightComparisonPickerView()
+            } label: {
+                Label("Compare Nights", systemImage: "arrow.left.arrow.right")
+                    .font(.subheadline.weight(.medium))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Color(.systemGray6)))
+            }
+            .buttonStyle(.plain)
         }
         .padding()
         .padding(.bottom, 80)
     }
     
     private func loadHistory() {
-        pastSessions = sessionRepo.fetchRecentSessions(days: 7)
+        pastSessions = sessionRepo.fetchRecentSessions(days: 30)
+    }
+
+    private func ensureExpandedHistory() {
+        guard pastSessions.count < 90 else { return }
+        pastSessions = sessionRepo.fetchRecentSessions(days: 90)
     }
     
     private func deleteSelectedDay() {
@@ -655,6 +828,79 @@ struct SessionRow: View {
             }
         }
         .padding(.vertical, 6)
+    }
+}
+
+// MARK: - Session Search Result Row (richer than SessionRow)
+struct SessionSearchResultRow: View {
+    let session: SessionSummary
+
+    private var statusTag: (String, Color) {
+        if session.dose2Skipped { return ("Skipped", .orange) }
+        guard let iv = session.intervalMinutes else {
+            if session.dose1Time != nil { return ("D1 Only", .yellow) }
+            return ("No Doses", .gray)
+        }
+        if (150...165).contains(iv) { return ("On Time", .green) }
+        if iv > 165 && iv <= 240 { return ("Late", .red) }
+        return ("Out of Window", .red)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(session.sessionDate)
+                    .font(.subheadline.bold())
+                Spacer()
+                Text(statusTag.0)
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(statusTag.1.opacity(0.2)))
+                    .foregroundColor(statusTag.1)
+            }
+
+            HStack(spacing: 12) {
+                if let d1 = session.dose1Time {
+                    Label(d1.formatted(date: .omitted, time: .shortened), systemImage: "1.circle.fill")
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                }
+                if let d2 = session.dose2Time {
+                    Label(d2.formatted(date: .omitted, time: .shortened), systemImage: "2.circle.fill")
+                        .font(.caption)
+                        .foregroundColor(.green)
+                }
+                if let iv = session.intervalMinutes {
+                    Label(TimeIntervalMath.formatMinutes(iv), systemImage: "timer")
+                        .font(.caption)
+                        .foregroundColor(.purple)
+                }
+            }
+
+            if !session.sleepEvents.isEmpty {
+                let eventNames = Array(Set(session.sleepEvents.map(\.eventType))).sorted().prefix(5)
+                HStack(spacing: 4) {
+                    ForEach(eventNames, id: \.self) { name in
+                        Text(name)
+                            .font(.caption2)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(Color(.systemGray5)))
+                    }
+                    if session.sleepEvents.count > 5 {
+                        Text("+\(session.sleepEvents.count - 5)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(.systemGray6))
+        )
     }
 }
 
@@ -1332,5 +1578,10 @@ struct WarningRow: View {
 
 // MARK: - Preview
 #Preview {
-    ContentView()
+    let container = AppContainer()
+    return ContentView()
+        .environmentObject(container)
+        .environmentObject(container.settings)
+        .environmentObject(container.sessionRepository)
+        .environmentObject(container.alarmService)
 }

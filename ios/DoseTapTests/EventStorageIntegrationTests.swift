@@ -121,6 +121,59 @@ final class EventStorageIntegrationTests: XCTestCase {
         XCTAssertEqual(tryUnwrap(currentLog.dose2Time).timeIntervalSince1970, currentDose2.timeIntervalSince1970, accuracy: 0.001)
     }
 
+    func test_sessionDiscovery_includesMorningMedicationAndPreSleepOnlySessions() throws {
+        let morningOnlyDate = "2026-02-13"
+        let medicationOnlyDate = "2026-02-14"
+        let preSleepOnlyDate = "2026-02-15"
+
+        storage.saveMorningCheckIn(
+            StoredMorningCheckIn(
+                id: UUID().uuidString,
+                sessionId: morningOnlyDate,
+                timestamp: makeDate("2026-02-14T12:00:00.000Z"),
+                sessionDate: morningOnlyDate,
+                sleepQuality: 4
+            ),
+            forSession: morningOnlyDate
+        )
+
+        storage.insertMedicationEvent(
+            StoredMedicationEntry(
+                sessionId: medicationOnlyDate,
+                sessionDate: medicationOnlyDate,
+                medicationId: "adderall_xr",
+                doseMg: 10,
+                takenAtUTC: makeDate("2026-02-14T23:00:00.000Z"),
+                doseUnit: "mg",
+                formulation: "xr",
+                localOffsetMinutes: 0,
+                notes: "with food"
+            )
+        )
+
+        _ = try storage.savePreSleepLogOrThrow(
+            sessionId: preSleepOnlyDate,
+            answers: PreSleepLogAnswers(stressLevel: 2),
+            completionState: "complete",
+            now: makeDate("2026-02-15T21:00:00.000Z"),
+            timeZone: TimeZone(identifier: "UTC")!
+        )
+
+        let dates = storage.getAllSessionDates()
+        XCTAssertEqual(Set(dates), Set([morningOnlyDate, medicationOnlyDate, preSleepOnlyDate]))
+
+        let sessions = storage.fetchRecentSessionsLocal(days: 10)
+        let keyed = Dictionary(uniqueKeysWithValues: sessions.map { ($0.sessionDate, $0) })
+
+        XCTAssertEqual(keyed.count, 3)
+        XCTAssertNil(keyed[morningOnlyDate]?.dose1Time)
+        XCTAssertEqual(keyed[morningOnlyDate]?.eventCount, 0)
+        XCTAssertNil(keyed[medicationOnlyDate]?.dose1Time)
+        XCTAssertEqual(keyed[medicationOnlyDate]?.eventCount, 0)
+        XCTAssertNil(keyed[preSleepOnlyDate]?.dose1Time)
+        XCTAssertEqual(keyed[preSleepOnlyDate]?.eventCount, 0)
+    }
+
     private func makeDate(_ isoString: String) -> Date {
         guard let date = iso.date(from: isoString) else {
             XCTFail("Invalid ISO date: \(isoString)")

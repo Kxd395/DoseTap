@@ -9,6 +9,32 @@ struct HealthKitSettingsView: View {
     @State private var isLoading = false
     @State private var showingBaseline = false
     private let defaultProvider: any HealthKitProviding = HealthKitProviderFactory.makeDefault()
+
+    private var connectionTitle: String {
+        if !healthKit.isAvailable {
+            return "Unavailable"
+        }
+        if healthKit.isAuthorized && settings.healthKitEnabled {
+            return "Connected"
+        }
+        if healthKit.isAuthorized {
+            return "Connected"
+        }
+        return "Not Connected"
+    }
+
+    private var connectionSubtitle: String {
+        if !healthKit.isAvailable {
+            return "Apple Health is unavailable on this device"
+        }
+        if healthKit.isAuthorized && settings.healthKitEnabled {
+            return "Sleep access is enabled in DoseTap"
+        }
+        if healthKit.isAuthorized {
+            return "Permission granted, but disabled in DoseTap"
+        }
+        return "Grant sleep access to sync Apple Health nights"
+    }
     
     var body: some View {
         List {
@@ -22,18 +48,29 @@ struct HealthKitSettingsView: View {
             } else {
                 Section {
                     HStack {
-                        Label("Status", systemImage: "heart.fill")
-                        Spacer()
-                        if healthKit.isAuthorized {
-                            Label("Connected", systemImage: "checkmark.circle.fill")
-                                .foregroundColor(.green)
-                                .labelStyle(.titleOnly)
-                        } else {
-                            Text("Not Connected")
+                        Image(systemName: healthKit.isAuthorized ? "checkmark.circle.fill" : "circle")
+                            .foregroundColor(healthKit.isAuthorized ? .green : .secondary)
+                            .font(.title2)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(connectionTitle)
+                                .font(.headline)
+                            Text(connectionSubtitle)
+                                .font(.caption)
                                 .foregroundColor(.secondary)
                         }
                     }
-                    
+
+                    if healthKit.isAuthorized {
+                        Toggle(isOn: $settings.healthKitEnabled) {
+                            Label("Use Sleep Data", systemImage: "bed.double.fill")
+                        }
+                    }
+                } header: {
+                    Label("Connection", systemImage: "link")
+                }
+
+                Section {
                     if !healthKit.isAuthorized {
                         Button {
                             Task {
@@ -47,7 +84,7 @@ struct HealthKitSettingsView: View {
                             }
                         } label: {
                             HStack {
-                                Label("Connect Apple Health", systemImage: "link")
+                                Label("Connect Apple Health", systemImage: "link.badge.plus")
                                 if isLoading {
                                     Spacer()
                                     ProgressView()
@@ -55,19 +92,9 @@ struct HealthKitSettingsView: View {
                             }
                         }
                         .disabled(isLoading)
-                    } else {
-                        Toggle(isOn: $settings.healthKitEnabled) {
-                            Label("Use Sleep Data", systemImage: "bed.double.fill")
-                        }
                     }
-                } header: {
-                    Label("Apple Health", systemImage: "heart.text.square")
-                } footer: {
-                    Text("DoseTap reads sleep data to learn your patterns and optimize wake times.")
-                }
-                
-                if healthKit.isAuthorized && settings.healthKitEnabled {
-                    Section {
+
+                    if healthKit.isAuthorized && settings.healthKitEnabled {
                         Button {
                             Task {
                                 isLoading = true
@@ -85,7 +112,13 @@ struct HealthKitSettingsView: View {
                             }
                         }
                         .disabled(isLoading)
-                        
+                    }
+                } header: {
+                    Label("Actions", systemImage: "hand.tap")
+                }
+
+                if healthKit.isAuthorized && settings.healthKitEnabled {
+                    Section {
                         if let baseline = healthKit.ttfwBaseline {
                             HStack {
                                 Label("Avg Time to First Wake", systemImage: "clock.fill")
@@ -94,7 +127,7 @@ struct HealthKitSettingsView: View {
                                     .foregroundColor(.blue)
                                     .fontWeight(.semibold)
                             }
-                            
+
                             if let nudge = healthKit.calculateNudgeSuggestion() {
                                 HStack {
                                     Label("Suggested Nudge", systemImage: "arrow.left.arrow.right")
@@ -104,13 +137,17 @@ struct HealthKitSettingsView: View {
                                         .fontWeight(.semibold)
                                 }
                             }
+                        } else {
+                            Text("Run sleep baseline once to calculate your average time to first wake.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
                         }
                     } header: {
                         Label("Sleep Analysis", systemImage: "waveform.path.ecg")
                     } footer: {
                         Text("Analyzes 14 nights of sleep data to find your natural wake rhythm.")
                     }
-                    
+
                     if !healthKit.sleepHistory.isEmpty {
                         Section {
                             ForEach(healthKit.sleepHistory.prefix(7)) { night in
@@ -139,7 +176,7 @@ struct HealthKitSettingsView: View {
                                 }
                             }
                         } header: {
-                            Label("Recent Nights", systemImage: "calendar")
+                            Label("Recent Sleep", systemImage: "moon.zzz.fill")
                         }
                     }
                 }
@@ -174,6 +211,66 @@ struct HealthKitSettingsView: View {
             }
         }
         .navigationTitle("Apple Health")
+        .onAppear {
+            healthKit.checkAuthorizationStatus()
+        }
+    }
+}
+
+// MARK: - Compact Apple Health Status for Settings List
+
+struct AppleHealthStatusRow: View {
+    @StateObject private var healthKit = HealthKitService.shared
+    @StateObject private var settings = UserSettingsManager.shared
+
+    private var statusText: String {
+        if !healthKit.isAvailable {
+            return "Unavailable on this device"
+        }
+        if healthKit.isAuthorized && settings.healthKitEnabled {
+            return "Connected"
+        }
+        if healthKit.isAuthorized {
+            return "Connected, but disabled in DoseTap"
+        }
+        return "Not connected"
+    }
+
+    private var statusColor: Color {
+        if healthKit.isAuthorized && settings.healthKitEnabled {
+            return .green
+        }
+        if healthKit.isAuthorized {
+            return .orange
+        }
+        return .secondary
+    }
+
+    var body: some View {
+        NavigationLink {
+            HealthKitSettingsView()
+        } label: {
+            HStack {
+                Image(systemName: "heart.fill")
+                    .foregroundColor(.teal)
+                    .font(.title2)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Apple Health")
+                        .font(.body)
+                    Text(statusText)
+                        .font(.caption)
+                        .foregroundColor(statusColor)
+                }
+
+                Spacer()
+
+                if healthKit.isAuthorized && settings.healthKitEnabled {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                }
+            }
+        }
         .onAppear {
             healthKit.checkAuthorizationStatus()
         }

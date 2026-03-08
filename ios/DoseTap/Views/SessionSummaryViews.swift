@@ -5,13 +5,17 @@ import DoseCore
 struct CompactSessionSummary: View {
     @ObservedObject var core: DoseTapCore
     @ObservedObject var eventLogger: EventLogger
+    @ObservedObject private var sessionRepo = SessionRepository.shared
     @State private var showEventsPopover = false
+    @State private var doseEvents: [StoredDoseEvent] = []
+    @State private var preSleepLog: StoredPreSleepLog?
     
     var body: some View {
         HStack(spacing: 16) {
             CompactSummaryItem(
                 icon: "1.circle.fill",
                 value: core.dose1Time?.formatted(date: .omitted, time: .shortened) ?? "–",
+                detail: dose1AmountText,
                 label: "Dose 1",
                 color: core.dose1Time != nil ? .green : .gray
             )
@@ -22,6 +26,7 @@ struct CompactSessionSummary: View {
             CompactSummaryItem(
                 icon: "2.circle.fill",
                 value: dose2Value,
+                detail: dose2AmountText,
                 label: "Dose 2",
                 color: dose2Color
             )
@@ -53,6 +58,7 @@ struct CompactSessionSummary: View {
             CompactSummaryItem(
                 icon: "bell.fill",
                 value: "\(core.snoozeCount)/3",
+                detail: nil,
                 label: "Snooze",
                 color: core.snoozeCount > 0 ? .orange : .gray
             )
@@ -63,6 +69,10 @@ struct CompactSessionSummary: View {
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color(.systemGray6))
         )
+        .onAppear { loadDoseContext() }
+        .onReceive(sessionRepo.sessionDidChange) { _ in
+            loadDoseContext()
+        }
         .sheet(isPresented: $showEventsPopover) {
             TonightEventsSheet(events: eventLogger.events, onDelete: { id in
                 eventLogger.deleteEvent(id: id)
@@ -84,6 +94,68 @@ struct CompactSessionSummary: View {
         if core.dose2Time != nil { return .green }
         if core.isSkipped { return .orange }
         return .gray
+    }
+
+    private var dose1AmountText: String? {
+        guard core.dose1Time != nil else { return nil }
+        return plannedAmountText(for: "dose1")
+    }
+
+    private var dose2AmountText: String? {
+        guard core.dose2Time != nil else { return nil }
+        return plannedAmountText(for: "dose2")
+    }
+
+    private func loadDoseContext() {
+        doseEvents = sessionRepo.fetchDoseEventsForActiveSession()
+        let sessionKey = sessionRepo.preSleepDisplaySessionKey()
+        preSleepLog = sessionRepo.fetchMostRecentPreSleepLog(sessionId: sessionKey)
+    }
+
+    private func plannedAmountText(for eventType: String) -> String? {
+        if let amount = amountFromMetadata(for: eventType) {
+            return "\(amount.formatted(.number.grouping(.automatic))) mg"
+        }
+
+        guard let answers = preSleepLog?.answers else { return nil }
+        let plannedAmount: Int?
+        if eventType == "dose1" {
+            if let explicit = answers.plannedDose1Mg {
+                plannedAmount = explicit
+            } else if let total = answers.resolvedPlannedTotalNightlyMg {
+                plannedAmount = Int((Double(total) * answers.resolvedPlannedDoseSplitRatio[0]).rounded())
+            } else {
+                plannedAmount = nil
+            }
+        } else {
+            if let explicit = answers.plannedDose2Mg {
+                plannedAmount = explicit
+            } else if let total = answers.resolvedPlannedTotalNightlyMg {
+                plannedAmount = Int((Double(total) * answers.resolvedPlannedDoseSplitRatio[1]).rounded())
+            } else {
+                plannedAmount = nil
+            }
+        }
+        guard let plannedAmount else { return nil }
+        return "\(plannedAmount.formatted(.number.grouping(.automatic))) mg"
+    }
+
+    private func amountFromMetadata(for eventType: String) -> Int? {
+        guard
+            let metadata = doseEvents.first(where: { $0.eventType == eventType })?.metadata,
+            let data = metadata.data(using: .utf8),
+            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            return nil
+        }
+
+        if let value = json["amount_mg"] as? Int {
+            return value
+        }
+        if let value = json["amount_mg"] as? Double {
+            return Int(value.rounded())
+        }
+        return nil
     }
 }
 
@@ -216,6 +288,7 @@ struct DoseIntervalsCard: View {
 struct CompactSummaryItem: View {
     let icon: String
     let value: String
+    let detail: String?
     let label: String
     let color: Color
     
@@ -228,6 +301,13 @@ struct CompactSummaryItem: View {
                 .font(.caption.bold())
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
+            if let detail {
+                Text(detail)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
             Text(label)
                 .font(.caption2)
                 .foregroundColor(.secondary)
@@ -240,6 +320,9 @@ struct CompactSummaryItem: View {
 struct SessionSummaryCard: View {
     @ObservedObject var core: DoseTapCore
     let eventCount: Int
+    @ObservedObject private var sessionRepo = SessionRepository.shared
+    @State private var doseEvents: [StoredDoseEvent] = []
+    @State private var preSleepLog: StoredPreSleepLog?
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -251,6 +334,7 @@ struct SessionSummaryCard: View {
                     icon: "1.circle.fill",
                     label: "Dose 1",
                     value: core.dose1Time?.formatted(date: .omitted, time: .shortened) ?? "–",
+                    detail: dose1AmountText,
                     color: core.dose1Time != nil ? .green : .gray
                 )
                 
@@ -258,6 +342,7 @@ struct SessionSummaryCard: View {
                     icon: "2.circle.fill",
                     label: "Dose 2",
                     value: doseValue,
+                    detail: dose2AmountText,
                     color: dose2Color
                 )
                 
@@ -265,6 +350,7 @@ struct SessionSummaryCard: View {
                     icon: "list.bullet",
                     label: "Events",
                     value: "\(eventCount)",
+                    detail: nil,
                     color: .blue
                 )
                 
@@ -272,6 +358,7 @@ struct SessionSummaryCard: View {
                     icon: "bell.fill",
                     label: "Snoozes",
                     value: "\(core.snoozeCount)/3",
+                    detail: nil,
                     color: core.snoozeCount > 0 ? .orange : .gray
                 )
             }
@@ -281,6 +368,10 @@ struct SessionSummaryCard: View {
             RoundedRectangle(cornerRadius: 16)
                 .fill(Color(.systemGray6))
         )
+        .onAppear { loadDoseContext() }
+        .onReceive(sessionRepo.sessionDidChange) { _ in
+            loadDoseContext()
+        }
     }
     
     private var doseValue: String {
@@ -298,6 +389,68 @@ struct SessionSummaryCard: View {
         if core.isSkipped { return .orange }
         return .gray
     }
+
+    private var dose1AmountText: String? {
+        guard core.dose1Time != nil else { return nil }
+        return plannedAmountText(for: "dose1")
+    }
+
+    private var dose2AmountText: String? {
+        guard core.dose2Time != nil else { return nil }
+        return plannedAmountText(for: "dose2")
+    }
+
+    private func loadDoseContext() {
+        doseEvents = sessionRepo.fetchDoseEventsForActiveSession()
+        let sessionKey = sessionRepo.preSleepDisplaySessionKey()
+        preSleepLog = sessionRepo.fetchMostRecentPreSleepLog(sessionId: sessionKey)
+    }
+
+    private func plannedAmountText(for eventType: String) -> String? {
+        if let amount = amountFromMetadata(for: eventType) {
+            return "\(amount.formatted(.number.grouping(.automatic))) mg"
+        }
+
+        guard let answers = preSleepLog?.answers else { return nil }
+        let plannedAmount: Int?
+        if eventType == "dose1" {
+            if let explicit = answers.plannedDose1Mg {
+                plannedAmount = explicit
+            } else if let total = answers.resolvedPlannedTotalNightlyMg {
+                plannedAmount = Int((Double(total) * answers.resolvedPlannedDoseSplitRatio[0]).rounded())
+            } else {
+                plannedAmount = nil
+            }
+        } else {
+            if let explicit = answers.plannedDose2Mg {
+                plannedAmount = explicit
+            } else if let total = answers.resolvedPlannedTotalNightlyMg {
+                plannedAmount = Int((Double(total) * answers.resolvedPlannedDoseSplitRatio[1]).rounded())
+            } else {
+                plannedAmount = nil
+            }
+        }
+        guard let plannedAmount else { return nil }
+        return "\(plannedAmount.formatted(.number.grouping(.automatic))) mg"
+    }
+
+    private func amountFromMetadata(for eventType: String) -> Int? {
+        guard
+            let metadata = doseEvents.first(where: { $0.eventType == eventType })?.metadata,
+            let data = metadata.data(using: .utf8),
+            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            return nil
+        }
+
+        if let value = json["amount_mg"] as? Int {
+            return value
+        }
+        if let value = json["amount_mg"] as? Double {
+            return Int(value.rounded())
+        }
+        return nil
+    }
 }
 
 // MARK: - Summary Item
@@ -305,6 +458,7 @@ struct SummaryItem: View {
     let icon: String
     let label: String
     let value: String
+    let detail: String?
     let color: Color
     
     var body: some View {
@@ -316,6 +470,13 @@ struct SummaryItem: View {
                 .font(.subheadline.bold())
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
+            if let detail {
+                Text(detail)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
             Text(label)
                 .font(.caption2)
                 .foregroundColor(.secondary)

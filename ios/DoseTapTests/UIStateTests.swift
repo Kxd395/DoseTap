@@ -328,3 +328,145 @@ final class PreSleepCardStateTests: XCTestCase {
         XCTAssertEqual(state.action, .edit(id: "log-999"))
     }
 }
+
+@MainActor
+final class DashboardStressTrendTests: XCTestCase {
+    func test_stressTrendAnalytics_captureCarryoverAndHighStressImpact() throws {
+        let model = DashboardAnalyticsModel()
+        model.selectedRange = .all
+        model.nights = [
+            makeNight(
+                sessionDate: "2026-01-12",
+                bedtimeStress: 5,
+                bedtimeDrivers: [.work],
+                wakeStress: 4,
+                wakeDrivers: [.financial],
+                sleepQuality: 3,
+                readiness: 3,
+                intervalMinutes: 180
+            ),
+            makeNight(
+                sessionDate: "2026-01-11",
+                bedtimeStress: 2,
+                bedtimeDrivers: [.relationship],
+                wakeStress: 1,
+                wakeDrivers: [],
+                sleepQuality: 4,
+                readiness: 4,
+                intervalMinutes: 170
+            ),
+            makeNight(
+                sessionDate: "2026-01-10",
+                bedtimeStress: 4,
+                bedtimeDrivers: [.work, .health],
+                wakeStress: 5,
+                wakeDrivers: [.work],
+                sleepQuality: 2,
+                readiness: 2,
+                intervalMinutes: 210
+            )
+        ]
+
+        XCTAssertEqual(model.stressTrendNightCount, 3)
+        XCTAssertEqual(model.topRecurringStressDriver, .work)
+        XCTAssertEqual(model.topCarryoverStressDriver, .work)
+        XCTAssertEqual(model.recurringStressDrivers.first?.totalCount, 3)
+        XCTAssertEqual(model.recurringStressDrivers.first?.carryoverCount, 1)
+        XCTAssertEqual(model.stressCarryoverNightRate ?? 0, 50, accuracy: 0.01)
+        XCTAssertEqual(model.sleepQualityByHighBedtimeStress.high ?? 0, 2.5, accuracy: 0.01)
+        XCTAssertEqual(model.sleepQualityByHighBedtimeStress.lower ?? 0, 4.0, accuracy: 0.01)
+        XCTAssertEqual(model.readinessByHighBedtimeStress.high ?? 0, 2.5, accuracy: 0.01)
+        XCTAssertEqual(model.readinessByHighBedtimeStress.lower ?? 0, 4.0, accuracy: 0.01)
+        XCTAssertEqual(model.intervalByHighBedtimeStress.high ?? 0, 195, accuracy: 0.01)
+        XCTAssertEqual(model.intervalByHighBedtimeStress.lower ?? 0, 170, accuracy: 0.01)
+    }
+
+    private func makeNight(
+        sessionDate: String,
+        bedtimeStress: Int,
+        bedtimeDrivers: [CommonStressDriver],
+        wakeStress: Int,
+        wakeDrivers: [CommonStressDriver],
+        sleepQuality: Int,
+        readiness: Int,
+        intervalMinutes: Int
+    ) -> DashboardNightAggregate {
+        let baseDate = AppFormatters.sessionDate.date(from: sessionDate) ?? Date()
+        return DashboardNightAggregate(
+            sessionDate: sessionDate,
+            dose1Time: baseDate,
+            dose2Time: baseDate.addingTimeInterval(TimeInterval(intervalMinutes * 60)),
+            dose2Skipped: false,
+            snoozeCount: 0,
+            extraDoseCount: 0,
+            events: [],
+            morningCheckIn: makeMorningCheckIn(
+                sessionDate: sessionDate,
+                timestamp: baseDate.addingTimeInterval(8 * 60 * 60),
+                sleepQuality: sleepQuality,
+                readiness: readiness,
+                stressLevel: wakeStress,
+                stressDrivers: wakeDrivers
+            ),
+            preSleepLog: makePreSleepLog(
+                sessionDate: sessionDate,
+                timestamp: baseDate,
+                stressLevel: bedtimeStress,
+                stressDrivers: bedtimeDrivers
+            ),
+            healthSummary: nil,
+            whoopSummary: nil,
+            duplicateClusterCount: 0,
+            napSummary: SessionRepository.NapSummary(count: 0, totalMinutes: 0)
+        )
+    }
+
+    private func makePreSleepLog(
+        sessionDate: String,
+        timestamp: Date,
+        stressLevel: Int,
+        stressDrivers: [CommonStressDriver]
+    ) -> DoseTap.StoredPreSleepLog {
+        DoseTap.StoredPreSleepLog(
+            id: "pre-\(sessionDate)",
+            sessionId: sessionDate,
+            createdAtUtc: ISO8601DateFormatter().string(from: timestamp),
+            localOffsetMinutes: 0,
+            completionState: "complete",
+            answers: PreSleepLogAnswers(
+                stressLevel: stressLevel,
+                stressDrivers: stressDrivers
+            )
+        )
+    }
+
+    private func makeMorningCheckIn(
+        sessionDate: String,
+        timestamp: Date,
+        sleepQuality: Int,
+        readiness: Int,
+        stressLevel: Int,
+        stressDrivers: [CommonStressDriver]
+    ) -> DoseTap.StoredMorningCheckIn {
+        DoseTap.StoredMorningCheckIn(
+            id: "morning-\(sessionDate)",
+            sessionId: sessionDate,
+            timestamp: timestamp,
+            sessionDate: sessionDate,
+            sleepQuality: sleepQuality,
+            stressLevel: stressLevel,
+            stressContextJson: stressDrivers.isEmpty ? nil : stressContextJson(drivers: stressDrivers),
+            readinessForDay: readiness
+        )
+    }
+
+    private func stressContextJson(drivers: [CommonStressDriver]) -> String {
+        let payload: [String: Any] = [
+            "drivers": drivers.map(\.rawValue),
+            "progression": CommonStressProgression.same.rawValue,
+            "notes": ""
+        ]
+        let data = try? JSONSerialization.data(withJSONObject: payload)
+        return String(data: data ?? Data("{}".utf8), encoding: .utf8) ?? "{}"
+    }
+}

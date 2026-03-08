@@ -126,6 +126,12 @@ extension EventStorage {
             for id in fetchRecordIDsForSession(table: "morning_checkins", sessionDate: sessionDate) {
                 enqueueCloudKitTombstone(recordType: "DoseTapMorningCheckIn", recordName: id)
             }
+            for id in fetchRecordIDsForSession(table: "medication_events", sessionDate: sessionDate) {
+                enqueueCloudKitTombstone(recordType: "DoseTapMedicationEvent", recordName: id)
+            }
+            for id in fetchPreSleepLogIDsForSession(sessionDate: sessionDate) {
+                enqueueCloudKitTombstone(recordType: "DoseTapPreSleepLog", recordName: id)
+            }
         }
 
         // Use transaction for atomicity
@@ -297,7 +303,7 @@ extension EventStorage {
         }
     }
 
-    private func enqueueCloudKitTombstone(recordType: String, recordName: String) {
+    func enqueueCloudKitTombstone(recordType: String, recordName: String) {
         let key = "\(recordType):\(recordName)"
         let createdAt = isoFormatter.string(from: Date())
         let sql = """
@@ -317,7 +323,7 @@ extension EventStorage {
     }
 
     private func fetchRecordIDsForSession(table: String, sessionDate: String) -> [String] {
-        let allowedTables = Set(["sleep_events", "dose_events", "morning_checkins"])
+        let allowedTables = Set(["sleep_events", "dose_events", "morning_checkins", "medication_events"])
         guard allowedTables.contains(table) else { return [] }
 
         let sql = "SELECT id FROM \(table) WHERE session_date = ?"
@@ -326,6 +332,29 @@ extension EventStorage {
         defer { sqlite3_finalize(stmt) }
 
         sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
+        var ids: [String] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            if let idPtr = sqlite3_column_text(stmt, 0) {
+                ids.append(String(cString: idPtr))
+            }
+        }
+        return ids
+    }
+
+    private func fetchPreSleepLogIDsForSession(sessionDate: String) -> [String] {
+        let sql = """
+            SELECT id
+            FROM pre_sleep_logs
+            WHERE session_id = ?
+               OR session_id IN (SELECT session_id FROM sleep_sessions WHERE session_date = ?)
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
+        defer { sqlite3_finalize(stmt) }
+
+        sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 2, sessionDate, -1, SQLITE_TRANSIENT)
+
         var ids: [String] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
             if let idPtr = sqlite3_column_text(stmt, 0) {
@@ -395,12 +424,17 @@ extension EventStorage {
     /// Link the most recent pre-sleep log to a session id.
     public func linkPreSleepLogToSession(sessionId: String, sessionDate: String) {
         // Link either unassigned logs or logs stored under the session date placeholder.
+        // Use a subquery to find the target row — avoids UPDATE...ORDER BY...LIMIT which
+        // requires SQLITE_ENABLE_UPDATE_DELETE_LIMIT (not guaranteed on iOS).
         let sql = """
             UPDATE pre_sleep_logs
             SET session_id = ?
-            WHERE session_id IS NULL OR session_id = ?
-            ORDER BY created_at DESC
-            LIMIT 1
+            WHERE id = (
+                SELECT id FROM pre_sleep_logs
+                WHERE session_id IS NULL OR session_id = ?
+                ORDER BY created_at DESC
+                LIMIT 1
+            )
         """
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
@@ -435,29 +469,7 @@ extension EventStorage {
     /// Fetch recent sessions as summaries (internal - use protocol method externally)
     func fetchRecentSessionsLocal(days: Int = 7) -> [SessionSummary] {
         var sessions: [SessionSummary] = []
-
-        // Collect all distinct session_dates from sleep_sessions, dose_events,
-        // and sleep_events — not from current_session (which is single-row).
-        let sql = """
-            SELECT session_date FROM sleep_sessions
-            UNION
-            SELECT session_date FROM dose_events
-            UNION
-            SELECT session_date FROM sleep_events
-            ORDER BY session_date DESC
-            LIMIT ?
-        """
-
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return sessions }
-        defer { sqlite3_finalize(stmt) }
-
-        sqlite3_bind_int(stmt, 1, Int32(days))
-
-        var sessionDates: [String] = []
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            sessionDates.append(String(cString: sqlite3_column_text(stmt, 0)))
-        }
+        let sessionDates = discoveredSessionDates(limit: days)
 
         for sessionDate in sessionDates {
             let doseEvents = fetchDoseEvents(sessionId: nil, sessionDate: sessionDate)
@@ -465,8 +477,8 @@ extension EventStorage {
             let dose2 = doseEvents.first { isDose2EventType($0.eventType) }
             let dose2Skipped = doseEvents.contains { isDose2SkippedEventType($0.eventType) }
             let snoozeCount = doseEvents.filter { $0.eventType.lowercased().hasPrefix("snooze") }.count
-
-            let eventCount = countSleepEvents(for: sessionDate)
+            let sleepEvents = fetchSleepEvents(forSession: sessionDate)
+            let eventCount = sleepEvents.count
 
             sessions.append(SessionSummary(
                 sessionDate: sessionDate,
@@ -474,7 +486,7 @@ extension EventStorage {
                 dose2Time: dose2?.timestamp,
                 dose2Skipped: dose2Skipped,
                 snoozeCount: snoozeCount,
-                sleepEvents: [],
+                sleepEvents: sleepEvents,
                 eventCount: eventCount
             ))
         }

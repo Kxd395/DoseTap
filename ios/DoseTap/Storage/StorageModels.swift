@@ -220,6 +220,8 @@ public struct StoredMorningCheckIn: Identifiable {
     public let mentalClarity: Int
     public let mood: String
     public let anxietyLevel: String
+    public let stressLevel: Int?
+    public let stressContextJson: String?
     public let readinessForDay: Int
     
     // Narcolepsy flags
@@ -262,6 +264,8 @@ public struct StoredMorningCheckIn: Identifiable {
         mentalClarity: Int = 5,
         mood: String = "neutral",
         anxietyLevel: String = "none",
+        stressLevel: Int? = nil,
+        stressContextJson: String? = nil,
         readinessForDay: Int = 3,
         hadSleepParalysis: Bool = false,
         hadHallucinations: Bool = false,
@@ -290,6 +294,8 @@ public struct StoredMorningCheckIn: Identifiable {
         self.mentalClarity = mentalClarity
         self.mood = mood
         self.anxietyLevel = anxietyLevel
+        self.stressLevel = stressLevel
+        self.stressContextJson = stressContextJson
         self.readinessForDay = readinessForDay
         self.hadSleepParalysis = hadSleepParalysis
         self.hadHallucinations = hadHallucinations
@@ -301,6 +307,108 @@ public struct StoredMorningCheckIn: Identifiable {
         self.hasSleepEnvironment = hasSleepEnvironment
         self.sleepEnvironmentJson = sleepEnvironmentJson
         self.notes = notes
+    }
+}
+
+public struct MorningStressContext: Equatable {
+    public let drivers: [CommonStressDriver]
+    public let progression: CommonStressProgression?
+    public let notes: String?
+
+    public var primaryDriver: CommonStressDriver? {
+        drivers.first
+    }
+}
+
+public extension StoredMorningCheckIn {
+    var resolvedStressContext: MorningStressContext? {
+        guard let stressContextJson, let data = stressContextJson.data(using: .utf8) else {
+            return nil
+        }
+        guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+            return nil
+        }
+
+        let drivers = ((json["drivers"] as? [String]) ?? [])
+            .compactMap(CommonStressDriver.init(rawValue:))
+        let progression = (json["progression"] as? String)
+            .flatMap(CommonStressProgression.init(rawValue:))
+        let notes = (json["notes"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !drivers.isEmpty || progression != nil || !(notes?.isEmpty ?? true) else {
+            return nil
+        }
+
+        return MorningStressContext(
+            drivers: drivers,
+            progression: progression,
+            notes: notes?.isEmpty == true ? nil : notes
+        )
+    }
+
+    var resolvedStressDrivers: [CommonStressDriver] {
+        resolvedStressContext?.drivers ?? []
+    }
+
+    var primaryStressDriver: CommonStressDriver? {
+        resolvedStressContext?.primaryDriver
+    }
+
+    var stressProgression: CommonStressProgression? {
+        resolvedStressContext?.progression
+    }
+
+    var stressNotes: String? {
+        resolvedStressContext?.notes
+    }
+}
+
+public enum CommonStressDriver: String, Codable, CaseIterable {
+    case work = "work"
+    case family = "family"
+    case relationship = "relationship"
+    case health = "health"
+    case pain = "pain"
+    case sleep = "sleep"
+    case medication = "medication"
+    case environment = "environment"
+    case schedule = "schedule"
+    case financial = "financial"
+    case other = "other"
+
+    public var displayText: String {
+        switch self {
+        case .work: return "Work"
+        case .family: return "Family"
+        case .relationship: return "Relationship"
+        case .health: return "Health"
+        case .pain: return "Pain"
+        case .sleep: return "Sleep"
+        case .medication: return "Medication"
+        case .environment: return "Environment"
+        case .schedule: return "Schedule"
+        case .financial: return "Financial"
+        case .other: return "Other"
+        }
+    }
+}
+
+public enum CommonStressProgression: String, Codable, CaseIterable {
+    case muchBetter = "much_better"
+    case better = "better"
+    case same = "same"
+    case worse = "worse"
+    case muchWorse = "much_worse"
+
+    public var displayText: String {
+        switch self {
+        case .muchBetter: return "Much Better"
+        case .better: return "Better"
+        case .same: return "About The Same"
+        case .worse: return "Worse"
+        case .muchWorse: return "Much Worse"
+        }
     }
 }
 
@@ -327,25 +435,8 @@ public struct PreSleepLogAnswers: Codable {
         }
     }
     
-    public enum StressDriver: String, Codable, CaseIterable {
-        case work = "work"
-        case family = "family"
-        case health = "health"
-        case financial = "financial"
-        case relationship = "relationship"
-        case other = "other"
-        
-        public var displayText: String {
-            switch self {
-            case .work: return "Work"
-            case .family: return "Family"
-            case .health: return "Health"
-            case .financial: return "Financial"
-            case .relationship: return "Relationship"
-            case .other: return "Other"
-            }
-        }
-    }
+    public typealias StressDriver = CommonStressDriver
+    public typealias StressProgression = CommonStressProgression
     
     public enum PainLevel: String, Codable, CaseIterable {
         case none = "none"
@@ -568,6 +659,10 @@ public struct PreSleepLogAnswers: Codable {
             }
         }
     }
+
+    public static var caffeineSourceOptions: [Stimulants] {
+        [.coffee, .tea, .soda, .energyDrink]
+    }
     
     public enum AlcoholLevel: String, Codable, CaseIterable {
         case none = "none"
@@ -756,6 +851,10 @@ public struct PreSleepLogAnswers: Codable {
             }
         }
     }
+
+    public static var sleepAidOptions: [SleepAid] {
+        [.eyeMask, .earplugs, .whiteNoise, .fan, .blackoutCurtains]
+    }
     
     // MARK: - Properties
     
@@ -763,6 +862,9 @@ public struct PreSleepLogAnswers: Codable {
     public var intendedSleepTime: IntendedSleepTime?
     public var stressLevel: Int?
     public var stressDriver: StressDriver?
+    public var stressDrivers: [StressDriver]?
+    public var stressProgression: StressProgression?
+    public var stressNotes: String?
     public var laterReason: LaterReason?
     
     // Card 2: Body + Substances
@@ -771,9 +873,14 @@ public struct PreSleepLogAnswers: Codable {
     public var painLocations: [PainLocation]?
     public var painType: PainType?
     public var stimulants: Stimulants?
+    public var caffeineSources: [Stimulants]?
     public var caffeineLastIntakeAt: Date?
     public var caffeineLastAmountMg: Int?
     public var caffeineDailyTotalMg: Int?
+    public var plannedTotalNightlyMg: Int?
+    public var plannedDoseSplitRatio: [Double]?
+    public var plannedDose1Mg: Int?
+    public var plannedDose2Mg: Int?
     public var alcohol: AlcoholLevel?
     public var alcoholLastDrinkAt: Date?
     public var alcoholLastAmountDrinks: Double?
@@ -791,10 +898,13 @@ public struct PreSleepLogAnswers: Codable {
     
     // Optional details
     public var lateMeal: LateMeal?
+    public var lateMealEndedAt: Date?
     public var screensInBed: ScreensInBed?
+    public var screensLastUsedAt: Date?
     public var roomTemp: RoomTemp?
     public var noiseLevel: NoiseLevel?
     public var sleepAids: SleepAid?
+    public var sleepAidSelections: [SleepAid]?
     
     // Legacy fields (for backwards compatibility)
     public var notes: String?
@@ -803,15 +913,23 @@ public struct PreSleepLogAnswers: Codable {
         intendedSleepTime: IntendedSleepTime? = nil,
         stressLevel: Int? = nil,
         stressDriver: StressDriver? = nil,
+        stressDrivers: [StressDriver]? = nil,
+        stressProgression: StressProgression? = nil,
+        stressNotes: String? = nil,
         laterReason: LaterReason? = nil,
         bodyPain: PainLevel? = nil,
         painEntries: [PainEntry]? = nil,
         painLocations: [PainLocation]? = nil,
         painType: PainType? = nil,
         stimulants: Stimulants? = nil,
+        caffeineSources: [Stimulants]? = nil,
         caffeineLastIntakeAt: Date? = nil,
         caffeineLastAmountMg: Int? = nil,
         caffeineDailyTotalMg: Int? = nil,
+        plannedTotalNightlyMg: Int? = nil,
+        plannedDoseSplitRatio: [Double]? = nil,
+        plannedDose1Mg: Int? = nil,
+        plannedDose2Mg: Int? = nil,
         alcohol: AlcoholLevel? = nil,
         alcoholLastDrinkAt: Date? = nil,
         alcoholLastAmountDrinks: Double? = nil,
@@ -825,24 +943,35 @@ public struct PreSleepLogAnswers: Codable {
         napTotalMinutes: Int? = nil,
         napLastEndAt: Date? = nil,
         lateMeal: LateMeal? = nil,
+        lateMealEndedAt: Date? = nil,
         screensInBed: ScreensInBed? = nil,
+        screensLastUsedAt: Date? = nil,
         roomTemp: RoomTemp? = nil,
         noiseLevel: NoiseLevel? = nil,
         sleepAids: SleepAid? = nil,
+        sleepAidSelections: [SleepAid]? = nil,
         notes: String? = nil
     ) {
         self.intendedSleepTime = intendedSleepTime
         self.stressLevel = stressLevel
         self.stressDriver = stressDriver
+        self.stressDrivers = stressDrivers
+        self.stressProgression = stressProgression
+        self.stressNotes = stressNotes
         self.laterReason = laterReason
         self.bodyPain = bodyPain
         self.painEntries = painEntries
         self.painLocations = painLocations
         self.painType = painType
         self.stimulants = stimulants
+        self.caffeineSources = caffeineSources
         self.caffeineLastIntakeAt = caffeineLastIntakeAt
         self.caffeineLastAmountMg = caffeineLastAmountMg
         self.caffeineDailyTotalMg = caffeineDailyTotalMg
+        self.plannedTotalNightlyMg = plannedTotalNightlyMg
+        self.plannedDoseSplitRatio = plannedDoseSplitRatio
+        self.plannedDose1Mg = plannedDose1Mg
+        self.plannedDose2Mg = plannedDose2Mg
         self.alcohol = alcohol
         self.alcoholLastDrinkAt = alcoholLastDrinkAt
         self.alcoholLastAmountDrinks = alcoholLastAmountDrinks
@@ -856,11 +985,193 @@ public struct PreSleepLogAnswers: Codable {
         self.napTotalMinutes = napTotalMinutes
         self.napLastEndAt = napLastEndAt
         self.lateMeal = lateMeal
+        self.lateMealEndedAt = lateMealEndedAt
         self.screensInBed = screensInBed
+        self.screensLastUsedAt = screensLastUsedAt
         self.roomTemp = roomTemp
         self.noiseLevel = noiseLevel
         self.sleepAids = sleepAids
+        self.sleepAidSelections = sleepAidSelections
         self.notes = notes
     }
-}
 
+    public static func sanitizedStressDrivers(_ drivers: [StressDriver]?) -> [StressDriver] {
+        let unique = Set(drivers ?? [])
+        return StressDriver.allCases.filter { unique.contains($0) }
+    }
+
+    public var resolvedStressDrivers: [StressDriver] {
+        let explicit = Self.sanitizedStressDrivers(stressDrivers)
+        if !explicit.isEmpty {
+            return explicit
+        }
+        if let stressDriver {
+            return [stressDriver]
+        }
+        return []
+    }
+
+    public var primaryStressDriver: StressDriver? {
+        resolvedStressDrivers.first
+    }
+
+    public var resolvedCaffeineSources: [Stimulants] {
+        let explicit = Self.sanitizedCaffeineSources(caffeineSources)
+        if !explicit.isEmpty {
+            return explicit
+        }
+        if let stimulants, Self.caffeineSourceOptions.contains(stimulants) {
+            return [stimulants]
+        }
+        return []
+    }
+
+    public var caffeineSourceSummary: Stimulants? {
+        let resolved = resolvedCaffeineSources
+        switch resolved.count {
+        case 0:
+            return stimulants
+        case 1:
+            return resolved.first
+        default:
+            return .multiple
+        }
+    }
+
+    public var hasCaffeineIntake: Bool {
+        !resolvedCaffeineSources.isEmpty || caffeineSourceSummary == .multiple
+    }
+
+    public var hasLegacyUnspecifiedCaffeineSources: Bool {
+        caffeineSourceSummary == .multiple && resolvedCaffeineSources.isEmpty
+    }
+
+    public var caffeineSourceDisplayText: String? {
+        let resolved = resolvedCaffeineSources
+        if !resolved.isEmpty {
+            return resolved.map(\.displayText).joined(separator: ", ")
+        }
+        return caffeineSourceSummary?.displayText
+    }
+
+    public static func sanitizedCaffeineSources(_ sources: [Stimulants]?) -> [Stimulants] {
+        Array(Set((sources ?? []).filter { caffeineSourceOptions.contains($0) }))
+            .sorted { $0.rawValue < $1.rawValue }
+    }
+
+    public static func caffeineSummary(for sources: [Stimulants]) -> Stimulants? {
+        let sanitized = sanitizedCaffeineSources(sources)
+        switch sanitized.count {
+        case 0:
+            return nil
+        case 1:
+            return sanitized.first
+        default:
+            return .multiple
+        }
+    }
+
+    public static var defaultDoseSplitRatio: [Double] {
+        [0.5, 0.5]
+    }
+
+    public static func sanitizedDoseSplitRatio(_ ratio: [Double]?) -> [Double]? {
+        guard let ratio, ratio.count == 2 else { return nil }
+        let safeValues = ratio.map { value -> Double in
+            guard value.isFinite else { return 0 }
+            return max(0, value)
+        }
+        let total = safeValues.reduce(0, +)
+        guard total > 0 else { return nil }
+
+        let normalizedFirst = max(0, min(1, safeValues[0] / total))
+        let roundedFirst = (normalizedFirst * 100).rounded() / 100
+        let roundedSecond = max(0, 1 - roundedFirst)
+        return [roundedFirst, roundedSecond]
+    }
+
+    public var resolvedPlannedTotalNightlyMg: Int? {
+        if let plannedTotalNightlyMg, plannedTotalNightlyMg > 0 {
+            return plannedTotalNightlyMg
+        }
+        if let plannedDose1Mg, let plannedDose2Mg {
+            return max(0, plannedDose1Mg + plannedDose2Mg)
+        }
+        return nil
+    }
+
+    public var resolvedPlannedDoseSplitRatio: [Double] {
+        if let explicit = Self.sanitizedDoseSplitRatio(plannedDoseSplitRatio) {
+            return explicit
+        }
+        if let plannedDose1Mg, let plannedDose2Mg {
+            let total = Double(plannedDose1Mg + plannedDose2Mg)
+            if total > 0 {
+                return [Double(plannedDose1Mg) / total, Double(plannedDose2Mg) / total]
+            }
+        }
+        return Self.defaultDoseSplitRatio
+    }
+
+    public var plannedDosePercentages: [Int]? {
+        guard let total = resolvedPlannedTotalNightlyMg, total > 0 else { return nil }
+        let first = Int((resolvedPlannedDoseSplitRatio[0] * 100).rounded())
+        return [first, max(0, 100 - first)]
+    }
+
+    public var resolvedSleepAidSelections: [SleepAid] {
+        let explicit = Self.sanitizedSleepAidSelections(sleepAidSelections)
+        if !explicit.isEmpty {
+            return explicit
+        }
+        if let sleepAids, Self.sleepAidOptions.contains(sleepAids) {
+            return [sleepAids]
+        }
+        return []
+    }
+
+    public var sleepAidSummary: SleepAid? {
+        let resolved = resolvedSleepAidSelections
+        switch resolved.count {
+        case 0:
+            return sleepAids
+        case 1:
+            return resolved.first
+        default:
+            return .multiple
+        }
+    }
+
+    public var hasSleepAids: Bool {
+        !resolvedSleepAidSelections.isEmpty || sleepAidSummary == .multiple
+    }
+
+    public var hasLegacyUnspecifiedSleepAids: Bool {
+        sleepAidSummary == .multiple && resolvedSleepAidSelections.isEmpty
+    }
+
+    public var sleepAidDisplayText: String? {
+        let resolved = resolvedSleepAidSelections
+        if !resolved.isEmpty {
+            return resolved.map(\.displayText).joined(separator: ", ")
+        }
+        return sleepAidSummary?.displayText
+    }
+
+    public static func sanitizedSleepAidSelections(_ selections: [SleepAid]?) -> [SleepAid] {
+        Array(Set((selections ?? []).filter { sleepAidOptions.contains($0) }))
+            .sorted { $0.rawValue < $1.rawValue }
+    }
+
+    public static func sleepAidSummary(for selections: [SleepAid]) -> SleepAid? {
+        let sanitized = sanitizedSleepAidSelections(selections)
+        switch sanitized.count {
+        case 0:
+            return nil
+        case 1:
+            return sanitized.first
+        default:
+            return .multiple
+        }
+    }
+}

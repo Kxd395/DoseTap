@@ -5,9 +5,9 @@
 //  Created: January 19, 2026
 //  Purpose: UI component for selecting dose amounts
 //
-//  Xyrem/Xywav range: 2.25g to 9g total nightly dose
+//  Xyrem/Xywav range: 2.25g to 20g total nightly dose
 //  - Minimum single dose: 2.25g (one dose of 50/50 split at minimum)
-//  - Maximum single dose: 4.5g (one dose of 50/50 split at maximum 9g)
+//  - Higher totals are allowed with warnings for clinician-directed adjustments
 //  - Increments: 0.25g (250mg) for fine control
 //
 
@@ -157,13 +157,14 @@ public struct TotalNightlyDosePicker: View {
     @Binding var totalAmountMg: Double
     @Binding var splitRatio: [Double]
     let config: DoseAmountConfig
+    private static let warningThresholdMg = 9000.0
     
     public init(
         totalAmountMg: Binding<Double>,
         splitRatio: Binding<[Double]>,
         config: DoseAmountConfig = DoseAmountConfig(
             minimumMg: 2250,    // Minimum total: 2.25g
-            maximumMg: 9000,    // Maximum total: 9g
+            maximumMg: 20_000,  // Higher totals allowed with warning
             incrementMg: 250,
             defaultMg: 4500     // Default: 4.5g
         )
@@ -194,6 +195,16 @@ public struct TotalNightlyDosePicker: View {
                     step: config.incrementMg
                 )
                 .accentColor(.blue)
+
+                if totalAmountMg > Self.warningThresholdMg {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.orange)
+                        Text("Nightly total is above 9,000 mg. Double-check before saving.")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                    }
+                }
                 
                 HStack {
                     Text(config.formatAmount(config.minimumMg))
@@ -672,4 +683,3 @@ struct DoseAmountPicker_Previews: PreviewProvider {
     }
 }
 #endif
-

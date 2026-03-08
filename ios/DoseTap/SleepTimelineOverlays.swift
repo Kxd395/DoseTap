@@ -393,11 +393,13 @@ extension WHOOPService {
             ]
         }
         
-        // HRV: use session-level value from WHOOP (via recovery merge on WHOOPNightSummary).
-        // WHOOP doesn't expose per-epoch HRV via public API.
-        if sleep.score != nil {
-            let summary = sleep.toNightSummary()
-            if let hrvValue = summary.hrvMs, hrvValue > 0 {
+        // HRV: WHOOP doesn't expose per-epoch HRV via public API, so render the
+        // recovery-level value as a stable baseline across the sleep interval.
+        do {
+            let recoveryEnd = endTime.addingTimeInterval(12 * 60 * 60)
+            let recoveries = try await fetchRecoveryData(from: startTime, to: recoveryEnd)
+            if let hrvValue = recoveries.first(where: { $0.sleepId == sleep.id })?.score?.hrvMs,
+               hrvValue > 0 {
                 let midpoint = startTime.addingTimeInterval(endTime.timeIntervalSince(startTime) / 2)
                 hrvPoints = [
                     HRVDataPoint(timestamp: startTime, rmssd: hrvValue),
@@ -405,6 +407,8 @@ extension WHOOPService {
                     HRVDataPoint(timestamp: endTime, rmssd: hrvValue)
                 ]
             }
+        } catch {
+            // Recovery fetch failed — non-fatal
         }
         
         return (hrPoints, rrPoints, hrvPoints)

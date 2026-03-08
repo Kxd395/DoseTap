@@ -114,8 +114,12 @@ public final class SecureConfig {
     
     /// Check if secrets are properly configured for the current environment
     public var isConfigured: Bool {
+        !whoopClientID.isEmpty &&
+        !whoopClientSecret.isEmpty &&
+        !whoopRedirectURI.isEmpty &&
         !whoopClientID.contains("YOUR_") &&
-        !whoopClientSecret.contains("YOUR_")
+        !whoopClientSecret.contains("YOUR_") &&
+        !whoopRedirectURI.contains("YOUR_")
     }
     
     /// Validate configuration at app launch

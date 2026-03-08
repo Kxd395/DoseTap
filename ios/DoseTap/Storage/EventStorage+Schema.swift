@@ -126,6 +126,8 @@ extension EventStorage {
             mental_clarity INTEGER NOT NULL DEFAULT 5,
             mood TEXT NOT NULL DEFAULT 'neutral',
             anxiety_level TEXT NOT NULL DEFAULT 'none',
+            stress_level INTEGER,
+            stress_context_json TEXT,
             readiness_for_day INTEGER NOT NULL DEFAULT 3,
             
             -- Narcolepsy-specific flags
@@ -243,6 +245,8 @@ extension EventStorage {
             // Sleep Environment feature - captures sleep setup and aids for Morning Check-in
             "ALTER TABLE morning_checkins ADD COLUMN has_sleep_environment INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE morning_checkins ADD COLUMN sleep_environment_json TEXT",
+            "ALTER TABLE morning_checkins ADD COLUMN stress_level INTEGER",
+            "ALTER TABLE morning_checkins ADD COLUMN stress_context_json TEXT",
             // Dose 3 Hazard Safety: Add hazard flag to dose_events
             "ALTER TABLE dose_events ADD COLUMN is_hazard INTEGER DEFAULT 0",
             // Medication events schema v2: Add missing columns

@@ -24,6 +24,7 @@ struct LegacyTonightView: View {
     @State private var showIncompleteCheckIn = false
     @State private var preSleepLog: StoredPreSleepLog? = nil
     @State private var preSleepEditingLog: StoredPreSleepLog? = nil
+    @State private var morningCheckIn: StoredMorningCheckIn? = nil
     
     var body: some View {
         ScrollView {
@@ -96,6 +97,8 @@ struct LegacyTonightView: View {
                         showIncompleteCheckIn = true
                     },
                     onDismiss: {
+                        // Persist dismissal so the banner doesn't reappear on next onAppear
+                        Self.dismissIncompleteSession(sessionDate)
                         incompleteSessionDate = nil
                     }
                 )
@@ -110,8 +113,10 @@ struct LegacyTonightView: View {
             
             Spacer().frame(height: 12)
             
-            // Pre-Sleep Log Card (CTA or logged state)
-            if preSleepLog != nil || core.dose1Time == nil {
+            // Pre-Sleep Log Card — always visible during a session so users can
+            // log, view, or edit pre-sleep info at any time (before or after Dose 1).
+            // Only hidden once the session has fully ended (wake/morning check-in).
+            if !sessionRepo.checkInCompleted {
                 PreSleepCard(
                     state: PreSleepCardState(log: preSleepLog),
                     onAction: { action in
@@ -129,6 +134,16 @@ struct LegacyTonightView: View {
                         }
                     }
                 )
+                .padding(.horizontal)
+                
+                Spacer().frame(height: 12)
+            }
+            
+            // Morning Check-In Card (view/edit completed check-in)
+            if let checkIn = morningCheckIn {
+                MorningCheckInCompactCard(checkIn: checkIn) {
+                    showMorningCheckIn = true
+                }
                 .padding(.horizontal)
                 
                 Spacer().frame(height: 12)
@@ -215,13 +230,28 @@ struct LegacyTonightView: View {
         }
         .scrollIndicators(.hidden)
         .sheet(isPresented: $showMorningCheckIn) {
-            MorningCheckInView(
-                sessionId: sessionRepo.currentSessionIdString(),
-                sessionDate: sessionRepo.currentSessionDateString(),
-                onComplete: {
-                    appLogger.info("Morning check-in complete")
-                }
-            )
+            if let existing = morningCheckIn {
+                // Edit existing check-in
+                MorningCheckInView(
+                    sessionId: existing.sessionId,
+                    sessionDate: existing.sessionDate,
+                    existingCheckIn: existing,
+                    onComplete: {
+                        appLogger.info("Morning check-in updated")
+                        reloadMorningCheckIn()
+                    }
+                )
+            } else {
+                // New check-in
+                MorningCheckInView(
+                    sessionId: sessionRepo.currentSessionIdString(),
+                    sessionDate: sessionRepo.currentSessionDateString(),
+                    onComplete: {
+                        appLogger.info("Morning check-in complete")
+                        reloadMorningCheckIn()
+                    }
+                )
+            }
         }
         .sheet(isPresented: $showPreSleepLog) {
                 PreSleepLogView(
@@ -320,17 +350,30 @@ struct LegacyTonightView: View {
             }
         }
         .onAppear {
-            // Check for incomplete sessions on view appear
-            incompleteSessionDate = sessionRepo.mostRecentIncompleteSession()
+            // Check for incomplete sessions on view appear (skip permanently dismissed ones)
+            if let candidate = sessionRepo.mostRecentIncompleteSession(),
+               !Self.isDismissed(candidate) {
+                incompleteSessionDate = candidate
+            } else {
+                incompleteSessionDate = nil
+            }
             syncOverrideState()
             reloadPreSleepLog()
+            reloadMorningCheckIn()
         }
         .onChange(of: sessionRepo.currentSessionKey) { _ in
             syncOverrideState()
             reloadPreSleepLog()
+            reloadMorningCheckIn()
         }
         .onReceive(sessionRepo.sessionDidChange) { _ in
             reloadPreSleepLog()
+            reloadMorningCheckIn()
+        }
+        .onChange(of: showMorningCheckIn) { newValue in
+            if !newValue {
+                reloadMorningCheckIn()
+            }
         }
         .onChange(of: showPreSleepLog) { newValue in
             if !newValue {
@@ -361,9 +404,52 @@ struct LegacyTonightView: View {
     private func reloadPreSleepLog() {
         let key = sessionRepo.preSleepLogSessionKey(for: Date())
         preSleepLog = sessionRepo.fetchMostRecentPreSleepLog(sessionId: key)
+        
+        // Fallback: if the primary key is a UUID (post-dose-1) and linking hasn't
+        // updated the pre-sleep log yet, try the date-string key.
+        if preSleepLog == nil {
+            let displayKey = sessionRepo.preSleepDisplaySessionKey(for: Date())
+            if displayKey != key {
+                preSleepLog = sessionRepo.fetchMostRecentPreSleepLog(sessionId: displayKey)
+            }
+        }
+        // Last-resort fallback: try the raw date string (pre-session key)
+        if preSleepLog == nil {
+            let dateKey = preSleepSessionKey(for: Date(), timeZone: .current)
+            if dateKey != key {
+                preSleepLog = sessionRepo.fetchMostRecentPreSleepLog(sessionId: dateKey)
+            }
+        }
+        
         if preSleepLog == nil {
             preSleepEditingLog = nil
         }
+    }
+    
+    private func reloadMorningCheckIn() {
+        let key = sessionRepo.activeSessionDate ?? sessionRepo.currentSessionKey
+        morningCheckIn = sessionRepo.fetchMorningCheckIn(for: key)
+    }
+    
+    // MARK: - Persistent Banner Dismissal
+    
+    private static let dismissedSessionsKey = "dismissedIncompleteSessions"
+    
+    /// Persist that a user dismissed the incomplete-session banner for this date.
+    static func dismissIncompleteSession(_ sessionDate: String) {
+        var dismissed = UserDefaults.standard.stringArray(forKey: dismissedSessionsKey) ?? []
+        if !dismissed.contains(sessionDate) {
+            dismissed.append(sessionDate)
+            // Keep only the 30 most recent dismissals to avoid unbounded growth
+            if dismissed.count > 30 { dismissed = Array(dismissed.suffix(30)) }
+            UserDefaults.standard.set(dismissed, forKey: dismissedSessionsKey)
+        }
+    }
+    
+    /// Check if a session date has been permanently dismissed.
+    static func isDismissed(_ sessionDate: String) -> Bool {
+        let dismissed = UserDefaults.standard.stringArray(forKey: dismissedSessionsKey) ?? []
+        return dismissed.contains(sessionDate)
     }
 }
 

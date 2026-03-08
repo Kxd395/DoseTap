@@ -101,6 +101,8 @@ public struct SQLiteStoredMorningCheckIn: Codable {
     public let mentalClarity: Int
     public let mood: String
     public let anxietyLevel: String
+    public let stressLevel: Int?
+    public let stressContextJson: String?
     public let readinessForDay: Int
     public let hadSleepParalysis: Bool
     public let hadHallucinations: Bool
@@ -130,6 +132,8 @@ public struct SQLiteStoredMorningCheckIn: Codable {
         mentalClarity: Int,
         mood: String,
         anxietyLevel: String,
+        stressLevel: Int? = nil,
+        stressContextJson: String? = nil,
         readinessForDay: Int,
         hadSleepParalysis: Bool,
         hadHallucinations: Bool,
@@ -158,6 +162,8 @@ public struct SQLiteStoredMorningCheckIn: Codable {
         self.mentalClarity = mentalClarity
         self.mood = mood
         self.anxietyLevel = anxietyLevel
+        self.stressLevel = stressLevel
+        self.stressContextJson = stressContextJson
         self.readinessForDay = readinessForDay
         self.hadSleepParalysis = hadSleepParalysis
         self.hadHallucinations = hadHallucinations

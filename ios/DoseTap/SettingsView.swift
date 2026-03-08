@@ -269,18 +269,7 @@ struct SettingsView: View {
                 
                 // MARK: - Integrations
                 Section {
-                    NavigationLink {
-                        HealthKitSettingsView()
-                    } label: {
-                        HStack {
-                            Label("Apple Health", systemImage: "heart.fill")
-                            Spacer()
-                            if settings.healthKitEnabled {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
-                            }
-                        }
-                    }
+                    AppleHealthStatusRow()
                     
                     WHOOPStatusRow()
                 } header: {
@@ -295,6 +284,36 @@ struct SettingsView: View {
                         exportData()
                     } label: {
                         Label("Export Data (CSV)", systemImage: "square.and.arrow.up")
+                    }
+
+                    // P3-7: Scheduled auto-export
+                    Toggle(isOn: Binding(
+                        get: { AutoExportService.shared.isEnabled },
+                        set: { AutoExportService.shared.isEnabled = $0 }
+                    )) {
+                        Label("Scheduled Export", systemImage: "clock.arrow.2.circlepath")
+                    }
+
+                    if AutoExportService.shared.isEnabled {
+                        Picker(selection: Binding(
+                            get: { AutoExportService.shared.frequency },
+                            set: { AutoExportService.shared.frequency = $0 }
+                        )) {
+                            ForEach(AutoExportService.Frequency.allCases) { freq in
+                                Text(freq.rawValue).tag(freq)
+                            }
+                        } label: {
+                            Label("Frequency", systemImage: "calendar")
+                        }
+
+                        if let last = AutoExportService.shared.lastExportDate {
+                            HStack {
+                                Label("Last Export", systemImage: "checkmark.circle")
+                                Spacer()
+                                Text(last, style: .relative)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
                     }
                     
                     NavigationLink {

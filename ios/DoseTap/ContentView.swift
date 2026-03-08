@@ -7,12 +7,12 @@ import os.log
 // MARK: - Main Tab View with Swipe Navigation
 struct ContentView: View {
     @StateObject private var core = DoseTapCore()
-    @StateObject private var settings = UserSettingsManager.shared
+    @EnvironmentObject private var settings: UserSettingsManager
     @StateObject private var eventLogger = EventLogger.shared
-    @StateObject private var sessionRepo = SessionRepository.shared
+    @EnvironmentObject private var sessionRepo: SessionRepository
     @StateObject private var undoState = UndoStateManager()
     @StateObject private var themeManager = ThemeManager.shared
-    @StateObject private var alarmService = AlarmService.shared
+    @EnvironmentObject private var alarmService: AlarmService
     @ObservedObject private var urlRouter = URLRouter.shared
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var sharedPageImage: UIImage?
@@ -24,6 +24,7 @@ struct ContentView: View {
 
     /// `true` when running on iPad or in a regular-width environment (e.g. large iPhone landscape).
     private var usesSplitView: Bool { horizontalSizeClass == .regular }
+    private var showsFloatingShareButton: Bool { urlRouter.selectedTab != .timeline }
     
     var body: some View {
         Group {
@@ -36,12 +37,21 @@ struct ContentView: View {
         .preferredColorScheme(themeManager.currentTheme == .night ? .dark : (themeManager.currentTheme.colorScheme ?? settings.colorScheme))
         .accentColor(themeManager.currentTheme.accentColor)
         .applyNightModeFilter(themeManager.currentTheme)
-        .fullScreenCover(isPresented: $alarmService.isAlarmRinging) {
+        .fullScreenCover(isPresented: Binding(
+            get: { alarmService.isAlarmRinging },
+            set: { alarmService.isAlarmRinging = $0 }
+        )) {
             AlarmRingingView()
         }
         .sheet(isPresented: $showPageShareSheet) {
             if let sharedPageImage {
-                ActivityViewController(activityItems: [sharedPageImage])
+                CapturePreviewSheet(
+                    title: "Screen Capture",
+                    image: sharedPageImage
+                ) {
+                    self.sharedPageImage = nil
+                    self.showPageShareSheet = false
+                }
             }
         }
         .alert("Unable to Share Screen", isPresented: Binding(
@@ -74,9 +84,11 @@ struct ContentView: View {
                     .environment(\.isInSplitView, true)
             }
             .overlay(alignment: .topTrailing) {
-                shareButton
-                    .padding(.top, 8)
-                    .padding(.trailing, 16)
+                if showsFloatingShareButton {
+                    shareButton
+                        .padding(.top, 8)
+                        .padding(.trailing, 16)
+                }
             }
         }
         // Undo Snackbar Overlay (iPad)
@@ -160,7 +172,9 @@ struct ContentView: View {
             VStack {
                 HStack {
                     Spacer()
-                    shareButton
+                    if showsFloatingShareButton {
+                        shareButton
+                    }
                 }
                 .padding(.top, 54)
                 .padding(.trailing, 16)
@@ -292,4 +306,3 @@ struct CustomTabBar: View {
         )
     }
 }
-

@@ -7,8 +7,32 @@ import UIKit
 
 struct LiveNextActionCard: View {
     @ObservedObject var core: DoseTapCore
+    let events: [LoggedEvent]
+    @ObservedObject private var sessionRepo = SessionRepository.shared
+
+    private var hasLoggedEvents: Bool {
+        !events.isEmpty
+    }
+
+    private var isFinalizing: Bool {
+        sessionRepo.awaitingRolloverMessage != nil
+    }
+
+    private var isPreDoseLogging: Bool {
+        core.dose1Time == nil && hasLoggedEvents && !isFinalizing
+    }
+
+    private var wakeLoggedAt: Date? {
+        events.first(where: { EventType($0.name) == .wakeFinal })?.time
+    }
 
     private var headline: String {
+        if isFinalizing {
+            return "Next Action: Complete Morning Check-In"
+        }
+        if isPreDoseLogging {
+            return "Pre-Dose Tracking Active"
+        }
         switch core.currentStatus {
         case .noDose1:
             return "Next Action: Take Dose 1"
@@ -24,8 +48,18 @@ struct LiveNextActionCard: View {
     }
 
     private var detail: String {
+        if isFinalizing {
+            if let wakeLoggedAt {
+                return "Wake logged at \(wakeLoggedAt.formatted(date: .omitted, time: .shortened)). Complete the morning check-in to close the session and reconcile missed doses."
+            }
+            return sessionRepo.awaitingRolloverMessage ?? "Complete the morning check-in to close the session."
+        }
+        if isPreDoseLogging {
+            let countLabel = hasLoggedEvents ? "\(events.count) logged event\(events.count == 1 ? "" : "s")" : "pre-dose logging"
+            return "You already have \(countLabel). Take Dose 1 to unlock dose-window guidance while keeping those events attached to tonight."
+        }
         guard let dose1 = core.dose1Time else {
-            return "Start tonight's session to unlock timeline guidance."
+            return "Take Dose 1 when you're ready to begin. Pre-dose events can still be logged before the session formally starts."
         }
         let windowOpen = dose1.addingTimeInterval(150 * 60)
         let windowClose = dose1.addingTimeInterval(240 * 60)
@@ -44,6 +78,12 @@ struct LiveNextActionCard: View {
     }
 
     private var accent: Color {
+        if isFinalizing {
+            return .yellow
+        }
+        if isPreDoseLogging {
+            return .indigo
+        }
         switch core.currentStatus {
         case .active: return .green
         case .nearClose: return .orange
@@ -82,6 +122,24 @@ struct LiveTimelineItem: Identifiable {
 struct TonightTimelineProgressCard: View {
     @ObservedObject var core: DoseTapCore
     let events: [LoggedEvent]
+    @ObservedObject private var sessionRepo = SessionRepository.shared
+
+    private var titleText: String {
+        if sessionRepo.awaitingRolloverMessage != nil {
+            return "Session Timeline"
+        }
+        if core.dose1Time == nil {
+            return "Pre-Dose Timeline"
+        }
+        return "Tonight Timeline (So Far)"
+    }
+
+    private var emptyStateText: String {
+        if core.dose1Time == nil {
+            return "No events logged yet. Quick log works before Dose 1."
+        }
+        return "No timeline events yet."
+    }
 
     private var items: [LiveTimelineItem] {
         var markers: [LiveTimelineItem] = []
@@ -138,11 +196,11 @@ struct TonightTimelineProgressCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Tonight Timeline (So Far)")
+            Text(titleText)
                 .font(.headline)
 
             if items.isEmpty {
-                Text("No timeline events yet.")
+                Text(emptyStateText)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             } else {
@@ -655,6 +713,16 @@ struct TimelineReviewDetailView: View {
                         events: reviewEvents
                     )
 
+                    DoseTimingCard(sessionKey: session.sessionDate)
+
+                    NightScoreCard(sessionKey: session.sessionDate)
+
+                    ReviewKeyMetricsCard(session: session, events: reviewEvents)
+
+                    PreSleepLogCard(sessionKey: session.sessionDate)
+
+                    MorningCheckInCard(sessionKey: session.sessionDate)
+
                     MergedNightTimelineCard(
                         session: session,
                         events: reviewEvents,
@@ -662,7 +730,9 @@ struct TimelineReviewDetailView: View {
                         showFullViewLink: false
                     )
 
-                    InsightsSummaryCard(title: "Key Metrics", showDefinitions: true)
+                    HealthDataCard(sessionKey: session.sessionDate)
+
+                    InsightsSummaryCard(title: "Last 14-Night Trends", showDefinitions: true)
 
                     ReviewEventsAndNotesCard(
                         events: reviewEvents,
@@ -676,6 +746,8 @@ struct TimelineReviewDetailView: View {
                             mergeDuplicateEvents(in: group)
                         }
                     )
+
+                    ExportCard(sessionKey: session.sessionDate)
 
                     DisclosureGroup(isExpanded: $showPlanForTonight) {
                         FullSessionDetails(core: core)
@@ -806,6 +878,7 @@ struct TimelineReviewShareSnapshotView: View {
     let hasMorningCheckIn: Bool
     @ObservedObject var core: DoseTapCore
     let snapshotTimeline: ReviewSnapshotSleepTimeline?
+    let healthSnapshot: HealthDataSnapshotModel?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -824,6 +897,16 @@ struct TimelineReviewShareSnapshotView: View {
 
             CoachSummaryCard(session: session, events: events)
 
+            DoseTimingCard(sessionKey: session.sessionDate)
+
+            NightScoreCard(sessionKey: session.sessionDate)
+
+            ReviewKeyMetricsCard(session: session, events: events)
+
+            PreSleepLogCard(sessionKey: session.sessionDate)
+
+            MorningCheckInCard(sessionKey: session.sessionDate)
+
             MergedNightTimelineCard(
                 session: session,
                 events: events,
@@ -833,9 +916,15 @@ struct TimelineReviewShareSnapshotView: View {
                 allowLiveTimelineFallback: false
             )
 
-            InsightsSummaryCard(title: "Key Metrics", showDefinitions: true)
+            if let healthSnapshot {
+                HealthDataSnapshotCard(snapshot: healthSnapshot)
+            }
+
+            InsightsSummaryCard(title: "Last 14-Night Trends", showDefinitions: true)
 
             ReviewEventsSnapshotCard(events: events)
+
+            ExportCard(sessionKey: session.sessionDate)
 
             VStack(alignment: .leading, spacing: 10) {
                 Text("Plan for Tonight")
@@ -1336,4 +1425,3 @@ private struct ReviewMetricTile: View {
         .padding(.vertical, 4)
     }
 }
-

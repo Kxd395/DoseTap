@@ -1,6 +1,7 @@
 // DoseTapApp_Simple.swift
 import SwiftUI
 import DoseCore
+import WidgetKit
 import os.log
 
 private let appLifecycleLog = Logger(subsystem: "com.dosetap.app", category: "DoseTapApp")
@@ -26,6 +27,9 @@ struct DoseTapApp: App {
         appLifecycleLog.debug("App initialized (simplified)")
         #endif
         Self.migrateSetupStateIfNeeded()
+
+        // P3-7: Register background export task
+        AutoExportService.shared.registerBackgroundTask()
         
         // Log app launch
         Task { @MainActor in
@@ -60,6 +64,10 @@ struct DoseTapApp: App {
                     ContentView()
                         .environmentObject(urlRouter)
                         .environmentObject(container)
+                        .environmentObject(container.settings)
+                        .environmentObject(container.sessionRepository)
+                        .environmentObject(container.alarmService)
+                        .environment(\.appContainer, container)
                         .onOpenURL { url in
                             // Handle deep links
                             let handled = urlRouter.handle(url)
@@ -150,6 +158,10 @@ struct DoseTapApp: App {
                 await DiagnosticLogger.shared.logAppBackgrounded(sessionId: sessionId)
             }
             AlarmService.shared.stopRinging(acknowledge: false)
+
+            // P2-1: Push latest state to widgets before going to background
+            pushWidgetState()
+            WidgetCenter.shared.reloadAllTimelines()
             
         case .inactive:
             // Transitional state, don't log
@@ -166,6 +178,20 @@ struct DoseTapApp: App {
             logTimezoneChange(from: lastKnownTimezone, to: currentTz)
             lastKnownTimezone = currentTz
         }
+    }
+
+    // MARK: - Widget State Sync (P2-1)
+    private func pushWidgetState() {
+        let repo = SessionRepository.shared
+        let state = SharedDoseState(
+            dose1Time: repo.dose1Time,
+            dose2Time: repo.dose2Time,
+            dose2Skipped: repo.dose2Skipped,
+            snoozeCount: repo.snoozeCount,
+            sessionDate: repo.activeSessionDate ?? "",
+            updatedAt: Date()
+        )
+        state.save()
     }
     
     private func logTimezoneChange(from oldTz: TimeZone, to newTz: TimeZone) {

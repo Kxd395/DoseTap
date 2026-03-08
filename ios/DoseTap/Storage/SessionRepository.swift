@@ -1022,7 +1022,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     
     // MARK: - Medication Logging
     
-    /// Log a medication entry (e.g., Adderall)
+    /// Log a medication entry for the session date derived from its timestamp.
     /// Returns the DuplicateGuardResult for UI to handle
     public func logMedicationEntry(
         medicationId: String,
@@ -1043,6 +1043,8 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         
         // Get session_id if we have an active session matching this date
         let sessionId: String? = sessionDate == activeSessionDate ? activeSessionId : nil
+        let localOffsetMinutes = timeZoneProvider().secondsFromGMT(for: takenAt) / 60
+        let formulation = persistedMedicationFormulation(for: medicationId)
         
         let entry = StoredMedicationEntry(
             sessionId: sessionId,
@@ -1050,6 +1052,9 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             medicationId: medicationId,
             doseMg: doseMg,
             takenAtUTC: takenAt,
+            doseUnit: "mg",
+            formulation: formulation,
+            localOffsetMinutes: localOffsetMinutes,
             notes: notes,
             confirmedDuplicate: confirmedDuplicate
         )
@@ -1060,6 +1065,18 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         sessionDidChange.send()
         
         return .notDuplicate
+    }
+
+    private func persistedMedicationFormulation(for medicationId: String) -> String {
+        guard let medication = MedicationConfig.type(for: medicationId) else { return "ir" }
+        switch medication.formulation {
+        case .immediateRelease:
+            return "ir"
+        case .extendedRelease:
+            return "xr"
+        case .liquid:
+            return "liquid"
+        }
     }
     
     /// Check if a medication entry would be a duplicate
@@ -1122,6 +1139,17 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         let sessionDate = currentSessionDateString()
         return listMedicationEntries(for: sessionDate)
     }
+
+    /// Raw medication rows for sync/export code paths that need storage metadata.
+    public func fetchStoredMedicationEntries(for sessionDate: String) -> [StoredMedicationEntry] {
+        storage.fetchMedicationEvents(sessionDate: sessionDate)
+    }
+
+    /// Compute the planner/pre-sleep session date key for a given timestamp without
+    /// binding it to the currently active session id.
+    public func preSleepSessionDateKey(for date: Date) -> String {
+        preSleepSessionKey(for: date, timeZone: timeZoneProvider(), rolloverHour: rolloverHour)
+    }
     
     /// Delete a medication entry
     public func deleteMedicationEntry(id: String) {
@@ -1151,7 +1179,19 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     ///   - sessionDateOverride: Optional session date (uses current if nil)
     public func saveMorningCheckIn(_ checkIn: SQLiteStoredMorningCheckIn, sessionDateOverride: String? = nil) {
         let sessionDate = sessionDateOverride ?? activeSessionDate ?? currentSessionKey
-        let resolvedSessionId = activeSessionId ?? checkIn.sessionId
+        
+        // When saving for a historical/incomplete session (sessionDateOverride differs
+        // from the active session), use the check-in's own sessionId which was looked up
+        // from the old session. Using activeSessionId here would mis-link the check-in
+        // to the current session, causing the old session to remain "incomplete" forever.
+        let isHistoricalSession = sessionDateOverride != nil
+            && sessionDateOverride != activeSessionDate
+        let resolvedSessionId: String
+        if isHistoricalSession {
+            resolvedSessionId = checkIn.sessionId
+        } else {
+            resolvedSessionId = activeSessionId ?? checkIn.sessionId
+        }
         
         // Convert to EventStorage's StoredMorningCheckIn type
         let storedCheckIn = StoredMorningCheckIn(
@@ -1171,6 +1211,8 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             mentalClarity: checkIn.mentalClarity,
             mood: checkIn.mood,
             anxietyLevel: checkIn.anxietyLevel,
+            stressLevel: checkIn.stressLevel,
+            stressContextJson: checkIn.stressContextJson,
             readinessForDay: checkIn.readinessForDay,
             hadSleepParalysis: checkIn.hadSleepParalysis,
             hadHallucinations: checkIn.hadHallucinations,
@@ -1240,6 +1282,8 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             mentalClarity: core.mentalClarity,
             mood: core.mood,
             anxietyLevel: core.anxietyLevel,
+            stressLevel: core.stressLevel,
+            stressContextJson: core.stressContextJson,
             readinessForDay: core.readinessForDay,
             hadSleepParalysis: core.hadSleepParalysis,
             hadHallucinations: core.hadHallucinations,
@@ -1515,6 +1559,103 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             }
         }
     }
+
+    /// Backfill or correct Dose 1 from a morning check-in when the overnight tap was missed.
+    public func reconcileDose1(sessionDate: String, takenAt: Date, amountMg: Int?) {
+        upsertDoseEvent(
+            eventType: "dose1",
+            sessionDate: sessionDate,
+            timestamp: takenAt,
+            amountMg: amountMg
+        )
+
+        if sessionDate == activeSessionDate {
+            dose1Time = takenAt
+            sessionDidChange.send()
+        }
+    }
+
+    /// Backfill or correct Dose 2 from a morning check-in when the overnight tap was missed.
+    public func reconcileDose2(sessionDate: String, takenAt: Date, amountMg: Int?) {
+        storage.clearSkip(sessionDateOverride: sessionDate)
+        upsertDoseEvent(
+            eventType: "dose2",
+            sessionDate: sessionDate,
+            timestamp: takenAt,
+            amountMg: amountMg
+        )
+
+        if sessionDate == activeSessionDate {
+            dose2Time = takenAt
+            dose2Skipped = false
+            sessionDidChange.send()
+        }
+    }
+
+    /// Mark Dose 2 skipped during morning reconciliation without reopening the active-session flow.
+    public func reconcileDose2Skipped(sessionDate: String, timestamp: Date = Date()) {
+        let existingSkip = fetchDoseEvents(forSessionDate: sessionDate)
+            .first { $0.eventType == "dose2_skipped" }
+        let metadata = doseEventMetadata(amountMg: nil, source: "morning_reconciliation")
+
+        if let existingSkip {
+            storage.updateDoseEventMetadata(eventId: existingSkip.id, metadata: metadata)
+        } else {
+            storage.insertDoseEvent(
+                eventType: "dose2_skipped",
+                timestamp: timestamp,
+                sessionKey: sessionDate,
+                metadata: metadata
+            )
+        }
+
+        if sessionDate == activeSessionDate {
+            dose2Skipped = true
+            dose2Time = nil
+            sessionDidChange.send()
+        }
+    }
+
+    private func upsertDoseEvent(
+        eventType: String,
+        sessionDate: String,
+        timestamp: Date,
+        amountMg: Int?
+    ) {
+        let existing = fetchDoseEvents(forSessionDate: sessionDate)
+            .first { $0.eventType == eventType }
+        let metadata = doseEventMetadata(amountMg: amountMg, source: "morning_reconciliation")
+
+        if let existing {
+            switch eventType {
+            case "dose1":
+                storage.updateDose1Time(newTime: timestamp, sessionDate: sessionDate)
+            case "dose2":
+                storage.updateDose2Time(newTime: timestamp, sessionDate: sessionDate)
+            default:
+                break
+            }
+            storage.updateDoseEventMetadata(eventId: existing.id, metadata: metadata)
+        } else {
+            storage.insertDoseEvent(
+                eventType: eventType,
+                timestamp: timestamp,
+                sessionKey: sessionDate,
+                metadata: metadata
+            )
+        }
+    }
+
+    private func doseEventMetadata(amountMg: Int?, source: String) -> String? {
+        var metadata: [String: Any] = ["source": source]
+        if let amountMg {
+            metadata["amount_mg"] = amountMg
+        }
+        guard let data = try? JSONSerialization.data(withJSONObject: metadata) else {
+            return nil
+        }
+        return String(data: data, encoding: .utf8)
+    }
     
     /// Update event time for a sleep event
     /// - Parameters:
@@ -1573,6 +1714,13 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     /// Fetch pre-sleep log by session ID
     public func fetchMostRecentPreSleepLog(sessionId: String) -> StoredPreSleepLog? {
         return storage.fetchMostRecentPreSleepLog(sessionId: sessionId)
+    }
+
+    /// Resolve and fetch the session's canonical pre-sleep log for sync/export flows.
+    public func fetchPreSleepLog(forSessionDate sessionDate: String) -> StoredPreSleepLog? {
+        let resolvedSessionId = fetchSessionId(forSessionDate: sessionDate) ?? sessionDate
+        return storage.fetchMostRecentPreSleepLog(sessionId: resolvedSessionId)
+            ?? (resolvedSessionId == sessionDate ? nil : storage.fetchMostRecentPreSleepLog(sessionId: sessionDate))
     }
     
     /// Save dose 1 timestamp - SSOT: Updates in-memory state AND persists to storage
@@ -1670,6 +1818,16 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         storage.saveMorningCheckIn(checkIn, forSession: checkIn.sessionDate)
     }
 
+    /// Upsert pre-sleep log imported from sync.
+    public func upsertPreSleepLogFromSync(_ log: StoredPreSleepLog, sessionDate: String) {
+        storage.upsertPreSleepLogFromSync(log, sessionDate: sessionDate)
+    }
+
+    /// Upsert medication event imported from sync.
+    public func upsertMedicationEventFromSync(_ entry: StoredMedicationEntry) {
+        storage.upsertMedicationEvent(entry)
+    }
+
     /// Delete a sleep event imported as removed by sync.
     public func deleteSleepEventFromSync(id: String) {
         storage.deleteSleepEvent(id: id, recordCloudKitDeletion: false)
@@ -1683,6 +1841,16 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     /// Delete a morning check-in imported as removed by sync.
     public func deleteMorningCheckInFromSync(id: String) {
         storage.deleteMorningCheckIn(id: id, recordCloudKitDeletion: false)
+    }
+
+    /// Delete a pre-sleep log imported as removed by sync.
+    public func deletePreSleepLogFromSync(id: String) {
+        storage.deletePreSleepLog(id: id, recordCloudKitDeletion: false)
+    }
+
+    /// Delete a medication event imported as removed by sync.
+    public func deleteMedicationEventFromSync(id: String) {
+        storage.deleteMedicationEvent(id: id, recordCloudKitDeletion: false)
     }
 
     /// Delete a whole session imported as removed by sync.

@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>$(PRODUCT_BUNDLE_IDENTIFIER).export.scheduled</string>
+	</array>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -12,6 +16,16 @@
 				<string>dosetap</string>
 			</array>
 		</dict>
+	</array>
+	<key>NSHealthShareUsageDescription</key>
+	<string>DoseTap reads your sleep stages, heart rate, HRV, and respiratory rate from Apple Health to show how your dose timing correlates with sleep quality.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>DoseTap does not write health data. This permission is reserved for future use.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>DoseTap saves review captures to your Photos library when you choose Save to Photos.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>processing</string>
 	</array>
 </dict>
 </plist>

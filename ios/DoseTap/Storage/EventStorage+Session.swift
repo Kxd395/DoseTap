@@ -12,33 +12,52 @@ extension EventStorage {
         let identity = SessionIdentity(date: nowProvider(), timeZone: timeZoneProvider(), rolloverHour: 18)
         return identity.key
     }
-    
-    /// Get all distinct session dates from the database
-    /// Returns array of session date strings in descending order (newest first)
-    public func getAllSessionDates() -> [String] {
+
+    /// Discover session dates from every table that can currently anchor session-scoped data.
+    func discoveredSessionDates(limit: Int? = nil) -> [String] {
         var dates: [String] = []
-        
-        // Query distinct session dates from current_session, dose_events, and sleep_events
-        let sql = """
+        var sql = """
         SELECT DISTINCT session_date FROM current_session
+        UNION
+        SELECT DISTINCT session_date FROM sleep_sessions
         UNION
         SELECT DISTINCT session_date FROM dose_events
         UNION
         SELECT DISTINCT session_date FROM sleep_events
+        UNION
+        SELECT DISTINCT session_date FROM morning_checkins
+        UNION
+        SELECT DISTINCT session_date FROM checkin_submissions
+        UNION
+        SELECT DISTINCT session_date FROM medication_events
         ORDER BY session_date DESC
         """
+
+        if limit != nil {
+            sql += "\nLIMIT ?"
+        }
+
         var stmt: OpaquePointer?
-        
-        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-            while sqlite3_step(stmt) == SQLITE_ROW {
-                if let cString = sqlite3_column_text(stmt, 0) {
-                    dates.append(String(cString: cString))
-                }
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return dates }
+        defer { sqlite3_finalize(stmt) }
+
+        if let limit {
+            sqlite3_bind_int(stmt, 1, Int32(limit))
+        }
+
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            if let cString = sqlite3_column_text(stmt, 0) {
+                dates.append(String(cString: cString))
             }
         }
-        sqlite3_finalize(stmt)
-        
+
         return dates
+    }
+    
+    /// Get all distinct session dates from the database
+    /// Returns array of session date strings in descending order (newest first)
+    public func getAllSessionDates() -> [String] {
+        discoveredSessionDates()
     }
 
     /// Fetch session_id for a given session_date (prefers current_session)

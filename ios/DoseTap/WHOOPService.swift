@@ -358,9 +358,7 @@ final class WHOOPService: NSObject, ObservableObject {
                     throw WHOOPError.httpError(httpResponse.statusCode)
                 }
                 
-                let decoder = JSONDecoder()
-                decoder.keyDecodingStrategy = .convertFromSnakeCase
-                decoder.dateDecodingStrategy = .iso8601
+                let decoder = Self.makeAPIDecoder()
                 
                 Self.logger.debug("WHOOP API success: \(endpoint, privacy: .public)")
                 return try decoder.decode(T.self, from: data)
@@ -378,6 +376,27 @@ final class WHOOPService: NSObject, ObservableObject {
         
         Self.logger.error("WHOOP API failed after \(maxRetries + 1) attempts: \(endpoint, privacy: .public)")
         throw lastError
+    }
+
+    static func makeAPIDecoder() -> JSONDecoder {
+        let decoder = JSONDecoder()
+        // WHOOP models already declare explicit snake_case CodingKeys.
+        // convertFromSnakeCase breaks those mappings for fields like
+        // cycle_id and stage_summary by transforming payload keys twice.
+        decoder.keyDecodingStrategy = .useDefaultKeys
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let value = try container.decode(String.self)
+            if let date = AppFormatters.parseISO8601Flexible(value) {
+                return date
+            }
+
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Invalid WHOOP ISO-8601 date: \(value)"
+            )
+        }
+        return decoder
     }
     
     /// Fetch user profile

@@ -226,6 +226,99 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertEqual(repo.snoozeCount, 0, "clearAllData should reset snooze count")
         XCTAssertEqual(repo.currentContext.phase, .noDose1, "clearAllData should return to noDose1 phase")
     }
+
+    func test_logMedicationEntry_persistsDerivedFormulationAndTimezoneOffset() async throws {
+        let storage = EventStorage.inMemory()
+        let takenAt = ISO8601DateFormatter().date(from: "2026-01-16T02:00:00Z")!
+        let eastern = TimeZone(identifier: "America/New_York")!
+        let repo = SessionRepository(
+            storage: storage,
+            clock: { takenAt },
+            timeZoneProvider: { eastern }
+        )
+
+        _ = repo.logMedicationEntry(
+            medicationId: "adderall_xr",
+            doseMg: 15,
+            takenAt: takenAt,
+            notes: "after dinner"
+        )
+
+        let stored = try XCTUnwrap(storage.fetchAllMedicationEvents(limit: 1).first)
+        XCTAssertEqual(stored.doseUnit, "mg")
+        XCTAssertEqual(stored.formulation, "xr")
+        XCTAssertEqual(stored.localOffsetMinutes, eastern.secondsFromGMT(for: takenAt) / 60)
+        XCTAssertEqual(stored.notes, "after dinner")
+    }
+
+    func test_upsertPreSleepLogFromSync_persistsRowAndNormalizedSubmission() async throws {
+        let storage = EventStorage.inMemory()
+        let repo = SessionRepository(
+            storage: storage,
+            clock: { self.fixedNow },
+            timeZoneProvider: { TimeZone(identifier: "UTC")! }
+        )
+        let log = StoredPreSleepLog(
+            id: "pre-sync-1",
+            sessionId: "2026-01-15",
+            createdAtUtc: "2026-01-15T22:00:00.000Z",
+            localOffsetMinutes: 0,
+            completionState: "complete",
+            answers: PreSleepLogAnswers(stressLevel: 3, notes: "sync note")
+        )
+
+        repo.upsertPreSleepLogFromSync(log, sessionDate: "2026-01-15")
+
+        let stored = try XCTUnwrap(storage.fetchMostRecentPreSleepLog(sessionId: "2026-01-15"))
+        XCTAssertEqual(stored.id, "pre-sync-1")
+        XCTAssertEqual(stored.answers?.stressLevel, 3)
+
+        let submissions = storage.fetchCheckInSubmissions(sessionDate: "2026-01-15", checkInType: .preNight)
+        XCTAssertEqual(submissions.count, 1)
+        XCTAssertEqual(submissions.first?.sourceRecordId, "pre-sync-1")
+    }
+
+    func test_syncDeletes_removeMedicationAndPreSleepArtifacts() async throws {
+        let storage = EventStorage.inMemory()
+        let repo = SessionRepository(
+            storage: storage,
+            clock: { self.fixedNow },
+            timeZoneProvider: { TimeZone(identifier: "UTC")! }
+        )
+
+        repo.upsertMedicationEventFromSync(
+            StoredMedicationEntry(
+                id: "med-sync-1",
+                sessionId: "2026-01-15",
+                sessionDate: "2026-01-15",
+                medicationId: "adderall_xr",
+                doseMg: 10,
+                takenAtUTC: fixedNow,
+                doseUnit: "mg",
+                formulation: "xr",
+                localOffsetMinutes: 0,
+                notes: "sync med"
+            )
+        )
+        repo.upsertPreSleepLogFromSync(
+            StoredPreSleepLog(
+                id: "pre-sync-2",
+                sessionId: "2026-01-15",
+                createdAtUtc: "2026-01-15T22:05:00.000Z",
+                localOffsetMinutes: 0,
+                completionState: "complete",
+                answers: PreSleepLogAnswers(stressLevel: 1)
+            ),
+            sessionDate: "2026-01-15"
+        )
+
+        repo.deleteMedicationEventFromSync(id: "med-sync-1")
+        repo.deletePreSleepLogFromSync(id: "pre-sync-2")
+
+        XCTAssertTrue(storage.fetchAllMedicationEvents(limit: 10).isEmpty)
+        XCTAssertNil(storage.fetchMostRecentPreSleepLog(sessionId: "2026-01-15"))
+        XCTAssertTrue(storage.fetchCheckInSubmissions(sessionDate: "2026-01-15", checkInType: .preNight).isEmpty)
+    }
     
     // MARK: - Test: Mutations Broadcast Changes
     
@@ -485,16 +578,44 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertEqual(responses["pain.overall_intensity"] as? Int, 6)
     }
 
-    func test_addPreSleepLog_persistsGranularSubstanceDetails_andNormalizesTotals() async throws {
+    func test_addPreSleepLog_persistsStressDetails_evenAtLowStressLevels() async throws {
+        storage.clearAllData()
+
+        var answers = DoseTap.PreSleepLogAnswers()
+        answers.stressLevel = 2
+        answers.stressDrivers = [.work, .schedule]
+        answers.stressProgression = .better
+        answers.stressNotes = "Workload eased after dinner but schedule pressure is still there."
+
+        _ = try repo.savePreSleepLog(answers: answers, completionState: "complete")
+        guard let row = storage.fetchCheckInSubmissions(checkInType: .preNight).first else {
+            XCTFail("Expected one normalized pre-night submission")
+            return
+        }
+
+        let responses = decodeJSONDictionary(row.responsesJson)
+        XCTAssertEqual(responses["overall.stress"] as? Int, 2)
+        XCTAssertEqual(responses["pre.stress.driver"] as? String, PreSleepLogAnswers.StressDriver.work.rawValue)
+        XCTAssertEqual(
+            responses["pre.stress.drivers"] as? [String],
+            [PreSleepLogAnswers.StressDriver.work.rawValue, PreSleepLogAnswers.StressDriver.schedule.rawValue]
+        )
+        XCTAssertEqual(responses["pre.stress.progression"] as? String, PreSleepLogAnswers.StressProgression.better.rawValue)
+        XCTAssertEqual(responses["pre.stress.notes"] as? String, "Workload eased after dinner but schedule pressure is still there.")
+    }
+
+    func test_addPreSleepLog_persistsMultiSourceCaffeineDetails_andNormalizesTotals() async throws {
         storage.clearAllData()
         let caffeineTime = Date(timeIntervalSince1970: 1_770_000_000)
         let alcoholTime = caffeineTime.addingTimeInterval(-3600)
+        let mealTime = alcoholTime.addingTimeInterval(-5400)
+        let screenTime = caffeineTime.addingTimeInterval(-1800)
 
         var answers = DoseTap.PreSleepLogAnswers()
-        answers.stimulants = .coffee
+        answers.caffeineSources = [.coffee, .soda]
         answers.caffeineLastIntakeAt = caffeineTime
-        answers.caffeineLastAmountMg = 190
-        answers.caffeineDailyTotalMg = 120 // intentionally lower; should normalize up
+        answers.caffeineLastAmountMg = 16
+        answers.caffeineDailyTotalMg = 12 // intentionally lower; should normalize up
         answers.alcohol = .twoThree
         answers.alcoholLastDrinkAt = alcoholTime
         answers.alcoholLastAmountDrinks = 2.5
@@ -507,6 +628,12 @@ final class SessionRepositoryTests: XCTestCase {
         answers.napCount = 2
         answers.napTotalMinutes = 70
         answers.napLastEndAt = alcoholTime.addingTimeInterval(-7200)
+        answers.lateMeal = .heavyMeal
+        answers.lateMealEndedAt = mealTime
+        answers.screensInBed = .hourPlus
+        answers.screensLastUsedAt = screenTime
+        answers.sleepAidSelections = [.fan, .earplugs]
+        answers.notes = "Room felt warmer than usual."
 
         let log = try repo.savePreSleepLog(answers: answers, completionState: "complete")
         let rows = storage.fetchCheckInSubmissions(checkInType: .preNight)
@@ -515,10 +642,15 @@ final class SessionRepositoryTests: XCTestCase {
         guard let row = rows.first else { return }
 
         let responses = decodeJSONDictionary(row.responsesJson)
-        XCTAssertEqual(responses["pre.substances.caffeine.source"] as? String, PreSleepLogAnswers.Stimulants.coffee.rawValue)
+        XCTAssertEqual(responses["pre.substances.caffeine.source"] as? String, PreSleepLogAnswers.Stimulants.multiple.rawValue)
+        XCTAssertEqual(responses["pre.substances.stimulants_after_2pm"] as? String, PreSleepLogAnswers.Stimulants.multiple.rawValue)
+        XCTAssertEqual(responses["pre.substances.caffeine.sources"] as? [String], [PreSleepLogAnswers.Stimulants.coffee.rawValue, PreSleepLogAnswers.Stimulants.soda.rawValue])
         XCTAssertEqual(responses["pre.substances.caffeine.any"] as? Bool, true)
-        XCTAssertEqual(responses["pre.substances.caffeine.last_amount_mg"] as? Int, 190)
-        XCTAssertEqual(responses["pre.substances.caffeine.daily_total_mg"] as? Int, 190)
+        XCTAssertEqual(responses["pre.substances.caffeine.amount_unit"] as? String, "oz")
+        XCTAssertEqual(responses["pre.substances.caffeine.last_amount_mg"] as? Int, 16)
+        XCTAssertEqual(responses["pre.substances.caffeine.daily_total_mg"] as? Int, 16)
+        XCTAssertEqual(responses["pre.substances.caffeine.last_amount_oz"] as? Int, 16)
+        XCTAssertEqual(responses["pre.substances.caffeine.daily_total_oz"] as? Int, 16)
         XCTAssertNotNil(responses["pre.substances.caffeine.last_time_utc"] as? String)
 
         XCTAssertEqual(responses["pre.substances.alcohol"] as? String, PreSleepLogAnswers.AlcoholLevel.twoThree.rawValue)
@@ -540,18 +672,96 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertEqual(responses["pre.day.nap.count"] as? Int, 2)
         XCTAssertEqual(responses["pre.day.nap.total_minutes"] as? Int, 70)
         XCTAssertNotNil(responses["pre.day.nap.last_end_time_utc"] as? String)
+        XCTAssertEqual(responses["pre.day.late_meal"] as? String, PreSleepLogAnswers.LateMeal.heavyMeal.rawValue)
+        XCTAssertNotNil(responses["pre.day.late_meal.last_time_utc"] as? String)
+        XCTAssertEqual(responses["pre.sleep.screens_in_bed"] as? String, PreSleepLogAnswers.ScreensInBed.hourPlus.rawValue)
+        XCTAssertNotNil(responses["pre.sleep.screens_in_bed.last_time_utc"] as? String)
+        XCTAssertEqual(responses["pre.sleep.aids"] as? String, PreSleepLogAnswers.SleepAid.multiple.rawValue)
+        XCTAssertEqual(responses["pre.sleep.aids.any"] as? Bool, true)
+        XCTAssertEqual(responses["pre.sleep.aids_list"] as? [String], [PreSleepLogAnswers.SleepAid.earplugs.rawValue, PreSleepLogAnswers.SleepAid.fan.rawValue])
+        XCTAssertEqual(responses["notes.anything_else"] as? String, "Room felt warmer than usual.")
 
         guard let sessionId = log.sessionId else {
             XCTFail("Expected pre-sleep log session id")
             return
         }
         let stored = storage.fetchMostRecentPreSleepLog(sessionId: sessionId)
-        XCTAssertEqual(stored?.answers?.caffeineDailyTotalMg, 190)
+        XCTAssertEqual(stored?.answers?.stimulants, .multiple)
+        XCTAssertEqual(stored?.answers?.caffeineSources ?? [], [.coffee, .soda])
+        XCTAssertEqual(stored?.answers?.caffeineDailyTotalMg, 16)
+        XCTAssertEqual(stored?.answers?.lateMeal, .heavyMeal)
+        XCTAssertEqual(stored?.answers?.screensInBed, .hourPlus)
+        XCTAssertEqual(stored?.answers?.sleepAids, .multiple)
+        XCTAssertEqual(stored?.answers?.sleepAidSelections ?? [], [.earplugs, .fan])
+        XCTAssertEqual(stored?.answers?.notes, "Room felt warmer than usual.")
         XCTAssertEqual(stored?.answers?.alcoholDailyTotalDrinks ?? 0, 2.5, accuracy: 0.001)
         XCTAssertEqual(stored?.answers?.exerciseType, .strength)
         XCTAssertEqual(stored?.answers?.exerciseDurationMinutes, 55)
         XCTAssertEqual(stored?.answers?.napCount, 2)
         XCTAssertEqual(stored?.answers?.napTotalMinutes, 70)
+    }
+
+    func test_addPreSleepLog_persistsNightlyDoseTotalAndSplit_andFlagsOffLabelSingleDose() async throws {
+        storage.clearAllData()
+
+        var answers = DoseTap.PreSleepLogAnswers()
+        answers.plannedTotalNightlyMg = 9000
+        answers.plannedDoseSplitRatio = [0.6, 0.4]
+
+        let log = try repo.savePreSleepLog(answers: answers, completionState: "complete")
+        let rows = storage.fetchCheckInSubmissions(checkInType: .preNight)
+
+        XCTAssertEqual(rows.count, 1, "Expected one normalized pre-night submission")
+        guard let row = rows.first else { return }
+
+        let responses = decodeJSONDictionary(row.responsesJson)
+        XCTAssertEqual(responses["pre.dose_plan.any"] as? Bool, true)
+        XCTAssertEqual(responses["pre.dose_plan.total_mg"] as? Int, 9000)
+        XCTAssertEqual(responses["pre.dose_plan.dose1_mg"] as? Int, 5400)
+        XCTAssertEqual(responses["pre.dose_plan.dose2_mg"] as? Int, 3600)
+        XCTAssertEqual(responses["pre.dose_plan.split_percentages"] as? [Int], [60, 40])
+        XCTAssertEqual(responses["pre.dose_plan.off_label_single_dose"] as? Bool, true)
+
+        guard let sessionId = log.sessionId else {
+            XCTFail("Expected pre-sleep log session id")
+            return
+        }
+        let stored = storage.fetchMostRecentPreSleepLog(sessionId: sessionId)
+        XCTAssertEqual(stored?.answers?.plannedTotalNightlyMg, 9000)
+        XCTAssertEqual(stored?.answers?.plannedDose1Mg, 5400)
+        XCTAssertEqual(stored?.answers?.plannedDose2Mg, 3600)
+        XCTAssertEqual(stored?.answers?.plannedDosePercentages ?? [], [60, 40])
+    }
+
+    func test_addPreSleepLog_allowsNightlyDoseTotalAboveNineThousandMg() async throws {
+        storage.clearAllData()
+
+        var answers = DoseTap.PreSleepLogAnswers()
+        answers.plannedTotalNightlyMg = 10_000
+        answers.plannedDoseSplitRatio = [0.55, 0.45]
+
+        let log = try repo.savePreSleepLog(answers: answers, completionState: "complete")
+        let rows = storage.fetchCheckInSubmissions(checkInType: .preNight)
+
+        XCTAssertEqual(rows.count, 1, "Expected one normalized pre-night submission")
+        guard let row = rows.first else { return }
+
+        let responses = decodeJSONDictionary(row.responsesJson)
+        XCTAssertEqual(responses["pre.dose_plan.total_mg"] as? Int, 10_000)
+        XCTAssertEqual(responses["pre.dose_plan.dose1_mg"] as? Int, 5_500)
+        XCTAssertEqual(responses["pre.dose_plan.dose2_mg"] as? Int, 4_500)
+        XCTAssertEqual(responses["pre.dose_plan.split_percentages"] as? [Int], [55, 45])
+        XCTAssertEqual(responses["pre.dose_plan.off_label_single_dose"] as? Bool, true)
+
+        guard let sessionId = log.sessionId else {
+            XCTFail("Expected pre-sleep log session id")
+            return
+        }
+        let stored = storage.fetchMostRecentPreSleepLog(sessionId: sessionId)
+        XCTAssertEqual(stored?.answers?.plannedTotalNightlyMg, 10_000)
+        XCTAssertEqual(stored?.answers?.plannedDose1Mg, 5_500)
+        XCTAssertEqual(stored?.answers?.plannedDose2Mg, 4_500)
+        XCTAssertEqual(stored?.answers?.plannedDosePercentages ?? [], [55, 45])
     }
 
     func test_corePreSleepBridge_mapsLegacyBooleans_toCanonicalSubstanceResponses() throws {
@@ -735,16 +945,18 @@ final class SessionRepositoryTests: XCTestCase {
             mentalClarity: 6,
             mood: "Good",
             anxietyLevel: "Mild",
+            stressLevel: 3,
+            stressContextJson: #"{"drivers":["sleep","work"],"progression":"worse","notes":"Stress was worse after fragmented sleep."}"#,
             readinessForDay: 4,
             hadSleepParalysis: false,
             hadHallucinations: false,
-            hadAutomaticBehavior: false,
+            hadAutomaticBehavior: true,
             fellOutOfBed: false,
             hadConfusionOnWaking: false,
-            usedSleepTherapy: false,
-            sleepTherapyJson: nil,
-            hasSleepEnvironment: false,
-            sleepEnvironmentJson: nil,
+            usedSleepTherapy: true,
+            sleepTherapyJson: #"{"device":"CPAP","compliance":85,"notes":"mask leak around 4am"}"#,
+            hasSleepEnvironment: true,
+            sleepEnvironmentJson: #"{"roomTemp":"warm","noiseLevel":"moderate","sleepAids":"white_noise","notes":"hotel HVAC noise"}"#,
             notes: "Felt better than expected"
         )
 
@@ -758,8 +970,23 @@ final class SessionRepositoryTests: XCTestCase {
 
         let responses = decodeJSONDictionary(row.responsesJson)
         XCTAssertEqual(responses["sleep.quality"] as? Int, 4)
+        XCTAssertEqual(responses["overall.stress"] as? Int, 3)
+        XCTAssertEqual(responses["overall.anxiety"] as? String, "Mild")
+        XCTAssertEqual(
+            responses["morning.stress.drivers"] as? [String],
+            [PreSleepLogAnswers.StressDriver.sleep.rawValue, PreSleepLogAnswers.StressDriver.work.rawValue]
+        )
+        XCTAssertEqual(responses["morning.stress.progression"] as? String, PreSleepLogAnswers.StressProgression.worse.rawValue)
+        XCTAssertEqual(responses["morning.stress.notes"] as? String, "Stress was worse after fragmented sleep.")
         XCTAssertEqual(responses["pain.any"] as? Bool, true)
         XCTAssertEqual(responses["pain.overall_intensity"] as? Int, 7)
+        XCTAssertEqual(responses["narcolepsy.automatic_behavior"] as? Bool, true)
+        XCTAssertEqual(responses["sleep_therapy.device"] as? String, "CPAP")
+        XCTAssertEqual(responses["sleep_therapy.compliance"] as? Int, 85)
+        XCTAssertEqual(responses["sleep_environment.any"] as? Bool, true)
+        XCTAssertEqual(responses["sleep_environment.room_temp"] as? String, "warm")
+        XCTAssertEqual(responses["sleep_environment.noise_level"] as? String, "moderate")
+        XCTAssertEqual(responses["sleep_environment.sleep_aids"] as? String, "white_noise")
     }
 
     func test_deleteMorningCheckIn_removesNormalizedSubmission() async throws {

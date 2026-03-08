@@ -287,6 +287,8 @@ extension EventStorage: EventStore {
             mentalClarity: checkIn.mentalClarity,
             mood: checkIn.mood,
             anxietyLevel: checkIn.anxietyLevel,
+            stressLevel: checkIn.stressLevel,
+            stressContextJson: checkIn.stressContextJson,
             readinessForDay: checkIn.readinessForDay,
             hadSleepParalysis: checkIn.hadSleepParalysis,
             hadHallucinations: checkIn.hadHallucinations,
@@ -321,6 +323,8 @@ extension EventStorage: EventStore {
             mentalClarity: local.mentalClarity,
             mood: local.mood,
             anxietyLevel: local.anxietyLevel,
+            stressLevel: local.stressLevel,
+            stressContextJson: local.stressContextJson,
             readinessForDay: local.readinessForDay,
             hadSleepParalysis: local.hadSleepParalysis,
             hadHallucinations: local.hadHallucinations,
@@ -340,9 +344,9 @@ extension EventStorage: EventStore {
         SELECT id, session_id, timestamp, session_date, sleep_quality, feel_rested, grogginess,
                sleep_inertia_duration, dream_recall, has_physical_symptoms, physical_symptoms_json,
                has_respiratory_symptoms, respiratory_symptoms_json, mental_clarity, mood, anxiety_level,
-               readiness_for_day, had_sleep_paralysis, had_hallucinations, had_automatic_behavior,
-               fell_out_of_bed, had_confusion_on_waking, used_sleep_therapy, sleep_therapy_json,
-               has_sleep_environment, sleep_environment_json, notes
+               stress_level, stress_context_json, readiness_for_day, had_sleep_paralysis,
+               had_hallucinations, had_automatic_behavior, fell_out_of_bed, had_confusion_on_waking,
+               used_sleep_therapy, sleep_therapy_json, has_sleep_environment, sleep_environment_json, notes
         FROM morning_checkins
         WHERE session_id = ? OR session_date = ?
         ORDER BY timestamp DESC
@@ -382,17 +386,19 @@ extension EventStorage: EventStore {
             mentalClarity: Int(sqlite3_column_int(stmt, 13)),
             mood: sqlite3_column_text(stmt, 14).map { String(cString: $0) } ?? "neutral",
             anxietyLevel: sqlite3_column_text(stmt, 15).map { String(cString: $0) } ?? "none",
-            readinessForDay: Int(sqlite3_column_int(stmt, 16)),
-            hadSleepParalysis: sqlite3_column_int(stmt, 17) != 0,
-            hadHallucinations: sqlite3_column_int(stmt, 18) != 0,
-            hadAutomaticBehavior: sqlite3_column_int(stmt, 19) != 0,
-            fellOutOfBed: sqlite3_column_int(stmt, 20) != 0,
-            hadConfusionOnWaking: sqlite3_column_int(stmt, 21) != 0,
-            usedSleepTherapy: sqlite3_column_int(stmt, 22) != 0,
-            sleepTherapyJson: sqlite3_column_text(stmt, 23).map { String(cString: $0) },
-            hasSleepEnvironment: sqlite3_column_int(stmt, 24) != 0,
-            sleepEnvironmentJson: sqlite3_column_text(stmt, 25).map { String(cString: $0) },
-            notes: sqlite3_column_text(stmt, 26).map { String(cString: $0) }
+            stressLevel: sqlite3_column_type(stmt, 16) == SQLITE_NULL ? nil : Int(sqlite3_column_int(stmt, 16)),
+            stressContextJson: sqlite3_column_text(stmt, 17).map { String(cString: $0) },
+            readinessForDay: Int(sqlite3_column_int(stmt, 18)),
+            hadSleepParalysis: sqlite3_column_int(stmt, 19) != 0,
+            hadHallucinations: sqlite3_column_int(stmt, 20) != 0,
+            hadAutomaticBehavior: sqlite3_column_int(stmt, 21) != 0,
+            fellOutOfBed: sqlite3_column_int(stmt, 22) != 0,
+            hadConfusionOnWaking: sqlite3_column_int(stmt, 23) != 0,
+            usedSleepTherapy: sqlite3_column_int(stmt, 24) != 0,
+            sleepTherapyJson: sqlite3_column_text(stmt, 25).map { String(cString: $0) },
+            hasSleepEnvironment: sqlite3_column_int(stmt, 26) != 0,
+            sleepEnvironmentJson: sqlite3_column_text(stmt, 27).map { String(cString: $0) },
+            notes: sqlite3_column_text(stmt, 28).map { String(cString: $0) }
         )
     }
     

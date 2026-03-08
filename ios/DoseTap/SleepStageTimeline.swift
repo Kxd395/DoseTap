@@ -515,15 +515,22 @@ struct SummaryMetric: View {
 /// Timeline view that fetches real sleep data from HealthKit
 struct LiveSleepTimelineView: View {
     @StateObject private var healthKit = HealthKitService.shared
+    @StateObject private var whoop = WHOOPService.shared
     @StateObject private var settings = UserSettingsManager.shared
     @StateObject private var sessionRepo = SessionRepository.shared
     @State private var sleepBands: [SleepStageBand] = []
     @State private var sleepEvents: [StoredSleepEvent] = []
     @State private var doseEvents: [TimelineEvent] = []
+    @State private var heartRateData: [HeartRateDataPoint] = []
+    @State private var respiratoryRateData: [RespiratoryRateDataPoint] = []
+    @State private var hrvData: [HRVDataPoint] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var displayRange: (start: Date, end: Date)?
     @State private var showRoutine = false
+    @State private var whoopTimelineStatus: String?
+    @State private var stageSourceDescription = "Apple Health stages"
+    @State private var biometricSourceDescription: String?
     
     let nightDate: Date  // The night to display (defaults to last night)
     
@@ -559,54 +566,6 @@ struct LiveSleepTimelineView: View {
             if isLoading {
                 ProgressView("Loading sleep data...")
                     .padding()
-            } else if !settings.healthKitEnabled {
-                VStack(spacing: 12) {
-                    Image(systemName: "heart.slash")
-                        .font(.largeTitle)
-                        .foregroundColor(.secondary)
-                    Text("Apple Health is disabled")
-                        .font(.headline)
-                    Text("Enable Apple Health in Settings to view your sleep timeline")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                    Button("Enable HealthKit") {
-                        Task {
-                            settings.healthKitEnabled = true
-                            let authorized = await healthKit.requestAuthorization()
-                            if authorized {
-                                await loadSessionData()
-                                await loadHealthKitData()
-                            }
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-                .padding()
-            } else if !healthKit.isAuthorized {
-                VStack(spacing: 12) {
-                    Image(systemName: "heart.text.square")
-                        .font(.largeTitle)
-                        .foregroundColor(.secondary)
-                    Text("Apple Health Access Required")
-                        .font(.headline)
-                    Text("Enable Apple Health in Settings to view your sleep timeline")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                    Button("Enable Apple Health") {
-                        Task {
-                            settings.healthKitEnabled = true
-                            let authorized = await healthKit.requestAuthorization()
-                            if authorized {
-                                await loadSessionData()
-                                await loadHealthKitData()
-                            }
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-                .padding()
             } else if let error = errorMessage {
                 VStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle")
@@ -625,36 +584,134 @@ struct LiveSleepTimelineView: View {
                 }
                 .padding()
             } else if sleepBands.isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: "moon.zzz")
-                        .font(.largeTitle)
-                        .foregroundColor(.secondary)
-                    Text("No sleep data for this night")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                .padding()
+                noSleepDataState
             } else {
-                SleepStageTimeline(
+                EnhancedSleepTimeline(
                     stages: sleepBands,
                     events: doseEvents,
                     startTime: displayRangeEffective.start,
-                    endTime: displayRangeEffective.end
+                    endTime: displayRangeEffective.end,
+                    heartRateData: heartRateData,
+                    respiratoryRateData: respiratoryRateData,
+                    hrvData: hrvData
                 )
                 
                 StageSummaryCard(stages: sleepBands)
+
+                HStack(spacing: 8) {
+                    Image(systemName: timelineSourceIconName)
+                        .foregroundColor(timelineSourceColor)
+                    Text(timelineSourceText)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+                .padding(.horizontal, 4)
+
+                if let whoopTimelineStatus, !hasWhoopOverlayData {
+                    Text(whoopTimelineStatus)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 4)
+                }
             }
         }
         .task(id: nightDate) {
             healthKit.checkAuthorizationStatus()
             await loadSessionData()
-            if settings.healthKitEnabled && healthKit.isAuthorized {
-                await loadHealthKitData()
-            }
+            await loadHealthKitData()
         }
         .onChange(of: settings.healthKitEnabled) { _ in
             healthKit.checkAuthorizationStatus()
         }
+    }
+
+    private var hasWhoopOverlayData: Bool {
+        biometricSourceDescription?.contains("WHOOP") == true
+    }
+
+    private var timelineSourceText: String {
+        if let biometricSourceDescription, !biometricSourceDescription.isEmpty {
+            return "\(stageSourceDescription) + \(biometricSourceDescription)"
+        }
+        return stageSourceDescription
+    }
+
+    private var timelineSourceIconName: String {
+        if stageSourceDescription.contains("WHOOP") || hasWhoopOverlayData {
+            return "waveform.path.ecg"
+        }
+        return "heart.fill"
+    }
+
+    private var timelineSourceColor: Color {
+        if stageSourceDescription.contains("WHOOP") || hasWhoopOverlayData {
+            return .green
+        }
+        if stageSourceDescription.contains("Apple") {
+            return .red
+        }
+        return .secondary
+    }
+
+    private var canUseAppleHealth: Bool {
+        settings.healthKitEnabled && healthKit.isAvailable && healthKit.isAuthorized
+    }
+
+    private var canUseWhoop: Bool {
+        WHOOPService.isEnabled && settings.whoopEnabled && whoop.isConnected
+    }
+
+    @ViewBuilder
+    private var noSleepDataState: some View {
+        if !canUseAppleHealth && !canUseWhoop {
+            healthSourcePrompt
+        } else {
+            VStack(spacing: 8) {
+                Image(systemName: "moon.zzz")
+                    .font(.largeTitle)
+                    .foregroundColor(.secondary)
+                Text("No sleep data for this night")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                if let whoopTimelineStatus {
+                    Text(whoopTimelineStatus)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+            }
+            .padding()
+        }
+    }
+
+    private var healthSourcePrompt: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "heart.text.square")
+                .font(.largeTitle)
+                .foregroundColor(.secondary)
+            Text("Connect a sleep source")
+                .font(.headline)
+            Text("Enable Apple Health or connect WHOOP to load the nightly timeline and biometrics.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+            if healthKit.isAvailable {
+                Button("Enable Apple Health") {
+                    Task {
+                        settings.healthKitEnabled = true
+                        let authorized = await healthKit.requestAuthorization()
+                        if authorized {
+                            await loadSessionData()
+                            await loadHealthKitData()
+                        }
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding()
     }
 
     private var nightSummaryData: NightSummaryData? {
@@ -892,35 +949,155 @@ struct LiveSleepTimelineView: View {
 
     private func loadHealthKitData() async {
         await loadSleepData()
+        await loadBiometricData()
     }
     
     private func loadSleepData() async {
         isLoading = true
         errorMessage = nil
-        
-        do {
-            let segments = try await healthKit.fetchSegmentsForTimeline(
-                from: timeRange.start,
-                to: timeRange.end
-            )
-            
-            // Convert HealthKit segments to display bands
-            let mappedBands = segments.map { segment in
-                let displayStage = HealthKitService.mapToDisplayStage(segment.stage)
-                return SleepStageBand(
-                    stage: mapDisplayStageToSleepStage(displayStage),
-                    startTime: segment.start,
-                    endTime: segment.end
+
+        var stageBands: [SleepStageBand] = []
+        var stageStatus: String?
+
+        if canUseAppleHealth {
+            do {
+                let segments = try await healthKit.fetchSegmentsForTimeline(
+                    from: timeRange.start,
+                    to: timeRange.end
                 )
+                let mappedBands = segments.map { segment in
+                    let displayStage = HealthKitService.mapToDisplayStage(segment.stage)
+                    return SleepStageBand(
+                        stage: mapDisplayStageToSleepStage(displayStage),
+                        startTime: segment.start,
+                        endTime: segment.end
+                    )
+                }
+                stageBands = primaryNightSleepBands(from: mappedBands)
+                if !stageBands.isEmpty {
+                    stageSourceDescription = "Apple Health stages"
+                }
+            } catch {
+                stageStatus = "Apple Health data could not be loaded: \(error.localizedDescription)"
             }
-            sleepBands = primaryNightSleepBands(from: mappedBands)
-            recomputeDisplayRange()
-            
-        } catch {
-            errorMessage = "Failed to load sleep data: \(error.localizedDescription)"
+        }
+
+        if stageBands.isEmpty, canUseWhoop {
+            do {
+                let whoopBands = try await loadWhoopSleepBands()
+                if !whoopBands.isEmpty {
+                    stageBands = whoopBands
+                    stageSourceDescription = "WHOOP stages"
+                    stageStatus = nil
+                }
+            } catch {
+                stageStatus = "WHOOP sleep stages could not be loaded: \(error.localizedDescription)"
+            }
+        }
+
+        sleepBands = stageBands
+        recomputeDisplayRange()
+        if sleepBands.isEmpty {
+            errorMessage = nil
+            whoopTimelineStatus = stageStatus
+        } else {
+            errorMessage = nil
         }
         
         isLoading = false
+    }
+
+    private func loadBiometricData() async {
+        heartRateData = []
+        respiratoryRateData = []
+        hrvData = []
+        whoopTimelineStatus = nil
+        biometricSourceDescription = nil
+
+        var sources: [String] = []
+        var statusMessages: [String] = []
+
+        if canUseAppleHealth {
+            do {
+                let appleBiometrics = try await healthKit.fetchTimelineBiometrics(from: timeRange.start, to: timeRange.end)
+                heartRateData = appleBiometrics.heartRate
+                respiratoryRateData = appleBiometrics.respiratoryRate
+                hrvData = appleBiometrics.hrv
+                if appleBiometrics.hasAnyData {
+                    sources.append("Apple Health biometrics")
+                }
+            } catch {
+                statusMessages.append("Apple Health biometrics could not be loaded: \(error.localizedDescription)")
+            }
+        }
+
+        if canUseWhoop {
+            do {
+                guard let matchedSleep = try await matchedWhoopSleep() else {
+                    statusMessages.append("WHOOP is connected, but no matching sleep was found for this night.")
+                    biometricSourceDescription = sources.isEmpty ? nil : sources.joined(separator: " + ")
+                    whoopTimelineStatus = statusMessages.joined(separator: " ")
+                    return
+                }
+
+                let biometrics = await whoop.extractBiometricData(from: matchedSleep)
+                if !biometrics.heartRate.isEmpty {
+                    heartRateData = biometrics.heartRate
+                }
+                if !biometrics.respiratoryRate.isEmpty {
+                    respiratoryRateData = biometrics.respiratoryRate
+                }
+                if !biometrics.hrv.isEmpty {
+                    hrvData = biometrics.hrv
+                }
+                if !biometrics.heartRate.isEmpty || !biometrics.respiratoryRate.isEmpty || !biometrics.hrv.isEmpty {
+                    sources.append("WHOOP biometrics")
+                } else {
+                    statusMessages.append("WHOOP sleep matched this night, but no biometric overlays were returned.")
+                }
+            } catch {
+                statusMessages.append("WHOOP data could not be loaded: \(error.localizedDescription)")
+            }
+        }
+
+        biometricSourceDescription = sources.isEmpty ? nil : sources.joined(separator: " + ")
+        if biometricSourceDescription == nil {
+            whoopTimelineStatus = statusMessages.isEmpty ? "No biometric overlays available for this night." : statusMessages.joined(separator: " ")
+        } else if !statusMessages.isEmpty {
+            whoopTimelineStatus = statusMessages.joined(separator: " ")
+        }
+    }
+
+    private func overlapDuration(for sleep: WHOOPSleep) -> TimeInterval {
+        guard let start = sleep.start, let end = sleep.end, end > start else {
+            return 0
+        }
+
+        let overlapStart = max(start, timeRange.start)
+        let overlapEnd = min(end, timeRange.end)
+        return max(0, overlapEnd.timeIntervalSince(overlapStart))
+    }
+
+    private func matchedWhoopSleep() async throws -> WHOOPSleep? {
+        let sleeps = try await whoop.fetchSleepData(from: timeRange.start, to: timeRange.end)
+        let candidates = sleeps.filter { $0.nap != true }
+        guard let matchedSleep = candidates.max(by: { overlapDuration(for: $0) < overlapDuration(for: $1) }),
+              overlapDuration(for: matchedSleep) > 0 else {
+            return nil
+        }
+        return matchedSleep
+    }
+
+    private func loadWhoopSleepBands() async throws -> [SleepStageBand] {
+        guard let matchedSleep = try await matchedWhoopSleep() else {
+            return []
+        }
+
+        let stages = try await whoop.fetchSleepStages(sleepId: matchedSleep.id)
+        let mapped = (stages.stages ?? [])
+            .compactMap { $0.toSleepStageBand() }
+            .sorted { $0.startTime < $1.startTime }
+        return primaryNightSleepBands(from: mapped)
     }
     
     /// Map from HealthKitService.SleepDisplayStage to SleepStageTimeline.SleepStage

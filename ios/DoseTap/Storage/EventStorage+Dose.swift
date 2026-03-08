@@ -208,6 +208,22 @@ extension EventStorage {
         storageLog.info("Edit: Updated event \(eventId) time to \(timestampStr)")
     }
 
+    /// Update metadata JSON for a stored dose event.
+    public func updateDoseEventMetadata(eventId: String, metadata: String?) {
+        let updateSQL = "UPDATE dose_events SET metadata = ? WHERE id = ?"
+        var stmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, updateSQL, -1, &stmt, nil) == SQLITE_OK {
+            if let metadata {
+                sqlite3_bind_text(stmt, 1, metadata, -1, SQLITE_TRANSIENT)
+            } else {
+                sqlite3_bind_null(stmt, 1)
+            }
+            sqlite3_bind_text(stmt, 2, eventId, -1, SQLITE_TRANSIENT)
+            sqlite3_step(stmt)
+            sqlite3_finalize(stmt)
+        }
+    }
+
     // MARK: - Internal Dose Helpers
 
     private func insertDoseEventInternal(eventType: String, timestamp: Date, sessionDate: String? = nil, sessionId: String? = nil, metadata: String? = nil) {

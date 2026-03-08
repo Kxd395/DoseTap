@@ -474,3 +474,54 @@ struct IncompleteSessionBanner: View {
         return AppFormatters.shortDate.string(from: date)
     }
 }
+
+// MARK: - Morning Check-In Compact Card
+/// Compact card showing completed morning check-in status with edit capability.
+struct MorningCheckInCompactCard: View {
+    let checkIn: StoredMorningCheckIn
+    let onEdit: () -> Void
+    
+    var body: some View {
+        Button {
+            onEdit()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "sun.max.fill")
+                    .font(.title3)
+                    .foregroundColor(.green)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Morning check-in logged")
+                        .font(.subheadline.bold())
+                    Text("Sleep \(checkIn.sleepQuality)/5 · Mood: \(checkIn.mood) · Readiness: \(checkIn.readinessForDay)/5")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+                
+                Spacer()
+                
+                Text("Edit")
+                    .font(.caption.bold())
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(Color(.tertiarySystemFill))
+                    )
+            }
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(.secondarySystemBackground))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color(.separator), lineWidth: 1)
+                    )
+            )
+            .foregroundColor(.primary)
+        }
+        .buttonStyle(.plain)
+    }
+}

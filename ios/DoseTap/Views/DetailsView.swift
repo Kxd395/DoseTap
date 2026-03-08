@@ -123,6 +123,7 @@ struct DetailsView: View {
                         reviewContent
                     }
                     .padding()
+                    .padding(.top, isInSplitView ? 0 : 16)
                     .padding(.bottom, 80)
                 } else {
                     VStack(spacing: 20) {
@@ -136,6 +137,7 @@ struct DetailsView: View {
                         liveContent
                     }
                     .padding()
+                    .padding(.top, isInSplitView ? 0 : 16)
                     .padding(.bottom, 80)
                 }
             }
@@ -177,7 +179,13 @@ struct DetailsView: View {
             }
             .sheet(isPresented: $showReviewShareSheet) {
                 if let reviewShareImage {
-                    ActivityViewController(activityItems: [reviewShareImage])
+                    CapturePreviewSheet(
+                        title: "Review Capture",
+                        image: reviewShareImage
+                    ) {
+                        self.reviewShareImage = nil
+                        self.showReviewShareSheet = false
+                    }
                 }
             }
             .alert("Unable to Share Review", isPresented: Binding(
@@ -196,7 +204,7 @@ struct DetailsView: View {
 
     @ViewBuilder
     private var liveContent: some View {
-        LiveNextActionCard(core: core)
+        LiveNextActionCard(core: core, events: eventLogger.events)
 
         TonightTimelineProgressCard(core: core, events: eventLogger.events)
 
@@ -245,6 +253,8 @@ struct DetailsView: View {
                     ),
                     fullViewLabel: "Full view"
                 )
+
+                HealthDataCard(sessionKey: session.sessionDate)
 
                 ReviewKeyMetricsCard(session: session, events: reviewEvents)
 
@@ -387,6 +397,7 @@ struct DetailsView: View {
 
         Task { @MainActor in
             let snapshotTimeline = await fetchSnapshotSleepTimeline(for: reviewNightDate)
+            let healthSnapshot = await HealthDataSnapshotLoader.load(sessionKey: session.sessionDate)
             InsightsCalculator.shared.computeInsights()
 
             let content = TimelineReviewShareSnapshotView(
@@ -395,7 +406,8 @@ struct DetailsView: View {
                 nightDate: reviewNightDate,
                 hasMorningCheckIn: sessionRepo.fetchMorningCheckIn(for: session.sessionDate) != nil,
                 core: core,
-                snapshotTimeline: snapshotTimeline
+                snapshotTimeline: snapshotTimeline,
+                healthSnapshot: healthSnapshot
             )
             .frame(width: UIScreen.main.bounds.width - 24)
             .padding(.vertical, 8)
@@ -418,27 +430,62 @@ struct DetailsView: View {
 
     private func fetchSnapshotSleepTimeline(for nightDate: Date) async -> ReviewSnapshotSleepTimeline? {
         let healthKit = HealthKitService.shared
-        guard UserSettingsManager.shared.healthKitEnabled else { return nil }
-        healthKit.checkAuthorizationStatus()
-        guard healthKit.isAuthorized else { return nil }
+        let whoop = WHOOPService.shared
 
         let queryStart = eveningAnchorDate(for: nightDate, hour: 18)
         guard let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: nightDate) else { return nil }
         let queryEnd = eveningAnchorDate(for: nextDay, hour: 12)
 
-        do {
-            let segments = try await healthKit.fetchSegmentsForTimeline(from: queryStart, to: queryEnd)
-            let stages = segments
-                .map { segment in
-                    SleepStageBand(
-                        stage: mapHealthStageToTimeline(segment.stage),
-                        startTime: segment.start,
-                        endTime: segment.end
-                    )
+        if UserSettingsManager.shared.healthKitEnabled {
+            healthKit.checkAuthorizationStatus()
+            if healthKit.isAuthorized {
+                do {
+                    let segments = try await healthKit.fetchSegmentsForTimeline(from: queryStart, to: queryEnd)
+                    let stages = segments
+                        .map { segment in
+                            SleepStageBand(
+                                stage: mapHealthStageToTimeline(segment.stage),
+                                startTime: segment.start,
+                                endTime: segment.end
+                            )
+                        }
+                        .sorted(by: { $0.startTime < $1.startTime })
+                    let filteredStages = primaryNightSleepBands(from: stages)
+                    if !filteredStages.isEmpty {
+                        let start = filteredStages.map(\.startTime).min() ?? queryStart
+                        let end = filteredStages.map(\.endTime).max() ?? queryEnd
+                        return ReviewSnapshotSleepTimeline(stages: filteredStages, start: start, end: end)
+                    }
+                } catch {
+                    // Fall back to WHOOP if Apple Health has no usable sleep data.
                 }
+            }
+        }
+
+        guard WHOOPService.isEnabled,
+              UserSettingsManager.shared.whoopEnabled,
+              whoop.isConnected else {
+            return nil
+        }
+
+        do {
+            let sleeps = try await whoop.fetchSleepData(from: queryStart, to: queryEnd)
+            let candidates = sleeps.filter { $0.nap != true }
+            guard let matchedSleep = candidates.max(by: {
+                overlapDuration(for: $0, queryStart: queryStart, queryEnd: queryEnd) <
+                overlapDuration(for: $1, queryStart: queryStart, queryEnd: queryEnd)
+            }) else {
+                return nil
+            }
+
+            let overlap = overlapDuration(for: matchedSleep, queryStart: queryStart, queryEnd: queryEnd)
+            guard overlap > 0 else { return nil }
+
+            let stageResponse = try await whoop.fetchSleepStages(sleepId: matchedSleep.id)
+            let stages = (stageResponse.stages ?? [])
+                .compactMap { $0.toSleepStageBand() }
                 .sorted(by: { $0.startTime < $1.startTime })
             let filteredStages = primaryNightSleepBands(from: stages)
-
             guard !filteredStages.isEmpty else { return nil }
 
             let start = filteredStages.map(\.startTime).min() ?? queryStart
@@ -447,6 +494,16 @@ struct DetailsView: View {
         } catch {
             return nil
         }
+    }
+
+    private func overlapDuration(for sleep: WHOOPSleep, queryStart: Date, queryEnd: Date) -> TimeInterval {
+        guard let start = sleep.start, let end = sleep.end, end > start else {
+            return 0
+        }
+
+        let overlapStart = max(start, queryStart)
+        let overlapEnd = min(end, queryEnd)
+        return max(0, overlapEnd.timeIntervalSince(overlapStart))
     }
 
     private func mapHealthStageToTimeline(_ stage: HealthKitService.SleepStage) -> SleepStage {

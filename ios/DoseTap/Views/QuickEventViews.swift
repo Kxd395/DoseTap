@@ -197,6 +197,25 @@ struct WakeUpButton: View {
     
     // Wake Up cooldown (1 hour per SSOT)
     private let cooldownSeconds: TimeInterval = 3600
+
+    private var hasDoseOrEventContext: Bool {
+        sessionRepo.dose1Time != nil || !eventLogger.events.isEmpty
+    }
+
+    private var confirmationTitle: String {
+        hasDoseOrEventContext ? "End Sleep Session?" : "Start Morning Check-In?"
+    }
+
+    private var confirmationMessage: String {
+        if hasDoseOrEventContext {
+            return "This will log your wake time and open the morning check-in."
+        }
+        return "No Dose 1 or sleep events are logged yet. Continue if you need to backfill missed doses in the morning check-in."
+    }
+
+    private var confirmationButtonTitle: String {
+        hasDoseOrEventContext ? "Wake Up & Start Check-In" : "Start Check-In Anyway"
+    }
     
     var body: some View {
         Button {
@@ -235,16 +254,16 @@ struct WakeUpButton: View {
         .disabled(isOnCooldown)
         .opacity(isOnCooldown ? 0.5 : 1.0)
         .confirmationDialog(
-            "End Sleep Session?",
+            confirmationTitle,
             isPresented: $showConfirmation,
             titleVisibility: .visible
         ) {
-            Button("Wake Up & Start Check-In") {
+            Button(confirmationButtonTitle) {
                 logWakeAndShowCheckIn()
             }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("This will log your wake time and open the morning check-in.")
+            Text(confirmationMessage)
         }
     }
     

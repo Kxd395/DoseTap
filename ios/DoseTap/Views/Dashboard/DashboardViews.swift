@@ -75,8 +75,16 @@ struct DashboardTabView: View {
                             .gridCellColumns(columns.count)
                     }
 
+                    // Dose Effectiveness Analysis (when enough data)
+                    if model.doseEffectivenessReport.totalNights >= 3 {
+                        DashboardDoseEffectivenessCard(report: model.doseEffectivenessReport)
+                            .gridCellColumns(columns.count)
+                    }
+
                     DashboardLifestyleFactorsCard(model: model)
                     DashboardMoodSymptomsCard(model: model)
+                    DashboardStressTrendsCard(model: model)
+                        .gridCellColumns(columns.count)
 
                     DashboardDataQualityCard(model: model)
                     DashboardIntegrationsCard(states: model.integrationStates)
@@ -1091,7 +1099,13 @@ struct DashboardLifestyleFactorsCard: View {
 
             if model.averageStressLevel != nil || model.caffeineRate != nil {
                 if let stress = model.averageStressLevel {
-                    metricRow(title: "Avg Stress", value: String(format: "%.1f / 10", stress), color: stressColor(stress))
+                    metricRow(title: "Avg Pre-Sleep Stress", value: String(format: "%.1f / 5", stress), color: stressColor(stress))
+                }
+                if let rate = model.highPreSleepStressRate {
+                    metricRow(title: "High-Stress Bedtimes", value: String(format: "%.0f%%", rate), color: rate >= 50 ? .orange : .secondary)
+                }
+                if let topDriver = model.topPreSleepStressDriver {
+                    metricRow(title: "Top Bedtime Stressor", value: topDriver.displayText)
                 }
                 factorRow(title: "Caffeine", rate: model.caffeineRate, impact: model.sleepQualityByCaffeine)
                 factorRow(title: "Alcohol", rate: model.alcoholRate, impact: model.sleepQualityByAlcohol)
@@ -1151,8 +1165,8 @@ struct DashboardLifestyleFactorsCard: View {
     }
 
     private func stressColor(_ level: Double) -> Color {
-        if level <= 3 { return .green }
-        if level <= 6 { return .orange }
+        if level <= 2 { return .green }
+        if level < 4 { return .orange }
         return .red
     }
 }
@@ -1167,12 +1181,22 @@ struct DashboardMoodSymptomsCard: View {
             Text("Mood & Symptoms")
                 .font(.headline)
 
-            if model.averageMentalClarity != nil || model.narcolepsySymptomRate != nil {
+            if model.averageMentalClarity != nil || model.narcolepsySymptomRate != nil || model.averageMorningStressLevel != nil {
                 if let clarity = model.averageMentalClarity {
                     metricRow(title: "Mental Clarity", value: String(format: "%.1f / 10", clarity))
                 }
                 if let dreamRecall = model.dreamRecallRate {
                     metricRow(title: "Dream Recall", value: String(format: "%.0f%%", dreamRecall))
+                }
+                if let stress = model.averageMorningStressLevel {
+                    metricRow(title: "Avg Wake Stress", value: String(format: "%.1f / 5", stress), color: stressColor(stress))
+                }
+                if let delta = model.averageStressDeltaToWake {
+                    metricRow(
+                        title: "Wake vs Bedtime",
+                        value: String(format: "%+.1f pts", delta),
+                        color: delta > 0.15 ? .orange : (delta < -0.15 ? .green : .secondary)
+                    )
                 }
 
                 // Mood breakdown
@@ -1191,6 +1215,15 @@ struct DashboardMoodSymptomsCard: View {
                         let pct = (Double(anxious) / Double(total)) * 100
                         metricRow(title: "Anxiety Reported", value: String(format: "%.0f%%", pct), color: pct > 50 ? .orange : .secondary)
                     }
+                }
+                if let rate = model.highMorningStressRate {
+                    metricRow(title: "High Wake Stress", value: String(format: "%.0f%%", rate), color: rate >= 50 ? .orange : .secondary)
+                }
+                if let topDriver = model.topMorningStressDriver {
+                    metricRow(title: "Top Wake Stressor", value: topDriver.displayText)
+                }
+                if let worseRate = model.worseByWakeStressRate {
+                    metricRow(title: "Stress Worse By Wake", value: String(format: "%.0f%%", worseRate), color: worseRate >= 50 ? .red : .orange)
                 }
 
                 // Grogginess
@@ -1237,6 +1270,12 @@ struct DashboardMoodSymptomsCard: View {
         }
     }
 
+    private func stressColor(_ level: Double) -> Color {
+        if level <= 2 { return .green }
+        if level < 4 { return .orange }
+        return .red
+    }
+
     private func symptomRow(title: String, count: Int) -> some View {
         HStack {
             Image(systemName: "exclamationmark.triangle")
@@ -1248,6 +1287,231 @@ struct DashboardMoodSymptomsCard: View {
                 .font(.caption.weight(.semibold))
                 .foregroundColor(.orange)
         }
+    }
+}
+
+struct DashboardStressTrendsCard: View {
+    @ObservedObject var model: DashboardAnalyticsModel
+
+    private struct StressSeriesPoint: Identifiable {
+        let id = UUID()
+        let date: Date
+        let series: String
+        let value: Double
+    }
+
+    private var seriesPoints: [StressSeriesPoint] {
+        model.stressTrendPoints.flatMap { point in
+            var values: [StressSeriesPoint] = []
+            if let bedtimeStress = point.bedtimeStress {
+                values.append(StressSeriesPoint(date: point.date, series: "Bedtime Stress", value: bedtimeStress))
+            }
+            if let wakeStress = point.wakeStress {
+                values.append(StressSeriesPoint(date: point.date, series: "Wake Stress", value: wakeStress))
+            }
+            if let sleepQuality = point.sleepQuality {
+                values.append(StressSeriesPoint(date: point.date, series: "Sleep Quality", value: sleepQuality))
+            }
+            if let readiness = point.readiness {
+                values.append(StressSeriesPoint(date: point.date, series: "Wake Readiness", value: readiness))
+            }
+            return values
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Stress Trends")
+                    .font(.headline)
+                Spacer()
+                Text("\(model.stressTrendNightCount) nights")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Text("Compare bedtime stress, wake stress, sleep quality, and wake readiness on the same 1–5 scale.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            #if canImport(Charts)
+            if seriesPoints.isEmpty {
+                emptyChartState("Complete pre-sleep stress and morning check-ins to unlock stress trends.")
+            } else {
+                Chart(seriesPoints) { point in
+                    LineMark(
+                        x: .value("Date", point.date),
+                        y: .value("Score", point.value)
+                    )
+                    .foregroundStyle(by: .value("Series", point.series))
+                    .interpolationMethod(.catmullRom)
+
+                    PointMark(
+                        x: .value("Date", point.date),
+                        y: .value("Score", point.value)
+                    )
+                    .foregroundStyle(by: .value("Series", point.series))
+                    .symbolSize(28)
+                }
+                .chartForegroundStyleScale([
+                    "Bedtime Stress": Color.orange,
+                    "Wake Stress": Color.red,
+                    "Sleep Quality": Color.blue,
+                    "Wake Readiness": Color.green
+                ])
+                .chartYScale(domain: 1...5)
+                .chartYAxis {
+                    AxisMarks(values: [1, 2, 3, 4, 5])
+                }
+                .chartYAxisLabel("1–5 Score")
+                .chartLegend(position: .bottom, alignment: .leading)
+                .frame(height: 220)
+            }
+            #else
+            Text("Charts are unavailable on this platform build.")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            #endif
+
+            Group {
+                Text("Impact")
+                    .font(.caption.bold())
+                    .foregroundColor(.secondary)
+                comparisonRow(
+                    title: "Sleep quality after high-stress bedtimes",
+                    high: model.sleepQualityByHighBedtimeStress.high,
+                    lower: model.sleepQualityByHighBedtimeStress.lower,
+                    formatter: { String(format: "%.1f / 5", $0) },
+                    color: impactColor(high: model.sleepQualityByHighBedtimeStress.high, lower: model.sleepQualityByHighBedtimeStress.lower, preferHigher: true)
+                )
+                comparisonRow(
+                    title: "Wake readiness after high-stress bedtimes",
+                    high: model.readinessByHighBedtimeStress.high,
+                    lower: model.readinessByHighBedtimeStress.lower,
+                    formatter: { String(format: "%.1f / 5", $0) },
+                    color: impactColor(high: model.readinessByHighBedtimeStress.high, lower: model.readinessByHighBedtimeStress.lower, preferHigher: true)
+                )
+                comparisonRow(
+                    title: "Dose interval on high-stress bedtimes",
+                    high: model.intervalByHighBedtimeStress.high,
+                    lower: model.intervalByHighBedtimeStress.lower,
+                    formatter: { TimeIntervalMath.formatMinutes(Int($0.rounded())) }
+                )
+            }
+
+            Group {
+                Text("Recurring stressors")
+                    .font(.caption.bold())
+                    .foregroundColor(.secondary)
+
+                if let rate = model.stressCarryoverNightRate {
+                    metricRow(
+                        title: "Same driver carried into morning",
+                        value: String(format: "%.0f%%", rate),
+                        color: rate >= 50 ? .orange : .secondary
+                    )
+                }
+                if let topDriver = model.topRecurringStressDriver {
+                    metricRow(title: "Top recurring driver", value: topDriver.displayText)
+                }
+                if let topCarryover = model.topCarryoverStressDriver {
+                    metricRow(title: "Top carryover driver", value: topCarryover.displayText, color: .orange)
+                }
+
+                if model.recurringStressDrivers.isEmpty {
+                    Text("No recurring stressors tracked yet.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else {
+                    ForEach(Array(model.recurringStressDrivers.prefix(3))) { driver in
+                        HStack(alignment: .top, spacing: 10) {
+                            Text(driver.driver.displayText)
+                                .font(.subheadline)
+                            Spacer()
+                            Text("\(driver.totalCount) night\(driver.totalCount == 1 ? "" : "s")")
+                                .font(.caption.weight(.semibold))
+                                .foregroundColor(.secondary)
+                            if driver.carryoverCount > 0 {
+                                Text("\(driver.carryoverCount) carried")
+                                    .font(.caption2.bold())
+                                    .foregroundColor(.orange)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(
+                                        Capsule().fill(Color.orange.opacity(0.16))
+                                    )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemGray6))
+        )
+    }
+
+    @ViewBuilder
+    private func comparisonRow(
+        title: String,
+        high: Double?,
+        lower: Double?,
+        formatter: (Double) -> String,
+        color: Color = .secondary
+    ) -> some View {
+        if let high, let lower {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(title)
+                        .font(.subheadline)
+                    Spacer()
+                    Text("High: \(formatter(high))")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(color)
+                    Text("Lower: \(formatter(lower))")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+    }
+
+    private func metricRow(title: String, value: String, color: Color = .secondary) -> some View {
+        HStack {
+            Text(title)
+                .font(.subheadline)
+            Spacer()
+            Text(value)
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(color)
+        }
+    }
+
+    private func impactColor(high: Double?, lower: Double?, preferHigher: Bool) -> Color {
+        guard let high, let lower else { return .secondary }
+        let delta = high - lower
+        if abs(delta) < 0.15 { return .secondary }
+        if preferHigher {
+            return delta >= 0 ? .green : .orange
+        }
+        return delta <= 0 ? .green : .orange
+    }
+
+    private func emptyChartState(_ text: String) -> some View {
+        VStack(spacing: 6) {
+            Image(systemName: "brain.head.profile")
+                .font(.title3)
+                .foregroundColor(.secondary)
+            Text(text)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 24)
     }
 }
 
@@ -1289,3 +1553,225 @@ struct DashboardCapturedMetricsCard: View {
     }
 }
 
+// MARK: - Dose Effectiveness Card
+
+struct DashboardDoseEffectivenessCard: View {
+    let report: DoseEffectivenessReport
+
+    private let fmt = IntervalFormat.minutes
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Header
+            HStack {
+                Label("Dose Effectiveness", systemImage: "chart.bar.doc.horizontal")
+                    .font(.headline)
+                Spacer()
+                trendBadge
+            }
+
+            Text("How your dose timing correlates with sleep quality")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            Divider()
+
+            // Compliance gauge
+            HStack(spacing: 16) {
+                complianceGauge
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("\(report.totalNights) nights analyzed")
+                        .font(.subheadline)
+                    Text("\(report.pairableNights) with sleep data")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+            }
+
+            Divider()
+
+            // Zone breakdown
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Zone Breakdown")
+                    .font(.subheadline.bold())
+
+                zoneRow(
+                    label: "Optimal (150-165m)",
+                    zone: report.optimalZone,
+                    color: .green
+                )
+                zoneRow(
+                    label: "Acceptable (166-240m)",
+                    zone: report.acceptableZone,
+                    color: .blue
+                )
+                zoneRow(
+                    label: "Non-compliant",
+                    zone: report.nonCompliant,
+                    color: .orange
+                )
+            }
+
+            // Sleep comparison if data exists
+            if report.optimalZone.averageTotalSleep != nil || report.acceptableZone.averageTotalSleep != nil {
+                Divider()
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Sleep by Zone")
+                        .font(.subheadline.bold())
+                    sleepComparisonRow(label: "Optimal", zone: report.optimalZone, color: .green)
+                    sleepComparisonRow(label: "Acceptable", zone: report.acceptableZone, color: .blue)
+                    sleepComparisonRow(label: "Non-compliant", zone: report.nonCompliant, color: .orange)
+                }
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemGray6))
+        )
+    }
+
+    // MARK: - Compliance Gauge
+
+    private var complianceGauge: some View {
+        ZStack {
+            Circle()
+                .stroke(Color(.systemGray4), lineWidth: 6)
+            Circle()
+                .trim(from: 0, to: report.complianceRate)
+                .stroke(complianceColor, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+            VStack(spacing: 0) {
+                Text("\(Int(report.complianceRate * 100))")
+                    .font(.system(.title3, design: .rounded).bold())
+                Text("%")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .frame(width: 60, height: 60)
+    }
+
+    private var complianceColor: Color {
+        switch report.complianceRate {
+        case 0.8...: return .green
+        case 0.6...: return .blue
+        case 0.4...: return .orange
+        default: return .red
+        }
+    }
+
+    // MARK: - Trend Badge
+
+    @ViewBuilder
+    private var trendBadge: some View {
+        if let trend = report.recentTrend {
+            HStack(spacing: 4) {
+                switch trend {
+                case .improving(let delta):
+                    Image(systemName: "arrow.down.right")
+                        .foregroundColor(.green)
+                    Text(String(format: "-%.0fm", delta))
+                        .foregroundColor(.green)
+                case .worsening(let delta):
+                    Image(systemName: "arrow.up.right")
+                        .foregroundColor(.orange)
+                    Text(String(format: "+%.0fm", delta))
+                        .foregroundColor(.orange)
+                case .stable:
+                    Image(systemName: "equal")
+                        .foregroundColor(.secondary)
+                    Text("Stable")
+                        .foregroundColor(.secondary)
+                }
+            }
+            .font(.caption.bold())
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Capsule().fill(Color(.tertiarySystemFill)))
+        }
+    }
+
+    // MARK: - Zone Row
+
+    private func zoneRow(label: String, zone: DoseEffectivenessReport.ZoneSummary, color: Color) -> some View {
+        HStack {
+            Circle()
+                .fill(color)
+                .frame(width: 8, height: 8)
+            Text(label)
+                .font(.caption)
+            Spacer()
+            Text("\(zone.count) night\(zone.count == 1 ? "" : "s")")
+                .font(.caption.bold())
+                .foregroundColor(color)
+            if let avg = zone.averageInterval {
+                Text("avg \(fmt.string(from: avg))")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+
+    // MARK: - Sleep Comparison
+
+    private func sleepComparisonRow(label: String, zone: DoseEffectivenessReport.ZoneSummary, color: Color) -> some View {
+        HStack(spacing: 12) {
+            Text(label)
+                .font(.caption)
+                .frame(width: 80, alignment: .leading)
+                .foregroundColor(color)
+
+            if let sleep = zone.averageTotalSleep {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Sleep")
+                        .font(.system(size: 9))
+                        .foregroundColor(.secondary)
+                    Text(formatHM(sleep))
+                        .font(.caption.bold())
+                }
+            }
+
+            if let deep = zone.averageDeepSleep {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Deep")
+                        .font(.system(size: 9))
+                        .foregroundColor(.secondary)
+                    Text(formatHM(deep))
+                        .font(.caption.bold())
+                }
+            }
+
+            if let recovery = zone.averageRecovery {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Recovery")
+                        .font(.system(size: 9))
+                        .foregroundColor(.secondary)
+                    Text("\(Int(recovery))%")
+                        .font(.caption.bold())
+                }
+            }
+
+            if let hrv = zone.averageHRV {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("HRV")
+                        .font(.system(size: 9))
+                        .foregroundColor(.secondary)
+                    Text("\(Int(hrv))ms")
+                        .font(.caption.bold())
+                }
+            }
+
+            Spacer()
+        }
+    }
+
+    private func formatHM(_ minutes: Double) -> String {
+        let h = Int(minutes) / 60
+        let m = Int(minutes) % 60
+        if h > 0 && m > 0 { return "\(h)h \(m)m" }
+        if h > 0 { return "\(h)h" }
+        return "\(m)m"
+    }
+}
