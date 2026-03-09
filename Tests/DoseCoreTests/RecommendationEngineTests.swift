@@ -48,14 +48,14 @@ final class RecommendationEngineTests: XCTestCase {
         XCTAssertEqual(result, 165, "Baseline is clamped to min 165")
     }
 
-    func test_baseline_clamped_to_210_maximum() {
+    func test_baseline_clamped_to_225_maximum() {
         let history = [
             NightSummary(minutesToFirstWake: 230, disturbancesScore: nil),
             NightSummary(minutesToFirstWake: 235, disturbancesScore: nil),
             NightSummary(minutesToFirstWake: 240, disturbancesScore: nil),
         ]
         let result = RecommendationEngine.recommendOffsetMinutes(history: history, liveSignals: nil)
-        XCTAssertEqual(result, 210, "Baseline is clamped to max 210")
+        XCTAssertEqual(result, 225, "Baseline is clamped to max 225")
     }
 
     // MARK: - Out-of-range samples filtered
@@ -83,8 +83,8 @@ final class RecommendationEngineTests: XCTestCase {
         let history = [NightSummary(minutesToFirstWake: 180, disturbancesScore: nil)]
         let signals = (isLightOrAwakeNow: true, minutesSinceDose1: 100)  // below 150
         let result = RecommendationEngine.recommendOffsetMinutes(history: history, liveSignals: signals)
-        // Should bump by +10 since minutesSinceDose1 < 180
-        XCTAssertEqual(result, 190, "Under 180 without in-window → baseline + 10")
+        // Outside the live snap window, the early wake signal still bumps the baseline by +10.
+        XCTAssertEqual(result, 190, "Awake before window start, <180 baseline → baseline + 10")
     }
 
     func test_notAwake_under180_bumps_by_10() {
@@ -117,12 +117,12 @@ final class RecommendationEngineTests: XCTestCase {
     }
 
     func test_bump_capped_at_240() {
-        // Baseline at 210 (max clamp) + 10 = 220, which is ≤ 240
-        let history = [NightSummary(minutesToFirstWake: 210, disturbancesScore: nil)]
+        // Baseline at 225 (max target) + 10 = 235, which is still within the hard 240-minute window.
+        let history = [NightSummary(minutesToFirstWake: 225, disturbancesScore: nil)]
         let signals = (isLightOrAwakeNow: false, minutesSinceDose1: 100)
         let result = RecommendationEngine.recommendOffsetMinutes(history: history, liveSignals: signals)
         XCTAssertLessThanOrEqual(result, 240)
-        XCTAssertEqual(result, 220)
+        XCTAssertEqual(result, 235)
     }
 
     // MARK: - NightSummary

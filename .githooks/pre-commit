@@ -29,9 +29,8 @@ if command -v rg >/dev/null 2>&1; then
   CORE_PRINT_VIOLATIONS=$(rg -n '\bprint\s*\(' ios/Core --glob '*.swift' || true)
   APP_PRINT_VIOLATIONS=$(rg -n '\bprint\s*\(' ios/DoseTap --glob '*.swift' || true)
 else
-  CORE_PRINT_VIOLATIONS=$(grep -rn 'print(' ios/Core --include='*.swift' || true)
-  APP_PRINT_VIOLATIONS=$(grep -rn 'print(' ios/DoseTap --include='*.swift' \
-    || true)
+  CORE_PRINT_VIOLATIONS=$(grep -REn --include='*.swift' '(^|[^[:alnum:]_])print[[:space:]]*\(' ios/Core || true)
+  APP_PRINT_VIOLATIONS=$(grep -REn --include='*.swift' '(^|[^[:alnum:]_])print[[:space:]]*\(' ios/DoseTap || true)
 fi
 if [ -n "$CORE_PRINT_VIOLATIONS" ]; then
   echo "❌ FAIL: print() found in ios/Core — use os.Logger instead:"

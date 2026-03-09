@@ -113,7 +113,7 @@ jobs:
 
   print-ban:
     name: Production print() Ban
-    runs-on: macos-14
+    runs-on: macos-latest
     
     steps:
       - name: Checkout

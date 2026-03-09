@@ -49,7 +49,7 @@ final class NightScoreCalculatorTests: XCTestCase {
         let score = NightScoreCalculator.intervalScore(
             NightScoreInput(intervalMinutes: 150, dose1Taken: true, dose2Taken: true)
         )
-        XCTAssertEqual(score, 0.9, accuracy: 0.05)
+        XCTAssertEqual(score, 0.9, accuracy: 0.001)
     }
 
     func test_interval_atMaxEdge_scores0_5() {
