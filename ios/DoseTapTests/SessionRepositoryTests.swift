@@ -881,6 +881,22 @@ final class SessionRepositoryTests: XCTestCase {
             "When toggle is off, planner should follow 6 PM storage boundary key"
         )
     }
+    
+    func test_parseSessionDate_usesProvidedTimezone() {
+        let honolulu = TimeZone(identifier: "Pacific/Honolulu")!
+        guard let parsed = SessionRepository.parseSessionDate("2025-12-29", in: honolulu) else {
+            return XCTFail("Expected session date to parse")
+        }
+        
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = honolulu
+        let components = calendar.dateComponents([.year, .month, .day, .hour], from: parsed)
+        
+        XCTAssertEqual(components.year, 2025)
+        XCTAssertEqual(components.month, 12)
+        XCTAssertEqual(components.day, 29)
+        XCTAssertEqual(components.hour, 0)
+    }
 
     func test_preSleepLog_upsertSameSession() async throws {
         storage.clearAllData()

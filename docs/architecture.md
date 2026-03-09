@@ -776,8 +776,8 @@ Performance indexes on: `session_date`, `timestamp`, `session_id`, `event_type`,
 
 | File | Purpose |
 | --- | --- |
-| `PersistentStore.swift` | Core Data stack (legacy, minimal use) |
-| `FetchHelpers.swift` | Core Data fetch utilities |
+| `PersistentStore.swift` | Legacy persistence compatibility shim |
+| `FetchHelpers.swift` | Legacy persistence helper utilities |
 
 ---
 
@@ -965,7 +965,7 @@ Performance indexes on: `session_date`, `timestamp`, `session_id`, `event_type`,
 | `Export/` | 1 | Export service |
 | `Foundation/` | 2 | Foundation extensions |
 | `FullApp/` | 4 | Full-app entry points |
-| `Persistence/` | 2 | Core Data stack |
+| `Persistence/` | 2 | Legacy persistence compatibility files |
 | `Security/` | 3 | Keychain, biometric, jailbreak |
 | `Services/` | 1 | Service layer files |
 | `Theme/` | 1 | ThemeManager |
@@ -1086,7 +1086,7 @@ main ─────────────────────────
 
 ### Technical Debt
 
-- Legacy Core Data stack (`PersistentStore`) still present but unused
+- Legacy persistence shim files (`PersistentStore`, `FetchHelpers`) still remain
 - `JSONMigrator` one-time migration code still ships
 - Duplicate model types between `StorageModels` and `DoseCore`
 - ~44,400 LOC total -- opportunity to extract shared frameworks

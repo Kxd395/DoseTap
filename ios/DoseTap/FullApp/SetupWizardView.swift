@@ -288,7 +288,7 @@ struct MedicationStepView: View {
             .cornerRadius(12)
             
             InfoBoxView(
-                message: "This information helps track your medication supply and ensures accurate dosing records for your healthcare provider.",
+                message: "This information helps track your medication supply and maintain accurate records. Always follow your prescriber's instructions. DoseTap does not replace medical advice.",
                 type: .info
             )
         }
@@ -487,6 +487,10 @@ struct NotificationStepView: View {
 
 struct PrivacyStepView: View {
     @Binding var config: PrivacyConfig
+
+    private var cloudSyncAvailable: Bool {
+        Bundle.main.object(forInfoDictionaryKey: "DoseTapCloudSyncEnabled") as? Bool ?? false
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -496,19 +500,21 @@ struct PrivacyStepView: View {
             )
             
             VStack(spacing: 16) {
-                VStack(spacing: 12) {
-                    Toggle("Enable iCloud Sync", isOn: $config.icloudSyncEnabled)
-                        .font(.subheadline)
-                    
-                    if config.icloudSyncEnabled {
-                        Text("Your dose data will sync across your devices using iCloud")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                if cloudSyncAvailable {
+                    VStack(spacing: 12) {
+                        Toggle("Enable iCloud Sync", isOn: $config.icloudSyncEnabled)
+                            .font(.subheadline)
+
+                        if config.icloudSyncEnabled {
+                            Text("Your logged dose data can sync across your devices using your private iCloud account.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                     }
+                    .padding(16)
+                    .background(Color(UIColor.secondarySystemGroupedBackground))
+                    .cornerRadius(12)
                 }
-                .padding(16)
-                .background(Color(UIColor.secondarySystemGroupedBackground))
-                .cornerRadius(12)
                 
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Data Retention")
@@ -532,10 +538,10 @@ struct PrivacyStepView: View {
                 .cornerRadius(12)
                 
                 VStack(spacing: 12) {
-                    Toggle("Anonymous Usage Analytics", isOn: $config.analyticsEnabled)
+                    Toggle("On-Device Usage Diagnostics", isOn: $config.analyticsEnabled)
                         .font(.subheadline)
                     
-                    Text("Help improve the app with anonymous usage data")
+                    Text("Keep local diagnostic event logs on this device to help with exports and troubleshooting.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -545,7 +551,9 @@ struct PrivacyStepView: View {
             }
             
             InfoBoxView(
-                message: "All health data stays on your device unless you enable iCloud sync. We never share personal medical information with third parties.",
+                message: cloudSyncAvailable
+                    ? "HealthKit and WHOOP data stay on your device. If you enable iCloud sync, only DoseTap app records sync through your private iCloud account."
+                    : "HealthKit and WHOOP data stay on your device. DoseTap does not require an account or transmit health data to third parties.",
                 type: .info
             )
         }

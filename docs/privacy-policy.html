@@ -85,17 +85,17 @@
     <h3>Data Processing</h3>
     <ul>
         <li>All health data processing occurs on-device</li>
-        <li>WHOOP and HealthKit data never leave the device</li>
-        <li>Optional minimal sync (disabled by default) transmits only event type, UTC timestamp, timezone offset, and random device identifier</li>
+        <li>DoseTap does not transmit HealthKit or WHOOP data to DoseTap-operated servers</li>
+        <li>Optional diagnostics remain on-device and are only used for local troubleshooting and export</li>
     </ul>
 
     <h2>Data Storage and Security</h2>
 
     <h3>Local Storage First</h3>
     <ul>
-        <li>All data is stored locally by default</li>
-        <li>No data leaves the device unless you enable optional minimal sync</li>
-        <li>Minimal sync never includes health metrics or personally identifying information</li>
+        <li>All data is stored locally on your device by default</li>
+        <li>No health data is transmitted to DoseTap-operated servers</li>
+        <li>Optional diagnostics stay local to the device</li>
     </ul>
 
     <h3>Security Measures</h3>
@@ -115,7 +115,7 @@
         <li>No data brokers</li>
         <li>No social media platform sharing</li>
     </ul>
-    <p>WHOOP integration is optional and read-only. Optional minimal sync (if enabled) stores only de-identified event metadata for backup.</p>
+    <p>WHOOP integration is optional and read-only.</p>
 
     <h2>Your Rights</h2>
 
@@ -124,6 +124,7 @@
         <li>View all logged medication events within the app</li>
         <li>Export your data as CSV for personal records</li>
         <li>Delete all app data by uninstalling the application</li>
+        <li>Disable on-device diagnostics at any time in Settings</li>
     </ul>
 
     <h3>WHOOP Integration</h3>
@@ -136,7 +137,7 @@
     <h2>Data Retention</h2>
     <ul>
         <li>Event logs remain on device until you delete them or uninstall</li>
-        <li>Optional synced copies (if enabled) are purged within 24h after you disable sync</li>
+        <li>Optional diagnostic logs remain on device until you clear app data or uninstall</li>
         <li>No dark retention of deleted data</li>
     </ul>
 
@@ -166,7 +167,7 @@
     <h2>Contact Us</h2>
     <p>If you have any questions about this Privacy Policy, please contact us at:</p>
     <ul>
-        <li>Email: <a href="mailto:kevindial@myyahoo.com">kevindial@myyahoo.com</a></li>
+        <li>Email: <a href="mailto:support@dosetap.app">support@dosetap.app</a></li>
         <li>App Support: Through the DoseTap application</li>
     </ul>
 

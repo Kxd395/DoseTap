@@ -47,6 +47,7 @@
 		AD5F630A482E47B183CDE516 /* DetailsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D42A891F4758470783F7565F /* DetailsView.swift */; };
 		APC001 /* AppContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = APC002 /* AppContainer.swift */; };
 		ASSETSBUILD01 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = ASSETS01 /* Assets.xcassets */; };
+		PRIVBF01 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = PRIVFR01 /* PrivacyInfo.xcprivacy */; };
 		B264C67A3D970638F91FC1ED /* UndoStateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D7115779119154483A7838A /* UndoStateManager.swift */; };
 		B3A59BFBC74549279C21803D /* SleepPlanCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = B44F86E9E72D452CAFED6B16 /* SleepPlanCards.swift */; };
 		B5040368A01046D0AA5193F1 /* QuickEventViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAE0B98FC8F48BAB6219546 /* QuickEventViews.swift */; };
@@ -172,6 +173,7 @@
 		B01 /* DoseTapApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseTapApp.swift; sourceTree = "<group>"; };
 		B02 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		B03 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		PRIVFR01 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		B0DBB25F0B4C46EAAFB4205A /* PersistentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistentStore.swift; sourceTree = "<group>"; };
 		B1CBF59D219929011DD8A4A8 /* InputValidator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InputValidator.swift; sourceTree = "<group>"; };
 		B358CDCA949364F93BD996D6 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -333,6 +335,7 @@
 				E471299E6268F81CAB46EE00 /* Widget */,
 				80A27C7D2EFAC24D0005C000 /* DoseTap.entitlements */,
 				B03 /* Info.plist */,
+				PRIVFR01 /* PrivacyInfo.xcprivacy */,
 				ASSETS01 /* Assets.xcassets */,
 				418F7D12D4A2473F800C75ED /* FullApp/DoseModels.swift */,
 				1BD7AD6DA76F4E548669A489 /* FullApp/KeychainHelper.swift */,
@@ -661,6 +664,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				ASSETSBUILD01 /* Assets.xcassets in Resources */,
+				PRIVBF01 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -813,12 +817,12 @@
 				INFOPLIST_FILE = DoseTap/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "DoseTap Staging";
 				INFOPLIST_KEY_CFBundleName = "DoseTap Staging";
-				INFOPLIST_KEY_DoseTapCloudSyncEnabled = NO;
+					INFOPLIST_KEY_DoseTapCloudSyncEnabled = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.medical";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "DoseTap can use Bluetooth if you connect a button directly.";
 				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "DoseTap can use Bluetooth if you connect a button directly.";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "DoseTap reads your sleep, heart rate, respiratory rate, oxygen saturation, and HRV to optimize a label-compliant second-dose reminder.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "DoseTap may write simple log markers if you enable it.";
+					INFOPLIST_KEY_NSHealthShareUsageDescription = "DoseTap reads your sleep, heart rate, respiratory rate, resting heart rate, and HRV from Apple Health to relate dose timing to sleep quality.";
+					INFOPLIST_KEY_NSHealthUpdateUsageDescription = "DoseTap does not write health data.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -855,12 +859,12 @@
 				INFOPLIST_FILE = DoseTap/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "DoseTap Staging";
 				INFOPLIST_KEY_CFBundleName = "DoseTap Staging";
-				INFOPLIST_KEY_DoseTapCloudSyncEnabled = YES;
+					INFOPLIST_KEY_DoseTapCloudSyncEnabled = YES;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.medical";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "DoseTap can use Bluetooth if you connect a button directly.";
 				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "DoseTap can use Bluetooth if you connect a button directly.";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "DoseTap reads your sleep, heart rate, respiratory rate, oxygen saturation, and HRV to optimize a label-compliant second-dose reminder.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "DoseTap may write simple log markers if you enable it.";
+					INFOPLIST_KEY_NSHealthShareUsageDescription = "DoseTap reads your sleep, heart rate, respiratory rate, resting heart rate, and HRV from Apple Health to relate dose timing to sleep quality.";
+					INFOPLIST_KEY_NSHealthUpdateUsageDescription = "DoseTap does not write health data.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -1119,7 +1123,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.entitlements;
+					CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.NoCloud.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
@@ -1130,13 +1134,13 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = DoseTap/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = DoseTap;
-				INFOPLIST_KEY_DoseTapCloudSyncEnabled = YES;
+					INFOPLIST_KEY_DoseTapCloudSyncEnabled = NO;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.medical";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "DoseTap can use Bluetooth if you connect a button directly.";
 				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "DoseTap can use Bluetooth if you connect a button directly.";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "DoseTap reads your sleep, heart rate, respiratory rate, oxygen saturation, and HRV to optimize a label-compliant second-dose reminder.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "DoseTap may write simple log markers if you enable it.";
+					INFOPLIST_KEY_NSHealthShareUsageDescription = "DoseTap reads your sleep, heart rate, respiratory rate, resting heart rate, and HRV from Apple Health to relate dose timing to sleep quality.";
+					INFOPLIST_KEY_NSHealthUpdateUsageDescription = "DoseTap does not write health data.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 DoseTap. All rights reserved.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -1166,7 +1170,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.entitlements;
+					CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.NoCloud.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
@@ -1177,13 +1181,13 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = DoseTap/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = DoseTap;
-				INFOPLIST_KEY_DoseTapCloudSyncEnabled = YES;
+					INFOPLIST_KEY_DoseTapCloudSyncEnabled = NO;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.medical";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "DoseTap can use Bluetooth if you connect a button directly.";
 				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "DoseTap can use Bluetooth if you connect a button directly.";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "DoseTap reads your sleep, heart rate, respiratory rate, oxygen saturation, and HRV to optimize a label-compliant second-dose reminder.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "DoseTap may write simple log markers if you enable it.";
+					INFOPLIST_KEY_NSHealthShareUsageDescription = "DoseTap reads your sleep, heart rate, respiratory rate, resting heart rate, and HRV from Apple Health to relate dose timing to sleep quality.";
+					INFOPLIST_KEY_NSHealthUpdateUsageDescription = "DoseTap does not write health data.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 DoseTap. All rights reserved.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;

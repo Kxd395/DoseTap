@@ -80,10 +80,13 @@ fi
 
 # ─── 5. Mock transport not in production ─────────────────────────
 MOCK_LEAKS="$(
-  grep -rn 'MockAPITransport' ios/Core/ 2>/dev/null \
-  | grep -v '#if DEBUG' \
-  | grep -v '// MARK' \
-  | grep -v '.build/' || true
+  awk '
+    /#if DEBUG/ { debug_depth += 1 }
+    /#endif/ { if (debug_depth > 0) debug_depth -= 1 }
+    /MockAPITransport/ && debug_depth == 0 && $0 !~ /\/\/ MARK/ {
+      print FILENAME ":" FNR ":" $0
+    }
+  ' ios/Core/*.swift 2>/dev/null || true
 )"
 if [[ -n "$MOCK_LEAKS" ]]; then
   fail "MockAPITransport found outside #if DEBUG in ios/Core:\n$MOCK_LEAKS"
@@ -106,14 +109,14 @@ else
 fi
 
 # ─── 7. SwiftPM builds ──────────────────────────────────────────
-if swift build -q 2>/dev/null; then
+if swift build >/dev/null 2>&1; then
   pass "SwiftPM build (DoseCore)"
 else
   fail "SwiftPM build failed — run 'swift build' for details"
 fi
 
 # ─── 8. SwiftPM tests ───────────────────────────────────────────
-if swift test -q 2>/dev/null; then
+if swift test >/dev/null 2>&1; then
   pass "SwiftPM tests"
 else
   fail "SwiftPM tests failed — run 'swift test' for details"

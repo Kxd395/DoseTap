@@ -326,8 +326,29 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         storage.fetchDoseEvents(sessionId: sessionId, sessionDate: sessionDate)
     }
 
+    static func parseSessionDate(_ sessionDate: String, in timeZone: TimeZone) -> Date? {
+        let parts = sessionDate.split(separator: "-")
+        guard parts.count == 3,
+              let year = Int(parts[0]),
+              let month = Int(parts[1]),
+              let day = Int(parts[2]) else {
+            return nil
+        }
+        
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        
+        var components = DateComponents()
+        components.calendar = calendar
+        components.timeZone = timeZone
+        components.year = year
+        components.month = month
+        components.day = day
+        return calendar.date(from: components)
+    }
+    
     private func sessionDateToDate(_ sessionDate: String) -> Date? {
-        AppFormatters.sessionDate.date(from: sessionDate)
+        Self.parseSessionDate(sessionDate, in: timeZoneProvider())
     }
 
     private func scheduledSleepStart(for sessionDate: String) -> Date? {

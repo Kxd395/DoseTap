@@ -102,13 +102,7 @@ final class WHOOPService: NSObject, ObservableObject {
         super.init()
         loadTokensFromKeychain()
         updateConnectionState()
-        
-        // Sync UserDefaults flag with actual token state.
-        // Handles users who connected before the dynamic isEnabled fix:
-        // if tokens exist → enable; if tokens gone → disable.
-        if isConnected {
-            UserDefaults.standard.set(true, forKey: "whoop_enabled")
-        }
+        UserDefaults.standard.set(isConnected, forKey: "whoop_enabled")
     }
     
     // MARK: - Public API
@@ -171,17 +165,7 @@ final class WHOOPService: NSObject, ObservableObject {
             webAuthSession?.start()
         }
         
-        // Parse authorization code from callback
-        guard let components = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false),
-              let code = components.queryItems?.first(where: { $0.name == "code" })?.value else {
-            throw WHOOPError.noAuthCode
-        }
-        
-        // Verify state matches
-        if let returnedState = components.queryItems?.first(where: { $0.name == "state" })?.value,
-           returnedState != state {
-            throw WHOOPError.stateMismatch
-        }
+        let code = try Self.validateAuthorizationCallback(callbackURL, expectedState: state)
         
         // Exchange code for tokens
         try await exchangeCodeForTokens(code: code)
@@ -226,6 +210,20 @@ final class WHOOPService: NSObject, ObservableObject {
     }
     
     // MARK: - Token Exchange
+    
+    static func validateAuthorizationCallback(_ callbackURL: URL, expectedState: String) throws -> String {
+        guard let components = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false),
+              let code = components.queryItems?.first(where: { $0.name == "code" })?.value else {
+            throw WHOOPError.noAuthCode
+        }
+        
+        guard let returnedState = components.queryItems?.first(where: { $0.name == "state" })?.value,
+              returnedState == expectedState else {
+            throw WHOOPError.stateMismatch
+        }
+        
+        return code
+    }
     
     private func exchangeCodeForTokens(code: String) async throws {
         var request = URLRequest(url: URL(string: Config.tokenURL)!)

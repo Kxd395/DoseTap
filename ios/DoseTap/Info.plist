@@ -18,9 +18,9 @@
 		</dict>
 	</array>
 	<key>NSHealthShareUsageDescription</key>
-	<string>DoseTap reads your sleep stages, heart rate, HRV, and respiratory rate from Apple Health to show how your dose timing correlates with sleep quality.</string>
+	<string>DoseTap reads your sleep, heart rate, respiratory rate, resting heart rate, and HRV from Apple Health to relate dose timing to sleep quality.</string>
 	<key>NSHealthUpdateUsageDescription</key>
-	<string>DoseTap does not write health data. This permission is reserved for future use.</string>
+	<string>DoseTap does not write health data.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>DoseTap saves review captures to your Photos library when you choose Save to Photos.</string>
 	<key>UIBackgroundModes</key>

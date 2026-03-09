@@ -5,6 +5,7 @@ let package = Package(
     name: "DoseTap",
     platforms: [
         .iOS(.v16),
+        .macOS(.v10_15),
         .watchOS(.v9)
     ],
     products: [

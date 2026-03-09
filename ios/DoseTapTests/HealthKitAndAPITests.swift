@@ -108,6 +108,26 @@ final class HealthKitProviderTests: XCTestCase {
         UserDefaults.standard.set(true, forKey: key)
         XCTAssertTrue(WHOOPService.isEnabled, "WHOOP should be enabled when user has connected")
     }
+    
+    func test_whoopCallbackValidation_rejectsMissingState() {
+        let callback = URL(string: "dosetap://whoop/callback?code=abc123")!
+        
+        XCTAssertThrowsError(
+            try WHOOPService.validateAuthorizationCallback(callback, expectedState: "expected-state")
+        ) { error in
+            guard case WHOOPError.stateMismatch = error else {
+                return XCTFail("Expected stateMismatch, got \(error)")
+            }
+        }
+    }
+    
+    func test_whoopCallbackValidation_returnsCodeWhenStateMatches() throws {
+        let callback = URL(string: "dosetap://whoop/callback?code=abc123&state=expected-state")!
+        
+        let code = try WHOOPService.validateAuthorizationCallback(callback, expectedState: "expected-state")
+        
+        XCTAssertEqual(code, "abc123")
+    }
 }
 
 // MARK: - API Contract Drift Tests

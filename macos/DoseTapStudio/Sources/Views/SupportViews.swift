@@ -1,5 +1,6 @@
 import SwiftUI
 import Foundation
+import AppKit
 
 /// Support bundle export system with progress tracking and privacy-safe data filtering
 /// Implements ASCII specifications for diagnostics and support data export
@@ -161,13 +162,19 @@ struct SupportDiagnosticsView: View {
                 .fontWeight(.medium)
             
             VStack(spacing: 8) {
-                Link("Visit Support Center", destination: URL(string: "https://dosetap.com/support")!)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(Color(.controlColor))
-                    .cornerRadius(8)
-                
-                Link("Community Forum", destination: URL(string: "https://dosetap.com/community")!)
+                Button("Email Support") {
+                    handleContactSupport()
+                }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(Color(.controlColor))
+                .cornerRadius(8)
+
+                Button("View Privacy Policy") {
+                    showPrivacyPolicy = true
+                }
+                .buttonStyle(.plain)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
                     .background(Color(.controlColor))
@@ -223,8 +230,10 @@ struct SupportDiagnosticsView: View {
     }
     
     private func handleContactSupport() {
-        // In a real app, this would open the default mail client
-        print("📧 Would open mailto:support@dosetap.com")
+        guard let url = URL(string: "mailto:support@dosetap.app?subject=DoseTap%20Studio%20Support") else {
+            return
+        }
+        NSWorkspace.shared.open(url)
     }
 }
 

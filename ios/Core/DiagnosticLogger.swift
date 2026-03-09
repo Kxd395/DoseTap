@@ -34,6 +34,10 @@ public actor DiagnosticLogger {
     /// Key: sessionId, Value: last sequence number written
     private var sessionSequence: [String: Int] = [:]
     
+    /// Session directories observed during the current process lifetime.
+    /// Used as a fallback if directory enumeration fails under restricted environments.
+    private var trackedSessionIds: Set<String> = []
+    
     /// Root directory for diagnostics
     private var diagnosticsRoot: URL {
         let docs = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
@@ -130,6 +134,9 @@ public actor DiagnosticLogger {
     /// Ensure session metadata is written (call once when session starts)
     public func ensureSessionMetadata(sessionId: String) {
         guard isEnabled else { return }
+        guard ensureDiagnosticsRootExists() else { return }
+        
+        trackedSessionIds.insert(sessionId)
         
         let sessionDir = sessionDirectory(for: sessionId)
         let metaFile = sessionDir.appendingPathComponent("meta.json")
@@ -224,15 +231,26 @@ public actor DiagnosticLogger {
     
     /// List all available session IDs with diagnostics
     public func availableSessions() -> [String] {
-        guard let contents = try? fileManager.contentsOfDirectory(
-            at: diagnosticsRoot,
-            includingPropertiesForKeys: [.isDirectoryKey]
-        ) else { return [] }
+        guard ensureDiagnosticsRootExists() else {
+            return trackedSessionIds.sorted(by: >)
+        }
         
-        return contents
-            .filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
-            .map { $0.lastPathComponent }
-            .sorted(by: >)  // Most recent first
+        do {
+            let contents = try fileManager.contentsOfDirectory(
+                at: diagnosticsRoot,
+                includingPropertiesForKeys: [.isDirectoryKey]
+            )
+            let onDisk = contents
+                .filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
+                .map { $0.lastPathComponent }
+            trackedSessionIds.formUnion(onDisk)
+            return trackedSessionIds.sorted(by: >)  // Most recent first
+        } catch {
+            #if canImport(OSLog)
+            Self.logWarning("Failed to enumerate diagnostic sessions: \(error)")
+            #endif
+            return trackedSessionIds.sorted(by: >)
+        }
     }
     
     /// Prune old sessions beyond retention period
@@ -246,6 +264,7 @@ public actor DiagnosticLogger {
             if sessionId < cutoffPrefix {
                 let sessionDir = sessionDirectory(for: sessionId)
                 try? fileManager.removeItem(at: sessionDir)
+                trackedSessionIds.remove(sessionId)
                 #if DEBUG
                 #if canImport(OSLog)
                 Self.logDebug("Pruned old session \(sessionId)")
@@ -267,6 +286,9 @@ public actor DiagnosticLogger {
     }
     
     private func appendEntry(_ entry: DiagnosticLogEntry, to filename: String, sessionId: String) {
+        guard ensureDiagnosticsRootExists() else { return }
+        trackedSessionIds.insert(sessionId)
+        
         let sessionDir = sessionDirectory(for: sessionId)
         let file = sessionDir.appendingPathComponent(filename)
         
@@ -295,6 +317,18 @@ public actor DiagnosticLogger {
             }
         } else {
             try? jsonString.write(to: file, atomically: true, encoding: .utf8)
+        }
+    }
+    
+    private func ensureDiagnosticsRootExists() -> Bool {
+        do {
+            try fileManager.createDirectory(at: diagnosticsRoot, withIntermediateDirectories: true)
+            return true
+        } catch {
+            #if canImport(OSLog)
+            Self.logWarning("Failed to create diagnostics root: \(error)")
+            #endif
+            return false
         }
     }
     

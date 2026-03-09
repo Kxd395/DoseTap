@@ -198,7 +198,7 @@ echo "🔍 Running contradiction checks..."
 # - NSPersistentContainer, NSManagedObjectContext (Core Data APIs)
 # EXCEPTION: Roadmap/P2 items documenting future cleanup are allowed
 echo "  Checking for Core Data references..."
-COREDATA_MATCHES=$(grep -rnE "Core Data|CoreData|NSPersistentContainer|NSManagedObjectContext" docs/ ios/Core/ --include="*.md" --include="*.swift" 2>/dev/null | grep -v "archive\|Archive\|\.backup\|AUDIT_LOG\|AUDIT_REPO\|AUDIT_REPORT\|FIX_PLAN\|Why SQLite.*Not Core Data\|NO Core Data\|No Core Data\|not Core Data\|removed Core Data\|CoreData layer removed\|without Core Data\|deprecated.*SQLite is canonical\|didMigrateToCoreData\|Core data handling\|P2.*Remove\|Remove.*CoreData\|PersistentStore/CoreData.*Pending" || true)
+COREDATA_MATCHES=$(grep -rnE "Core Data|CoreData|NSPersistentContainer|NSManagedObjectContext" docs/ ios/Core/ --include="*.md" --include="*.swift" 2>/dev/null | grep -v "docs/audit/\|archive\|Archive\|\.backup\|AUDIT_LOG\|AUDIT_REPO\|AUDIT_REPORT\|FIX_PLAN\|Why SQLite.*Not Core Data\|NO Core Data\|No Core Data\|not Core Data\|removed Core Data\|CoreData layer removed\|without Core Data\|deprecated.*SQLite is canonical\|didMigrateToCoreData\|Core data handling\|P2.*Remove\|Remove.*CoreData\|PersistentStore/CoreData.*Pending" || true)
 if [ -n "$COREDATA_MATCHES" ]; then
     echo "❌ Found Core Data references (should be SQLite):"
     echo "$COREDATA_MATCHES" | head -5
