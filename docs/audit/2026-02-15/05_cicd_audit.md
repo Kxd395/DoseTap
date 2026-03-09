@@ -41,7 +41,7 @@ ssot-lint ─┬─ swiftpm-tests ────────────┐
 | Job | Purpose | Runner | Key Details |
 |-----|---------|--------|-------------|
 | `build-and-test` | SwiftPM build + parallel test | `macos-latest` | `env -u SDKROOT` to avoid cross-SDK issues; test summary to `$GITHUB_STEP_SUMMARY` |
-| `storage-enforcement` | Architecture guard | `macos-14` | Bans `EventStorage.shared` in views, `SQLiteStorage` in production; stale doc reference scanner (268 tests, v2.10.0, dosetap.db, @available unavailable) |
+| `storage-enforcement` | Architecture guard | `macos-14` | Bans `EventStorage.shared` in views, `SQLiteStorage` in production; stale active-doc reference scanner for outdated canonical values and banned wrapper markers |
 | `print-ban` | Production print() ban | `macos-14` | Uses `rg` for Core and DoseTap dirs |
 | `xcode-build` | iOS compile check | `macos-14` | Selects Xcode 15.4 if available; generates `Secrets.swift` from template; build-only (no tests) |
 
