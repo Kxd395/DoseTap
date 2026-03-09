@@ -118,6 +118,8 @@
 		SRQ001 /* SessionRepositoryQueries.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRQ101 /* SessionRepositoryQueries.swift */; };
 		SRQ002 /* SessionRepositoryMedication.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRQ102 /* SessionRepositoryMedication.swift */; };
 		SRQ003 /* SessionRepositoryCheckIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRQ103 /* SessionRepositoryCheckIn.swift */; };
+		SRQ004 /* SessionRepositorySchedule.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRQ104 /* SessionRepositorySchedule.swift */; };
+		SRQ006 /* SessionRepositorySync.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRQ106 /* SessionRepositorySync.swift */; };
 		SVS_BF01 /* HealthKitSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SVS_FR01 /* HealthKitSettingsView.swift */; };
 		SVS_BF02 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SVS_FR02 /* AboutView.swift */; };
 		SVS_BF03 /* EventCooldownSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SVS_FR03 /* EventCooldownSettingsView.swift */; };
@@ -294,6 +296,8 @@
 		SRQ101 /* SessionRepositoryQueries.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepositoryQueries.swift; sourceTree = "<group>"; };
 		SRQ102 /* SessionRepositoryMedication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepositoryMedication.swift; sourceTree = "<group>"; };
 		SRQ103 /* SessionRepositoryCheckIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepositoryCheckIn.swift; sourceTree = "<group>"; };
+		SRQ104 /* SessionRepositorySchedule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepositorySchedule.swift; sourceTree = "<group>"; };
+		SRQ106 /* SessionRepositorySync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepositorySync.swift; sourceTree = "<group>"; };
 		SVS_FR01 /* HealthKitSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitSettingsView.swift; sourceTree = "<group>"; };
 		SVS_FR02 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
 		SVS_FR03 /* EventCooldownSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventCooldownSettingsView.swift; sourceTree = "<group>"; };
@@ -570,6 +574,8 @@
 				SRQ101 /* SessionRepositoryQueries.swift */,
 				SRQ102 /* SessionRepositoryMedication.swift */,
 				SRQ103 /* SessionRepositoryCheckIn.swift */,
+				SRQ104 /* SessionRepositorySchedule.swift */,
+				SRQ106 /* SessionRepositorySync.swift */,
 				6CFBD921F6074479AF4FF155 /* JSONMigrator.swift */,
 				FCC2762A054AE377C80CF2B0 /* EncryptedEventStorage.swift */,
 			);
@@ -865,6 +871,8 @@
 				SRQ001 /* SessionRepositoryQueries.swift in Sources */,
 				SRQ002 /* SessionRepositoryMedication.swift in Sources */,
 				SRQ003 /* SessionRepositoryCheckIn.swift in Sources */,
+				SRQ004 /* SessionRepositorySchedule.swift in Sources */,
+				SRQ006 /* SessionRepositorySync.swift in Sources */,
 				D8746EA078A54AF7A8CE92B3 /* MorningCheckInView.swift in Sources */,
 				MCI001 /* MorningCheckInModels.swift in Sources */,
 				MCI002 /* MorningCheckInViewModel.swift in Sources */,

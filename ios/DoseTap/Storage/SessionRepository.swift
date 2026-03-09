@@ -280,34 +280,6 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         #endif
     }
 
-    // MARK: - Schedule Helpers
-
-    private func timeFromMinutes(_ minutes: Int, on date: Date, timeZone: TimeZone) -> Date {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = timeZone
-        
-        let day = calendar.startOfDay(for: date)
-        let hour = minutes / 60
-        let minute = minutes % 60
-        return calendar.date(bySettingHour: hour, minute: minute, second: 0, of: day) ?? day
-    }
-
-    private func nextOccurrence(of minutes: Int, after date: Date, timeZone: TimeZone) -> Date {
-        let candidate = timeFromMinutes(minutes, on: date, timeZone: timeZone)
-        if candidate > date {
-            return candidate
-        }
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = timeZone
-        let nextDay = calendar.date(byAdding: .day, value: 1, to: date) ?? date
-        return timeFromMinutes(minutes, on: nextDay, timeZone: timeZone)
-    }
-    
-    private func prepTime(for date: Date) -> Date {
-        let minutes = UserSettingsManager.shared.prepTimeMinutes
-        return timeFromMinutes(minutes, on: date, timeZone: timeZoneProvider())
-    }
-
     private func isDoseEventType(_ eventType: String) -> Bool {
         switch eventType {
         case "dose1", "dose2", "extra_dose":
@@ -325,71 +297,11 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     func loadDoseEvents(sessionId: String?, sessionDate: String) -> [DoseCore.StoredDoseEvent] {
         storage.fetchDoseEvents(sessionId: sessionId, sessionDate: sessionDate)
     }
-
-    static func parseSessionDate(_ sessionDate: String, in timeZone: TimeZone) -> Date? {
-        let parts = sessionDate.split(separator: "-")
-        guard parts.count == 3,
-              let year = Int(parts[0]),
-              let month = Int(parts[1]),
-              let day = Int(parts[2]) else {
-            return nil
-        }
-        
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = timeZone
-        
-        var components = DateComponents()
-        components.calendar = calendar
-        components.timeZone = timeZone
-        components.year = year
-        components.month = month
-        components.day = day
-        return calendar.date(from: components)
-    }
-    
-    private func sessionDateToDate(_ sessionDate: String) -> Date? {
-        Self.parseSessionDate(sessionDate, in: timeZoneProvider())
-    }
-
-    private func scheduledSleepStart(for sessionDate: String) -> Date? {
-        guard let day = sessionDateToDate(sessionDate) else { return nil }
-        let minutes = UserSettingsManager.shared.sleepStartMinutes
-        return timeFromMinutes(minutes, on: day, timeZone: timeZoneProvider())
-    }
-    
-    private func cutoffTime(for sessionStart: Date) -> Date {
-        let settings = UserSettingsManager.shared
-        let wake = nextOccurrence(of: settings.wakeTimeMinutes, after: sessionStart, timeZone: timeZoneProvider())
-        return wake.addingTimeInterval(TimeInterval(settings.missedCheckInCutoffHours * 3600))
-    }
-    
-    /// Evaluate session boundaries driven by schedule (prep time + missed check-in cutoff).
-    public func evaluateSessionBoundaries(reason: String) {
-        guard activeSessionId != nil, let sessionDate = activeSessionDate else { return }
-        guard activeSessionEnd == nil else { return }
-        
-        let now = clock()
-        let prep = prepTime(for: now)
-        let scheduledStart = scheduledSleepStart(for: sessionDate)
-        let start = activeSessionStart ?? dose1Time ?? scheduledStart ?? now
-        let cutoff = cutoffTime(for: start)
-        
-        if now >= cutoff {
-            closeActiveSession(at: now, terminalState: "incomplete_missed_checkin", reason: "missed_checkin_cutoff.\(reason)")
-            repoLogger.info("SessionRepo: Auto-closed session \(sessionDate) (cutoff reached)")
-            return
-        }
-        
-        if now >= prep && start < prep {
-            closeActiveSession(at: now, terminalState: "incomplete_prep_rollover", reason: "prep_time.\(reason)")
-            repoLogger.info("SessionRepo: Soft rollover at prep time for session \(sessionDate)")
-        }
-    }
     
     // MARK: - Mutations
 
     /// Ensure there is an active session for the given timestamp.
-    private func ensureActiveSession(for timestamp: Date, reason: String) -> (sessionId: String, sessionDate: String) {
+    func ensureActiveSession(for timestamp: Date, reason: String) -> (sessionId: String, sessionDate: String) {
         evaluateSessionBoundaries(reason: "ensure_active_session.\(reason)")
 
         if let activeSessionId = activeSessionId, let activeSessionDate = activeSessionDate, activeSessionEnd == nil {
@@ -436,7 +348,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     }
 
     /// Close the active session and clear in-memory state.
-    private func closeActiveSession(at endTime: Date, terminalState: String, reason: String) {
+    func closeActiveSession(at endTime: Date, terminalState: String, reason: String) {
         guard let sessionId = activeSessionId, let sessionDate = activeSessionDate else { return }
         
         storage.closeSession(sessionId: sessionId, sessionDate: sessionDate, end: endTime, terminalState: terminalState)
@@ -729,118 +641,6 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         sessionDidChange.send()
     }
     
-    // MARK: - Timezone Change Detection
-
-    private func timezoneOffsets(at date: Date) -> [Int] {
-        let primary = timeZoneProvider().secondsFromGMT(for: date) / 60
-        let defaultOffset = NSTimeZone.default.secondsFromGMT(for: date) / 60
-        if primary == defaultOffset {
-            return [primary]
-        }
-        return [primary, defaultOffset]
-    }
-    
-    private func timezoneDelta(from referenceOffset: Int, at date: Date) -> Int? {
-        for offset in timezoneOffsets(at: date) {
-            let delta = offset - referenceOffset
-            if delta != 0 {
-                return delta
-            }
-        }
-        return nil
-    }
-    
-    private func timezoneChangeDescription(delta: Int) -> String {
-        let hours = abs(delta) / 60
-        let minutes = abs(delta) % 60
-        let direction = delta > 0 ? "east" : "west"
-        
-        if hours == 0 {
-            return "Timezone shifted \(minutes) minutes \(direction)"
-        } else if minutes == 0 {
-            let hourWord = hours == 1 ? "hour" : "hours"
-            return "Timezone shifted \(hours) \(hourWord) \(direction)"
-        } else {
-            let hourWord = hours == 1 ? "hour" : "hours"
-            return "Timezone shifted \(hours) \(hourWord) \(minutes) minutes \(direction)"
-        }
-    }
-    
-    /// Check if timezone has changed since Dose 1 was taken
-    /// Returns a human-readable description if changed, nil otherwise
-    public func checkTimezoneChange() -> String? {
-        guard let referenceOffset = dose1TimezoneOffsetMinutes else {
-            return nil
-        }
-        let now = clock()
-        guard let delta = timezoneDelta(from: referenceOffset, at: now) else {
-            return nil
-        }
-        return timezoneChangeDescription(delta: delta)
-    }
-    
-    /// Check if timezone has changed (boolean convenience)
-    public var hasTimezoneChanged: Bool {
-        guard let referenceOffset = dose1TimezoneOffsetMinutes else {
-            return false
-        }
-        let now = clock()
-        return timezoneDelta(from: referenceOffset, at: now) != nil
-    }
-    
-    // MARK: - Undo Support
-    
-    /// Clear Dose 1 (for undo)
-    public func clearDose1() {
-        let sessionDate = activeSessionDate ?? currentSessionKey
-        dose1Time = nil
-        activeSessionDate = nil
-        dose1TimezoneOffsetMinutes = nil
-        
-        // Clear from storage
-        storage.clearDose1(sessionDateOverride: sessionDate)
-        
-        sessionDidChange.send()
-        repoLogger.info("SessionRepo undo: Dose 1 cleared (undo)")
-    }
-    
-    /// Clear Dose 2 (for undo)
-    public func clearDose2() {
-        let sessionDate = activeSessionDate ?? currentSessionKey
-        dose2Time = nil
-        
-        // Clear from storage
-        storage.clearDose2(sessionDateOverride: sessionDate)
-        
-        sessionDidChange.send()
-        repoLogger.info("SessionRepo undo: Dose 2 cleared (undo)")
-    }
-    
-    /// Clear skip status (for undo)
-    public func clearSkip() {
-        let sessionDate = activeSessionDate ?? currentSessionKey
-        dose2Skipped = false
-        
-        // Clear from storage
-        storage.clearSkip(sessionDateOverride: sessionDate)
-        
-        sessionDidChange.send()
-        repoLogger.info("SessionRepo undo: Skip cleared (undo)")
-    }
-    
-    /// Decrement snooze count (for undo)
-    public func decrementSnoozeCount() {
-        if snoozeCount > 0 {
-            snoozeCount -= 1
-            
-            // Persist to storage
-            storage.saveSnooze(count: snoozeCount)
-            
-            sessionDidChange.send()
-            repoLogger.info("SessionRepo undo: Snooze count decremented to \(self.snoozeCount) (undo)")
-        }
-    }
-    
     // MARK: - Session Finalization (Wake Up & Check-In)
     
     /// Record when user pressed "Wake Up & End Session"
@@ -905,6 +705,148 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         
         sessionDidChange.send()
         repoLogger.info("SessionRepo undo: Wake Final cleared (undo)")
+    }
+
+    /// Clear Dose 1 (for undo).
+    public func clearDose1() {
+        let sessionDate = activeSessionDate ?? currentSessionKey
+        dose1Time = nil
+        activeSessionDate = nil
+        dose1TimezoneOffsetMinutes = nil
+
+        storage.clearDose1(sessionDateOverride: sessionDate)
+
+        sessionDidChange.send()
+        repoLogger.info("SessionRepo undo: Dose 1 cleared (undo)")
+    }
+
+    /// Clear Dose 2 (for undo).
+    public func clearDose2() {
+        let sessionDate = activeSessionDate ?? currentSessionKey
+        dose2Time = nil
+
+        storage.clearDose2(sessionDateOverride: sessionDate)
+
+        sessionDidChange.send()
+        repoLogger.info("SessionRepo undo: Dose 2 cleared (undo)")
+    }
+
+    /// Clear skip status (for undo).
+    public func clearSkip() {
+        let sessionDate = activeSessionDate ?? currentSessionKey
+        dose2Skipped = false
+
+        storage.clearSkip(sessionDateOverride: sessionDate)
+
+        sessionDidChange.send()
+        repoLogger.info("SessionRepo undo: Skip cleared (undo)")
+    }
+
+    /// Decrement snooze count (for undo).
+    public func decrementSnoozeCount() {
+        if snoozeCount > 0 {
+            snoozeCount -= 1
+            storage.saveSnooze(count: snoozeCount)
+
+            sessionDidChange.send()
+            repoLogger.info("SessionRepo undo: Snooze count decremented to \(self.snoozeCount) (undo)")
+        }
+    }
+
+    /// Update Dose 1 time for a past session.
+    public func updateDose1Time(newTime: Date, sessionDate: String) {
+        storage.updateDose1Time(newTime: newTime, sessionDate: sessionDate)
+
+        if sessionDate == activeSessionDate {
+            dose1Time = newTime
+            sessionDidChange.send()
+        }
+
+        Task {
+            await DiagnosticLogger.shared.log(.dose1Taken, sessionId: sessionDate) { entry in
+                entry.dose1Time = newTime
+                entry.reason = "time_adjusted"
+            }
+        }
+    }
+
+    /// Update Dose 2 time for a past session.
+    public func updateDose2Time(newTime: Date, sessionDate: String) {
+        storage.updateDose2Time(newTime: newTime, sessionDate: sessionDate)
+
+        if sessionDate == activeSessionDate {
+            dose2Time = newTime
+            sessionDidChange.send()
+        }
+
+        Task {
+            await DiagnosticLogger.shared.log(.dose2Taken, sessionId: sessionDate) { entry in
+                entry.dose2Time = newTime
+                entry.reason = "time_adjusted"
+            }
+        }
+    }
+
+    /// Backfill or correct Dose 1 from a morning check-in when the overnight tap was missed.
+    public func reconcileDose1(sessionDate: String, takenAt: Date, amountMg: Int?) {
+        upsertDoseEvent(
+            eventType: "dose1",
+            sessionDate: sessionDate,
+            timestamp: takenAt,
+            amountMg: amountMg
+        )
+
+        if sessionDate == activeSessionDate {
+            dose1Time = takenAt
+            sessionDidChange.send()
+        }
+    }
+
+    /// Backfill or correct Dose 2 from a morning check-in when the overnight tap was missed.
+    public func reconcileDose2(sessionDate: String, takenAt: Date, amountMg: Int?) {
+        storage.clearSkip(sessionDateOverride: sessionDate)
+        upsertDoseEvent(
+            eventType: "dose2",
+            sessionDate: sessionDate,
+            timestamp: takenAt,
+            amountMg: amountMg
+        )
+
+        if sessionDate == activeSessionDate {
+            dose2Time = takenAt
+            dose2Skipped = false
+            sessionDidChange.send()
+        }
+    }
+
+    /// Mark Dose 2 skipped during morning reconciliation without reopening the active-session flow.
+    public func reconcileDose2Skipped(sessionDate: String, timestamp: Date = Date()) {
+        let existingSkip = fetchDoseEvents(forSessionDate: sessionDate)
+            .first { $0.eventType == "dose2_skipped" }
+        let metadata = doseEventMetadata(amountMg: nil, source: "morning_reconciliation")
+
+        if let existingSkip {
+            storage.updateDoseEventMetadata(eventId: existingSkip.id, metadata: metadata)
+        } else {
+            storage.insertDoseEvent(
+                eventType: "dose2_skipped",
+                timestamp: timestamp,
+                sessionKey: sessionDate,
+                metadata: metadata
+            )
+        }
+
+        if sessionDate == activeSessionDate {
+            dose2Skipped = true
+            dose2Time = nil
+            sessionDidChange.send()
+        }
+    }
+
+    /// Update event time for a sleep event.
+    public func updateEventTime(eventId: String, newTime: Date) {
+        storage.updateSleepEventTime(eventId: eventId, newTime: newTime)
+        sessionDidChange.send()
     }
     
     // MARK: - Sleep-Through Handling
@@ -1127,109 +1069,11 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         sessionDidChange.send()
     }
     
-    // MARK: - Time Editing Methods (Manual Entry Support)
-    
-    /// Update Dose 1 time for a past session
-    /// - Parameters:
-    ///   - newTime: The corrected time
-    ///   - sessionDate: The session date string (YYYY-MM-DD format)
-    public func updateDose1Time(newTime: Date, sessionDate: String) {
-        storage.updateDose1Time(newTime: newTime, sessionDate: sessionDate)
-        
-        // If editing current session, update in-memory state
-        if sessionDate == activeSessionDate {
-            dose1Time = newTime
-            sessionDidChange.send()
-        }
-        
-        // Log the edit
-        Task {
-            await DiagnosticLogger.shared.log(.dose1Taken, sessionId: sessionDate) { entry in
-                entry.dose1Time = newTime
-                entry.reason = "time_adjusted"
-            }
-        }
-    }
-    
-    /// Update Dose 2 time for a past session
-    /// - Parameters:
-    ///   - newTime: The corrected time
-    ///   - sessionDate: The session date string (YYYY-MM-DD format)
-    public func updateDose2Time(newTime: Date, sessionDate: String) {
-        storage.updateDose2Time(newTime: newTime, sessionDate: sessionDate)
-        
-        // If editing current session, update in-memory state
-        if sessionDate == activeSessionDate {
-            dose2Time = newTime
-            sessionDidChange.send()
-        }
-        
-        // Log the edit
-        Task {
-            await DiagnosticLogger.shared.log(.dose2Taken, sessionId: sessionDate) { entry in
-                entry.dose2Time = newTime
-                entry.reason = "time_adjusted"
-            }
-        }
-    }
+}
 
-    /// Backfill or correct Dose 1 from a morning check-in when the overnight tap was missed.
-    public func reconcileDose1(sessionDate: String, takenAt: Date, amountMg: Int?) {
-        upsertDoseEvent(
-            eventType: "dose1",
-            sessionDate: sessionDate,
-            timestamp: takenAt,
-            amountMg: amountMg
-        )
-
-        if sessionDate == activeSessionDate {
-            dose1Time = takenAt
-            sessionDidChange.send()
-        }
-    }
-
-    /// Backfill or correct Dose 2 from a morning check-in when the overnight tap was missed.
-    public func reconcileDose2(sessionDate: String, takenAt: Date, amountMg: Int?) {
-        storage.clearSkip(sessionDateOverride: sessionDate)
-        upsertDoseEvent(
-            eventType: "dose2",
-            sessionDate: sessionDate,
-            timestamp: takenAt,
-            amountMg: amountMg
-        )
-
-        if sessionDate == activeSessionDate {
-            dose2Time = takenAt
-            dose2Skipped = false
-            sessionDidChange.send()
-        }
-    }
-
-    /// Mark Dose 2 skipped during morning reconciliation without reopening the active-session flow.
-    public func reconcileDose2Skipped(sessionDate: String, timestamp: Date = Date()) {
-        let existingSkip = fetchDoseEvents(forSessionDate: sessionDate)
-            .first { $0.eventType == "dose2_skipped" }
-        let metadata = doseEventMetadata(amountMg: nil, source: "morning_reconciliation")
-
-        if let existingSkip {
-            storage.updateDoseEventMetadata(eventId: existingSkip.id, metadata: metadata)
-        } else {
-            storage.insertDoseEvent(
-                eventType: "dose2_skipped",
-                timestamp: timestamp,
-                sessionKey: sessionDate,
-                metadata: metadata
-            )
-        }
-
-        if sessionDate == activeSessionDate {
-            dose2Skipped = true
-            dose2Time = nil
-            sessionDidChange.send()
-        }
-    }
-
-    private func upsertDoseEvent(
+@MainActor
+extension SessionRepository {
+    func upsertDoseEvent(
         eventType: String,
         sessionDate: String,
         timestamp: Date,
@@ -1259,7 +1103,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         }
     }
 
-    private func doseEventMetadata(amountMg: Int?, source: String) -> String? {
+    func doseEventMetadata(amountMg: Int?, source: String) -> String? {
         var metadata: [String: Any] = ["source": source]
         if let amountMg {
             metadata["amount_mg"] = amountMg
@@ -1269,152 +1113,4 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         }
         return String(data: data, encoding: .utf8)
     }
-    
-    /// Update event time for a sleep event
-    /// - Parameters:
-    ///   - eventId: The event UUID
-    ///   - newTime: The corrected time
-    public func updateEventTime(eventId: String, newTime: Date) {
-        storage.updateSleepEventTime(eventId: eventId, newTime: newTime)
-        sessionDidChange.send()
-    }
-    
-    // MARK: - Additional Storage Facade Methods (Views must use these, not EventStorage directly)
-    
-    /// Link pre-sleep log to session
-    public func linkPreSleepLogToSession(sessionId: String) {
-        let sessionDate = activeSessionDate ?? currentSessionKey
-        storage.linkPreSleepLogToSession(sessionId: sessionId, sessionDate: sessionDate)
-    }
-    
-    /// Clear tonight's events (for session reset)
-    public func clearTonightsEvents() {
-        storage.clearTonightsEvents(sessionDateOverride: activeSessionDate ?? currentSessionKey)
-    }
-    
-    /// Save dose 1 timestamp - SSOT: Updates in-memory state AND persists to storage
-    /// Use this or setDose1Time() - they are now equivalent
-    public func saveDose1(timestamp: Date) {
-        setDose1Time(timestamp)
-    }
-    
-    /// Save dose 2 timestamp with optional flags - SSOT: Updates in-memory state AND persists to storage
-    /// Use this or setDose2Time() - they are now equivalent
-    public func saveDose2(timestamp: Date, isEarly: Bool = false, isExtraDose: Bool = false) {
-        setDose2Time(timestamp, isEarly: isEarly, isExtraDose: isExtraDose)
-    }
-
-    /// Insert sleep event (for event logging)
-    public func insertSleepEvent(id: String, eventType: String, timestamp: Date, colorHex: String?, notes: String? = nil) {
-        let session = ensureActiveSession(for: timestamp, reason: "sleep_event_insert")
-        let normalizedType = eventType
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-            .replacingOccurrences(of: " ", with: "_")
-        storage.insertSleepEvent(
-            id: id,
-            eventType: normalizedType,
-            timestamp: timestamp,
-            sessionDate: session.sessionDate,
-            sessionId: session.sessionId,
-            colorHex: colorHex,
-            notes: notes
-        )
-    }
-
-    /// Upsert sleep event imported from sync with explicit session identity.
-    public func upsertSleepEventFromSync(
-        id: String,
-        eventType: String,
-        timestamp: Date,
-        sessionDate: String,
-        sessionId: String?,
-        colorHex: String?,
-        notes: String?
-    ) {
-        storage.insertSleepEvent(
-            id: id,
-            eventType: eventType,
-            timestamp: timestamp,
-            sessionDate: sessionDate,
-            sessionId: sessionId ?? sessionDate,
-            colorHex: colorHex,
-            notes: notes
-        )
-    }
-
-    /// Upsert dose event imported from sync with explicit id.
-    public func upsertDoseEventFromSync(
-        id: String,
-        eventType: String,
-        timestamp: Date,
-        sessionDate: String,
-        sessionId: String?,
-        metadata: String?
-    ) {
-        storage.upsertDoseEvent(
-            id: id,
-            eventType: eventType,
-            timestamp: timestamp,
-            sessionDate: sessionDate,
-            sessionId: sessionId ?? sessionDate,
-            metadata: metadata
-        )
-    }
-
-    /// Upsert morning check-in imported from sync.
-    public func upsertMorningCheckInFromSync(_ checkIn: StoredMorningCheckIn) {
-        if let existing = fetchMorningCheckIn(for: checkIn.sessionDate) {
-            if existing.timestamp > checkIn.timestamp {
-                return
-            }
-        }
-        storage.saveMorningCheckIn(checkIn, forSession: checkIn.sessionDate)
-    }
-
-    /// Upsert pre-sleep log imported from sync.
-    public func upsertPreSleepLogFromSync(_ log: StoredPreSleepLog, sessionDate: String) {
-        storage.upsertPreSleepLogFromSync(log, sessionDate: sessionDate)
-    }
-
-    /// Upsert medication event imported from sync.
-    public func upsertMedicationEventFromSync(_ entry: StoredMedicationEntry) {
-        storage.upsertMedicationEvent(entry)
-    }
-
-    /// Delete a sleep event imported as removed by sync.
-    public func deleteSleepEventFromSync(id: String) {
-        storage.deleteSleepEvent(id: id, recordCloudKitDeletion: false)
-    }
-
-    /// Delete a dose event imported as removed by sync.
-    public func deleteDoseEventFromSync(id: String) {
-        storage.deleteDoseEvent(id: id, recordCloudKitDeletion: false)
-    }
-
-    /// Delete a morning check-in imported as removed by sync.
-    public func deleteMorningCheckInFromSync(id: String) {
-        storage.deleteMorningCheckIn(id: id, recordCloudKitDeletion: false)
-    }
-
-    /// Delete a pre-sleep log imported as removed by sync.
-    public func deletePreSleepLogFromSync(id: String) {
-        storage.deletePreSleepLog(id: id, recordCloudKitDeletion: false)
-    }
-
-    /// Delete a medication event imported as removed by sync.
-    public func deleteMedicationEventFromSync(id: String) {
-        storage.deleteMedicationEvent(id: id, recordCloudKitDeletion: false)
-    }
-
-    /// Delete a whole session imported as removed by sync.
-    public func deleteSessionFromSync(sessionDate: String) {
-        storage.deleteSession(sessionDate: sessionDate, recordCloudKitDeletion: false)
-    }
-
-    /// Reload and broadcast after a sync import batch is applied.
-    public func finalizeSyncImport() {
-        reload()
-    }
-    
 }
