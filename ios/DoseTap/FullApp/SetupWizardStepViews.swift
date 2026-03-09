@@ -353,22 +353,6 @@ struct PrivacyStepView: View {
             )
 
             VStack(spacing: 16) {
-                if cloudSyncAvailable {
-                    VStack(spacing: 12) {
-                        Toggle("Enable iCloud Sync", isOn: $config.icloudSyncEnabled)
-                            .font(.subheadline)
-
-                        if config.icloudSyncEnabled {
-                            Text("Your logged dose data can sync across your devices using your private iCloud account.")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .padding(16)
-                    .background(Color(UIColor.secondarySystemGroupedBackground))
-                    .cornerRadius(12)
-                }
-
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Data Retention")
                         .font(.subheadline)
@@ -405,7 +389,7 @@ struct PrivacyStepView: View {
 
             InfoBoxView(
                 message: cloudSyncAvailable
-                    ? "HealthKit and WHOOP data stay on your device. If you enable iCloud sync, only DoseTap app records sync through your private iCloud account."
+                    ? "HealthKit and WHOOP data stay on your device. This build can sync DoseTap records through your private iCloud account when you use the manual sync controls."
                     : "HealthKit and WHOOP data stay on your device. DoseTap does not require an account or transmit health data to third parties.",
                 type: .info
             )

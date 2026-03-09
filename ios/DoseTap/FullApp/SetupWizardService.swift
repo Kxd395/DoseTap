@@ -55,7 +55,6 @@ struct NotificationConfig: Codable {
 }
 
 struct PrivacyConfig: Codable {
-    var icloudSyncEnabled: Bool = false
     var dataRetentionDays: Int = 365
     var analyticsEnabled: Bool = false
 }

@@ -109,24 +109,26 @@ struct DashboardTabView: View {
                 model.refresh()
             }
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    if cloudSync.isSyncing {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Button {
-                            Task {
-                                do {
-                                    try await cloudSync.syncNow(days: 120)
-                                    model.refresh()
-                                } catch {
-                                    cloudSyncError = error.localizedDescription
+                if cloudSync.cloudSyncAvailableInBuild {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        if cloudSync.isSyncing {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Button {
+                                Task {
+                                    do {
+                                        try await cloudSync.syncNow(days: 120)
+                                        model.refresh()
+                                    } catch {
+                                        cloudSyncError = error.localizedDescription
+                                    }
                                 }
+                            } label: {
+                                Image(systemName: "icloud.and.arrow.up")
                             }
-                        } label: {
-                            Image(systemName: "icloud.and.arrow.up")
+                            .accessibilityLabel("Sync with iCloud")
                         }
-                        .accessibilityLabel("Sync with iCloud")
                     }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {

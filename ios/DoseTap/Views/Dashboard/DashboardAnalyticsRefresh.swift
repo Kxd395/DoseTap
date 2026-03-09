@@ -237,7 +237,7 @@ extension DashboardAnalyticsModel {
                 ? (cloudSync.lastSyncDate == nil
                     ? cloudSync.statusMessage
                     : "Last sync \(cloudSync.lastSyncDate?.formatted(date: .omitted, time: .shortened) ?? "") • \(cloudSync.statusMessage)")
-                : "Cloud sync requires iCloud entitlements and a paid Apple Developer team profile.",
+                : "Cloud sync is unavailable in the local-first app target. Use the cloud-enabled staging target when validating deferred iCloud sync.",
             color: cloudSync.cloudSyncAvailableInBuild
                 ? (cloudSync.lastSyncDate == nil ? .orange : .green)
                 : .gray
