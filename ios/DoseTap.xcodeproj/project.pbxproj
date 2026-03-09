@@ -67,6 +67,9 @@
 		CLUST114 /* DashboardAnalyticsPreSleep.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST115 /* DashboardAnalyticsPreSleep.swift */; };
 		CLUST116 /* DashboardAnalyticsCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST117 /* DashboardAnalyticsCatalog.swift */; };
 		CLUST118 /* DashboardAnalyticsMorning.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST119 /* DashboardAnalyticsMorning.swift */; };
+		CLUST120 /* DashboardOverviewCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST121 /* DashboardOverviewCards.swift */; };
+		CLUST122 /* DashboardTrendCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST123 /* DashboardTrendCards.swift */; };
+		CLUST124 /* DashboardInsightCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST125 /* DashboardInsightCards.swift */; };
 		CLUST103 /* TimelineReviewViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST003 /* TimelineReviewViews.swift */; };
 		CLUST104 /* HistoryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST004 /* HistoryViews.swift */; };
 		D2AFCB94D52D4B168AC1CAD6 /* EventLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0E5B5C6E684F7796F9B9FC /* EventLogger.swift */; };
@@ -235,6 +238,9 @@
 		CLUST115 /* DashboardAnalyticsPreSleep.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardAnalyticsPreSleep.swift; sourceTree = "<group>"; };
 		CLUST117 /* DashboardAnalyticsCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardAnalyticsCatalog.swift; sourceTree = "<group>"; };
 		CLUST119 /* DashboardAnalyticsMorning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardAnalyticsMorning.swift; sourceTree = "<group>"; };
+		CLUST121 /* DashboardOverviewCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardOverviewCards.swift; sourceTree = "<group>"; };
+		CLUST123 /* DashboardTrendCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardTrendCards.swift; sourceTree = "<group>"; };
+		CLUST125 /* DashboardInsightCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardInsightCards.swift; sourceTree = "<group>"; };
 		CLUST003 /* TimelineReviewViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineReviewViews.swift; sourceTree = "<group>"; };
 		CLUST004 /* HistoryViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryViews.swift; sourceTree = "<group>"; };
 		D049AFCF96FC4AFF9120309E /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
@@ -458,6 +464,9 @@
 				CLUST115 /* DashboardAnalyticsPreSleep.swift */,
 				CLUST119 /* DashboardAnalyticsMorning.swift */,
 				CLUST117 /* DashboardAnalyticsCatalog.swift */,
+				CLUST121 /* DashboardOverviewCards.swift */,
+				CLUST123 /* DashboardTrendCards.swift */,
+				CLUST125 /* DashboardInsightCards.swift */,
 			);
 			path = Dashboard;
 			sourceTree = "<group>";
@@ -851,6 +860,9 @@
 				CLUST114 /* DashboardAnalyticsPreSleep.swift in Sources */,
 				CLUST116 /* DashboardAnalyticsCatalog.swift in Sources */,
 				CLUST118 /* DashboardAnalyticsMorning.swift in Sources */,
+				CLUST120 /* DashboardOverviewCards.swift in Sources */,
+				CLUST122 /* DashboardTrendCards.swift in Sources */,
+				CLUST124 /* DashboardInsightCards.swift in Sources */,
 				CLUST103 /* TimelineReviewViews.swift in Sources */,
 				CLUST104 /* HistoryViews.swift in Sources */,
 			);
