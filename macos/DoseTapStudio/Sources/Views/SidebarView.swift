@@ -19,7 +19,11 @@ struct SidebarView: View {
             }
             
             // Navigation Section
-            Section("Analytics") {
+            Section("Insights") {
+                NavigationLink(destination: LibraryView(dataStore: dataStore)) {
+                    Label("Library", systemImage: "books.vertical")
+                }
+
                 NavigationLink(destination: DashboardView(dataStore: dataStore)) {
                     Label("Dashboard", systemImage: "chart.bar")
                 }
