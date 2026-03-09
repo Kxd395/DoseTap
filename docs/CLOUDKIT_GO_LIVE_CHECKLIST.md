@@ -4,7 +4,8 @@ This runbook is for the point when Apple Developer CloudKit capability propagati
 
 ## Scope
 
-- App target: `DoseTap`
+- Shipping target: `DoseTap` (local-first, no CloudKit sync action)
+- Cloud validation target: `DoseTapStaging`
 - Bundle ID: `com.dosetap.ios`
 - CloudKit container: `iCloud.com.dosetap.ios`
 - Current sync implementation: dashboard-driven private-database sync for session summary, sleep events, dose events, and morning check-ins
@@ -19,8 +20,10 @@ Run the local config check before touching a device:
 
 Expected result:
 
-- `Debug` and `Release` both report `DoseTap/DoseTap.entitlements`
-- `Debug` and `Release` both report `INFOPLIST_KEY_DoseTapCloudSyncEnabled = YES`
+- `DoseTapStaging` reports `DoseTap/DoseTap.Cloud.entitlements`
+- `DoseTapStaging` reports `INFOPLIST_KEY_DoseTapCloudSyncEnabled = YES`
+- Local-first `DoseTap` reports `DoseTap/DoseTap.Local.entitlements`
+- Local-first `DoseTap` reports `INFOPLIST_KEY_DoseTapCloudSyncEnabled = NO`
 - Entitlements report container `iCloud.com.dosetap.ios`
 
 ## 2. Apple-Side Readiness
@@ -39,13 +42,13 @@ If propagation only started on March 8, 2026, do not treat failures before March
 Install a Debug build to a physical device:
 
 ```bash
-xcodebuild -project ios/DoseTap.xcodeproj -scheme DoseTap -configuration Debug -destination 'platform=iOS,name=<Device Name>' build
+xcodebuild -project ios/DoseTap.xcodeproj -scheme DoseTapStaging -configuration Debug -destination 'platform=iOS,name=<Device Name>' build
 ```
 
 Then confirm the signed app includes CloudKit entitlements:
 
 ```bash
-APP_PATH="$(find ~/Library/Developer/Xcode/DerivedData -path '*Build/Products/Debug-iphoneos/DoseTap.app' -print -quit)"
+APP_PATH="$(find ~/Library/Developer/Xcode/DerivedData -path '*Build/Products/Debug-iphoneos/DoseTapStaging.app' -print -quit)"
 codesign -d --entitlements :- "$APP_PATH"
 ```
 
@@ -60,7 +63,7 @@ Use two real devices on the same iCloud account.
 
 On device A:
 
-1. Launch DoseTap.
+1. Launch `DoseTapStaging`.
 2. Log Dose 1.
 3. Log at least one sleep event.
 4. Save a morning check-in.
@@ -68,7 +71,7 @@ On device A:
 
 On device B:
 
-1. Launch DoseTap.
+1. Launch `DoseTapStaging`.
 2. Trigger dashboard sync.
 3. Confirm the same session appears with matching dose data, sleep events, and morning check-in state.
 
@@ -109,6 +112,7 @@ Any non-empty result means storage contains session data that the current recent
 ## 6. Known Failure Modes To Watch
 
 - Build says cloud sync disabled: `DoseTapCloudSyncEnabled` is off in build settings or wrong target/scheme is installed.
+- Build says cloud sync disabled in the shipping app: expected for the local-first `DoseTap` target; use `DoseTapStaging` for CloudKit validation.
 - Signed app lacks CloudKit entitlements: signing profile or target entitlements are wrong.
 - Sync completes but data classes are missing on the second device: expected today for `pre_sleep_logs`, `checkin_submissions`, `medication_events`, `sleep_sessions`, `current_session`.
 - Duplicate logical Dose 2 after multi-device offline use: expected risk with current UUID-keyed conflict handling.

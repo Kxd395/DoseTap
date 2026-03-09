@@ -193,17 +193,17 @@ A deep code audit of the running app versus source reveals five critical themes:
 
 ---
 
-### ⏸️ P1-5: CloudKit Sync Is Non-Functional Skeleton — DEFERRED
+### ⏸️ P1-5: CloudKit Sync Is Deferred To Staging — DEFERRED
 
-**Problem:** Dashboard shows "Cloud Sync · Disabled" with "requires iCloud entitlements" message. `CloudKitSyncService` has a complete implementation (~600 LOC) but the iCloud entitlement is not enabled.
+**Problem:** The shipping `DoseTap` target is intentionally local-first, while the deferred CloudKit implementation lives behind the cloud-enabled staging target. `DeferredCloudKitSyncService` remains implemented, but it is not meant to be user-actionable in the shipping app target.
 
 **Decision:** Keep skeleton, defer activation. The code is:
 - Well-structured with zone-based sync, change tokens, conflict resolution
-- Properly guarded behind `DoseTapCloudSyncEnabled` Info.plist flag (defaults to false)
-- Dashboard shows clear "Disabled" status with explanation when inactive
+- Properly guarded behind `DoseTapCloudSyncEnabled` Info.plist flag and cloud entitlements
+- Shipping `DoseTap` target hides the manual sync control and reports that cloud validation belongs to staging
 - Added prominent documentation header explaining the deferred state
 
-**To enable later:** Add iCloud entitlement → create CloudKit container → set `DoseTapCloudSyncEnabled=true` in Info.plist → test sync with real iCloud account.
+**To enable later:** Use the cloud-enabled staging target with `DoseTap.Cloud.entitlements` → verify `DoseTapCloudSyncEnabled=true` for that target → test sync with real iCloud accounts/devices.
 
 **Blocked by:** Paid Apple Developer Team profile requirement.
 

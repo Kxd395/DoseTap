@@ -367,7 +367,7 @@ Code references:
 The app supports the `com.apple.developer.usernotifications.critical-alerts` entitlement for time-sensitive dose reminders that must bypass Do Not Disturb and Silent Mode.
 
 - Capability gating: `AlarmService.canUseCriticalAlerts` checks both `UserSettingsManager.criticalAlertsEnabled` AND the `CriticalAlertsCapabilityEnabled` Info.plist flag. If either is false, notifications fall back to `.timeSensitive` interruption level.
-- Entitlements files (`DoseTap.entitlements`, `DoseTap.NoCloud.entitlements`): add the `com.apple.developer.usernotifications.critical-alerts` key only after Apple approves the entitlement request.
+- Entitlements files (`DoseTap.Cloud.entitlements`, `DoseTap.Local.entitlements`): add the `com.apple.developer.usernotifications.critical-alerts` key only after Apple approves the entitlement request.
 - 5-minute final warning (`dosetap_window_5min`) and wake alarms use `.critical` interruption level when `canUseCriticalAlerts` is true.
 - All other notifications use `.timeSensitive` interruption level.
 

@@ -320,7 +320,7 @@ DashboardTabView
 - `HealthKitService` -> sleep stages, heart rate
 - `WHOOPService` -> recovery, strain, HRV
 
-`CloudKitSyncService` handles bi-directional sync (planned, skeleton present).
+`DeferredCloudKitSyncService` handles the deferred CloudKit bi-directional sync path used only by the cloud-enabled staging target.
 
 ### Dashboard User Actions
 
@@ -797,7 +797,7 @@ Performance indexes on: `session_date`, `timestamp`, `session_id`, `event_type`,
 | `ExportService` | CSV/JSON export with sharing |
 | `DiagnosticLogger` | Structured logging for diagnostic traces |
 | `DashboardAnalyticsModel` | Aggregated analytics computation |
-| `CloudKitSyncService` | iCloud record sync + conflict resolution |
+| `DeferredCloudKitSyncService` | Deferred iCloud record sync + conflict resolution for the staging target |
 | `OnboardingManager` | First-run flow state |
 | `NotificationDelegate` | UNUserNotificationCenterDelegate routing |
 | `URLRouter` | Deep link + Shortcuts action routing |
