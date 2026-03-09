@@ -60,6 +60,7 @@
 		CLUST101 /* DashboardModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST001 /* DashboardModels.swift */; };
 		CLUST102 /* DashboardViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST002 /* DashboardViews.swift */; };
 		CLUST105 /* CloudKitSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST005 /* CloudKitSyncService.swift */; };
+		CLUST107 /* DashboardTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST106 /* DashboardTypes.swift */; };
 		CLUST103 /* TimelineReviewViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST003 /* TimelineReviewViews.swift */; };
 		CLUST104 /* HistoryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST004 /* HistoryViews.swift */; };
 		D2AFCB94D52D4B168AC1CAD6 /* EventLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0E5B5C6E684F7796F9B9FC /* EventLogger.swift */; };
@@ -71,6 +72,7 @@
 		E3B41D5FFE162C7FC40E4FD4 /* AdaptiveLayouts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ED119801E1E497EB929C45B /* AdaptiveLayouts.swift */; };
 		E7EA21EC3FE949B3890BF69A /* FullApp/SetupWizardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1BA2E6CCFB845E6BFC919FA /* FullApp/SetupWizardService.swift */; };
 		EA02466EA69547DF963A8BA7 /* WHOOPService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7084981AA100483EB6E6ADE1 /* WHOOPService.swift */; };
+		WHM001 /* WHOOPModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = WHM002 /* WHOOPModels.swift */; };
 		EDIT002 /* EditDoseTimeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDIT001 /* EditDoseTimeView.swift */; };
 		ESB001 /* EventStorage+Schema.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF001 /* EventStorage+Schema.swift */; };
 		ESB002 /* EventStorage+Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF002 /* EventStorage+Session.swift */; };
@@ -151,6 +153,7 @@
 		6FEE161A09D6441A8D4448DA /* InsightsCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightsCalculator.swift; sourceTree = "<group>"; };
 		707FF265ADBBA04484376264 /* ThemeSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThemeSettingsView.swift; sourceTree = "<group>"; };
 		7084981AA100483EB6E6ADE1 /* WHOOPService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WHOOPService.swift; sourceTree = "<group>"; };
+		WHM002 /* WHOOPModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WHOOPModels.swift; sourceTree = "<group>"; };
 		7772A3ACA248F927B3008122 /* SecureConfig.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SecureConfig.swift; sourceTree = "<group>"; };
 		7797EE7911D146B6A7456454 /* DoseTapStaging.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DoseTapStaging.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7D7115779119154483A7838A /* UndoStateManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UndoStateManager.swift; sourceTree = "<group>"; };
@@ -209,6 +212,7 @@
 		CLUST001 /* DashboardModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardModels.swift; sourceTree = "<group>"; };
 		CLUST002 /* DashboardViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardViews.swift; sourceTree = "<group>"; };
 		CLUST005 /* CloudKitSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitSyncService.swift; sourceTree = "<group>"; };
+		CLUST106 /* DashboardTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardTypes.swift; sourceTree = "<group>"; };
 		CLUST003 /* TimelineReviewViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineReviewViews.swift; sourceTree = "<group>"; };
 		CLUST004 /* HistoryViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryViews.swift; sourceTree = "<group>"; };
 		D049AFCF96FC4AFF9120309E /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
@@ -385,6 +389,7 @@
 				BB4C5084D06D74163A5C71A9 /* UserSettingsManager.swift */,
 				WP002 /* WeeklyPlanner.swift */,
 				7084981AA100483EB6E6ADE1 /* WHOOPService.swift */,
+				WHM002 /* WHOOPModels.swift */,
 				GRP_EXPORT /* Export */,
 				GRP_FOUNDATION /* Foundation */,
 				GRP_PERSISTENCE /* Persistence */,
@@ -424,6 +429,7 @@
 				CLUST001 /* DashboardModels.swift */,
 				CLUST002 /* DashboardViews.swift */,
 				CLUST005 /* CloudKitSyncService.swift */,
+				CLUST106 /* DashboardTypes.swift */,
 			);
 			path = Dashboard;
 			sourceTree = "<group>";
@@ -776,6 +782,7 @@
 				SWZ001 /* FullApp/SetupWizardStepViews.swift in Sources */,
 				SWZ003 /* FullApp/SetupWizardComponents.swift in Sources */,
 				EA02466EA69547DF963A8BA7 /* WHOOPService.swift in Sources */,
+				WHM001 /* WHOOPModels.swift in Sources */,
 				46EBB63DD7FE446C8EEF4021 /* AnalyticsService.swift in Sources */,
 				51117520922E2EF076DD4A81 /* DiagnosticExportView.swift in Sources */,
 				D3796BF7DA596F5F9D63F096 /* TimeIntervalMath.swift in Sources */,
@@ -799,6 +806,7 @@
 				CLUST101 /* DashboardModels.swift in Sources */,
 				CLUST102 /* DashboardViews.swift in Sources */,
 				CLUST105 /* CloudKitSyncService.swift in Sources */,
+				CLUST107 /* DashboardTypes.swift in Sources */,
 				CLUST103 /* TimelineReviewViews.swift in Sources */,
 				CLUST104 /* HistoryViews.swift in Sources */,
 			);
