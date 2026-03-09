@@ -78,6 +78,8 @@
 		D8746EA078A54AF7A8CE92B3 /* MorningCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3941DD4936B4FD0BD5A8837 /* MorningCheckInView.swift */; };
 		MCI001 /* MorningCheckInModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = MCI101 /* MorningCheckInModels.swift */; };
 		MCI002 /* MorningCheckInViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = MCI102 /* MorningCheckInViewModel.swift */; };
+		MCI003 /* MorningCheckInViewModelSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = MCI103 /* MorningCheckInViewModelSupport.swift */; };
+		MCI004 /* MorningCheckInWakeSurvey.swift in Sources */ = {isa = PBXBuildFile; fileRef = MCI104 /* MorningCheckInWakeSurvey.swift */; };
 		D9B47E5F3E91E2F68102BA13 /* NightReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FABFEE0765C943A32E6ACC2 /* NightReviewView.swift */; };
 		DAC001 /* DoseActionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAC002 /* DoseActionCoordinator.swift */; };
 		DD45B910AB7B414A9948C5A9 /* URLRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D565C0B5A1804860B23307B9 /* URLRouter.swift */; };
@@ -224,6 +226,8 @@
 		B3941DD4936B4FD0BD5A8837 /* MorningCheckInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckInView.swift; sourceTree = "<group>"; };
 		MCI101 /* MorningCheckInModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckInModels.swift; sourceTree = "<group>"; };
 		MCI102 /* MorningCheckInViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckInViewModel.swift; sourceTree = "<group>"; };
+		MCI103 /* MorningCheckInViewModelSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckInViewModelSupport.swift; sourceTree = "<group>"; };
+		MCI104 /* MorningCheckInWakeSurvey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckInWakeSurvey.swift; sourceTree = "<group>"; };
 		B44F86E9E72D452CAFED6B16 /* SleepPlanCards.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SleepPlanCards.swift; sourceTree = "<group>"; };
 		B5D8DC9D91D38419C97E97FA /* EventStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventStorage.swift; sourceTree = "<group>"; };
 		B909173F1168B426E065A13A /* NightComparisonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightComparisonView.swift; sourceTree = "<group>"; };
@@ -606,6 +610,8 @@
 				CAPF001 /* CapturePreviewSheet.swift */,
 				MCI101 /* MorningCheckInModels.swift */,
 				MCI102 /* MorningCheckInViewModel.swift */,
+				MCI103 /* MorningCheckInViewModelSupport.swift */,
+				MCI104 /* MorningCheckInWakeSurvey.swift */,
 				B3941DD4936B4FD0BD5A8837 /* MorningCheckInView.swift */,
 				BE3796A887B24D9FBBD40758 /* PreSleepLogView.swift */,
 				PSL002 /* PreSleepLogComponents.swift */,
@@ -884,6 +890,8 @@
 				D8746EA078A54AF7A8CE92B3 /* MorningCheckInView.swift in Sources */,
 				MCI001 /* MorningCheckInModels.swift in Sources */,
 				MCI002 /* MorningCheckInViewModel.swift in Sources */,
+				MCI003 /* MorningCheckInViewModelSupport.swift in Sources */,
+				MCI004 /* MorningCheckInWakeSurvey.swift in Sources */,
 				F94248D37BBE47A5A2E90C9B /* PreSleepLogView.swift in Sources */,
 				PSL001 /* PreSleepLogComponents.swift in Sources */,
 				PSL003 /* PreSleepLogTimingStressCard.swift in Sources */,
