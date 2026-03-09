@@ -62,7 +62,7 @@
 		CLUST104 /* HistoryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST004 /* HistoryViews.swift */; };
 		HIS001 /* HistorySelectedDayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = HIS101 /* HistorySelectedDayView.swift */; };
 		HIS002 /* HistorySessionListViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = HIS102 /* HistorySessionListViews.swift */; };
-		CLUST105 /* CloudKitSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST005 /* CloudKitSyncService.swift */; };
+		CLUST105 /* DeferredCloudKitSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST005 /* DeferredCloudKitSyncService.swift */; };
 		CLUST107 /* DashboardTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST106 /* DashboardTypes.swift */; };
 		CLUST108 /* DashboardAnalyticsRefresh.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST109 /* DashboardAnalyticsRefresh.swift */; };
 		CLUST110 /* DashboardAnalyticsSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST111 /* DashboardAnalyticsSupport.swift */; };
@@ -251,7 +251,7 @@
 		CLUST004 /* HistoryViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryViews.swift; sourceTree = "<group>"; };
 		HIS101 /* HistorySelectedDayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySelectedDayView.swift; sourceTree = "<group>"; };
 		HIS102 /* HistorySessionListViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySessionListViews.swift; sourceTree = "<group>"; };
-		CLUST005 /* CloudKitSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitSyncService.swift; sourceTree = "<group>"; };
+		CLUST005 /* DeferredCloudKitSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeferredCloudKitSyncService.swift; sourceTree = "<group>"; };
 		CLUST106 /* DashboardTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardTypes.swift; sourceTree = "<group>"; };
 		CLUST109 /* DashboardAnalyticsRefresh.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardAnalyticsRefresh.swift; sourceTree = "<group>"; };
 		CLUST111 /* DashboardAnalyticsSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardAnalyticsSupport.swift; sourceTree = "<group>"; };
@@ -507,7 +507,6 @@
 			children = (
 				CLUST001 /* DashboardModels.swift */,
 				CLUST002 /* DashboardViews.swift */,
-				CLUST005 /* CloudKitSyncService.swift */,
 				CLUST106 /* DashboardTypes.swift */,
 				CLUST109 /* DashboardAnalyticsRefresh.swift */,
 				CLUST111 /* DashboardAnalyticsSupport.swift */,
@@ -545,6 +544,7 @@
 				B0DBB25F0B4C46EAAFB4205A /* LegacyPersistentStore.swift */,
 				F90DAD707525490DB491F5EA /* LegacyCSVExporter.swift */,
 				6CFBD921F6074479AF4FF155 /* LegacyJSONMigrator.swift */,
+				CLUST005 /* DeferredCloudKitSyncService.swift */,
 			);
 			path = Legacy;
 			sourceTree = "<group>";
@@ -941,7 +941,7 @@
 				1B95E3AD96741FD0E9FED120 /* Secrets.swift in Sources */,
 				CLUST101 /* DashboardModels.swift in Sources */,
 				CLUST102 /* DashboardViews.swift in Sources */,
-				CLUST105 /* CloudKitSyncService.swift in Sources */,
+				CLUST105 /* DeferredCloudKitSyncService.swift in Sources */,
 				CLUST107 /* DashboardTypes.swift in Sources */,
 				CLUST108 /* DashboardAnalyticsRefresh.swift in Sources */,
 				CLUST110 /* DashboardAnalyticsSupport.swift in Sources */,

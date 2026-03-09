@@ -5,22 +5,18 @@ import os.log
 import CloudKit
 #endif
 
-private let cloudSyncLogger = Logger(subsystem: "com.dosetap.app", category: "CloudKitSync")
+private let deferredCloudSyncLogger = Logger(subsystem: "com.dosetap.app", category: "DeferredCloudKitSync")
 
 @MainActor
-// MARK: - CloudKit Sync (P1-5: DEFERRED — requires iCloud entitlement + Apple Developer Team)
+// MARK: - Deferred CloudKit Sync
 //
-// This service is a complete implementation (~600 LOC) but is non-functional because:
-// 1. iCloud entitlement is not enabled in the Xcode project
-// 2. Requires a paid Apple Developer Team profile for CloudKit container
+// This service is intentionally quarantined from the shipping local-first paths.
+// It is a deferred implementation that only becomes active in cloud-enabled builds.
 //
-// The code is guarded behind `DoseTapCloudSyncEnabled` Info.plist flag (defaults to false).
-// Dashboard shows "Cloud Sync · Disabled" with explanation when inactive.
-//
-// To enable: add iCloud entitlement -> create CloudKit container -> set DoseTapCloudSyncEnabled=true
+// Activation requires a cloud-enabled Info.plist flag plus iCloud entitlements.
 // See: docs/IMPROVEMENT_ROADMAP.md P1-5 for full plan.
-final class CloudKitSyncService: ObservableObject {
-    static let shared = CloudKitSyncService()
+final class DeferredCloudKitSyncService: ObservableObject {
+    static let shared = DeferredCloudKitSyncService()
 
     @Published var isSyncing = false
     @Published var lastSyncDate: Date?
@@ -580,7 +576,7 @@ final class CloudKitSyncService: ObservableObject {
                 case .success:
                     continuation.resume(returning: ())
                 case .failure(let error):
-                    cloudSyncLogger.error("CloudKit zone ensure failed: \(error.localizedDescription)")
+                    deferredCloudSyncLogger.error("CloudKit zone ensure failed: \(error.localizedDescription)")
                     continuation.resume(throwing: SyncError.zoneSetupFailed)
                 }
             }

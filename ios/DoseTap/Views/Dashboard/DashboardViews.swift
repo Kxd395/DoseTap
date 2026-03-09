@@ -11,7 +11,7 @@ struct DashboardTabView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.isInSplitView) private var isInSplitView
     @StateObject private var model = DashboardAnalyticsModel()
-    @StateObject private var cloudSync = CloudKitSyncService.shared
+    @StateObject private var cloudSync = DeferredCloudKitSyncService.shared
     @State private var resolvingDuplicateGroup: StoredEventDuplicateGroup?
     @State private var cloudSyncError: String?
 

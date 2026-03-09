@@ -21,7 +21,7 @@ final class DashboardAnalyticsModel: ObservableObject {
     let settings = UserSettingsManager.shared
     let healthKit = HealthKitService.shared
     let whoop = WHOOPService.shared
-    let cloudSync = CloudKitSyncService.shared
+    let cloudSync = DeferredCloudKitSyncService.shared
 
     /// Cancels in-flight refresh when a new one starts (prevents race on rapid range changes).
     var refreshTask: Task<Void, Never>?
