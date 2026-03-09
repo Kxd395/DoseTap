@@ -74,6 +74,7 @@
 		D8746EA078A54AF7A8CE92B3 /* MorningCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3941DD4936B4FD0BD5A8837 /* MorningCheckInView.swift */; };
 		D9B47E5F3E91E2F68102BA13 /* NightReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FABFEE0765C943A32E6ACC2 /* NightReviewView.swift */; };
 		NRV002 /* NightReviewHealthData.swift in Sources */ = {isa = PBXBuildFile; fileRef = NRV001 /* NightReviewHealthData.swift */; };
+		NRV004 /* NightReviewExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = NRV003 /* NightReviewExport.swift */; };
 		DAC001 /* DoseActionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAC002 /* DoseActionCoordinator.swift */; };
 		DD45B910AB7B414A9948C5A9 /* URLRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D565C0B5A1804860B23307B9 /* URLRouter.swift */; };
 		E3B41D5FFE162C7FC40E4FD4 /* AdaptiveLayouts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ED119801E1E497EB929C45B /* AdaptiveLayouts.swift */; };
@@ -169,6 +170,7 @@
 		80B7FD26BB9CFDD4F25097AC /* DatabaseSecurity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DatabaseSecurity.swift; sourceTree = "<group>"; };
 		8FABFEE0765C943A32E6ACC2 /* NightReviewView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NightReviewView.swift; sourceTree = "<group>"; };
 		NRV001 /* NightReviewHealthData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightReviewHealthData.swift; sourceTree = "<group>"; };
+		NRV003 /* NightReviewExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightReviewExport.swift; sourceTree = "<group>"; };
 		A5EC28B4CBE024116041F88A /* DoseTapWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseTapWidgets.swift; sourceTree = "<group>"; };
 		AA0C7941006B40BEA391DD9A /* SessionSummaryViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionSummaryViews.swift; sourceTree = "<group>"; };
 		AAAAAAAA08C80B4B155C4F1F /* UndoSnackbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoSnackbar.swift; sourceTree = "<group>"; };
@@ -542,6 +544,7 @@
 				2EF211068DBC684F390BC8F9 /* DiagnosticExportView.swift */,
 				8FABFEE0765C943A32E6ACC2 /* NightReviewView.swift */,
 				NRV001 /* NightReviewHealthData.swift */,
+				NRV003 /* NightReviewExport.swift */,
 				707FF265ADBBA04484376264 /* ThemeSettingsView.swift */,
 				EDIT001 /* EditDoseTimeView.swift */,
 				GRP_DASHBOARD /* Dashboard */,
@@ -822,6 +825,7 @@
 				24CA1B0499D673C5227DA6EC /* SleepTimelineOverlays.swift in Sources */,
 				D9B47E5F3E91E2F68102BA13 /* NightReviewView.swift in Sources */,
 				NRV002 /* NightReviewHealthData.swift in Sources */,
+				NRV004 /* NightReviewExport.swift in Sources */,
 				FFCE63C8C666930BEE06D38F /* ThemeSettingsView.swift in Sources */,
 				251486320D35FEA58E9D81CA /* EncryptedEventStorage.swift in Sources */,
 				1B95E3AD96741FD0E9FED120 /* Secrets.swift in Sources */,
