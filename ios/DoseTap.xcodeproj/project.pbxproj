@@ -25,6 +25,8 @@
 		49BABB381D1350BB62368638 /* ReducedMotionSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A3C6B3DB1EBBE10E2F3E7FB /* ReducedMotionSupport.swift */; };
 		51117520922E2EF076DD4A81 /* DiagnosticExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EF211068DBC684F390BC8F9 /* DiagnosticExportView.swift */; };
 		54E3599B814B4ACFBD87EA6B /* FullApp/SetupWizardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CB34E7F86084B24991BD7CA /* FullApp/SetupWizardView.swift */; };
+		SWZ001 /* FullApp/SetupWizardStepViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = SWZ002 /* FullApp/SetupWizardStepViews.swift */; };
+		SWZ003 /* FullApp/SetupWizardComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = SWZ004 /* FullApp/SetupWizardComponents.swift */; };
 		5A7A4083ACC81A0C1659AF4B /* NightComparisonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B909173F1168B426E065A13A /* NightComparisonView.swift */; };
 		626911F284B24C54BA73D7F8 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B358CDCA949364F93BD996D6 /* SettingsView.swift */; };
 		68B3DB1D97734922B659 /* SleepPlanDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 576700D19A9F4B35BA54 /* SleepPlanDetailView.swift */; };
@@ -126,6 +128,8 @@
 		15C51DD55054436BA1B68CD7 /* SupportBundleExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportBundleExport.swift; sourceTree = "<group>"; };
 		1BD7AD6DA76F4E548669A489 /* FullApp/KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/KeychainHelper.swift; sourceTree = "<group>"; };
 		1CB34E7F86084B24991BD7CA /* FullApp/SetupWizardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/SetupWizardView.swift; sourceTree = "<group>"; };
+		SWZ002 /* FullApp/SetupWizardStepViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/SetupWizardStepViews.swift; sourceTree = "<group>"; };
+		SWZ004 /* FullApp/SetupWizardComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/SetupWizardComponents.swift; sourceTree = "<group>"; };
 		22B9CA2EF895428EA7912896 /* CompactStatusCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CompactStatusCard.swift; sourceTree = "<group>"; };
 		237C573EA83946FE8AFC /* DiagnosticLoggingSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLoggingSettingsView.swift; sourceTree = "<group>"; };
 		2980209556A04B5F8CE5 /* DiagnosticLoggingSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLoggingSettingsView.swift; sourceTree = "<group>"; };
@@ -351,6 +355,8 @@
 				1BD7AD6DA76F4E548669A489 /* FullApp/KeychainHelper.swift */,
 				D1BA2E6CCFB845E6BFC919FA /* FullApp/SetupWizardService.swift */,
 				1CB34E7F86084B24991BD7CA /* FullApp/SetupWizardView.swift */,
+				SWZ002 /* FullApp/SetupWizardStepViews.swift */,
+				SWZ004 /* FullApp/SetupWizardComponents.swift */,
 				3E912715BD5C4BBAAA735378 /* AlarmService.swift */,
 				APC002 /* AppContainer.swift */,
 				FCEDF0A0E4BE41F582C2221F /* AnalyticsService.swift */,
@@ -767,6 +773,8 @@
 				05D399B5B86749ACB9CD89BF /* FullApp/KeychainHelper.swift in Sources */,
 				E7EA21EC3FE949B3890BF69A /* FullApp/SetupWizardService.swift in Sources */,
 				54E3599B814B4ACFBD87EA6B /* FullApp/SetupWizardView.swift in Sources */,
+				SWZ001 /* FullApp/SetupWizardStepViews.swift in Sources */,
+				SWZ003 /* FullApp/SetupWizardComponents.swift in Sources */,
 				EA02466EA69547DF963A8BA7 /* WHOOPService.swift in Sources */,
 				46EBB63DD7FE446C8EEF4021 /* AnalyticsService.swift in Sources */,
 				51117520922E2EF076DD4A81 /* DiagnosticExportView.swift in Sources */,
