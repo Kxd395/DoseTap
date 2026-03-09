@@ -6,7 +6,7 @@ import os.log
 import UIKit
 #endif
 
-private let dashboardLogger = Logger(subsystem: "com.dosetap.app", category: "Dashboard")
+let dashboardLogger = Logger(subsystem: "com.dosetap.app", category: "Dashboard")
 
 @MainActor
 final class DashboardAnalyticsModel: ObservableObject {
@@ -17,16 +17,16 @@ final class DashboardAnalyticsModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var selectedRange: DashboardDateRange = .month
 
-    private let sessionRepo = SessionRepository.shared
-    private let settings = UserSettingsManager.shared
-    private let healthKit = HealthKitService.shared
-    private let whoop = WHOOPService.shared
-    private let cloudSync = CloudKitSyncService.shared
+    let sessionRepo = SessionRepository.shared
+    let settings = UserSettingsManager.shared
+    let healthKit = HealthKitService.shared
+    let whoop = WHOOPService.shared
+    let cloudSync = CloudKitSyncService.shared
 
     /// Cancels in-flight refresh when a new one starts (prevents race on rapid range changes).
-    private var refreshTask: Task<Void, Never>?
+    var refreshTask: Task<Void, Never>?
 
-    private static let keyFormatter: DateFormatter = AppFormatters.sessionDate
+    static let keyFormatter: DateFormatter = AppFormatters.sessionDate
 
     // MARK: - Range-filtered views
 
@@ -826,224 +826,4 @@ final class DashboardAnalyticsModel: ObservableObject {
         )
     ]
 
-    func refresh(days: Int = 730) {
-        refreshTask?.cancel()
-        refreshTask = Task { [weak self] in
-            await self?.performRefresh(days: days)
-        }
-    }
-
-    private func performRefresh(days: Int) async {
-        isLoading = true
-        errorMessage = nil
-
-        let sessions = sessionRepo.fetchRecentSessions(days: days)
-        var sessionByKey: [String: SessionSummary] = [:]
-        for session in sessions {
-            sessionByKey[session.sessionDate] = session
-        }
-
-        var healthByKey: [String: HealthKitService.SleepNightSummary] = [:]
-        if settings.healthKitEnabled {
-            healthKit.checkAuthorizationStatus()
-            if healthKit.isAuthorized {
-                await healthKit.computeTTFWBaseline(days: max(14, min(days, 120)))
-                // Bail if a newer refresh has been started while we awaited HealthKit.
-                guard !Task.isCancelled else { return }
-                for summary in healthKit.sleepHistory {
-                    let key = sessionRepo.sessionDateString(for: eveningAnchorDate(for: summary.date))
-                    if healthByKey[key] == nil {
-                        healthByKey[key] = summary
-                    }
-                }
-            } else if let lastError = healthKit.lastError, !lastError.isEmpty {
-                errorMessage = lastError
-            }
-        }
-
-        // WHOOP data — fetch when enabled and connected
-        var whoopByKey: [String: WHOOPNightSummary] = [:]
-        if WHOOPService.isEnabled && settings.whoopEnabled && whoop.isConnected {
-            do {
-                let fetchDays = min(days, 30) // WHOOP API: limit to 30 days per request
-                let sleeps = try await whoop.fetchRecentSleep(nights: fetchDays)
-                guard !Task.isCancelled else { return }
-                for sleep in sleeps where sleep.scoreState?.uppercased() == "SCORED" {
-                    let summary = sleep.toNightSummary()
-                    let key = sessionRepo.sessionDateString(for: summary.date)
-                    if whoopByKey[key] == nil {
-                        whoopByKey[key] = summary
-                    }
-                }
-                // Recovery is enrichment, not a hard requirement for showing WHOOP sleep.
-                do {
-                    let recoveries = try await whoop.fetchRecoveryData(
-                        from: Calendar.current.date(byAdding: .day, value: -fetchDays, to: Date()) ?? Date(),
-                        to: Date()
-                    )
-                    guard !Task.isCancelled else { return }
-                    for recovery in recoveries {
-                        if let sleepId = recovery.sleepId,
-                           let existingKey = whoopByKey.first(where: { $0.value.sleepId == sleepId })?.key {
-                            var updated = whoopByKey[existingKey]!
-                            updated.recoveryScore = recovery.score?.recoveryScore
-                            updated.hrvMs = recovery.score?.hrvMs
-                            updated.restingHeartRate = recovery.score?.restingHeartRate
-                            whoopByKey[existingKey] = updated
-                        }
-                    }
-                } catch {
-                    dashboardLogger.warning("WHOOP recovery fetch failed: \(error.localizedDescription)")
-                }
-            } catch {
-                dashboardLogger.warning("WHOOP fetch failed: \(error.localizedDescription)")
-                // Non-fatal: dashboard still loads with local data
-            }
-        }
-
-        let calendar = Calendar.current
-        let sessionKeys: [String] = (0..<days).compactMap { offset in
-            guard let date = calendar.date(byAdding: .day, value: -offset, to: Date()) else { return nil }
-            return sessionRepo.sessionDateString(for: eveningAnchorDate(for: date))
-        }
-
-        let aggregates: [DashboardNightAggregate] = sessionKeys.map { key in
-            let summary = sessionByKey[key] ?? SessionSummary(sessionDate: key)
-            let doseLog = sessionRepo.fetchDoseLog(forSession: key)
-            let doseEvents = sessionRepo.fetchDoseEvents(forSessionDate: key)
-            let derivedDose = deriveDoseMetrics(from: doseEvents)
-            let events = sessionRepo.fetchSleepEvents(for: key).sorted { $0.timestamp < $1.timestamp }
-            let duplicateClusters = buildStoredEventDuplicateGroups(events: events).count
-            let sessionId = sessionRepo.fetchSessionId(forSessionDate: key) ?? key
-
-            return DashboardNightAggregate(
-                sessionDate: key,
-                dose1Time: summary.dose1Time ?? doseLog?.dose1Time ?? derivedDose.dose1Time,
-                dose2Time: summary.dose2Time ?? doseLog?.dose2Time ?? derivedDose.dose2Time,
-                dose2Skipped: summary.dose2Skipped || doseLog?.dose2Skipped == true || derivedDose.dose2Skipped,
-                snoozeCount: summary.snoozeCount,
-                extraDoseCount: derivedDose.extraDoseCount,
-                events: events,
-                morningCheckIn: sessionRepo.fetchMorningCheckIn(for: key),
-                preSleepLog: sessionRepo.fetchMostRecentPreSleepLog(sessionId: sessionId),
-                healthSummary: healthByKey[key],
-                whoopSummary: whoopByKey[key],
-                duplicateClusterCount: duplicateClusters,
-                napSummary: sessionRepo.napSummary(for: key)
-            )
-        }
-
-        nights = aggregates.sorted { $0.sessionDate > $1.sessionDate }
-        integrationStates = buildIntegrationStates(healthMatches: healthByKey.count, whoopMatches: whoopByKey.count)
-        lastRefresh = Date()
-        isLoading = false
-    }
-
-    private func counts<T: Hashable>(for values: [T]) -> [T: Int] {
-        var result: [T: Int] = [:]
-        for value in values {
-            result[value, default: 0] += 1
-        }
-        return result
-    }
-
-    private func topKey<T: Hashable>(in counts: [T: Int]) -> T? {
-        counts.max(by: { lhs, rhs in
-            if lhs.value == rhs.value {
-                return String(describing: lhs.key) > String(describing: rhs.key)
-            }
-            return lhs.value < rhs.value
-        })?.key
-    }
-
-    private func percentage<T>(
-        matching values: [T],
-        where predicate: (T) -> Bool
-    ) -> Double? {
-        guard !values.isEmpty else { return nil }
-        let matches = values.filter(predicate).count
-        return (Double(matches) / Double(values.count)) * 100
-    }
-
-    private func average(_ values: [Double]) -> Double? {
-        guard !values.isEmpty else { return nil }
-        return values.reduce(0, +) / Double(values.count)
-    }
-
-    private func buildIntegrationStates(healthMatches: Int, whoopMatches: Int = 0) -> [DashboardIntegrationState] {
-        let healthState = DashboardIntegrationState(
-            id: "healthkit",
-            name: "Apple Health",
-            status: settings.healthKitEnabled
-                ? (healthKit.isAuthorized ? "Connected" : "Needs Authorization")
-                : "Disabled",
-            detail: settings.healthKitEnabled
-                ? (healthKit.isAuthorized
-                    ? "\(healthMatches) nights with sleep summaries mapped"
-                    : (healthKit.lastError ?? "Enable read access for sleep analysis"))
-                : "Enable in Settings to ingest sleep stages automatically.",
-            color: settings.healthKitEnabled ? (healthKit.isAuthorized ? .green : .orange) : .gray
-        )
-
-        let whoopState: DashboardIntegrationState
-        if !WHOOPService.isEnabled {
-            // WHOOP not connected — user hasn't linked their account yet
-            whoopState = DashboardIntegrationState(
-                id: "whoop",
-                name: "WHOOP",
-                status: "Not Connected",
-                detail: "Connect WHOOP in Settings → Integrations to import sleep & recovery data.",
-                color: .gray
-            )
-        } else {
-            let whoopDetail: String
-            if settings.whoopEnabled {
-                if whoop.isConnected {
-                    let syncInfo = whoop.lastSyncTime.map { " • Last sync \($0.formatted(date: .omitted, time: .shortened))" } ?? ""
-                    whoopDetail = whoopMatches > 0
-                        ? "\(whoopMatches) nights with sleep data\(syncInfo)"
-                        : "Connected — no scored sleep data yet\(syncInfo)"
-                } else {
-                    whoopDetail = "Connect in Settings to ingest recovery/strain metrics."
-                }
-            } else {
-                whoopDetail = "Turn on WHOOP integration in Settings when ready."
-            }
-            whoopState = DashboardIntegrationState(
-                id: "whoop",
-                name: "WHOOP",
-                status: settings.whoopEnabled
-                    ? (whoop.isConnected ? "Connected" : "Not Connected")
-                    : "Disabled",
-                detail: whoopDetail,
-                color: settings.whoopEnabled ? (whoop.isConnected ? .green : .orange) : .gray
-            )
-        }
-
-        let cloudState = DashboardIntegrationState(
-            id: "cloud",
-            name: "Cloud Sync",
-            status: cloudSync.cloudSyncAvailableInBuild
-                ? (cloudSync.lastSyncDate == nil ? "Not Synced" : "Active")
-                : "Disabled",
-            detail: cloudSync.cloudSyncAvailableInBuild
-                ? (cloudSync.lastSyncDate == nil
-                    ? cloudSync.statusMessage
-                    : "Last sync \(cloudSync.lastSyncDate?.formatted(date: .omitted, time: .shortened) ?? "") • \(cloudSync.statusMessage)")
-                : "Cloud sync requires iCloud entitlements and a paid Apple Developer team profile.",
-            color: cloudSync.cloudSyncAvailableInBuild
-                ? (cloudSync.lastSyncDate == nil ? .orange : .green)
-                : .gray
-        )
-
-        let exportState = DashboardIntegrationState(
-            id: "export",
-            name: "Share & Export",
-            status: "Ready",
-            detail: "Timeline review snapshot sharing is active (theme-aware export).",
-            color: .teal
-        )
-
-        return [healthState, whoopState, cloudState, exportState]
-    }
 }
