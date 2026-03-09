@@ -11,6 +11,20 @@ enum TimelineMode: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+func defaultTimelineMode(
+    status: DoseStatus,
+    reviewSessionAvailable: Bool,
+    currentHour: Int
+) -> TimelineMode {
+    if status == .completed || status == .finalizing {
+        return .review
+    }
+    if (7...15).contains(currentHour), reviewSessionAvailable, status == .noDose1 {
+        return .review
+    }
+    return .live
+}
+
 // MARK: - Alarm Ringing View
 struct AlarmRingingView: View {
     @ObservedObject private var alarmService = AlarmService.shared
@@ -344,14 +358,11 @@ struct DetailsView: View {
     }
 
     private func defaultMode() -> TimelineMode {
-        if core.currentStatus == .completed || core.currentStatus == .finalizing || core.currentStatus == .closed {
-            return .review
-        }
-        let hour = Calendar.current.component(.hour, from: Date())
-        if (7...15).contains(hour), reviewSession != nil, core.dose1Time == nil {
-            return .review
-        }
-        return .live
+        defaultTimelineMode(
+            status: core.currentStatus,
+            reviewSessionAvailable: reviewSession != nil,
+            currentHour: Calendar.current.component(.hour, from: Date())
+        )
     }
 
     private func keepDuplicateEvent(_ keep: StoredSleepEvent, in group: StoredEventDuplicateGroup) {

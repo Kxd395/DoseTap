@@ -167,6 +167,26 @@ final class UIStateTests: XCTestCase {
         repo.skipDose2()
         XCTAssertEqual(repo.currentContext.phase, .completed, "Should be completed after skip")
     }
+
+    func test_defaultTimelineMode_closedSession_staysLiveForLateDose() {
+        let mode = defaultTimelineMode(
+            status: .closed,
+            reviewSessionAvailable: true,
+            currentHour: 9
+        )
+
+        XCTAssertEqual(mode, .live, "Closed sessions should stay on the live surface so late Dose 2 remains actionable")
+    }
+
+    func test_defaultTimelineMode_completedSession_usesReview() {
+        let mode = defaultTimelineMode(
+            status: .completed,
+            reviewSessionAvailable: true,
+            currentHour: 9
+        )
+
+        XCTAssertEqual(mode, .review)
+    }
     
     // MARK: - Snooze State Tests
     
