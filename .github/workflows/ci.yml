@@ -328,10 +328,11 @@ jobs:
             echo "❌ $MISSING required test suite(s) missing from execution"
             exit 1
           fi
-          if grep -Eq "Test case 'URLRouterTests\.test_navigationDeepLinkContract_isStable\(\)'" "$LOG"; then
-            echo "✅ Contract test URLRouterTests.test_navigationDeepLinkContract_isStable() executed"
+          # Match both parallel ("Test case 'X.method()'") and sequential ("Test Case '-[M.X method]'") formats
+          if grep -Eq "Test [Cc]ase.*URLRouterTests[. ]test_navigationDeepLinkContract_isStable" "$LOG"; then
+            echo "✅ Contract test URLRouterTests.test_navigationDeepLinkContract_isStable executed"
           else
-            echo "❌ MISSING: URLRouterTests.test_navigationDeepLinkContract_isStable() did not execute"
+            echo "❌ MISSING: URLRouterTests.test_navigationDeepLinkContract_isStable did not execute"
             exit 1
           fi
           echo "✅ All required test suites verified"
