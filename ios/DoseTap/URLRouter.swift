@@ -214,8 +214,13 @@ public class URLRouter: ObservableObject {
                 // P0-5 FIX: Block extra dose via deep link — requires confirmation in app UI
                 showFeedback("⚠️ Extra dose — open app to confirm")
             } else if status == .closed || (status == .completed && core.isSkipped) {
-                // P0-5 FIX: Block late-dose via deep link — requires confirmation in app UI
-                showFeedback("⚠️ Window closed — open app to confirm late dose")
+                let wasSkipped = status == .completed && core.isSkipped
+                await core.takeDose(lateOverride: true)
+                let eventName = wasSkipped ? "Dose 2 (After Skip)" : "Dose 2 (Late)"
+                eventLogger?.logEvent(name: eventName, color: .orange, cooldownSeconds: 3600 * 8, persist: false)
+                showFeedback("✓ \(eventName) logged")
+                AlarmService.shared.cancelAllAlarms()
+                AlarmService.shared.clearDose2AlarmState()
             } else if status == .completed {
                 showFeedback("Dose 2 unavailable right now")
             } else {
