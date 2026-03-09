@@ -231,6 +231,9 @@ final class AlarmAndSetupRegressionTests: XCTestCase {
         core = DoseTapCore(isOnline: { true })
         core.setSessionRepository(repo)
         router.configure(core: core, eventLogger: EventLogger.shared)
+        router.applicationStateProvider = { .active }
+        router.protectedDataProvider = { true }
+        await router.waitForPendingActions()
         router.lastAction = nil
         router.feedbackMessage = ""
     }
@@ -241,6 +244,8 @@ final class AlarmAndSetupRegressionTests: XCTestCase {
         settings.maxSnoozes = previousMaxSnoozes
         settings.snoozeDurationMinutes = previousSnoozeDuration
 
+        await router.waitForPendingActions()
+        router.resetTestOverrides()
         alarm.clearDose2AlarmState()
         alarm.cancelAllAlarms()
         repo.clearTonight()

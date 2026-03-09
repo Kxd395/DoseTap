@@ -67,6 +67,9 @@ enum AppTab: Int, CaseIterable {
 public class URLRouter: ObservableObject {
     
     static let shared = URLRouter()
+
+    typealias ApplicationStateProvider = @MainActor () -> UIApplication.State
+    typealias ProtectedDataProvider = @MainActor () -> Bool
     
     // MARK: - Published State
     @Published var selectedTab: AppTab = .tonight
@@ -77,10 +80,25 @@ public class URLRouter: ObservableObject {
     // MARK: - Dependencies (set by app)
     weak var core: DoseTapCore?
     weak var eventLogger: EventLogger?
+    var applicationStateProvider: ApplicationStateProvider = { UIApplication.shared.applicationState }
+    var protectedDataProvider: ProtectedDataProvider = { UIApplication.shared.isProtectedDataAvailable }
+    private var pendingActionTasks: [UUID: Task<Void, Never>] = [:]
 
     func configure(core: DoseTapCore, eventLogger: EventLogger) {
         self.core = core
         self.eventLogger = eventLogger
+    }
+
+    func resetTestOverrides() {
+        applicationStateProvider = { UIApplication.shared.applicationState }
+        protectedDataProvider = { UIApplication.shared.isProtectedDataAvailable }
+    }
+
+    func waitForPendingActions() async {
+        let tasks = Array(pendingActionTasks.values)
+        for task in tasks {
+            await task.value
+        }
     }
     
     // MARK: - URL Actions
@@ -120,11 +138,11 @@ public class URLRouter: ObservableObject {
         // P0-5 FIX: State-changing deep links require foreground + unlocked
         let stateChangingHosts: Set<String> = ["dose1", "dose2", "snooze", "skip"]
         if stateChangingHosts.contains(host) {
-            guard UIApplication.shared.applicationState == .active else {
+            guard applicationStateProvider() == .active else {
                 urlRouterLog.warning("Blocked state-changing deep link '\(host, privacy: .public)' — app not in foreground")
                 return false
             }
-            guard UIApplication.shared.isProtectedDataAvailable else {
+            guard protectedDataProvider() else {
                 urlRouterLog.warning("Blocked state-changing deep link '\(host, privacy: .public)' — device locked")
                 return false
             }
@@ -173,10 +191,10 @@ public class URLRouter: ObservableObject {
             return false
         }
         
-        Task {
+        enqueueAction { [self] in
             let now = Date()
             await core.takeDose()
-            eventLogger?.logEvent(name: "Dose 1", color: .green, cooldownSeconds: 3600 * 8, persist: false)
+            self.eventLogger?.logEvent(name: "Dose 1", color: .green, cooldownSeconds: 3600 * 8, persist: false)
             
             // Schedule wake alarm
             let targetMinutes = UserDefaults.standard.integer(forKey: "target_interval_minutes")
@@ -185,7 +203,7 @@ public class URLRouter: ObservableObject {
             await AlarmService.shared.scheduleDose2Alarm(at: wakeTime, dose1Time: now)
             await AlarmService.shared.scheduleDose2Reminders(dose1Time: now)
             
-            showFeedback("✓ Dose 1 logged")
+            self.showFeedback("✓ Dose 1 logged")
         }
         return true
     }
@@ -209,24 +227,24 @@ public class URLRouter: ObservableObject {
             return false
         }
 
-        Task {
+        enqueueAction { [self] in
             if core.dose2Time != nil {
                 // P0-5 FIX: Block extra dose via deep link — requires confirmation in app UI
-                showFeedback("⚠️ Extra dose — open app to confirm")
+                self.showFeedback("⚠️ Extra dose — open app to confirm")
             } else if status == .closed || (status == .completed && core.isSkipped) {
                 let wasSkipped = status == .completed && core.isSkipped
                 await core.takeDose(lateOverride: true)
                 let eventName = wasSkipped ? "Dose 2 (After Skip)" : "Dose 2 (Late)"
-                eventLogger?.logEvent(name: eventName, color: .orange, cooldownSeconds: 3600 * 8, persist: false)
-                showFeedback("✓ \(eventName) logged")
+                self.eventLogger?.logEvent(name: eventName, color: .orange, cooldownSeconds: 3600 * 8, persist: false)
+                self.showFeedback("✓ \(eventName) logged")
                 AlarmService.shared.cancelAllAlarms()
                 AlarmService.shared.clearDose2AlarmState()
             } else if status == .completed {
-                showFeedback("Dose 2 unavailable right now")
+                self.showFeedback("Dose 2 unavailable right now")
             } else {
                 await core.takeDose()
-                eventLogger?.logEvent(name: "Dose 2", color: .green, cooldownSeconds: 3600 * 8, persist: false)
-                showFeedback("✓ Dose 2 logged")
+                self.eventLogger?.logEvent(name: "Dose 2", color: .green, cooldownSeconds: 3600 * 8, persist: false)
+                self.showFeedback("✓ Dose 2 logged")
                 AlarmService.shared.cancelAllAlarms()
                 AlarmService.shared.clearDose2AlarmState()
             }
@@ -251,12 +269,12 @@ public class URLRouter: ObservableObject {
             return false
         }
         
-        Task {
+        enqueueAction { [self] in
             if let newTime = await AlarmService.shared.snoozeAlarm(dose1Time: core.dose1Time) {
                 await core.snooze()
-                showFeedback("✓ Snoozed to \(newTime.formatted(date: .omitted, time: .shortened))")
+                self.showFeedback("✓ Snoozed to \(newTime.formatted(date: .omitted, time: .shortened))")
             } else {
-                showFeedback("Snooze unavailable right now")
+                self.showFeedback("Snooze unavailable right now")
             }
         }
         return true
@@ -279,11 +297,11 @@ public class URLRouter: ObservableObject {
         // Set immediate feedback to avoid race with async task
         showFeedback("Skipping Dose 2…")
         
-        Task {
+        enqueueAction { [self] in
             await core.skipDose()
             AlarmService.shared.cancelAllAlarms()
             AlarmService.shared.clearDose2AlarmState()
-            showFeedback("✓ Dose 2 skipped")
+            self.showFeedback("✓ Dose 2 skipped")
         }
         return true
     }
@@ -366,6 +384,15 @@ public class URLRouter: ObservableObject {
             return nil
         }
         return core
+    }
+
+    private func enqueueAction(_ operation: @escaping @MainActor () async -> Void) {
+        let id = UUID()
+        let task = Task { @MainActor [weak self] in
+            defer { self?.pendingActionTasks.removeValue(forKey: id) }
+            await operation()
+        }
+        pendingActionTasks[id] = task
     }
     
     private func showFeedback(_ message: String) {

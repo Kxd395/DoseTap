@@ -23,8 +23,17 @@ final class URLRouterTests: XCTestCase {
         core = DoseTapCore(isOnline: { true })
         core.setSessionRepository(SessionRepository.shared)
         router.configure(core: core, eventLogger: EventLogger.shared)
+        router.applicationStateProvider = { .active }
+        router.protectedDataProvider = { true }
+        await router.waitForPendingActions()
         router.lastAction = nil
         router.feedbackMessage = ""
+        SessionRepository.shared.clearTonight()
+    }
+
+    override func tearDown() async throws {
+        await router.waitForPendingActions()
+        router.resetTestOverrides()
         SessionRepository.shared.clearTonight()
     }
     
@@ -239,6 +248,17 @@ final class NavigationFlowTests: XCTestCase {
     
     override func setUp() async throws {
         router = URLRouter.shared
+        router.applicationStateProvider = { .active }
+        router.protectedDataProvider = { true }
+        await router.waitForPendingActions()
+        router.lastAction = nil
+        router.feedbackMessage = ""
+        router.selectedTab = .tonight
+    }
+
+    override func tearDown() async throws {
+        await router.waitForPendingActions()
+        router.resetTestOverrides()
         router.lastAction = nil
         router.feedbackMessage = ""
         router.selectedTab = .tonight
