@@ -14,7 +14,7 @@ import DoseCore
 
 @MainActor
 final class HealthKitProviderTests: XCTestCase {
-    
+
     func test_factoryDefaultsToNoOpOnSimulator() async throws {
         let provider = HealthKitProviderFactory.makeDefault()
         XCTAssertTrue(provider is NoOpHealthKitProvider, "Simulator should default to NoOpHealthKitProvider")
@@ -22,7 +22,7 @@ final class HealthKitProviderTests: XCTestCase {
     
     func test_noOpProvider_returnsSafeDefaults() async throws {
         let provider = NoOpHealthKitProvider()
-        
+
         XCTAssertFalse(provider.isAvailable, "Default isAvailable is false")
         XCTAssertFalse(provider.isAuthorized, "Default isAuthorized is false")
         XCTAssertNil(provider.ttfwBaseline, "Default baseline is nil")
@@ -31,17 +31,17 @@ final class HealthKitProviderTests: XCTestCase {
         let sameNight = await provider.sameNightNudge(dose1Time: Date(), currentTargetMinutes: 165)
         XCTAssertNil(sameNight, "No same-night nudge by default")
     }
-    
+
     func test_noOpProvider_canBeStubbed() async throws {
         let provider = NoOpHealthKitProvider()
-        
+
         provider.stubIsAvailable = true
         provider.stubIsAuthorized = true
         provider.stubAuthorizationResult = true
         provider.stubTTFWBaseline = 180.5
         provider.stubNudgeSuggestion = 15
         provider.stubSameNightNudge = 195
-        
+
         XCTAssertTrue(provider.isAvailable, "Stubbed isAvailable")
         XCTAssertTrue(provider.isAuthorized, "Stubbed isAuthorized")
         XCTAssertEqual(provider.ttfwBaseline, 180.5, "Stubbed baseline")

@@ -33,7 +33,7 @@ final class WHOOPService: NSObject, ObservableObject {
         static let apiHostname = "https://api.prod.whoop.com"
         static let authURL = "https://api.prod.whoop.com/oauth/oauth2/auth"
         static let tokenURL = "https://api.prod.whoop.com/oauth/oauth2/token"
-        
+
         // Required scopes for sleep data
         static let scopes = ["read:recovery", "read:sleep", "read:cycles", "read:profile"]
     }
@@ -112,7 +112,7 @@ final class WHOOPService: NSObject, ObservableObject {
         Self.logger.info("Starting WHOOP OAuth authorization")
         isLoading = true
         lastError = nil
-        
+
         defer { isLoading = false }
         
         // PKCE: Generate code verifier and challenge
@@ -181,7 +181,7 @@ final class WHOOPService: NSObject, ObservableObject {
         // Track analytics
         AnalyticsService.shared.track(.whoopConnected)
     }
-    
+
     /// Disconnect and clear tokens
     func disconnect() {
         Self.logger.info("Disconnecting WHOOP — clearing tokens")

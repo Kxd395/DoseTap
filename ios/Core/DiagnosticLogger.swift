@@ -21,7 +21,7 @@ import UIKit
 ///
 public actor DiagnosticLogger {
     // MARK: - Singleton
-    
+
     public static let shared = DiagnosticLogger()
     
     // MARK: - Configuration
@@ -70,7 +70,7 @@ public actor DiagnosticLogger {
     private init() {
         encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
-        
+
         // Use built-in ISO8601 encoding (thread-safe, no custom closure)
         dateFormatter = ISO8601DateFormatter()
         dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -98,7 +98,7 @@ public actor DiagnosticLogger {
             #endif
             return
         }
-        
+
         var entry = DiagnosticLogEntry(
             ts: Date(),
             level: level,
@@ -130,7 +130,7 @@ public actor DiagnosticLogger {
         #endif
         #endif
     }
-    
+
     /// Ensure session metadata is written (call once when session starts)
     public func ensureSessionMetadata(sessionId: String) {
         guard isEnabled else { return }

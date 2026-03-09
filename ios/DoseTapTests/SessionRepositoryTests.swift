@@ -6,7 +6,7 @@ import DoseCore
 final class TestClock {
     var now: Date
     let timeZone: TimeZone
-    
+
     init(now: Date, timeZone: TimeZone) {
         self.now = now
         self.timeZone = timeZone
@@ -41,7 +41,7 @@ final class SessionRepositoryTests: XCTestCase {
             clock: { [fixedNow] in fixedNow },
             timeZoneProvider: { TimeZone(identifier: "UTC")! }
         )
-        
+
         // Clear any existing data for clean test state
         storage.clearAllData()
         repo.reload()
@@ -62,7 +62,7 @@ final class SessionRepositoryTests: XCTestCase {
         let now = Date()
         repo.setDose1Time(now.addingTimeInterval(-60 * 60)) // 1 hour ago
         repo.setDose2Time(now.addingTimeInterval(-30 * 60)) // 30 min ago
-        
+
         // Verify session exists
         XCTAssertNotNil(repo.dose1Time, "Dose 1 should be set")
         XCTAssertNotNil(repo.dose2Time, "Dose 2 should be set")

@@ -114,7 +114,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         self.timeZoneProvider = timeZoneProvider
         self.rolloverHour = rolloverHour
         self.currentSessionKey = sessionKey(for: clock(), timeZone: timeZoneProvider(), rolloverHour: rolloverHour)
-        
+
         storage.setNowProvider(clock)
         storage.setTimeZoneProvider(timeZoneProvider)
         reload()
@@ -144,7 +144,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
                 }
             }
         }
-        
+
         let resolvedSessionId = state.sessionId ?? state.sessionDate
         let hasSessionData = resolvedSessionId != nil
             || state.dose1Time != nil
@@ -291,7 +291,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         let minute = minutes % 60
         return calendar.date(bySettingHour: hour, minute: minute, second: 0, of: day) ?? day
     }
-    
+
     private func nextOccurrence(of minutes: Int, after date: Date, timeZone: TimeZone) -> Date {
         let candidate = timeFromMinutes(minutes, on: date, timeZone: timeZone)
         if candidate > date {
