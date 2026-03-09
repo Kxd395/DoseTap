@@ -58,6 +58,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Audit branch stabilization and refactor pass**
+  - Split oversized dashboard, setup, pre-sleep, history, timeline, night-review, and morning-check-in files into coherent modules.
+  - Split `SessionRepository` and `EventStorage` extensions by concern, and quarantined deferred CloudKit plus legacy Core Data compatibility paths under explicit legacy naming.
+  - Clarified build-product boundaries with `DoseTap.Local.entitlements`, `DoseTap.Cloud.entitlements`, and staging-only CloudKit validation guidance.
+  - Added App Store submission artifacts including privacy manifest, support/privacy surfaces, and release-preflight hardening.
+
 - **Theme-stable schedule time pickers**
   - Replaced compact schedule DatePickers with sheet-based wheel pickers in Settings, Setup Wizard, and Weekly Schedule.
   - Prevents light/dark/night-specific rendering differences for sleep schedule controls.
@@ -75,6 +81,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Archived historical code review docs to `archive/audits_2025-12-24/`
 
 ### Fixed
+- **Local-vs-staging product boundary drift**
+  - Removed dead setup-wizard cloud-sync preference.
+  - Hid the manual CloudKit sync action in the local-first shipping target.
+  - Updated live docs/runbooks so CloudKit validation points at `DoseTapStaging`, not the shipping app target.
+
 - **P1: Notification ID mismatch** — Unified `SessionRepository.sessionNotificationIdentifiers` with `AlarmService.NotificationID` (`dosetap_*` prefix). Previously 6 cancel call sites used IDs that had zero overlap with what AlarmService actually schedules, leaving orphan notifications.
 - **P1: Flic alarm parity** — `FlicButtonService` dose 1 path now schedules wake alarm + dose 2 reminders; dose 2 / skip paths now cancel all alarms. Previously Flic dose actions had no alarm side effects.
 - **P2: Critical alerts capability gating** — Added `canUseCriticalAlerts` guard in `AlarmService` that checks both `UserSettingsManager.criticalAlertsEnabled` and an Info.plist `CriticalAlertsCapabilityEnabled` flag. Notifications gracefully fall back to `.timeSensitive` when the Apple entitlement is not yet approved. Entitlement key is added to `.entitlements` files only after Apple approval.

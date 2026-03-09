@@ -1,6 +1,6 @@
 # DoseTap SSOT Navigation
 
-Last updated: 2026-02-13
+Last updated: 2026-03-09
 
 This file is a pointer map for the SSOT. The canonical spec lives in `docs/SSOT/README.md`.
 
@@ -23,7 +23,8 @@ This file is a pointer map for the SSOT. The canonical spec lives in `docs/SSOT/
 - Session repository: `ios/DoseTap/Storage/SessionRepository.swift`
 - Storage core: `ios/DoseTap/Storage/EventStorage.swift` (+ 7 extensions)
 - Dose storage: `ios/DoseTap/Storage/EventStorage+Dose.swift`
-- Check-in storage: `ios/DoseTap/Storage/EventStorage+CheckIn.swift`
+- Morning check-in storage: `ios/DoseTap/Storage/EventStorage+MorningCheckIn.swift`
+- Check-in submissions: `ios/DoseTap/Storage/EventStorage+CheckInSubmissions.swift`
 - Domain core: `ios/Core/DoseTapCore.swift`
 - Window calculator: `ios/Core/DoseWindowState.swift`
 
@@ -39,7 +40,6 @@ This file is a pointer map for the SSOT. The canonical spec lives in `docs/SSOT/
 - Project README: `README.md`
 - Architecture overview: `docs/architecture.md`
 - Testing guide: `docs/TESTING_GUIDE.md`
-- Test results: `docs/TEST_RESULTS.md`
 - Feature triage: `docs/FEATURE_TRIAGE.md`
 - Production readiness: `docs/PRODUCTION_READINESS_CHECKLIST.md`
-
+- Archived point-in-time plans/results: `docs/historical/`

@@ -1,6 +1,6 @@
 # DoseTap Documentation Index
 
-Last updated: 2026-02-14
+Last updated: 2026-03-09
 
 ## Canonical Docs
 
@@ -10,15 +10,13 @@ Last updated: 2026-02-14
 - Diagnostic logging: `docs/DIAGNOSTIC_LOGGING.md`
 - Session trace guide: `docs/HOW_TO_READ_A_SESSION_TRACE.md`
 - Testing guide: `docs/TESTING_GUIDE.md`
-- Test results: `docs/TEST_RESULTS.md`
 - Architecture overview: `docs/architecture.md`
 - Branch protection: `docs/BRANCH_PROTECTION.md`
 
 ## Plans
 
-- Dose + rollover plan: `docs/PLAN_DOSE_AND_ROLLOVER_FIX.md`
-- Docs + SSOT refresh plan: `docs/PLAN_DOCS_AND_SSOT_REFRESH.md`
 - Active roadmap/todo: `docs/ROADMAP_TODO.md`
+- Archived plans and point-in-time test snapshots: `docs/historical/`
 
 ## Operations
 
@@ -33,3 +31,4 @@ Last updated: 2026-02-14
 
 - Feature triage: `docs/FEATURE_TRIAGE.md`
 - Privacy policy: `docs/privacy-policy.html`
+- Support page: `docs/support.html`
