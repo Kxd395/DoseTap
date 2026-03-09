@@ -114,6 +114,7 @@
 		SVS_BF04 /* DataManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SVS_FR04 /* DataManagementView.swift */; };
 		SVS_BF05 /* QuickLogCustomizationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SVS_FR05 /* QuickLogCustomizationView.swift */; };
 		SVS_BF06 /* SettingsHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = SVS_FR06 /* SettingsHelpers.swift */; };
+		SSV001 /* SessionSupportViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = SSV002 /* SessionSupportViews.swift */; };
 		UI_B01 /* DoseTapUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI_F01 /* DoseTapUITests.swift */; };
 		UI_B02 /* DoseTapUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI_F02 /* DoseTapUITestsLaunchTests.swift */; };
 		UNDO003 /* UndoSnackbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNDO004 /* UndoSnackbarView.swift */; };
@@ -274,6 +275,7 @@
 		SVS_FR04 /* DataManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataManagementView.swift; sourceTree = "<group>"; };
 		SVS_FR05 /* QuickLogCustomizationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickLogCustomizationView.swift; sourceTree = "<group>"; };
 		SVS_FR06 /* SettingsHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsHelpers.swift; sourceTree = "<group>"; };
+		SSV002 /* SessionSupportViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionSupportViews.swift; sourceTree = "<group>"; };
 		UI_F01 /* DoseTapUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseTapUITests.swift; sourceTree = "<group>"; };
 		UI_F02 /* DoseTapUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseTapUITestsLaunchTests.swift; sourceTree = "<group>"; };
 		UI_PROD01 /* DoseTapUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DoseTapUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -573,6 +575,7 @@
 				22B9CA2EF895428EA7912896 /* CompactStatusCard.swift */,
 				60E7491C7A9D4FDE812F4BFB /* CompactDoseButton.swift */,
 				4ED119801E1E497EB929C45B /* AdaptiveLayouts.swift */,
+				SSV002 /* SessionSupportViews.swift */,
 				AA0C7941006B40BEA391DD9A /* SessionSummaryViews.swift */,
 				BEAE0B98FC8F48BAB6219546 /* QuickEventViews.swift */,
 				D42A891F4758470783F7565F /* DetailsView.swift */,
@@ -848,6 +851,7 @@
 				NRV008 /* NightReviewMorning.swift in Sources */,
 				NRV010 /* NightReviewSummary.swift in Sources */,
 				FFCE63C8C666930BEE06D38F /* ThemeSettingsView.swift in Sources */,
+				SSV001 /* SessionSupportViews.swift in Sources */,
 				251486320D35FEA58E9D81CA /* EncryptedEventStorage.swift in Sources */,
 				1B95E3AD96741FD0E9FED120 /* Secrets.swift in Sources */,
 				CLUST101 /* DashboardModels.swift in Sources */,
