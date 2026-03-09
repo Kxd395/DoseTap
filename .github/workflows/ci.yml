@@ -274,6 +274,7 @@ jobs:
               -scheme DoseTap \
               -destination "$DESTINATION" \
               -derivedDataPath "$DERIVED_DATA" \
+              -parallel-testing-enabled NO \
               CODE_SIGNING_ALLOWED=NO \
               CODE_SIGN_IDENTITY="" \
               DEVELOPMENT_TEAM="" \
