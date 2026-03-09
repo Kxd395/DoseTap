@@ -63,16 +63,16 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     private var lastLoggedPhase: DoseWindowPhase?
     
     // MARK: - Dependencies
-    private let storage: EventStorage
+    let storage: EventStorage
     private let notificationScheduler: NotificationScheduling
-    private let clock: () -> Date
-    private let timeZoneProvider: () -> TimeZone
-    private let rolloverHour: Int
+    let clock: () -> Date
+    let timeZoneProvider: () -> TimeZone
+    let rolloverHour: Int
     private var rolloverTimer: Timer?
     private var observers: [NSObjectProtocol] = []
-    @Published public private(set) var currentSessionKey: String
+    @Published fileprivate(set) var currentSessionKey: String
     #if canImport(OSLog)
-    private let logger = Logger(subsystem: "com.dosetap.app", category: "SessionRepository")
+    let logger = Logger(subsystem: "com.dosetap.app", category: "SessionRepository")
     #endif
     
     /// Canonical list of notification identifiers that are session-scoped.
@@ -322,7 +322,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         return dose1Time.addingTimeInterval(TimeInterval(config.maxIntervalMin * 60))
     }
 
-    private func loadDoseEvents(sessionId: String?, sessionDate: String) -> [DoseCore.StoredDoseEvent] {
+    func loadDoseEvents(sessionId: String?, sessionDate: String) -> [DoseCore.StoredDoseEvent] {
         storage.fetchDoseEvents(sessionId: sessionId, sessionDate: sessionDate)
     }
 
@@ -973,16 +973,6 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         return sessionDate == storage.currentSessionDate()
     }
     
-    /// Get the current session date string (based on 6PM boundary)
-    public func currentSessionDateString() -> String {
-        return activeSessionDate ?? currentSessionKey
-    }
-
-    /// Get the current session id (falls back to session_date for legacy rows)
-    public func currentSessionIdString() -> String {
-        return activeSessionId ?? activeSessionDate ?? currentSessionKey
-    }
-    
     // MARK: - Computed Context (for UI binding)
     
     /// Lazily initialized window calculator for context computation
@@ -1041,284 +1031,6 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         }
     }
     
-    // MARK: - Medication Logging
-    
-    /// Log a medication entry for the session date derived from its timestamp.
-    /// Returns the DuplicateGuardResult for UI to handle
-    public func logMedicationEntry(
-        medicationId: String,
-        doseMg: Int,
-        takenAt: Date,
-        notes: String? = nil,
-        confirmedDuplicate: Bool = false
-    ) -> DuplicateGuardResult {
-        let sessionDate = computeSessionDate(for: takenAt)
-        
-        // Check for duplicate within guard window (if not already confirmed)
-        if !confirmedDuplicate {
-            let guardResult = checkDuplicateGuard(medicationId: medicationId, takenAt: takenAt, sessionDate: sessionDate)
-            if guardResult.isDuplicate {
-                return guardResult
-            }
-        }
-        
-        // Get session_id if we have an active session matching this date
-        let sessionId: String? = sessionDate == activeSessionDate ? activeSessionId : nil
-        let localOffsetMinutes = timeZoneProvider().secondsFromGMT(for: takenAt) / 60
-        let formulation = persistedMedicationFormulation(for: medicationId)
-        
-        let entry = StoredMedicationEntry(
-            sessionId: sessionId,
-            sessionDate: sessionDate,
-            medicationId: medicationId,
-            doseMg: doseMg,
-            takenAtUTC: takenAt,
-            doseUnit: "mg",
-            formulation: formulation,
-            localOffsetMinutes: localOffsetMinutes,
-            notes: notes,
-            confirmedDuplicate: confirmedDuplicate
-        )
-        
-        storage.insertMedicationEvent(entry)
-        
-        repoLogger.debug("SessionRepo: Logged medication \(medicationId) \(doseMg)mg at \(takenAt)")
-        sessionDidChange.send()
-        
-        return .notDuplicate
-    }
-
-    private func persistedMedicationFormulation(for medicationId: String) -> String {
-        guard let medication = MedicationConfig.type(for: medicationId) else { return "ir" }
-        switch medication.formulation {
-        case .immediateRelease:
-            return "ir"
-        case .extendedRelease:
-            return "xr"
-        case .liquid:
-            return "liquid"
-        }
-    }
-    
-    /// Check if a medication entry would be a duplicate
-    public func checkDuplicateGuard(medicationId: String, takenAt: Date, sessionDate: String) -> DuplicateGuardResult {
-        let guardMinutes = DoseCore.MedicationConfig.duplicateGuardMinutes
-        
-        if let existing = storage.findRecentMedicationEntry(
-            medicationId: medicationId,
-            sessionDate: sessionDate,
-            withinMinutes: guardMinutes,
-            ofTime: takenAt
-        ) {
-            let deltaSeconds = abs(takenAt.timeIntervalSince(existing.takenAtUTC))
-            let minutesDelta = Int(deltaSeconds / 60)
-            
-            // Convert StoredMedicationEntry to MedicationEntry for return
-            let entry = MedicationEntry(
-                id: existing.id,
-                sessionId: existing.sessionId,
-                sessionDate: existing.sessionDate,
-                medicationId: existing.medicationId,
-                doseMg: existing.doseMg,
-                takenAtUTC: existing.takenAtUTC,
-                notes: existing.notes,
-                confirmedDuplicate: existing.confirmedDuplicate,
-                createdAt: existing.createdAt
-            )
-            
-            return DuplicateGuardResult(isDuplicate: true, existingEntry: entry, minutesDelta: minutesDelta)
-        }
-        
-        return .notDuplicate
-    }
-    
-    /// Convenience: Check duplicate without needing to compute session date
-    public func checkDuplicateMedication(medicationId: String, takenAt: Date) -> DuplicateGuardResult {
-        let sessionDate = computeSessionDate(for: takenAt)
-        return checkDuplicateGuard(medicationId: medicationId, takenAt: takenAt, sessionDate: sessionDate)
-    }
-    
-    /// List medication entries for a session date
-    public func listMedicationEntries(for sessionDate: String) -> [MedicationEntry] {
-        storage.fetchMedicationEvents(sessionDate: sessionDate).map { stored in
-            MedicationEntry(
-                id: stored.id,
-                sessionId: stored.sessionId,
-                sessionDate: stored.sessionDate,
-                medicationId: stored.medicationId,
-                doseMg: stored.doseMg,
-                takenAtUTC: stored.takenAtUTC,
-                notes: stored.notes,
-                confirmedDuplicate: stored.confirmedDuplicate,
-                createdAt: stored.createdAt
-            )
-        }
-    }
-    
-    /// List medication entries for current session
-    public func listMedicationEntriesForCurrentSession() -> [MedicationEntry] {
-        let sessionDate = currentSessionDateString()
-        return listMedicationEntries(for: sessionDate)
-    }
-
-    /// Raw medication rows for sync/export code paths that need storage metadata.
-    public func fetchStoredMedicationEntries(for sessionDate: String) -> [StoredMedicationEntry] {
-        storage.fetchMedicationEvents(sessionDate: sessionDate)
-    }
-
-    /// Compute the planner/pre-sleep session date key for a given timestamp without
-    /// binding it to the currently active session id.
-    public func preSleepSessionDateKey(for date: Date) -> String {
-        preSleepSessionKey(for: date, timeZone: timeZoneProvider(), rolloverHour: rolloverHour)
-    }
-    
-    /// Delete a medication entry
-    public func deleteMedicationEntry(id: String) {
-        storage.deleteMedicationEvent(id: id)
-        sessionDidChange.send()
-    }
-    
-    /// Compute session date for a given timestamp using 6PM boundary
-    /// Times before 6PM belong to previous day's session
-    private func computeSessionDate(for date: Date) -> String {
-        sessionKey(for: date, timeZone: timeZoneProvider(), rolloverHour: rolloverHour)
-    }
-    
-    // MARK: - Export Support
-    
-    /// Get all session dates from storage (for export)
-    /// Returns array of session date strings in descending order (newest first)
-    public func getAllSessions() -> [String] {
-        return storage.getAllSessionDates()
-    }
-    
-    // MARK: - Morning Check-In
-    
-    /// Save morning check-in through unified storage
-    /// - Parameters:
-    ///   - checkIn: The morning check-in data (from SQLiteStoredMorningCheckIn)
-    ///   - sessionDateOverride: Optional session date (uses current if nil)
-    public func saveMorningCheckIn(_ checkIn: SQLiteStoredMorningCheckIn, sessionDateOverride: String? = nil) {
-        let sessionDate = sessionDateOverride ?? activeSessionDate ?? currentSessionKey
-        
-        // When saving for a historical/incomplete session (sessionDateOverride differs
-        // from the active session), use the check-in's own sessionId which was looked up
-        // from the old session. Using activeSessionId here would mis-link the check-in
-        // to the current session, causing the old session to remain "incomplete" forever.
-        let isHistoricalSession = sessionDateOverride != nil
-            && sessionDateOverride != activeSessionDate
-        let resolvedSessionId: String
-        if isHistoricalSession {
-            resolvedSessionId = checkIn.sessionId
-        } else {
-            resolvedSessionId = activeSessionId ?? checkIn.sessionId
-        }
-        
-        // Convert to EventStorage's StoredMorningCheckIn type
-        let storedCheckIn = StoredMorningCheckIn(
-            id: checkIn.id,
-            sessionId: resolvedSessionId,
-            timestamp: checkIn.timestamp,
-            sessionDate: sessionDate,
-            sleepQuality: checkIn.sleepQuality,
-            feelRested: checkIn.feelRested,
-            grogginess: checkIn.grogginess,
-            sleepInertiaDuration: checkIn.sleepInertiaDuration,
-            dreamRecall: checkIn.dreamRecall,
-            hasPhysicalSymptoms: checkIn.hasPhysicalSymptoms,
-            physicalSymptomsJson: checkIn.physicalSymptomsJson,
-            hasRespiratorySymptoms: checkIn.hasRespiratorySymptoms,
-            respiratorySymptomsJson: checkIn.respiratorySymptomsJson,
-            mentalClarity: checkIn.mentalClarity,
-            mood: checkIn.mood,
-            anxietyLevel: checkIn.anxietyLevel,
-            stressLevel: checkIn.stressLevel,
-            stressContextJson: checkIn.stressContextJson,
-            readinessForDay: checkIn.readinessForDay,
-            hadSleepParalysis: checkIn.hadSleepParalysis,
-            hadHallucinations: checkIn.hadHallucinations,
-            hadAutomaticBehavior: checkIn.hadAutomaticBehavior,
-            fellOutOfBed: checkIn.fellOutOfBed,
-            hadConfusionOnWaking: checkIn.hadConfusionOnWaking,
-            usedSleepTherapy: checkIn.usedSleepTherapy,
-            sleepTherapyJson: checkIn.sleepTherapyJson,
-            hasSleepEnvironment: checkIn.hasSleepEnvironment,
-            sleepEnvironmentJson: checkIn.sleepEnvironmentJson,
-            notes: checkIn.notes
-        )
-        
-        storage.saveMorningCheckIn(storedCheckIn, forSession: sessionDate)
-        
-        if resolvedSessionId == activeSessionId {
-            // Mark check-in completed for the active session
-            completeCheckIn()
-        } else {
-            Task {
-                await DiagnosticLogger.shared.log(.checkinCompleted, sessionId: resolvedSessionId)
-            }
-            storage.closeHistoricalSession(
-                sessionId: resolvedSessionId,
-                sessionDate: sessionDate,
-                end: clock(),
-                terminalState: "checkin_completed"
-            )
-        }
-        
-        #if canImport(OSLog)
-        logger.info("Morning check-in saved for session \(sessionDate)")
-        #endif
-        
-    }
-    
-    /// Fetch morning check-in for a session
-    public func fetchMorningCheckIn(for sessionDate: String) -> StoredMorningCheckIn? {
-        // EventStorage returns DoseCore type, convert to local type
-        guard let coreCheckIn = storage.fetchMorningCheckIn(sessionKey: sessionDate) else { return nil }
-        return convertMorningCheckIn(coreCheckIn)
-    }
-    
-    /// Fetch morning check-in for current session
-    public func fetchMorningCheckInForCurrentSession() -> StoredMorningCheckIn? {
-        let key = activeSessionId ?? activeSessionDate ?? currentSessionKey
-        guard let coreCheckIn = storage.fetchMorningCheckIn(sessionKey: key) else { return nil }
-        return convertMorningCheckIn(coreCheckIn)
-    }
-    
-    /// Convert DoseCore.StoredMorningCheckIn to local StoredMorningCheckIn
-    private func convertMorningCheckIn(_ core: DoseCore.StoredMorningCheckIn) -> StoredMorningCheckIn {
-        return StoredMorningCheckIn(
-            id: core.id,
-            sessionId: core.sessionId,
-            timestamp: core.timestamp,
-            sessionDate: core.sessionDate,
-            sleepQuality: core.sleepQuality,
-            feelRested: core.feelRested,
-            grogginess: core.grogginess,
-            sleepInertiaDuration: core.sleepInertiaDuration,
-            dreamRecall: core.dreamRecall,
-            hasPhysicalSymptoms: core.hasPhysicalSymptoms,
-            physicalSymptomsJson: core.physicalSymptomsJson,
-            hasRespiratorySymptoms: core.hasRespiratorySymptoms,
-            respiratorySymptomsJson: core.respiratorySymptomsJson,
-            mentalClarity: core.mentalClarity,
-            mood: core.mood,
-            anxietyLevel: core.anxietyLevel,
-            stressLevel: core.stressLevel,
-            stressContextJson: core.stressContextJson,
-            readinessForDay: core.readinessForDay,
-            hadSleepParalysis: core.hadSleepParalysis,
-            hadHallucinations: core.hadHallucinations,
-            hadAutomaticBehavior: core.hadAutomaticBehavior,
-            fellOutOfBed: core.fellOutOfBed,
-            hadConfusionOnWaking: core.hadConfusionOnWaking,
-            usedSleepTherapy: core.usedSleepTherapy,
-            sleepTherapyJson: core.sleepTherapyJson,
-            hasSleepEnvironment: core.hasSleepEnvironment,
-            sleepEnvironmentJson: core.sleepEnvironmentJson,
-            notes: core.notes
-        )
-    }
-    
     // MARK: - Sleep Events (Quick Log)
     
     /// Log a sleep event (bathroom, lights_out, wake_final, etc.)
@@ -1360,73 +1072,6 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         #endif
         
         sessionDidChange.send()
-    }
-    
-    /// Fetch tonight's sleep events for current session
-    public func fetchTonightSleepEvents() -> [StoredSleepEvent] {
-        if let sessionId = activeSessionId {
-            return storage.fetchSleepEvents(forSessionId: sessionId)
-        }
-        if let sessionDate = activeSessionDate {
-            return storage.fetchSleepEvents(forSession: sessionDate)
-        }
-        return storage.fetchSleepEvents(forSession: currentSessionKey)
-    }
-    
-    /// Fetch sleep events for a specific session date
-    public func fetchSleepEvents(for sessionDate: String) -> [StoredSleepEvent] {
-        return storage.fetchSleepEvents(forSession: sessionDate)
-    }
-    
-    /// Fetch sleep events for a specific session (alternate label)
-    public func fetchSleepEvents(forSession sessionDate: String) -> [StoredSleepEvent] {
-        return storage.fetchSleepEvents(forSession: sessionDate)
-    }
-
-    public struct NapSummary {
-        public let count: Int
-        public let totalMinutes: Int
-    }
-
-    /// Summarize naps for a session by pairing `nap_start` and `nap_end` events in timestamp order.
-    public func napSummary(for sessionDate: String) -> NapSummary {
-        let events = fetchSleepEvents(for: sessionDate).sorted { $0.timestamp < $1.timestamp }
-        var openStarts: [Date] = []
-        var napCount = 0
-        var totalMinutes = 0
-
-        for event in events {
-            let type = event.eventType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            switch type {
-            case "nap_start", "nap start":
-                openStarts.append(event.timestamp)
-            case "nap_end", "nap end":
-                if let start = openStarts.popLast() {
-                    napCount += 1
-                    totalMinutes += max(0, TimeIntervalMath.minutesBetween(start: start, end: event.timestamp))
-                } else {
-                    // Count unmatched nap_end as a logged nap with unknown duration.
-                    napCount += 1
-                }
-            default:
-                continue
-            }
-        }
-
-        // Any unmatched start means an in-progress nap.
-        napCount += openStarts.count
-        return NapSummary(count: napCount, totalMinutes: totalMinutes)
-    }
-
-    /// Fetch dose events for the active session (ordered by timestamp asc).
-    public func fetchDoseEventsForActiveSession() -> [DoseCore.StoredDoseEvent] {
-        let sessionDate = activeSessionDate ?? currentSessionKey
-        return loadDoseEvents(sessionId: activeSessionId, sessionDate: sessionDate)
-    }
-
-    /// Fetch dose events for a specific session date (ordered by timestamp asc).
-    public func fetchDoseEvents(forSessionDate sessionDate: String) -> [DoseCore.StoredDoseEvent] {
-        loadDoseEvents(sessionId: fetchSessionId(forSessionDate: sessionDate), sessionDate: sessionDate)
     }
     
     /// Delete a sleep event by ID
@@ -1480,59 +1125,6 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     public func clearOldData(olderThanDays days: Int) {
         storage.clearOldData(olderThanDays: days)
         sessionDidChange.send()
-    }
-    
-    /// Fetch recent events across all sessions (for display/history)
-    public func fetchRecentEvents(limit: Int = 50) -> [StoredSleepEvent] {
-        return storage.fetchEvents(limit: limit)
-    }
-    
-    // MARK: - Timeline Support
-    
-    /// Fetch all sleep events for timeline display
-    public func fetchAllSleepEvents(limit: Int = 500) -> [StoredSleepEvent] {
-        // Use local method that returns local types
-        return storage.fetchAllSleepEventsLocal(limit: limit)
-    }
-    
-    /// Fetch all dose logs for timeline display
-    public func fetchAllDoseLogs(limit: Int = 500) -> [StoredDoseLog] {
-        // Use fetchRecentSessionsLocal and convert to dose logs
-        let sessions = storage.fetchRecentSessionsLocal(days: 365)
-        return sessions.prefix(limit).compactMap { session -> StoredDoseLog? in
-            // StoredDoseLog requires non-nil dose1Time
-            guard let dose1Time = session.dose1Time else { return nil }
-            return StoredDoseLog(
-                id: session.sessionDate,
-                sessionDate: session.sessionDate,
-                dose1Time: dose1Time,
-                dose2Time: session.dose2Time,
-                dose2Skipped: session.dose2Skipped,
-                snoozeCount: session.snoozeCount
-            )
-        }
-    }
-    
-    /// Filter session dates to those that still exist
-    public func filterExistingSessionDates(_ dates: [String]) -> [String] {
-        return storage.filterExistingSessionDates(dates)
-    }
-
-    /// Fetch session id for a given session date (if available).
-    public func fetchSessionId(forSessionDate sessionDate: String) -> String? {
-        return storage.fetchSessionId(forSessionDate: sessionDate)
-    }
-    
-    /// Export all data to CSV
-    public func exportToCSV() -> String {
-        return storage.exportToCSV()
-    }
-    
-    // MARK: - Pre-Sleep Log Support
-    
-    /// Fetch the most recent pre-sleep log for prefilling forms
-    public func fetchMostRecentPreSleepLog() -> StoredPreSleepLog? {
-        return storage.fetchMostRecentPreSleepLog()
     }
     
     // MARK: - Time Editing Methods (Manual Entry Support)
@@ -1689,38 +1281,6 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     
     // MARK: - Additional Storage Facade Methods (Views must use these, not EventStorage directly)
     
-    /// Get schema version for debug display
-    public func getSchemaVersion() -> Int {
-        return storage.getSchemaVersion()
-    }
-    
-    /// Get session date string for a given date
-    public func sessionDateString(for date: Date) -> String {
-        return storage.sessionDateString(for: date)
-    }
-    
-    /// Fetch recent sessions for history display
-    public func fetchRecentSessions(days: Int = 7) -> [SessionSummary] {
-        // Use local method that returns local types
-        return storage.fetchRecentSessionsLocal(days: days)
-    }
-
-    /// Async compatibility wrapper for test/API parity.
-    public func fetchRecentSessionsAsync(days: Int = 7) async -> [SessionSummary] {
-        fetchRecentSessions(days: days)
-    }
-    
-    /// Fetch dose log for a specific session
-    public func fetchDoseLog(forSession sessionDate: String) -> StoredDoseLog? {
-        return storage.fetchDoseLog(forSession: sessionDate)
-    }
-    
-    /// Most recent incomplete session (for check-in prompts)
-    public func mostRecentIncompleteSession() -> String? {
-        let excluded = activeSessionDate ?? currentSessionKey
-        return storage.mostRecentIncompleteSession(excluding: excluded)
-    }
-    
     /// Link pre-sleep log to session
     public func linkPreSleepLogToSession(sessionId: String) {
         let sessionDate = activeSessionDate ?? currentSessionKey
@@ -1730,18 +1290,6 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     /// Clear tonight's events (for session reset)
     public func clearTonightsEvents() {
         storage.clearTonightsEvents(sessionDateOverride: activeSessionDate ?? currentSessionKey)
-    }
-    
-    /// Fetch pre-sleep log by session ID
-    public func fetchMostRecentPreSleepLog(sessionId: String) -> StoredPreSleepLog? {
-        return storage.fetchMostRecentPreSleepLog(sessionId: sessionId)
-    }
-
-    /// Resolve and fetch the session's canonical pre-sleep log for sync/export flows.
-    public func fetchPreSleepLog(forSessionDate sessionDate: String) -> StoredPreSleepLog? {
-        let resolvedSessionId = fetchSessionId(forSessionDate: sessionDate) ?? sessionDate
-        return storage.fetchMostRecentPreSleepLog(sessionId: resolvedSessionId)
-            ?? (resolvedSessionId == sessionDate ? nil : storage.fetchMostRecentPreSleepLog(sessionId: sessionDate))
     }
     
     /// Save dose 1 timestamp - SSOT: Updates in-memory state AND persists to storage
@@ -1756,21 +1304,6 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         setDose2Time(timestamp, isEarly: isEarly, isExtraDose: isExtraDose)
     }
 
-    /// Get all discovered session dates from local storage (for sync export).
-    public func allSessionDatesForSync() -> [String] {
-        storage.getAllSessionDates()
-    }
-
-    /// Fetch pending CloudKit tombstones (outbound deletes).
-    public func fetchCloudKitTombstones(limit: Int = 500) -> [CloudKitTombstone] {
-        storage.fetchCloudKitTombstones(limit: limit)
-    }
-
-    /// Clear delivered CloudKit tombstones.
-    public func clearCloudKitTombstones(keys: [String]) {
-        storage.clearCloudKitTombstones(keys: keys)
-    }
-    
     /// Insert sleep event (for event logging)
     public func insertSleepEvent(id: String, eventType: String, timestamp: Date, colorHex: String?, notes: String? = nil) {
         let session = ensureActiveSession(for: timestamp, reason: "sleep_event_insert")
@@ -1884,15 +1417,4 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         reload()
     }
     
-    // MARK: - Night Review Support
-    
-    /// Fetch list of recent session keys for picker
-    public func getRecentSessionKeys(limit: Int = 30) -> [String] {
-        return storage.fetchRecentSessionsLocal(days: limit).map { $0.sessionDate }
-    }
-    
-    /// Fetch sleep events for a specific session (local type)
-    public func fetchSleepEventsLocal(for sessionKey: String) -> [StoredSleepEvent] {
-        return storage.fetchSleepEvents(forSession: sessionKey)
-    }
 }

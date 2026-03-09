@@ -115,6 +115,9 @@
 		SST003 /* SleepStageTimelineModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = SST004 /* SleepStageTimelineModels.swift */; };
 		SST005 /* SleepStageTimelineCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = SST006 /* SleepStageTimelineCards.swift */; };
 		SSV001 /* SessionSupportViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = SSV002 /* SessionSupportViews.swift */; };
+		SRQ001 /* SessionRepositoryQueries.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRQ101 /* SessionRepositoryQueries.swift */; };
+		SRQ002 /* SessionRepositoryMedication.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRQ102 /* SessionRepositoryMedication.swift */; };
+		SRQ003 /* SessionRepositoryCheckIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRQ103 /* SessionRepositoryCheckIn.swift */; };
 		SVS_BF01 /* HealthKitSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SVS_FR01 /* HealthKitSettingsView.swift */; };
 		SVS_BF02 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SVS_FR02 /* AboutView.swift */; };
 		SVS_BF03 /* EventCooldownSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SVS_FR03 /* EventCooldownSettingsView.swift */; };
@@ -288,6 +291,9 @@
 		SST004 /* SleepStageTimelineModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepStageTimelineModels.swift; sourceTree = "<group>"; };
 		SST006 /* SleepStageTimelineCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepStageTimelineCards.swift; sourceTree = "<group>"; };
 		SSV002 /* SessionSupportViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionSupportViews.swift; sourceTree = "<group>"; };
+		SRQ101 /* SessionRepositoryQueries.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepositoryQueries.swift; sourceTree = "<group>"; };
+		SRQ102 /* SessionRepositoryMedication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepositoryMedication.swift; sourceTree = "<group>"; };
+		SRQ103 /* SessionRepositoryCheckIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepositoryCheckIn.swift; sourceTree = "<group>"; };
 		SVS_FR01 /* HealthKitSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitSettingsView.swift; sourceTree = "<group>"; };
 		SVS_FR02 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
 		SVS_FR03 /* EventCooldownSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventCooldownSettingsView.swift; sourceTree = "<group>"; };
@@ -561,6 +567,9 @@
 				ESF007 /* EventStorage+CheckIn.swift */,
 				ESF008 /* EventStorage+Maintenance.swift */,
 				64641673735B464BB4E4B02F /* SessionRepository.swift */,
+				SRQ101 /* SessionRepositoryQueries.swift */,
+				SRQ102 /* SessionRepositoryMedication.swift */,
+				SRQ103 /* SessionRepositoryCheckIn.swift */,
 				6CFBD921F6074479AF4FF155 /* JSONMigrator.swift */,
 				FCC2762A054AE377C80CF2B0 /* EncryptedEventStorage.swift */,
 			);
@@ -853,6 +862,9 @@
 				ESB007 /* EventStorage+CheckIn.swift in Sources */,
 				ESB008 /* EventStorage+Maintenance.swift in Sources */,
 				92518D93643945F4B64E860F /* SessionRepository.swift in Sources */,
+				SRQ001 /* SessionRepositoryQueries.swift in Sources */,
+				SRQ002 /* SessionRepositoryMedication.swift in Sources */,
+				SRQ003 /* SessionRepositoryCheckIn.swift in Sources */,
 				D8746EA078A54AF7A8CE92B3 /* MorningCheckInView.swift in Sources */,
 				MCI001 /* MorningCheckInModels.swift in Sources */,
 				MCI002 /* MorningCheckInViewModel.swift in Sources */,
