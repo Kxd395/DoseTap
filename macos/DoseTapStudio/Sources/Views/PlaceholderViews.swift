@@ -2,36 +2,6 @@ import SwiftUI
 
 /// Placeholder views for navigation - to be implemented in Sprint B
 
-struct AdherenceView: View {
-    @ObservedObject var dataStore: DataStore
-    
-    var body: some View {
-        VStack(spacing: 20) {
-            Text("Adherence Analysis")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-            
-            Text("Coming in Sprint B:")
-                .font(.headline)
-                .foregroundColor(.secondary)
-            
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Detailed adherence trends and patterns", systemImage: "chart.line.uptrend.xyaxis")
-                Label("Window timing distribution charts", systemImage: "chart.bar")
-                Label("Correlation with sleep and recovery data", systemImage: "bed.double")
-                Label("Predictive adherence scoring", systemImage: "brain.head.profile")
-            }
-            .padding()
-            .background(Color(.controlBackgroundColor))
-            .cornerRadius(12)
-            
-            Spacer()
-        }
-        .padding()
-        .navigationTitle("Adherence")
-    }
-}
-
 struct InventoryView: View {
     @ObservedObject var dataStore: DataStore
     

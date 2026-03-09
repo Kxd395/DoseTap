@@ -35,6 +35,10 @@ struct SidebarView: View {
                 NavigationLink(destination: TrendsView(dataStore: dataStore)) {
                     Label("Trends", systemImage: "chart.line.uptrend.xyaxis")
                 }
+
+                NavigationLink(destination: AdherenceView(dataStore: dataStore)) {
+                    Label("Adherence", systemImage: "checkmark.circle.badge.clock")
+                }
             }
             
             // Enhanced Features
