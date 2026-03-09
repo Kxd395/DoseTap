@@ -65,6 +65,7 @@
 		CLUST110 /* DashboardAnalyticsSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST111 /* DashboardAnalyticsSupport.swift */; };
 		CLUST112 /* DashboardAnalyticsMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST113 /* DashboardAnalyticsMetrics.swift */; };
 		CLUST114 /* DashboardAnalyticsFactors.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST115 /* DashboardAnalyticsFactors.swift */; };
+		CLUST116 /* DashboardAnalyticsCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST117 /* DashboardAnalyticsCatalog.swift */; };
 		CLUST103 /* TimelineReviewViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST003 /* TimelineReviewViews.swift */; };
 		CLUST104 /* HistoryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST004 /* HistoryViews.swift */; };
 		D2AFCB94D52D4B168AC1CAD6 /* EventLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0E5B5C6E684F7796F9B9FC /* EventLogger.swift */; };
@@ -221,6 +222,7 @@
 		CLUST111 /* DashboardAnalyticsSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardAnalyticsSupport.swift; sourceTree = "<group>"; };
 		CLUST113 /* DashboardAnalyticsMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardAnalyticsMetrics.swift; sourceTree = "<group>"; };
 		CLUST115 /* DashboardAnalyticsFactors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardAnalyticsFactors.swift; sourceTree = "<group>"; };
+		CLUST117 /* DashboardAnalyticsCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardAnalyticsCatalog.swift; sourceTree = "<group>"; };
 		CLUST003 /* TimelineReviewViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineReviewViews.swift; sourceTree = "<group>"; };
 		CLUST004 /* HistoryViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryViews.swift; sourceTree = "<group>"; };
 		D049AFCF96FC4AFF9120309E /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
@@ -442,6 +444,7 @@
 				CLUST111 /* DashboardAnalyticsSupport.swift */,
 				CLUST113 /* DashboardAnalyticsMetrics.swift */,
 				CLUST115 /* DashboardAnalyticsFactors.swift */,
+				CLUST117 /* DashboardAnalyticsCatalog.swift */,
 			);
 			path = Dashboard;
 			sourceTree = "<group>";
@@ -823,6 +826,7 @@
 				CLUST110 /* DashboardAnalyticsSupport.swift in Sources */,
 				CLUST112 /* DashboardAnalyticsMetrics.swift in Sources */,
 				CLUST114 /* DashboardAnalyticsFactors.swift in Sources */,
+				CLUST116 /* DashboardAnalyticsCatalog.swift in Sources */,
 				CLUST103 /* TimelineReviewViews.swift in Sources */,
 				CLUST104 /* HistoryViews.swift in Sources */,
 			);
