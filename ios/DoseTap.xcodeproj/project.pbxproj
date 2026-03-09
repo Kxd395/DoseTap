@@ -1003,6 +1003,7 @@
 				INFOPLIST_FILE = DoseTap/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "DoseTap Staging";
 				INFOPLIST_KEY_CFBundleName = "DoseTap Staging";
+				INFOPLIST_KEY_DOSETAP_CERT_PINS = "$(DOSETAP_CERT_PINS)";
 				INFOPLIST_KEY_DoseTapCloudSyncEnabled = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.medical";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "DoseTap can use Bluetooth if you connect a button directly.";
@@ -1045,6 +1046,7 @@
 				INFOPLIST_FILE = DoseTap/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "DoseTap Staging";
 				INFOPLIST_KEY_CFBundleName = "DoseTap Staging";
+				INFOPLIST_KEY_DOSETAP_CERT_PINS = "$(DOSETAP_CERT_PINS)";
 				INFOPLIST_KEY_DoseTapCloudSyncEnabled = YES;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.medical";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "DoseTap can use Bluetooth if you connect a button directly.";
@@ -1320,6 +1322,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = DoseTap/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = DoseTap;
+				INFOPLIST_KEY_DOSETAP_CERT_PINS = "$(DOSETAP_CERT_PINS)";
 				INFOPLIST_KEY_DoseTapCloudSyncEnabled = NO;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.medical";
@@ -1367,6 +1370,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = DoseTap/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = DoseTap;
+				INFOPLIST_KEY_DOSETAP_CERT_PINS = "$(DOSETAP_CERT_PINS)";
 				INFOPLIST_KEY_DoseTapCloudSyncEnabled = NO;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.medical";

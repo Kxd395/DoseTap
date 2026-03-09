@@ -323,7 +323,18 @@ final class FlicButtonService: ObservableObject {
             )
         }
         
-        // Perform snooze via SSOT
+        guard let newTime = await AlarmService.shared.snoozeAlarm(dose1Time: sessionRepository.dose1Time) else {
+            provideHapticFeedback(.error)
+            return FlicActionResult(
+                gesture: gesture,
+                action: .snooze,
+                success: false,
+                message: "Snooze unavailable right now",
+                canUndo: false
+            )
+        }
+
+        // Keep repository state aligned with the alarm scheduler.
         sessionRepository.incrementSnooze()
         provideHapticFeedback(.success)
         
@@ -331,7 +342,7 @@ final class FlicButtonService: ObservableObject {
             gesture: gesture,
             action: .snooze,
             success: true,
-            message: "+10 min snoozed",
+            message: "Snoozed to \(newTime.formatted(date: .omitted, time: .shortened))",
             canUndo: false
         )
     }

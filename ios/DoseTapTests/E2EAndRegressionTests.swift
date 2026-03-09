@@ -396,4 +396,39 @@ final class AlarmAndSetupRegressionTests: XCTestCase {
 
         XCTAssertEqual(repo.snoozeCount, 0, "Failed alarm reschedule must not consume snooze count.")
     }
+
+    func test_flicSnooze_reschedulesAlarm_andPersistsSnoozeCount() async {
+        let now = Date()
+        let originalTarget = now.addingTimeInterval(5 * 60)
+        repo.setDose1Time(now.addingTimeInterval(-160 * 60))
+        alarm.targetWakeTime = originalTarget
+        alarm.alarmScheduled = true
+        alarm.snoozeCount = 0
+
+        let result = await FlicButtonService.shared.handleGesture(.doublePress)
+
+        XCTAssertTrue(result.success, "Flic snooze should succeed when an alarm is scheduled.")
+        XCTAssertEqual(repo.snoozeCount, 1, "Successful Flic snooze should update session state.")
+        XCTAssertEqual(alarm.snoozeCount, 1, "Successful Flic snooze should update alarm state.")
+        XCTAssertNotNil(alarm.targetWakeTime, "Successful Flic snooze should keep an active wake target.")
+        XCTAssertEqual(
+            alarm.targetWakeTime!.timeIntervalSinceReferenceDate,
+            originalTarget.addingTimeInterval(10 * 60).timeIntervalSinceReferenceDate,
+            accuracy: 1.0,
+            "Flic snooze should move the target wake time by the configured snooze interval."
+        )
+    }
+
+    func test_flicSnooze_doesNotIncrement_whenRescheduleFails() async {
+        let now = Date()
+        repo.setDose1Time(now.addingTimeInterval(-160 * 60))
+        alarm.clearDose2AlarmState()
+        alarm.snoozeCount = 0
+
+        let result = await FlicButtonService.shared.handleGesture(.doublePress)
+
+        XCTAssertFalse(result.success, "Flic snooze should fail when no alarm is scheduled.")
+        XCTAssertEqual(repo.snoozeCount, 0, "Failed Flic snooze must not consume session snooze count.")
+        XCTAssertEqual(alarm.snoozeCount, 0, "Failed Flic snooze must not consume alarm snooze count.")
+    }
 }

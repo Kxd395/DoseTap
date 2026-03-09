@@ -265,6 +265,7 @@ jobs:
           run_tests() {
             local attempt="$1"
             local attempt_log="$RUNNER_TEMP/xcodebuild-test-attempt-${attempt}.log"
+            local status=0
             echo "Running xcodebuild test (attempt $attempt)..."
 
             set +e
@@ -276,8 +277,8 @@ jobs:
               CODE_SIGNING_ALLOWED=NO \
               CODE_SIGN_IDENTITY="" \
               DEVELOPMENT_TEAM="" \
-              | tee "$attempt_log"
-            local status=${PIPESTATUS[0]}
+              2>&1 | tee "$attempt_log"
+            status=$?
             set -e
 
             cp "$attempt_log" "$FINAL_LOG"
@@ -376,6 +377,7 @@ jobs:
             -scheme DoseTap \
             -configuration Release \
             -destination "generic/platform=iOS Simulator" \
+            DOSETAP_CERT_PINS="$DOSETAP_CERT_PINS" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
             DEVELOPMENT_TEAM=""
