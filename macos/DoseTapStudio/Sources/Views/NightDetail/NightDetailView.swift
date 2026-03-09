@@ -8,6 +8,7 @@ struct NightDetailView: View {
             VStack(alignment: .leading, spacing: 16) {
                 header
                 summaryCards
+                supplementalCards
                 eventListCard
             }
             .padding()
@@ -44,10 +45,69 @@ struct NightDetailView: View {
             metricCard(title: "Dose 2", value: session.dose2Skipped ? "Skipped" : timeText(session.dose2Time), accent: session.dose2Skipped ? .red : .green)
             metricCard(title: "Interval", value: session.intervalMinutes.map { "\($0)m" } ?? "—", accent: session.isLateDose2 ? .orange : .primary)
             metricCard(title: "Events", value: "\(session.eventCount)", accent: .purple)
+            metricCard(title: "Meds", value: "\(session.medicationCount)", accent: .pink)
             metricCard(title: "Snoozes", value: "\(session.snoozeCount)", accent: .orange)
             metricCard(title: "Bathroom", value: "\(session.bathroomCount)", accent: .cyan)
             metricCard(title: "Quality", value: session.qualityFlags.isEmpty ? "Clean" : "Flags", accent: session.qualityFlags.isEmpty ? .green : .orange)
             metricCard(title: "Completeness", value: "\(Int(session.completenessScore * 100))%", accent: .indigo)
+        }
+    }
+
+    @ViewBuilder
+    private var supplementalCards: some View {
+        if session.preSleep != nil || session.morning != nil || !session.medications.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                if let preSleep = session.preSleep {
+                    supplementalCard(title: "Pre-Sleep") {
+                        detailRow("Stress", preSleep.stressLevel.map(String.init) ?? "—")
+                        detailRow("Pain", preSleep.bodyPain ?? "—")
+                        detailRow("Later reason", preSleep.laterReason ?? "—")
+                        detailRow("Sleep aids", joinedText(preSleep.sleepAids))
+                        if let notes = preSleep.notes, !notes.isEmpty {
+                            detailRow("Notes", notes)
+                        }
+                    }
+                }
+
+                if let morning = session.morning {
+                    supplementalCard(title: "Morning Check-In") {
+                        detailRow("Sleep quality", "\(morning.sleepQuality)/5")
+                        detailRow("Rested", morning.feelRested)
+                        detailRow("Grogginess", morning.grogginess)
+                        detailRow("Mental clarity", "\(morning.mentalClarity)/5")
+                        detailRow("Mood", morning.mood)
+                        detailRow("Readiness", "\(morning.readinessForDay)/5")
+                        if let notes = morning.notes, !notes.isEmpty {
+                            detailRow("Notes", notes)
+                        }
+                    }
+                }
+
+                if !session.medications.isEmpty {
+                    supplementalCard(title: "Other Medications") {
+                        ForEach(session.medications) { medication in
+                            HStack(alignment: .top) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("\(medication.medicationId) \(medication.doseMg)\(medication.doseUnit)")
+                                        .font(.subheadline.weight(.semibold))
+                                    Text("\(medication.formulation.uppercased()) • \(medication.takenAtUTC.formatted(date: .omitted, time: .shortened))")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    if let notes = medication.notes, !notes.isEmpty {
+                                        Text(notes)
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                                Spacer()
+                            }
+                            if medication.id != session.medications.last?.id {
+                                Divider()
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -137,6 +197,32 @@ struct NightDetailView: View {
         .cornerRadius(12)
     }
 
+    private func supplementalCard<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.headline)
+            content()
+        }
+        .padding()
+        .background(Color(.controlBackgroundColor))
+        .cornerRadius(12)
+    }
+
+    private func detailRow(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .top) {
+            Text(label)
+                .foregroundColor(.secondary)
+            Spacer()
+            Text(value.isEmpty ? "—" : value)
+                .multilineTextAlignment(.trailing)
+        }
+        .font(.subheadline)
+    }
+
+    private func joinedText(_ values: [String]) -> String {
+        values.isEmpty ? "—" : values.joined(separator: ", ")
+    }
+
     private func label(for event: InsightEvent) -> String {
         switch event.type {
         case .dose1_taken:
@@ -202,6 +288,56 @@ struct NightDetailView: View {
             InsightEvent(id: UUID(), type: .dose1_taken, kind: .dose1, timestamp: Date(), details: nil),
             InsightEvent(id: UUID(), type: .bathroom, kind: .other, timestamp: Date().addingTimeInterval(90 * 60), details: "Brief wake"),
             InsightEvent(id: UUID(), type: .dose2_taken, kind: .dose2, timestamp: Date().addingTimeInterval(260 * 60), details: nil)
+        ],
+        preSleep: InsightPreSleepSummary(
+            sessionId: "sample",
+            completionState: "complete",
+            loggedAtUTC: "2024-09-07T19:45:00Z",
+            stressLevel: 3,
+            stressDrivers: ["schedule"],
+            laterReason: "late_meal",
+            bodyPain: "mild",
+            caffeineSources: [],
+            alcohol: "none",
+            exercise: "light",
+            napToday: "no",
+            lateMeal: "yes",
+            screensInBed: "yes",
+            roomTemp: "cool",
+            noiseLevel: "quiet",
+            sleepAids: ["magnesium"],
+            notes: "Screen time ran late."
+        ),
+        morning: InsightMorningSummary(
+            submittedAtUTC: Date(),
+            sleepQuality: 4,
+            feelRested: "mostly",
+            grogginess: "mild",
+            sleepInertiaDuration: "fiveToFifteen",
+            dreamRecall: "some",
+            mentalClarity: 4,
+            mood: "steady",
+            anxietyLevel: "low",
+            stressLevel: 2,
+            stressDrivers: [],
+            readinessForDay: 4,
+            hadSleepParalysis: false,
+            hadHallucinations: false,
+            hadAutomaticBehavior: false,
+            fellOutOfBed: false,
+            hadConfusionOnWaking: false,
+            notes: "Felt decent."
+        ),
+        medications: [
+            InsightMedicationSummary(
+                id: "med-1",
+                medicationId: "adderall",
+                doseMg: 10,
+                doseUnit: "mg",
+                formulation: "ir",
+                takenAtUTC: Date().addingTimeInterval(9 * 60 * 60),
+                notes: nil
+            )
         ]
     )
     return NightDetailView(session: sample)

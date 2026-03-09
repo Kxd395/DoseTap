@@ -31,6 +31,70 @@ struct InsightEvent: Identifiable, Hashable, Sendable {
     let details: String?
 }
 
+struct InsightBundle: Codable, Hashable, Sendable {
+    let schemaVersion: Int
+    let exportedAtUTC: Date
+    let sessions: [InsightSessionSupplement]
+}
+
+struct InsightSessionSupplement: Codable, Hashable, Sendable {
+    let sessionDate: String
+    let preSleep: InsightPreSleepSummary?
+    let morning: InsightMorningSummary?
+    let medications: [InsightMedicationSummary]
+}
+
+struct InsightPreSleepSummary: Codable, Hashable, Sendable {
+    let sessionId: String?
+    let completionState: String
+    let loggedAtUTC: String
+    let stressLevel: Int?
+    let stressDrivers: [String]
+    let laterReason: String?
+    let bodyPain: String?
+    let caffeineSources: [String]
+    let alcohol: String?
+    let exercise: String?
+    let napToday: String?
+    let lateMeal: String?
+    let screensInBed: String?
+    let roomTemp: String?
+    let noiseLevel: String?
+    let sleepAids: [String]
+    let notes: String?
+}
+
+struct InsightMorningSummary: Codable, Hashable, Sendable {
+    let submittedAtUTC: Date
+    let sleepQuality: Int
+    let feelRested: String
+    let grogginess: String
+    let sleepInertiaDuration: String
+    let dreamRecall: String
+    let mentalClarity: Int
+    let mood: String
+    let anxietyLevel: String
+    let stressLevel: Int?
+    let stressDrivers: [String]
+    let readinessForDay: Int
+    let hadSleepParalysis: Bool
+    let hadHallucinations: Bool
+    let hadAutomaticBehavior: Bool
+    let fellOutOfBed: Bool
+    let hadConfusionOnWaking: Bool
+    let notes: String?
+}
+
+struct InsightMedicationSummary: Codable, Hashable, Sendable, Identifiable {
+    let id: String
+    let medicationId: String
+    let doseMg: Int
+    let doseUnit: String
+    let formulation: String
+    let takenAtUTC: Date
+    let notes: String?
+}
+
 struct InsightSession: Identifiable, Hashable, Sendable {
     let id: String
     let sessionDate: String
@@ -46,6 +110,9 @@ struct InsightSession: Identifiable, Hashable, Sendable {
     let averageHeartRate: Double?
     let notes: String?
     let events: [InsightEvent]
+    let preSleep: InsightPreSleepSummary?
+    let morning: InsightMorningSummary?
+    let medications: [InsightMedicationSummary]
 
     var intervalMinutes: Int? {
         guard let dose1Time, let dose2Time else { return nil }
@@ -55,6 +122,10 @@ struct InsightSession: Identifiable, Hashable, Sendable {
 
     var eventCount: Int {
         events.count
+    }
+
+    var medicationCount: Int {
+        medications.count
     }
 
     var bathroomCount: Int {
@@ -106,6 +177,9 @@ struct InsightSession: Identifiable, Hashable, Sendable {
         }
         if intervalMinutes == nil && dose2Time != nil {
             flags.append("Dose interval unavailable")
+        }
+        if morning == nil {
+            flags.append("Missing morning check-in")
         }
         return flags
     }

@@ -211,6 +211,29 @@ final class Importer {
         print("📊 Parsed \(snapshots.count) inventory snapshots from CSV")
         return snapshots
     }
+
+    /// Load optional insights bundle from the specified folder.
+    func loadInsightsBundle(from folder: URL) async throws -> InsightBundle? {
+        let bundleURL = folder.appendingPathComponent("insights_bundle.json")
+
+        guard FileManager.default.fileExists(atPath: bundleURL.path) else {
+            return nil
+        }
+
+        let data = try Data(contentsOf: bundleURL)
+        return try parseInsightsBundle(data)
+    }
+
+    func parseInsightsBundle(_ data: Data) throws -> InsightBundle {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        do {
+            return try decoder.decode(InsightBundle.self, from: data)
+        } catch {
+            throw ImportError.decodingError(error.localizedDescription)
+        }
+    }
     
     // MARK: - CSV Parsing Utilities
     

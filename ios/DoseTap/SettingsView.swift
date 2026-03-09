@@ -10,7 +10,7 @@ struct SettingsView: View {
     @State var exportErrorMessage = ""
     @State var showingNotificationPermissionAlert = false
     @State var notificationPermissionMessage = ""
-    @State var exportURL: URL?
+    @State var exportItems: [Any] = []
     @ObservedObject var urlRouter = URLRouter.shared
     @ObservedObject var sleepPlanStore = SleepPlanStore.shared
     let tabBarInsetHeight: CGFloat = 64

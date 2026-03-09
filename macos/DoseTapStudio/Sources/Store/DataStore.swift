@@ -51,6 +51,10 @@ final class DataStore: ObservableObject {
             let loadedEvents = try await importer.loadEvents(from: folder)
             let loadedSessions = try await importer.loadSessions(from: folder)
             let loadedInventory = try await importer.loadInventory(from: folder)
+            let loadedInsightsBundle = try await importer.loadInsightsBundle(from: folder)
+            let supplementsBySessionDate = Dictionary(
+                uniqueKeysWithValues: (loadedInsightsBundle?.sessions ?? []).map { ($0.sessionDate, $0) }
+            )
             
             // Sort and update
             self.events = loadedEvents.sorted { $0.occurredAtUTC < $1.occurredAtUTC }
@@ -58,7 +62,8 @@ final class DataStore: ObservableObject {
             self.inventory = loadedInventory.sorted { $0.asOfUTC > $1.asOfUTC }
             self.insightSessions = insightBuilder.build(
                 sessions: self.sessions,
-                events: self.events
+                events: self.events,
+                supplementsBySessionDate: supplementsBySessionDate
             )
             
             // Update analytics

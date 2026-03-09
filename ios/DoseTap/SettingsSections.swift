@@ -238,7 +238,7 @@ extension SettingsView {
                 Button {
                     exportData()
                 } label: {
-                    Label("Export Data (CSV)", systemImage: "square.and.arrow.up")
+                    Label("Export Studio Bundle", systemImage: "square.and.arrow.up")
                 }
 
                 Toggle(isOn: Binding(
@@ -292,7 +292,7 @@ extension SettingsView {
             } header: {
                 Label("Data Management", systemImage: "externaldrive.fill")
             } footer: {
-                Text("Export your data for backup or analysis. All data is stored locally on your device only.")
+                Text("Export a DoseTap Studio bundle for backup or desktop analysis. All data is stored locally on your device only.")
             }
 
             Section {
@@ -381,8 +381,8 @@ extension SettingsView {
             Text("Could not export your data: \(exportErrorMessage). Check available storage and try again.")
         }
         .sheet(isPresented: $showingExportSheet) {
-            if let exportURL {
-                ActivityViewController(activityItems: [exportURL])
+            if !exportItems.isEmpty {
+                ActivityViewController(activityItems: exportItems)
             }
         }
         .onChange(of: settings.notificationsEnabled) { enabled in

@@ -3,7 +3,8 @@ import Foundation
 struct InsightSessionBuilder {
     func build(
         sessions: [DoseSession],
-        events: [DoseEvent]
+        events: [DoseEvent],
+        supplementsBySessionDate: [String: InsightSessionSupplement] = [:]
     ) -> [InsightSession] {
         var sessionsByNight: [String: DoseSession] = [:]
         for session in sessions {
@@ -19,7 +20,8 @@ struct InsightSessionBuilder {
             buildSession(
                 key: key,
                 session: sessionsByNight[key],
-                events: groupedEvents[key] ?? []
+                events: groupedEvents[key] ?? [],
+                supplement: supplementsBySessionDate[key]
             )
         }
         .sorted { $0.sessionDate > $1.sessionDate }
@@ -28,7 +30,8 @@ struct InsightSessionBuilder {
     private func buildSession(
         key: String,
         session: DoseSession?,
-        events: [DoseEvent]
+        events: [DoseEvent],
+        supplement: InsightSessionSupplement?
     ) -> InsightSession? {
         let sortedEvents = events.sorted { $0.occurredAtUTC < $1.occurredAtUTC }
         let mappedEvents = sortedEvents.map {
@@ -66,7 +69,10 @@ struct InsightSessionBuilder {
             whoopRecovery: session?.whoopRecovery,
             averageHeartRate: session?.avgHR,
             notes: session?.notes,
-            events: mappedEvents
+            events: mappedEvents,
+            preSleep: supplement?.preSleep,
+            morning: supplement?.morning,
+            medications: supplement?.medications ?? []
         )
     }
 
