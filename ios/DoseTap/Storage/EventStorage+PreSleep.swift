@@ -3,7 +3,7 @@ import SQLite3
 import DoseCore
 import os.log
 
-// MARK: - Check-In Operations (Pre-Sleep, Morning, Questionnaire Submissions)
+// MARK: - Pre-Sleep Check-In Storage
 
 extension EventStorage {
 
@@ -31,8 +31,6 @@ extension EventStorage {
         sanitized = [roundedFirst, max(0, 1 - roundedFirst)]
         return sanitized
     }
-
-    // MARK: - Pre-Sleep Normalization Helpers
 
     private func mergedPreSleepPainEntries(_ answers: PreSleepLogAnswers) -> [PreSleepLogAnswers.PainEntry] {
         if let entries = answers.painEntries, !entries.isEmpty {
@@ -230,8 +228,6 @@ extension EventStorage {
         return normalized
     }
 
-    // MARK: - Pre-Sleep Response Mapping
-
     private func preSleepResponsesByQuestionID(_ answers: PreSleepLogAnswers) -> [String: Any] {
         let normalized = normalizedPreSleepAnswers(answers)
         var responses: [String: Any] = [:]
@@ -323,162 +319,6 @@ extension EventStorage {
         return responses
     }
 
-    // MARK: - Morning Response Mapping
-
-    private func morningResponsesByQuestionID(_ checkIn: StoredMorningCheckIn) -> [String: Any] {
-        var responses: [String: Any] = [
-            "sleep.quality": checkIn.sleepQuality,
-            "sleep.rested": checkIn.feelRested,
-            "sleep.grogginess": checkIn.grogginess,
-            "sleep.inertia_duration": checkIn.sleepInertiaDuration,
-            "sleep.dream_recall": checkIn.dreamRecall,
-            "overall.mood": checkIn.mood,
-            "overall.anxiety": checkIn.anxietyLevel,
-            "overall.energy": checkIn.readinessForDay,
-            "mental.clarity": checkIn.mentalClarity,
-            "pain.any": checkIn.hasPhysicalSymptoms,
-            "respiratory.any": checkIn.hasRespiratorySymptoms,
-            "narcolepsy.sleep_paralysis": checkIn.hadSleepParalysis,
-            "narcolepsy.hallucinations": checkIn.hadHallucinations,
-            "narcolepsy.automatic_behavior": checkIn.hadAutomaticBehavior,
-            "narcolepsy.fell_out_of_bed": checkIn.fellOutOfBed,
-            "narcolepsy.confusion_on_waking": checkIn.hadConfusionOnWaking,
-            "sleep_therapy.used": checkIn.usedSleepTherapy,
-            "sleep_environment.any": checkIn.hasSleepEnvironment
-        ]
-        if let stressLevel = checkIn.stressLevel {
-            responses["overall.stress"] = stressLevel
-        }
-
-        let stress = jsonDictionary(from: checkIn.stressContextJson)
-        if let drivers = stress["drivers"] as? [String], !drivers.isEmpty {
-            responses["morning.stress.drivers"] = drivers
-            responses["morning.stress.driver"] = drivers.first
-        }
-        if let progression = stress["progression"] as? String, !progression.isEmpty {
-            responses["morning.stress.progression"] = progression
-        }
-        if let notes = stress["notes"] as? String, !notes.isEmpty {
-            responses["morning.stress.notes"] = notes
-        }
-
-        let physical = jsonDictionary(from: checkIn.physicalSymptomsJson)
-        if let entries = physical["painEntries"] as? [[String: Any]], !entries.isEmpty {
-            responses["pain.entries"] = entries
-
-            let locations = entries.compactMap { $0["area"] as? String }
-            if !locations.isEmpty {
-                responses["pain.locations"] = Array(Set(locations)).sorted()
-            }
-
-            let intensities = entries.compactMap { item -> Int? in
-                if let value = item["intensity"] as? Int { return value }
-                if let value = item["intensity"] as? Double { return Int(value) }
-                return nil
-            }
-            if let maxIntensity = intensities.max() {
-                responses["pain.overall_intensity"] = maxIntensity
-            }
-
-            let sensations = entries.flatMap { item -> [String] in
-                guard let values = item["sensations"] as? [String] else { return [] }
-                return values
-            }
-            if !sensations.isEmpty {
-                responses["pain.sensations"] = Array(Set(sensations)).sorted()
-            }
-        }
-        if let value = physical["painLocations"] as? [String], !value.isEmpty, responses["pain.locations"] == nil { responses["pain.locations"] = value }
-        if let value = physical["painSeverity"] as? Int, responses["pain.overall_intensity"] == nil { responses["pain.overall_intensity"] = value }
-        if let value = physical["painType"] as? String { responses["pain.type"] = value }
-        if let value = physical["muscleStiffness"] as? String { responses["stiffness.level"] = value }
-        if let value = physical["muscleSoreness"] as? String { responses["soreness.level"] = value }
-        if let value = physical["hasHeadache"] as? Bool { responses["headache.any"] = value }
-        if let value = physical["headacheSeverity"] as? String { responses["headache.severity"] = value }
-        if let value = physical["headacheLocation"] as? String { responses["headache.location"] = value }
-        if let value = physical["notes"] as? String, !value.isEmpty { responses["pain.notes"] = value }
-
-        let respiratory = jsonDictionary(from: checkIn.respiratorySymptomsJson)
-        if let value = respiratory["congestion"] as? String { responses["respiratory.congestion"] = value }
-        if let value = respiratory["throatCondition"] as? String { responses["respiratory.throat"] = value }
-        if let value = respiratory["coughType"] as? String { responses["respiratory.cough"] = value }
-        if let value = respiratory["sinusPressure"] as? String { responses["respiratory.sinus_pressure"] = value }
-        if let value = respiratory["feelingFeverish"] as? Bool { responses["respiratory.feverish"] = value }
-        if let value = respiratory["sicknessLevel"] as? String { responses["respiratory.sickness_level"] = value }
-        if let value = respiratory["notes"] as? String, !value.isEmpty { responses["respiratory.notes"] = value }
-
-        let therapy = jsonDictionary(from: checkIn.sleepTherapyJson)
-        if let value = therapy["device"] as? String { responses["sleep_therapy.device"] = value }
-        if let value = therapy["compliance"] as? Int { responses["sleep_therapy.compliance"] = value }
-        if let value = therapy["notes"] as? String, !value.isEmpty { responses["sleep_therapy.notes"] = value }
-
-        let environment = jsonDictionary(from: checkIn.sleepEnvironmentJson)
-        if let value = environment["roomTemp"] as? String { responses["sleep_environment.room_temp"] = value }
-        if let value = environment["noiseLevel"] as? String { responses["sleep_environment.noise_level"] = value }
-        if let value = environment["sleepAids"] as? String { responses["sleep_environment.sleep_aids"] = value }
-        if let value = environment["notes"] as? String, !value.isEmpty { responses["sleep_environment.notes"] = value }
-
-        if let value = checkIn.notes, !value.isEmpty { responses["notes.anything_else"] = value }
-        return responses
-    }
-
-    // MARK: - Check-In Submission CRUD
-
-    private func upsertCheckInSubmission(
-        sourceRecordId: String,
-        sessionId: String?,
-        sessionDate: String,
-        checkInType: CheckInType,
-        questionnaireVersion: String,
-        submittedAt: Date,
-        responsesByQuestionID: [String: Any]
-    ) {
-        guard let responsesJson = jsonString(from: responsesByQuestionID) else {
-            storageLog.warning("Failed to encode check-in responses for \(sourceRecordId)")
-            return
-        }
-
-        let id = "\(checkInType.rawValue):\(sourceRecordId)"
-        let sql = """
-            INSERT OR REPLACE INTO checkin_submissions (
-                id, source_record_id, session_id, session_date, checkin_type, questionnaire_version,
-                user_id, submitted_at_utc, local_offset_minutes, responses_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            storageLog.error("Failed to prepare check-in submission upsert: \(String(cString: sqlite3_errmsg(self.db)))")
-            return
-        }
-        defer { sqlite3_finalize(stmt) }
-
-        let submittedAtUTC = isoFormatter.string(from: submittedAt)
-        let offsetMinutes = timeZoneProvider().secondsFromGMT(for: submittedAt) / 60
-
-        sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 2, sourceRecordId, -1, SQLITE_TRANSIENT)
-        if let sessionId {
-            sqlite3_bind_text(stmt, 3, sessionId, -1, SQLITE_TRANSIENT)
-        } else {
-            sqlite3_bind_null(stmt, 3)
-        }
-        sqlite3_bind_text(stmt, 4, sessionDate, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 5, checkInType.rawValue, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 6, questionnaireVersion, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 7, localUserIdentifier(), -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 8, submittedAtUTC, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_int(stmt, 9, Int32(offsetMinutes))
-        sqlite3_bind_text(stmt, 10, responsesJson, -1, SQLITE_TRANSIENT)
-
-        guard sqlite3_step(stmt) == SQLITE_DONE else {
-            storageLog.error("Failed to upsert check-in submission: \(String(cString: sqlite3_errmsg(self.db)))")
-            return
-        }
-    }
-
-    // MARK: - Pre-Sleep Log Fetch
-
-    /// Fetch the most recent pre-sleep log for loading defaults
     public func fetchMostRecentPreSleepLog() -> StoredPreSleepLog? {
         let sql = "SELECT id, session_id, created_at_utc, local_offset_minutes, completion_state, answers_json FROM pre_sleep_logs ORDER BY created_at DESC LIMIT 1"
 
@@ -496,7 +336,6 @@ extension EventStorage {
             let completionState = String(cString: sqlite3_column_text(stmt, 4))
             let answersJson = String(cString: sqlite3_column_text(stmt, 5))
 
-            // Parse answers JSON
             var answers: PreSleepLogAnswers? = nil
             if let data = answersJson.data(using: .utf8) {
                 answers = try? JSONDecoder().decode(PreSleepLogAnswers.self, from: data)
@@ -515,7 +354,6 @@ extension EventStorage {
         return nil
     }
 
-    /// Fetch the most recent pre-sleep log for a specific session
     public func fetchMostRecentPreSleepLog(sessionId: String) -> StoredPreSleepLog? {
         let sql = """
             SELECT id, session_id, created_at_utc, local_offset_minutes, completion_state, answers_json
@@ -559,7 +397,6 @@ extension EventStorage {
         return nil
     }
 
-    /// Count pre-sleep logs for a session (used in tests/debug)
     public func fetchPreSleepLogCount(sessionId: String) -> Int {
         let sql = "SELECT COUNT(*) FROM pre_sleep_logs WHERE session_id = ?"
         var stmt: OpaquePointer?
@@ -576,7 +413,6 @@ extension EventStorage {
         return count
     }
 
-    /// Upsert a pre-sleep log imported from sync and refresh its normalized submission mirror.
     public func upsertPreSleepLogFromSync(_ log: StoredPreSleepLog, sessionDate: String) {
         let answersJson: String
         if
@@ -629,7 +465,6 @@ extension EventStorage {
         )
     }
 
-    /// Delete a pre-sleep log with optional outbound CloudKit tombstone and normalized cleanup.
     public func deletePreSleepLog(id: String, recordCloudKitDeletion: Bool = true) {
         if recordCloudKitDeletion {
             enqueueCloudKitTombstone(recordType: "DoseTapPreSleepLog", recordName: id)
@@ -654,8 +489,6 @@ extension EventStorage {
         sqlite3_bind_text(submissionStmt, 2, CheckInType.preNight.rawValue, -1, SQLITE_TRANSIENT)
         sqlite3_step(submissionStmt)
     }
-
-    // MARK: - Pre-Sleep Log Save
 
     public enum PreSleepLogStoreError: Error, LocalizedError {
         case encodeFailed
@@ -716,7 +549,6 @@ extension EventStorage {
         return sqlite3_changes(db) > 0
     }
 
-    /// Save a pre-sleep log (throws on failure)
     @discardableResult
     public func savePreSleepLogOrThrow(
         sessionId: String?,
@@ -828,7 +660,6 @@ extension EventStorage {
         )
     }
 
-    /// Save a pre-sleep log (non-throwing convenience)
     public func savePreSleepLog(sessionId: String?, answers: PreSleepLogAnswers, completionState: String = "complete") {
         do {
             _ = try savePreSleepLogOrThrow(
@@ -844,7 +675,6 @@ extension EventStorage {
         }
     }
 
-    /// Save a pre-sleep log from PreSleepLog model
     public func savePreSleepLog(_ log: PreSleepLog) {
         do {
             _ = try savePreSleepLogOrThrow(
@@ -857,211 +687,5 @@ extension EventStorage {
         } catch {
             storageLog.error("Failed to save pre-sleep log: \(error.localizedDescription)")
         }
-    }
-
-    // MARK: - Morning Check-In Save
-
-    /// Save a morning check-in to the database
-    public func saveMorningCheckIn(_ checkIn: StoredMorningCheckIn, forSession sessionDate: String? = nil) {
-        let effectiveSessionDate = sessionDate ?? currentSessionDate()
-
-        let sql = """
-            INSERT OR REPLACE INTO morning_checkins (
-                id, session_id, timestamp, session_date,
-                sleep_quality, feel_rested, grogginess, sleep_inertia_duration, dream_recall,
-                has_physical_symptoms, physical_symptoms_json,
-                has_respiratory_symptoms, respiratory_symptoms_json,
-                mental_clarity, mood, anxiety_level, stress_level, stress_context_json, readiness_for_day,
-                had_sleep_paralysis, had_hallucinations, had_automatic_behavior,
-                fell_out_of_bed, had_confusion_on_waking,
-                used_sleep_therapy, sleep_therapy_json,
-                has_sleep_environment, sleep_environment_json,
-                notes
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """
-
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            storageLog.error("Failed to prepare morning check-in insert: \(String(cString: sqlite3_errmsg(self.db)))")
-            return
-        }
-        defer { sqlite3_finalize(stmt) }
-
-        let timestampStr = isoFormatter.string(from: checkIn.timestamp)
-
-        sqlite3_bind_text(stmt, 1, checkIn.id, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 2, checkIn.sessionId, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 3, timestampStr, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 4, effectiveSessionDate, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_int(stmt, 5, Int32(checkIn.sleepQuality))
-        sqlite3_bind_text(stmt, 6, checkIn.feelRested, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 7, checkIn.grogginess, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 8, checkIn.sleepInertiaDuration, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 9, checkIn.dreamRecall, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_int(stmt, 10, checkIn.hasPhysicalSymptoms ? 1 : 0)
-        if let json = checkIn.physicalSymptomsJson {
-            sqlite3_bind_text(stmt, 11, json, -1, SQLITE_TRANSIENT)
-        } else {
-            sqlite3_bind_null(stmt, 11)
-        }
-        sqlite3_bind_int(stmt, 12, checkIn.hasRespiratorySymptoms ? 1 : 0)
-        if let json = checkIn.respiratorySymptomsJson {
-            sqlite3_bind_text(stmt, 13, json, -1, SQLITE_TRANSIENT)
-        } else {
-            sqlite3_bind_null(stmt, 13)
-        }
-        sqlite3_bind_int(stmt, 14, Int32(checkIn.mentalClarity))
-        sqlite3_bind_text(stmt, 15, checkIn.mood, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 16, checkIn.anxietyLevel, -1, SQLITE_TRANSIENT)
-        if let stressLevel = checkIn.stressLevel {
-            sqlite3_bind_int(stmt, 17, Int32(stressLevel))
-        } else {
-            sqlite3_bind_null(stmt, 17)
-        }
-        if let json = checkIn.stressContextJson {
-            sqlite3_bind_text(stmt, 18, json, -1, SQLITE_TRANSIENT)
-        } else {
-            sqlite3_bind_null(stmt, 18)
-        }
-        sqlite3_bind_int(stmt, 19, Int32(checkIn.readinessForDay))
-        sqlite3_bind_int(stmt, 20, checkIn.hadSleepParalysis ? 1 : 0)
-        sqlite3_bind_int(stmt, 21, checkIn.hadHallucinations ? 1 : 0)
-        sqlite3_bind_int(stmt, 22, checkIn.hadAutomaticBehavior ? 1 : 0)
-        sqlite3_bind_int(stmt, 23, checkIn.fellOutOfBed ? 1 : 0)
-        sqlite3_bind_int(stmt, 24, checkIn.hadConfusionOnWaking ? 1 : 0)
-        sqlite3_bind_int(stmt, 25, checkIn.usedSleepTherapy ? 1 : 0)
-        if let json = checkIn.sleepTherapyJson {
-            sqlite3_bind_text(stmt, 26, json, -1, SQLITE_TRANSIENT)
-        } else {
-            sqlite3_bind_null(stmt, 26)
-        }
-        sqlite3_bind_int(stmt, 27, checkIn.hasSleepEnvironment ? 1 : 0)
-        if let json = checkIn.sleepEnvironmentJson {
-            sqlite3_bind_text(stmt, 28, json, -1, SQLITE_TRANSIENT)
-        } else {
-            sqlite3_bind_null(stmt, 28)
-        }
-        if let notes = checkIn.notes {
-            sqlite3_bind_text(stmt, 29, notes, -1, SQLITE_TRANSIENT)
-        } else {
-            sqlite3_bind_null(stmt, 29)
-        }
-
-        if sqlite3_step(stmt) == SQLITE_DONE {
-            upsertCheckInSubmission(
-                sourceRecordId: checkIn.id,
-                sessionId: checkIn.sessionId,
-                sessionDate: effectiveSessionDate,
-                checkInType: .morning,
-                questionnaireVersion: CheckInQuestionnaireVersion.morning,
-                submittedAt: checkIn.timestamp,
-                responsesByQuestionID: morningResponsesByQuestionID(checkIn)
-            )
-            storageLog.debug("Morning check-in saved: \(checkIn.id)")
-        } else {
-            storageLog.error("Failed to save morning check-in: \(String(cString: sqlite3_errmsg(self.db)))")
-        }
-    }
-
-    // MARK: - Check-In Submission Queries
-
-    /// Fetch normalized questionnaire submissions.
-    public func fetchCheckInSubmissions(
-        sessionDate: String? = nil,
-        checkInType: CheckInType? = nil
-    ) -> [StoredCheckInSubmission] {
-        var conditions: [String] = []
-        if sessionDate != nil {
-            conditions.append("session_date = ?")
-        }
-        if checkInType != nil {
-            conditions.append("checkin_type = ?")
-        }
-        let whereClause = conditions.isEmpty ? "" : "WHERE " + conditions.joined(separator: " AND ")
-        let sql = """
-            SELECT id, source_record_id, session_id, session_date, checkin_type, questionnaire_version,
-                   user_id, submitted_at_utc, local_offset_minutes, responses_json
-            FROM checkin_submissions
-            \(whereClause)
-            ORDER BY submitted_at_utc DESC
-        """
-
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
-        defer { sqlite3_finalize(stmt) }
-
-        var bindIndex: Int32 = 1
-        if let sessionDate {
-            sqlite3_bind_text(stmt, bindIndex, sessionDate, -1, SQLITE_TRANSIENT)
-            bindIndex += 1
-        }
-        if let checkInType {
-            sqlite3_bind_text(stmt, bindIndex, checkInType.rawValue, -1, SQLITE_TRANSIENT)
-        }
-
-        var rows: [StoredCheckInSubmission] = []
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            guard
-                let idPtr = sqlite3_column_text(stmt, 0),
-                let sourcePtr = sqlite3_column_text(stmt, 1),
-                let sessionDatePtr = sqlite3_column_text(stmt, 3),
-                let typePtr = sqlite3_column_text(stmt, 4),
-                let versionPtr = sqlite3_column_text(stmt, 5),
-                let userPtr = sqlite3_column_text(stmt, 6),
-                let submittedAtPtr = sqlite3_column_text(stmt, 7),
-                let responsesPtr = sqlite3_column_text(stmt, 9)
-            else { continue }
-
-            let typeRaw = String(cString: typePtr)
-            guard let type = CheckInType(rawValue: typeRaw) else { continue }
-            let submittedAtUTC = isoFormatter.date(from: String(cString: submittedAtPtr)) ?? Date()
-            rows.append(
-                StoredCheckInSubmission(
-                    id: String(cString: idPtr),
-                    sourceRecordId: String(cString: sourcePtr),
-                    sessionId: sqlite3_column_text(stmt, 2).map { String(cString: $0) },
-                    sessionDate: String(cString: sessionDatePtr),
-                    checkInType: type,
-                    questionnaireVersion: String(cString: versionPtr),
-                    userId: String(cString: userPtr),
-                    submittedAtUTC: submittedAtUTC,
-                    localOffsetMinutes: Int(sqlite3_column_int(stmt, 8)),
-                    responsesJson: String(cString: responsesPtr)
-                )
-            )
-        }
-        return rows
-    }
-
-    /// Count normalized questionnaire submissions.
-    public func fetchCheckInSubmissionCount(
-        sessionDate: String? = nil,
-        checkInType: CheckInType? = nil
-    ) -> Int {
-        var conditions: [String] = []
-        if sessionDate != nil {
-            conditions.append("session_date = ?")
-        }
-        if checkInType != nil {
-            conditions.append("checkin_type = ?")
-        }
-        let whereClause = conditions.isEmpty ? "" : "WHERE " + conditions.joined(separator: " AND ")
-        let sql = "SELECT COUNT(*) FROM checkin_submissions \(whereClause)"
-
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return 0 }
-        defer { sqlite3_finalize(stmt) }
-
-        var bindIndex: Int32 = 1
-        if let sessionDate {
-            sqlite3_bind_text(stmt, bindIndex, sessionDate, -1, SQLITE_TRANSIENT)
-            bindIndex += 1
-        }
-        if let checkInType {
-            sqlite3_bind_text(stmt, bindIndex, checkInType.rawValue, -1, SQLITE_TRANSIENT)
-        }
-
-        guard sqlite3_step(stmt) == SQLITE_ROW else { return 0 }
-        return Int(sqlite3_column_int(stmt, 0))
     }
 }
