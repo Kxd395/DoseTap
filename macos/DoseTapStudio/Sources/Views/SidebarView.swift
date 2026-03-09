@@ -32,8 +32,8 @@ struct SidebarView: View {
                     Label("Timeline", systemImage: "clock")
                 }
                 
-                NavigationLink(destination: AdherenceView(dataStore: dataStore)) {
-                    Label("Adherence", systemImage: "checkmark.circle")
+                NavigationLink(destination: TrendsView(dataStore: dataStore)) {
+                    Label("Trends", systemImage: "chart.line.uptrend.xyaxis")
                 }
             }
             
