@@ -71,6 +71,9 @@
 		CLUST122 /* DashboardTrendCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST123 /* DashboardTrendCards.swift */; };
 		CLUST124 /* DashboardInsightCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST125 /* DashboardInsightCards.swift */; };
 		CLUST103 /* TimelineReviewViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST003 /* TimelineReviewViews.swift */; };
+		TLR001 /* TimelineLiveCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = TLR101 /* TimelineLiveCards.swift */; };
+		TLR002 /* TimelineReviewCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = TLR102 /* TimelineReviewCards.swift */; };
+		TLR003 /* TimelineReviewSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = TLR103 /* TimelineReviewSupport.swift */; };
 		CLUST104 /* HistoryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST004 /* HistoryViews.swift */; };
 		D2AFCB94D52D4B168AC1CAD6 /* EventLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0E5B5C6E684F7796F9B9FC /* EventLogger.swift */; };
 		D3796BF7DA596F5F9D63F096 /* TimeIntervalMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B2779FB31708024300E8E5 /* TimeIntervalMath.swift */; };
@@ -243,6 +246,9 @@
 		CLUST123 /* DashboardTrendCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardTrendCards.swift; sourceTree = "<group>"; };
 		CLUST125 /* DashboardInsightCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardInsightCards.swift; sourceTree = "<group>"; };
 		CLUST003 /* TimelineReviewViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineReviewViews.swift; sourceTree = "<group>"; };
+		TLR101 /* TimelineLiveCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineLiveCards.swift; sourceTree = "<group>"; };
+		TLR102 /* TimelineReviewCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineReviewCards.swift; sourceTree = "<group>"; };
+		TLR103 /* TimelineReviewSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineReviewSupport.swift; sourceTree = "<group>"; };
 		CLUST004 /* HistoryViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryViews.swift; sourceTree = "<group>"; };
 		D049AFCF96FC4AFF9120309E /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
 		D1BA2E6CCFB845E6BFC919FA /* FullApp/SetupWizardService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/SetupWizardService.swift; sourceTree = "<group>"; };
@@ -539,6 +545,9 @@
 		GRP_TIMELINE /* Timeline */ = {
 			isa = PBXGroup;
 			children = (
+				TLR101 /* TimelineLiveCards.swift */,
+				TLR102 /* TimelineReviewCards.swift */,
+				TLR103 /* TimelineReviewSupport.swift */,
 				CLUST003 /* TimelineReviewViews.swift */,
 			);
 			path = Timeline;
@@ -868,6 +877,9 @@
 				CLUST122 /* DashboardTrendCards.swift in Sources */,
 				CLUST124 /* DashboardInsightCards.swift in Sources */,
 				CLUST103 /* TimelineReviewViews.swift in Sources */,
+				TLR001 /* TimelineLiveCards.swift in Sources */,
+				TLR002 /* TimelineReviewCards.swift in Sources */,
+				TLR003 /* TimelineReviewSupport.swift in Sources */,
 				CLUST104 /* HistoryViews.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
