@@ -128,6 +128,22 @@ struct InsightSession: Identifiable, Hashable, Sendable {
         medications.count
     }
 
+    var preSleepStressLevel: Int? {
+        preSleep?.stressLevel
+    }
+
+    var morningSleepQuality: Int? {
+        morning?.sleepQuality
+    }
+
+    var morningReadiness: Int? {
+        morning?.readinessForDay
+    }
+
+    var hasSupplementalContext: Bool {
+        preSleep != nil || morning != nil || !medications.isEmpty
+    }
+
     var bathroomCount: Int {
         events.filter { $0.type == .bathroom }.count
     }

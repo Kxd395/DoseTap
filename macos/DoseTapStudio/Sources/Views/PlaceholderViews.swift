@@ -2,36 +2,6 @@ import SwiftUI
 
 /// Placeholder views for navigation - to be implemented in Sprint B
 
-struct TimelineView: View {
-    @ObservedObject var dataStore: DataStore
-    
-    var body: some View {
-        VStack(spacing: 20) {
-            Text("Timeline View")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-            
-            Text("Coming in Sprint B:")
-                .font(.headline)
-                .foregroundColor(.secondary)
-            
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Interactive dose timeline with window shading", systemImage: "timeline.selection")
-                Label("Drag to adjust time ranges and zoom levels", systemImage: "hand.draw")
-                Label("Overlay WHOOP metrics on timeline", systemImage: "heart.circle")
-                Label("Export timeline as PDF reports", systemImage: "doc.richtext")
-            }
-            .padding()
-            .background(Color(.controlBackgroundColor))
-            .cornerRadius(12)
-            
-            Spacer()
-        }
-        .padding()
-        .navigationTitle("Timeline")
-    }
-}
-
 struct AdherenceView: View {
     @ObservedObject var dataStore: DataStore
     

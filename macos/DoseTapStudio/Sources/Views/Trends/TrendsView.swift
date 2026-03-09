@@ -26,6 +26,34 @@ struct TrendsView: View {
         recentSessions.filter { !$0.qualityFlags.isEmpty }.count
     }
 
+    private var highStressCount: Int {
+        recentSessions.filter { ($0.preSleepStressLevel ?? 0) >= 4 }.count
+    }
+
+    private var missingMorningCount: Int {
+        recentSessions.filter { $0.morning == nil }.count
+    }
+
+    private var averageSleepQuality: Double? {
+        let values = recentSessions.compactMap(\.morningSleepQuality)
+        guard !values.isEmpty else { return nil }
+        return Double(values.reduce(0, +)) / Double(values.count)
+    }
+
+    private var averageReadiness: Double? {
+        let values = recentSessions.compactMap(\.morningReadiness)
+        guard !values.isEmpty else { return nil }
+        return Double(values.reduce(0, +)) / Double(values.count)
+    }
+
+    private var stressCorrelationSessions: [InsightSession] {
+        recentSessions.filter { $0.preSleepStressLevel != nil && $0.morningSleepQuality != nil }
+    }
+
+    private var readinessSessions: [InsightSession] {
+        recentSessions.filter { $0.morningReadiness != nil || $0.medicationCount > 0 }
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -49,6 +77,8 @@ struct TrendsView: View {
                 } else {
                     intervalChartCard
                     eventChartCard
+                    morningTrendCard
+                    stressCorrelationCard
                     outlierCard
                 }
             }
@@ -60,9 +90,13 @@ struct TrendsView: View {
     private var summaryRow: some View {
         HStack(spacing: 12) {
             trendCard(title: "30-Night Avg Interval", value: averageInterval.map { "\($0)m" } ?? "—", accent: .blue)
+            trendCard(title: "Avg Sleep Quality", value: averageSleepQuality.map { String(format: "%.1f/5", $0) } ?? "—", accent: .indigo)
+            trendCard(title: "Avg Readiness", value: averageReadiness.map { String(format: "%.1f/5", $0) } ?? "—", accent: .teal)
+            trendCard(title: "High Stress", value: "\(highStressCount)", accent: .pink)
+            trendCard(title: "Missing Morning", value: "\(missingMorningCount)", accent: .orange)
             trendCard(title: "Late Dose 2", value: "\(lateCount)", accent: .orange)
             trendCard(title: "Skipped", value: "\(skippedCount)", accent: .red)
-            trendCard(title: "Quality Issues", value: "\(issueCount)", accent: .purple)
+            trendCard(title: "Flags", value: "\(issueCount)", accent: .purple)
             Spacer()
         }
     }
@@ -115,6 +149,68 @@ struct TrendsView: View {
                 .foregroundStyle(barColor(for: session))
             }
             .frame(height: 220)
+        }
+        .padding()
+        .background(Color(.controlBackgroundColor))
+        .cornerRadius(12)
+    }
+
+    private var morningTrendCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Morning Outcome Trend")
+                .font(.headline)
+
+            if readinessSessions.isEmpty {
+                Text("Import nights with morning check-ins to view readiness and medication context.")
+                    .foregroundColor(.secondary)
+            } else {
+                Chart(readinessSessions) { session in
+                    if let readiness = session.morningReadiness {
+                        BarMark(
+                            x: .value("Night", session.sessionDate),
+                            y: .value("Readiness", readiness)
+                        )
+                        .foregroundStyle(.teal.gradient)
+                    }
+
+                    if session.medicationCount > 0 {
+                        PointMark(
+                            x: .value("Night", session.sessionDate),
+                            y: .value("Medication Count", min(5, session.medicationCount))
+                        )
+                        .foregroundStyle(.pink)
+                        .symbolSize(70)
+                    }
+                }
+                .frame(height: 220)
+            }
+        }
+        .padding()
+        .background(Color(.controlBackgroundColor))
+        .cornerRadius(12)
+    }
+
+    private var stressCorrelationCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Pre-Sleep Stress vs Morning Quality")
+                .font(.headline)
+
+            if stressCorrelationSessions.isEmpty {
+                Text("Import nights with both pre-sleep and morning check-ins to view factor correlation.")
+                    .foregroundColor(.secondary)
+            } else {
+                Chart(stressCorrelationSessions) { session in
+                    PointMark(
+                        x: .value("Stress", session.preSleepStressLevel ?? 0),
+                        y: .value("Sleep Quality", session.morningSleepQuality ?? 0)
+                    )
+                    .foregroundStyle(pointColor(for: session))
+                    .symbolSize(110)
+                }
+                .chartXScale(domain: 1...5)
+                .chartYScale(domain: 1...5)
+                .frame(height: 220)
+            }
         }
         .padding()
         .background(Color(.controlBackgroundColor))
@@ -195,6 +291,9 @@ struct TrendsView: View {
         if session.isLateDose2 {
             return "Late Dose 2"
         }
+        if let quality = session.morningSleepQuality, quality <= 2 {
+            return "Poor morning quality"
+        }
         return session.qualitySummary
     }
 
@@ -204,6 +303,9 @@ struct TrendsView: View {
         }
         if session.isLateDose2 {
             return .orange
+        }
+        if let quality = session.morningSleepQuality, quality <= 2 {
+            return .pink
         }
         return .purple
     }
