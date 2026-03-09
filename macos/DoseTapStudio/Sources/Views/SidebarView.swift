@@ -44,11 +44,7 @@ struct SidebarView: View {
             // Enhanced Features
             Section("Management") {
                 NavigationLink(destination: EnhancedInventoryView(dataStore: dataStore)) {
-                    Label("Enhanced Inventory", systemImage: "pills.fill")
-                }
-                
-                NavigationLink(destination: InventoryView(dataStore: dataStore)) {
-                    Label("Basic Inventory", systemImage: "pills")
+                    Label("Inventory", systemImage: "pills.fill")
                 }
                 
                 NavigationLink(destination: TimeZoneManagementView()) {

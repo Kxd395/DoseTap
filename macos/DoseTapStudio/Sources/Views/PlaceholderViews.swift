@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Placeholder views for navigation - to be implemented in Sprint B
+/// Supplemental Studio views that are still intentionally lightweight.
 
 struct InventoryView: View {
     @ObservedObject var dataStore: DataStore
@@ -11,7 +11,7 @@ struct InventoryView: View {
                 .font(.largeTitle)
                 .fontWeight(.bold)
             
-            Text("Coming in Sprint B:")
+            Text("Planned additions:")
                 .font(.headline)
                 .foregroundColor(.secondary)
             
@@ -71,6 +71,7 @@ struct InventoryView: View {
 /// Enhanced Settings View with organized sections matching ASCII specifications
 struct SettingsView: View {
     @ObservedObject var dataStore: DataStore
+    @Environment(\.dismiss) private var dismiss
     @State private var iCloudSyncEnabled = false
     @State private var dataRetentionPeriod = "1 year"
     @State private var inventoryTrackingEnabled = true
@@ -273,8 +274,7 @@ struct SettingsView: View {
     
     private var doneButtonSection: some View {
         Button("Done") {
-            // Handle done action
-            print("⚙️ Settings saved")
+            dismiss()
         }
         .buttonStyle(.plain)
         .frame(maxWidth: .infinity)
