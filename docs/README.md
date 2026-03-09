@@ -16,6 +16,7 @@ Last updated: 2026-03-09
 ## Plans
 
 - Active roadmap/todo: `docs/ROADMAP_TODO.md`
+- Insights viewer MVP: `docs/INSIGHTS_VIEWER_MVP.md`
 - Archived plans and point-in-time test snapshots: `docs/historical/`
 
 ## Operations
