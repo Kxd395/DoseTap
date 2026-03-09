@@ -3,6 +3,7 @@ import SwiftUI
 struct LibraryView: View {
     @ObservedObject var dataStore: DataStore
     @State private var filters = InsightFilterState()
+    @State private var selectedSessionID: InsightSession.ID?
 
     private var filteredSessions: [InsightSession] {
         dataStore.insightSessions.filter { session in
@@ -10,52 +11,84 @@ struct LibraryView: View {
         }
     }
 
+    private var selectedSession: InsightSession? {
+        if let selectedSessionID {
+            return filteredSessions.first(where: { $0.id == selectedSessionID })
+        }
+        return filteredSessions.first
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Night Library")
-                .font(.largeTitle.bold())
+        HSplitView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Night Library")
+                    .font(.largeTitle.bold())
 
-            filterBar
-            summaryRow
+                filterBar
+                summaryRow
 
-            if filteredSessions.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "line.3.horizontal.decrease.circle")
-                        .font(.system(size: 36))
-                        .foregroundColor(.secondary)
-                    Text("No nights match these filters")
-                        .font(.headline)
-                    Text("Adjust filters or import more exported data.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                Table(filteredSessions) {
-                    TableColumn("Night") { session in
-                        Text(session.sessionDate)
+                if filteredSessions.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "line.3.horizontal.decrease.circle")
+                            .font(.system(size: 36))
+                            .foregroundColor(.secondary)
+                        Text("No nights match these filters")
+                            .font(.headline)
+                        Text("Adjust filters or import more exported data.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
                     }
-                    TableColumn("Dose 1") { session in
-                        Text(timeText(for: session.dose1Time))
-                    }
-                    TableColumn("Dose 2") { session in
-                        Text(session.dose2Skipped ? "Skipped" : timeText(for: session.dose2Time))
-                    }
-                    TableColumn("Interval") { session in
-                        Text(session.intervalMinutes.map { "\($0)m" } ?? "—")
-                    }
-                    TableColumn("Events") { session in
-                        Text("\(session.eventCount)")
-                    }
-                    TableColumn("Quality") { session in
-                        Text(session.qualitySummary)
-                            .foregroundColor(session.qualityFlags.isEmpty ? .secondary : .orange)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    Table(filteredSessions, selection: $selectedSessionID) {
+                        TableColumn("Night") { session in
+                            Text(session.sessionDate)
+                        }
+                        TableColumn("Dose 1") { session in
+                            Text(timeText(for: session.dose1Time))
+                        }
+                        TableColumn("Dose 2") { session in
+                            Text(session.dose2Skipped ? "Skipped" : timeText(for: session.dose2Time))
+                        }
+                        TableColumn("Interval") { session in
+                            Text(session.intervalMinutes.map { "\($0)m" } ?? "—")
+                        }
+                        TableColumn("Events") { session in
+                            Text("\(session.eventCount)")
+                        }
+                        TableColumn("Quality") { session in
+                            Text(session.qualitySummary)
+                                .foregroundColor(session.qualityFlags.isEmpty ? .secondary : .orange)
+                        }
                     }
                 }
             }
+            .frame(minWidth: 560)
+            .padding()
+
+            if let selectedSession {
+                NightDetailView(session: selectedSession)
+            } else {
+                VStack(spacing: 12) {
+                    Image(systemName: "rectangle.on.rectangle.slash")
+                        .font(.system(size: 36))
+                        .foregroundColor(.secondary)
+                    Text("Select a night")
+                        .font(.headline)
+                    Text("Night details will appear here.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
-        .padding()
         .navigationTitle("Library")
+        .onAppear {
+            ensureSelection()
+        }
+        .onChange(of: filteredSessions.map(\.id)) { _ in
+            ensureSelection()
+        }
     }
 
     private var filterBar: some View {
@@ -131,6 +164,20 @@ struct LibraryView: View {
     private func timeText(for date: Date?) -> String {
         guard let date else { return "—" }
         return date.formatted(date: .omitted, time: .shortened)
+    }
+
+    private func ensureSelection() {
+        guard !filteredSessions.isEmpty else {
+            selectedSessionID = nil
+            return
+        }
+
+        if let selectedSessionID,
+           filteredSessions.contains(where: { $0.id == selectedSessionID }) {
+            return
+        }
+
+        selectedSessionID = filteredSessions.first?.id
     }
 }
 
