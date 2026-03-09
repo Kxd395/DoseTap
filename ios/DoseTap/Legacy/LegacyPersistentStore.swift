@@ -1,16 +1,16 @@
-// Persistence/PersistentStore.swift
+// Legacy/LegacyPersistentStore.swift
 import CoreData
 import os.log
 
-private let persistentStoreLog = Logger(subsystem: "com.dosetap.app", category: "PersistentStore")
+private let legacyPersistentStoreLog = Logger(subsystem: "com.dosetap.app", category: "LegacyPersistentStore")
 
-enum StoreKind { case persistent, inMemory }
+enum LegacyStoreKind { case persistent, inMemory }
 
-final class PersistentStore {
-    static let shared = PersistentStore()
+final class LegacyPersistentStore {
+    static let shared = LegacyPersistentStore()
     let container: NSPersistentContainer
 
-    init(kind: StoreKind = .persistent) {
+    init(kind: LegacyStoreKind = .persistent) {
         container = NSPersistentContainer(name: "DoseTap") // matches .xcdatamodeld
         if case .inMemory = kind {
             let desc = NSPersistentStoreDescription()
@@ -19,17 +19,17 @@ final class PersistentStore {
         }
         container.loadPersistentStores { _, error in
             if let error {
-                persistentStoreLog.error("Core Data error: \(error.localizedDescription, privacy: .public)")
+                legacyPersistentStoreLog.error("Core Data error: \(error.localizedDescription, privacy: .public)")
                 // Fallback to in-memory store to keep the app usable; do not crash
                 let mem = NSPersistentStoreDescription()
                 mem.type = NSInMemoryStoreType
                 self.container.persistentStoreDescriptions = [mem]
                 self.container.loadPersistentStores { _, memError in
                     if let memError {
-                        persistentStoreLog.error("In-memory store fallback failed: \(memError.localizedDescription, privacy: .public)")
+                        legacyPersistentStoreLog.error("In-memory store fallback failed: \(memError.localizedDescription, privacy: .public)")
                         // Optionally present a recovery UI here.
                     } else {
-                        persistentStoreLog.info("Fallback to in-memory Core Data store")
+                        legacyPersistentStoreLog.info("Fallback to in-memory Core Data store")
                     }
                 }
             }
@@ -43,7 +43,7 @@ final class PersistentStore {
     func saveContext(_ ctx: NSManagedObjectContext? = nil) {
         let context = ctx ?? viewContext
         if context.hasChanges {
-            do { try context.save() } catch { persistentStoreLog.error("Save error: \(error.localizedDescription, privacy: .public)") }
+            do { try context.save() } catch { legacyPersistentStoreLog.error("Save error: \(error.localizedDescription, privacy: .public)") }
         }
     }
 

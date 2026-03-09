@@ -37,7 +37,7 @@ struct DevelopmentHelper {
     static func populateTestData() {
         guard isLocalDevelopment && autoPopulateTestData else { return }
         
-        let store = PersistentStore.shared
+        let store = LegacyPersistentStore.shared
         let context = store.viewContext
         
         // Clear existing test data
@@ -82,7 +82,7 @@ struct DevelopmentHelper {
     }
     
     private static func clearTestData() {
-        let store = PersistentStore.shared
+        let store = LegacyPersistentStore.shared
         let context = store.viewContext
         
         // Delete existing test data
@@ -182,7 +182,7 @@ struct DevelopmentHelper {
     static func simulateDose1() {
         guard isLocalDevelopment else { return }
         
-        let store = PersistentStore.shared
+        let store = LegacyPersistentStore.shared
         let context = store.viewContext
         
         // Create new session if none exists
@@ -212,7 +212,7 @@ struct DevelopmentHelper {
     static func simulateDose2() {
         guard isLocalDevelopment else { return }
         
-        let store = PersistentStore.shared
+        let store = LegacyPersistentStore.shared
         let context = store.viewContext
         
         // Find existing session

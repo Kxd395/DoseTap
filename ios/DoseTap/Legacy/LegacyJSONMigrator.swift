@@ -1,7 +1,7 @@
-// Storage/JSONMigrator.swift
+// Legacy/LegacyJSONMigrator.swift
 import Foundation
 
-struct JSONMigrator {
+struct LegacyJSONMigrator {
     struct JSONDoseEvent: Decodable {
         let event_id: String, event_type: String, source: String
         let occurred_at_utc: Date, local_tz: String
@@ -49,7 +49,7 @@ struct JSONMigrator {
         if fm.fileExists(atPath: sessionsURL.path),
            let data = try? Data(contentsOf: sessionsURL),
            let sessions = try? dec.decode([JSONDoseSession].self, from: data) {
-            let ctx = PersistentStore.shared.viewContext
+            let ctx = LegacyPersistentStore.shared.viewContext
             for s in sessions {
                 let mo = DoseSession(context: ctx)
                 mo.sessionID = s.session_id
@@ -64,7 +64,7 @@ struct JSONMigrator {
                 mo.adherenceFlag = s.adherence_flag
                 mo.note = s.note
             }
-            PersistentStore.shared.saveContext(ctx)
+            LegacyPersistentStore.shared.saveContext(ctx)
         }
 
         UserDefaults.standard.set(true, forKey: flagKey)

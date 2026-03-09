@@ -1,13 +1,13 @@
-// Export/CSVExporter.swift
+// Legacy/LegacyCSVExporter.swift
 import Foundation
 import CoreData
 
-enum CSVExporter {
+enum LegacyCSVExporter {
     // events.csv — SSOT CSV v1 header & order
-    static func exportEventsCSV(to url: URL, ctx: NSManagedObjectContext = PersistentStore.shared.viewContext) throws {
+    static func exportEventsCSV(to url: URL, ctx: NSManagedObjectContext = LegacyPersistentStore.shared.viewContext) throws {
         let header = "event_id,event_type,source,occurred_at_utc,local_tz,dose_sequence,note\n"
         var out = header
-        for e in try ctx.fetchEventsSorted() {
+        for e in try fetchEventsSorted(in: ctx) {
             let id = e.eventID ?? ""
             let et = e.eventType ?? ""
             let src = e.source ?? ""
@@ -22,7 +22,7 @@ enum CSVExporter {
     }
 
     // sessions.csv v1 — aligns with macOS dashboard & SSOT proposal
-    static func exportSessionsCSV(to url: URL, ctx: NSManagedObjectContext = PersistentStore.shared.viewContext) throws {
+    static func exportSessionsCSV(to url: URL, ctx: NSManagedObjectContext = LegacyPersistentStore.shared.viewContext) throws {
         let header = "session_id,started_utc,ended_utc,bedtime_local,window_target_min,window_actual_min,adherence_flag,whoop_recovery,avg_hr,sleep_efficiency,note\n"
         var out = header
         let req = DoseSession.fetchRequest()
@@ -42,5 +42,11 @@ enum CSVExporter {
             out += "\(sid),\(start),\(end),\(bl),\(target ?? 0),\(actual ?? 0),\(adh),\(rec ?? 0),\(hr ?? 0),\(eff ?? 0),\"\(note)\"\n"
         }
         try out.data(using: .utf8)?.write(to: url, options: .atomic)
+    }
+
+    private static func fetchEventsSorted(in context: NSManagedObjectContext) throws -> [DoseEvent] {
+        let request = DoseEvent.fetchRequest()
+        request.sortDescriptors = [NSSortDescriptor(key: "occurredAtUTC", ascending: true)]
+        return try context.fetch(request)
     }
 }

@@ -175,7 +175,6 @@
 		3E912715BD5C4BBAAA735378 /* AlarmService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmService.swift; sourceTree = "<group>"; };
 		403FF1A5371F4BA427EC1520 /* WHOOPSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WHOOPSettingsView.swift; sourceTree = "<group>"; };
 		418F7D12D4A2473F800C75ED /* FullApp/DoseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/DoseModels.swift; sourceTree = "<group>"; };
-		42C70AB54EEE44A19DF24685 /* FetchHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FetchHelpers.swift; sourceTree = "<group>"; };
 		49D083E0EC7947B795F0DD57 /* Formatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Formatters.swift; sourceTree = "<group>"; };
 		4A3C6B3DB1EBBE10E2F3E7FB /* ReducedMotionSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReducedMotionSupport.swift; sourceTree = "<group>"; };
 		4E03D9DEC5D04B32AACF98BA /* TonightView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TonightView.swift; sourceTree = "<group>"; };
@@ -185,7 +184,7 @@
 		60E7491C7A9D4FDE812F4BFB /* CompactDoseButton.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CompactDoseButton.swift; sourceTree = "<group>"; };
 		64641673735B464BB4E4B02F /* SessionRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepository.swift; sourceTree = "<group>"; };
 		67D4EB39451985378B4E5D61 /* WHOOPDataFetching.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WHOOPDataFetching.swift; sourceTree = "<group>"; };
-		6CFBD921F6074479AF4FF155 /* JSONMigrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONMigrator.swift; sourceTree = "<group>"; };
+		6CFBD921F6074479AF4FF155 /* LegacyJSONMigrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyJSONMigrator.swift; sourceTree = "<group>"; };
 		6FEE161A09D6441A8D4448DA /* InsightsCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightsCalculator.swift; sourceTree = "<group>"; };
 		707FF265ADBBA04484376264 /* ThemeSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThemeSettingsView.swift; sourceTree = "<group>"; };
 		7084981AA100483EB6E6ADE1 /* WHOOPService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WHOOPService.swift; sourceTree = "<group>"; };
@@ -220,7 +219,7 @@
 		B01 /* DoseTapApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseTapApp.swift; sourceTree = "<group>"; };
 		B02 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		B03 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		B0DBB25F0B4C46EAAFB4205A /* PersistentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistentStore.swift; sourceTree = "<group>"; };
+		B0DBB25F0B4C46EAAFB4205A /* LegacyPersistentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyPersistentStore.swift; sourceTree = "<group>"; };
 		B1CBF59D219929011DD8A4A8 /* InputValidator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InputValidator.swift; sourceTree = "<group>"; };
 		B358CDCA949364F93BD996D6 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		SET101 /* SettingsSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSections.swift; sourceTree = "<group>"; };
@@ -286,7 +285,7 @@
 		ESF023 /* EventStorage+SessionSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+SessionSupport.swift"; sourceTree = "<group>"; };
 		EVT002 /* EventType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventType.swift; sourceTree = "<group>"; };
 		F3CED6FC4A7543E68CDF0BA0 /* TimeZoneMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeZoneMonitor.swift; sourceTree = "<group>"; };
-		F90DAD707525490DB491F5EA /* CSVExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVExporter.swift; sourceTree = "<group>"; };
+		F90DAD707525490DB491F5EA /* LegacyCSVExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyCSVExporter.swift; sourceTree = "<group>"; };
 		FCC2762A054AE377C80CF2B0 /* EncryptedEventStorage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EncryptedEventStorage.swift; sourceTree = "<group>"; };
 		FCEDF0A0E4BE41F582C2221F /* AnalyticsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsService.swift; sourceTree = "<group>"; };
 		HK002 /* HealthKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitService.swift; sourceTree = "<group>"; };
@@ -472,7 +471,7 @@
 				WHM002 /* WHOOPModels.swift */,
 				GRP_EXPORT /* Export */,
 				GRP_FOUNDATION /* Foundation */,
-				GRP_PERSISTENCE /* Persistence */,
+				GRP_LEGACY /* Legacy */,
 				GRP_SERVICES /* Services */,
 				GRP_STORAGE /* Storage */,
 				GRP_VIEWS /* Views */,
@@ -527,7 +526,6 @@
 			isa = PBXGroup;
 			children = (
 				C5347FFF5FFC1A4A33C32C8D /* AutoExportService.swift */,
-				F90DAD707525490DB491F5EA /* CSVExporter.swift */,
 			);
 			path = Export;
 			sourceTree = "<group>";
@@ -541,6 +539,16 @@
 			path = Foundation;
 			sourceTree = "<group>";
 		};
+		GRP_LEGACY /* Legacy */ = {
+			isa = PBXGroup;
+			children = (
+				B0DBB25F0B4C46EAAFB4205A /* LegacyPersistentStore.swift */,
+				F90DAD707525490DB491F5EA /* LegacyCSVExporter.swift */,
+				6CFBD921F6074479AF4FF155 /* LegacyJSONMigrator.swift */,
+			);
+			path = Legacy;
+			sourceTree = "<group>";
+		};
 		GRP_HISTORY /* History */ = {
 			isa = PBXGroup;
 			children = (
@@ -550,15 +558,6 @@
 				HIS102 /* HistorySessionListViews.swift */,
 			);
 			path = History;
-			sourceTree = "<group>";
-		};
-		GRP_PERSISTENCE /* Persistence */ = {
-			isa = PBXGroup;
-			children = (
-				B0DBB25F0B4C46EAAFB4205A /* PersistentStore.swift */,
-				42C70AB54EEE44A19DF24685 /* FetchHelpers.swift */,
-			);
-			path = Persistence;
 			sourceTree = "<group>";
 		};
 		GRP_SERVICES /* Services */ = {
@@ -591,7 +590,6 @@
 				SRQ103 /* SessionRepositoryCheckIn.swift */,
 				SRQ104 /* SessionRepositorySchedule.swift */,
 				SRQ106 /* SessionRepositorySync.swift */,
-				6CFBD921F6074479AF4FF155 /* JSONMigrator.swift */,
 				FCC2762A054AE377C80CF2B0 /* EncryptedEventStorage.swift */,
 			);
 			path = Storage;
