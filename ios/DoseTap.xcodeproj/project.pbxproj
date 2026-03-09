@@ -27,6 +27,8 @@
 		54E3599B814B4ACFBD87EA6B /* FullApp/SetupWizardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CB34E7F86084B24991BD7CA /* FullApp/SetupWizardView.swift */; };
 		5A7A4083ACC81A0C1659AF4B /* NightComparisonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B909173F1168B426E065A13A /* NightComparisonView.swift */; };
 		626911F284B24C54BA73D7F8 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B358CDCA949364F93BD996D6 /* SettingsView.swift */; };
+		SET001 /* SettingsSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = SET101 /* SettingsSections.swift */; };
+		SET002 /* SettingsActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = SET102 /* SettingsActions.swift */; };
 		68B3DB1D97734922B659 /* SleepPlanDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 576700D19A9F4B35BA54 /* SleepPlanDetailView.swift */; };
 		74CB1E6BE7206ADBD4DD9C7F /* DoseTapIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDD477019FF746C3DB7E7EE7 /* DoseTapIntents.swift */; };
 		75396BE379F85EF05DC1AEE6 /* WHOOPDataFetching.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67D4EB39451985378B4E5D61 /* WHOOPDataFetching.swift */; };
@@ -109,6 +111,8 @@
 		PSL005 /* PreSleepLogBodySubstancesCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = PSL006 /* PreSleepLogBodySubstancesCard.swift */; };
 		PSL007 /* PreSleepLogActivityNapsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = PSL008 /* PreSleepLogActivityNapsCard.swift */; };
 		SST001 /* SleepStageTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = SST002 /* SleepStageTimeline.swift */; };
+		SST003 /* SleepStageTimelineModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = SST004 /* SleepStageTimelineModels.swift */; };
+		SST005 /* SleepStageTimelineCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = SST006 /* SleepStageTimelineCards.swift */; };
 		SSV001 /* SessionSupportViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = SSV002 /* SessionSupportViews.swift */; };
 		SVS_BF01 /* HealthKitSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SVS_FR01 /* HealthKitSettingsView.swift */; };
 		SVS_BF02 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SVS_FR02 /* AboutView.swift */; };
@@ -207,6 +211,8 @@
 		B0DBB25F0B4C46EAAFB4205A /* PersistentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistentStore.swift; sourceTree = "<group>"; };
 		B1CBF59D219929011DD8A4A8 /* InputValidator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InputValidator.swift; sourceTree = "<group>"; };
 		B358CDCA949364F93BD996D6 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		SET101 /* SettingsSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSections.swift; sourceTree = "<group>"; };
+		SET102 /* SettingsActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsActions.swift; sourceTree = "<group>"; };
 		B3941DD4936B4FD0BD5A8837 /* MorningCheckInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckInView.swift; sourceTree = "<group>"; };
 		MCI101 /* MorningCheckInModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckInModels.swift; sourceTree = "<group>"; };
 		MCI102 /* MorningCheckInViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckInViewModel.swift; sourceTree = "<group>"; };
@@ -277,6 +283,8 @@
 		PSL006 /* PreSleepLogBodySubstancesCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreSleepLogBodySubstancesCard.swift; sourceTree = "<group>"; };
 		PSL008 /* PreSleepLogActivityNapsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreSleepLogActivityNapsCard.swift; sourceTree = "<group>"; };
 		SST002 /* SleepStageTimeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepStageTimeline.swift; sourceTree = "<group>"; };
+		SST004 /* SleepStageTimelineModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepStageTimelineModels.swift; sourceTree = "<group>"; };
+		SST006 /* SleepStageTimelineCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepStageTimelineCards.swift; sourceTree = "<group>"; };
 		SSV002 /* SessionSupportViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionSupportViews.swift; sourceTree = "<group>"; };
 		SVS_FR01 /* HealthKitSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitSettingsView.swift; sourceTree = "<group>"; };
 		SVS_FR02 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
@@ -416,6 +424,8 @@
 				6FEE161A09D6441A8D4448DA /* InsightsCalculator.swift */,
 				D049AFCF96FC4AFF9120309E /* Secrets.swift */,
 				B358CDCA949364F93BD996D6 /* SettingsView.swift */,
+				SET101 /* SettingsSections.swift */,
+				SET102 /* SettingsActions.swift */,
 				SVS_FR01 /* HealthKitSettingsView.swift */,
 				SVS_FR02 /* AboutView.swift */,
 				SVS_FR03 /* EventCooldownSettingsView.swift */,
@@ -427,6 +437,8 @@
 				BACAE6FF95D948B09DD2 /* SleepPlanDetailView.swift */,
 				2980209556A04B5F8CE5 /* DiagnosticLoggingSettingsView.swift */,
 				SST002 /* SleepStageTimeline.swift */,
+				SST004 /* SleepStageTimelineModels.swift */,
+				SST006 /* SleepStageTimelineCards.swift */,
 				15C51DD55054436BA1B68CD7 /* SupportBundleExport.swift */,
 				12B2779FB31708024300E8E5 /* TimeIntervalMath.swift */,
 				D565C0B5A1804860B23307B9 /* URLRouter.swift */,
@@ -807,6 +819,8 @@
 				BC3BD8377E674DB98BB83F35 /* InsightsCalculator.swift in Sources */,
 				HK001 /* HealthKitService.swift in Sources */,
 				SST001 /* SleepStageTimeline.swift in Sources */,
+				SST003 /* SleepStageTimelineModels.swift in Sources */,
+				SST005 /* SleepStageTimelineCards.swift in Sources */,
 				WP001 /* WeeklyPlanner.swift in Sources */,
 				HKP001 /* HealthKitProviding.swift in Sources */,
 				UNDO003 /* UndoSnackbarView.swift in Sources */,
@@ -815,6 +829,8 @@
 				EDIT002 /* EditDoseTimeView.swift in Sources */,
 				0A777B0D5CC54803B060A980 /* UserSettingsManager.swift in Sources */,
 				626911F284B24C54BA73D7F8 /* SettingsView.swift in Sources */,
+				SET001 /* SettingsSections.swift in Sources */,
+				SET002 /* SettingsActions.swift in Sources */,
 				SVS_BF01 /* HealthKitSettingsView.swift in Sources */,
 				SVS_BF02 /* AboutView.swift in Sources */,
 				SVS_BF03 /* EventCooldownSettingsView.swift in Sources */,
