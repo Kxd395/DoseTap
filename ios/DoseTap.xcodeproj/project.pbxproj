@@ -57,6 +57,7 @@
 		CAPB001 /* CapturePreviewSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAPF001 /* CapturePreviewSheet.swift */; };
 		CLUST101 /* DashboardModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST001 /* DashboardModels.swift */; };
 		CLUST102 /* DashboardViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST002 /* DashboardViews.swift */; };
+		CLUST105 /* CloudKitSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST005 /* CloudKitSyncService.swift */; };
 		CLUST103 /* TimelineReviewViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST003 /* TimelineReviewViews.swift */; };
 		CLUST104 /* HistoryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST004 /* HistoryViews.swift */; };
 		D2AFCB94D52D4B168AC1CAD6 /* EventLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0E5B5C6E684F7796F9B9FC /* EventLogger.swift */; };
@@ -195,6 +196,7 @@
 		CFF67F0048CFBF2716448CC5 /* FlicButtonService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FlicButtonService.swift; sourceTree = "<group>"; };
 		CLUST001 /* DashboardModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardModels.swift; sourceTree = "<group>"; };
 		CLUST002 /* DashboardViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardViews.swift; sourceTree = "<group>"; };
+		CLUST005 /* CloudKitSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitSyncService.swift; sourceTree = "<group>"; };
 		CLUST003 /* TimelineReviewViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineReviewViews.swift; sourceTree = "<group>"; };
 		CLUST004 /* HistoryViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryViews.swift; sourceTree = "<group>"; };
 		D049AFCF96FC4AFF9120309E /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
@@ -407,6 +409,7 @@
 			children = (
 				CLUST001 /* DashboardModels.swift */,
 				CLUST002 /* DashboardViews.swift */,
+				CLUST005 /* CloudKitSyncService.swift */,
 			);
 			path = Dashboard;
 			sourceTree = "<group>";
@@ -771,6 +774,7 @@
 				1B95E3AD96741FD0E9FED120 /* Secrets.swift in Sources */,
 				CLUST101 /* DashboardModels.swift in Sources */,
 				CLUST102 /* DashboardViews.swift in Sources */,
+				CLUST105 /* CloudKitSyncService.swift in Sources */,
 				CLUST103 /* TimelineReviewViews.swift in Sources */,
 				CLUST104 /* HistoryViews.swift in Sources */,
 			);
