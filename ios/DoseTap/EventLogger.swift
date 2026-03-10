@@ -203,22 +203,13 @@ enum DoseEventDisplay {
 
 enum EventDisplayName {
     static func displayName(for eventType: String) -> String {
-        switch eventType {
-        case "bathroom": return "Bathroom"
-        case "water": return "Water"
-        case "lightsOut", "lights_out": return "Lights Out"
-        case "inBed", "in_bed": return "In Bed"
-        case "wakeFinal", "wake_final": return "Wake Up"
-        case "wakeTemp", "wake_temp": return "Brief Wake"
-        case "anxiety": return "Anxiety"
-        case "pain": return "Pain"
-        case "noise": return "Noise"
-        case "snack": return "Snack"
-        case "dream": return "Dream"
-        case "temperature": return "Temperature"
-        case "heartRacing", "heart_racing": return "Heart Racing"
-        default:
+        // Route through EventType which normalises all raw variants
+        // (e.g. "lightsout", "lights_out", "lightsOut" → .lightsOut)
+        let parsed = EventType(eventType)
+        if case .unknown = parsed {
+            // Fallback for truly unknown strings
             return eventType.replacingOccurrences(of: "_", with: " ").capitalized
         }
+        return parsed.displayName
     }
 }

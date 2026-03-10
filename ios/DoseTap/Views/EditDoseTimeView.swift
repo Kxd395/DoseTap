@@ -219,7 +219,7 @@ struct EditEventTimeView: View {
                         Circle()
                             .fill(Color(hex: event.colorHex ?? "#888888") ?? .gray)
                             .frame(width: 12, height: 12)
-                        Text(event.eventType)
+                        Text(EventDisplayName.displayName(for: event.eventType))
                             .font(.headline)
                     }
                     
@@ -270,7 +270,7 @@ struct EditEventTimeView: View {
                     dismiss()
                 }
             } message: {
-                Text("Change \(event.eventType) time to \(selectedTime.formatted(date: .omitted, time: .shortened))?")
+                Text("Change \(EventDisplayName.displayName(for: event.eventType)) time to \(selectedTime.formatted(date: .omitted, time: .shortened))?")
             }
         }
     }
