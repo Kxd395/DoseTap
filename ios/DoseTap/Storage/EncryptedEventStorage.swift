@@ -1,5 +1,8 @@
 import Foundation
 import SQLite3
+import os.log
+
+private let encryptedStorageLog = Logger(subsystem: "com.dosetap.app", category: "EncryptedEventStorage")
 
 /// Encrypted SQLite database wrapper using SQLCipher-compatible encryption
 /// 
@@ -93,7 +96,7 @@ public final class EncryptedEventStorage {
                 if let version = sqlite3_column_text(statement, 0) {
                     let versionString = String(cString: version)
                     #if DEBUG
-                    print("🔐 SQLCipher version: \(versionString)")
+                    encryptedStorageLog.debug("SQLCipher version: \(versionString, privacy: .public)")
                     #endif
                     isEncrypted = !versionString.isEmpty
                 }
@@ -111,7 +114,7 @@ public final class EncryptedEventStorage {
     public func setEncryptionKey(_ key: Data) throws {
         guard isEncrypted else {
             #if DEBUG
-            print("⚠️ SQLCipher not available - database will not be encrypted")
+            encryptedStorageLog.warning("SQLCipher not available; database will not be encrypted")
             #endif
             return
         }
@@ -124,7 +127,7 @@ public final class EncryptedEventStorage {
         try execute("SELECT count(*) FROM sqlite_master;")
         
         #if DEBUG
-        print("🔐 Database encryption key set successfully")
+        encryptedStorageLog.debug("Database encryption key set successfully")
         #endif
     }
     
@@ -158,7 +161,7 @@ public final class EncryptedEventStorage {
         try execute("DETACH DATABASE plaintext;")
         
         #if DEBUG
-        print("🔐 Database migrated from unencrypted to encrypted format")
+        encryptedStorageLog.debug("Database migrated from unencrypted to encrypted format")
         #endif
     }
     
@@ -338,7 +341,7 @@ public extension EncryptedEventStorage {
             // Fallback: Copy data manually (tables must already exist)
             // This is a simplified approach - full migration would copy schema + data
             #if DEBUG
-            print("⚠️ SQLCipher not available - performing unencrypted copy")
+            encryptedStorageLog.warning("SQLCipher not available; performing unencrypted copy")
             #endif
         }
     }

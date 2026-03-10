@@ -110,36 +110,143 @@ final class SSOTComplianceTests: XCTestCase {
         }
     }
     
+    // MARK: - P0-2: Snooze Disabled in ALL Non-Active Phases
+    // These tests enforce the SSOT snooze invariant: "Snooze is DISABLED in all phases except .active"
+    // P0-2 fix required all surfaces to use DoseWindowContext.snooze enum, not manual count checks.
+    
+    /// SSOT: Snooze DISABLED in .noDose1 phase
+    func testSSOT_snoozeDisabled_noDose1() {
+        let calc = DoseWindowCalculator(now: { Date() })
+        let ctx = calc.context(dose1At: nil, dose2TakenAt: nil, dose2Skipped: false, snoozeCount: 0)
+        XCTAssertEqual(ctx.phase, .noDose1)
+        if case .snoozeDisabled = ctx.snooze { /* expected */ } else {
+            XCTFail("SSOT P0-2: Snooze must be disabled when no Dose 1")
+        }
+    }
+    
+    /// SSOT: Snooze DISABLED in .beforeWindow phase
+    func testSSOT_snoozeDisabled_beforeWindow() {
+        let anchor = Date()
+        let calc = DoseWindowCalculator(now: { anchor.addingTimeInterval(120 * 60) })
+        let ctx = calc.context(dose1At: anchor, dose2TakenAt: nil, dose2Skipped: false, snoozeCount: 0)
+        XCTAssertEqual(ctx.phase, .beforeWindow)
+        if case .snoozeDisabled = ctx.snooze { /* expected */ } else {
+            XCTFail("SSOT P0-2: Snooze must be disabled before window opens")
+        }
+    }
+    
+    /// SSOT: Snooze ENABLED in .active phase when snoozeCount < maxSnoozes
+    func testSSOT_snoozeEnabled_activePhase() {
+        let anchor = Date()
+        let calc = DoseWindowCalculator(now: { anchor.addingTimeInterval(160 * 60) })
+        let ctx = calc.context(dose1At: anchor, dose2TakenAt: nil, dose2Skipped: false, snoozeCount: 0)
+        XCTAssertEqual(ctx.phase, .active)
+        if case .snoozeEnabled(let remaining) = ctx.snooze {
+            XCTAssertGreaterThan(remaining, 0, "Remaining time must be positive")
+        } else {
+            XCTFail("SSOT P0-2: Snooze must be enabled in active phase with snoozes available")
+        }
+    }
+    
+    /// SSOT: Snooze DISABLED in .active phase when snoozeCount >= maxSnoozes
+    func testSSOT_snoozeDisabled_activePhaseSnoozeLimitReached() {
+        let anchor = Date()
+        let calc = DoseWindowCalculator(now: { anchor.addingTimeInterval(160 * 60) })
+        let ctx = calc.context(dose1At: anchor, dose2TakenAt: nil, dose2Skipped: false, snoozeCount: 3)
+        XCTAssertEqual(ctx.phase, .active)
+        if case .snoozeDisabled(let reason) = ctx.snooze {
+            XCTAssertTrue(reason.lowercased().contains("limit"), "Reason should mention limit")
+        } else {
+            XCTFail("SSOT P0-2: Snooze must be disabled when snooze limit reached")
+        }
+    }
+    
+    /// SSOT: Snooze DISABLED in .nearClose phase (< 15 min remaining)
+    func testSSOT_snoozeDisabled_nearClosePhase() {
+        let anchor = Date()
+        let calc = DoseWindowCalculator(now: { anchor.addingTimeInterval(230 * 60) }) // 10 min remaining
+        let ctx = calc.context(dose1At: anchor, dose2TakenAt: nil, dose2Skipped: false, snoozeCount: 0)
+        XCTAssertEqual(ctx.phase, .nearClose)
+        if case .snoozeDisabled = ctx.snooze { /* expected */ } else {
+            XCTFail("SSOT P0-2: Snooze must be disabled when <15 minutes remain")
+        }
+    }
+    
+    /// SSOT: Snooze DISABLED in .closed phase
+    func testSSOT_snoozeDisabled_closedPhase() {
+        let anchor = Date()
+        let calc = DoseWindowCalculator(now: { anchor.addingTimeInterval(250 * 60) })
+        let ctx = calc.context(dose1At: anchor, dose2TakenAt: nil, dose2Skipped: false, snoozeCount: 0)
+        XCTAssertEqual(ctx.phase, .closed)
+        if case .snoozeDisabled = ctx.snooze { /* expected */ } else {
+            XCTFail("SSOT P0-2: Snooze must be disabled when window is closed")
+        }
+    }
+    
+    /// SSOT: Snooze DISABLED in .completed phase
+    func testSSOT_snoozeDisabled_completedPhase() {
+        let anchor = Date()
+        let d2 = anchor.addingTimeInterval(165 * 60)
+        let calc = DoseWindowCalculator(now: { anchor.addingTimeInterval(200 * 60) })
+        let ctx = calc.context(dose1At: anchor, dose2TakenAt: d2, dose2Skipped: false, snoozeCount: 1)
+        XCTAssertEqual(ctx.phase, .completed)
+        if case .snoozeDisabled = ctx.snooze { /* expected */ } else {
+            XCTFail("SSOT P0-2: Snooze must be disabled after completion")
+        }
+    }
+    
+    /// SSOT: Snooze DISABLED in .finalizing phase
+    func testSSOT_snoozeDisabled_finalizingPhase() {
+        let anchor = Date()
+        let d2 = anchor.addingTimeInterval(165 * 60)
+        let wakeTime = anchor.addingTimeInterval(420 * 60)
+        let calc = DoseWindowCalculator(now: { anchor.addingTimeInterval(430 * 60) })
+        let ctx = calc.context(dose1At: anchor, dose2TakenAt: d2, dose2Skipped: false, snoozeCount: 0, wakeFinalAt: wakeTime, checkInCompleted: false)
+        XCTAssertEqual(ctx.phase, .finalizing)
+        if case .snoozeDisabled = ctx.snooze { /* expected */ } else {
+            XCTFail("SSOT P0-2: Snooze must be disabled during finalizing")
+        }
+    }
+    
+    // MARK: - P0-3: Closed Phase Must Not Allow Direct Dose Persistence
+    // Validates the window state supports P0-3 Flic bypass fix
+    
+    /// SSOT: Closed phase has .takeWithOverride (requires explicit confirmation, not auto-persist)
+    func testSSOT_closedPhase_requiresOverride() {
+        let anchor = Date()
+        let calc = DoseWindowCalculator(now: { anchor.addingTimeInterval(250 * 60) })
+        let ctx = calc.context(dose1At: anchor, dose2TakenAt: nil, dose2Skipped: false, snoozeCount: 0)
+        XCTAssertEqual(ctx.phase, .closed)
+        if case .takeWithOverride = ctx.primary { /* expected */ } else {
+            XCTFail("SSOT P0-3: Closed phase must use .takeWithOverride, not .takeNow")
+        }
+    }
+    
+    /// SSOT: Completed phase must have .disabled primary (no second-take via any surface)
+    func testSSOT_completedPhase_primaryDisabled() {
+        let anchor = Date()
+        let d2 = anchor.addingTimeInterval(165 * 60)
+        let calc = DoseWindowCalculator(now: { anchor.addingTimeInterval(200 * 60) })
+        let ctx = calc.context(dose1At: anchor, dose2TakenAt: d2, dose2Skipped: false, snoozeCount: 0)
+        XCTAssertEqual(ctx.phase, .completed)
+        if case .disabled = ctx.primary { /* expected */ } else {
+            XCTFail("SSOT P0-3: Completed phase must have .disabled primary CTA")
+        }
+    }
+    
     // MARK: - GAP D: DoseTapCore Stored State Regression Guard
     
     /// CRITICAL: DoseTapCore must NOT store dose state directly.
     /// All state must flow through SessionRepository to prevent two sources of truth.
     /// If this test fails, it means someone added stored dose state to DoseTapCore.
     func testSSOT_doseTapCore_noStoredDoseState() {
-        // This is a static analysis test - we verify the architecture by ensuring
-        // DoseTapCore's computed properties delegate to sessionRepository.
-        // 
-        // The DoseTapCore class should have:
-        // - var sessionRepository: DoseTapSessionRepository? (required)
-        // - var dose1Time: Date? { get -> sessionRepository?.dose1Time }
-        // - var dose2Time: Date? { get -> sessionRepository?.dose2Time }
-        // - NO @Published var dose1Time
-        // - NO @Published var dose2Time
-        // - NO private var _dose1Time
-        // - NO private var _dose2Time
-        //
-        // This test passes as long as the architecture is correct.
-        // The actual verification is in the source code comments and design.
-        
-        // Create a calculator to verify DoseWindowContext doesn't store state
+        // DoseTapCore's computed properties must delegate to sessionRepository.
+        // NO @Published var dose1Time, NO private var _dose1Time.
+        // DoseWindowCalculator must be stateless - same calculator, different inputs → different outputs.
         let calc = DoseWindowCalculator()
-        
-        // Context is computed from parameters, not stored
         let ctx1 = calc.context(dose1At: Date(), dose2TakenAt: nil, dose2Skipped: false, snoozeCount: 0)
         let ctx2 = calc.context(dose1At: nil, dose2TakenAt: nil, dose2Skipped: false, snoozeCount: 0)
-        
-        // Different inputs produce different outputs - proves no internal state
-        XCTAssertNotEqual(ctx1.phase, ctx2.phase, 
+        XCTAssertNotEqual(ctx1.phase, ctx2.phase,
             "DoseWindowCalculator must be stateless - same calculator, different inputs, different outputs")
     }
     

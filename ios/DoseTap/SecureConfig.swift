@@ -83,9 +83,10 @@ public final class SecureConfig {
         #if DEBUG
         return Secrets.whoopClientSecret
         #else
-        // In release builds, log warning if falling back to hardcoded
-        logSecurityWarning("WHOOP client secret not found in Keychain or environment")
-        return Secrets.whoopClientSecret
+        // In release builds, NEVER fall through to hardcoded Secrets.swift.
+        // Return empty string and let isConfigured gate API calls.
+        logSecurityWarning("WHOOP client secret not found in Keychain or environment — configure before release")
+        return ""
         #endif
     }
     
@@ -113,8 +114,12 @@ public final class SecureConfig {
     
     /// Check if secrets are properly configured for the current environment
     public var isConfigured: Bool {
+        !whoopClientID.isEmpty &&
+        !whoopClientSecret.isEmpty &&
+        !whoopRedirectURI.isEmpty &&
         !whoopClientID.contains("YOUR_") &&
-        !whoopClientSecret.contains("YOUR_")
+        !whoopClientSecret.contains("YOUR_") &&
+        !whoopRedirectURI.contains("YOUR_")
     }
     
     /// Validate configuration at app launch
@@ -146,7 +151,7 @@ public final class SecureConfig {
         #if canImport(OSLog)
         logger.warning("⚠️ Security: \(message, privacy: .public)")
         #else
-        print("⚠️ Security: \(message)")
+        NSLog("⚠️ Security: \(message)")
         #endif
     }
 }

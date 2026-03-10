@@ -1,0 +1,376 @@
+[
+  {
+    "id": "SEC-001",
+    "pillar": "Security",
+    "severity": "P0",
+    "title": "WHOOP Client Secret #1 in git history",
+    "description": "64-char hex WHOOP OAuth client secret (0aca5c56...) committed in 11 files across git history. 2 files still on HEAD. Secret must be rotated.",
+    "evidence": [
+      "gitleaks finding: ios/DoseTap/WHOOPService.swift:21 (commit 28cb0a0)",
+      "gitleaks finding: tools/whoop_*.py (6 files, commit dd70570)",
+      "gitleaks finding: docs/*RED_TEAM_AUDIT*.md (2 files)",
+      "Still on HEAD: docs/archive/audits_2026-01/RED_TEAM_AUDIT_2026-01-02.md:33"
+    ],
+    "fix": "1) Rotate at developer.whoop.com 2) Redact archive doc 3) BFG purge history",
+    "status": "open",
+    "phase": 0
+  },
+  {
+    "id": "SEC-002",
+    "pillar": "Security",
+    "severity": "P0",
+    "title": "WHOOP Client Secret #2 in git history",
+    "description": "64-char hex WHOOP OAuth client secret (7f0faa28...) committed in test_whoop_api.sh. File deleted from HEAD but secret remains in history.",
+    "evidence": [
+      "gitleaks finding: test_whoop_api.sh:12 (commit 06a4070, 2025-09-04)"
+    ],
+    "fix": "1) Rotate at developer.whoop.com (if still active) 2) BFG purge history",
+    "status": "open",
+    "phase": 0
+  },
+  {
+    "id": "SEC-003",
+    "pillar": "Security",
+    "severity": "P1",
+    "title": "Archive audit doc still contains plaintext secret on HEAD",
+    "description": "docs/archive/audits_2026-01/RED_TEAM_AUDIT_2026-01-02.md line 33 contains WHOOP client secret in a code example.",
+    "evidence": [
+      "grep match: static let whoopClientSecret = \"0aca5c56...\" at line 33"
+    ],
+    "fix": "Replace secret value with REDACTED in the archive doc",
+    "status": "open",
+    "phase": 0
+  },
+  {
+    "id": "SEC-004",
+    "pillar": "Security",
+    "severity": "P1",
+    "title": ".gitignore missing 7 sensitive file patterns",
+    "description": "Only Secrets.swift is covered. Missing: *.p12, *.pem, *.key, .env, .env.*, *.mobileprovision, *.xcarchive",
+    "evidence": [
+      "grep of .gitignore for each pattern"
+    ],
+    "fix": "Add all 7 missing patterns to .gitignore",
+    "status": "open",
+    "phase": 0
+  },
+  {
+    "id": "HYG-001",
+    "pillar": "Hygiene",
+    "severity": "P1",
+    "title": ".cache_ggshield tracked in git",
+    "description": "Root .cache_ggshield file is git-tracked and contains ggshield secret scan cache with a hash value.",
+    "evidence": ["git ls-files .cache_ggshield returns file; contents show last_found_secrets JSON"],
+    "fix": "Add .cache_ggshield to .gitignore and git rm --cached .cache_ggshield",
+    "status": "open",
+    "phase": 1
+  },
+  {
+    "id": "HYG-002",
+    "pillar": "Hygiene",
+    "severity": "P2",
+    "title": "Duplicate CSVExporter.swift (different implementations)",
+    "description": "ios/Core/CSVExporter.swift (176 LOC, platform-free) and ios/DoseTap/Export/CSVExporter.swift (48 LOC, CoreData) share same filename.",
+    "evidence": ["git ls-files shows both; head -10 shows different structs/enums"],
+    "fix": "Rename app version to EventCSVExporter.swift or consolidate",
+    "status": "open",
+    "phase": 1
+  },
+  {
+    "id": "HYG-003",
+    "pillar": "Hygiene",
+    "severity": "P2",
+    "title": "Duplicate TimeIntervalMath.swift (diverged copies)",
+    "description": "ios/Core/TimeIntervalMath.swift (54 LOC) and ios/DoseTap/TimeIntervalMath.swift (46 LOC) are different files with same name.",
+    "evidence": ["diff shows files are DIFFERENT; Core version is canonical"],
+    "fix": "Delete app copy; import from DoseCore instead",
+    "status": "open",
+    "phase": 1
+  },
+  {
+    "id": "HYG-004",
+    "pillar": "Hygiene",
+    "severity": "P2",
+    "title": "Orphan ios/DoseTap/Package.swift",
+    "description": "Embedded Package.swift defines ios/DoseTap as its own SwiftPM package with path:'.'. Conflicts with root Package.swift.",
+    "evidence": ["cat ios/DoseTap/Package.swift shows standalone package definition"],
+    "fix": "Remove or .gitignore. Root Package.swift is authoritative.",
+    "status": "open",
+    "phase": 1
+  },
+  {
+    "id": "HYG-005",
+    "pillar": "Hygiene",
+    "severity": "P2",
+    "title": "docs/archive bloat (72 tracked files)",
+    "description": "72 tracked files in docs/archive/, mostly 2025-12 audit session logs. Historical ballast.",
+    "evidence": ["git ls-files docs/archive/ | wc -l returns 72"],
+    "fix": "Move to archive branch or trim to essentials",
+    "status": "open",
+    "phase": 1
+  },
+  {
+    "id": "HYG-006",
+    "pillar": "Hygiene",
+    "severity": "P3",
+    "title": "Untracked archive/ directory",
+    "description": "75 files on disk in root archive/, 0 tracked. Local-only reference material.",
+    "evidence": ["find archive/ -type f | wc -l = 75; git ls-files archive/ | wc -l = 0"],
+    "fix": "Awareness only — appears intentional",
+    "status": "info",
+    "phase": 1
+  },
+  {
+    "id": "HYG-007",
+    "pillar": "Hygiene",
+    "severity": "P3",
+    "title": "shadcn-ui/ abandoned directory",
+    "description": "shadcn-ui/ has config files on disk but 0 tracked files. Abandoned web UI experiment.",
+    "evidence": ["git ls-files shadcn-ui/ returns empty"],
+    "fix": "Remove directory or .gitignore explicitly",
+    "status": "open",
+    "phase": 1
+  },
+  {
+    "id": "HYG-008",
+    "pillar": "Hygiene",
+    "severity": "P3",
+    "title": "SwiftLint includes non-existent ios/AppMinimal",
+    "description": ".swiftlint.yml includes ios/AppMinimal which does not exist. Silently ignored.",
+    "evidence": ["grep ios/AppMinimal .swiftlint.yml; ls ios/AppMinimal not found"],
+    "fix": "Remove entry from .swiftlint.yml",
+    "status": "open",
+    "phase": 1
+  },
+  {
+    "id": "COR-001",
+    "pillar": "Correctness",
+    "severity": "P2",
+    "title": "SleepEventType/EventType split-brain",
+    "description": "Core SleepEventType has 13 cases. App EventType has 26+ cases including napStart/napEnd which are missing from Core. Potential for missed routing if Core ever needs nap events.",
+    "evidence": ["ios/Core/SleepEventType.swift: 13 cases", "ios/DoseTap/Models/EventType.swift: 26+ cases including napStart, napEnd"],
+    "fix": "Add napStart/napEnd to SleepEventType or document the intentional split",
+    "status": "open",
+    "phase": 2
+  },
+  {
+    "id": "COR-002",
+    "pillar": "Correctness",
+    "severity": "P2",
+    "title": "URLRouter bypasses DoseTapCore for extra doses",
+    "description": "URLRouter ~line 200 calls SessionRepository.shared.saveDose2(timestamp:isExtraDose:true) directly instead of going through DoseTapCore facade. Channel parity violation for extra dose path.",
+    "evidence": ["ios/DoseTap/Navigation/URLRouter.swift: direct SessionRepository.shared.saveDose2 call"],
+    "fix": "Route extra dose through DoseTapCore.shared like normal dose path",
+    "status": "open",
+    "phase": 2
+  },
+  {
+    "id": "COR-003",
+    "pillar": "Correctness",
+    "severity": "P3",
+    "title": "EventType congestion/grogginess misleading naming",
+    "description": "EventType.congestion and EventType.grogginess are check-in display fields, not loggable sleep events, but sit alongside actual sleep events in the enum.",
+    "evidence": ["ios/DoseTap/Models/EventType.swift: congestion/grogginess cases"],
+    "fix": "Consider separating into CheckInField enum or adding doc comments",
+    "status": "open",
+    "phase": 2
+  },
+  {
+    "id": "SEC-005",
+    "pillar": "Security",
+    "severity": "P2",
+    "title": "CloudKit entitlement present but no implementation",
+    "description": "DoseTap.entitlements includes com.apple.developer.icloud-container-identifiers and com.apple.developer.icloud-services with CloudKit. Zero CKContainer/CKRecord/CKDatabase imports. SSOT says 'Cloud sync: not implemented'.",
+    "evidence": ["ios/DoseTap/DoseTap.entitlements: icloud-services = CloudKit", "grep -rn CKContainer ios/ = 0 results"],
+    "fix": "Remove CloudKit entitlement to reduce attack surface and app review questions",
+    "status": "open",
+    "phase": 3
+  },
+  {
+    "id": "SEC-006",
+    "pillar": "Security",
+    "severity": "P1",
+    "title": "Missing privacy manifest (PrivacyInfo.xcprivacy)",
+    "description": "Apple requires PrivacyInfo.xcprivacy since Spring 2024 for apps using UserDefaults, file timestamps, HealthKit. No manifest found in the project.",
+    "evidence": ["find ios/ -name 'PrivacyInfo*' = 0 results", "App uses UserDefaults (SecureConfig), HealthKit (HKHealthStore)"],
+    "fix": "Create PrivacyInfo.xcprivacy declaring NSPrivacyAccessedAPITypes for UserDefaults and HealthKit",
+    "status": "open",
+    "phase": 3
+  },
+  {
+    "id": "CICD-001",
+    "pillar": "CI/CD",
+    "severity": "P2",
+    "title": "Overlapping SwiftPM jobs across workflows",
+    "description": "ci.yml swiftpm-tests and ci-swift.yml build-and-test both trigger on PRs and both run swift build + swift test. Every PR runs the full SwiftPM suite twice. ci.yml version is strictly more comprehensive (3 TZ, 4 guards, suite verification).",
+    "evidence": ["ci.yml: swiftpm-tests with 3 TZ runs", "ci-swift.yml: build-and-test with 1 TZ run"],
+    "fix": "Remove build-and-test from ci-swift.yml; consolidate test summary into ci.yml",
+    "status": "open",
+    "phase": 4
+  },
+  {
+    "id": "CICD-002",
+    "pillar": "CI/CD",
+    "severity": "P2",
+    "title": "Overlapping Xcode build jobs across workflows",
+    "description": "ci.yml xcode-tests (build+test) and ci-swift.yml xcode-build (build-only) both trigger on PRs. Duplicate Xcode compilation. ci.yml does strictly more.",
+    "evidence": ["ci.yml: xcode-tests with simulator tests", "ci-swift.yml: xcode-build (build only, no tests)"],
+    "fix": "Remove xcode-build from ci-swift.yml or gate to only run when ci.yml is not triggered",
+    "status": "open",
+    "phase": 4
+  },
+  {
+    "id": "CICD-003",
+    "pillar": "CI/CD",
+    "severity": "P2",
+    "title": "Inconsistent runner versions across workflows",
+    "description": "ci.yml uses macos-latest (all 5 jobs). ci-swift.yml mixes macos-latest (build-and-test) with macos-14 (storage-enforcement, print-ban, xcode-build). Different Xcode/Swift versions between runners.",
+    "evidence": ["ci.yml: runs-on: macos-latest", "ci-swift.yml: 3 jobs on macos-14, 1 on macos-latest"],
+    "fix": "Standardize all jobs on macos-latest or pin a consistent version",
+    "status": "open",
+    "phase": 4
+  },
+  {
+    "id": "CICD-004",
+    "pillar": "CI/CD",
+    "severity": "P3",
+    "title": "No concurrency group on ci-swift.yml",
+    "description": "ci.yml has concurrency: ci-${{ github.ref }} with cancel-in-progress. ci-swift.yml has no concurrency config. Rapid PR updates stack redundant runs.",
+    "evidence": ["ci.yml: concurrency group present", "ci-swift.yml: no concurrency block"],
+    "fix": "Add matching concurrency group to ci-swift.yml",
+    "status": "open",
+    "phase": 4
+  },
+  {
+    "id": "CICD-005",
+    "pillar": "CI/CD",
+    "severity": "P3",
+    "title": "Pre-commit hook not auto-installed",
+    "description": "Hook requires manual git config core.hooksPath .githooks. Documented only in hook file header. New contributors may work without local safety net.",
+    "evidence": [".githooks/pre-commit header: '# Install: git config core.hooksPath .githooks'"],
+    "fix": "Add setup.sh or Makefile target; document in README",
+    "status": "open",
+    "phase": 4
+  },
+  {
+    "id": "CICD-006",
+    "pillar": "CI/CD",
+    "severity": "P3",
+    "title": "ci-docs.yml path filter may miss code-driven SSOT breaks",
+    "description": "ci-docs.yml only triggers on docs/** changes. Code changes modifying constants won't trigger markdown link check or OpenAPI validation. Partially mitigated by ci.yml ssot-lint job.",
+    "evidence": ["ci-docs.yml: paths: 'docs/**'"],
+    "fix": "Consider adding ios/Core/** to trigger paths or consolidate into ci.yml",
+    "status": "info",
+    "phase": 4
+  },
+  {
+    "id": "CICD-007",
+    "pillar": "CI/CD",
+    "severity": "P3",
+    "title": "ggshield absent from local and CI toolchain",
+    "description": ".cache_ggshield tracked (HYG-001) suggests past use. ggshield not installed locally, not in any CI workflow, not in pre-commit hook. No automated secret scanning tool in pipeline.",
+    "evidence": ["command -v ggshield fails", "grep -r ggshield .github/workflows/ = 0", ".githooks/pre-commit has no ggshield step"],
+    "fix": "Re-add gitleaks/ggshield to CI or document intentional removal. Remove .cache_ggshield (cross-ref HYG-001)",
+    "status": "open",
+    "phase": 4
+  },
+  {
+    "id": "DX-001",
+    "pillar": "DX",
+    "severity": "P2",
+    "title": "Secrets.swift setup not documented; blocks Xcode build for new devs",
+    "description": "Secrets.swift is gitignored. New devs must discover Secrets.template.swift exists and copy it. Not documented in README or TESTING_GUIDE.",
+    "evidence": ["grep -in 'Secrets|template' README.md = not found", "ios/DoseTap/Secrets.template.swift exists"],
+    "fix": "Document in README Quick Start and add to make setup target",
+    "status": "open",
+    "phase": 5
+  },
+  {
+    "id": "DX-002",
+    "pillar": "DX",
+    "severity": "P2",
+    "title": "Pre-commit hook requires manual activation; not documented in README",
+    "description": "Hook at .githooks/pre-commit is robust (5 checks) but requires manual git config core.hooksPath .githooks. Not mentioned in README.",
+    "evidence": ["grep -in 'pre-commit|hooksPath|githooks' README.md = not found"],
+    "fix": "Document in README and add to make setup target",
+    "status": "open",
+    "phase": 5
+  },
+  {
+    "id": "DX-003",
+    "pillar": "DX",
+    "severity": "P3",
+    "title": "swift test SIGTSTP workaround only in TESTING_GUIDE, not README",
+    "description": "The script -q workaround for terminal SIGTSTP is documented in TESTING_GUIDE (line 21-22) but not in README Quick Start.",
+    "evidence": ["docs/TESTING_GUIDE.md:21-22 has workaround", "README.md does not mention it"],
+    "fix": "Add note to README or wrap in Makefile test target",
+    "status": "open",
+    "phase": 5
+  },
+  {
+    "id": "DX-004",
+    "pillar": "DX",
+    "severity": "P3",
+    "title": "No 'which build system?' guidance in README",
+    "description": "Two build systems (SwiftPM for core logic, Xcode for app) without guidance on when to use which.",
+    "evidence": ["README.md shows both swift build and open xcodeproj but no explanation"],
+    "fix": "Add 'Which build system?' section to README",
+    "status": "open",
+    "phase": 5
+  },
+  {
+    "id": "DX-005",
+    "pillar": "DX",
+    "severity": "P2",
+    "title": "No setup automation (Makefile/justfile/setup.sh)",
+    "description": "No one-command setup exists. Checked: Makefile, justfile, setup.sh, bootstrap.sh, Brewfile, .tool-versions, .swift-version, .xcode-version, Mintfile — all missing.",
+    "evidence": ["ls of all setup artifact names = all missing"],
+    "fix": "Create Makefile with setup, build, test, lint, clean, xcode, ci targets",
+    "status": "open",
+    "phase": 5
+  },
+  {
+    "id": "DX-006",
+    "pillar": "DX",
+    "severity": "P3",
+    "title": "README missing prerequisites (Xcode, macOS, Swift versions)",
+    "description": "README does not list required Xcode version, macOS version, or Swift version.",
+    "evidence": ["grep -in 'xcode|prerequisite|require|macOS|swift.*version' README.md = only line 33-34 (open xcodeproj)"],
+    "fix": "Add prerequisites section to README",
+    "status": "open",
+    "phase": 5
+  },
+  {
+    "id": "DX-007",
+    "pillar": "DX",
+    "severity": "P3",
+    "title": "12 orphan Python scripts in ios/ root (one-time migration tools)",
+    "description": "ios/ contains 12+ Python scripts (add_assets_catalog.py, fix_project.py, etc.) that were one-time migration tools. No longer needed.",
+    "evidence": ["find ios/ -maxdepth 1 -name '*.py' lists 12+ files"],
+    "fix": "Archive to tools/archive/ or delete",
+    "status": "open",
+    "phase": 5
+  },
+  {
+    "id": "DX-008",
+    "pillar": "DX",
+    "severity": "P3",
+    "title": "No .swift-version or .xcode-version for environment standardization",
+    "description": "No .swift-version (for swiftenv) or .xcode-version (for xcodes) files. Contributors may use different tool versions.",
+    "evidence": ["ls .swift-version .xcode-version = not found"],
+    "fix": "Add .swift-version file with current Swift version",
+    "status": "open",
+    "phase": 5
+  },
+  {
+    "id": "DEBT-001",
+    "pillar": "Strategy",
+    "severity": "P0",
+    "title": "Total identified debt: 33 items. ~27h to clear Top 20",
+    "description": "Audit identified 33 findings (2 P0, 6 P1, 14 P2, 11 P3). Top 20 backlog estimated at ~27 hours (~3.5 dev-days). Ranked by ROI in 07_strategy_tech_debt.md.",
+    "evidence": ["Aggregation of all phase findings"],
+    "fix": "Execute Top 20 backlog per priority order in 07_strategy_tech_debt.md",
+    "status": "open",
+    "phase": 6
+  }
+]

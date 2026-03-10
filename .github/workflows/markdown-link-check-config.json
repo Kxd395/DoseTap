@@ -5,6 +5,15 @@
     },
     {
       "pattern": "^https://localhost"
+    },
+    {
+      "pattern": "^http://_vscodecontentref_"
+    },
+    {
+      "pattern": "^https://api-dev\\.dosetap\\.com"
+    },
+    {
+      "pattern": "^https://api\\.dosetap\\.com"
     }
   ],
   "replacementPatterns": [

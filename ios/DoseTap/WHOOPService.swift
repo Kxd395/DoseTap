@@ -3,6 +3,8 @@ import Combine
 import SwiftUI
 import AuthenticationServices
 import Security
+import CryptoKit
+import os
 
 /// WHOOP Integration Service for sleep and recovery data
 /// Implements OAuth 2.0 authorization flow and API data fetching
@@ -13,23 +15,32 @@ import Security
 final class WHOOPService: NSObject, ObservableObject {
     
     static let shared = WHOOPService()
-    static let isEnabled: Bool = false  // Disabled by default until hardened
+    
+    /// Feature gate: enabled when the user has opted in via Settings or successfully connected.
+    /// Previously hardcoded `false`; now reads the user's preference so that connecting
+    /// WHOOP in Settings automatically unlocks data flow across Dashboard, NightReview, and Timeline.
+    static var isEnabled: Bool {
+        UserDefaults.standard.bool(forKey: "whoop_enabled")
+    }
+    
+    private static let logger = Logger(subsystem: "com.dosetap", category: "WHOOP")
     
     // MARK: - Configuration
     
     /// WHOOP API OAuth Configuration
     /// Register at: https://developer-dashboard.whoop.com
     private struct Config {
-        static let clientId = "edf2495a-adff-4b87-b845-9529051a7b39"
-        static let clientSecret = "0aca5c56ec53b210260d85ac24cf57ced13dc4b4e77cbf7cf2ca20b7d3a9ed9e"
-        static let redirectURI = "dosetap://whoop/callback"
         static let apiHostname = "https://api.prod.whoop.com"
         static let authURL = "https://api.prod.whoop.com/oauth/oauth2/auth"
         static let tokenURL = "https://api.prod.whoop.com/oauth/oauth2/token"
-        
+
         // Required scopes for sleep data
         static let scopes = ["read:recovery", "read:sleep", "read:cycles", "read:profile"]
     }
+
+    private var clientID: String { SecureConfig.shared.whoopClientID }
+    private var clientSecret: String { SecureConfig.shared.whoopClientSecret }
+    private var redirectURI: String { SecureConfig.shared.whoopRedirectURI }
     
     // MARK: - Keychain Keys
     
@@ -58,32 +69,68 @@ final class WHOOPService: NSObject, ObservableObject {
     
     private var webAuthSession: ASWebAuthenticationSession?
     
+    // MARK: - PKCE (P0-6)
+    
+    /// Transient code verifier — lives only during a single auth flow
+    private var codeVerifier: String?
+    
+    /// Generate a cryptographically random PKCE code verifier (43-128 chars, unreserved chars)
+    private static func generateCodeVerifier() -> String {
+        var bytes = [UInt8](repeating: 0, count: 32)
+        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        return Data(bytes)
+            .base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+    }
+    
+    /// Derive S256 code challenge from a code verifier
+    private static func codeChallenge(from verifier: String) -> String {
+        let data = Data(verifier.utf8)
+        let hash = SHA256.hash(data: data)
+        return Data(hash)
+            .base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+    }
+    
     // MARK: - Initialization
     
     private override init() {
         super.init()
         loadTokensFromKeychain()
         updateConnectionState()
+        UserDefaults.standard.set(isConnected, forKey: "whoop_enabled")
     }
     
     // MARK: - Public API
     
     /// Start OAuth authorization flow
     func authorize() async throws {
+        Self.logger.info("Starting WHOOP OAuth authorization")
         isLoading = true
         lastError = nil
-        
+
         defer { isLoading = false }
         
-        // Build authorization URL
+        // PKCE: Generate code verifier and challenge
+        let verifier = Self.generateCodeVerifier()
+        codeVerifier = verifier
+        let challenge = Self.codeChallenge(from: verifier)
+        
+        // Build authorization URL with PKCE
         let state = UUID().uuidString
         var components = URLComponents(string: Config.authURL)!
         components.queryItems = [
             URLQueryItem(name: "response_type", value: "code"),
-            URLQueryItem(name: "client_id", value: Config.clientId),
-            URLQueryItem(name: "redirect_uri", value: Config.redirectURI),
+            URLQueryItem(name: "client_id", value: clientID),
+            URLQueryItem(name: "redirect_uri", value: redirectURI),
             URLQueryItem(name: "scope", value: Config.scopes.joined(separator: " ")),
-            URLQueryItem(name: "state", value: state)
+            URLQueryItem(name: "state", value: state),
+            URLQueryItem(name: "code_challenge", value: challenge),
+            URLQueryItem(name: "code_challenge_method", value: "S256")
         ]
         
         guard let authURL = components.url else {
@@ -118,17 +165,7 @@ final class WHOOPService: NSObject, ObservableObject {
             webAuthSession?.start()
         }
         
-        // Parse authorization code from callback
-        guard let components = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false),
-              let code = components.queryItems?.first(where: { $0.name == "code" })?.value else {
-            throw WHOOPError.noAuthCode
-        }
-        
-        // Verify state matches
-        if let returnedState = components.queryItems?.first(where: { $0.name == "state" })?.value,
-           returnedState != state {
-            throw WHOOPError.stateMismatch
-        }
+        let code = try Self.validateAuthorizationCallback(callbackURL, expectedState: state)
         
         // Exchange code for tokens
         try await exchangeCodeForTokens(code: code)
@@ -138,12 +175,16 @@ final class WHOOPService: NSObject, ObservableObject {
         
         updateConnectionState()
         
+        // Auto-enable WHOOP integration in user settings on successful connect
+        UserDefaults.standard.set(true, forKey: "whoop_enabled")
+        
         // Track analytics
         AnalyticsService.shared.track(.whoopConnected)
     }
-    
+
     /// Disconnect and clear tokens
     func disconnect() {
+        Self.logger.info("Disconnecting WHOOP — clearing tokens")
         clearTokensFromKeychain()
         accessToken = nil
         refreshToken = nil
@@ -151,6 +192,9 @@ final class WHOOPService: NSObject, ObservableObject {
         userProfile = nil
         lastSyncTime = nil
         updateConnectionState()
+        
+        // Auto-disable WHOOP integration in user settings on disconnect
+        UserDefaults.standard.set(false, forKey: "whoop_enabled")
         
         AnalyticsService.shared.track(.whoopDisconnected)
     }
@@ -167,18 +211,41 @@ final class WHOOPService: NSObject, ObservableObject {
     
     // MARK: - Token Exchange
     
+    static func validateAuthorizationCallback(_ callbackURL: URL, expectedState: String) throws -> String {
+        guard let components = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false),
+              let code = components.queryItems?.first(where: { $0.name == "code" })?.value else {
+            throw WHOOPError.noAuthCode
+        }
+        
+        guard let returnedState = components.queryItems?.first(where: { $0.name == "state" })?.value,
+              returnedState == expectedState else {
+            throw WHOOPError.stateMismatch
+        }
+        
+        return code
+    }
+    
     private func exchangeCodeForTokens(code: String) async throws {
         var request = URLRequest(url: URL(string: Config.tokenURL)!)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         
+        // PKCE + client_secret: WHOOP requires both (confidential client with PKCE)
+        guard let verifier = codeVerifier else {
+            throw WHOOPError.noAuthCode // verifier should always exist during auth flow
+        }
+        
         let body = [
             "grant_type": "authorization_code",
             "code": code,
-            "redirect_uri": Config.redirectURI,
-            "client_id": Config.clientId,
-            "client_secret": Config.clientSecret
+            "redirect_uri": redirectURI,
+            "client_id": clientID,
+            "client_secret": clientSecret,
+            "code_verifier": verifier
         ]
+        
+        // Clear verifier after use — single use per PKCE spec
+        codeVerifier = nil
         
         request.httpBody = body
             .map { "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? $0.value)" }
@@ -213,11 +280,12 @@ final class WHOOPService: NSObject, ObservableObject {
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         
+        // WHOOP requires client_secret for refresh (confidential client)
         let body = [
             "grant_type": "refresh_token",
             "refresh_token": refreshToken,
-            "client_id": Config.clientId,
-            "client_secret": Config.clientSecret
+            "client_id": clientID,
+            "client_secret": clientSecret
         ]
         
         request.httpBody = body
@@ -230,6 +298,7 @@ final class WHOOPService: NSObject, ObservableObject {
         guard let httpResponse = response as? HTTPURLResponse,
               (200..<300).contains(httpResponse.statusCode) else {
             // Refresh token invalid - disconnect
+            Self.logger.warning("WHOOP token refresh failed — disconnecting")
             disconnect()
             throw WHOOPError.refreshFailed
         }
@@ -245,8 +314,8 @@ final class WHOOPService: NSObject, ObservableObject {
     
     // MARK: - API Requests
     
-    /// Make authenticated API request
-    func apiRequest<T: Decodable>(_ endpoint: String, type: T.Type) async throws -> T {
+    /// Make authenticated API request with resilient retry
+    func apiRequest<T: Decodable>(_ endpoint: String, type: T.Type, maxRetries: Int = 2) async throws -> T {
         try await refreshTokenIfNeeded()
         
         guard let token = accessToken else {
@@ -256,34 +325,85 @@ final class WHOOPService: NSObject, ObservableObject {
         var request = URLRequest(url: URL(string: "\(Config.apiHostname)\(endpoint)")!)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw WHOOPError.invalidResponse
-        }
-        
-        guard (200..<300).contains(httpResponse.statusCode) else {
-            if httpResponse.statusCode == 401 {
-                disconnect()
-                throw WHOOPError.notAuthenticated
+        var lastError: Error = WHOOPError.invalidResponse
+        for attempt in 0...maxRetries {
+            if attempt > 0 {
+                // Exponential backoff: 1s, 2s
+                let delay = UInt64(pow(2.0, Double(attempt - 1))) * 1_000_000_000
+                try await Task.sleep(nanoseconds: delay)
+                Self.logger.info("WHOOP API retry attempt \(attempt) for \(endpoint, privacy: .public)")
             }
-            throw WHOOPError.httpError(httpResponse.statusCode)
+            
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
+                
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    throw WHOOPError.invalidResponse
+                }
+                
+                guard (200..<300).contains(httpResponse.statusCode) else {
+                    if httpResponse.statusCode == 401 {
+                        Self.logger.warning("WHOOP 401 — disconnecting")
+                        disconnect()
+                        throw WHOOPError.notAuthenticated
+                    }
+                    if httpResponse.statusCode == 429 || (500..<600).contains(httpResponse.statusCode) {
+                        // Retryable errors
+                        Self.logger.warning("WHOOP \(httpResponse.statusCode) — will retry")
+                        lastError = WHOOPError.httpError(httpResponse.statusCode)
+                        continue
+                    }
+                    throw WHOOPError.httpError(httpResponse.statusCode)
+                }
+                
+                let decoder = Self.makeAPIDecoder()
+                
+                Self.logger.debug("WHOOP API success: \(endpoint, privacy: .public)")
+                return try decoder.decode(T.self, from: data)
+            } catch let error as WHOOPError {
+                throw error  // Don't retry auth/client errors
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                // Network errors are retryable
+                Self.logger.warning("WHOOP network error: \(error.localizedDescription, privacy: .public)")
+                lastError = error
+                continue
+            }
         }
         
+        Self.logger.error("WHOOP API failed after \(maxRetries + 1) attempts: \(endpoint, privacy: .public)")
+        throw lastError
+    }
+
+    static func makeAPIDecoder() -> JSONDecoder {
         let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        decoder.dateDecodingStrategy = .iso8601
-        
-        return try decoder.decode(T.self, from: data)
+        // WHOOP models already declare explicit snake_case CodingKeys.
+        // convertFromSnakeCase breaks those mappings for fields like
+        // cycle_id and stage_summary by transforming payload keys twice.
+        decoder.keyDecodingStrategy = .useDefaultKeys
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let value = try container.decode(String.self)
+            if let date = AppFormatters.parseISO8601Flexible(value) {
+                return date
+            }
+
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Invalid WHOOP ISO-8601 date: \(value)"
+            )
+        }
+        return decoder
     }
     
     /// Fetch user profile
     func fetchUserProfile() async throws {
-        let profile: WHOOPProfile = try await apiRequest("/developer/v1/user/profile/basic", type: WHOOPProfile.self)
+        let profile: WHOOPProfile = try await apiRequest("/developer/v2/user/profile/basic", type: WHOOPProfile.self)
         userProfile = profile
         
         if let userId = profile.userId {
-            saveToKeychain(key: .userId, value: String(userId))
+            saveToKeychain(key: .userId, value: userId)
         }
     }
     
@@ -303,7 +423,7 @@ final class WHOOPService: NSObject, ObservableObject {
             saveToKeychain(key: .refreshToken, value: refresh)
         }
         if let expiry = tokenExpiry {
-            saveToKeychain(key: .tokenExpiry, value: ISO8601DateFormatter().string(from: expiry))
+            saveToKeychain(key: .tokenExpiry, value: AppFormatters.iso8601.string(from: expiry))
         }
     }
     
@@ -311,7 +431,7 @@ final class WHOOPService: NSObject, ObservableObject {
         accessToken = loadFromKeychain(key: .accessToken)
         refreshToken = loadFromKeychain(key: .refreshToken)
         if let expiryString = loadFromKeychain(key: .tokenExpiry) {
-            tokenExpiry = ISO8601DateFormatter().date(from: expiryString)
+            tokenExpiry = AppFormatters.iso8601.date(from: expiryString)
         }
     }
     
@@ -374,79 +494,5 @@ extension WHOOPService: ASWebAuthenticationPresentationContextProviding {
         #else
         return ASPresentationAnchor()
         #endif
-    }
-}
-
-// MARK: - Error Types
-
-enum WHOOPError: LocalizedError {
-    case invalidURL
-    case userCancelled
-    case noCallback
-    case noAuthCode
-    case stateMismatch
-    case invalidResponse
-    case httpError(Int)
-    case apiError(String, String?)
-    case notAuthenticated
-    case noRefreshToken
-    case refreshFailed
-    
-    var errorDescription: String? {
-        switch self {
-        case .invalidURL: return "Invalid WHOOP URL"
-        case .userCancelled: return "Authorization cancelled"
-        case .noCallback: return "No callback received"
-        case .noAuthCode: return "No authorization code received"
-        case .stateMismatch: return "Security state mismatch"
-        case .invalidResponse: return "Invalid server response"
-        case .httpError(let code): return "HTTP error: \(code)"
-        case .apiError(let error, let desc): return desc ?? error
-        case .notAuthenticated: return "Not authenticated with WHOOP"
-        case .noRefreshToken: return "No refresh token available"
-        case .refreshFailed: return "Failed to refresh token"
-        }
-    }
-}
-
-// MARK: - Response Models
-
-struct WHOOPTokenResponse: Codable {
-    let accessToken: String
-    let refreshToken: String?
-    let expiresIn: Int
-    let tokenType: String
-    let scope: String?
-    
-    enum CodingKeys: String, CodingKey {
-        case accessToken = "access_token"
-        case refreshToken = "refresh_token"
-        case expiresIn = "expires_in"
-        case tokenType = "token_type"
-        case scope
-    }
-}
-
-struct WHOOPErrorResponse: Codable {
-    let error: String
-    let errorDescription: String?
-    
-    enum CodingKeys: String, CodingKey {
-        case error
-        case errorDescription = "error_description"
-    }
-}
-
-struct WHOOPProfile: Codable {
-    let userId: Int?
-    let firstName: String?
-    let lastName: String?
-    let email: String?
-    
-    enum CodingKeys: String, CodingKey {
-        case userId = "user_id"
-        case firstName = "first_name"
-        case lastName = "last_name"
-        case email
     }
 }

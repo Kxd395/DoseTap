@@ -1,5 +1,8 @@
 import Foundation
 import System
+#if canImport(OSLog)
+import OSLog
+#endif
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -17,9 +20,8 @@ import UIKit
 /// Thread Safety: Uses actor isolation for all file operations.
 ///
 public actor DiagnosticLogger {
-    
     // MARK: - Singleton
-    
+
     public static let shared = DiagnosticLogger()
     
     // MARK: - Configuration
@@ -31,6 +33,10 @@ public actor DiagnosticLogger {
     /// Monotonically increasing sequence number per session (for forensic reconstruction)
     /// Key: sessionId, Value: last sequence number written
     private var sessionSequence: [String: Int] = [:]
+    
+    /// Session directories observed during the current process lifetime.
+    /// Used as a fallback if directory enumeration fails under restricted environments.
+    private var trackedSessionIds: Set<String> = []
     
     /// Root directory for diagnostics
     private var diagnosticsRoot: URL {
@@ -64,7 +70,7 @@ public actor DiagnosticLogger {
     private init() {
         encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
-        
+
         // Use built-in ISO8601 encoding (thread-safe, no custom closure)
         dateFormatter = ISO8601DateFormatter()
         dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -87,10 +93,12 @@ public actor DiagnosticLogger {
     ) {
         guard isEnabled else { return }
         guard !sessionId.isEmpty else {
-            print("⚠️ DiagnosticLogger: Rejected event \(event.rawValue) - missing session_id")
+            #if canImport(OSLog)
+            Self.logWarning("Rejected event \(event.rawValue) - missing session_id")
+            #endif
             return
         }
-        
+
         var entry = DiagnosticLogEntry(
             ts: Date(),
             level: level,
@@ -117,13 +125,18 @@ public actor DiagnosticLogger {
         }
         
         #if DEBUG
-        print("📋 \(event.rawValue) [\(sessionId)]")
+        #if canImport(OSLog)
+        Self.logDebug("\(event.rawValue) [\(sessionId)]")
+        #endif
         #endif
     }
-    
+
     /// Ensure session metadata is written (call once when session starts)
     public func ensureSessionMetadata(sessionId: String) {
         guard isEnabled else { return }
+        guard ensureDiagnosticsRootExists() else { return }
+        
+        trackedSessionIds.insert(sessionId)
         
         let sessionDir = sessionDirectory(for: sessionId)
         let metaFile = sessionDir.appendingPathComponent("meta.json")
@@ -151,7 +164,9 @@ public actor DiagnosticLogger {
             let data = try encoder.encode(metadata)
             try data.write(to: metaFile)
         } catch {
-            print("⚠️ DiagnosticLogger: Failed to write meta.json: \(error)")
+            #if canImport(OSLog)
+            Self.logWarning("Failed to write meta.json: \(error)")
+            #endif
         }
     }
     
@@ -181,18 +196,24 @@ public actor DiagnosticLogger {
                 try fileManager.copyItem(at: zipReadURL, to: zipURL)
                 success = true
             } catch {
-                print("⚠️ DiagnosticLogger: Failed to copy zip: \(error)")
+                #if canImport(OSLog)
+                Self.logWarning("Failed to copy zip: \(error)")
+                #endif
             }
         }
         
         if coordinatorError != nil {
-            print("⚠️ DiagnosticLogger: Coordinator error: \(coordinatorError!)")
+            #if canImport(OSLog)
+            Self.logWarning("Coordinator error: \(String(describing: coordinatorError!))")
+            #endif
         }
         
         if !success || !fileManager.fileExists(atPath: zipURL.path) {
             // Fallback: if coordinator fails, just return the directory
             // (Some share targets like Files app can handle directories)
-            print("⚠️ DiagnosticLogger: Failed to create zip, returning directory")
+            #if canImport(OSLog)
+            Self.logWarning("Failed to create zip, returning directory")
+            #endif
             return sessionDir
         }
         
@@ -202,21 +223,34 @@ public actor DiagnosticLogger {
         var mutableURL = zipURL
         try? mutableURL.setResourceValues(resourceValues)
         
-        print("✅ DiagnosticLogger: Exported zip to: \(zipURL.path)")
+        #if canImport(OSLog)
+        Self.logNotice("Exported zip to: \(zipURL.path)")
+        #endif
         return zipURL
     }
     
     /// List all available session IDs with diagnostics
     public func availableSessions() -> [String] {
-        guard let contents = try? fileManager.contentsOfDirectory(
-            at: diagnosticsRoot,
-            includingPropertiesForKeys: [.isDirectoryKey]
-        ) else { return [] }
+        guard ensureDiagnosticsRootExists() else {
+            return trackedSessionIds.sorted(by: >)
+        }
         
-        return contents
-            .filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
-            .map { $0.lastPathComponent }
-            .sorted(by: >)  // Most recent first
+        do {
+            let contents = try fileManager.contentsOfDirectory(
+                at: diagnosticsRoot,
+                includingPropertiesForKeys: [.isDirectoryKey]
+            )
+            let onDisk = contents
+                .filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
+                .map { $0.lastPathComponent }
+            trackedSessionIds.formUnion(onDisk)
+            return trackedSessionIds.sorted(by: >)  // Most recent first
+        } catch {
+            #if canImport(OSLog)
+            Self.logWarning("Failed to enumerate diagnostic sessions: \(error)")
+            #endif
+            return trackedSessionIds.sorted(by: >)
+        }
     }
     
     /// Prune old sessions beyond retention period
@@ -230,8 +264,11 @@ public actor DiagnosticLogger {
             if sessionId < cutoffPrefix {
                 let sessionDir = sessionDirectory(for: sessionId)
                 try? fileManager.removeItem(at: sessionDir)
+                trackedSessionIds.remove(sessionId)
                 #if DEBUG
-                print("🗑️ DiagnosticLogger: Pruned old session \(sessionId)")
+                #if canImport(OSLog)
+                Self.logDebug("Pruned old session \(sessionId)")
+                #endif
                 #endif
             }
         }
@@ -249,6 +286,9 @@ public actor DiagnosticLogger {
     }
     
     private func appendEntry(_ entry: DiagnosticLogEntry, to filename: String, sessionId: String) {
+        guard ensureDiagnosticsRootExists() else { return }
+        trackedSessionIds.insert(sessionId)
+        
         let sessionDir = sessionDirectory(for: sessionId)
         let file = sessionDir.appendingPathComponent(filename)
         
@@ -277,6 +317,18 @@ public actor DiagnosticLogger {
             }
         } else {
             try? jsonString.write(to: file, atomically: true, encoding: .utf8)
+        }
+    }
+    
+    private func ensureDiagnosticsRootExists() -> Bool {
+        do {
+            try fileManager.createDirectory(at: diagnosticsRoot, withIntermediateDirectories: true)
+            return true
+        } catch {
+            #if canImport(OSLog)
+            Self.logWarning("Failed to create diagnostics root: \(error)")
+            #endif
+            return false
         }
     }
     
@@ -330,6 +382,33 @@ public actor DiagnosticLogger {
         // Simple hash: first 8 chars of SHA-256 would be ideal, but we'll use count + checksum for simplicity
         let checksum = data.reduce(0) { ($0 &+ UInt32($1)) & 0xFFFFFFFF }
         return String(format: "%08x", checksum)
+    }
+
+    private static func logDebug(_ message: String) {
+        #if canImport(OSLog)
+        if #available(iOS 14.0, watchOS 7.0, macOS 11.0, tvOS 14.0, *) {
+            Logger(subsystem: "com.dosetap.core", category: "DiagnosticLogger")
+                .debug("\(message, privacy: .public)")
+        }
+        #endif
+    }
+
+    private static func logNotice(_ message: String) {
+        #if canImport(OSLog)
+        if #available(iOS 14.0, watchOS 7.0, macOS 11.0, tvOS 14.0, *) {
+            Logger(subsystem: "com.dosetap.core", category: "DiagnosticLogger")
+                .notice("\(message, privacy: .public)")
+        }
+        #endif
+    }
+
+    private static func logWarning(_ message: String) {
+        #if canImport(OSLog)
+        if #available(iOS 14.0, watchOS 7.0, macOS 11.0, tvOS 14.0, *) {
+            Logger(subsystem: "com.dosetap.core", category: "DiagnosticLogger")
+                .warning("\(message, privacy: .public)")
+        }
+        #endif
     }
 }
 

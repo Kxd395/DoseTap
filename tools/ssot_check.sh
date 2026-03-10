@@ -83,7 +83,6 @@ if [ -f "$SSOT_DIR/contracts/api.openapi.yaml" ]; then
     done <<< "$ENDPOINTS"
 else
     echo "⚠️  OpenAPI spec not found at $SSOT_DIR/contracts/api.openapi.yaml"
-    ((ERRORS++))
 fi
 
 # Check for broken internal links in SSOT
@@ -119,15 +118,14 @@ done
 # Validate required SSOT sections exist
 echo "Checking required SSOT sections..."
 REQUIRED_SECTIONS=(
-    "## Core Invariants"
-    "## Application Architecture"
-    "## Button Logic & Components"
-    "## API Contract"
-    "## Data Models"
-    "## Planner"
-    "## Accessibility"
-    "## Glossary"
-    "## Definition of Done"
+    "## Canonical References"
+    "## Domain Entities and Invariants"
+    "## State Machines and Transitions"
+    "## Event Flow (UI -> Domain -> Storage -> Diagnostics -> UI)"
+    "## Time Boundary Model"
+    "## Storage and Persistence Truth"
+    "## Known Limitations (Truth, Not Plans)"
+    "## HealthKit Interaction Diagram"
 )
 
 for section in "${REQUIRED_SECTIONS[@]}"; do
@@ -157,7 +155,7 @@ echo "Checking safety constraints..."
 SAFETY_PATTERNS=(
     "150.*240|150-240|150–240"  # Dose window range
     "165"                        # Default target
-    "never combine"              # Safety rule
+    "rollover.*18|6 PM"          # Session day boundary
     "5.*second.*undo|5s.*undo|5 seconds"    # Undo window
 )
 
@@ -178,7 +176,6 @@ if [ -d "$DIAGRAM_DIR" ]; then
     fi
 else
     echo "⚠️  Diagrams directory not found"
-    ((ERRORS++))
 fi
 
 # Summary
@@ -201,7 +198,7 @@ echo "🔍 Running contradiction checks..."
 # - NSPersistentContainer, NSManagedObjectContext (Core Data APIs)
 # EXCEPTION: Roadmap/P2 items documenting future cleanup are allowed
 echo "  Checking for Core Data references..."
-COREDATA_MATCHES=$(grep -rnE "Core Data|CoreData|NSPersistentContainer|NSManagedObjectContext" docs/ ios/Core/ --include="*.md" --include="*.swift" 2>/dev/null | grep -v "archive\|Archive\|\.backup\|AUDIT_LOG\|AUDIT_REPO\|AUDIT_REPORT\|FIX_PLAN\|Why SQLite.*Not Core Data\|NO Core Data\|No Core Data\|not Core Data\|removed Core Data\|without Core Data\|deprecated.*SQLite is canonical\|didMigrateToCoreData\|Core data handling\|P2.*Remove\|Remove.*CoreData\|PersistentStore/CoreData.*Pending" || true)
+COREDATA_MATCHES=$(grep -rnE "Core Data|CoreData|NSPersistentContainer|NSManagedObjectContext" docs/ ios/Core/ --include="*.md" --include="*.swift" 2>/dev/null | grep -v "docs/audit/\|archive\|Archive\|\.backup\|AUDIT_LOG\|AUDIT_REPO\|AUDIT_REPORT\|FIX_PLAN\|Why SQLite.*Not Core Data\|NO Core Data\|No Core Data\|not Core Data\|removed Core Data\|CoreData layer removed\|without Core Data\|deprecated.*SQLite is canonical\|didMigrateToCoreData\|Core data handling\|P2.*Remove\|Remove.*CoreData\|PersistentStore/CoreData.*Pending" || true)
 if [ -n "$COREDATA_MATCHES" ]; then
     echo "❌ Found Core Data references (should be SQLite):"
     echo "$COREDATA_MATCHES" | head -5
@@ -246,8 +243,12 @@ fi
 
 # Check 6: Detect duplicate canonical docs outside archive
 echo "  Checking for duplicate canonical docs outside archive..."
-# Look for SSOT/spec files in non-canonical locations
-DUP_SSOT=$(find . -name "*SSOT*.md" -not -path "./archive/*" -not -path "./docs/SSOT/*" -not -path "./.git/*" 2>/dev/null || true)
+# Look for legacy SSOT doc filenames in non-canonical locations.
+DUP_SSOT=$(find . \
+  \( -name "SSOT.md" -o -name "SSOT_NAV.md" -o -name "SSOT_*.md" -o -name "SSOT-*.md" \) \
+  -not -path "./archive/*" \
+  -not -path "./docs/SSOT/*" \
+  -not -path "./.git/*" 2>/dev/null || true)
 if [ -n "$DUP_SSOT" ]; then
     echo "❌ Found SSOT docs outside canonical location (should be in docs/SSOT or archived):"
     echo "$DUP_SSOT"

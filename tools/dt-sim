@@ -1,0 +1,42 @@
+#!/bin/bash
+
+set -euo pipefail
+
+source "$(cd "$(dirname "$0")" && pwd)/dt-common.sh"
+
+dt_require_tool xcrun
+
+command_name="${1:-list}"
+if [[ $# -gt 0 ]]; then
+  shift
+fi
+
+case "$command_name" in
+  list)
+    exec xcrun simctl list devices available
+    ;;
+  boot)
+    device_name="${1:-$(dt_default_simulator_name)}"
+    udid="$(dt_resolve_simulator_udid "$device_name")"
+    if [[ -z "$udid" ]]; then
+      echo "Simulator not found: $device_name" >&2
+      exit 1
+    fi
+    xcrun simctl boot "$udid" >/dev/null 2>&1 || true
+    open -a Simulator >/dev/null 2>&1 || true
+    echo "Booted $device_name ($udid)"
+    ;;
+  open)
+    open -a Simulator
+    ;;
+  shutdown-all)
+    exec xcrun simctl shutdown all
+    ;;
+  erase-all)
+    exec xcrun simctl erase all
+    ;;
+  *)
+    echo "Usage: dt-sim [list|boot [name]|open|shutdown-all|erase-all]" >&2
+    exit 1
+    ;;
+esac

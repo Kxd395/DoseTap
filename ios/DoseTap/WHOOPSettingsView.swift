@@ -9,6 +9,7 @@ struct WHOOPSettingsView: View {
     @State private var showDisconnectConfirm = false
     @State private var sleepHistory: [WHOOPNightSummary] = []
     @State private var isLoadingHistory = false
+    private let isConfigured = SecureConfig.shared.isConfigured
     
     var body: some View {
         List {
@@ -48,6 +49,12 @@ struct WHOOPSettingsView: View {
                         Label("Disconnect WHOOP", systemImage: "link.badge.minus")
                     }
                 } else {
+                    if !isConfigured {
+                        Label("WHOOP credentials not configured for this build", systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                    }
+
                     Button(action: connectWHOOP) {
                         HStack {
                             Label("Connect WHOOP", systemImage: "link.badge.plus")
@@ -57,7 +64,7 @@ struct WHOOPSettingsView: View {
                             }
                         }
                     }
-                    .disabled(isAuthorizing)
+                    .disabled(isAuthorizing || !isConfigured)
                 }
             } header: {
                 Label("Actions", systemImage: "hand.tap")
@@ -173,30 +180,44 @@ struct WHOOPSettingsView: View {
                 Text(night.date.formatted(date: .abbreviated, time: .omitted))
                     .font(.subheadline.bold())
                 Spacer()
-                Text(night.formattedTotalSleep)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                if night.hasValidSleepData {
+                    Text(night.formattedTotalSleep)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                } else {
+                    Text("Pending score")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                }
             }
             
-            // Sleep stage breakdown
-            HStack(spacing: 12) {
-                stageIndicator(label: "Deep", minutes: night.deepMinutes, color: .indigo)
-                stageIndicator(label: "REM", minutes: night.remMinutes, color: .purple)
-                stageIndicator(label: "Light", minutes: night.lightMinutes, color: .blue.opacity(0.6))
-                stageIndicator(label: "Awake", minutes: night.awakeMinutes, color: .red.opacity(0.6))
-            }
-            .font(.caption)
-            
-            // Additional metrics
-            HStack(spacing: 16) {
-                if let efficiency = night.sleepEfficiency {
-                    metricBadge(value: "\(Int(efficiency))%", label: "Efficiency")
+            if night.hasValidSleepData {
+                // Sleep stage breakdown
+                HStack(spacing: 12) {
+                    stageIndicator(label: "Deep", minutes: night.deepMinutes, color: .indigo)
+                    stageIndicator(label: "REM", minutes: night.remMinutes, color: .purple)
+                    stageIndicator(label: "Light", minutes: night.lightMinutes, color: .blue.opacity(0.6))
+                    stageIndicator(label: "Awake", minutes: night.awakeMinutes, color: .red.opacity(0.6))
                 }
-                if let rr = night.respiratoryRate {
-                    metricBadge(value: String(format: "%.1f", rr), label: "RR")
-                }
-                if night.disturbanceCount > 0 {
-                    metricBadge(value: "\(night.disturbanceCount)", label: "Disturbances")
+                .font(.caption)
+                
+                // Additional metrics
+                HStack(spacing: 16) {
+                    if let efficiency = night.sleepEfficiency {
+                        metricBadge(value: "\(Int(efficiency))%", label: "Efficiency")
+                    }
+                    if let rr = night.respiratoryRate {
+                        metricBadge(value: String(format: "%.1f", rr), label: "RR")
+                    }
+                    if let recovery = night.recoveryScore {
+                        metricBadge(value: "\(Int(recovery))%", label: "Recovery")
+                    }
+                    if let hrv = night.hrvMs {
+                        metricBadge(value: "\(Int(hrv))", label: "HRV ms")
+                    }
+                    if night.disturbanceCount > 0 {
+                        metricBadge(value: "\(night.disturbanceCount)", label: "Disturbances")
+                    }
                 }
             }
         }
@@ -253,7 +274,13 @@ struct WHOOPSettingsView: View {
         
         do {
             let sleeps = try await whoop.fetchRecentSleep(nights: 7)
-            sleepHistory = sleeps.map { $0.toNightSummary() }
+            let allSummaries = sleeps.map { $0.toNightSummary() }
+            // Filter to only show nights with valid scored data to avoid 0h 0m display
+            sleepHistory = allSummaries.filter { $0.hasValidSleepData }
+        } catch WHOOPError.httpError(404) {
+            sleepHistory = []
+            errorMessage = "WHOOP sleep data endpoint was not found for this account/app configuration. Try reconnecting WHOOP and verifying API app permissions."
+            showError = true
         } catch {
             errorMessage = "Failed to load sleep data: \(error.localizedDescription)"
             showError = true

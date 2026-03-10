@@ -2,6 +2,23 @@
 
 Purpose: make AI agents productive fast in this repo. Focus on the current SwiftPM core and SSOT-first workflow.
 
+## ⛔ Hard Rules (NON-NEGOTIABLE)
+
+These rules override ALL other guidance. Violating any of them creates P0 bugs.
+
+1. **Never leave a broken build.** Every file you save MUST compile. If you delete, rename, or move a type/property/method, `grep -rn` for ALL usages across the entire repo and update every caller BEFORE finishing. Partial refactoring is forbidden.
+2. **Commit atomically.** Each commit MUST compile (`swift build -q`) and pass tests (`swift test -q`). Never accumulate >500 lines of uncommitted changes — commit in small, logical units. Work-in-progress belongs on branches, not in dirty working directories.
+3. **Both targets must build.** Run `swift build -q` for SwiftPM AND verify Xcode compiles if you touched any file under `ios/DoseTap/`. Do NOT wrap broken code in `#if false` without explicit user approval — diagnose and fix it instead.
+4. **No `print()` in production code.** Use `os.Logger` with `OSLogPrivacy` annotations. `print()` leaks session/dose data in release builds.
+5. **SSOT first, then code.** Update `docs/SSOT/README.md` BEFORE implementing any behavior change. If constants change, update `docs/SSOT/constants.json` too. Run `bash tools/ssot_check.sh` to verify.
+6. **Read the constitution.** `.specify/memory/constitution.md` defines authoritative project principles. Consult it before making architectural decisions or adding new patterns.
+7. **Test before you ship.** Run `swift test -q` and verify all tests pass before marking any task complete.
+8. **Refactoring safety protocol.** For any rename/delete/move operation:
+   - `grep -rn "OldName" ios/ Tests/ docs/` to find all references
+   - Update every reference in the same commit
+   - Run `swift build -q` to confirm
+   - If touching UI files, also run `xcodebuild build -project ios/DoseTap.xcodeproj -scheme DoseTap -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO 2>&1 | tail -5`
+
 SSOT update checklist (always first):
 - Update `docs/SSOT/README.md` for any behavior change (states, thresholds, errors)
 - If navigation or contracts change, also update `docs/SSOT/navigation.md` and `docs/SSOT/contracts/*`
@@ -25,11 +42,12 @@ SSOT update checklist (always first):
   - `swift build -q`
   - `swift test -q`
 - Known good state: `swift build` succeeds; all DoseCoreTests pass (window math, API errors, offline queue, rate limiter). Run `swift test -q` and check CI for current count.
-- Xcode app target may fail due to legacy files. If you must run the app, quarantine conflicting legacy files with `#if false` or `#if canImport(...)` as already done in several `ios/DoseTap/*.swift` files.
+- Xcode app target MUST also build. If you touch any file under `ios/DoseTap/`, verify with: `xcodebuild build -project ios/DoseTap.xcodeproj -scheme DoseTap -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO 2>&1 | tail -5`
 
 How to run the iOS app target safely (avoiding legacy conflicts):
 - Open `ios/DoseTap/DoseTap.xcodeproj` in Xcode and select the iOS app scheme
-- If compile errors appear in legacy files under `ios/DoseTap/`, temporarily wrap them in `#if false ... #endif` (examples: `TimeEngine.swift`, `EventStore.swift`, `UndoManager.swift`, `DoseTapCore.swift`, `ContentView_Old.swift`, `DashboardView.swift`)
+- If compile errors appear in legacy files under `ios/DoseTap/`, **diagnose and fix them** — do NOT wrap in `#if false` without explicit user approval
+- Known quarantined files (already wrapped with approval): `TimeEngine.swift`, `EventStore.swift`, `UndoManager.swift`, `DoseTapCore.swift`, `ContentView_Old.swift`, `DashboardView.swift`
 - For UIKit/SwiftUI import issues when using SwiftPM-only contexts, guard imports: `#if canImport(SwiftUI) import SwiftUI #endif`
 - Prefer validating behavior via `DoseCore` unit tests; only run the app after the build is green
 

@@ -19,7 +19,11 @@ struct SidebarView: View {
             }
             
             // Navigation Section
-            Section("Analytics") {
+            Section("Insights") {
+                NavigationLink(destination: LibraryView(dataStore: dataStore)) {
+                    Label("Library", systemImage: "books.vertical")
+                }
+
                 NavigationLink(destination: DashboardView(dataStore: dataStore)) {
                     Label("Dashboard", systemImage: "chart.bar")
                 }
@@ -28,19 +32,19 @@ struct SidebarView: View {
                     Label("Timeline", systemImage: "clock")
                 }
                 
+                NavigationLink(destination: TrendsView(dataStore: dataStore)) {
+                    Label("Trends", systemImage: "chart.line.uptrend.xyaxis")
+                }
+
                 NavigationLink(destination: AdherenceView(dataStore: dataStore)) {
-                    Label("Adherence", systemImage: "checkmark.circle")
+                    Label("Adherence", systemImage: "checkmark.circle.badge.clock")
                 }
             }
             
             // Enhanced Features
             Section("Management") {
                 NavigationLink(destination: EnhancedInventoryView(dataStore: dataStore)) {
-                    Label("Enhanced Inventory", systemImage: "pills.fill")
-                }
-                
-                NavigationLink(destination: InventoryView(dataStore: dataStore)) {
-                    Label("Basic Inventory", systemImage: "pills")
+                    Label("Inventory", systemImage: "pills.fill")
                 }
                 
                 NavigationLink(destination: TimeZoneManagementView()) {

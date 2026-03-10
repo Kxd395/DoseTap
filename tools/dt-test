@@ -1,0 +1,38 @@
+#!/bin/bash
+
+set -euo pipefail
+
+source "$(cd "$(dirname "$0")" && pwd)/dt-common.sh"
+
+dt_require_tool xcodebuild
+
+mode="${1:-targeted}"
+if [[ $# -gt 0 ]]; then
+  shift
+fi
+
+base_args=(
+  -project "$(dt_project_path)"
+  -scheme "$(dt_scheme)"
+  -destination "$(dt_default_test_destination)"
+)
+
+case "$mode" in
+  targeted)
+    exec xcodebuild test \
+      "${base_args[@]}" \
+      -only-testing:DoseTapTests/EventStorageIntegrationTests \
+      -only-testing:DoseTapTests/SessionRepositoryTests \
+      -only-testing:DoseTapTests/DataIntegrityTests \
+      "$@"
+    ;;
+  all)
+    exec xcodebuild test \
+      "${base_args[@]}" \
+      "$@"
+    ;;
+  *)
+    echo "Usage: dt-test [targeted|all] [extra xcodebuild args...]" >&2
+    exit 1
+    ;;
+esac

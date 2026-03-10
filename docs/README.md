@@ -1,6 +1,6 @@
 # DoseTap Documentation Index
 
-Last updated: 2026-01-14
+Last updated: 2026-03-09
 
 ## Canonical Docs
 
@@ -10,14 +10,27 @@ Last updated: 2026-01-14
 - Diagnostic logging: `docs/DIAGNOSTIC_LOGGING.md`
 - Session trace guide: `docs/HOW_TO_READ_A_SESSION_TRACE.md`
 - Testing guide: `docs/TESTING_GUIDE.md`
+- Architecture overview: `docs/architecture.md`
+- Branch protection: `docs/BRANCH_PROTECTION.md`
 
 ## Plans
 
-- Dose + rollover plan: `docs/PLAN_DOSE_AND_ROLLOVER_FIX.md`
-- Docs + SSOT refresh plan: `docs/PLAN_DOCS_AND_SSOT_REFRESH.md`
+- Active roadmap/todo: `docs/ROADMAP_TODO.md`
+- Insights viewer MVP: `docs/INSIGHTS_VIEWER_MVP.md`
+- Insights viewer implementation plan: `docs/INSIGHTS_VIEWER_IMPLEMENTATION_PLAN.md`
+- Archived plans and point-in-time test snapshots: `docs/historical/`
+
+## Operations
+
+- Certificate pinning runbook: `docs/CERTIFICATE_PINNING.md`
+- Encryption at rest decision: `docs/SSOT/encryption-at-rest.md`
+- Production readiness checklist: `docs/PRODUCTION_READINESS_CHECKLIST.md`
+- Release checklist: `docs/RELEASE_CHECKLIST.md`
+- TestFlight guide: `docs/TESTFLIGHT_GUIDE.md`
+- Symphony setup: `docs/SYMPHONY_SETUP.md`
 
 ## Reference
 
-- Architecture overview: `docs/architecture.md`
 - Feature triage: `docs/FEATURE_TRIAGE.md`
-
+- Privacy policy: `docs/privacy-policy.html`
+- Support page: `docs/support.html`

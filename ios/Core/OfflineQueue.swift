@@ -70,9 +70,8 @@ public actor InMemoryOfflineQueue: OfflineQueue {
                     let delayNanoseconds = UInt64(delaySeconds * 1_000_000_000)
                     try? await Task.sleep(nanoseconds: delayNanoseconds)
                     
-                    var retryTask = task
-                    retryTask.attempts += 1
-                    tasks.append(retryTask)
+                    // `markAttempt()` already incremented attempts for this run.
+                    tasks.append(task)
                 }
             }
         }

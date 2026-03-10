@@ -154,16 +154,10 @@ struct DiagnosticExportView: View {
     }
     
     private func formatSessionDate(_ sessionId: String) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        
-        guard let date = formatter.date(from: sessionId) else {
+        guard let date = AppFormatters.sessionDate.date(from: sessionId) else {
             return sessionId
         }
-        
-        let displayFormatter = DateFormatter()
-        displayFormatter.dateStyle = .full
-        return displayFormatter.string(from: date)
+        return AppFormatters.fullDate.string(from: date)
     }
 }
 

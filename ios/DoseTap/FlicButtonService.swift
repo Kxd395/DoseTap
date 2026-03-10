@@ -1,6 +1,10 @@
 import Foundation
 import Combine
 import DoseCore
+import UserNotifications
+import os.log
+
+private let flicLog = Logger(subsystem: "com.dosetap.app", category: "FlicButtonService")
 
 /// Flic Button Service for hardware button integration
 /// Maps single/double/long press gestures to DoseTap actions
@@ -182,7 +186,13 @@ final class FlicButtonService: ObservableObject {
         switch context.phase {
         case .noDose1:
             // Take Dose 1 via SSOT
-            sessionRepository.saveDose1(timestamp: Date())
+            let now = Date()
+            sessionRepository.saveDose1(timestamp: now)
+            let configuredTarget = UserSettingsManager.shared.targetIntervalMinutes
+            let targetMinutes = configuredTarget > 0 ? configuredTarget : 165
+            let wakeTime = now.addingTimeInterval(Double(targetMinutes) * 60)
+            await AlarmService.shared.scheduleDose2Alarm(at: wakeTime, dose1Time: now)
+            await AlarmService.shared.scheduleDose2Reminders(dose1Time: now)
             provideHapticFeedback(.success)
             return FlicActionResult(
                 gesture: gesture,
@@ -206,6 +216,8 @@ final class FlicButtonService: ObservableObject {
         case .active, .nearClose:
             // Take Dose 2 via SSOT
             sessionRepository.saveDose2(timestamp: Date())
+            AlarmService.shared.cancelAllAlarms()
+            AlarmService.shared.clearDose2AlarmState()
             provideHapticFeedback(.success)
             return FlicActionResult(
                 gesture: gesture,
@@ -216,19 +228,68 @@ final class FlicButtonService: ObservableObject {
             )
             
         case .closed:
-            // Window closed - log with warning (user should confirm via UI)
-            sessionRepository.saveDose2(timestamp: Date())
-            provideHapticFeedback(.warning)
+            // P0-3 FIX: Window closed — do NOT persist directly. Require confirmation via app UI.
+            // Late doses need user to consciously confirm, which can't be done via a physical button.
+            provideHapticFeedback(.error)
+            
+            // Send a local notification prompting user to open the app to confirm
+            let content = UNMutableNotificationContent()
+            content.title = "Late Dose — Confirmation Required"
+            content.body = "The 240-minute window has passed. Open DoseTap to confirm late dose."
+            content.sound = .default
+            let request = UNNotificationRequest(
+                identifier: "dosetap_flic_late_confirm",
+                content: content,
+                trigger: nil // immediate
+            )
+            try? await UNUserNotificationCenter.current().add(request)
+            
             return FlicActionResult(
                 gesture: gesture,
                 action: .takeDose,
-                success: true,
-                message: "Dose 2 logged (late)",
-                canUndo: true
+                success: false,
+                message: "Window closed — confirm in app",
+                canUndo: false
             )
             
-        case .completed, .finalizing:
-            // Already done for tonight
+        case .completed:
+            let now = Date()
+            if sessionRepository.dose2Time == nil, sessionRepository.dose1Time != nil {
+                // Allow post-skip correction as explicit override.
+                sessionRepository.saveDose2(timestamp: now)
+                AlarmService.shared.cancelAllAlarms()
+                AlarmService.shared.clearDose2AlarmState()
+                provideHapticFeedback(.warning)
+                return FlicActionResult(
+                    gesture: gesture,
+                    action: .takeDose,
+                    success: true,
+                    message: "Dose 2 logged (override)",
+                    canUndo: true
+                )
+            }
+            if sessionRepository.dose2Time != nil {
+                // P0-3 FIX: Extra doses (3rd+) need confirmation via app UI — too risky for blind button press.
+                provideHapticFeedback(.error)
+                return FlicActionResult(
+                    gesture: gesture,
+                    action: .takeDose,
+                    success: false,
+                    message: "Extra dose — confirm in app",
+                    canUndo: false
+                )
+            }
+            provideHapticFeedback(.error)
+            return FlicActionResult(
+                gesture: gesture,
+                action: .takeDose,
+                success: false,
+                message: "Dose action unavailable",
+                canUndo: false
+            )
+
+        case .finalizing:
+            // Already ending for tonight.
             provideHapticFeedback(.error)
             return FlicActionResult(
                 gesture: gesture,
@@ -262,7 +323,18 @@ final class FlicButtonService: ObservableObject {
             )
         }
         
-        // Perform snooze via SSOT
+        guard let newTime = await AlarmService.shared.snoozeAlarm(dose1Time: sessionRepository.dose1Time) else {
+            provideHapticFeedback(.error)
+            return FlicActionResult(
+                gesture: gesture,
+                action: .snooze,
+                success: false,
+                message: "Snooze unavailable right now",
+                canUndo: false
+            )
+        }
+
+        // Keep repository state aligned with the alarm scheduler.
         sessionRepository.incrementSnooze()
         provideHapticFeedback(.success)
         
@@ -270,7 +342,7 @@ final class FlicButtonService: ObservableObject {
             gesture: gesture,
             action: .snooze,
             success: true,
-            message: "+10 min snoozed",
+            message: "Snoozed to \(newTime.formatted(date: .omitted, time: .shortened))",
             canUndo: false
         )
     }
@@ -322,6 +394,8 @@ final class FlicButtonService: ObservableObject {
         
         // Skip via SSOT
         sessionRepository.skipDose2()
+        AlarmService.shared.cancelAllAlarms()
+        AlarmService.shared.clearDose2AlarmState()
         provideHapticFeedback(.warning)
         
         return FlicActionResult(
@@ -407,7 +481,7 @@ final class FlicButtonService: ObservableObject {
     /// Note: Actual implementation requires Flic SDK integration
     func startPairing() {
         // Stub - would call Flic SDK's pairing manager
-        print("📱 FlicButtonService: Starting pairing (stub)")
+        flicLog.debug("Starting pairing (stub)")
     }
     
     /// Unpair the current Flic button
@@ -415,12 +489,12 @@ final class FlicButtonService: ObservableObject {
         isPaired = false
         isConnected = false
         batteryLevel = nil
-        print("📱 FlicButtonService: Unpaired button")
+        flicLog.debug("Unpaired button")
     }
     
     /// Simulate a button press (for testing)
     func simulateGesture(_ gesture: FlicGesture) async -> FlicActionResult {
-        print("📱 FlicButtonService: Simulating \(gesture.rawValue)")
+        flicLog.debug("Simulating \(gesture.rawValue, privacy: .public)")
         return await handleGesture(gesture)
     }
 }

@@ -64,6 +64,10 @@ struct WelcomeView: View {
                 Text("• inventory.csv - Medication inventory snapshots")
                     .font(.caption)
                     .foregroundColor(.secondary)
+
+                Text("• insights_bundle.json - Optional pre-sleep, morning, and medication summaries")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
             .padding(.top, 20)
             .frame(maxWidth: 400)

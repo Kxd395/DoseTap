@@ -1,66 +1,6 @@
 import SwiftUI
 
-/// Placeholder views for navigation - to be implemented in Sprint B
-
-struct TimelineView: View {
-    @ObservedObject var dataStore: DataStore
-    
-    var body: some View {
-        VStack(spacing: 20) {
-            Text("Timeline View")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-            
-            Text("Coming in Sprint B:")
-                .font(.headline)
-                .foregroundColor(.secondary)
-            
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Interactive dose timeline with window shading", systemImage: "timeline.selection")
-                Label("Drag to adjust time ranges and zoom levels", systemImage: "hand.draw")
-                Label("Overlay WHOOP metrics on timeline", systemImage: "heart.circle")
-                Label("Export timeline as PDF reports", systemImage: "doc.richtext")
-            }
-            .padding()
-            .background(Color(.controlBackgroundColor))
-            .cornerRadius(12)
-            
-            Spacer()
-        }
-        .padding()
-        .navigationTitle("Timeline")
-    }
-}
-
-struct AdherenceView: View {
-    @ObservedObject var dataStore: DataStore
-    
-    var body: some View {
-        VStack(spacing: 20) {
-            Text("Adherence Analysis")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-            
-            Text("Coming in Sprint B:")
-                .font(.headline)
-                .foregroundColor(.secondary)
-            
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Detailed adherence trends and patterns", systemImage: "chart.line.uptrend.xyaxis")
-                Label("Window timing distribution charts", systemImage: "chart.bar")
-                Label("Correlation with sleep and recovery data", systemImage: "bed.double")
-                Label("Predictive adherence scoring", systemImage: "brain.head.profile")
-            }
-            .padding()
-            .background(Color(.controlBackgroundColor))
-            .cornerRadius(12)
-            
-            Spacer()
-        }
-        .padding()
-        .navigationTitle("Adherence")
-    }
-}
+/// Supplemental Studio views that are still intentionally lightweight.
 
 struct InventoryView: View {
     @ObservedObject var dataStore: DataStore
@@ -71,7 +11,7 @@ struct InventoryView: View {
                 .font(.largeTitle)
                 .fontWeight(.bold)
             
-            Text("Coming in Sprint B:")
+            Text("Planned additions:")
                 .font(.headline)
                 .foregroundColor(.secondary)
             
@@ -127,84 +67,11 @@ struct InventoryView: View {
     }
 }
 
-struct ExportView: View {
-    @ObservedObject var dataStore: DataStore
-    
-    var body: some View {
-        let analytics = dataStore.analytics
-        
-        VStack(spacing: 20) {
-            Text("Export & Reports")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-            
-            Text("Coming in Sprint B:")
-                .font(.headline)
-                .foregroundColor(.secondary)
-            
-            VStack(alignment: .leading, spacing: 8) {
-                Label("PDF reports with charts and insights", systemImage: "doc.richtext")
-                Label("CSV exports for further analysis", systemImage: "tablecells")
-                Label("Healthcare provider summary reports", systemImage: "person.crop.circle.badge.plus")
-                Label("Insurance claim documentation", systemImage: "doc.text.below.ecg")
-            }
-            .padding()
-            .background(Color(.controlBackgroundColor))
-            .cornerRadius(12)
-            
-            // Basic export stats for now
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Available Data")
-                    .font(.headline)
-                
-                HStack {
-                    VStack(alignment: .leading) {
-                        Text("\(analytics.totalEvents)")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                        Text("Total Events")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    Spacer()
-                    
-                    VStack(alignment: .leading) {
-                        Text("\(analytics.totalSessions)")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                        Text("Total Sessions")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    Spacer()
-                    
-                    VStack(alignment: .leading) {
-                        Text("\(dataStore.inventory.count)")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                        Text("Inventory Snapshots")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-            }
-            .padding()
-            .background(Color(.controlBackgroundColor))
-            .cornerRadius(12)
-            
-            Spacer()
-        }
-        .padding()
-        .navigationTitle("Export")
-    }
-}
-
 /// Settings view for app configuration
 /// Enhanced Settings View with organized sections matching ASCII specifications
 struct SettingsView: View {
     @ObservedObject var dataStore: DataStore
+    @Environment(\.dismiss) private var dismiss
     @State private var iCloudSyncEnabled = false
     @State private var dataRetentionPeriod = "1 year"
     @State private var inventoryTrackingEnabled = true
@@ -407,8 +274,7 @@ struct SettingsView: View {
     
     private var doneButtonSection: some View {
         Button("Done") {
-            // Handle done action
-            print("⚙️ Settings saved")
+            dismiss()
         }
         .buttonStyle(.plain)
         .frame(maxWidth: .infinity)

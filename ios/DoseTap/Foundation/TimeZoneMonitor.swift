@@ -1,6 +1,9 @@
 // Foundation/TimeZoneMonitor.swift
 import Foundation
 import Combine
+import os.log
+
+private let timeZoneLog = Logger(subsystem: "com.dosetap.app", category: "TimeZoneMonitor")
 
 final class TimeZoneMonitor: ObservableObject {
     static let shared = TimeZoneMonitor()
@@ -14,13 +17,13 @@ final class TimeZoneMonitor: ObservableObject {
             self?.lastChange = Date()
             // Hook: call into your DosingService to recalc tonight and reschedule.
             // Also log a lightweight `system` event if you want visibility in History.
-            print("Time zone changed - triggering recalculation")
+            timeZoneLog.debug("Time zone changed - triggering recalculation")
             self?.handleTimeZoneChange()
         })
         tokens.append(nc.addObserver(forName: .NSCalendarDayChanged, object: nil, queue: .main) { [weak self] _ in
             self?.lastChange = Date()
             // Optional: nightly maintenance (ensureScheduled()).
-            print("Calendar day changed - triggering maintenance")
+            timeZoneLog.debug("Calendar day changed - triggering maintenance")
             self?.handleDayChange()
         })
     }
@@ -44,7 +47,7 @@ final class TimeZoneMonitor: ObservableObject {
     
     private func handleDayChange() {
         // Nightly maintenance placeholder
-        print("Performing nightly maintenance")
+        timeZoneLog.debug("Performing nightly maintenance")
     }
     
     deinit { tokens.forEach(NotificationCenter.default.removeObserver) }

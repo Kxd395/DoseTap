@@ -1,6 +1,9 @@
 #if DEBUG
 import Foundation
 import CoreData
+import os.log
+
+private let developmentLog = Logger(subsystem: "com.dosetap.app", category: "DevelopmentHelper")
 
 struct DevelopmentHelper {
     static let isLocalDevelopment = Bundle.main.object(forInfoDictionaryKey: "LOCAL_ONLY") as? Bool ?? false
@@ -34,7 +37,7 @@ struct DevelopmentHelper {
     static func populateTestData() {
         guard isLocalDevelopment && autoPopulateTestData else { return }
         
-        let store = PersistentStore.shared
+        let store = LegacyPersistentStore.shared
         let context = store.viewContext
         
         // Clear existing test data
@@ -61,10 +64,10 @@ struct DevelopmentHelper {
         store.saveContext()
         
         if enableDebugLogging {
-            print("✅ Test data populated for local development")
-            print("   - Session: \(session.sessionID ?? "unknown")")
-            print("   - Dose 1 taken: \(session.dose1TakenUTC?.description ?? "none")")
-            print("   - Inventory: \(inventory.remainingDoses) doses remaining")
+            developmentLog.debug("Test data populated for local development")
+            developmentLog.debug("Session: \(session.sessionID ?? "unknown", privacy: .private)")
+            developmentLog.debug("Dose 1 taken: \(session.dose1TakenUTC?.description ?? "none", privacy: .private)")
+            developmentLog.debug("Inventory: \(inventory.remainingDoses, privacy: .public) doses remaining")
         }
     }
     
@@ -79,7 +82,7 @@ struct DevelopmentHelper {
     }
     
     private static func clearTestData() {
-        let store = PersistentStore.shared
+        let store = LegacyPersistentStore.shared
         let context = store.viewContext
         
         // Delete existing test data
@@ -99,7 +102,7 @@ struct DevelopmentHelper {
             store.saveContext()
         } catch {
             if enableDebugLogging {
-                print("⚠️ Failed to clear test data: \(error)")
+                developmentLog.error("Failed to clear test data: \(error.localizedDescription, privacy: .public)")
             }
         }
     }
@@ -126,15 +129,15 @@ struct DevelopmentHelper {
             switch path {
             case "/doses/take":
                 mockData = Data("""
-                {"success": true, "message": "Dose recorded", "timestamp": "\(ISO8601DateFormatter().string(from: Date()))"}
+                {"success": true, "message": "Dose recorded", "timestamp": "\(AppFormatters.iso8601.string(from: Date()))"}
                 """.utf8)
             case "/doses/skip":
                 mockData = Data("""
-                {"success": true, "message": "Dose skipped", "timestamp": "\(ISO8601DateFormatter().string(from: Date()))"}
+                {"success": true, "message": "Dose skipped", "timestamp": "\(AppFormatters.iso8601.string(from: Date()))"}
                 """.utf8)
             case "/doses/snooze":
                 mockData = Data("""
-                {"success": true, "message": "Dose snoozed", "snooze_until": "\(ISO8601DateFormatter().string(from: Date().addingTimeInterval(600)))"}
+                {"success": true, "message": "Dose snoozed", "snooze_until": "\(AppFormatters.iso8601.string(from: Date().addingTimeInterval(600)))"}
                 """.utf8)
             case "/events/log":
                 mockData = Data("""
@@ -142,7 +145,7 @@ struct DevelopmentHelper {
                 """.utf8)
             case "/analytics/export":
                 mockData = Data("""
-                {"export_id": "mock-export-123", "data": [{"event": "dose1", "timestamp": "\(ISO8601DateFormatter().string(from: Date()))"}]}
+                {"export_id": "mock-export-123", "data": [{"event": "dose1", "timestamp": "\(AppFormatters.iso8601.string(from: Date()))"}]}
                 """.utf8)
             default:
                 mockData = Data("""
@@ -154,7 +157,7 @@ struct DevelopmentHelper {
             try await Task.sleep(for: .milliseconds(50))
             
             if enableDebugLogging {
-                print("🔄 Mock API: \(request.httpMethod ?? "GET") \(path)")
+                developmentLog.debug("Mock API: \(request.httpMethod ?? "GET", privacy: .public) \(path, privacy: .private)")
             }
             
             return (mockData, response)
@@ -165,7 +168,7 @@ struct DevelopmentHelper {
     
     static func debugLog(_ message: String, category: String = "DEBUG") {
         guard enableDebugLogging else { return }
-        print("[\(category)] \(message)")
+        developmentLog.debug("[\(category, privacy: .public)] \(message, privacy: .private)")
     }
     
     // MARK: - Development Menu Actions
@@ -179,7 +182,7 @@ struct DevelopmentHelper {
     static func simulateDose1() {
         guard isLocalDevelopment else { return }
         
-        let store = PersistentStore.shared
+        let store = LegacyPersistentStore.shared
         let context = store.viewContext
         
         // Create new session if none exists
@@ -209,7 +212,7 @@ struct DevelopmentHelper {
     static func simulateDose2() {
         guard isLocalDevelopment else { return }
         
-        let store = PersistentStore.shared
+        let store = LegacyPersistentStore.shared
         let context = store.viewContext
         
         // Find existing session

@@ -30,10 +30,30 @@ struct SupportBundleExportView: View {
                             ExportProgressCard(progress: exportManager.exportProgress)
                         } else {
                             Button("Generate Support Bundle") {
+                                exportManager.errorMessage = nil
                                 exportManager.generateSupportBundle()
                             }
                             .buttonStyle(PrimaryButtonStyle())
                             .disabled(exportManager.isExporting)
+                        }
+                        
+                        if let error = exportManager.errorMessage {
+                            HStack(spacing: 8) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.orange)
+                                Text(error)
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding()
+                            .background(Color(.systemGray6))
+                            .cornerRadius(8)
+                            
+                            Button("Try Again") {
+                                exportManager.errorMessage = nil
+                                exportManager.generateSupportBundle()
+                            }
+                            .buttonStyle(.bordered)
                         }
                         
                         if let bundleURL = exportedBundleURL {
@@ -580,6 +600,7 @@ class SupportBundleExportManager: ObservableObject {
     @Published var bundleContents: SupportBundleContents?
     @Published var exportedBundleURL: URL?
     @Published var recentExports: [SupportBundleExport] = []
+    @Published var errorMessage: String?
     
     private let logger = Logger(subsystem: "com.dosetap.app", category: "SupportBundle")
     
@@ -645,6 +666,7 @@ class SupportBundleExportManager: ObservableObject {
             
         } catch {
             isExporting = false
+            errorMessage = error.localizedDescription
             logger.error("Failed to generate support bundle: \(error.localizedDescription)")
         }
     }

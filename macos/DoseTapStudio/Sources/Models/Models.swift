@@ -80,16 +80,60 @@ struct InventorySnapshot: Codable, Identifiable {
     }
 }
 
+struct StudioNightAggregate: Identifiable {
+    let id: String            // yyyy-MM-dd
+    let dose1: Date?
+    let dose2: Date?
+    let dose2Skipped: Bool
+    let intervalMinutes: Int?
+    let eventCount: Int
+    let bathroomEvents: Int
+    let lightsOutEvents: Int
+    let wakeFinalEvents: Int
+    let sleepEfficiency: Double?
+    let whoopRecovery: Int?
+    let avgHR: Double?
+
+    var onTimeFlag: Bool? {
+        guard let intervalMinutes else { return nil }
+        return (150...240).contains(intervalMinutes)
+    }
+
+    var completenessScore: Double {
+        var score = 0.0
+        if dose1 != nil && (dose2 != nil || dose2Skipped) { score += 0.4 }
+        if sleepEfficiency != nil { score += 0.3 }
+        if eventCount > 0 { score += 0.3 }
+        return score
+    }
+
+    var qualityFlags: [String] {
+        var flags: [String] = []
+        if dose1 != nil && dose2 == nil && !dose2Skipped {
+            flags.append("Dose 2 outcome missing")
+        }
+        if lightsOutEvents > 1 {
+            flags.append("Duplicate lights-out logs")
+        }
+        return flags
+    }
+}
+
 /// Computed analytics for dashboard display
 struct DoseTapAnalytics {
     let totalEvents: Int
     let totalSessions: Int
-    let adherenceRate30d: Double        // Percentage (0-100)
-    let averageWindow30d: Double        // Minutes
+    let adherenceRate30d: Double
+    let averageWindow30d: Double
     let missedDoses30d: Int
-    let averageRecovery30d: Double?     // WHOOP recovery (0-100)
-    let averageHR30d: Double?           // Average heart rate
-    
+    let averageRecovery30d: Double?
+    let averageHR30d: Double?
+    let averageSleepEfficiency30d: Double?
+    let averageEventsPerNight30d: Double
+    let qualityIssueNights30d: Int
+    let highConfidenceNights30d: Int
+    let nights: [StudioNightAggregate]
+
     static let empty = DoseTapAnalytics(
         totalEvents: 0,
         totalSessions: 0,
@@ -97,16 +141,29 @@ struct DoseTapAnalytics {
         averageWindow30d: 0,
         missedDoses30d: 0,
         averageRecovery30d: nil,
-        averageHR30d: nil
+        averageHR30d: nil,
+        averageSleepEfficiency30d: nil,
+        averageEventsPerNight30d: 0,
+        qualityIssueNights30d: 0,
+        highConfidenceNights30d: 0,
+        nights: []
     )
-    
-    /// Get adherence status text
+
     var adherenceStatusText: String {
         switch adherenceRate30d {
-        case 95...100: return "Excellent (≥95%)"
+        case 95...100: return "Excellent (>=95%)"
         case 85..<95: return "Good (85-94%)"
         case 70..<85: return "Fair (70-84%)"
         default: return "Needs Attention (<70%)"
+        }
+    }
+
+    var windowStatusText: String {
+        switch averageWindow30d {
+        case 150...180: return "Optimal Window"
+        case 181...210: return "Good Window"
+        case 211...240: return "Late Window"
+        default: return averageWindow30d < 150 ? "Early Window" : "Missed Window"
         }
     }
 }

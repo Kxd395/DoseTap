@@ -41,8 +41,8 @@ open ios/DoseTap.xcodeproj
 - Data dictionary: `docs/SSOT/contracts/DataDictionary.md`
 - Diagnostic logging: `docs/DIAGNOSTIC_LOGGING.md`
 - Testing guide: `docs/TESTING_GUIDE.md`
+- Symphony monitoring setup: `WORKFLOW.md` and `docs/SYMPHONY_SETUP.md`
 
 ## License
 
 Proprietary.
-

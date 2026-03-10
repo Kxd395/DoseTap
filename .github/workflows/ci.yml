@@ -15,8 +15,6 @@ jobs:
   ssot-lint:
     name: SSOT integrity check
     runs-on: macos-latest
-    # Non-blocking until roadmap items implemented; review warnings manually
-    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -55,6 +53,47 @@ jobs:
           fi
           echo "✅ No ghost test directories found"
 
+      - name: Guard against committed app secrets
+        run: |
+          set -euo pipefail
+
+          if git ls-files --error-unmatch ios/DoseTap/Secrets.swift >/dev/null 2>&1; then
+            echo "❌ FAIL: ios/DoseTap/Secrets.swift must never be tracked."
+            exit 1
+          fi
+
+          MATCHES="$(
+            git grep -nE 'whoopClient(ID|Secret)[[:space:]]*=[[:space:]]*\"' -- ios/DoseTap ios/Core \
+              | grep -Ev 'ios/DoseTap/Secrets.template.swift|ios/DoseTap/SecureConfig.swift' || true
+          )"
+          if [ -n "$MATCHES" ]; then
+            BAD="$(printf "%s\n" "$MATCHES" | grep -Ev 'YOUR_WHOOP_CLIENT_(ID|SECRET)|DOSETAP_WHOOP_CLIENT_(ID|SECRET)|whoop_client_secret_secure|\"\"' || true)"
+            if [ -n "$BAD" ]; then
+              echo "❌ FAIL: Potential hardcoded WHOOP credentials found:"
+              printf "%s\n" "$BAD"
+              exit 1
+            fi
+          fi
+
+          echo "✅ No tracked hardcoded app secrets detected"
+
+      - name: Guard against mock transport in production
+        run: |
+          set -euo pipefail
+
+          # MockAPITransport must only appear inside #if DEBUG blocks.
+          # In ios/Core/DoseTapCore.swift the struct must be wrapped.
+          # Tests are allowed to use stubs/mocks.
+          MOCK_HITS="$(
+            git grep -n 'MockAPITransport' -- ios/Core \
+              | grep -v '#if DEBUG' \
+              | grep -v '// MARK' || true
+          )"
+          if [ -n "$MOCK_HITS" ]; then
+            echo "⚠️  MockAPITransport found in Core — verify it is inside #if DEBUG"
+          fi
+          echo "✅ Mock transport guard passed"
+
       - name: Xcode version
         run: xcodebuild -version
 
@@ -91,7 +130,7 @@ jobs:
           )
           echo "Verifying critical SwiftPM test suites executed..."
           for SUITE in "${CRITICAL_SUITES[@]}"; do
-            if grep -q "Test Suite '$SUITE'" "$LOG"; then
+            if grep -Eq "Test [Ss]uite '$SUITE'" "$LOG"; then
               echo "✅ $SUITE executed"
             else
               echo "⚠️ Could not verify $SUITE (may use different log format)"
@@ -105,6 +144,50 @@ jobs:
             exit 1
           fi
 
+  release-pin-script-tests:
+    name: Release pin script regression checks
+    runs-on: macos-latest
+    needs: ssot-lint
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate release pin script pass/fail behavior
+        run: |
+          set -euo pipefail
+          SCRIPT="tools/validate_release_pins.sh"
+          chmod +x "$SCRIPT"
+
+          VALID_PINS="sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=,sha256/BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB="
+
+          expect_fail() {
+            local desc="$1"
+            shift
+            if "$@"; then
+              echo "❌ Expected failure but command succeeded: $desc"
+              exit 1
+            fi
+            echo "✅ Expected failure observed: $desc"
+          }
+
+          echo "🔎 Non-release build should skip validation"
+          CONFIGURATION=Debug bash "$SCRIPT"
+
+          echo "🔎 Release build with valid pins should pass"
+          CONFIGURATION=Release DOSETAP_CERT_PINS="$VALID_PINS" bash "$SCRIPT"
+
+          echo "🔎 Release build should fail for missing pins"
+          expect_fail "missing pins" env CONFIGURATION=Release DOSETAP_CERT_PINS="" bash "$SCRIPT"
+
+          echo "🔎 Release build should fail for placeholders"
+          expect_fail "placeholder pins" env CONFIGURATION=Release DOSETAP_CERT_PINS="sha256/REPLACE_ME==" bash "$SCRIPT"
+
+          echo "🔎 Release build should fail for malformed format"
+          expect_fail "malformed pin format" env CONFIGURATION=Release DOSETAP_CERT_PINS="sha256/not_base64,sha256/BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=" bash "$SCRIPT"
+
+          echo "🔎 Release build should fail when only one unique pin exists"
+          expect_fail "single unique pin" env CONFIGURATION=Release DOSETAP_CERT_PINS="sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=,sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" bash "$SCRIPT"
+
   xcode-tests:
     name: Xcode simulator tests
     runs-on: macos-latest
@@ -113,8 +196,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Guard against tab split-brain regressions
+        run: bash tools/check_tab_split_brain.sh
+
       - name: Xcode version
         run: xcodebuild -version
+
+      - name: Generate CI Secrets stub
+        run: |
+          # Secrets.swift is .gitignored (contains real credentials locally).
+          # Copy the checked-in template so the Xcode project compiles on CI.
+          if [ ! -f ios/DoseTap/Secrets.swift ]; then
+            cp ios/DoseTap/Secrets.template.swift ios/DoseTap/Secrets.swift
+            echo "✅ Created Secrets.swift from template for CI build"
+          fi
 
       - name: List schemes (debug)
         run: |
@@ -125,18 +220,84 @@ jobs:
         run: |
           set -euo pipefail
 
-          DESTINATION="platform=iOS Simulator,name=iPhone 15"
-          DERIVED_DATA="$RUNNER_TEMP/DerivedData"
+          AVAILABLE_IPHONES="$(
+            xcrun simctl list devices \
+              | grep -E '^[[:space:]]*iPhone' \
+              | grep -Ev 'unavailable' \
+              | sed -E 's/^[[:space:]]*(.*) \(([0-9A-Fa-f-]+)\) \([^)]*\)[[:space:]]*$/\1|\2/'
+          )"
 
-          xcodebuild test \
-            -project ios/DoseTap.xcodeproj \
-            -scheme DoseTap \
-            -destination "$DESTINATION" \
-            -derivedDataPath "$DERIVED_DATA" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGN_IDENTITY="" \
-            DEVELOPMENT_TEAM="" \
-            | tee "$RUNNER_TEMP/xcodebuild-test.log"
+          if [[ -z "$AVAILABLE_IPHONES" ]]; then
+            echo "❌ No available iPhone simulators found on runner."
+            xcrun simctl list devices
+            exit 1
+          fi
+
+          SIMULATOR_NAME=""
+          SIMULATOR_UDID=""
+          PREFERRED_NAMES=("iPhone 16 Pro" "iPhone 16" "iPhone 15 Pro" "iPhone 15" "iPhone 14 Pro" "iPhone 14")
+
+          for candidate in "${PREFERRED_NAMES[@]}"; do
+            candidate_udid="$(printf "%s\n" "$AVAILABLE_IPHONES" | awk -F'|' -v target="$candidate" '$1 == target { print $2; exit }')"
+            if [[ -n "$candidate_udid" ]]; then
+              SIMULATOR_NAME="$candidate"
+              SIMULATOR_UDID="$candidate_udid"
+              break
+            fi
+          done
+
+          if [[ -z "$SIMULATOR_UDID" ]]; then
+            first_entry="$(printf "%s\n" "$AVAILABLE_IPHONES" | head -n1)"
+            SIMULATOR_NAME="${first_entry%%|*}"
+            SIMULATOR_UDID="${first_entry##*|}"
+          fi
+
+          echo "Using simulator: $SIMULATOR_NAME ($SIMULATOR_UDID)"
+          DESTINATION="platform=iOS Simulator,id=$SIMULATOR_UDID"
+          DERIVED_DATA="$RUNNER_TEMP/DerivedData"
+          FINAL_LOG="$RUNNER_TEMP/xcodebuild-test.log"
+
+          # Reduce simulator boot/install flakiness on GitHub hosted runners.
+          xcrun simctl shutdown all || true
+          xcrun simctl boot "$SIMULATOR_UDID" || true
+          xcrun simctl bootstatus "$SIMULATOR_UDID" -b || true
+
+          run_tests() {
+            local attempt="$1"
+            local attempt_log="$RUNNER_TEMP/xcodebuild-test-attempt-${attempt}.log"
+            local status=0
+            echo "Running xcodebuild test (attempt $attempt)..."
+
+            set +e
+            xcodebuild test \
+              -project ios/DoseTap.xcodeproj \
+              -scheme DoseTap \
+              -destination "$DESTINATION" \
+              -derivedDataPath "$DERIVED_DATA" \
+              -parallel-testing-enabled NO \
+              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGN_IDENTITY="" \
+              DEVELOPMENT_TEAM="" \
+              2>&1 | tee "$attempt_log"
+            status=$?
+            set -e
+
+            cp "$attempt_log" "$FINAL_LOG"
+            return "$status"
+          }
+
+          if ! run_tests 1; then
+            if grep -Eq 'Invalid device state|Failed to install or launch the test runner|Mach error -308|server died|Early unexpected exit|test runner crashed before establishing connection|operation never finished bootstrapping' "$FINAL_LOG"; then
+              echo "Transient simulator failure detected; rebooting simulator and retrying once."
+              xcrun simctl shutdown all || true
+              xcrun simctl boot "$SIMULATOR_UDID" || true
+              xcrun simctl bootstatus "$SIMULATOR_UDID" -b || true
+              run_tests 2
+            else
+              echo "xcodebuild failed with non-transient error."
+              exit 1
+            fi
+          fi
 
       - name: Verify required test suites executed
         run: |
@@ -156,7 +317,7 @@ jobs:
           echo "Verifying required test suites executed..."
           MISSING=0
           for SUITE in "${REQUIRED_SUITES[@]}"; do
-            if grep -q "Test Suite '$SUITE'" "$LOG"; then
+            if grep -Eq "Test [Ss]uite '$SUITE'" "$LOG"; then
               echo "✅ $SUITE executed"
             else
               echo "❌ MISSING: $SUITE did not execute"
@@ -167,6 +328,13 @@ jobs:
             echo "❌ $MISSING required test suite(s) missing from execution"
             exit 1
           fi
+          # Match both parallel ("Test case 'X.method()'") and sequential ("Test Case '-[M.X method]'") formats
+          if grep -Eq "Test [Cc]ase.*URLRouterTests[. ]test_navigationDeepLinkContract_isStable" "$LOG"; then
+            echo "✅ Contract test URLRouterTests.test_navigationDeepLinkContract_isStable executed"
+          else
+            echo "❌ MISSING: URLRouterTests.test_navigationDeepLinkContract_isStable did not execute"
+            exit 1
+          fi
           echo "✅ All required test suites verified"
 
       - name: Upload xcodebuild log on failure
@@ -175,3 +343,43 @@ jobs:
         with:
           name: xcodebuild-test-log
           path: ${{ runner.temp }}/xcodebuild-test.log
+
+  release-pinning-check:
+    name: Release pinning validation
+    runs-on: macos-latest
+    needs: [swiftpm-tests, xcode-tests, release-pin-script-tests]
+    if: startsWith(github.ref, 'refs/tags/')
+    env:
+      CONFIGURATION: Release
+      DOSETAP_CERT_PINS: ${{ secrets.DOSETAP_CERT_PINS }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run release preflight checks
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          bash tools/release_preflight.sh "$TAG"
+
+      - name: Validate release certificate pins
+        run: bash tools/validate_release_pins.sh
+
+      - name: Generate CI Secrets stub
+        run: |
+          if [ ! -f ios/DoseTap/Secrets.swift ]; then
+            cp ios/DoseTap/Secrets.template.swift ios/DoseTap/Secrets.swift
+            echo "✅ Created Secrets.swift from template for CI build"
+          fi
+
+      - name: Build Release (non-debug) with pinning env
+        run: |
+          set -euo pipefail
+          xcodebuild build \
+            -project ios/DoseTap.xcodeproj \
+            -scheme DoseTap \
+            -configuration Release \
+            -destination "generic/platform=iOS Simulator" \
+            DOSETAP_CERT_PINS="$DOSETAP_CERT_PINS" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM=""

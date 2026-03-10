@@ -13,7 +13,7 @@ struct ContentView: View {
         } detail: {
             // Main content
             if dataStore.folderURL != nil {
-                DashboardView(dataStore: dataStore)
+                LibraryView(dataStore: dataStore)
             } else {
                 WelcomeView(showingFolderPicker: $showingFolderPicker)
             }

@@ -117,6 +117,8 @@ public struct StoredMorningCheckIn: Identifiable, Equatable, Sendable {
     public let mentalClarity: Int
     public let mood: String
     public let anxietyLevel: String
+    public let stressLevel: Int?
+    public let stressContextJson: String?
     public let readinessForDay: Int
     public let hadSleepParalysis: Bool
     public let hadHallucinations: Bool
@@ -146,6 +148,8 @@ public struct StoredMorningCheckIn: Identifiable, Equatable, Sendable {
         mentalClarity: Int = 5,
         mood: String = "neutral",
         anxietyLevel: String = "none",
+        stressLevel: Int? = nil,
+        stressContextJson: String? = nil,
         readinessForDay: Int = 3,
         hadSleepParalysis: Bool = false,
         hadHallucinations: Bool = false,
@@ -174,6 +178,8 @@ public struct StoredMorningCheckIn: Identifiable, Equatable, Sendable {
         self.mentalClarity = mentalClarity
         self.mood = mood
         self.anxietyLevel = anxietyLevel
+        self.stressLevel = stressLevel
+        self.stressContextJson = stressContextJson
         self.readinessForDay = readinessForDay
         self.hadSleepParalysis = hadSleepParalysis
         self.hadHallucinations = hadHallucinations

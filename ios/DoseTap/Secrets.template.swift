@@ -56,7 +56,7 @@ struct Secrets {
     /// Validate configuration and log warnings
     static func validateConfiguration() {
         if !isConfigured {
-            print("⚠️ Secrets not configured - copy Secrets.template.swift to Secrets.swift")
+            NSLog("⚠️ Secrets not configured - copy Secrets.template.swift to Secrets.swift")
         }
     }
 }

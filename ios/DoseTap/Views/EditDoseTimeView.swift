@@ -135,11 +135,8 @@ struct EditDoseTimeView: View {
     
     private var formattedSessionDate: String {
         // Parse session date string (YYYY-MM-DD format)
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        if let date = formatter.date(from: sessionDate) {
-            formatter.dateFormat = "EEEE, MMM d"
-            return formatter.string(from: date)
+        if let date = AppFormatters.sessionDate.date(from: sessionDate) {
+            return AppFormatters.weekdayMedium.string(from: date)
         }
         return sessionDate
     }

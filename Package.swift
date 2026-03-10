@@ -5,6 +5,7 @@ let package = Package(
     name: "DoseTap",
     platforms: [
         .iOS(.v16),
+        .macOS(.v10_15),
         .watchOS(.v9)
     ],
     products: [
@@ -36,7 +37,12 @@ let package = Package(
                 "EventStore.swift",
                 "TimeIntervalMath.swift",
                 "DiagnosticEvent.swift",
-                "DiagnosticLogger.swift"
+                "DiagnosticLogger.swift",
+                "DosingModels.swift",
+                "CertificatePinning.swift",
+                "NightScoreCalculator.swift",
+                "DoseRegistrationPolicy.swift",
+                "DoseEffectivenessCalculator.swift"
             ]
         ),
         .testTarget(
@@ -61,7 +67,22 @@ let package = Package(
                 "MedicationLoggerTests.swift",
                 "TimeCorrectnessTests.swift",
                 "SleepPlanCalculatorTests.swift",
-                "SessionIdBackfillTests.swift"
+                "SessionIdBackfillTests.swift",
+                "DosingAmountTests.swift",
+                "UnifiedSleepSessionTests.swift",
+                "DiagnosticEventTests.swift",
+                "MorningCheckInTests.swift",
+                "DosingModelsTests.swift",
+                "DosingServiceTests.swift",
+                "CertificatePinningTests.swift",
+                "DiagnosticLoggerTests.swift",
+                "RecommendationEngineTests.swift",
+                "EventStoreModelsTests.swift",
+                "TimeEngineTests.swift",
+                "SessionRolloverRegressionTests.swift",
+                "NightScoreCalculatorTests.swift",
+                "DoseRegistrationPolicyTests.swift",
+                "DoseEffectivenessCalculatorTests.swift"
             ]
         )
     ]

@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Planner turnover control for Tonight UI**
+  - Added `After check-in, show upcoming night` setting in Night Schedule.
+  - Added `plannerSessionKey(for:)` path to keep planner-facing screens consistent after morning check-in.
+  - Added regression tests for planner key behavior with toggle on/off.
+
+- **Weekly workday sleep setup flow**
+  - Added quick "workday/off-day" weekly schedule template controls.
+  - Added setup-wizard entry point to configure weekly workday patterns.
+
 - **Forensic Improvements to Diagnostic Logging (v2.15.0)** - Aviation-grade forensic hardening
   - Per-session `seq` counter for event ordering under timestamp collision
   - `constants_hash` on terminal events (`session.completed`, `timezone.changed`) for drift detection
@@ -49,6 +58,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Audit branch stabilization and refactor pass**
+  - Split oversized dashboard, setup, pre-sleep, history, timeline, night-review, and morning-check-in files into coherent modules.
+  - Split `SessionRepository` and `EventStorage` extensions by concern, and quarantined deferred CloudKit plus legacy Core Data compatibility paths under explicit legacy naming.
+  - Clarified build-product boundaries with `DoseTap.Local.entitlements`, `DoseTap.Cloud.entitlements`, and staging-only CloudKit validation guidance.
+  - Added App Store submission artifacts including privacy manifest, support/privacy surfaces, and release-preflight hardening.
+
+- **Theme-stable schedule time pickers**
+  - Replaced compact schedule DatePickers with sheet-based wheel pickers in Settings, Setup Wizard, and Weekly Schedule.
+  - Prevents light/dark/night-specific rendering differences for sleep schedule controls.
+
+- **Tonight surface consistency**
+  - Aligned remaining planner-facing views (timeline, quick log, night review, pre-sleep nap summary) to planner key behavior after check-in.
+
 - Repository cleanup: Archived dated audit reports to `docs/archive/`
 - Archived WHOOP OAuth test scripts to `archive/tools_whoop/`
 - Moved historical audit files to `archive/audits_2026-01/`
@@ -59,6 +81,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Archived historical code review docs to `archive/audits_2025-12-24/`
 
 ### Fixed
+- **Local-vs-staging product boundary drift**
+  - Removed dead setup-wizard cloud-sync preference.
+  - Hid the manual CloudKit sync action in the local-first shipping target.
+  - Updated live docs/runbooks so CloudKit validation points at `DoseTapStaging`, not the shipping app target.
+
+- **P1: Notification ID mismatch** — Unified `SessionRepository.sessionNotificationIdentifiers` with `AlarmService.NotificationID` (`dosetap_*` prefix). Previously 6 cancel call sites used IDs that had zero overlap with what AlarmService actually schedules, leaving orphan notifications.
+- **P1: Flic alarm parity** — `FlicButtonService` dose 1 path now schedules wake alarm + dose 2 reminders; dose 2 / skip paths now cancel all alarms. Previously Flic dose actions had no alarm side effects.
+- **P2: Critical alerts capability gating** — Added `canUseCriticalAlerts` guard in `AlarmService` that checks both `UserSettingsManager.criticalAlertsEnabled` and an Info.plist `CriticalAlertsCapabilityEnabled` flag. Notifications gracefully fall back to `.timeSensitive` when the Apple entitlement is not yet approved. Entitlement key is added to `.entitlements` files only after Apple approval.
+- **P2: Notification permission recovery** — `SettingsView` now detects iOS `.denied` authorization when user enables notifications, resets the toggle, and offers a button to open iOS Settings. Previously permission denial was a one-shot dead end.
+- **P2: Channel parity for dose actions** — URLRouter, History `DoseButtonsSection`, and CompactDoseButton now all cancel alarms on dose 2 / skip / late override. Post-skip dose 2 override enabled across all surfaces (was UI-only).
+- **P2: Extra dose via deep link** — URLRouter `dose2` path now supports extra dose (dose 3+) when dose 2 is already taken.
+- **P3: Alarm sound fallback** — Removed dead `alarm_tone.caf` lookup; alarm sound now uses system sound fallback directly.
 - Foreign key enforcement in SQLite (`PRAGMA foreign_keys = ON`)
 - HealthKitService syntax error preventing compilation
 - Missing source file references in Xcode project

@@ -1,13 +1,15 @@
 <!--
 Sync Impact Report:
-- Version change: None → 1.0.0
-- Modified principles: Initial ratification
-- Added sections: All (initial constitution)
+- Version change: 1.0.0 → 1.1.0
+- Modified principles: None
+- Added sections:
+  - Principle VIII: Refactoring Safety
+  - Principle IX: Commit Atomicity
 - Removed sections: None
-- Templates requiring updates: 
-  ✅ spec-template.md - Aligned with SSOT-first principle
-  ✅ plan-template.md - Aligned with test-first principle
-  ✅ tasks-template.md - Aligned with deterministic testing principle
+- Templates requiring updates:
+  ✅ spec-template.md - No changes needed (new principles are operational, not spec-affecting)
+  ✅ plan-template.md - No changes needed
+  ✅ tasks-template.md - No changes needed
 - Follow-up TODOs: None
 -->
 
@@ -114,6 +116,33 @@ Sync Impact Report:
 - Payment or subscription features
 
 **Rationale**: Focused scope ensures quality and reliability. XYWAV's strict timing requirements differ fundamentally from other medications. Generalizing prematurely introduces complexity without user benefit.
+
+### VIII. Refactoring Safety (NON-NEGOTIABLE)
+
+**MUST**: Every rename, delete, or move operation MUST include a full-repo reference scan. No partial refactoring commits.
+
+**Implementation Requirements**:
+- Before deleting/renaming any type, property, or method: `grep -rn "OldName" ios/ Tests/ docs/`
+- Update every reference found in the SAME commit
+- Run `swift build -q` to verify SwiftPM target compiles
+- If UI files were touched, also verify: `xcodebuild build -project ios/DoseTap.xcodeproj -scheme DoseTap -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO`
+- Never commit a file that references an undefined symbol
+- Never empty a file that is still referenced elsewhere
+
+**Rationale**: The Feb 2026 audit found 3 P0 bugs caused entirely by incomplete refactoring — types deleted without updating callers, files emptied without removing references. Every one would have been caught by a single `grep` before committing.
+
+### IX. Commit Atomicity (NON-NEGOTIABLE)
+
+**MUST**: Every commit MUST compile and pass tests. Uncommitted changes MUST NOT exceed 500 lines.
+
+**Implementation Requirements**:
+- Each commit passes `swift build -q` and `swift test -q`
+- Large changes are split into small, logical commits (each independently valid)
+- Work-in-progress is saved via feature branches, never as dirty working directories
+- Before finishing a session: commit or stash all changes
+- Never accumulate >500 lines of uncommitted diff (check with `git diff --stat`)
+
+**Rationale**: The Feb 2026 audit discovered a −9,131/+2,006 line uncommitted diff at risk of total loss. CI gates are meaningless if changes are never committed. Atomic commits enable bisection, rollback, and ensure CI validation actually occurs.
 
 ## Architecture Constraints
 
@@ -257,4 +286,4 @@ Spec artifacts stored in `.specify/` MUST be committed with the feature.
 - **SSOT > Code**: If conflict, code is wrong
 - **SSOT > Other Docs**: If conflict, SSOT is authoritative
 
-**Version**: 1.0.0 | **Ratified**: 2026-01-10 | **Last Amended**: 2026-01-10
+**Version**: 1.1.0 | **Ratified**: 2026-01-10 | **Last Amended**: 2026-02-09

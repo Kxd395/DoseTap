@@ -1,0 +1,1 @@
+../../tools/ssot_check.sh

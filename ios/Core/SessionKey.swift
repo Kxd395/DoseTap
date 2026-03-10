@@ -52,8 +52,8 @@ public func preSleepSessionKey(for date: Date, timeZone: TimeZone, rolloverHour:
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = timeZone
     
-    let hour = calendar.component(.hour, from: date)
-    let sessionDate = hour < rolloverHour ? date : date
+    // Pre-sleep planning always targets the upcoming night keyed by today's local calendar date.
+    let sessionDate = date
     
     let formatter = DateFormatter()
     formatter.calendar = calendar

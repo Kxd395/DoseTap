@@ -1,0 +1,36 @@
+#!/bin/bash
+
+set -euo pipefail
+
+source "$(cd "$(dirname "$0")" && pwd)/dt-common.sh"
+
+dt_require_tool xcodebuild
+
+target="${1:-sim}"
+if [[ $# -gt 0 ]]; then
+  shift
+fi
+
+case "$target" in
+  sim)
+    destination="generic/platform=iOS Simulator"
+    ;;
+  device)
+    destination="generic/platform=iOS"
+    ;;
+  *)
+    echo "Usage: dt-build [sim|device] [extra xcodebuild args...]" >&2
+    exit 1
+    ;;
+esac
+
+dt_print_xcode_context
+echo "Destination: $destination"
+
+exec xcodebuild \
+  -project "$(dt_project_path)" \
+  -scheme "$(dt_scheme)" \
+  -configuration "$(dt_configuration)" \
+  -destination "$destination" \
+  build \
+  "$@"

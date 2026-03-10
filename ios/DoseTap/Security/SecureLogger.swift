@@ -13,8 +13,8 @@ import os.log
 /// SecureLogger.shared.error("Failed to connect", error: error)
 /// ```
 ///
-/// Migration from print():
-/// Replace: print("message")
+/// Migration from print calls:
+/// Replace: print call with "message"
 /// With:    debugLog("message")
 /// Or:      logInfo("message", category: .general)
 ///
@@ -185,32 +185,32 @@ public func logError(_ message: String, error: Error? = nil, category: SecureLog
 // MARK: - Legacy Print Replacement
 
 /// Safe print replacement that only outputs in DEBUG builds
-/// Use this as a drop-in replacement for existing print() calls during migration
+/// Use this as a drop-in replacement for existing print calls during migration
 public func debugPrint(_ items: Any..., separator: String = " ", terminator: String = "\n") {
     #if DEBUG
     let output = items.map { String(describing: $0) }.joined(separator: separator)
-    Swift.print(output, terminator: terminator)
+    fputs(output + terminator, stderr)
     #endif
 }
 
-/// Drop-in replacement for print() that only works in DEBUG builds
-/// Usage: Replace `print("message")` with `debugLog("message")`
+/// Drop-in replacement for print calls that only works in DEBUG builds
+/// Usage: Replace `print` call with `debugLog("message")`
 public func debugLog(_ message: String, file: String = #file, line: Int = #line) {
     #if DEBUG
     let filename = (file as NSString).lastPathComponent
-    Swift.print("[\(filename):\(line)] \(message)")
+    fputs("[\(filename):\(line)] \(message)\n", stderr)
     #endif
 }
 
 /// Categorized logging that only works in DEBUG builds
-/// Usage: Replace `print("API call")` with `log("API call", category: .network)`
+/// Usage: Replace `print` call with `log("API call", category: .network)`
 public func log(_ message: String, category: SecureLogger.Category, file: String = #file, line: Int = #line) {
     #if DEBUG
     if #available(iOS 14.0, watchOS 7.0, *) {
         SecureLogger.shared.debug(message, category: category, file: file, line: line)
     } else {
         let filename = (file as NSString).lastPathComponent
-        Swift.print("[\(category.rawValue)] [\(filename):\(line)] \(message)")
+        fputs("[\(category.rawValue)] [\(filename):\(line)] \(message)\n", stderr)
     }
     #endif
 }

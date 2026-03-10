@@ -7,7 +7,8 @@ public struct NightSummary {
 }
 
 public struct RecommendationEngine {
-    /// Returns minutes after Dose 1 for second-dose reminder, constrained to 150–240 with baseline clamp 165–210.
+    /// Returns minutes after Dose 1 for the second-dose reminder.
+    /// History-derived baseline stays in the 165–225 target band, while live awake signals may still snap anywhere inside the 150–240 window.
     public static func recommendOffsetMinutes(history: [NightSummary], liveSignals: (isLightOrAwakeNow: Bool, minutesSinceDose1: Int)?) -> Int {
         let lower = 150, upper = 240
         let samples = history.compactMap { $0.minutesToFirstWake }.filter { $0 >= lower && $0 <= upper }
@@ -15,7 +16,7 @@ public struct RecommendationEngine {
             guard !samples.isEmpty else { return 165 }
             let sorted = samples.sorted(); let mid = sorted.count / 2
             let median = sorted.count % 2 == 0 ? (sorted[mid-1] + sorted[mid]) / 2 : sorted[mid]
-            return max(min(median, 210), 165)
+            return max(min(median, 225), 165)
         }()
         var target = baseline
         if let live = liveSignals {

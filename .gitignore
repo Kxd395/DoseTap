@@ -1,6 +1,7 @@
 # Build artifacts
 .build/
 *.xcuserdatad
+build/
 
 # Secrets and configuration
 ios/DoseTap/Config.plist
@@ -17,3 +18,29 @@ ios/DoseTap/Secrets.swift
 
 # Logs
 *.log
+ios/build/
+
+# Added by ggshield
+.cache_ggshield
+
+# Xcode derived data (local)
+.xcode-derived/
+
+# Xcode backup files
+*.pbxproj.backup*
+
+# Archived / one-off artifacts (removed from tracking 2026-02-13)
+archive/
+agent/
+shadcn-ui/
+ios/TempProject/
+ios/DoseTapProject/
+ios/DoseTapNative/
+ios/TestBuild.swift
+
+# One-off project fix scripts
+ios/*.py
+ios/*.sh
+
+# Downloaded reference PDFs
+docs/review/*.pdf
