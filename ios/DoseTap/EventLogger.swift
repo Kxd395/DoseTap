@@ -105,7 +105,18 @@ class EventLogger: ObservableObject {
         events.removeAll { $0.id == id }
         sessionRepo.deleteSleepEvent(id: id.uuidString)
     }
-    
+
+    /// Update the time for an existing event
+    func updateEventTime(id: UUID, newTime: Date) {
+        sessionRepo.updateEventTime(eventId: id.uuidString, newTime: newTime)
+        loadEventsFromStorage()
+    }
+
+    /// Fetch the underlying StoredSleepEvent for a LoggedEvent ID (for edit sheets)
+    func storedEvent(for id: UUID) -> StoredSleepEvent? {
+        sessionRepo.fetchTonightSleepEvents().first { $0.id == id.uuidString }
+    }
+
     /// Refresh events from storage
     func refresh() {
         loadEventsFromStorage()

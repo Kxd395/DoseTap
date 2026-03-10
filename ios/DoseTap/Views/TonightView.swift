@@ -533,8 +533,23 @@ struct TonightDateLabel: View {
 struct TonightEventsSheet: View {
     let events: [LoggedEvent]
     let onDelete: (UUID) -> Void
+    let onEditTime: ((UUID, Date) -> Void)?
+    let storedEventLookup: ((UUID) -> StoredSleepEvent?)?
     @Environment(\.dismiss) private var dismiss
-    
+    @State private var editingEvent: StoredSleepEvent?
+
+    init(
+        events: [LoggedEvent],
+        onDelete: @escaping (UUID) -> Void,
+        onEditTime: ((UUID, Date) -> Void)? = nil,
+        storedEventLookup: ((UUID) -> StoredSleepEvent?)? = nil
+    ) {
+        self.events = events
+        self.onDelete = onDelete
+        self.onEditTime = onEditTime
+        self.storedEventLookup = storedEventLookup
+    }
+
     var body: some View {
         NavigationView {
             Group {
@@ -555,22 +570,36 @@ struct TonightEventsSheet: View {
                 } else {
                     List {
                         ForEach(events.sorted(by: { $0.time > $1.time })) { event in
-                            HStack(spacing: 12) {
-                                Circle()
-                                    .fill(event.color)
-                                    .frame(width: 12, height: 12)
-                                
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(event.name)
-                                        .font(.body)
-                                    Text(event.time.formatted(date: .omitted, time: .shortened))
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
+                            Button {
+                                if let lookup = storedEventLookup,
+                                   let stored = lookup(event.id) {
+                                    editingEvent = stored
                                 }
-                                
-                                Spacer()
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Circle()
+                                        .fill(event.color)
+                                        .frame(width: 12, height: 12)
+
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(event.name)
+                                            .font(.body)
+                                        Text(event.time.formatted(date: .omitted, time: .shortened))
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+
+                                    Spacer()
+
+                                    if storedEventLookup != nil {
+                                        Image(systemName: "pencil")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                                .padding(.vertical, 4)
                             }
-                            .padding(.vertical, 4)
+                            .tint(.primary)
                         }
                         .onDelete { indexSet in
                             let sorted = events.sorted(by: { $0.time > $1.time })
@@ -595,6 +624,15 @@ struct TonightEventsSheet: View {
                         dismiss()
                     }
                 }
+            }
+            .sheet(item: $editingEvent) { event in
+                EditEventTimeView(
+                    event: event,
+                    sessionDate: SessionRepository.shared.currentSessionKey,
+                    onSave: { newTime in
+                        onEditTime?(UUID(uuidString: event.id) ?? UUID(), newTime)
+                    }
+                )
             }
         }
     }

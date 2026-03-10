@@ -185,9 +185,18 @@ struct DetailsView: View {
                 }
             }
             .sheet(isPresented: $showLiveEventsSheet) {
-                TonightEventsSheet(events: eventLogger.events, onDelete: { id in
-                    eventLogger.deleteEvent(id: id)
-                })
+                TonightEventsSheet(
+                    events: eventLogger.events,
+                    onDelete: { id in
+                        eventLogger.deleteEvent(id: id)
+                    },
+                    onEditTime: { id, newTime in
+                        eventLogger.updateEventTime(id: id, newTime: newTime)
+                    },
+                    storedEventLookup: { id in
+                        eventLogger.storedEvent(for: id)
+                    }
+                )
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
             }
