@@ -106,6 +106,24 @@ class EventLogger: ObservableObject {
         sessionRepo.deleteSleepEvent(id: id.uuidString)
     }
 
+    /// Manually log an event at a specific date+time (for retroactive entry)
+    func logManualEvent(eventType: String, color: Color, timestamp: Date) {
+        let eventId = UUID()
+        let displayName = EventType(eventType).displayName
+        let event = LoggedEvent(id: eventId, name: displayName, time: timestamp, color: color)
+        events.insert(event, at: 0)
+
+        sessionRepo.insertSleepEvent(
+            id: eventId.uuidString,
+            eventType: eventType,
+            timestamp: timestamp,
+            colorHex: color.toHex(),
+            notes: "manual"
+        )
+
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+
     /// Update the time for an existing event
     func updateEventTime(id: UUID, newTime: Date) {
         sessionRepo.updateEventTime(eventId: id.uuidString, newTime: newTime)

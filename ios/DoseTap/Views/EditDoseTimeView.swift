@@ -17,7 +17,7 @@ struct EditDoseTimeView: View {
     @State private var showConfirmation = false
     
     // Constants from spec
-    private let maxAdjustmentMinutes: Double = 30
+    private let maxAdjustmentMinutes: Double = 720  // ±12 hours
     private let minDose2IntervalMinutes: Double = 90
     private let maxDose2IntervalMinutes: Double = 360
     
@@ -42,20 +42,19 @@ struct EditDoseTimeView: View {
                         HStack {
                             Image(systemName: "\(doseNumber).circle.fill")
                                 .foregroundColor(.green)
-                            Text("Original time: \(originalTime.formatted(date: .omitted, time: .shortened))")
+                            Text("Original: \(originalTime.formatted(date: .abbreviated, time: .shortened))")
                         }
                     }
                 }
                 
-                Section("Correct Time") {
+                Section("Correct Date & Time") {
                     DatePicker(
-                        "New time",
+                        "Date & Time",
                         selection: $selectedTime,
                         in: timeRange,
-                        displayedComponents: [.hourAndMinute]
+                        displayedComponents: [.date, .hourAndMinute]
                     )
-                    .datePickerStyle(.wheel)
-                    .labelsHidden()
+                    .datePickerStyle(.compact)
                     .onChange(of: selectedTime) { _ in validateTime() }
                     
                     // Show adjustment delta
@@ -103,7 +102,7 @@ struct EditDoseTimeView: View {
                 }
                 
                 Section {
-                    Text("Adjustments are limited to ±30 minutes from the original time.")
+                    Text("Adjustments are limited to ±12 hours from the original time. Dose 2 interval constraints still apply.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -126,7 +125,7 @@ struct EditDoseTimeView: View {
                     dismiss()
                 }
             } message: {
-                Text("Change Dose \(doseNumber) time from \(originalTime.formatted(date: .omitted, time: .shortened)) to \(selectedTime.formatted(date: .omitted, time: .shortened))?")
+                Text("Change Dose \(doseNumber) from \(originalTime.formatted(date: .abbreviated, time: .shortened)) to \(selectedTime.formatted(date: .abbreviated, time: .shortened))?")
             }
         }
     }
@@ -191,7 +190,7 @@ struct EditDoseTimeView: View {
     }
 }
 
-/// View for editing a sleep event time
+/// View for editing a sleep event time (date + time)
 struct EditEventTimeView: View {
     @Environment(\.dismiss) private var dismiss
     
@@ -201,8 +200,6 @@ struct EditEventTimeView: View {
     
     @State private var selectedTime: Date
     @State private var showConfirmation = false
-    
-    private let maxAdjustmentMinutes: Double = 30
     
     init(event: StoredSleepEvent, sessionDate: String, onSave: @escaping (Date) -> Void) {
         self.event = event
@@ -223,31 +220,30 @@ struct EditEventTimeView: View {
                             .font(.headline)
                     }
                     
-                    Text("Original: \(event.timestamp.formatted(date: .omitted, time: .shortened))")
+                    Text("Original: \(event.timestamp.formatted(date: .abbreviated, time: .shortened))")
                         .foregroundColor(.secondary)
                 }
                 
-                Section("Correct Time") {
+                Section("Correct Date & Time") {
                     DatePicker(
-                        "New time",
+                        "Date & Time",
                         selection: $selectedTime,
                         in: timeRange,
-                        displayedComponents: [.hourAndMinute]
+                        displayedComponents: [.date, .hourAndMinute]
                     )
-                    .datePickerStyle(.wheel)
-                    .labelsHidden()
+                    .datePickerStyle(.compact)
                     
                     if adjustmentMinutes != 0 {
                         HStack {
                             Image(systemName: adjustmentMinutes > 0 ? "plus.circle" : "minus.circle")
                                 .foregroundColor(.blue)
-                            Text("\(abs(adjustmentMinutes)) minutes \(adjustmentMinutes > 0 ? "later" : "earlier")")
+                            Text("\(abs(adjustmentMinutes)) min \(adjustmentMinutes > 0 ? "later" : "earlier")")
                         }
                     }
                 }
                 
                 Section {
-                    Text("Adjustments are limited to ±30 minutes.")
+                    Text("Adjustments are limited to ±12 hours from the original time.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -270,7 +266,7 @@ struct EditEventTimeView: View {
                     dismiss()
                 }
             } message: {
-                Text("Change \(EventDisplayName.displayName(for: event.eventType)) time to \(selectedTime.formatted(date: .omitted, time: .shortened))?")
+                Text("Change \(EventDisplayName.displayName(for: event.eventType)) to \(selectedTime.formatted(date: .abbreviated, time: .shortened))?")
             }
         }
     }
@@ -279,10 +275,107 @@ struct EditEventTimeView: View {
         Int(selectedTime.timeIntervalSince(event.timestamp) / 60)
     }
     
+    /// ±12 hours from original time — covers the full sleep session window
     private var timeRange: ClosedRange<Date> {
-        let minTime = event.timestamp.addingTimeInterval(-maxAdjustmentMinutes * 60)
-        let maxTime = event.timestamp.addingTimeInterval(maxAdjustmentMinutes * 60)
+        let window: TimeInterval = 12 * 60 * 60
+        let minTime = event.timestamp.addingTimeInterval(-window)
+        let maxTime = event.timestamp.addingTimeInterval(window)
         return minTime...maxTime
+    }
+}
+
+// MARK: - Manual Event Log View
+/// Lets the user manually log an event that wasn't captured in real time.
+/// Presents a type picker and a full date+time picker.
+struct ManualEventLogView: View {
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var settings = UserSettingsManager.shared
+
+    let onSave: (String, Color, Date) -> Void  // (eventType, color, timestamp)
+
+    @State private var selectedType: EventType?
+    @State private var selectedTime = Date()
+    @State private var showConfirmation = false
+
+    /// The event types available for manual logging (quick-log sleep events only)
+    private var availableTypes: [EventType] {
+        settings.quickLogButtons.map { EventType($0.name) }
+    }
+
+    var body: some View {
+        NavigationView {
+            Form {
+                Section("Event Type") {
+                    ForEach(availableTypes, id: \.canonicalString) { type in
+                        Button {
+                            selectedType = type
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: type.sfSymbol)
+                                    .foregroundColor(type.displayColor)
+                                    .frame(width: 24)
+                                Text(type.displayName)
+                                    .foregroundColor(.primary)
+                                Spacer()
+                                if selectedType == type {
+                                    Image(systemName: "checkmark")
+                                        .foregroundColor(.blue)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Section("Date & Time") {
+                    DatePicker(
+                        "When",
+                        selection: $selectedTime,
+                        in: dateRange,
+                        displayedComponents: [.date, .hourAndMinute]
+                    )
+                    .datePickerStyle(.compact)
+                }
+
+                if let type = selectedType {
+                    Section {
+                        HStack {
+                            Image(systemName: type.sfSymbol)
+                                .foregroundColor(type.displayColor)
+                            Text("\(type.displayName) at \(selectedTime.formatted(date: .abbreviated, time: .shortened))")
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Log Event")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add") { showConfirmation = true }
+                        .disabled(selectedType == nil)
+                }
+            }
+            .alert("Confirm Event", isPresented: $showConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Add") {
+                    guard let type = selectedType else { return }
+                    onSave(type.canonicalString, type.displayColor, selectedTime)
+                    dismiss()
+                }
+            } message: {
+                if let type = selectedType {
+                    Text("Log \(type.displayName) at \(selectedTime.formatted(date: .abbreviated, time: .shortened))?")
+                }
+            }
+        }
+    }
+
+    /// Allow logging for the past 24 hours up to now
+    private var dateRange: ClosedRange<Date> {
+        let now = Date()
+        return now.addingTimeInterval(-24 * 60 * 60)...now
     }
 }
 

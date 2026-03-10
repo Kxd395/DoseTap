@@ -534,19 +534,23 @@ struct TonightEventsSheet: View {
     let events: [LoggedEvent]
     let onDelete: (UUID) -> Void
     let onEditTime: ((UUID, Date) -> Void)?
+    let onAddEvent: ((String, Color, Date) -> Void)?
     let storedEventLookup: ((UUID) -> StoredSleepEvent?)?
     @Environment(\.dismiss) private var dismiss
     @State private var editingEvent: StoredSleepEvent?
+    @State private var showAddEvent = false
 
     init(
         events: [LoggedEvent],
         onDelete: @escaping (UUID) -> Void,
         onEditTime: ((UUID, Date) -> Void)? = nil,
+        onAddEvent: ((String, Color, Date) -> Void)? = nil,
         storedEventLookup: ((UUID) -> StoredSleepEvent?)? = nil
     ) {
         self.events = events
         self.onDelete = onDelete
         self.onEditTime = onEditTime
+        self.onAddEvent = onAddEvent
         self.storedEventLookup = storedEventLookup
     }
 
@@ -584,7 +588,7 @@ struct TonightEventsSheet: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(event.name)
                                             .font(.body)
-                                        Text(event.time.formatted(date: .omitted, time: .shortened))
+                                        Text(event.time.formatted(date: .abbreviated, time: .shortened))
                                             .font(.caption)
                                             .foregroundColor(.secondary)
                                     }
@@ -615,9 +619,11 @@ struct TonightEventsSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Text("\(events.count) event\(events.count == 1 ? "" : "s")")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    Button {
+                        showAddEvent = true
+                    } label: {
+                        Image(systemName: "plus")
+                    }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
@@ -633,6 +639,11 @@ struct TonightEventsSheet: View {
                         onEditTime?(UUID(uuidString: event.id) ?? UUID(), newTime)
                     }
                 )
+            }
+            .sheet(isPresented: $showAddEvent) {
+                ManualEventLogView { eventType, color, timestamp in
+                    onAddEvent?(eventType, color, timestamp)
+                }
             }
         }
     }

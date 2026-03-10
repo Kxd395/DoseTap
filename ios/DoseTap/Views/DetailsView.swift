@@ -193,6 +193,9 @@ struct DetailsView: View {
                     onEditTime: { id, newTime in
                         eventLogger.updateEventTime(id: id, newTime: newTime)
                     },
+                    onAddEvent: { eventType, color, timestamp in
+                        eventLogger.logManualEvent(eventType: eventType, color: color, timestamp: timestamp)
+                    },
                     storedEventLookup: { id in
                         eventLogger.storedEvent(for: id)
                     }
