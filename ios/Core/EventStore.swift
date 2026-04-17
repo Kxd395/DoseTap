@@ -129,6 +129,7 @@ public struct StoredMorningCheckIn: Identifiable, Equatable, Sendable {
     public let sleepTherapyJson: String?
     public let hasSleepEnvironment: Bool
     public let sleepEnvironmentJson: String?
+    public let timingContextJson: String?
     public let notes: String?
     
     public init(
@@ -160,6 +161,7 @@ public struct StoredMorningCheckIn: Identifiable, Equatable, Sendable {
         sleepTherapyJson: String? = nil,
         hasSleepEnvironment: Bool = false,
         sleepEnvironmentJson: String? = nil,
+        timingContextJson: String? = nil,
         notes: String? = nil
     ) {
         self.id = id
@@ -190,6 +192,7 @@ public struct StoredMorningCheckIn: Identifiable, Equatable, Sendable {
         self.sleepTherapyJson = sleepTherapyJson
         self.hasSleepEnvironment = hasSleepEnvironment
         self.sleepEnvironmentJson = sleepEnvironmentJson
+        self.timingContextJson = timingContextJson
         self.notes = notes
     }
 }

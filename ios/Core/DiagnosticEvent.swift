@@ -257,6 +257,9 @@ public struct DiagnosticLogEntry: Codable, Sendable {
     
     /// Alarm/notification identifier
     public var alarmId: String?
+
+    /// Scheduled fire time for an alarm or reminder notification
+    public var scheduledForTime: Date?
     
     /// Previous phase (for transitions)
     public var previousPhase: String?
@@ -283,6 +286,9 @@ public struct DiagnosticLogEntry: Codable, Sendable {
     
     /// Notification category (dose_reminder, window_opening, etc.)
     public var notificationCategory: String?
+
+    /// Notification action identifier (stop, snooze, default open, dismiss)
+    public var notificationActionId: String?
     
     /// Undo target type (dose1, dose2, sleepEvent)
     public var undoTargetType: String?
@@ -341,6 +347,7 @@ public struct DiagnosticLogEntry: Codable, Sendable {
         case terminalState = "terminal_state"
         case reason
         case alarmId = "alarm_id"
+        case scheduledForTime = "scheduled_for_time"
         case previousPhase = "previous_phase"
         // Tier 1 fields
         case previousTimezone = "previous_timezone"
@@ -350,6 +357,7 @@ public struct DiagnosticLogEntry: Codable, Sendable {
         case timeDeltaSeconds = "time_delta_seconds"
         case notificationId = "notification_id"
         case notificationCategory = "notification_category"
+        case notificationActionId = "notification_action_id"
         case undoTargetType = "undo_target_type"
         case sleepEventType = "sleep_event_type"
         case sleepEventId = "sleep_event_id"

@@ -497,11 +497,13 @@ public extension DiagnosticLogger {
         _ event: DiagnosticEvent,
         sessionId: String,
         alarmId: String,
-        reason: String? = nil
+        reason: String? = nil,
+        scheduledFor: Date? = nil
     ) {
         log(event, sessionId: sessionId) { entry in
             entry.alarmId = alarmId
             entry.reason = reason
+            entry.scheduledForTime = scheduledFor
         }
     }
     
@@ -589,18 +591,20 @@ public extension DiagnosticLogger {
     }
     
     /// Log notification tapped
-    func logNotificationTapped(sessionId: String, notificationId: String, category: String? = nil) {
+    func logNotificationTapped(sessionId: String, notificationId: String, category: String? = nil, actionId: String? = nil) {
         log(.notificationTapped, sessionId: sessionId) { entry in
             entry.notificationId = notificationId
             entry.notificationCategory = category
+            entry.notificationActionId = actionId
         }
     }
     
     /// Log notification dismissed
-    func logNotificationDismissed(sessionId: String, notificationId: String, category: String? = nil) {
+    func logNotificationDismissed(sessionId: String, notificationId: String, category: String? = nil, actionId: String? = nil) {
         log(.notificationDismissed, sessionId: sessionId) { entry in
             entry.notificationId = notificationId
             entry.notificationCategory = category
+            entry.notificationActionId = actionId
         }
     }
     

@@ -95,6 +95,8 @@ final class DiagnosticLoggerTests: XCTestCase {
         entry.phase = "nearClose"
         entry.remainingMinutes = 12
         entry.reason = "test reason"
+        entry.scheduledForTime = Date(timeIntervalSince1970: 1200)
+        entry.notificationActionId = "dosetap_alarm_snooze"
 
         let data = try JSONEncoder().encode(entry)
         let decoded = try JSONDecoder().decode(DiagnosticLogEntry.self, from: data)
@@ -103,6 +105,30 @@ final class DiagnosticLoggerTests: XCTestCase {
         XCTAssertEqual(decoded.seq, 42)
         XCTAssertEqual(decoded.phase, "nearClose")
         XCTAssertEqual(decoded.remainingMinutes, 12)
+        XCTAssertEqual(decoded.scheduledForTime, Date(timeIntervalSince1970: 1200))
+        XCTAssertEqual(decoded.notificationActionId, "dosetap_alarm_snooze")
+    }
+
+    func test_logAlarm_persistsScheduledForTime() async throws {
+        let logger = DiagnosticLogger.shared
+        await logger.updateSettings(isEnabled: true, tier2Enabled: true, tier3Enabled: false)
+        let testSessionId = "unit-test-\(UUID().uuidString)"
+        let scheduledFor = Date(timeIntervalSince1970: 1_800)
+
+        await logger.logAlarm(.alarmScheduled, sessionId: testSessionId, alarmId: "dosetap_dose2_alarm", scheduledFor: scheduledFor)
+
+        let eventsPath = await logger.eventsFilePath(for: testSessionId)
+        let content = try XCTUnwrap(try? String(contentsOf: eventsPath, encoding: .utf8))
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let lines = content.split(separator: "\n")
+        let first = try XCTUnwrap(lines.first)
+        let entry = try decoder.decode(DiagnosticLogEntry.self, from: Data(first.utf8))
+
+        XCTAssertEqual(entry.alarmId, "dosetap_dose2_alarm")
+        XCTAssertEqual(entry.scheduledForTime, scheduledFor)
+
+        try? FileManager.default.removeItem(at: eventsPath.deletingLastPathComponent())
     }
 
     // MARK: - DiagnosticLogger Actor

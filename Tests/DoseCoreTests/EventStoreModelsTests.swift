@@ -116,6 +116,7 @@ final class EventStoreModelsTests: XCTestCase {
         XCTAssertFalse(ci.hadSleepParalysis)
         XCTAssertFalse(ci.hadHallucinations)
         XCTAssertFalse(ci.hadAutomaticBehavior)
+        XCTAssertNil(ci.timingContextJson)
     }
 
     func test_storedMorningCheckIn_equatable() {
