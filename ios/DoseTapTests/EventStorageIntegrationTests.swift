@@ -1,5 +1,6 @@
 import XCTest
 @testable import DoseTap
+import DoseCore
 
 @MainActor
 final class EventStorageIntegrationTests: XCTestCase {
@@ -190,7 +191,7 @@ final class EventStorageIntegrationTests: XCTestCase {
             forSession: sessionDate
         )
 
-        let fetched = tryUnwrap(storage.fetchMorningCheckIn(sessionKey: sessionDate))
+        let fetched = tryUnwrap(storage.fetchStoredMorningCheckIn(sessionKey: sessionDate))
         XCTAssertEqual(fetched.timingContextJson, json)
         XCTAssertEqual(fetched.resolvedTimingContext?.dose2TakenReason, "forgot_to_tap")
         XCTAssertEqual(fetched.resolvedTimingContext?.dose2ReasonNotes, "Woke up already too groggy.")
