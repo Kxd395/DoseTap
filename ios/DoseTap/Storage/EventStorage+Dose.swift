@@ -235,6 +235,27 @@ extension EventStorage {
         storageLog.info("Edit: Updated event \(eventId) time to \(timestampStr)")
     }
 
+    /// Update notes on a sleep event. Pass nil or empty string to clear.
+    public func updateSleepEventNotes(eventId: String, notes: String?) {
+        let trimmed = notes?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let finalNotes: String? = (trimmed?.isEmpty == true) ? nil : trimmed
+
+        let updateSQL = "UPDATE sleep_events SET notes = ? WHERE id = ?"
+        var stmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, updateSQL, -1, &stmt, nil) == SQLITE_OK {
+            if let n = finalNotes {
+                sqlite3_bind_text(stmt, 1, n, -1, SQLITE_TRANSIENT)
+            } else {
+                sqlite3_bind_null(stmt, 1)
+            }
+            sqlite3_bind_text(stmt, 2, eventId, -1, SQLITE_TRANSIENT)
+            sqlite3_step(stmt)
+            sqlite3_finalize(stmt)
+        }
+
+        storageLog.info("Edit: Updated event \(eventId) notes (len=\(finalNotes?.count ?? 0))")
+    }
+
     /// Update metadata JSON for a stored dose event.
     public func updateDoseEventMetadata(eventId: String, metadata: String?) {
         let updateSQL = "UPDATE dose_events SET metadata = ? WHERE id = ?"

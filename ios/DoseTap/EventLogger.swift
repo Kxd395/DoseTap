@@ -191,6 +191,12 @@ class EventLogger: ObservableObject {
         loadEventsFromStorage()
     }
 
+    /// Update notes on an existing event. Pass nil or empty string to clear.
+    func updateEventNotes(id: UUID, notes: String?) {
+        sessionRepo.updateEventNotes(eventId: id.uuidString, notes: notes)
+        loadEventsFromStorage()
+    }
+
     /// Fetch the underlying StoredSleepEvent for a LoggedEvent ID (for edit sheets)
     func storedEvent(for id: UUID) -> StoredSleepEvent? {
         sessionRepo.fetchTonightSleepEvents().first { $0.id == id.uuidString }

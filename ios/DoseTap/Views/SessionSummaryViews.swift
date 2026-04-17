@@ -85,6 +85,9 @@ struct CompactSessionSummary: View {
                 onEditTime: { id, newTime in
                     eventLogger.updateEventTime(id: id, newTime: newTime)
                 },
+                onEditNotes: { id, notes in
+                    eventLogger.updateEventNotes(id: id, notes: notes)
+                },
                 onAddEvent: { eventType, color, timestamp in
                     eventLogger.logManualEvent(eventType: eventType, color: color, timestamp: timestamp)
                 },

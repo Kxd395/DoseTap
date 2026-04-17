@@ -197,15 +197,26 @@ struct EditEventTimeView: View {
     let event: StoredSleepEvent
     let sessionDate: String
     let onSave: (Date) -> Void
+    let onSaveNotes: ((String?) -> Void)?
     
     @State private var selectedTime: Date
+    @State private var notesText: String
     @State private var showConfirmation = false
     
-    init(event: StoredSleepEvent, sessionDate: String, onSave: @escaping (Date) -> Void) {
+    init(
+        event: StoredSleepEvent,
+        sessionDate: String,
+        onSave: @escaping (Date) -> Void,
+        onSaveNotes: ((String?) -> Void)? = nil
+    ) {
         self.event = event
         self.sessionDate = sessionDate
         self.onSave = onSave
+        self.onSaveNotes = onSaveNotes
         _selectedTime = State(initialValue: event.timestamp)
+        // Hide the system-placed "manual" marker; treat as no user notes.
+        let raw = event.notes ?? ""
+        _notesText = State(initialValue: raw == "manual" ? "" : raw)
     }
     
     var body: some View {
@@ -241,38 +252,80 @@ struct EditEventTimeView: View {
                         }
                     }
                 }
-                
+
+                if onSaveNotes != nil {
+                    Section("Notes") {
+                        TextField(
+                            "e.g. felt anxious, took with food",
+                            text: $notesText,
+                            axis: .vertical
+                        )
+                        .lineLimit(2...5)
+                        .accessibilityLabel("Event notes")
+                        .accessibilityHint("Add optional context about this event")
+
+                        if notesText.count > 500 {
+                            Text("Notes are limited to 500 characters")
+                                .font(.caption)
+                                .foregroundColor(.red)
+                        }
+                    }
+                }
+
                 Section {
                     Text("Adjustments are limited to ±12 hours from the original time.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
             }
-            .navigationTitle("Edit Event Time")
+            .navigationTitle(onSaveNotes != nil ? "Edit Event" : "Edit Event Time")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { showConfirmation = true }
-                        .disabled(adjustmentMinutes == 0)
+                    Button("Save") {
+                        if adjustmentMinutes != 0 {
+                            showConfirmation = true
+                        } else {
+                            saveNotesAndDismiss()
+                        }
+                    }
+                    .disabled(!hasChanges || notesText.count > 500)
                 }
             }
             .alert("Confirm Time Change", isPresented: $showConfirmation) {
                 Button("Cancel", role: .cancel) { }
                 Button("Save") {
                     onSave(selectedTime)
-                    dismiss()
+                    saveNotesAndDismiss()
                 }
             } message: {
                 Text("Change \(EventDisplayName.displayName(for: event.eventType)) to \(selectedTime.formatted(date: .abbreviated, time: .shortened))?")
             }
         }
     }
-    
+
+    private func saveNotesAndDismiss() {
+        if onSaveNotes != nil, notesChanged {
+            let trimmed = notesText.trimmingCharacters(in: .whitespacesAndNewlines)
+            onSaveNotes?(trimmed.isEmpty ? nil : trimmed)
+        }
+        dismiss()
+    }
+
     private var adjustmentMinutes: Int {
         Int(selectedTime.timeIntervalSince(event.timestamp) / 60)
+    }
+
+    private var notesChanged: Bool {
+        let original = (event.notes == "manual" ? "" : (event.notes ?? ""))
+        return notesText.trimmingCharacters(in: .whitespacesAndNewlines) != original.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var hasChanges: Bool {
+        adjustmentMinutes != 0 || (onSaveNotes != nil && notesChanged)
     }
     
     /// ±12 hours from original time — covers the full sleep session window

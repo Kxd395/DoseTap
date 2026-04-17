@@ -929,6 +929,12 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         storage.updateSleepEventTime(eventId: eventId, newTime: newTime)
         sessionDidChange.send()
     }
+
+    /// Update notes on a sleep event. Pass nil or empty to clear.
+    public func updateEventNotes(eventId: String, notes: String?) {
+        storage.updateSleepEventNotes(eventId: eventId, notes: notes)
+        sessionDidChange.send()
+    }
     
     // MARK: - Sleep-Through Handling
     

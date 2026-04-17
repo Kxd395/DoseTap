@@ -540,6 +540,7 @@ struct TonightEventsSheet: View {
     let events: [LoggedEvent]
     let onDelete: (UUID) -> Void
     let onEditTime: ((UUID, Date) -> Void)?
+    let onEditNotes: ((UUID, String?) -> Void)?
     let onAddEvent: ((String, Color, Date) -> Void)?
     let storedEventLookup: ((UUID) -> StoredSleepEvent?)?
     @Environment(\.dismiss) private var dismiss
@@ -550,12 +551,14 @@ struct TonightEventsSheet: View {
         events: [LoggedEvent],
         onDelete: @escaping (UUID) -> Void,
         onEditTime: ((UUID, Date) -> Void)? = nil,
+        onEditNotes: ((UUID, String?) -> Void)? = nil,
         onAddEvent: ((String, Color, Date) -> Void)? = nil,
         storedEventLookup: ((UUID) -> StoredSleepEvent?)? = nil
     ) {
         self.events = events
         self.onDelete = onDelete
         self.onEditTime = onEditTime
+        self.onEditNotes = onEditNotes
         self.onAddEvent = onAddEvent
         self.storedEventLookup = storedEventLookup
     }
@@ -597,6 +600,15 @@ struct TonightEventsSheet: View {
                                         Text(event.time.formatted(date: .abbreviated, time: .shortened))
                                             .font(.caption)
                                             .foregroundColor(.secondary)
+                                        if let stored = storedEventLookup?(event.id),
+                                           let notes = stored.notes,
+                                           !notes.isEmpty, notes != "manual" {
+                                            Text(notes)
+                                                .font(.caption2)
+                                                .italic()
+                                                .foregroundStyle(.tertiary)
+                                                .lineLimit(2)
+                                        }
                                     }
 
                                     Spacer()
@@ -643,6 +655,11 @@ struct TonightEventsSheet: View {
                     sessionDate: SessionRepository.shared.currentSessionKey,
                     onSave: { newTime in
                         onEditTime?(UUID(uuidString: event.id) ?? UUID(), newTime)
+                    },
+                    onSaveNotes: onEditNotes.map { handler in
+                        { notes in
+                            handler(UUID(uuidString: event.id) ?? UUID(), notes)
+                        }
                     }
                 )
             }
