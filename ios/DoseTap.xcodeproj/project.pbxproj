@@ -145,6 +145,7 @@
 		WHM001 /* WHOOPModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = WHM002 /* WHOOPModels.swift */; };
 		WP001 /* WeeklyPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP002 /* WeeklyPlanner.swift */; };
 		A475371301874AE7AB21C150 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 395ADBC5158F41E79333066E /* Haptics.swift */; };
+		96EA12319D9E4A3FAE27702B /* WeeklyInsightsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C7B30C64C784164BA6C294F /* WeeklyInsightsCard.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -330,6 +331,7 @@
 		WHM002 /* WHOOPModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WHOOPModels.swift; sourceTree = "<group>"; };
 		WP002 /* WeeklyPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyPlanner.swift; sourceTree = "<group>"; };
 		395ADBC5158F41E79333066E /* Haptics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
+		0C7B30C64C784164BA6C294F /* WeeklyInsightsCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeeklyInsightsCard.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -641,6 +643,7 @@
 				GRP_TIMELINE /* Timeline */,
 				GRP_HISTORY /* History */,
 				4E03D9DEC5D04B32AACF98BA /* TonightView.swift */,
+				0C7B30C64C784164BA6C294F /* WeeklyInsightsCard.swift */,
 				B44F86E9E72D452CAFED6B16 /* SleepPlanCards.swift */,
 				22B9CA2EF895428EA7912896 /* CompactStatusCard.swift */,
 				60E7491C7A9D4FDE812F4BFB /* CompactDoseButton.swift */,
@@ -843,6 +846,7 @@
 				D2AFCB94D52D4B168AC1CAD6 /* EventLogger.swift in Sources */,
 				A475371301874AE7AB21C150 /* Haptics.swift in Sources */,
 				07D79FDC36E045FCB5590A15 /* TonightView.swift in Sources */,
+				96EA12319D9E4A3FAE27702B /* WeeklyInsightsCard.swift in Sources */,
 				B3A59BFBC74549279C21803D /* SleepPlanCards.swift in Sources */,
 				C2E1898433FE4503AD4765DB /* CompactStatusCard.swift in Sources */,
 				837A745C7B9B471695166AEC /* CompactDoseButton.swift in Sources */,

@@ -180,6 +180,8 @@ struct LegacyTonightView: View {
                         QuickEventPanel(eventLogger: eventLogger)
                         
                         CompactSessionSummary(core: core, eventLogger: eventLogger)
+
+                        WeeklyInsightsCard(sessionRepo: sessionRepo)
                     }
                     .frame(maxWidth: .infinity)
                 }
@@ -216,6 +218,12 @@ struct LegacyTonightView: View {
             
             // Compact Session Summary (tap events to expand list)
             CompactSessionSummary(core: core, eventLogger: eventLogger)
+                .padding(.horizontal)
+            
+            Spacer().frame(height: 12)
+            
+            // Weekly insights (7-day adherence snapshot)
+            WeeklyInsightsCard(sessionRepo: sessionRepo)
                 .padding(.horizontal)
             
             Spacer().frame(height: 12)
