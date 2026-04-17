@@ -973,6 +973,7 @@ final class SessionRepositoryTests: XCTestCase {
             sleepTherapyJson: #"{"device":"CPAP","compliance":85,"notes":"mask leak around 4am"}"#,
             hasSleepEnvironment: true,
             sleepEnvironmentJson: #"{"roomTemp":"warm","noiseLevel":"moderate","sleepAids":"white_noise","notes":"hotel HVAC noise"}"#,
+            timingContextJson: #"{"nightType":"work_night","wakeType":"alarm_then_snooze","nextDayDemand":"shift_13h","dose2WakeMethod":"alarm","backToSleepDuration":"15_30m","dose2TakenReason":"ate_too_late","dose2ReasonNotes":"Meal ran late after shift.","hasWorkSafetyContext":true,"wakeRequirement":"work","shiftStartAtUTC":"2026-02-10T12:00:00.000Z","shiftEndAtUTC":"2026-02-11T01:00:00.000Z","nextRequiredWakeAtUTC":"2026-02-10T10:15:00.000Z","commuteMinutes":40,"drivingConfidence":2,"daytimeSleepiness":4,"cataplexyBurden":"mild","hasClinicalContext":true,"sleepDisorders":["narcolepsy","obstructive_sleep_apnea"],"sleepDisorderNotes":"OSA treated with CPAP.","coMedicationNotes":"Adderall XR on workdays.","pharmacogenomicFastMetabolizer":true,"pharmacogenomicClinicianReviewed":true,"pharmacogenomicNotes":"Gnome DNA report reviewed with clinician."}"#,
             notes: "Felt better than expected"
         )
 
@@ -1003,6 +1004,88 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertEqual(responses["sleep_environment.room_temp"] as? String, "warm")
         XCTAssertEqual(responses["sleep_environment.noise_level"] as? String, "moderate")
         XCTAssertEqual(responses["sleep_environment.sleep_aids"] as? String, "white_noise")
+        XCTAssertEqual(responses["night.type"] as? String, "work_night")
+        XCTAssertEqual(responses["wake.type"] as? String, "alarm_then_snooze")
+        XCTAssertEqual(responses["day_demand.type"] as? String, "shift_13h")
+        XCTAssertEqual(responses["dose2.wake_method"] as? String, "alarm")
+        XCTAssertEqual(responses["dose2.back_to_sleep"] as? String, "15_30m")
+        XCTAssertEqual(responses["dose2.taken_reason"] as? String, "ate_too_late")
+        XCTAssertEqual(responses["dose2.reason_notes"] as? String, "Meal ran late after shift.")
+        XCTAssertEqual(responses["wake.requirement"] as? String, "work")
+        XCTAssertEqual(responses["work.shift_start_utc"] as? String, "2026-02-10T12:00:00.000Z")
+        XCTAssertEqual(responses["work.shift_end_utc"] as? String, "2026-02-11T01:00:00.000Z")
+        XCTAssertEqual(responses["wake.required_at_utc"] as? String, "2026-02-10T10:15:00.000Z")
+        XCTAssertEqual(responses["work.commute_minutes"] as? Int, 40)
+        XCTAssertEqual(responses["safety.driving_confidence"] as? Int, 2)
+        XCTAssertEqual(responses["daytime.sleepiness"] as? Int, 4)
+        XCTAssertEqual(responses["daytime.cataplexy_burden"] as? String, "mild")
+        XCTAssertEqual(responses["clinical.sleep_disorders"] as? [String], ["narcolepsy", "obstructive_sleep_apnea"])
+        XCTAssertEqual(responses["clinical.sleep_disorder_notes"] as? String, "OSA treated with CPAP.")
+        XCTAssertEqual(responses["clinical.co_medication_notes"] as? String, "Adderall XR on workdays.")
+        XCTAssertEqual(responses["clinical.pharmacogenomic_fast_metabolizer"] as? Bool, true)
+        XCTAssertEqual(responses["clinical.pharmacogenomic_clinician_reviewed"] as? Bool, true)
+        XCTAssertEqual(responses["clinical.pharmacogenomic_notes"] as? String, "Gnome DNA report reviewed with clinician.")
+    }
+
+    func test_updateDose2OutcomeAnnotations_mergesReasonIntoExistingDose2Metadata() async throws {
+        storage.clearAllData()
+        let sessionDate = "2026-02-11"
+        let dose1 = ISO8601DateFormatter().date(from: "2026-02-11T03:00:00Z")!
+        let dose2 = ISO8601DateFormatter().date(from: "2026-02-11T06:05:00Z")!
+
+        storage.saveDose1(timestamp: dose1, sessionDateOverride: sessionDate)
+        storage.saveDose2(timestamp: dose2, isLate: true, sessionDateOverride: sessionDate)
+
+        repo.updateDose2OutcomeAnnotations(
+            sessionDate: sessionDate,
+            takenReason: "ate_too_late",
+            skipReason: nil,
+            reasonNotes: "Late meal pushed the timing back."
+        )
+
+        let event = try XCTUnwrap(storage.fetchDoseEvents(sessionId: nil, sessionDate: sessionDate).first { $0.eventType == "dose2" })
+        let metadata = decodeJSONDictionary(event.metadata ?? "{}")
+
+        XCTAssertEqual(metadata["reason"] as? String, "ate_too_late")
+        XCTAssertEqual(metadata["reason_notes"] as? String, "Late meal pushed the timing back.")
+        XCTAssertEqual(metadata["is_late"] as? Bool, true)
+    }
+
+    func test_saveDose2_persistsLiveReasonMetadata() async throws {
+        storage.clearAllData()
+        let sessionDate = "2026-02-12"
+        let dose1 = ISO8601DateFormatter().date(from: "2026-02-12T03:00:00Z")!
+        let dose2 = ISO8601DateFormatter().date(from: "2026-02-12T05:10:00Z")!
+
+        storage.saveDose1(timestamp: dose1, sessionDateOverride: sessionDate)
+        repo.saveDose2(
+            timestamp: dose2,
+            isEarly: true,
+            reason: "fell_asleep",
+            reasonNotes: "Woke up late and took it immediately."
+        )
+
+        let event = try XCTUnwrap(storage.fetchDoseEvents(sessionId: nil, sessionDate: sessionDate).first { $0.eventType == "dose2" })
+        let metadata = decodeJSONDictionary(event.metadata ?? "{}")
+
+        XCTAssertEqual(metadata["reason"] as? String, "fell_asleep")
+        XCTAssertEqual(metadata["reason_notes"] as? String, "Woke up late and took it immediately.")
+        XCTAssertEqual(metadata["is_early"] as? Bool, true)
+    }
+
+    func test_skipDose2_persistsLiveSkipReasonMetadata() async throws {
+        storage.clearAllData()
+        let dose1 = ISO8601DateFormatter().date(from: "2026-02-13T03:00:00Z")!
+
+        repo.setDose1Time(dose1)
+        repo.skipDose2(reason: "side_effect_concern", reasonNotes: "Too sedated to safely continue.")
+
+        let sessionDate = try XCTUnwrap(repo.activeSessionDate)
+        let event = try XCTUnwrap(storage.fetchDoseEvents(sessionId: nil, sessionDate: sessionDate).first { $0.eventType == "dose2_skipped" })
+        let metadata = decodeJSONDictionary(event.metadata ?? "{}")
+
+        XCTAssertEqual(metadata["reason"] as? String, "side_effect_concern")
+        XCTAssertEqual(metadata["reason_notes"] as? String, "Too sedated to safely continue.")
     }
 
     func test_deleteMorningCheckIn_removesNormalizedSubmission() async throws {

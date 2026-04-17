@@ -174,6 +174,36 @@ final class EventStorageIntegrationTests: XCTestCase {
         XCTAssertEqual(keyed[preSleepOnlyDate]?.eventCount, 0)
     }
 
+    func test_morningCheckIn_roundTripsTimingContextJson() {
+        let sessionDate = "2026-02-16"
+        let json = #"{"nightType":"transition_into_work_block","wakeType":"alarm","nextDayDemand":"shift_13h","dose2WakeMethod":"natural","backToSleepDuration":"lt_15m","dose2TakenReason":"forgot_to_tap","dose2ReasonNotes":"Woke up already too groggy.","hasWorkSafetyContext":true,"wakeRequirement":"work","shiftStartAtUTC":"2026-02-17T12:00:00.000Z","shiftEndAtUTC":"2026-02-18T01:00:00.000Z","nextRequiredWakeAtUTC":"2026-02-17T10:15:00.000Z","commuteMinutes":45,"drivingConfidence":2,"daytimeSleepiness":4,"cataplexyBurden":"mild","hasClinicalContext":true,"sleepDisorders":["narcolepsy","obstructive_sleep_apnea"],"pharmacogenomicFastMetabolizer":true,"pharmacogenomicClinicianReviewed":true,"pharmacogenomicNotes":"Reviewed with sleep specialist."}"#
+
+        storage.saveMorningCheckIn(
+            StoredMorningCheckIn(
+                id: UUID().uuidString,
+                sessionId: sessionDate,
+                timestamp: makeDate("2026-02-17T11:00:00.000Z"),
+                sessionDate: sessionDate,
+                sleepQuality: 4,
+                timingContextJson: json
+            ),
+            forSession: sessionDate
+        )
+
+        let fetched = tryUnwrap(storage.fetchMorningCheckIn(sessionKey: sessionDate))
+        XCTAssertEqual(fetched.timingContextJson, json)
+        XCTAssertEqual(fetched.resolvedTimingContext?.dose2TakenReason, "forgot_to_tap")
+        XCTAssertEqual(fetched.resolvedTimingContext?.dose2ReasonNotes, "Woke up already too groggy.")
+        XCTAssertEqual(fetched.resolvedTimingContext?.wakeRequirement, "work")
+        XCTAssertEqual(fetched.resolvedTimingContext?.commuteMinutes, 45)
+        XCTAssertEqual(fetched.resolvedTimingContext?.drivingConfidence, 2)
+        XCTAssertEqual(fetched.resolvedTimingContext?.daytimeSleepiness, 4)
+        XCTAssertEqual(fetched.resolvedTimingContext?.cataplexyBurden, "mild")
+        XCTAssertEqual(fetched.resolvedTimingContext?.sleepDisorders, ["narcolepsy", "obstructive_sleep_apnea"])
+        XCTAssertEqual(fetched.resolvedTimingContext?.pharmacogenomicFastMetabolizer, true)
+        XCTAssertEqual(fetched.resolvedTimingContext?.pharmacogenomicClinicianReviewed, true)
+    }
+
     private func makeDate(_ isoString: String) -> Date {
         guard let date = iso.date(from: isoString) else {
             XCTFail("Invalid ISO date: \(isoString)")
