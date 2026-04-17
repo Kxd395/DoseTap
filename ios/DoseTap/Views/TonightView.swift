@@ -477,7 +477,7 @@ struct QuickThemeSwitchButton: View {
     var body: some View {
         Button {
             themeManager.applyTheme(nextTheme)
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            Haptics.light.play()
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: themeManager.currentTheme.icon)

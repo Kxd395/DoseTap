@@ -813,7 +813,7 @@ struct EarlyDoseOverrideSheet: View {
             holdProgress += 0.05 / requiredHoldDuration
             if holdProgress >= 1.0 {
                 holdTimer?.invalidate()
-                UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                Haptics.warning.play()
                 onConfirm(selectedReason, normalizedNotes)
             }
         }

@@ -303,15 +303,10 @@ final class DoseActionCoordinator: ObservableObject {
 
     /// Haptic feedback respecting user preference. P3-1.
     private func playHaptic(_ intensity: FeedbackIntensity) {
-        #if canImport(UIKit)
-        guard UserSettingsManager.shared.hapticsEnabled else { return }
         switch intensity {
-        case .dose:
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
-        case .action:
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        case .dose:   Haptics.doseTaken.play()
+        case .action: Haptics.action.play()
         }
-        #endif
     }
 
     /// Audible confirmation respecting user preference. P3-2.

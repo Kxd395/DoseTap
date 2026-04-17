@@ -80,7 +80,7 @@ class EventLogger: ObservableObject {
         }
         
         // Haptic feedback
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        Haptics.action.play()
     }
     
     func isOnCooldown(_ name: String) -> Bool {
@@ -182,7 +182,7 @@ class EventLogger: ObservableObject {
             notes: "manual"
         )
 
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        Haptics.action.play()
     }
 
     /// Update the time for an existing event

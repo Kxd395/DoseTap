@@ -144,6 +144,7 @@
 		UNDO007 /* MedicationPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNDO008 /* MedicationPickerView.swift */; };
 		WHM001 /* WHOOPModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = WHM002 /* WHOOPModels.swift */; };
 		WP001 /* WeeklyPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP002 /* WeeklyPlanner.swift */; };
+		A475371301874AE7AB21C150 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 395ADBC5158F41E79333066E /* Haptics.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -328,6 +329,7 @@
 		UNDO008 /* MedicationPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationPickerView.swift; sourceTree = "<group>"; };
 		WHM002 /* WHOOPModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WHOOPModels.swift; sourceTree = "<group>"; };
 		WP002 /* WeeklyPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyPlanner.swift; sourceTree = "<group>"; };
+		395ADBC5158F41E79333066E /* Haptics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -441,6 +443,7 @@
 				FCEDF0A0E4BE41F582C2221F /* AnalyticsService.swift */,
 				B02 /* ContentView.swift */,
 				DD0E5B5C6E684F7796F9B9FC /* EventLogger.swift */,
+				395ADBC5158F41E79333066E /* Haptics.swift */,
 				EVT002 /* EventType.swift */,
 				B01 /* DoseTapApp.swift */,
 				HK002 /* HealthKitService.swift */,
@@ -838,6 +841,7 @@
 				A01 /* DoseTapApp.swift in Sources */,
 				A02 /* ContentView.swift in Sources */,
 				D2AFCB94D52D4B168AC1CAD6 /* EventLogger.swift in Sources */,
+				A475371301874AE7AB21C150 /* Haptics.swift in Sources */,
 				07D79FDC36E045FCB5590A15 /* TonightView.swift in Sources */,
 				B3A59BFBC74549279C21803D /* SleepPlanCards.swift in Sources */,
 				C2E1898433FE4503AD4765DB /* CompactStatusCard.swift in Sources */,
