@@ -27,6 +27,10 @@ struct SidebarView: View {
                 NavigationLink(destination: DashboardView(dataStore: dataStore)) {
                     Label("Dashboard", systemImage: "chart.bar")
                 }
+
+                NavigationLink(destination: RecommendationDetailView(dataStore: dataStore)) {
+                    Label("Recommendation", systemImage: "scope")
+                }
                 
                 NavigationLink(destination: TimelineView(dataStore: dataStore)) {
                     Label("Timeline", systemImage: "clock")
@@ -34,6 +38,10 @@ struct SidebarView: View {
                 
                 NavigationLink(destination: TrendsView(dataStore: dataStore)) {
                     Label("Trends", systemImage: "chart.line.uptrend.xyaxis")
+                }
+
+                NavigationLink(destination: CorrelationsView(dataStore: dataStore)) {
+                    Label("Correlations", systemImage: "point.3.connected.trianglepath.dotted")
                 }
 
                 NavigationLink(destination: AdherenceView(dataStore: dataStore)) {
@@ -92,6 +100,21 @@ struct SidebarView: View {
                     Label(
                         "Updated \(lastImported.formatted(date: .omitted, time: .shortened))",
                         systemImage: "clock"
+                    )
+                    .foregroundColor(.secondary)
+                    .font(.caption)
+                }
+
+                if dataStore.validationReport.hasIssues {
+                    Label(
+                        "\(dataStore.validationReport.totalIssueCount) import issue(s)",
+                        systemImage: "exclamationmark.triangle.fill"
+                    )
+                    .foregroundColor(.orange)
+
+                    Label(
+                        "\(dataStore.validationReport.affectedSessionCount) nights affected",
+                        systemImage: "shield.lefthalf.filled"
                     )
                     .foregroundColor(.secondary)
                     .font(.caption)

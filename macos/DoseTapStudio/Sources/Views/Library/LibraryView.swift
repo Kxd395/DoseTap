@@ -6,9 +6,7 @@ struct LibraryView: View {
     @State private var selectedSessionID: InsightSession.ID?
 
     private var filteredSessions: [InsightSession] {
-        dataStore.insightSessions.filter { session in
-            matchesFilters(session)
-        }
+        dataStore.insightSessions.filter { $0.matches(filters: filters) }
     }
 
     private var selectedSession: InsightSession? {
@@ -24,6 +22,7 @@ struct LibraryView: View {
                 Text("Night Library")
                     .font(.largeTitle.bold())
 
+                validationSummary
                 filterBar
                 summaryRow
 
@@ -42,7 +41,18 @@ struct LibraryView: View {
                 } else {
                     Table(filteredSessions, selection: $selectedSessionID) {
                         TableColumn("Night") { session in
-                            Text(session.sessionDate)
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(session.sessionDate)
+                                HStack(spacing: 6) {
+                                    InsightBadge(
+                                        text: session.classification.confidenceBucket.label,
+                                        tint: insightConfidenceColor(for: session.classification.confidenceBucket)
+                                    )
+                                    if session.countsTowardRecommendationTraining {
+                                        InsightBadge(text: "Trainable", tint: .green)
+                                    }
+                                }
+                            }
                         }
                         TableColumn("Dose 1") { session in
                             Text(timeText(for: session.dose1Time))
@@ -57,8 +67,16 @@ struct LibraryView: View {
                             Text("\(session.eventCount)")
                         }
                         TableColumn("Quality") { session in
-                            Text(session.qualitySummary)
-                                .foregroundColor(session.qualityFlags.isEmpty ? .secondary : .orange)
+                            qualityBadgeRow(for: session)
+                        }
+                        TableColumn("Night Type") { session in
+                            InsightBadge(
+                                text: session.nightTypeFilter.rawValue.replacingOccurrences(of: " Nights", with: ""),
+                                tint: insightNightTypeColor(for: session)
+                            )
+                        }
+                        TableColumn("Sources") { session in
+                            sourceBadgeRow(for: session)
                         }
                     }
                 }
@@ -92,20 +110,14 @@ struct LibraryView: View {
     }
 
     private var filterBar: some View {
-        HStack(spacing: 12) {
-            TextField("Search date or note", text: $filters.searchText)
-                .textFieldStyle(.roundedBorder)
-                .frame(maxWidth: 260)
-
-            Toggle("Late Dose 2", isOn: $filters.lateDoseOnly)
-                .toggleStyle(.switch)
-            Toggle("Skipped", isOn: $filters.skippedOnly)
-                .toggleStyle(.switch)
-            Toggle("Quality Issues", isOn: $filters.qualityIssuesOnly)
-                .toggleStyle(.switch)
-
-            Spacer()
-        }
+        InsightFilterBar(
+            filters: $filters,
+            showsSearch: true,
+            showsLateDose: true,
+            showsSkipped: true,
+            showsQualityIssues: true,
+            showsTrainable: true
+        )
     }
 
     private var summaryRow: some View {
@@ -114,7 +126,55 @@ struct LibraryView: View {
             libraryCard(title: "Late Dose 2", value: "\(filteredSessions.filter(\.isLateDose2).count)", accent: .orange)
             libraryCard(title: "Skipped", value: "\(filteredSessions.filter(\.dose2Skipped).count)", accent: .red)
             libraryCard(title: "Quality Issues", value: "\(filteredSessions.filter { !$0.qualityFlags.isEmpty }.count)", accent: .purple)
+            if dataStore.validationReport.hasIssues {
+                libraryCard(
+                    title: "Import Issues",
+                    value: "\(dataStore.validationReport.totalIssueCount)",
+                    accent: .orange
+                )
+            }
             Spacer()
+        }
+    }
+
+    private var validationSummary: some View {
+        Group {
+            if dataStore.validationReport.hasIssues {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.orange)
+                            .font(.title3)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Import Warnings Detected")
+                                .font(.headline)
+                            Text(
+                                "\(dataStore.validationReport.totalIssueCount) issue(s) across \(dataStore.validationReport.affectedSessionCount) night(s). Treat trend outputs cautiously until these are reviewed."
+                            )
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        }
+
+                        Spacer()
+                    }
+
+                    if !dataStore.validationReport.globalFlags.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(dataStore.validationReport.globalFlags, id: \.self) { flag in
+                                validationRow(flag)
+                            }
+                        }
+                    }
+                }
+                .padding()
+                .background(Color.orange.opacity(0.08))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.orange.opacity(0.25), lineWidth: 1)
+                )
+                .cornerRadius(12)
+            }
         }
     }
 
@@ -133,32 +193,24 @@ struct LibraryView: View {
         .cornerRadius(12)
     }
 
-    private func matchesFilters(_ session: InsightSession) -> Bool {
-        if filters.lateDoseOnly && !session.isLateDose2 {
-            return false
+    private func validationRow(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "smallcircle.fill.circle")
+                .font(.caption2)
+                .foregroundColor(.orange)
+                .padding(.top, 2)
+            Text(text)
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
-        if filters.skippedOnly && !session.dose2Skipped {
-            return false
-        }
-        if filters.qualityIssuesOnly && session.qualityFlags.isEmpty {
-            return false
-        }
+    }
 
-        let query = filters.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if query.isEmpty {
-            return true
-        }
+    private func qualityBadgeRow(for session: InsightSession) -> some View {
+        InsightQualityBadgeRow(session: session)
+    }
 
-        let haystack = [
-            session.sessionDate,
-            session.notes ?? "",
-            session.qualitySummary,
-            session.adherenceFlag ?? ""
-        ]
-        .joined(separator: " ")
-        .lowercased()
-
-        return haystack.contains(query.lowercased())
+    private func sourceBadgeRow(for session: InsightSession) -> some View {
+        InsightSourceBadgeRow(session: session)
     }
 
     private func timeText(for date: Date?) -> String {

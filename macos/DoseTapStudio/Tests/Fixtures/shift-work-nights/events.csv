@@ -1,0 +1,5 @@
+event_type,occurred_at_utc,details,device_time
+dose1_taken,2024-09-13T19:45:00.000Z,,2024-09-13T19:45:00Z
+dose2_taken,2024-09-13T22:35:00.000Z,,2024-09-13T22:35:00Z
+dose1_taken,2024-09-14T20:05:00.000Z,,2024-09-14T20:05:00Z
+dose2_taken,2024-09-14T23:05:00.000Z,,2024-09-14T23:05:00Z

@@ -1,0 +1,135 @@
+{
+  "schemaVersion": 2,
+  "exportVersion": "2.3",
+  "appVersion": "1.5.0 (220)",
+  "exportedAtUTC": "2026-03-21T14:00:00Z",
+  "timeZoneIdentifier": "America/New_York",
+  "localOffsetMinutes": -240,
+  "sessions": [
+    {
+      "sessionDate": "2024-09-11",
+      "dose1TimeUTC": "2024-09-11T20:00:00Z",
+      "dose2TimeUTC": "2024-09-11T22:50:00Z",
+      "rawEvents": [
+        {
+          "kind": "dose",
+          "eventType": "dose1",
+          "occurredAtUTC": "2024-09-11T20:00:00Z",
+          "details": "Manual entry",
+          "source": "manual",
+          "deviceTime": "2024-09-11T20:00:00Z"
+        }
+      ],
+      "normalizedEvents": [
+        {
+          "kind": "dose",
+          "eventType": "dose1_taken",
+          "occurredAtUTC": "2024-09-11T20:00:00Z",
+          "details": "Manual entry",
+          "source": "manual",
+          "deviceTime": "2024-09-11T20:00:00Z"
+        },
+        {
+          "kind": "dose",
+          "eventType": "dose2_taken",
+          "occurredAtUTC": "2024-09-11T22:50:00Z",
+          "details": null,
+          "source": "manual",
+          "deviceTime": "2024-09-11T22:50:00Z"
+        },
+        {
+          "kind": "sleep",
+          "eventType": "wake_final",
+          "occurredAtUTC": "2024-09-12T06:30:00Z",
+          "details": null,
+          "source": "manual",
+          "deviceTime": "2024-09-12T06:30:00Z"
+        }
+      ],
+      "sourceAvailability": {
+        "doseEvents": true,
+        "sleepEvents": true,
+        "preSleep": true,
+        "morningCheckIn": true,
+        "medications": false,
+        "healthKit": true,
+        "whoop": false,
+        "alarmDiagnostics": false
+      },
+      "metricProvenance": {
+        "dose2_time": "manual",
+        "total_sleep_minutes": "healthkit"
+      },
+      "preSleep": {
+        "sessionId": "clean-night-1",
+        "completionState": "complete",
+        "loggedAtUTC": "2024-09-11T19:40:00Z",
+        "stressLevel": 2,
+        "stressDrivers": [],
+        "laterReason": null,
+        "bodyPain": null,
+        "caffeineSources": [],
+        "alcohol": null,
+        "exercise": null,
+        "napToday": null,
+        "lateMeal": "no",
+        "screensInBed": "no",
+        "roomTemp": "cool",
+        "noiseLevel": "quiet",
+        "sleepAids": [],
+        "notes": null
+      },
+      "morning": {
+        "submittedAtUTC": "2024-09-12T07:00:00Z",
+        "sleepQuality": 4,
+        "feelRested": "mostly",
+        "grogginess": "mild",
+        "sleepInertiaDuration": "5-15 minutes",
+        "dreamRecall": "some",
+        "mentalClarity": 4,
+        "mood": "steady",
+        "anxietyLevel": "low",
+        "stressLevel": 2,
+        "stressDrivers": [],
+        "readinessForDay": 4,
+        "hadSleepParalysis": false,
+        "hadHallucinations": false,
+        "hadAutomaticBehavior": false,
+        "fellOutOfBed": false,
+        "hadConfusionOnWaking": false,
+        "notes": null
+      },
+      "medications": [],
+      "context": {
+        "nextMorningWeekdayIndex": 4,
+        "nextMorningIsWeekend": false,
+        "scheduleDayType": "offlike",
+        "previousScheduleDayType": "offlike",
+        "nextScheduleDayType": "offlike",
+        "explicitNightType": "off_night",
+        "explicitWakeType": "natural",
+        "explicitNextDayDemand": "off_day",
+        "wakeSignal": "likely_natural",
+        "wakeFinalLoggedAtUTC": "2024-09-12T06:30:00Z",
+        "snoozeCount": 0,
+        "scheduleMarkers": []
+      },
+      "healthKit": {
+        "totalSleepMinutes": 435,
+        "ttfwMinutes": 175,
+        "wakeCount": 1,
+        "coreSleepMinutes": 245,
+        "deepSleepMinutes": 70,
+        "remSleepMinutes": 82,
+        "bedTimeUTC": "2024-09-11T20:10:00Z",
+        "sleepOnsetUTC": "2024-09-11T20:20:00Z",
+        "finalWakeUTC": "2024-09-12T06:20:00Z",
+        "averageHeartRate": 59.2,
+        "respiratoryRate": 14.1,
+        "hrvMs": 47.5,
+        "restingHeartRate": 55.2,
+        "sources": ["Apple Watch"]
+      }
+    }
+  ]
+}

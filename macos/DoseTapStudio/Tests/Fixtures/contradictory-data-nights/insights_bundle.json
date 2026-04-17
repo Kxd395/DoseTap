@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 2,
+  "exportWarnings": [
+    "Bundle contains contradictory session supplements."
+  ],
+  "exportedAtUTC": "2026-03-21T14:20:00Z",
+  "sessions": [
+    {
+      "sessionDate": "2024-09-16",
+      "dose1TimeUTC": "2024-09-16T20:00:00Z",
+      "dose2TimeUTC": "2024-09-16T22:45:00Z",
+      "rawEvents": [],
+      "normalizedEvents": [],
+      "dataQualityFlags": [
+        "Dose 2 reason mismatch between live and morning logs"
+      ],
+      "medications": []
+    },
+    {
+      "sessionDate": "2024-09-18",
+      "rawEvents": [],
+      "normalizedEvents": [],
+      "medications": []
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+event_type,occurred_at_utc,details,device_time
+dose1_taken,2024-09-16T20:00:00.000Z,,2024-09-16T20:00:00Z
+dose2_taken,2024-09-16T23:00:00.000Z,,2024-09-16T23:00:00Z
+dose2_skipped,2024-09-16T23:05:00.000Z,Conflicting skip log,2024-09-16T23:05:00Z

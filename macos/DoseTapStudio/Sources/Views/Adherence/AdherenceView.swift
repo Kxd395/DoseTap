@@ -26,6 +26,10 @@ struct AdherenceView: View {
         analyzer.morningOutcomeSummary(sessions: sessions)
     }
 
+    private var biometricSummary: BiometricOutcomeSummary {
+        analyzer.biometricOutcomeSummary(sessions: sessions)
+    }
+
     private var averageInterval: Double? {
         let values = sessions.compactMap(\.intervalMinutes)
         guard !values.isEmpty else { return nil }
@@ -134,7 +138,15 @@ struct AdherenceView: View {
     }
 
     private var factorCards: some View {
-        HStack(alignment: .top, spacing: 12) {
+        LazyVGrid(
+            columns: [
+                GridItem(.flexible(minimum: 220)),
+                GridItem(.flexible(minimum: 220)),
+                GridItem(.flexible(minimum: 220))
+            ],
+            alignment: .leading,
+            spacing: 12
+        ) {
             factorCard(
                 title: "Stress Pattern",
                 rows: [
@@ -151,6 +163,18 @@ struct AdherenceView: View {
                     factorRow("On-time avg quality", qualityText(morningSummary.onTimeAverageSleepQuality)),
                     factorRow("Late avg quality", qualityText(morningSummary.lateAverageSleepQuality)),
                     factorRow("Skipped avg quality", qualityText(morningSummary.skippedAverageSleepQuality))
+                ]
+            )
+
+            factorCard(
+                title: "Imported Biometrics",
+                rows: [
+                    factorRow("On-time sleep eff.", percentText(biometricSummary.onTimeAverageSleepEfficiency)),
+                    factorRow("Late sleep eff.", percentText(biometricSummary.lateAverageSleepEfficiency)),
+                    factorRow("On-time recovery", percentText(biometricSummary.onTimeAverageRecovery.map { $0 / 100.0 })),
+                    factorRow("Late recovery", percentText(biometricSummary.lateAverageRecovery.map { $0 / 100.0 })),
+                    factorRow("On-time total sleep", durationText(biometricSummary.onTimeAverageTotalSleepMinutes)),
+                    factorRow("Late total sleep", durationText(biometricSummary.lateAverageTotalSleepMinutes))
                 ]
             )
         }
@@ -232,6 +256,12 @@ struct AdherenceView: View {
     private func qualityText(_ value: Double?) -> String {
         guard let value else { return "—" }
         return String(format: "%.1f / 5", value)
+    }
+
+    private func durationText(_ minutes: Double?) -> String {
+        guard let minutes else { return "—" }
+        let roundedMinutes = Int(minutes.rounded())
+        return "\(roundedMinutes / 60)h \(roundedMinutes % 60)m"
     }
 
     private func flagText(for session: InsightSession) -> String {

@@ -1,0 +1,3 @@
+event_type,occurred_at_utc,details,device_time
+dose1_taken,2024-09-14T20:00:00.000Z,,2024-09-14T20:00:00Z
+lights_out,2024-09-14T20:05:00.000Z,,2024-09-14T20:05:00Z

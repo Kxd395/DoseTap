@@ -5,6 +5,7 @@ import Charts
 struct DashboardView: View {
     @ObservedObject var dataStore: DataStore
     @State private var trendMode: DashboardTrendMode = .intervalVsQuality
+    @State private var recommendationMode: InsightRecommendationMode = .restfulSleep
     
     var body: some View {
         ScrollView {
@@ -67,6 +68,16 @@ struct DashboardView: View {
                         icon: "checkmark.seal.fill"
                     )
 
+                    if let avgTotalSleep = dataStore.analytics.averageTotalSleepMinutes30d {
+                        MetricCard(
+                            title: "Avg Total Sleep",
+                            value: durationText(avgTotalSleep),
+                            subtitle: "Imported nightly summaries",
+                            color: .mint,
+                            icon: "bed.double.fill"
+                        )
+                    }
+
                     if let avgRecovery = dataStore.analytics.averageRecovery30d {
                         MetricCard(
                             title: "Avg Recovery",
@@ -86,11 +97,35 @@ struct DashboardView: View {
                             icon: "waveform.path.ecg"
                         )
                     }
+
+                    if let avgHRV = dataStore.analytics.averageHRV30d {
+                        MetricCard(
+                            title: "Avg HRV",
+                            value: String(format: "%.1f ms", avgHRV),
+                            subtitle: "Apple Health / WHOOP",
+                            color: .purple,
+                            icon: "heart.text.square.fill"
+                        )
+                    }
                 }
 
                 DashboardRecentNightsTable(nights: dataStore.analytics.nights)
 
                 DashboardTrendChartsPanel(nights: dataStore.analytics.nights, trendMode: $trendMode)
+
+                DashboardDataQualityCard(
+                    coverage: dataStore.coverageSummary,
+                    validationReport: dataStore.validationReport
+                )
+
+                DashboardAvailabilityMatrixCard(coverage: dataStore.coverageSummary)
+
+                RecommendationInsightsView(
+                    sessions: dataStore.insightSessions,
+                    coverage: dataStore.coverageSummary,
+                    validationReport: dataStore.validationReport,
+                    mode: $recommendationMode
+                )
 
                 DashboardIntegrationsPanel(analytics: dataStore.analytics)
 
@@ -114,11 +149,129 @@ struct DashboardView: View {
         default: return .red
         }
     }
+
+    private func durationText(_ minutes: Double) -> String {
+        let roundedMinutes = Int(minutes.rounded())
+        return "\(roundedMinutes / 60)h \(roundedMinutes % 60)m"
+    }
+}
+
+private struct DashboardDataQualityCard: View {
+    let coverage: InsightCoverageSummary
+    let validationReport: ImportValidationReport
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Data Quality Dashboard")
+                .font(.headline)
+
+            Text(coverage.readinessSummary)
+                .foregroundColor(color(for: coverage.readiness))
+
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(minimum: 140)),
+                    GridItem(.flexible(minimum: 140)),
+                    GridItem(.flexible(minimum: 140)),
+                    GridItem(.flexible(minimum: 140))
+                ],
+                alignment: .leading,
+                spacing: 12
+            ) {
+                metric(title: "Imported Nights", value: "\(coverage.totalNights)")
+                metric(title: "Trainable Nights", value: "\(coverage.trainableNights)")
+                metric(title: "Flagged Nights", value: "\(coverage.flaggedNights)")
+                metric(title: "Import Issues", value: "\(validationReport.totalIssueCount)")
+                metric(title: "Excluded Nights", value: "\(coverage.exclusionNights)")
+                metric(title: "Missing Morning", value: "\(coverage.missingMorningNights)")
+                metric(title: "Missing Pre-Sleep", value: "\(coverage.missingPreSleepNights)")
+                metric(title: "Missing Wearables", value: "\(coverage.missingWearableNights)")
+            }
+
+            if !validationReport.globalFlags.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Global Import Warnings")
+                        .font(.subheadline.weight(.semibold))
+                    ForEach(validationReport.globalFlags, id: \.self) { flag in
+                        Text("• \(flag)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(Color(.controlBackgroundColor))
+        .cornerRadius(12)
+    }
+
+    private func metric(title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(value)
+                .font(.title3.bold())
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+    }
+
+    private func color(for readiness: InsightRecommendationReadiness) -> Color {
+        switch readiness {
+        case .ready:
+            return .green
+        case .caution:
+            return .orange
+        case .limited:
+            return .red
+        }
+    }
+}
+
+private struct DashboardAvailabilityMatrixCard: View {
+    let coverage: InsightCoverageSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Availability Matrix")
+                .font(.headline)
+
+            ForEach(coverage.rows) { row in
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text(row.title)
+                        Spacer()
+                        Text("\(row.availableCount)/\(row.totalCount) • \(row.coveragePercentText)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    ProgressView(value: row.coverageRatio)
+                        .tint(color(for: row.coverageRatio))
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(Color(.controlBackgroundColor))
+        .cornerRadius(12)
+    }
+
+    private func color(for ratio: Double) -> Color {
+        switch ratio {
+        case 0.75...:
+            return .green
+        case 0.45...:
+            return .orange
+        default:
+            return .red
+        }
+    }
 }
 
 private enum DashboardTrendMode: String, CaseIterable, Identifiable {
     case intervalVsQuality = "Interval vs Quality"
     case weekdayAdherence = "Weekday Adherence"
+    case sleepVsRecovery = "Sleep vs Recovery"
 
     var id: String { rawValue }
 }
@@ -156,6 +309,9 @@ private struct DashboardSummaryCard: View {
                 .font(.subheadline)
                 .foregroundColor(.secondary)
             Text("Avg events per night: \(String(format: "%.1f", analytics.averageEventsPerNight30d))")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            Text("Apple Health nights: \(analytics.healthKitNightCount30d) • WHOOP nights: \(analytics.whoopNightCount30d)")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
             Text("This dashboard uses nightly aggregates to keep dosing, events, and recovery metrics aligned.")
@@ -334,6 +490,8 @@ private struct DashboardRecentNightsTable: View {
                         Text("Night").font(.caption.bold())
                         Text("Interval").font(.caption.bold())
                         Text("On-Time").font(.caption.bold())
+                        Text("Sleep").font(.caption.bold())
+                        Text("Recovery").font(.caption.bold())
                         Text("Events").font(.caption.bold())
                         Text("Quality").font(.caption.bold())
                     }
@@ -345,6 +503,8 @@ private struct DashboardRecentNightsTable: View {
                             Text(onTimeText(for: night))
                                 .font(.caption)
                                 .foregroundColor(onTimeColor(for: night))
+                            Text(totalSleepText(for: night)).font(.caption)
+                            Text(recoveryText(for: night)).font(.caption)
                             Text("\(night.eventCount)").font(.caption)
                             Text("\(Int((night.completenessScore * 100).rounded()))%")
                                 .font(.caption)
@@ -376,6 +536,16 @@ private struct DashboardRecentNightsTable: View {
     private func onTimeColor(for night: StudioNightAggregate) -> Color {
         guard let onTime = night.onTimeFlag else { return .secondary }
         return onTime ? .green : .orange
+    }
+
+    private func totalSleepText(for night: StudioNightAggregate) -> String {
+        guard let minutes = night.totalSleepMinutes else { return "—" }
+        let roundedMinutes = Int(minutes.rounded())
+        return "\(roundedMinutes / 60)h \(roundedMinutes % 60)m"
+    }
+
+    private func recoveryText(for night: StudioNightAggregate) -> String {
+        night.whoopRecovery.map { "\($0)%" } ?? "—"
     }
 }
 
@@ -419,6 +589,16 @@ private struct DashboardTrendChartsPanel: View {
             let values = buckets[weekday] ?? []
             let rate = values.isEmpty ? 0 : (Double(values.filter { $0 }.count) / Double(values.count)) * 100
             return NamedValue(name: symbols[weekday - 1], value: rate)
+        }
+    }
+
+    private var sleepVsRecoveryPoints: [XYPoint] {
+        nights.compactMap { night in
+            guard let totalSleepMinutes = night.totalSleepMinutes,
+                  let recovery = night.whoopRecovery else {
+                return nil
+            }
+            return XYPoint(x: totalSleepMinutes / 60.0, y: Double(recovery), onTime: night.onTimeFlag ?? false)
         }
     }
 
@@ -466,6 +646,20 @@ private struct DashboardTrendChartsPanel: View {
                     .chartYScale(domain: 0...100)
                     .frame(height: 220)
                 }
+
+            case .sleepVsRecovery:
+                if sleepVsRecoveryPoints.isEmpty {
+                    emptyState("Need nights with both total sleep and WHOOP recovery to plot this trend.")
+                } else {
+                    Chart(sleepVsRecoveryPoints) { point in
+                        PointMark(
+                            x: .value("Total Sleep (hours)", point.x),
+                            y: .value("Recovery %", point.y)
+                        )
+                        .foregroundStyle(point.onTime ? .green : .orange)
+                    }
+                    .frame(height: 220)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -499,20 +693,20 @@ private struct DashboardIntegrationsPanel: View {
 
             integrationRow(
                 name: "WHOOP",
-                status: analytics.averageRecovery30d != nil ? "Imported" : "Not present",
-                detail: analytics.averageRecovery30d != nil
-                    ? "Recovery/HR metrics are flowing in imported sessions."
+                status: analytics.whoopNightCount30d > 0 ? "Imported" : "Not present",
+                detail: analytics.whoopNightCount30d > 0
+                    ? "\(analytics.whoopNightCount30d) recent nights include recovery and stage metrics."
                     : "Import WHOOP-enriched sessions to unlock recovery views.",
-                color: analytics.averageRecovery30d != nil ? .green : .orange
+                color: analytics.whoopNightCount30d > 0 ? .green : .orange
             )
 
             integrationRow(
                 name: "Apple Health",
-                status: analytics.averageSleepEfficiency30d != nil ? "Imported" : "Not present",
-                detail: analytics.averageSleepEfficiency30d != nil
-                    ? "Sleep efficiency fields are available for trend analysis."
-                    : "Import sessions with sleep efficiency to power sleep quality tiles.",
-                color: analytics.averageSleepEfficiency30d != nil ? .green : .orange
+                status: analytics.healthKitNightCount30d > 0 ? "Imported" : "Not present",
+                detail: analytics.healthKitNightCount30d > 0
+                    ? "\(analytics.healthKitNightCount30d) recent nights include Apple Health sleep/biometric summaries."
+                    : "Import sessions with Apple Health summaries to power sleep context tiles.",
+                color: analytics.healthKitNightCount30d > 0 ? .green : .orange
             )
 
             integrationRow(
