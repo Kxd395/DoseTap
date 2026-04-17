@@ -19,7 +19,7 @@ DoseTap is a local-first iOS app that helps patients manage two-dose nighttime m
 
 ## HealthKit
 
-- Integration reads sleep analysis only.
+- Integration reads sleep analysis plus heart rate, respiratory rate, HRV SDNN, and resting heart rate.
 - Preference is stored in `UserSettingsManager.healthKitEnabled`.
 - Authorization is checked via `HealthKitService.isAuthorized` and may need re-grant after reinstall.
 

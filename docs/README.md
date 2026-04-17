@@ -18,12 +18,14 @@ Last updated: 2026-03-09
 - Active roadmap/todo: `docs/ROADMAP_TODO.md`
 - Insights viewer MVP: `docs/INSIGHTS_VIEWER_MVP.md`
 - Insights viewer implementation plan: `docs/INSIGHTS_VIEWER_IMPLEMENTATION_PLAN.md`
+- Insights optimal timing TODO: `docs/INSIGHTS_OPTIMAL_TIMING_TODO.md`
 - Archived plans and point-in-time test snapshots: `docs/historical/`
 
 ## Operations
 
 - Certificate pinning runbook: `docs/CERTIFICATE_PINNING.md`
 - Encryption at rest decision: `docs/SSOT/encryption-at-rest.md`
+- Insights data governance: `docs/INSIGHTS_DATA_GOVERNANCE.md`
 - Production readiness checklist: `docs/PRODUCTION_READINESS_CHECKLIST.md`
 - Release checklist: `docs/RELEASE_CHECKLIST.md`
 - TestFlight guide: `docs/TESTFLIGHT_GUIDE.md`

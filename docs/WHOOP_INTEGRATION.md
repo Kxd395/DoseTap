@@ -31,7 +31,7 @@ Last updated: 2026-02-14
 - Create a new application
 - Set redirect URI to `dosetap://whoop-callback`
 - Note the Client ID and Client Secret
-- Required scopes: `read:recovery`, `read:sleep`, `read:cycles`, `read:profile`
+- Required scopes: `offline`, `read:recovery`, `read:sleep`, `read:cycles`, `read:profile`
 
 ### 2. Configure Credentials
 Add to `ios/DoseTap/Secrets.swift` (`.gitignore`d):
