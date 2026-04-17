@@ -19,8 +19,14 @@ public extension SessionRepository {
     }
 
     /// Save dose 2 timestamp through the repository.
-    func saveDose2(timestamp: Date, isEarly: Bool = false, isExtraDose: Bool = false) {
-        setDose2Time(timestamp, isEarly: isEarly, isExtraDose: isExtraDose)
+    func saveDose2(
+        timestamp: Date,
+        isEarly: Bool = false,
+        isExtraDose: Bool = false,
+        reason: String? = nil,
+        reasonNotes: String? = nil
+    ) {
+        setDose2Time(timestamp, isEarly: isEarly, isExtraDose: isExtraDose, reason: reason, reasonNotes: reasonNotes)
     }
 
     /// Insert sleep event for event logging and import flows.

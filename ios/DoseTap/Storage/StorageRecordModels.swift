@@ -219,6 +219,7 @@ public struct StoredMorningCheckIn: Identifiable {
     public let sleepTherapyJson: String?
     public let hasSleepEnvironment: Bool
     public let sleepEnvironmentJson: String?
+    public let timingContextJson: String?
     public let notes: String?
     
     public var hasNarcolepsySymptoms: Bool {
@@ -254,6 +255,7 @@ public struct StoredMorningCheckIn: Identifiable {
         sleepTherapyJson: String? = nil,
         hasSleepEnvironment: Bool = false,
         sleepEnvironmentJson: String? = nil,
+        timingContextJson: String? = nil,
         notes: String? = nil
     ) {
         self.id = id
@@ -284,6 +286,7 @@ public struct StoredMorningCheckIn: Identifiable {
         self.sleepTherapyJson = sleepTherapyJson
         self.hasSleepEnvironment = hasSleepEnvironment
         self.sleepEnvironmentJson = sleepEnvironmentJson
+        self.timingContextJson = timingContextJson
         self.notes = notes
     }
 }
@@ -296,6 +299,34 @@ public struct MorningStressContext: Equatable {
     public var primaryDriver: CommonStressDriver? {
         drivers.first
     }
+}
+
+public struct MorningTimingContext: Equatable {
+    public let hasWorkSafetyContext: Bool
+    public let hasClinicalContext: Bool
+    public let nightType: String?
+    public let firstNightOffAfterWorkBlock: Bool
+    public let wakeType: String?
+    public let nextDayDemand: String?
+    public let dose2WakeMethod: String?
+    public let backToSleepDuration: String?
+    public let dose2TakenReason: String?
+    public let dose2SkippedReason: String?
+    public let dose2ReasonNotes: String?
+    public let wakeRequirement: String?
+    public let shiftStartAtUTC: Date?
+    public let shiftEndAtUTC: Date?
+    public let nextRequiredWakeAtUTC: Date?
+    public let commuteMinutes: Int?
+    public let drivingConfidence: Int?
+    public let daytimeSleepiness: Int?
+    public let cataplexyBurden: String?
+    public let sleepDisorders: [String]
+    public let sleepDisorderNotes: String?
+    public let coMedicationNotes: String?
+    public let pharmacogenomicFastMetabolizer: Bool
+    public let pharmacogenomicClinicianReviewed: Bool
+    public let pharmacogenomicNotes: String?
 }
 
 public extension StoredMorningCheckIn {
@@ -340,6 +371,113 @@ public extension StoredMorningCheckIn {
     var stressNotes: String? {
         resolvedStressContext?.notes
     }
+
+    var resolvedTimingContext: MorningTimingContext? {
+        guard let timingContextJson, let data = timingContextJson.data(using: .utf8) else {
+            return nil
+        }
+        guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+            return nil
+        }
+
+        let nightType = (json["nightType"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let firstNightOffAfterWorkBlock = (json["firstNightOffAfterWorkBlock"] as? Bool) ?? false
+        let wakeType = (json["wakeType"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let nextDayDemand = (json["nextDayDemand"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let dose2WakeMethod = (json["dose2WakeMethod"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let backToSleepDuration = (json["backToSleepDuration"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let dose2TakenReason = (json["dose2TakenReason"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let dose2SkippedReason = (json["dose2SkippedReason"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let dose2ReasonNotes = (json["dose2ReasonNotes"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let wakeRequirement = (json["wakeRequirement"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let shiftStartAtUTC = Self.isoDate(from: json["shiftStartAtUTC"])
+        let shiftEndAtUTC = Self.isoDate(from: json["shiftEndAtUTC"])
+        let nextRequiredWakeAtUTC = Self.isoDate(from: json["nextRequiredWakeAtUTC"])
+        let commuteMinutes = Self.intValue(from: json["commuteMinutes"])
+        let drivingConfidence = Self.intValue(from: json["drivingConfidence"])
+        let daytimeSleepiness = Self.intValue(from: json["daytimeSleepiness"])
+        let cataplexyBurden = (json["cataplexyBurden"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sleepDisorders = ((json["sleepDisorders"] as? [String]) ?? [])
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let sleepDisorderNotes = (json["sleepDisorderNotes"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let coMedicationNotes = (json["coMedicationNotes"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let pharmacogenomicFastMetabolizer = (json["pharmacogenomicFastMetabolizer"] as? Bool) ?? false
+        let pharmacogenomicClinicianReviewed = (json["pharmacogenomicClinicianReviewed"] as? Bool) ?? false
+        let pharmacogenomicNotes = (json["pharmacogenomicNotes"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasWorkSafetyContext = (json["hasWorkSafetyContext"] as? Bool) ?? false
+        let hasClinicalContext = (json["hasClinicalContext"] as? Bool) ?? false
+
+        let values = [nightType, wakeType, nextDayDemand, dose2WakeMethod, backToSleepDuration, dose2TakenReason, dose2SkippedReason, dose2ReasonNotes, wakeRequirement, cataplexyBurden, sleepDisorderNotes, coMedicationNotes, pharmacogenomicNotes]
+        let hasAnyValue = values.contains(where: { !($0?.isEmpty ?? true) })
+            || shiftStartAtUTC != nil
+            || shiftEndAtUTC != nil
+            || nextRequiredWakeAtUTC != nil
+            || commuteMinutes != nil
+            || drivingConfidence != nil
+            || daytimeSleepiness != nil
+            || !sleepDisorders.isEmpty
+            || pharmacogenomicFastMetabolizer
+            || pharmacogenomicClinicianReviewed
+            || firstNightOffAfterWorkBlock
+            || hasWorkSafetyContext
+            || hasClinicalContext
+        guard hasAnyValue else {
+            return nil
+        }
+
+        return MorningTimingContext(
+            hasWorkSafetyContext: hasWorkSafetyContext,
+            hasClinicalContext: hasClinicalContext,
+            nightType: nightType?.isEmpty == true ? nil : nightType,
+            firstNightOffAfterWorkBlock: firstNightOffAfterWorkBlock,
+            wakeType: wakeType?.isEmpty == true ? nil : wakeType,
+            nextDayDemand: nextDayDemand?.isEmpty == true ? nil : nextDayDemand,
+            dose2WakeMethod: dose2WakeMethod?.isEmpty == true ? nil : dose2WakeMethod,
+            backToSleepDuration: backToSleepDuration?.isEmpty == true ? nil : backToSleepDuration,
+            dose2TakenReason: dose2TakenReason?.isEmpty == true ? nil : dose2TakenReason,
+            dose2SkippedReason: dose2SkippedReason?.isEmpty == true ? nil : dose2SkippedReason,
+            dose2ReasonNotes: dose2ReasonNotes?.isEmpty == true ? nil : dose2ReasonNotes,
+            wakeRequirement: wakeRequirement?.isEmpty == true ? nil : wakeRequirement,
+            shiftStartAtUTC: shiftStartAtUTC,
+            shiftEndAtUTC: shiftEndAtUTC,
+            nextRequiredWakeAtUTC: nextRequiredWakeAtUTC,
+            commuteMinutes: commuteMinutes,
+            drivingConfidence: drivingConfidence,
+            daytimeSleepiness: daytimeSleepiness,
+            cataplexyBurden: cataplexyBurden?.isEmpty == true ? nil : cataplexyBurden,
+            sleepDisorders: sleepDisorders,
+            sleepDisorderNotes: sleepDisorderNotes?.isEmpty == true ? nil : sleepDisorderNotes,
+            coMedicationNotes: coMedicationNotes?.isEmpty == true ? nil : coMedicationNotes,
+            pharmacogenomicFastMetabolizer: pharmacogenomicFastMetabolizer,
+            pharmacogenomicClinicianReviewed: pharmacogenomicClinicianReviewed,
+            pharmacogenomicNotes: pharmacogenomicNotes?.isEmpty == true ? nil : pharmacogenomicNotes
+        )
+    }
+
+    private static func intValue(from value: Any?) -> Int? {
+        switch value {
+        case let int as Int:
+            return int
+        case let double as Double:
+            return Int(double)
+        case let string as String:
+            return Int(string)
+        default:
+            return nil
+        }
+    }
+
+    private static func isoDate(from value: Any?) -> Date? {
+        guard let string = value as? String else { return nil }
+        return isoFormatter.date(from: string)
+    }
+
+    private static let isoFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
 }
 
 public enum CommonStressDriver: String, Codable, CaseIterable {

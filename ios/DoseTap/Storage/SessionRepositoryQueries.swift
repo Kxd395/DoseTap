@@ -258,6 +258,7 @@ private extension SessionRepository {
             sleepTherapyJson: core.sleepTherapyJson,
             hasSleepEnvironment: core.hasSleepEnvironment,
             sleepEnvironmentJson: core.sleepEnvironmentJson,
+            timingContextJson: core.timingContextJson,
             notes: core.notes
         )
     }

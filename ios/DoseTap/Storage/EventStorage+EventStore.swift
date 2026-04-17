@@ -139,11 +139,20 @@ extension EventStorage: EventStore {
     }
     
     public func saveDose2(timestamp: Date, isEarly: Bool, isExtraDose: Bool) {
-        saveDose2(timestamp: timestamp, isEarly: isEarly, isExtraDose: isExtraDose, isLate: false, sessionId: nil, sessionDateOverride: nil)
+        saveDose2(
+            timestamp: timestamp,
+            isEarly: isEarly,
+            isExtraDose: isExtraDose,
+            isLate: false,
+            reason: nil,
+            reasonNotes: nil,
+            sessionId: nil,
+            sessionDateOverride: nil
+        )
     }
-    
+
     public func saveDoseSkipped(reason: String?) {
-        saveDoseSkipped(reason: reason, sessionId: nil, sessionDateOverride: nil)
+        saveDoseSkipped(reason: reason, reasonNotes: nil, sessionId: nil, sessionDateOverride: nil)
     }
     
     public func saveSnooze(count: Int) {
@@ -299,6 +308,7 @@ extension EventStorage: EventStore {
             sleepTherapyJson: checkIn.sleepTherapyJson,
             hasSleepEnvironment: checkIn.hasSleepEnvironment,
             sleepEnvironmentJson: checkIn.sleepEnvironmentJson,
+            timingContextJson: checkIn.timingContextJson,
             notes: checkIn.notes
         )
         saveMorningCheckIn(local, forSession: sessionKey)
@@ -335,6 +345,7 @@ extension EventStorage: EventStore {
             sleepTherapyJson: local.sleepTherapyJson,
             hasSleepEnvironment: local.hasSleepEnvironment,
             sleepEnvironmentJson: local.sleepEnvironmentJson,
+            timingContextJson: local.timingContextJson,
             notes: local.notes
         )
     }
@@ -346,7 +357,8 @@ extension EventStorage: EventStore {
                has_respiratory_symptoms, respiratory_symptoms_json, mental_clarity, mood, anxiety_level,
                stress_level, stress_context_json, readiness_for_day, had_sleep_paralysis,
                had_hallucinations, had_automatic_behavior, fell_out_of_bed, had_confusion_on_waking,
-               used_sleep_therapy, sleep_therapy_json, has_sleep_environment, sleep_environment_json, notes
+               used_sleep_therapy, sleep_therapy_json, has_sleep_environment, sleep_environment_json,
+               timing_context_json, notes
         FROM morning_checkins
         WHERE session_id = ? OR session_date = ?
         ORDER BY timestamp DESC
@@ -398,7 +410,8 @@ extension EventStorage: EventStore {
             sleepTherapyJson: sqlite3_column_text(stmt, 25).map { String(cString: $0) },
             hasSleepEnvironment: sqlite3_column_int(stmt, 26) != 0,
             sleepEnvironmentJson: sqlite3_column_text(stmt, 27).map { String(cString: $0) },
-            notes: sqlite3_column_text(stmt, 28).map { String(cString: $0) }
+            timingContextJson: sqlite3_column_text(stmt, 28).map { String(cString: $0) },
+            notes: sqlite3_column_text(stmt, 29).map { String(cString: $0) }
         )
     }
     

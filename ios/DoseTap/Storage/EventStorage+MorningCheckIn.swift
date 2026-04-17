@@ -73,6 +73,18 @@ extension EventStorage {
         if let value = physical["painLocations"] as? [String], !value.isEmpty, responses["pain.locations"] == nil { responses["pain.locations"] = value }
         if let value = physical["painSeverity"] as? Int, responses["pain.overall_intensity"] == nil { responses["pain.overall_intensity"] = value }
         if let value = physical["painType"] as? String { responses["pain.type"] = value }
+        if let value = symptomBurdenValue(from: physical["painBurden"]) ?? derivedPainBurden(from: physical) {
+            responses["pain.burden"] = value
+        }
+        if let value = symptomBurdenValue(from: physical["refluxBurden"]) {
+            responses["sleep.reflux_burden"] = value
+        }
+        if let value = symptomBurdenValue(from: physical["restlessLegsBurden"]) {
+            responses["sleep.restless_legs_burden"] = value
+        }
+        if let value = symptomBurdenValue(from: physical["bathroomUrgencyBurden"]) {
+            responses["wake.bathroom_urgency_burden"] = value
+        }
         if let value = physical["muscleStiffness"] as? String { responses["stiffness.level"] = value }
         if let value = physical["muscleSoreness"] as? String { responses["soreness.level"] = value }
         if let value = physical["hasHeadache"] as? Bool { responses["headache.any"] = value }
@@ -82,6 +94,9 @@ extension EventStorage {
 
         let respiratory = jsonDictionary(from: checkIn.respiratorySymptomsJson)
         if let value = respiratory["congestion"] as? String { responses["respiratory.congestion"] = value }
+        if let value = symptomBurdenValue(from: respiratory["congestionBurden"]) ?? derivedCongestionBurden(from: respiratory) {
+            responses["respiratory.congestion_burden"] = value
+        }
         if let value = respiratory["throatCondition"] as? String { responses["respiratory.throat"] = value }
         if let value = respiratory["coughType"] as? String { responses["respiratory.cough"] = value }
         if let value = respiratory["sinusPressure"] as? String { responses["respiratory.sinus_pressure"] = value }
@@ -100,8 +115,91 @@ extension EventStorage {
         if let value = environment["sleepAids"] as? String { responses["sleep_environment.sleep_aids"] = value }
         if let value = environment["notes"] as? String, !value.isEmpty { responses["sleep_environment.notes"] = value }
 
+        let timing = jsonDictionary(from: checkIn.timingContextJson)
+        if let value = timing["nightType"] as? String, !value.isEmpty { responses["night.type"] = value }
+        if let value = timing["firstNightOffAfterWorkBlock"] as? Bool { responses["night.first_off_after_work_block"] = value }
+        if let value = timing["wakeType"] as? String, !value.isEmpty { responses["wake.type"] = value }
+        if let value = timing["nextDayDemand"] as? String, !value.isEmpty { responses["day_demand.type"] = value }
+        if let value = timing["dose2WakeMethod"] as? String, !value.isEmpty { responses["dose2.wake_method"] = value }
+        if let value = timing["backToSleepDuration"] as? String, !value.isEmpty { responses["dose2.back_to_sleep"] = value }
+        if let value = timing["dose2TakenReason"] as? String, !value.isEmpty { responses["dose2.taken_reason"] = value }
+        if let value = timing["dose2SkippedReason"] as? String, !value.isEmpty { responses["dose2.skip_reason"] = value }
+        if let value = timing["dose2ReasonNotes"] as? String, !value.isEmpty { responses["dose2.reason_notes"] = value }
+        if let value = timing["wakeRequirement"] as? String, !value.isEmpty { responses["wake.requirement"] = value }
+        if let value = timing["shiftStartAtUTC"] as? String, !value.isEmpty { responses["work.shift_start_utc"] = value }
+        if let value = timing["shiftEndAtUTC"] as? String, !value.isEmpty { responses["work.shift_end_utc"] = value }
+        if let value = timing["nextRequiredWakeAtUTC"] as? String, !value.isEmpty { responses["wake.required_at_utc"] = value }
+        if let value = timing["commuteMinutes"] as? Int { responses["work.commute_minutes"] = value }
+        if let value = timing["drivingConfidence"] as? Int { responses["safety.driving_confidence"] = value }
+        if let value = timing["daytimeSleepiness"] as? Int { responses["daytime.sleepiness"] = value }
+        if let value = timing["cataplexyBurden"] as? String, !value.isEmpty { responses["daytime.cataplexy_burden"] = value }
+        if let value = timing["sleepDisorders"] as? [String], !value.isEmpty { responses["clinical.sleep_disorders"] = value }
+        if let value = timing["sleepDisorderNotes"] as? String, !value.isEmpty { responses["clinical.sleep_disorder_notes"] = value }
+        if let value = timing["coMedicationNotes"] as? String, !value.isEmpty { responses["clinical.co_medication_notes"] = value }
+        if let value = timing["pharmacogenomicFastMetabolizer"] as? Bool { responses["clinical.pharmacogenomic_fast_metabolizer"] = value }
+        if let value = timing["pharmacogenomicClinicianReviewed"] as? Bool { responses["clinical.pharmacogenomic_clinician_reviewed"] = value }
+        if let value = timing["pharmacogenomicNotes"] as? String, !value.isEmpty { responses["clinical.pharmacogenomic_notes"] = value }
+
         if let value = checkIn.notes, !value.isEmpty { responses["notes.anything_else"] = value }
         return responses
+    }
+
+    private func symptomBurdenValue(from value: Any?) -> String? {
+        guard let value = value as? String else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func derivedPainBurden(from physical: [String: Any]) -> String? {
+        if let direct = symptomBurdenValue(from: physical["painBurden"]) {
+            return direct
+        }
+        if let isMigraine = physical["isMigraine"] as? Bool, isMigraine {
+            return "extreme"
+        }
+        var intensities: [Int] = []
+        if let entries = physical["painEntries"] as? [[String: Any]] {
+            intensities.append(contentsOf: entries.compactMap { item in
+                if let value = item["intensity"] as? Int { return value }
+                if let value = item["intensity"] as? Double { return Int(value) }
+                return nil
+            })
+        }
+        if let value = physical["painSeverity"] as? Int {
+            intensities.append(value)
+        }
+        switch intensities.max() ?? 0 {
+        case 9...:
+            return "extreme"
+        case 7...8:
+            return "severe"
+        case 4...6:
+            return "moderate"
+        case 1...3:
+            return "mild"
+        default:
+            return nil
+        }
+    }
+
+    private func derivedCongestionBurden(from respiratory: [String: Any]) -> String? {
+        if let direct = symptomBurdenValue(from: respiratory["congestionBurden"]) {
+            return direct
+        }
+        let congestion = (respiratory["congestion"] as? String)?.lowercased()
+        let sinusPressure = (respiratory["sinusPressure"] as? String)?.lowercased()
+        let sicknessLevel = (respiratory["sicknessLevel"] as? String)?.lowercased()
+
+        if sicknessLevel == "actively sick" || sinusPressure == "severe" {
+            return "severe"
+        }
+        if congestion == "both" || sinusPressure == "moderate" || sicknessLevel == "coming down with something" {
+            return "moderate"
+        }
+        if congestion == "stuffy nose" || congestion == "runny nose" || sinusPressure == "mild" || sicknessLevel == "recovering" {
+            return "mild"
+        }
+        return nil
     }
 
     public func saveMorningCheckIn(_ checkIn: StoredMorningCheckIn, forSession sessionDate: String? = nil) {
@@ -118,8 +216,8 @@ extension EventStorage {
                 fell_out_of_bed, had_confusion_on_waking,
                 used_sleep_therapy, sleep_therapy_json,
                 has_sleep_environment, sleep_environment_json,
-                notes
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                timing_context_json, notes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
 
         var stmt: OpaquePointer?
@@ -183,10 +281,15 @@ extension EventStorage {
         } else {
             sqlite3_bind_null(stmt, 28)
         }
-        if let notes = checkIn.notes {
-            sqlite3_bind_text(stmt, 29, notes, -1, SQLITE_TRANSIENT)
+        if let json = checkIn.timingContextJson {
+            sqlite3_bind_text(stmt, 29, json, -1, SQLITE_TRANSIENT)
         } else {
             sqlite3_bind_null(stmt, 29)
+        }
+        if let notes = checkIn.notes {
+            sqlite3_bind_text(stmt, 30, notes, -1, SQLITE_TRANSIENT)
+        } else {
+            sqlite3_bind_null(stmt, 30)
         }
 
         if sqlite3_step(stmt) == SQLITE_DONE {

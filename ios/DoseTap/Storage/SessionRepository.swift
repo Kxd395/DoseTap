@@ -452,7 +452,24 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     }
     
     /// Record dose 2+ time (dose index is derived from session events, not the clock).
-    public func setDose2Time(_ time: Date, isEarly: Bool = false, isExtraDose: Bool = false) {
+    public func setDose2Time(_ time: Date, isEarly: Bool, isExtraDose: Bool) {
+        setDose2Time(
+            time,
+            isEarly: isEarly,
+            isExtraDose: isExtraDose,
+            reason: nil,
+            reasonNotes: nil
+        )
+    }
+
+    /// Record dose 2+ time with optional outcome context captured at action time.
+    public func setDose2Time(
+        _ time: Date,
+        isEarly: Bool = false,
+        isExtraDose: Bool = false,
+        reason: String? = nil,
+        reasonNotes: String? = nil
+    ) {
         let session = ensureActiveSession(for: time, reason: "dose2")
         let doseEvents = loadDoseEvents(sessionId: session.sessionId, sessionDate: session.sessionDate)
         let doseTakenEvents = doseEvents.filter { isDoseEventType($0.eventType) }
@@ -490,6 +507,8 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             isEarly: isEarly,
             isExtraDose: isExtra,
             isLate: isLate,
+            reason: reason,
+            reasonNotes: reasonNotes,
             sessionId: session.sessionId,
             sessionDateOverride: session.sessionDate
         )
@@ -531,13 +550,23 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     
     /// Mark dose 2 as skipped
     public func skipDose2() {
+        skipDose2(reason: nil, reasonNotes: nil)
+    }
+
+    /// Mark dose 2 as skipped with optional structured reason context.
+    public func skipDose2(reason: String? = nil, reasonNotes: String? = nil) {
         let now = clock()
         let session = ensureActiveSession(for: now, reason: "skip")
         activeSessionDate = session.sessionDate
         dose2Skipped = true
         
         // Persist to storage
-        storage.saveDoseSkipped(sessionId: session.sessionId, sessionDateOverride: session.sessionDate)
+        storage.saveDoseSkipped(
+            reason: reason,
+            reasonNotes: reasonNotes,
+            sessionId: session.sessionId,
+            sessionDateOverride: session.sessionDate
+        )
         
         // Diagnostic logging: dose 2 skipped + session completed
         Task {
@@ -793,7 +822,9 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             eventType: "dose1",
             sessionDate: sessionDate,
             timestamp: takenAt,
-            amountMg: amountMg
+            amountMg: amountMg,
+            reason: nil,
+            reasonNotes: nil
         )
 
         if sessionDate == activeSessionDate {
@@ -803,13 +834,21 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     }
 
     /// Backfill or correct Dose 2 from a morning check-in when the overnight tap was missed.
-    public func reconcileDose2(sessionDate: String, takenAt: Date, amountMg: Int?) {
+    public func reconcileDose2(
+        sessionDate: String,
+        takenAt: Date,
+        amountMg: Int?,
+        reason: String? = nil,
+        reasonNotes: String? = nil
+    ) {
         storage.clearSkip(sessionDateOverride: sessionDate)
         upsertDoseEvent(
             eventType: "dose2",
             sessionDate: sessionDate,
             timestamp: takenAt,
-            amountMg: amountMg
+            amountMg: amountMg,
+            reason: reason,
+            reasonNotes: reasonNotes
         )
 
         if sessionDate == activeSessionDate {
@@ -820,10 +859,21 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     }
 
     /// Mark Dose 2 skipped during morning reconciliation without reopening the active-session flow.
-    public func reconcileDose2Skipped(sessionDate: String, timestamp: Date = Date()) {
+    public func reconcileDose2Skipped(
+        sessionDate: String,
+        timestamp: Date = Date(),
+        reason: String? = nil,
+        reasonNotes: String? = nil
+    ) {
         let existingSkip = fetchDoseEvents(forSessionDate: sessionDate)
             .first { $0.eventType == "dose2_skipped" }
-        let metadata = doseEventMetadata(amountMg: nil, source: "morning_reconciliation")
+        let metadata = doseEventMetadata(
+            existingMetadata: existingSkip?.metadata,
+            amountMg: nil,
+            source: "morning_reconciliation",
+            reason: reason,
+            reasonNotes: reasonNotes
+        )
 
         if let existingSkip {
             storage.updateDoseEventMetadata(eventId: existingSkip.id, metadata: metadata)
@@ -840,6 +890,37 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             dose2Skipped = true
             dose2Time = nil
             sessionDidChange.send()
+        }
+    }
+
+    public func updateDose2OutcomeAnnotations(
+        sessionDate: String,
+        takenReason: String?,
+        skipReason: String?,
+        reasonNotes: String?
+    ) {
+        let events = fetchDoseEvents(forSessionDate: sessionDate)
+
+        if let dose2Event = events.first(where: { $0.eventType == "dose2" }) {
+            let metadata = doseEventMetadata(
+                existingMetadata: dose2Event.metadata,
+                amountMg: nil,
+                source: nil,
+                reason: takenReason,
+                reasonNotes: reasonNotes
+            )
+            storage.updateDoseEventMetadata(eventId: dose2Event.id, metadata: metadata)
+        }
+
+        if let skippedEvent = events.first(where: { $0.eventType == "dose2_skipped" }) {
+            let metadata = doseEventMetadata(
+                existingMetadata: skippedEvent.metadata,
+                amountMg: nil,
+                source: nil,
+                reason: skipReason,
+                reasonNotes: reasonNotes
+            )
+            storage.updateDoseEventMetadata(eventId: skippedEvent.id, metadata: metadata)
         }
     }
 
@@ -1077,11 +1158,19 @@ extension SessionRepository {
         eventType: String,
         sessionDate: String,
         timestamp: Date,
-        amountMg: Int?
+        amountMg: Int?,
+        reason: String?,
+        reasonNotes: String?
     ) {
         let existing = fetchDoseEvents(forSessionDate: sessionDate)
             .first { $0.eventType == eventType }
-        let metadata = doseEventMetadata(amountMg: amountMg, source: "morning_reconciliation")
+        let metadata = doseEventMetadata(
+            existingMetadata: existing?.metadata,
+            amountMg: amountMg,
+            source: "morning_reconciliation",
+            reason: reason,
+            reasonNotes: reasonNotes
+        )
 
         if let existing {
             switch eventType {
@@ -1103,14 +1192,52 @@ extension SessionRepository {
         }
     }
 
-    func doseEventMetadata(amountMg: Int?, source: String) -> String? {
-        var metadata: [String: Any] = ["source": source]
+    func doseEventMetadata(
+        existingMetadata: String? = nil,
+        amountMg: Int?,
+        source: String?,
+        reason: String? = nil,
+        reasonNotes: String? = nil
+    ) -> String? {
+        var metadata = jsonDictionary(from: existingMetadata)
+        if let source {
+            metadata["source"] = source
+        }
         if let amountMg {
             metadata["amount_mg"] = amountMg
+        }
+        upsertMetadataString(reason, forKey: "reason", in: &metadata)
+        upsertMetadataString(reasonNotes, forKey: "reason_notes", in: &metadata)
+        guard !metadata.isEmpty else {
+            return nil
         }
         guard let data = try? JSONSerialization.data(withJSONObject: metadata) else {
             return nil
         }
         return String(data: data, encoding: .utf8)
+    }
+
+    private func jsonDictionary(from jsonString: String?) -> [String: Any] {
+        guard
+            let jsonString,
+            let data = jsonString.data(using: .utf8),
+            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            return [:]
+        }
+        return object
+    }
+
+    private func upsertMetadataString(_ value: String?, forKey key: String, in metadata: inout [String: Any]) {
+        guard let value else {
+            metadata.removeValue(forKey: key)
+            return
+        }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            metadata.removeValue(forKey: key)
+        } else {
+            metadata[key] = trimmed
+        }
     }
 }

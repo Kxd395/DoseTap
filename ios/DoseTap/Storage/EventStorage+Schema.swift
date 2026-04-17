@@ -140,7 +140,8 @@ extension EventStorage {
             -- Sleep Therapy Device (NEW)
             used_sleep_therapy INTEGER NOT NULL DEFAULT 0,
             sleep_therapy_json TEXT,
-            
+            timing_context_json TEXT,
+
             -- Notes
             notes TEXT,
             
@@ -247,6 +248,7 @@ extension EventStorage {
             "ALTER TABLE morning_checkins ADD COLUMN sleep_environment_json TEXT",
             "ALTER TABLE morning_checkins ADD COLUMN stress_level INTEGER",
             "ALTER TABLE morning_checkins ADD COLUMN stress_context_json TEXT",
+            "ALTER TABLE morning_checkins ADD COLUMN timing_context_json TEXT",
             // Dose 3 Hazard Safety: Add hazard flag to dose_events
             "ALTER TABLE dose_events ADD COLUMN is_hazard INTEGER DEFAULT 0",
             // Medication events schema v2: Add missing columns

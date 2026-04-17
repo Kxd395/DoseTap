@@ -22,11 +22,26 @@ extension EventStorage {
     ///   - timestamp: When dose 2 was taken
     ///   - isEarly: True if taken before window opened (user override)
     ///   - isExtraDose: True if this is a second attempt at dose 2 (confirmed by user)
-    public func saveDose2(timestamp: Date, isEarly: Bool = false, isExtraDose: Bool = false, isLate: Bool = false, sessionId: String? = nil, sessionDateOverride: String? = nil) {
+    public func saveDose2(
+        timestamp: Date,
+        isEarly: Bool = false,
+        isExtraDose: Bool = false,
+        isLate: Bool = false,
+        reason: String? = nil,
+        reasonNotes: String? = nil,
+        sessionId: String? = nil,
+        sessionDateOverride: String? = nil
+    ) {
         var metadata: [String: Any] = [:]
         if isEarly { metadata["is_early"] = true }
         if isExtraDose { metadata["is_extra_dose"] = true }
         if isLate { metadata["is_late"] = true }
+        if let reason, !reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            metadata["reason"] = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if let reasonNotes, !reasonNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            metadata["reason_notes"] = reasonNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
 
         let eventType = isExtraDose ? "extra_dose" : "dose2"
         let metadataStr = metadata.isEmpty ? nil : (try? JSONSerialization.data(withJSONObject: metadata)).flatMap { String(data: $0, encoding: .utf8) }
@@ -41,12 +56,24 @@ extension EventStorage {
     }
 
     /// Save dose skipped with optional reason
-    public func saveDoseSkipped(reason: String? = nil, sessionId: String? = nil, sessionDateOverride: String? = nil) {
+    public func saveDoseSkipped(
+        reason: String? = nil,
+        reasonNotes: String? = nil,
+        sessionId: String? = nil,
+        sessionDateOverride: String? = nil
+    ) {
         let metadata: String?
-        if let reason = reason {
-            metadata = "{\"reason\":\"\(reason)\"}"
-        } else {
+        var object: [String: String] = [:]
+        if let reason, !reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            object["reason"] = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if let reasonNotes, !reasonNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            object["reason_notes"] = reasonNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if object.isEmpty {
             metadata = nil
+        } else {
+            metadata = (try? JSONSerialization.data(withJSONObject: object)).flatMap { String(data: $0, encoding: .utf8) }
         }
         let now = nowProvider()
         let sessionDate = sessionDateOverride ?? sessionDateString(for: now)
