@@ -27,8 +27,6 @@
 		54E3599B814B4ACFBD87EA6B /* FullApp/SetupWizardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CB34E7F86084B24991BD7CA /* FullApp/SetupWizardView.swift */; };
 		5A7A4083ACC81A0C1659AF4B /* NightComparisonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B909173F1168B426E065A13A /* NightComparisonView.swift */; };
 		626911F284B24C54BA73D7F8 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B358CDCA949364F93BD996D6 /* SettingsView.swift */; };
-		SET001 /* SettingsSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = SET101 /* SettingsSections.swift */; };
-		SET002 /* SettingsActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = SET102 /* SettingsActions.swift */; };
 		68B3DB1D97734922B659 /* SleepPlanDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 576700D19A9F4B35BA54 /* SleepPlanDetailView.swift */; };
 		74CB1E6BE7206ADBD4DD9C7F /* DoseTapIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDD477019FF746C3DB7E7EE7 /* DoseTapIntents.swift */; };
 		75396BE379F85EF05DC1AEE6 /* WHOOPDataFetching.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67D4EB39451985378B4E5D61 /* WHOOPDataFetching.swift */; };
@@ -60,8 +58,6 @@
 		CLUST102 /* DashboardViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST002 /* DashboardViews.swift */; };
 		CLUST103 /* TimelineReviewViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST003 /* TimelineReviewViews.swift */; };
 		CLUST104 /* HistoryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST004 /* HistoryViews.swift */; };
-		HIS001 /* HistorySelectedDayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = HIS101 /* HistorySelectedDayView.swift */; };
-		HIS002 /* HistorySessionListViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = HIS102 /* HistorySessionListViews.swift */; };
 		CLUST105 /* DeferredCloudKitSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST005 /* DeferredCloudKitSyncService.swift */; };
 		CLUST107 /* DashboardTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST106 /* DashboardTypes.swift */; };
 		CLUST108 /* DashboardAnalyticsRefresh.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST109 /* DashboardAnalyticsRefresh.swift */; };
@@ -76,11 +72,6 @@
 		D2AFCB94D52D4B168AC1CAD6 /* EventLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0E5B5C6E684F7796F9B9FC /* EventLogger.swift */; };
 		D3796BF7DA596F5F9D63F096 /* TimeIntervalMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B2779FB31708024300E8E5 /* TimeIntervalMath.swift */; };
 		D8746EA078A54AF7A8CE92B3 /* MorningCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3941DD4936B4FD0BD5A8837 /* MorningCheckInView.swift */; };
-		MCI001 /* MorningCheckInModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = MCI101 /* MorningCheckInModels.swift */; };
-		MCI002 /* MorningCheckInViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = MCI102 /* MorningCheckInViewModel.swift */; };
-		MCI003 /* MorningCheckInViewModelSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = MCI103 /* MorningCheckInViewModelSupport.swift */; };
-		MCI004 /* MorningCheckInWakeSurvey.swift in Sources */ = {isa = PBXBuildFile; fileRef = MCI104 /* MorningCheckInWakeSurvey.swift */; };
-		MCI005 /* MorningCheckInSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = MCI105 /* MorningCheckInSections.swift */; };
 		D9B47E5F3E91E2F68102BA13 /* NightReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FABFEE0765C943A32E6ACC2 /* NightReviewView.swift */; };
 		DAC001 /* DoseActionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAC002 /* DoseActionCoordinator.swift */; };
 		DD45B910AB7B414A9948C5A9 /* URLRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D565C0B5A1804860B23307B9 /* URLRouter.swift */; };
@@ -93,10 +84,10 @@
 		ESB003 /* EventStorage+Exports.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF003 /* EventStorage+Exports.swift */; };
 		ESB004 /* EventStorage+EventStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF004 /* EventStorage+EventStore.swift */; };
 		ESB005 /* StorageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF005 /* StorageModels.swift */; };
-		ESB009 /* StorageRecordModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF009 /* StorageRecordModels.swift */; };
 		ESB006 /* EventStorage+Dose.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF006 /* EventStorage+Dose.swift */; };
 		ESB007 /* EventStorage+PreSleep.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF007 /* EventStorage+PreSleep.swift */; };
 		ESB008 /* EventStorage+Maintenance.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF008 /* EventStorage+Maintenance.swift */; };
+		ESB009 /* StorageRecordModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF009 /* StorageRecordModels.swift */; };
 		ESB021 /* EventStorage+MorningCheckIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF021 /* EventStorage+MorningCheckIn.swift */; };
 		ESB022 /* EventStorage+CheckInSubmissions.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF022 /* EventStorage+CheckInSubmissions.swift */; };
 		ESB023 /* EventStorage+SessionSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF023 /* EventStorage+SessionSupport.swift */; };
@@ -105,8 +96,15 @@
 		F94248D37BBE47A5A2E90C9B /* PreSleepLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE3796A887B24D9FBBD40758 /* PreSleepLogView.swift */; };
 		FC82425609210406E72373A8 /* FlicButtonService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFF67F0048CFBF2716448CC5 /* FlicButtonService.swift */; };
 		FFCE63C8C666930BEE06D38F /* ThemeSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 707FF265ADBBA04484376264 /* ThemeSettingsView.swift */; };
+		HIS001 /* HistorySelectedDayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = HIS101 /* HistorySelectedDayView.swift */; };
+		HIS002 /* HistorySessionListViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = HIS102 /* HistorySessionListViews.swift */; };
 		HK001 /* HealthKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = HK002 /* HealthKitService.swift */; };
 		HKP001 /* HealthKitProviding.swift in Sources */ = {isa = PBXBuildFile; fileRef = HKP002 /* HealthKitProviding.swift */; };
+		MCI001 /* MorningCheckInModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = MCI101 /* MorningCheckInModels.swift */; };
+		MCI002 /* MorningCheckInViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = MCI102 /* MorningCheckInViewModel.swift */; };
+		MCI003 /* MorningCheckInViewModelSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = MCI103 /* MorningCheckInViewModelSupport.swift */; };
+		MCI004 /* MorningCheckInWakeSurvey.swift in Sources */ = {isa = PBXBuildFile; fileRef = MCI104 /* MorningCheckInWakeSurvey.swift */; };
+		MCI005 /* MorningCheckInSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = MCI105 /* MorningCheckInSections.swift */; };
 		NRV002 /* NightReviewHealthData.swift in Sources */ = {isa = PBXBuildFile; fileRef = NRV001 /* NightReviewHealthData.swift */; };
 		NRV004 /* NightReviewExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = NRV003 /* NightReviewExport.swift */; };
 		NRV006 /* NightReviewPreSleep.swift in Sources */ = {isa = PBXBuildFile; fileRef = NRV005 /* NightReviewPreSleep.swift */; };
@@ -117,15 +115,17 @@
 		PSL003 /* PreSleepLogTimingStressCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = PSL004 /* PreSleepLogTimingStressCard.swift */; };
 		PSL005 /* PreSleepLogBodySubstancesCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = PSL006 /* PreSleepLogBodySubstancesCard.swift */; };
 		PSL007 /* PreSleepLogActivityNapsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = PSL008 /* PreSleepLogActivityNapsCard.swift */; };
-		SST001 /* SleepStageTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = SST002 /* SleepStageTimeline.swift */; };
-		SST003 /* SleepStageTimelineModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = SST004 /* SleepStageTimelineModels.swift */; };
-		SST005 /* SleepStageTimelineCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = SST006 /* SleepStageTimelineCards.swift */; };
-		SSV001 /* SessionSupportViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = SSV002 /* SessionSupportViews.swift */; };
+		SET001 /* SettingsSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = SET101 /* SettingsSections.swift */; };
+		SET002 /* SettingsActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = SET102 /* SettingsActions.swift */; };
 		SRQ001 /* SessionRepositoryQueries.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRQ101 /* SessionRepositoryQueries.swift */; };
 		SRQ002 /* SessionRepositoryMedication.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRQ102 /* SessionRepositoryMedication.swift */; };
 		SRQ003 /* SessionRepositoryCheckIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRQ103 /* SessionRepositoryCheckIn.swift */; };
 		SRQ004 /* SessionRepositorySchedule.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRQ104 /* SessionRepositorySchedule.swift */; };
 		SRQ006 /* SessionRepositorySync.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRQ106 /* SessionRepositorySync.swift */; };
+		SST001 /* SleepStageTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = SST002 /* SleepStageTimeline.swift */; };
+		SST003 /* SleepStageTimelineModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = SST004 /* SleepStageTimelineModels.swift */; };
+		SST005 /* SleepStageTimelineCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = SST006 /* SleepStageTimelineCards.swift */; };
+		SSV001 /* SessionSupportViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = SSV002 /* SessionSupportViews.swift */; };
 		SVS_BF01 /* HealthKitSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SVS_FR01 /* HealthKitSettingsView.swift */; };
 		SVS_BF02 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SVS_FR02 /* AboutView.swift */; };
 		SVS_BF03 /* EventCooldownSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SVS_FR03 /* EventCooldownSettingsView.swift */; };
@@ -222,14 +222,7 @@
 		B0DBB25F0B4C46EAAFB4205A /* LegacyPersistentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyPersistentStore.swift; sourceTree = "<group>"; };
 		B1CBF59D219929011DD8A4A8 /* InputValidator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InputValidator.swift; sourceTree = "<group>"; };
 		B358CDCA949364F93BD996D6 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		SET101 /* SettingsSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSections.swift; sourceTree = "<group>"; };
-		SET102 /* SettingsActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsActions.swift; sourceTree = "<group>"; };
 		B3941DD4936B4FD0BD5A8837 /* MorningCheckInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckInView.swift; sourceTree = "<group>"; };
-		MCI101 /* MorningCheckInModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckInModels.swift; sourceTree = "<group>"; };
-		MCI102 /* MorningCheckInViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckInViewModel.swift; sourceTree = "<group>"; };
-		MCI103 /* MorningCheckInViewModelSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckInViewModelSupport.swift; sourceTree = "<group>"; };
-		MCI104 /* MorningCheckInWakeSurvey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckInWakeSurvey.swift; sourceTree = "<group>"; };
-		MCI105 /* MorningCheckInSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckInSections.swift; sourceTree = "<group>"; };
 		B44F86E9E72D452CAFED6B16 /* SleepPlanCards.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SleepPlanCards.swift; sourceTree = "<group>"; };
 		B5D8DC9D91D38419C97E97FA /* EventStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventStorage.swift; sourceTree = "<group>"; };
 		B909173F1168B426E065A13A /* NightComparisonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightComparisonView.swift; sourceTree = "<group>"; };
@@ -249,8 +242,6 @@
 		CLUST002 /* DashboardViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardViews.swift; sourceTree = "<group>"; };
 		CLUST003 /* TimelineReviewViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineReviewViews.swift; sourceTree = "<group>"; };
 		CLUST004 /* HistoryViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryViews.swift; sourceTree = "<group>"; };
-		HIS101 /* HistorySelectedDayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySelectedDayView.swift; sourceTree = "<group>"; };
-		HIS102 /* HistorySessionListViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySessionListViews.swift; sourceTree = "<group>"; };
 		CLUST005 /* DeferredCloudKitSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeferredCloudKitSyncService.swift; sourceTree = "<group>"; };
 		CLUST106 /* DashboardTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardTypes.swift; sourceTree = "<group>"; };
 		CLUST109 /* DashboardAnalyticsRefresh.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardAnalyticsRefresh.swift; sourceTree = "<group>"; };
@@ -276,10 +267,10 @@
 		ESF003 /* EventStorage+Exports.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+Exports.swift"; sourceTree = "<group>"; };
 		ESF004 /* EventStorage+EventStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+EventStore.swift"; sourceTree = "<group>"; };
 		ESF005 /* StorageModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageModels.swift; sourceTree = "<group>"; };
-		ESF009 /* StorageRecordModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageRecordModels.swift; sourceTree = "<group>"; };
 		ESF006 /* EventStorage+Dose.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+Dose.swift"; sourceTree = "<group>"; };
 		ESF007 /* EventStorage+PreSleep.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+PreSleep.swift"; sourceTree = "<group>"; };
 		ESF008 /* EventStorage+Maintenance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+Maintenance.swift"; sourceTree = "<group>"; };
+		ESF009 /* StorageRecordModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageRecordModels.swift; sourceTree = "<group>"; };
 		ESF021 /* EventStorage+MorningCheckIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+MorningCheckIn.swift"; sourceTree = "<group>"; };
 		ESF022 /* EventStorage+CheckInSubmissions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+CheckInSubmissions.swift"; sourceTree = "<group>"; };
 		ESF023 /* EventStorage+SessionSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+SessionSupport.swift"; sourceTree = "<group>"; };
@@ -288,8 +279,15 @@
 		F90DAD707525490DB491F5EA /* LegacyCSVExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyCSVExporter.swift; sourceTree = "<group>"; };
 		FCC2762A054AE377C80CF2B0 /* EncryptedEventStorage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EncryptedEventStorage.swift; sourceTree = "<group>"; };
 		FCEDF0A0E4BE41F582C2221F /* AnalyticsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsService.swift; sourceTree = "<group>"; };
+		HIS101 /* HistorySelectedDayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySelectedDayView.swift; sourceTree = "<group>"; };
+		HIS102 /* HistorySessionListViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySessionListViews.swift; sourceTree = "<group>"; };
 		HK002 /* HealthKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitService.swift; sourceTree = "<group>"; };
 		HKP002 /* HealthKitProviding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitProviding.swift; sourceTree = "<group>"; };
+		MCI101 /* MorningCheckInModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckInModels.swift; sourceTree = "<group>"; };
+		MCI102 /* MorningCheckInViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckInViewModel.swift; sourceTree = "<group>"; };
+		MCI103 /* MorningCheckInViewModelSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckInViewModelSupport.swift; sourceTree = "<group>"; };
+		MCI104 /* MorningCheckInWakeSurvey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckInWakeSurvey.swift; sourceTree = "<group>"; };
+		MCI105 /* MorningCheckInSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckInSections.swift; sourceTree = "<group>"; };
 		NRV001 /* NightReviewHealthData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightReviewHealthData.swift; sourceTree = "<group>"; };
 		NRV003 /* NightReviewExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightReviewExport.swift; sourceTree = "<group>"; };
 		NRV005 /* NightReviewPreSleep.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightReviewPreSleep.swift; sourceTree = "<group>"; };
@@ -300,15 +298,17 @@
 		PSL004 /* PreSleepLogTimingStressCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreSleepLogTimingStressCard.swift; sourceTree = "<group>"; };
 		PSL006 /* PreSleepLogBodySubstancesCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreSleepLogBodySubstancesCard.swift; sourceTree = "<group>"; };
 		PSL008 /* PreSleepLogActivityNapsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreSleepLogActivityNapsCard.swift; sourceTree = "<group>"; };
-		SST002 /* SleepStageTimeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepStageTimeline.swift; sourceTree = "<group>"; };
-		SST004 /* SleepStageTimelineModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepStageTimelineModels.swift; sourceTree = "<group>"; };
-		SST006 /* SleepStageTimelineCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepStageTimelineCards.swift; sourceTree = "<group>"; };
-		SSV002 /* SessionSupportViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionSupportViews.swift; sourceTree = "<group>"; };
+		SET101 /* SettingsSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSections.swift; sourceTree = "<group>"; };
+		SET102 /* SettingsActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsActions.swift; sourceTree = "<group>"; };
 		SRQ101 /* SessionRepositoryQueries.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepositoryQueries.swift; sourceTree = "<group>"; };
 		SRQ102 /* SessionRepositoryMedication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepositoryMedication.swift; sourceTree = "<group>"; };
 		SRQ103 /* SessionRepositoryCheckIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepositoryCheckIn.swift; sourceTree = "<group>"; };
 		SRQ104 /* SessionRepositorySchedule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepositorySchedule.swift; sourceTree = "<group>"; };
 		SRQ106 /* SessionRepositorySync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepositorySync.swift; sourceTree = "<group>"; };
+		SST002 /* SleepStageTimeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepStageTimeline.swift; sourceTree = "<group>"; };
+		SST004 /* SleepStageTimelineModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepStageTimelineModels.swift; sourceTree = "<group>"; };
+		SST006 /* SleepStageTimelineCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepStageTimelineCards.swift; sourceTree = "<group>"; };
+		SSV002 /* SessionSupportViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionSupportViews.swift; sourceTree = "<group>"; };
 		SVS_FR01 /* HealthKitSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitSettingsView.swift; sourceTree = "<group>"; };
 		SVS_FR02 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
 		SVS_FR03 /* EventCooldownSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventCooldownSettingsView.swift; sourceTree = "<group>"; };
@@ -538,17 +538,6 @@
 			path = Foundation;
 			sourceTree = "<group>";
 		};
-		GRP_LEGACY /* Legacy */ = {
-			isa = PBXGroup;
-			children = (
-				B0DBB25F0B4C46EAAFB4205A /* LegacyPersistentStore.swift */,
-				F90DAD707525490DB491F5EA /* LegacyCSVExporter.swift */,
-				6CFBD921F6074479AF4FF155 /* LegacyJSONMigrator.swift */,
-				CLUST005 /* DeferredCloudKitSyncService.swift */,
-			);
-			path = Legacy;
-			sourceTree = "<group>";
-		};
 		GRP_HISTORY /* History */ = {
 			isa = PBXGroup;
 			children = (
@@ -558,6 +547,17 @@
 				HIS102 /* HistorySessionListViews.swift */,
 			);
 			path = History;
+			sourceTree = "<group>";
+		};
+		GRP_LEGACY /* Legacy */ = {
+			isa = PBXGroup;
+			children = (
+				B0DBB25F0B4C46EAAFB4205A /* LegacyPersistentStore.swift */,
+				F90DAD707525490DB491F5EA /* LegacyCSVExporter.swift */,
+				6CFBD921F6074479AF4FF155 /* LegacyJSONMigrator.swift */,
+				CLUST005 /* DeferredCloudKitSyncService.swift */,
+			);
+			path = Legacy;
 			sourceTree = "<group>";
 		};
 		GRP_SERVICES /* Services */ = {
