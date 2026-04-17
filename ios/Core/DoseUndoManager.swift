@@ -3,12 +3,33 @@ import Foundation
 // MARK: - Undo Manager for DoseTap
 // Provides 5-second undo window for dose actions per SSOT §1
 
+/// Snapshot of a sleep event for undo-delete support.
+/// Kept as plain value types so `DoseCore` stays platform-free.
+public struct DeletedEventSnapshot: Equatable, Sendable {
+    public let id: String
+    public let eventType: String
+    public let displayName: String
+    public let timestamp: Date
+    public let colorHex: String?
+    public let notes: String?
+
+    public init(id: String, eventType: String, displayName: String, timestamp: Date, colorHex: String? = nil, notes: String? = nil) {
+        self.id = id
+        self.eventType = eventType
+        self.displayName = displayName
+        self.timestamp = timestamp
+        self.colorHex = colorHex
+        self.notes = notes
+    }
+}
+
 /// Actions that can be undone
 public enum UndoableAction: Equatable, Sendable {
     case takeDose1(at: Date)
     case takeDose2(at: Date)
     case skipDose(sequence: Int, reason: String?)
     case snooze(minutes: Int)
+    case deleteEvent(snapshot: DeletedEventSnapshot)
 }
 
 /// Result of an undo attempt

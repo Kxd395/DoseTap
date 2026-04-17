@@ -109,9 +109,11 @@ struct ContentView: View {
         case .tonight:
             LegacyTonightView(core: core, eventLogger: eventLogger, undoState: undoState)
                 .environmentObject(themeManager)
+                .environmentObject(undoState)
         case .timeline:
             DetailsView(core: core, eventLogger: eventLogger)
                 .environmentObject(themeManager)
+                .environmentObject(undoState)
         case .history:
             HistoryView()
                 .environmentObject(themeManager)
@@ -132,10 +134,12 @@ struct ContentView: View {
             TabView(selection: $urlRouter.selectedTab) {
                 LegacyTonightView(core: core, eventLogger: eventLogger, undoState: undoState)
                     .environmentObject(themeManager)
+                    .environmentObject(undoState)
                     .tag(AppTab.tonight)
                 
                 DetailsView(core: core, eventLogger: eventLogger)
                     .environmentObject(themeManager)
+                    .environmentObject(undoState)
                     .tag(AppTab.timeline)
                 
                 HistoryView()
@@ -270,6 +274,11 @@ struct ContentView: View {
                     // Revert snooze (decrement count)
                     sessionRepo.decrementSnoozeCount()
                     appLogger.info("Undid snooze of \(mins) minutes")
+
+                case .deleteEvent(let snapshot):
+                    // Restore the deleted event from snapshot
+                    EventLogger.shared.restoreDeletedEvent(snapshot)
+                    appLogger.info("Undid delete of event \(snapshot.displayName, privacy: .private)")
                 }
             }
         }

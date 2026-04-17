@@ -6,6 +6,7 @@ struct CompactSessionSummary: View {
     @ObservedObject var core: DoseTapCore
     @ObservedObject var eventLogger: EventLogger
     @ObservedObject private var sessionRepo = SessionRepository.shared
+    @EnvironmentObject var undoState: UndoStateManager
     @State private var showEventsPopover = false
     @State private var doseEvents: [StoredDoseEvent] = []
     @State private var preSleepLog: StoredPreSleepLog?
@@ -77,7 +78,9 @@ struct CompactSessionSummary: View {
             TonightEventsSheet(
                 events: eventLogger.events,
                 onDelete: { id in
-                    eventLogger.deleteEvent(id: id)
+                    if let snapshot = eventLogger.deleteEventReturningSnapshot(id: id) {
+                        undoState.register(.deleteEvent(snapshot: snapshot))
+                    }
                 },
                 onEditTime: { id, newTime in
                     eventLogger.updateEventTime(id: id, newTime: newTime)

@@ -106,6 +106,67 @@ class EventLogger: ObservableObject {
         sessionRepo.deleteSleepEvent(id: id.uuidString)
     }
 
+    /// Delete a specific event and return a snapshot that can be used to restore it
+    /// via `restoreDeletedEvent(_:)`. Returns nil if no stored event matches.
+    /// Intended for the undo-delete flow.
+    func deleteEventReturningSnapshot(id: UUID) -> DeletedEventSnapshot? {
+        let stored = sessionRepo.fetchTonightSleepEvents().first { $0.id == id.uuidString }
+        let logged = events.first { $0.id == id }
+        guard stored != nil || logged != nil else { return nil }
+
+        let eventType: String
+        let displayName: String
+        let timestamp: Date
+        let colorHex: String?
+        let notes: String?
+        if let stored {
+            eventType = stored.eventType
+            displayName = Self.displayName(forEventType: stored.eventType)
+            timestamp = stored.timestamp
+            colorHex = stored.colorHex
+            notes = stored.notes
+        } else if let logged {
+            eventType = Self.canonicalEventType(logged.name)
+            displayName = logged.name
+            timestamp = logged.time
+            colorHex = logged.color.toHex()
+            notes = nil
+        } else {
+            return nil
+        }
+
+        deleteEvent(id: id)
+
+        return DeletedEventSnapshot(
+            id: id.uuidString,
+            eventType: eventType,
+            displayName: displayName,
+            timestamp: timestamp,
+            colorHex: colorHex,
+            notes: notes
+        )
+    }
+
+    /// Restore a previously deleted event from a snapshot. No-op if an event
+    /// with the same id already exists.
+    func restoreDeletedEvent(_ snapshot: DeletedEventSnapshot) {
+        guard let uuid = UUID(uuidString: snapshot.id) else { return }
+        if events.contains(where: { $0.id == uuid }) { return }
+
+        sessionRepo.insertSleepEvent(
+            id: snapshot.id,
+            eventType: snapshot.eventType,
+            timestamp: snapshot.timestamp,
+            colorHex: snapshot.colorHex,
+            notes: snapshot.notes
+        )
+
+        let color = snapshot.colorHex.flatMap { Color(hex: $0) } ?? .gray
+        let restored = LoggedEvent(id: uuid, name: snapshot.displayName, time: snapshot.timestamp, color: color)
+        events.insert(restored, at: 0)
+        events.sort { $0.time > $1.time }
+    }
+
     /// Manually log an event at a specific date+time (for retroactive entry)
     func logManualEvent(eventType: String, color: Color, timestamp: Date) {
         let eventId = UUID()

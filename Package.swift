@@ -82,7 +82,8 @@ let package = Package(
                 "SessionRolloverRegressionTests.swift",
                 "NightScoreCalculatorTests.swift",
                 "DoseRegistrationPolicyTests.swift",
-                "DoseEffectivenessCalculatorTests.swift"
+                "DoseEffectivenessCalculatorTests.swift",
+                "DeletedEventSnapshotTests.swift"
             ]
         )
     ]

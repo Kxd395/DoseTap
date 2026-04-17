@@ -74,6 +74,7 @@ struct DetailsView: View {
     @ObservedObject var eventLogger: EventLogger
     @ObservedObject private var sessionRepo = SessionRepository.shared
     @ObservedObject var settings = UserSettingsManager.shared
+    @EnvironmentObject var undoState: UndoStateManager
     @State private var selectedMode: TimelineMode = .live
     @State private var showLiveEventsSheet = false
     @State private var showPlanForTonight = false
@@ -188,7 +189,9 @@ struct DetailsView: View {
                 TonightEventsSheet(
                     events: eventLogger.events,
                     onDelete: { id in
-                        eventLogger.deleteEvent(id: id)
+                        if let snapshot = eventLogger.deleteEventReturningSnapshot(id: id) {
+                            undoState.register(.deleteEvent(snapshot: snapshot))
+                        }
                     },
                     onEditTime: { id, newTime in
                         eventLogger.updateEventTime(id: id, newTime: newTime)

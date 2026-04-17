@@ -159,6 +159,7 @@ class UndoStateManager: ObservableObject {
         case .takeDose2: return "dose2"
         case .skipDose: return "skipDose"
         case .snooze: return "snooze"
+        case .deleteEvent: return "deleteEvent"
         }
     }
 }
