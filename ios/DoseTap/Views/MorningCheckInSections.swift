@@ -132,6 +132,36 @@ struct MorningCheckInDoseReconciliationSection: View {
                         }
                     }
 
+                    if viewModel.showsDose2TakenReason {
+                        Divider()
+                        Text("Why was Dose 2 early, late, or unusual?")
+                            .font(.subheadline.weight(.semibold))
+                        OptionGrid(
+                            options: Dose2TakenReason.allCases,
+                            selection: morningCheckInOptionalBinding(viewModel, \.dose2TakenReason)
+                        )
+                    }
+
+                    if viewModel.showsDose2SkippedReason {
+                        Divider()
+                        Text("Why was Dose 2 skipped?")
+                            .font(.subheadline.weight(.semibold))
+                        OptionGrid(
+                            options: Dose2SkippedReason.allCases,
+                            selection: morningCheckInOptionalBinding(viewModel, \.dose2SkippedReason)
+                        )
+                    }
+
+                    if viewModel.showsDose2TakenReason || viewModel.showsDose2SkippedReason {
+                        TextField(
+                            "Dose 2 reason notes (optional)",
+                            text: $viewModel.dose2ReasonNotes,
+                            axis: .vertical
+                        )
+                        .lineLimit(2...4)
+                        .textFieldStyle(.roundedBorder)
+                    }
+
                     Text("Approximate times are fine here. Use this when you forgot to tap the dose button overnight.")
                         .font(.caption)
                         .foregroundColor(.secondary)
@@ -229,6 +259,203 @@ struct MorningCheckInMorningFunctioningSection: View {
                     options: DreamRecallType.allCases,
                     selection: morningCheckInOptionalBinding(viewModel, \.dreamRecall)
                 )
+            }
+        }
+    }
+}
+
+struct MorningCheckInNightContextSection: View {
+    @ObservedObject var viewModel: MorningCheckInViewModel
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("Night Context")
+                .font(.headline)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            MorningCheckInSectionCard(title: "Night Type", icon: "calendar.badge.clock") {
+                OptionGrid(
+                    options: NightType.allCases,
+                    selection: morningCheckInOptionalBinding(viewModel, \.nightType)
+                )
+
+                Toggle(
+                    "This was my first night off after a work block",
+                    isOn: $viewModel.firstNightOffAfterWorkBlock
+                )
+                .padding(.top, 8)
+            }
+
+            MorningCheckInSectionCard(title: "How Did You Wake?", icon: "alarm") {
+                OptionGrid(
+                    options: WakeType.allCases,
+                    selection: morningCheckInOptionalBinding(viewModel, \.wakeType)
+                )
+            }
+
+            MorningCheckInSectionCard(title: "Next-Day Demand", icon: "briefcase") {
+                OptionGrid(
+                    options: NextDayDemand.allCases,
+                    selection: morningCheckInOptionalBinding(viewModel, \.nextDayDemand)
+                )
+            }
+
+            MorningCheckInSectionCard(title: "What Woke You For Dose 2?", icon: "moon.stars") {
+                OptionGrid(
+                    options: Dose2WakeMethod.allCases,
+                    selection: morningCheckInOptionalBinding(viewModel, \.dose2WakeMethod)
+                )
+            }
+
+            MorningCheckInSectionCard(title: "Back To Sleep After Dose 2", icon: "bed.double") {
+                OptionGrid(
+                    options: BackToSleepDuration.allCases,
+                    selection: morningCheckInOptionalBinding(viewModel, \.backToSleepDuration)
+                )
+            }
+        }
+    }
+}
+
+struct MorningCheckInWorkSafetySection: View {
+    @ObservedObject var viewModel: MorningCheckInViewModel
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("Work / Safety Context")
+                .font(.headline)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            MorningCheckInSectionCard(title: "Work Demand And Safety", icon: "briefcase.fill") {
+                Toggle("Add work / safety context", isOn: $viewModel.hasWorkSafetyContext.animation(.spring(response: 0.3)))
+                    .toggleStyle(SwitchToggleStyle(tint: .blue))
+
+                if viewModel.hasWorkSafetyContext {
+                    Divider()
+
+                    Text("What set your wake requirement?")
+                        .font(.subheadline.weight(.semibold))
+                    OptionGrid(
+                        options: WakeRequirement.allCases,
+                        selection: morningCheckInOptionalBinding(viewModel, \.wakeRequirement)
+                    )
+
+                    Toggle("Record next shift window", isOn: $viewModel.trackShiftWindow.animation(.spring(response: 0.3)))
+                        .toggleStyle(SwitchToggleStyle(tint: .indigo))
+
+                    if viewModel.trackShiftWindow {
+                        DatePicker(
+                            "Shift start",
+                            selection: $viewModel.shiftStartAt,
+                            displayedComponents: [.date, .hourAndMinute]
+                        )
+                        DatePicker(
+                            "Shift end",
+                            selection: $viewModel.shiftEndAt,
+                            displayedComponents: [.date, .hourAndMinute]
+                        )
+                    }
+
+                    Toggle("Record next required wake time", isOn: $viewModel.trackNextRequiredWake.animation(.spring(response: 0.3)))
+                        .toggleStyle(SwitchToggleStyle(tint: .orange))
+
+                    if viewModel.trackNextRequiredWake {
+                        DatePicker(
+                            "Next required wake",
+                            selection: $viewModel.nextRequiredWakeAt,
+                            displayedComponents: [.date, .hourAndMinute]
+                        )
+                    }
+
+                    Stepper(value: $viewModel.commuteMinutes, in: 0...240, step: 5) {
+                        HStack {
+                            Text("Commute burden")
+                            Spacer()
+                            Text("\(viewModel.commuteMinutes) min")
+                                .foregroundColor(.secondary)
+                        }
+                    }
+
+                    MorningCheckInScoreSlider(
+                        value: $viewModel.drivingConfidence,
+                        range: 1...5,
+                        accentColor: .blue,
+                        lowLabel: "Not safe",
+                        highLabel: "Confident"
+                    )
+
+                    MorningCheckInScoreSlider(
+                        value: $viewModel.daytimeSleepiness,
+                        range: 1...5,
+                        accentColor: .purple,
+                        lowLabel: "Alert",
+                        highLabel: "Very sleepy"
+                    )
+
+                    Text("Cataplexy burden")
+                        .font(.subheadline.weight(.semibold))
+                    OptionGrid(
+                        options: CataplexyBurden.allCases,
+                        selection: morningCheckInOptionalBinding(viewModel, \.cataplexyBurden)
+                    )
+                }
+            }
+        }
+    }
+}
+
+struct MorningCheckInClinicalContextSection: View {
+    @ObservedObject var viewModel: MorningCheckInViewModel
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("Clinical Reference Context")
+                .font(.headline)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            MorningCheckInSectionCard(title: "Sleep Disorders / Med Context", icon: "cross.case.fill") {
+                Toggle("Add clinical reference context", isOn: $viewModel.hasClinicalContext.animation(.spring(response: 0.3)))
+                    .toggleStyle(SwitchToggleStyle(tint: .red))
+
+                if viewModel.hasClinicalContext {
+                    Divider()
+
+                    Text("Diagnosed or relevant sleep disorders")
+                        .font(.subheadline.weight(.semibold))
+                    MultiSelectGrid(
+                        options: SleepDisorder.allCases,
+                        selections: $viewModel.sleepDisorders
+                    )
+
+                    TextField(
+                        "Sleep disorder notes, severity, treatment status",
+                        text: $viewModel.sleepDisorderNotes,
+                        axis: .vertical
+                    )
+                    .lineLimit(2...4)
+                    .textFieldStyle(.roundedBorder)
+
+                    TextField(
+                        "Stimulants, sedating meds, pain meds, CPAP/oral appliance notes",
+                        text: $viewModel.coMedicationNotes,
+                        axis: .vertical
+                    )
+                    .lineLimit(2...4)
+                    .textFieldStyle(.roundedBorder)
+
+                    Toggle("DNA / pharmacogenomic report suggests faster processing", isOn: $viewModel.pharmacogenomicFastMetabolizer)
+                        .toggleStyle(SwitchToggleStyle(tint: .mint))
+                    Toggle("Clinician has reviewed this genetic context", isOn: $viewModel.pharmacogenomicClinicianReviewed)
+                        .toggleStyle(SwitchToggleStyle(tint: .green))
+
+                    TextField(
+                        "Pharmacogenomic notes or report wording",
+                        text: $viewModel.pharmacogenomicNotes,
+                        axis: .vertical
+                    )
+                    .lineLimit(2...4)
+                    .textFieldStyle(.roundedBorder)
+                }
             }
         }
     }
@@ -372,6 +599,27 @@ struct MorningCheckInPhysicalSymptomsSection: View {
                 OptionGrid(
                     options: SorenessLevel.allCases,
                     selection: morningCheckInOptionalBinding(viewModel, \.muscleSoreness)
+                )
+            }
+
+            MorningCheckInSectionCard(title: "Reflux / Heartburn", icon: "flame.fill") {
+                OptionGrid(
+                    options: SymptomBurden.allCases,
+                    selection: morningCheckInOptionalBinding(viewModel, \.refluxBurden)
+                )
+            }
+
+            MorningCheckInSectionCard(title: "Restless Legs / Body Restlessness", icon: "figure.walk.motion") {
+                OptionGrid(
+                    options: SymptomBurden.allCases,
+                    selection: morningCheckInOptionalBinding(viewModel, \.restlessLegsBurden)
+                )
+            }
+
+            MorningCheckInSectionCard(title: "Bathroom Urgency Overnight", icon: "drop.circle.fill") {
+                OptionGrid(
+                    options: SymptomBurden.allCases,
+                    selection: morningCheckInOptionalBinding(viewModel, \.bathroomUrgencyBurden)
                 )
             }
 

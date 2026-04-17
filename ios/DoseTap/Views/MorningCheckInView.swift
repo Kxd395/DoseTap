@@ -35,7 +35,10 @@ public struct MorningCheckInView: View {
                     headerSection
                     MorningCheckInQuickModeSection(viewModel: viewModel)
                     MorningCheckInDoseReconciliationSection(viewModel: viewModel)
+                    MorningCheckInNightContextSection(viewModel: viewModel)
                     MorningCheckInMorningFunctioningSection(viewModel: viewModel)
+                    MorningCheckInWorkSafetySection(viewModel: viewModel)
+                    MorningCheckInClinicalContextSection(viewModel: viewModel)
                     MorningCheckInSymptomTogglesSection(viewModel: viewModel)
                     if viewModel.hasPhysicalSymptoms {
                         MorningCheckInPhysicalSymptomsSection(

@@ -117,12 +117,26 @@ extension MorningCheckInViewModel {
                 sessionRepo.reconcileDose2(
                     sessionDate: sessionDate,
                     takenAt: reconcileDose2Time,
-                    amountMg: Self.normalizedDoseAmount(reconcileDose2AmountMg)
+                    amountMg: Self.normalizedDoseAmount(reconcileDose2AmountMg),
+                    reason: selectedDose2TakenReasonRawValue,
+                    reasonNotes: normalizedDose2ReasonNotes
                 )
             case .skipped:
-                sessionRepo.reconcileDose2Skipped(sessionDate: sessionDate, timestamp: reconcileDose2Time)
+                sessionRepo.reconcileDose2Skipped(
+                    sessionDate: sessionDate,
+                    timestamp: reconcileDose2Time,
+                    reason: selectedDose2SkippedReasonRawValue,
+                    reasonNotes: normalizedDose2ReasonNotes
+                )
             }
         }
+
+        sessionRepo.updateDose2OutcomeAnnotations(
+            sessionDate: sessionDate,
+            takenReason: selectedDose2TakenReasonRawValue,
+            skipReason: selectedDose2SkippedReasonRawValue,
+            reasonNotes: normalizedDose2ReasonNotes
+        )
     }
 
     static func parseDoseAmount(from events: [DoseCore.StoredDoseEvent], eventType: String) -> Int? {
@@ -173,5 +187,18 @@ extension MorningCheckInViewModel {
             return morningDefault
         }
         return dose1Time.addingTimeInterval(3 * 60 * 60)
+    }
+
+    var normalizedDose2ReasonNotes: String? {
+        let trimmed = dose2ReasonNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    var selectedDose2TakenReasonRawValue: String? {
+        showsDose2TakenReason && dose2TakenReason != .unsure ? dose2TakenReason.rawValue : nil
+    }
+
+    var selectedDose2SkippedReasonRawValue: String? {
+        showsDose2SkippedReason && dose2SkippedReason != .unsure ? dose2SkippedReason.rawValue : nil
     }
 }
