@@ -80,6 +80,9 @@ final class DoseActionCoordinator: ObservableObject {
     // MARK: - Take Dose 1
 
     func takeDose1() async -> ActionResult {
+        let sig = DoseSignpost.begin(.takeDose1)
+        defer { DoseSignpost.end(.takeDose1, sig) }
+
         guard core.dose1Time == nil else {
             return .blocked(reason: "Dose 1 already taken")
         }
@@ -117,6 +120,9 @@ final class DoseActionCoordinator: ObservableObject {
         reason: String? = nil,
         reasonNotes: String? = nil
     ) async -> ActionResult {
+        let sig = DoseSignpost.begin(.takeDose2, "override=\(override)")
+        defer { DoseSignpost.end(.takeDose2, sig) }
+
         // Pre-check: Dose 1 must exist
         guard core.dose1Time != nil else {
             return .blocked(reason: "Take Dose 1 first")
@@ -190,6 +196,9 @@ final class DoseActionCoordinator: ObservableObject {
     // MARK: - Snooze
 
     func snooze() async -> ActionResult {
+        let sig = DoseSignpost.begin(.snooze)
+        defer { DoseSignpost.end(.snooze, sig) }
+
         let ctx = core.windowContext
 
         guard case .snoozeEnabled = ctx.snooze else {
@@ -219,6 +228,9 @@ final class DoseActionCoordinator: ObservableObject {
     // MARK: - Skip Dose
 
     func skipDose(reason: String? = nil, reasonNotes: String? = nil) async -> ActionResult {
+        let sig = DoseSignpost.begin(.skipDose)
+        defer { DoseSignpost.end(.skipDose, sig) }
+
         guard core.dose1Time != nil else {
             return .blocked(reason: "Take Dose 1 first")
         }

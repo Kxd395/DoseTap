@@ -146,6 +146,7 @@
 		WP001 /* WeeklyPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP002 /* WeeklyPlanner.swift */; };
 		A475371301874AE7AB21C150 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 395ADBC5158F41E79333066E /* Haptics.swift */; };
 		96EA12319D9E4A3FAE27702B /* WeeklyInsightsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C7B30C64C784164BA6C294F /* WeeklyInsightsCard.swift */; };
+		CFF2325F64E54A04AE2ED2DE /* Signposts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 311EA8D6A45E43B9B8E477B6 /* Signposts.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -332,6 +333,7 @@
 		WP002 /* WeeklyPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyPlanner.swift; sourceTree = "<group>"; };
 		395ADBC5158F41E79333066E /* Haptics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
 		0C7B30C64C784164BA6C294F /* WeeklyInsightsCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeeklyInsightsCard.swift; sourceTree = "<group>"; };
+		311EA8D6A45E43B9B8E477B6 /* Signposts.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Signposts.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -446,6 +448,7 @@
 				B02 /* ContentView.swift */,
 				DD0E5B5C6E684F7796F9B9FC /* EventLogger.swift */,
 				395ADBC5158F41E79333066E /* Haptics.swift */,
+				311EA8D6A45E43B9B8E477B6 /* Signposts.swift */,
 				EVT002 /* EventType.swift */,
 				B01 /* DoseTapApp.swift */,
 				HK002 /* HealthKitService.swift */,
@@ -845,6 +848,7 @@
 				A02 /* ContentView.swift in Sources */,
 				D2AFCB94D52D4B168AC1CAD6 /* EventLogger.swift in Sources */,
 				A475371301874AE7AB21C150 /* Haptics.swift in Sources */,
+				CFF2325F64E54A04AE2ED2DE /* Signposts.swift in Sources */,
 				07D79FDC36E045FCB5590A15 /* TonightView.swift in Sources */,
 				96EA12319D9E4A3FAE27702B /* WeeklyInsightsCard.swift in Sources */,
 				B3A59BFBC74549279C21803D /* SleepPlanCards.swift in Sources */,
