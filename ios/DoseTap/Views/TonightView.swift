@@ -162,7 +162,8 @@ struct LegacyTonightView: View {
                             sessionRepo: sessionRepo,
                             showEarlyDoseAlert: $showEarlyDoseAlert,
                             earlyDoseMinutes: $earlyDoseMinutesRemaining,
-                            showExtraDoseWarning: $showExtraDoseWarning
+                            showExtraDoseWarning: $showExtraDoseWarning,
+                            showMorningCheckIn: $showMorningCheckIn
                         )
                         
                         WakeUpButton(
@@ -192,7 +193,8 @@ struct LegacyTonightView: View {
                 sessionRepo: sessionRepo,
                 showEarlyDoseAlert: $showEarlyDoseAlert,
                 earlyDoseMinutes: $earlyDoseMinutesRemaining,
-                showExtraDoseWarning: $showExtraDoseWarning
+                showExtraDoseWarning: $showExtraDoseWarning,
+                showMorningCheckIn: $showMorningCheckIn
             )
             
             Spacer().frame(height: 12)

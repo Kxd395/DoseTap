@@ -12,6 +12,9 @@ struct CompactDoseButton: View {
     @Binding var showEarlyDoseAlert: Bool
     @Binding var earlyDoseMinutes: Int
     @Binding var showExtraDoseWarning: Bool  // For second dose 2 attempt
+    /// Optional binding to open Morning Check-In sheet when user taps primary
+    /// button in `.finalizing` state.
+    var showMorningCheckIn: Binding<Bool>? = nil
     @State private var showWindowExpiredOverride = false  // For taking dose after window expired
     @State private var reasonCaptureMode: Dose2OutcomeReasonMode?
     
@@ -130,6 +133,13 @@ struct CompactDoseButton: View {
     }
     
     private func handlePrimaryButtonTap() {
+        // Finalizing: primary button acts as morning check-in launcher.
+        if core.currentStatus == .finalizing, let binding = showMorningCheckIn {
+            binding.wrappedValue = true
+            Haptics.light.play()
+            return
+        }
+
         // P0-4: Use coordinator when available
         if let coord = coordinator {
             Task {
