@@ -34,6 +34,25 @@ swift test
 open ios/DoseTap.xcodeproj
 ```
 
+### Local development without signing
+
+For day-to-day work you don't need a valid signing cert:
+
+- Run on **iPhone Simulator** with the **Debug** build configuration
+  (Product → Scheme → Edit Scheme → Run → Info → Build Configuration: Debug)
+- Command line:
+
+  ```bash
+  xcodebuild build \
+    -project ios/DoseTap.xcodeproj -scheme DoseTap \
+    -destination 'generic/platform=iOS Simulator' \
+    CODE_SIGNING_ALLOWED=NO
+  ```
+
+Signing is only required for physical devices, archive builds, and TestFlight.
+If Xcode shows "Unable to process request - PLA Update available", sign in at
+<https://developer.apple.com/account> and accept the latest Program License Agreement.
+
 ## Documentation
 
 - SSOT (authoritative behavior): `docs/SSOT/README.md`
