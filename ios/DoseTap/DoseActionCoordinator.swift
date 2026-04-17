@@ -8,6 +8,9 @@ import SwiftUI
 import UIKit
 import AudioToolbox
 #endif
+#if canImport(WidgetKit)
+import WidgetKit
+#endif
 
 private let coordinatorLog = Logger(subsystem: "com.dosetap.app", category: "DoseActionCoordinator")
 
@@ -108,6 +111,7 @@ final class DoseActionCoordinator: ObservableObject {
 
         playHaptic(.dose)
         playConfirmationSound()
+        refreshWidgets()
 
         coordinatorLog.info("Dose 1 logged via coordinator")
         return .success(message: "✓ Dose 1 logged")
@@ -216,11 +220,13 @@ final class DoseActionCoordinator: ObservableObject {
             let formatted = newTime.formatted(date: .omitted, time: .shortened)
             coordinatorLog.info("Snoozed to \(formatted, privacy: .public)")
             playHaptic(.action)
+            refreshWidgets()
             return .success(message: "✓ Snoozed to \(formatted)")
         } else {
             // Still increment snooze count even if alarm couldn't be rescheduled
             await core.snooze()
             playHaptic(.action)
+            refreshWidgets()
             return .success(message: "✓ Snoozed (+10m)")
         }
     }
@@ -256,6 +262,7 @@ final class DoseActionCoordinator: ObservableObject {
         playHaptic(.action)
 
         coordinatorLog.info("Dose 2 skipped via coordinator")
+        refreshWidgets()
         return .success(message: "✓ Dose 2 skipped")
     }
 
@@ -293,6 +300,7 @@ final class DoseActionCoordinator: ObservableObject {
         playConfirmationSound()
 
         coordinatorLog.info("\(eventName, privacy: .public) logged via coordinator")
+        refreshWidgets()
         return .success(message: "✓ \(eventName) logged")
     }
 
@@ -326,6 +334,15 @@ final class DoseActionCoordinator: ObservableObject {
         #if canImport(AudioToolbox)
         guard UserSettingsManager.shared.soundEnabled else { return }
         AudioServicesPlaySystemSound(Self.confirmationSoundID)
+        #endif
+    }
+
+    /// P4-2: Ask WidgetKit to refresh complications/widgets after any state-changing
+    /// dose action so watch complications, Lock Screen, and Home Screen widgets stay
+    /// in sync with `DoseTapCore` without waiting for the next app-lifecycle refresh.
+    private func refreshWidgets() {
+        #if canImport(WidgetKit)
+        WidgetCenter.shared.reloadAllTimelines()
         #endif
     }
 }

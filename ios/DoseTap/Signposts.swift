@@ -15,9 +15,10 @@ import Foundation
 import os
 import os.signpost
 
-/// Subsystem used for all DoseTap signposts. Matches the convention for
-/// OSLog categories so Instruments can correlate traces and logs.
-private let signpostSubsystem = "com.dosetap.ios"
+/// Subsystem used for all DoseTap signposts. Matches the `com.dosetap.app`
+/// convention used by every other OSLog in the app so Instruments can
+/// correlate signposts and log messages in a single filter.
+private let signpostSubsystem = "com.dosetap.app"
 
 enum DoseSignpost {
     /// Top-level log used by Instruments to group signposts.
