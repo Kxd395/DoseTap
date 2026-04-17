@@ -19,10 +19,54 @@ struct DoseComplicationProvider: TimelineProvider {
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<DoseComplicationEntry>) -> Void) {
-        let entry = currentEntry()
-        // Refresh every 5 minutes while a session is active
-        let refreshDate = Date().addingTimeInterval(entry.countdown != nil ? 300 : 900)
-        completion(Timeline(entries: [entry], policy: .after(refreshDate)))
+        let now = Date()
+
+        // When a session is active, pre-generate one entry per minute so the
+        // countdown digit updates live on the watch face without requiring a
+        // timeline reload. Without this the number visibly stalls until the
+        // widget system reloads us (typically every 5+ minutes).
+        guard let state = SharedDoseState.load(),
+              let d1 = state.dose1Time,
+              state.dose2Time == nil,
+              !state.dose2Skipped else {
+            let entry = currentEntry()
+            // Quiet state: refresh in 15 min.
+            completion(Timeline(entries: [entry], policy: .after(now.addingTimeInterval(15 * 60))))
+            return
+        }
+
+        var entries: [DoseComplicationEntry] = []
+        // Emit a minute-by-minute timeline for up to the next 60 minutes,
+        // capped at the window-close moment. After that, ask to reload.
+        let windowClose = d1.addingTimeInterval(240 * 60)
+        let horizon = min(windowClose, now.addingTimeInterval(60 * 60))
+        var t = now
+        while t <= horizon {
+            entries.append(entryFor(state: state, at: t))
+            t = t.addingTimeInterval(60)
+        }
+        if entries.isEmpty { entries.append(currentEntry()) }
+
+        // Reload shortly after the last entry so we keep the digits fresh.
+        let refreshDate = (entries.last?.date ?? now).addingTimeInterval(60)
+        completion(Timeline(entries: entries, policy: .after(refreshDate)))
+    }
+
+    private func entryFor(state: SharedDoseState, at date: Date) -> DoseComplicationEntry {
+        // Re-derive countdown at the future date so each entry shows its own number.
+        let countdown: Int? = {
+            guard let d1 = state.dose1Time, state.dose2Time == nil, !state.dose2Skipped else { return nil }
+            let elapsed = date.timeIntervalSince(d1) / 60
+            if elapsed < 150 { return Int(150 - elapsed) }
+            if elapsed <= 240 { return Int(240 - elapsed) }
+            return nil
+        }()
+        return DoseComplicationEntry(
+            date: date,
+            phase: state.phase.rawValue,
+            countdown: countdown,
+            icon: iconForPhase(state.phase)
+        )
     }
 
     private func currentEntry() -> DoseComplicationEntry {
