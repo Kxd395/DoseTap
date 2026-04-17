@@ -13,6 +13,42 @@ enum EventType: String, Codable, CaseIterable {
     case wake_final = "wake_final"
     case app_opened = "app_opened"
     case notification_received = "notification_received"
+
+    init?(csvValue: String) {
+        switch Self.normalized(csvValue) {
+        case "dose1", "dose_1", "dose1_taken", "dose_1_taken":
+            self = .dose1_taken
+        case "dose2", "dose_2", "dose2_taken", "dose_2_taken":
+            self = .dose2_taken
+        case "dose2_skipped", "dose_2_skipped":
+            self = .dose2_skipped
+        case "dose2_snoozed", "dose_2_snoozed":
+            self = .dose2_snoozed
+        case "bathroom":
+            self = .bathroom
+        case "undo":
+            self = .undo
+        case "snooze":
+            self = .snooze
+        case "lightsout", "lights_out", "lights out":
+            self = .lights_out
+        case "wakefinal", "wake_final", "wake final":
+            self = .wake_final
+        case "appopened", "app_opened", "app opened":
+            self = .app_opened
+        case "notificationreceived", "notification_received", "notification received":
+            self = .notification_received
+        default:
+            return nil
+        }
+    }
+
+    private static func normalized(_ raw: String) -> String {
+        raw
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "-", with: "_")
+    }
 }
 
 /// Dose event model matching SSOT CSV v1 schema
@@ -93,6 +129,9 @@ struct StudioNightAggregate: Identifiable {
     let sleepEfficiency: Double?
     let whoopRecovery: Int?
     let avgHR: Double?
+    let totalSleepMinutes: Double?
+    let wakeDisruptionCount: Int?
+    let hrvMs: Double?
 
     var onTimeFlag: Bool? {
         guard let intervalMinutes else { return nil }
@@ -129,6 +168,10 @@ struct DoseTapAnalytics {
     let averageRecovery30d: Double?
     let averageHR30d: Double?
     let averageSleepEfficiency30d: Double?
+    let averageTotalSleepMinutes30d: Double?
+    let averageHRV30d: Double?
+    let healthKitNightCount30d: Int
+    let whoopNightCount30d: Int
     let averageEventsPerNight30d: Double
     let qualityIssueNights30d: Int
     let highConfidenceNights30d: Int
@@ -143,6 +186,10 @@ struct DoseTapAnalytics {
         averageRecovery30d: nil,
         averageHR30d: nil,
         averageSleepEfficiency30d: nil,
+        averageTotalSleepMinutes30d: nil,
+        averageHRV30d: nil,
+        healthKitNightCount30d: 0,
+        whoopNightCount30d: 0,
         averageEventsPerNight30d: 0,
         qualityIssueNights30d: 0,
         highConfidenceNights30d: 0,

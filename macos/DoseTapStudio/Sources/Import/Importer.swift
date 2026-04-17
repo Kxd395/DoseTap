@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 /// Handles importing CSV and JSON data from DoseTap iOS exports
 final class Importer {
@@ -47,38 +48,30 @@ final class Importer {
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         
         for (index, line) in dataLines.enumerated() {
-            do {
-                let columns = parseCSVLine(line)
-                guard columns.count >= 4 else {
-                    print("⚠️ Skipping line \(index + 2): insufficient columns")
-                    continue
-                }
-                
-                // Parse event type
-                guard let eventType = EventType(rawValue: columns[0]) else {
-                    print("⚠️ Skipping line \(index + 2): unknown event type '\(columns[0])'")
-                    continue
-                }
-                
-                // Parse timestamp
-                guard let occurredAt = formatter.date(from: columns[1]) else {
-                    print("⚠️ Skipping line \(index + 2): invalid timestamp '\(columns[1])'")
-                    continue
-                }
-                
-                let event = DoseEvent(
-                    eventType: eventType,
-                    occurredAtUTC: occurredAt,
-                    details: columns[2].isEmpty ? nil : columns[2],
-                    deviceTime: columns.count > 3 ? columns[3] : nil
-                )
-                
-                events.append(event)
-                
-            } catch {
-                print("⚠️ Error parsing line \(index + 2): \(error)")
+            let columns = parseCSVLine(line)
+            guard columns.count >= 4 else {
+                print("⚠️ Skipping line \(index + 2): insufficient columns")
                 continue
             }
+
+            guard let eventType = EventType(csvValue: columns[0]) else {
+                print("⚠️ Skipping line \(index + 2): unknown event type '\(columns[0])'")
+                continue
+            }
+
+            guard let occurredAt = formatter.date(from: columns[1]) else {
+                print("⚠️ Skipping line \(index + 2): invalid timestamp '\(columns[1])'")
+                continue
+            }
+
+            let event = DoseEvent(
+                eventType: eventType,
+                occurredAtUTC: occurredAt,
+                details: columns[2].isEmpty ? nil : columns[2],
+                deviceTime: columns.count > 3 ? columns[3] : nil
+            )
+
+            events.append(event)
         }
         
         print("📊 Parsed \(events.count) events from CSV")
@@ -112,39 +105,32 @@ final class Importer {
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         
         for (index, line) in dataLines.enumerated() {
-            do {
-                let columns = parseCSVLine(line)
-                guard columns.count >= 5 else {
-                    print("⚠️ Skipping session line \(index + 2): insufficient columns")
-                    continue
-                }
-                
-                // Parse required fields
-                guard let startedAt = formatter.date(from: columns[0]) else {
-                    print("⚠️ Skipping session line \(index + 2): invalid start time '\(columns[0])'")
-                    continue
-                }
-                
-                let endedAt = columns[1].isEmpty ? nil : formatter.date(from: columns[1])
-                
-                let session = DoseSession(
-                    startedUTC: startedAt,
-                    endedUTC: endedAt,
-                    windowTargetMin: Int(columns[2]) ?? 165,
-                    windowActualMin: columns[3].isEmpty ? nil : Int(columns[3]),
-                    adherenceFlag: columns[4].isEmpty ? nil : columns[4],
-                    whoopRecovery: columns.count > 5 && !columns[5].isEmpty ? Int(columns[5]) : nil,
-                    avgHR: columns.count > 6 && !columns[6].isEmpty ? Double(columns[6]) : nil,
-                    sleepEfficiency: columns.count > 7 && !columns[7].isEmpty ? Double(columns[7]) : nil,
-                    notes: columns.count > 8 && !columns[8].isEmpty ? columns[8] : nil
-                )
-                
-                sessions.append(session)
-                
-            } catch {
-                print("⚠️ Error parsing session line \(index + 2): \(error)")
+            let columns = parseCSVLine(line)
+            guard columns.count >= 5 else {
+                print("⚠️ Skipping session line \(index + 2): insufficient columns")
                 continue
             }
+
+            guard let startedAt = formatter.date(from: columns[0]) else {
+                print("⚠️ Skipping session line \(index + 2): invalid start time '\(columns[0])'")
+                continue
+            }
+
+            let endedAt = columns[1].isEmpty ? nil : formatter.date(from: columns[1])
+
+            let session = DoseSession(
+                startedUTC: startedAt,
+                endedUTC: endedAt,
+                windowTargetMin: Int(columns[2]) ?? 165,
+                windowActualMin: columns[3].isEmpty ? nil : Int(columns[3]),
+                adherenceFlag: columns[4].isEmpty ? nil : columns[4],
+                whoopRecovery: columns.count > 5 && !columns[5].isEmpty ? Int(columns[5]) : nil,
+                avgHR: columns.count > 6 && !columns[6].isEmpty ? Double(columns[6]) : nil,
+                sleepEfficiency: columns.count > 7 && !columns[7].isEmpty ? Double(columns[7]) : nil,
+                notes: columns.count > 8 && !columns[8].isEmpty ? columns[8] : nil
+            )
+
+            sessions.append(session)
         }
         
         print("📊 Parsed \(sessions.count) sessions from CSV")
@@ -178,34 +164,27 @@ final class Importer {
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         
         for (index, line) in dataLines.enumerated() {
-            do {
-                let columns = parseCSVLine(line)
-                guard columns.count >= 4 else {
-                    print("⚠️ Skipping inventory line \(index + 2): insufficient columns")
-                    continue
-                }
-                
-                // Parse timestamp
-                guard let asOf = formatter.date(from: columns[0]) else {
-                    print("⚠️ Skipping inventory line \(index + 2): invalid timestamp '\(columns[0])'")
-                    continue
-                }
-                
-                let snapshot = InventorySnapshot(
-                    asOfUTC: asOf,
-                    bottlesRemaining: Int(columns[1]) ?? 0,
-                    dosesRemaining: Int(columns[2]) ?? 0,
-                    estimatedDaysLeft: columns[3].isEmpty ? nil : Int(columns[3]),
-                    nextRefillDate: columns.count > 4 && !columns[4].isEmpty ? formatter.date(from: columns[4]) : nil,
-                    notes: columns.count > 5 && !columns[5].isEmpty ? columns[5] : nil
-                )
-                
-                snapshots.append(snapshot)
-                
-            } catch {
-                print("⚠️ Error parsing inventory line \(index + 2): \(error)")
+            let columns = parseCSVLine(line)
+            guard columns.count >= 4 else {
+                print("⚠️ Skipping inventory line \(index + 2): insufficient columns")
                 continue
             }
+
+            guard let asOf = formatter.date(from: columns[0]) else {
+                print("⚠️ Skipping inventory line \(index + 2): invalid timestamp '\(columns[0])'")
+                continue
+            }
+
+            let snapshot = InventorySnapshot(
+                asOfUTC: asOf,
+                bottlesRemaining: Int(columns[1]) ?? 0,
+                dosesRemaining: Int(columns[2]) ?? 0,
+                estimatedDaysLeft: columns[3].isEmpty ? nil : Int(columns[3]),
+                nextRefillDate: columns.count > 4 && !columns[4].isEmpty ? formatter.date(from: columns[4]) : nil,
+                notes: columns.count > 5 && !columns[5].isEmpty ? columns[5] : nil
+            )
+
+            snapshots.append(snapshot)
         }
         
         print("📊 Parsed \(snapshots.count) inventory snapshots from CSV")
@@ -214,14 +193,29 @@ final class Importer {
 
     /// Load optional insights bundle from the specified folder.
     func loadInsightsBundle(from folder: URL) async throws -> InsightBundle? {
+        guard let data = try loadInsightsBundleData(from: folder) else {
+            return nil
+        }
+
+        let bundleURL = folder.appendingPathComponent("insights_bundle.json")
+        var bundle = try parseInsightsBundle(data)
+        bundle.importMetadata = InsightBundleImportMetadata(
+            fileName: bundleURL.lastPathComponent,
+            byteCount: data.count,
+            sha256Hex: sha256Hex(for: data),
+            importedAtUTC: Date()
+        )
+        return bundle
+    }
+
+    func loadInsightsBundleData(from folder: URL) throws -> Data? {
         let bundleURL = folder.appendingPathComponent("insights_bundle.json")
 
         guard FileManager.default.fileExists(atPath: bundleURL.path) else {
             return nil
         }
 
-        let data = try Data(contentsOf: bundleURL)
-        return try parseInsightsBundle(data)
+        return try Data(contentsOf: bundleURL)
     }
 
     func parseInsightsBundle(_ data: Data) throws -> InsightBundle {
@@ -233,6 +227,10 @@ final class Importer {
         } catch {
             throw ImportError.decodingError(error.localizedDescription)
         }
+    }
+
+    private func sha256Hex(for data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
     
     // MARK: - CSV Parsing Utilities

@@ -9,7 +9,10 @@ final class DataStore: ObservableObject {
     @Published private(set) var sessions: [DoseSession] = []
     @Published private(set) var inventory: [InventorySnapshot] = []
     @Published private(set) var insightSessions: [InsightSession] = []
+    @Published private(set) var importedInsightsBundle: InsightBundle?
+    @Published private(set) var importedInsightsBundleData: Data?
     @Published private(set) var analytics: DoseTapAnalytics = .empty
+    @Published private(set) var validationReport: ImportValidationReport = .empty
     @Published var folderURL: URL?
     @Published private(set) var lastImported: Date?
     @Published private(set) var importStatus: ImportStatus = .none
@@ -18,6 +21,7 @@ final class DataStore: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private let importer = Importer()
     private let insightBuilder = InsightSessionBuilder()
+    private let importValidator = ImportValidator()
     
     enum ImportStatus: Equatable {
         case none
@@ -51,19 +55,29 @@ final class DataStore: ObservableObject {
             let loadedEvents = try await importer.loadEvents(from: folder)
             let loadedSessions = try await importer.loadSessions(from: folder)
             let loadedInventory = try await importer.loadInventory(from: folder)
+            let loadedInsightsBundleData = try importer.loadInsightsBundleData(from: folder)
             let loadedInsightsBundle = try await importer.loadInsightsBundle(from: folder)
             let supplementsBySessionDate = Dictionary(
                 uniqueKeysWithValues: (loadedInsightsBundle?.sessions ?? []).map { ($0.sessionDate, $0) }
+            )
+            let validationReport = importValidator.validate(
+                sessions: loadedSessions,
+                events: loadedEvents,
+                insightBundle: loadedInsightsBundle
             )
             
             // Sort and update
             self.events = loadedEvents.sorted { $0.occurredAtUTC < $1.occurredAtUTC }
             self.sessions = loadedSessions.sorted { $0.startedUTC < $1.startedUTC }
             self.inventory = loadedInventory.sorted { $0.asOfUTC > $1.asOfUTC }
+            self.validationReport = validationReport
+            self.importedInsightsBundle = loadedInsightsBundle
+            self.importedInsightsBundleData = loadedInsightsBundleData
             self.insightSessions = insightBuilder.build(
                 sessions: self.sessions,
                 events: self.events,
-                supplementsBySessionDate: supplementsBySessionDate
+                supplementsBySessionDate: supplementsBySessionDate,
+                validationFlagsBySessionDate: validationReport.sessionFlagsByDate
             )
             
             // Update analytics
@@ -93,10 +107,20 @@ final class DataStore: ObservableObject {
         sessions.removeAll()
         inventory.removeAll()
         insightSessions.removeAll()
+        importedInsightsBundle = nil
+        importedInsightsBundleData = nil
         analytics = .empty
+        validationReport = .empty
         folderURL = nil
         lastImported = nil
         importStatus = .none
+    }
+
+    var coverageSummary: InsightCoverageSummary {
+        InsightCoverageSummary(
+            sessions: insightSessions,
+            validationReport: validationReport
+        )
     }
     
     // MARK: - Analytics Calculations
@@ -135,6 +159,12 @@ final class DataStore: ObservableObject {
         // Calculate average sleep efficiency
         let sleepEfficiencies = recentInsightSessions.compactMap(\.sleepEfficiency)
         let averageSleepEfficiency = sleepEfficiencies.isEmpty ? nil : sleepEfficiencies.reduce(0, +) / Double(sleepEfficiencies.count)
+        let totalSleepValues = recentInsightSessions.compactMap(\.totalSleepMinutes)
+        let averageTotalSleep = totalSleepValues.isEmpty ? nil : totalSleepValues.reduce(0, +) / Double(totalSleepValues.count)
+        let hrvValues = recentInsightSessions.compactMap(\.hrvMs)
+        let averageHRV = hrvValues.isEmpty ? nil : hrvValues.reduce(0, +) / Double(hrvValues.count)
+        let healthKitNightCount = recentInsightSessions.filter { $0.healthKit != nil }.count
+        let whoopNightCount = recentInsightSessions.filter { $0.whoop != nil }.count
         let nightAggregates = recentInsightSessions.map { session in
             StudioNightAggregate(
                 id: session.sessionDate,
@@ -148,7 +178,10 @@ final class DataStore: ObservableObject {
                 wakeFinalEvents: session.wakeFinalCount,
                 sleepEfficiency: session.sleepEfficiency,
                 whoopRecovery: session.whoopRecovery,
-                avgHR: session.averageHeartRate
+                avgHR: session.averageHeartRate,
+                totalSleepMinutes: session.totalSleepMinutes,
+                wakeDisruptionCount: session.wakeDisruptionCount,
+                hrvMs: session.hrvMs
             )
         }
 
@@ -167,6 +200,10 @@ final class DataStore: ObservableObject {
             averageRecovery30d: averageRecovery,
             averageHR30d: averageHR,
             averageSleepEfficiency30d: averageSleepEfficiency,
+            averageTotalSleepMinutes30d: averageTotalSleep,
+            averageHRV30d: averageHRV,
+            healthKitNightCount30d: healthKitNightCount,
+            whoopNightCount30d: whoopNightCount,
             averageEventsPerNight30d: averageEventsPerNight,
             qualityIssueNights30d: qualityIssueNights,
             highConfidenceNights30d: highConfidenceNights,

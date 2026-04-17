@@ -44,6 +44,15 @@ struct MorningOutcomeSummary: Equatable {
     let skippedAverageSleepQuality: Double?
 }
 
+struct BiometricOutcomeSummary: Equatable {
+    let onTimeAverageSleepEfficiency: Double?
+    let lateAverageSleepEfficiency: Double?
+    let onTimeAverageRecovery: Double?
+    let lateAverageRecovery: Double?
+    let onTimeAverageTotalSleepMinutes: Double?
+    let lateAverageTotalSleepMinutes: Double?
+}
+
 struct InsightAdherenceAnalyzer {
     func bucketSummary(sessions: [InsightSession]) -> AdherenceBucketSummary {
         var early = 0
@@ -120,6 +129,20 @@ struct InsightAdherenceAnalyzer {
         )
     }
 
+    func biometricOutcomeSummary(sessions: [InsightSession]) -> BiometricOutcomeSummary {
+        let onTimeSessions = sessions.filter(\.isOnTimeDose2)
+        let lateSessions = sessions.filter(\.isLateDose2)
+
+        return BiometricOutcomeSummary(
+            onTimeAverageSleepEfficiency: average(of: onTimeSessions.compactMap(\.sleepEfficiency)),
+            lateAverageSleepEfficiency: average(of: lateSessions.compactMap(\.sleepEfficiency)),
+            onTimeAverageRecovery: average(of: onTimeSessions.compactMap(\.whoopRecovery).map(Double.init)),
+            lateAverageRecovery: average(of: lateSessions.compactMap(\.whoopRecovery).map(Double.init)),
+            onTimeAverageTotalSleepMinutes: average(of: onTimeSessions.compactMap(\.totalSleepMinutes)),
+            lateAverageTotalSleepMinutes: average(of: lateSessions.compactMap(\.totalSleepMinutes))
+        )
+    }
+
     private func weekdayIndex(for sessionDate: String) -> Int {
         guard let date = Self.dateFormatter.date(from: sessionDate) else {
             return 1
@@ -135,6 +158,11 @@ struct InsightAdherenceAnalyzer {
     private func average(of values: [Int]) -> Double? {
         guard !values.isEmpty else { return nil }
         return Double(values.reduce(0, +)) / Double(values.count)
+    }
+
+    private func average(of values: [Double]) -> Double? {
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +) / Double(values.count)
     }
 
     private static let dateFormatter: DateFormatter = {

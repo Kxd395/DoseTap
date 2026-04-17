@@ -20,7 +20,10 @@ let package = Package(
         .testTarget(
             name: "DoseTapStudioTests",
             dependencies: ["DoseTapStudio"],
-            path: "Tests"
+            path: "Tests",
+            resources: [
+                .copy("Fixtures")
+            ]
         )
     ]
 )
