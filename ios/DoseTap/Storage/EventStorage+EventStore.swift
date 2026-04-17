@@ -350,6 +350,14 @@ extension EventStorage: EventStore {
         )
     }
     
+    /// Fetches the DoseTap-local `StoredMorningCheckIn` (which carries richer
+    /// fields and helpers like `resolvedTimingContext`). Exposed as `internal`
+    /// so the app target's tests can round-trip timing context without going
+    /// through the DoseCore bridge (which strips the helper extensions).
+    internal func fetchStoredMorningCheckIn(sessionKey: String) -> StoredMorningCheckIn? {
+        fetchMorningCheckInInternal(sessionKey: sessionKey)
+    }
+
     private func fetchMorningCheckInInternal(sessionKey: String) -> StoredMorningCheckIn? {
         let sql = """
         SELECT id, session_id, timestamp, session_date, sleep_quality, feel_rested, grogginess,
