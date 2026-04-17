@@ -22,6 +22,34 @@ struct CompactDoseButton: View {
     
     var body: some View {
         VStack(spacing: 8) {
+            // Prepare nudge: 5-min pre-window warning
+            if let prepareMinutes = prepareNudgeMinutes {
+                HStack(spacing: 8) {
+                    Image(systemName: "bell.badge.fill")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                    Text(prepareMinutes <= 1
+                         ? "Dose 2 window opens in under a minute"
+                         : "Dose 2 window opens in \(prepareMinutes) min")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+                    Spacer()
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.orange.opacity(0.12))
+                )
+                .padding(.horizontal)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(prepareMinutes <= 1
+                                    ? "Dose 2 window opens in under a minute. Get ready."
+                                    : "Dose 2 window opens in \(prepareMinutes) minutes. Get ready.")
+                .accessibilityAddTraits(.updatesFrequently)
+            }
+
             Button(action: handlePrimaryButtonTap) {
                 Text(primaryButtonText)
                     .font(.headline)
@@ -302,6 +330,17 @@ struct CompactDoseButton: View {
         }
     }
     
+    /// Minutes until the Dose 2 window opens, when <= 5 min remain and we're in pre-window.
+    /// Returns nil outside the 5-min prepare zone so the banner hides.
+    private var prepareNudgeMinutes: Int? {
+        guard core.currentStatus == .beforeWindow,
+              let dose1Time = core.dose1Time else { return nil }
+        let windowOpensAt = dose1Time.addingTimeInterval(windowOpenMinutes * 60)
+        let remaining = windowOpensAt.timeIntervalSince(Date())
+        guard remaining > 0, remaining <= 5 * 60 else { return nil }
+        return max(1, Int(ceil(remaining / 60)))
+    }
+
     private var snoozeEnabled: Bool {
         if case .snoozeEnabled = core.windowContext.snooze { return true }
         return false
