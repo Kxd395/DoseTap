@@ -112,7 +112,11 @@ final class DoseActionCoordinator: ObservableObject {
 
     // MARK: - Take Dose 2
 
-    func takeDose2(override: DoseOverride = .none) async -> ActionResult {
+    func takeDose2(
+        override: DoseOverride = .none,
+        reason: String? = nil,
+        reasonNotes: String? = nil
+    ) async -> ActionResult {
         // Pre-check: Dose 1 must exist
         guard core.dose1Time != nil else {
             return .blocked(reason: "Take Dose 1 first")
@@ -128,7 +132,12 @@ final class DoseActionCoordinator: ObservableObject {
         // After-skip correction
         if ctx.phase == .completed, core.isSkipped, core.dose2Time == nil {
             if override == .afterSkipConfirmed || override == .lateConfirmed {
-                return await performDose2(eventName: "Dose 2 (After Skip)", isLate: true)
+                return await performDose2(
+                    eventName: "Dose 2 (After Skip)",
+                    isLate: true,
+                    reason: reason,
+                    reasonNotes: reasonNotes
+                )
             }
             return .needsConfirm(.afterSkip)
         }
@@ -140,17 +149,33 @@ final class DoseActionCoordinator: ObservableObject {
 
         case .beforeWindow:
             if override == .earlyConfirmed {
-                return await performDose2(eventName: "Dose 2 (Early)", isLate: false, isEarly: true)
+                return await performDose2(
+                    eventName: "Dose 2 (Early)",
+                    isLate: false,
+                    isEarly: true,
+                    reason: reason,
+                    reasonNotes: reasonNotes
+                )
             }
             let remaining = remainingMinutesToWindowOpen()
             return .needsConfirm(.earlyDose(minutesRemaining: remaining))
 
         case .active, .nearClose:
-            return await performDose2(eventName: "Dose 2", isLate: false)
+            return await performDose2(
+                eventName: "Dose 2",
+                isLate: false,
+                reason: reason,
+                reasonNotes: reasonNotes
+            )
 
         case .closed:
             if override == .lateConfirmed {
-                return await performDose2(eventName: "Dose 2 (Late)", isLate: true)
+                return await performDose2(
+                    eventName: "Dose 2 (Late)",
+                    isLate: true,
+                    reason: reason,
+                    reasonNotes: reasonNotes
+                )
             }
             return .needsConfirm(.lateDose)
 
@@ -193,7 +218,7 @@ final class DoseActionCoordinator: ObservableObject {
 
     // MARK: - Skip Dose
 
-    func skipDose() async -> ActionResult {
+    func skipDose(reason: String? = nil, reasonNotes: String? = nil) async -> ActionResult {
         guard core.dose1Time != nil else {
             return .blocked(reason: "Take Dose 1 first")
         }
@@ -202,6 +227,12 @@ final class DoseActionCoordinator: ObservableObject {
         }
 
         await core.skipDose()
+        sessionRepo?.updateDose2OutcomeAnnotations(
+            sessionDate: sessionRepo?.activeSessionDate ?? sessionRepo?.currentSessionKey ?? "",
+            takenReason: nil,
+            skipReason: reason,
+            reasonNotes: reasonNotes
+        )
         alarmService.cancelAllAlarms()
         alarmService.clearDose2AlarmState()
 
@@ -221,10 +252,18 @@ final class DoseActionCoordinator: ObservableObject {
     private func performDose2(
         eventName: String,
         isLate: Bool,
-        isEarly: Bool = false
+        isEarly: Bool = false,
+        reason: String? = nil,
+        reasonNotes: String? = nil
     ) async -> ActionResult {
         let now = Date()
         await core.takeDose(earlyOverride: isEarly, lateOverride: isLate)
+        sessionRepo?.updateDose2OutcomeAnnotations(
+            sessionDate: sessionRepo?.activeSessionDate ?? sessionRepo?.currentSessionKey ?? "",
+            takenReason: reason,
+            skipReason: nil,
+            reasonNotes: reasonNotes
+        )
 
         alarmService.cancelAllAlarms()
         alarmService.clearDose2AlarmState()

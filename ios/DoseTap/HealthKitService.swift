@@ -185,6 +185,18 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
         }
     }
 
+    /// Refreshes read authorization so callers can reliably decide whether exports can include HealthKit data.
+    func syncAuthorizationState() async {
+        guard isAvailable else {
+            authorizationStatus = .notDetermined
+            isAuthorized = false
+            lastError = "HealthKit is not available on this device"
+            return
+        }
+
+        await refreshReadAuthorization()
+    }
+
     private func refreshReadAuthorization() async {
         do {
             let sleepType = HKCategoryType(.sleepAnalysis)

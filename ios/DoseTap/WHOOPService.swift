@@ -34,8 +34,8 @@ final class WHOOPService: NSObject, ObservableObject {
         static let authURL = "https://api.prod.whoop.com/oauth/oauth2/auth"
         static let tokenURL = "https://api.prod.whoop.com/oauth/oauth2/token"
 
-        // Required scopes for sleep data
-        static let scopes = ["read:recovery", "read:sleep", "read:cycles", "read:profile"]
+        // Required scopes for sleep/recovery data plus refresh token issuance.
+        static let scopes = ["offline", "read:recovery", "read:sleep", "read:cycles", "read:profile"]
     }
 
     private var clientID: String { SecureConfig.shared.whoopClientID }

@@ -295,6 +295,7 @@ final class DeferredCloudKitSyncService: ObservableObject {
         record["sleepTherapyJson"] = checkIn.sleepTherapyJson as CKRecordValue?
         record["hasSleepEnvironment"] = checkIn.hasSleepEnvironment as CKRecordValue
         record["sleepEnvironmentJson"] = checkIn.sleepEnvironmentJson as CKRecordValue?
+        record["timingContextJson"] = checkIn.timingContextJson as CKRecordValue?
         record["notes"] = checkIn.notes as CKRecordValue?
         record["updatedAt"] = Date() as CKRecordValue
         return record
@@ -421,6 +422,7 @@ final class DeferredCloudKitSyncService: ObservableObject {
                 sleepTherapyJson: record["sleepTherapyJson"] as? String,
                 hasSleepEnvironment: record["hasSleepEnvironment"] as? Bool ?? false,
                 sleepEnvironmentJson: record["sleepEnvironmentJson"] as? String,
+                timingContextJson: record["timingContextJson"] as? String,
                 notes: record["notes"] as? String
             )
             sessionRepo.upsertMorningCheckInFromSync(checkIn)

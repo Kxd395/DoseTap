@@ -84,6 +84,47 @@ extension WHOOPService {
         
         return response.records
     }
+
+    /// Fetch scored WHOOP nights and merge in recovery metrics when available.
+    func fetchNightSummaries(from startDate: Date, to endDate: Date) async throws -> [WHOOPNightSummary] {
+        let sleeps = try await fetchSleepData(from: startDate, to: endDate)
+        var summariesBySleepID: [String: WHOOPNightSummary] = [:]
+
+        for sleep in sleeps {
+            if let state = sleep.scoreState?.uppercased(), state != "SCORED" {
+                continue
+            }
+
+            let summary = sleep.toNightSummary()
+            guard summary.hasValidSleepData else { continue }
+            summariesBySleepID[summary.sleepId] = summary
+        }
+
+        guard !summariesBySleepID.isEmpty else {
+            return []
+        }
+
+        do {
+            let recoveries = try await fetchRecoveryData(from: startDate, to: endDate)
+            for recovery in recoveries {
+                guard let sleepId = recovery.sleepId,
+                      var summary = summariesBySleepID[sleepId] else {
+                    continue
+                }
+
+                summary.recoveryScore = recovery.score?.recoveryScore
+                summary.hrvMs = recovery.score?.hrvMs
+                summary.restingHeartRate = recovery.score?.restingHeartRate
+                summary.spo2Percentage = recovery.score?.spo2Percentage
+                summary.skinTempCelsius = recovery.score?.skinTempCelsius
+                summariesBySleepID[sleepId] = summary
+            }
+        } catch {
+            // Recovery enrichment is additive. Keep the scored sleep payloads even if recovery fails.
+        }
+
+        return summariesBySleepID.values.sorted { $0.date < $1.date }
+    }
 }
 
 // MARK: - Flexible ID Decoding Helpers
@@ -451,9 +492,16 @@ extension WHOOPSleep {
             deepMinutes: score?.stageSummary?.deepSleepMinutes ?? 0,
             lightMinutes: score?.stageSummary?.lightSleepMinutes ?? 0,
             awakeMinutes: score?.stageSummary?.awakeMinutes ?? 0,
+            inBedMinutes: score?.stageSummary?.totalInBedTimeMilli.map { $0 / 60000 },
             disturbanceCount: score?.stageSummary?.disturbanceCount ?? 0,
             sleepEfficiency: score?.sleepEfficiencyPercentage,
-            respiratoryRate: score?.respiratoryRate
+            sleepPerformance: score?.sleepPerformancePercentage,
+            sleepConsistency: score?.sleepConsistencyPercentage,
+            respiratoryRate: score?.respiratoryRate,
+            sleepNeedBaselineMinutes: score?.sleepNeeded?.baselineMilli.map { $0 / 60000 },
+            sleepNeedDebtMinutes: score?.sleepNeeded?.needFromSleepDebtMilli.map { $0 / 60000 },
+            sleepNeedStrainMinutes: score?.sleepNeeded?.needFromRecentStrainMilli.map { $0 / 60000 },
+            sleepNeedNapMinutes: score?.sleepNeeded?.needFromRecentNapMilli.map { $0 / 60000 }
         )
     }
 }
@@ -467,14 +515,23 @@ struct WHOOPNightSummary: Identifiable {
     let deepMinutes: Int
     let lightMinutes: Int
     let awakeMinutes: Int
+    let inBedMinutes: Int?
     let disturbanceCount: Int
     let sleepEfficiency: Double?
+    let sleepPerformance: Double?
+    let sleepConsistency: Double?
     let respiratoryRate: Double?
+    let sleepNeedBaselineMinutes: Int?
+    let sleepNeedDebtMinutes: Int?
+    let sleepNeedStrainMinutes: Int?
+    let sleepNeedNapMinutes: Int?
     
     // Recovery data (merged from WHOOPRecovery — set after initial creation)
     var recoveryScore: Double?
     var hrvMs: Double?
     var restingHeartRate: Double?
+    var spo2Percentage: Double?
+    var skinTempCelsius: Double?
     
     var id: String { sleepId }
     

@@ -161,35 +161,19 @@ enum HealthDataSnapshotLoader {
 
         do {
             let sleeps = try await whoop.fetchSleepData(from: queryRange.start, to: queryRange.end)
-            var summariesByKey: [String: WHOOPNightSummary] = [:]
-            var pendingSleepCount = 0
-            for sleep in sleeps {
-                if let state = sleep.scoreState?.uppercased(), state != "SCORED" {
-                    pendingSleepCount += 1
+            let summaries = try await whoop.fetchNightSummaries(from: queryRange.start, to: queryRange.end)
+            let pendingSleepCount = sleeps.filter { sleep in
+                if let state = sleep.scoreState?.uppercased() {
+                    return state != "SCORED"
                 }
-                let summary = sleep.toNightSummary()
-                guard summary.hasValidSleepData else { continue }
+                return false
+            }.count
+            var summariesByKey: [String: WHOOPNightSummary] = [:]
+            for summary in summaries {
                 let mappedKey = SessionRepository.shared.sessionDateString(for: summary.date)
                 if summariesByKey[mappedKey] == nil {
                     summariesByKey[mappedKey] = summary
                 }
-            }
-
-            do {
-                let recoveries = try await whoop.fetchRecoveryData(from: queryRange.start, to: queryRange.end)
-                for recovery in recoveries {
-                    guard let sleepId = recovery.sleepId,
-                          let matchedKey = summariesByKey.first(where: { $0.value.sleepId == sleepId })?.key,
-                          var summary = summariesByKey[matchedKey] else {
-                        continue
-                    }
-                    summary.recoveryScore = recovery.score?.recoveryScore
-                    summary.hrvMs = recovery.score?.hrvMs
-                    summary.restingHeartRate = recovery.score?.restingHeartRate
-                    summariesByKey[matchedKey] = summary
-                }
-            } catch {
-                // Recovery is additive; keep sleep data visible even when recovery enrichment fails.
             }
 
             if let matched = summariesByKey[sessionKey] {

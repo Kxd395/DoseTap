@@ -434,7 +434,12 @@ public class AlarmService: NSObject, ObservableObject {
             
             // Diagnostic logging: alarm scheduled
             let sessionId = SessionRepository.shared.currentSessionIdString()
-            await DiagnosticLogger.shared.logAlarm(.alarmScheduled, sessionId: sessionId, alarmId: id)
+            await DiagnosticLogger.shared.logAlarm(
+                .alarmScheduled,
+                sessionId: sessionId,
+                alarmId: id,
+                scheduledFor: date
+            )
         } catch {
             alarmLog.error("Failed to schedule notification: \(error.localizedDescription, privacy: .public)")
             
@@ -574,13 +579,15 @@ extension AlarmService: UNUserNotificationCenterDelegate {
                 await DiagnosticLogger.shared.logNotificationDismissed(
                     sessionId: sessionId,
                     notificationId: notificationId,
-                    category: response.notification.request.content.categoryIdentifier
+                    category: response.notification.request.content.categoryIdentifier,
+                    actionId: actionId
                 )
             } else {
                 await DiagnosticLogger.shared.logNotificationTapped(
                     sessionId: sessionId,
                     notificationId: notificationId,
-                    category: response.notification.request.content.categoryIdentifier
+                    category: response.notification.request.content.categoryIdentifier,
+                    actionId: actionId
                 )
             }
 

@@ -388,6 +388,7 @@ struct DoseButtonsSection: View {
     @Binding var showEarlyDoseAlert: Bool
     @Binding var earlyDoseMinutes: Int
     @State private var showWindowExpiredOverride = false
+    @State private var reasonCaptureMode: Dose2OutcomeReasonMode?
 
     var coordinator: DoseActionCoordinator?
 
@@ -408,18 +409,62 @@ struct DoseButtonsSection: View {
             .alert("Window Expired", isPresented: $showWindowExpiredOverride) {
                 Button("Cancel", role: .cancel) {}
                 Button("Take Dose 2 Anyway", role: .destructive) {
-                    Task {
-                        if let coordinator {
-                            let _ = await coordinator.takeDose2(override: .lateConfirmed)
-                        } else {
-                            await core.takeDose(lateOverride: true)
-                            AlarmService.shared.cancelAllAlarms()
-                            AlarmService.shared.clearDose2AlarmState()
-                        }
-                    }
+                    reasonCaptureMode = .lateDose
                 }
             } message: {
                 Text("The 240-minute window has passed. Taking Dose 2 late may affect efficacy.")
+            }
+            .sheet(item: $reasonCaptureMode) { mode in
+                Dose2OutcomeReasonSheet(
+                    mode: mode,
+                    onConfirm: { reason, notes in
+                        Task {
+                            if let coordinator {
+                                switch mode {
+                                case .skipDose:
+                                    let _ = await coordinator.skipDose(reason: reason, reasonNotes: notes)
+                                case .lateDose:
+                                    let _ = await coordinator.takeDose2(override: .lateConfirmed, reason: reason, reasonNotes: notes)
+                                case .afterSkipDose:
+                                    let _ = await coordinator.takeDose2(override: .afterSkipConfirmed, reason: reason, reasonNotes: notes)
+                                case .earlyDose:
+                                    let _ = await coordinator.takeDose2(override: .earlyConfirmed, reason: reason, reasonNotes: notes)
+                                }
+                            } else {
+                                switch mode {
+                                case .skipDose:
+                                    await core.skipDose()
+                                    SessionRepository.shared.updateDose2OutcomeAnnotations(
+                                        sessionDate: SessionRepository.shared.activeSessionDate ?? SessionRepository.shared.currentSessionKey,
+                                        takenReason: nil,
+                                        skipReason: reason,
+                                        reasonNotes: notes
+                                    )
+                                case .lateDose, .afterSkipDose:
+                                    await core.takeDose(lateOverride: true)
+                                    SessionRepository.shared.updateDose2OutcomeAnnotations(
+                                        sessionDate: SessionRepository.shared.activeSessionDate ?? SessionRepository.shared.currentSessionKey,
+                                        takenReason: reason,
+                                        skipReason: nil,
+                                        reasonNotes: notes
+                                    )
+                                    AlarmService.shared.cancelAllAlarms()
+                                    AlarmService.shared.clearDose2AlarmState()
+                                case .earlyDose:
+                                    await core.takeDose(earlyOverride: true)
+                                    SessionRepository.shared.updateDose2OutcomeAnnotations(
+                                        sessionDate: SessionRepository.shared.activeSessionDate ?? SessionRepository.shared.currentSessionKey,
+                                        takenReason: reason,
+                                        skipReason: nil,
+                                        reasonNotes: notes
+                                    )
+                                }
+                            }
+                            reasonCaptureMode = nil
+                        }
+                    },
+                    onCancel: { reasonCaptureMode = nil }
+                )
             }
 
             if core.currentStatus == .beforeWindow {
@@ -451,13 +496,7 @@ struct DoseButtonsSection: View {
                 .disabled(!snoozeEnabled)
 
                 Button("Skip Dose") {
-                    Task {
-                        if let coordinator {
-                            let _ = await coordinator.skipDose()
-                        } else {
-                            await core.skipDose()
-                        }
-                    }
+                    reasonCaptureMode = .skipDose
                 }
                 .buttonStyle(.bordered)
                 .disabled(!skipEnabled)
@@ -478,7 +517,11 @@ struct DoseButtonsSection: View {
                     case .earlyDose(let minutes):
                         earlyDoseMinutes = minutes
                         showEarlyDoseAlert = true
-                    case .lateDose, .afterSkip, .extraDose:
+                    case .lateDose:
+                        showWindowExpiredOverride = true
+                    case .afterSkip:
+                        reasonCaptureMode = .afterSkipDose
+                    case .extraDose:
                         showWindowExpiredOverride = true
                     }
                 case .blocked:
@@ -555,14 +598,131 @@ struct DoseButtonsSection: View {
     }
 }
 
+enum Dose2OutcomeReasonMode: Identifiable {
+    case earlyDose
+    case lateDose
+    case afterSkipDose
+    case skipDose
+
+    var id: String {
+        switch self {
+        case .earlyDose: return "early_dose"
+        case .lateDose: return "late_dose"
+        case .afterSkipDose: return "after_skip_dose"
+        case .skipDose: return "skip_dose"
+        }
+    }
+}
+
+struct Dose2OutcomeReasonSheet: View {
+    let mode: Dose2OutcomeReasonMode
+    let onConfirm: (String?, String?) -> Void
+    let onCancel: () -> Void
+
+    @State private var takenReason: Dose2TakenReason = .unsure
+    @State private var skippedReason: Dose2SkippedReason = .unsure
+    @State private var notes = ""
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Text(promptText)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+
+                Section(mode == .skipDose ? "Skip Reason" : "Timing Reason") {
+                    if mode == .skipDose {
+                        Picker("Reason", selection: $skippedReason) {
+                            ForEach(Dose2SkippedReason.allCases, id: \.self) { reason in
+                                Text(reason.displayText).tag(reason)
+                            }
+                        }
+                    } else {
+                        Picker("Reason", selection: $takenReason) {
+                            ForEach(Dose2TakenReason.allCases, id: \.self) { reason in
+                                Text(reason.displayText).tag(reason)
+                            }
+                        }
+                    }
+                }
+
+                Section("Notes") {
+                    TextField("Optional notes", text: $notes, axis: .vertical)
+                        .lineLimit(2...4)
+                }
+            }
+            .navigationTitle(titleText)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: onCancel)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(confirmText) {
+                        onConfirm(selectedReason, normalizedNotes)
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private var selectedReason: String? {
+        switch mode {
+        case .skipDose:
+            return skippedReason == .unsure ? nil : skippedReason.rawValue
+        case .earlyDose, .lateDose, .afterSkipDose:
+            return takenReason == .unsure ? nil : takenReason.rawValue
+        }
+    }
+
+    private var normalizedNotes: String? {
+        let trimmed = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private var titleText: String {
+        switch mode {
+        case .earlyDose: return "Early Dose Reason"
+        case .lateDose: return "Late Dose Reason"
+        case .afterSkipDose: return "After-Skip Reason"
+        case .skipDose: return "Skip Dose Reason"
+        }
+    }
+
+    private var confirmText: String {
+        switch mode {
+        case .skipDose: return "Skip Dose"
+        default: return "Continue"
+        }
+    }
+
+    private var promptText: String {
+        switch mode {
+        case .earlyDose:
+            return "Capture why you are taking Dose 2 before the window opened."
+        case .lateDose:
+            return "Capture why Dose 2 is being taken after the 240-minute window."
+        case .afterSkipDose:
+            return "Capture why Dose 2 is being taken after it was previously skipped."
+        case .skipDose:
+            return "Capture why Dose 2 is being skipped now."
+        }
+    }
+}
+
 struct EarlyDoseOverrideSheet: View {
     let minutesRemaining: Int
-    let onConfirm: () -> Void
+    let onConfirm: (String?, String?) -> Void
     let onCancel: () -> Void
 
     @State private var holdProgress: CGFloat = 0
     @State private var isHolding = false
     @State private var holdTimer: Timer?
+    @State private var takenReason: Dose2TakenReason = .unsure
+    @State private var notes = ""
 
     private let requiredHoldDuration: CGFloat = 3.0
 
@@ -589,6 +749,22 @@ struct EarlyDoseOverrideSheet: View {
             .padding()
             .background(Color.red.opacity(0.1))
             .cornerRadius(12)
+            .padding(.horizontal)
+
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Why are you taking it early?")
+                    .font(.headline)
+                Picker("Reason", selection: $takenReason) {
+                    ForEach(Dose2TakenReason.allCases, id: \.self) { reason in
+                        Text(reason.displayText).tag(reason)
+                    }
+                }
+                .pickerStyle(.menu)
+
+                TextField("Optional notes", text: $notes, axis: .vertical)
+                    .lineLimit(2...4)
+                    .textFieldStyle(.roundedBorder)
+            }
             .padding(.horizontal)
 
             Spacer()
@@ -633,12 +809,12 @@ struct EarlyDoseOverrideSheet: View {
     private func startHolding() {
         isHolding = true
         holdProgress = 0
-        holdTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { _ in
+            holdTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { _ in
             holdProgress += 0.05 / requiredHoldDuration
             if holdProgress >= 1.0 {
                 holdTimer?.invalidate()
                 UINotificationFeedbackGenerator().notificationOccurred(.warning)
-                onConfirm()
+                onConfirm(selectedReason, normalizedNotes)
             }
         }
     }
@@ -647,6 +823,15 @@ struct EarlyDoseOverrideSheet: View {
         isHolding = false
         holdTimer?.invalidate()
         withAnimation(.easeOut(duration: 0.3)) { holdProgress = 0 }
+    }
+
+    private var selectedReason: String? {
+        takenReason == .unsure ? nil : takenReason.rawValue
+    }
+
+    private var normalizedNotes: String? {
+        let trimmed = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }
 

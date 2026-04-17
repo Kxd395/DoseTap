@@ -13,6 +13,7 @@ struct CompactDoseButton: View {
     @Binding var earlyDoseMinutes: Int
     @Binding var showExtraDoseWarning: Bool  // For second dose 2 attempt
     @State private var showWindowExpiredOverride = false  // For taking dose after window expired
+    @State private var reasonCaptureMode: Dose2OutcomeReasonMode?
     
     /// P0-4: Centralised coordinator for all dose actions
     var coordinator: DoseActionCoordinator?
@@ -38,10 +39,29 @@ struct CompactDoseButton: View {
             .alert("Window Expired", isPresented: $showWindowExpiredOverride) {
                 Button("Cancel", role: .cancel) { }
                 Button("Take Dose 2 Anyway", role: .destructive) {
-                    takeDose2WithOverride()
+                    reasonCaptureMode = core.currentStatus == .completed && core.isSkipped && core.dose2Time == nil
+                        ? .afterSkipDose
+                        : .lateDose
                 }
             } message: {
                 Text(overrideConfirmationMessage)
+            }
+            .sheet(item: $reasonCaptureMode) { mode in
+                Dose2OutcomeReasonSheet(
+                    mode: mode,
+                    onConfirm: { reason, notes in
+                        switch mode {
+                        case .skipDose:
+                            completeSkip(reason: reason, notes: notes)
+                        case .lateDose, .afterSkipDose:
+                            takeDose2WithOverride(reason: reason, notes: notes)
+                        case .earlyDose:
+                            break
+                        }
+                        reasonCaptureMode = nil
+                    },
+                    onCancel: { reasonCaptureMode = nil }
+                )
             }
             
             // Secondary buttons row
@@ -69,14 +89,7 @@ struct CompactDoseButton: View {
                     .disabled(!snoozeEnabled)
                     
                     Button {
-                        Task {
-                            if let coord = coordinator {
-                                let _ = await coord.skipDose()
-                            } else {
-                                await core.skipDose()
-                                AlarmService.shared.cancelAllAlarms()
-                            }
-                        }
+                        reasonCaptureMode = .skipDose
                     } label: {
                         Label("Skip", systemImage: "forward.fill")
                             .font(.caption)
@@ -189,20 +202,47 @@ struct CompactDoseButton: View {
     }
     
     /// Take Dose 2 after window expired with explicit user override
-    private func takeDose2WithOverride() {
+    private func takeDose2WithOverride(reason: String?, notes: String?) {
         Task {
             if let coord = coordinator {
-                let _ = await coord.takeDose2(override: .lateConfirmed)
+                let override: DoseActionCoordinator.DoseOverride = (core.currentStatus == .completed && core.isSkipped && core.dose2Time == nil)
+                    ? .afterSkipConfirmed
+                    : .lateConfirmed
+                let _ = await coord.takeDose2(override: override, reason: reason, reasonNotes: notes)
             } else {
                 // Legacy fallback
                 let now = Date()
                 let wasSkipped = core.isSkipped && core.dose2Time == nil
                 await core.takeDose(lateOverride: true)
+                sessionRepo.updateDose2OutcomeAnnotations(
+                    sessionDate: sessionRepo.activeSessionDate ?? sessionRepo.currentSessionKey,
+                    takenReason: reason,
+                    skipReason: nil,
+                    reasonNotes: notes
+                )
                 AlarmService.shared.cancelAllAlarms()
                 AlarmService.shared.clearDose2AlarmState()
                 let eventName = wasSkipped ? "Dose 2 (After Skip)" : "Dose 2 (Late)"
                 eventLogger.logEvent(name: eventName, color: .orange, cooldownSeconds: 3600 * 8, persist: false)
                 undoState.register(.takeDose2(at: now))
+            }
+        }
+    }
+
+    private func completeSkip(reason: String?, notes: String?) {
+        Task {
+            if let coord = coordinator {
+                let _ = await coord.skipDose(reason: reason, reasonNotes: notes)
+            } else {
+                await core.skipDose()
+                sessionRepo.updateDose2OutcomeAnnotations(
+                    sessionDate: sessionRepo.activeSessionDate ?? sessionRepo.currentSessionKey,
+                    takenReason: nil,
+                    skipReason: reason,
+                    reasonNotes: notes
+                )
+                AlarmService.shared.cancelAllAlarms()
+                AlarmService.shared.clearDose2AlarmState()
             }
         }
     }

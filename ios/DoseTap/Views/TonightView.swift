@@ -306,10 +306,16 @@ struct LegacyTonightView: View {
         .sheet(isPresented: $showOverrideConfirmation) {
             EarlyDoseOverrideSheet(
                 minutesRemaining: earlyDoseMinutesRemaining,
-                onConfirm: {
+                onConfirm: { reason, notes in
                     Task {
                         // Taking Dose 2 early with explicit override
                         await core.takeDose(earlyOverride: true)
+                        sessionRepo.updateDose2OutcomeAnnotations(
+                            sessionDate: sessionRepo.activeSessionDate ?? sessionRepo.currentSessionKey,
+                            takenReason: reason,
+                            skipReason: nil,
+                            reasonNotes: notes
+                        )
                         // Log dose as event with Early badge for Details tab
                         eventLogger.logEvent(name: "Dose 2 (Early)", color: .orange, cooldownSeconds: 3600 * 8, persist: false)
                     }
