@@ -147,6 +147,102 @@ final class AppScreenCaptureTests: XCTestCase {
     }
 }
 
+final class HomeStateResolverTests: XCTestCase {
+    private let currentSessionDate = "2026-01-15"
+
+    func test_screenshotState_keepsPriorCheckInNonBlockingAndHidesDuplicateStatus() {
+        let state = resolve(
+            doseStatus: .noDose1,
+            activeSessionDate: nil,
+            incompleteSessionDate: "2026-01-14"
+        )
+
+        XCTAssertEqual(state.primary, .tonightReady)
+        XCTAssertEqual(state.priorSessionReview?.sessionDate, "2026-01-14")
+        XCTAssertEqual(state.priorSessionReview?.isBlocking, false)
+        XCTAssertFalse(state.isBlockedByPriorSession)
+        XCTAssertTrue(state.showsDosePrimaryAction)
+        XCTAssertFalse(state.showsDoseStatusCard, "Tonight-ready should not show a second Ready for Dose 1 status card above the Take Dose 1 button.")
+        XCTAssertFalse(state.showsWakeAction)
+        XCTAssertTrue(state.showsQuickLog)
+        XCTAssertFalse(state.showsLiveDoseIntervals)
+    }
+
+    func test_currentSessionIncompleteBlocksCurrentActions() {
+        let state = resolve(
+            doseStatus: .noDose1,
+            activeSessionDate: nil,
+            incompleteSessionDate: currentSessionDate
+        )
+
+        XCTAssertEqual(state.primary, .previousSessionNeedsReview)
+        XCTAssertTrue(state.isBlockedByPriorSession)
+        XCTAssertEqual(state.priorSessionReview?.isBlocking, true)
+        XCTAssertFalse(state.showsDosePrimaryAction)
+        XCTAssertFalse(state.showsQuickLog)
+        XCTAssertFalse(state.showsWakeAction)
+    }
+
+    func test_dosePhasesResolveToSinglePrimaryWorkflow() {
+        XCTAssertEqual(resolve(doseStatus: .beforeWindow).primary, .dose2Waiting)
+        XCTAssertEqual(resolve(doseStatus: .active).primary, .dose2Ready)
+        XCTAssertEqual(resolve(doseStatus: .nearClose).primary, .dose2Ready)
+        XCTAssertEqual(resolve(doseStatus: .closed).primary, .dose2Closed)
+
+        let activeState = resolve(doseStatus: .active, activeSessionDate: currentSessionDate)
+        XCTAssertTrue(activeState.showsDoseStatusCard)
+        XCTAssertTrue(activeState.showsDosePrimaryAction)
+        XCTAssertFalse(activeState.showsWakeAction)
+        XCTAssertTrue(activeState.showsLiveDoseIntervals)
+    }
+
+    func test_completedAndFinalizingUseWakeActionInsteadOfDoseButton() {
+        let completed = resolve(doseStatus: .completed, activeSessionDate: currentSessionDate)
+        XCTAssertEqual(completed.primary, .morningCloseout)
+        XCTAssertFalse(completed.showsDosePrimaryAction)
+        XCTAssertTrue(completed.showsWakeAction)
+
+        let finalizing = resolve(doseStatus: .finalizing, activeSessionDate: currentSessionDate)
+        XCTAssertEqual(finalizing.primary, .morningCloseout)
+        XCTAssertFalse(finalizing.showsDosePrimaryAction)
+        XCTAssertTrue(finalizing.showsWakeAction)
+    }
+
+    func test_completedCheckInResolvesToReviewOnly() {
+        let state = resolve(
+            doseStatus: .completed,
+            activeSessionDate: nil,
+            checkInCompleted: true,
+            hasMorningCheckIn: true
+        )
+
+        XCTAssertEqual(state.primary, .reviewOnly)
+        XCTAssertFalse(state.showsDosePrimaryAction)
+        XCTAssertFalse(state.showsWakeAction)
+        XCTAssertFalse(state.showsQuickLog)
+        XCTAssertTrue(state.showsWeeklyInsights)
+    }
+
+    private func resolve(
+        doseStatus: DoseStatus,
+        activeSessionDate: String? = nil,
+        incompleteSessionDate: String? = nil,
+        awaitingRolloverMessage: String? = nil,
+        checkInCompleted: Bool = false,
+        hasMorningCheckIn: Bool = false
+    ) -> HomePresentationState {
+        HomeStateResolver.resolve(
+            doseStatus: doseStatus,
+            currentSessionDate: currentSessionDate,
+            activeSessionDate: activeSessionDate,
+            incompleteSessionDate: incompleteSessionDate,
+            awaitingRolloverMessage: awaitingRolloverMessage,
+            checkInCompleted: checkInCompleted,
+            hasMorningCheckIn: hasMorningCheckIn
+        )
+    }
+}
+
 // MARK: - Full UI State Tests
 
 @MainActor
