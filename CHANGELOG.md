@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-06-12
+
+### Fixed
+
+- **P0 Tonight home state resolver**
+  - Added a single resolved home presentation state for Tonight so the screen chooses the primary workflow before rendering secondary sections.
+  - Stopped the screenshot state from showing a separate "Ready for Dose 1 / Tap below to start" status card alongside the actual Dose 1 button.
+  - Gated "Wake Up & End Session" to the closeout workflow instead of showing it as a peer action while Dose 1 is ready.
+  - Kept previous incomplete check-ins non-blocking unless they affect the current session identity, rollover, or dose state.
+
+### Changed
+
+- Bumped `DoseTap` and `DoseTapStaging` to version `0.4.3` build `5`.
+
 ## [0.4.2] - 2026-06-12
 
 ### Fixed

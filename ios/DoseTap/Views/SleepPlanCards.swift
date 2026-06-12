@@ -420,26 +420,38 @@ struct AlarmIndicatorView: View {
 // MARK: - Incomplete Session Banner
 struct IncompleteSessionBanner: View {
     let sessionDate: String
+    let isBlocking: Bool
     let onComplete: () -> Void
     let onDismiss: () -> Void
+
+    private var titleText: String {
+        isBlocking ? "Finish previous session" : "Finish previous check-in"
+    }
+
+    private var bodyText: String {
+        isBlocking
+            ? "\(formattedDate) must be completed before tonight starts"
+            : "\(formattedDate) is incomplete"
+    }
     
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "exclamationmark.circle.fill")
-                .font(.title2)
+                .font(.title3)
                 .foregroundColor(.orange)
             
             VStack(alignment: .leading, spacing: 2) {
-                Text("Incomplete Session")
+                Text(titleText)
                     .font(.subheadline.bold())
-                Text("Complete check-in for \(formattedDate)")
+                Text(bodyText)
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    .lineLimit(2)
             }
             
             Spacer()
             
-            Button("Complete") {
+            Button("Finish") {
                 onComplete()
             }
             .font(.caption.bold())
@@ -454,7 +466,9 @@ struct IncompleteSessionBanner: View {
                 Image(systemName: "xmark")
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    .frame(width: 44, height: 44)
             }
+            .accessibilityLabel("Dismiss previous check-in reminder")
         }
         .padding(12)
         .background(
@@ -465,6 +479,8 @@ struct IncompleteSessionBanner: View {
                         .stroke(Color.orange.opacity(0.3), lineWidth: 1)
                 )
         )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(titleText). \(bodyText).")
     }
     
     private var formattedDate: String {
