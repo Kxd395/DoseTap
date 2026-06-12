@@ -47,6 +47,7 @@ public class AlarmService: NSObject, ObservableObject {
     private var usesSystemSoundFallback: Bool = false
     private var alarmAcknowledged: Bool = false
     private let criticalAlertsCapabilityFlag = "CriticalAlertsCapabilityEnabled"
+    private var notificationSnoozeHandler: (@MainActor () async -> Bool)?
     
     private var canUseCriticalAlerts: Bool {
         let capabilityEnabled = (Bundle.main.object(forInfoDictionaryKey: criticalAlertsCapabilityFlag) as? Bool) == true
@@ -90,6 +91,27 @@ public class AlarmService: NSObject, ObservableObject {
 
     public var snoozeDurationMinutes: Int {
         configuredSnoozeDurationMinutes
+    }
+
+    func configureNotificationSnoozeHandler(_ handler: @escaping @MainActor () async -> Bool) {
+        notificationSnoozeHandler = handler
+    }
+
+    func resetNotificationSnoozeHandlerForTests() {
+        notificationSnoozeHandler = nil
+    }
+
+    @discardableResult
+    func handleNotificationSnoozeAction() async -> Bool {
+        guard let notificationSnoozeHandler else {
+            alarmLog.error("Blocked notification snooze because dose command handler is unavailable")
+            return false
+        }
+        let didSnooze = await notificationSnoozeHandler()
+        if didSnooze {
+            stopRinging(acknowledge: false)
+        }
+        return didSnooze
     }
     
     // MARK: - Audio Session
@@ -318,6 +340,30 @@ public class AlarmService: NSObject, ObservableObject {
         alarmLog.info("Alarm snoozed +\(snoozeMinutes, privacy: .public)m to \(self.formatTime(newTarget), privacy: .private) (snooze \(self.snoozeCount, privacy: .public)/\(maxSnoozes, privacy: .public))")
         
         return newTarget
+    }
+
+    @discardableResult
+    public func undoSnooze(minutes: Int, dose1Time: Date?) async -> Bool {
+        guard minutes > 0 else {
+            alarmLog.warning("Cannot undo snooze with non-positive minutes")
+            return false
+        }
+        guard let currentTarget = targetWakeTime, let d1 = dose1Time else {
+            alarmLog.warning("Cannot undo snooze without active target and Dose 1 time")
+            return false
+        }
+
+        let restoredTarget = currentTarget.addingTimeInterval(-TimeInterval(minutes * 60))
+        await scheduleDose2Alarm(at: restoredTarget, dose1Time: d1)
+        guard targetWakeTime == restoredTarget && alarmScheduled else {
+            alarmLog.error("Undo snooze reschedule failed")
+            return false
+        }
+        if snoozeCount > 0 {
+            snoozeCount -= 1
+        }
+        alarmLog.info("Snooze undo restored alarm target")
+        return true
     }
 
     // MARK: - Ringing Control
@@ -592,11 +638,7 @@ extension AlarmService: UNUserNotificationCenterDelegate {
             }
 
             if actionId == NotificationAction.snooze {
-                let snoozed = await self.snoozeAlarm(dose1Time: SessionRepository.shared.dose1Time)
-                if snoozed != nil {
-                    SessionRepository.shared.incrementSnooze()
-                    self.stopRinging(acknowledge: false)
-                }
+                await self.handleNotificationSnoozeAction()
             } else if actionId == NotificationAction.stop {
                 self.acknowledgeAlarm()
             } else if actionId == UNNotificationDefaultActionIdentifier {

@@ -145,6 +145,10 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             }
         }
 
+        if recoverPersistedDoseStateIfNeeded(reason: "reload") {
+            state = storage.loadCurrentSessionState()
+        }
+
         let resolvedSessionId = state.sessionId ?? state.sessionDate
         let hasSessionData = resolvedSessionId != nil
             || state.dose1Time != nil
@@ -167,6 +171,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         
         sessionDidChange.send()
         evaluateSessionBoundaries(reason: "reload")
+        validateDoseStateInvariant(reason: "reload")
         
         repoLogger.info("SessionRepo reloaded: session=\(self.activeSessionDate ?? "none"), dose1=\(self.dose1Time?.description ?? "nil"), dose2=\(self.dose2Time?.description ?? "nil")")
         scheduleRolloverTimer()
@@ -191,6 +196,83 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         dose1TimezoneOffsetMinutes = nil
         awaitingRolloverMessage = nil
         lastLoggedPhase = nil  // Reset phase tracking
+    }
+
+    private func validateDoseStateInvariant(reason: String) {
+        let violations = storage.validateActiveDoseStateInvariant()
+        guard !violations.isEmpty else { return }
+
+        let details = violations
+            .map { "\($0.code): \($0.message)" }
+            .joined(separator: " | ")
+
+        repoLogger.error("Dose state invariant violation reason=\(reason, privacy: .public) details=\(details, privacy: .public)")
+
+        #if DEBUG
+        assertionFailure("Dose state invariant violation reason=\(reason): \(details)")
+        #endif
+
+        if let sessionId = activeSessionId ?? activeSessionDate ?? storage.loadCurrentSessionState().sessionDate {
+            Task {
+                await DiagnosticLogger.shared.log(.invariantViolation, sessionId: sessionId) { entry in
+                    entry.invariantName = "dose_state_ssot"
+                    entry.reason = reason
+                }
+            }
+        }
+    }
+
+    private func logBlockedDoseStateMutation(action: String, reason: String, sessionId: String?) {
+        repoLogger.error("Blocked dose state mutation action=\(action, privacy: .public) reason=\(reason, privacy: .public)")
+
+        guard let sessionId else { return }
+        Task {
+            await DiagnosticLogger.shared.log(.invariantViolation, sessionId: sessionId) { entry in
+                entry.invariantName = "blocked_\(action)_state_mutation"
+                entry.reason = reason
+            }
+        }
+    }
+
+    private func recoverPersistedDoseStateIfNeeded(reason: String) -> Bool {
+        let violations = storage.validateActiveDoseStateInvariant()
+        guard !violations.isEmpty else { return false }
+
+        let recoverableCodes: Set<String> = [
+            "dose2_without_dose1",
+            "extra_dose_without_dose2",
+            "dose2_event_without_snapshot",
+            "skip_event_without_snapshot",
+            "snooze_without_dose1",
+            "snooze_snapshot_without_event",
+            "snooze_event_without_snapshot"
+        ]
+        let violationCodes = Set(violations.map(\.code))
+        guard !violationCodes.isDisjoint(with: recoverableCodes) else { return false }
+
+        let snapshot = storage.loadCurrentSessionState()
+        guard let sessionDate = snapshot.sessionDate else { return false }
+        let sessionId = snapshot.sessionId ?? sessionDate
+        let details = violations
+            .map { "\($0.code): \($0.message)" }
+            .joined(separator: " | ")
+
+        repoLogger.error("Recovering invalid active dose state reason=\(reason, privacy: .public) details=\(details, privacy: .public)")
+        storage.markCurrentSessionInvalid(
+            sessionDate: sessionDate,
+            sessionId: sessionId,
+            endedAt: clock(),
+            terminalState: "invalid_dose_state"
+        )
+
+        Task {
+            await DiagnosticLogger.shared.log(.invariantViolation, sessionId: sessionId) { entry in
+                entry.invariantName = "dose_state_ssot_recovered"
+                entry.reason = reason
+            }
+        }
+
+        return true
     }
 
     private func updateSessionKeyIfNeeded(reason: String, forceReload: Bool = false) {
@@ -281,12 +363,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     }
 
     private func isDoseEventType(_ eventType: String) -> Bool {
-        switch eventType {
-        case "dose1", "dose2", "extra_dose":
-            return true
-        default:
-            return false
-        }
+        CanonicalDoseEventType(canonicalizing: eventType)?.countsAsTakenDose == true
     }
 
     private func doseWindowCloseTime(dose1Time: Date) -> Date {
@@ -316,6 +393,32 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             }
             scheduleRolloverTimer()
             return (resolvedSessionId, activeSessionDate)
+        }
+
+        let storedState = storage.loadCurrentSessionState()
+        let storedSessionId = storedState.sessionId ?? storedState.sessionDate
+        let storedHasSessionData = storedSessionId != nil
+            || storedState.dose1Time != nil
+            || storedState.dose2Time != nil
+            || storedState.snoozeCount > 0
+            || storedState.dose2Skipped
+        if storedState.sessionEnd == nil,
+           storedHasSessionData,
+           let storedSessionDate = storedState.sessionDate,
+           let resolvedSessionId = storedSessionId {
+            activeSessionId = resolvedSessionId
+            activeSessionDate = storedSessionDate
+            activeSessionStart = storedState.sessionStart ?? storedState.dose1Time ?? timestamp
+            activeSessionEnd = nil
+            dose1Time = storedState.dose1Time
+            dose2Time = storedState.dose2Time
+            snoozeCount = storedState.snoozeCount
+            dose2Skipped = storedState.dose2Skipped
+            wakeFinalTime = nil
+            checkInCompleted = false
+            currentSessionKey = storedSessionDate
+            scheduleRolloverTimer()
+            return (resolvedSessionId, storedSessionDate)
         }
         
         let sessionDate = sessionKey(for: timestamp, timeZone: timeZoneProvider(), rolloverHour: rolloverHour)
@@ -441,6 +544,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         storage.clearDose1(sessionDateOverride: session.sessionDate)
         storage.saveDose1(timestamp: time, sessionId: session.sessionId, sessionDateOverride: session.sessionDate)
         storage.linkPreSleepLogToSession(sessionId: session.sessionId, sessionDate: session.sessionDate)
+        validateDoseStateInvariant(reason: "set_dose1")
         
         // Diagnostic logging: session started + dose 1 taken
         Task {
@@ -470,11 +574,32 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         reason: String? = nil,
         reasonNotes: String? = nil
     ) {
+        evaluateSessionBoundaries(reason: "set_dose2_preflight")
+        let storedState = storage.loadCurrentSessionState()
+        let hasOpenActiveSession = activeSessionId != nil && activeSessionDate != nil && activeSessionEnd == nil
+        let hasOpenStoredDose1 = storedState.sessionEnd == nil
+            && storedState.dose1Time != nil
+            && storedState.sessionDate != nil
+        guard hasOpenActiveSession || hasOpenStoredDose1 else {
+            logBlockedDoseStateMutation(
+                action: "dose2",
+                reason: "set_dose2_no_open_dose1_session",
+                sessionId: storedState.sessionId ?? storedState.sessionDate
+            )
+            return
+        }
+
         let session = ensureActiveSession(for: time, reason: "dose2")
         let doseEvents = loadDoseEvents(sessionId: session.sessionId, sessionDate: session.sessionDate)
+        let dose1Event = doseEvents.first { CanonicalDoseEventType(canonicalizing: $0.eventType) == .dose1 }
+        guard let firstDoseTime = dose1Time ?? dose1Event?.timestamp else {
+            logBlockedDoseStateMutation(action: "dose2", reason: "set_dose2_missing_canonical_dose1", sessionId: session.sessionId)
+            return
+        }
+
         let doseTakenEvents = doseEvents.filter { isDoseEventType($0.eventType) }
         let sortedEvents = doseTakenEvents.sorted { $0.timestamp < $1.timestamp }
-        
+
         let nextDoseIndex = sortedEvents.count + 1
         let isExtra = nextDoseIndex >= 3
         if isExtraDose && !isExtra {
@@ -484,13 +609,12 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
                 }
             }
         }
-        
+
         let isDose2 = nextDoseIndex == 2 && !isExtra
-        let firstDoseTime = dose1Time ?? sortedEvents.first?.timestamp
-        let isLate = isDose2 && firstDoseTime.map { time > doseWindowCloseTime(dose1Time: $0) } == true
+        let isLate = isDose2 && time > doseWindowCloseTime(dose1Time: firstDoseTime)
         let previousDoseTime = sortedEvents.last?.timestamp
         let elapsedSincePrev = previousDoseTime.map { TimeIntervalMath.minutesBetween(start: $0, end: time) }
-        let elapsedSinceFirst = firstDoseTime.map { TimeIntervalMath.minutesBetween(start: $0, end: time) }
+        let elapsedSinceFirst = TimeIntervalMath.minutesBetween(start: firstDoseTime, end: time)
         
         if isDose2 {
             dose2Time = time
@@ -512,6 +636,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             sessionId: session.sessionId,
             sessionDateOverride: session.sessionDate
         )
+        validateDoseStateInvariant(reason: isExtra ? "set_extra_dose" : "set_dose2")
         
         // Diagnostic logging: dose taken with index + elapsed info
         Task {
@@ -530,22 +655,42 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     
     /// Increment snooze count
     public func incrementSnooze() {
-        let now = clock()
-        let session = ensureActiveSession(for: now, reason: "snooze")
+        _ = incrementSnoozeIfActive()
+    }
+
+    @discardableResult
+    public func incrementSnoozeIfActive() -> Bool {
+        evaluateSessionBoundaries(reason: "snooze_preflight")
+
+        guard let sessionId = activeSessionId,
+              let sessionDate = activeSessionDate,
+              activeSessionEnd == nil,
+              dose1Time != nil,
+              dose2Time == nil,
+              !dose2Skipped else {
+            logBlockedDoseStateMutation(
+                action: "snooze",
+                reason: "snooze_without_open_eligible_dose1_session",
+                sessionId: activeSessionId ?? activeSessionDate
+            )
+            return false
+        }
+
         snoozeCount += 1
-        activeSessionDate = session.sessionDate
         
         // Persist to storage
-        storage.saveSnooze(count: snoozeCount, sessionId: session.sessionId, sessionDateOverride: session.sessionDate)
+        storage.saveSnooze(count: snoozeCount, sessionId: sessionId, sessionDateOverride: sessionDate)
+        validateDoseStateInvariant(reason: "snooze")
         
         // Diagnostic logging: snooze activated
         Task {
-            await DiagnosticLogger.shared.log(.snoozeActivated, sessionId: session.sessionId) { entry in
+            await DiagnosticLogger.shared.log(.snoozeActivated, sessionId: sessionId) { entry in
                 entry.snoozeCount = self.snoozeCount
             }
         }
         
         sessionDidChange.send()
+        return true
     }
     
     /// Mark dose 2 as skipped
@@ -567,6 +712,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             sessionId: session.sessionId,
             sessionDateOverride: session.sessionDate
         )
+        validateDoseStateInvariant(reason: "skip_dose2")
         
         // Diagnostic logging: dose 2 skipped + session completed
         Task {
@@ -739,14 +885,13 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     /// Clear Dose 1 (for undo).
     public func clearDose1() {
         let sessionDate = activeSessionDate ?? currentSessionKey
-        dose1Time = nil
-        activeSessionDate = nil
-        dose1TimezoneOffsetMinutes = nil
 
-        storage.clearDose1(sessionDateOverride: sessionDate)
+        storage.clearDoseSequence(sessionDateOverride: sessionDate)
+        clearInMemoryState()
+        validateDoseStateInvariant(reason: "clear_dose1")
 
         sessionDidChange.send()
-        repoLogger.info("SessionRepo undo: Dose 1 cleared (undo)")
+        repoLogger.info("SessionRepo undo: Dose sequence cleared after Dose 1 undo")
     }
 
     /// Clear Dose 2 (for undo).
@@ -755,6 +900,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         dose2Time = nil
 
         storage.clearDose2(sessionDateOverride: sessionDate)
+        validateDoseStateInvariant(reason: "clear_dose2")
 
         sessionDidChange.send()
         repoLogger.info("SessionRepo undo: Dose 2 cleared (undo)")
@@ -766,6 +912,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         dose2Skipped = false
 
         storage.clearSkip(sessionDateOverride: sessionDate)
+        validateDoseStateInvariant(reason: "clear_skip")
 
         sessionDidChange.send()
         repoLogger.info("SessionRepo undo: Skip cleared (undo)")
@@ -774,8 +921,10 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     /// Decrement snooze count (for undo).
     public func decrementSnoozeCount() {
         if snoozeCount > 0 {
+            let sessionDate = activeSessionDate ?? currentSessionKey
             snoozeCount -= 1
-            storage.saveSnooze(count: snoozeCount)
+            storage.rollbackLatestSnooze(toCount: snoozeCount, sessionDateOverride: sessionDate)
+            validateDoseStateInvariant(reason: "decrement_snooze")
 
             sessionDidChange.send()
             repoLogger.info("SessionRepo undo: Snooze count decremented to \(self.snoozeCount) (undo)")
@@ -788,6 +937,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
 
         if sessionDate == activeSessionDate {
             dose1Time = newTime
+            validateDoseStateInvariant(reason: "update_active_dose1_time")
             sessionDidChange.send()
         }
 
@@ -805,6 +955,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
 
         if sessionDate == activeSessionDate {
             dose2Time = newTime
+            validateDoseStateInvariant(reason: "update_active_dose2_time")
             sessionDidChange.send()
         }
 
@@ -819,7 +970,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     /// Backfill or correct Dose 1 from a morning check-in when the overnight tap was missed.
     public func reconcileDose1(sessionDate: String, takenAt: Date, amountMg: Int?) {
         upsertDoseEvent(
-            eventType: "dose1",
+            eventType: .dose1,
             sessionDate: sessionDate,
             timestamp: takenAt,
             amountMg: amountMg,
@@ -829,6 +980,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
 
         if sessionDate == activeSessionDate {
             dose1Time = takenAt
+            validateDoseStateInvariant(reason: "reconcile_active_dose1")
             sessionDidChange.send()
         }
     }
@@ -843,7 +995,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     ) {
         storage.clearSkip(sessionDateOverride: sessionDate)
         upsertDoseEvent(
-            eventType: "dose2",
+            eventType: .dose2,
             sessionDate: sessionDate,
             timestamp: takenAt,
             amountMg: amountMg,
@@ -854,6 +1006,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         if sessionDate == activeSessionDate {
             dose2Time = takenAt
             dose2Skipped = false
+            validateDoseStateInvariant(reason: "reconcile_active_dose2")
             sessionDidChange.send()
         }
     }
@@ -866,7 +1019,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         reasonNotes: String? = nil
     ) {
         let existingSkip = fetchDoseEvents(forSessionDate: sessionDate)
-            .first { $0.eventType == "dose2_skipped" }
+            .first { CanonicalDoseEventType(canonicalizing: $0.eventType) == .dose2Skipped }
         let metadata = doseEventMetadata(
             existingMetadata: existingSkip?.metadata,
             amountMg: nil,
@@ -879,7 +1032,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             storage.updateDoseEventMetadata(eventId: existingSkip.id, metadata: metadata)
         } else {
             storage.insertDoseEvent(
-                eventType: "dose2_skipped",
+                eventType: CanonicalDoseEventType.dose2Skipped.rawValue,
                 timestamp: timestamp,
                 sessionKey: sessionDate,
                 metadata: metadata
@@ -889,6 +1042,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         if sessionDate == activeSessionDate {
             dose2Skipped = true
             dose2Time = nil
+            validateDoseStateInvariant(reason: "reconcile_active_dose2_skip")
             sessionDidChange.send()
         }
     }
@@ -901,7 +1055,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     ) {
         let events = fetchDoseEvents(forSessionDate: sessionDate)
 
-        if let dose2Event = events.first(where: { $0.eventType == "dose2" }) {
+        if let dose2Event = events.first(where: { CanonicalDoseEventType(canonicalizing: $0.eventType) == .dose2 }) {
             let metadata = doseEventMetadata(
                 existingMetadata: dose2Event.metadata,
                 amountMg: nil,
@@ -912,7 +1066,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             storage.updateDoseEventMetadata(eventId: dose2Event.id, metadata: metadata)
         }
 
-        if let skippedEvent = events.first(where: { $0.eventType == "dose2_skipped" }) {
+        if let skippedEvent = events.first(where: { CanonicalDoseEventType(canonicalizing: $0.eventType) == .dose2Skipped }) {
             let metadata = doseEventMetadata(
                 existingMetadata: skippedEvent.metadata,
                 amountMg: nil,
@@ -968,6 +1122,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         
         // Save skip with slept-through reason
         storage.saveDoseSkipped(reason: "slept_through", sessionId: sessionId, sessionDateOverride: sessionDate)
+        validateDoseStateInvariant(reason: "mark_slept_through")
         
         // Update terminal state
         storage.updateTerminalState(sessionDate: sessionDate, sessionId: sessionId, state: "incomplete_slept_through")
@@ -1004,13 +1159,11 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     
     // MARK: - Computed Context (for UI binding)
     
-    /// Lazily initialized window calculator for context computation
-    private static let windowCalculator = DoseWindowCalculator()
-    
     /// Computed dose window context based on current session state.
     /// This is THE context that UI should bind to - it derives from repository state.
     public var currentContext: DoseWindowContext {
-        let context = SessionRepository.windowCalculator.context(
+        let calculator = DoseWindowCalculator(now: clock)
+        let context = calculator.context(
             dose1At: dose1Time,
             dose2TakenAt: dose2Time,
             dose2Skipped: dose2Skipped,
@@ -1076,10 +1229,11 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     ) {
         let session = ensureActiveSession(for: timestamp, reason: "sleep_event")
         let eventId = UUID().uuidString
+        let normalizedType = normalizeStoredEventType(eventType)
         
         storage.insertSleepEvent(
             id: eventId,
-            eventType: eventType,
+            eventType: normalizedType,
             timestamp: timestamp,
             sessionDate: session.sessionDate,
             sessionId: session.sessionId,
@@ -1091,13 +1245,13 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         Task {
             await DiagnosticLogger.shared.logSleepEventLogged(
                 sessionId: session.sessionId,
-                eventType: eventType,
+                eventType: normalizedType,
                 eventId: eventId
             )
         }
         
         #if canImport(OSLog)
-        logger.info("Sleep event '\(eventType)' logged for session \(session.sessionDate)")
+        logger.info("Sleep event '\(normalizedType)' logged for session \(session.sessionDate)")
         #endif
         
         sessionDidChange.send()
@@ -1161,7 +1315,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
 @MainActor
 extension SessionRepository {
     func upsertDoseEvent(
-        eventType: String,
+        eventType: CanonicalDoseEventType,
         sessionDate: String,
         timestamp: Date,
         amountMg: Int?,
@@ -1169,7 +1323,7 @@ extension SessionRepository {
         reasonNotes: String?
     ) {
         let existing = fetchDoseEvents(forSessionDate: sessionDate)
-            .first { $0.eventType == eventType }
+            .first { CanonicalDoseEventType(canonicalizing: $0.eventType) == eventType }
         let metadata = doseEventMetadata(
             existingMetadata: existing?.metadata,
             amountMg: amountMg,
@@ -1180,9 +1334,9 @@ extension SessionRepository {
 
         if let existing {
             switch eventType {
-            case "dose1":
+            case .dose1:
                 storage.updateDose1Time(newTime: timestamp, sessionDate: sessionDate)
-            case "dose2":
+            case .dose2:
                 storage.updateDose2Time(newTime: timestamp, sessionDate: sessionDate)
             default:
                 break
@@ -1190,7 +1344,7 @@ extension SessionRepository {
             storage.updateDoseEventMetadata(eventId: existing.id, metadata: metadata)
         } else {
             storage.insertDoseEvent(
-                eventType: eventType,
+                eventType: eventType.rawValue,
                 timestamp: timestamp,
                 sessionKey: sessionDate,
                 metadata: metadata

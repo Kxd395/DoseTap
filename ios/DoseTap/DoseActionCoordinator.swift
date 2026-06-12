@@ -47,7 +47,7 @@ final class DoseActionCoordinator: ObservableObject {
     }
 
     enum ConfirmationType: Equatable {
-        /// Window not open yet – tell user how many minutes remain
+        /// Window not open yet - tell user how many minutes remain
         case earlyDose(minutesRemaining: Int)
         /// 240-minute window has passed
         case lateDose
@@ -62,6 +62,7 @@ final class DoseActionCoordinator: ObservableObject {
         case earlyConfirmed
         case lateConfirmed
         case afterSkipConfirmed
+        case extraDoseConfirmed
     }
 
     // MARK: - Init
@@ -86,12 +87,21 @@ final class DoseActionCoordinator: ObservableObject {
         let sig = DoseSignpost.begin(.takeDose1)
         defer { DoseSignpost.end(.takeDose1, sig) }
 
-        guard core.dose1Time == nil else {
-            return .blocked(reason: "Dose 1 already taken")
+        guard let sessionRepo else {
+            return .blocked(reason: "Session store unavailable")
+        }
+
+        switch DoseRegistrationPolicy.evaluateDose1(input: registrationInput(surface: .tonightButton)) {
+        case .allowed:
+            break
+        case .requiresConfirmation(let type):
+            return .needsConfirm(mapConfirmation(type))
+        case .blocked(let reason):
+            return .blocked(reason: reason)
         }
 
         let now = Date()
-        await core.takeDose()
+        sessionRepo.setDose1Time(now)
 
         // Event log
         eventLogger?.logEvent(
@@ -127,21 +137,26 @@ final class DoseActionCoordinator: ObservableObject {
         let sig = DoseSignpost.begin(.takeDose2, "override=\(override)")
         defer { DoseSignpost.end(.takeDose2, sig) }
 
-        // Pre-check: Dose 1 must exist
-        guard core.dose1Time != nil else {
-            return .blocked(reason: "Take Dose 1 first")
+        guard sessionRepo != nil else {
+            return .blocked(reason: "Session store unavailable")
         }
 
+        let input = registrationInput(surface: .tonightButton)
         let ctx = core.windowContext
+        let overrideConfirmed = override != .none
 
-        // Extra dose guard: if Dose 2 already taken, block
-        if core.dose2Time != nil {
-            return .needsConfirm(.extraDose)
-        }
-
-        // After-skip correction
-        if ctx.phase == .completed, core.isSkipped, core.dose2Time == nil {
-            if override == .afterSkipConfirmed || override == .lateConfirmed {
+        switch DoseRegistrationPolicy.evaluateDose2(input: input, overrideConfirmed: overrideConfirmed) {
+        case .allowed:
+            if input.dose2Time != nil {
+                guard override == .extraDoseConfirmed else {
+                    return .needsConfirm(.extraDose)
+                }
+                return await performExtraDose(reason: reason, reasonNotes: reasonNotes)
+            }
+            if input.dose2Skipped {
+                guard override == .afterSkipConfirmed || override == .lateConfirmed else {
+                    return .needsConfirm(.afterSkip)
+                }
                 return await performDose2(
                     eventName: "Dose 2 (After Skip)",
                     isLate: true,
@@ -149,16 +164,10 @@ final class DoseActionCoordinator: ObservableObject {
                     reasonNotes: reasonNotes
                 )
             }
-            return .needsConfirm(.afterSkip)
-        }
-
-        // Phase routing
-        switch ctx.phase {
-        case .noDose1:
-            return .blocked(reason: "Take Dose 1 first")
-
-        case .beforeWindow:
-            if override == .earlyConfirmed {
+            if ctx.phase == .beforeWindow {
+                guard override == .earlyConfirmed else {
+                    return .needsConfirm(.earlyDose(minutesRemaining: remainingMinutesToWindowOpen()))
+                }
                 return await performDose2(
                     eventName: "Dose 2 (Early)",
                     isLate: false,
@@ -167,19 +176,10 @@ final class DoseActionCoordinator: ObservableObject {
                     reasonNotes: reasonNotes
                 )
             }
-            let remaining = remainingMinutesToWindowOpen()
-            return .needsConfirm(.earlyDose(minutesRemaining: remaining))
-
-        case .active, .nearClose:
-            return await performDose2(
-                eventName: "Dose 2",
-                isLate: false,
-                reason: reason,
-                reasonNotes: reasonNotes
-            )
-
-        case .closed:
-            if override == .lateConfirmed {
+            if ctx.phase == .closed {
+                guard override == .lateConfirmed else {
+                    return .needsConfirm(.lateDose)
+                }
                 return await performDose2(
                     eventName: "Dose 2 (Late)",
                     isLate: true,
@@ -187,13 +187,16 @@ final class DoseActionCoordinator: ObservableObject {
                     reasonNotes: reasonNotes
                 )
             }
-            return .needsConfirm(.lateDose)
-
-        case .completed:
-            return .blocked(reason: "Session already complete")
-
-        case .finalizing:
-            return .blocked(reason: "Session already complete")
+            return await performDose2(
+                eventName: "Dose 2",
+                isLate: false,
+                reason: reason,
+                reasonNotes: reasonNotes
+            )
+        case .requiresConfirmation(let type):
+            return .needsConfirm(mapConfirmation(type))
+        case .blocked(let reason):
+            return .blocked(reason: reason)
         }
     }
 
@@ -203,32 +206,38 @@ final class DoseActionCoordinator: ObservableObject {
         let sig = DoseSignpost.begin(.snooze)
         defer { DoseSignpost.end(.snooze, sig) }
 
-        let ctx = core.windowContext
+        guard let sessionRepo else {
+            return .blocked(reason: "Session store unavailable")
+        }
 
-        guard case .snoozeEnabled = ctx.snooze else {
-            let reason: String
-            if case .snoozeDisabled(let r) = ctx.snooze {
-                reason = r
-            } else {
-                reason = "Snooze not available"
-            }
+        switch DoseRegistrationPolicy.evaluateSnooze(input: registrationInput(surface: .tonightButton)) {
+        case .allowed:
+            break
+        case .requiresConfirmation(let type):
+            return .needsConfirm(mapConfirmation(type))
+        case .blocked(let reason):
             return .blocked(reason: reason)
         }
 
-        if let newTime = await alarmService.snoozeAlarm(dose1Time: core.dose1Time) {
-            await core.snooze()
-            let formatted = newTime.formatted(date: .omitted, time: .shortened)
-            coordinatorLog.info("Snoozed to \(formatted, privacy: .public)")
-            playHaptic(.action)
-            refreshWidgets()
-            return .success(message: "✓ Snoozed to \(formatted)")
-        } else {
-            // Still increment snooze count even if alarm couldn't be rescheduled
-            await core.snooze()
-            playHaptic(.action)
-            refreshWidgets()
-            return .success(message: "✓ Snoozed (+10m)")
+        guard let dose1Time = sessionRepo.dose1Time ?? core.dose1Time else {
+            return .blocked(reason: "Take Dose 1 first")
         }
+
+        guard sessionRepo.incrementSnoozeIfActive() else {
+            return .blocked(reason: "Snooze not available for the current session")
+        }
+
+        guard let newTime = await alarmService.snoozeAlarm(dose1Time: dose1Time) else {
+            sessionRepo.decrementSnoozeCount()
+            return .blocked(reason: "No alarm available to snooze")
+        }
+
+        undoState?.register(.snooze(minutes: alarmService.snoozeDurationMinutes))
+        let formatted = newTime.formatted(date: .omitted, time: .shortened)
+        coordinatorLog.info("Snoozed to \(formatted, privacy: .public)")
+        playHaptic(.action)
+        refreshWidgets()
+        return .success(message: "✓ Snoozed to \(formatted)")
     }
 
     // MARK: - Skip Dose
@@ -237,20 +246,20 @@ final class DoseActionCoordinator: ObservableObject {
         let sig = DoseSignpost.begin(.skipDose)
         defer { DoseSignpost.end(.skipDose, sig) }
 
-        guard core.dose1Time != nil else {
-            return .blocked(reason: "Take Dose 1 first")
-        }
-        guard core.dose2Time == nil, !core.isSkipped else {
-            return .blocked(reason: "Dose 2 already taken or skipped")
+        guard let sessionRepo else {
+            return .blocked(reason: "Session store unavailable")
         }
 
-        await core.skipDose()
-        sessionRepo?.updateDose2OutcomeAnnotations(
-            sessionDate: sessionRepo?.activeSessionDate ?? sessionRepo?.currentSessionKey ?? "",
-            takenReason: nil,
-            skipReason: reason,
-            reasonNotes: reasonNotes
-        )
+        switch DoseRegistrationPolicy.evaluateSkip(input: registrationInput(surface: .tonightButton)) {
+        case .allowed:
+            break
+        case .requiresConfirmation(let type):
+            return .needsConfirm(mapConfirmation(type))
+        case .blocked(let reason):
+            return .blocked(reason: reason)
+        }
+
+        sessionRepo.skipDose2(reason: reason, reasonNotes: reasonNotes)
         alarmService.cancelAllAlarms()
         alarmService.clearDose2AlarmState()
 
@@ -259,6 +268,7 @@ final class DoseActionCoordinator: ObservableObject {
             cooldownSeconds: 3600 * 8, persist: false
         )
 
+        undoState?.register(.skipDose(sequence: 2, reason: reason))
         playHaptic(.action)
 
         coordinatorLog.info("Dose 2 skipped via coordinator")
@@ -275,12 +285,16 @@ final class DoseActionCoordinator: ObservableObject {
         reason: String? = nil,
         reasonNotes: String? = nil
     ) async -> ActionResult {
+        guard let sessionRepo else {
+            return .blocked(reason: "Session store unavailable")
+        }
+
         let now = Date()
-        await core.takeDose(earlyOverride: isEarly, lateOverride: isLate)
-        sessionRepo?.updateDose2OutcomeAnnotations(
-            sessionDate: sessionRepo?.activeSessionDate ?? sessionRepo?.currentSessionKey ?? "",
-            takenReason: reason,
-            skipReason: nil,
+        sessionRepo.setDose2Time(
+            now,
+            isEarly: isEarly,
+            isExtraDose: false,
+            reason: reason,
             reasonNotes: reasonNotes
         )
 
@@ -304,6 +318,59 @@ final class DoseActionCoordinator: ObservableObject {
         return .success(message: "✓ \(eventName) logged")
     }
 
+    private func performExtraDose(reason: String? = nil, reasonNotes: String? = nil) async -> ActionResult {
+        guard let sessionRepo else {
+            return .blocked(reason: "Session store unavailable")
+        }
+
+        let now = Date()
+        sessionRepo.setDose2Time(
+            now,
+            isEarly: false,
+            isExtraDose: true,
+            reason: reason,
+            reasonNotes: reasonNotes
+        )
+
+        eventLogger?.logEvent(
+            name: "Extra Dose",
+            color: .red,
+            cooldownSeconds: 0,
+            persist: false
+        )
+
+        playHaptic(.dose)
+        playConfirmationSound()
+        coordinatorLog.warning("Extra dose logged via coordinator after explicit confirmation")
+        refreshWidgets()
+        return .success(message: "Extra dose logged")
+    }
+
+    private func registrationInput(surface: RegistrationSurface) -> DoseRegistrationInput {
+        let context = core.windowContext
+        return DoseRegistrationInput(
+            dose1Time: sessionRepo?.dose1Time ?? core.dose1Time,
+            dose2Time: sessionRepo?.dose2Time ?? core.dose2Time,
+            dose2Skipped: sessionRepo?.dose2Skipped ?? core.isSkipped,
+            snoozeCount: sessionRepo?.snoozeCount ?? core.snoozeCount,
+            windowPhase: context.phase,
+            surface: surface
+        )
+    }
+
+    private func mapConfirmation(_ type: DoseConfirmationType) -> ConfirmationType {
+        switch type {
+        case .earlyDose(let minutesRemaining):
+            return .earlyDose(minutesRemaining: minutesRemaining)
+        case .lateDose:
+            return .lateDose
+        case .afterSkip:
+            return .afterSkip
+        case .extraDose:
+            return .extraDose
+        }
+    }
+
     private func remainingMinutesToWindowOpen() -> Int {
         guard let dose1Time = core.dose1Time else { return 0 }
         let windowOpen = dose1Time.addingTimeInterval(150 * 60)
@@ -317,8 +384,8 @@ final class DoseActionCoordinator: ObservableObject {
     private static let confirmationSoundID: SystemSoundID = 1057
 
     enum FeedbackIntensity {
-        case dose      // Dose taken — strongest
-        case action    // Snooze / skip — medium
+        case dose      // Dose taken - strongest
+        case action    // Snooze / skip - medium
     }
 
     /// Haptic feedback respecting user preference. P3-1.
@@ -346,3 +413,98 @@ final class DoseActionCoordinator: ObservableObject {
         #endif
     }
 }
+
+// MARK: - Dose Action Result Presentation
+
+@available(iOS 15.0, *)
+struct DoseActionFeedback: Equatable {
+    enum Kind: Equatable {
+        case success
+        case blocked
+    }
+
+    let kind: Kind
+    let title: String
+    let message: String
+    let systemImageName: String
+}
+
+@available(iOS 15.0, *)
+struct DoseActionResultPresentation: Equatable {
+    let feedback: DoseActionFeedback?
+    let confirmation: DoseActionCoordinator.ConfirmationType?
+
+    init(result: DoseActionCoordinator.ActionResult) {
+        switch result {
+        case .success(let message):
+            feedback = DoseActionFeedback(
+                kind: .success,
+                title: "Dose action complete",
+                message: message,
+                systemImageName: "checkmark.circle.fill"
+            )
+            confirmation = nil
+        case .blocked(let reason):
+            feedback = DoseActionFeedback(
+                kind: .blocked,
+                title: "Dose action blocked",
+                message: reason,
+                systemImageName: "exclamationmark.triangle.fill"
+            )
+            confirmation = nil
+        case .needsConfirm(let type):
+            feedback = nil
+            confirmation = type
+        }
+    }
+}
+
+#if canImport(SwiftUI)
+@available(iOS 15.0, *)
+struct DoseActionFeedbackBanner: View {
+    let feedback: DoseActionFeedback
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: feedback.systemImageName)
+                .foregroundStyle(tint)
+                .font(.headline)
+                .frame(width: 22)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(feedback.title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(.primary)
+                Text(feedback.message)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(tint.opacity(0.12))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(tint.opacity(0.28), lineWidth: 1)
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(feedback.title). \(feedback.message)")
+        .accessibilityAddTraits(.updatesFrequently)
+    }
+
+    private var tint: Color {
+        switch feedback.kind {
+        case .success:
+            return .green
+        case .blocked:
+            return .orange
+        }
+    }
+}
+#endif

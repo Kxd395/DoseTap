@@ -7,7 +7,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-06-12
+
+### Fixed
+
+- **P0 dose sequence persistence**
+  - Blocked Dose 2 persistence unless an active canonical Dose 1 exists.
+  - Recovered persisted Dose 2 without Dose 1 by quarantining the active session with `invalid_dose_state` instead of crashing on launch.
+  - Made Dose 1 undo clear dependent Dose 2, extra dose, skip, snooze, and alarm state.
+
+- **P0 snooze split-brain prevention**
+  - Made snooze persistence fail closed unless an active Dose 1 session is still open.
+  - Changed snooze coordination to commit repository state before alarm rescheduling and roll back repository state if alarm scheduling fails.
+  - Added persisted snooze invariants so snooze-only active state is detected and recovered.
+
+### Changed
+
+- Bumped `DoseTap` and `DoseTapStaging` to version `0.4.2` build `4`.
+
+## [0.4.1] - 2026-06-12
+
+### Fixed
+
+- **P0 dose action feedback**
+  - Added shared dose action result presentation for success, blocked, and confirmation coordinator results.
+  - Wired `CompactDoseButton` and `DoseButtonsSection` so blocked Dose 2, snooze, skip, and override results are no longer silently ignored.
+  - Added focused app tests for dose action result presentation.
+
+- **CloudKit readiness validation**
+  - Fixed the zsh readiness gate by avoiding the reserved `status` variable name.
+  - Made release preflight print app-version checker progress and use the longer build-settings timeout needed by Xcode.
+  - Raised the default build-settings watchdog to 240 seconds after local Xcode reads exceeded 120 seconds.
+  - Made tagged release preflight fail when `DOSETAP_CERT_PINS` is unset instead of reporting a warning-only pass.
+
+- **Sleep event mapping**
+  - Canonicalized Brief Wake aliases to `wake_temp` at the repository boundary and in the legacy storage migration.
+  - Fixed the doc lint schema-version gate so missing schema versions no longer pass as blank matches.
+
+- **Migration state hardening**
+  - Added a SQLite `schema_migrations` ledger for one-time data migrations while preserving existing UserDefaults flags for current installs.
+  - Bumped SQLite `user_version` to `1` and added a regression test that storage initialization applies it.
+  - Replaced duplicate-column-error based additive migrations with explicit column-exists checks.
+
+### Changed
+
+- **Dose command composition**
+  - Moved dose core, coordinator, undo, URL router, Flic, and notification snooze wiring into `AppContainer`.
+  - Bumped `DoseTap` and `DoseTapStaging` to version `0.4.1` build `3`.
+
+## [0.4.0] - 2026-06-12
+
 ### Added
+
+- **Build identity enforcement**
+  - Set `DoseTap` and `DoseTapStaging` app targets to version `0.4.0` build `2`.
+  - Added `tools/check_app_version.sh` to validate app/staging Debug and Release version/build consistency.
+  - Wired app version/build validation into release preflight, CI, PR checklist, and the Linear workflow handoff standard.
 
 - **Planner turnover control for Tonight UI**
   - Added `After check-in, show upcoming night` setting in Night Schedule.
@@ -81,6 +136,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Archived historical code review docs to `archive/audits_2025-12-24/`
 
 ### Fixed
+- **Release validation reachability** - `ci.yml` now runs on `v*` tag pushes so the existing release-pinning validation job can execute for tagged builds.
+- **Bounded Xcode build-setting reads** - `check_app_version.sh` and `check_cloudkit_readiness.sh` use watchdogs around `xcodebuild -showBuildSettings` so automation fails cleanly instead of hanging.
+
 - **Local-vs-staging product boundary drift**
   - Removed dead setup-wizard cloud-sync preference.
   - Hid the manual CloudKit sync action in the local-first shipping target.

@@ -83,6 +83,25 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertEqual(repo.snoozeCount, 0, "Snooze count should reset")
         XCTAssertFalse(repo.dose2Skipped, "Skip state should reset")
     }
+
+    func test_insertSleepEvent_canonicalizesBriefWakeAlias() async throws {
+        repo.insertSleepEvent(
+            id: UUID().uuidString,
+            eventType: "brief_wake",
+            timestamp: fixedNow,
+            colorHex: nil
+        )
+
+        let saved = repo.fetchTonightSleepEvents().first
+        XCTAssertEqual(saved?.eventType, "wake_temp", "Repository insert should canonicalize legacy Brief Wake aliases.")
+    }
+
+    func test_logSleepEvent_canonicalizesBriefWakeAlias() async throws {
+        repo.logSleepEvent(eventType: "brief_wake", timestamp: fixedNow)
+
+        let saved = repo.fetchTonightSleepEvents().first
+        XCTAssertEqual(saved?.eventType, "wake_temp", "High-level logging should canonicalize legacy Brief Wake aliases.")
+    }
     
     // MARK: - Test: Delete Inactive Session Preserves Active State
     
@@ -186,9 +205,9 @@ final class SessionRepositoryTests: XCTestCase {
     
     func test_clearTonight_clearsActiveSession() async throws {
         // Arrange
-        repo.setDose1Time(Date())
-        repo.setDose2Time(Date())
+        repo.setDose1Time(fixedNow)
         repo.incrementSnooze()
+        repo.setDose2Time(fixedNow.addingTimeInterval(1))
         
         XCTAssertNotNil(repo.dose1Time)
         XCTAssertNotNil(repo.dose2Time)
@@ -207,8 +226,115 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertNil(repo.activeSessionEnd)
     }
 
+    func test_setDose2WithoutDose1_isBlockedAndDoesNotWriteDoseEvent() async throws {
+        let storage = EventStorage.inMemory()
+        let now = fixedNow
+        let repo = SessionRepository(
+            storage: storage,
+            clock: { now },
+            timeZoneProvider: { TimeZone(identifier: "UTC")! }
+        )
+        let sessionDate = sessionKey(for: now, timeZone: TimeZone(identifier: "UTC")!)
+
+        repo.setDose2Time(now)
+
+        XCTAssertNil(repo.dose2Time, "Dose 2 must not be stored without a canonical Dose 1.")
+        XCTAssertTrue(storage.fetchDoseEvents(sessionId: nil, sessionDate: sessionDate).isEmpty)
+        XCTAssertTrue(storage.validateActiveDoseStateInvariant().isEmpty)
+    }
+
+    func test_reloadQuarantinesPersistedDose2WithoutDose1InsteadOfCrashing() async throws {
+        let storage = EventStorage.inMemory()
+        let now = fixedNow
+        let sessionDate = sessionKey(for: now, timeZone: TimeZone(identifier: "UTC")!)
+        storage.saveDose2(timestamp: now, sessionId: "orphan-session", sessionDateOverride: sessionDate)
+
+        let repo = SessionRepository(
+            storage: storage,
+            clock: { now },
+            timeZoneProvider: { TimeZone(identifier: "UTC")! }
+        )
+
+        let recovered = storage.loadCurrentSessionState()
+        XCTAssertNil(repo.activeSessionDate)
+        XCTAssertNotNil(recovered.sessionEnd)
+        XCTAssertEqual(recovered.terminalState, "invalid_dose_state")
+        XCTAssertTrue(storage.validateActiveDoseStateInvariant().isEmpty)
+    }
+
+    func test_clearDose1_clearsDependentDose2AndSnoozeState() async throws {
+        let dose1 = fixedNow.addingTimeInterval(-160 * 60)
+        repo.setDose1Time(dose1)
+        repo.incrementSnooze()
+        repo.setDose2Time(dose1.addingTimeInterval(165 * 60))
+        let sessionDate = try XCTUnwrap(repo.activeSessionDate)
+
+        repo.clearDose1()
+
+        XCTAssertNil(repo.dose1Time)
+        XCTAssertNil(repo.dose2Time)
+        XCTAssertEqual(repo.snoozeCount, 0)
+        XCTAssertFalse(repo.dose2Skipped)
+        XCTAssertTrue(storage.fetchDoseEvents(sessionId: nil, sessionDate: sessionDate).isEmpty)
+        XCTAssertTrue(storage.validateActiveDoseStateInvariant().isEmpty)
+    }
+
+    func test_incrementSnoozeWithoutDose1_isBlockedAndDoesNotCreateSession() async throws {
+        let storage = EventStorage.inMemory()
+        let now = fixedNow
+        let repo = SessionRepository(
+            storage: storage,
+            clock: { now },
+            timeZoneProvider: { TimeZone(identifier: "UTC")! }
+        )
+
+        let incremented = repo.incrementSnoozeIfActive()
+
+        XCTAssertFalse(incremented, "Snooze must not create dose state without Dose 1.")
+        XCTAssertNil(repo.activeSessionDate)
+        XCTAssertEqual(repo.snoozeCount, 0)
+        XCTAssertTrue(storage.validateActiveDoseStateInvariant().isEmpty)
+        XCTAssertTrue(storage.getAllSessionDates().isEmpty)
+    }
+
+    func test_incrementSnoozeAfterPrepRollover_isBlockedWithoutSnoozeOnlyState() async throws {
+        let settings = UserSettingsManager.shared
+        let previousPrepTime = settings.prepTimeMinutes
+        defer { settings.prepTimeMinutes = previousPrepTime }
+        settings.prepTimeMinutes = 18 * 60
+
+        let timeZone = TimeZone(identifier: "UTC")!
+        let clock = TestClock(
+            now: ISO8601DateFormatter().date(from: "2026-01-15T17:50:00Z")!,
+            timeZone: timeZone
+        )
+        let storage = EventStorage.inMemory()
+        let repo = SessionRepository(
+            storage: storage,
+            clock: { clock.now },
+            timeZoneProvider: { clock.timeZone }
+        )
+        let dose1 = clock.now.addingTimeInterval(-160 * 60)
+        let staleSessionDate = sessionKey(for: dose1, timeZone: timeZone)
+
+        repo.setDose1Time(dose1)
+        clock.now = ISO8601DateFormatter().date(from: "2026-01-15T18:10:00Z")!
+
+        let incremented = repo.incrementSnoozeIfActive()
+
+        XCTAssertFalse(incremented, "Snooze must fail after schedule rollover closes the active session.")
+        XCTAssertNil(repo.activeSessionDate)
+        XCTAssertEqual(repo.snoozeCount, 0)
+        XCTAssertFalse(
+            storage.fetchDoseEvents(sessionId: nil, sessionDate: staleSessionDate)
+                .contains { $0.eventType == "snooze" },
+            "Stale-session snooze must not write a snooze event."
+        )
+        XCTAssertTrue(storage.validateActiveDoseStateInvariant().isEmpty)
+    }
+
     func test_clearAllData_clearsSessionIdentityState() async throws {
-        repo.setDose1Time(Date().addingTimeInterval(-120 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-160 * 60))
         repo.incrementSnooze()
 
         XCTAssertNotNil(repo.activeSessionDate)
@@ -337,12 +463,13 @@ final class SessionRepositoryTests: XCTestCase {
     }
     
     func test_incrementSnooze_updatesCount() async throws {
+        repo.setDose1Time(fixedNow.addingTimeInterval(-160 * 60))
         XCTAssertEqual(repo.snoozeCount, 0)
         
-        repo.incrementSnooze()
+        XCTAssertTrue(repo.incrementSnoozeIfActive())
         XCTAssertEqual(repo.snoozeCount, 1)
         
-        repo.incrementSnooze()
+        XCTAssertTrue(repo.incrementSnoozeIfActive())
         XCTAssertEqual(repo.snoozeCount, 2)
     }
     
@@ -429,7 +556,7 @@ final class SessionRepositoryTests: XCTestCase {
     /// Verify snoozeCount is correctly reflected in currentContext
     func test_currentContext_reflectsSnoozeCount() async throws {
         // Arrange: Set dose 1 within window (150+ minutes ago)
-        let dose1Time = Date().addingTimeInterval(-155 * 60) // 155 minutes ago
+        let dose1Time = fixedNow.addingTimeInterval(-155 * 60)
         repo.setDose1Time(dose1Time)
         
         // Initial state - no snoozes
@@ -437,13 +564,13 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertEqual(initialContext.snoozeCount, 0, "Initial snooze count should be 0")
         
         // Act: Increment snooze
-        repo.incrementSnooze()
+        XCTAssertTrue(repo.incrementSnoozeIfActive())
         
         // Assert: Context reflects new snooze count
         XCTAssertEqual(repo.currentContext.snoozeCount, 1, "Context should reflect snooze count")
         
         // Act: Increment again
-        repo.incrementSnooze()
+        XCTAssertTrue(repo.incrementSnoozeIfActive())
         
         // Assert
         XCTAssertEqual(repo.currentContext.snoozeCount, 2, "Context should reflect updated snooze count")

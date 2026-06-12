@@ -18,37 +18,37 @@ private let flicLog = Logger(subsystem: "com.dosetap.app", category: "FlicButton
 ///
 @MainActor
 final class FlicButtonService: ObservableObject {
-    
+
     static let shared = FlicButtonService()
-    
+
     // MARK: - Dependencies (SSOT)
-    
+
     /// Session repository is the single source of truth for dose state
     private var sessionRepository: SessionRepository { SessionRepository.shared }
-    
-    /// Window calculator for determining dose phase
-    private let windowCalculator = DoseWindowCalculator()
-    
+
+    private weak var coordinator: DoseActionCoordinator?
+    private weak var undoState: UndoStateManager?
+
     // MARK: - Published State
     @Published var isPaired: Bool = false
     @Published var isConnected: Bool = false
     @Published var batteryLevel: Int? = nil
     @Published var lastEventTime: Date? = nil
     @Published var lastAction: FlicAction? = nil
-    
+
     // MARK: - Configuration
     @Published var singlePressAction: FlicAction = .takeDose
     @Published var doublePressAction: FlicAction = .snooze
     @Published var longHoldAction: FlicAction = .undo
-    
+
     // Long hold threshold (seconds)
     let longHoldThreshold: TimeInterval = 1.0
-    
+
     // MARK: - Dependencies
     private var cancellables = Set<AnyCancellable>()
-    
+
     // MARK: - Flic Action Types
-    
+
     enum FlicAction: String, CaseIterable, Codable {
         case takeDose = "take_dose"      // Single press: Dose 1 or 2
         case snooze = "snooze"           // Double press: Snooze +10 min
@@ -58,7 +58,7 @@ final class FlicButtonService: ObservableObject {
         case logWake = "log_wake"
         case skip = "skip"
         case none = "none"
-        
+
         var displayName: String {
             switch self {
             case .takeDose: return "Take Dose"
@@ -71,7 +71,7 @@ final class FlicButtonService: ObservableObject {
             case .none: return "Do Nothing"
             }
         }
-        
+
         var icon: String {
             switch self {
             case .takeDose: return "pills.fill"
@@ -85,15 +85,15 @@ final class FlicButtonService: ObservableObject {
             }
         }
     }
-    
+
     enum FlicGesture: String {
         case singlePress = "single_press"
         case doublePress = "double_press"
         case longHold = "long_hold"
     }
-    
+
     // MARK: - Result Types
-    
+
     struct FlicActionResult {
         let gesture: FlicGesture
         let action: FlicAction
@@ -101,58 +101,68 @@ final class FlicButtonService: ObservableObject {
         let message: String?
         let canUndo: Bool
     }
-    
+
     // MARK: - Initialization
-    
+
     private init() {
         loadConfiguration()
     }
-    
+
+    func configure(coordinator: DoseActionCoordinator, undoState: UndoStateManager?) {
+        self.coordinator = coordinator
+        self.undoState = undoState
+    }
+
+    func resetCommandHandlersForTests() {
+        coordinator = nil
+        undoState = nil
+    }
+
     // MARK: - Gesture Handling
-    
+
     /// Handle a Flic button gesture
     /// - Parameter gesture: The gesture type detected
     /// - Returns: Result of the action taken
     func handleGesture(_ gesture: FlicGesture) async -> FlicActionResult {
         lastEventTime = Date()
-        
+
         let action: FlicAction
         switch gesture {
         case .singlePress: action = singlePressAction
         case .doublePress: action = doublePressAction
         case .longHold: action = longHoldAction
         }
-        
+
         lastAction = action
-        
+
         // Execute the action
         return await executeAction(action, gesture: gesture)
     }
-    
+
     /// Execute a Flic action
     private func executeAction(_ action: FlicAction, gesture: FlicGesture) async -> FlicActionResult {
         switch action {
         case .takeDose:
             return await handleTakeDose(gesture: gesture)
-            
+
         case .snooze:
             return await handleSnooze(gesture: gesture)
-            
+
         case .undo:
-            return handleUndo(gesture: gesture)
-            
+            return await handleUndo(gesture: gesture)
+
         case .logBathroom:
             return handleLogEvent("bathroom", gesture: gesture)
-            
+
         case .logLightsOut:
             return handleLogEvent("lights_out", gesture: gesture)
-            
+
         case .logWake:
             return handleLogEvent("wake_final", gesture: gesture)
-            
+
         case .skip:
             return await handleSkip(gesture: gesture)
-            
+
         case .none:
             return FlicActionResult(
                 gesture: gesture,
@@ -163,211 +173,81 @@ final class FlicButtonService: ObservableObject {
             )
         }
     }
-    
+
     // MARK: - Action Handlers
-    
-    /// Compute current window context from SSOT (SessionRepository)
-    private var currentContext: DoseWindowContext {
-        windowCalculator.context(
-            dose1At: sessionRepository.dose1Time,
-            dose2TakenAt: sessionRepository.dose2Time,
-            dose2Skipped: sessionRepository.dose2Skipped,
-            snoozeCount: sessionRepository.snoozeCount,
-            wakeFinalAt: sessionRepository.wakeFinalTime,
-            checkInCompleted: sessionRepository.checkInCompleted
-        )
-    }
-    
+
     /// Handle take dose action - routes to Dose 1 or Dose 2 based on state
     private func handleTakeDose(gesture: FlicGesture) async -> FlicActionResult {
-        let context = currentContext
-        
-        // Route based on current phase
-        switch context.phase {
-        case .noDose1:
-            // Take Dose 1 via SSOT
-            let now = Date()
-            sessionRepository.saveDose1(timestamp: now)
-            let configuredTarget = UserSettingsManager.shared.targetIntervalMinutes
-            let targetMinutes = configuredTarget > 0 ? configuredTarget : 165
-            let wakeTime = now.addingTimeInterval(Double(targetMinutes) * 60)
-            await AlarmService.shared.scheduleDose2Alarm(at: wakeTime, dose1Time: now)
-            await AlarmService.shared.scheduleDose2Reminders(dose1Time: now)
-            provideHapticFeedback(.success)
-            return FlicActionResult(
-                gesture: gesture,
-                action: .takeDose,
-                success: true,
-                message: "Dose 1 logged",
-                canUndo: true
-            )
-            
-        case .beforeWindow:
-            // Cannot take Dose 2 yet
+        guard let coordinator else {
             provideHapticFeedback(.error)
-            return FlicActionResult(
-                gesture: gesture,
-                action: .takeDose,
-                success: false,
-                message: "Window not open yet",
-                canUndo: false
-            )
-            
-        case .active, .nearClose:
-            // Take Dose 2 via SSOT
-            sessionRepository.saveDose2(timestamp: Date())
-            AlarmService.shared.cancelAllAlarms()
-            AlarmService.shared.clearDose2AlarmState()
-            provideHapticFeedback(.success)
-            return FlicActionResult(
-                gesture: gesture,
-                action: .takeDose,
-                success: true,
-                message: "Dose 2 logged",
-                canUndo: true
-            )
-            
-        case .closed:
-            // P0-3 FIX: Window closed — do NOT persist directly. Require confirmation via app UI.
-            // Late doses need user to consciously confirm, which can't be done via a physical button.
-            provideHapticFeedback(.error)
-            
-            // Send a local notification prompting user to open the app to confirm
-            let content = UNMutableNotificationContent()
-            content.title = "Late Dose — Confirmation Required"
-            content.body = "The 240-minute window has passed. Open DoseTap to confirm late dose."
-            content.sound = .default
-            let request = UNNotificationRequest(
-                identifier: "dosetap_flic_late_confirm",
-                content: content,
-                trigger: nil // immediate
-            )
-            try? await UNUserNotificationCenter.current().add(request)
-            
-            return FlicActionResult(
-                gesture: gesture,
-                action: .takeDose,
-                success: false,
-                message: "Window closed — confirm in app",
-                canUndo: false
-            )
-            
-        case .completed:
-            let now = Date()
-            if sessionRepository.dose2Time == nil, sessionRepository.dose1Time != nil {
-                // Allow post-skip correction as explicit override.
-                sessionRepository.saveDose2(timestamp: now)
-                AlarmService.shared.cancelAllAlarms()
-                AlarmService.shared.clearDose2AlarmState()
-                provideHapticFeedback(.warning)
-                return FlicActionResult(
-                    gesture: gesture,
-                    action: .takeDose,
-                    success: true,
-                    message: "Dose 2 logged (override)",
-                    canUndo: true
-                )
-            }
-            if sessionRepository.dose2Time != nil {
-                // P0-3 FIX: Extra doses (3rd+) need confirmation via app UI — too risky for blind button press.
-                provideHapticFeedback(.error)
-                return FlicActionResult(
-                    gesture: gesture,
-                    action: .takeDose,
-                    success: false,
-                    message: "Extra dose — confirm in app",
-                    canUndo: false
-                )
-            }
-            provideHapticFeedback(.error)
-            return FlicActionResult(
-                gesture: gesture,
-                action: .takeDose,
-                success: false,
-                message: "Dose action unavailable",
-                canUndo: false
-            )
-
-        case .finalizing:
-            // Already ending for tonight.
-            provideHapticFeedback(.error)
-            return FlicActionResult(
-                gesture: gesture,
-                action: .takeDose,
-                success: false,
-                message: "Session already complete",
-                canUndo: false
-            )
+            return commandUnavailableResult(action: .takeDose, gesture: gesture)
         }
+
+        let result: DoseActionCoordinator.ActionResult
+        if sessionRepository.dose1Time == nil {
+            result = await coordinator.takeDose1()
+        } else {
+            result = await coordinator.takeDose2()
+        }
+        return await flicResult(from: result, action: .takeDose, gesture: gesture, canUndoOnSuccess: true)
     }
-    
+
     /// Handle snooze action
     private func handleSnooze(gesture: FlicGesture) async -> FlicActionResult {
-        let context = currentContext
-        
-        // Check if snooze is allowed
-        guard case .snoozeEnabled = context.snooze else {
-            let reason: String
-            if case .snoozeDisabled(let r) = context.snooze {
-                reason = r
-            } else {
-                reason = "Snooze not available"
-            }
+        guard let coordinator else {
             provideHapticFeedback(.error)
-            return FlicActionResult(
-                gesture: gesture,
-                action: .snooze,
-                success: false,
-                message: reason,
-                canUndo: false
-            )
-        }
-        
-        guard let newTime = await AlarmService.shared.snoozeAlarm(dose1Time: sessionRepository.dose1Time) else {
-            provideHapticFeedback(.error)
-            return FlicActionResult(
-                gesture: gesture,
-                action: .snooze,
-                success: false,
-                message: "Snooze unavailable right now",
-                canUndo: false
-            )
+            return commandUnavailableResult(action: .snooze, gesture: gesture)
         }
 
-        // Keep repository state aligned with the alarm scheduler.
-        sessionRepository.incrementSnooze()
-        provideHapticFeedback(.success)
-        
-        return FlicActionResult(
-            gesture: gesture,
-            action: .snooze,
-            success: true,
-            message: "Snoozed to \(newTime.formatted(date: .omitted, time: .shortened))",
-            canUndo: false
-        )
+        let result = await coordinator.snooze()
+        return await flicResult(from: result, action: .snooze, gesture: gesture, canUndoOnSuccess: true)
     }
-    
+
     /// Handle undo action
-    private func handleUndo(gesture: FlicGesture) -> FlicActionResult {
-        // Check if undo is available via UndoStateManager
-        // This would integrate with the existing undo infrastructure
-        provideHapticFeedback(.success)
-        
-        return FlicActionResult(
-            gesture: gesture,
-            action: .undo,
-            success: true,
-            message: "Undo triggered",
-            canUndo: false
-        )
+    private func handleUndo(gesture: FlicGesture) async -> FlicActionResult {
+        guard let undoState else {
+            provideHapticFeedback(.error)
+            return commandUnavailableResult(action: .undo, gesture: gesture)
+        }
+
+        let result = await undoState.performUndoResult()
+        switch result {
+        case .success:
+            provideHapticFeedback(.success)
+            return FlicActionResult(
+                gesture: gesture,
+                action: .undo,
+                success: true,
+                message: "Undo completed",
+                canUndo: false
+            )
+        case .expired:
+            provideHapticFeedback(.error)
+            return FlicActionResult(
+                gesture: gesture,
+                action: .undo,
+                success: false,
+                message: "Undo expired",
+                canUndo: false
+            )
+        case .noAction:
+            provideHapticFeedback(.error)
+            return FlicActionResult(
+                gesture: gesture,
+                action: .undo,
+                success: false,
+                message: "Nothing to undo",
+                canUndo: false
+            )
+        }
     }
-    
+
     /// Handle event logging
     private func handleLogEvent(_ eventType: String, gesture: FlicGesture) -> FlicActionResult {
         // Log via SessionRepository
         sessionRepository.logSleepEvent(eventType: eventType, notes: nil)
         provideHapticFeedback(.success)
-        
+
         return FlicActionResult(
             gesture: gesture,
             action: FlicAction(rawValue: "log_\(eventType)") ?? .none,
@@ -376,51 +256,80 @@ final class FlicButtonService: ObservableObject {
             canUndo: false
         )
     }
-    
+
     /// Handle skip action
     private func handleSkip(gesture: FlicGesture) async -> FlicActionResult {
-        let context = currentContext
-        
-        guard case .skipEnabled = context.skip else {
+        guard let coordinator else {
+            provideHapticFeedback(.error)
+            return commandUnavailableResult(action: .skip, gesture: gesture)
+        }
+
+        let result = await coordinator.skipDose()
+        return await flicResult(from: result, action: .skip, gesture: gesture, canUndoOnSuccess: true)
+    }
+
+    private func flicResult(
+        from result: DoseActionCoordinator.ActionResult,
+        action: FlicAction,
+        gesture: FlicGesture,
+        canUndoOnSuccess: Bool
+    ) async -> FlicActionResult {
+        switch result {
+        case .success(let message):
+            provideHapticFeedback(action == .skip ? .warning : .success)
+            return FlicActionResult(
+                gesture: gesture,
+                action: action,
+                success: true,
+                message: message,
+                canUndo: canUndoOnSuccess
+            )
+        case .needsConfirm(let type):
+            provideHapticFeedback(.error)
+            await notifyDoseConfirmationRequired(confirmationMessage(type))
+            return FlicActionResult(
+                gesture: gesture,
+                action: action,
+                success: false,
+                message: confirmationMessage(type),
+                canUndo: false
+            )
+        case .blocked(let reason):
             provideHapticFeedback(.error)
             return FlicActionResult(
                 gesture: gesture,
-                action: .skip,
+                action: action,
                 success: false,
-                message: "Skip not available",
+                message: reason,
                 canUndo: false
             )
         }
-        
-        // Skip via SSOT
-        sessionRepository.skipDose2()
-        AlarmService.shared.cancelAllAlarms()
-        AlarmService.shared.clearDose2AlarmState()
-        provideHapticFeedback(.warning)
-        
-        return FlicActionResult(
+    }
+
+    private func commandUnavailableResult(action: FlicAction, gesture: FlicGesture) -> FlicActionResult {
+        FlicActionResult(
             gesture: gesture,
-            action: .skip,
-            success: true,
-            message: "Dose 2 skipped",
-            canUndo: true
+            action: action,
+            success: false,
+            message: "Dose command service unavailable",
+            canUndo: false
         )
     }
-    
+
     // MARK: - Haptic Feedback
-    
+
     enum HapticType {
         case success
         case warning
         case error
     }
-    
+
     private func provideHapticFeedback(_ type: HapticType) {
         guard UserSettingsManager.shared.hapticsEnabled else { return }
-        
+
         #if canImport(UIKit)
         let generator: UINotificationFeedbackGenerator
-        
+
         switch type {
         case .success:
             generator = UINotificationFeedbackGenerator()
@@ -434,39 +343,65 @@ final class FlicButtonService: ObservableObject {
         }
         #endif
     }
-    
+
+    private func confirmationMessage(_ type: DoseActionCoordinator.ConfirmationType) -> String {
+        switch type {
+        case .earlyDose(let minutes):
+            return "Window opens in \(minutes)m - confirm in app"
+        case .lateDose:
+            return "Window closed - confirm in app"
+        case .afterSkip:
+            return "After skip - confirm in app"
+        case .extraDose:
+            return "Extra dose - confirm in app"
+        }
+    }
+
+    private func notifyDoseConfirmationRequired(_ message: String) async {
+        let content = UNMutableNotificationContent()
+        content.title = "Dose Confirmation Required"
+        content.body = message
+        content.sound = .default
+        let request = UNNotificationRequest(
+            identifier: "dosetap_flic_dose_confirm",
+            content: content,
+            trigger: nil
+        )
+        try? await UNUserNotificationCenter.current().add(request)
+    }
+
     // MARK: - Configuration Persistence
-    
+
     private let singlePressKey = "flic_single_press_action"
     private let doublePressKey = "flic_double_press_action"
     private let longHoldKey = "flic_long_hold_action"
-    
+
     func loadConfiguration() {
         let defaults = UserDefaults.standard
-        
+
         if let rawValue = defaults.string(forKey: singlePressKey),
            let action = FlicAction(rawValue: rawValue) {
             singlePressAction = action
         }
-        
+
         if let rawValue = defaults.string(forKey: doublePressKey),
            let action = FlicAction(rawValue: rawValue) {
             doublePressAction = action
         }
-        
+
         if let rawValue = defaults.string(forKey: longHoldKey),
            let action = FlicAction(rawValue: rawValue) {
             longHoldAction = action
         }
     }
-    
+
     func saveConfiguration() {
         let defaults = UserDefaults.standard
         defaults.set(singlePressAction.rawValue, forKey: singlePressKey)
         defaults.set(doublePressAction.rawValue, forKey: doublePressKey)
         defaults.set(longHoldAction.rawValue, forKey: longHoldKey)
     }
-    
+
     /// Reset to default configuration per SSOT
     func resetToDefaults() {
         singlePressAction = .takeDose
@@ -474,16 +409,16 @@ final class FlicButtonService: ObservableObject {
         longHoldAction = .undo
         saveConfiguration()
     }
-    
+
     // MARK: - Pairing (Stub - requires Flic SDK)
-    
+
     /// Begin Flic button pairing process
     /// Note: Actual implementation requires Flic SDK integration
     func startPairing() {
         // Stub - would call Flic SDK's pairing manager
         flicLog.debug("Starting pairing (stub)")
     }
-    
+
     /// Unpair the current Flic button
     func unpair() {
         isPaired = false
@@ -491,7 +426,7 @@ final class FlicButtonService: ObservableObject {
         batteryLevel = nil
         flicLog.debug("Unpaired button")
     }
-    
+
     /// Simulate a button press (for testing)
     func simulateGesture(_ gesture: FlicGesture) async -> FlicActionResult {
         flicLog.debug("Simulating \(gesture.rawValue, privacy: .public)")
@@ -508,7 +443,7 @@ struct FlicButtonSettingsView: View {
     @State private var showPairingSheet = false
     @State private var showTestResult = false
     @State private var lastTestResult: FlicButtonService.FlicActionResult?
-    
+
     var body: some View {
         List {
             // Connection Status Section
@@ -528,7 +463,7 @@ struct FlicButtonSettingsView: View {
                             .foregroundColor(.secondary)
                     }
                 }
-                
+
                 if service.isPaired, let battery = service.batteryLevel {
                     HStack {
                         Label("Battery", systemImage: batteryIcon(battery))
@@ -537,11 +472,11 @@ struct FlicButtonSettingsView: View {
                             .foregroundColor(battery < 20 ? .red : .secondary)
                     }
                 }
-                
+
                 Button(service.isPaired ? "Re-pair Button" : "Pair Flic Button") {
                     showPairingSheet = true
                 }
-                
+
                 if service.isPaired {
                     Button("Unpair", role: .destructive) {
                         service.unpair()
@@ -550,7 +485,7 @@ struct FlicButtonSettingsView: View {
             } header: {
                 Label("Connection", systemImage: "antenna.radiowaves.left.and.right")
             }
-            
+
             // Gesture Configuration Section
             Section {
                 actionPicker(
@@ -558,19 +493,19 @@ struct FlicButtonSettingsView: View {
                     icon: "hand.tap.fill",
                     selection: $service.singlePressAction
                 )
-                
+
                 actionPicker(
                     title: "Double Press",
                     icon: "hand.tap.fill",
                     selection: $service.doublePressAction
                 )
-                
+
                 actionPicker(
                     title: "Long Hold",
                     icon: "hand.raised.fill",
                     selection: $service.longHoldAction
                 )
-                
+
                 Button("Reset to Defaults") {
                     service.resetToDefaults()
                 }
@@ -580,7 +515,7 @@ struct FlicButtonSettingsView: View {
             } footer: {
                 Text("Default: Single=Dose, Double=Snooze, Hold=Undo")
             }
-            
+
             // Test Section
             Section {
                 Button("Test Single Press") {
@@ -608,7 +543,7 @@ struct FlicButtonSettingsView: View {
             FlicPairingView()
         }
     }
-    
+
     private func actionPicker(
         title: String,
         icon: String,
@@ -623,7 +558,7 @@ struct FlicButtonSettingsView: View {
             Label(title, systemImage: icon)
         }
     }
-    
+
     private func batteryIcon(_ level: Int) -> String {
         switch level {
         case 0..<25: return "battery.25"
@@ -632,7 +567,7 @@ struct FlicButtonSettingsView: View {
         default: return "battery.100"
         }
     }
-    
+
     private func testGesture(_ gesture: FlicButtonService.FlicGesture) {
         Task {
             lastTestResult = await service.simulateGesture(gesture)
@@ -646,27 +581,27 @@ struct FlicPairingView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var isPairing = false
     @State private var pairingStatus = "Press and hold your Flic button..."
-    
+
     var body: some View {
         NavigationView {
             VStack(spacing: 30) {
                 Image(systemName: "button.programmable")
                     .font(.system(size: 80))
                     .foregroundColor(.blue)
-                
+
                 Text("Pair Flic Button")
                     .font(.title)
-                
+
                 Text(pairingStatus)
                     .font(.body)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
-                
+
                 if isPairing {
                     ProgressView()
                         .scaleEffect(1.5)
                 }
-                
+
                 VStack(alignment: .leading, spacing: 12) {
                     instructionRow(number: 1, text: "Hold your Flic button for 7 seconds")
                     instructionRow(number: 2, text: "Release when LED starts flashing")
@@ -677,14 +612,14 @@ struct FlicPairingView: View {
                     RoundedRectangle(cornerRadius: 12)
                         .fill(Color(.systemGray6))
                 )
-                
+
                 Button(action: startPairing) {
                     Text(isPairing ? "Pairing..." : "Start Pairing")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(isPairing)
-                
+
                 Spacer()
             }
             .padding()
@@ -697,7 +632,7 @@ struct FlicPairingView: View {
             }
         }
     }
-    
+
     private func instructionRow(number: Int, text: String) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Text("\(number)")
@@ -705,16 +640,16 @@ struct FlicPairingView: View {
                 .foregroundColor(.white)
                 .frame(width: 24, height: 24)
                 .background(Circle().fill(Color.blue))
-            
+
             Text(text)
                 .font(.subheadline)
         }
     }
-    
+
     private func startPairing() {
         isPairing = true
         pairingStatus = "Searching for Flic button..."
-        
+
         // Simulate pairing (real implementation needs Flic SDK)
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
             pairingStatus = "Flic SDK not integrated (stub)"

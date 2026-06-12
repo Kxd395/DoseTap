@@ -9,6 +9,7 @@
 import XCTest
 @testable import DoseTap
 import DoseCore
+import UIKit
 
 // MARK: - UI Smoke Tests
 
@@ -40,9 +41,9 @@ final class UISmokeTests: XCTestCase {
     }
     
     func test_tonightEmptyState_afterSessionDelete() async throws {
-        repo.setDose1Time(Date().addingTimeInterval(-180 * 60))
-        repo.setDose2Time(Date().addingTimeInterval(-15 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-180 * 60))
         repo.incrementSnooze()
+        repo.setDose2Time(fixedNow.addingTimeInterval(-15 * 60))
         
         let sessionDate = repo.currentSessionDateString()
         
@@ -108,6 +109,44 @@ final class UISmokeTests: XCTestCase {
     }
 }
 
+@MainActor
+final class AppScreenCaptureTests: XCTestCase {
+    func test_bestFullPageScrollView_prefersVisibleVerticalContentOverPagingScrollView() {
+        let root = UIView(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+
+        let pageScrollView = UIScrollView(frame: root.bounds)
+        pageScrollView.contentSize = CGSize(width: 390 * 5, height: 844)
+        root.addSubview(pageScrollView)
+
+        let contentScrollView = UIScrollView(frame: CGRect(x: 0, y: 80, width: 390, height: 700))
+        contentScrollView.contentSize = CGSize(width: 390, height: 1_600)
+        root.addSubview(contentScrollView)
+
+        let selected = AppScreenCapture.bestFullPageScrollView(in: root)
+
+        XCTAssertTrue(selected === contentScrollView)
+    }
+
+    func test_bestFullPageScrollView_returnsNilWithoutVerticalOverflow() {
+        let root = UIView(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        let scrollView = UIScrollView(frame: root.bounds)
+        scrollView.contentSize = root.bounds.size
+        root.addSubview(scrollView)
+
+        XCTAssertNil(AppScreenCapture.bestFullPageScrollView(in: root))
+    }
+
+    func test_bestFullPageScrollView_ignoresHiddenScrollableContent() {
+        let root = UIView(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        let scrollView = UIScrollView(frame: root.bounds)
+        scrollView.contentSize = CGSize(width: 390, height: 1_600)
+        scrollView.isHidden = true
+        root.addSubview(scrollView)
+
+        XCTAssertNil(AppScreenCapture.bestFullPageScrollView(in: root))
+    }
+}
+
 // MARK: - Full UI State Tests
 
 @MainActor
@@ -142,28 +181,28 @@ final class UIStateTests: XCTestCase {
     func test_phaseTransitions_fullCycle() async throws {
         XCTAssertEqual(repo.currentContext.phase, .noDose1, "Initial phase should be noDose1")
         
-        let dose1Time = Date().addingTimeInterval(-100 * 60)
+        let dose1Time = fixedNow.addingTimeInterval(-100 * 60)
         repo.setDose1Time(dose1Time)
         XCTAssertEqual(repo.currentContext.phase, .beforeWindow, "Should be beforeWindow when window not open")
         
-        repo.setDose1Time(Date().addingTimeInterval(-155 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-155 * 60))
         XCTAssertEqual(repo.currentContext.phase, .active, "Should be active when in window")
         
-        repo.setDose1Time(Date().addingTimeInterval(-235 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-235 * 60))
         XCTAssertEqual(repo.currentContext.phase, .nearClose, "Should be nearClose near window end")
         
-        repo.setDose1Time(Date().addingTimeInterval(-250 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-250 * 60))
         XCTAssertEqual(repo.currentContext.phase, .closed, "Should be closed past window")
     }
     
     func test_completedPhase_afterDose2() async throws {
-        repo.setDose1Time(Date().addingTimeInterval(-160 * 60))
-        repo.setDose2Time(Date())
+        repo.setDose1Time(fixedNow.addingTimeInterval(-160 * 60))
+        repo.setDose2Time(fixedNow)
         XCTAssertEqual(repo.currentContext.phase, .completed, "Should be completed after dose2")
     }
     
     func test_completedPhase_afterSkip() async throws {
-        repo.setDose1Time(Date().addingTimeInterval(-160 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-160 * 60))
         repo.skipDose2()
         XCTAssertEqual(repo.currentContext.phase, .completed, "Should be completed after skip")
     }
@@ -191,19 +230,19 @@ final class UIStateTests: XCTestCase {
     // MARK: - Snooze State Tests
     
     func test_snoozeState_throughCycles() async throws {
-        repo.setDose1Time(Date().addingTimeInterval(-155 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-155 * 60))
         
         if case .snoozeEnabled = repo.currentContext.snooze {
         } else {
             XCTFail("Snooze should be enabled initially")
         }
-        repo.incrementSnooze()
+        XCTAssertTrue(repo.incrementSnoozeIfActive())
         XCTAssertEqual(repo.snoozeCount, 1)
         
-        repo.incrementSnooze()
+        XCTAssertTrue(repo.incrementSnoozeIfActive())
         XCTAssertEqual(repo.snoozeCount, 2)
         
-        repo.incrementSnooze()
+        XCTAssertTrue(repo.incrementSnoozeIfActive())
         XCTAssertEqual(repo.snoozeCount, 3)
         if case .snoozeDisabled = repo.currentContext.snooze {
         } else {
@@ -212,7 +251,7 @@ final class UIStateTests: XCTestCase {
     }
     
     func test_snoozeDisabled_nearWindowEnd() async throws {
-        repo.setDose1Time(Date().addingTimeInterval(-230 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-230 * 60))
         if case .snoozeDisabled = repo.currentContext.snooze {
         } else {
             XCTFail("Snooze should be disabled when <15 min remain")
@@ -222,7 +261,7 @@ final class UIStateTests: XCTestCase {
     // MARK: - Skip State Tests
     
     func test_skipState_enabledInActiveWindow() async throws {
-        repo.setDose1Time(Date().addingTimeInterval(-155 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-155 * 60))
         if case .skipEnabled = repo.currentContext.skip {
         } else {
             XCTFail("Skip should be enabled in active window")
@@ -230,7 +269,7 @@ final class UIStateTests: XCTestCase {
     }
     
     func test_skipState_disabledAfterSkip() async throws {
-        repo.setDose1Time(Date().addingTimeInterval(-155 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-155 * 60))
         repo.skipDose2()
         if case .skipDisabled = repo.currentContext.skip {
         } else {
@@ -246,7 +285,7 @@ final class UIStateTests: XCTestCase {
             XCTFail("Primary should be disabled without dose1")
         }
         
-        repo.setDose1Time(Date().addingTimeInterval(-155 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-155 * 60))
         switch repo.currentContext.primary {
         case .takeNow, .takeBeforeWindowEnds:
             break
@@ -254,7 +293,7 @@ final class UIStateTests: XCTestCase {
             XCTFail("Primary should be take action in active window")
         }
         
-        repo.setDose2Time(Date())
+        repo.setDose2Time(fixedNow)
         if case .disabled = repo.currentContext.primary {
         } else {
             XCTFail("Primary should be disabled after completion")
@@ -262,7 +301,7 @@ final class UIStateTests: XCTestCase {
     }
 
     func test_primaryCTA_closedPhase_requiresOverride() async throws {
-        repo.setDose1Time(Date().addingTimeInterval(-250 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-250 * 60))
         XCTAssertEqual(repo.currentContext.phase, .closed)
 
         switch repo.currentContext.primary {
@@ -300,7 +339,7 @@ final class UIStateTests: XCTestCase {
     // MARK: - Timer Display Tests
     
     func test_remainingTime_availableInWindow() async throws {
-        repo.setDose1Time(Date().addingTimeInterval(-155 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-155 * 60))
         let remaining = repo.currentContext.remainingToMax
         XCTAssertNotNil(remaining, "Should have remainingToMax in window")
         if let secs = remaining {

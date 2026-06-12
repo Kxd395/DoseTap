@@ -10,9 +10,13 @@ Run the automated preflight script to verify all gate-able items at once:
 bash tools/release_preflight.sh v1.2.3
 ```
 
-This checks: tag format, SSOT integrity, no tracked secrets, no hardcoded credentials,
-certificate pin validation, mock transport confinement, CHANGELOG updated, SwiftPM
-build + tests. The same script runs on CI for tag pushes.
+The tagged form is strict: missing or invalid `DOSETAP_CERT_PINS` blocks the
+preflight. Untagged runs are local dry runs and only warn when pins are missing.
+
+This checks: tag format, app version/build settings, SSOT integrity, no tracked
+secrets, no hardcoded credentials, certificate pin validation, mock transport
+confinement, CHANGELOG updated, SwiftPM build + tests. The same script runs on CI
+for tag pushes.
 
 ## Automated (CI must be green)
 
@@ -21,6 +25,7 @@ build + tests. The same script runs on CI for tag pushes.
 - [ ] `xcode-tests` — All SessionRepository and app-level tests pass
 - [ ] `release-pin-script-tests` — Pin validation script regression checks pass
 - [ ] `release-pinning-check` — (tag builds only) Release preflight + real pin validation + Release build
+- [ ] `app-version-check` - `bash tools/check_app_version.sh` passes for `DoseTap` and `DoseTapStaging`
 - [ ] Secret scanning — No `Secrets.swift` tracked, no hardcoded credentials in source
 - [ ] Mock transport guard — `MockAPITransport` confined to `#if DEBUG`
 
@@ -48,7 +53,8 @@ build + tests. The same script runs on CI for tag pushes.
 
 ## Final Sign-off
 
-- [ ] Version number bumped in Xcode project
+- [ ] Version and build numbers bumped in Xcode project
+- [ ] `bash tools/check_app_version.sh` passes
 - [ ] CHANGELOG.md updated with release notes
 - [ ] Tag created: `git tag -a vX.Y.Z -m "Release X.Y.Z"`
 - [ ] Archive uploaded to App Store Connect (if production release)

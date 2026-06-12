@@ -6,7 +6,8 @@ This runbook is for the point when Apple Developer CloudKit capability propagati
 
 - Shipping target: `DoseTap` (local-first, no CloudKit sync action)
 - Cloud validation target: `DoseTapStaging`
-- Bundle ID: `com.dosetap.ios`
+- Shipping bundle ID: `com.dosetap.ios`
+- Cloud validation bundle ID: `com.dosetap.staging`
 - CloudKit container: `iCloud.com.dosetap.ios`
 - Current sync implementation: dashboard-driven private-database sync for session summary, sleep events, dose events, and morning check-ins
 
@@ -20,8 +21,8 @@ Run the local config check before touching a device:
 
 Expected result:
 
-- `DoseTapStaging` reports `DoseTap/DoseTap.Cloud.entitlements`
-- `DoseTapStaging` reports `INFOPLIST_KEY_DoseTapCloudSyncEnabled = YES`
+- `DoseTapStaging` Debug and Release report `DoseTap/DoseTap.Cloud.entitlements`
+- `DoseTapStaging` Debug and Release report `INFOPLIST_KEY_DoseTapCloudSyncEnabled = YES`
 - Local-first `DoseTap` reports `DoseTap/DoseTap.Local.entitlements`
 - Local-first `DoseTap` reports `INFOPLIST_KEY_DoseTapCloudSyncEnabled = NO`
 - Entitlements report container `iCloud.com.dosetap.ios`
@@ -30,10 +31,11 @@ Expected result:
 
 Verify these in the Apple Developer portal and Xcode signing UI:
 
-1. The `com.dosetap.ios` App ID has iCloud capability enabled.
-2. The CloudKit container `iCloud.com.dosetap.ios` exists and is attached to the App ID.
-3. The device test account is signed into iCloud.
-4. The Team used by Xcode matches the App ID owner.
+1. The `com.dosetap.ios` App ID stays local-first unless production sync is explicitly approved later.
+2. The `com.dosetap.staging` App ID has iCloud capability enabled.
+3. The CloudKit container `iCloud.com.dosetap.ios` exists and is attached to the staging App ID.
+4. The device test account is signed into iCloud.
+5. The Team used by Xcode matches the App ID owner.
 
 If propagation only started on March 8, 2026, do not treat failures before March 10, 2026 as conclusive.
 
@@ -85,7 +87,7 @@ Expected current behavior:
 On simulator or device container, compare row counts and sample session keys:
 
 ```bash
-APP_DATA="$(xcrun simctl get_app_container booted com.dosetap.ios data)"
+APP_DATA="$(xcrun simctl get_app_container booted com.dosetap.staging data)"
 DB_PATH="$(find "$APP_DATA" -name '*.sqlite' | head -n 1)"
 sqlite3 "$DB_PATH" "SELECT 'sleep_events', COUNT(*) FROM sleep_events
 UNION ALL SELECT 'dose_events', COUNT(*) FROM dose_events

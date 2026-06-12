@@ -172,6 +172,13 @@ extension EventStorage {
             record_name TEXT NOT NULL,
             created_at TEXT NOT NULL
         );
+
+        -- Database-scoped migration ledger. UserDefaults flags are not enough
+        -- because the SQLite file can be restored or moved independently.
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+            id TEXT PRIMARY KEY,
+            applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
         
         -- Indexes for performance
         CREATE INDEX IF NOT EXISTS idx_sleep_events_session ON sleep_events(session_date);
@@ -224,127 +231,166 @@ extension EventStorage {
         // Migration: Add new columns to existing tables (safe to run multiple times)
         migrateDatabase()
         migrateEventTypesIfNeeded()
+        migrateBriefWakeAliasIfNeeded()
         migrateSessionIdsToUUIDIfNeeded()
         deduplicateLegacyEntriesIfNeeded()
+        applyCurrentSchemaUserVersion()
     }
     
     /// Add new columns if they don't exist (safe migration)
     private func migrateDatabase() {
         let migrations = [
             // Morning check-in sleep therapy columns
-            "ALTER TABLE morning_checkins ADD COLUMN used_sleep_therapy INTEGER NOT NULL DEFAULT 0",
-            "ALTER TABLE morning_checkins ADD COLUMN sleep_therapy_json TEXT",
+            AddColumnMigration(table: "morning_checkins", column: "used_sleep_therapy", sql: "ALTER TABLE morning_checkins ADD COLUMN used_sleep_therapy INTEGER NOT NULL DEFAULT 0"),
+            AddColumnMigration(table: "morning_checkins", column: "sleep_therapy_json", sql: "ALTER TABLE morning_checkins ADD COLUMN sleep_therapy_json TEXT"),
             // P0: Session terminal state - distinguishes: completed, skipped, expired, aborted
-            "ALTER TABLE current_session ADD COLUMN terminal_state TEXT",
+            AddColumnMigration(table: "current_session", column: "terminal_state", sql: "ALTER TABLE current_session ADD COLUMN terminal_state TEXT"),
             // Session lifecycle metadata (non-calendar)
-            "ALTER TABLE current_session ADD COLUMN session_id TEXT",
-            "ALTER TABLE current_session ADD COLUMN session_start_utc TEXT",
-            "ALTER TABLE current_session ADD COLUMN session_end_utc TEXT",
+            AddColumnMigration(table: "current_session", column: "session_id", sql: "ALTER TABLE current_session ADD COLUMN session_id TEXT"),
+            AddColumnMigration(table: "current_session", column: "session_start_utc", sql: "ALTER TABLE current_session ADD COLUMN session_start_utc TEXT"),
+            AddColumnMigration(table: "current_session", column: "session_end_utc", sql: "ALTER TABLE current_session ADD COLUMN session_end_utc TEXT"),
             // Session identity on events
-            "ALTER TABLE sleep_events ADD COLUMN session_id TEXT",
-            "ALTER TABLE dose_events ADD COLUMN session_id TEXT",
+            AddColumnMigration(table: "sleep_events", column: "session_id", sql: "ALTER TABLE sleep_events ADD COLUMN session_id TEXT"),
+            AddColumnMigration(table: "dose_events", column: "session_id", sql: "ALTER TABLE dose_events ADD COLUMN session_id TEXT"),
             // Sleep Environment feature - captures sleep setup and aids for Morning Check-in
-            "ALTER TABLE morning_checkins ADD COLUMN has_sleep_environment INTEGER NOT NULL DEFAULT 0",
-            "ALTER TABLE morning_checkins ADD COLUMN sleep_environment_json TEXT",
-            "ALTER TABLE morning_checkins ADD COLUMN stress_level INTEGER",
-            "ALTER TABLE morning_checkins ADD COLUMN stress_context_json TEXT",
-            "ALTER TABLE morning_checkins ADD COLUMN timing_context_json TEXT",
+            AddColumnMigration(table: "morning_checkins", column: "has_sleep_environment", sql: "ALTER TABLE morning_checkins ADD COLUMN has_sleep_environment INTEGER NOT NULL DEFAULT 0"),
+            AddColumnMigration(table: "morning_checkins", column: "sleep_environment_json", sql: "ALTER TABLE morning_checkins ADD COLUMN sleep_environment_json TEXT"),
+            AddColumnMigration(table: "morning_checkins", column: "stress_level", sql: "ALTER TABLE morning_checkins ADD COLUMN stress_level INTEGER"),
+            AddColumnMigration(table: "morning_checkins", column: "stress_context_json", sql: "ALTER TABLE morning_checkins ADD COLUMN stress_context_json TEXT"),
+            AddColumnMigration(table: "morning_checkins", column: "timing_context_json", sql: "ALTER TABLE morning_checkins ADD COLUMN timing_context_json TEXT"),
             // Dose 3 Hazard Safety: Add hazard flag to dose_events
-            "ALTER TABLE dose_events ADD COLUMN is_hazard INTEGER DEFAULT 0",
+            AddColumnMigration(table: "dose_events", column: "is_hazard", sql: "ALTER TABLE dose_events ADD COLUMN is_hazard INTEGER DEFAULT 0"),
             // Medication events schema v2: Add missing columns
-            "ALTER TABLE medication_events ADD COLUMN dose_unit TEXT NOT NULL DEFAULT 'mg'",
-            "ALTER TABLE medication_events ADD COLUMN formulation TEXT NOT NULL DEFAULT 'ir'",
-            "ALTER TABLE medication_events ADD COLUMN local_offset_minutes INTEGER NOT NULL DEFAULT 0"
+            AddColumnMigration(table: "medication_events", column: "dose_unit", sql: "ALTER TABLE medication_events ADD COLUMN dose_unit TEXT NOT NULL DEFAULT 'mg'"),
+            AddColumnMigration(table: "medication_events", column: "formulation", sql: "ALTER TABLE medication_events ADD COLUMN formulation TEXT NOT NULL DEFAULT 'ir'"),
+            AddColumnMigration(table: "medication_events", column: "local_offset_minutes", sql: "ALTER TABLE medication_events ADD COLUMN local_offset_minutes INTEGER NOT NULL DEFAULT 0")
         ]
         
-        for sql in migrations {
-            var errMsg: UnsafeMutablePointer<CChar>?
-            // Ignore errors (column already exists)
-            sqlite3_exec(db, sql, nil, nil, &errMsg)
-            if errMsg != nil {
-                sqlite3_free(errMsg)
-            }
+        for migration in migrations where !columnExists(migration.column, in: migration.table) {
+            executeSchemaStatement(migration.sql)
         }
         
         // Backfill NULL session_id values (P0 data integrity fix)
         backfillNullSessionIds()
     }
 
+    private struct AddColumnMigration {
+        let table: String
+        let column: String
+        let sql: String
+    }
+
+    private func columnExists(_ column: String, in table: String) -> Bool {
+        let sql = "PRAGMA table_info(\(table))"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            storageLog.error("Failed to inspect schema for \(table).\(column): \(String(cString: sqlite3_errmsg(self.db)))")
+            return false
+        }
+        defer { sqlite3_finalize(stmt) }
+
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            guard let namePtr = sqlite3_column_text(stmt, 1) else { continue }
+            if String(cString: namePtr).caseInsensitiveCompare(column) == .orderedSame {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    private func executeSchemaStatement(_ sql: String) {
+        var errMsg: UnsafeMutablePointer<CChar>?
+        if sqlite3_exec(db, sql, nil, nil, &errMsg) != SQLITE_OK, let errMsg {
+            storageLog.error("Schema migration failed: \(String(cString: errMsg))")
+        }
+        if errMsg != nil {
+            sqlite3_free(errMsg)
+        }
+    }
+
     // MARK: - Event Type Normalization Migration
 
     private func migrateEventTypesIfNeeded() {
-        let flagKey = "event_types_normalized_v1"
-        guard !UserDefaults.standard.bool(forKey: flagKey) else { return }
+        runSchemaMigration(id: "event_types_normalized_v1", userDefaultsKey: "event_types_normalized_v1") {
+            let updates = [
+                // Lights out
+                "UPDATE sleep_events SET event_type = 'lights_out' WHERE lower(event_type) IN ('lights out', 'lightsout', 'lights_out', 'lightout')",
+                // Brief wake
+                "UPDATE sleep_events SET event_type = 'wake_temp' WHERE lower(event_type) IN ('brief wake', 'briefwake', 'brief_wake')",
+                // In bed
+                "UPDATE sleep_events SET event_type = 'in_bed' WHERE lower(event_type) IN ('in bed', 'inbed', 'in_bed')",
+                // Heart racing
+                "UPDATE sleep_events SET event_type = 'heart_racing' WHERE lower(event_type) IN ('heart racing', 'heartracing', 'heart_racing')",
+                // Nap start/end
+                "UPDATE sleep_events SET event_type = 'nap_start' WHERE lower(event_type) IN ('nap start', 'napstart', 'nap_start')",
+                "UPDATE sleep_events SET event_type = 'nap_end' WHERE lower(event_type) IN ('nap end', 'napend', 'nap_end')",
+                // Wake final variants
+                "UPDATE sleep_events SET event_type = 'wake_final' WHERE lower(event_type) IN ('wake final', 'wakefinal', 'wake_final', 'wake up', 'wakeup')",
+                // Common canonical lowercase for simple types
+                "UPDATE sleep_events SET event_type = lower(event_type) WHERE lower(event_type) IN ('bathroom','water','snack','pain','anxiety','noise','dream','temperature')"
+            ]
 
-        let updates = [
-            // Lights out
-            "UPDATE sleep_events SET event_type = 'lights_out' WHERE lower(event_type) IN ('lights out', 'lightsout', 'lights_out', 'lightout')",
-            // Brief wake
-            "UPDATE sleep_events SET event_type = 'brief_wake' WHERE lower(event_type) IN ('brief wake', 'briefwake', 'brief_wake')",
-            // In bed
-            "UPDATE sleep_events SET event_type = 'in_bed' WHERE lower(event_type) IN ('in bed', 'inbed', 'in_bed')",
-            // Heart racing
-            "UPDATE sleep_events SET event_type = 'heart_racing' WHERE lower(event_type) IN ('heart racing', 'heartracing', 'heart_racing')",
-            // Nap start/end
-            "UPDATE sleep_events SET event_type = 'nap_start' WHERE lower(event_type) IN ('nap start', 'napstart', 'nap_start')",
-            "UPDATE sleep_events SET event_type = 'nap_end' WHERE lower(event_type) IN ('nap end', 'napend', 'nap_end')",
-            // Wake final variants
-            "UPDATE sleep_events SET event_type = 'wake_final' WHERE lower(event_type) IN ('wake final', 'wakefinal', 'wake_final', 'wake up', 'wakeup')",
-            // Common canonical lowercase for simple types
-            "UPDATE sleep_events SET event_type = lower(event_type) WHERE lower(event_type) IN ('bathroom','water','snack','pain','anxiety','noise','dream','temperature')"
-        ]
+            let deleteDoseEvents = """
+            DELETE FROM sleep_events
+            WHERE lower(event_type) IN (
+                'dose 1','dose1','dose_1','dose1_taken',
+                'dose 2','dose2','dose_2','dose2_taken',
+                'dose 2 (early)','dose2 (early)','dose2_early',
+                'dose 2 (late)','dose2 (late)','dose2_late',
+                'dose 2 skipped','dose2 skipped','dose2_skipped','dose2skipped',
+                'extra dose','extra_dose'
+            )
+            """
 
-        let deleteDoseEvents = """
-        DELETE FROM sleep_events
-        WHERE lower(event_type) IN (
-            'dose 1','dose1','dose_1','dose1_taken',
-            'dose 2','dose2','dose_2','dose2_taken',
-            'dose 2 (early)','dose2 (early)','dose2_early',
-            'dose 2 (late)','dose2 (late)','dose2_late',
-            'dose 2 skipped','dose2 skipped','dose2_skipped','dose2skipped',
-            'extra dose','extra_dose'
-        )
-        """
+            sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
+            for sql in updates {
+                sqlite3_exec(db, sql, nil, nil, nil)
+            }
+            sqlite3_exec(db, deleteDoseEvents, nil, nil, nil)
+            sqlite3_exec(db, "COMMIT", nil, nil, nil)
 
-        sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
-        for sql in updates {
-            sqlite3_exec(db, sql, nil, nil, nil)
+            storageLog.info("EventStorage: Normalized sleep_events types and purged dose rows")
         }
-        sqlite3_exec(db, deleteDoseEvents, nil, nil, nil)
-        sqlite3_exec(db, "COMMIT", nil, nil, nil)
+    }
 
-        UserDefaults.standard.set(true, forKey: flagKey)
-        storageLog.info("EventStorage: Normalized sleep_events types and purged dose rows")
+    private func migrateBriefWakeAliasIfNeeded() {
+        runSchemaMigration(id: "brief_wake_alias_migration_v1", userDefaultsKey: "brief_wake_alias_migration_v1") {
+            sqlite3_exec(
+                db,
+                "UPDATE sleep_events SET event_type = 'wake_temp' WHERE lower(event_type) = 'brief_wake'",
+                nil,
+                nil,
+                nil
+            )
+
+            storageLog.info("EventStorage: Migrated brief_wake aliases to wake_temp")
+        }
     }
 
     // MARK: - Session ID UUID Migration
 
     private func migrateSessionIdsToUUIDIfNeeded() {
-        let flagKey = "session_id_uuid_migration_v1"
-        guard !UserDefaults.standard.bool(forKey: flagKey) else { return }
+        runSchemaMigration(id: "session_id_uuid_migration_v1", userDefaultsKey: "session_id_uuid_migration_v1") {
+            let legacyIds = fetchLegacySessionIds()
+            guard !legacyIds.isEmpty else { return }
 
-        let legacyIds = fetchLegacySessionIds()
-        guard !legacyIds.isEmpty else {
-            UserDefaults.standard.set(true, forKey: flagKey)
-            return
+            sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
+            for legacyId in legacyIds {
+                let newId = deterministicSessionUUID(for: legacyId)
+                if legacyId == newId { continue }
+                updateSessionId(in: "dose_events", oldId: legacyId, newId: newId)
+                updateSessionId(in: "sleep_events", oldId: legacyId, newId: newId)
+                updateSessionId(in: "sleep_sessions", oldId: legacyId, newId: newId)
+                updateSessionId(in: "current_session", oldId: legacyId, newId: newId)
+                updateSessionId(in: "morning_checkins", oldId: legacyId, newId: newId)
+                updateSessionId(in: "pre_sleep_logs", oldId: legacyId, newId: newId)
+                updateSessionId(in: "medication_events", oldId: legacyId, newId: newId)
+            }
+            sqlite3_exec(db, "COMMIT", nil, nil, nil)
+
+            storageLog.info("EventStorage: Migrated \(legacyIds.count) legacy session IDs to UUIDs")
         }
-
-        sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
-        for legacyId in legacyIds {
-            let newId = deterministicSessionUUID(for: legacyId)
-            if legacyId == newId { continue }
-            updateSessionId(in: "dose_events", oldId: legacyId, newId: newId)
-            updateSessionId(in: "sleep_events", oldId: legacyId, newId: newId)
-            updateSessionId(in: "sleep_sessions", oldId: legacyId, newId: newId)
-            updateSessionId(in: "current_session", oldId: legacyId, newId: newId)
-            updateSessionId(in: "morning_checkins", oldId: legacyId, newId: newId)
-            updateSessionId(in: "pre_sleep_logs", oldId: legacyId, newId: newId)
-            updateSessionId(in: "medication_events", oldId: legacyId, newId: newId)
-        }
-        sqlite3_exec(db, "COMMIT", nil, nil, nil)
-
-        UserDefaults.standard.set(true, forKey: flagKey)
-        storageLog.info("EventStorage: Migrated \(legacyIds.count) legacy session IDs to UUIDs")
     }
 
     private func fetchLegacySessionIds() -> [String] {
@@ -405,36 +451,76 @@ extension EventStorage {
     // MARK: - Deduplication
 
     private func deduplicateLegacyEntriesIfNeeded() {
-        let flagKey = "event_deduplication_v1"
-        guard !UserDefaults.standard.bool(forKey: flagKey) else { return }
+        runSchemaMigration(id: "event_deduplication_v1", userDefaultsKey: "event_deduplication_v1") {
+            let statements = [
+                """
+                DELETE FROM dose_events
+                WHERE rowid NOT IN (
+                    SELECT MIN(rowid)
+                    FROM dose_events
+                    GROUP BY event_type, session_id, SUBSTR(timestamp, 1, 22)
+                )
+                """,
+                """
+                DELETE FROM sleep_events
+                WHERE rowid NOT IN (
+                    SELECT MIN(rowid)
+                    FROM sleep_events
+                    GROUP BY event_type, session_id, SUBSTR(timestamp, 1, 22)
+                )
+                """
+            ]
 
-        let statements = [
-            """
-            DELETE FROM dose_events
-            WHERE rowid NOT IN (
-                SELECT MIN(rowid)
-                FROM dose_events
-                GROUP BY event_type, session_id, SUBSTR(timestamp, 1, 22)
-            )
-            """,
-            """
-            DELETE FROM sleep_events
-            WHERE rowid NOT IN (
-                SELECT MIN(rowid)
-                FROM sleep_events
-                GROUP BY event_type, session_id, SUBSTR(timestamp, 1, 22)
-            )
-            """
-        ]
+            sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
+            for sql in statements {
+                sqlite3_exec(db, sql, nil, nil, nil)
+            }
+            sqlite3_exec(db, "COMMIT", nil, nil, nil)
 
-        sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
-        for sql in statements {
-            sqlite3_exec(db, sql, nil, nil, nil)
+            storageLog.info("EventStorage: Deduplicated legacy dose/sleep events")
         }
-        sqlite3_exec(db, "COMMIT", nil, nil, nil)
+    }
 
-        UserDefaults.standard.set(true, forKey: flagKey)
-        storageLog.info("EventStorage: Deduplicated legacy dose/sleep events")
+    // MARK: - Migration Ledger
+
+    private func runSchemaMigration(id: String, userDefaultsKey: String, _ operation: () -> Void) {
+        if hasAppliedSchemaMigration(id) { return }
+
+        if UserDefaults.standard.bool(forKey: userDefaultsKey) {
+            markSchemaMigrationApplied(id)
+            return
+        }
+
+        operation()
+        markSchemaMigrationApplied(id)
+        UserDefaults.standard.set(true, forKey: userDefaultsKey)
+    }
+
+    private func hasAppliedSchemaMigration(_ id: String) -> Bool {
+        let sql = "SELECT 1 FROM schema_migrations WHERE id = ? LIMIT 1"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return false }
+        defer { sqlite3_finalize(stmt) }
+
+        sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
+        return sqlite3_step(stmt) == SQLITE_ROW
+    }
+
+    private func markSchemaMigrationApplied(_ id: String) {
+        let sql = "INSERT OR IGNORE INTO schema_migrations (id, applied_at) VALUES (?, ?)"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(stmt) }
+
+        sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 2, isoFormatter.string(from: nowProvider()), -1, SQLITE_TRANSIENT)
+        sqlite3_step(stmt)
+    }
+
+    private func applyCurrentSchemaUserVersion() {
+        let currentVersion = getSchemaVersion()
+        guard currentVersion < EventStorage.schemaUserVersion else { return }
+        sqlite3_exec(db, "PRAGMA user_version = \(EventStorage.schemaUserVersion)", nil, nil, nil)
     }
     
     // MARK: - Session ID Backfill Migration

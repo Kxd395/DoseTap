@@ -6,13 +6,9 @@ import os.log
 
 // MARK: - Main Tab View with Swipe Navigation
 struct ContentView: View {
-    @StateObject private var core = DoseTapCore()
+    @EnvironmentObject private var container: AppContainer
     @EnvironmentObject private var settings: UserSettingsManager
-    @StateObject private var eventLogger = EventLogger.shared
-    @EnvironmentObject private var sessionRepo: SessionRepository
-    @StateObject private var undoState = UndoStateManager()
     @StateObject private var themeManager = ThemeManager.shared
-    @EnvironmentObject private var alarmService: AlarmService
     @ObservedObject private var urlRouter = URLRouter.shared
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var sharedPageImage: UIImage?
@@ -25,6 +21,12 @@ struct ContentView: View {
     /// `true` when running on iPad or in a regular-width environment (e.g. large iPhone landscape).
     private var usesSplitView: Bool { horizontalSizeClass == .regular }
     private var showsFloatingShareButton: Bool { urlRouter.selectedTab != .timeline }
+    private var core: DoseTapCore { container.core }
+    private var doseCoordinator: DoseActionCoordinator { container.doseCoordinator }
+    private var eventLogger: EventLogger { container.eventLogger }
+    private var undoState: UndoStateManager { container.undoState }
+    private var sessionRepo: SessionRepository { container.sessionRepository }
+    private var alarmService: AlarmService { container.alarmService }
     
     var body: some View {
         Group {
@@ -46,7 +48,7 @@ struct ContentView: View {
         .sheet(isPresented: $showPageShareSheet) {
             if let sharedPageImage {
                 CapturePreviewSheet(
-                    title: "Screen Capture",
+                    title: "Full Screen Capture",
                     image: sharedPageImage
                 ) {
                     self.sharedPageImage = nil
@@ -63,13 +65,6 @@ struct ContentView: View {
             }
         } message: {
             Text(pageShareErrorMessage ?? "Unknown error.")
-        }
-        .onAppear {
-            // P0 FIX: Wire DoseTapCore to SessionRepository (single source of truth)
-            core.setSessionRepository(sessionRepo)
-            urlRouter.core = core
-            urlRouter.eventLogger = eventLogger
-            setupUndoCallbacks()
         }
     }
 
@@ -107,7 +102,7 @@ struct ContentView: View {
     private func detailContent(for tab: AppTab) -> some View {
         switch tab {
         case .tonight:
-            LegacyTonightView(core: core, eventLogger: eventLogger, undoState: undoState)
+            LegacyTonightView(core: core, eventLogger: eventLogger, undoState: undoState, coordinator: doseCoordinator)
                 .environmentObject(themeManager)
                 .environmentObject(undoState)
         case .timeline:
@@ -126,13 +121,13 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Compact Layout (iPhone TabView — unchanged)
+    // MARK: - Compact Layout (iPhone TabView - unchanged)
 
     private var compactBody: some View {
         ZStack(alignment: .bottom) {
             // Swipeable Page View
             TabView(selection: $urlRouter.selectedTab) {
-                LegacyTonightView(core: core, eventLogger: eventLogger, undoState: undoState)
+                LegacyTonightView(core: core, eventLogger: eventLogger, undoState: undoState, coordinator: doseCoordinator)
                     .environmentObject(themeManager)
                     .environmentObject(undoState)
                     .tag(AppTab.tonight)
@@ -191,7 +186,7 @@ struct ContentView: View {
 
     private var shareButton: some View {
         Button {
-            shareVisiblePage()
+            shareCurrentPage()
         } label: {
             ZStack {
                 Circle()
@@ -208,80 +203,144 @@ struct ContentView: View {
         }
         .buttonStyle(.plain)
         .disabled(isPreparingPageShare)
-        .accessibilityLabel("Share current page screenshot")
+        .accessibilityLabel("Share current page capture")
     }
 
-    private func shareVisiblePage() {
+    private func shareCurrentPage() {
         guard !isPreparingPageShare else { return }
         isPreparingPageShare = true
         pageShareErrorMessage = nil
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-            if let image = captureCurrentWindowScreenshot() {
+            if let image = AppScreenCapture.captureActivePage() {
                 sharedPageImage = image
                 showPageShareSheet = true
             } else {
-                pageShareErrorMessage = "Could not capture the current screen."
+                pageShareErrorMessage = "Could not capture the current app screen."
             }
             isPreparingPageShare = false
         }
     }
+}
 
-    private func captureCurrentWindowScreenshot() -> UIImage? {
-        guard
-            let windowScene = UIApplication.shared.connectedScenes
-                .compactMap({ $0 as? UIWindowScene })
-                .first(where: { $0.activationState == .foregroundActive }),
-            let keyWindow = windowScene.windows.first(where: { $0.isKeyWindow }) ?? windowScene.windows.first
-        else {
+enum AppScreenCapture {
+    static func captureActivePage() -> UIImage? {
+        guard let keyWindow = activeKeyWindow() else {
             return nil
+        }
+
+        keyWindow.layoutIfNeeded()
+
+        if let scrollView = bestFullPageScrollView(in: keyWindow),
+           let image = captureFullContent(of: scrollView) {
+            return image
+        }
+
+        return captureVisibleWindow(keyWindow)
+    }
+
+    static func bestFullPageScrollView(in rootView: UIView) -> UIScrollView? {
+        scrollViews(in: rootView)
+            .filter { isFullPageCandidate($0, in: rootView) }
+            .max { lhs, rhs in
+                let lhsOverflow = lhs.contentSize.height - lhs.bounds.height
+                let rhsOverflow = rhs.contentSize.height - rhs.bounds.height
+                if lhsOverflow == rhsOverflow {
+                    return lhs.contentSize.height < rhs.contentSize.height
+                }
+                return lhsOverflow < rhsOverflow
+            }
+    }
+
+    private static func activeKeyWindow() -> UIWindow? {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive }?
+            .windows
+            .first { $0.isKeyWindow }
+    }
+
+    private static func scrollViews(in rootView: UIView) -> [UIScrollView] {
+        var results: [UIScrollView] = []
+        if let scrollView = rootView as? UIScrollView {
+            results.append(scrollView)
+        }
+        for subview in rootView.subviews {
+            results.append(contentsOf: scrollViews(in: subview))
+        }
+        return results
+    }
+
+    private static func isFullPageCandidate(_ scrollView: UIScrollView, in rootView: UIView) -> Bool {
+        guard !scrollView.isHidden,
+              scrollView.alpha > 0.01,
+              scrollView.bounds.width > 0,
+              scrollView.bounds.height > 0,
+              scrollView.contentSize.width > 0,
+              scrollView.contentSize.height > scrollView.bounds.height + 8 else {
+            return false
+        }
+
+        let rectInRoot = scrollView.convert(scrollView.bounds, to: rootView)
+        guard rectInRoot.intersects(rootView.bounds),
+              rectInRoot.width >= rootView.bounds.width * 0.45 else {
+            return false
+        }
+
+        let horizontalPagingOnly = scrollView.contentSize.width > scrollView.bounds.width * 1.5
+            && scrollView.contentSize.height <= scrollView.bounds.height + 8
+        return !horizontalPagingOnly
+    }
+
+    private static func captureFullContent(of scrollView: UIScrollView) -> UIImage? {
+        let contentSize = scrollView.contentSize
+        guard contentSize.width > 0, contentSize.height > 0 else {
+            return nil
+        }
+
+        let originalOffset = scrollView.contentOffset
+        let originalFrame = scrollView.frame
+        let originalBounds = scrollView.bounds
+        let originalShowsVertical = scrollView.showsVerticalScrollIndicator
+        let originalShowsHorizontal = scrollView.showsHorizontalScrollIndicator
+
+        scrollView.showsVerticalScrollIndicator = false
+        scrollView.showsHorizontalScrollIndicator = false
+        scrollView.contentOffset = .zero
+        scrollView.bounds = CGRect(origin: .zero, size: contentSize)
+        scrollView.frame = CGRect(origin: originalFrame.origin, size: contentSize)
+        scrollView.layoutIfNeeded()
+
+        defer {
+            scrollView.bounds = originalBounds
+            scrollView.frame = originalFrame
+            scrollView.contentOffset = originalOffset
+            scrollView.showsVerticalScrollIndicator = originalShowsVertical
+            scrollView.showsHorizontalScrollIndicator = originalShowsHorizontal
+            scrollView.layoutIfNeeded()
         }
 
         let format = UIGraphicsImageRendererFormat()
         format.scale = UIScreen.main.scale
-        let renderer = UIGraphicsImageRenderer(bounds: keyWindow.bounds, format: format)
-        return renderer.image { _ in
-            keyWindow.drawHierarchy(in: keyWindow.bounds, afterScreenUpdates: true)
+        format.opaque = scrollView.isOpaque
+
+        let renderer = UIGraphicsImageRenderer(size: contentSize, format: format)
+        return renderer.image { context in
+            scrollView.layer.render(in: context.cgContext)
         }
     }
-    
-    private func setupUndoCallbacks() {
-        // On commit: the action stays (do nothing, already saved)
-        undoState.onCommit = { action in
-            appLogger.info("Action committed: \(String(describing: action), privacy: .private)")
-        }
-        
-        // On undo: revert the action
-        undoState.onUndo = { action in
-            Task { @MainActor in
-                switch action {
-                case .takeDose1(let time):
-                    // Revert Dose 1
-                    sessionRepo.clearDose1()
-                    appLogger.info("Undid Dose 1 taken at \(time, privacy: .private)")
-                    
-                case .takeDose2(let time):
-                    // Revert Dose 2
-                    sessionRepo.clearDose2()
-                    appLogger.info("Undid Dose 2 taken at \(time, privacy: .private)")
-                    
-                case .skipDose(let seq, _):
-                    // Revert skip
-                    sessionRepo.clearSkip()
-                    appLogger.info("Undid skip of dose \(seq)")
-                    
-                case .snooze(let mins):
-                    // Revert snooze (decrement count)
-                    sessionRepo.decrementSnoozeCount()
-                    appLogger.info("Undid snooze of \(mins) minutes")
 
-                case .deleteEvent(let snapshot):
-                    // Restore the deleted event from snapshot
-                    EventLogger.shared.restoreDeletedEvent(snapshot)
-                    appLogger.info("Undid delete of event \(snapshot.displayName, privacy: .private)")
-                }
+    private static func captureVisibleWindow(_ keyWindow: UIWindow) -> UIImage? {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = UIScreen.main.scale
+        let renderer = UIGraphicsImageRenderer(bounds: keyWindow.bounds, format: format)
+
+        let image = renderer.image { rendererContext in
+            if !keyWindow.drawHierarchy(in: keyWindow.bounds, afterScreenUpdates: true) {
+                keyWindow.layer.render(in: rendererContext.cgContext)
             }
         }
+        return image
     }
 }
 

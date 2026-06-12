@@ -1,4 +1,5 @@
 import XCTest
+import SQLite3
 @testable import DoseTap
 import DoseCore
 
@@ -16,6 +17,135 @@ final class EventStorageIntegrationTests: XCTestCase {
     override func tearDown() async throws {
         storage = nil
         iso = nil
+    }
+
+    func test_schemaUserVersion_isAppliedOnInitialization() {
+        XCTAssertEqual(storage.getSchemaVersion(), EventStorage.schemaUserVersion)
+    }
+
+    func test_schemaInitialization_isIdempotentForExistingColumns() {
+        storage.createTables()
+        storage.createTables()
+
+        XCTAssertEqual(storage.getSchemaVersion(), EventStorage.schemaUserVersion)
+    }
+
+    func test_doseStateInvariant_passesForCanonicalDosePair() {
+        let sessionDate = "2026-02-12"
+        storage.saveDose1(
+            timestamp: makeDate("2026-02-12T22:05:00.000Z"),
+            sessionId: sessionDate,
+            sessionDateOverride: sessionDate
+        )
+        storage.saveDose2(
+            timestamp: makeDate("2026-02-13T02:30:00.000Z"),
+            isEarly: false,
+            isExtraDose: false,
+            isLate: false,
+            sessionId: sessionDate,
+            sessionDateOverride: sessionDate
+        )
+
+        XCTAssertTrue(storage.validateActiveDoseStateInvariant().isEmpty)
+    }
+
+    func test_eventStoreProtocolClearDose2_keepsEventLogAndSnapshotConsistent() {
+        let sessionDate = "2026-02-12"
+        storage.saveDose1(
+            timestamp: makeDate("2026-02-12T22:05:00.000Z"),
+            sessionId: sessionDate,
+            sessionDateOverride: sessionDate
+        )
+        storage.saveDose2(
+            timestamp: makeDate("2026-02-13T02:30:00.000Z"),
+            isEarly: false,
+            isExtraDose: false,
+            isLate: false,
+            sessionId: sessionDate,
+            sessionDateOverride: sessionDate
+        )
+
+        let eventStore: EventStore = storage
+        eventStore.clearDose2()
+
+        XCTAssertTrue(storage.validateActiveDoseStateInvariant().isEmpty)
+        XCTAssertNil(storage.loadCurrentSessionState().dose2Time)
+        XCTAssertFalse(storage.fetchDoseEvents(sessionId: sessionDate, sessionDate: sessionDate).contains { $0.eventType == "dose2" })
+    }
+
+    func test_doseStateInvariant_detectsDoseEventSnapshotDrift() {
+        let sessionDate = "2026-02-12"
+        storage.saveDose1(
+            timestamp: makeDate("2026-02-12T22:05:00.000Z"),
+            sessionId: sessionDate,
+            sessionDateOverride: sessionDate
+        )
+        storage.saveDose2(
+            timestamp: makeDate("2026-02-13T02:30:00.000Z"),
+            isEarly: false,
+            isExtraDose: false,
+            isLate: false,
+            sessionId: sessionDate,
+            sessionDateOverride: sessionDate
+        )
+
+        execSQL("UPDATE current_session SET dose2_time = NULL WHERE id = 1")
+
+        let violationCodes = Set(storage.validateActiveDoseStateInvariant().map(\.code))
+        XCTAssertTrue(violationCodes.contains("dose2_event_without_snapshot"))
+    }
+
+    func test_doseStateInvariant_detectsNonCanonicalActiveDoseEventType() {
+        let sessionDate = "2026-02-12"
+        storage.saveDose1(
+            timestamp: makeDate("2026-02-12T22:05:00.000Z"),
+            sessionId: sessionDate,
+            sessionDateOverride: sessionDate
+        )
+        storage.saveDose2(
+            timestamp: makeDate("2026-02-13T02:30:00.000Z"),
+            isEarly: false,
+            isExtraDose: false,
+            isLate: false,
+            sessionId: sessionDate,
+            sessionDateOverride: sessionDate
+        )
+
+        execSQL("UPDATE dose_events SET event_type = 'dose_2' WHERE session_date = '\(sessionDate)' AND event_type = 'dose2'")
+
+        let violationCodes = Set(storage.validateActiveDoseStateInvariant().map(\.code))
+        XCTAssertTrue(violationCodes.contains("non_canonical_dose_event_type"))
+    }
+
+    func test_importDoseEventCanonicalizesLegacyAlias() {
+        let sessionDate = "2026-02-12"
+
+        storage.upsertDoseEvent(
+            id: "legacy-dose-2",
+            eventType: "dose_2",
+            timestamp: makeDate("2026-02-13T02:30:00.000Z"),
+            sessionDate: sessionDate,
+            sessionId: sessionDate,
+            metadata: nil
+        )
+
+        let events = storage.fetchDoseEvents(sessionId: sessionDate, sessionDate: sessionDate)
+        XCTAssertEqual(events.map(\.eventType), ["dose2"])
+    }
+
+    func test_importDoseEventRejectsUnknownDoseEventType() {
+        let sessionDate = "2026-02-12"
+
+        storage.upsertDoseEvent(
+            id: "bad-dose-event",
+            eventType: "lights_out",
+            timestamp: makeDate("2026-02-13T02:30:00.000Z"),
+            sessionDate: sessionDate,
+            sessionId: sessionDate,
+            metadata: nil
+        )
+
+        XCTAssertTrue(storage.fetchDoseEvents(sessionId: sessionDate, sessionDate: sessionDate).isEmpty)
     }
 
     func test_fetchRecentSessionsLocal_handlesSleepOnlyDoseOnlyAndMixedSessions() {
@@ -211,6 +341,17 @@ final class EventStorageIntegrationTests: XCTestCase {
             return Date(timeIntervalSince1970: 0)
         }
         return date
+    }
+
+    private func execSQL(_ sql: String, file: StaticString = #filePath, line: UInt = #line) {
+        var errorMessage: UnsafeMutablePointer<CChar>?
+        let result = sqlite3_exec(storage.db, sql, nil, nil, &errorMessage)
+        defer {
+            if let errorMessage {
+                sqlite3_free(errorMessage)
+            }
+        }
+        XCTAssertEqual(result, SQLITE_OK, errorMessage.map { String(cString: $0) } ?? "SQLite error", file: file, line: line)
     }
 
     private func tryUnwrap<T>(_ value: T?) -> T {

@@ -160,42 +160,15 @@ extension EventStorage: EventStore {
     }
     
     public func clearDose1() {
-        // Clear dose 1 from current_session
-        let sql = """
-        UPDATE current_session
-        SET dose1_time = NULL
-        WHERE id = 1
-        """
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
-        defer { sqlite3_finalize(stmt) }
-        sqlite3_step(stmt)
+        clearDose1(sessionDateOverride: loadCurrentSessionState().sessionDate)
     }
     
     public func clearDose2() {
-        // Clear dose 2 from current_session
-        let sql = """
-        UPDATE current_session
-        SET dose2_time = NULL, dose2_skipped = 0
-        WHERE id = 1
-        """
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
-        defer { sqlite3_finalize(stmt) }
-        sqlite3_step(stmt)
+        clearDose2(sessionDateOverride: loadCurrentSessionState().sessionDate)
     }
     
     public func clearSkip() {
-        // Clear skip from current_session
-        let sql = """
-        UPDATE current_session
-        SET dose2_skipped = 0
-        WHERE id = 1
-        """
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
-        defer { sqlite3_finalize(stmt) }
-        sqlite3_step(stmt)
+        clearSkip(sessionDateOverride: loadCurrentSessionState().sessionDate)
     }
     
     // MARK: - Pre-Sleep Logs

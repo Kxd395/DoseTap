@@ -194,7 +194,7 @@ LegacyTonightView
 | Take Dose 1 | Dose button | `DoseTapCore.takeDose()` -> `SessionRepo.saveDose1()` | `current_session.dose1_time` set |
 | Take Dose 2 | Dose button | `DoseTapCore.takeDose()` -> `SessionRepo.saveDose2()` | `current_session.dose2_time` set |
 | Skip Dose 2 | Skip button | `DoseTapCore.skipDose()` -> `SessionRepo.markSkipped()` | `current_session.dose2_skipped = 1` |
-| Snooze | Snooze button | `AlarmService.snoozeAlarm()` -> `SessionRepo.incrementSnooze()` | `current_session.snooze_count++` |
+| Snooze | Snooze button | `DoseActionCoordinator.snooze()` -> `SessionRepo.incrementSnoozeIfActive()` -> `AlarmService.snoozeAlarm()` | `current_session.snooze_count++`, rollback if alarm reschedule fails |
 | Log Event | QuickLog grid | `EventLogger.logEvent()` -> `EventStorage.insertSleepEvent()` | Row in `sleep_events` |
 | Wake Up | Wake button | `SessionRepo.setWakeFinalTime()` | Session -> `finalizing` phase |
 | Pre-Sleep Log | Sheet | `PreSleepLogView` -> `EventStorage.savePreSleepLog()` | Row in `pre_sleep_logs` |
@@ -695,11 +695,11 @@ Dose actions can be triggered from 4 independent surfaces. **These implementatio
 
 ### Snooze Behavior
 
-1. User taps snooze -> `AlarmService.snoozeAlarm(dose1Time:)`
-2. Cancels current alarm + pending follow-ups
-3. Reschedules at `now + snoozeDuration` (default 10m)
-4. Increments `snooze_count` in `current_session`
-5. Blocked if `snoozeCount >= maxSnoozes` or `remaining < 15m`
+1. User taps snooze -> `DoseActionCoordinator.snooze()`
+2. Policy blocks unless the window is active, count is below max, and the session is eligible.
+3. `SessionRepository.incrementSnoozeIfActive()` commits the snooze event and snapshot count.
+4. `AlarmService.snoozeAlarm(dose1Time:)` cancels and reschedules alarm state.
+5. If alarm rescheduling fails, the repository rolls back the latest snooze event and snapshot count.
 
 ### Alarm Ringing
 

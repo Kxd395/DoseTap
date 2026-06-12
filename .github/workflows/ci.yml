@@ -6,6 +6,8 @@ on:
     branches:
       - main
       - master
+    tags:
+      - 'v*'
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -21,6 +23,9 @@ jobs:
 
       - name: Run SSOT lint
         run: bash tools/ssot_check.sh 2>&1 | tee "$RUNNER_TEMP/ssot-lint.log"
+
+      - name: Guard dose state write paths
+        run: bash tools/check_dose_state_writes.sh
 
       - name: Upload SSOT lint log
         if: always()
@@ -144,6 +149,20 @@ jobs:
             exit 1
           fi
 
+  app-version-check:
+    name: App version/build check
+    runs-on: macos-latest
+    needs: ssot-lint
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Xcode version
+        run: xcodebuild -version
+
+      - name: Validate app version and build settings
+        run: bash tools/check_app_version.sh
+
   release-pin-script-tests:
     name: Release pin script regression checks
     runs-on: macos-latest
@@ -191,7 +210,7 @@ jobs:
   xcode-tests:
     name: Xcode simulator tests
     runs-on: macos-latest
-    needs: ssot-lint
+    needs: [ssot-lint, app-version-check]
     steps:
       - name: Checkout
         uses: actions/checkout@v4

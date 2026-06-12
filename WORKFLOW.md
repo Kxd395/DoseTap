@@ -78,6 +78,18 @@ Retry context:
 - `Backlog`: do not claim or modify.
 - `Done`, `Canceled`, `Duplicate`: terminal, no work.
 
+## Review intake policy
+
+When a review, audit, or investigation finds a dose-state, second-dose, session-identity, skip, snooze, undo, notification, URL, Flic, or CloudKit sync issue that could affect live dose logging, create or update the matching Linear P0 before handoff. Treat dose-state ambiguity as P0 until it is proven non-impacting.
+
+For non-dose release gates, create or update the matching Linear issue before handoff and use the real severity.
+
+- Use team `DoseTap`.
+- Use priority `Urgent` for P0 and `High` for confirmed P1.
+- Apply `p0-blocker` for P0s plus relevant labels such as `Bug`, `security`, or `release-gate`.
+- Include file references, reproduction signals, validation commands, and unresolved risks.
+- Check for existing matching issues first and update those instead of creating duplicates.
+
 If a PR is already attached when work begins, treat the issue as a feedback/rework loop:
 
 1. Collect open PR comments and review notes.
@@ -105,16 +117,18 @@ Update the same comment throughout the run instead of posting new progress comme
 3. Reproduce the issue or capture the missing behavior signal before editing code.
 4. Create or update a small plan in the workpad.
 5. Implement the fix.
-6. Run the narrowest validation that proves the change.
-7. If the change is code-facing, run repository validation gates.
-8. Attach or update the PR if GitHub tooling is available.
-9. Move the issue to `In Review` only after validation is green and the workpad is current.
+6. For app-facing distributed changes, bump `CURRENT_PROJECT_VERSION`; for major dose, storage, sync, or user-visible behavior changes, also bump `MARKETING_VERSION`.
+7. Run the narrowest validation that proves the change.
+8. If the change is code-facing, run repository validation gates.
+9. Attach or update the PR if GitHub tooling is available.
+10. Move the issue to `In Review` only after validation is green and the workpad is current.
 
 ## Repository validation gates
 
 Choose the smallest set that matches the change, but do not skip required gates.
 
 - Behavior or contract changes: run `bash tools/ssot_check.sh`.
+- App-facing changes or any `ios/DoseTap.xcodeproj` change: run `bash tools/check_app_version.sh`.
 - SwiftPM or `DoseCore` changes: run `swift build -q` and `swift test -q`.
 - Any file under `ios/DoseTap/`, `ios/Core/`, `ios/DoseTapTests/`, or `ios/DoseTap.xcodeproj`: run
   `xcodebuild build -project ios/DoseTap.xcodeproj -scheme DoseTap -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO`
@@ -136,6 +150,7 @@ Do not claim completion if the required validation for the touched area has not 
 Before stopping, make sure the workpad contains:
 
 - what changed,
+- current app version and build when the app target changed,
 - exact validation run,
 - unresolved risks or blockers,
 - the current PR link if one exists.

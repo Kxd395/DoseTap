@@ -476,7 +476,7 @@ extension EventStorage {
             let dose1 = doseEvents.first { isDose1EventType($0.eventType) }
             let dose2 = doseEvents.first { isDose2EventType($0.eventType) }
             let dose2Skipped = doseEvents.contains { isDose2SkippedEventType($0.eventType) }
-            let snoozeCount = doseEvents.filter { $0.eventType.lowercased().hasPrefix("snooze") }.count
+            let snoozeCount = doseEvents.filter { CanonicalDoseEventType(canonicalizing: $0.eventType) == .snooze }.count
             let sleepEvents = fetchSleepEvents(forSession: sessionDate)
             let eventCount = sleepEvents.count
 
@@ -497,20 +497,15 @@ extension EventStorage {
     // MARK: - Dose Event Type Helpers
 
     private func isDose1EventType(_ raw: String) -> Bool {
-        let t = raw.lowercased().replacingOccurrences(of: " ", with: "_").replacingOccurrences(of: "-", with: "_")
-        return t == "dose1" || t == "dose_1" || t == "dose1_taken" || t == "dose_1_taken"
+        CanonicalDoseEventType(canonicalizing: raw) == .dose1
     }
 
     private func isDose2EventType(_ raw: String) -> Bool {
-        let t = raw.lowercased().replacingOccurrences(of: " ", with: "_").replacingOccurrences(of: "-", with: "_")
-        return t == "dose2" || t == "dose_2" || t == "dose2_taken" || t == "dose_2_taken"
-            || t == "dose2_early" || t == "dose_2_early" || t == "dose2_late" || t == "dose_2_late"
-            || t == "dose_2_(early)" || t == "dose_2_(late)"
+        CanonicalDoseEventType(canonicalizing: raw) == .dose2
     }
 
     private func isDose2SkippedEventType(_ raw: String) -> Bool {
-        let t = raw.lowercased().replacingOccurrences(of: " ", with: "_").replacingOccurrences(of: "-", with: "_")
-        return t == "dose2_skipped" || t == "dose_2_skipped" || t == "skip" || t == "skipped"
+        CanonicalDoseEventType(canonicalizing: raw) == .dose2Skipped
     }
 
     private func countSleepEvents(for sessionDate: String) -> Int {
@@ -581,7 +576,7 @@ extension EventStorage {
                 dose2Time = event.timestamp
             } else if isDose2SkippedEventType(event.eventType) {
                 dose2Skipped = true
-            } else if event.eventType.lowercased() == "snooze" {
+            } else if CanonicalDoseEventType(canonicalizing: event.eventType) == .snooze {
                 snoozeCount += 1
             }
         }

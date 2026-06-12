@@ -1,7 +1,7 @@
 # DoseTap SSOT (Single Source of Truth)
 
-Last updated: 2026-02-16
-Version: 0.3.3
+Last updated: 2026-06-12
+Version: 0.4.2
 
 This document is the authoritative specification for the current DoseTap behavior. It describes what the code does today. If code and this SSOT diverge, the SSOT must be updated to match the code.
 
@@ -11,6 +11,7 @@ This document is the authoritative specification for the current DoseTap behavio
 - Views: `ios/DoseTap/Views/TonightView.swift`, `ios/DoseTap/Views/CompactDoseButton.swift`, `ios/DoseTap/Views/DetailsView.swift`
 - Storage: `ios/DoseTap/Storage/EventStorage.swift` + 7 extensions (`+Schema`, `+Session`, `+Exports`, `+EventStore`, `+Dose`, `+CheckIn`, `+Maintenance`)
 - Storage schema: `docs/DATABASE_SCHEMA.md`
+- Dose persistence contract: `docs/SSOT/dose-state-persistence.md`
 - Data dictionary: `docs/SSOT/contracts/DataDictionary.md`
 - Diagnostic logging: `docs/DIAGNOSTIC_LOGGING.md`
 
@@ -57,6 +58,7 @@ Safety constraints (authoritative):
 - Dose 2 late flag: `is_late = true` if `doseIndex == 2` and `timestamp > dose1 + maxInterval`.
 - Extra dose rule: `doseIndex >= 3` only. Timer expiration never changes dose index.
 - Extra dose does not update `current_session.dose2_time`.
+- Active-session dose writes must keep `dose_events` and `current_session` consistent. The write boundary and invariants are specified in `docs/SSOT/dose-state-persistence.md`.
 
 Code references:
 - `SessionRepository.setDose1Time(_:)`
@@ -142,10 +144,12 @@ Snooze rules (authoritative):
 - Snooze is disabled in `nearClose` phase (remaining < 15 minutes) regardless of count.
 - Snooze is disabled in all other phases (`noDose1`, `beforeWindow`, `closed`, `completed`, `finalizing`).
 - All surfaces (UI buttons, Flic, deep links) MUST use `DoseWindowContext.snooze` enum to enforce these rules — not manual boolean checks.
+- Persistence MUST also fail closed if there is no open active session with Dose 1, if Dose 2 is already taken, if Dose 2 is skipped, or if session rollover closes the session during snooze preflight.
 
 Deep link authorization rules (authoritative):
-- State-changing deep links (`dose1`, `dose2`, `snooze`, `skip`) require the app to be in the foreground.
+- State-changing deep links (`dose1`, `dose2`, `snooze`, `skip`, `log`) require the app to be in the foreground and protected data to be available.
 - Late-dose and extra-dose actions via deep link require confirmation UI before persisting.
+- `log` deep links are for sleep and quick-log events only. Dose names such as `dose1`, `dose2`, `extra_dose`, `dose2_skipped`, and `snooze` must be rejected by `log` and routed through the dose action links.
 
 Transition table (subset):
 
@@ -157,6 +161,7 @@ Transition table (subset):
 | `nearClose` | Take Dose 2 | none | `saveDose2` + cancel alarms | `completed` |
 | `closed` | Take Dose 2 | requires late override | `saveDose2(is_late)` + cancel alarms | `completed` |
 | `active\|nearClose\|closed` | Skip Dose 2 | none | `saveDoseSkipped` + cancel alarms | `completed` |
+| `active` | Snooze | open active Dose 1 session, no Dose 2, no skip, count < max | `saveSnooze` + reschedule alarm, rollback if alarm fails | `active` |
 | `any` | Wake Final | none | `insertSleepEvent(wake_final)` | `finalizing` |
 | `finalizing` | Submit Check-In | none | `saveMorningCheckIn` + `closeSession` | `completed` |
 
@@ -181,6 +186,7 @@ Code references:
 - `DoseTapCore.takeDose(earlyOverride:lateOverride:)`
 - `SessionRepository.setDose1Time(_:)`
 - `SessionRepository.setDose2Time(_:isEarly:isExtraDose:)`
+- `SessionRepository.incrementSnoozeIfActive()`
 - `SessionRepository.skipDose2()`
 
 ### Session Rollover State Machine

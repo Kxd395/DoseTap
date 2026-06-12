@@ -10,6 +10,43 @@ import XCTest
 @testable import DoseTap
 import DoseCore
 
+// MARK: - Dose Action Presentation Tests
+
+@MainActor
+final class DoseActionResultPresentationTests: XCTestCase {
+
+    func test_blockedResultCreatesVisibleFeedback() {
+        let presentation = DoseActionResultPresentation(
+            result: .blocked(reason: "Take Dose 1 first")
+        )
+
+        XCTAssertNil(presentation.confirmation)
+        XCTAssertEqual(presentation.feedback?.kind, .blocked)
+        XCTAssertEqual(presentation.feedback?.title, "Dose action blocked")
+        XCTAssertEqual(presentation.feedback?.message, "Take Dose 1 first")
+    }
+
+    func test_successResultCreatesVisibleFeedback() {
+        let presentation = DoseActionResultPresentation(
+            result: .success(message: "Dose 2 logged")
+        )
+
+        XCTAssertNil(presentation.confirmation)
+        XCTAssertEqual(presentation.feedback?.kind, .success)
+        XCTAssertEqual(presentation.feedback?.title, "Dose action complete")
+        XCTAssertEqual(presentation.feedback?.message, "Dose 2 logged")
+    }
+
+    func test_confirmationResultRoutesWithoutFeedback() {
+        let presentation = DoseActionResultPresentation(
+            result: .needsConfirm(.lateDose)
+        )
+
+        XCTAssertNil(presentation.feedback)
+        XCTAssertEqual(presentation.confirmation, .lateDose)
+    }
+}
+
 // MARK: - URL Router / Deep Link Tests
 
 @MainActor
@@ -17,12 +54,19 @@ final class URLRouterTests: XCTestCase {
     
     private var router: URLRouter!
     private var core: DoseTapCore!
+    private var coordinator: DoseActionCoordinator!
     
     override func setUp() async throws {
         router = URLRouter.shared
         core = DoseTapCore(isOnline: { true })
         core.setSessionRepository(SessionRepository.shared)
-        router.configure(core: core, eventLogger: EventLogger.shared)
+        coordinator = DoseActionCoordinator(
+            core: core,
+            alarmService: AlarmService.shared,
+            eventLogger: EventLogger.shared,
+            sessionRepo: SessionRepository.shared
+        )
+        router.configure(core: core, eventLogger: EventLogger.shared, coordinator: coordinator)
         router.applicationStateProvider = { .active }
         router.protectedDataProvider = { true }
         await router.waitForPendingActions()
@@ -55,6 +99,22 @@ final class URLRouterTests: XCTestCase {
         let unknownURL = URL(string: "dosetap://unknown")!
         let result = router.handle(unknownURL)
         XCTAssertFalse(result, "Unknown hosts should be rejected")
+    }
+
+    func test_deepLinkRoute_stateChangingContract_isTyped() {
+        XCTAssertEqual(URLDeepLinkRoute(host: "dose1"), .takeDose1)
+        XCTAssertEqual(URLDeepLinkRoute(host: "dose2"), .takeDose2)
+        XCTAssertEqual(URLDeepLinkRoute(host: "snooze"), .snooze)
+        XCTAssertEqual(URLDeepLinkRoute(host: "skip"), .skip)
+        XCTAssertEqual(URLDeepLinkRoute(host: "log"), .log)
+        XCTAssertEqual(URLDeepLinkRoute(host: "oauth"), .oauth)
+        XCTAssertEqual(URLDeepLinkRoute(host: "settings"), .navigate(tab: .settings))
+        XCTAssertNil(URLDeepLinkRoute(host: "unknown"))
+
+        XCTAssertTrue(URLDeepLinkRoute(host: "dose1")!.isStateChanging)
+        XCTAssertTrue(URLDeepLinkRoute(host: "log")!.isStateChanging)
+        XCTAssertFalse(URLDeepLinkRoute(host: "oauth")!.isStateChanging)
+        XCTAssertFalse(URLDeepLinkRoute(host: "settings")!.isStateChanging)
     }
     
     // MARK: - Navigation Tests
@@ -146,6 +206,22 @@ final class URLRouterTests: XCTestCase {
         XCTAssertFalse(result, "Missing event should fail validation")
         XCTAssertTrue(router.feedbackMessage.contains("Invalid"), "Should show invalid event feedback")
     }
+
+    func test_logEvent_rejectsDoseEventNames() {
+        for eventName in ["dose1", "dose2", "dose2_skipped", "snooze", "extra_dose"] {
+            SessionRepository.shared.clearTonight()
+            router.lastAction = nil
+            router.feedbackMessage = ""
+
+            let url = URL(string: "dosetap://log?event=\(eventName)")!
+            let handled = router.handle(url)
+
+            XCTAssertFalse(handled, "Log route must reject dose event \(eventName)")
+            XCTAssertNil(router.lastAction, "Rejected dose log should not update lastAction")
+            XCTAssertTrue(SessionRepository.shared.fetchTonightSleepEvents().isEmpty)
+            XCTAssertTrue(router.feedbackMessage.contains("dose action"), "Should direct caller to dose action route")
+        }
+    }
     
     // MARK: - Action Recording Tests
     
@@ -171,14 +247,15 @@ final class URLRouterTests: XCTestCase {
         XCTAssertFalse(hasDoseSleepEvent, "Dose deep links must only persist dose_events, not sleep_events")
     }
     
-    func test_dose2_setsLastAction_whenDose1Missing() {
+    func test_dose2_setsLastAction_whenDose1Missing() async {
         let url = URL(string: "dosetap://dose2")!
         let result = router.handle(url)
-        XCTAssertFalse(result, "Dose2 without Dose1 should return false")
+        XCTAssertTrue(result, "Recognized Dose 2 deep link should be handled even when blocked by policy")
+        await router.waitForPendingActions()
         XCTAssertTrue(router.feedbackMessage.contains("Dose 1"), "Should show Dose 1 required message")
     }
 
-    func test_dose2_deepLink_allowsLateOverride_whenWindowClosed() async {
+    func test_dose2_deepLink_requiresConfirmation_whenWindowClosed() async {
         let repo = SessionRepository.shared
         repo.setDose1Time(Date().addingTimeInterval(-250 * 60))
         XCTAssertEqual(repo.currentContext.phase, .closed, "Precondition: phase should be closed.")
@@ -186,16 +263,16 @@ final class URLRouterTests: XCTestCase {
 
         let url = URL(string: "dosetap://dose2")!
         let handled = router.handle(url)
-        XCTAssertTrue(handled, "Dose 2 deep link should be handled in closed window via override.")
+        XCTAssertTrue(handled, "Dose 2 deep link should be handled and routed to confirmation feedback.")
 
-        await Task.yield()
-        try? await Task.sleep(nanoseconds: 120_000_000)
+        await router.waitForPendingActions()
 
-        XCTAssertNotNil(repo.dose2Time, "Late override should log Dose 2.")
-        XCTAssertEqual(repo.currentContext.phase, .completed, "Session should complete after late Dose 2.")
+        XCTAssertNil(repo.dose2Time, "Late deep link must not log Dose 2 without in-app confirmation.")
+        XCTAssertEqual(repo.currentContext.phase, .closed, "Session should remain closed until user confirms in app.")
+        XCTAssertTrue(router.feedbackMessage.contains("Late dose"), "Should tell user to open app to confirm.")
     }
 
-    func test_dose2_deepLink_rejectsBeforeWindow_withoutOverride() {
+    func test_dose2_deepLink_blocksBeforeWindow_withoutOverride() async {
         let repo = SessionRepository.shared
         repo.setDose1Time(Date().addingTimeInterval(-100 * 60))
         XCTAssertEqual(repo.currentContext.phase, .beforeWindow, "Precondition: phase should be beforeWindow.")
@@ -203,8 +280,10 @@ final class URLRouterTests: XCTestCase {
 
         let url = URL(string: "dosetap://dose2")!
         let handled = router.handle(url)
-        XCTAssertFalse(handled, "Dose 2 deep link should be rejected before the window opens.")
+        XCTAssertTrue(handled, "Recognized Dose 2 deep link should be handled and blocked by policy.")
+        await router.waitForPendingActions()
         XCTAssertNil(repo.dose2Time, "Dose 2 should remain unset when request is rejected.")
+        XCTAssertTrue(router.feedbackMessage.contains("Window not open"), "Should show before-window feedback.")
     }
 
     func test_logEvent_wakeFinal_setsSessionFinalizingState() {
@@ -217,10 +296,31 @@ final class URLRouterTests: XCTestCase {
         XCTAssertNotNil(repo.wakeFinalTime, "Wake final deep-link should persist wake final time")
         XCTAssertEqual(repo.currentContext.phase, .finalizing, "Session should enter finalizing phase after wake_final")
     }
+
+    func test_logEvent_isRejected_whenAppInactive() {
+        router.applicationStateProvider = { .background }
+
+        let handled = router.handle(URL(string: "dosetap://log?event=bathroom")!)
+
+        XCTAssertFalse(handled, "State-changing log deep links should require the foreground app.")
+        XCTAssertNil(router.lastAction)
+        XCTAssertTrue(SessionRepository.shared.fetchTonightSleepEvents().isEmpty)
+    }
+
+    func test_logEvent_isRejected_whenProtectedDataUnavailable() {
+        router.protectedDataProvider = { false }
+
+        let handled = router.handle(URL(string: "dosetap://log?event=wake_final")!)
+
+        XCTAssertFalse(handled, "State-changing log deep links should require protected data availability.")
+        XCTAssertNil(SessionRepository.shared.wakeFinalTime)
+        XCTAssertNil(router.lastAction)
+    }
     
-    func test_snooze_setsLastAction() {
+    func test_snooze_setsLastAction() async {
         let url = URL(string: "dosetap://snooze")!
         _ = router.handle(url)
+        await router.waitForPendingActions()
         XCTAssertTrue(router.feedbackMessage.count > 0, "Should set feedback message")
     }
     

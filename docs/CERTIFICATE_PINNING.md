@@ -143,10 +143,10 @@ awk '/BEGIN CERTIFICATE/{n++} n==2' /tmp/chain.pem | openssl x509 -pubkey -noout
 | Scenario | Behavior |
 |----------|----------|
 | No pins configured (DEBUG) | Warning logged, connects via default TLS |
-| No pins configured (RELEASE) | `PinnedURLSessionTransport` still created; no pin check (relies on system TLS) |
+| No pins configured (RELEASE) | App fails closed before creating a release API transport |
 | Pin mismatch | Connection rejected, `URLSession` cancels with auth error |
 | Server cert expired | OS-level TLS failure (before pin check) |
-| Release build with <2 pins | `validate_release_pins.sh` blocks CI |
+| Tagged release preflight with missing or <2 pins | `release_preflight.sh` and `validate_release_pins.sh` block release |
 
 ## Validation Checklist
 

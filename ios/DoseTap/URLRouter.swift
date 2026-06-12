@@ -51,6 +51,53 @@ enum AppTab: Int, CaseIterable {
     }
 }
 
+enum URLDeepLinkRoute: Equatable {
+    case takeDose1
+    case takeDose2
+    case snooze
+    case skip
+    case log
+    case oauth
+    case navigate(tab: AppTab)
+
+    init?(host rawHost: String) {
+        let host = rawHost
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        if let tab = AppTab.tab(forDeepLinkHost: host) {
+            self = .navigate(tab: tab)
+            return
+        }
+
+        switch host {
+        case "dose1":
+            self = .takeDose1
+        case "dose2":
+            self = .takeDose2
+        case "snooze":
+            self = .snooze
+        case "skip":
+            self = .skip
+        case "log":
+            self = .log
+        case "oauth":
+            self = .oauth
+        default:
+            return nil
+        }
+    }
+
+    var isStateChanging: Bool {
+        switch self {
+        case .takeDose1, .takeDose2, .snooze, .skip, .log:
+            return true
+        case .oauth, .navigate:
+            return false
+        }
+    }
+}
+
 /// URL Router for handling deep links
 /// Supported URLs:
 /// - dosetap://dose1 - Take Dose 1
@@ -80,13 +127,15 @@ public class URLRouter: ObservableObject {
     // MARK: - Dependencies (set by app)
     weak var core: DoseTapCore?
     weak var eventLogger: EventLogger?
+    weak var coordinator: DoseActionCoordinator?
     var applicationStateProvider: ApplicationStateProvider = { UIApplication.shared.applicationState }
     var protectedDataProvider: ProtectedDataProvider = { UIApplication.shared.isProtectedDataAvailable }
     private var pendingActionTasks: [UUID: Task<Void, Never>] = [:]
 
-    func configure(core: DoseTapCore, eventLogger: EventLogger) {
+    func configure(core: DoseTapCore, eventLogger: EventLogger, coordinator: DoseActionCoordinator) {
         self.core = core
         self.eventLogger = eventLogger
+        self.coordinator = coordinator
     }
 
     func resetTestOverrides() {
@@ -135,48 +184,47 @@ public class URLRouter: ObservableObject {
         urlRouterLog.debug("Handling deep link: \(InputValidator.sanitizeForLogging(url.absoluteString), privacy: .private)")
         #endif
         
+        guard let route = URLDeepLinkRoute(host: host) else {
+            urlRouterLog.warning("Unknown deep-link host: \(host, privacy: .public)")
+            return false
+        }
+
         // P0-5 FIX: State-changing deep links require foreground + unlocked
-        let stateChangingHosts: Set<String> = ["dose1", "dose2", "snooze", "skip"]
-        if stateChangingHosts.contains(host) {
+        if route.isStateChanging {
             guard applicationStateProvider() == .active else {
-                urlRouterLog.warning("Blocked state-changing deep link '\(host, privacy: .public)' — app not in foreground")
+                urlRouterLog.warning("Blocked state-changing deep link '\(host, privacy: .public)' - app not in foreground")
                 return false
             }
             guard protectedDataProvider() else {
-                urlRouterLog.warning("Blocked state-changing deep link '\(host, privacy: .public)' — device locked")
+                urlRouterLog.warning("Blocked state-changing deep link '\(host, privacy: .public)' - device locked")
                 return false
             }
         }
-        
-        if let tab = AppTab.tab(forDeepLinkHost: host) {
-            return handleNavigate(tab: tab)
-        }
 
-        switch host {
-        case "dose1":
+        switch route {
+        case .takeDose1:
             return handleDose1()
             
-        case "dose2":
+        case .takeDose2:
             return handleDose2()
             
-        case "snooze":
+        case .snooze:
             return handleSnooze()
             
-        case "skip":
+        case .skip:
             return handleSkip()
             
-        case "log":
+        case .log:
             let eventName = queryItems.first(where: { $0.name == "event" })?.value ?? "unknown"
             let notes = queryItems.first(where: { $0.name == "notes" })?.value
             return handleLogEvent(name: eventName, notes: notes)
             
-        case "oauth":
+        case .oauth:
             // OAuth callback is handled separately by WHOOP integration
             return false
-            
-        default:
-            urlRouterLog.warning("Unknown deep-link host: \(host, privacy: .public)")
-            return false
+
+        case .navigate(let tab):
+            return handleNavigate(tab: tab)
         }
     }
     
@@ -184,124 +232,47 @@ public class URLRouter: ObservableObject {
     
     private func handleDose1() -> Bool {
         lastAction = .takeDose1
-        guard let core = resolveCore() else { return false }
-        
-        guard core.dose1Time == nil else {
-            showFeedback("Dose 1 already taken")
-            return false
-        }
+        guard let coordinator = resolveCoordinator() else { return false }
         
         enqueueAction { [self] in
-            let now = Date()
-            await core.takeDose()
-            self.eventLogger?.logEvent(name: "Dose 1", color: .green, cooldownSeconds: 3600 * 8, persist: false)
-            
-            // Schedule wake alarm
-            let targetMinutes = UserDefaults.standard.integer(forKey: "target_interval_minutes")
-            let targetInterval = targetMinutes > 0 ? targetMinutes : 165
-            let wakeTime = now.addingTimeInterval(Double(targetInterval) * 60)
-            await AlarmService.shared.scheduleDose2Alarm(at: wakeTime, dose1Time: now)
-            await AlarmService.shared.scheduleDose2Reminders(dose1Time: now)
-            
-            self.showFeedback("✓ Dose 1 logged")
+            let result = await coordinator.takeDose1()
+            self.showFeedback(for: result)
         }
         return true
     }
     
     private func handleDose2() -> Bool {
         lastAction = .takeDose2
-        guard let core = resolveCore() else { return false }
-        
-        guard core.dose1Time != nil else {
-            showFeedback("Take Dose 1 first")
-            return false
-        }
-        
-        let status = core.currentStatus
-        if status == .beforeWindow {
-            showFeedback("Window not open yet")
-            return false
-        }
-        if status == .noDose1 || status == .finalizing {
-            showFeedback("Dose 2 unavailable right now")
-            return false
-        }
+        guard let coordinator = resolveCoordinator() else { return false }
 
         enqueueAction { [self] in
-            if core.dose2Time != nil {
-                // P0-5 FIX: Block extra dose via deep link — requires confirmation in app UI
-                self.showFeedback("⚠️ Extra dose — open app to confirm")
-            } else if status == .closed || (status == .completed && core.isSkipped) {
-                let wasSkipped = status == .completed && core.isSkipped
-                await core.takeDose(lateOverride: true)
-                let eventName = wasSkipped ? "Dose 2 (After Skip)" : "Dose 2 (Late)"
-                self.eventLogger?.logEvent(name: eventName, color: .orange, cooldownSeconds: 3600 * 8, persist: false)
-                self.showFeedback("✓ \(eventName) logged")
-                AlarmService.shared.cancelAllAlarms()
-                AlarmService.shared.clearDose2AlarmState()
-            } else if status == .completed {
-                self.showFeedback("Dose 2 unavailable right now")
-            } else {
-                await core.takeDose()
-                self.eventLogger?.logEvent(name: "Dose 2", color: .green, cooldownSeconds: 3600 * 8, persist: false)
-                self.showFeedback("✓ Dose 2 logged")
-                AlarmService.shared.cancelAllAlarms()
-                AlarmService.shared.clearDose2AlarmState()
-            }
+            let result = await coordinator.takeDose2()
+            self.showFeedback(for: result)
         }
         return true
     }
     
     private func handleSnooze() -> Bool {
         lastAction = .snooze
-        guard let core = resolveCore() else { return false }
-        
-        // Use DoseWindowContext.snooze enum — enforces both maxSnoozes AND <15m remaining per SSOT
-        let ctx = core.windowContext
-        guard case .snoozeEnabled = ctx.snooze else {
-            let reason: String
-            if case .snoozeDisabled(let r) = ctx.snooze {
-                reason = r
-            } else {
-                reason = "Snooze not available"
-            }
-            showFeedback(reason)
-            return false
-        }
+        guard let coordinator = resolveCoordinator() else { return false }
         
         enqueueAction { [self] in
-            if let newTime = await AlarmService.shared.snoozeAlarm(dose1Time: core.dose1Time) {
-                await core.snooze()
-                self.showFeedback("✓ Snoozed to \(newTime.formatted(date: .omitted, time: .shortened))")
-            } else {
-                self.showFeedback("Snooze unavailable right now")
-            }
+            let result = await coordinator.snooze()
+            self.showFeedback(for: result)
         }
         return true
     }
     
     private func handleSkip() -> Bool {
         lastAction = .skip
-        guard let core = resolveCore() else { return false }
-        
-        guard core.dose1Time != nil else {
-            showFeedback("Take Dose 1 first")
-            return false
-        }
-        
-        guard core.dose2Time == nil && !core.isSkipped else {
-            showFeedback("Dose 2 already taken or skipped")
-            return false
-        }
+        guard let coordinator = resolveCoordinator() else { return false }
         
         // Set immediate feedback to avoid race with async task
         showFeedback("Skipping Dose 2…")
         
         enqueueAction { [self] in
-            await core.skipDose()
-            AlarmService.shared.cancelAllAlarms()
-            AlarmService.shared.clearDose2AlarmState()
-            self.showFeedback("✓ Dose 2 skipped")
+            let result = await coordinator.skipDose()
+            self.showFeedback(for: result)
         }
         return true
     }
@@ -319,6 +290,13 @@ public class URLRouter: ObservableObject {
         
         let normalizedName = InputValidator.sanitizeInput(name.isEmpty ? "unknown" : name.lowercased())
         let sanitizedNotes = notes.flatMap { InputValidator.sanitizeInputOptional($0) }
+
+        guard CanonicalDoseEventType(canonicalizing: normalizedName) == nil else {
+            urlRouterLog.warning("Blocked dose event through log deep link: \(normalizedName, privacy: .public)")
+            showFeedback("Use dose action link")
+            return false
+        }
+
         lastAction = .logEvent(name: normalizedName, notes: sanitizedNotes)
         
         guard let eventLogger = eventLogger else {
@@ -384,6 +362,34 @@ public class URLRouter: ObservableObject {
             return nil
         }
         return core
+    }
+
+    private func resolveCoordinator() -> DoseActionCoordinator? {
+        guard let coordinator else {
+            showFeedback("App not ready")
+            return nil
+        }
+        return coordinator
+    }
+
+    private func showFeedback(for result: DoseActionCoordinator.ActionResult) {
+        switch result {
+        case .success(let message):
+            showFeedback(message)
+        case .blocked(let reason):
+            showFeedback(reason)
+        case .needsConfirm(let type):
+            switch type {
+            case .earlyDose:
+                showFeedback("Window not open yet")
+            case .lateDose:
+                showFeedback("Late dose - open app to confirm")
+            case .afterSkip:
+                showFeedback("After skip - open app to confirm")
+            case .extraDose:
+                showFeedback("Extra dose - open app to confirm")
+            }
+        }
     }
 
     private func enqueueAction(_ operation: @escaping @MainActor () async -> Void) {

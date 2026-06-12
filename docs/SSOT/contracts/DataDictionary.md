@@ -2,6 +2,7 @@
 
 Last updated: 2026-01-14
 Source of truth: `ios/DoseTap/Storage/EventStorage.swift` (table creation and migrations)
+SQLite user_version: 1
 
 ## Session Identity Model
 
@@ -152,4 +153,3 @@ Columns:
 - `notes` TEXT
 - `confirmed_duplicate` INTEGER NOT NULL DEFAULT 0
 - `created_at` TEXT DEFAULT CURRENT_TIMESTAMP
-

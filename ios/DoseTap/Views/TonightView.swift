@@ -7,6 +7,7 @@ struct LegacyTonightView: View {
     @ObservedObject var core: DoseTapCore
     @ObservedObject var eventLogger: EventLogger
     @ObservedObject var undoState: UndoStateManager
+    @ObservedObject var coordinator: DoseActionCoordinator
     @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.isInSplitView) private var isInSplitView
@@ -163,7 +164,8 @@ struct LegacyTonightView: View {
                             showEarlyDoseAlert: $showEarlyDoseAlert,
                             earlyDoseMinutes: $earlyDoseMinutesRemaining,
                             showExtraDoseWarning: $showExtraDoseWarning,
-                            showMorningCheckIn: $showMorningCheckIn
+                            showMorningCheckIn: $showMorningCheckIn,
+                            coordinator: coordinator
                         )
                         
                         WakeUpButton(
@@ -196,7 +198,8 @@ struct LegacyTonightView: View {
                 showEarlyDoseAlert: $showEarlyDoseAlert,
                 earlyDoseMinutes: $earlyDoseMinutesRemaining,
                 showExtraDoseWarning: $showExtraDoseWarning,
-                showMorningCheckIn: $showMorningCheckIn
+                showMorningCheckIn: $showMorningCheckIn,
+                coordinator: coordinator
             )
             
             Spacer().frame(height: 12)
@@ -318,16 +321,14 @@ struct LegacyTonightView: View {
                 minutesRemaining: earlyDoseMinutesRemaining,
                 onConfirm: { reason, notes in
                     Task {
-                        // Taking Dose 2 early with explicit override
-                        await core.takeDose(earlyOverride: true)
-                        sessionRepo.updateDose2OutcomeAnnotations(
-                            sessionDate: sessionRepo.activeSessionDate ?? sessionRepo.currentSessionKey,
-                            takenReason: reason,
-                            skipReason: nil,
+                        let result = await coordinator.takeDose2(
+                            override: .earlyConfirmed,
+                            reason: reason,
                             reasonNotes: notes
                         )
-                        // Log dose as event with Early badge for Details tab
-                        eventLogger.logEvent(name: "Dose 2 (Early)", color: .orange, cooldownSeconds: 3600 * 8, persist: false)
+                        if case .blocked(let reason) = result {
+                            appLogger.warning("Early dose override blocked: \(reason, privacy: .public)")
+                        }
                     }
                     showOverrideConfirmation = false
                 },
@@ -338,14 +339,11 @@ struct LegacyTonightView: View {
         .alert("⚠️ STOP - Dose 2 Already Taken", isPresented: $showExtraDoseWarning) {
             Button("Cancel", role: .cancel) { }
             Button("I Accept Full Responsibility", role: .destructive) {
-                // Record as extra_dose with explicit user confirmation
                 Task {
-                    let now = Date()
-                    // Save as extra_dose (does NOT update dose2_time)
-                    sessionRepo.saveDose2(timestamp: now, isExtraDose: true)
-                    // Log with warning color
-                    eventLogger.logEvent(name: "Extra Dose ⚠️", color: .red, cooldownSeconds: 0, persist: false)
-                    appLogger.warning("Extra dose logged at \(now, privacy: .private) - user confirmed")
+                    let result = await coordinator.takeDose2(override: .extraDoseConfirmed)
+                    if case .blocked(let reason) = result {
+                        appLogger.warning("Extra dose override blocked: \(reason, privacy: .public)")
+                    }
                 }
             }
         } message: {

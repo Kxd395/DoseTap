@@ -14,6 +14,7 @@ NC='\033[0m'
 PASS=0
 FAIL=0
 WARN=0
+RELEASE_TAG=false
 
 pass() { echo -e "${GREEN}✅ PASS:${NC} $1"; PASS=$((PASS + 1)); }
 fail() { echo -e "${RED}❌ FAIL:${NC} $1"; FAIL=$((FAIL + 1)); }
@@ -28,15 +29,28 @@ echo ""
 # ─── 1. Tag format ───────────────────────────────────────────────
 if [[ -n "$TAG" ]]; then
   if [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+    RELEASE_TAG=true
     pass "Tag format valid: $TAG"
   else
     fail "Tag format invalid: $TAG (expected vX.Y.Z or vX.Y.Z-beta.N)"
   fi
 else
-  warn "No tag provided — skipping tag format check"
+  warn "No tag provided - skipping tag format check"
 fi
 
-# ─── 2. SSOT integrity ──────────────────────────────────────────
+# ─── 2. App version/build visibility ─────────────────────────────
+if [[ -f "tools/check_app_version.sh" ]]; then
+  echo "Checking app version/build settings..."
+  if SHOW_BUILD_SETTINGS_TIMEOUT="${SHOW_BUILD_SETTINGS_TIMEOUT:-240}" bash tools/check_app_version.sh; then
+    pass "App version/build settings"
+  else
+    fail "App version/build settings failed; run 'bash tools/check_app_version.sh' for details"
+  fi
+else
+  warn "tools/check_app_version.sh not found; skipping app version/build check"
+fi
+
+# ─── 3. SSOT integrity ──────────────────────────────────────────
 if [[ -f "tools/ssot_check.sh" ]]; then
   if bash tools/ssot_check.sh >/dev/null 2>&1; then
     pass "SSOT integrity check"
@@ -47,7 +61,18 @@ else
   warn "tools/ssot_check.sh not found — skipping SSOT check"
 fi
 
-# ─── 3. No tracked secrets ──────────────────────────────────────
+# ─── 4. Dose state write boundary ───────────────────────────────
+if [[ -f "tools/check_dose_state_writes.sh" ]]; then
+  if bash tools/check_dose_state_writes.sh >/dev/null 2>&1; then
+    pass "Dose state write-path guard"
+  else
+    fail "Dose state write-path guard failed - run 'bash tools/check_dose_state_writes.sh' for details"
+  fi
+else
+  warn "tools/check_dose_state_writes.sh not found - skipping dose state write-path guard"
+fi
+
+# ─── 5. No tracked secrets ──────────────────────────────────────
 if git ls-files --error-unmatch ios/DoseTap/Secrets.swift >/dev/null 2>&1; then
   fail "ios/DoseTap/Secrets.swift is tracked in git — must be .gitignored"
 else
@@ -67,18 +92,20 @@ else
   pass "No hardcoded credentials in source"
 fi
 
-# ─── 4. Certificate pin validation ──────────────────────────────
+# ─── 5. Certificate pin validation ──────────────────────────────
 if [[ -n "${DOSETAP_CERT_PINS:-}" ]]; then
   if CONFIGURATION=Release bash tools/validate_release_pins.sh >/dev/null 2>&1; then
     pass "Certificate pin validation (≥2 unique valid pins)"
   else
-    fail "Certificate pin validation — run 'CONFIGURATION=Release bash tools/validate_release_pins.sh'"
+    fail "Certificate pin validation - run 'CONFIGURATION=Release bash tools/validate_release_pins.sh'"
   fi
+elif [[ "$RELEASE_TAG" == true || "${REQUIRE_RELEASE_PINS:-0}" == "1" ]]; then
+  fail "DOSETAP_CERT_PINS not set - release preflight requires >=2 valid pins for tagged releases"
 else
-  warn "DOSETAP_CERT_PINS not set — pin validation skipped (required for Release tags)"
+  warn "DOSETAP_CERT_PINS not set - pin validation skipped for untagged dry run"
 fi
 
-# ─── 5. Mock transport not in production ─────────────────────────
+# ─── 6. Mock transport not in production ─────────────────────────
 MOCK_LEAKS="$(
   awk '
     /#if DEBUG/ { debug_depth += 1 }
@@ -94,7 +121,7 @@ else
   pass "MockAPITransport confined to #if DEBUG"
 fi
 
-# ─── 6. CHANGELOG updated ───────────────────────────────────────
+# ─── 7. CHANGELOG updated ───────────────────────────────────────
 if [[ -n "$TAG" && -f "CHANGELOG.md" ]]; then
   VERSION="${TAG#v}"  # Strip leading 'v'
   if grep -qF "$VERSION" CHANGELOG.md; then
@@ -108,14 +135,14 @@ else
   warn "CHANGELOG.md not found — skipping version check"
 fi
 
-# ─── 7. SwiftPM builds ──────────────────────────────────────────
+# ─── 8. SwiftPM builds ──────────────────────────────────────────
 if swift build >/dev/null 2>&1; then
   pass "SwiftPM build (DoseCore)"
 else
   fail "SwiftPM build failed — run 'swift build' for details"
 fi
 
-# ─── 8. SwiftPM tests ───────────────────────────────────────────
+# ─── 9. SwiftPM tests ───────────────────────────────────────────
 if swift test >/dev/null 2>&1; then
   pass "SwiftPM tests"
 else
@@ -136,9 +163,13 @@ fi
 
 if [[ "$WARN" -gt 0 ]]; then
   echo ""
-  echo -e "${YELLOW}Warnings present — review before proceeding.${NC}"
+  echo -e "${YELLOW}Warnings present - review before proceeding.${NC}"
 fi
 
 echo ""
-echo -e "${GREEN}All preflight checks passed. Safe to tag release.${NC}"
+if [[ "$RELEASE_TAG" == true ]]; then
+  echo -e "${GREEN}All preflight checks passed. Safe to tag release.${NC}"
+else
+  echo -e "${GREEN}All preflight checks passed for local dry run.${NC}"
+fi
 exit 0

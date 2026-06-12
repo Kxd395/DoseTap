@@ -40,13 +40,25 @@ fi
 # Check 3: Schema version consistency
 echo ""
 echo "Check 3: Schema version consistency..."
-DB_VERSION=$(grep -m1 "Version:" "$DOCS_DIR/DATABASE_SCHEMA.md" 2>/dev/null | grep -oE '[0-9]+' | head -1)
-EVOLUTION_VERSION=$(grep -m1 "Current Schema Version" "$SSOT_DIR/contracts/SchemaEvolution.md" 2>/dev/null | grep -oE '[0-9]+' | head -1)
+DB_VERSION=$(awk -F': *' 'tolower($1) == "sqlite user_version" { print $2; exit }' "$DOCS_DIR/DATABASE_SCHEMA.md" 2>/dev/null)
+DICTIONARY_VERSION=$(awk -F': *' 'tolower($1) == "sqlite user_version" { print $2; exit }' "$SSOT_DIR/contracts/DataDictionary.md" 2>/dev/null)
 
-if [ "$DB_VERSION" = "$EVOLUTION_VERSION" ]; then
+if [ -z "$DB_VERSION" ]; then
+    echo "❌ FAIL: DATABASE_SCHEMA.md is missing 'SQLite user_version: <number>'"
+    FAIL=1
+elif [ -z "$DICTIONARY_VERSION" ]; then
+    echo "❌ FAIL: DataDictionary.md is missing 'SQLite user_version: <number>'"
+    FAIL=1
+elif ! [[ "$DB_VERSION" =~ ^[0-9]+$ ]]; then
+    echo "❌ FAIL: DATABASE_SCHEMA SQLite user_version is not numeric: $DB_VERSION"
+    FAIL=1
+elif ! [[ "$DICTIONARY_VERSION" =~ ^[0-9]+$ ]]; then
+    echo "❌ FAIL: DataDictionary SQLite user_version is not numeric: $DICTIONARY_VERSION"
+    FAIL=1
+elif [ "$DB_VERSION" = "$DICTIONARY_VERSION" ]; then
     echo "✅ PASS: Both at version $DB_VERSION"
 else
-    echo "❌ FAIL: DATABASE_SCHEMA version ($DB_VERSION) != SchemaEvolution version ($EVOLUTION_VERSION)"
+    echo "❌ FAIL: DATABASE_SCHEMA SQLite user_version ($DB_VERSION) != DataDictionary SQLite user_version ($DICTIONARY_VERSION)"
     FAIL=1
 fi
 
@@ -75,9 +87,6 @@ fi
 # Check 7: DATABASE_SCHEMA has 13 event types in taxonomy
 echo ""
 echo "Check 7: DATABASE_SCHEMA sleep_events taxonomy has 13 types..."
-# Count rows in the Event Types table (lines with wire format)
-TAXONOMY_COUNT=$(grep -c "^\| \`" "$DOCS_DIR/DATABASE_SCHEMA.md" 2>/dev/null | head -1 || echo "0")
-# Alternative: check for the header saying 13
 if grep -q "Event Types (13 total)" "$DOCS_DIR/DATABASE_SCHEMA.md" 2>/dev/null; then
     echo "✅ PASS: DATABASE_SCHEMA declares 13 event types"
 else
@@ -85,23 +94,24 @@ else
     FAIL=1
 fi
 
-# Check 8: pre_sleep_logs uses session_date identity (not answers_json design)
+# Check 8: pre_sleep_logs uses current JSON-backed storage shape
 echo ""
-echo "Check 8: pre_sleep_logs uses structured columns (not answers_json)..."
-if grep -A20 "pre_sleep_logs" "$DOCS_DIR/DATABASE_SCHEMA.md" 2>/dev/null | grep -q "caffeine_cups"; then
-    echo "✅ PASS: pre_sleep_logs uses structured columns"
+echo "Check 8: pre_sleep_logs uses answers_json per current storage..."
+if grep -A20 "pre_sleep_logs" "$DOCS_DIR/DATABASE_SCHEMA.md" 2>/dev/null | grep -q "answers_json TEXT NOT NULL DEFAULT '{}'"; then
+    echo "✅ PASS: pre_sleep_logs documents answers_json"
 else
-    echo "❌ FAIL: pre_sleep_logs should use structured columns (caffeine_cups, etc)"
+    echo "❌ FAIL: pre_sleep_logs should document answers_json until a storage migration changes it"
     FAIL=1
 fi
 
-# Check 9: morning_checkins uses session_date as UNIQUE identity
+# Check 9: morning_checkins matches current storage identity
 echo ""
-echo "Check 9: morning_checkins uses session_date UNIQUE identity..."
-if grep -A10 "morning_checkins" "$DOCS_DIR/DATABASE_SCHEMA.md" 2>/dev/null | grep -q "session_date TEXT NOT NULL UNIQUE"; then
-    echo "✅ PASS: morning_checkins uses session_date UNIQUE"
+echo "Check 9: morning_checkins has session_date and session_id..."
+if grep -A10 "morning_checkins" "$DOCS_DIR/DATABASE_SCHEMA.md" 2>/dev/null | grep -q "session_id TEXT NOT NULL" \
+    && grep -A10 "morning_checkins" "$DOCS_DIR/DATABASE_SCHEMA.md" 2>/dev/null | grep -q "session_date TEXT NOT NULL"; then
+    echo "✅ PASS: morning_checkins documents session_id + session_date"
 else
-    echo "❌ FAIL: morning_checkins should have session_date TEXT NOT NULL UNIQUE"
+    echo "❌ FAIL: morning_checkins should document session_id TEXT NOT NULL and session_date TEXT NOT NULL"
     FAIL=1
 fi
 

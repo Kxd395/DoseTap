@@ -15,7 +15,7 @@ DoseTap is a local-first iOS app that helps patients manage two-dose nighttime m
 - All data is stored locally in SQLite.
 - Deleting the app deletes the sandbox and all data.
 - Manual CSV export is available in Settings.
-- Cloud sync is not implemented.
+- Shipping builds are local-first. CloudKit sync is limited to the `DoseTapStaging` validation target and is not active in the shipping `DoseTap` target.
 
 ## HealthKit
 

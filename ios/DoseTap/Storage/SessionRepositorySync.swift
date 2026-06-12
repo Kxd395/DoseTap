@@ -32,10 +32,7 @@ public extension SessionRepository {
     /// Insert sleep event for event logging and import flows.
     func insertSleepEvent(id: String, eventType: String, timestamp: Date, colorHex: String?, notes: String? = nil) {
         let session = ensureActiveSession(for: timestamp, reason: "sleep_event_insert")
-        let normalizedType = eventType
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-            .replacingOccurrences(of: " ", with: "_")
+        let normalizedType = normalizeStoredEventType(eventType)
         storage.insertSleepEvent(
             id: id,
             eventType: normalizedType,
@@ -59,7 +56,7 @@ public extension SessionRepository {
     ) {
         storage.insertSleepEvent(
             id: id,
-            eventType: eventType,
+            eventType: normalizeStoredEventType(eventType),
             timestamp: timestamp,
             sessionDate: sessionDate,
             sessionId: sessionId ?? sessionDate,

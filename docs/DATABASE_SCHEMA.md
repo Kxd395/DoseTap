@@ -1,7 +1,8 @@
 # DoseTap Database Schema
 
-Last updated: 2026-01-14
+Last updated: 2026-06-12
 Source of truth: `ios/DoseTap/Storage/EventStorage.swift` (`createTables()` + `migrateDatabase()`).
+SQLite user_version: 1
 
 ## Tables
 
@@ -19,6 +20,26 @@ CREATE TABLE IF NOT EXISTS sleep_events (
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 ```
+
+#### Event Types (13 total)
+
+Source of truth: `docs/SSOT/constants.json` and `ios/Core/SleepEvent.swift`.
+
+| rawValue | wire format | category | default cooldown seconds |
+| --- | --- | --- | --- |
+| `bathroom` | `bathroom` | physical | 60 |
+| `water` | `water` | physical | 60 |
+| `snack` | `snack` | physical | 60 |
+| `inBed` | `in_bed` | sleepCycle | 0 |
+| `lightsOut` | `lights_out` | sleepCycle | 0 |
+| `wakeFinal` | `wake_final` | sleepCycle | 0 |
+| `wakeTemp` | `wake_temp` | sleepCycle | 0 |
+| `anxiety` | `anxiety` | mental | 0 |
+| `dream` | `dream` | mental | 0 |
+| `heartRacing` | `heart_racing` | mental | 0 |
+| `noise` | `noise` | environment | 0 |
+| `temperature` | `temperature` | environment | 0 |
+| `pain` | `pain` | environment | 0 |
 
 ### dose_events
 
@@ -164,10 +185,20 @@ CREATE INDEX IF NOT EXISTS idx_medication_events_medication ON medication_events
 CREATE INDEX IF NOT EXISTS idx_medication_events_taken_at ON medication_events(taken_at_utc);
 ```
 
+### schema_migrations
+
+```sql
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    id TEXT PRIMARY KEY,
+    applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+```
+
 ## Migration Notes
 
 Migrations are applied in `EventStorage.migrateDatabase()` and include:
 - Adding `session_id` to existing tables.
 - Adding `terminal_state` to `current_session`.
 - Adding medication columns (`dose_unit`, `formulation`, `local_offset_minutes`).
-
+- Checking existing columns before additive `ALTER TABLE` statements so already-migrated databases do not rely on duplicate-column failures.
+- Applying one-time data migrations through the SQLite `schema_migrations` ledger.
