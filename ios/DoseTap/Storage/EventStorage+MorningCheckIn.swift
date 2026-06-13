@@ -202,9 +202,42 @@ extension EventStorage {
         return nil
     }
 
+    private enum MorningCheckInStoreError: Error, LocalizedError {
+        case prepareFailed(String)
+        case stepFailed(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .prepareFailed(let message): return "Failed to prepare morning check-in save: \(message)"
+            case .stepFailed(let message): return "Failed to save morning check-in: \(message)"
+            }
+        }
+    }
+
     public func saveMorningCheckIn(_ checkIn: StoredMorningCheckIn, forSession sessionDate: String? = nil) {
         let effectiveSessionDate = sessionDate ?? currentSessionDate()
 
+        do {
+            try withSQLiteTransaction {
+                try saveMorningCheckInRowOrThrow(checkIn, sessionDate: effectiveSessionDate)
+                try upsertCheckInSubmissionOrThrow(
+                    sourceRecordId: checkIn.id,
+                    sessionId: checkIn.sessionId,
+                    sessionDate: effectiveSessionDate,
+                    checkInType: .morning,
+                    questionnaireVersion: CheckInQuestionnaireVersion.morning,
+                    submittedAt: checkIn.timestamp,
+                    responsesByQuestionID: morningResponsesByQuestionID(checkIn)
+                )
+                try replaceMorningCheckInSymptomEventsInCurrentTransaction(checkIn, sessionDate: effectiveSessionDate)
+            }
+            storageLog.debug("Morning check-in saved: \(checkIn.id)")
+        } catch {
+            storageLog.error("Failed to save morning check-in \(checkIn.id): \(error.localizedDescription)")
+        }
+    }
+
+    private func saveMorningCheckInRowOrThrow(_ checkIn: StoredMorningCheckIn, sessionDate: String) throws {
         let sql = """
             INSERT OR REPLACE INTO morning_checkins (
                 id, session_id, timestamp, session_date,
@@ -222,8 +255,7 @@ extension EventStorage {
 
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            storageLog.error("Failed to prepare morning check-in insert: \(String(cString: sqlite3_errmsg(self.db)))")
-            return
+            throw MorningCheckInStoreError.prepareFailed(String(cString: sqlite3_errmsg(db)))
         }
         defer { sqlite3_finalize(stmt) }
 
@@ -232,7 +264,7 @@ extension EventStorage {
         sqlite3_bind_text(stmt, 1, checkIn.id, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 2, checkIn.sessionId, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 3, timestampStr, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 4, effectiveSessionDate, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 4, sessionDate, -1, SQLITE_TRANSIENT)
         sqlite3_bind_int(stmt, 5, Int32(checkIn.sleepQuality))
         sqlite3_bind_text(stmt, 6, checkIn.feelRested, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 7, checkIn.grogginess, -1, SQLITE_TRANSIENT)
@@ -292,28 +324,12 @@ extension EventStorage {
             sqlite3_bind_null(stmt, 30)
         }
 
-        if sqlite3_step(stmt) == SQLITE_DONE {
-            upsertCheckInSubmission(
-                sourceRecordId: checkIn.id,
-                sessionId: checkIn.sessionId,
-                sessionDate: effectiveSessionDate,
-                checkInType: .morning,
-                questionnaireVersion: CheckInQuestionnaireVersion.morning,
-                submittedAt: checkIn.timestamp,
-                responsesByQuestionID: morningResponsesByQuestionID(checkIn)
-            )
-            do {
-                try replaceMorningCheckInSymptomEvents(checkIn, sessionDate: effectiveSessionDate)
-            } catch {
-                storageLog.error("Failed to replace morning symptom events for \(checkIn.id): \(error.localizedDescription)")
-            }
-            storageLog.debug("Morning check-in saved: \(checkIn.id)")
-        } else {
-            storageLog.error("Failed to save morning check-in: \(String(cString: sqlite3_errmsg(self.db)))")
+        guard sqlite3_step(stmt) == SQLITE_DONE else {
+            throw MorningCheckInStoreError.stepFailed(String(cString: sqlite3_errmsg(db)))
         }
     }
 
-    private func replaceMorningCheckInSymptomEvents(
+    private func replaceMorningCheckInSymptomEventsInCurrentTransaction(
         _ checkIn: StoredMorningCheckIn,
         sessionDate: String
     ) throws {
@@ -331,7 +347,7 @@ extension EventStorage {
             sleepDisruption: false,
             stillPresent: true
         )
-        try replaceSymptomEvents(
+        try replaceSymptomEventsInCurrentTransaction(
             source: .morningReview,
             sourceRecordId: checkIn.id,
             sessionDate: sessionDate,

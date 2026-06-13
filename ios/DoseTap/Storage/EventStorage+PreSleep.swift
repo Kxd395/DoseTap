@@ -466,87 +466,66 @@ extension EventStorage {
             answersJson = "{}"
         }
 
-        let sql = """
-            INSERT OR REPLACE INTO pre_sleep_logs (
-                id, session_id, created_at_utc, local_offset_minutes, completion_state, answers_json
-            ) VALUES (?, ?, ?, ?, ?, ?)
-        """
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            storageLog.error("Failed to prepare pre-sleep sync upsert: \(String(cString: sqlite3_errmsg(self.db)))")
-            return
-        }
-        defer { sqlite3_finalize(stmt) }
-
-        sqlite3_bind_text(stmt, 1, log.id, -1, SQLITE_TRANSIENT)
-        if let sessionId = log.sessionId {
-            sqlite3_bind_text(stmt, 2, sessionId, -1, SQLITE_TRANSIENT)
-        } else {
-            sqlite3_bind_null(stmt, 2)
-        }
-        sqlite3_bind_text(stmt, 3, log.createdAtUtc, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_int(stmt, 4, Int32(log.localOffsetMinutes))
-        sqlite3_bind_text(stmt, 5, log.completionState, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 6, answersJson, -1, SQLITE_TRANSIENT)
-
-        guard sqlite3_step(stmt) == SQLITE_DONE else {
-            storageLog.error("Failed to upsert pre-sleep log from sync: \(String(cString: sqlite3_errmsg(self.db)))")
-            return
-        }
-
         let submittedAt = isoFormatter.date(from: log.createdAtUtc) ?? Date()
-        upsertCheckInSubmission(
-            sourceRecordId: log.id,
-            sessionId: log.sessionId,
-            sessionDate: sessionDate,
-            checkInType: .preNight,
-            questionnaireVersion: CheckInQuestionnaireVersion.preNight,
-            submittedAt: submittedAt,
-            responsesByQuestionID: log.answers.map(preSleepResponsesByQuestionID) ?? [:]
-        )
 
         do {
-            try replacePreSleepSymptomEvents(
-                sourceRecordId: log.id,
-                sessionId: log.sessionId,
-                sessionDate: sessionDate,
-                answers: log.answers,
-                completionState: log.completionState,
-                submittedAt: submittedAt
-            )
+            try withSQLiteTransaction {
+                try upsertPreSleepLogRowOrThrow(
+                    id: log.id,
+                    sessionId: log.sessionId,
+                    createdAtUtc: log.createdAtUtc,
+                    localOffsetMinutes: log.localOffsetMinutes,
+                    completionState: log.completionState,
+                    answersJson: answersJson,
+                    replacing: true
+                )
+                try upsertCheckInSubmissionOrThrow(
+                    sourceRecordId: log.id,
+                    sessionId: log.sessionId,
+                    sessionDate: sessionDate,
+                    checkInType: .preNight,
+                    questionnaireVersion: CheckInQuestionnaireVersion.preNight,
+                    submittedAt: submittedAt,
+                    responsesByQuestionID: log.answers.map(preSleepResponsesByQuestionID) ?? [:]
+                )
+                try replacePreSleepSymptomEventsInCurrentTransaction(
+                    sourceRecordId: log.id,
+                    sessionId: log.sessionId,
+                    sessionDate: sessionDate,
+                    answers: log.answers,
+                    completionState: log.completionState,
+                    submittedAt: submittedAt
+                )
+            }
         } catch {
-            storageLog.error("Failed to replace synced pre-sleep symptom events for \(log.id): \(error.localizedDescription)")
+            storageLog.error("Failed to upsert synced pre-sleep log \(log.id): \(error.localizedDescription)")
         }
     }
 
     public func deletePreSleepLog(id: String, recordCloudKitDeletion: Bool = true) {
-        if recordCloudKitDeletion {
-            enqueueCloudKitTombstone(recordType: "DoseTapPreSleepLog", recordName: id)
-        }
-
-        let sql = "DELETE FROM pre_sleep_logs WHERE id = ?"
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
-        defer { sqlite3_finalize(stmt) }
-
-        sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
-        guard sqlite3_step(stmt) == SQLITE_DONE else {
-            storageLog.error("Failed to delete pre-sleep log: \(String(cString: sqlite3_errmsg(self.db)))")
-            return
-        }
-
-        let submissionSQL = "DELETE FROM checkin_submissions WHERE source_record_id = ? AND checkin_type = ?"
-        var submissionStmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, submissionSQL, -1, &submissionStmt, nil) == SQLITE_OK else { return }
-        defer { sqlite3_finalize(submissionStmt) }
-        sqlite3_bind_text(submissionStmt, 1, id, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(submissionStmt, 2, CheckInType.preNight.rawValue, -1, SQLITE_TRANSIENT)
-        sqlite3_step(submissionStmt)
-
         do {
-            try clearSymptomEvents(source: .preSleep, sourceRecordId: id)
+            try withSQLiteTransaction {
+                if recordCloudKitDeletion {
+                    enqueueCloudKitTombstone(recordType: "DoseTapPreSleepLog", recordName: id)
+                }
+
+                let sql = "DELETE FROM pre_sleep_logs WHERE id = ?"
+                var stmt: OpaquePointer?
+                guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+                    throw PreSleepLogStoreError.prepareFailed(String(cString: sqlite3_errmsg(db)))
+                }
+                defer { sqlite3_finalize(stmt) }
+
+                sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
+                guard sqlite3_step(stmt) == SQLITE_DONE else {
+                    throw PreSleepLogStoreError.stepFailed(String(cString: sqlite3_errmsg(db)))
+                }
+
+                try deleteCheckInSubmissionOrThrow(sourceRecordId: id, checkInType: .preNight)
+                try clearSymptomEventsInCurrentTransaction(source: .preSleep, sourceRecordId: id)
+            }
         } catch {
-            storageLog.error("Failed to clear pre-sleep symptom events for \(id): \(error.localizedDescription)")
+            storageLog.error("Failed to delete pre-sleep log \(id): \(error.localizedDescription)")
         }
     }
 
@@ -609,6 +588,58 @@ extension EventStorage {
         return sqlite3_changes(db) > 0
     }
 
+    private func upsertPreSleepLogRowOrThrow(
+        id: String,
+        sessionId: String?,
+        createdAtUtc: String,
+        localOffsetMinutes: Int,
+        completionState: String,
+        answersJson: String,
+        replacing: Bool
+    ) throws {
+        let insertClause = replacing ? "INSERT OR REPLACE" : "INSERT"
+        let sql = """
+            \(insertClause) INTO pre_sleep_logs (
+                id, session_id, created_at_utc, local_offset_minutes, completion_state, answers_json
+            ) VALUES (?, ?, ?, ?, ?, ?)
+        """
+
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            throw PreSleepLogStoreError.prepareFailed(String(cString: sqlite3_errmsg(db)))
+        }
+        defer { sqlite3_finalize(stmt) }
+
+        guard sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT) == SQLITE_OK else {
+            throw PreSleepLogStoreError.bindFailed(String(cString: sqlite3_errmsg(db)))
+        }
+        if let sessionId {
+            guard sqlite3_bind_text(stmt, 2, sessionId, -1, SQLITE_TRANSIENT) == SQLITE_OK else {
+                throw PreSleepLogStoreError.bindFailed(String(cString: sqlite3_errmsg(db)))
+            }
+        } else {
+            guard sqlite3_bind_null(stmt, 2) == SQLITE_OK else {
+                throw PreSleepLogStoreError.bindFailed(String(cString: sqlite3_errmsg(db)))
+            }
+        }
+        guard sqlite3_bind_text(stmt, 3, createdAtUtc, -1, SQLITE_TRANSIENT) == SQLITE_OK else {
+            throw PreSleepLogStoreError.bindFailed(String(cString: sqlite3_errmsg(db)))
+        }
+        guard sqlite3_bind_int(stmt, 4, Int32(localOffsetMinutes)) == SQLITE_OK else {
+            throw PreSleepLogStoreError.bindFailed(String(cString: sqlite3_errmsg(db)))
+        }
+        guard sqlite3_bind_text(stmt, 5, completionState, -1, SQLITE_TRANSIENT) == SQLITE_OK else {
+            throw PreSleepLogStoreError.bindFailed(String(cString: sqlite3_errmsg(db)))
+        }
+        guard sqlite3_bind_text(stmt, 6, answersJson, -1, SQLITE_TRANSIENT) == SQLITE_OK else {
+            throw PreSleepLogStoreError.bindFailed(String(cString: sqlite3_errmsg(db)))
+        }
+
+        guard sqlite3_step(stmt) == SQLITE_DONE else {
+            throw PreSleepLogStoreError.stepFailed(String(cString: sqlite3_errmsg(db)))
+        }
+    }
+
     @discardableResult
     public func savePreSleepLogOrThrow(
         sessionId: String?,
@@ -632,14 +663,18 @@ extension EventStorage {
 
         if let existing = logToUpdate {
             let updatedSessionId = sessionId ?? existing.sessionId
-            if try updatePreSleepLog(
-                id: existing.id,
-                sessionId: updatedSessionId,
-                completionState: completionState,
-                answersJson: answersJson
-            ) {
+            if let updated = try withSQLiteTransaction({
+                guard try updatePreSleepLog(
+                    id: existing.id,
+                    sessionId: updatedSessionId,
+                    completionState: completionState,
+                    answersJson: answersJson
+                ) else {
+                    return nil as StoredPreSleepLog?
+                }
+
                 let sessionDate = resolvedSessionDate(sessionId: updatedSessionId, fallbackDate: now)
-                upsertCheckInSubmission(
+                try upsertCheckInSubmissionOrThrow(
                     sourceRecordId: existing.id,
                     sessionId: updatedSessionId,
                     sessionDate: sessionDate,
@@ -648,7 +683,7 @@ extension EventStorage {
                     submittedAt: now,
                     responsesByQuestionID: preSleepResponsesByQuestionID(normalizedAnswers)
                 )
-                try replacePreSleepSymptomEvents(
+                try replacePreSleepSymptomEventsInCurrentTransaction(
                     sourceRecordId: existing.id,
                     sessionId: updatedSessionId,
                     sessionDate: sessionDate,
@@ -664,6 +699,8 @@ extension EventStorage {
                     completionState: completionState,
                     answers: normalizedAnswers
                 )
+            }) {
+                return updated
             }
         }
 
@@ -671,71 +708,45 @@ extension EventStorage {
         let createdAtUtc = isoFormatter.string(from: now)
         let localOffsetMinutes = timeZone.secondsFromGMT(for: now) / 60
 
-        let sql = """
-            INSERT INTO pre_sleep_logs (id, session_id, created_at_utc, local_offset_minutes, completion_state, answers_json)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """
-
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            throw PreSleepLogStoreError.prepareFailed(String(cString: sqlite3_errmsg(db)))
-        }
-        defer { sqlite3_finalize(stmt) }
-
-        guard sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT) == SQLITE_OK else {
-            throw PreSleepLogStoreError.bindFailed(String(cString: sqlite3_errmsg(db)))
-        }
-        if let sessionId = sessionId {
-            guard sqlite3_bind_text(stmt, 2, sessionId, -1, SQLITE_TRANSIENT) == SQLITE_OK else {
-                throw PreSleepLogStoreError.bindFailed(String(cString: sqlite3_errmsg(db)))
-            }
-        } else {
-            sqlite3_bind_null(stmt, 2)
-        }
-        guard sqlite3_bind_text(stmt, 3, createdAtUtc, -1, SQLITE_TRANSIENT) == SQLITE_OK else {
-            throw PreSleepLogStoreError.bindFailed(String(cString: sqlite3_errmsg(db)))
-        }
-        guard sqlite3_bind_int(stmt, 4, Int32(localOffsetMinutes)) == SQLITE_OK else {
-            throw PreSleepLogStoreError.bindFailed(String(cString: sqlite3_errmsg(db)))
-        }
-        guard sqlite3_bind_text(stmt, 5, completionState, -1, SQLITE_TRANSIENT) == SQLITE_OK else {
-            throw PreSleepLogStoreError.bindFailed(String(cString: sqlite3_errmsg(db)))
-        }
-        guard sqlite3_bind_text(stmt, 6, answersJson, -1, SQLITE_TRANSIENT) == SQLITE_OK else {
-            throw PreSleepLogStoreError.bindFailed(String(cString: sqlite3_errmsg(db)))
-        }
-
-        if sqlite3_step(stmt) != SQLITE_DONE {
-            throw PreSleepLogStoreError.stepFailed(String(cString: sqlite3_errmsg(db)))
-        }
-
         let sessionDate = resolvedSessionDate(sessionId: sessionId, fallbackDate: now)
-        upsertCheckInSubmission(
-            sourceRecordId: id,
-            sessionId: sessionId,
-            sessionDate: sessionDate,
-            checkInType: .preNight,
-            questionnaireVersion: CheckInQuestionnaireVersion.preNight,
-            submittedAt: now,
-            responsesByQuestionID: preSleepResponsesByQuestionID(normalizedAnswers)
-        )
-        try replacePreSleepSymptomEvents(
-            sourceRecordId: id,
-            sessionId: sessionId,
-            sessionDate: sessionDate,
-            answers: normalizedAnswers,
-            completionState: completionState,
-            submittedAt: now
-        )
+        return try withSQLiteTransaction {
+            try upsertPreSleepLogRowOrThrow(
+                id: id,
+                sessionId: sessionId,
+                createdAtUtc: createdAtUtc,
+                localOffsetMinutes: localOffsetMinutes,
+                completionState: completionState,
+                answersJson: answersJson,
+                replacing: false
+            )
 
-        return StoredPreSleepLog(
-            id: id,
-            sessionId: sessionId,
-            createdAtUtc: createdAtUtc,
-            localOffsetMinutes: localOffsetMinutes,
-            completionState: completionState,
-            answers: normalizedAnswers
-        )
+            try upsertCheckInSubmissionOrThrow(
+                sourceRecordId: id,
+                sessionId: sessionId,
+                sessionDate: sessionDate,
+                checkInType: .preNight,
+                questionnaireVersion: CheckInQuestionnaireVersion.preNight,
+                submittedAt: now,
+                responsesByQuestionID: preSleepResponsesByQuestionID(normalizedAnswers)
+            )
+            try replacePreSleepSymptomEventsInCurrentTransaction(
+                sourceRecordId: id,
+                sessionId: sessionId,
+                sessionDate: sessionDate,
+                answers: normalizedAnswers,
+                completionState: completionState,
+                submittedAt: now
+            )
+
+            return StoredPreSleepLog(
+                id: id,
+                sessionId: sessionId,
+                createdAtUtc: createdAtUtc,
+                localOffsetMinutes: localOffsetMinutes,
+                completionState: completionState,
+                answers: normalizedAnswers
+            )
+        }
     }
 
     public func savePreSleepLog(sessionId: String?, answers: PreSleepLogAnswers, completionState: String = "complete") {
@@ -767,7 +778,7 @@ extension EventStorage {
         }
     }
 
-    private func replacePreSleepSymptomEvents(
+    private func replacePreSleepSymptomEventsInCurrentTransaction(
         sourceRecordId: String,
         sessionId: String?,
         sessionDate: String,
@@ -792,7 +803,7 @@ extension EventStorage {
             sleepDisruption: false,
             stillPresent: true
         )
-        try replaceSymptomEvents(
+        try replaceSymptomEventsInCurrentTransaction(
             source: .preSleep,
             sourceRecordId: sourceRecordId,
             sessionDate: sessionDate,
