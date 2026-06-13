@@ -7,6 +7,55 @@ import os.log
 
 extension EventStorage {
 
+    enum SQLiteTransactionError: Error, LocalizedError {
+        case beginFailed(String)
+        case commitFailed(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .beginFailed(let message): return "Failed to begin SQLite transaction: \(message)"
+            case .commitFailed(let message): return "Failed to commit SQLite transaction: \(message)"
+            }
+        }
+    }
+
+    enum CheckInSubmissionStoreError: Error, LocalizedError {
+        case encodeFailed(String)
+        case prepareFailed(String)
+        case stepFailed(String)
+        case deletePrepareFailed(String)
+        case deleteStepFailed(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .encodeFailed(let sourceRecordId): return "Failed to encode check-in responses for \(sourceRecordId)"
+            case .prepareFailed(let message): return "Failed to prepare check-in submission upsert: \(message)"
+            case .stepFailed(let message): return "Failed to upsert check-in submission: \(message)"
+            case .deletePrepareFailed(let message): return "Failed to prepare check-in submission delete: \(message)"
+            case .deleteStepFailed(let message): return "Failed to delete check-in submission: \(message)"
+            }
+        }
+    }
+
+    func withSQLiteTransaction<T>(_ operation: () throws -> T) throws -> T {
+        guard sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil) == SQLITE_OK else {
+            throw SQLiteTransactionError.beginFailed(String(cString: sqlite3_errmsg(db)))
+        }
+
+        do {
+            let result = try operation()
+            guard sqlite3_exec(db, "COMMIT", nil, nil, nil) == SQLITE_OK else {
+                let message = String(cString: sqlite3_errmsg(db))
+                sqlite3_exec(db, "ROLLBACK", nil, nil, nil)
+                throw SQLiteTransactionError.commitFailed(message)
+            }
+            return result
+        } catch {
+            sqlite3_exec(db, "ROLLBACK", nil, nil, nil)
+            throw error
+        }
+    }
+
     func upsertCheckInSubmission(
         sourceRecordId: String,
         sessionId: String?,
@@ -16,11 +65,33 @@ extension EventStorage {
         submittedAt: Date,
         responsesByQuestionID: [String: Any]
     ) {
-        guard let responsesJson = jsonString(from: responsesByQuestionID) else {
-            storageLog.warning("Failed to encode check-in responses for \(sourceRecordId)")
-            return
+        do {
+            try upsertCheckInSubmissionOrThrow(
+                sourceRecordId: sourceRecordId,
+                sessionId: sessionId,
+                sessionDate: sessionDate,
+                checkInType: checkInType,
+                questionnaireVersion: questionnaireVersion,
+                submittedAt: submittedAt,
+                responsesByQuestionID: responsesByQuestionID
+            )
+        } catch {
+            storageLog.error("\(error.localizedDescription)")
         }
+    }
 
+    func upsertCheckInSubmissionOrThrow(
+        sourceRecordId: String,
+        sessionId: String?,
+        sessionDate: String,
+        checkInType: CheckInType,
+        questionnaireVersion: String,
+        submittedAt: Date,
+        responsesByQuestionID: [String: Any]
+    ) throws {
+        guard let responsesJson = jsonString(from: responsesByQuestionID) else {
+            throw CheckInSubmissionStoreError.encodeFailed(sourceRecordId)
+        }
         let id = "\(checkInType.rawValue):\(sourceRecordId)"
         let sql = """
             INSERT OR REPLACE INTO checkin_submissions (
@@ -30,8 +101,7 @@ extension EventStorage {
         """
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            storageLog.error("Failed to prepare check-in submission upsert: \(String(cString: sqlite3_errmsg(self.db)))")
-            return
+            throw CheckInSubmissionStoreError.prepareFailed(String(cString: sqlite3_errmsg(db)))
         }
         defer { sqlite3_finalize(stmt) }
 
@@ -54,8 +124,7 @@ extension EventStorage {
         sqlite3_bind_text(stmt, 10, responsesJson, -1, SQLITE_TRANSIENT)
 
         guard sqlite3_step(stmt) == SQLITE_DONE else {
-            storageLog.error("Failed to upsert check-in submission: \(String(cString: sqlite3_errmsg(self.db)))")
-            return
+            throw CheckInSubmissionStoreError.stepFailed(String(cString: sqlite3_errmsg(db)))
         }
     }
 
@@ -157,6 +226,22 @@ extension EventStorage {
         return Int(sqlite3_column_int(stmt, 0))
     }
 
+    func deleteCheckInSubmissionOrThrow(sourceRecordId: String, checkInType: CheckInType) throws {
+        let sql = "DELETE FROM checkin_submissions WHERE source_record_id = ? AND checkin_type = ?"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            throw CheckInSubmissionStoreError.deletePrepareFailed(String(cString: sqlite3_errmsg(db)))
+        }
+        defer { sqlite3_finalize(stmt) }
+
+        sqlite3_bind_text(stmt, 1, sourceRecordId, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 2, checkInType.rawValue, -1, SQLITE_TRANSIENT)
+
+        guard sqlite3_step(stmt) == SQLITE_DONE else {
+            throw CheckInSubmissionStoreError.deleteStepFailed(String(cString: sqlite3_errmsg(db)))
+        }
+    }
+
     @discardableResult
     public func recordSymptomEvent(
         _ event: StoredSymptomEvent,
@@ -166,28 +251,27 @@ extension EventStorage {
             return existing
         }
 
-        sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
         do {
-            try insertSymptomCommand(
-                idempotencyKey: idempotencyKey,
-                event: event,
-                status: "pending",
-                createdEventId: nil,
-                errorCode: nil
-            )
-            try insertSymptomEvent(event)
-            for location in event.locations {
-                try insertSymptomLocation(location, eventId: event.id)
-                for point in location.points {
-                    try insertBodyMapPoint(point, locationId: location.id)
+            return try withSQLiteTransaction {
+                try insertSymptomCommand(
+                    idempotencyKey: idempotencyKey,
+                    event: event,
+                    status: "pending",
+                    createdEventId: nil,
+                    errorCode: nil
+                )
+                try insertSymptomEvent(event)
+                for location in event.locations {
+                    try insertSymptomLocation(location, eventId: event.id)
+                    for point in location.points {
+                        try insertBodyMapPoint(point, locationId: location.id)
+                    }
                 }
+                try rebuildSymptomSummary(sessionDate: event.sessionDate)
+                try updateSymptomCommandComplete(idempotencyKey: idempotencyKey, eventId: event.id)
+                return event
             }
-            try rebuildSymptomSummary(sessionDate: event.sessionDate)
-            try updateSymptomCommandComplete(idempotencyKey: idempotencyKey, eventId: event.id)
-            sqlite3_exec(db, "COMMIT", nil, nil, nil)
-            return event
         } catch {
-            sqlite3_exec(db, "ROLLBACK", nil, nil, nil)
             try? markSymptomCommandFailed(idempotencyKey: idempotencyKey, event: event, error: error)
             throw error
         }
@@ -208,37 +292,55 @@ extension EventStorage {
             throw SymptomStorageError.sourceRecordMismatch
         }
 
-        sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
-        do {
-            try deleteSymptomCommands(source: source, sourceRecordId: sourceRecordId)
-            try deleteSymptomEvents(source: source, sourceRecordId: sourceRecordId)
-
-            for event in events {
-                let idempotencyKey = symptomIdempotencyKey(for: event)
-                try insertSymptomCommand(
-                    idempotencyKey: idempotencyKey,
-                    event: event,
-                    status: "pending",
-                    createdEventId: nil,
-                    errorCode: nil
-                )
-                try insertSymptomEvent(event)
-                for location in event.locations {
-                    try insertSymptomLocation(location, eventId: event.id)
-                    for point in location.points {
-                        try insertBodyMapPoint(point, locationId: location.id)
-                    }
-                }
-                try updateSymptomCommandComplete(idempotencyKey: idempotencyKey, eventId: event.id)
-            }
-
-            try rebuildSymptomSummary(sessionDate: sessionDate)
-            sqlite3_exec(db, "COMMIT", nil, nil, nil)
-            return events
-        } catch {
-            sqlite3_exec(db, "ROLLBACK", nil, nil, nil)
-            throw error
+        return try withSQLiteTransaction {
+            try replaceSymptomEventsInCurrentTransaction(
+                source: source,
+                sourceRecordId: sourceRecordId,
+                sessionDate: sessionDate,
+                events: events
+            )
         }
+    }
+
+    @discardableResult
+    func replaceSymptomEventsInCurrentTransaction(
+        source: SymptomEventSource,
+        sourceRecordId: String,
+        sessionDate: String,
+        events: [StoredSymptomEvent]
+    ) throws -> [StoredSymptomEvent] {
+        guard events.allSatisfy({
+            $0.source == source
+                && $0.sourceRecordId == sourceRecordId
+                && $0.sessionDate == sessionDate
+        }) else {
+            throw SymptomStorageError.sourceRecordMismatch
+        }
+
+        try deleteSymptomCommands(source: source, sourceRecordId: sourceRecordId)
+        try deleteSymptomEvents(source: source, sourceRecordId: sourceRecordId)
+
+        for event in events {
+            let idempotencyKey = symptomIdempotencyKey(for: event)
+            try insertSymptomCommand(
+                idempotencyKey: idempotencyKey,
+                event: event,
+                status: "pending",
+                createdEventId: nil,
+                errorCode: nil
+            )
+            try insertSymptomEvent(event)
+            for location in event.locations {
+                try insertSymptomLocation(location, eventId: event.id)
+                for point in location.points {
+                    try insertBodyMapPoint(point, locationId: location.id)
+                }
+            }
+            try updateSymptomCommandComplete(idempotencyKey: idempotencyKey, eventId: event.id)
+        }
+
+        try rebuildSymptomSummary(sessionDate: sessionDate)
+        return events
     }
 
     public func clearSymptomEvents(
@@ -247,17 +349,25 @@ extension EventStorage {
     ) throws {
         let affectedSessionDates = fetchSymptomSessionDates(source: source, sourceRecordId: sourceRecordId)
 
-        sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
-        do {
-            try deleteSymptomCommands(source: source, sourceRecordId: sourceRecordId)
-            try deleteSymptomEvents(source: source, sourceRecordId: sourceRecordId)
-            for sessionDate in affectedSessionDates {
-                try rebuildSymptomSummary(sessionDate: sessionDate)
-            }
-            sqlite3_exec(db, "COMMIT", nil, nil, nil)
-        } catch {
-            sqlite3_exec(db, "ROLLBACK", nil, nil, nil)
-            throw error
+        try withSQLiteTransaction {
+            try clearSymptomEventsInCurrentTransaction(
+                source: source,
+                sourceRecordId: sourceRecordId,
+                affectedSessionDates: affectedSessionDates
+            )
+        }
+    }
+
+    func clearSymptomEventsInCurrentTransaction(
+        source: SymptomEventSource,
+        sourceRecordId: String,
+        affectedSessionDates: [String]? = nil
+    ) throws {
+        let dates = affectedSessionDates ?? fetchSymptomSessionDates(source: source, sourceRecordId: sourceRecordId)
+        try deleteSymptomCommands(source: source, sourceRecordId: sourceRecordId)
+        try deleteSymptomEvents(source: source, sourceRecordId: sourceRecordId)
+        for sessionDate in dates {
+            try rebuildSymptomSummary(sessionDate: sessionDate)
         }
     }
 
