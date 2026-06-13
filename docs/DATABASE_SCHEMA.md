@@ -1,8 +1,8 @@
 # DoseTap Database Schema
 
-Last updated: 2026-06-12
+Last updated: 2026-06-13
 Source of truth: `ios/DoseTap/Storage/EventStorage.swift` (`createTables()` + `migrateDatabase()`).
-SQLite user_version: 1
+SQLite user_version: 2
 
 ## Tables
 
@@ -165,6 +165,96 @@ CREATE TABLE IF NOT EXISTS medication_events (
 );
 ```
 
+### symptom_events
+
+Durable, non-diagnostic symptom facts for future Body Map Symptom Check-in flows. Questionnaire answers remain context; these rows are the rebuildable symptom event log.
+
+```sql
+CREATE TABLE IF NOT EXISTS symptom_events (
+    id TEXT PRIMARY KEY,
+    session_id TEXT,
+    session_date TEXT NOT NULL,
+    phase TEXT NOT NULL,
+    source TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    noticed_at TEXT NOT NULL,
+    severity_0_10 INTEGER CHECK (severity_0_10 IS NULL OR severity_0_10 BETWEEN 0 AND 10),
+    sleep_disruption INTEGER NOT NULL DEFAULT 0 CHECK (sleep_disruption IN (0, 1)),
+    still_present INTEGER NOT NULL DEFAULT 0 CHECK (still_present IN (0, 1)),
+    functional_impact TEXT,
+    note TEXT,
+    schema_version INTEGER NOT NULL DEFAULT 1,
+    app_version TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+```
+
+### symptom_locations
+
+```sql
+CREATE TABLE IF NOT EXISTS symptom_locations (
+    id TEXT PRIMARY KEY,
+    event_id TEXT NOT NULL,
+    body_side TEXT NOT NULL,
+    body_region_id TEXT NOT NULL,
+    anatomy_layer TEXT NOT NULL,
+    precision TEXT NOT NULL,
+    confidence TEXT NOT NULL,
+    FOREIGN KEY(event_id) REFERENCES symptom_events(id) ON DELETE CASCADE
+);
+```
+
+### body_map_points
+
+```sql
+CREATE TABLE IF NOT EXISTS body_map_points (
+    id TEXT PRIMARY KEY,
+    location_id TEXT NOT NULL,
+    map_id TEXT NOT NULL,
+    normalized_x REAL NOT NULL CHECK (normalized_x >= 0.0 AND normalized_x <= 1.0),
+    normalized_y REAL NOT NULL CHECK (normalized_y >= 0.0 AND normalized_y <= 1.0),
+    zoom_level REAL NOT NULL DEFAULT 1.0 CHECK (zoom_level > 0.0),
+    body_view TEXT NOT NULL,
+    FOREIGN KEY(location_id) REFERENCES symptom_locations(id) ON DELETE CASCADE
+);
+```
+
+### symptom_command_log
+
+Idempotency ledger for symptom writes. The same command key must return the originally created event instead of creating a duplicate symptom event.
+
+```sql
+CREATE TABLE IF NOT EXISTS symptom_command_log (
+    idempotency_key TEXT PRIMARY KEY,
+    command_type TEXT NOT NULL,
+    source TEXT NOT NULL,
+    session_id TEXT,
+    session_date TEXT,
+    status TEXT NOT NULL,
+    created_event_id TEXT,
+    error_code TEXT,
+    created_at TEXT NOT NULL,
+    completed_at TEXT
+);
+```
+
+### symptom_summaries
+
+Rebuildable session-level symptom summary derived from `symptom_events`.
+
+```sql
+CREATE TABLE IF NOT EXISTS symptom_summaries (
+    session_date TEXT PRIMARY KEY,
+    session_id TEXT,
+    symptom_count INTEGER NOT NULL,
+    highest_severity INTEGER,
+    sleep_disruption_count INTEGER NOT NULL,
+    still_present_count INTEGER NOT NULL,
+    summary_hash TEXT NOT NULL,
+    rebuilt_at TEXT NOT NULL
+);
+```
+
 ## Indexes
 
 ```sql
@@ -183,6 +273,12 @@ CREATE INDEX IF NOT EXISTS idx_medication_events_session ON medication_events(se
 CREATE INDEX IF NOT EXISTS idx_medication_events_session_date ON medication_events(session_date);
 CREATE INDEX IF NOT EXISTS idx_medication_events_medication ON medication_events(medication_id);
 CREATE INDEX IF NOT EXISTS idx_medication_events_taken_at ON medication_events(taken_at_utc);
+CREATE INDEX IF NOT EXISTS idx_symptom_events_session_date ON symptom_events(session_date);
+CREATE INDEX IF NOT EXISTS idx_symptom_events_session_id ON symptom_events(session_id);
+CREATE INDEX IF NOT EXISTS idx_symptom_events_phase_kind ON symptom_events(phase, kind);
+CREATE INDEX IF NOT EXISTS idx_symptom_locations_event ON symptom_locations(event_id);
+CREATE INDEX IF NOT EXISTS idx_body_map_points_location ON body_map_points(location_id);
+CREATE INDEX IF NOT EXISTS idx_symptom_command_log_status ON symptom_command_log(status);
 ```
 
 ### schema_migrations
@@ -200,5 +296,6 @@ Migrations are applied in `EventStorage.migrateDatabase()` and include:
 - Adding `session_id` to existing tables.
 - Adding `terminal_state` to `current_session`.
 - Adding medication columns (`dose_unit`, `formulation`, `local_offset_minutes`).
+- Adding native symptom event tables, child location/point tables, idempotency command log, and rebuildable summaries.
 - Checking existing columns before additive `ALTER TABLE` statements so already-migrated databases do not rely on duplicate-column failures.
 - Applying one-time data migrations through the SQLite `schema_migrations` ledger.

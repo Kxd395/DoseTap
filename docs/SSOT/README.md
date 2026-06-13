@@ -1,7 +1,7 @@
 # DoseTap SSOT (Single Source of Truth)
 
-Last updated: 2026-06-12
-Version: 0.4.3
+Last updated: 2026-06-13
+Version: 0.4.4
 
 This document is the authoritative specification for the current DoseTap behavior. It describes what the code does today. If code and this SSOT diverge, the SSOT must be updated to match the code.
 
@@ -303,6 +303,11 @@ Tables (authoritative in `EventStorage.createTables()`):
 - `morning_checkins` (session_id, timestamp, session_date, ...)
 - `pre_sleep_logs` (session_id, created_at_utc, answers_json, ...)
 - `medication_events` (session_id, medication_id, taken_at_utc, ...)
+- `symptom_events` (session_id, session_date, phase, source, kind, noticed_at, ...)
+- `symptom_locations` (event_id, body_side, body_region_id, anatomy_layer, precision, confidence)
+- `body_map_points` (location_id, map_id, normalized_x, normalized_y, body_view)
+- `symptom_command_log` (idempotency_key, command_type, source, session_date, status, ...)
+- `symptom_summaries` (session_date, symptom_count, highest_severity, ...)
 
 Data retention:
 - App restart: data persists.

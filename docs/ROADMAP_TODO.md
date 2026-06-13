@@ -77,7 +77,9 @@ Track active gaps after the Phase 1/2 stabilization pass and keep a short, curre
 - [x] Add regression coverage for remaining edge cases around session rollover + timezone + planner toggle interaction. — **Added 2026-02-14 (a330c66):** 26 tests in `SessionRolloverRegressionTests` covering DST, timezone travel, custom rollover hours, leap year, nextRollover(), preSleepSessionKey, dose window midnight spanning.
 
 ### Symptom Tracking
-- [ ] Add Body Map Symptom Check-in as a DoseTap-native feature, not a wholesale drop-in package. Keep the design direction from `review/dosetap_bodymap_checkin_dropin`: questionnaire answers are context, durable symptom facts write to `symptom_events`, summaries are rebuildable, and all symptom writes go through one coordinator. Start with the event model, SQLite migration, write gate, and tests before adding body map UI. First UI slice should be hand/finger, wrist/forearm, and back maps with 2D normalized points, non-diagnostic copy, quick night logging, and morning review status. See `docs/review/body_map_symptom_checkin_decision_2026-06-13.md`.
+- [ ] Add Body Map Symptom Check-in as a DoseTap-native feature, not a wholesale drop-in package. Keep the design direction from `review/dosetap_bodymap_checkin_dropin`: questionnaire answers are context, durable symptom facts write to `symptom_events`, summaries are rebuildable, and all symptom writes go through one coordinator. See `docs/review/body_map_symptom_checkin_decision_2026-06-13.md`.
+  - [x] 2026-06-13 foundation: added typed symptom models, SQLite event/location/point/command/summary tables, one idempotent write gate, session discovery/delete coverage, and focused storage tests.
+  - [ ] First UI slice: hand/finger, wrist/forearm, and back maps with 2D normalized points, non-diagnostic copy, quick night logging, and morning review status.
 
 ### Operations
 - [x] Add release checklist enforcement for secret scanning + pin freshness checks. — **Added 2026-02-14:** `tools/release_preflight.sh` (8 automated checks), CI runs on tag pushes, `RELEASE_CHECKLIST.md` updated with quick-start command.

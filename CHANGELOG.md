@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-06-13
+
+### Added
+
+- Added the native symptom-event storage foundation for future Body Map Symptom Check-in:
+  - SQLite tables for `symptom_events`, `symptom_locations`, `body_map_points`, `symptom_command_log`, and `symptom_summaries`.
+  - Typed symptom event, location, point, and summary models with severity and normalized-point validation.
+  - A single idempotent symptom-event write gate through `EventStorage` and `SessionRepository`.
+  - Session discovery, session deletion, and legacy session-id migration coverage for symptom events.
+  - Focused storage tests for schema idempotency, persistence, summaries, idempotency, and cascading deletes.
+
+### Changed
+
+- Bumped SQLite `user_version` to `2`.
+- Bumped `DoseTap` and `DoseTapStaging` to version `0.4.4` build `6`.
+
 ## [0.4.3] - 2026-06-12
 
 ### Fixed
