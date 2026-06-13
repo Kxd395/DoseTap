@@ -19,7 +19,7 @@ struct SettingsView: View {
         if isInSplitView {
             settingsContent
         } else {
-            NavigationView {
+            NavigationStack {
                 settingsContent
             }
         }

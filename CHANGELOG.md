@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Kept previous incomplete check-ins non-blocking unless they affect the current session identity, rollover, or dose state.
   - Removed the Settings tab's separate runtime color-scheme override so all main tabs follow the app shell theme.
   - Extended the tab split-brain CI guard to reject direct tab-level `settings.colorScheme` ownership.
+  - Updated compact Timeline, History, Dashboard, and Settings tab roots from `NavigationView` to `NavigationStack` for consistent iOS 16 navigation behavior.
 
 ### Changed
 

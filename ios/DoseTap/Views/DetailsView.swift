@@ -118,7 +118,7 @@ struct DetailsView: View {
         if isInSplitView {
             timelineContent
         } else {
-            NavigationView {
+            NavigationStack {
                 timelineContent
             }
         }

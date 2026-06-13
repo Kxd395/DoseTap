@@ -82,7 +82,7 @@ struct HistoryView: View {
         if isInSplitView {
             historyContent
         } else {
-            NavigationView {
+            NavigationStack {
                 historyContent
             }
         }
