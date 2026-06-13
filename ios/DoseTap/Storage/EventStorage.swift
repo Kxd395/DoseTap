@@ -49,7 +49,7 @@ public class EventStorage {
     }
     
     public static let constantsVersion = "1.0.0"
-    public static let schemaUserVersion = 1
+    public static let schemaUserVersion = 2
 
     public init(dbPath: String) {
         self.dbPath = dbPath

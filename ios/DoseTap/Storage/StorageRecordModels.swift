@@ -78,6 +78,211 @@ public struct StoredCheckInSubmission: Identifiable {
     }
 }
 
+public enum SymptomCheckInPhase: String, Codable, CaseIterable {
+    case preSleep = "pre_sleep"
+    case nightLog = "night_log"
+    case morningReview = "morning_review"
+}
+
+public enum SymptomEventSource: String, Codable, CaseIterable {
+    case preSleep = "pre_sleep"
+    case nightQuickLog = "night_quick_log"
+    case morningReview = "morning_review"
+    case bodyMap = "body_map"
+    case migration = "migration"
+    case repair = "repair"
+}
+
+public enum SymptomKind: String, Codable, CaseIterable {
+    case pain
+    case numbness
+    case tingling
+    case burning
+    case pinsNeedles = "pins_needles"
+    case spasm
+    case tightness
+    case pressure
+    case stiffness
+    case weakness
+    case electric
+    case coldSensation = "cold_sensation"
+    case throbbing
+}
+
+public enum SymptomBodySide: String, Codable, CaseIterable {
+    case left
+    case right
+    case both
+    case center
+    case unknown
+}
+
+public enum SymptomAnatomyLayer: String, Codable, CaseIterable {
+    case surface
+    case muscle
+    case nerveLike = "nerve_like"
+    case joint
+    case bone
+    case unsure
+}
+
+public enum SymptomLocationPrecision: String, Codable, CaseIterable {
+    case region
+    case point
+    case distribution
+}
+
+public enum SymptomLocationConfidence: String, Codable, CaseIterable {
+    case exact
+    case approximate
+    case unsure
+}
+
+public enum SymptomBodyView: String, Codable, CaseIterable {
+    case front
+    case back
+    case palm
+    case dorsalHand = "dorsal_hand"
+    case forearmPalm = "forearm_palm"
+    case forearmDorsal = "forearm_dorsal"
+}
+
+public enum SymptomStorageError: Error, Equatable {
+    case invalidSeverity
+    case missingLocation
+    case invalidNormalizedPoint
+    case commandAlreadyProcessed
+    case eventNotFound
+}
+
+public struct StoredBodyMapPoint: Identifiable, Codable, Equatable {
+    public let id: String
+    public let mapId: String
+    public let normalizedX: Double
+    public let normalizedY: Double
+    public let zoomLevel: Double
+    public let bodyView: SymptomBodyView
+
+    public init(
+        id: String = UUID().uuidString,
+        mapId: String,
+        normalizedX: Double,
+        normalizedY: Double,
+        zoomLevel: Double = 1.0,
+        bodyView: SymptomBodyView
+    ) throws {
+        guard (0...1).contains(normalizedX), (0...1).contains(normalizedY) else {
+            throw SymptomStorageError.invalidNormalizedPoint
+        }
+        self.id = id
+        self.mapId = mapId
+        self.normalizedX = normalizedX
+        self.normalizedY = normalizedY
+        self.zoomLevel = zoomLevel
+        self.bodyView = bodyView
+    }
+}
+
+public struct StoredSymptomLocation: Identifiable, Codable, Equatable {
+    public let id: String
+    public let bodySide: SymptomBodySide
+    public let bodyRegionId: String
+    public let anatomyLayer: SymptomAnatomyLayer
+    public let precision: SymptomLocationPrecision
+    public let confidence: SymptomLocationConfidence
+    public let points: [StoredBodyMapPoint]
+
+    public init(
+        id: String = UUID().uuidString,
+        bodySide: SymptomBodySide,
+        bodyRegionId: String,
+        anatomyLayer: SymptomAnatomyLayer,
+        precision: SymptomLocationPrecision,
+        confidence: SymptomLocationConfidence,
+        points: [StoredBodyMapPoint] = []
+    ) {
+        self.id = id
+        self.bodySide = bodySide
+        self.bodyRegionId = bodyRegionId
+        self.anatomyLayer = anatomyLayer
+        self.precision = precision
+        self.confidence = confidence
+        self.points = points
+    }
+}
+
+public struct StoredSymptomSummary: Codable, Equatable {
+    public let sessionDate: String
+    public let sessionId: String?
+    public let symptomCount: Int
+    public let highestSeverity: Int?
+    public let sleepDisruptionCount: Int
+    public let stillPresentCount: Int
+    public let summaryHash: String
+    public let rebuiltAt: Date
+}
+
+public struct StoredSymptomEvent: Identifiable, Codable, Equatable {
+    public let id: String
+    public let sessionId: String?
+    public let sessionDate: String
+    public let phase: SymptomCheckInPhase
+    public let source: SymptomEventSource
+    public let kind: SymptomKind
+    public let noticedAt: Date
+    public let severity0to10: Int?
+    public let sleepDisruption: Bool
+    public let stillPresent: Bool
+    public let functionalImpact: String?
+    public let note: String?
+    public let schemaVersion: Int
+    public let appVersion: String
+    public let createdAt: Date
+    public let locations: [StoredSymptomLocation]
+
+    public init(
+        id: String = UUID().uuidString,
+        sessionId: String?,
+        sessionDate: String,
+        phase: SymptomCheckInPhase,
+        source: SymptomEventSource,
+        kind: SymptomKind,
+        noticedAt: Date = Date(),
+        severity0to10: Int? = nil,
+        sleepDisruption: Bool = false,
+        stillPresent: Bool = false,
+        functionalImpact: String? = nil,
+        note: String? = nil,
+        schemaVersion: Int = 1,
+        appVersion: String,
+        createdAt: Date = Date(),
+        locations: [StoredSymptomLocation]
+    ) throws {
+        if let severity0to10, !(0...10).contains(severity0to10) {
+            throw SymptomStorageError.invalidSeverity
+        }
+        guard !locations.isEmpty else {
+            throw SymptomStorageError.missingLocation
+        }
+        self.id = id
+        self.sessionId = sessionId
+        self.sessionDate = sessionDate
+        self.phase = phase
+        self.source = source
+        self.kind = kind
+        self.noticedAt = noticedAt
+        self.severity0to10 = severity0to10
+        self.sleepDisruption = sleepDisruption
+        self.stillPresent = stillPresent
+        self.functionalImpact = functionalImpact
+        self.note = note
+        self.schemaVersion = schemaVersion
+        self.appVersion = appVersion
+        self.createdAt = createdAt
+        self.locations = locations
+    }
+}
+
 /// Pre-sleep log model for creating new logs (input model)
 public struct PreSleepLog: Identifiable {
     public let id: String

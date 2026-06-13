@@ -13,7 +13,8 @@ extension EventStorage {
     public func clearAllData() {
         let tables = [
             "sleep_events", "dose_events", "current_session", "sleep_sessions", "pre_sleep_logs",
-            "morning_checkins", "checkin_submissions", "medication_events"
+            "morning_checkins", "checkin_submissions", "medication_events", "body_map_points",
+            "symptom_locations", "symptom_events", "symptom_command_log", "symptom_summaries"
         ]
         for table in tables {
             let sql = "DELETE FROM \(table)"
@@ -32,7 +33,7 @@ extension EventStorage {
         // Sanitize table name to prevent SQL injection (only allow known tables)
         let allowedTables = [
             "sleep_events", "dose_events", "current_session", "sleep_sessions", "pre_sleep_logs",
-            "morning_checkins", "checkin_submissions", "medication_events"
+            "morning_checkins", "checkin_submissions", "medication_events", "symptom_events"
         ]
         guard allowedTables.contains(table) else {
             storageLog.warning("fetchRowCount: Unknown table '\(table)'")
@@ -78,7 +79,7 @@ extension EventStorage {
 
         sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
 
-        let tables = ["sleep_events", "dose_events", "sleep_sessions", "morning_checkins", "checkin_submissions", "medication_events"]
+        let tables = ["sleep_events", "dose_events", "sleep_sessions", "morning_checkins", "checkin_submissions", "medication_events", "symptom_events", "symptom_command_log", "symptom_summaries"]
         for table in tables {
             let sql = "DELETE FROM \(table) WHERE session_date < ?"
             var stmt: OpaquePointer?
@@ -150,7 +151,7 @@ extension EventStorage {
             sqlite3_finalize(preSleepStmt)
         }
 
-        let tables = ["sleep_events", "dose_events", "sleep_sessions", "morning_checkins", "checkin_submissions", "medication_events"]
+        let tables = ["sleep_events", "dose_events", "sleep_sessions", "morning_checkins", "checkin_submissions", "medication_events", "symptom_events", "symptom_command_log", "symptom_summaries"]
         for table in tables {
             let sql = "DELETE FROM \(table) WHERE session_date = ?"
             var stmt: OpaquePointer?

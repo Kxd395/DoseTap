@@ -30,6 +30,8 @@ extension EventStorage {
         SELECT DISTINCT session_date FROM checkin_submissions
         UNION
         SELECT DISTINCT session_date FROM medication_events
+        UNION
+        SELECT DISTINCT session_date FROM symptom_events
         ORDER BY session_date DESC
         """
 
