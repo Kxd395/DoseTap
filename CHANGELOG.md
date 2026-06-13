@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Stopped the screenshot state from showing a separate "Ready for Dose 1 / Tap below to start" status card alongside the actual Dose 1 button.
   - Gated "Wake Up & End Session" to the closeout workflow instead of showing it as a peer action while Dose 1 is ready.
   - Kept previous incomplete check-ins non-blocking unless they affect the current session identity, rollover, or dose state.
+  - Removed the Settings tab's separate runtime color-scheme override so all main tabs follow the app shell theme.
+  - Extended the tab split-brain CI guard to reject direct tab-level `settings.colorScheme` ownership.
 
 ### Changed
 

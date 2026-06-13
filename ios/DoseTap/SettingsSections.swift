@@ -360,7 +360,6 @@ extension SettingsView {
                 }
             }
         }
-        .preferredColorScheme(settings.colorScheme)
         .alert("Clear All Data", isPresented: $showingResetConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Clear All", role: .destructive) {

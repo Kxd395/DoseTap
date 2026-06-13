@@ -6,6 +6,7 @@ echo "Running tab split-brain guard..."
 URL_ROUTER_FILE="ios/DoseTap/URLRouter.swift"
 CONTENT_VIEW_FILE="ios/DoseTap/ContentView.swift"
 TESTS_FILE="ios/DoseTapTests/URLRouterAndNavigationTests.swift"
+APP_FILE="ios/DoseTap/DoseTapApp.swift"
 
 if ! grep -q "static let navigationDeepLinks" "$URL_ROUTER_FILE"; then
   echo "❌ Missing AppTab.navigationDeepLinks in $URL_ROUTER_FILE"
@@ -31,6 +32,17 @@ BAD_PATTERNS="$(grep -nE '\.tag\((0|1|2|3|4)\)|selectedTab[[:space:]]*=[[:space:
 if [ -n "$BAD_PATTERNS" ]; then
   echo "❌ Raw tab indices detected in canonical router/content/tests files:"
   echo "$BAD_PATTERNS"
+  exit 1
+fi
+
+THEME_SPLIT_BRAIN_HITS="$(
+  grep -R -n '\.preferredColorScheme(settings\.colorScheme)' ios/DoseTap --include='*.swift' \
+    | grep -v "^${CONTENT_VIEW_FILE}:" \
+    | grep -v "^${APP_FILE}:" || true
+)"
+if [ -n "$THEME_SPLIT_BRAIN_HITS" ]; then
+  echo "❌ Tab-level theme ownership detected. ContentView/DoseTapApp own app color scheme:"
+  echo "$THEME_SPLIT_BRAIN_HITS"
   exit 1
 fi
 
