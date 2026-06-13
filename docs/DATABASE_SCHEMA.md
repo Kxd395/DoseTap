@@ -2,7 +2,7 @@
 
 Last updated: 2026-06-13
 Source of truth: `ios/DoseTap/Storage/EventStorage.swift` (`createTables()` + `migrateDatabase()`).
-SQLite user_version: 2
+SQLite user_version: 3
 
 ## Tables
 
@@ -176,6 +176,8 @@ CREATE TABLE IF NOT EXISTS symptom_events (
     session_date TEXT NOT NULL,
     phase TEXT NOT NULL,
     source TEXT NOT NULL,
+    source_record_id TEXT,
+    source_entry_key TEXT,
     kind TEXT NOT NULL,
     noticed_at TEXT NOT NULL,
     severity_0_10 INTEGER CHECK (severity_0_10 IS NULL OR severity_0_10 BETWEEN 0 AND 10),
@@ -228,6 +230,8 @@ CREATE TABLE IF NOT EXISTS symptom_command_log (
     idempotency_key TEXT PRIMARY KEY,
     command_type TEXT NOT NULL,
     source TEXT NOT NULL,
+    source_record_id TEXT,
+    source_entry_key TEXT,
     session_id TEXT,
     session_date TEXT,
     status TEXT NOT NULL,
@@ -276,9 +280,11 @@ CREATE INDEX IF NOT EXISTS idx_medication_events_taken_at ON medication_events(t
 CREATE INDEX IF NOT EXISTS idx_symptom_events_session_date ON symptom_events(session_date);
 CREATE INDEX IF NOT EXISTS idx_symptom_events_session_id ON symptom_events(session_id);
 CREATE INDEX IF NOT EXISTS idx_symptom_events_phase_kind ON symptom_events(phase, kind);
+CREATE INDEX IF NOT EXISTS idx_symptom_events_source_record ON symptom_events(source, source_record_id);
 CREATE INDEX IF NOT EXISTS idx_symptom_locations_event ON symptom_locations(event_id);
 CREATE INDEX IF NOT EXISTS idx_body_map_points_location ON body_map_points(location_id);
 CREATE INDEX IF NOT EXISTS idx_symptom_command_log_status ON symptom_command_log(status);
+CREATE INDEX IF NOT EXISTS idx_symptom_command_log_source_record ON symptom_command_log(source, source_record_id);
 ```
 
 ### schema_migrations
@@ -297,5 +303,6 @@ Migrations are applied in `EventStorage.migrateDatabase()` and include:
 - Adding `terminal_state` to `current_session`.
 - Adding medication columns (`dose_unit`, `formulation`, `local_offset_minutes`).
 - Adding native symptom event tables, child location/point tables, idempotency command log, and rebuildable summaries.
+- Adding `source_record_id` and `source_entry_key` to symptom events and command logs so derived rows from editable check-ins can be replaced by source record instead of duplicated.
 - Checking existing columns before additive `ALTER TABLE` statements so already-migrated databases do not rely on duplicate-column failures.
 - Applying one-time data migrations through the SQLite `schema_migrations` ledger.

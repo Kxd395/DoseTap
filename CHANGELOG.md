@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-06-13
+
+### Fixed
+
+- Added edit-safe source identity for derived symptom events:
+  - Added `source_record_id` and `source_entry_key` to `symptom_events` and `symptom_command_log`.
+  - Added a replace-by-source storage API so edits to the same pre-sleep or morning row replace prior derived symptom rows instead of appending stale rows.
+  - Wired pre-sleep pain entries and morning physical pain entries into the normalized symptom event log.
+  - Clearing or deleting a source row now clears its derived symptom rows and rebuilds or removes session symptom summaries.
+
+### Changed
+
+- Bumped SQLite `user_version` to `3`.
+- Bumped `DoseTap` and `DoseTapStaging` to version `0.4.5` build `7`.
+
 ## [0.4.4] - 2026-06-13
 
 ### Added

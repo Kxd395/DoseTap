@@ -79,6 +79,7 @@ Track active gaps after the Phase 1/2 stabilization pass and keep a short, curre
 ### Symptom Tracking
 - [ ] Add Body Map Symptom Check-in as a DoseTap-native feature, not a wholesale drop-in package. Keep the design direction from `review/dosetap_bodymap_checkin_dropin`: questionnaire answers are context, durable symptom facts write to `symptom_events`, summaries are rebuildable, and all symptom writes go through one coordinator. See `docs/review/body_map_symptom_checkin_decision_2026-06-13.md`.
   - [x] 2026-06-13 foundation: added typed symptom models, SQLite event/location/point/command/summary tables, one idempotent write gate, session discovery/delete coverage, and focused storage tests.
+  - [x] 2026-06-13 source identity: added `source_record_id` and `source_entry_key`, replace-by-source storage, and pre-sleep/morning pain derivation so source edits do not leave stale symptom rows.
   - [ ] First UI slice: hand/finger, wrist/forearm, and back maps with 2D normalized points, non-diagnostic copy, quick night logging, and morning review status.
 
 ### Operations
