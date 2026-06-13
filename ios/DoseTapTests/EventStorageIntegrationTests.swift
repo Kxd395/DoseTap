@@ -714,6 +714,86 @@ final class EventStorageIntegrationTests: XCTestCase {
         XCTAssertNil(storage.fetchSymptomSummary(sessionDate: sessionDate))
     }
 
+    func test_deleteSleepEvent_keepsLocalRowWhenTombstoneQueueUnavailable() {
+        let sessionDate = "2026-02-27"
+        let eventId = "sleep-delete-rollback-1"
+        storage.insertSleepEvent(
+            id: eventId,
+            eventType: "lights_out",
+            timestamp: makeDate("2026-02-28T03:00:00.000Z"),
+            sessionDate: sessionDate
+        )
+
+        execSQL("DROP TABLE cloudkit_tombstones")
+
+        storage.deleteSleepEvent(id: eventId)
+
+        let events = storage.fetchSleepEvents(forSession: sessionDate)
+        XCTAssertEqual(events.map(\.id), [eventId])
+    }
+
+    func test_deleteMorningCheckIn_keepsSourceAndSubmissionWhenTombstoneQueueUnavailable() {
+        let sessionDate = "2026-02-28"
+        let checkInId = "morning-delete-rollback-1"
+        storage.saveMorningCheckIn(
+            DoseTap.StoredMorningCheckIn(
+                id: checkInId,
+                sessionId: sessionDate,
+                timestamp: makeDate("2026-03-01T12:00:00.000Z"),
+                sessionDate: sessionDate,
+                sleepQuality: 4
+            ),
+            forSession: sessionDate
+        )
+        XCTAssertEqual(storage.fetchCheckInSubmissionCount(sessionDate: sessionDate, checkInType: .morning), 1)
+
+        execSQL("DROP TABLE cloudkit_tombstones")
+
+        storage.deleteMorningCheckIn(id: checkInId)
+
+        XCTAssertNotNil(storage.fetchStoredMorningCheckIn(sessionKey: sessionDate))
+        XCTAssertEqual(storage.fetchCheckInSubmissionCount(sessionDate: sessionDate, checkInType: .morning), 1)
+    }
+
+    func test_deleteMedicationEvent_keepsLocalRowWhenTombstoneQueueUnavailable() {
+        let sessionDate = "2026-03-01"
+        let medicationId = "med-delete-rollback-1"
+        storage.insertMedicationEvent(
+            StoredMedicationEntry(
+                id: medicationId,
+                sessionId: sessionDate,
+                sessionDate: sessionDate,
+                medicationId: "adderall_xr",
+                doseMg: 10,
+                takenAtUTC: makeDate("2026-03-01T13:00:00.000Z")
+            )
+        )
+
+        execSQL("DROP TABLE cloudkit_tombstones")
+
+        storage.deleteMedicationEvent(id: medicationId)
+
+        XCTAssertEqual(scalarInt("SELECT COUNT(*) FROM medication_events WHERE id = '\(medicationId)'"), 1)
+    }
+
+    func test_deleteSession_keepsLocalRowsWhenTombstoneQueueUnavailable() {
+        let sessionDate = "2026-03-02"
+        let eventId = "session-delete-rollback-1"
+        storage.insertSleepEvent(
+            id: eventId,
+            eventType: "lights_out",
+            timestamp: makeDate("2026-03-03T03:00:00.000Z"),
+            sessionDate: sessionDate
+        )
+
+        execSQL("DROP TABLE cloudkit_tombstones")
+
+        storage.deleteSession(sessionDate: sessionDate)
+
+        let events = storage.fetchSleepEvents(forSession: sessionDate)
+        XCTAssertEqual(events.map(\.id), [eventId])
+    }
+
     func test_morningCheckIn_roundTripsTimingContextJson() {
         let sessionDate = "2026-02-16"
         let json = #"{"nightType":"transition_into_work_block","wakeType":"alarm","nextDayDemand":"shift_13h","dose2WakeMethod":"natural","backToSleepDuration":"lt_15m","dose2TakenReason":"forgot_to_tap","dose2ReasonNotes":"Woke up already too groggy.","hasWorkSafetyContext":true,"wakeRequirement":"work","shiftStartAtUTC":"2026-02-17T12:00:00.000Z","shiftEndAtUTC":"2026-02-18T01:00:00.000Z","nextRequiredWakeAtUTC":"2026-02-17T10:15:00.000Z","commuteMinutes":45,"drivingConfidence":2,"daytimeSleepiness":4,"cataplexyBurden":"mild","hasClinicalContext":true,"sleepDisorders":["narcolepsy","obstructive_sleep_apnea"],"pharmacogenomicFastMetabolizer":true,"pharmacogenomicClinicianReviewed":true,"pharmacogenomicNotes":"Reviewed with sleep specialist."}"#

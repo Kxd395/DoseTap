@@ -506,7 +506,7 @@ extension EventStorage {
         do {
             try withSQLiteTransaction {
                 if recordCloudKitDeletion {
-                    enqueueCloudKitTombstone(recordType: "DoseTapPreSleepLog", recordName: id)
+                    try enqueueCloudKitTombstoneOrThrow(recordType: "DoseTapPreSleepLog", recordName: id)
                 }
 
                 let sql = "DELETE FROM pre_sleep_logs WHERE id = ?"

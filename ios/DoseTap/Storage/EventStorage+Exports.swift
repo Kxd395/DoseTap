@@ -238,18 +238,14 @@ extension EventStorage {
     
     /// Delete a medication event
     public func deleteMedicationEvent(id: String, recordCloudKitDeletion: Bool = true) {
-        if recordCloudKitDeletion {
-            enqueueCloudKitTombstone(recordType: "DoseTapMedicationEvent", recordName: id)
-        }
-        let sql = "DELETE FROM medication_events WHERE id = ?"
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
-        defer { sqlite3_finalize(stmt) }
-        
-        sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
-        
-        if sqlite3_step(stmt) != SQLITE_DONE {
-            storageLog.error("Failed to delete medication event")
+        do {
+            try deleteRecordByIdOrThrow(
+                table: "medication_events",
+                id: id,
+                tombstoneRecordType: recordCloudKitDeletion ? "DoseTapMedicationEvent" : nil
+            )
+        } catch {
+            storageLog.error("Failed to delete medication event \(id, privacy: .private): \(error.localizedDescription)")
         }
     }
     
