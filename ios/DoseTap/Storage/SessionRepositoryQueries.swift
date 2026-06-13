@@ -57,6 +57,25 @@ public extension SessionRepository {
         storage.fetchMostRecentStoredMorningCheckIn(excludingSessionKey: sessionKey)
     }
 
+    /// Record a durable symptom event through the native symptom-event write gate.
+    @discardableResult
+    func recordSymptomEvent(
+        _ event: StoredSymptomEvent,
+        idempotencyKey: String
+    ) throws -> StoredSymptomEvent {
+        try storage.recordSymptomEvent(event, idempotencyKey: idempotencyKey)
+    }
+
+    /// Fetch symptom events for a session date.
+    func fetchSymptomEvents(sessionDate: String) -> [StoredSymptomEvent] {
+        storage.fetchSymptomEvents(sessionDate: sessionDate)
+    }
+
+    /// Fetch the rebuilt symptom summary for a session date.
+    func fetchSymptomSummary(sessionDate: String) -> StoredSymptomSummary? {
+        storage.fetchSymptomSummary(sessionDate: sessionDate)
+    }
+
     /// Fetch tonight's sleep events for the current session.
     func fetchTonightSleepEvents() -> [StoredSleepEvent] {
         if let sessionId = activeSessionId {
