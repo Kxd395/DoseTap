@@ -81,6 +81,7 @@ Track active gaps after the Phase 1/2 stabilization pass and keep a short, curre
   - [x] 2026-06-13 foundation: added typed symptom models, SQLite event/location/point/command/summary tables, one idempotent write gate, session discovery/delete coverage, and focused storage tests.
   - [x] 2026-06-13 source identity: added `source_record_id` and `source_entry_key`, replace-by-source storage, and pre-sleep/morning pain derivation so source edits do not leave stale symptom rows.
   - [x] 2026-06-13 transaction boundary: wrapped pre-sleep and morning source saves, normalized check-in submissions, and derived symptom replacement in one SQLite transaction with rollback tests.
+  - [x] 2026-06-13 CloudKit delete tombstone boundary: local deletes and outbound tombstone queueing now commit together or fail closed.
   - [ ] First UI slice: hand/finger, wrist/forearm, and back maps with 2D normalized points, non-diagnostic copy, quick night logging, and morning review status.
 
 ### Operations

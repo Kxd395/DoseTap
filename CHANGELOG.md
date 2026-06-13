@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.7] - 2026-06-13
+
+### Fixed
+
+- Closed the CloudKit delete tombstone split-brain window:
+  - CloudKit-tracked sleep, dose, morning check-in, pre-sleep, medication, and session deletes now fail closed if outbound tombstone queueing fails.
+  - Local delete rows and outbound tombstones now commit in the same SQLite transaction for these delete paths.
+  - Morning check-in delete now clears derived morning symptom events in the same transaction as the source row and normalized submission delete.
+  - Added rollback tests proving local rows remain when the tombstone queue is unavailable.
+
+### Changed
+
+- Bumped `DoseTap` and `DoseTapStaging` to version `0.4.7` build `9`.
+
 ## [0.4.6] - 2026-06-13
 
 ### Fixed

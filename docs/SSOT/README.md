@@ -1,7 +1,7 @@
 # DoseTap SSOT (Single Source of Truth)
 
 Last updated: 2026-06-13
-Version: 0.4.6
+Version: 0.4.7
 
 This document is the authoritative specification for the current DoseTap behavior. It describes what the code does today. If code and this SSOT diverge, the SSOT must be updated to match the code.
 
@@ -315,6 +315,11 @@ Symptom source identity:
 - Structured pain entries in those source rows derive rebuildable `symptom_events` using `source + source_record_id + source_entry_key`.
 - Editing, clearing, syncing, or deleting a source row must replace or clear that row's derived symptom events and rebuild `symptom_summaries`.
 - Pre-sleep and morning source-row writes, normalized `checkin_submissions` writes, and derived symptom replacement or clearing must commit in the same local SQLite transaction. Partial source-only or symptom-only commits are invalid.
+
+CloudKit delete tombstones:
+- CloudKit-tracked deletes must enqueue the matching `cloudkit_tombstones` row in the same local SQLite transaction as the local row delete.
+- If tombstone queueing fails, the local delete must fail closed and leave the local source row in place.
+- Remote sync imports call delete paths with tombstone queueing disabled to avoid echoing inbound remote deletes back into the outbound queue.
 
 Data retention:
 - App restart: data persists.
