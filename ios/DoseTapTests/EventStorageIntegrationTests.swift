@@ -305,6 +305,132 @@ final class EventStorageIntegrationTests: XCTestCase {
         XCTAssertEqual(keyed[preSleepOnlyDate]?.eventCount, 0)
     }
 
+    func test_symptomEventSchema_isIdempotentAndDiscoverable() throws {
+        let sessionDate = "2026-02-18"
+
+        storage.createTables()
+        storage.createTables()
+
+        let event = try makeSymptomEvent(
+            id: "symptom-schema-1",
+            sessionId: "symptom-session-schema",
+            sessionDate: sessionDate,
+            noticedAt: "2026-02-19T03:20:00.000Z"
+        )
+        try storage.recordSymptomEvent(event, idempotencyKey: "night:symptom-schema-1")
+
+        XCTAssertEqual(storage.getSchemaVersion(), EventStorage.schemaUserVersion)
+        XCTAssertTrue(storage.getAllSessionDates().contains(sessionDate))
+    }
+
+    func test_recordSymptomEvent_persistsLocationsPointsAndSummary() throws {
+        let sessionDate = "2026-02-18"
+        let event = try makeSymptomEvent(
+            id: "symptom-persist-1",
+            sessionId: "symptom-session-persist",
+            sessionDate: sessionDate,
+            noticedAt: "2026-02-19T03:20:00.000Z"
+        )
+
+        let saved = try storage.recordSymptomEvent(event, idempotencyKey: "night:symptom-persist-1")
+
+        XCTAssertEqual(saved.id, event.id)
+
+        let fetched = storage.fetchSymptomEvents(sessionDate: sessionDate)
+        XCTAssertEqual(fetched.count, 1)
+
+        let symptom = tryUnwrap(fetched.first)
+        XCTAssertEqual(symptom.id, event.id)
+        XCTAssertEqual(symptom.sessionId, "symptom-session-persist")
+        XCTAssertEqual(symptom.phase, .nightLog)
+        XCTAssertEqual(symptom.source, .nightQuickLog)
+        XCTAssertEqual(symptom.kind, .numbness)
+        XCTAssertEqual(symptom.severity0to10, 6)
+        XCTAssertTrue(symptom.sleepDisruption)
+        XCTAssertTrue(symptom.stillPresent)
+        XCTAssertEqual(symptom.functionalImpact, "hard_to_grip")
+        XCTAssertEqual(symptom.note, "Woke up with left pinky numbness.")
+
+        let location = tryUnwrap(symptom.locations.first)
+        XCTAssertEqual(location.bodySide, .left)
+        XCTAssertEqual(location.bodyRegionId, "hand.left.pinky")
+        XCTAssertEqual(location.anatomyLayer, .nerveLike)
+        XCTAssertEqual(location.precision, .point)
+        XCTAssertEqual(location.confidence, .exact)
+
+        let point = tryUnwrap(location.points.first)
+        XCTAssertEqual(point.mapId, "hand.left.v1")
+        XCTAssertEqual(point.normalizedX, 0.25, accuracy: 0.001)
+        XCTAssertEqual(point.normalizedY, 0.75, accuracy: 0.001)
+        XCTAssertEqual(point.zoomLevel, 2.0, accuracy: 0.001)
+        XCTAssertEqual(point.bodyView, .palm)
+
+        let summary = tryUnwrap(storage.fetchSymptomSummary(sessionDate: sessionDate))
+        XCTAssertEqual(summary.sessionDate, sessionDate)
+        XCTAssertEqual(summary.sessionId, "symptom-session-persist")
+        XCTAssertEqual(summary.symptomCount, 1)
+        XCTAssertEqual(summary.highestSeverity, 6)
+        XCTAssertEqual(summary.sleepDisruptionCount, 1)
+        XCTAssertEqual(summary.stillPresentCount, 1)
+    }
+
+    func test_recordSymptomEvent_isIdempotentByCommandKey() throws {
+        let sessionDate = "2026-02-19"
+        let firstEvent = try makeSymptomEvent(
+            id: "symptom-idempotent-1",
+            sessionId: "symptom-session-idempotent",
+            sessionDate: sessionDate,
+            noticedAt: "2026-02-20T02:45:00.000Z",
+            severity0to10: 4
+        )
+        let duplicateCommandEvent = try makeSymptomEvent(
+            id: "symptom-idempotent-2",
+            sessionId: "symptom-session-idempotent",
+            sessionDate: sessionDate,
+            noticedAt: "2026-02-20T03:00:00.000Z",
+            severity0to10: 9,
+            kind: .burning
+        )
+
+        let firstSaved = try storage.recordSymptomEvent(firstEvent, idempotencyKey: "body-map:same-command")
+        let secondSaved = try storage.recordSymptomEvent(duplicateCommandEvent, idempotencyKey: "body-map:same-command")
+
+        XCTAssertEqual(firstSaved.id, "symptom-idempotent-1")
+        XCTAssertEqual(secondSaved.id, "symptom-idempotent-1")
+        XCTAssertEqual(storage.fetchSymptomEvents(sessionDate: sessionDate).map(\.id), ["symptom-idempotent-1"])
+
+        let summary = tryUnwrap(storage.fetchSymptomSummary(sessionDate: sessionDate))
+        XCTAssertEqual(summary.symptomCount, 1)
+        XCTAssertEqual(summary.highestSeverity, 4)
+    }
+
+    func test_sessionDelete_cascadesSymptomEventsAndLocationDetails() throws {
+        let sessionDate = "2026-02-20"
+        let event = try makeSymptomEvent(
+            id: "symptom-delete-1",
+            sessionId: "symptom-session-delete",
+            sessionDate: sessionDate,
+            noticedAt: "2026-02-21T04:00:00.000Z"
+        )
+
+        try storage.recordSymptomEvent(event, idempotencyKey: "night:symptom-delete-1")
+
+        XCTAssertEqual(storage.fetchRowCount(table: "symptom_events", sessionDate: sessionDate), 1)
+        XCTAssertEqual(scalarInt("SELECT COUNT(*) FROM symptom_locations WHERE event_id = 'symptom-delete-1'"), 1)
+        XCTAssertEqual(scalarInt("SELECT COUNT(*) FROM body_map_points WHERE location_id = 'symptom-delete-1-location'"), 1)
+        XCTAssertEqual(scalarInt("SELECT COUNT(*) FROM symptom_command_log WHERE session_date = '\(sessionDate)'"), 1)
+        XCTAssertNotNil(storage.fetchSymptomSummary(sessionDate: sessionDate))
+
+        storage.deleteSession(sessionDate: sessionDate, recordCloudKitDeletion: false)
+
+        XCTAssertTrue(storage.fetchSymptomEvents(sessionDate: sessionDate).isEmpty)
+        XCTAssertEqual(storage.fetchRowCount(table: "symptom_events", sessionDate: sessionDate), 0)
+        XCTAssertEqual(scalarInt("SELECT COUNT(*) FROM symptom_locations WHERE event_id = 'symptom-delete-1'"), 0)
+        XCTAssertEqual(scalarInt("SELECT COUNT(*) FROM body_map_points WHERE location_id = 'symptom-delete-1-location'"), 0)
+        XCTAssertEqual(scalarInt("SELECT COUNT(*) FROM symptom_command_log WHERE session_date = '\(sessionDate)'"), 0)
+        XCTAssertNil(storage.fetchSymptomSummary(sessionDate: sessionDate))
+    }
+
     func test_morningCheckIn_roundTripsTimingContextJson() {
         let sessionDate = "2026-02-16"
         let json = #"{"nightType":"transition_into_work_block","wakeType":"alarm","nextDayDemand":"shift_13h","dose2WakeMethod":"natural","backToSleepDuration":"lt_15m","dose2TakenReason":"forgot_to_tap","dose2ReasonNotes":"Woke up already too groggy.","hasWorkSafetyContext":true,"wakeRequirement":"work","shiftStartAtUTC":"2026-02-17T12:00:00.000Z","shiftEndAtUTC":"2026-02-18T01:00:00.000Z","nextRequiredWakeAtUTC":"2026-02-17T10:15:00.000Z","commuteMinutes":45,"drivingConfidence":2,"daytimeSleepiness":4,"cataplexyBurden":"mild","hasClinicalContext":true,"sleepDisorders":["narcolepsy","obstructive_sleep_apnea"],"pharmacogenomicFastMetabolizer":true,"pharmacogenomicClinicianReviewed":true,"pharmacogenomicNotes":"Reviewed with sleep specialist."}"#
@@ -335,6 +461,51 @@ final class EventStorageIntegrationTests: XCTestCase {
         XCTAssertEqual(fetched.resolvedTimingContext?.pharmacogenomicClinicianReviewed, true)
     }
 
+    private func makeSymptomEvent(
+        id: String,
+        sessionId: String,
+        sessionDate: String,
+        noticedAt: String,
+        severity0to10: Int = 6,
+        kind: SymptomKind = .numbness
+    ) throws -> StoredSymptomEvent {
+        let point = try StoredBodyMapPoint(
+            id: "\(id)-point",
+            mapId: "hand.left.v1",
+            normalizedX: 0.25,
+            normalizedY: 0.75,
+            zoomLevel: 2.0,
+            bodyView: .palm
+        )
+        let location = StoredSymptomLocation(
+            id: "\(id)-location",
+            bodySide: .left,
+            bodyRegionId: "hand.left.pinky",
+            anatomyLayer: .nerveLike,
+            precision: .point,
+            confidence: .exact,
+            points: [point]
+        )
+        return try StoredSymptomEvent(
+            id: id,
+            sessionId: sessionId,
+            sessionDate: sessionDate,
+            phase: .nightLog,
+            source: .nightQuickLog,
+            kind: kind,
+            noticedAt: makeDate(noticedAt),
+            severity0to10: severity0to10,
+            sleepDisruption: true,
+            stillPresent: true,
+            functionalImpact: "hard_to_grip",
+            note: "Woke up with left pinky numbness.",
+            schemaVersion: 1,
+            appVersion: "test",
+            createdAt: makeDate(noticedAt),
+            locations: [location]
+        )
+    }
+
     private func makeDate(_ isoString: String) -> Date {
         guard let date = iso.date(from: isoString) else {
             XCTFail("Invalid ISO date: \(isoString)")
@@ -352,6 +523,19 @@ final class EventStorageIntegrationTests: XCTestCase {
             }
         }
         XCTAssertEqual(result, SQLITE_OK, errorMessage.map { String(cString: $0) } ?? "SQLite error", file: file, line: line)
+    }
+
+    private func scalarInt(_ sql: String, file: StaticString = #filePath, line: UInt = #line) -> Int {
+        var stmt: OpaquePointer?
+        let prepareResult = sqlite3_prepare_v2(storage.db, sql, -1, &stmt, nil)
+        XCTAssertEqual(prepareResult, SQLITE_OK, String(cString: sqlite3_errmsg(storage.db)), file: file, line: line)
+        defer { sqlite3_finalize(stmt) }
+
+        guard sqlite3_step(stmt) == SQLITE_ROW else {
+            XCTFail("Expected scalar row", file: file, line: line)
+            return 0
+        }
+        return Int(sqlite3_column_int(stmt, 0))
     }
 
     private func tryUnwrap<T>(_ value: T?) -> T {
