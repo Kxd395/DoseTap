@@ -178,11 +178,21 @@ class MorningCheckInViewModel: ObservableObject {
     }
 
     private func loadSavedSettings() {
-        rememberSettings = UserDefaults.standard.bool(forKey: Self.rememberSettingsKey)
+        rememberSettings = Self.rememberSettingsDefault()
         if rememberSettings, let data = UserDefaults.standard.data(forKey: Self.savedSettingsKey),
            let saved = try? JSONDecoder().decode(SavedCheckInSettings.self, from: data) {
             applySavedSettings(saved)
+        } else if rememberSettings,
+                  let latest = SessionRepository.shared.fetchMostRecentMorningCheckIn(excluding: sessionDate) {
+            applyCarryForward(from: latest)
         }
+    }
+
+    static func rememberSettingsDefault(userDefaults: UserDefaults = .standard) -> Bool {
+        if let stored = userDefaults.object(forKey: rememberSettingsKey) as? Bool {
+            return stored
+        }
+        return true
     }
 
     func saveSettingsForNextTime() {
@@ -829,6 +839,60 @@ class MorningCheckInViewModel: ObservableObject {
         if !self.pharmacogenomicNotes.isEmpty || !self.coMedicationNotes.isEmpty {
             self.hasClinicalContext = true
         }
+    }
+
+    private func applyCarryForward(from checkIn: StoredMorningCheckIn) {
+        sleepQuality = checkIn.sleepQuality
+        feelRested = RestedLevel(rawValue: checkIn.feelRested) ?? feelRested
+        grogginess = GrogginessLevel(rawValue: checkIn.grogginess) ?? grogginess
+        sleepInertiaDuration = SleepInertiaDuration(rawValue: checkIn.sleepInertiaDuration) ?? sleepInertiaDuration
+        dreamRecall = DreamRecallType(rawValue: checkIn.dreamRecall) ?? dreamRecall
+        mentalClarity = checkIn.mentalClarity
+        mood = MoodLevel(rawValue: checkIn.mood) ?? mood
+        anxietyLevel = AnxietyLevel(rawValue: checkIn.anxietyLevel) ?? anxietyLevel
+        stressLevel = checkIn.stressLevel
+        readinessForDay = checkIn.readinessForDay
+
+        hasPhysicalSymptoms = checkIn.hasPhysicalSymptoms
+        hasRespiratorySymptoms = checkIn.hasRespiratorySymptoms
+        usedSleepTherapy = checkIn.usedSleepTherapy
+        hasSleepEnvironment = checkIn.hasSleepEnvironment
+        hadSleepParalysis = checkIn.hadSleepParalysis
+        hadHallucinations = checkIn.hadHallucinations
+        hadAutomaticBehavior = checkIn.hadAutomaticBehavior
+        fellOutOfBed = checkIn.fellOutOfBed
+        hadConfusionOnWaking = checkIn.hadConfusionOnWaking
+
+        hydratePhysicalState(from: Self.jsonDictionary(from: checkIn.physicalSymptomsJson))
+        hydrateRespiratoryState(from: Self.jsonDictionary(from: checkIn.respiratorySymptomsJson))
+        hydrateSleepTherapyState(from: Self.jsonDictionary(from: checkIn.sleepTherapyJson))
+        hydrateSleepEnvironmentState(from: Self.jsonDictionary(from: checkIn.sleepEnvironmentJson))
+        hydrateStressState(from: Self.jsonDictionary(from: checkIn.stressContextJson))
+        hydrateTimingContextState(from: Self.carryForwardTimingContext(from: checkIn.timingContextJson))
+
+        if usedSleepTherapy {
+            showSleepTherapySection = true
+        }
+        if hasSleepEnvironment {
+            showSleepEnvironmentSection = true
+        }
+        if hadSleepParalysis || hadHallucinations || hadAutomaticBehavior || fellOutOfBed || hadConfusionOnWaking {
+            showNarcolepsySection = true
+        }
+        notes = ""
+    }
+
+    private static func carryForwardTimingContext(from json: String?) -> [String: Any] {
+        var timing = jsonDictionary(from: json)
+        [
+            "dose2TakenReason",
+            "dose2SkippedReason",
+            "dose2ReasonNotes",
+            "shiftStartAtUTC",
+            "shiftEndAtUTC",
+            "nextRequiredWakeAtUTC"
+        ].forEach { timing.removeValue(forKey: $0) }
+        return timing
     }
 
     private static func jsonDictionary(from json: String?) -> [String: Any] {

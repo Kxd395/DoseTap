@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Removed the Settings tab's separate runtime color-scheme override so all main tabs follow the app shell theme.
   - Extended the tab split-brain CI guard to reject direct tab-level `settings.colorScheme` ownership.
   - Updated compact Timeline, History, Dashboard, and Settings tab roots from `NavigationView` to `NavigationStack` for consistent iOS 16 navigation behavior.
+  - Made pre-sleep and morning check-in carry-forward default on for new entries.
+  - Changed pre-sleep "Use last" to copy the latest completed pre-sleep check, carry time-of-day fields onto the new night, and drop one-off freeform notes.
+  - Made new morning check-ins fall back to the latest prior morning check-in when no explicit saved template exists, while avoiding stale dose-reconciliation reasons.
 
 ### Changed
 

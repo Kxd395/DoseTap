@@ -354,6 +354,47 @@ extension EventStorage {
         return nil
     }
 
+    public func fetchMostRecentCompletedPreSleepLog() -> StoredPreSleepLog? {
+        let sql = """
+            SELECT id, session_id, created_at_utc, local_offset_minutes, completion_state, answers_json
+            FROM pre_sleep_logs
+            WHERE completion_state = 'complete'
+            ORDER BY created_at DESC
+            LIMIT 1
+        """
+
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            return nil
+        }
+        defer { sqlite3_finalize(stmt) }
+
+        if sqlite3_step(stmt) == SQLITE_ROW {
+            let id = String(cString: sqlite3_column_text(stmt, 0))
+            let sessionId = sqlite3_column_text(stmt, 1).map { String(cString: $0) }
+            let createdAtUtc = String(cString: sqlite3_column_text(stmt, 2))
+            let localOffsetMinutes = Int(sqlite3_column_int(stmt, 3))
+            let completionState = String(cString: sqlite3_column_text(stmt, 4))
+            let answersJson = String(cString: sqlite3_column_text(stmt, 5))
+
+            var answers: PreSleepLogAnswers? = nil
+            if let data = answersJson.data(using: .utf8) {
+                answers = try? JSONDecoder().decode(PreSleepLogAnswers.self, from: data)
+            }
+
+            return StoredPreSleepLog(
+                id: id,
+                sessionId: sessionId,
+                createdAtUtc: createdAtUtc,
+                localOffsetMinutes: localOffsetMinutes,
+                completionState: completionState,
+                answers: answers
+            )
+        }
+
+        return nil
+    }
+
     public func fetchMostRecentPreSleepLog(sessionId: String) -> StoredPreSleepLog? {
         let sql = """
             SELECT id, session_id, created_at_utc, local_offset_minutes, completion_state, answers_json

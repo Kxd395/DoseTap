@@ -484,6 +484,128 @@ final class PreSleepCardStateTests: XCTestCase {
     }
 }
 
+final class CheckInCarryForwardTests: XCTestCase {
+    func test_preSleepCarryForwardMovesTimesToReferenceDayAndDropsOneOffNotes() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let sourceDate = try XCTUnwrap(AppFormatters.parseISO8601Flexible("2026-01-10T02:15:00Z"))
+        let referenceDate = try XCTUnwrap(AppFormatters.parseISO8601Flexible("2026-01-15T23:00:00Z"))
+
+        var answers = DoseTap.PreSleepLogAnswers()
+        answers.intendedSleepTime = .thirtyMin
+        answers.stressLevel = 3
+        answers.stressDrivers = [.work, .health]
+        answers.stressNotes = "one-off stress note"
+        answers.stimulants = .coffee
+        answers.caffeineLastIntakeAt = sourceDate
+        answers.caffeineLastAmountMg = 12
+        answers.caffeineDailyTotalMg = 24
+        answers.exercise = .light
+        answers.exerciseLastAt = sourceDate.addingTimeInterval(-3600)
+        answers.screensInBed = .briefly
+        answers.screensLastUsedAt = sourceDate.addingTimeInterval(1800)
+        answers.roomTemp = .cool
+        answers.noiseLevel = .quiet
+        answers.sleepAidSelections = [.fan]
+        answers.notes = "one-off note"
+
+        let carried = answers.carriedForwardForNewNight(referenceDate: referenceDate, calendar: calendar)
+
+        XCTAssertEqual(carried.intendedSleepTime, .thirtyMin)
+        XCTAssertEqual(carried.stressLevel, 3)
+        XCTAssertEqual(carried.stressDrivers, [.work, .health])
+        XCTAssertEqual(carried.stimulants, .coffee)
+        XCTAssertEqual(carried.caffeineLastAmountMg, 12)
+        XCTAssertEqual(carried.caffeineDailyTotalMg, 24)
+        XCTAssertEqual(carried.exercise, .light)
+        XCTAssertEqual(carried.roomTemp, .cool)
+        XCTAssertEqual(carried.noiseLevel, .quiet)
+        XCTAssertEqual(carried.sleepAidSelections, [.fan])
+        XCTAssertNil(carried.stressNotes)
+        XCTAssertNil(carried.notes)
+
+        let caffeineComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: try XCTUnwrap(carried.caffeineLastIntakeAt))
+        XCTAssertEqual(caffeineComponents.year, 2026)
+        XCTAssertEqual(caffeineComponents.month, 1)
+        XCTAssertEqual(caffeineComponents.day, 15)
+        XCTAssertEqual(caffeineComponents.hour, 2)
+        XCTAssertEqual(caffeineComponents.minute, 15)
+    }
+
+    @MainActor
+    func test_morningCheckInDefaultsToRememberingPriorCheckIn() throws {
+        let storage = EventStorage.shared
+        storage.clearAllData()
+        SessionRepository.shared.reload()
+        UserDefaults.standard.removeObject(forKey: "morningCheckIn.rememberSettings")
+        UserDefaults.standard.removeObject(forKey: "morningCheckIn.savedSettings")
+        defer {
+            storage.clearAllData()
+            SessionRepository.shared.reload()
+            UserDefaults.standard.removeObject(forKey: "morningCheckIn.rememberSettings")
+            UserDefaults.standard.removeObject(forKey: "morningCheckIn.savedSettings")
+        }
+
+        let repo = SessionRepository.shared
+        repo.saveMorningCheckIn(
+            SQLiteStoredMorningCheckIn(
+                id: "prior-checkin",
+                sessionId: "prior-session",
+                timestamp: try XCTUnwrap(AppFormatters.parseISO8601Flexible("2026-01-14T12:00:00Z")),
+                sessionDate: "2026-01-14",
+                sleepQuality: 4,
+                feelRested: DoseTap.RestedLevel.well.rawValue,
+                grogginess: DoseTap.GrogginessLevel.none.rawValue,
+                sleepInertiaDuration: DoseTap.SleepInertiaDuration.lessThanFive.rawValue,
+                dreamRecall: DoseTap.DreamRecallType.normal.rawValue,
+                hasPhysicalSymptoms: false,
+                physicalSymptomsJson: nil,
+                hasRespiratorySymptoms: false,
+                respiratorySymptomsJson: nil,
+                mentalClarity: 4,
+                mood: DoseTap.MoodLevel.good.rawValue,
+                anxietyLevel: DoseTap.AnxietyLevel.none.rawValue,
+                stressLevel: 2,
+                stressContextJson: #"{"drivers":["work"],"notes":"routine"}"#,
+                readinessForDay: 4,
+                hadSleepParalysis: false,
+                hadHallucinations: false,
+                hadAutomaticBehavior: false,
+                fellOutOfBed: false,
+                hadConfusionOnWaking: false,
+                usedSleepTherapy: true,
+                sleepTherapyJson: #"{"device":"CPAP","compliance":95}"#,
+                hasSleepEnvironment: true,
+                sleepEnvironmentJson: #"{"roomTemp":"cool","noiseLevel":"quiet","sleepAids":"fan"}"#,
+                timingContextJson: #"{"nightType":"work_night","dose2TakenReason":"forgot_to_tap","dose2ReasonNotes":"old reason"}"#,
+                notes: "old one-off note"
+            ),
+            sessionDateOverride: "2026-01-14"
+        )
+
+        let viewModel = MorningCheckInViewModel(sessionId: "new-session", sessionDate: "2026-01-15")
+
+        XCTAssertTrue(viewModel.rememberSettings)
+        XCTAssertEqual(viewModel.sleepQuality, 4)
+        XCTAssertEqual(viewModel.feelRested, .well)
+        XCTAssertEqual(viewModel.grogginess, .none)
+        XCTAssertEqual(viewModel.mentalClarity, 4)
+        XCTAssertEqual(viewModel.mood, .good)
+        XCTAssertEqual(viewModel.stressLevel, 2)
+        XCTAssertEqual(viewModel.stressDrivers, [.work])
+        XCTAssertTrue(viewModel.usedSleepTherapy)
+        XCTAssertEqual(viewModel.sleepTherapyDevice, .cpap)
+        XCTAssertTrue(viewModel.hasSleepEnvironment)
+        XCTAssertEqual(viewModel.sleepEnvironmentRoomTemp, .cool)
+        XCTAssertEqual(viewModel.sleepEnvironmentNoiseLevel, .quiet)
+        XCTAssertEqual(viewModel.sleepEnvironmentSleepAid, .fan)
+        XCTAssertEqual(viewModel.nightType, .workNight)
+        XCTAssertEqual(viewModel.dose2TakenReason, .unsure)
+        XCTAssertTrue(viewModel.dose2ReasonNotes.isEmpty)
+        XCTAssertTrue(viewModel.notes.isEmpty)
+    }
+}
+
 @MainActor
 final class DashboardStressTrendTests: XCTestCase {
     func test_stressTrendAnalytics_captureCarryoverAndHighStressImpact() throws {
@@ -588,7 +710,7 @@ final class DashboardStressTrendTests: XCTestCase {
             createdAtUtc: ISO8601DateFormatter().string(from: timestamp),
             localOffsetMinutes: 0,
             completionState: "complete",
-            answers: PreSleepLogAnswers(
+            answers: DoseTap.PreSleepLogAnswers(
                 stressLevel: stressLevel,
                 stressDrivers: stressDrivers
             )

@@ -331,6 +331,39 @@ extension EventStorage: EventStore {
         fetchMorningCheckInInternal(sessionKey: sessionKey)
     }
 
+    internal func fetchMostRecentStoredMorningCheckIn(excludingSessionKey: String? = nil) -> StoredMorningCheckIn? {
+        let sql = """
+        SELECT id, session_id, timestamp, session_date, sleep_quality, feel_rested, grogginess,
+               sleep_inertia_duration, dream_recall, has_physical_symptoms, physical_symptoms_json,
+               has_respiratory_symptoms, respiratory_symptoms_json, mental_clarity, mood, anxiety_level,
+               stress_level, stress_context_json, readiness_for_day, had_sleep_paralysis,
+               had_hallucinations, had_automatic_behavior, fell_out_of_bed, had_confusion_on_waking,
+               used_sleep_therapy, sleep_therapy_json, has_sleep_environment, sleep_environment_json,
+               timing_context_json, notes
+        FROM morning_checkins
+        WHERE ? IS NULL OR (session_id != ? AND session_date != ?)
+        ORDER BY timestamp DESC
+        LIMIT 1
+        """
+
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return nil }
+        defer { sqlite3_finalize(stmt) }
+
+        if let excludingSessionKey {
+            sqlite3_bind_text(stmt, 1, excludingSessionKey, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, excludingSessionKey, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 3, excludingSessionKey, -1, SQLITE_TRANSIENT)
+        } else {
+            sqlite3_bind_null(stmt, 1)
+            sqlite3_bind_null(stmt, 2)
+            sqlite3_bind_null(stmt, 3)
+        }
+
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
+        return decodeMorningCheckInRow(stmt)
+    }
+
     private func fetchMorningCheckInInternal(sessionKey: String) -> StoredMorningCheckIn? {
         let sql = """
         SELECT id, session_id, timestamp, session_date, sleep_quality, feel_rested, grogginess,
@@ -354,7 +387,11 @@ extension EventStorage: EventStore {
         sqlite3_bind_text(stmt, 2, sessionKey, -1, SQLITE_TRANSIENT)
         
         guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
-        
+
+        return decodeMorningCheckInRow(stmt)
+    }
+
+    private func decodeMorningCheckInRow(_ stmt: OpaquePointer?) -> StoredMorningCheckIn? {
         guard let idPtr = sqlite3_column_text(stmt, 0),
               let sessionIdPtr = sqlite3_column_text(stmt, 1),
               let timestampPtr = sqlite3_column_text(stmt, 2),

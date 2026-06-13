@@ -52,6 +52,11 @@ public extension SessionRepository {
         return convertMorningCheckIn(coreCheckIn)
     }
 
+    /// Fetch the most recent prior morning check-in for carry-forward defaults.
+    func fetchMostRecentMorningCheckIn(excluding sessionKey: String? = nil) -> StoredMorningCheckIn? {
+        storage.fetchMostRecentStoredMorningCheckIn(excludingSessionKey: sessionKey)
+    }
+
     /// Fetch tonight's sleep events for the current session.
     func fetchTonightSleepEvents() -> [StoredSleepEvent] {
         if let sessionId = activeSessionId {
@@ -156,6 +161,11 @@ public extension SessionRepository {
     /// Fetch the most recent pre-sleep log for prefilling forms.
     func fetchMostRecentPreSleepLog() -> StoredPreSleepLog? {
         storage.fetchMostRecentPreSleepLog()
+    }
+
+    /// Fetch the most recent completed pre-sleep log for carry-forward defaults.
+    func fetchMostRecentCompletedPreSleepLog() -> StoredPreSleepLog? {
+        storage.fetchMostRecentCompletedPreSleepLog()
     }
 
     /// Get schema version for debug display.
