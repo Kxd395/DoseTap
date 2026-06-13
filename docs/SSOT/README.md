@@ -1,7 +1,7 @@
 # DoseTap SSOT (Single Source of Truth)
 
 Last updated: 2026-06-13
-Version: 0.4.5
+Version: 0.4.6
 
 This document is the authoritative specification for the current DoseTap behavior. It describes what the code does today. If code and this SSOT diverge, the SSOT must be updated to match the code.
 
@@ -95,6 +95,7 @@ Current Quick Log event names (from `UserSettingsManager.allAvailableEvents`):
 - Storage: `morning_checkins` table.
 - Save path: `MorningCheckInView` -> `MorningCheckInViewModel.toStoredCheckIn()` -> `SessionRepository.saveMorningCheckIn(...)`.
 - When saved for the active session, check-in closes the session: `SessionRepository.completeCheckIn()` -> `closeActiveSession(...)`.
+- If morning answers derive symptom events, the morning source row, normalized check-in submission row, and derived symptom replacement commit in one SQLite transaction. Failure in any one of those writes rolls back the source row save.
 
 ### NapEvent
 
@@ -313,6 +314,7 @@ Symptom source identity:
 - `pre_sleep_logs` and `morning_checkins` remain the source rows for questionnaire context.
 - Structured pain entries in those source rows derive rebuildable `symptom_events` using `source + source_record_id + source_entry_key`.
 - Editing, clearing, syncing, or deleting a source row must replace or clear that row's derived symptom events and rebuild `symptom_summaries`.
+- Pre-sleep and morning source-row writes, normalized `checkin_submissions` writes, and derived symptom replacement or clearing must commit in the same local SQLite transaction. Partial source-only or symptom-only commits are invalid.
 
 Data retention:
 - App restart: data persists.

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-06-13
+
+### Fixed
+
+- Closed the pre-sleep and morning check-in symptom split-brain window:
+  - Source row save, normalized `checkin_submissions` upsert, and derived symptom event replacement now run in one SQLite transaction.
+  - Pre-sleep sync upsert and pre-sleep delete now use the same transaction boundary for source, normalized submission, and derived symptom cleanup.
+  - Added rollback tests for new pre-sleep saves, pre-sleep edits, and morning saves when derived symptom replacement fails.
+
+### Changed
+
+- Bumped `DoseTap` and `DoseTapStaging` to version `0.4.6` build `8`.
+
 ## [0.4.5] - 2026-06-13
 
 ### Fixed
