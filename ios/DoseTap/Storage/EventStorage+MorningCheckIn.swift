@@ -302,9 +302,40 @@ extension EventStorage {
                 submittedAt: checkIn.timestamp,
                 responsesByQuestionID: morningResponsesByQuestionID(checkIn)
             )
+            do {
+                try replaceMorningCheckInSymptomEvents(checkIn, sessionDate: effectiveSessionDate)
+            } catch {
+                storageLog.error("Failed to replace morning symptom events for \(checkIn.id): \(error.localizedDescription)")
+            }
             storageLog.debug("Morning check-in saved: \(checkIn.id)")
         } else {
             storageLog.error("Failed to save morning check-in: \(String(cString: sqlite3_errmsg(self.db)))")
         }
+    }
+
+    private func replaceMorningCheckInSymptomEvents(
+        _ checkIn: StoredMorningCheckIn,
+        sessionDate: String
+    ) throws {
+        let entries = checkIn.hasPhysicalSymptoms
+            ? painEntries(fromPhysicalSymptomsJson: checkIn.physicalSymptomsJson)
+            : []
+        let events = try symptomEvents(
+            fromPainEntries: entries,
+            source: .morningReview,
+            sourceRecordId: checkIn.id,
+            sessionId: checkIn.sessionId,
+            sessionDate: sessionDate,
+            phase: .morningReview,
+            noticedAt: checkIn.timestamp,
+            sleepDisruption: false,
+            stillPresent: true
+        )
+        try replaceSymptomEvents(
+            source: .morningReview,
+            sourceRecordId: checkIn.id,
+            sessionDate: sessionDate,
+            events: events
+        )
     }
 }

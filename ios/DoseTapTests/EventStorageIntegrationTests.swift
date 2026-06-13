@@ -404,6 +404,182 @@ final class EventStorageIntegrationTests: XCTestCase {
         XCTAssertEqual(summary.highestSeverity, 4)
     }
 
+    func test_replaceSymptomEvents_replacesSourceRecordRowsAndClearsSummary() throws {
+        let sessionDate = "2026-02-21"
+        let first = try makeSymptomEvent(
+            id: "symptom-source-1",
+            sessionId: "symptom-session-source",
+            sessionDate: sessionDate,
+            noticedAt: "2026-02-22T03:00:00.000Z",
+            severity0to10: 3,
+            phase: .preSleep,
+            source: .preSleep,
+            sourceRecordId: "pre-log-1",
+            sourceEntryKey: "lower_back|both"
+        )
+        let second = try makeSymptomEvent(
+            id: "symptom-source-2",
+            sessionId: "symptom-session-source",
+            sessionDate: sessionDate,
+            noticedAt: "2026-02-22T03:01:00.000Z",
+            severity0to10: 7,
+            phase: .preSleep,
+            source: .preSleep,
+            sourceRecordId: "pre-log-1",
+            sourceEntryKey: "wrist_hand|left"
+        )
+
+        try storage.replaceSymptomEvents(
+            source: .preSleep,
+            sourceRecordId: "pre-log-1",
+            sessionDate: sessionDate,
+            events: [first, second]
+        )
+
+        XCTAssertEqual(storage.fetchSymptomEvents(sessionDate: sessionDate).map(\.id), ["symptom-source-1", "symptom-source-2"])
+        XCTAssertEqual(tryUnwrap(storage.fetchSymptomSummary(sessionDate: sessionDate)).symptomCount, 2)
+        XCTAssertEqual(scalarInt("SELECT COUNT(*) FROM symptom_command_log WHERE source = 'pre_sleep' AND source_record_id = 'pre-log-1'"), 2)
+
+        let replacement = try makeSymptomEvent(
+            id: "symptom-source-3",
+            sessionId: "symptom-session-source",
+            sessionDate: sessionDate,
+            noticedAt: "2026-02-22T03:02:00.000Z",
+            severity0to10: 8,
+            phase: .preSleep,
+            source: .preSleep,
+            sourceRecordId: "pre-log-1",
+            sourceEntryKey: "lower_back|both"
+        )
+
+        try storage.replaceSymptomEvents(
+            source: .preSleep,
+            sourceRecordId: "pre-log-1",
+            sessionDate: sessionDate,
+            events: [replacement]
+        )
+
+        let fetched = storage.fetchSymptomEvents(sessionDate: sessionDate)
+        XCTAssertEqual(fetched.map(\.id), ["symptom-source-3"])
+        XCTAssertEqual(tryUnwrap(fetched.first).sourceRecordId, "pre-log-1")
+        XCTAssertEqual(tryUnwrap(fetched.first).sourceEntryKey, "lower_back|both")
+        XCTAssertEqual(tryUnwrap(storage.fetchSymptomSummary(sessionDate: sessionDate)).highestSeverity, 8)
+        XCTAssertEqual(scalarInt("SELECT COUNT(*) FROM symptom_command_log WHERE source = 'pre_sleep' AND source_record_id = 'pre-log-1'"), 1)
+
+        try storage.replaceSymptomEvents(
+            source: .preSleep,
+            sourceRecordId: "pre-log-1",
+            sessionDate: sessionDate,
+            events: []
+        )
+
+        XCTAssertTrue(storage.fetchSymptomEvents(sessionDate: sessionDate).isEmpty)
+        XCTAssertNil(storage.fetchSymptomSummary(sessionDate: sessionDate))
+        XCTAssertEqual(scalarInt("SELECT COUNT(*) FROM symptom_command_log WHERE source = 'pre_sleep' AND source_record_id = 'pre-log-1'"), 0)
+    }
+
+    func test_preSleepPainEntries_replaceDerivedSymptomEventsOnEdit() throws {
+        let sessionDate = "2026-02-22"
+        let firstAnswers = PreSleepLogAnswers(
+            bodyPain: .moderate,
+            painEntries: [
+                PreSleepLogAnswers.PainEntry(
+                    area: .lowerBack,
+                    side: .both,
+                    intensity: 6,
+                    sensations: [.burning],
+                    pattern: .constant,
+                    notes: "Before bed."
+                )
+            ]
+        )
+
+        let log = try storage.savePreSleepLogOrThrow(
+            sessionId: sessionDate,
+            answers: firstAnswers,
+            completionState: "complete",
+            now: makeDate("2026-02-22T23:00:00.000Z"),
+            timeZone: TimeZone(identifier: "UTC")!
+        )
+
+        var fetched = storage.fetchSymptomEvents(sessionDate: sessionDate)
+        XCTAssertEqual(fetched.count, 1)
+        XCTAssertEqual(tryUnwrap(fetched.first).source, .preSleep)
+        XCTAssertEqual(tryUnwrap(fetched.first).sourceRecordId, log.id)
+        XCTAssertEqual(tryUnwrap(fetched.first).sourceEntryKey, "lower_back|both")
+        XCTAssertEqual(tryUnwrap(fetched.first).kind, .burning)
+
+        let editedAnswers = PreSleepLogAnswers(
+            bodyPain: .severe,
+            painEntries: [
+                PreSleepLogAnswers.PainEntry(
+                    area: .wristHand,
+                    side: .right,
+                    intensity: 8,
+                    sensations: [.pinsNeedles],
+                    pattern: .intermittent,
+                    notes: "Edited."
+                )
+            ]
+        )
+        _ = try storage.savePreSleepLogOrThrow(
+            sessionId: sessionDate,
+            answers: editedAnswers,
+            completionState: "complete",
+            now: makeDate("2026-02-22T23:05:00.000Z"),
+            timeZone: TimeZone(identifier: "UTC")!,
+            existingLog: log
+        )
+
+        fetched = storage.fetchSymptomEvents(sessionDate: sessionDate)
+        XCTAssertEqual(fetched.count, 1)
+        XCTAssertEqual(tryUnwrap(fetched.first).sourceRecordId, log.id)
+        XCTAssertEqual(tryUnwrap(fetched.first).sourceEntryKey, "wrist_hand|right")
+        XCTAssertEqual(tryUnwrap(fetched.first).severity0to10, 8)
+        XCTAssertEqual(tryUnwrap(fetched.first).kind, .pinsNeedles)
+        XCTAssertEqual(tryUnwrap(storage.fetchSymptomSummary(sessionDate: sessionDate)).symptomCount, 1)
+    }
+
+    func test_morningPainEntries_replaceAndClearDerivedSymptomEvents() throws {
+        let sessionDate = "2026-02-23"
+        let physicalJson = #"{"painEntries":[{"entry_key":"lower_back|both","area":"lower_back","side":"both","intensity":8,"sensations":["burning","tightness"],"pattern":"constant","notes":"Woke with pain."}]}"#
+        let checkIn = DoseTap.StoredMorningCheckIn(
+            id: "morning-symptom-1",
+            sessionId: sessionDate,
+            timestamp: makeDate("2026-02-24T12:00:00.000Z"),
+            sessionDate: sessionDate,
+            sleepQuality: 3,
+            hasPhysicalSymptoms: true,
+            physicalSymptomsJson: physicalJson
+        )
+
+        storage.saveMorningCheckIn(checkIn, forSession: sessionDate)
+
+        var fetched = storage.fetchSymptomEvents(sessionDate: sessionDate)
+        XCTAssertEqual(fetched.count, 1)
+        XCTAssertEqual(tryUnwrap(fetched.first).source, .morningReview)
+        XCTAssertEqual(tryUnwrap(fetched.first).sourceRecordId, "morning-symptom-1")
+        XCTAssertEqual(tryUnwrap(fetched.first).sourceEntryKey, "lower_back|both")
+        XCTAssertEqual(tryUnwrap(fetched.first).severity0to10, 8)
+        XCTAssertEqual(tryUnwrap(storage.fetchSymptomSummary(sessionDate: sessionDate)).symptomCount, 1)
+
+        let cleared = DoseTap.StoredMorningCheckIn(
+            id: "morning-symptom-1",
+            sessionId: sessionDate,
+            timestamp: makeDate("2026-02-24T12:05:00.000Z"),
+            sessionDate: sessionDate,
+            sleepQuality: 3,
+            hasPhysicalSymptoms: false,
+            physicalSymptomsJson: nil
+        )
+
+        storage.saveMorningCheckIn(cleared, forSession: sessionDate)
+
+        fetched = storage.fetchSymptomEvents(sessionDate: sessionDate)
+        XCTAssertTrue(fetched.isEmpty)
+        XCTAssertNil(storage.fetchSymptomSummary(sessionDate: sessionDate))
+    }
+
     func test_sessionDelete_cascadesSymptomEventsAndLocationDetails() throws {
         let sessionDate = "2026-02-20"
         let event = try makeSymptomEvent(
@@ -467,7 +643,11 @@ final class EventStorageIntegrationTests: XCTestCase {
         sessionDate: String,
         noticedAt: String,
         severity0to10: Int = 6,
-        kind: SymptomKind = .numbness
+        kind: SymptomKind = .numbness,
+        phase: SymptomCheckInPhase = .nightLog,
+        source: SymptomEventSource = .nightQuickLog,
+        sourceRecordId: String? = nil,
+        sourceEntryKey: String? = nil
     ) throws -> StoredSymptomEvent {
         let point = try StoredBodyMapPoint(
             id: "\(id)-point",
@@ -490,8 +670,10 @@ final class EventStorageIntegrationTests: XCTestCase {
             id: id,
             sessionId: sessionId,
             sessionDate: sessionDate,
-            phase: .nightLog,
-            source: .nightQuickLog,
+            phase: phase,
+            source: source,
+            sourceRecordId: sourceRecordId,
+            sourceEntryKey: sourceEntryKey,
             kind: kind,
             noticedAt: makeDate(noticedAt),
             severity0to10: severity0to10,

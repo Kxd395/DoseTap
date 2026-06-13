@@ -504,6 +504,19 @@ extension EventStorage {
             submittedAt: submittedAt,
             responsesByQuestionID: log.answers.map(preSleepResponsesByQuestionID) ?? [:]
         )
+
+        do {
+            try replacePreSleepSymptomEvents(
+                sourceRecordId: log.id,
+                sessionId: log.sessionId,
+                sessionDate: sessionDate,
+                answers: log.answers,
+                completionState: log.completionState,
+                submittedAt: submittedAt
+            )
+        } catch {
+            storageLog.error("Failed to replace synced pre-sleep symptom events for \(log.id): \(error.localizedDescription)")
+        }
     }
 
     public func deletePreSleepLog(id: String, recordCloudKitDeletion: Bool = true) {
@@ -529,6 +542,12 @@ extension EventStorage {
         sqlite3_bind_text(submissionStmt, 1, id, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(submissionStmt, 2, CheckInType.preNight.rawValue, -1, SQLITE_TRANSIENT)
         sqlite3_step(submissionStmt)
+
+        do {
+            try clearSymptomEvents(source: .preSleep, sourceRecordId: id)
+        } catch {
+            storageLog.error("Failed to clear pre-sleep symptom events for \(id): \(error.localizedDescription)")
+        }
     }
 
     public enum PreSleepLogStoreError: Error, LocalizedError {
@@ -619,14 +638,23 @@ extension EventStorage {
                 completionState: completionState,
                 answersJson: answersJson
             ) {
+                let sessionDate = resolvedSessionDate(sessionId: updatedSessionId, fallbackDate: now)
                 upsertCheckInSubmission(
                     sourceRecordId: existing.id,
                     sessionId: updatedSessionId,
-                    sessionDate: resolvedSessionDate(sessionId: updatedSessionId, fallbackDate: now),
+                    sessionDate: sessionDate,
                     checkInType: .preNight,
                     questionnaireVersion: CheckInQuestionnaireVersion.preNight,
                     submittedAt: now,
                     responsesByQuestionID: preSleepResponsesByQuestionID(normalizedAnswers)
+                )
+                try replacePreSleepSymptomEvents(
+                    sourceRecordId: existing.id,
+                    sessionId: updatedSessionId,
+                    sessionDate: sessionDate,
+                    answers: normalizedAnswers,
+                    completionState: completionState,
+                    submittedAt: now
                 )
                 return StoredPreSleepLog(
                     id: existing.id,
@@ -681,14 +709,23 @@ extension EventStorage {
             throw PreSleepLogStoreError.stepFailed(String(cString: sqlite3_errmsg(db)))
         }
 
+        let sessionDate = resolvedSessionDate(sessionId: sessionId, fallbackDate: now)
         upsertCheckInSubmission(
             sourceRecordId: id,
             sessionId: sessionId,
-            sessionDate: resolvedSessionDate(sessionId: sessionId, fallbackDate: now),
+            sessionDate: sessionDate,
             checkInType: .preNight,
             questionnaireVersion: CheckInQuestionnaireVersion.preNight,
             submittedAt: now,
             responsesByQuestionID: preSleepResponsesByQuestionID(normalizedAnswers)
+        )
+        try replacePreSleepSymptomEvents(
+            sourceRecordId: id,
+            sessionId: sessionId,
+            sessionDate: sessionDate,
+            answers: normalizedAnswers,
+            completionState: completionState,
+            submittedAt: now
         )
 
         return StoredPreSleepLog(
@@ -728,5 +765,38 @@ extension EventStorage {
         } catch {
             storageLog.error("Failed to save pre-sleep log: \(error.localizedDescription)")
         }
+    }
+
+    private func replacePreSleepSymptomEvents(
+        sourceRecordId: String,
+        sessionId: String?,
+        sessionDate: String,
+        answers: PreSleepLogAnswers?,
+        completionState: String,
+        submittedAt: Date
+    ) throws {
+        let entries: [PreSleepLogAnswers.PainEntry]
+        if completionState.lowercased() == "complete", let answers {
+            entries = mergedPreSleepPainEntries(answers)
+        } else {
+            entries = []
+        }
+        let events = try symptomEvents(
+            fromPainEntries: entries,
+            source: .preSleep,
+            sourceRecordId: sourceRecordId,
+            sessionId: sessionId,
+            sessionDate: sessionDate,
+            phase: .preSleep,
+            noticedAt: submittedAt,
+            sleepDisruption: false,
+            stillPresent: true
+        )
+        try replaceSymptomEvents(
+            source: .preSleep,
+            sourceRecordId: sourceRecordId,
+            sessionDate: sessionDate,
+            events: events
+        )
     }
 }
