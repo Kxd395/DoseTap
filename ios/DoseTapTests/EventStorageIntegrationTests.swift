@@ -540,6 +540,92 @@ final class EventStorageIntegrationTests: XCTestCase {
         XCTAssertEqual(tryUnwrap(storage.fetchSymptomSummary(sessionDate: sessionDate)).symptomCount, 1)
     }
 
+    func test_preSleepSave_rollsBackSourceRowsWhenDerivedSymptomReplacementFails() throws {
+        let sessionDate = "2026-02-24"
+        let answers = PreSleepLogAnswers(
+            bodyPain: .moderate,
+            painEntries: [
+                PreSleepLogAnswers.PainEntry(
+                    area: .lowerBack,
+                    side: .both,
+                    intensity: 6,
+                    sensations: [.burning],
+                    pattern: .constant,
+                    notes: "Before bed."
+                )
+            ]
+        )
+
+        execSQL("DROP TABLE symptom_command_log")
+
+        XCTAssertThrowsError(
+            try storage.savePreSleepLogOrThrow(
+                sessionId: sessionDate,
+                answers: answers,
+                completionState: "complete",
+                now: makeDate("2026-02-24T23:00:00.000Z"),
+                timeZone: TimeZone(identifier: "UTC")!
+            )
+        )
+        XCTAssertEqual(storage.fetchPreSleepLogCount(sessionId: sessionDate), 0)
+        XCTAssertEqual(storage.fetchCheckInSubmissionCount(sessionDate: sessionDate, checkInType: .preNight), 0)
+    }
+
+    func test_preSleepEdit_rollsBackSourceRowsWhenDerivedSymptomReplacementFails() throws {
+        let sessionDate = "2026-02-25"
+        let firstAnswers = PreSleepLogAnswers(
+            bodyPain: .moderate,
+            painEntries: [
+                PreSleepLogAnswers.PainEntry(
+                    area: .lowerBack,
+                    side: .both,
+                    intensity: 6,
+                    sensations: [.burning],
+                    pattern: .constant,
+                    notes: nil
+                )
+            ]
+        )
+        let log = try storage.savePreSleepLogOrThrow(
+            sessionId: sessionDate,
+            answers: firstAnswers,
+            completionState: "complete",
+            now: makeDate("2026-02-25T23:00:00.000Z"),
+            timeZone: TimeZone(identifier: "UTC")!
+        )
+        XCTAssertEqual(storage.fetchCheckInSubmissionCount(sessionDate: sessionDate, checkInType: .preNight), 1)
+
+        execSQL("DROP TABLE symptom_command_log")
+
+        let editedAnswers = PreSleepLogAnswers(
+            bodyPain: .severe,
+            painEntries: [
+                PreSleepLogAnswers.PainEntry(
+                    area: .wristHand,
+                    side: .right,
+                    intensity: 8,
+                    sensations: [.pinsNeedles],
+                    pattern: .intermittent,
+                    notes: "Edited."
+                )
+            ]
+        )
+        XCTAssertThrowsError(
+            try storage.savePreSleepLogOrThrow(
+                sessionId: sessionDate,
+                answers: editedAnswers,
+                completionState: "complete",
+                now: makeDate("2026-02-25T23:05:00.000Z"),
+                timeZone: TimeZone(identifier: "UTC")!,
+                existingLog: log
+            )
+        )
+
+        let fetched = tryUnwrap(storage.fetchMostRecentPreSleepLog(sessionId: sessionDate))
+        XCTAssertEqual(fetched.answers?.bodyPain, .moderate)
+        XCTAssertEqual(storage.fetchCheckInSubmissionCount(sessionDate: sessionDate, checkInType: .preNight), 1)
+    }
+
     func test_morningPainEntries_replaceAndClearDerivedSymptomEvents() throws {
         let sessionDate = "2026-02-23"
         let physicalJson = #"{"painEntries":[{"entry_key":"lower_back|both","area":"lower_back","side":"both","intensity":8,"sensations":["burning","tightness"],"pattern":"constant","notes":"Woke with pain."}]}"#
@@ -578,6 +664,27 @@ final class EventStorageIntegrationTests: XCTestCase {
         fetched = storage.fetchSymptomEvents(sessionDate: sessionDate)
         XCTAssertTrue(fetched.isEmpty)
         XCTAssertNil(storage.fetchSymptomSummary(sessionDate: sessionDate))
+    }
+
+    func test_morningSave_rollsBackSourceRowsWhenDerivedSymptomReplacementFails() throws {
+        let sessionDate = "2026-02-26"
+        let physicalJson = #"{"painEntries":[{"entry_key":"lower_back|both","area":"lower_back","side":"both","intensity":8,"sensations":["burning"],"pattern":"constant","notes":"Woke with pain."}]}"#
+        let checkIn = DoseTap.StoredMorningCheckIn(
+            id: "morning-symptom-rollback-1",
+            sessionId: sessionDate,
+            timestamp: makeDate("2026-02-27T12:00:00.000Z"),
+            sessionDate: sessionDate,
+            sleepQuality: 3,
+            hasPhysicalSymptoms: true,
+            physicalSymptomsJson: physicalJson
+        )
+
+        execSQL("DROP TABLE symptom_command_log")
+
+        storage.saveMorningCheckIn(checkIn, forSession: sessionDate)
+
+        XCTAssertNil(storage.fetchStoredMorningCheckIn(sessionKey: sessionDate))
+        XCTAssertEqual(storage.fetchCheckInSubmissionCount(sessionDate: sessionDate, checkInType: .morning), 0)
     }
 
     func test_sessionDelete_cascadesSymptomEventsAndLocationDetails() throws {
