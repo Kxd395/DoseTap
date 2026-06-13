@@ -226,6 +226,8 @@ extension EventStorage {
             session_date TEXT NOT NULL,
             phase TEXT NOT NULL,
             source TEXT NOT NULL,
+            source_record_id TEXT,
+            source_entry_key TEXT,
             kind TEXT NOT NULL,
             noticed_at TEXT NOT NULL,
             severity_0_10 INTEGER CHECK (severity_0_10 IS NULL OR severity_0_10 BETWEEN 0 AND 10),
@@ -264,6 +266,8 @@ extension EventStorage {
             idempotency_key TEXT PRIMARY KEY,
             command_type TEXT NOT NULL,
             source TEXT NOT NULL,
+            source_record_id TEXT,
+            source_entry_key TEXT,
             session_id TEXT,
             session_date TEXT,
             status TEXT NOT NULL,
@@ -287,9 +291,11 @@ extension EventStorage {
         CREATE INDEX IF NOT EXISTS idx_symptom_events_session_date ON symptom_events(session_date);
         CREATE INDEX IF NOT EXISTS idx_symptom_events_session_id ON symptom_events(session_id);
         CREATE INDEX IF NOT EXISTS idx_symptom_events_phase_kind ON symptom_events(phase, kind);
+        CREATE INDEX IF NOT EXISTS idx_symptom_events_source_record ON symptom_events(source, source_record_id);
         CREATE INDEX IF NOT EXISTS idx_symptom_locations_event ON symptom_locations(event_id);
         CREATE INDEX IF NOT EXISTS idx_body_map_points_location ON body_map_points(location_id);
         CREATE INDEX IF NOT EXISTS idx_symptom_command_log_status ON symptom_command_log(status);
+        CREATE INDEX IF NOT EXISTS idx_symptom_command_log_source_record ON symptom_command_log(source, source_record_id);
         """
         
         var errMsg: UnsafeMutablePointer<CChar>?
@@ -335,7 +341,12 @@ extension EventStorage {
             // Medication events schema v2: Add missing columns
             AddColumnMigration(table: "medication_events", column: "dose_unit", sql: "ALTER TABLE medication_events ADD COLUMN dose_unit TEXT NOT NULL DEFAULT 'mg'"),
             AddColumnMigration(table: "medication_events", column: "formulation", sql: "ALTER TABLE medication_events ADD COLUMN formulation TEXT NOT NULL DEFAULT 'ir'"),
-            AddColumnMigration(table: "medication_events", column: "local_offset_minutes", sql: "ALTER TABLE medication_events ADD COLUMN local_offset_minutes INTEGER NOT NULL DEFAULT 0")
+            AddColumnMigration(table: "medication_events", column: "local_offset_minutes", sql: "ALTER TABLE medication_events ADD COLUMN local_offset_minutes INTEGER NOT NULL DEFAULT 0"),
+            // Symptom event source identity: lets edited check-ins replace their derived symptom rows.
+            AddColumnMigration(table: "symptom_events", column: "source_record_id", sql: "ALTER TABLE symptom_events ADD COLUMN source_record_id TEXT"),
+            AddColumnMigration(table: "symptom_events", column: "source_entry_key", sql: "ALTER TABLE symptom_events ADD COLUMN source_entry_key TEXT"),
+            AddColumnMigration(table: "symptom_command_log", column: "source_record_id", sql: "ALTER TABLE symptom_command_log ADD COLUMN source_record_id TEXT"),
+            AddColumnMigration(table: "symptom_command_log", column: "source_entry_key", sql: "ALTER TABLE symptom_command_log ADD COLUMN source_entry_key TEXT")
         ]
         
         for migration in migrations where !columnExists(migration.column, in: migration.table) {

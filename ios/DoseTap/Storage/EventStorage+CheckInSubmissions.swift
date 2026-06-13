@@ -193,6 +193,74 @@ extension EventStorage {
         }
     }
 
+    @discardableResult
+    public func replaceSymptomEvents(
+        source: SymptomEventSource,
+        sourceRecordId: String,
+        sessionDate: String,
+        events: [StoredSymptomEvent]
+    ) throws -> [StoredSymptomEvent] {
+        guard events.allSatisfy({
+            $0.source == source
+                && $0.sourceRecordId == sourceRecordId
+                && $0.sessionDate == sessionDate
+        }) else {
+            throw SymptomStorageError.sourceRecordMismatch
+        }
+
+        sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
+        do {
+            try deleteSymptomCommands(source: source, sourceRecordId: sourceRecordId)
+            try deleteSymptomEvents(source: source, sourceRecordId: sourceRecordId)
+
+            for event in events {
+                let idempotencyKey = symptomIdempotencyKey(for: event)
+                try insertSymptomCommand(
+                    idempotencyKey: idempotencyKey,
+                    event: event,
+                    status: "pending",
+                    createdEventId: nil,
+                    errorCode: nil
+                )
+                try insertSymptomEvent(event)
+                for location in event.locations {
+                    try insertSymptomLocation(location, eventId: event.id)
+                    for point in location.points {
+                        try insertBodyMapPoint(point, locationId: location.id)
+                    }
+                }
+                try updateSymptomCommandComplete(idempotencyKey: idempotencyKey, eventId: event.id)
+            }
+
+            try rebuildSymptomSummary(sessionDate: sessionDate)
+            sqlite3_exec(db, "COMMIT", nil, nil, nil)
+            return events
+        } catch {
+            sqlite3_exec(db, "ROLLBACK", nil, nil, nil)
+            throw error
+        }
+    }
+
+    public func clearSymptomEvents(
+        source: SymptomEventSource,
+        sourceRecordId: String
+    ) throws {
+        let affectedSessionDates = fetchSymptomSessionDates(source: source, sourceRecordId: sourceRecordId)
+
+        sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
+        do {
+            try deleteSymptomCommands(source: source, sourceRecordId: sourceRecordId)
+            try deleteSymptomEvents(source: source, sourceRecordId: sourceRecordId)
+            for sessionDate in affectedSessionDates {
+                try rebuildSymptomSummary(sessionDate: sessionDate)
+            }
+            sqlite3_exec(db, "COMMIT", nil, nil, nil)
+        } catch {
+            sqlite3_exec(db, "ROLLBACK", nil, nil, nil)
+            throw error
+        }
+    }
+
     public func fetchSymptomEvents(sessionDate: String) -> [StoredSymptomEvent] {
         fetchSymptomEvents(whereClause: "session_date = ?", bindValue: sessionDate)
     }
@@ -231,6 +299,67 @@ extension EventStorage {
         )
     }
 
+    func symptomEvents(
+        fromPainEntries entries: [PreSleepLogAnswers.PainEntry],
+        source: SymptomEventSource,
+        sourceRecordId: String,
+        sessionId: String?,
+        sessionDate: String,
+        phase: SymptomCheckInPhase,
+        noticedAt: Date,
+        sleepDisruption: Bool,
+        stillPresent: Bool
+    ) throws -> [StoredSymptomEvent] {
+        try entries.sorted { $0.entryKey < $1.entryKey }.enumerated().map { index, entry in
+            let entryKey = entry.entryKey
+            let eventId = stableSymptomEventId(
+                source: source,
+                sourceRecordId: sourceRecordId,
+                sourceEntryKey: entryKey
+            )
+            let location = StoredSymptomLocation(
+                id: "\(eventId):location:0",
+                bodySide: symptomBodySide(from: entry.side),
+                bodyRegionId: entry.area.rawValue,
+                anatomyLayer: symptomAnatomyLayer(from: entry.sensations),
+                precision: .region,
+                confidence: .approximate
+            )
+
+            return try StoredSymptomEvent(
+                id: eventId,
+                sessionId: sessionId,
+                sessionDate: sessionDate,
+                phase: phase,
+                source: source,
+                sourceRecordId: sourceRecordId,
+                sourceEntryKey: entryKey,
+                kind: symptomKind(from: entry.sensations),
+                noticedAt: noticedAt.addingTimeInterval(TimeInterval(index)),
+                severity0to10: entry.intensity,
+                sleepDisruption: sleepDisruption,
+                stillPresent: stillPresent,
+                functionalImpact: entry.pattern?.rawValue,
+                note: normalizedSymptomNote(entry.notes),
+                schemaVersion: 1,
+                appVersion: currentAppVersionString(),
+                createdAt: nowProvider(),
+                locations: [location]
+            )
+        }
+    }
+
+    func painEntries(fromPhysicalSymptomsJson json: String?) -> [PreSleepLogAnswers.PainEntry] {
+        let physical = jsonDictionary(from: json)
+        if let entries = physical["painEntries"] as? [[String: Any]] {
+            let parsed = entries.compactMap(parsePainEntry)
+            if !parsed.isEmpty {
+                return parsed.sorted { $0.entryKey < $1.entryKey }
+            }
+        }
+        return legacyPainEntries(from: physical).sorted { $0.entryKey < $1.entryKey }
+    }
+
     private func fetchSymptomEvent(forIdempotencyKey idempotencyKey: String) -> StoredSymptomEvent? {
         let sql = """
             SELECT created_event_id
@@ -252,9 +381,31 @@ extension EventStorage {
         fetchSymptomEvents(whereClause: "id = ?", bindValue: id).first
     }
 
+    private func fetchSymptomSessionDates(source: SymptomEventSource, sourceRecordId: String) -> [String] {
+        let sql = """
+            SELECT DISTINCT session_date
+            FROM symptom_events
+            WHERE source = ? AND source_record_id = ?
+            ORDER BY session_date ASC
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
+        defer { sqlite3_finalize(stmt) }
+
+        sqlite3_bind_text(stmt, 1, source.rawValue, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 2, sourceRecordId, -1, SQLITE_TRANSIENT)
+
+        var rows: [String] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            guard let datePtr = sqlite3_column_text(stmt, 0) else { continue }
+            rows.append(String(cString: datePtr))
+        }
+        return rows
+    }
+
     private func fetchSymptomEvents(whereClause: String, bindValue: String) -> [StoredSymptomEvent] {
         let sql = """
-            SELECT id, session_id, session_date, phase, source, kind, noticed_at,
+            SELECT id, session_id, session_date, phase, source, source_record_id, source_entry_key, kind, noticed_at,
                    severity_0_10, sleep_disruption, still_present, functional_impact,
                    note, schema_version, app_version, created_at
             FROM symptom_events
@@ -280,10 +431,10 @@ extension EventStorage {
             let sessionDatePtr = sqlite3_column_text(stmt, 2),
             let phasePtr = sqlite3_column_text(stmt, 3),
             let sourcePtr = sqlite3_column_text(stmt, 4),
-            let kindPtr = sqlite3_column_text(stmt, 5),
-            let noticedPtr = sqlite3_column_text(stmt, 6),
-            let appVersionPtr = sqlite3_column_text(stmt, 13),
-            let createdPtr = sqlite3_column_text(stmt, 14),
+            let kindPtr = sqlite3_column_text(stmt, 7),
+            let noticedPtr = sqlite3_column_text(stmt, 8),
+            let appVersionPtr = sqlite3_column_text(stmt, 15),
+            let createdPtr = sqlite3_column_text(stmt, 16),
             let phase = SymptomCheckInPhase(rawValue: String(cString: phasePtr)),
             let source = SymptomEventSource(rawValue: String(cString: sourcePtr)),
             let kind = SymptomKind(rawValue: String(cString: kindPtr))
@@ -296,14 +447,16 @@ extension EventStorage {
             sessionDate: String(cString: sessionDatePtr),
             phase: phase,
             source: source,
+            sourceRecordId: sqlite3_column_text(stmt, 5).map { String(cString: $0) },
+            sourceEntryKey: sqlite3_column_text(stmt, 6).map { String(cString: $0) },
             kind: kind,
             noticedAt: isoFormatter.date(from: String(cString: noticedPtr)) ?? Date(timeIntervalSince1970: 0),
-            severity0to10: sqlite3_column_type(stmt, 7) == SQLITE_NULL ? nil : Int(sqlite3_column_int(stmt, 7)),
-            sleepDisruption: sqlite3_column_int(stmt, 8) != 0,
-            stillPresent: sqlite3_column_int(stmt, 9) != 0,
-            functionalImpact: sqlite3_column_text(stmt, 10).map { String(cString: $0) },
-            note: sqlite3_column_text(stmt, 11).map { String(cString: $0) },
-            schemaVersion: Int(sqlite3_column_int(stmt, 12)),
+            severity0to10: sqlite3_column_type(stmt, 9) == SQLITE_NULL ? nil : Int(sqlite3_column_int(stmt, 9)),
+            sleepDisruption: sqlite3_column_int(stmt, 10) != 0,
+            stillPresent: sqlite3_column_int(stmt, 11) != 0,
+            functionalImpact: sqlite3_column_text(stmt, 12).map { String(cString: $0) },
+            note: sqlite3_column_text(stmt, 13).map { String(cString: $0) },
+            schemaVersion: Int(sqlite3_column_int(stmt, 14)),
             appVersion: String(cString: appVersionPtr),
             createdAt: isoFormatter.date(from: String(cString: createdPtr)) ?? Date(timeIntervalSince1970: 0),
             locations: fetchSymptomLocations(eventId: eventId)
@@ -397,9 +550,9 @@ extension EventStorage {
     ) throws {
         let sql = """
             INSERT INTO symptom_command_log (
-                idempotency_key, command_type, source, session_id, session_date, status,
+                idempotency_key, command_type, source, source_record_id, source_entry_key, session_id, session_date, status,
                 created_event_id, error_code, created_at, completed_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
@@ -410,13 +563,15 @@ extension EventStorage {
         sqlite3_bind_text(stmt, 1, idempotencyKey, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 2, "record_symptom_event", -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 3, event.source.rawValue, -1, SQLITE_TRANSIENT)
-        bindNullableText(event.sessionId, to: stmt, at: 4)
-        sqlite3_bind_text(stmt, 5, event.sessionDate, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 6, status, -1, SQLITE_TRANSIENT)
-        bindNullableText(createdEventId, to: stmt, at: 7)
-        bindNullableText(errorCode, to: stmt, at: 8)
-        sqlite3_bind_text(stmt, 9, isoFormatter.string(from: nowProvider()), -1, SQLITE_TRANSIENT)
-        bindNullableText(status == "complete" ? isoFormatter.string(from: nowProvider()) : nil, to: stmt, at: 10)
+        bindNullableText(event.sourceRecordId, to: stmt, at: 4)
+        bindNullableText(event.sourceEntryKey, to: stmt, at: 5)
+        bindNullableText(event.sessionId, to: stmt, at: 6)
+        sqlite3_bind_text(stmt, 7, event.sessionDate, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 8, status, -1, SQLITE_TRANSIENT)
+        bindNullableText(createdEventId, to: stmt, at: 9)
+        bindNullableText(errorCode, to: stmt, at: 10)
+        sqlite3_bind_text(stmt, 11, isoFormatter.string(from: nowProvider()), -1, SQLITE_TRANSIENT)
+        bindNullableText(status == "complete" ? isoFormatter.string(from: nowProvider()) : nil, to: stmt, at: 12)
 
         guard sqlite3_step(stmt) == SQLITE_DONE else {
             throw SymptomStorageError.commandAlreadyProcessed
@@ -426,10 +581,10 @@ extension EventStorage {
     private func insertSymptomEvent(_ event: StoredSymptomEvent) throws {
         let sql = """
             INSERT INTO symptom_events (
-                id, session_id, session_date, phase, source, kind, noticed_at,
+                id, session_id, session_date, phase, source, source_record_id, source_entry_key, kind, noticed_at,
                 severity_0_10, sleep_disruption, still_present, functional_impact,
                 note, schema_version, app_version, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
@@ -442,20 +597,22 @@ extension EventStorage {
         sqlite3_bind_text(stmt, 3, event.sessionDate, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 4, event.phase.rawValue, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 5, event.source.rawValue, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 6, event.kind.rawValue, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 7, isoFormatter.string(from: event.noticedAt), -1, SQLITE_TRANSIENT)
+        bindNullableText(event.sourceRecordId, to: stmt, at: 6)
+        bindNullableText(event.sourceEntryKey, to: stmt, at: 7)
+        sqlite3_bind_text(stmt, 8, event.kind.rawValue, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 9, isoFormatter.string(from: event.noticedAt), -1, SQLITE_TRANSIENT)
         if let severity = event.severity0to10 {
-            sqlite3_bind_int(stmt, 8, Int32(severity))
+            sqlite3_bind_int(stmt, 10, Int32(severity))
         } else {
-            sqlite3_bind_null(stmt, 8)
+            sqlite3_bind_null(stmt, 10)
         }
-        sqlite3_bind_int(stmt, 9, event.sleepDisruption ? 1 : 0)
-        sqlite3_bind_int(stmt, 10, event.stillPresent ? 1 : 0)
-        bindNullableText(event.functionalImpact, to: stmt, at: 11)
-        bindNullableText(event.note, to: stmt, at: 12)
-        sqlite3_bind_int(stmt, 13, Int32(event.schemaVersion))
-        sqlite3_bind_text(stmt, 14, event.appVersion, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 15, isoFormatter.string(from: event.createdAt), -1, SQLITE_TRANSIENT)
+        sqlite3_bind_int(stmt, 11, event.sleepDisruption ? 1 : 0)
+        sqlite3_bind_int(stmt, 12, event.stillPresent ? 1 : 0)
+        bindNullableText(event.functionalImpact, to: stmt, at: 13)
+        bindNullableText(event.note, to: stmt, at: 14)
+        sqlite3_bind_int(stmt, 15, Int32(event.schemaVersion))
+        sqlite3_bind_text(stmt, 16, event.appVersion, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 17, isoFormatter.string(from: event.createdAt), -1, SQLITE_TRANSIENT)
 
         guard sqlite3_step(stmt) == SQLITE_DONE else {
             throw SymptomStorageError.eventNotFound
@@ -512,6 +669,38 @@ extension EventStorage {
         }
     }
 
+    private func deleteSymptomCommands(source: SymptomEventSource, sourceRecordId: String) throws {
+        let sql = "DELETE FROM symptom_command_log WHERE source = ? AND source_record_id = ?"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            throw SymptomStorageError.commandAlreadyProcessed
+        }
+        defer { sqlite3_finalize(stmt) }
+
+        sqlite3_bind_text(stmt, 1, source.rawValue, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 2, sourceRecordId, -1, SQLITE_TRANSIENT)
+
+        guard sqlite3_step(stmt) == SQLITE_DONE else {
+            throw SymptomStorageError.commandAlreadyProcessed
+        }
+    }
+
+    private func deleteSymptomEvents(source: SymptomEventSource, sourceRecordId: String) throws {
+        let sql = "DELETE FROM symptom_events WHERE source = ? AND source_record_id = ?"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            throw SymptomStorageError.eventNotFound
+        }
+        defer { sqlite3_finalize(stmt) }
+
+        sqlite3_bind_text(stmt, 1, source.rawValue, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 2, sourceRecordId, -1, SQLITE_TRANSIENT)
+
+        guard sqlite3_step(stmt) == SQLITE_DONE else {
+            throw SymptomStorageError.eventNotFound
+        }
+    }
+
     private func updateSymptomCommandComplete(idempotencyKey: String, eventId: String) throws {
         let sql = """
             UPDATE symptom_command_log
@@ -549,6 +738,10 @@ extension EventStorage {
 
     private func rebuildSymptomSummary(sessionDate: String) throws {
         let events = fetchSymptomEvents(sessionDate: sessionDate)
+        guard !events.isEmpty else {
+            try deleteSymptomSummary(sessionDate: sessionDate)
+            return
+        }
         let highestSeverity = events.compactMap(\.severity0to10).max()
         let sleepDisruptionCount = events.filter(\.sleepDisruption).count
         let stillPresentCount = events.filter(\.stillPresent).count
@@ -587,6 +780,181 @@ extension EventStorage {
 
         guard sqlite3_step(stmt) == SQLITE_DONE else {
             throw SymptomStorageError.eventNotFound
+        }
+    }
+
+    private func deleteSymptomSummary(sessionDate: String) throws {
+        let sql = "DELETE FROM symptom_summaries WHERE session_date = ?"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            throw SymptomStorageError.eventNotFound
+        }
+        defer { sqlite3_finalize(stmt) }
+
+        sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
+        guard sqlite3_step(stmt) == SQLITE_DONE else {
+            throw SymptomStorageError.eventNotFound
+        }
+    }
+
+    private func symptomIdempotencyKey(for event: StoredSymptomEvent) -> String {
+        [
+            "derived_symptom_event",
+            event.source.rawValue,
+            event.sourceRecordId ?? "",
+            event.sourceEntryKey ?? event.id
+        ].joined(separator: ":")
+    }
+
+    private func stableSymptomEventId(
+        source: SymptomEventSource,
+        sourceRecordId: String,
+        sourceEntryKey: String
+    ) -> String {
+        "symptom:\(source.rawValue):\(sourceRecordId):\(sourceEntryKey)"
+    }
+
+    private func currentAppVersionString() -> String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+        switch (version, build) {
+        case let (version?, build?):
+            return "\(version) (\(build))"
+        case let (version?, nil):
+            return version
+        case let (nil, build?):
+            return build
+        default:
+            return "unknown"
+        }
+    }
+
+    private func symptomKind(from sensations: [PreSleepLogAnswers.PainSensation]) -> SymptomKind {
+        if sensations.contains(.numbness) { return .numbness }
+        if sensations.contains(.pinsNeedles) { return .pinsNeedles }
+        if sensations.contains(.burning) { return .burning }
+        if sensations.contains(.shooting) || sensations.contains(.radiating) { return .electric }
+        if sensations.contains(.throbbing) { return .throbbing }
+        if sensations.contains(.cramping) { return .spasm }
+        if sensations.contains(.tightness) { return .tightness }
+        return .pain
+    }
+
+    private func symptomAnatomyLayer(from sensations: [PreSleepLogAnswers.PainSensation]) -> SymptomAnatomyLayer {
+        if sensations.contains(.numbness)
+            || sensations.contains(.pinsNeedles)
+            || sensations.contains(.shooting)
+            || sensations.contains(.radiating) {
+            return .nerveLike
+        }
+        if sensations.contains(.cramping) || sensations.contains(.tightness) {
+            return .muscle
+        }
+        return .unsure
+    }
+
+    private func symptomBodySide(from side: PreSleepLogAnswers.PainSide) -> SymptomBodySide {
+        switch side {
+        case .left: return .left
+        case .right: return .right
+        case .center: return .center
+        case .both: return .both
+        case .na: return .unknown
+        }
+    }
+
+    private func normalizedSymptomNote(_ note: String?) -> String? {
+        let trimmed = note?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed?.isEmpty == true ? nil : trimmed
+    }
+
+    private func parsePainEntry(from item: [String: Any]) -> PreSleepLogAnswers.PainEntry? {
+        guard
+            let areaValue = item["area"] as? String,
+            let area = PreSleepLogAnswers.PainArea(rawValue: areaValue)
+        else {
+            return nil
+        }
+
+        let sideValue = item["side"] as? String ?? PreSleepLogAnswers.PainSide.na.rawValue
+        let side = PreSleepLogAnswers.PainSide(rawValue: sideValue) ?? .na
+        let intensity = intValue(from: item["intensity"]) ?? 0
+        let sensations = (item["sensations"] as? [String] ?? [])
+            .compactMap(PreSleepLogAnswers.PainSensation.init(rawValue:))
+        let pattern = (item["pattern"] as? String).flatMap(PreSleepLogAnswers.PainPattern.init(rawValue:))
+        let notes = item["notes"] as? String
+
+        return PreSleepLogAnswers.PainEntry(
+            area: area,
+            side: side,
+            intensity: intensity,
+            sensations: sensations.isEmpty ? [.aching] : sensations,
+            pattern: pattern,
+            notes: notes
+        )
+    }
+
+    private func legacyPainEntries(from physical: [String: Any]) -> [PreSleepLogAnswers.PainEntry] {
+        guard let locations = physical["painLocations"] as? [String], !locations.isEmpty else {
+            return []
+        }
+
+        let intensity = max(1, intValue(from: physical["painSeverity"]) ?? 1)
+        let sensation = painSensation(fromLegacyPainType: physical["painType"] as? String)
+
+        return locations.compactMap { location in
+            guard let area = painArea(fromLegacyLocation: location) else { return nil }
+            return PreSleepLogAnswers.PainEntry(
+                area: area,
+                side: .na,
+                intensity: intensity,
+                sensations: [sensation]
+            )
+        }
+    }
+
+    private func painArea(fromLegacyLocation value: String) -> PreSleepLogAnswers.PainArea? {
+        if let exact = PreSleepLogAnswers.PainArea(rawValue: value) {
+            return exact
+        }
+
+        switch value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "head": return .headFace
+        case "neck": return .neck
+        case "shoulders": return .shoulder
+        case "upper back": return .upperBack
+        case "lower back": return .lowerBack
+        case "hips": return .hipGlute
+        case "legs", "feet": return .ankleFoot
+        case "knees": return .knee
+        case "hands": return .wristHand
+        case "arms": return .armElbow
+        case "chest": return .chestRibs
+        case "abdomen": return .abdomen
+        default: return .other
+        }
+    }
+
+    private func painSensation(fromLegacyPainType value: String?) -> PreSleepLogAnswers.PainSensation {
+        switch value {
+        case "sharp": return .sharp
+        case "burning": return .burning
+        case "throbbing": return .throbbing
+        case "cramping", "stiff": return .tightness
+        default: return .aching
+        }
+    }
+
+    private func intValue(from value: Any?) -> Int? {
+        switch value {
+        case let int as Int:
+            return int
+        case let double as Double:
+            return Int(double)
+        case let string as String:
+            return Int(string)
+        default:
+            return nil
         }
     }
 

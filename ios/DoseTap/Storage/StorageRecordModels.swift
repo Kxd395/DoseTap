@@ -153,6 +153,7 @@ public enum SymptomStorageError: Error, Equatable {
     case invalidNormalizedPoint
     case commandAlreadyProcessed
     case eventNotFound
+    case sourceRecordMismatch
 }
 
 public struct StoredBodyMapPoint: Identifiable, Codable, Equatable {
@@ -228,6 +229,8 @@ public struct StoredSymptomEvent: Identifiable, Codable, Equatable {
     public let sessionDate: String
     public let phase: SymptomCheckInPhase
     public let source: SymptomEventSource
+    public let sourceRecordId: String?
+    public let sourceEntryKey: String?
     public let kind: SymptomKind
     public let noticedAt: Date
     public let severity0to10: Int?
@@ -246,6 +249,8 @@ public struct StoredSymptomEvent: Identifiable, Codable, Equatable {
         sessionDate: String,
         phase: SymptomCheckInPhase,
         source: SymptomEventSource,
+        sourceRecordId: String? = nil,
+        sourceEntryKey: String? = nil,
         kind: SymptomKind,
         noticedAt: Date = Date(),
         severity0to10: Int? = nil,
@@ -269,6 +274,8 @@ public struct StoredSymptomEvent: Identifiable, Codable, Equatable {
         self.sessionDate = sessionDate
         self.phase = phase
         self.source = source
+        self.sourceRecordId = sourceRecordId
+        self.sourceEntryKey = sourceEntryKey
         self.kind = kind
         self.noticedAt = noticedAt
         self.severity0to10 = severity0to10
