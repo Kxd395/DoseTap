@@ -29,8 +29,8 @@ struct Secrets {
     /// OAuth Redirect URI
     /// Must match WHOOP app settings
     /// Local testing: http://127.0.0.1:8888/callback
-    /// Production: dosetap://oauth/callback
-    static let whoopRedirectURI = "dosetap://oauth/callback"
+    /// Production: dosetap://whoop/callback
+    static let whoopRedirectURI = "dosetap://whoop/callback"
     
     // MARK: - API Configuration
     

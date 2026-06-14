@@ -888,21 +888,21 @@ Performance indexes on: `session_date`, `timestamp`, `session_id`, `event_type`,
 
 1. User initiates from `WHOOPSettingsView` → Settings > Integrations
 2. `WHOOPService.authorize()` → `ASWebAuthenticationSession` opens WHOOP OAuth consent
-3. Callback via `dosetap://whoop-callback` → token exchange
+3. Callback via `dosetap://whoop/callback` → token exchange
 4. Access + refresh tokens stored in Keychain
-5. Auto-refresh on 401 via `refreshTokenIfNeeded()`
+5. Auto-refresh before requests and one 401 recovery attempt before disconnect
 
 ### API Endpoints (WHOOPDataFetching — 7 functions built)
 
 | Function | Endpoint | Data |
 |---|---|---|
-| `fetchSleepData(from:to:)` | `/v1/activity/sleep` | Sleep records with scores |
-| `fetchRecoveryData(from:to:)` | `/v1/recovery` | Recovery score, HRV, RHR |
-| `fetchCycleData(from:to:)` | `/v1/cycle` | Strain, calories |
-| `fetchRecentSleep(nights:)` | `/v1/activity/sleep` | Last N nights |
-| `fetchSleepForNight(_:)` | `/v1/activity/sleep` | Single night lookup |
-| `fetchSleepStages(sleepId:)` | `/v1/activity/sleep/:id` | Per-stage breakdown |
-| `fetchHeartRateData(from:to:)` | `/v1/cycle/:id/heart_rate` | HR time series |
+| `fetchSleepData(from:to:)` | `/developer/v2/activity/sleep` | Sleep records with scores |
+| `fetchRecoveryData(from:to:)` | `/developer/v2/recovery` | Recovery score, HRV, RHR |
+| `fetchCycleData(from:to:)` | `/developer/v2/cycle` | Strain, calories |
+| `fetchRecentSleep(nights:)` | `/developer/v2/activity/sleep` | Last N nights |
+| `fetchSleepForNight(_:)` | `/developer/v2/activity/sleep` | Single night lookup |
+| `fetchSleepStages(sleepId:)` | `/developer/v2/activity/sleep/{id}` | Per-stage breakdown |
+| `fetchHeartRateData(from:to:)` | `/developer/v2/activity/heart_rate` | HR time series |
 
 ### Current Data Flow Status ✅
 

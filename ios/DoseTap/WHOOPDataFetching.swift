@@ -88,6 +88,17 @@ extension WHOOPService {
     /// Fetch scored WHOOP nights and merge in recovery metrics when available.
     func fetchNightSummaries(from startDate: Date, to endDate: Date) async throws -> [WHOOPNightSummary] {
         let sleeps = try await fetchSleepData(from: startDate, to: endDate)
+
+        do {
+            let recoveries = try await fetchRecoveryData(from: startDate, to: endDate)
+            return Self.makeNightSummaries(sleeps: sleeps, recoveries: recoveries)
+        } catch {
+            // Recovery enrichment is additive. Keep the scored sleep payloads even if recovery fails.
+            return Self.makeNightSummaries(sleeps: sleeps, recoveries: [])
+        }
+    }
+
+    static func makeNightSummaries(sleeps: [WHOOPSleep], recoveries: [WHOOPRecovery]) -> [WHOOPNightSummary] {
         var summariesBySleepID: [String: WHOOPNightSummary] = [:]
 
         for sleep in sleeps {
@@ -104,23 +115,18 @@ extension WHOOPService {
             return []
         }
 
-        do {
-            let recoveries = try await fetchRecoveryData(from: startDate, to: endDate)
-            for recovery in recoveries {
-                guard let sleepId = recovery.sleepId,
-                      var summary = summariesBySleepID[sleepId] else {
-                    continue
-                }
-
-                summary.recoveryScore = recovery.score?.recoveryScore
-                summary.hrvMs = recovery.score?.hrvMs
-                summary.restingHeartRate = recovery.score?.restingHeartRate
-                summary.spo2Percentage = recovery.score?.spo2Percentage
-                summary.skinTempCelsius = recovery.score?.skinTempCelsius
-                summariesBySleepID[sleepId] = summary
+        for recovery in recoveries {
+            guard let sleepId = recovery.sleepId,
+                  var summary = summariesBySleepID[sleepId] else {
+                continue
             }
-        } catch {
-            // Recovery enrichment is additive. Keep the scored sleep payloads even if recovery fails.
+
+            summary.recoveryScore = recovery.score?.recoveryScore
+            summary.hrvMs = recovery.score?.hrvMs
+            summary.restingHeartRate = recovery.score?.restingHeartRate
+            summary.spo2Percentage = recovery.score?.spo2Percentage
+            summary.skinTempCelsius = recovery.score?.skinTempCelsius
+            summariesBySleepID[sleepId] = summary
         }
 
         return summariesBySleepID.values.sorted { $0.date < $1.date }

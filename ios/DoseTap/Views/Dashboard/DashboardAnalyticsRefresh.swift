@@ -55,33 +55,15 @@ extension DashboardAnalyticsModel {
         if WHOOPService.isEnabled && settings.whoopEnabled && whoop.isConnected {
             do {
                 let fetchDays = min(days, 30)
-                let sleeps = try await whoop.fetchRecentSleep(nights: fetchDays)
+                let endDate = Date()
+                let startDate = Calendar.current.date(byAdding: .day, value: -fetchDays, to: endDate) ?? endDate
+                let summaries = try await whoop.fetchNightSummaries(from: startDate, to: endDate)
                 guard !Task.isCancelled else { return }
-                for sleep in sleeps where sleep.scoreState?.uppercased() == "SCORED" {
-                    let summary = sleep.toNightSummary()
+                for summary in summaries {
                     let key = sessionRepo.sessionDateString(for: summary.date)
                     if whoopByKey[key] == nil {
                         whoopByKey[key] = summary
                     }
-                }
-                do {
-                    let recoveries = try await whoop.fetchRecoveryData(
-                        from: Calendar.current.date(byAdding: .day, value: -fetchDays, to: Date()) ?? Date(),
-                        to: Date()
-                    )
-                    guard !Task.isCancelled else { return }
-                    for recovery in recoveries {
-                        if let sleepId = recovery.sleepId,
-                           let existingKey = whoopByKey.first(where: { $0.value.sleepId == sleepId })?.key {
-                            var updated = whoopByKey[existingKey]!
-                            updated.recoveryScore = recovery.score?.recoveryScore
-                            updated.hrvMs = recovery.score?.hrvMs
-                            updated.restingHeartRate = recovery.score?.restingHeartRate
-                            whoopByKey[existingKey] = updated
-                        }
-                    }
-                } catch {
-                    dashboardLogger.warning("WHOOP recovery fetch failed: \(error.localizedDescription)")
                 }
             } catch {
                 dashboardLogger.warning("WHOOP fetch failed: \(error.localizedDescription)")

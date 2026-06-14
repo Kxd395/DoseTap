@@ -29,7 +29,7 @@ Last updated: 2026-02-14
 ### 1. Register WHOOP Developer App
 - Go to https://developer-dashboard.whoop.com
 - Create a new application
-- Set redirect URI to `dosetap://whoop-callback`
+- Set redirect URI to `dosetap://whoop/callback`
 - Note the Client ID and Client Secret
 - Required scopes: `offline`, `read:recovery`, `read:sleep`, `read:cycles`, `read:profile`
 
@@ -39,7 +39,7 @@ Add to `ios/DoseTap/Secrets.swift` (`.gitignore`d):
 enum Secrets {
     static let whoopClientID = "your-client-id"
     static let whoopClientSecret = "your-client-secret"
-    static let whoopRedirectURI = "dosetap://whoop-callback"
+    static let whoopRedirectURI = "dosetap://whoop/callback"
 }
 ```
 
@@ -47,7 +47,7 @@ Or set environment variables:
 ```bash
 DOSETAP_WHOOP_CLIENT_ID=...
 DOSETAP_WHOOP_CLIENT_SECRET=...
-DOSETAP_WHOOP_REDIRECT_URI=dosetap://whoop-callback
+DOSETAP_WHOOP_REDIRECT_URI=dosetap://whoop/callback
 ```
 
 ### 3. Connect in App

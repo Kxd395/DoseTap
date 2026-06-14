@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.9] - 2026-06-13
+
+### Fixed
+
+- Stabilized WHOOP connection and display behavior:
+  - WHOOP now remains connected when the access token expires but a refresh token is present.
+  - WHOOP API 401 responses now try one access-token refresh before disconnecting.
+  - Settings and Dashboard now use merged WHOOP sleep plus recovery summaries so Recovery, HRV, resting HR, SpO2, and skin temperature are available consistently.
+  - Updated tracked WHOOP redirect setup docs/templates to `dosetap://whoop/callback`.
+
+### Changed
+
+- Bumped `DoseTap` and `DoseTapStaging` to version `0.4.9` build `11`.
+
 ## [0.4.8] - 2026-06-13
 
 ### Fixed

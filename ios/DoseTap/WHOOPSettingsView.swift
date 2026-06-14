@@ -273,10 +273,9 @@ struct WHOOPSettingsView: View {
         isLoadingHistory = true
         
         do {
-            let sleeps = try await whoop.fetchRecentSleep(nights: 7)
-            let allSummaries = sleeps.map { $0.toNightSummary() }
-            // Filter to only show nights with valid scored data to avoid 0h 0m display
-            sleepHistory = allSummaries.filter { $0.hasValidSleepData }
+            let endDate = Date()
+            let startDate = Calendar.current.date(byAdding: .day, value: -7, to: endDate) ?? endDate
+            sleepHistory = try await whoop.fetchNightSummaries(from: startDate, to: endDate)
         } catch WHOOPError.httpError(404) {
             sleepHistory = []
             errorMessage = "WHOOP sleep data endpoint was not found for this account/app configuration. Try reconnecting WHOOP and verifying API app permissions."

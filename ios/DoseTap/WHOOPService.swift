@@ -201,12 +201,21 @@ final class WHOOPService: NSObject, ObservableObject {
     
     /// Refresh access token if expired
     func refreshTokenIfNeeded() async throws {
-        guard let expiry = tokenExpiry, expiry <= Date() else { return }
-        guard let refresh = refreshToken else {
+        if let token = accessToken,
+           !token.isEmpty,
+           let expiry = tokenExpiry,
+           expiry > Date() {
+            updateConnectionState()
+            return
+        }
+
+        guard let refresh = refreshToken, !refresh.isEmpty else {
+            updateConnectionState()
             throw WHOOPError.noRefreshToken
         }
         
         try await refreshAccessToken(refreshToken: refresh)
+        updateConnectionState()
     }
     
     // MARK: - Token Exchange
@@ -273,6 +282,7 @@ final class WHOOPService: NSObject, ObservableObject {
         tokenExpiry = Date().addingTimeInterval(TimeInterval(tokenResponse.expiresIn - 60)) // 60s buffer
         
         saveTokensToKeychain()
+        updateConnectionState()
     }
     
     private func refreshAccessToken(refreshToken: String) async throws {
@@ -310,6 +320,7 @@ final class WHOOPService: NSObject, ObservableObject {
         tokenExpiry = Date().addingTimeInterval(TimeInterval(tokenResponse.expiresIn - 60))
         
         saveTokensToKeychain()
+        updateConnectionState()
     }
     
     // MARK: - API Requests
@@ -318,14 +329,14 @@ final class WHOOPService: NSObject, ObservableObject {
     func apiRequest<T: Decodable>(_ endpoint: String, type: T.Type, maxRetries: Int = 2) async throws -> T {
         try await refreshTokenIfNeeded()
         
-        guard let token = accessToken else {
+        guard let token = accessToken, !token.isEmpty else {
             throw WHOOPError.notAuthenticated
         }
         
-        var request = URLRequest(url: URL(string: "\(Config.apiHostname)\(endpoint)")!)
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        var request = try makeAuthenticatedRequest(endpoint: endpoint, token: token)
         
         var lastError: Error = WHOOPError.invalidResponse
+        var didRefreshAfterUnauthorized = false
         for attempt in 0...maxRetries {
             if attempt > 0 {
                 // Exponential backoff: 1s, 2s
@@ -343,6 +354,21 @@ final class WHOOPService: NSObject, ObservableObject {
                 
                 guard (200..<300).contains(httpResponse.statusCode) else {
                     if httpResponse.statusCode == 401 {
+                        if !didRefreshAfterUnauthorized,
+                           let refresh = refreshToken,
+                           !refresh.isEmpty {
+                            Self.logger.warning("WHOOP 401 — refreshing access token before disconnect")
+                            try await refreshAccessToken(refreshToken: refresh)
+                            guard let refreshedToken = accessToken, !refreshedToken.isEmpty else {
+                                disconnect()
+                                throw WHOOPError.notAuthenticated
+                            }
+                            request = try makeAuthenticatedRequest(endpoint: endpoint, token: refreshedToken)
+                            didRefreshAfterUnauthorized = true
+                            lastError = WHOOPError.notAuthenticated
+                            continue
+                        }
+
                         Self.logger.warning("WHOOP 401 — disconnecting")
                         disconnect()
                         throw WHOOPError.notAuthenticated
@@ -374,6 +400,16 @@ final class WHOOPService: NSObject, ObservableObject {
         
         Self.logger.error("WHOOP API failed after \(maxRetries + 1) attempts: \(endpoint, privacy: .public)")
         throw lastError
+    }
+
+    private func makeAuthenticatedRequest(endpoint: String, token: String) throws -> URLRequest {
+        guard let url = URL(string: "\(Config.apiHostname)\(endpoint)") else {
+            throw WHOOPError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        return request
     }
 
     static func makeAPIDecoder() -> JSONDecoder {
@@ -410,7 +446,28 @@ final class WHOOPService: NSObject, ObservableObject {
     // MARK: - Connection State
     
     private func updateConnectionState() {
-        isConnected = accessToken != nil && (tokenExpiry ?? Date.distantPast) > Date()
+        isConnected = Self.hasRecoverableConnection(
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            tokenExpiry: tokenExpiry
+        )
+    }
+
+    static func hasRecoverableConnection(
+        accessToken: String?,
+        refreshToken: String?,
+        tokenExpiry: Date?,
+        now: Date = Date()
+    ) -> Bool {
+        if let refreshToken, !refreshToken.isEmpty {
+            return true
+        }
+
+        guard let accessToken, !accessToken.isEmpty, let tokenExpiry else {
+            return false
+        }
+
+        return tokenExpiry > now
     }
     
     // MARK: - Keychain Storage
