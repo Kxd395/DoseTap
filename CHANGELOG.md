@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.8] - 2026-06-13
+
+### Fixed
+
+- Prevented debug startup breakpoints when persisted active dose state is already invalid:
+  - `SessionRepository` now quarantines any active dose invariant violation on reload, not only a short allowlist.
+  - Invariant failures still log through `os.Logger` and diagnostics, but app startup no longer stops on `SessionRepository.shared`.
+  - Added regression coverage for legacy noncanonical active dose events.
+
+### Changed
+
+- Bumped `DoseTap` and `DoseTapStaging` to version `0.4.8` build `10`.
+
 ## [0.4.7] - 2026-06-13
 
 ### Fixed

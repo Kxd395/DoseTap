@@ -70,6 +70,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     let rolloverHour: Int
     private var rolloverTimer: Timer?
     private var observers: [NSObjectProtocol] = []
+    private let shouldAssertDoseStateInvariantFailure: Bool
     @Published fileprivate(set) var currentSessionKey: String
     #if canImport(OSLog)
     let logger = Logger(subsystem: "com.dosetap.app", category: "SessionRepository")
@@ -106,13 +107,15 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         notificationScheduler: NotificationScheduling = SystemNotificationScheduler.shared,
         clock: @escaping () -> Date = { Date() },
         timeZoneProvider: @escaping () -> TimeZone = { TimeZone.autoupdatingCurrent },
-        rolloverHour: Int = 18
+        rolloverHour: Int = 18,
+        shouldAssertDoseStateInvariantFailure: Bool = false
     ) {
         self.storage = storage
         self.notificationScheduler = notificationScheduler
         self.clock = clock
         self.timeZoneProvider = timeZoneProvider
         self.rolloverHour = rolloverHour
+        self.shouldAssertDoseStateInvariantFailure = shouldAssertDoseStateInvariantFailure
         self.currentSessionKey = sessionKey(for: clock(), timeZone: timeZoneProvider(), rolloverHour: rolloverHour)
 
         storage.setNowProvider(clock)
@@ -209,7 +212,9 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         repoLogger.error("Dose state invariant violation reason=\(reason, privacy: .public) details=\(details, privacy: .public)")
 
         #if DEBUG
-        assertionFailure("Dose state invariant violation reason=\(reason): \(details)")
+        if shouldAssertDoseStateInvariantFailure {
+            assertionFailure("Dose state invariant violation reason=\(reason): \(details)")
+        }
         #endif
 
         if let sessionId = activeSessionId ?? activeSessionDate ?? storage.loadCurrentSessionState().sessionDate {
@@ -237,18 +242,6 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     private func recoverPersistedDoseStateIfNeeded(reason: String) -> Bool {
         let violations = storage.validateActiveDoseStateInvariant()
         guard !violations.isEmpty else { return false }
-
-        let recoverableCodes: Set<String> = [
-            "dose2_without_dose1",
-            "extra_dose_without_dose2",
-            "dose2_event_without_snapshot",
-            "skip_event_without_snapshot",
-            "snooze_without_dose1",
-            "snooze_snapshot_without_event",
-            "snooze_event_without_snapshot"
-        ]
-        let violationCodes = Set(violations.map(\.code))
-        guard !violationCodes.isDisjoint(with: recoverableCodes) else { return false }
 
         let snapshot = storage.loadCurrentSessionState()
         guard let sessionDate = snapshot.sessionDate else { return false }

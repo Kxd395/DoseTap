@@ -1,4 +1,5 @@
 import XCTest
+import SQLite3
 @testable import DoseTap
 import Combine
 import DoseCore
@@ -248,6 +249,32 @@ final class SessionRepositoryTests: XCTestCase {
         let now = fixedNow
         let sessionDate = sessionKey(for: now, timeZone: TimeZone(identifier: "UTC")!)
         storage.saveDose2(timestamp: now, sessionId: "orphan-session", sessionDateOverride: sessionDate)
+
+        let repo = SessionRepository(
+            storage: storage,
+            clock: { now },
+            timeZoneProvider: { TimeZone(identifier: "UTC")! }
+        )
+
+        let recovered = storage.loadCurrentSessionState()
+        XCTAssertNil(repo.activeSessionDate)
+        XCTAssertNotNil(recovered.sessionEnd)
+        XCTAssertEqual(recovered.terminalState, "invalid_dose_state")
+        XCTAssertTrue(storage.validateActiveDoseStateInvariant().isEmpty)
+    }
+
+    func test_reloadQuarantinesNonCanonicalActiveDoseEventInsteadOfCrashing() async throws {
+        let storage = EventStorage.inMemory()
+        let now = fixedNow
+        let sessionDate = sessionKey(for: now, timeZone: TimeZone(identifier: "UTC")!)
+        storage.saveDose1(timestamp: now.addingTimeInterval(-60 * 60), sessionId: "legacy-session", sessionDateOverride: sessionDate)
+        storage.saveDose2(timestamp: now, sessionId: "legacy-session", sessionDateOverride: sessionDate)
+        executeSQL(
+            "UPDATE dose_events SET event_type = 'dose_2' WHERE session_date = '\(sessionDate)' AND event_type = 'dose2'",
+            on: storage
+        )
+
+        XCTAssertTrue(storage.validateActiveDoseStateInvariant().contains { $0.code == "non_canonical_dose_event_type" })
 
         let repo = SessionRepository(
             storage: storage,
@@ -1261,6 +1288,17 @@ final class SessionRepositoryTests: XCTestCase {
         comps.second = 0
         comps.timeZone = tz
         return Calendar(identifier: .gregorian).date(from: comps) ?? Date()
+    }
+
+    private func executeSQL(_ sql: String, on storage: EventStorage, file: StaticString = #filePath, line: UInt = #line) {
+        var errorMessage: UnsafeMutablePointer<CChar>?
+        let result = sqlite3_exec(storage.db, sql, nil, nil, &errorMessage)
+        defer {
+            if let errorMessage {
+                sqlite3_free(errorMessage)
+            }
+        }
+        XCTAssertEqual(result, SQLITE_OK, errorMessage.map { String(cString: $0) } ?? "SQLite error", file: file, line: line)
     }
 
     private func decodeJSONDictionary(_ json: String) -> [String: Any] {
