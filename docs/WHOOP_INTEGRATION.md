@@ -1,6 +1,6 @@
-# WHOOP Integration — Production Readiness
+# WHOOP Integration - Production Readiness
 
-Last updated: 2026-02-14
+Last updated: 2026-06-13
 
 ## Current State
 
@@ -9,6 +9,7 @@ Last updated: 2026-02-14
 | OAuth 2.0 flow | ✅ Implemented (ASWebAuthenticationSession) |
 | Token management | ✅ Keychain storage + auto-refresh |
 | API client | ✅ Sleep, recovery, cycle, heart rate |
+| Pagination | ✅ Follows `next_token` with `nextToken` on collection endpoints |
 | Retry/resilience | ✅ Exponential backoff, 429/5xx retries |
 | Logging | ✅ os.Logger (no print) |
 | Feature flag | ✅ Dynamic — auto-enabled on connect, disabled on disconnect |
@@ -51,14 +52,14 @@ DOSETAP_WHOOP_REDIRECT_URI=dosetap://whoop/callback
 ```
 
 ### 3. Connect in App
-In Settings → Integrations → WHOOP, tap "Connect WHOOP". The feature flag is now dynamic — `isEnabled` reads `UserDefaults("whoop_enabled")` and is automatically set to `true` on successful OAuth connect, `false` on disconnect. No code change needed.
+In Settings > Integrations > WHOOP, tap "Connect WHOOP". The feature flag is now dynamic. `isEnabled` reads `UserDefaults("whoop_enabled")` and is automatically set to `true` on successful OAuth connect, `false` on disconnect. No code change needed.
 
 ### 4. Test Checklist
 - [ ] OAuth flow completes (authorize → callback → token exchange)
 - [ ] Token refresh works after expiry
-- [ ] Sleep data fetches correctly for last 14 nights
+- [ ] Sleep data fetches all WHOOP pages for last 14 nights
 - [ ] Recovery data maps to DoseTap sleep sessions
-- [ ] 401 triggers clean disconnect (not crash)
+- [ ] 401 refreshes access token once before disconnecting
 - [ ] 429 rate limit triggers retry with backoff
 - [ ] 5xx server errors retry up to 2 times
 - [ ] Airplane mode → queue or graceful error

@@ -75,6 +75,37 @@ final class WHOOPDecodingTests: XCTestCase {
         XCTAssertEqual(response.records.first?.score?.hrvMs, 68.5)
     }
 
+    func test_whoopPaginatedResponseDecodesNextToken() throws {
+        let json = """
+        {
+          "records": [],
+          "next_token": "cursor-123"
+        }
+        """
+
+        let data = try XCTUnwrap(json.data(using: .utf8))
+        let response = try WHOOPService.makeAPIDecoder().decode(WHOOPPaginatedResponse<WHOOPSleep>.self, from: data)
+
+        XCTAssertEqual(response.nextToken, "cursor-123")
+    }
+
+    func test_whoopPaginationEndpointAddsNextTokenAndPreservesQuery() {
+        let endpoint = "/developer/v2/activity/sleep?start=2026-03-07T00:00:00Z&end=2026-03-08T00:00:00Z"
+
+        let pagedEndpoint = WHOOPService.endpoint(endpoint, addingNextToken: "cursor-123")
+
+        XCTAssertTrue(pagedEndpoint.contains("start=2026-03-07T00:00:00Z"))
+        XCTAssertTrue(pagedEndpoint.contains("end=2026-03-08T00:00:00Z"))
+        XCTAssertTrue(pagedEndpoint.contains("nextToken=cursor-123"))
+    }
+
+    func test_whoopPaginationEndpointIgnoresEmptyNextToken() {
+        let endpoint = "/developer/v2/recovery?start=2026-03-07T00:00:00Z&end=2026-03-08T00:00:00Z"
+
+        XCTAssertEqual(WHOOPService.endpoint(endpoint, addingNextToken: nil), endpoint)
+        XCTAssertEqual(WHOOPService.endpoint(endpoint, addingNextToken: " "), endpoint)
+    }
+
     func test_whoopConnectionStateTreatsRefreshTokenAsRecoverableConnection() {
         let now = ISO8601DateFormatter().date(from: "2026-03-07T12:00:00Z")!
 

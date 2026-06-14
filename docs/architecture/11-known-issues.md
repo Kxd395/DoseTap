@@ -82,13 +82,12 @@ public struct DoseRegistrationPolicy {
 
 ## Other Technical Debt
 
-### WHOOP Integration (Decorative)
+### WHOOP Integration
 
-- `WHOOPService.isEnabled = false` — feature flag OFF
-- All WHOOP data display uses simulated/hardcoded values
-- OAuth flow implemented but untested with real API
-- `client_secret` restored (dc51cfd) but needs real credentials
-- **Decision:** Enable for real or remove dead code
+- `WHOOPService.isEnabled` is dynamic through `UserDefaults("whoop_enabled")`.
+- Dashboard, Settings, Night Review, Timeline, and Details use live WHOOP sleep/recovery fetches when connected.
+- Collection fetchers follow `next_token` pagination with the WHOOP `nextToken` query parameter.
+- Live OAuth/API validation still requires WHOOP developer credentials and a real account.
 
 ### Legacy Files (Quarantined)
 

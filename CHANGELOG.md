@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.10] - 2026-06-13
+
+### Fixed
+
+- Fixed WHOOP collection fetches to follow `next_token` pagination for sleep, recovery, cycle, and heart-rate date ranges.
+- Updated stale WHOOP integration docs so architecture/readiness notes match the live data path and `dosetap://whoop/callback`.
+
+### Changed
+
+- Bumped `DoseTap` and `DoseTapStaging` to version `0.4.10` build `12`.
+
 ## [0.4.9] - 2026-06-13
 
 ### Fixed

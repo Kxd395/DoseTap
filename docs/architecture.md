@@ -631,7 +631,7 @@ Scheme: `dosetap://`
 
 | URL | Handler |
 | --- | --- |
-| `dosetap://oauth` | Forwarded to WHOOP OAuth callback (not handled by URLRouter) |
+| `dosetap://whoop/callback` | Forwarded to WHOOP OAuth callback (not handled by URLRouter) |
 
 All deep links are validated by `InputValidator.validateDeepLink()` and sanitized via `InputValidator.sanitizeForLogging()` before processing.
 
@@ -892,17 +892,17 @@ Performance indexes on: `session_date`, `timestamp`, `session_id`, `event_type`,
 4. Access + refresh tokens stored in Keychain
 5. Auto-refresh before requests and one 401 recovery attempt before disconnect
 
-### API Endpoints (WHOOPDataFetching — 7 functions built)
+### API Endpoints (WHOOPDataFetching)
 
 | Function | Endpoint | Data |
 |---|---|---|
-| `fetchSleepData(from:to:)` | `/developer/v2/activity/sleep` | Sleep records with scores |
-| `fetchRecoveryData(from:to:)` | `/developer/v2/recovery` | Recovery score, HRV, RHR |
-| `fetchCycleData(from:to:)` | `/developer/v2/cycle` | Strain, calories |
+| `fetchSleepData(from:to:)` | `/developer/v2/activity/sleep` | Paginated sleep records with scores |
+| `fetchRecoveryData(from:to:)` | `/developer/v2/recovery` | Paginated recovery score, HRV, RHR |
+| `fetchCycleData(from:to:)` | `/developer/v2/cycle` | Paginated strain, calories |
 | `fetchRecentSleep(nights:)` | `/developer/v2/activity/sleep` | Last N nights |
 | `fetchSleepForNight(_:)` | `/developer/v2/activity/sleep` | Single night lookup |
 | `fetchSleepStages(sleepId:)` | `/developer/v2/activity/sleep/{id}` | Per-stage breakdown |
-| `fetchHeartRateData(from:to:)` | `/developer/v2/activity/heart_rate` | HR time series |
+| `fetchHeartRateData(from:to:)` | `/developer/v2/activity/heart_rate` | Paginated HR time series |
 
 ### Current Data Flow Status ✅
 
