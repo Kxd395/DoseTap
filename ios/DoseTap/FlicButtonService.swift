@@ -185,9 +185,9 @@ final class FlicButtonService: ObservableObject {
 
         let result: DoseActionCoordinator.ActionResult
         if sessionRepository.dose1Time == nil {
-            result = await coordinator.takeDose1()
+            result = await coordinator.takeDose1(surface: .flic)
         } else {
-            result = await coordinator.takeDose2()
+            result = await coordinator.takeDose2(surface: .flic)
         }
         return await flicResult(from: result, action: .takeDose, gesture: gesture, canUndoOnSuccess: true)
     }
@@ -199,7 +199,7 @@ final class FlicButtonService: ObservableObject {
             return commandUnavailableResult(action: .snooze, gesture: gesture)
         }
 
-        let result = await coordinator.snooze()
+        let result = await coordinator.snooze(surface: .flic)
         return await flicResult(from: result, action: .snooze, gesture: gesture, canUndoOnSuccess: true)
     }
 
@@ -264,7 +264,7 @@ final class FlicButtonService: ObservableObject {
             return commandUnavailableResult(action: .skip, gesture: gesture)
         }
 
-        let result = await coordinator.skipDose()
+        let result = await coordinator.skipDose(surface: .flic)
         return await flicResult(from: result, action: .skip, gesture: gesture, canUndoOnSuccess: true)
     }
 

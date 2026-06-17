@@ -227,7 +227,7 @@ final class AlarmAndSetupRegressionTests: XCTestCase {
         settings.notificationsEnabled = true
         settings.maxSnoozes = 3
         settings.snoozeDurationMinutes = 10
-        settings.prepTimeMinutes = 23 * 60 + 59
+        settings.prepTimeMinutes = Self.prepTimeOutsideActiveDoseWindow()
 
         repo.clearTonight()
         alarm.clearDose2AlarmState()
@@ -294,6 +294,13 @@ final class AlarmAndSetupRegressionTests: XCTestCase {
         alarm.clearDose2AlarmState()
         alarm.cancelAllAlarms()
         repo.clearTonight()
+    }
+
+    private static func prepTimeOutsideActiveDoseWindow(now: Date = Date()) -> Int {
+        let calendar = Calendar.current
+        let currentMinute = calendar.component(.hour, from: now) * 60
+            + calendar.component(.minute, from: now)
+        return (currentMinute + 1) % (24 * 60)
     }
 
     func test_dueAlarm_doesNotRing_afterSessionCompleted() async {
@@ -518,6 +525,47 @@ final class AlarmAndSetupRegressionTests: XCTestCase {
 
         XCTAssertTrue(undo.success, "Flic long hold should execute the registered undo.")
         XCTAssertNil(repo.dose1Time, "Undo should clear the Dose 1 state.")
+    }
+
+    func test_flicTakeDose_requiresConfirmation_whenWindowClosed() async {
+        repo.setDose1Time(Date().addingTimeInterval(-250 * 60))
+        XCTAssertEqual(repo.currentContext.phase, .closed, "Precondition: Dose 2 window should be closed.")
+
+        let result = await FlicButtonService.shared.handleGesture(.singlePress)
+
+        XCTAssertFalse(result.success, "Flic late Dose 2 must not write without in-app confirmation.")
+        XCTAssertEqual(result.message, "Window closed - confirm in app")
+        XCTAssertNil(repo.dose2Time, "Flic late Dose 2 should remain unset until the app confirms override.")
+    }
+
+    func test_flicTakeDose_requiresConfirmation_afterSkip() async {
+        repo.setDose1Time(Date().addingTimeInterval(-160 * 60))
+        repo.skipDose2()
+        XCTAssertNotNil(repo.dose1Time, "Precondition: Dose 1 should still be present after skip.")
+        XCTAssertTrue(repo.dose2Skipped, "Precondition: Dose 2 should be skipped.")
+
+        let result = await FlicButtonService.shared.handleGesture(.singlePress)
+
+        XCTAssertFalse(result.success, "Flic after-skip Dose 2 must not write without in-app confirmation.")
+        XCTAssertEqual(result.message, "After skip - confirm in app")
+        XCTAssertNil(repo.dose2Time, "After-skip correction should not write Dose 2 until the app confirms override.")
+        XCTAssertTrue(repo.dose2Skipped, "Skip state should remain until the app confirms the correction.")
+    }
+
+    func test_afterSkipConfirmed_logsDose2AndClearsSkip() async {
+        repo.setDose1Time(Date().addingTimeInterval(-160 * 60))
+        repo.skipDose2()
+        XCTAssertNotNil(repo.dose1Time, "Precondition: Dose 1 should still be present after skip.")
+        XCTAssertTrue(repo.dose2Skipped, "Precondition: Dose 2 should be skipped.")
+
+        let result = await coordinator.takeDose2(override: .afterSkipConfirmed)
+
+        guard case .success = result else {
+            XCTFail("Confirmed after-skip correction should log Dose 2.")
+            return
+        }
+        XCTAssertNotNil(repo.dose2Time, "Confirmed after-skip correction should write Dose 2.")
+        XCTAssertFalse(repo.dose2Skipped, "Confirmed after-skip correction should clear the skip marker.")
     }
 
     func test_flicLongHold_failsWhenUndoUnavailable() async {

@@ -235,7 +235,7 @@ public class URLRouter: ObservableObject {
         guard let coordinator = resolveCoordinator() else { return false }
         
         enqueueAction { [self] in
-            let result = await coordinator.takeDose1()
+            let result = await coordinator.takeDose1(surface: .deepLink)
             self.showFeedback(for: result)
         }
         return true
@@ -246,7 +246,7 @@ public class URLRouter: ObservableObject {
         guard let coordinator = resolveCoordinator() else { return false }
 
         enqueueAction { [self] in
-            let result = await coordinator.takeDose2()
+            let result = await coordinator.takeDose2(surface: .deepLink)
             self.showFeedback(for: result)
         }
         return true
@@ -257,7 +257,7 @@ public class URLRouter: ObservableObject {
         guard let coordinator = resolveCoordinator() else { return false }
         
         enqueueAction { [self] in
-            let result = await coordinator.snooze()
+            let result = await coordinator.snooze(surface: .deepLink)
             self.showFeedback(for: result)
         }
         return true
@@ -271,7 +271,7 @@ public class URLRouter: ObservableObject {
         showFeedback("Skipping Dose 2…")
         
         enqueueAction { [self] in
-            let result = await coordinator.skipDose()
+            let result = await coordinator.skipDose(surface: .deepLink)
             self.showFeedback(for: result)
         }
         return true

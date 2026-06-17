@@ -55,8 +55,13 @@ final class URLRouterTests: XCTestCase {
     private var router: URLRouter!
     private var core: DoseTapCore!
     private var coordinator: DoseActionCoordinator!
+    private var previousPrepTimeMinutes: Int?
     
     override func setUp() async throws {
+        let settings = UserSettingsManager.shared
+        previousPrepTimeMinutes = settings.prepTimeMinutes
+        settings.prepTimeMinutes = Self.prepTimeOutsideActiveDoseWindow()
+
         router = URLRouter.shared
         core = DoseTapCore(isOnline: { true })
         core.setSessionRepository(SessionRepository.shared)
@@ -79,6 +84,16 @@ final class URLRouterTests: XCTestCase {
         await router.waitForPendingActions()
         router.resetTestOverrides()
         SessionRepository.shared.clearTonight()
+        if let previousPrepTimeMinutes {
+            UserSettingsManager.shared.prepTimeMinutes = previousPrepTimeMinutes
+        }
+    }
+
+    private static func prepTimeOutsideActiveDoseWindow(now: Date = Date()) -> Int {
+        let calendar = Calendar.current
+        let currentMinute = calendar.component(.hour, from: now) * 60
+            + calendar.component(.minute, from: now)
+        return (currentMinute + 1) % (24 * 60)
     }
     
     // MARK: - URL Parsing Tests
@@ -284,6 +299,28 @@ final class URLRouterTests: XCTestCase {
         await router.waitForPendingActions()
         XCTAssertNil(repo.dose2Time, "Dose 2 should remain unset when request is rejected.")
         XCTAssertTrue(router.feedbackMessage.contains("Window not open"), "Should show before-window feedback.")
+    }
+
+    func test_dose2_deepLink_requiresConfirmation_afterSkip() async {
+        let repo = SessionRepository.shared
+        repo.setDose1Time(Date().addingTimeInterval(-160 * 60))
+        repo.skipDose2()
+        XCTAssertNotNil(repo.dose1Time, "Precondition: Dose 1 should still be present after skip.")
+        XCTAssertTrue(repo.dose2Skipped, "Precondition: Dose 2 should be skipped.")
+        XCTAssertNil(repo.dose2Time, "Precondition: Dose 2 should not be logged yet.")
+
+        let url = URL(string: "dosetap://dose2")!
+        let handled = router.handle(url)
+        XCTAssertTrue(handled, "Dose 2 deep link should be handled and routed to confirmation feedback.")
+
+        await router.waitForPendingActions()
+
+        XCTAssertNil(repo.dose2Time, "After-skip deep link must not log Dose 2 without in-app confirmation.")
+        XCTAssertTrue(repo.dose2Skipped, "Skip state should remain until the user confirms in app.")
+        XCTAssertTrue(
+            router.feedbackMessage.contains("After skip"),
+            "Should tell user to open app to confirm after-skip correction. Actual: \(router.feedbackMessage)"
+        )
     }
 
     func test_logEvent_wakeFinal_setsSessionFinalizingState() {

@@ -83,7 +83,7 @@ final class DoseActionCoordinator: ObservableObject {
 
     // MARK: - Take Dose 1
 
-    func takeDose1() async -> ActionResult {
+    func takeDose1(surface: RegistrationSurface = .tonightButton) async -> ActionResult {
         let sig = DoseSignpost.begin(.takeDose1)
         defer { DoseSignpost.end(.takeDose1, sig) }
 
@@ -91,7 +91,7 @@ final class DoseActionCoordinator: ObservableObject {
             return .blocked(reason: "Session store unavailable")
         }
 
-        switch DoseRegistrationPolicy.evaluateDose1(input: registrationInput(surface: .tonightButton)) {
+        switch DoseRegistrationPolicy.evaluateDose1(input: registrationInput(surface: surface)) {
         case .allowed:
             break
         case .requiresConfirmation(let type):
@@ -123,7 +123,7 @@ final class DoseActionCoordinator: ObservableObject {
         playConfirmationSound()
         refreshWidgets()
 
-        coordinatorLog.info("Dose 1 logged via coordinator")
+        coordinatorLog.info("Dose 1 logged via coordinator from \(surface.rawValue, privacy: .public)")
         return .success(message: "✓ Dose 1 logged")
     }
 
@@ -132,17 +132,18 @@ final class DoseActionCoordinator: ObservableObject {
     func takeDose2(
         override: DoseOverride = .none,
         reason: String? = nil,
-        reasonNotes: String? = nil
+        reasonNotes: String? = nil,
+        surface: RegistrationSurface = .tonightButton
     ) async -> ActionResult {
-        let sig = DoseSignpost.begin(.takeDose2, "override=\(override)")
+        let sig = DoseSignpost.begin(.takeDose2, "override=\(override),surface=\(surface.rawValue)")
         defer { DoseSignpost.end(.takeDose2, sig) }
 
         guard sessionRepo != nil else {
             return .blocked(reason: "Session store unavailable")
         }
 
-        let input = registrationInput(surface: .tonightButton)
-        let ctx = core.windowContext
+        let input = registrationInput(surface: surface)
+        let phase = input.windowPhase
         let overrideConfirmed = override != .none
 
         switch DoseRegistrationPolicy.evaluateDose2(input: input, overrideConfirmed: overrideConfirmed) {
@@ -164,7 +165,7 @@ final class DoseActionCoordinator: ObservableObject {
                     reasonNotes: reasonNotes
                 )
             }
-            if ctx.phase == .beforeWindow {
+            if phase == .beforeWindow {
                 guard override == .earlyConfirmed else {
                     return .needsConfirm(.earlyDose(minutesRemaining: remainingMinutesToWindowOpen()))
                 }
@@ -176,7 +177,7 @@ final class DoseActionCoordinator: ObservableObject {
                     reasonNotes: reasonNotes
                 )
             }
-            if ctx.phase == .closed {
+            if phase == .closed {
                 guard override == .lateConfirmed else {
                     return .needsConfirm(.lateDose)
                 }
@@ -202,7 +203,7 @@ final class DoseActionCoordinator: ObservableObject {
 
     // MARK: - Snooze
 
-    func snooze() async -> ActionResult {
+    func snooze(surface: RegistrationSurface = .tonightButton) async -> ActionResult {
         let sig = DoseSignpost.begin(.snooze)
         defer { DoseSignpost.end(.snooze, sig) }
 
@@ -210,7 +211,7 @@ final class DoseActionCoordinator: ObservableObject {
             return .blocked(reason: "Session store unavailable")
         }
 
-        switch DoseRegistrationPolicy.evaluateSnooze(input: registrationInput(surface: .tonightButton)) {
+        switch DoseRegistrationPolicy.evaluateSnooze(input: registrationInput(surface: surface)) {
         case .allowed:
             break
         case .requiresConfirmation(let type):
@@ -234,7 +235,7 @@ final class DoseActionCoordinator: ObservableObject {
 
         undoState?.register(.snooze(minutes: alarmService.snoozeDurationMinutes))
         let formatted = newTime.formatted(date: .omitted, time: .shortened)
-        coordinatorLog.info("Snoozed to \(formatted, privacy: .public)")
+        coordinatorLog.info("Snoozed to \(formatted, privacy: .public) from \(surface.rawValue, privacy: .public)")
         playHaptic(.action)
         refreshWidgets()
         return .success(message: "✓ Snoozed to \(formatted)")
@@ -242,7 +243,11 @@ final class DoseActionCoordinator: ObservableObject {
 
     // MARK: - Skip Dose
 
-    func skipDose(reason: String? = nil, reasonNotes: String? = nil) async -> ActionResult {
+    func skipDose(
+        reason: String? = nil,
+        reasonNotes: String? = nil,
+        surface: RegistrationSurface = .tonightButton
+    ) async -> ActionResult {
         let sig = DoseSignpost.begin(.skipDose)
         defer { DoseSignpost.end(.skipDose, sig) }
 
@@ -250,7 +255,7 @@ final class DoseActionCoordinator: ObservableObject {
             return .blocked(reason: "Session store unavailable")
         }
 
-        switch DoseRegistrationPolicy.evaluateSkip(input: registrationInput(surface: .tonightButton)) {
+        switch DoseRegistrationPolicy.evaluateSkip(input: registrationInput(surface: surface)) {
         case .allowed:
             break
         case .requiresConfirmation(let type):
@@ -271,7 +276,7 @@ final class DoseActionCoordinator: ObservableObject {
         undoState?.register(.skipDose(sequence: 2, reason: reason))
         playHaptic(.action)
 
-        coordinatorLog.info("Dose 2 skipped via coordinator")
+        coordinatorLog.info("Dose 2 skipped via coordinator from \(surface.rawValue, privacy: .public)")
         refreshWidgets()
         return .success(message: "✓ Dose 2 skipped")
     }
@@ -347,7 +352,7 @@ final class DoseActionCoordinator: ObservableObject {
     }
 
     private func registrationInput(surface: RegistrationSurface) -> DoseRegistrationInput {
-        let context = core.windowContext
+        let context = currentWindowContext
         return DoseRegistrationInput(
             dose1Time: sessionRepo?.dose1Time ?? core.dose1Time,
             dose2Time: sessionRepo?.dose2Time ?? core.dose2Time,
@@ -356,6 +361,13 @@ final class DoseActionCoordinator: ObservableObject {
             windowPhase: context.phase,
             surface: surface
         )
+    }
+
+    private var currentWindowContext: DoseWindowContext {
+        if let sessionRepo {
+            return sessionRepo.currentContext
+        }
+        return core.windowContext
     }
 
     private func mapConfirmation(_ type: DoseConfirmationType) -> ConfirmationType {
@@ -372,7 +384,7 @@ final class DoseActionCoordinator: ObservableObject {
     }
 
     private func remainingMinutesToWindowOpen() -> Int {
-        guard let dose1Time = core.dose1Time else { return 0 }
+        guard let dose1Time = sessionRepo?.dose1Time ?? core.dose1Time else { return 0 }
         let windowOpen = dose1Time.addingTimeInterval(150 * 60)
         let remaining = windowOpen.timeIntervalSince(Date())
         return max(1, Int(ceil(remaining / 60)))

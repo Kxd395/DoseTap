@@ -22,6 +22,7 @@ public enum RegistrationSurface: String, Sendable, Equatable {
     case deepLink = "deep_link"
     case flic = "flic"
     case historyButton = "history_button"
+    case notificationAction = "notification_action"
 }
 
 // MARK: - Registration Decision

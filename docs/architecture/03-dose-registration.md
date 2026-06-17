@@ -274,7 +274,12 @@ File: `ios/DoseTap/UndoStateManager.swift`
 
 ## Known Issues (from review)
 
-1. **Flic late dose path** may skip confirmation UI for late doses
-2. **History DoseButtonsSection** diverges from Tonight behavior
-3. **Extra dose** is UI-special-cased, not a first-class coordinator action
-4. **Recommended:** Create `DoseRegistrationPolicy` unifying all surfaces (see `11-known-issues.md`)
+1. **History DoseButtonsSection** diverges from Tonight behavior
+2. **Extra dose** is UI-special-cased, not a first-class coordinator action
+
+## Current External Command Contract
+
+- Flic uses `DoseActionCoordinator` with `.flic` registration surface.
+- Deep links use `DoseActionCoordinator` with `.deepLink` registration surface.
+- Notification snooze uses `DoseActionCoordinator` with `.notificationAction` registration surface.
+- Late Dose 2 and after-skip Dose 2 from external surfaces return confirmation feedback and do not write without in-app override.

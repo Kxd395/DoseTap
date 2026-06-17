@@ -12,20 +12,20 @@ All P1 items from IMPROVEMENT_ROADMAP.md are resolved or explicitly deferred:
 - ✅ P1-6: NightScoreCalculator surfaced in Night Review
 - ✅ P1-7: Wake alarm semantic naming fixed
 
+## Recently Resolved P0 Dose Policy Items
+
+### Flic Late Dose Confirmation
+
+- Flic dose actions route through `DoseActionCoordinator` with `.flic` registration surface.
+- Late Dose 2 returns `.needsConfirm(.lateDose)` and Flic surfaces "Window closed - confirm in app" instead of writing Dose 2.
+
+### Dose 2 After Skip Correction
+
+- `DoseRegistrationPolicy.evaluateDose2` checks `dose2Skipped` before the `.completed` phase branch and returns `.needsConfirm(.afterSkip)`.
+- Flic and deep-link Dose 2 after skip require in-app confirmation and preserve the skip marker until confirmed.
+- Confirmed after-skip correction writes Dose 2 through `SessionRepository.setDose2Time` and clears the skip marker.
+
 ## Remaining Technical Debt
-
-### P0: Flic Late Dose Without Confirmation
-
-- **File:** `ios/DoseTap/FlicButtonService.swift:~221`
-- **Issue:** When Flic single-press triggers `executeTakeDose()` during `.closed` phase, the late dose path may skip the confirmation UI that TonightView shows
-- **Fix:** Route through `DoseActionCoordinator.takeDose2()` which returns `.needsConfirm(.lateDose)`, then surface confirmation via notification or post-action alert
-
-### P0: Dose 2 Blocked After Skip
-
-- **File:** `ios/Core/DoseWindowState.swift:85`
-- **Issue:** When `dose2Skipped == true`, `DoseWindowCalculator.context()` returns `.completed` immediately, blocking dose 2 registration even if the user changes their mind
-- **Current workaround:** `DoseActionCoordinator` has `.afterSkip` confirmation type
-- **Fix:** Ensure all surfaces support the after-skip un-skip flow consistently
 
 ### P1: Extra Dose Not First-Class
 
@@ -41,25 +41,18 @@ All P1 items from IMPROVEMENT_ROADMAP.md are resolved or explicitly deferred:
 
 ---
 
-## Recommended: DoseRegistrationPolicy
-
-From the dose registration architecture review:
+## Current: DoseRegistrationPolicy
 
 ```swift
-// Proposed: ios/Core/DoseRegistrationPolicy.swift
-public struct DoseRegistrationPolicy {
-    /// Determine what action is allowed for the current state
-    static func evaluate(
-        dose1Time: Date?,
-        dose2Time: Date?,
-        dose2Skipped: Bool,
-        snoozeCount: Int,
-        windowPhase: DoseWindowPhase,
-        surface: RegistrationSurface
-    ) -> RegistrationDecision
+// ios/Core/DoseRegistrationPolicy.swift
+public enum DoseRegistrationPolicy {
+    static func evaluateDose1(input: DoseRegistrationInput) -> RegistrationDecision
+    static func evaluateDose2(input: DoseRegistrationInput, overrideConfirmed: Bool) -> RegistrationDecision
+    static func evaluateSnooze(input: DoseRegistrationInput, config: DoseWindowConfig) -> RegistrationDecision
+    static func evaluateSkip(input: DoseRegistrationInput) -> RegistrationDecision
 
     enum RegistrationSurface {
-        case tonightButton, deepLink, flic, historyButton
+        case tonightButton, deepLink, flic, historyButton, notificationAction
     }
 
     enum RegistrationDecision {

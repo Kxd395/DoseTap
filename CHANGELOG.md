@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.11] - 2026-06-16
+
+### Fixed
+
+- Hardened external dose command paths:
+  - Flic dose, snooze, and skip actions now enter the coordinator with an explicit `.flic` registration surface.
+  - Deep-link dose, snooze, and skip actions now enter the coordinator with an explicit `.deepLink` registration surface.
+  - Notification snooze now enters the coordinator with an explicit `.notificationAction` registration surface.
+  - Added regressions proving Flic/deep-link late Dose 2 and after-skip Dose 2 require confirmation and do not write Dose 2 directly.
+  - Added a regression proving confirmed after-skip correction writes Dose 2 and clears the skip marker.
+
+### Changed
+
+- Bumped `DoseTap` and `DoseTapStaging` to version `0.4.11` build `13`.
+
 ## [0.4.10] - 2026-06-13
 
 ### Fixed

@@ -101,7 +101,7 @@ final class AppContainer: ObservableObject {
         flicButtonService.configure(coordinator: doseCoordinator, undoState: undoState)
         alarmService.configureNotificationSnoozeHandler { [weak doseCoordinator] in
             guard let doseCoordinator else { return false }
-            if case .success = await doseCoordinator.snooze() {
+            if case .success = await doseCoordinator.snooze(surface: .notificationAction) {
                 return true
             }
             return false
