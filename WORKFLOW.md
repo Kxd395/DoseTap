@@ -1,14 +1,17 @@
 ---
 tracker:
-  kind: linear
-  project_slug: "dosetap-d4b1cc70bc7b"
+  kind: plane
+  endpoint: "http://localhost:18080/api/v1"
+  api_key: "$PLANE_API_KEY"
+  workspace_slug: "axxess"
+  project_id: "b195f92c-529b-4fd9-8e48-12221ecfa91f"
+  project_url: "http://localhost:18080/axxess/projects/b195f92c-529b-4fd9-8e48-12221ecfa91f/issues"
   active_states:
     - Todo
     - In Progress
   terminal_states:
     - Done
-    - Canceled
-    - Duplicate
+    - Cancelled
 polling:
   interval_ms: 15000
 workspace:
@@ -24,14 +27,14 @@ agent:
   max_concurrent_agents: 1
   max_turns: 8
 codex:
-  command: codex --config shell_environment_policy.inherit=all app-server
+  command: codex --config shell_environment_policy.inherit=all --config 'shell_environment_policy.exclude=["PLANE_API_KEY"]' app-server
   approval_policy: never
   thread_sandbox: workspace-write
   turn_sandbox_policy:
     type: workspaceWrite
 ---
 
-You are working on Linear issue `{{ issue.identifier }}` for the DoseTap iOS repository.
+You are working on Axxess work item `{{ issue.identifier }}` for the DoseTap iOS repository.
 
 Issue context:
 
@@ -70,21 +73,21 @@ Retry context:
 - Do not revert unrelated worktree changes unless the issue explicitly requires it.
 - Prefer the narrowest safe fix over opportunistic refactors.
 
-## Linear workflow policy
+## Axxess workflow policy
 
 - `Todo`: move to `In Progress` before any code edits.
 - `In Progress`: continue active implementation.
 - `In Review`: do not continue coding; wait for a human decision or for the issue to move back to `In Progress`.
 - `Backlog`: do not claim or modify.
-- `Done`, `Canceled`, `Duplicate`: terminal, no work.
+- `Done`, `Cancelled`: terminal, no work.
 
 ## Review intake policy
 
-When a review, audit, or investigation finds a dose-state, second-dose, session-identity, skip, snooze, undo, notification, URL, Flic, or CloudKit sync issue that could affect live dose logging, create or update the matching Linear P0 before handoff. Treat dose-state ambiguity as P0 until it is proven non-impacting.
+When a review, audit, or investigation finds a dose-state, second-dose, session-identity, skip, snooze, undo, notification, URL, Flic, or CloudKit sync issue that could affect live dose logging, create or update the matching Axxess P0 before handoff when a scoped tracker-write operation is available. Treat dose-state ambiguity as P0 until it is proven non-impacting.
 
-For non-dose release gates, create or update the matching Linear issue before handoff and use the real severity.
+For non-dose release gates, create or update the matching Axxess work item before handoff and use the real severity. If the runner does not expose work-item creation, record the finding in the current workpad and leave the item in `In Review` for human triage. Never bypass the project-scoped tracker tool with a raw API key.
 
-- Use team `DoseTap`.
+- Use project `DOSETAP` in workspace `axxess`.
 - Use priority `Urgent` for P0 and `High` for confirmed P1.
 - Apply `p0-blocker` for P0s plus relevant labels such as `Bug`, `security`, or `release-gate`.
 - Include file references, reproduction signals, validation commands, and unresolved risks.
@@ -98,7 +101,7 @@ If a PR is already attached when work begins, treat the issue as a feedback/rewo
 
 ## Workpad policy
 
-Maintain one persistent Linear comment headed `## Codex Workpad`.
+Maintain local notes during the run, then post one Axxess comment headed `## Codex Workpad` before handoff. Use Symphony's project-scoped tracker tool. Do not read or expose `PLANE_API_KEY`.
 
 Keep it current with these sections:
 
@@ -108,11 +111,11 @@ Keep it current with these sections:
 - `Notes`
 - `Blockers`
 
-Update the same comment throughout the run instead of posting new progress comments.
+Do not post routine progress comments. On a retry, post one replacement summary comment for that attempt if comment editing is unavailable.
 
 ## Execution checklist
 
-1. Confirm the current issue state and route using the workflow policy above.
+1. Confirm the current work-item state and route using the workflow policy above.
 2. Record repo state in the workpad: branch, short SHA, and workspace path.
 3. Reproduce the issue or capture the missing behavior signal before editing code.
 4. Create or update a small plan in the workpad.
@@ -139,7 +142,7 @@ Do not claim completion if the required validation for the touched area has not 
 
 ## Git and PR policy
 
-- If Linear provides a branch name, use it. Otherwise create a branch named `codex/<issue-identifier>` or a sanitized equivalent.
+- If Axxess provides a branch name, use it. Otherwise create a branch named `codex/<issue-identifier>` or a sanitized equivalent.
 - Sync from `origin/main` before significant code edits when it is safe to do so.
 - Keep commits focused and reviewable.
 - If a PR exists, check GitHub Actions status before handoff and do not move to `In Review` while checks are red for your changes.

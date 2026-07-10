@@ -164,7 +164,7 @@ Create `docs/audit/YYYY-MM-DD/` (today's date) and maintain:
 1. Scan for complexity debt (files >500 LOC, god objects, coupling).
 2. Aggregate all findings from ledger. Assign fix cost, carrying cost, interest rate, ROI.
 3. Produce ranked Top-20 backlog with sprint targets.
-4. Propose GitHub labels, issue templates, 20% rule cadence.
+4. Propose Axxess labels, work-item templates, and a 20% rule cadence.
 5. Write executive summary.
 6. **STOP**: Top-20 backlog with ROI framing exists. Executive summary links to all phase reports.
 

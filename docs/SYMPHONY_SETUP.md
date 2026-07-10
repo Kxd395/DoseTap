@@ -1,125 +1,123 @@
 # Symphony Setup For DoseTap
 
-Last updated: 2026-03-07
+Last updated: 2026-07-09
 
-## What this setup does
+## Purpose
 
-This repository now includes a repo-owned [WORKFLOW.md](../WORKFLOW.md) for [OpenAI Symphony](https://github.com/openai/symphony).
+[WORKFLOW.md](../WORKFLOW.md) connects DoseTap engineering work to the local Axxess Plane project. Symphony polls eligible Axxess work items, creates an isolated repository workspace, runs Codex, and stops at `In Review` for human review.
 
-The workflow is designed to monitor the real DoseTap Linear project, claim active engineering tickets, create an isolated workspace per issue, run Codex against that issue, and stop at `In Review`.
+This workflow handles engineering work only. It does not read app telemetry, sleep metrics, medication history, or other user health data.
 
-This setup is for engineering-work monitoring and execution. It does not monitor app telemetry, sleep metrics, or user health data.
+## Canonical tracker
 
-## What is included
+- Product: Plane v1.3.1
+- Workspace: `Axxess`
+- Workspace slug: `axxess`
+- Project: `Dose_Tap`
+- Identifier: `DOSETAP`
+- Project ID: `b195f92c-529b-4fd9-8e48-12221ecfa91f`
+- Human URL: http://localhost:18080/axxess/projects/b195f92c-529b-4fd9-8e48-12221ecfa91f/issues
+- REST base: `http://localhost:18080/api/v1`
 
-- Repo workflow contract: [WORKFLOW.md](../WORKFLOW.md)
-- DoseTap-specific runbook: [docs/SYMPHONY_SETUP.md](SYMPHONY_SETUP.md)
+The human URL is not an API endpoint. Automation uses Plane work-item endpoints under `/api/v1/workspaces/axxess/projects/<project-id>/work-items/`.
 
-Current Linear wiring:
+## Workflow states
 
-- Team: `HomeAxxess`
-- Project: `DoseTap`
-- Project slug: `dosetap-d4b1cc70bc7b`
-- Review state: `In Review`
+- `Backlog`: product triage, not claimed by Symphony
+- `Todo`: eligible for Symphony
+- `In Progress`: active implementation
+- `In Review`: validated handoff, not claimed by Symphony
+- `Done`: terminal
+- `Cancelled`: terminal
 
-Key defaults in the workflow:
+Only `Todo` and `In Progress` are active in the current workflow. Concurrency remains `1`.
 
-- Poll every `15s`
-- Run `1` agent at a time
-- Create issue workspaces under `~/code/symphony-workspaces/dosetap`
-- Clone `https://github.com/Kxd395/DoseTap.git` by default
-- Stub `ios/DoseTap/Secrets.swift` from `Secrets.template.swift` when needed
-- Stop at `In Review`; merge stays manual
+## Authentication and secret boundary
 
-## Recommended Linear states
+The runner uses a dedicated Axxess API token from `PLANE_API_KEY`. The token is stored only in:
 
-The workflow expects these states to exist or be mapped to equivalent names:
-
-- `Todo`
-- `In Progress`
-- `In Review`
-- `Done`
-- `Backlog`
-- `Canceled`
-- `Duplicate`
-
-Only `Todo` and `In Progress` are actively claimed by Symphony in the current config.
-
-## Prerequisites
-
-You need:
-
-- a Linear personal API key
-- `codex` installed with app-server support
-- Xcode and iOS simulators installed locally
-- Git access to the DoseTap repository
-
-You also need the Symphony reference implementation or your own implementation of the [Symphony spec](https://github.com/openai/symphony/blob/main/SPEC.md).
-
-## Environment variables
-
-Export these before starting Symphony:
-
-```bash
-export LINEAR_API_KEY="lin_api_..."
-export SOURCE_REPO_URL="https://github.com/Kxd395/DoseTap.git"
+```text
+/Volumes/HomeLab_Workspace/repos/services/symphony/.env
 ```
 
-`SOURCE_REPO_URL` is optional if the default GitHub origin is correct.
+That file is untracked and mode `600`. Never put the token in `WORKFLOW.md`, repository files, logs, comments, prompts, or shell examples.
+
+Symphony owns the credential and exposes project-scoped tracker operations to Codex. The workflow explicitly excludes `PLANE_API_KEY` from model-generated shell subprocesses. Do not replace the scoped tracker tool with raw REST access.
+
+## Required Symphony implementation
+
+Upstream Symphony is Linear-only. This workflow requires the local Plane adapter worktree:
+
+```text
+/Volumes/HomeLab_Workspace/repos/services/symphony-plane
+```
+
+The adapter provides:
+
+- Plane REST pagination and work-item normalization
+- candidate polling and issue-state refresh
+- state-name lookup and state transitions
+- comment creation
+- tracker-specific dynamic tool selection
+- Linear and memory adapter regression compatibility
+
+Pointing the old Linear client at the Plane URL does not work. Linear uses GraphQL and `Authorization`; Plane uses REST and `X-Api-Key`.
 
 ## Start Symphony
 
-Example using the Elixir reference implementation:
-
 ```bash
-git clone https://github.com/openai/symphony
-cd symphony/elixir
+cd /Volumes/HomeLab_Workspace/repos/services/symphony-plane/elixir
+source /Volumes/HomeLab_Workspace/repos/services/symphony/.env
+
 mise trust
 mise install
 mise exec -- mix setup
 mise exec -- mix build
-mise exec -- ./bin/symphony /Volumes/Developer/projects/DoseTap/WORKFLOW.md --port 4050
+
+mise exec -- ./bin/symphony \
+  /Users/VScode_Projects/projects/DoseTap-p0-late-dose-recovery/WORKFLOW.md \
+  --port 4050
 ```
 
-The optional `--port 4050` flag exposes the local dashboard and JSON status endpoints.
+Dashboard and status endpoints are then available at `http://localhost:4050`.
 
-## How the DoseTap workflow behaves
+The workflow path above is the isolated implementation worktree. After the branch is integrated, use the merged DoseTap checkout path.
 
-For each eligible Linear issue, Symphony will:
+## Per-work-item behavior
 
-1. Create an isolated workspace.
-2. Clone the DoseTap repo into that workspace.
-3. Create a CI-safe `Secrets.swift` stub if needed.
-4. Move `Todo` issues to `In Progress`.
-5. Keep one `## Codex Workpad` comment updated on the issue.
-6. Reproduce the issue before editing when practical.
-7. Run repo-appropriate validation:
-   - `bash tools/ssot_check.sh` for behavior and contract changes
-   - `swift build -q` and `swift test -q` for SwiftPM / DoseCore changes
-   - `xcodebuild build ...` for iOS app changes
-   - targeted `xcodebuild test -only-testing:...` when applicable
-8. Stop at `In Review` once validation is green.
+For each eligible Axxess work item, Symphony will:
 
-## Recommended pilot posture
+1. Create an isolated workspace under `~/code/symphony-workspaces/dosetap`.
+2. Clone DoseTap and create a local `Secrets.swift` stub from the checked-in template when needed.
+3. Move `Todo` to `In Progress` before edits.
+4. Reproduce the issue or record the concrete missing behavior signal.
+5. Implement the smallest safe change.
+6. Run repository-specific checks from `WORKFLOW.md`.
+7. Post one `## Codex Workpad` Axxess comment with validation and blockers.
+8. Move the work item to `In Review` only after required checks pass.
 
-Start conservative:
+Merge remains manual.
 
-- keep concurrency at `1`
-- use one small Linear project or one label-filtered queue first
-- keep merge manual
-- inspect the workpad comments and dashboard output before increasing concurrency
+## Validation
 
-For this repository, simulator work is heavier than a web-only repo. Raising concurrency too early will reduce signal and increase flaky validation.
+Validate the adapter before starting unattended work:
 
-## Useful customizations
+```bash
+cd /Volumes/HomeLab_Workspace/repos/services/symphony-plane/elixir
+mise exec -- mix test
+mise exec -- mix specs.check
+```
 
-You can safely customize these fields in [WORKFLOW.md](../WORKFLOW.md):
+Then start Symphony and confirm the dashboard sees `DOSETAP-1` through `DOSETAP-5` with the correct states. Use a disposable comment or state transition only when intentionally testing write behavior.
 
-- `tracker.project_slug`
-- `tracker.active_states`
-- `polling.interval_ms`
-- `workspace.root`
-- `agent.max_concurrent_agents`
-- `codex.command`
+## Localhost limitation
 
-If you later want Symphony to continue past `In Review` and land PRs automatically, add a merge state such as `Ready to Merge` and extend the workflow with a repo-local land/merge skill. That is intentionally not enabled in this first pass.
+`localhost:18080` is valid only when Symphony runs on this Mac. Remote workers cannot reach that address. Before enabling SSH workers, expose Plane through an authenticated private network endpoint, update `tracker.endpoint` and `tracker.project_url`, and re-run adapter integration tests.
+
+## Rollback
+
+1. Stop Symphony.
+2. Revert the DoseTap workflow to the last known-good tracker configuration only if intentionally returning to another tracker.
+3. Revert or remove the local Symphony Plane adapter worktree.
+4. Disable the `Symphony DoseTap Axxess` API token in Plane.
+5. Keep created Axxess work items for audit history. Move abandoned items to `Cancelled` instead of deleting them.

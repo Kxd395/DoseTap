@@ -35,6 +35,8 @@ If this PR is a release (version bump, tag):
 - [ ] Version and build numbers are updated in the Xcode project
 - [ ] CHANGELOG.md is updated
 
----
+## Axxess Tracking
 
-Closes #<!-- issue number if applicable -->
+- Work item: `DOSETAP-<!-- number -->`
+- Project: http://localhost:18080/axxess/projects/b195f92c-529b-4fd9-8e48-12221ecfa91f/issues
+- [ ] Axxess workpad and validation notes are current

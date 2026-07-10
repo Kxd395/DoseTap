@@ -1,6 +1,6 @@
 # DoseTap Documentation Index
 
-Last updated: 2026-03-09
+Last updated: 2026-07-09
 
 ## Canonical Docs
 
@@ -15,7 +15,8 @@ Last updated: 2026-03-09
 
 ## Plans
 
-- Active roadmap/todo: `docs/ROADMAP_TODO.md`
+- Execution tracker: [DoseTap in Axxess](http://localhost:18080/axxess/projects/b195f92c-529b-4fd9-8e48-12221ecfa91f/issues)
+- Product roadmap snapshot: `docs/ROADMAP_TODO.md`
 - Insights viewer MVP: `docs/INSIGHTS_VIEWER_MVP.md`
 - Insights viewer implementation plan: `docs/INSIGHTS_VIEWER_IMPLEMENTATION_PLAN.md`
 - Insights optimal timing TODO: `docs/INSIGHTS_OPTIMAL_TIMING_TODO.md`
