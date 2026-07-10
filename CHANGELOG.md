@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Restored the confirmed late Dose 2 path after an alarm is missed and Dose 2 is auto-marked skipped.
+- Kept the late recovery action reachable while morning check-in is pending.
+- Made after-skip recovery atomic across the Dose 2 event, active-session snapshot, and legacy slept-through terminal marker.
+- Prevented the foreground alarm check from racing with auto-expiry and leaving a stale Dose 2 alarm onscreen.
+- Stopped reporting recovered Dose 2 success when its atomic SQLite write fails.
+
+### Changed
+
+- Replaced the active Linear workflow contract with the local Axxess Plane project.
+- Bumped `DoseTap` and `DoseTapStaging` to version `0.4.12` build `14`.
+
 ## [0.4.11] - 2026-06-16
 
 ### Fixed

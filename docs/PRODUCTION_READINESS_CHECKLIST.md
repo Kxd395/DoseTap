@@ -1,5 +1,7 @@
 # DoseTap Production Readiness Checklist
 
+> Point-in-time readiness record. Counts and verdicts below are retained for provenance and are not current execution status. Use the [DoseTap Axxess project](http://localhost:18080/axxess/projects/b195f92c-529b-4fd9-8e48-12221ecfa91f/issues), `docs/ROADMAP_TODO.md`, and `docs/RELEASE_CHECKLIST.md` for current release work.
+
 **Date:** 2026-02-13  
 **Branch:** `004-dosing-amount-model`  
 **Version:** 2.1.0

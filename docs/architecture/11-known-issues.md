@@ -24,6 +24,19 @@ All P1 items from IMPROVEMENT_ROADMAP.md are resolved or explicitly deferred:
 - `DoseRegistrationPolicy.evaluateDose2` checks `dose2Skipped` before the `.completed` phase branch and returns `.needsConfirm(.afterSkip)`.
 - Flic and deep-link Dose 2 after skip require in-app confirmation and preserve the skip marker until confirmed.
 - Confirmed after-skip correction writes Dose 2 through `SessionRepository.setDose2Time` and clears the skip marker.
+- The 2026-07-09 audit found the policy path was unreachable after alarm auto-expiry because the home presentation hid the Dose 2 action. `DOSETAP-1` tracks the UI and persistence recovery fix.
+- Recovery now remains visible in completed and finalizing phases until morning check-in closes the session.
+- The replacement write is atomic and reports success only after SQLite confirms the event and snapshot update.
+
+## Current P0 Release Blockers
+
+The [DoseTap Axxess project](http://localhost:18080/axxess/projects/b195f92c-529b-4fd9-8e48-12221ecfa91f/issues) is authoritative.
+
+- `DOSETAP-1`: late Dose 2 recovery after missed alarm, in progress.
+- `DOSETAP-2`: Dose 1 and ordinary Dose 2 persistence acknowledgement.
+- `DOSETAP-3`: alarm scheduling acknowledgement.
+- `DOSETAP-4`: warning preservation across snooze and acknowledge.
+- `DOSETAP-5`: release certificate pinning contract and launch/TLS gate.
 
 ## Remaining Technical Debt
 

@@ -324,6 +324,86 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertTrue(storage.getAllSessionDates().isEmpty)
     }
 
+    func test_autoExpiredDose2_remainsOpenAndCanBeRecoveredAtomically() throws {
+        let storage = EventStorage.inMemory()
+        let now = fixedNow
+        let timeZone = TimeZone(identifier: "UTC")!
+        let repo = SessionRepository(
+            storage: storage,
+            clock: { now },
+            timeZoneProvider: { timeZone }
+        )
+        repo.setDose1Time(now.addingTimeInterval(-280 * 60))
+
+        XCTAssertTrue(repo.checkAndHandleExpiredSession())
+        let sessionDate = try XCTUnwrap(repo.activeSessionDate)
+        let sessionId = try XCTUnwrap(repo.activeSessionId)
+        let autoExpired = storage.loadCurrentSessionState()
+        XCTAssertTrue(autoExpired.dose2Skipped)
+        XCTAssertNil(autoExpired.sessionEnd, "Auto-skip must not close the session.")
+        XCTAssertNil(autoExpired.terminalState, "Auto-skip is a dose outcome, not a session terminal state.")
+
+        // Simulate an open row written by an older build so recovery proves the
+        // backward-compatible terminal-state cleanup in both session tables.
+        storage.updateTerminalState(
+            sessionDate: sessionDate,
+            sessionId: sessionId,
+            state: "incomplete_slept_through"
+        )
+
+        XCTAssertTrue(
+            repo.setDose2Time(now, reason: "fell_asleep"),
+            "Confirmed late recovery should persist Dose 2."
+        )
+
+        let recovered = storage.loadCurrentSessionState()
+        XCTAssertEqual(recovered.dose2Time, now)
+        XCTAssertFalse(recovered.dose2Skipped)
+        XCTAssertNil(recovered.terminalState)
+        XCTAssertNil(
+            queryNullableText(
+                "SELECT terminal_state FROM sleep_sessions WHERE session_id = ?",
+                binding: sessionId,
+                on: storage
+            )
+        )
+
+        let events = storage.fetchDoseEvents(sessionId: sessionId, sessionDate: sessionDate)
+        XCTAssertFalse(events.contains { $0.eventType == "dose2_skipped" })
+        let dose2 = try XCTUnwrap(events.first { $0.eventType == "dose2" })
+        let metadata = decodeJSONDictionary(dose2.metadata ?? "{}")
+        XCTAssertEqual(metadata["is_late"] as? Bool, true)
+        XCTAssertEqual(metadata["recovered_after_skip"] as? Bool, true)
+        XCTAssertTrue(storage.validateActiveDoseStateInvariant().isEmpty)
+    }
+
+    func test_afterSkipRecovery_preservesFinalizingTerminalState() throws {
+        let storage = EventStorage.inMemory()
+        let now = fixedNow
+        let repo = SessionRepository(
+            storage: storage,
+            clock: { now },
+            timeZoneProvider: { TimeZone(identifier: "UTC")! }
+        )
+        repo.setDose1Time(now.addingTimeInterval(-280 * 60))
+        repo.skipDose2(reason: "fell_asleep")
+        let sessionDate = try XCTUnwrap(repo.activeSessionDate)
+        let sessionId = try XCTUnwrap(repo.activeSessionId)
+        storage.updateTerminalState(sessionDate: sessionDate, sessionId: sessionId, state: "finalizing_wake")
+
+        XCTAssertTrue(repo.setDose2Time(now, reason: "fell_asleep"))
+
+        XCTAssertEqual(storage.loadCurrentSessionState().terminalState, "finalizing_wake")
+        XCTAssertEqual(
+            queryNullableText(
+                "SELECT terminal_state FROM sleep_sessions WHERE session_id = ?",
+                binding: sessionId,
+                on: storage
+            ),
+            "finalizing_wake"
+        )
+    }
+
     func test_incrementSnoozeAfterPrepRollover_isBlockedWithoutSnoozeOnlyState() async throws {
         let settings = UserSettingsManager.shared
         let previousPrepTime = settings.prepTimeMinutes
@@ -1299,6 +1379,28 @@ final class SessionRepositoryTests: XCTestCase {
             }
         }
         XCTAssertEqual(result, SQLITE_OK, errorMessage.map { String(cString: $0) } ?? "SQLite error", file: file, line: line)
+    }
+
+    private func queryNullableText(
+        _ sql: String,
+        binding: String,
+        on storage: EventStorage,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> String? {
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(storage.db, sql, -1, &statement, nil) == SQLITE_OK else {
+            XCTFail("Failed to prepare SQLite query", file: file, line: line)
+            return nil
+        }
+        defer { sqlite3_finalize(statement) }
+        sqlite3_bind_text(statement, 1, binding, -1, SQLITE_TRANSIENT)
+        guard sqlite3_step(statement) == SQLITE_ROW else {
+            XCTFail("SQLite query returned no row", file: file, line: line)
+            return nil
+        }
+        guard let value = sqlite3_column_text(statement, 0) else { return nil }
+        return String(cString: value)
     }
 
     private func decodeJSONDictionary(_ json: String) -> [String: Any] {

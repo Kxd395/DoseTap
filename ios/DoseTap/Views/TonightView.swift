@@ -10,6 +10,7 @@ struct HomePresentationState: Equatable {
         case dose2Waiting
         case dose2Ready
         case dose2Closed
+        case dose2Skipped
         case morningCloseout
         case reviewOnly
     }
@@ -28,7 +29,7 @@ struct HomePresentationState: Equatable {
 
     var showsDoseStatusCard: Bool {
         switch primary {
-        case .dose2Waiting, .dose2Ready, .dose2Closed, .morningCloseout:
+        case .dose2Waiting, .dose2Ready, .dose2Closed, .dose2Skipped, .morningCloseout:
             return true
         case .previousSessionNeedsReview, .tonightReady, .reviewOnly:
             return false
@@ -37,7 +38,7 @@ struct HomePresentationState: Equatable {
 
     var showsDosePrimaryAction: Bool {
         switch primary {
-        case .tonightReady, .dose2Waiting, .dose2Ready, .dose2Closed:
+        case .tonightReady, .dose2Waiting, .dose2Ready, .dose2Closed, .dose2Skipped:
             return true
         case .previousSessionNeedsReview, .morningCloseout, .reviewOnly:
             return false
@@ -45,14 +46,14 @@ struct HomePresentationState: Equatable {
     }
 
     var showsWakeAction: Bool {
-        primary == .morningCloseout
+        primary == .morningCloseout || primary == .dose2Skipped
     }
 
     var showsPreSleepCard: Bool {
         switch primary {
         case .previousSessionNeedsReview, .reviewOnly:
             return false
-        case .tonightReady, .dose2Waiting, .dose2Ready, .dose2Closed, .morningCloseout:
+        case .tonightReady, .dose2Waiting, .dose2Ready, .dose2Closed, .dose2Skipped, .morningCloseout:
             return true
         }
     }
@@ -61,7 +62,7 @@ struct HomePresentationState: Equatable {
         switch primary {
         case .previousSessionNeedsReview, .reviewOnly:
             return false
-        case .tonightReady, .dose2Waiting, .dose2Ready, .dose2Closed, .morningCloseout:
+        case .tonightReady, .dose2Waiting, .dose2Ready, .dose2Closed, .dose2Skipped, .morningCloseout:
             return true
         }
     }
@@ -70,7 +71,7 @@ struct HomePresentationState: Equatable {
         switch primary {
         case .previousSessionNeedsReview, .tonightReady:
             return false
-        case .dose2Waiting, .dose2Ready, .dose2Closed, .morningCloseout, .reviewOnly:
+        case .dose2Waiting, .dose2Ready, .dose2Closed, .dose2Skipped, .morningCloseout, .reviewOnly:
             return true
         }
     }
@@ -81,7 +82,7 @@ struct HomePresentationState: Equatable {
 
     var showsLiveDoseIntervals: Bool {
         switch primary {
-        case .dose2Waiting, .dose2Ready, .dose2Closed, .morningCloseout, .reviewOnly:
+        case .dose2Waiting, .dose2Ready, .dose2Closed, .dose2Skipped, .morningCloseout, .reviewOnly:
             return true
         case .previousSessionNeedsReview, .tonightReady:
             return false
@@ -97,7 +98,9 @@ enum HomeStateResolver {
         incompleteSessionDate: String?,
         awaitingRolloverMessage: String?,
         checkInCompleted: Bool,
-        hasMorningCheckIn: Bool
+        hasMorningCheckIn: Bool,
+        dose2Skipped: Bool,
+        hasDose2: Bool
     ) -> HomePresentationState {
         let priorReview = incompleteSessionDate.map { sessionDate in
             HomePresentationState.PriorSessionReview(
@@ -120,17 +123,24 @@ enum HomeStateResolver {
         }
 
         let primary: HomePresentationState.Primary
-        switch doseStatus {
-        case .noDose1:
-            primary = .tonightReady
-        case .beforeWindow:
-            primary = .dose2Waiting
-        case .active, .nearClose:
-            primary = .dose2Ready
-        case .closed:
-            primary = .dose2Closed
-        case .completed, .finalizing:
-            primary = .morningCloseout
+        if (doseStatus == .completed || doseStatus == .finalizing), dose2Skipped, !hasDose2 {
+            // A skipped Dose 2 is recoverable after explicit confirmation. Keep both
+            // the recovery action and morning closeout reachable until check-in ends
+            // the session.
+            primary = .dose2Skipped
+        } else {
+            switch doseStatus {
+            case .noDose1:
+                primary = .tonightReady
+            case .beforeWindow:
+                primary = .dose2Waiting
+            case .active, .nearClose:
+                primary = .dose2Ready
+            case .closed:
+                primary = .dose2Closed
+            case .completed, .finalizing:
+                primary = .morningCloseout
+            }
         }
 
         return HomePresentationState(primary: primary, priorSessionReview: priorReview)
@@ -584,7 +594,9 @@ struct LegacyTonightView: View {
             incompleteSessionDate: incompleteSessionDate,
             awaitingRolloverMessage: sessionRepo.awaitingRolloverMessage,
             checkInCompleted: sessionRepo.checkInCompleted,
-            hasMorningCheckIn: morningCheckIn != nil
+            hasMorningCheckIn: morningCheckIn != nil,
+            dose2Skipped: sessionRepo.dose2Skipped,
+            hasDose2: sessionRepo.dose2Time != nil
         )
     }
 

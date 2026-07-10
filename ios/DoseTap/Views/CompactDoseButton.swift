@@ -69,12 +69,10 @@ struct CompactDoseButton: View {
             .accessibilityHint(primaryButtonAccessibilityHint)
             // Allow tapping even when completed (for extra dose warning) or closed (for override)
             .padding(.horizontal)
-            .alert("Window Expired", isPresented: $showWindowExpiredOverride) {
+            .alert(overrideAlertTitle, isPresented: $showWindowExpiredOverride) {
                 Button("Cancel", role: .cancel) { }
-                Button("Take Dose 2 Anyway", role: .destructive) {
-                    reasonCaptureMode = core.currentStatus == .completed && core.isSkipped && core.dose2Time == nil
-                        ? .afterSkipDose
-                        : .lateDose
+                Button("Record Late Dose 2", role: .destructive) {
+                    reasonCaptureMode = isRecoverableSkippedDose2 ? .afterSkipDose : .lateDose
                 }
             } message: {
                 Text(overrideConfirmationMessage)
@@ -103,7 +101,9 @@ struct CompactDoseButton: View {
             }
             
             // Secondary buttons row
-            if core.currentStatus != .noDose1 && core.currentStatus != .completed {
+            if core.currentStatus != .noDose1
+                && core.currentStatus != .completed
+                && core.currentStatus != .finalizing {
                 HStack(spacing: 12) {
                     Button {
                         Task {
@@ -134,7 +134,9 @@ struct CompactDoseButton: View {
     
     private func handlePrimaryButtonTap() {
         // Finalizing: primary button acts as morning check-in launcher.
-        if core.currentStatus == .finalizing, let binding = showMorningCheckIn {
+        if core.currentStatus == .finalizing,
+           !isRecoverableSkippedDose2,
+           let binding = showMorningCheckIn {
             binding.wrappedValue = true
             Haptics.light.play()
             return
@@ -154,7 +156,7 @@ struct CompactDoseButton: View {
     /// Take Dose 2 after window expired with explicit user override
     private func takeDose2WithOverride(reason: String?, notes: String?) {
         Task {
-            let override: DoseActionCoordinator.DoseOverride = (core.currentStatus == .completed && core.isSkipped && core.dose2Time == nil)
+            let override: DoseActionCoordinator.DoseOverride = isRecoverableSkippedDose2
                 ? .afterSkipConfirmed
                 : .lateConfirmed
             let result = await coordinator.takeDose2(override: override, reason: reason, reasonNotes: notes)
@@ -207,10 +209,19 @@ struct CompactDoseButton: View {
     }
 
     private var overrideConfirmationMessage: String {
-        if core.currentStatus == .completed && core.isSkipped && core.dose2Time == nil {
-            return "Dose 2 was previously marked as skipped. This will record Dose 2 now and clear skipped status. Are you sure you want to proceed?"
+        if isRecoverableSkippedDose2 {
+            return "Dose 2 was marked skipped after the alarm grace period. Recording it now will clear skipped status. Confirm that you actually took the dose, and follow your prescribed instructions. If you are unsure about taking it late, contact your clinician or pharmacist."
         }
-        return "The 240-minute window has passed. Taking Dose 2 late may affect efficacy. Are you sure you want to proceed?"
+        return "The scheduled Dose 2 window has passed. Confirm that you actually took the dose, and follow your prescribed instructions. If you are unsure about taking it late, contact your clinician or pharmacist."
+    }
+
+    private var overrideAlertTitle: String {
+        isRecoverableSkippedDose2 ? "Record Dose 2 After Skip?" : "Record Late Dose 2?"
+    }
+
+    private var isRecoverableSkippedDose2: Bool {
+        guard core.isSkipped, core.dose2Time == nil else { return false }
+        return core.currentStatus == .completed || core.currentStatus == .finalizing
     }
     
     private var primaryButtonText: String {
@@ -219,8 +230,8 @@ struct CompactDoseButton: View {
         case .beforeWindow: return "Waiting..."
         case .active, .nearClose: return "Take Dose 2"
         case .closed: return "Take Dose 2 (Late)"
-        case .completed: return "Complete ✓"
-        case .finalizing: return "Check-In"
+        case .completed: return isRecoverableSkippedDose2 ? "Record Dose 2 (Late)" : "Complete ✓"
+        case .finalizing: return isRecoverableSkippedDose2 ? "Record Dose 2 (Late)" : "Check-In"
         }
     }
     
@@ -231,8 +242,14 @@ struct CompactDoseButton: View {
         case .active: return "Take Dose 2 button. Window is open."
         case .nearClose: return "Take Dose 2 button. Warning: window closing soon!"
         case .closed: return "Take Dose 2 late button. Window has closed."
-        case .completed: return "Session complete. Both doses taken."
-        case .finalizing: return "Complete morning check-in button"
+        case .completed:
+            return isRecoverableSkippedDose2
+                ? "Take Dose 2 late after it was marked skipped."
+                : "Session complete. Both doses taken."
+        case .finalizing:
+            return isRecoverableSkippedDose2
+                ? "Record Dose 2 late after it was marked skipped."
+                : "Complete morning check-in button"
         }
     }
     
@@ -243,13 +260,22 @@ struct CompactDoseButton: View {
         case .active: return "Double tap to take Dose 2"
         case .nearClose: return "Double tap now to take your second dose before the window closes"
         case .closed: return "Double tap to take dose late. You will be asked to confirm."
-        case .completed: return ""
-        case .finalizing: return "Double tap to complete your session"
+        case .completed:
+            return isRecoverableSkippedDose2
+                ? "Double tap to review the warning and confirm a late Dose 2."
+                : ""
+        case .finalizing:
+            return isRecoverableSkippedDose2
+                ? "Double tap to review the warning and record a late Dose 2."
+                : "Double tap to complete your session"
         }
     }
     
     private var primaryButtonColor: Color {
         let theme = themeManager.currentTheme
+        if isRecoverableSkippedDose2 {
+            return theme == .night ? theme.warningColor : .orange
+        }
         switch core.currentStatus {
         case .noDose1: return theme == .night ? theme.buttonBackground : .blue
         case .beforeWindow: return .gray

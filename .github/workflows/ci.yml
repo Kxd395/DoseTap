@@ -129,6 +129,7 @@ jobs:
           CRITICAL_SUITES=(
             "DoseWindowStateTests"
             "DoseWindowEdgeTests"
+            "DoseRegistrationPolicyTests"
             "TimeCorrectnessTests"
             "OfflineQueueTests"
             "APIErrorsTests"

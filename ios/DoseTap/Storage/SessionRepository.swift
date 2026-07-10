@@ -550,7 +550,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     
     /// Record dose 2+ time (dose index is derived from session events, not the clock).
     public func setDose2Time(_ time: Date, isEarly: Bool, isExtraDose: Bool) {
-        setDose2Time(
+        _ = setDose2Time(
             time,
             isEarly: isEarly,
             isExtraDose: isExtraDose,
@@ -560,13 +560,14 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     }
 
     /// Record dose 2+ time with optional outcome context captured at action time.
+    @discardableResult
     public func setDose2Time(
         _ time: Date,
         isEarly: Bool = false,
         isExtraDose: Bool = false,
         reason: String? = nil,
         reasonNotes: String? = nil
-    ) {
+    ) -> Bool {
         evaluateSessionBoundaries(reason: "set_dose2_preflight")
         let storedState = storage.loadCurrentSessionState()
         let hasOpenActiveSession = activeSessionId != nil && activeSessionDate != nil && activeSessionEnd == nil
@@ -579,7 +580,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
                 reason: "set_dose2_no_open_dose1_session",
                 sessionId: storedState.sessionId ?? storedState.sessionDate
             )
-            return
+            return false
         }
 
         let session = ensureActiveSession(for: time, reason: "dose2")
@@ -587,7 +588,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         let dose1Event = doseEvents.first { CanonicalDoseEventType(canonicalizing: $0.eventType) == .dose1 }
         guard let firstDoseTime = dose1Time ?? dose1Event?.timestamp else {
             logBlockedDoseStateMutation(action: "dose2", reason: "set_dose2_missing_canonical_dose1", sessionId: session.sessionId)
-            return
+            return false
         }
 
         let doseTakenEvents = doseEvents.filter { isDoseEventType($0.eventType) }
@@ -609,17 +610,10 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         let elapsedSincePrev = previousDoseTime.map { TimeIntervalMath.minutesBetween(start: $0, end: time) }
         let elapsedSinceFirst = TimeIntervalMath.minutesBetween(start: firstDoseTime, end: time)
         
-        if isDose2 {
-            dose2Time = time
-            if dose2Skipped {
-                dose2Skipped = false
-                storage.clearSkip(sessionDateOverride: session.sessionDate)
-            }
-        }
-        activeSessionDate = session.sessionDate
+        let replacesSkippedDose = isDose2 && dose2Skipped
         
         // Persist to storage
-        storage.saveDose2(
+        guard storage.saveDose2(
             timestamp: time,
             isEarly: isEarly,
             isExtraDose: isExtra,
@@ -627,8 +621,20 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             reason: reason,
             reasonNotes: reasonNotes,
             sessionId: session.sessionId,
-            sessionDateOverride: session.sessionDate
-        )
+            sessionDateOverride: session.sessionDate,
+            replacingSkippedDose: replacesSkippedDose
+        ) else {
+            repoLogger.error("SessionRepo: Failed to persist Dose 2 for session \(session.sessionDate, privacy: .private)")
+            return false
+        }
+
+        if isDose2 {
+            dose2Time = time
+            if replacesSkippedDose {
+                dose2Skipped = false
+            }
+        }
+        activeSessionDate = session.sessionDate
         validateDoseStateInvariant(reason: isExtra ? "set_extra_dose" : "set_dose2")
         
         // Diagnostic logging: dose taken with index + elapsed info
@@ -644,6 +650,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         }
         
         sessionDidChange.send()
+        return true
     }
     
     /// Increment snooze count
@@ -1104,8 +1111,8 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         return false
     }
     
-    /// Mark the current session as incomplete due to sleeping through
-    /// This auto-skips Dose 2 with a special reason and resets for new session
+    /// Mark Dose 2 as skipped due to sleeping through the alarm and grace period.
+    /// The session remains open until morning check-in or a schedule fallback closes it.
     private func markSessionSleptThrough() {
         guard dose1Time != nil else { return }
         
@@ -1116,9 +1123,6 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         // Save skip with slept-through reason
         storage.saveDoseSkipped(reason: "slept_through", sessionId: sessionId, sessionDateOverride: sessionDate)
         validateDoseStateInvariant(reason: "mark_slept_through")
-        
-        // Update terminal state
-        storage.updateTerminalState(sessionDate: sessionDate, sessionId: sessionId, state: "incomplete_slept_through")
         
         // Diagnostic logging: session auto-expired
         Task {

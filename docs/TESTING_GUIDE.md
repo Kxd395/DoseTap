@@ -97,12 +97,13 @@ Branch protection requires PR + all 3 status checks to merge.
 
 1. Dose 1 → window → Dose 2 → complete.
 2. Dose 2 late (after window close) logs as Dose 2 with `is_late` metadata, not extra.
-3. Extra dose only at dose index 3+.
-4. Dose 1 before midnight, Dose 2 after midnight, session remains open until morning check-in.
-5. Morning check-in closes session and Tonight view resets.
-6. Missed check-in cutoff auto-closes session and allows a clean next night.
-7. Nap Start → Nap End paired in History; missing end shows "Nap in progress".
-8. HealthKit: toggle ON, authorize, force quit, reopen; preference persists and authorization is rechecked.
+3. After the alarm grace period marks Dose 2 skipped, the app still offers `Record Dose 2 (Late)` with a warning. Confirmed recording clears the skip atomically and remains available while morning check-in is pending.
+4. Extra dose only at dose index 3+.
+5. Dose 1 before midnight, Dose 2 after midnight, session remains open until morning check-in.
+6. Morning check-in closes session and Tonight view resets.
+7. Missed check-in cutoff auto-closes session and allows a clean next night.
+8. Nap Start → Nap End paired in History; missing end shows "Nap in progress".
+9. HealthKit: toggle ON, authorize, force quit, reopen; preference persists and authorization is rechecked.
 
 ## Diagnostics
 
@@ -112,4 +113,3 @@ Branch protection requires PR + all 3 status checks to merge.
 ## State Machines
 
 - Dose flow and session rollover diagrams live in `docs/SSOT/README.md`.
-

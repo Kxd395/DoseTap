@@ -1,6 +1,6 @@
 # Dose State Persistence Contract
 
-Last updated: 2026-06-12
+Last updated: 2026-07-09
 
 This is the authoritative contract for nightly dose persistence. It exists to prevent split-brain state between `current_session` and `dose_events`.
 
@@ -48,6 +48,9 @@ For the active session:
 ## Fail-Closed Mutation Rules
 
 - `SessionRepository.setDose2Time` must return without writing if there is no open active session with canonical Dose 1.
+- `SessionRepository.setDose2Time` must acknowledge storage success before mutating published state or reporting success to the user.
+- Confirmed Dose 2 recovery after a skip must atomically insert Dose 2, clear the matching skip event and snapshot flag, and preserve the invariant that `dose2_time` and `dose2_skipped` cannot coexist.
+- Auto-expiry after the Dose 2 alarm grace period may mark Dose 2 skipped, but must not close the session or write a terminal session state.
 - `SessionRepository.incrementSnoozeIfActive` must return `false` without writing if there is no open active session with Dose 1, if Dose 2 is already taken, if Dose 2 is skipped, or if schedule rollover closed the session during preflight.
 - `DoseActionCoordinator.snooze` must commit repository snooze state before rescheduling alarm state. If alarm rescheduling fails, it must roll back the latest snooze event and snapshot count.
 - `SessionRepository.clearDose1` must clear the full dependent dose sequence for that session: Dose 1, Dose 2, extra dose, Dose 2 skipped, and snooze state.

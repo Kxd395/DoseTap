@@ -1050,9 +1050,9 @@ main ─────────────────────────
 
 ## 23. Known Issues & Technical Debt
 
-> Full roadmap: `docs/IMPROVEMENT_ROADMAP.md` (6 P0 resolved + 7 P1 resolved + 8 P2 + 10 P3)
+> The counts below describe the 2026-02 audit. Current blockers and status live in the DoseTap Axxess project and `docs/ROADMAP_TODO.md`.
 
-### P0 (Critical) — ALL RESOLVED ✅
+### P0 (Critical) — 2026-02 Audit Resolutions
 
 | # | Issue | Resolution |
 | --- | --- | --- |

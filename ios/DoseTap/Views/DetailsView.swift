@@ -28,6 +28,7 @@ func defaultTimelineMode(
 // MARK: - Alarm Ringing View
 struct AlarmRingingView: View {
     @ObservedObject private var alarmService = AlarmService.shared
+    @ObservedObject private var urlRouter = URLRouter.shared
 
     var body: some View {
         ZStack {
@@ -42,17 +43,18 @@ struct AlarmRingingView: View {
                 Image(systemName: "alarm.fill")
                     .font(.system(size: 64))
                     .foregroundColor(.white)
-                Text("Wake Alarm")
+                Text("Dose 2 Alarm")
                     .font(.largeTitle.bold())
                     .foregroundColor(.white)
-                Text("It is time to wake up and complete your morning check-in.")
+                Text("Review your Dose 2 timing and available actions in Tonight.")
                     .multilineTextAlignment(.center)
                     .foregroundColor(.white.opacity(0.95))
                     .padding(.horizontal, 24)
                 Button {
                     alarmService.stopRinging(acknowledge: true)
+                    urlRouter.selectedTab = .tonight
                 } label: {
-                    Text("Stop Alarm")
+                    Text("Review Dose 2")
                         .font(.headline)
                         .foregroundColor(.red)
                         .frame(maxWidth: .infinity)

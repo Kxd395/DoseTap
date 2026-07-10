@@ -408,13 +408,13 @@ struct DoseButtonsSection: View {
                     .cornerRadius(12)
             }
             .disabled(primaryButtonDisabled)
-            .alert("Window Expired", isPresented: $showWindowExpiredOverride) {
+            .alert(overrideAlertTitle, isPresented: $showWindowExpiredOverride) {
                 Button("Cancel", role: .cancel) {}
-                Button("Take Dose 2 Anyway", role: .destructive) {
-                    reasonCaptureMode = .lateDose
+                Button("Record Late Dose 2", role: .destructive) {
+                    reasonCaptureMode = isRecoverableSkippedDose2 ? .afterSkipDose : .lateDose
                 }
             } message: {
-                Text("The 240-minute window has passed. Taking Dose 2 late may affect efficacy.")
+                Text(overrideConfirmationMessage)
             }
             .sheet(item: $reasonCaptureMode) { mode in
                 Dose2OutcomeReasonSheet(
@@ -506,7 +506,7 @@ struct DoseButtonsSection: View {
         case .lateDose:
             showWindowExpiredOverride = true
         case .afterSkip:
-            reasonCaptureMode = .afterSkipDose
+            showWindowExpiredOverride = true
         case .extraDose:
             showActionFeedback(
                 DoseActionFeedback(
@@ -540,12 +540,13 @@ struct DoseButtonsSection: View {
         case .beforeWindow: return "Waiting..."
         case .active, .nearClose: return "Take Dose 2"
         case .closed: return "Take Dose 2 (Late)"
-        case .completed: return "Complete ✓"
-        case .finalizing: return "Check-In"
+        case .completed: return isRecoverableSkippedDose2 ? "Record Dose 2 (Late)" : "Complete ✓"
+        case .finalizing: return isRecoverableSkippedDose2 ? "Record Dose 2 (Late)" : "Check-In"
         }
     }
 
     private var primaryButtonColor: Color {
+        if isRecoverableSkippedDose2 { return .orange }
         switch core.currentStatus {
         case .noDose1: return .blue
         case .beforeWindow: return .gray
@@ -567,10 +568,26 @@ struct DoseButtonsSection: View {
     }
 
     private var primaryButtonDisabled: Bool {
-        if core.currentStatus == .completed && core.isSkipped && core.dose2Time == nil {
+        if isRecoverableSkippedDose2 {
             return false
         }
         return core.currentStatus == .completed
+    }
+
+    private var overrideAlertTitle: String {
+        isRecoverableSkippedDose2 ? "Record Dose 2 After Skip?" : "Record Late Dose 2?"
+    }
+
+    private var overrideConfirmationMessage: String {
+        if isRecoverableSkippedDose2 {
+            return "Dose 2 was marked skipped after the alarm grace period. Recording it now will clear skipped status. Confirm that you actually took the dose, and follow your prescribed instructions. If you are unsure about taking it late, contact your clinician or pharmacist."
+        }
+        return "The scheduled Dose 2 window has passed. Confirm that you actually took the dose, and follow your prescribed instructions. If you are unsure about taking it late, contact your clinician or pharmacist."
+    }
+
+    private var isRecoverableSkippedDose2: Bool {
+        guard core.isSkipped, core.dose2Time == nil else { return false }
+        return core.currentStatus == .completed || core.currentStatus == .finalizing
     }
 }
 

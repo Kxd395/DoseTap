@@ -4,6 +4,8 @@
 > **Branch:** `chore/audit-2026-02-15`  
 > **Context:** Post-audit deep review of WHOOP integration, button states, and design gaps  
 
+> **Current execution tracker:** This document preserves the audit narrative. Current status and ownership live in the [DoseTap Axxess project](http://localhost:18080/axxess/projects/b195f92c-529b-4fd9-8e48-12221ecfa91f/issues). The 2026-07-09 audit reopened P0 work as `DOSETAP-1` through `DOSETAP-5`.
+
 ---
 
 ## Executive Summary
@@ -19,6 +21,21 @@ A deep code audit of the running app versus source reveals five critical themes:
 ---
 
 ## ⛔ P0 — Critical (Safety & Integrity)
+
+### P0-10: Missed-alarm Dose 2 recovery - IN PROGRESS
+
+**Axxess:** `DOSETAP-1`
+
+**Problem:** The policy allowed a confirmed Dose 2 after skip, but foreground auto-expiry moved the UI to a completed presentation that hid the recovery action. A user who missed the alarm could not record the actual late Dose 2. Auto-expiry also wrote a terminal state even though the session had not reached morning closeout.
+
+**Implementation:**
+- Keep `Record Dose 2 (Late)` reachable after auto-skip, including while morning check-in is pending.
+- Show an explicit late-dose warning and capture a reason before recording.
+- Atomically insert Dose 2, clear the skip event and snapshot flag, and repair only the legacy slept-through terminal marker.
+- Report success and cancel alarms only after persistence succeeds.
+- Resolve auto-expiry before checking whether a foreground alarm is due.
+
+**Remaining verification:** Xcode simulator tests and a manual missed-alarm flow. The local Xcode installation currently lacks a compatible iOS 26.2 simulator runtime.
 
 ### ✅ P0-1: WHOOP Data Is Decorative Only — RESOLVED
 
@@ -379,9 +396,9 @@ A deep code audit of the running app versus source reveals five critical themes:
 
 ## Recommended Priority Order
 
-**Phase 1 — Safety & Trust ✅ COMPLETE**
+**Phase 1 — 2026-02 Safety & Trust Audit COMPLETE**
 
-All P0 items resolved on `chore/audit-2026-02-15`:
+All P0 items from that historical audit were resolved on `chore/audit-2026-02-15`. Current blockers are tracked separately as `DOSETAP-1` through `DOSETAP-5`:
 
 1. ✅ P0-2: Snooze <15m check — all surfaces use `DoseWindowContext.snooze` enum
 2. ✅ P0-3: Flic late-dose bypass — blocked with local notification
@@ -441,4 +458,4 @@ All WHOOP data integration resolved on `chore/audit-2026-02-15`:
 
 ---
 
-*Updated: 2026-02-16 | Version: 0.3.3 alpha | All P0 (9/9) + P1 (7/7) resolved (P1-5 deferred) | All P2 resolved (8/8, P2-3 needs Xcode target) | P3 quick wins complete (9/10, P3-3 deferred) | WidgetKit + Siri + watchOS complications + History search + Night comparison + Auto-export*
+*Historical snapshot updated 2026-02-16 at version 0.3.3 alpha. Its P0 and P1 completion counts apply only to that audit. Current execution status is in Axxess.*

@@ -157,6 +157,7 @@ SAFETY_PATTERNS=(
     "165"                        # Default target
     "rollover.*18|6 PM"          # Session day boundary
     "5.*second.*undo|5s.*undo|5 seconds"    # Undo window
+    "after.?skip|skipped.*confirmation|confirmation.*skipped" # Late Dose 2 recovery after skip
 )
 
 for pattern in "${SAFETY_PATTERNS[@]}"; do

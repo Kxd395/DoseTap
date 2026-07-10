@@ -35,8 +35,9 @@ for tag pushes.
 
 - [ ] **Dose 1 happy path** — Tap "Take Dose 1", confirm haptic + visual feedback, verify dose1 state persists after app restart
 - [ ] **Dose 2 window** — Wait until window opens (or mock time), confirm Dose 2 button enabled, verify window math (150–240m range)
+- [ ] **Missed Dose 2 alarm recovery** - Let the alarm grace period expire, verify Dose 2 is marked skipped, then confirm `Record Dose 2 (Late)` remains available before and after Wake Final. Review the warning, record the actual dose, and verify the skip clears after relaunch.
 - [ ] **Snooze** — Tap snooze while >15m remaining, confirm 10m added, verify snooze disabled when <15m or after 3 snoozes
-- [ ] **Skip** — Skip Dose 2, confirm session ends cleanly, verify next night starts fresh
+- [ ] **Skip** — Skip Dose 2, confirm the dose outcome is recorded while the session remains open for morning closeout, then verify the next night starts fresh after closure
 - [ ] **Undo** — Take dose, immediately undo within 5s window, confirm state reverts
 
 ### Data Integrity

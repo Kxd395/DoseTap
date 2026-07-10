@@ -295,13 +295,15 @@ final class DoseActionCoordinator: ObservableObject {
         }
 
         let now = Date()
-        sessionRepo.setDose2Time(
+        guard sessionRepo.setDose2Time(
             now,
             isEarly: isEarly,
             isExtraDose: false,
             reason: reason,
             reasonNotes: reasonNotes
-        )
+        ) else {
+            return .blocked(reason: "Dose 2 could not be saved. Try again.")
+        }
 
         alarmService.cancelAllAlarms()
         alarmService.clearDose2AlarmState()
@@ -329,13 +331,15 @@ final class DoseActionCoordinator: ObservableObject {
         }
 
         let now = Date()
-        sessionRepo.setDose2Time(
+        guard sessionRepo.setDose2Time(
             now,
             isEarly: false,
             isExtraDose: true,
             reason: reason,
             reasonNotes: reasonNotes
-        )
+        ) else {
+            return .blocked(reason: "Extra dose could not be saved. Try again.")
+        }
 
         eventLogger?.logEvent(
             name: "Extra Dose",

@@ -1,10 +1,10 @@
 # DoseTap TODO + Feature Roadmap
 
-Last updated: 2026-06-13
+Last updated: 2026-07-09
 Owner: Product/Engineering
 
 ## Purpose
-Track active gaps after the Phase 1/2 stabilization pass and keep a short, current list of what is done vs still open.
+Keep a product-level snapshot of active gaps after the Phase 1/2 stabilization pass. The [DoseTap project in Axxess](http://localhost:18080/axxess/projects/b195f92c-529b-4fd9-8e48-12221ecfa91f/issues) is the execution source of truth for status, assignment, and workpad updates.
 
 ---
 
@@ -45,7 +45,17 @@ Track active gaps after the Phase 1/2 stabilization pass and keep a short, curre
 
 ---
 
-## P0 — Ship Blockers (All Resolved ✅)
+## P0 — Ship Blockers
+
+### 2026-07-09 safety and release audit
+
+- [ ] `DOSETAP-1` - Allow confirmed late Dose 2 after a missed alarm. Implementation is in progress on `fix/p0-late-dose-recovery`; simulator and manual validation remain.
+- [ ] `DOSETAP-2` - Confirm Dose 1 and ordinary Dose 2 persistence before reporting success.
+- [ ] `DOSETAP-3` - Do not report an alarm scheduled when notification registration fails.
+- [ ] `DOSETAP-4` - Preserve final Dose 2 warnings after snooze or acknowledge.
+- [ ] `DOSETAP-5` - Repair release certificate pinning and add a TLS launch gate.
+
+The completed items below are historical closures. They do not close the current Axxess blockers above.
 
 ### Security & Privacy
 - [x] ~~Purge committed secrets from git history~~ — **Audit complete (2026-02-14): `Secrets.swift` was never committed to git.** `git log --all --diff-filter=ADRM` and `git log -p -S` confirm zero credential values in history. File is properly `.gitignore`d. `SecureConfig.swift` references the property name only (in `#if DEBUG` blocks); release builds return empty string. No rotation needed.
@@ -58,6 +68,8 @@ Track active gaps after the Phase 1/2 stabilization pass and keep a short, curre
 ---
 
 ## P1 — High Priority
+
+The current audit also created `DOSETAP-6` through `DOSETAP-10` in Axxess for deep-link confirmation, complete data deletion, diagnostic export privacy, WHOOP production auth/refresh, and DoseTapStudio CI coverage.
 
 ### UX / Product
 - [x] Retire duplicate/legacy settings surfaces and keep one canonical settings flow. — **Audited 2026-02-14: confirmed clean.** One canonical `SettingsView` with `NavigationLink`s to focused sub-views. No duplicates.

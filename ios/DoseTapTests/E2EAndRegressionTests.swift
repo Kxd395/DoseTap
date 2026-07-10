@@ -317,6 +317,20 @@ final class AlarmAndSetupRegressionTests: XCTestCase {
         XCTAssertFalse(alarm.alarmScheduled, "Completed sessions should clear scheduled wake-alarm state.")
     }
 
+    func test_dueAlarm_doesNotRing_afterSessionAutoExpires() async {
+        let now = Date()
+        repo.setDose1Time(now.addingTimeInterval(-280 * 60))
+        XCTAssertTrue(repo.checkAndHandleExpiredSession())
+
+        alarm.targetWakeTime = now.addingTimeInterval(-60)
+        alarm.alarmScheduled = true
+        alarm.checkForDueAlarm(now: now)
+
+        XCTAssertFalse(alarm.isAlarmRinging, "An auto-skipped Dose 2 must not leave a stale full-screen alarm.")
+        XCTAssertNil(alarm.targetWakeTime)
+        XCTAssertFalse(alarm.alarmScheduled)
+    }
+
     func test_setupWarnings_doNotBlockProceed() async {
         let service = SetupWizardService()
         service.currentStep = 2

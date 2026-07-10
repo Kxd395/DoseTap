@@ -49,6 +49,26 @@ enum CanonicalDoseEventType: String, CaseIterable {
 
 extension EventStorage {
 
+    private enum DoseStoreError: LocalizedError {
+        case insertDose2Failed
+        case prepareRecoveryFailed(String)
+        case recoveryStepFailed(String)
+        case activeSessionNotUpdated
+
+        var errorDescription: String? {
+            switch self {
+            case .insertDose2Failed:
+                return "Failed to insert the replacement Dose 2 event"
+            case .prepareRecoveryFailed(let message):
+                return "Failed to prepare skipped-dose recovery: \(message)"
+            case .recoveryStepFailed(let message):
+                return "Failed to persist skipped-dose recovery: \(message)"
+            case .activeSessionNotUpdated:
+                return "No open skipped-dose session was updated"
+            }
+        }
+    }
+
     // MARK: - Dose Event Operations
 
     /// Save dose 1 taken
@@ -64,6 +84,7 @@ extension EventStorage {
     ///   - timestamp: When dose 2 was taken
     ///   - isEarly: True if taken before window opened (user override)
     ///   - isExtraDose: True if this is a second attempt at dose 2 (confirmed by user)
+    @discardableResult
     public func saveDose2(
         timestamp: Date,
         isEarly: Bool = false,
@@ -72,12 +93,14 @@ extension EventStorage {
         reason: String? = nil,
         reasonNotes: String? = nil,
         sessionId: String? = nil,
-        sessionDateOverride: String? = nil
-    ) {
+        sessionDateOverride: String? = nil,
+        replacingSkippedDose: Bool = false
+    ) -> Bool {
         var metadata: [String: Any] = [:]
         if isEarly { metadata["is_early"] = true }
         if isExtraDose { metadata["is_extra_dose"] = true }
         if isLate { metadata["is_late"] = true }
+        if replacingSkippedDose { metadata["recovered_after_skip"] = true }
         if let reason, !reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             metadata["reason"] = reason.trimmingCharacters(in: .whitespacesAndNewlines)
         }
@@ -89,12 +112,48 @@ extension EventStorage {
         let metadataStr = metadata.isEmpty ? nil : (try? JSONSerialization.data(withJSONObject: metadata)).flatMap { String(data: $0, encoding: .utf8) }
         let sessionDate = sessionDateOverride ?? sessionDateString(for: timestamp)
         let resolvedSessionId = sessionId ?? sessionDate
-        insertDoseEventInternal(eventType: eventType, timestamp: timestamp, sessionDate: sessionDate, sessionId: resolvedSessionId, metadata: metadataStr)
+
+        if replacingSkippedDose && !isExtraDose {
+            do {
+                try withSQLiteTransaction {
+                    guard insertDoseEventInternal(
+                        eventType: eventType,
+                        timestamp: timestamp,
+                        sessionDate: sessionDate,
+                        sessionId: resolvedSessionId,
+                        metadata: metadataStr
+                    ) else {
+                        throw DoseStoreError.insertDose2Failed
+                    }
+                    try replaceSkippedDose2Snapshot(
+                        timestamp: timestamp,
+                        sessionDate: sessionDate,
+                        sessionId: resolvedSessionId
+                    )
+                }
+                return true
+            } catch {
+                storageLog.error("Failed to replace skipped Dose 2 atomically: \(error.localizedDescription, privacy: .public)")
+                return false
+            }
+        }
+
+        guard insertDoseEventInternal(
+            eventType: eventType,
+            timestamp: timestamp,
+            sessionDate: sessionDate,
+            sessionId: resolvedSessionId,
+            metadata: metadataStr
+        ) else {
+            storageLog.error("Failed to insert \(eventType.rawValue, privacy: .public) event")
+            return false
+        }
 
         // Only update session dose2_time for first dose2 (not extra doses)
         if !isExtraDose {
             updateCurrentSession(sessionDate: sessionDate, sessionId: resolvedSessionId, dose2Time: timestamp)
         }
+        return true
     }
 
     /// Save dose skipped with optional reason
@@ -374,6 +433,77 @@ extension EventStorage {
             return true
         }
         return false
+    }
+
+    /// Replaces a skip with a confirmed Dose 2 as one SQLite transaction.
+    /// Only the auto-skip terminal marker is cleared. Finalizing and other
+    /// terminal states are preserved.
+    private func replaceSkippedDose2Snapshot(timestamp: Date, sessionDate: String, sessionId: String) throws {
+        let timestampString = isoFormatter.string(from: timestamp)
+        let updateCurrentSQL = """
+        UPDATE current_session
+        SET dose2_time = ?,
+            dose2_skipped = 0,
+            terminal_state = CASE
+                WHEN terminal_state = 'incomplete_slept_through' THEN NULL
+                ELSE terminal_state
+            END,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE (session_id = ? OR (session_id IS NULL AND session_date = ?))
+          AND session_end_utc IS NULL
+          AND dose2_skipped = 1
+        """
+
+        var currentStmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, updateCurrentSQL, -1, &currentStmt, nil) == SQLITE_OK else {
+            throw DoseStoreError.prepareRecoveryFailed(String(cString: sqlite3_errmsg(db)))
+        }
+        defer { sqlite3_finalize(currentStmt) }
+        sqlite3_bind_text(currentStmt, 1, timestampString, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(currentStmt, 2, sessionId, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(currentStmt, 3, sessionDate, -1, SQLITE_TRANSIENT)
+        guard sqlite3_step(currentStmt) == SQLITE_DONE else {
+            throw DoseStoreError.recoveryStepFailed(String(cString: sqlite3_errmsg(db)))
+        }
+        guard sqlite3_changes(db) == 1 else {
+            throw DoseStoreError.activeSessionNotUpdated
+        }
+
+        let deleteSkipSQL = """
+        DELETE FROM dose_events
+        WHERE (session_id = ? OR (session_id IS NULL AND session_date = ?))
+          AND event_type = ?
+        """
+        var deleteStmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, deleteSkipSQL, -1, &deleteStmt, nil) == SQLITE_OK else {
+            throw DoseStoreError.prepareRecoveryFailed(String(cString: sqlite3_errmsg(db)))
+        }
+        defer { sqlite3_finalize(deleteStmt) }
+        sqlite3_bind_text(deleteStmt, 1, sessionId, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(deleteStmt, 2, sessionDate, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(deleteStmt, 3, CanonicalDoseEventType.dose2Skipped.rawValue, -1, SQLITE_TRANSIENT)
+        guard sqlite3_step(deleteStmt) == SQLITE_DONE else {
+            throw DoseStoreError.recoveryStepFailed(String(cString: sqlite3_errmsg(db)))
+        }
+
+        let updateSessionSQL = """
+        UPDATE sleep_sessions
+        SET terminal_state = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE (session_id = ? OR (session_id IS NULL AND session_date = ?))
+          AND end_utc IS NULL
+          AND terminal_state = 'incomplete_slept_through'
+        """
+        var sessionStmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, updateSessionSQL, -1, &sessionStmt, nil) == SQLITE_OK else {
+            throw DoseStoreError.prepareRecoveryFailed(String(cString: sqlite3_errmsg(db)))
+        }
+        defer { sqlite3_finalize(sessionStmt) }
+        sqlite3_bind_text(sessionStmt, 1, sessionId, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(sessionStmt, 2, sessionDate, -1, SQLITE_TRANSIENT)
+        guard sqlite3_step(sessionStmt) == SQLITE_DONE else {
+            throw DoseStoreError.recoveryStepFailed(String(cString: sqlite3_errmsg(db)))
+        }
     }
 
     /// Insert a dose event (Dose 1 or Dose 2)

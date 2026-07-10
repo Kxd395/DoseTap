@@ -137,6 +137,7 @@ Key transitions:
 - `active` -> `nearClose`: remaining <= 15 minutes.
 - `nearClose` -> `closed`: 240 minutes elapsed since Dose 1.
 - `active|nearClose|closed` -> `completed`: Dose 2 taken or Dose 2 skipped.
+- `completed|finalizing` with Dose 2 skipped -> `completed|finalizing`: confirmed late Dose 2 replaces the skip; the session stays open.
 - `any` -> `finalizing`: wake final logged; check-in pending.
 - `finalizing` -> `completed`: morning check-in submitted.
 
@@ -162,6 +163,7 @@ Transition table (subset):
 | `nearClose` | Take Dose 2 | none | `saveDose2` + cancel alarms | `completed` |
 | `closed` | Take Dose 2 | requires late override | `saveDose2(is_late)` + cancel alarms | `completed` |
 | `active\|nearClose\|closed` | Skip Dose 2 | none | `saveDoseSkipped` + cancel alarms | `completed` |
+| `completed\|finalizing` with Dose 2 skipped | Record Dose 2 | requires after-skip warning and confirmation | atomically `saveDose2(is_late, recovered_after_skip)` + clear skip + cancel alarms | unchanged |
 | `active` | Snooze | open active Dose 1 session, no Dose 2, no skip, count < max | `saveSnooze` + reschedule alarm, rollback if alarm fails | `active` |
 | `any` | Wake Final | none | `insertSleepEvent(wake_final)` | `finalizing` |
 | `finalizing` | Submit Check-In | none | `saveMorningCheckIn` + `closeSession` | `completed` |
@@ -202,6 +204,8 @@ Transitions:
 - `finalizing` -> `closed`: morning check-in saved.
 - `active|finalizing` -> `closed`: missed check-in cutoff reached.
 - `active|finalizing` -> `closed`: prep-time soft rollover reached.
+
+Auto-marking Dose 2 skipped after the alarm grace period is a dose outcome, not a session close. It must not write a terminal session state. The session closes only through morning check-in or a configured rollover fallback.
 
 ASCII diagram:
 
@@ -427,6 +431,7 @@ Required side effects per action:
 | Take Dose 1 | `SessionRepository.saveDose1(timestamp:)` | `AlarmService.scheduleWakeAlarm(...)` + `scheduleDose2Reminders(...)` | — | Yes |
 | Take Dose 2 | `SessionRepository.saveDose2(timestamp:...)` | — | `AlarmService.cancelAllAlarms()` + `clearWakeAlarmState()` | Yes |
 | Take Dose 2 (late) | `SessionRepository.saveDose2(timestamp:...)` | — | `AlarmService.cancelAllAlarms()` + `clearWakeAlarmState()` | Yes |
+| Record Dose 2 after skip | `SessionRepository.setDose2Time(...)` with atomic skip replacement | — | `AlarmService.cancelAllAlarms()` + `clearDose2AlarmState()` | Yes |
 | Skip Dose 2 | `SessionRepository.skipDose2()` | — | `AlarmService.cancelAllAlarms()` + `clearWakeAlarmState()` | Yes |
 | Extra Dose | `SessionRepository.saveDose2(timestamp:..., isExtraDose: true)` | — | — | Yes |
 | Snooze | `AlarmService.snoozeAlarm(dose1Time:)` | Reschedule alarm | — | Yes |

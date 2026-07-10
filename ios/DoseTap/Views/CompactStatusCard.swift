@@ -234,6 +234,9 @@ struct CompactStatusCard: View {
     }
     
     private var accessibilityStatusLabel: String {
+        if isRecoverableSkippedDose2 {
+            return "Dose 2 was marked skipped. You can still record a late Dose 2 after reviewing a warning."
+        }
         switch core.currentStatus {
         case .noDose1: 
             return "Ready for Dose 1. Tap the button below to take your first dose."
@@ -254,6 +257,9 @@ struct CompactStatusCard: View {
     }
     
     private var accessibilityStatusHint: String {
+        if isRecoverableSkippedDose2 {
+            return "Use the late Dose 2 button below to review and confirm."
+        }
         switch core.currentStatus {
         case .noDose1: return "Double tap to take Dose 1"
         case .beforeWindow: return "Wait for the countdown to finish"
@@ -284,6 +290,7 @@ struct CompactStatusCard: View {
     }
     
     private var statusIcon: String {
+        if isRecoverableSkippedDose2 { return "exclamationmark.triangle.fill" }
         switch core.currentStatus {
         case .noDose1: return "1.circle"
         case .beforeWindow: return "clock"
@@ -296,6 +303,7 @@ struct CompactStatusCard: View {
     }
     
     private var statusTitle: String {
+        if isRecoverableSkippedDose2 { return "Dose 2 Skipped" }
         switch core.currentStatus {
         case .noDose1: return "Ready for Dose 1"
         case .beforeWindow: return "Waiting for Window"
@@ -308,6 +316,7 @@ struct CompactStatusCard: View {
     }
     
     private var statusDescription: String {
+        if isRecoverableSkippedDose2 { return "Late recording is available with confirmation" }
         switch core.currentStatus {
         case .noDose1: return "Tap below to start"
         case .beforeWindow: return "Wait for optimal timing"
@@ -321,6 +330,9 @@ struct CompactStatusCard: View {
     
     private var statusColor: Color {
         let theme = themeManager.currentTheme
+        if isRecoverableSkippedDose2 {
+            return theme == .night ? theme.warningColor : .orange
+        }
         switch core.currentStatus {
         case .noDose1: return theme == .night ? theme.accentColor : .blue
         case .beforeWindow: return theme == .night ? theme.warningColor : .orange
@@ -330,5 +342,9 @@ struct CompactStatusCard: View {
         case .completed: return theme == .night ? Color(red: 0.6, green: 0.3, blue: 0.2) : .purple
         case .finalizing: return theme == .night ? theme.warningColor : .yellow
         }
+    }
+
+    private var isRecoverableSkippedDose2: Bool {
+        core.currentStatus == .completed && core.isSkipped && core.dose2Time == nil
     }
 }

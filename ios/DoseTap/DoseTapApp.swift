@@ -133,17 +133,20 @@ struct DoseTapApp: App {
                 )
             }
             
-            // Check for expired sessions when app becomes active
+            // Resolve auto-expiry before checking a due alarm. Otherwise the
+            // alarm can start ringing while the queued expiry task marks Dose 2
+            // skipped, leaving a stale full-screen alarm over a completed state.
             Task { @MainActor in
                 if SessionRepository.shared.checkAndHandleExpiredSession() {
+                    AlarmService.shared.cancelAllAlarms()
+                    AlarmService.shared.clearDose2AlarmState()
                     #if DEBUG
                     appLifecycleLog.debug("Auto-marked session as slept-through on foreground")
                     #endif
+                } else {
+                    AlarmService.shared.checkForDueAlarm()
                 }
             }
-
-            // If the wake alarm time passed while backgrounded, ring now
-            AlarmService.shared.checkForDueAlarm()
             
             // Check for timezone changes while backgrounded
             let currentTz = TimeZone.current

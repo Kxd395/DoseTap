@@ -208,6 +208,45 @@ final class HomeStateResolverTests: XCTestCase {
         XCTAssertTrue(finalizing.showsWakeAction)
     }
 
+    func test_skippedDose2KeepsLateRecoveryAndMorningCloseoutReachable() {
+        let state = resolve(
+            doseStatus: .completed,
+            activeSessionDate: currentSessionDate,
+            dose2Skipped: true,
+            hasDose2: false
+        )
+
+        XCTAssertEqual(state.primary, .dose2Skipped)
+        XCTAssertTrue(state.showsDosePrimaryAction, "A missed or skipped Dose 2 must remain recoverable after confirmation.")
+        XCTAssertTrue(state.showsWakeAction, "Recovery must not remove the normal morning closeout path.")
+        XCTAssertTrue(state.showsDoseStatusCard)
+    }
+
+    func test_skippedDose2RemainsRecoverableWhileMorningCheckInIsPending() {
+        let state = resolve(
+            doseStatus: .finalizing,
+            activeSessionDate: currentSessionDate,
+            dose2Skipped: true,
+            hasDose2: false
+        )
+
+        XCTAssertEqual(state.primary, .dose2Skipped)
+        XCTAssertTrue(state.showsDosePrimaryAction)
+        XCTAssertTrue(state.showsWakeAction)
+    }
+
+    func test_inconsistentTakenAndSkippedStateDoesNotExposeRecoveryAction() {
+        let state = resolve(
+            doseStatus: .completed,
+            activeSessionDate: currentSessionDate,
+            dose2Skipped: true,
+            hasDose2: true
+        )
+
+        XCTAssertEqual(state.primary, .morningCloseout)
+        XCTAssertFalse(state.showsDosePrimaryAction)
+    }
+
     func test_completedCheckInResolvesToReviewOnly() {
         let state = resolve(
             doseStatus: .completed,
@@ -229,7 +268,9 @@ final class HomeStateResolverTests: XCTestCase {
         incompleteSessionDate: String? = nil,
         awaitingRolloverMessage: String? = nil,
         checkInCompleted: Bool = false,
-        hasMorningCheckIn: Bool = false
+        hasMorningCheckIn: Bool = false,
+        dose2Skipped: Bool = false,
+        hasDose2: Bool = false
     ) -> HomePresentationState {
         HomeStateResolver.resolve(
             doseStatus: doseStatus,
@@ -238,7 +279,9 @@ final class HomeStateResolverTests: XCTestCase {
             incompleteSessionDate: incompleteSessionDate,
             awaitingRolloverMessage: awaitingRolloverMessage,
             checkInCompleted: checkInCompleted,
-            hasMorningCheckIn: hasMorningCheckIn
+            hasMorningCheckIn: hasMorningCheckIn,
+            dose2Skipped: dose2Skipped,
+            hasDose2: hasDose2
         )
     }
 }
