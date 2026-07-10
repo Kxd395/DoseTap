@@ -1,7 +1,7 @@
 # DoseTap SSOT (Single Source of Truth)
 
-Last updated: 2026-06-16
-Version: 0.4.11
+Last updated: 2026-07-09
+Version: 0.4.12
 
 This document is the authoritative specification for the current DoseTap behavior. It describes what the code does today. If code and this SSOT diverge, the SSOT must be updated to match the code.
 

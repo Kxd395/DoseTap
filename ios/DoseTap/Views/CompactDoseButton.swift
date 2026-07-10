@@ -65,6 +65,7 @@ struct CompactDoseButton: View {
                     .cornerRadius(12)
             }
             // Accessibility
+            .accessibilityIdentifier("dose-primary-action")
             .accessibilityLabel(primaryButtonAccessibilityLabel)
             .accessibilityHint(primaryButtonAccessibilityHint)
             // Allow tapping even when completed (for extra dose warning) or closed (for override)

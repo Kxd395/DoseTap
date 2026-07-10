@@ -8,6 +8,8 @@ private let appLifecycleLog = Logger(subsystem: "com.dosetap.app", category: "Do
 
 @main
 struct DoseTapApp: App {
+    private static let notificationPermissionRequestedKey = "notification_permission_requested_once"
+
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var urlRouter = URLRouter.shared
     @StateObject private var settings = UserSettingsManager.shared
@@ -27,6 +29,9 @@ struct DoseTapApp: App {
         appLifecycleLog.debug("App initialized (simplified)")
         #endif
         Self.migrateSetupStateIfNeeded()
+        #if DEBUG
+        Self.configureUITestStateIfNeeded()
+        #endif
 
         // P3-7: Register background export task
         AutoExportService.shared.registerBackgroundTask()
@@ -56,7 +61,27 @@ struct DoseTapApp: App {
             Self.handleSignificantTimeChangeStatic()
         }
     }
-    
+
+    #if DEBUG
+    /// Seeds deterministic, debug-only state for end-to-end UI tests.
+    /// Production and non-UI-test launches never enter this path.
+    private static func configureUITestStateIfNeeded() {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard arguments.contains("--uitesting") else { return }
+
+        UserDefaults.standard.set(true, forKey: SetupWizardService.setupCompletedKey)
+        UserDefaults.standard.set(true, forKey: notificationPermissionRequestedKey)
+
+        guard arguments.contains("--uitesting-late-dose-recovery") else { return }
+
+        let repository = SessionRepository.shared
+        assert(
+            repository.seedLateDoseRecoveryUITestState(),
+            "Late-dose UI fixture must begin with an auto-skipped Dose 2."
+        )
+    }
+    #endif
+
     var body: some Scene {
         WindowGroup {
             Group {
@@ -262,7 +287,7 @@ struct DoseTapApp: App {
 
     private func requestNotificationPermissionIfNeeded() async {
         let defaults = UserDefaults.standard
-        let requestedKey = "notification_permission_requested_once"
+        let requestedKey = Self.notificationPermissionRequestedKey
         guard !defaults.bool(forKey: requestedKey) else { return }
         guard UserSettingsManager.shared.notificationsEnabled else { return }
 

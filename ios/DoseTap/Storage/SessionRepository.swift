@@ -1275,6 +1275,20 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     }
     
     // MARK: - Data Management
+
+    #if DEBUG
+    /// Creates a current-session late Dose 2 recovery state for end-to-end UI tests.
+    /// Keeping the fixture here preserves the production dose mutation boundary.
+    func seedLateDoseRecoveryUITestState() -> Bool {
+        clearAllData()
+
+        let now = clock()
+        setDose1Time(now)
+        setDose1Time(now.addingTimeInterval(-280 * 60))
+
+        return checkAndHandleExpiredSession()
+    }
+    #endif
     
     /// Clear all data from storage (factory reset)
     /// ⚠️ DESTRUCTIVE: This removes all dose logs, sleep events, check-ins, etc.

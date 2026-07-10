@@ -10,6 +10,9 @@ final class DoseTapUITests: XCTestCase {
         continueAfterFailure = false
         app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
+        if name.contains("testLateDose2RecoveryAfterAutoSkip") {
+            app.launchArguments.append("--uitesting-late-dose-recovery")
+        }
         app.launch()
     }
 
@@ -79,6 +82,51 @@ final class DoseTapUITests: XCTestCase {
         let dose1Button = app.buttons.matching(NSPredicate(format: "label CONTAINS[cd] 'dose' OR label CONTAINS[cd] 'Dose 1'"))
         // We just verify the query doesn't crash — button may or may not exist depending on session state
         _ = dose1Button.count
+    }
+
+    func testLateDose2RecoveryAfterAutoSkip() throws {
+        let recoveryButton = app.buttons["dose-primary-action"]
+        XCTAssertTrue(recoveryButton.waitForExistence(timeout: 10))
+        XCTAssertTrue(
+            recoveryButton.label.localizedCaseInsensitiveContains("late after it was marked skipped"),
+            "Auto-skipped Dose 2 must expose the confirmed late recovery action."
+        )
+
+        let beforeAttachment = XCTAttachment(screenshot: app.screenshot())
+        beforeAttachment.name = "Late Dose 2 Recovery Available"
+        beforeAttachment.lifetime = .keepAlways
+        add(beforeAttachment)
+
+        recoveryButton.tap()
+
+        let warning = app.alerts["Record Dose 2 After Skip?"]
+        XCTAssertTrue(warning.waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            warning.staticTexts.matching(
+                NSPredicate(format: "label CONTAINS[cd] %@", "clinician or pharmacist")
+            ).firstMatch.exists,
+            "The late recovery warning must retain the clinical safety language."
+        )
+        warning.buttons["Record Late Dose 2"].tap()
+
+        XCTAssertTrue(app.navigationBars["After-Skip Reason"].waitForExistence(timeout: 5))
+        app.buttons["Continue"].tap()
+
+        let recoveryRemoved = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"),
+            object: recoveryButton
+        )
+        wait(for: [recoveryRemoved], timeout: 10)
+
+        let morningCloseout = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH[cd] %@", "Wake up and end session")
+        ).firstMatch
+        XCTAssertTrue(morningCloseout.waitForExistence(timeout: 5))
+
+        let afterAttachment = XCTAttachment(screenshot: app.screenshot())
+        afterAttachment.name = "Late Dose 2 Recovery Completed"
+        afterAttachment.lifetime = .keepAlways
+        add(afterAttachment)
     }
 
     // MARK: - Settings Screen
