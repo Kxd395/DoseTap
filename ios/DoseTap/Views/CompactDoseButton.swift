@@ -60,7 +60,7 @@ struct CompactDoseButton: View {
             Button(action: handlePrimaryButtonTap) {
                 Text(primaryButtonText)
                     .font(.headline)
-                    .foregroundColor(.white)
+                    .foregroundColor(primaryButtonTextColor)
                     .frame(maxWidth: .infinity)
                     .frame(height: 50)  // Minimum 44pt tap target per Apple HIG
                     .background(primaryButtonColor)
@@ -269,6 +269,15 @@ struct CompactDoseButton: View {
         }
     }
     
+    private var primaryButtonTextColor: Color {
+        switch core.currentStatus {
+        case .active, .nearClose, .finalizing:
+            return .black
+        default:
+            return .white
+        }
+    }
+
     private var primaryButtonColor: Color {
         let theme = themeManager.currentTheme
         switch core.currentStatus {

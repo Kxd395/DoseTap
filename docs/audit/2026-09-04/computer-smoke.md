@@ -3,7 +3,7 @@
 Status: Point-in-time engineering evidence; release gates remain open
 Date: 2026-09-04, America/New_York
 Checkout: `/Volumes/Developer/projects/DoseTap-main`
-Code commit: `d3b00ef50b9da046c0a76511e363227f8172e09e` (also includes `585ab68801d844adda831d49bbe71b56a77e73b9`)
+Code baseline: `d3b00ef50b9da046c0a76511e363227f8172e09e` (also includes `585ab68801d844adda831d49bbe71b56a77e73b9`), followed by the primary-label contrast correction recorded below. Final PR commit identity is retained in Plane.
 Destination: iPhone 17 simulator, iOS 26.5, `E024A428-1500-4CB6-B56B-0E5A3458B690`
 Tracker: DOSETAP-41, DOSETAP-42, DOSETAP-43, DOSETAP-44
 
@@ -17,6 +17,7 @@ The owner requested a simulator test mode, computer-use smoke test, and layout/d
 4. The floating capture button overlapped Tonight's theme control and other screen headers. Capture now occupies each screen's header or native toolbar. Tonight's status and dose action precede planning cards, and header controls have independent space.
 5. The warning sheet now separates its dated summary, explicit dose-recording action, and date-only schedule actions. Wake editing uses a focused form with a visible time picker and Save action.
 6. Completed dose state no longer displays a stale wake-deadline badge. Screen capture uses rendered view hierarchy rather than a blank SwiftUI backing layer; its preview fits the available width and scrolls vertically.
+7. Primary dose labels use dark text on the green, amber, and yellow action backgrounds. Computer use verified the active action in Light, Dark, and Night themes after a successful simulator build (`/tmp/dosetap-smoke-contrast-build.log`), then restored the original Dark theme. This is a visual legibility check, not a complete contrast or accessibility certification.
 
 ## Computer-use observations
 
