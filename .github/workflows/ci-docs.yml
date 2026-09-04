@@ -35,6 +35,9 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+
+    - name: Set up repository validation tools
+      uses: ./.github/actions/setup-repository-tools
       
     - name: Make documentation checks executable
       run: chmod +x tools/ssot_check.sh tools/doc_lint.sh tools/check_plane_workflow.sh tools/plane_tracker.rb

@@ -14,6 +14,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up repository validation tools
+        uses: ./.github/actions/setup-repository-tools
       
       - name: Show Swift Version
         run: swift --version
@@ -50,6 +53,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up repository validation tools
+        uses: ./.github/actions/setup-repository-tools
       
       - name: Check Views don't touch EventStorage.shared
         run: |
@@ -101,6 +107,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up repository validation tools
+        uses: ./.github/actions/setup-repository-tools
       
       - name: Check for any print() in ios/Core
         run: |
@@ -135,6 +144,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up repository validation tools
+        uses: ./.github/actions/setup-repository-tools
       
       - name: Xcode version
         run: |

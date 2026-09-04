@@ -21,6 +21,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up repository validation tools
+        uses: ./.github/actions/setup-repository-tools
+
       - name: Run SSOT lint
         run: bash tools/ssot_check.sh 2>&1 | tee "$RUNNER_TEMP/ssot-lint.log"
 
@@ -56,6 +59,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up repository validation tools
+        uses: ./.github/actions/setup-repository-tools
 
       - name: Guard against ghost test directories
         run: |
@@ -172,6 +178,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up repository validation tools
+        uses: ./.github/actions/setup-repository-tools
+
       - name: Xcode version
         run: xcodebuild -version
 
@@ -185,6 +194,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up repository validation tools
+        uses: ./.github/actions/setup-repository-tools
 
       - name: Validate release pin script pass/fail behavior
         run: |
@@ -229,6 +241,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up repository validation tools
+        uses: ./.github/actions/setup-repository-tools
 
       - name: Guard against tab split-brain regressions
         run: bash tools/check_tab_split_brain.sh
@@ -389,6 +404,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up repository validation tools
+        uses: ./.github/actions/setup-repository-tools
 
       - name: Run release preflight checks
         run: |

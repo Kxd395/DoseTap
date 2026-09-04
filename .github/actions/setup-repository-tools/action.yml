@@ -1,0 +1,17 @@
+name: Repository validation tools
+description: Install and verify tools required by repository guards.
+runs:
+  using: composite
+  steps:
+    - name: Ensure ripgrep is available
+      shell: bash
+      run: |
+        set -euo pipefail
+        if ! command -v rg >/dev/null 2>&1; then
+          case "$RUNNER_OS" in
+            macOS) brew install ripgrep ;;
+            Linux) sudo apt-get update && sudo apt-get install -y ripgrep ;;
+            *) echo "Unsupported runner: $RUNNER_OS" >&2; exit 1 ;;
+          esac
+        fi
+        rg --version
