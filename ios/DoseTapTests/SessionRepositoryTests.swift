@@ -26,6 +26,7 @@ final class SessionRepositoryTests: XCTestCase {
     private var storage: EventStorage!
     private var repo: SessionRepository!
     private var cancellables: Set<AnyCancellable> = []
+    private var savedSchedule: (prep: Int, wake: Int, cutoff: Int)!
     
     /// Fixed clock well after the 18:00 UTC rollover so dose times at
     /// `Date() - N min` never cross a session boundary on CI (UTC).
@@ -34,6 +35,11 @@ final class SessionRepositoryTests: XCTestCase {
     }()
     
     override func setUp() async throws {
+        let settings = UserSettingsManager.shared
+        savedSchedule = (settings.prepTimeMinutes, settings.wakeTimeMinutes, settings.missedCheckInCutoffHours)
+        settings.prepTimeMinutes = 18 * 60
+        settings.wakeTimeMinutes = 7 * 60
+        settings.missedCheckInCutoffHours = 4
         // Use shared storage for integration tests
         // Note: In production, we'd want an in-memory SQLite mode for isolation
         storage = EventStorage.shared
@@ -52,6 +58,10 @@ final class SessionRepositoryTests: XCTestCase {
         cancellables.removeAll()
         // Clean up test data
         storage.clearAllData()
+        let settings = UserSettingsManager.shared
+        settings.prepTimeMinutes = savedSchedule.prep
+        settings.wakeTimeMinutes = savedSchedule.wake
+        settings.missedCheckInCutoffHours = savedSchedule.cutoff
     }
     
     // MARK: - Test: Delete Active Session Clears Tonight State
@@ -700,6 +710,33 @@ final class SessionRepositoryTests: XCTestCase {
         
         XCTAssertNil(repo.activeSessionDate, "Active session should clear after rollover")
         XCTAssertEqual(repo.currentContext.phase, .noDose1, "Context should reset after rollover")
+    }
+
+    func test_activeNightKeySurvivesReloadAndDose2AcrossGroupingBoundary() throws {
+        let settings = UserSettingsManager.shared
+        let oldPrep = settings.prepTimeMinutes
+        let oldWake = settings.wakeTimeMinutes
+        defer {
+            settings.prepTimeMinutes = oldPrep
+            settings.wakeTimeMinutes = oldWake
+        }
+        settings.prepTimeMinutes = 15 * 60
+        settings.wakeTimeMinutes = 20 * 60
+        let tz = TimeZone(identifier: "America/New_York")!
+        let now = makeDate(2025, 12, 25, 18, 30, tz: tz)
+        repo = SessionRepository(storage: storage, clock: { now }, timeZoneProvider: { tz })
+        XCTAssertTrue(repo.setDose1Time(now.addingTimeInterval(-180 * 60)).isCommitted)
+        let activeDate = try XCTUnwrap(repo.activeSessionDate)
+        XCTAssertEqual(activeDate, "2025-12-24")
+        repo.reload()
+        XCTAssertEqual(repo.currentSessionKey, activeDate)
+        repo.refreshForTimeChange()
+        XCTAssertEqual(repo.currentSessionKey, activeDate)
+        XCTAssertTrue(repo.setDose2Time(now).isCommitted)
+        XCTAssertEqual(repo.currentSessionKey, activeDate)
+        let restarted = SessionRepository(storage: storage, clock: { now }, timeZoneProvider: { tz })
+        XCTAssertEqual(restarted.currentSessionKey, activeDate)
+        XCTAssertEqual(restarted.dose2Time, now)
     }
 
     func test_addPreSleepLog_persistsRowAndIsQueryableBySessionKey() async throws {

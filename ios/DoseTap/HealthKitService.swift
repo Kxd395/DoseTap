@@ -177,9 +177,6 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
             return
         }
 
-        let sleepType = HKCategoryType(.sleepAnalysis)
-        authorizationStatus = healthStore.authorizationStatus(for: sleepType)
-
         Task { @MainActor in
             await refreshReadAuthorization()
         }
@@ -199,8 +196,11 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
 
     private func refreshReadAuthorization() async {
         do {
-            let sleepType = HKCategoryType(.sleepAnalysis)
-            authorizationStatus = healthStore.authorizationStatus(for: sleepType)
+            // This is synchronous HealthKit XPC and can stall while the system
+            // service starts. Never run it on the UI actor, including bootstrap.
+            authorizationStatus = await Task.detached(priority: .utility) {
+                HKHealthStore().authorizationStatus(for: HKCategoryType(.sleepAnalysis))
+            }.value
             let requestStatus = try await requestStatusForRead()
             switch requestStatus {
             case .shouldRequest:

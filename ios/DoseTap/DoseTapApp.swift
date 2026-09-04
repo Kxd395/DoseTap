@@ -53,6 +53,10 @@ struct DoseTapApp: App {
         #endif
         Self.migrateSetupStateIfNeeded()
         #if DEBUG && targetEnvironment(simulator)
+        if ProcessInfo.processInfo.arguments.contains("--uitesting-expired-session") {
+            UserDefaults.standard.set(true, forKey: SetupWizardService.setupCompletedKey)
+            SessionRepository.prepareExpiredSessionUITestFixture()
+        }
         if ProcessInfo.processInfo.arguments.contains("--uitesting-work-warning") {
             UserDefaults.standard.set(true, forKey: SetupWizardService.setupCompletedKey)
             UserSettingsManager.shared.targetIntervalMinutes = 165

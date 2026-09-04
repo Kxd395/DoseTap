@@ -434,7 +434,7 @@ public class AlarmService: NSObject, ObservableObject {
     
     /// Cancel Dose 2 reminders and retain the actual cancellation cause in the
     /// privacy-safe diagnostic trail.
-    public func cancelDose2Reminders(reason: String = "dose2_completed_or_skipped") {
+    public func cancelDose2Reminders(sessionId: String, reason: String = "dose2_completed_or_skipped") {
         invalidateScheduling(for: .reminders)
         let ids = Self.reminderNotificationIdentifiers
         notificationClient.removePendingRequests(withIdentifiers: ids)
@@ -446,7 +446,6 @@ public class AlarmService: NSObject, ObservableObject {
         alarmLog.info("Dose 2 reminders cancelled")
         
         // Diagnostic logging: alarms cancelled
-        let sessionId = SessionRepository.shared.currentSessionIdString()
         for id in ids {
             Task {
                 await DiagnosticLogger.shared.logAlarm(
@@ -752,9 +751,9 @@ public class AlarmService: NSObject, ObservableObject {
     }
     
     /// Reset for new session
-    public func resetForNewSession() {
+    public func resetForNewSession(closingSessionId: String) {
         cancelAllAlarms()
-        cancelDose2Reminders(reason: "new_session_reset")
+        cancelDose2Reminders(sessionId: closingSessionId, reason: "new_session_reset")
         clearDose2AlarmState()
         reminderScheduled = false
     }
