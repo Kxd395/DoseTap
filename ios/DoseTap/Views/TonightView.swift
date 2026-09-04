@@ -201,8 +201,10 @@ struct LegacyTonightView: View {
                     TonightDateLabel()
 
                     // Show scheduled wake alarm when dose 1 taken
-                    AlarmIndicatorView(dose1Time: core.dose1Time)
-                        .padding(.top, 4)
+                    if sessionRepo.dose2Time == nil && !sessionRepo.dose2Skipped {
+                        AlarmIndicatorView(dose1Time: sessionRepo.dose1Time)
+                            .padding(.top, 4)
+                    }
                 }
                 .padding(.top, 12)
                 .padding(.bottom, 12)

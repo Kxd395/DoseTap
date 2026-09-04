@@ -323,9 +323,11 @@ enum AppScreenCapture {
         format.opaque = scrollView.isOpaque
 
         let renderer = UIGraphicsImageRenderer(size: contentSize, format: format)
-        return renderer.image { context in
-            scrollView.layer.render(in: context.cgContext)
+        var rendered = false
+        let image = renderer.image { _ in
+            rendered = scrollView.drawHierarchy(in: CGRect(origin: .zero, size: contentSize), afterScreenUpdates: true)
         }
+        return rendered ? image : nil
     }
 
     private static func captureVisibleWindow(_ keyWindow: UIWindow) -> UIImage? {

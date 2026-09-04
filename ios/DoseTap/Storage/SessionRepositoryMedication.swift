@@ -18,6 +18,7 @@ public extension SessionRepository {
     }
 
     func prepareWorkWarningUITestSession() {
+        AlarmService.shared.resetForNewSession(closingSessionId: currentSessionIdString())
         clearTonight()
         let now = clock()
         let firstDose = now.addingTimeInterval(-180 * 60)

@@ -77,6 +77,19 @@ final class DoseTapUITests: XCTestCase {
         }
     }
 
+    func testWorkWarningContinueKeepsNightAndHidesCompletedAlarm() throws {
+        let action = app.buttons["dose-primary-action"]
+        XCTAssertTrue(action.waitForExistence(timeout: 15))
+        let night = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Tonight – ")).firstMatch.label
+        action.tap()
+        let record = app.buttons["Continue to Record Dose 2"]
+        XCTAssertTrue(record.waitForExistence(timeout: 5))
+        record.tap()
+        XCTAssertTrue(app.staticTexts[night].waitForExistence(timeout: 5))
+        XCTAssertFalse(action.exists)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Wake deadline:")).firstMatch.exists)
+    }
+
     // MARK: - App Launch
 
     func testExpiredSessionLaunchDoesNotReenterRepository() throws {
