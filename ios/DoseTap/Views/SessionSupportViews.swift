@@ -1154,12 +1154,22 @@ struct WorkWakeWarningSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Later than your work-night target") {
-                    Text("Your saved work schedule shows that you work \(warning.dateLabel) and plan to wake at \(warning.wakeLabel). The selected dose time is later than your saved work-night target.")
-                    Text("Warning target: \(warning.target.title). This advisory does not change your medication timing window.")
-                        .font(.subheadline)
-                    Text("Schedule timezone: \(warning.timeZoneIdentifier)")
-                        .font(.caption)
+                if !changingWake {
+                Section {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Label("Later than your work-night target", systemImage: "clock.badge.exclamationmark")
+                            .font(.headline)
+                            .foregroundStyle(.orange)
+                        Text("The selected dose time is later than the target you saved for this working date.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 4)
+                    LabeledContent("Working date", value: warning.dateLabel)
+                    LabeledContent("Wake time", value: warning.wakeLabel)
+                    LabeledContent("Warning target", value: warning.target.title)
+                } footer: {
+                    Text("Times use \(warning.timeZoneIdentifier). This advisory does not change your medication timing window.")
                 }
                 Section {
                     Button("Continue to Record Dose 2") {
@@ -1186,30 +1196,56 @@ struct WorkWakeWarningSheet: View {
                             }
                         }
                     }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .frame(maxWidth: .infinity)
                     .disabled(saving)
-                    Button("I'm Not Working \(warning.dateLabel)") {
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                }
+                Section {
+                    Button {
                         saveException(isWorking: false)
+                    } label: {
+                        Label("I'm not working this date", systemImage: "calendar.badge.minus")
                     }
+                    .accessibilityLabel("I'm Not Working \(warning.dateLabel)")
                     .disabled(saving)
-                    Button("Change \(warning.dateLabel)'s Wake Time") {
+                    Button {
                         wakeTime = warning.requiredWake
                         changingWake = true
+                    } label: {
+                        Label("Change this date's wake time", systemImage: "alarm")
                     }
+                    .accessibilityLabel("Change \(warning.dateLabel)'s Wake Time")
                     .disabled(saving)
+                } header: {
+                    Text("Adjust this date")
+                } footer: {
+                    Text("Schedule changes leave Dose 2 unrecorded.")
+                }
                 }
                 if changingWake {
-                    Section("This date only") {
+                    Section {
                         DatePicker("Required wake", selection: $wakeTime, displayedComponents: .hourAndMinute)
+                            .datePickerStyle(.wheel)
+                            .labelsHidden()
+                            .accessibilityLabel("Required wake time")
                             .environment(\.timeZone, TimeZone(identifier: warning.timeZoneIdentifier) ?? .current)
                         Button("Save Wake Time") { saveException(isWorking: true) }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.large)
+                            .frame(maxWidth: .infinity)
                             .disabled(saving)
-                        Text("This changes the dated work advisory. Edit Weekly Schedule separately to change recurring days.")
-                            .font(.caption)
+                    } header: {
+                        Text(warning.dateLabel)
+                    } footer: {
+                        Text("Times use \(warning.timeZoneIdentifier). This updates only this date and leaves Dose 2 unrecorded. Your recurring schedule stays the same.")
                     }
                 }
                 if let error { Text(error).foregroundStyle(.primary).accessibilityLabel("Not saved. \(error)") }
             }
-            .navigationTitle("Work and Wake Warning")
+            .navigationTitle(changingWake ? "Change Wake Time" : "Work and Wake Warning")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(saving) } }
         }

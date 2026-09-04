@@ -101,6 +101,7 @@ struct HistoryView: View {
             }
         }
         .navigationTitle("History")
+        .toolbar { ToolbarItem(placement: .topBarTrailing) { PageCaptureButton() } }
         .searchable(text: $searchText, prompt: "Search sessions, events…")
         .onChange(of: searchText) { _ in
             if isSearchActive {

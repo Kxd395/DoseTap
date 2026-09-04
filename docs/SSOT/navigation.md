@@ -5,6 +5,8 @@ Last verified: 2026-09-02
 
 This file is a pointer map for the SSOT. The canonical spec lives in `docs/SSOT/README.md`.
 
+On iPhone, Tonight places the current dose status and primary action before sleep-planning cards. Theme and page capture controls occupy separate header positions. History, Dashboard, and Settings expose page capture in their native navigation toolbar; global floating controls must not cover screen content or back navigation. The work-warning sheet separates its dated schedule summary, explicit recording action, and date-only adjustments.
+
 ## Quick Links
 
 - Domain entities and invariants: `docs/SSOT/README.md` (Domain Entities and Invariants)

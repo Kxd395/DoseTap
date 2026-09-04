@@ -21,6 +21,7 @@ struct SleepPlanDetailView: View {
                 Picker("Warning target", selection: $workWarningPlan.target) {
                     ForEach(WorkWarningTarget.allCases, id: \.self) { target in Text(target.title).tag(target) }
                 }
+                .accessibilityIdentifier("work-warning-target")
                 Text("Working days for this advisory")
                 WorkdaySelector(selectedDays: $warningDays)
                 DatePicker("Required work wake time", selection: $warningWake, displayedComponents: .hourAndMinute)

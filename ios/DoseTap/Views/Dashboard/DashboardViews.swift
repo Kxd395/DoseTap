@@ -109,6 +109,7 @@ struct DashboardTabView: View {
                 model.refresh()
             }
             .toolbar {
+                ToolbarItem(placement: .topBarTrailing) { PageCaptureButton() }
                 if cloudSync.cloudSyncAvailableInBuild {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         if cloudSync.isSyncing {

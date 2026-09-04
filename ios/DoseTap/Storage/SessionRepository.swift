@@ -135,7 +135,6 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     
     /// Reload active session state from storage
     public func reload() {
-        currentSessionKey = storage.currentSessionDate()
         var state = storage.loadCurrentSessionState()
 
         if let d1 = state.dose1Time, let d2 = state.dose2Time {
@@ -163,6 +162,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         if state.sessionEnd == nil, hasSessionData {
             activeSessionId = resolvedSessionId
             activeSessionDate = state.sessionDate
+            currentSessionKey = state.sessionDate ?? sessionKey(for: clock(), timeZone: timeZoneProvider(), rolloverHour: rolloverHour)
             activeSessionStart = state.sessionStart
             activeSessionEnd = nil
             dose1Time = state.dose1Time
@@ -187,6 +187,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     }
 
     private func clearInMemoryState() {
+        currentSessionKey = sessionKey(for: clock(), timeZone: timeZoneProvider(), rolloverHour: rolloverHour)
         activeSessionDate = nil
         activeSessionId = nil
         activeSessionStart = nil
@@ -363,7 +364,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
 
     private func updateSessionKeyIfNeeded(reason: String, forceReload: Bool = false) {
         let identity = SessionIdentity(date: clock(), timeZone: timeZoneProvider(), rolloverHour: rolloverHour)
-        let newKey = identity.key
+        let newKey = activeSessionDate ?? identity.key
         let changed = newKey != currentSessionKey
         
         if changed {
@@ -555,7 +556,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         }
         
         cancelPendingNotifications()
-        AlarmService.shared.resetForNewSession()
+        AlarmService.shared.resetForNewSession(closingSessionId: sessionId)
         
         clearInMemoryState()
         sessionDidChange.send()

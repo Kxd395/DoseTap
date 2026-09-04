@@ -11,6 +11,7 @@ final class DoseTapUITests: XCTestCase {
         app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
         if name.contains("testWorkWarning") { app.launchArguments.append("--uitesting-work-warning") }
+        if name.contains("testExpiredSessionLaunch") { app.launchArguments.append("--uitesting-expired-session") }
         app.launch()
     }
 
@@ -40,7 +41,65 @@ final class DoseTapUITests: XCTestCase {
         add(after)
     }
 
+    func testWorkWarningWakeEditorKeepsSaveVisibleAndDosePending() throws {
+        let action = app.buttons["dose-primary-action"]
+        XCTAssertTrue(action.waitForExistence(timeout: 15))
+        action.tap()
+        let changeWake = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Change ")).firstMatch
+        XCTAssertTrue(changeWake.waitForExistence(timeout: 5))
+        changeWake.tap()
+        XCTAssertTrue(app.navigationBars["Change Wake Time"].waitForExistence(timeout: 5))
+        let save = app.buttons["Save Wake Time"]
+        XCTAssertTrue(save.isHittable, "The dated editor must expose Save without scrolling")
+        save.tap()
+        XCTAssertTrue(action.waitForExistence(timeout: 5))
+        XCTAssertTrue(action.label.contains("Dose 2"), "Saving a wake exception must not record the dose")
+    }
+
+    func testWorkWarningTargetSelectorSavesAllThreeChoices() throws {
+        XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 15))
+        app.buttons["Settings"].tap()
+        let schedule = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Typical Week Schedule")).firstMatch
+        for _ in 0..<6 where !schedule.isHittable { app.swipeUp() }
+        XCTAssertTrue(schedule.isHittable)
+        schedule.tap()
+        let picker = app.buttons["work-warning-target"]
+        for title in ["Fixed work-night cutoff", "Wake time minus my buffer", "Existing Dose 2 target"] {
+            for _ in 0..<5 where !picker.isHittable { app.swipeDown() }
+            XCTAssertTrue(picker.isHittable)
+            picker.tap()
+            app.buttons[title].tap()
+            let save = app.buttons["Save Work Warning Schedule"]
+            for _ in 0..<5 where !save.isHittable { app.swipeUp() }
+            XCTAssertTrue(save.isHittable)
+            save.tap()
+            XCTAssertTrue(app.staticTexts["Work warning schedule saved. No medication record changed."].exists)
+        }
+    }
+
+    func testWorkWarningContinueKeepsNightAndHidesCompletedAlarm() throws {
+        let action = app.buttons["dose-primary-action"]
+        XCTAssertTrue(action.waitForExistence(timeout: 15))
+        let night = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Tonight – ")).firstMatch.label
+        action.tap()
+        let record = app.buttons["Continue to Record Dose 2"]
+        XCTAssertTrue(record.waitForExistence(timeout: 5))
+        record.tap()
+        XCTAssertTrue(app.staticTexts[night].waitForExistence(timeout: 5))
+        XCTAssertFalse(action.exists)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Wake deadline:")).firstMatch.exists)
+    }
+
     // MARK: - App Launch
+
+    func testExpiredSessionLaunchDoesNotReenterRepository() throws {
+        XCTAssertTrue(app.buttons["dose-primary-action"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 5))
+        app.terminate()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+        XCTAssertTrue(app.buttons["dose-primary-action"].waitForExistence(timeout: 15))
+    }
 
     func testAppLaunches() throws {
         // Verify the app launched and a tab bar is present

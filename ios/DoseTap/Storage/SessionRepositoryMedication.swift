@@ -7,9 +7,30 @@ import OSLog
 @MainActor
 public extension SessionRepository {
     #if DEBUG && targetEnvironment(simulator)
+    /// Persist a prior-night fixture before the singleton is initialized, so
+    /// process-level UI tests cover synchronous startup rollover.
+    static func prepareExpiredSessionUITestFixture() {
+        let storage = EventStorage.shared
+        let start = Date().addingTimeInterval(-48 * 60 * 60)
+        let id = UUID().uuidString
+        let date = storage.sessionDateString(for: start)
+        _ = storage.saveDose1(timestamp: start, sessionId: id, sessionDateOverride: date, sessionStart: start)
+    }
+
     func prepareWorkWarningUITestSession() {
+        AlarmService.shared.resetForNewSession(closingSessionId: currentSessionIdString())
         clearTonight()
-        _ = setDose1Time(clock().addingTimeInterval(-180 * 60))
+        let now = clock()
+        let firstDose = now.addingTimeInterval(-180 * 60)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZoneProvider()
+        let firstMinutes = calendar.component(.hour, from: firstDose) * 60 + calendar.component(.minute, from: firstDose)
+        // Keep this synthetic night open regardless of the wall-clock hour
+        // at which the simulator test runs.
+        UserSettingsManager.shared.prepTimeMinutes = (firstMinutes + 1439) % 1440
+        let wake = now.addingTimeInterval(60 * 60)
+        UserSettingsManager.shared.wakeTimeMinutes = calendar.component(.hour, from: wake) * 60 + calendar.component(.minute, from: wake)
+        _ = setDose1Time(firstDose)
         let previous = try? workWakeSchedule()
         var plan = WorkWakeSchedule(timeZoneIdentifier: timeZoneProvider().identifier, workingWeekdays: Set(1...7), wakeMinutes: 420, target: .doseTarget)
         if let previous { plan.revision = previous.revision }

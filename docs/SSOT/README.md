@@ -33,6 +33,7 @@ Identity and lifecycle are separate from calendar day grouping.
 
 - Identity: `session_id` (UUID string). Medication mutations, including undo, annotations and time edits, use that identity. Date-only mutations reject multiple matching identities; legacy NULL/date identities remain supported.
 - Grouping key: `session_date` (YYYY-MM-DD) computed by `sessionKey(for:timeZone:rolloverHour:)` with default rollover hour 18 (6 PM). See `ios/Core/SessionKey.swift`.
+- While a session remains active, the published Tonight key is that session's saved grouping date across reloads, time changes, and medication writes. The wall-clock grouping date takes over only when no active session remains.
 - Persistence: `sleep_sessions` table and `current_session` table (see `ios/DoseTap/Storage/EventStorage.swift`).
 - Start: first event that requires a session (dose, snooze, sleep event, pre-sleep log linking) via `SessionRepository.ensureActiveSession(for:reason:)`.
 - End: when morning check-in completes or when schedule fallback closes the session.
@@ -41,6 +42,7 @@ Closure rules (authoritative):
 - Primary: `SessionRepository.completeCheckIn()` closes the active session and clears in-memory state. Invoked by `SessionRepository.saveMorningCheckIn(...)` when the saved check-in matches the active session.
 - Fallback A (missed check-in cutoff): `SessionRepository.evaluateSessionBoundaries(reason:)` closes the session if `now >= cutoffTime(start)`.
 - Fallback B (prep-time soft rollover): `SessionRepository.evaluateSessionBoundaries(reason:)` closes the session if `now >= prepTime` and session started before prep time.
+- Startup may perform either fallback while the repository is initializing. Alarm cleanup receives the closing session's identity explicitly and must not reenter `SessionRepository.shared`.
 
 Schedule settings used by rollover logic (from `UserSettingsManager`):
 - `sleepStartMinutes` (default 21:00)
@@ -116,6 +118,8 @@ Naps are implemented as paired sleep events, not a separate table.
 - If a start has no end, History shows "Nap in progress". There is no guard preventing multiple overlapping naps.
 
 ### HealthKit
+
+- HealthKit status lookup must not block repository or UI initialization. Synchronous provider status calls run away from the main actor; until they return, the app preserves its unresolved status and medication screens remain usable.
 
 - Preference: `UserSettingsManager.healthKitEnabled` (user intent).
 - Authorization: `HealthKitService.authorizationStatus` and `HealthKitService.isAuthorized` (system grant).

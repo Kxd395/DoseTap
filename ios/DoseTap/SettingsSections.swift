@@ -354,13 +354,7 @@ extension SettingsView {
             Color.clear.frame(height: tabBarInsetHeight)
         }
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button("Done") {
-                    withAnimation {
-                        urlRouter.selectedTab = .tonight
-                    }
-                }
-            }
+            ToolbarItem(placement: .topBarTrailing) { PageCaptureButton() }
         }
         .alert("Clear All Data", isPresented: $showingResetConfirmation) {
             Button("Cancel", role: .cancel) {}

@@ -15,7 +15,7 @@ struct CapturePreviewSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 16) {
-                ScrollView([.vertical, .horizontal]) {
+                ScrollView(.vertical) {
                     Image(uiImage: image)
                         .resizable()
                         .aspectRatio(contentMode: .fit)

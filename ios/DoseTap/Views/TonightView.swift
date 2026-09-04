@@ -178,24 +178,36 @@ struct LegacyTonightView: View {
 
         ScrollView {
             VStack(spacing: 0) {
-                // Header - add extra top padding to account for safe area in page-style TabView
-                VStack(spacing: 2) {
-                    ZStack {
-                        Text("DoseTap")
-                            .font(.largeTitle.bold())
-                        HStack {
-                            Spacer()
+                VStack(alignment: .leading, spacing: 8) {
+                    ViewThatFits(in: .horizontal) {
+                        HStack(alignment: .center, spacing: 12) {
+                            Text("DoseTap")
+                                .font(.largeTitle.bold())
+                                .fixedSize()
+                            Spacer(minLength: 8)
                             QuickThemeSwitchButton()
+                            PageCaptureButton()
+                        }
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("DoseTap").font(.largeTitle.bold())
+                            HStack {
+                                QuickThemeSwitchButton()
+                                Spacer()
+                                PageCaptureButton()
+                            }
                         }
                     }
                     .frame(maxWidth: .infinity)
                     TonightDateLabel()
 
                     // Show scheduled wake alarm when dose 1 taken
-                    AlarmIndicatorView(dose1Time: core.dose1Time)
-                        .padding(.top, 4)
+                    if sessionRepo.dose2Time == nil && !sessionRepo.dose2Skipped {
+                        AlarmIndicatorView(dose1Time: sessionRepo.dose1Time)
+                            .padding(.top, 4)
+                    }
                 }
-                .padding(.top, isInSplitView ? 16 : 50) // Safe area offset for page-style TabView (less needed in split view)
+                .padding(.top, 12)
+                .padding(.bottom, 12)
 
                 if let message = sessionRepo.awaitingRolloverMessage {
                     HStack(spacing: 8) {
@@ -229,6 +241,32 @@ struct LegacyTonightView: View {
                 .padding(.top, 8)
             }
 
+            if homeState.showsDoseStatusCard {
+                Spacer().frame(height: 12)
+
+                // Combined Status + Timer Card (compact)
+                CompactStatusCard(core: core)
+            }
+
+            Spacer().frame(height: 12)
+
+            if !homeState.isBlockedByPriorSession, horizontalSizeClass != .regular {
+                if homeState.showsDosePrimaryAction {
+                    CompactDoseButton(
+                        core: core,
+                        eventLogger: eventLogger,
+                        undoState: undoState,
+                        sessionRepo: sessionRepo,
+                        showEarlyDoseAlert: $showEarlyDoseAlert,
+                        earlyDoseMinutes: $earlyDoseMinutesRemaining,
+                        showExtraDoseWarning: $showExtraDoseWarning,
+                        showMorningCheckIn: $showMorningCheckIn,
+                        coordinator: coordinator
+                    )
+                }
+
+            }
+
             if let plan = sleepPlanSummary {
                 SleepPlanSummaryCard(
                     wakeBy: plan.wakeBy,
@@ -253,15 +291,6 @@ struct LegacyTonightView: View {
                 .padding(.horizontal)
                 .padding(.top, 4)
             }
-            if homeState.showsDoseStatusCard {
-                Spacer().frame(height: 12)
-
-                // Combined Status + Timer Card (compact)
-                CompactStatusCard(core: core)
-            }
-
-            Spacer().frame(height: 12)
-
             // Pre-Sleep Log Card — always visible during a session so users can
             // log, view, or edit pre-sleep info at any time (before or after Dose 1).
             // Only hidden once the session has fully ended (wake/morning check-in).
@@ -349,20 +378,6 @@ struct LegacyTonightView: View {
                 }
                 .padding(.horizontal)
             } else if !homeState.isBlockedByPriorSession {
-                if homeState.showsDosePrimaryAction {
-                    CompactDoseButton(
-                        core: core,
-                        eventLogger: eventLogger,
-                        undoState: undoState,
-                        sessionRepo: sessionRepo,
-                        showEarlyDoseAlert: $showEarlyDoseAlert,
-                        earlyDoseMinutes: $earlyDoseMinutesRemaining,
-                        showExtraDoseWarning: $showExtraDoseWarning,
-                        showMorningCheckIn: $showMorningCheckIn,
-                        coordinator: coordinator
-                    )
-                }
-
                 if homeState.showsQuickLog {
                     Spacer().frame(height: 12)
 
@@ -674,6 +689,7 @@ struct QuickThemeSwitchButton: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
+            .frame(minHeight: 44)
             .background(
                 Capsule()
                     .fill(Color(.secondarySystemBackground))

@@ -20,7 +20,6 @@ struct ContentView: View {
 
     /// `true` when running on iPad or in a regular-width environment (e.g. large iPhone landscape).
     private var usesSplitView: Bool { horizontalSizeClass == .regular }
-    private var showsFloatingShareButton: Bool { urlRouter.selectedTab != .timeline }
     private var core: DoseTapCore { container.core }
     private var doseCoordinator: DoseActionCoordinator { container.doseCoordinator }
     private var eventLogger: EventLogger { container.eventLogger }
@@ -36,6 +35,7 @@ struct ContentView: View {
                 compactBody
             }
         }
+        .environment(\.pageCapture, PageCaptureAction(isPreparing: isPreparingPageShare, perform: shareCurrentPage))
         .preferredColorScheme(themeManager.currentTheme == .night ? .dark : (themeManager.currentTheme.colorScheme ?? settings.colorScheme))
         .accentColor(themeManager.currentTheme.accentColor)
         .applyNightModeFilter(themeManager.currentTheme)
@@ -77,13 +77,6 @@ struct ContentView: View {
             NavigationStack {
                 detailContent(for: urlRouter.selectedTab)
                     .environment(\.isInSplitView, true)
-            }
-            .overlay(alignment: .topTrailing) {
-                if showsFloatingShareButton {
-                    shareButton
-                        .padding(.top, 8)
-                        .padding(.trailing, 16)
-                }
             }
         }
         // Undo Snackbar Overlay (iPad)
@@ -168,43 +161,10 @@ struct ContentView: View {
             }
             .padding(.top, 50)
 
-            VStack {
-                HStack {
-                    Spacer()
-                    if showsFloatingShareButton {
-                        shareButton
-                    }
-                }
-                .padding(.top, 54)
-                .padding(.trailing, 16)
-                Spacer()
-            }
         }
     }
 
     // MARK: - Shared Components
-
-    private var shareButton: some View {
-        Button {
-            shareCurrentPage()
-        } label: {
-            ZStack {
-                Circle()
-                    .fill(.ultraThinMaterial)
-                    .frame(width: 52, height: 52)
-                if isPreparingPageShare {
-                    ProgressView()
-                        .controlSize(.small)
-                } else {
-                    Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 22, weight: .semibold))
-                }
-            }
-        }
-        .buttonStyle(.plain)
-        .disabled(isPreparingPageShare)
-        .accessibilityLabel("Share current page capture")
-    }
 
     private func shareCurrentPage() {
         guard !isPreparingPageShare else { return }
@@ -219,6 +179,44 @@ struct ContentView: View {
                 pageShareErrorMessage = "Could not capture the current app screen."
             }
             isPreparingPageShare = false
+        }
+    }
+}
+
+struct PageCaptureAction {
+    var isPreparing: Bool
+    var perform: () -> Void
+}
+
+private struct PageCaptureKey: EnvironmentKey {
+    static let defaultValue: PageCaptureAction? = nil
+}
+
+extension EnvironmentValues {
+    var pageCapture: PageCaptureAction? {
+        get { self[PageCaptureKey.self] }
+        set { self[PageCaptureKey.self] = newValue }
+    }
+}
+
+/// Placed in the owning screen's header so it cannot cover navigation or content.
+struct PageCaptureButton: View {
+    @Environment(\.pageCapture) private var capture
+
+    var body: some View {
+        if let capture {
+            Button(action: capture.perform) {
+                Group {
+                    if capture.isPreparing {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                }
+                .frame(minWidth: 44, minHeight: 44)
+            }
+            .disabled(capture.isPreparing)
+            .accessibilityLabel("Share current page capture")
         }
     }
 }
@@ -325,9 +323,11 @@ enum AppScreenCapture {
         format.opaque = scrollView.isOpaque
 
         let renderer = UIGraphicsImageRenderer(size: contentSize, format: format)
-        return renderer.image { context in
-            scrollView.layer.render(in: context.cgContext)
+        var rendered = false
+        let image = renderer.image { _ in
+            rendered = scrollView.drawHierarchy(in: CGRect(origin: .zero, size: contentSize), afterScreenUpdates: true)
         }
+        return rendered ? image : nil
     }
 
     private static func captureVisibleWindow(_ keyWindow: UIWindow) -> UIImage? {
