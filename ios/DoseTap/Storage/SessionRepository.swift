@@ -143,7 +143,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             if delta < 0 || delta > 12 * 60 * 60 {
                 if let sessionDate = state.sessionDate {
                     repoLogger.warning("SessionRepo: Clearing stale dose2 time for session \(sessionDate)")
-                    storage.clearDose2(sessionDateOverride: sessionDate)
+                    storage.clearDose2(sessionDateOverride: sessionDate, sessionId: state.sessionId)
                     state = storage.loadCurrentSessionState()
                 }
             }
@@ -1075,7 +1075,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         let sessionDate = activeSessionDate ?? currentSessionKey
 
         let result = recordMedicationMutation(
-            storage.clearDoseSequence(sessionDateOverride: sessionDate)
+            storage.clearDoseSequence(sessionDateOverride: sessionDate, sessionId: activeSessionId)
         )
         guard result.isCommitted else { return result }
         clearInMemoryState()
@@ -1092,7 +1092,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         let sessionDate = activeSessionDate ?? currentSessionKey
 
         let result = recordMedicationMutation(
-            storage.clearDose2(sessionDateOverride: sessionDate)
+            storage.clearDose2(sessionDateOverride: sessionDate, sessionId: activeSessionId)
         )
         guard result.isCommitted else { return result }
         dose2Time = nil
@@ -1109,7 +1109,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         let sessionDate = activeSessionDate ?? currentSessionKey
 
         let result = recordMedicationMutation(
-            storage.clearSkip(sessionDateOverride: sessionDate)
+            storage.clearSkip(sessionDateOverride: sessionDate, sessionId: activeSessionId)
         )
         guard result.isCommitted else { return result }
         dose2Skipped = false
@@ -1134,7 +1134,8 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         let nextCount = snoozeCount - 1
         let result = recordMedicationMutation(storage.rollbackLatestSnooze(
             toCount: nextCount,
-            sessionDateOverride: sessionDate
+            sessionDateOverride: sessionDate,
+            sessionId: activeSessionId
         ))
         guard result.isCommitted else { return result }
         snoozeCount = nextCount
@@ -1156,7 +1157,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         )
         guard result.isCommitted else { return result }
 
-        if sessionDate == activeSessionDate {
+        if result.receipt?.sessionId == activeSessionId {
             dose1Time = newTime
             validateDoseStateInvariant(reason: "update_active_dose1_time")
             sessionDidChange.send()
@@ -1182,7 +1183,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         )
         guard result.isCommitted else { return result }
 
-        if sessionDate == activeSessionDate {
+        if result.receipt?.sessionId == activeSessionId {
             dose2Time = newTime
             validateDoseStateInvariant(reason: "update_active_dose2_time")
             sessionDidChange.send()
@@ -1204,6 +1205,9 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         takenAt: Date,
         amountMg: Int?
     ) -> MedicationMutationResult {
+        guard let identity = storage.medicationSessionIdentity(nil, sessionDate: sessionDate) else {
+            return failedMedicationMutation(operation: .reconcileDoseState, detail: "Select a specific medication session before reconciliation.", sessionId: nil)
+        }
         let existing = fetchDoseEvents(forSessionDate: sessionDate)
             .first { CanonicalDoseEventType(canonicalizing: $0.eventType) == .dose1 }
         let metadata = doseEventMetadata(
@@ -1215,12 +1219,12 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             eventType: .dose1,
             timestamp: takenAt,
             sessionDate: sessionDate,
-            sessionId: storage.fetchSessionId(forSessionDate: sessionDate),
+            sessionId: identity,
             metadata: metadata
         ))
         guard result.isCommitted else { return result }
 
-        if sessionDate == activeSessionDate {
+        if result.receipt?.sessionId == activeSessionId {
             dose1Time = takenAt
             validateDoseStateInvariant(reason: "reconcile_active_dose1")
             sessionDidChange.send()
@@ -1237,6 +1241,9 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         reason: String? = nil,
         reasonNotes: String? = nil
     ) -> MedicationMutationResult {
+        guard let identity = storage.medicationSessionIdentity(nil, sessionDate: sessionDate) else {
+            return failedMedicationMutation(operation: .reconcileDoseState, detail: "Select a specific medication session before reconciliation.", sessionId: nil)
+        }
         let existing = fetchDoseEvents(forSessionDate: sessionDate)
             .first { CanonicalDoseEventType(canonicalizing: $0.eventType) == .dose2 }
         let metadata = doseEventMetadata(
@@ -1250,12 +1257,12 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             eventType: .dose2,
             timestamp: takenAt,
             sessionDate: sessionDate,
-            sessionId: storage.fetchSessionId(forSessionDate: sessionDate),
+            sessionId: identity,
             metadata: metadata
         ))
         guard result.isCommitted else { return result }
 
-        if sessionDate == activeSessionDate {
+        if result.receipt?.sessionId == activeSessionId {
             dose2Time = takenAt
             dose2Skipped = false
             validateDoseStateInvariant(reason: "reconcile_active_dose2")
@@ -1272,6 +1279,9 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         reason: String? = nil,
         reasonNotes: String? = nil
     ) -> MedicationMutationResult {
+        guard let identity = storage.medicationSessionIdentity(nil, sessionDate: sessionDate) else {
+            return failedMedicationMutation(operation: .reconcileDoseState, detail: "Select a specific medication session before reconciliation.", sessionId: nil)
+        }
         let existingSkip = fetchDoseEvents(forSessionDate: sessionDate)
             .first { CanonicalDoseEventType(canonicalizing: $0.eventType) == .dose2Skipped }
         let metadata = doseEventMetadata(
@@ -1285,12 +1295,12 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             eventType: .dose2Skipped,
             timestamp: timestamp ?? clock(),
             sessionDate: sessionDate,
-            sessionId: storage.fetchSessionId(forSessionDate: sessionDate),
+            sessionId: identity,
             metadata: metadata
         ))
         guard result.isCommitted else { return result }
 
-        if sessionDate == activeSessionDate {
+        if result.receipt?.sessionId == activeSessionId {
             dose2Skipped = true
             dose2Time = nil
             validateDoseStateInvariant(reason: "reconcile_active_dose2_skip")
@@ -1306,7 +1316,10 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         skipReason: String?,
         reasonNotes: String?
     ) -> MedicationMutationResult {
-        let events = fetchDoseEvents(forSessionDate: sessionDate)
+        guard let identity = storage.medicationSessionIdentity(nil, sessionDate: sessionDate) else {
+            return failedMedicationMutation(operation: .reconcileDoseState, detail: "Select a specific medication session before editing its annotations.", sessionId: nil)
+        }
+        let events = storage.fetchDoseEvents(sessionId: identity, sessionDate: sessionDate)
         let dose2Event = events.first {
             CanonicalDoseEventType(canonicalizing: $0.eventType) == .dose2
         }
@@ -1330,7 +1343,8 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         return recordMedicationMutation(storage.updateDose2OutcomeAnnotations(
             sessionDate: sessionDate,
             dose2Metadata: dose2Metadata,
-            skippedMetadata: skippedMetadata
+            skippedMetadata: skippedMetadata,
+            sessionId: identity
         ))
     }
 

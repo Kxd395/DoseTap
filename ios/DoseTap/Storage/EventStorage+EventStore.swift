@@ -170,17 +170,17 @@ extension EventStorage: EventStore {
     
     @discardableResult
     public func clearDose1() -> MedicationMutationResult {
-        clearDoseSequence(sessionDateOverride: loadCurrentSessionState().sessionDate)
+        clearDoseSequence(sessionDateOverride: loadCurrentSessionState().sessionDate, sessionId: loadCurrentSessionState().sessionId)
     }
     
     @discardableResult
     public func clearDose2() -> MedicationMutationResult {
-        clearDose2(sessionDateOverride: loadCurrentSessionState().sessionDate)
+        clearDose2(sessionDateOverride: loadCurrentSessionState().sessionDate, sessionId: loadCurrentSessionState().sessionId)
     }
     
     @discardableResult
     public func clearSkip() -> MedicationMutationResult {
-        clearSkip(sessionDateOverride: loadCurrentSessionState().sessionDate)
+        clearSkip(sessionDateOverride: loadCurrentSessionState().sessionDate, sessionId: loadCurrentSessionState().sessionId)
     }
     
     // MARK: - Pre-Sleep Logs

@@ -299,7 +299,7 @@ This table supports the staging CloudKit path. Its presence does not mean CloudK
 | `id` | `TEXT PRIMARY KEY` |
 | `applied_at` | `TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP` |
 
-This ledger makes one-time data migration state travel with the database. User defaults remain a compatibility signal, not the sole migration record.
+This ledger is the sole authority for one-time data migration state. App preferences never skip a missing database migration. Each operation commits atomically with its ledger entry; failure rolls back and remains eligible for retry. Legacy medication rows in sleep_events are removed only when an exact canonical dose event already represents them; unmatched rows remain available for owner review.
 
 ## Indexes
 

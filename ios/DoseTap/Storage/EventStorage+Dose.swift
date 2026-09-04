@@ -268,6 +268,37 @@ extension EventStorage {
 
     /// Read the original rows while holding the same write transaction that
     /// replaces them. Raw metadata preserves any earlier correction chain.
+    /// A date-only mutation is safe only when it resolves to one stored identity.
+    /// Active commands pass their UUID explicitly; ambiguous history must be selected first.
+    func medicationSessionIdentity(_ explicitId: String?, sessionDate: String) -> String? {
+        if let explicitId { return explicitId }
+        let sql = """
+        SELECT DISTINCT session_id FROM (
+            SELECT session_id FROM dose_events WHERE session_date = ?1
+            UNION SELECT session_id FROM sleep_sessions WHERE session_date = ?1
+            UNION SELECT session_id FROM current_session WHERE session_date = ?1
+        ) WHERE session_id IS NOT NULL AND session_id != ?1
+        """
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { return nil }
+        defer { sqlite3_finalize(statement) }
+        sqlite3_bind_text(statement, 1, sessionDate, -1, SQLITE_TRANSIENT)
+        var identity: String?
+        var status = sqlite3_step(statement)
+        while status == SQLITE_ROW {
+            guard identity == nil else { return nil }
+            identity = sqlite3_column_text(statement, 0).map { String(cString: $0) }
+            status = sqlite3_step(statement)
+        }
+        guard status == SQLITE_DONE else { return nil }
+        return identity ?? sessionDate
+    }
+
+    private func ambiguousMedicationSessionFailure(_ operation: MedicationMutationOperation) -> MedicationMutationResult {
+        .failed(MedicationMutationFailure(operation: operation, code: .precondition, stage: .preflight,
+            detail: "This date does not identify one medication session. Select a specific session and retry."))
+    }
+
     private func correctionMetadata(_ metadata: String?, sessionId: String, sessionDate: String, eventTypes: String) throws -> String {
         let sql = "SELECT id, event_type, timestamp, session_date, session_id, metadata, created_at FROM dose_events WHERE (session_id = ? OR ((session_id IS NULL OR session_id = session_date) AND session_date = ?)) AND event_type IN (\(eventTypes)) ORDER BY timestamp, id"
         var statement: OpaquePointer?
@@ -794,11 +825,12 @@ extension EventStorage {
                 )
             }
             try executeMedicationStatement(
-                "DELETE FROM dose_events WHERE session_date = ? AND event_type = ?",
+                "DELETE FROM dose_events WHERE (session_id = ? OR ((session_id IS NULL OR session_id = session_date) AND session_date = ?)) AND event_type = ?",
                 at: .delete
             ) { statement in
-                sqlite3_bind_text(statement, 1, sessionDate, -1, SQLITE_TRANSIENT)
-                sqlite3_bind_text(statement, 2, CanonicalDoseEventType.dose2Skipped.rawValue, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(statement, 1, resolvedSessionId, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(statement, 2, sessionDate, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(statement, 3, CanonicalDoseEventType.dose2Skipped.rawValue, -1, SQLITE_TRANSIENT)
             }
             try executeMedicationStatement(
                 """
@@ -1032,9 +1064,12 @@ extension EventStorage {
     func updateDose2OutcomeAnnotations(
         sessionDate: String,
         dose2Metadata: String?,
-        skippedMetadata: String?
+        skippedMetadata: String?,
+        sessionId: String? = nil
     ) -> MedicationMutationResult {
-        let resolvedSessionId = fetchSessionId(forSessionDate: sessionDate) ?? sessionDate
+        guard let resolvedSessionId = medicationSessionIdentity(sessionId, sessionDate: sessionDate) else {
+            return ambiguousMedicationSessionFailure(.reconcileDoseState)
+        }
         return performMedicationTransaction(
             operation: .reconcileDoseState,
             sessionId: resolvedSessionId,
@@ -1049,7 +1084,7 @@ extension EventStorage {
                     WHEN 'dose2_skipped' THEN ?
                     ELSE metadata
                 END
-                WHERE session_date = ? AND event_type IN ('dose2','dose2_skipped')
+                WHERE (session_id = ? OR ((session_id IS NULL OR session_id = session_date) AND session_date = ?)) AND event_type IN ('dose2','dose2_skipped')
                 """,
                 at: .update
             ) { statement in
@@ -1063,7 +1098,8 @@ extension EventStorage {
                 } else {
                     sqlite3_bind_null(statement, 2)
                 }
-                sqlite3_bind_text(statement, 3, sessionDate, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(statement, 3, resolvedSessionId, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(statement, 4, sessionDate, -1, SQLITE_TRANSIENT)
             }
         }
     }
@@ -1072,13 +1108,16 @@ extension EventStorage {
     @discardableResult
     public func rollbackLatestSnooze(
         toCount count: Int,
-        sessionDateOverride: String? = nil
+        sessionDateOverride: String? = nil,
+        sessionId: String? = nil
     ) -> MedicationMutationResult {
         let sessionDate = sessionDateOverride ?? currentSessionDate()
-        let sessionId = fetchSessionId(forSessionDate: sessionDate) ?? sessionDate
+        guard let resolvedSessionId = medicationSessionIdentity(sessionId, sessionDate: sessionDate) else {
+            return ambiguousMedicationSessionFailure(.rollbackSnooze)
+        }
         let result = performMedicationTransaction(
             operation: .rollbackSnooze,
-            sessionId: sessionId,
+            sessionId: resolvedSessionId,
             sessionDate: sessionDate,
             timestamp: nil
         ) {
@@ -1087,7 +1126,7 @@ extension EventStorage {
                 DELETE FROM dose_events
                 WHERE id = (
                     SELECT id FROM dose_events
-                    WHERE session_date = ? AND event_type = ?
+                    WHERE (session_id = ? OR ((session_id IS NULL OR session_id = session_date) AND session_date = ?)) AND event_type = ?
                     ORDER BY timestamp DESC, rowid DESC
                     LIMIT 1
                 )
@@ -1095,20 +1134,21 @@ extension EventStorage {
                 at: .delete,
                 requireChanges: true
             ) { statement in
-                sqlite3_bind_text(statement, 1, sessionDate, -1, SQLITE_TRANSIENT)
-                sqlite3_bind_text(statement, 2, CanonicalDoseEventType.snooze.rawValue, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(statement, 1, resolvedSessionId, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(statement, 2, sessionDate, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(statement, 3, CanonicalDoseEventType.snooze.rawValue, -1, SQLITE_TRANSIENT)
             }
             try executeMedicationStatement(
                 """
                 UPDATE current_session
                 SET snooze_count = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE id = 1 AND session_date = ?
+                WHERE id = 1 AND session_id = ?
                 """,
                 at: .update,
                 requireChanges: true
             ) { statement in
                 sqlite3_bind_int(statement, 1, Int32(max(0, count)))
-                sqlite3_bind_text(statement, 2, sessionDate, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(statement, 2, resolvedSessionId, -1, SQLITE_TRANSIENT)
             }
         }
         if result.isCommitted {
@@ -1122,28 +1162,32 @@ extension EventStorage {
     /// Clear dose 1 from current session (for undo)
     @discardableResult
     public func clearDose1(
-        sessionDateOverride: String? = nil
+        sessionDateOverride: String? = nil,
+        sessionId: String? = nil
     ) -> MedicationMutationResult {
         let sessionDate = sessionDateOverride ?? currentSessionDate()
-        let sessionId = fetchSessionId(forSessionDate: sessionDate) ?? sessionDate
+        guard let resolvedSessionId = medicationSessionIdentity(sessionId, sessionDate: sessionDate) else {
+            return ambiguousMedicationSessionFailure(.clearDoseSequence)
+        }
         let result = performMedicationTransaction(
             operation: .clearDoseSequence,
-            sessionId: sessionId,
+            sessionId: resolvedSessionId,
             sessionDate: sessionDate,
             timestamp: nil
         ) {
             try executeMedicationStatement(
-                "DELETE FROM dose_events WHERE session_date = ? AND event_type = ?",
+                "DELETE FROM dose_events WHERE (session_id = ? OR ((session_id IS NULL OR session_id = session_date) AND session_date = ?)) AND event_type = ?",
                 at: .delete
             ) { statement in
-                sqlite3_bind_text(statement, 1, sessionDate, -1, SQLITE_TRANSIENT)
-                sqlite3_bind_text(statement, 2, CanonicalDoseEventType.dose1.rawValue, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(statement, 1, resolvedSessionId, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(statement, 2, sessionDate, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(statement, 3, CanonicalDoseEventType.dose1.rawValue, -1, SQLITE_TRANSIENT)
             }
             try executeMedicationStatement(
-                "UPDATE current_session SET dose1_time = NULL, updated_at = CURRENT_TIMESTAMP WHERE session_date = ?",
+                "UPDATE current_session SET dose1_time = NULL, updated_at = CURRENT_TIMESTAMP WHERE session_id = ?",
                 at: .update
             ) { statement in
-                sqlite3_bind_text(statement, 1, sessionDate, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(statement, 1, resolvedSessionId, -1, SQLITE_TRANSIENT)
             }
         }
         if result.isCommitted {
@@ -1155,28 +1199,32 @@ extension EventStorage {
     /// Clear dose 2 from current session (for undo)
     @discardableResult
     public func clearDose2(
-        sessionDateOverride: String? = nil
+        sessionDateOverride: String? = nil,
+        sessionId: String? = nil
     ) -> MedicationMutationResult {
         let sessionDate = sessionDateOverride ?? currentSessionDate()
-        let sessionId = fetchSessionId(forSessionDate: sessionDate) ?? sessionDate
+        guard let resolvedSessionId = medicationSessionIdentity(sessionId, sessionDate: sessionDate) else {
+            return ambiguousMedicationSessionFailure(.clearDose2)
+        }
         let result = performMedicationTransaction(
             operation: .clearDose2,
-            sessionId: sessionId,
+            sessionId: resolvedSessionId,
             sessionDate: sessionDate,
             timestamp: nil
         ) {
             try executeMedicationStatement(
-                "DELETE FROM dose_events WHERE session_date = ? AND event_type = ?",
+                "DELETE FROM dose_events WHERE (session_id = ? OR ((session_id IS NULL OR session_id = session_date) AND session_date = ?)) AND event_type = ?",
                 at: .delete
             ) { statement in
-                sqlite3_bind_text(statement, 1, sessionDate, -1, SQLITE_TRANSIENT)
-                sqlite3_bind_text(statement, 2, CanonicalDoseEventType.dose2.rawValue, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(statement, 1, resolvedSessionId, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(statement, 2, sessionDate, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(statement, 3, CanonicalDoseEventType.dose2.rawValue, -1, SQLITE_TRANSIENT)
             }
             try executeMedicationStatement(
-                "UPDATE current_session SET dose2_time = NULL, updated_at = CURRENT_TIMESTAMP WHERE session_date = ?",
+                "UPDATE current_session SET dose2_time = NULL, updated_at = CURRENT_TIMESTAMP WHERE session_id = ?",
                 at: .update
             ) { statement in
-                sqlite3_bind_text(statement, 1, sessionDate, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(statement, 1, resolvedSessionId, -1, SQLITE_TRANSIENT)
             }
         }
         if result.isCommitted {
@@ -1188,28 +1236,32 @@ extension EventStorage {
     /// Clear skip status from current session (for undo)
     @discardableResult
     public func clearSkip(
-        sessionDateOverride: String? = nil
+        sessionDateOverride: String? = nil,
+        sessionId: String? = nil
     ) -> MedicationMutationResult {
         let sessionDate = sessionDateOverride ?? currentSessionDate()
-        let sessionId = fetchSessionId(forSessionDate: sessionDate) ?? sessionDate
+        guard let resolvedSessionId = medicationSessionIdentity(sessionId, sessionDate: sessionDate) else {
+            return ambiguousMedicationSessionFailure(.clearSkip)
+        }
         let result = performMedicationTransaction(
             operation: .clearSkip,
-            sessionId: sessionId,
+            sessionId: resolvedSessionId,
             sessionDate: sessionDate,
             timestamp: nil
         ) {
             try executeMedicationStatement(
-                "DELETE FROM dose_events WHERE session_date = ? AND event_type = ?",
+                "DELETE FROM dose_events WHERE (session_id = ? OR ((session_id IS NULL OR session_id = session_date) AND session_date = ?)) AND event_type = ?",
                 at: .delete
             ) { statement in
-                sqlite3_bind_text(statement, 1, sessionDate, -1, SQLITE_TRANSIENT)
-                sqlite3_bind_text(statement, 2, CanonicalDoseEventType.dose2Skipped.rawValue, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(statement, 1, resolvedSessionId, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(statement, 2, sessionDate, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(statement, 3, CanonicalDoseEventType.dose2Skipped.rawValue, -1, SQLITE_TRANSIENT)
             }
             try executeMedicationStatement(
-                "UPDATE current_session SET dose2_skipped = 0, updated_at = CURRENT_TIMESTAMP WHERE session_date = ?",
+                "UPDATE current_session SET dose2_skipped = 0, updated_at = CURRENT_TIMESTAMP WHERE session_id = ?",
                 at: .update
             ) { statement in
-                sqlite3_bind_text(statement, 1, sessionDate, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(statement, 1, resolvedSessionId, -1, SQLITE_TRANSIENT)
             }
         }
         if result.isCommitted {
@@ -1222,32 +1274,36 @@ extension EventStorage {
     /// Dose 2, extra dose, skip, and snooze state are dependent on Dose 1 and cannot remain after Dose 1 undo.
     @discardableResult
     public func clearDoseSequence(
-        sessionDateOverride: String? = nil
+        sessionDateOverride: String? = nil,
+        sessionId: String? = nil
     ) -> MedicationMutationResult {
         let sessionDate = sessionDateOverride ?? currentSessionDate()
-        let sessionId = fetchSessionId(forSessionDate: sessionDate) ?? sessionDate
+        guard let resolvedSessionId = medicationSessionIdentity(sessionId, sessionDate: sessionDate) else {
+            return ambiguousMedicationSessionFailure(.clearDoseSequence)
+        }
         let result = performMedicationTransaction(
             operation: .clearDoseSequence,
-            sessionId: sessionId,
+            sessionId: resolvedSessionId,
             sessionDate: sessionDate,
             timestamp: nil
         ) {
             try executeMedicationStatement(
-                "DELETE FROM dose_events WHERE session_date = ? AND event_type IN ('dose1','dose2','extra_dose','dose2_skipped','snooze')",
+                "DELETE FROM dose_events WHERE (session_id = ? OR ((session_id IS NULL OR session_id = session_date) AND session_date = ?)) AND event_type IN ('dose1','dose2','extra_dose','dose2_skipped','snooze')",
                 at: .delete
             ) { statement in
-                sqlite3_bind_text(statement, 1, sessionDate, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(statement, 1, resolvedSessionId, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(statement, 2, sessionDate, -1, SQLITE_TRANSIENT)
             }
             try executeMedicationStatement(
                 """
                 UPDATE current_session
                 SET dose1_time = NULL, dose2_time = NULL, snooze_count = 0,
                     dose2_skipped = 0, updated_at = CURRENT_TIMESTAMP
-                WHERE session_date = ?
+                WHERE session_id = ?
                 """,
                 at: .update
             ) { statement in
-                sqlite3_bind_text(statement, 1, sessionDate, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(statement, 1, resolvedSessionId, -1, SQLITE_TRANSIENT)
             }
         }
         if result.isCommitted {
@@ -1262,31 +1318,35 @@ extension EventStorage {
     @discardableResult
     public func updateDose1Time(
         newTime: Date,
-        sessionDate: String
+        sessionDate: String,
+        sessionId: String? = nil
     ) -> MedicationMutationResult {
         let timestampStr = isoFormatter.string(from: newTime)
-        let sessionId = fetchSessionId(forSessionDate: sessionDate) ?? sessionDate
+        guard let resolvedSessionId = medicationSessionIdentity(sessionId, sessionDate: sessionDate) else {
+            return ambiguousMedicationSessionFailure(.updateDose1Time)
+        }
         let result = performMedicationTransaction(
             operation: .updateDose1Time,
-            sessionId: sessionId,
+            sessionId: resolvedSessionId,
             sessionDate: sessionDate,
             timestamp: newTime
         ) {
             try executeMedicationStatement(
-                "UPDATE dose_events SET timestamp = ? WHERE session_date = ? AND event_type = ?",
+                "UPDATE dose_events SET timestamp = ? WHERE (session_id = ? OR ((session_id IS NULL OR session_id = session_date) AND session_date = ?)) AND event_type = ?",
                 at: .update,
                 requireChanges: true
             ) { statement in
                 sqlite3_bind_text(statement, 1, timestampStr, -1, SQLITE_TRANSIENT)
-                sqlite3_bind_text(statement, 2, sessionDate, -1, SQLITE_TRANSIENT)
-                sqlite3_bind_text(statement, 3, CanonicalDoseEventType.dose1.rawValue, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(statement, 2, resolvedSessionId, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(statement, 3, sessionDate, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(statement, 4, CanonicalDoseEventType.dose1.rawValue, -1, SQLITE_TRANSIENT)
             }
             try executeMedicationStatement(
-                "UPDATE current_session SET dose1_time = ?, updated_at = CURRENT_TIMESTAMP WHERE session_date = ?",
+                "UPDATE current_session SET dose1_time = ?, updated_at = CURRENT_TIMESTAMP WHERE session_id = ?",
                 at: .update
             ) { statement in
                 sqlite3_bind_text(statement, 1, timestampStr, -1, SQLITE_TRANSIENT)
-                sqlite3_bind_text(statement, 2, sessionDate, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(statement, 2, resolvedSessionId, -1, SQLITE_TRANSIENT)
             }
         }
         if result.isCommitted {
@@ -1299,31 +1359,35 @@ extension EventStorage {
     @discardableResult
     public func updateDose2Time(
         newTime: Date,
-        sessionDate: String
+        sessionDate: String,
+        sessionId: String? = nil
     ) -> MedicationMutationResult {
         let timestampStr = isoFormatter.string(from: newTime)
-        let sessionId = fetchSessionId(forSessionDate: sessionDate) ?? sessionDate
+        guard let resolvedSessionId = medicationSessionIdentity(sessionId, sessionDate: sessionDate) else {
+            return ambiguousMedicationSessionFailure(.updateDose2Time)
+        }
         let result = performMedicationTransaction(
             operation: .updateDose2Time,
-            sessionId: sessionId,
+            sessionId: resolvedSessionId,
             sessionDate: sessionDate,
             timestamp: newTime
         ) {
             try executeMedicationStatement(
-                "UPDATE dose_events SET timestamp = ? WHERE session_date = ? AND event_type = ?",
+                "UPDATE dose_events SET timestamp = ? WHERE (session_id = ? OR ((session_id IS NULL OR session_id = session_date) AND session_date = ?)) AND event_type = ?",
                 at: .update,
                 requireChanges: true
             ) { statement in
                 sqlite3_bind_text(statement, 1, timestampStr, -1, SQLITE_TRANSIENT)
-                sqlite3_bind_text(statement, 2, sessionDate, -1, SQLITE_TRANSIENT)
-                sqlite3_bind_text(statement, 3, CanonicalDoseEventType.dose2.rawValue, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(statement, 2, resolvedSessionId, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(statement, 3, sessionDate, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(statement, 4, CanonicalDoseEventType.dose2.rawValue, -1, SQLITE_TRANSIENT)
             }
             try executeMedicationStatement(
-                "UPDATE current_session SET dose2_time = ?, updated_at = CURRENT_TIMESTAMP WHERE session_date = ?",
+                "UPDATE current_session SET dose2_time = ?, updated_at = CURRENT_TIMESTAMP WHERE session_id = ?",
                 at: .update
             ) { statement in
                 sqlite3_bind_text(statement, 1, timestampStr, -1, SQLITE_TRANSIENT)
-                sqlite3_bind_text(statement, 2, sessionDate, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(statement, 2, resolvedSessionId, -1, SQLITE_TRANSIENT)
             }
         }
         if result.isCommitted {
@@ -1464,29 +1528,6 @@ extension EventStorage {
             return sqlite3_column_int(stmt, 0) > 0
         }
         return false
-    }
-
-    private func deleteDoseEvents(ofType eventType: CanonicalDoseEventType, sessionDate: String) {
-        let sql = "DELETE FROM dose_events WHERE session_date = ? AND event_type = ?"
-        var stmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
-            sqlite3_bind_text(stmt, 2, eventType.rawValue, -1, SQLITE_TRANSIENT)
-            sqlite3_step(stmt)
-        }
-        sqlite3_finalize(stmt)
-    }
-
-    private func updateDoseEventTime(ofType eventType: CanonicalDoseEventType, timestampStr: String, sessionDate: String) {
-        let sql = "UPDATE dose_events SET timestamp = ? WHERE session_date = ? AND event_type = ?"
-        var stmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, timestampStr, -1, SQLITE_TRANSIENT)
-            sqlite3_bind_text(stmt, 2, sessionDate, -1, SQLITE_TRANSIENT)
-            sqlite3_bind_text(stmt, 3, eventType.rawValue, -1, SQLITE_TRANSIENT)
-            sqlite3_step(stmt)
-        }
-        sqlite3_finalize(stmt)
     }
 
     public struct DoseStateInvariantViolation: Equatable {

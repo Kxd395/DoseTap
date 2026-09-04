@@ -661,6 +661,113 @@ final class MedicationMutationTransactionTests: XCTestCase {
         XCTAssertTrue(storage.loadCurrentSessionState().dose2Skipped)
     }
 
+    func testSkipReplacementDoesNotEraseAnotherUUIDOnSameDate() throws {
+        let storage = EventStorage.inMemory()
+        try seedDose1(in: storage)
+        storage.insertDoseEvent(eventType: "dose1", timestamp: oldDose1, sessionDate: sessionDate, sessionId: "other-session")
+        storage.insertDoseEvent(eventType: "dose2_skipped", timestamp: oldDose1.addingTimeInterval(200), sessionDate: sessionDate, sessionId: "other-session", metadata: "{\"reason\":\"keep\"}")
+        let before = storage.fetchDoseEvents(sessionId: "other-session", sessionDate: sessionDate)
+        XCTAssertTrue(storage.saveDoseSkipped(sessionId: sessionId, sessionDateOverride: sessionDate).isCommitted)
+        let after = storage.fetchDoseEvents(sessionId: "other-session", sessionDate: sessionDate)
+        XCTAssertEqual(after.map(\.id), before.map(\.id))
+        XCTAssertEqual(after.map(\.metadata), before.map(\.metadata))
+    }
+
+    func testSecondaryMedicationWritesPreserveOtherUUIDAndRejectAmbiguousDate() throws {
+        let operations: [(String, (EventStorage) -> MedicationMutationResult)] = [
+            ("clear dose1", { $0.clearDose1(sessionDateOverride: self.sessionDate, sessionId: self.sessionId) }),
+            ("clear dose2", { $0.clearDose2(sessionDateOverride: self.sessionDate, sessionId: self.sessionId) }),
+            ("clear skip", { $0.clearSkip(sessionDateOverride: self.sessionDate, sessionId: self.sessionId) }),
+            ("clear sequence", { $0.clearDoseSequence(sessionDateOverride: self.sessionDate, sessionId: self.sessionId) }),
+            ("undo snooze", { $0.rollbackLatestSnooze(toCount: 0, sessionDateOverride: self.sessionDate, sessionId: self.sessionId) }),
+            ("edit dose1", { $0.updateDose1Time(newTime: self.oldDose1.addingTimeInterval(30), sessionDate: self.sessionDate, sessionId: self.sessionId) }),
+            ("edit dose2", { $0.updateDose2Time(newTime: self.oldDose1.addingTimeInterval(10000), sessionDate: self.sessionDate, sessionId: self.sessionId) }),
+            ("annotations", { $0.updateDose2OutcomeAnnotations(sessionDate: self.sessionDate, dose2Metadata: "{}", skippedMetadata: "{}", sessionId: self.sessionId) })
+        ]
+        for (name, operation) in operations {
+            let storage = EventStorage.inMemory()
+            try seedDose1(in: storage)
+            for identity in [sessionId, "other-session"] {
+                if identity != sessionId { storage.insertDoseEvent(eventType: "dose1", timestamp: oldDose1, sessionDate: sessionDate, sessionId: identity) }
+                for (index, type) in ["dose2", "dose2_skipped", "snooze"].enumerated() {
+                    storage.insertDoseEvent(eventType: type, timestamp: oldDose1.addingTimeInterval(Double(index + 1) * 10000), sessionDate: sessionDate, sessionId: identity, metadata: "{\"reason\":\"original\"}")
+                }
+            }
+            let before = storage.fetchDoseEvents(sessionId: "other-session", sessionDate: sessionDate)
+            XCTAssertFalse(storage.updateDose2Time(newTime: oldDose1, sessionDate: sessionDate).isCommitted, "Ambiguous date must not choose an arbitrary UUID")
+            XCTAssertTrue(operation(storage).isCommitted, name)
+            let after = storage.fetchDoseEvents(sessionId: "other-session", sessionDate: sessionDate)
+            XCTAssertEqual(after.map(\.id), before.map(\.id), name)
+            XCTAssertEqual(after.map(\.timestamp), before.map(\.timestamp), name)
+            XCTAssertEqual(after.map(\.metadata), before.map(\.metadata), name)
+        }
+    }
+
+    func testHistoricalTimeEditDoesNotChangeActiveSnapshotOnSameDate() throws {
+        let storage = EventStorage.inMemory()
+        try seedDose1(in: storage)
+        storage.insertDoseEvent(eventType: "dose1", timestamp: oldDose1, sessionDate: sessionDate, sessionId: "historical")
+        XCTAssertTrue(storage.updateDose1Time(newTime: oldDose1.addingTimeInterval(60), sessionDate: sessionDate, sessionId: "historical").isCommitted)
+        XCTAssertEqual(storage.loadCurrentSessionState().dose1Time, oldDose1)
+        XCTAssertEqual(storage.fetchDoseEvents(sessionId: "historical", sessionDate: sessionDate).first?.timestamp, oldDose1.addingTimeInterval(60))
+    }
+
+    func testRestoredDatabaseRunsMigrationsDespitePreferencesFromAnotherDatabase() throws {
+        let path = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".sqlite").path
+        defer { for suffix in ["", "-wal", "-shm"] { try? FileManager.default.removeItem(atPath: path + suffix) } }
+        let flags = ["event_types_normalized_v1", "brief_wake_alias_migration_v1", "session_id_uuid_migration_v1", "event_deduplication_v1"]
+        let previous = flags.map { UserDefaults.standard.object(forKey: $0) }
+        defer { for (key, value) in zip(flags, previous) { UserDefaults.standard.set(value, forKey: key) } }
+        do {
+            let storage = EventStorage(dbPath: path)
+            XCTAssertEqual(sqlite3_exec(storage.db, "DELETE FROM schema_migrations", nil, nil, nil), SQLITE_OK)
+            storage.insertSleepEvent(id: "legacy-wake", eventType: "brief_wake", timestamp: oldDose1, sessionDate: sessionDate, sessionId: sessionDate)
+            storage.insertSleepEvent(id: "unmatched-medication", eventType: "Dose 2", timestamp: oldDose1.addingTimeInterval(9000), sessionDate: sessionDate, sessionId: sessionDate)
+            storage.insertSleepEvent(id: "duplicate-dose1", eventType: "Dose 1", timestamp: oldDose1, sessionDate: sessionDate, sessionId: sessionDate)
+            storage.insertDoseEvent(eventType: "dose1", timestamp: oldDose1, sessionDate: sessionDate, sessionId: sessionDate)
+        }
+        for flag in flags { UserDefaults.standard.set(true, forKey: flag) }
+        let restored = EventStorage(dbPath: path)
+        let doses = restored.fetchDoseEvents(sessionId: nil, sessionDate: sessionDate)
+        XCTAssertNotNil(UUID(uuidString: try XCTUnwrap(doses.first?.sessionId)))
+        var statement: OpaquePointer?
+        XCTAssertEqual(sqlite3_prepare_v2(restored.db, "SELECT event_type FROM sleep_events WHERE id = 'legacy-wake'", -1, &statement, nil), SQLITE_OK)
+        defer { sqlite3_finalize(statement) }
+        XCTAssertEqual(sqlite3_step(statement), SQLITE_ROW)
+        XCTAssertEqual(String(cString: sqlite3_column_text(statement, 0)), "wake_temp")
+        var medicationStatement: OpaquePointer?
+        XCTAssertEqual(sqlite3_prepare_v2(restored.db, "SELECT id FROM sleep_events WHERE id IN ('unmatched-medication','duplicate-dose1')", -1, &medicationStatement, nil), SQLITE_OK)
+        defer { sqlite3_finalize(medicationStatement) }
+        XCTAssertEqual(sqlite3_step(medicationStatement), SQLITE_ROW)
+        XCTAssertEqual(String(cString: sqlite3_column_text(medicationStatement, 0)), "unmatched-medication", "An unmatched legacy medication row must remain available for owner review")
+        XCTAssertEqual(sqlite3_step(medicationStatement), SQLITE_DONE)
+    }
+
+    func testFailedMigrationDoesNotAdvanceLedgerAndRetriesAfterReopen() throws {
+        let path = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".sqlite").path
+        defer { for suffix in ["", "-wal", "-shm"] { try? FileManager.default.removeItem(atPath: path + suffix) } }
+        do {
+            let storage = EventStorage(dbPath: path)
+            storage.insertSleepEvent(id: "retry-wake", eventType: "brief_wake", timestamp: oldDose1, sessionDate: sessionDate, sessionId: sessionId)
+            XCTAssertEqual(sqlite3_exec(storage.db, "DELETE FROM schema_migrations; CREATE TRIGGER reject_migration BEFORE UPDATE ON sleep_events BEGIN SELECT RAISE(ABORT, 'injected migration failure'); END", nil, nil, nil), SQLITE_OK)
+        }
+        do {
+            let failed = EventStorage(dbPath: path)
+            var statement: OpaquePointer?
+            XCTAssertEqual(sqlite3_prepare_v2(failed.db, "SELECT COUNT(*) FROM schema_migrations WHERE id IN ('event_types_normalized_v1','brief_wake_alias_migration_v1')", -1, &statement, nil), SQLITE_OK)
+            XCTAssertEqual(sqlite3_step(statement), SQLITE_ROW)
+            XCTAssertEqual(sqlite3_column_int(statement, 0), 0)
+            sqlite3_finalize(statement)
+            XCTAssertEqual(sqlite3_exec(failed.db, "DROP TRIGGER reject_migration", nil, nil, nil), SQLITE_OK)
+        }
+        let retried = EventStorage(dbPath: path)
+        var statement: OpaquePointer?
+        XCTAssertEqual(sqlite3_prepare_v2(retried.db, "SELECT COUNT(*) FROM schema_migrations WHERE id IN ('event_types_normalized_v1','brief_wake_alias_migration_v1')", -1, &statement, nil), SQLITE_OK)
+        defer { sqlite3_finalize(statement) }
+        XCTAssertEqual(sqlite3_step(statement), SQLITE_ROW)
+        XCTAssertEqual(sqlite3_column_int(statement, 0), 2)
+    }
+
     func testWorkScheduleSaveFailurePreservesPreviousPlan() throws {
         let storage = EventStorage.inMemory()
         let first = WorkWakeSchedule(timeZoneIdentifier: "America/New_York", workingWeekdays: [2, 4, 6], wakeMinutes: 420)

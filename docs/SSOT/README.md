@@ -31,7 +31,7 @@ Notes:
 
 Identity and lifecycle are separate from calendar day grouping.
 
-- Identity: `session_id` (UUID string).
+- Identity: `session_id` (UUID string). Medication mutations, including undo, annotations and time edits, use that identity. Date-only mutations reject multiple matching identities; legacy NULL/date identities remain supported.
 - Grouping key: `session_date` (YYYY-MM-DD) computed by `sessionKey(for:timeZone:rolloverHour:)` with default rollover hour 18 (6 PM). See `ios/Core/SessionKey.swift`.
 - Persistence: `sleep_sessions` table and `current_session` table (see `ios/DoseTap/Storage/EventStorage.swift`).
 - Start: first event that requires a session (dose, snooze, sleep event, pre-sleep log linking) via `SessionRepository.ensureActiveSession(for:reason:)`.

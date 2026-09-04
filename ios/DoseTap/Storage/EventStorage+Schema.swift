@@ -446,7 +446,7 @@ extension EventStorage {
     // MARK: - Event Type Normalization Migration
 
     private func migrateEventTypesIfNeeded() {
-        runSchemaMigration(id: "event_types_normalized_v1", userDefaultsKey: "event_types_normalized_v1") {
+        runSchemaMigration(id: "event_types_normalized_v1") {
             let updates = [
                 // Lights out
                 "UPDATE sleep_events SET event_type = 'lights_out' WHERE lower(event_type) IN ('lights out', 'lightsout', 'lights_out', 'lightout')",
@@ -474,29 +474,34 @@ extension EventStorage {
                 'dose 2 (late)','dose2 (late)','dose2_late',
                 'dose 2 skipped','dose2 skipped','dose2_skipped','dose2skipped',
                 'extra dose','extra_dose'
+            ) AND EXISTS (
+                SELECT 1 FROM dose_events AS canonical
+                WHERE canonical.timestamp = sleep_events.timestamp
+                  AND (canonical.session_id = sleep_events.session_id
+                    OR ((canonical.session_id IS NULL OR canonical.session_id = canonical.session_date)
+                      AND (sleep_events.session_id IS NULL OR sleep_events.session_id = sleep_events.session_date)
+                      AND canonical.session_date = sleep_events.session_date))
+                  AND canonical.event_type = CASE
+                    WHEN lower(sleep_events.event_type) IN ('dose 1','dose1','dose_1','dose1_taken') THEN 'dose1'
+                    WHEN lower(sleep_events.event_type) IN ('dose 2 skipped','dose2 skipped','dose2_skipped','dose2skipped') THEN 'dose2_skipped'
+                    WHEN lower(sleep_events.event_type) IN ('extra dose','extra_dose') THEN 'extra_dose'
+                    ELSE 'dose2'
+                  END
             )
             """
 
-            sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
             for sql in updates {
-                sqlite3_exec(db, sql, nil, nil, nil)
+                try executeSchemaMigration(sql)
             }
-            sqlite3_exec(db, deleteDoseEvents, nil, nil, nil)
-            sqlite3_exec(db, "COMMIT", nil, nil, nil)
+            try executeSchemaMigration(deleteDoseEvents)
 
-            storageLog.info("EventStorage: Normalized sleep_events types and purged dose rows")
+            storageLog.info("EventStorage: Normalized sleep_events types and removed confirmed duplicate dose rows")
         }
     }
 
     private func migrateBriefWakeAliasIfNeeded() {
-        runSchemaMigration(id: "brief_wake_alias_migration_v1", userDefaultsKey: "brief_wake_alias_migration_v1") {
-            sqlite3_exec(
-                db,
-                "UPDATE sleep_events SET event_type = 'wake_temp' WHERE lower(event_type) = 'brief_wake'",
-                nil,
-                nil,
-                nil
-            )
+        runSchemaMigration(id: "brief_wake_alias_migration_v1") {
+            try executeSchemaMigration("UPDATE sleep_events SET event_type = 'wake_temp' WHERE lower(event_type) = 'brief_wake'")
 
             storageLog.info("EventStorage: Migrated brief_wake aliases to wake_temp")
         }
@@ -505,30 +510,28 @@ extension EventStorage {
     // MARK: - Session ID UUID Migration
 
     private func migrateSessionIdsToUUIDIfNeeded() {
-        runSchemaMigration(id: "session_id_uuid_migration_v1", userDefaultsKey: "session_id_uuid_migration_v1") {
-            let legacyIds = fetchLegacySessionIds()
+        runSchemaMigration(id: "session_id_uuid_migration_v1") {
+            let legacyIds = try fetchLegacySessionIds()
             guard !legacyIds.isEmpty else { return }
 
-            sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
             for legacyId in legacyIds {
                 let newId = deterministicSessionUUID(for: legacyId)
                 if legacyId == newId { continue }
-                updateSessionId(in: "dose_events", oldId: legacyId, newId: newId)
-                updateSessionId(in: "sleep_events", oldId: legacyId, newId: newId)
-                updateSessionId(in: "sleep_sessions", oldId: legacyId, newId: newId)
-                updateSessionId(in: "current_session", oldId: legacyId, newId: newId)
-                updateSessionId(in: "morning_checkins", oldId: legacyId, newId: newId)
-                updateSessionId(in: "pre_sleep_logs", oldId: legacyId, newId: newId)
-                updateSessionId(in: "medication_events", oldId: legacyId, newId: newId)
-                updateSessionId(in: "symptom_events", oldId: legacyId, newId: newId)
+                try updateSessionId(in: "dose_events", oldId: legacyId, newId: newId)
+                try updateSessionId(in: "sleep_events", oldId: legacyId, newId: newId)
+                try updateSessionId(in: "sleep_sessions", oldId: legacyId, newId: newId)
+                try updateSessionId(in: "current_session", oldId: legacyId, newId: newId)
+                try updateSessionId(in: "morning_checkins", oldId: legacyId, newId: newId)
+                try updateSessionId(in: "pre_sleep_logs", oldId: legacyId, newId: newId)
+                try updateSessionId(in: "medication_events", oldId: legacyId, newId: newId)
+                try updateSessionId(in: "symptom_events", oldId: legacyId, newId: newId)
             }
-            sqlite3_exec(db, "COMMIT", nil, nil, nil)
 
             storageLog.info("EventStorage: Migrated \(legacyIds.count) legacy session IDs to UUIDs")
         }
     }
 
-    private func fetchLegacySessionIds() -> [String] {
+    private func fetchLegacySessionIds() throws -> [String] {
         let sql = """
         SELECT DISTINCT session_id FROM dose_events WHERE session_id IS NOT NULL
         UNION SELECT DISTINCT session_id FROM sleep_events WHERE session_id IS NOT NULL
@@ -540,17 +543,20 @@ extension EventStorage {
         UNION SELECT DISTINCT session_id FROM symptom_events WHERE session_id IS NOT NULL
         """
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { throw SchemaMigrationFailure() }
         defer { sqlite3_finalize(stmt) }
 
         var results: [String] = []
-        while sqlite3_step(stmt) == SQLITE_ROW {
+        var status = sqlite3_step(stmt)
+        while status == SQLITE_ROW {
             guard let valuePtr = sqlite3_column_text(stmt, 0) else { continue }
             let value = String(cString: valuePtr)
             if isLegacySessionKey(value) {
                 results.append(value)
             }
+            status = sqlite3_step(stmt)
         }
+        guard status == SQLITE_DONE else { throw SchemaMigrationFailure() }
         return results
     }
 
@@ -573,21 +579,21 @@ extension EventStorage {
         return "\(hex[0])\(hex[1])\(hex[2])\(hex[3])-\(hex[4])\(hex[5])-\(hex[6])\(hex[7])-\(hex[8])\(hex[9])-\(hex[10])\(hex[11])\(hex[12])\(hex[13])\(hex[14])\(hex[15])"
     }
 
-    private func updateSessionId(in table: String, oldId: String, newId: String) {
+    private func updateSessionId(in table: String, oldId: String, newId: String) throws {
         let sql = "UPDATE \(table) SET session_id = ? WHERE session_id = ?"
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { throw SchemaMigrationFailure() }
         defer { sqlite3_finalize(stmt) }
 
         sqlite3_bind_text(stmt, 1, newId, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 2, oldId, -1, SQLITE_TRANSIENT)
-        sqlite3_step(stmt)
+        guard sqlite3_step(stmt) == SQLITE_DONE else { throw SchemaMigrationFailure() }
     }
 
     // MARK: - Deduplication
 
     private func deduplicateLegacyEntriesIfNeeded() {
-        runSchemaMigration(id: "event_deduplication_v1", userDefaultsKey: "event_deduplication_v1") {
+        runSchemaMigration(id: "event_deduplication_v1") {
             let statements = [
                 """
                 DELETE FROM dose_events
@@ -607,11 +613,9 @@ extension EventStorage {
                 """
             ]
 
-            sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
             for sql in statements {
-                sqlite3_exec(db, sql, nil, nil, nil)
+                try executeSchemaMigration(sql)
             }
-            sqlite3_exec(db, "COMMIT", nil, nil, nil)
 
             storageLog.info("EventStorage: Deduplicated legacy dose/sleep events")
         }
@@ -619,17 +623,25 @@ extension EventStorage {
 
     // MARK: - Migration Ledger
 
-    private func runSchemaMigration(id: String, userDefaultsKey: String, _ operation: () -> Void) {
+    private struct SchemaMigrationFailure: Error {}
+
+    private func executeSchemaMigration(_ sql: String) throws {
+        guard sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK else { throw SchemaMigrationFailure() }
+    }
+
+    private func runSchemaMigration(id: String, _ operation: () throws -> Void) {
         if hasAppliedSchemaMigration(id) { return }
-
-        if UserDefaults.standard.bool(forKey: userDefaultsKey) {
-            markSchemaMigrationApplied(id)
-            return
+        // Process preferences can belong to a different/restored database.
+        // The operation and its database-scoped ledger row commit together.
+        do {
+            try executeSchemaMigration("BEGIN IMMEDIATE TRANSACTION")
+            try operation()
+            try markSchemaMigrationApplied(id)
+            try executeSchemaMigration("COMMIT")
+        } catch {
+            sqlite3_exec(db, "ROLLBACK", nil, nil, nil)
+            storageLog.error("Schema migration failed and remains unapplied: \(id, privacy: .public)")
         }
-
-        operation()
-        markSchemaMigrationApplied(id)
-        UserDefaults.standard.set(true, forKey: userDefaultsKey)
     }
 
     private func hasAppliedSchemaMigration(_ id: String) -> Bool {
@@ -642,15 +654,15 @@ extension EventStorage {
         return sqlite3_step(stmt) == SQLITE_ROW
     }
 
-    private func markSchemaMigrationApplied(_ id: String) {
+    private func markSchemaMigrationApplied(_ id: String) throws {
         let sql = "INSERT OR IGNORE INTO schema_migrations (id, applied_at) VALUES (?, ?)"
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { throw SchemaMigrationFailure() }
         defer { sqlite3_finalize(stmt) }
 
         sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 2, isoFormatter.string(from: nowProvider()), -1, SQLITE_TRANSIENT)
-        sqlite3_step(stmt)
+        guard sqlite3_step(stmt) == SQLITE_DONE else { throw SchemaMigrationFailure() }
     }
 
     private func applyCurrentSchemaUserVersion() {
