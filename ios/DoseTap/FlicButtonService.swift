@@ -284,6 +284,24 @@ final class FlicButtonService: ObservableObject {
                 message: message,
                 canUndo: canUndoOnSuccess
             )
+        case .attentionRequired(let message):
+            provideHapticFeedback(.warning)
+            return FlicActionResult(
+                gesture: gesture,
+                action: action,
+                success: true,
+                message: message,
+                canUndo: canUndoOnSuccess
+            )
+        case .retryRequired(let message):
+            provideHapticFeedback(.error)
+            return FlicActionResult(
+                gesture: gesture,
+                action: action,
+                success: false,
+                message: message,
+                canUndo: false
+            )
         case .needsConfirm(let type):
             provideHapticFeedback(.error)
             await notifyDoseConfirmationRequired(confirmationMessage(type))
@@ -346,10 +364,12 @@ final class FlicButtonService: ObservableObject {
 
     private func confirmationMessage(_ type: DoseActionCoordinator.ConfirmationType) -> String {
         switch type {
+        case .workWake:
+            return "Work/wake warning - review in app"
         case .earlyDose(let minutes):
             return "Window opens in \(minutes)m - confirm in app"
-        case .lateDose:
-            return "Window closed - confirm in app"
+        case .outsideWindowOccurrence:
+            return "Open app to record the actual Dose 2 time"
         case .afterSkip:
             return "After skip - confirm in app"
         case .extraDose:

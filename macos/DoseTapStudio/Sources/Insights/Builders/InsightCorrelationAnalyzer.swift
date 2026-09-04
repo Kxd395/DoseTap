@@ -84,7 +84,7 @@ struct InsightCorrelationAnalyzer {
             trainableCount: sessions.filter(\.countsTowardRecommendationTraining).count,
             excludedCount: sessions.filter { !$0.classification.exclusionReasons.isEmpty }.count,
             averageIntervalMinutes: average(sessions.compactMap(\.intervalMinutes).map(Double.init)),
-            averageSleepQuality: average(sessions.compactMap(\.morningSleepQuality).map(Double.init)),
+            averageSleepQuality: average(sessions.compactMap(\.morningSleepQuality)),
             averageReadiness: average(sessions.compactMap(\.morningReadiness).map(Double.init)),
             averageTotalSleepMinutes: average(sessions.compactMap(\.totalSleepMinutes)),
             averageSleepEfficiency: average(sessions.compactMap(\.sleepEfficiency)),

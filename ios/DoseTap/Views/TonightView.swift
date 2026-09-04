@@ -9,7 +9,7 @@ struct HomePresentationState: Equatable {
         case tonightReady
         case dose2Waiting
         case dose2Ready
-        case dose2Closed
+        case dose2NeedsResolution
         case morningCloseout
         case reviewOnly
     }
@@ -28,7 +28,7 @@ struct HomePresentationState: Equatable {
 
     var showsDoseStatusCard: Bool {
         switch primary {
-        case .dose2Waiting, .dose2Ready, .dose2Closed, .morningCloseout:
+        case .dose2Waiting, .dose2Ready, .dose2NeedsResolution, .morningCloseout:
             return true
         case .previousSessionNeedsReview, .tonightReady, .reviewOnly:
             return false
@@ -37,7 +37,7 @@ struct HomePresentationState: Equatable {
 
     var showsDosePrimaryAction: Bool {
         switch primary {
-        case .tonightReady, .dose2Waiting, .dose2Ready, .dose2Closed:
+        case .tonightReady, .dose2Waiting, .dose2Ready, .dose2NeedsResolution:
             return true
         case .previousSessionNeedsReview, .morningCloseout, .reviewOnly:
             return false
@@ -52,7 +52,7 @@ struct HomePresentationState: Equatable {
         switch primary {
         case .previousSessionNeedsReview, .reviewOnly:
             return false
-        case .tonightReady, .dose2Waiting, .dose2Ready, .dose2Closed, .morningCloseout:
+        case .tonightReady, .dose2Waiting, .dose2Ready, .dose2NeedsResolution, .morningCloseout:
             return true
         }
     }
@@ -61,7 +61,7 @@ struct HomePresentationState: Equatable {
         switch primary {
         case .previousSessionNeedsReview, .reviewOnly:
             return false
-        case .tonightReady, .dose2Waiting, .dose2Ready, .dose2Closed, .morningCloseout:
+        case .tonightReady, .dose2Waiting, .dose2Ready, .dose2NeedsResolution, .morningCloseout:
             return true
         }
     }
@@ -70,7 +70,7 @@ struct HomePresentationState: Equatable {
         switch primary {
         case .previousSessionNeedsReview, .tonightReady:
             return false
-        case .dose2Waiting, .dose2Ready, .dose2Closed, .morningCloseout, .reviewOnly:
+        case .dose2Waiting, .dose2Ready, .dose2NeedsResolution, .morningCloseout, .reviewOnly:
             return true
         }
     }
@@ -81,7 +81,7 @@ struct HomePresentationState: Equatable {
 
     var showsLiveDoseIntervals: Bool {
         switch primary {
-        case .dose2Waiting, .dose2Ready, .dose2Closed, .morningCloseout, .reviewOnly:
+        case .dose2Waiting, .dose2Ready, .dose2NeedsResolution, .morningCloseout, .reviewOnly:
             return true
         case .previousSessionNeedsReview, .tonightReady:
             return false
@@ -128,7 +128,7 @@ enum HomeStateResolver {
         case .active, .nearClose:
             primary = .dose2Ready
         case .closed:
-            primary = .dose2Closed
+            primary = .dose2NeedsResolution
         case .completed, .finalizing:
             primary = .morningCloseout
         }

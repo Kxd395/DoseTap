@@ -20,46 +20,6 @@ public struct URLSessionTransport: APITransport {
 // Note: APIError is now defined in APIErrors.swift
 
 // MARK: - Response Models
-public struct DoseResponse: Codable {
-    public let eventId: String
-    public let type: String
-    public let at: String
-    public let dose2Window: WindowResponse?
-    
-    enum CodingKeys: String, CodingKey {
-        case eventId = "event_id"
-        case type, at
-        case dose2Window = "dose2_window"
-    }
-}
-
-public struct WindowResponse: Codable {
-    public let min: String
-    public let max: String
-}
-
-public struct SnoozeResponse: Codable {
-    public let eventId: String
-    public let minutes: Int
-    public let newTargetAt: String
-    
-    enum CodingKeys: String, CodingKey {
-        case eventId = "event_id"
-        case minutes
-        case newTargetAt = "new_target_at"
-    }
-}
-
-public struct SkipResponse: Codable {
-    public let eventId: String
-    public let reason: String?
-    
-    enum CodingKeys: String, CodingKey {
-        case eventId = "event_id"
-        case reason
-    }
-}
-
 public struct EventResponse: Codable {
     public let eventId: String
     public let event: String
@@ -74,10 +34,9 @@ public struct EventResponse: Codable {
 // MARK: - Client
 @available(iOS 15.0, watchOS 8.0, macOS 12.0, *)
 public final class APIClient {
+    /// Medication mutation endpoints are intentionally absent. Dose 1, Dose 2,
+    /// skip, and snooze must stay local and route through DoseActionCoordinator.
     public enum Endpoint: String, CaseIterable { 
-        case takeDose = "/doses/take"
-        case skipDose = "/doses/skip"
-        case snoozeDose = "/doses/snooze"
         case logEvent = "/events/log"
         case exportAnalytics = "/analytics/export"
     }
@@ -106,46 +65,7 @@ public final class APIClient {
     }
     
     // MARK: - Private Request Bodies
-    private struct DoseBody: Encodable { let type: String; let at: String }
-    private struct SnoozeBody: Encodable { let minutes: Int; let at: String }
-    private struct SkipBody: Encodable { let sequence: Int; let reason: String?; let at: String }
     private struct LogEventBody: Encodable { let event: String; let at: String }
-
-    @discardableResult
-    public func takeDose(type: String, at date: Date = Date()) async throws -> DoseResponse {
-        let body = DoseBody(type: type, at: ISO8601DateFormatter().string(from: date))
-        let req = try makeRequest(path: Endpoint.takeDose.rawValue, body: body)
-        let (data, response) = try await transport.send(req)
-        
-        if (400..<600).contains(response.statusCode) {
-            throw APIError.from(httpStatus: response.statusCode, responseData: data)
-        }
-        return try JSONDecoder().decode(DoseResponse.self, from: data)
-    }
-    
-    @discardableResult
-    public func snooze(minutes: Int, at date: Date = Date()) async throws -> SnoozeResponse {
-        let body = SnoozeBody(minutes: minutes, at: ISO8601DateFormatter().string(from: date))
-        let req = try makeRequest(path: Endpoint.snoozeDose.rawValue, body: body)
-        let (data, response) = try await transport.send(req)
-        
-        if (400..<600).contains(response.statusCode) {
-            throw APIError.from(httpStatus: response.statusCode, responseData: data)
-        }
-        return try JSONDecoder().decode(SnoozeResponse.self, from: data)
-    }
-    
-    @discardableResult
-    public func skipDose(sequence: Int = 2, reason: String? = nil, at date: Date = Date()) async throws -> SkipResponse {
-        let body = SkipBody(sequence: sequence, reason: reason, at: ISO8601DateFormatter().string(from: date))
-        let req = try makeRequest(path: Endpoint.skipDose.rawValue, body: body)
-        let (data, response) = try await transport.send(req)
-        
-        if (400..<600).contains(response.statusCode) {
-            throw APIError.from(httpStatus: response.statusCode, responseData: data)
-        }
-        return try JSONDecoder().decode(SkipResponse.self, from: data)
-    }
     
     @discardableResult
     public func logEvent(_ name: String, at date: Date = Date()) async throws -> EventResponse {

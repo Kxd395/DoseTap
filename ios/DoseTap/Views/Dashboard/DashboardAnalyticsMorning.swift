@@ -155,14 +155,14 @@ extension DashboardAnalyticsModel {
         }()
         let priorAvgInterval = avg(priorDosing.compactMap(\.intervalMinutes).map(Double.init))
         let priorAvgSleep = avg(prior.compactMap(\.totalSleepMinutes))
-        let priorAvgQuality = avg(prior.compactMap { $0.morningCheckIn?.sleepQuality }.map(Double.init))
+        let priorAvgQuality = avg(prior.compactMap { $0.morningCheckIn?.sleepQuality })
 
         let priorWhoopNights = prior.filter { $0.whoopSummary?.hasValidSleepData == true }
         let priorAvgRecovery = avg(priorWhoopNights.compactMap(\.whoopRecoveryScore))
         let priorAvgHRV = avg(priorWhoopNights.compactMap(\.whoopHRV))
 
         var deltas = [
-            PeriodDelta(metricName: "On-Time %", current: onTimePercentage, prior: priorOnTime),
+            PeriodDelta(metricName: "Recorded On-Time %", current: onTimePercentage, prior: priorOnTime),
             PeriodDelta(metricName: "Avg Interval", current: averageIntervalMinutes, prior: priorAvgInterval),
             PeriodDelta(metricName: "Avg Sleep", current: averageSleepMinutes, prior: priorAvgSleep),
             PeriodDelta(metricName: "Sleep Quality", current: averageSleepQuality, prior: priorAvgQuality),

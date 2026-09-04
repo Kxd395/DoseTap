@@ -15,7 +15,7 @@ class MorningCheckInViewModel: ObservableObject {
     private let originalStressContext: [String: Any]
     private let originalTimingContext: [String: Any]
 
-    @Published var sleepQuality: Int = 3
+    @Published var sleepQuality: Double = 3
     @Published var feelRested: RestedLevel = .moderate
     @Published var grogginess: GrogginessLevel = .mild
     @Published var sleepInertiaDuration: SleepInertiaDuration = .fiveToFifteen
@@ -97,6 +97,7 @@ class MorningCheckInViewModel: ObservableObject {
     @Published var rememberSettings: Bool = false
     @Published var showDeepDive: Bool = false
     @Published var isSubmitting: Bool = false
+    @Published var submissionErrorMessage: String?
     @Published var showNarcolepsySection: Bool = false
     @Published var showSleepTherapySection: Bool = false
     @Published var showSleepEnvironmentSection: Bool = false
@@ -114,6 +115,10 @@ class MorningCheckInViewModel: ObservableObject {
     private static let savedSettingsKey = "morningCheckIn.savedSettings"
     static let maxDoseAmountMg = 20_000
     private static let doseWarningThresholdMg = 9_000
+
+    private static func normalizedSleepQuality(_ rawValue: Double) -> Double {
+        min(5, max(1, (rawValue * 4).rounded() / 4))
+    }
 
     init(sessionId: String, sessionDate: String) {
         self.sessionId = sessionId
@@ -139,7 +144,7 @@ class MorningCheckInViewModel: ObservableObject {
         self.originalSleepEnvironment = Self.jsonDictionary(from: existing.sleepEnvironmentJson)
         self.originalStressContext = Self.jsonDictionary(from: existing.stressContextJson)
         self.originalTimingContext = Self.jsonDictionary(from: existing.timingContextJson)
-        self.sleepQuality = existing.sleepQuality
+        self.sleepQuality = Self.normalizedSleepQuality(existing.sleepQuality)
         self.feelRested = RestedLevel(rawValue: existing.feelRested) ?? .moderate
         self.grogginess = GrogginessLevel(rawValue: existing.grogginess) ?? .mild
         self.sleepInertiaDuration = SleepInertiaDuration(rawValue: existing.sleepInertiaDuration) ?? .fiveToFifteen
@@ -199,7 +204,7 @@ class MorningCheckInViewModel: ObservableObject {
         UserDefaults.standard.set(rememberSettings, forKey: Self.rememberSettingsKey)
         if rememberSettings {
             let settings = SavedCheckInSettings(
-                sleepQuality: sleepQuality,
+                sleepQuality: Self.normalizedSleepQuality(sleepQuality),
                 feelRested: feelRested.rawValue,
                 grogginess: grogginess.rawValue,
                 sleepInertiaDuration: sleepInertiaDuration.rawValue,
@@ -512,7 +517,7 @@ class MorningCheckInViewModel: ObservableObject {
             sessionId: sessionId,
             timestamp: Date(),
             sessionDate: sessionDate,
-            sleepQuality: sleepQuality,
+            sleepQuality: Self.normalizedSleepQuality(sleepQuality),
             feelRested: feelRested.rawValue,
             grogginess: grogginess.rawValue,
             sleepInertiaDuration: sleepInertiaDuration.rawValue,
@@ -541,15 +546,23 @@ class MorningCheckInViewModel: ObservableObject {
         )
     }
 
-    func submit() async {
+    @discardableResult
+    func submit() async -> Bool {
         isSubmitting = true
-        saveSettingsForNextTime()
+        submissionErrorMessage = nil
+        defer { isSubmitting = false }
+
         let checkIn = toStoredCheckIn()
-        await MainActor.run {
-            applyDoseReconciliation()
-            SessionRepository.shared.saveMorningCheckIn(checkIn, sessionDateOverride: sessionDate)
+        let reconciliationResult = applyDoseReconciliation()
+        guard reconciliationResult.isCommitted else {
+            submissionErrorMessage = reconciliationResult.failure?.userMessage
+                ?? "The dose reconciliation was not saved. Retry before completing the check-in."
+            return false
         }
-        isSubmitting = false
+
+        saveSettingsForNextTime()
+        SessionRepository.shared.saveMorningCheckIn(checkIn, sessionDateOverride: sessionDate)
+        return true
     }
 
     private func hydratePhysicalState(from physical: [String: Any]) {
@@ -761,7 +774,7 @@ class MorningCheckInViewModel: ObservableObject {
 
     private func applySavedSettings(_ saved: SavedCheckInSettings) {
         if let sleepQuality = saved.sleepQuality {
-            self.sleepQuality = max(1, min(5, sleepQuality))
+            self.sleepQuality = Self.normalizedSleepQuality(sleepQuality)
         }
         if let value = saved.feelRested {
             self.feelRested = RestedLevel(rawValue: value) ?? self.feelRested
@@ -842,7 +855,7 @@ class MorningCheckInViewModel: ObservableObject {
     }
 
     private func applyCarryForward(from checkIn: StoredMorningCheckIn) {
-        sleepQuality = checkIn.sleepQuality
+        sleepQuality = Self.normalizedSleepQuality(checkIn.sleepQuality)
         feelRested = RestedLevel(rawValue: checkIn.feelRested) ?? feelRested
         grogginess = GrogginessLevel(rawValue: checkIn.grogginess) ?? grogginess
         sleepInertiaDuration = SleepInertiaDuration(rawValue: checkIn.sleepInertiaDuration) ?? sleepInertiaDuration

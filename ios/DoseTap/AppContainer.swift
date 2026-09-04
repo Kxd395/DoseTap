@@ -76,6 +76,7 @@ final class AppContainer: ObservableObject {
         self.doseCoordinator = DoseActionCoordinator(
             core: resolvedCore,
             alarmService: resolvedAlarmService,
+            dateProvider: dateProvider,
             eventLogger: resolvedEventLogger,
             undoState: resolvedUndoState,
             sessionRepo: resolvedSessionRepository
@@ -120,24 +121,36 @@ final class AppContainer: ObservableObject {
                 guard let self else { return }
                 switch action {
                 case .takeDose1(let time):
-                    sessionRepository.clearDose1()
-                    alarmService.cancelAllAlarms()
-                    alarmService.clearDose2AlarmState()
-                    appContainerLog.info("Undid Dose 1 taken at \(time, privacy: .private)")
+                    if sessionRepository.clearDose1().isCommitted {
+                        alarmService.cancelAllAlarms()
+                        alarmService.clearDose2AlarmState()
+                        appContainerLog.info("Undid Dose 1 taken at \(time, privacy: .private)")
+                    } else {
+                        appContainerLog.error("Dose 1 undo was not committed")
+                    }
 
                 case .takeDose2(let time):
-                    sessionRepository.clearDose2()
-                    appContainerLog.info("Undid Dose 2 taken at \(time, privacy: .private)")
+                    if sessionRepository.clearDose2().isCommitted {
+                        appContainerLog.info("Undid Dose 2 taken at \(time, privacy: .private)")
+                    } else {
+                        appContainerLog.error("Dose 2 undo was not committed")
+                    }
 
                 case .skipDose(let seq, _):
-                    sessionRepository.clearSkip()
-                    appContainerLog.info("Undid skip of dose \(seq)")
+                    if sessionRepository.clearSkip().isCommitted {
+                        appContainerLog.info("Undid skip of dose \(seq)")
+                    } else {
+                        appContainerLog.error("Dose skip undo was not committed")
+                    }
 
                 case .snooze(let mins):
                     let restoredAlarm = await alarmService.undoSnooze(minutes: mins, dose1Time: sessionRepository.dose1Time)
                     if restoredAlarm {
-                        sessionRepository.decrementSnoozeCount()
-                        appContainerLog.info("Undid snooze of \(mins) minutes")
+                        if sessionRepository.decrementSnoozeCount().isCommitted {
+                            appContainerLog.info("Undid snooze of \(mins) minutes")
+                        } else {
+                            appContainerLog.error("Alarm restored but snooze-state undo was not committed")
+                        }
                     } else {
                         appContainerLog.error("Failed to undo snooze of \(mins) minutes")
                     }

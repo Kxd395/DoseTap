@@ -21,8 +21,6 @@ let package = Package(
                 "OfflineQueue.swift",
                 "EventRateLimiter.swift",
                 "APIClient.swift",
-                "APIClientQueueIntegration.swift",
-                "TimeEngine.swift",
                 "RecommendationEngine.swift",
                 "DoseTapCore.swift",
                 "SleepEvent.swift",
@@ -39,6 +37,8 @@ let package = Package(
                 "DiagnosticEvent.swift",
                 "DiagnosticLogger.swift",
                 "DosingModels.swift",
+                "MedicationInventoryModels.swift",
+                "MedicationInventoryForecast.swift",
                 "CertificatePinning.swift",
                 "NightScoreCalculator.swift",
                 "DoseRegistrationPolicy.swift",
@@ -67,23 +67,27 @@ let package = Package(
                 "MedicationLoggerTests.swift",
                 "TimeCorrectnessTests.swift",
                 "SleepPlanCalculatorTests.swift",
+                "WorkWakeScheduleTests.swift",
                 "SessionIdBackfillTests.swift",
                 "DosingAmountTests.swift",
                 "UnifiedSleepSessionTests.swift",
                 "DiagnosticEventTests.swift",
                 "MorningCheckInTests.swift",
                 "DosingModelsTests.swift",
-                "DosingServiceTests.swift",
+                "MedicationInventoryForecastTests.swift",
                 "CertificatePinningTests.swift",
                 "DiagnosticLoggerTests.swift",
                 "RecommendationEngineTests.swift",
                 "EventStoreModelsTests.swift",
-                "TimeEngineTests.swift",
                 "SessionRolloverRegressionTests.swift",
                 "NightScoreCalculatorTests.swift",
                 "DoseRegistrationPolicyTests.swift",
                 "DoseEffectivenessCalculatorTests.swift",
+                "TimeIntervalMathCharacterizationTests.swift",
                 "DeletedEventSnapshotTests.swift"
+            ],
+            resources: [
+                .copy("Fixtures/CertificatePinning")
             ]
         )
     ]

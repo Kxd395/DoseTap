@@ -1,5 +1,6 @@
 import SwiftUI
 import DoseCore
+import UIKit
 
 struct TimelineReviewDetailView: View {
     @ObservedObject var core: DoseTapCore
@@ -10,6 +11,10 @@ struct TimelineReviewDetailView: View {
     @State private var reviewEvents: [StoredSleepEvent] = []
     @State private var reviewNightDate: Date = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date()
     @State private var showPlanForTonight = false
+    @State private var reviewShareImage: UIImage?
+    @State private var showReviewShareSheet = false
+    @State private var isPreparingReviewShare = false
+    @State private var reviewShareErrorMessage: String?
 
     init(core: DoseTapCore, initialSessionKey: String) {
         self.core = core
@@ -137,6 +142,43 @@ struct TimelineReviewDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbarBackground(Color(.systemBackground), for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    shareFullReviewCapture()
+                } label: {
+                    if isPreparingReviewShare {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                }
+                .disabled(isPreparingReviewShare || reviewSession == nil)
+                .accessibilityLabel("Share full review capture")
+            }
+        }
+        .sheet(isPresented: $showReviewShareSheet) {
+            if let reviewShareImage {
+                CapturePreviewSheet(
+                    title: "Full Review Capture",
+                    image: reviewShareImage
+                ) {
+                    self.reviewShareImage = nil
+                    self.showReviewShareSheet = false
+                }
+            }
+        }
+        .alert("Unable to Share Review", isPresented: Binding(
+            get: { reviewShareErrorMessage != nil },
+            set: { if !$0 { reviewShareErrorMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {
+                reviewShareErrorMessage = nil
+            }
+        } message: {
+            Text(reviewShareErrorMessage ?? "Unknown error.")
+        }
         .onAppear {
             refreshReviewContext()
         }
@@ -214,5 +256,21 @@ struct TimelineReviewDetailView: View {
         guard let index = selectedReviewIndex, canGoToNewerReviewNight else { return }
         selectedReviewSessionKey = reviewSessions[index - 1].sessionDate
         loadSelectedReviewSessionData()
+    }
+
+    private func shareFullReviewCapture() {
+        guard !isPreparingReviewShare else { return }
+        isPreparingReviewShare = true
+        reviewShareErrorMessage = nil
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            if let image = AppScreenCapture.captureActivePage() {
+                reviewShareImage = image
+                showReviewShareSheet = true
+            } else {
+                reviewShareErrorMessage = "Could not capture the full review."
+            }
+            isPreparingReviewShare = false
+        }
     }
 }

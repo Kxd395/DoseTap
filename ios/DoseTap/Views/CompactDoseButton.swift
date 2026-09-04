@@ -15,7 +15,9 @@ struct CompactDoseButton: View {
     /// Optional binding to open Morning Check-In sheet when user taps primary
     /// button in `.finalizing` state.
     var showMorningCheckIn: Binding<Bool>? = nil
-    @State private var showWindowExpiredOverride = false  // For taking dose after window expired
+    @State private var workWakeWarning: WorkWakeWarning?
+    @State private var showExpiredDose2Resolution = false
+    @State private var expiredResolutionReferenceTime = Date()
     @State private var reasonCaptureMode: Dose2OutcomeReasonMode?
     @State private var actionFeedback: DoseActionFeedback?
     @State private var clearFeedbackTask: Task<Void, Never>?
@@ -65,19 +67,43 @@ struct CompactDoseButton: View {
                     .cornerRadius(12)
             }
             // Accessibility
+            .accessibilityIdentifier("dose-primary-action")
             .accessibilityLabel(primaryButtonAccessibilityLabel)
             .accessibilityHint(primaryButtonAccessibilityHint)
-            // Allow tapping even when completed (for extra dose warning) or closed (for override)
+            // Closed timing phases remain actionable so the record can be resolved.
             .padding(.horizontal)
-            .alert("Window Expired", isPresented: $showWindowExpiredOverride) {
-                Button("Cancel", role: .cancel) { }
-                Button("Take Dose 2 Anyway", role: .destructive) {
-                    reasonCaptureMode = core.currentStatus == .completed && core.isSkipped && core.dose2Time == nil
-                        ? .afterSkipDose
-                        : .lateDose
+            .sheet(item: $workWakeWarning) { warning in
+                if let repository = coordinator.sessionRepo {
+                    WorkWakeWarningSheet(warning: warning, repository: repository, coordinator: coordinator, onResult: handleActionResult)
                 }
-            } message: {
-                Text(overrideConfirmationMessage)
+            }
+            .sheet(isPresented: $showExpiredDose2Resolution) {
+                if let repository = coordinator.sessionRepo, let dose1Time = core.dose1Time {
+                    ExpiredDose2ResolutionSheet(
+                        dose1Time: dose1Time,
+                        referenceTime: expiredResolutionReferenceTime,
+                        isAlreadyMarkedMissed: core.isSkipped,
+                        repository: repository,
+                        recordOccurrence: { occurrenceTime, reason, notes, workWarning in
+                            await coordinator.recordDose2Occurrence(
+                                at: occurrenceTime,
+                                warningConfirmed: true,
+                                acknowledgedWorkWarning: workWarning,
+                                reason: reason,
+                                reasonNotes: notes,
+                                surface: .tonightButton
+                            )
+                        },
+                        markMissed: { reason, notes in
+                            await coordinator.skipDose(
+                                reason: reason,
+                                reasonNotes: notes,
+                                surface: .tonightButton
+                            )
+                        },
+                        onCommitted: handleActionResult
+                    )
+                }
             }
             .sheet(item: $reasonCaptureMode) { mode in
                 Dose2OutcomeReasonSheet(
@@ -86,8 +112,6 @@ struct CompactDoseButton: View {
                         switch mode {
                         case .skipDose:
                             completeSkip(reason: reason, notes: notes)
-                        case .lateDose, .afterSkipDose:
-                            takeDose2WithOverride(reason: reason, notes: notes)
                         case .earlyDose:
                             break
                         }
@@ -140,6 +164,14 @@ struct CompactDoseButton: View {
             return
         }
 
+        if core.currentStatus == .closed
+            || (core.currentStatus == .completed && core.isSkipped && core.dose2Time == nil) {
+            expiredResolutionReferenceTime = Date()
+            showExpiredDose2Resolution = true
+            Haptics.light.play()
+            return
+        }
+
         Task {
             let result: DoseActionCoordinator.ActionResult
             if core.dose1Time == nil {
@@ -151,17 +183,6 @@ struct CompactDoseButton: View {
         }
     }
     
-    /// Take Dose 2 after window expired with explicit user override
-    private func takeDose2WithOverride(reason: String?, notes: String?) {
-        Task {
-            let override: DoseActionCoordinator.DoseOverride = (core.currentStatus == .completed && core.isSkipped && core.dose2Time == nil)
-                ? .afterSkipConfirmed
-                : .lateConfirmed
-            let result = await coordinator.takeDose2(override: override, reason: reason, reasonNotes: notes)
-            handleActionResult(result)
-        }
-    }
-
     private func completeSkip(reason: String?, notes: String?) {
         Task {
             let result = await coordinator.skipDose(reason: reason, reasonNotes: notes)
@@ -181,11 +202,14 @@ struct CompactDoseButton: View {
 
     private func handleConfirmation(_ confirmation: DoseActionCoordinator.ConfirmationType) {
         switch confirmation {
+        case .workWake(let warning):
+            workWakeWarning = warning
         case .earlyDose(let minutes):
             earlyDoseMinutes = minutes
             showEarlyDoseAlert = true
-        case .lateDose, .afterSkip:
-            showWindowExpiredOverride = true
+        case .outsideWindowOccurrence, .afterSkip:
+            expiredResolutionReferenceTime = Date()
+            showExpiredDose2Resolution = true
         case .extraDose:
             showExtraDoseWarning = true
         }
@@ -206,20 +230,14 @@ struct CompactDoseButton: View {
         }
     }
 
-    private var overrideConfirmationMessage: String {
-        if core.currentStatus == .completed && core.isSkipped && core.dose2Time == nil {
-            return "Dose 2 was previously marked as skipped. This will record Dose 2 now and clear skipped status. Are you sure you want to proceed?"
-        }
-        return "The 240-minute window has passed. Taking Dose 2 late may affect efficacy. Are you sure you want to proceed?"
-    }
-    
     private var primaryButtonText: String {
         switch core.currentStatus {
         case .noDose1: return "Take Dose 1"
         case .beforeWindow: return "Waiting..."
-        case .active, .nearClose: return "Take Dose 2"
-        case .closed: return "Take Dose 2 (Late)"
-        case .completed: return "Complete ✓"
+        case .active, .nearClose: return "Record Dose 2"
+        case .closed: return "Resolve Dose 2"
+        case .completed:
+            return core.isSkipped && core.dose2Time == nil ? "Correct Dose 2 Record" : "Complete ✓"
         case .finalizing: return "Check-In"
         }
     }
@@ -230,8 +248,11 @@ struct CompactDoseButton: View {
         case .beforeWindow: return "Waiting for dose window to open"
         case .active: return "Take Dose 2 button. Window is open."
         case .nearClose: return "Take Dose 2 button. Warning: window closing soon!"
-        case .closed: return "Take Dose 2 late button. Window has closed."
-        case .completed: return "Session complete. Both doses taken."
+        case .closed: return "Complete unresolved Dose 2 record. The planned window has ended."
+        case .completed:
+            return core.isSkipped && core.dose2Time == nil
+                ? "Correct the Dose 2 record currently marked missed"
+                : "Session complete"
         case .finalizing: return "Complete morning check-in button"
         }
     }
@@ -242,7 +263,7 @@ struct CompactDoseButton: View {
         case .beforeWindow: return "Wait for the countdown to finish"
         case .active: return "Double tap to take Dose 2"
         case .nearClose: return "Double tap now to take your second dose before the window closes"
-        case .closed: return "Double tap to take dose late. You will be asked to confirm."
+        case .closed: return "Double tap to record an occurrence that already happened, or mark Dose 2 missed"
         case .completed: return ""
         case .finalizing: return "Double tap to complete your session"
         }
@@ -278,6 +299,7 @@ struct CompactDoseButton: View {
     }
     
     private var skipEnabled: Bool {
-        core.currentStatus == .active || core.currentStatus == .nearClose || core.currentStatus == .closed
+        if case .skipEnabled = core.windowContext.skip { return true }
+        return false
     }
 }

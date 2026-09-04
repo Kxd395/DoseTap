@@ -1,115 +1,139 @@
-# DoseTap Testing Guide
+# DoseTap testing guide
 
-Last updated: 2026-02-13
+Status: Current test and evidence runbook
+Last verified: 2026-09-02
 
-## Test Inventory
+Do not keep an evergreen total in this guide. Test files and parameterized cases change often. Discover and record the count from the exact checkout used for a release or audit.
 
-| Suite | Location | Count | Runner |
-|-------|----------|-------|--------|
-| **DoseCoreTests** (SwiftPM) | `Tests/DoseCoreTests/` (29 files) | 497 tests | `swift test` |
-| **DoseTapTests** (Xcode) | `ios/DoseTapTests/` (11 files) | ~134 tests | Xcode / `xcodebuild test` |
-| **DoseTapUITests** (XCUITest) | `ios/DoseTapUITests/` (2 files) | 12 tests | Xcode / `xcodebuild test` |
-| **Total** | | **643+** | |
+## Test layers
 
-## Build and Test
+| Layer | Source | What it proves |
+| --- | --- | --- |
+| DoseCore unit tests | `Tests/DoseCoreTests/` | Deterministic domain, timing, export, diagnostic, networking utility, and policy behavior |
+| iOS unit and integration tests | `ios/DoseTapTests/` | Repository, SQLite, export, HealthKit adapters, notifications, navigation, and app-layer behavior |
+| iOS UI tests | `ios/DoseTapUITests/` | Simulator-visible launch and interaction flows |
+| DoseTap Studio tests | `macos/DoseTapStudio/Tests/` | Import, validation, identity, insights, recommendation, and export behavior |
+| Repository guards | `tools/` and CI workflows | Architecture, mutation boundaries, target membership, secrets, docs, and release configuration |
+| Manual acceptance | Simulator and signed devices | Real notifications, Apple Health permissions/data, background behavior, accessibility, and owner-observed parity |
+
+An automated pass cannot replace a signed-device, provider, privacy, or owner-observed gate.
+
+## Discover current coverage
 
 ```bash
-# From repo root — core library + unit tests
-swift build -q
-swift test -q
+# Enumerate SwiftPM test cases from the current checkout
+swift test list
 
-# To avoid SIGTSTP in some terminals:
-script -q /tmp/test.txt swift test -q 2>&1
+# List tracked test source files
+rg --files Tests ios/DoseTapTests ios/DoseTapUITests macos/DoseTapStudio/Tests
 
-# Xcode app build (verify no compile errors)
-xcodebuild build -project ios/DoseTap.xcodeproj -scheme DoseTap \
-  -destination 'generic/platform=iOS Simulator' \
-  CODE_SIGNING_ALLOWED=NO 2>&1 | tail -5
+# List Xcode targets and schemes
+xcodebuild -list -json -project ios/DoseTap.xcodeproj
 
-# Xcode unit tests
-xcodebuild test -project ios/DoseTap.xcodeproj -scheme DoseTap \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  CODE_SIGNING_ALLOWED=NO 2>&1 | tail -20
-
-# XCUITests
-xcodebuild test -project ios/DoseTap.xcodeproj -scheme DoseTapUITests \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  CODE_SIGNING_ALLOWED=NO 2>&1 | tail -20
+# List available simulators before choosing a destination
+tools/dt-sim list
 ```
 
-## SwiftPM Test Files (DoseCoreTests — 29 files)
+When reporting a result, include the date, commit or dirty-worktree statement, command, destination, passed/failed/skipped counts, and any untested gate.
 
-Core domain tests (time-injected, deterministic):
+## DoseCore
 
-- `DoseWindowStateTests.swift` — window phase transitions
-- `DoseWindowEdgeTests.swift` — boundary/edge cases (exact 150m, 240m, DST)
-- `DoseWindowConfigTests.swift` — config validation
-- `DosingModelsTests.swift` — dosing model encoding/decoding
-- `DoseTapCoreTests.swift` — core orchestration
-- `TimeEngineTests.swift` — time calculations
-- `SessionKeyTests.swift` — session key derivation
-- `TimeIntervalMathTests.swift` — interval math helpers
-- `DiagnosticLoggerTests.swift` — log output format
-- `DiagnosticSessionRolloverTests.swift` — rollover diagnostics
+Run from the repository root:
 
-Networking & resilience tests:
+```bash
+swift build
+swift test
+```
 
-- `APIClientTests.swift` — request construction, transport
-- `APIErrorsTests.swift` — error mapping from status codes
-- `OfflineQueueTests.swift` — enqueue, flush, retry
-- `EventRateLimiterTests.swift` — cooldown enforcement
-- `APIClientQueueIntegrationTests.swift` — DosingService façade
+Focused examples:
 
-Additional coverage:
+```bash
+swift test --filter DoseRegistrationPolicyTests
+swift test --filter SessionRolloverRegressionTests
+swift test --filter TimeCorrectnessTests
+swift test --filter MedicationInventoryForecastTests
+swift test --filter DiagnosticLoggerTests
+```
 
-- `InputValidatorTests.swift` — input validation rules
-- `DoseScheduleTests.swift` — schedule logic
-- `UserSettingsManagerTests.swift` — settings persistence
-- `HealthKitServiceTests.swift` — HK authorization states
-- `EventStorageTests.swift` — storage CRUD
-- Plus 9 more specialized test files
+## iOS app tests
 
-## XCUITest Coverage (DoseTapUITests — 12 tests)
+The repository helper defaults to the simulator name in `tools/dt-common.sh`. If that simulator is not installed, select one reported by `tools/dt-sim list` and override it for the command.
 
-Smoke tests for critical user paths:
+```bash
+DT_SIMULATOR_NAME="iPhone 17 Pro" tools/dt-test
+DT_SIMULATOR_NAME="iPhone 17 Pro" tools/dt-test all
+```
 
-- App launch and tab bar presence
-- Tonight tab default state
-- Dose 1 button tap flow
-- Quick log button grid display
-- Settings navigation
-- History tab presence
-- Tab switching (Tonight ↔ History ↔ Settings)
-- Launch performance benchmark
-- Screenshot capture for App Store
+Equivalent direct command:
 
-## CI Pipeline
+```bash
+xcodebuild test \
+  -project ios/DoseTap.xcodeproj \
+  -scheme DoseTap \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+```
 
-Three workflows guard the `main` branch:
+Use a destination that exists on the machine running the test. Do not change product behavior merely to accommodate a missing simulator runtime.
 
-1. **ci.yml**: SSOT lint → SwiftPM tests (US/Eastern, UTC, Asia/Tokyo) → Xcode sim tests → release pinning
-2. **ci-swift.yml**: Storage enforcement guards (no direct EventStorage access from views)
-3. **ci-docs.yml**: Documentation validation
+Key app suites currently include storage integration, medication transaction failure injection, session repository behavior, export, Apple Health and API adapters, notifications and timeline, UI state, URL routing, and WHOOP decoding. Discover exact file names rather than copying an old list.
 
-Branch protection requires PR + all 3 status checks to merge.
+## DoseTap Studio
 
-## Manual Regression Checklist
+```bash
+swift test --package-path macos/DoseTapStudio
+```
 
-1. Dose 1 → window → Dose 2 → complete.
-2. Dose 2 late (after window close) logs as Dose 2 with `is_late` metadata, not extra.
-3. Extra dose only at dose index 3+.
-4. Dose 1 before midnight, Dose 2 after midnight, session remains open until morning check-in.
-5. Morning check-in closes session and Tonight view resets.
-6. Missed check-in cutoff auto-closes session and allows a clean next night.
-7. Nap Start → Nap End paired in History; missing end shows "Nap in progress".
-8. HealthKit: toggle ON, authorize, force quit, reopen; preference persists and authorization is rechecked.
+Studio fixtures cover clean, shift-work, missing-data, duplicate-event, and contradictory-data imports. Passing fixtures prove the encoded cases only; they do not prove an owner export is complete or source-correct.
 
-## Diagnostics
+## Documentation and repository guards
 
-- Logs are written to `Documents/diagnostics/sessions/<session-id>/`.
-- See `docs/DIAGNOSTIC_LOGGING.md` for event formats and `docs/HOW_TO_READ_A_SESSION_TRACE.md` for triage.
+```bash
+bash tools/doc_lint.sh
+bash tools/ssot_check.sh
+bash tools/check_architecture_boundaries.sh
+bash tools/check_dose_state_writes.sh
+bash tools/check_legacy_safety_paths.sh
+bash tools/check_companion_targets.sh
+bash tools/check_repository_hygiene.sh
+```
 
-## State Machines
+Run `bash tools/release_preflight.sh` for a release candidate. The tagged form has stricter pin and version requirements.
 
-- Dose flow and session rollover diagrams live in `docs/SSOT/README.md`.
+## Time and timezone tests
+
+Time-sensitive code must accept an injected clock or timezone where practical. Cover at least:
+
+- exact 150-minute and 240-minute Dose 2 boundaries;
+- snooze cutoff and maximum count;
+- midnight crossing without session reassignment;
+- the 18:00 dosing-night rollover;
+- daylight-saving gaps and repeated hours;
+- travel or system timezone changes;
+- legacy records with offsets but no named timezone;
+- process restart after a committed or failed medication action.
+
+Run the SwiftPM suite in more than one environment timezone when changing grouping logic:
+
+```bash
+TZ=UTC swift test
+TZ=America/New_York swift test
+```
+
+## Manual and signed-device acceptance
+
+Use `docs/PRODUCTION_READINESS_CHECKLIST.md` for release gates. At minimum, medication persistence, notification delivery/reconciliation, Apple Health permission states, same-night screen parity, timezone changes, Clear All Data, export/restore, and accessibility need the evidence class named there.
+
+## Documentation result format
+
+Use this form in a dated audit or Plane comment:
+
+```text
+Checkout: <commit plus dirty-worktree scope>
+Date: <ISO date and timezone>
+Command: <exact command>
+Destination: <platform, runtime, device or simulator>
+Result: <passed, failed, skipped>
+Evidence class: <automated, simulator runtime, signed device, external, owner observed>
+Open gates: <what this run did not prove>
+```
 

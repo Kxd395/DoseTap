@@ -61,7 +61,18 @@ else
   warn "tools/ssot_check.sh not found — skipping SSOT check"
 fi
 
-# ─── 4. Dose state write boundary ───────────────────────────────
+# ─── 4. Documentation lifecycle and drift ──────────────────────
+if [[ -f "tools/doc_lint.sh" ]]; then
+  if bash tools/doc_lint.sh >/dev/null 2>&1; then
+    pass "Documentation lifecycle and drift lint"
+  else
+    fail "Documentation lifecycle and drift lint — run 'bash tools/doc_lint.sh' for details"
+  fi
+else
+  fail "tools/doc_lint.sh not found — documentation drift cannot be checked"
+fi
+
+# ─── 5. Dose state write boundary ───────────────────────────────
 if [[ -f "tools/check_dose_state_writes.sh" ]]; then
   if bash tools/check_dose_state_writes.sh >/dev/null 2>&1; then
     pass "Dose state write-path guard"
@@ -72,7 +83,38 @@ else
   warn "tools/check_dose_state_writes.sh not found - skipping dose state write-path guard"
 fi
 
-# ─── 5. No tracked secrets ──────────────────────────────────────
+# ─── 6. Export split-brain guards ───────────────────────────────
+if [[ -f "tools/check_inventory_state_writes.sh" ]]; then
+  if bash tools/check_inventory_state_writes.sh >/dev/null 2>&1; then
+    pass "Inventory export state guard"
+  else
+    fail "Inventory export state guard failed - run 'bash tools/check_inventory_state_writes.sh' for details"
+  fi
+else
+  warn "tools/check_inventory_state_writes.sh not found - skipping inventory export state guard"
+fi
+
+if [[ -f "tools/check_checkin_export_fields.sh" ]]; then
+  if bash tools/check_checkin_export_fields.sh >/dev/null 2>&1; then
+    pass "Check-in export field guard"
+  else
+    fail "Check-in export field guard failed - run 'bash tools/check_checkin_export_fields.sh' for details"
+  fi
+else
+  warn "tools/check_checkin_export_fields.sh not found - skipping check-in export field guard"
+fi
+
+if [[ -f "tools/check_studio_export_audit.sh" ]]; then
+  if bash tools/check_studio_export_audit.sh >/dev/null 2>&1; then
+    pass "Studio export audit guard"
+  else
+    fail "Studio export audit guard failed - run 'bash tools/check_studio_export_audit.sh' for details"
+  fi
+else
+  warn "tools/check_studio_export_audit.sh not found - skipping Studio export audit guard"
+fi
+
+# ─── 6. No tracked secrets ──────────────────────────────────────
 if git ls-files --error-unmatch ios/DoseTap/Secrets.swift >/dev/null 2>&1; then
   fail "ios/DoseTap/Secrets.swift is tracked in git — must be .gitignored"
 else

@@ -376,14 +376,20 @@ public class URLRouter: ObservableObject {
         switch result {
         case .success(let message):
             showFeedback(message)
+        case .attentionRequired(let message):
+            showFeedback(message)
+        case .retryRequired(let message):
+            showFeedback(message)
         case .blocked(let reason):
             showFeedback(reason)
         case .needsConfirm(let type):
             switch type {
+            case .workWake:
+                showFeedback("Work/wake warning - review in the app")
             case .earlyDose:
                 showFeedback("Window not open yet")
-            case .lateDose:
-                showFeedback("Late dose - open app to confirm")
+            case .outsideWindowOccurrence:
+                showFeedback("Open the app to record the actual Dose 2 time")
             case .afterSkip:
                 showFeedback("After skip - open app to confirm")
             case .extraDose:

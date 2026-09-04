@@ -147,7 +147,7 @@ public enum NightScoreCalculator {
             // No interval means dose 2 not taken.
             return input.dose2Skipped ? 0.3 : 0.0 // Skipping intentionally is slightly better than missing.
         }
-        guard interval >= minIntervalMin && interval <= maxIntervalMin else {
+        guard MedicationTiming.classify(elapsedSeconds: interval * 60) == .inWindow else {
             // Out of window entirely.
             return 0.1
         }

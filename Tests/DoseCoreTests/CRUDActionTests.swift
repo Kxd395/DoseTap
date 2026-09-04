@@ -143,60 +143,6 @@ final class CRUDActionTests: XCTestCase {
     
     // MARK: - API Action Tests
     
-    func testACTION_takeDose_POST() async throws {
-        var capturedRequest: URLRequest?
-        let transport = StubTransport { req in
-            capturedRequest = req
-            let resp = HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
-            let json = """
-            {"event_id":"123","type":"dose1","at":"2025-01-01T00:00:00Z"}
-            """
-            return (json.data(using: .utf8)!, resp)
-        }
-        
-        let client = APIClient(baseURL: URL(string: "https://api.test.com")!, transport: transport)
-        try await client.takeDose(type: "dose1", at: Date())
-        
-        XCTAssertEqual(capturedRequest?.httpMethod, "POST")
-        XCTAssertTrue(capturedRequest?.url?.path.contains("/doses/take") ?? false)
-    }
-    
-    func testACTION_skipDose_POST() async throws {
-        var capturedRequest: URLRequest?
-        let transport = StubTransport { req in
-            capturedRequest = req
-            let resp = HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
-            let json = """
-            {"event_id":"456","reason":"testing"}
-            """
-            return (json.data(using: .utf8)!, resp)
-        }
-        
-        let client = APIClient(baseURL: URL(string: "https://api.test.com")!, transport: transport)
-        try await client.skipDose(sequence: 2, reason: "testing")
-        
-        XCTAssertEqual(capturedRequest?.httpMethod, "POST")
-        XCTAssertTrue(capturedRequest?.url?.path.contains("/doses/skip") ?? false)
-    }
-    
-    func testACTION_snooze_POST() async throws {
-        var capturedRequest: URLRequest?
-        let transport = StubTransport { req in
-            capturedRequest = req
-            let resp = HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
-            let json = """
-            {"event_id":"789","minutes":10,"new_target_at":"2025-01-01T00:10:00Z"}
-            """
-            return (json.data(using: .utf8)!, resp)
-        }
-        
-        let client = APIClient(baseURL: URL(string: "https://api.test.com")!, transport: transport)
-        try await client.snooze(minutes: 10)
-        
-        XCTAssertEqual(capturedRequest?.httpMethod, "POST")
-        XCTAssertTrue(capturedRequest?.url?.path.contains("/doses/snooze") ?? false)
-    }
-    
     func testACTION_logEvent_POST() async throws {
         var capturedRequest: URLRequest?
         let transport = StubTransport { req in

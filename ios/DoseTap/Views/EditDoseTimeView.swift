@@ -1,3 +1,4 @@
+import DoseCore
 import SwiftUI
 
 /// View for editing a dose time (Dose 1 or Dose 2)
@@ -75,7 +76,7 @@ struct EditDoseTimeView: View {
                                 .foregroundColor(.purple)
                             Text("Interval: \(interval) min")
                             Spacer()
-                            if interval >= 150 && interval <= 240 {
+                            if MedicationTiming.classify(elapsedSeconds: Double(interval) * 60) == .inWindow {
                                 Image(systemName: "checkmark.circle.fill")
                                     .foregroundColor(.green)
                             } else if interval >= Int(minDose2IntervalMinutes) && interval <= Int(maxDose2IntervalMinutes) {

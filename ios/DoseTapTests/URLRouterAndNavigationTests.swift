@@ -37,13 +37,29 @@ final class DoseActionResultPresentationTests: XCTestCase {
         XCTAssertEqual(presentation.feedback?.message, "Dose 2 logged")
     }
 
+    func test_attentionRequiredCreatesVisibleAlarmWarning() {
+        let presentation = DoseActionResultPresentation(
+            result: .attentionRequired(
+                message: "Dose 1 was logged. Retry the alarm."
+            )
+        )
+
+        XCTAssertNil(presentation.confirmation)
+        XCTAssertEqual(presentation.feedback?.kind, .warning)
+        XCTAssertEqual(presentation.feedback?.title, "Dose logged; alarm needs attention")
+        XCTAssertEqual(
+            presentation.feedback?.message,
+            "Dose 1 was logged. Retry the alarm."
+        )
+    }
+
     func test_confirmationResultRoutesWithoutFeedback() {
         let presentation = DoseActionResultPresentation(
-            result: .needsConfirm(.lateDose)
+            result: .needsConfirm(.outsideWindowOccurrence)
         )
 
         XCTAssertNil(presentation.feedback)
-        XCTAssertEqual(presentation.confirmation, .lateDose)
+        XCTAssertEqual(presentation.confirmation, .outsideWindowOccurrence)
     }
 }
 
@@ -63,7 +79,7 @@ final class URLRouterTests: XCTestCase {
         settings.prepTimeMinutes = Self.prepTimeOutsideActiveDoseWindow()
 
         router = URLRouter.shared
-        core = DoseTapCore(isOnline: { true })
+        core = DoseTapCore()
         core.setSessionRepository(SessionRepository.shared)
         coordinator = DoseActionCoordinator(
             core: core,
@@ -284,7 +300,7 @@ final class URLRouterTests: XCTestCase {
 
         XCTAssertNil(repo.dose2Time, "Late deep link must not log Dose 2 without in-app confirmation.")
         XCTAssertEqual(repo.currentContext.phase, .closed, "Session should remain closed until user confirms in app.")
-        XCTAssertTrue(router.feedbackMessage.contains("Late dose"), "Should tell user to open app to confirm.")
+        XCTAssertTrue(router.feedbackMessage.contains("Record a dose that already occurred"), "Should tell user to open app to confirm.")
     }
 
     func test_dose2_deepLink_blocksBeforeWindow_withoutOverride() async {
@@ -318,7 +334,7 @@ final class URLRouterTests: XCTestCase {
         XCTAssertNil(repo.dose2Time, "After-skip deep link must not log Dose 2 without in-app confirmation.")
         XCTAssertTrue(repo.dose2Skipped, "Skip state should remain until the user confirms in app.")
         XCTAssertTrue(
-            router.feedbackMessage.contains("After skip"),
+            router.feedbackMessage.contains("occurrence that already happened"),
             "Should tell user to open app to confirm after-skip correction. Actual: \(router.feedbackMessage)"
         )
     }
@@ -365,6 +381,60 @@ final class URLRouterTests: XCTestCase {
         let url = URL(string: "dosetap://skip")!
         _ = router.handle(url)
         XCTAssertTrue(router.feedbackMessage.count > 0, "Should set feedback message")
+    }
+
+    func test_skipDeepLink_blocksBeforeWindow_withoutMutation() async {
+        let repo = SessionRepository.shared
+        repo.setDose1Time(Date().addingTimeInterval(-30 * 60))
+        XCTAssertEqual(repo.currentContext.phase, .beforeWindow)
+
+        let handled = router.handle(URL(string: "dosetap://skip")!)
+        XCTAssertTrue(handled)
+        await router.waitForPendingActions()
+
+        XCTAssertFalse(repo.dose2Skipped, "Before-window deep link must not mutate skip state.")
+        XCTAssertEqual(router.feedbackMessage, "Dose 2 window has not opened")
+    }
+
+    func test_skipFlicEquivalent_blocksBeforeWindow_withSameReason() async {
+        let repo = SessionRepository.shared
+        repo.setDose1Time(Date().addingTimeInterval(-30 * 60))
+        XCTAssertEqual(repo.currentContext.phase, .beforeWindow)
+
+        let flic = FlicButtonService.shared
+        flic.resetToDefaults()
+        flic.singlePressAction = .skip
+        flic.configure(coordinator: coordinator, undoState: nil)
+
+        let result = await flic.simulateGesture(.singlePress)
+
+        XCTAssertFalse(result.success)
+        XCTAssertEqual(result.message, "Dose 2 window has not opened")
+        XCTAssertFalse(repo.dose2Skipped, "Before-window Flic route must not mutate skip state.")
+
+        flic.resetCommandHandlersForTests()
+        flic.resetToDefaults()
+    }
+
+    func test_skipDeepLink_persistsInitiatingSurface() async throws {
+        let repo = SessionRepository.shared
+        repo.setDose1Time(Date().addingTimeInterval(-160 * 60))
+        XCTAssertEqual(repo.currentContext.phase, .active)
+
+        XCTAssertTrue(router.handle(URL(string: "dosetap://skip")!))
+        await router.waitForPendingActions()
+        XCTAssertTrue(repo.dose2Skipped)
+
+        let sessionDate = try XCTUnwrap(repo.activeSessionDate)
+        let event = try XCTUnwrap(
+            EventStorage.shared.fetchDoseEvents(sessionId: nil, sessionDate: sessionDate)
+                .first { $0.eventType == "dose2_skipped" }
+        )
+        let metadata = try XCTUnwrap(event.metadata?.data(using: .utf8))
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: metadata) as? [String: String]
+        )
+        XCTAssertEqual(object["surface"], RegistrationSurface.deepLink.rawValue)
     }
     
     // MARK: - OAuth Callback Test

@@ -2,6 +2,19 @@ import XCTest
 @testable import DoseTapStudio
 
 final class InsightSessionBuilderTests: XCTestCase {
+    func testTimingBoundaryUsesOccurrenceSecondsRatherThanTruncatedMinutes() {
+        let first = Date(timeIntervalSince1970: 1_800_000_000)
+        for (seconds, onTime, late) in [(8999.0, false, false), (9000, true, false), (14399, true, false), (14400, false, true), (14430, false, true)] {
+            let second = first.addingTimeInterval(seconds)
+            let session = DoseSession(startedUTC: first, endedUTC: second, windowTargetMin: 165, windowActualMin: Int(seconds / 60), adherenceFlag: "ok", whoopRecovery: nil, avgHR: nil, sleepEfficiency: nil, notes: nil)
+            let events = [DoseEvent(eventType: .dose1_taken, occurredAtUTC: first, details: nil, deviceTime: nil), DoseEvent(eventType: .dose2_taken, occurredAtUTC: second, details: nil, deviceTime: nil)]
+            let result = InsightSessionBuilder().build(sessions: [session], events: events)
+            XCTAssertEqual(result.count, 1)
+            XCTAssertEqual(result.first?.isOnTimeDose2, onTime, "seconds: \(seconds)")
+            XCTAssertEqual(result.first?.isLateDose2, late, "seconds: \(seconds)")
+        }
+    }
+
     func testBuilderCreatesLateSessionFromDoseEvents() {
         let builder = InsightSessionBuilder()
         let formatter = ISO8601DateFormatter()
@@ -87,6 +100,47 @@ final class InsightSessionBuilderTests: XCTestCase {
         XCTAssertTrue(insightSessions[0].dose2Skipped)
         XCTAssertNil(insightSessions[0].dose2Time)
         XCTAssertFalse(insightSessions[0].isMissingOutcome)
+    }
+
+    func testBuilderKeepsAfterMidnightDose2WithExportedCanonicalNight() {
+        withTimeZone("America/New_York") {
+            let builder = InsightSessionBuilder()
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+            let session = DoseSession(
+                startedUTC: formatter.date(from: "2026-08-30T02:00:00.000Z")!,
+                endedUTC: formatter.date(from: "2026-08-30T05:00:00.000Z")!,
+                windowTargetMin: 165,
+                windowActualMin: 180,
+                adherenceFlag: "ok",
+                whoopRecovery: nil,
+                avgHR: nil,
+                sleepEfficiency: nil,
+                notes: nil
+            )
+            let events = [
+                DoseEvent(
+                    eventType: .dose1_taken,
+                    occurredAtUTC: formatter.date(from: "2026-08-30T02:00:00.000Z")!,
+                    details: nil,
+                    deviceTime: "2026-08-29"
+                ),
+                DoseEvent(
+                    eventType: .dose2_taken,
+                    occurredAtUTC: formatter.date(from: "2026-08-30T05:00:00.000Z")!,
+                    details: nil,
+                    deviceTime: "2026-08-29"
+                )
+            ]
+
+            let insightSessions = builder.build(sessions: [session], events: events)
+
+            XCTAssertEqual(insightSessions.count, 1)
+            XCTAssertEqual(insightSessions[0].sessionDate, "2026-08-29")
+            XCTAssertEqual(insightSessions[0].intervalMinutes, 180)
+            XCTAssertFalse(insightSessions[0].isMissingOutcome)
+        }
     }
 
     func testBuilderAppliesInsightsSupplement() {

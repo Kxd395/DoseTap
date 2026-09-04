@@ -1,6 +1,7 @@
 # DoseTap SSOT Navigation
 
-Last updated: 2026-03-09
+Status: Current SSOT index
+Last verified: 2026-09-02
 
 This file is a pointer map for the SSOT. The canonical spec lives in `docs/SSOT/README.md`.
 
@@ -21,7 +22,7 @@ This file is a pointer map for the SSOT. The canonical spec lives in `docs/SSOT/
 - Quick log grid: `ios/DoseTap/Views/QuickEventViews.swift`
 - Event logger: `ios/DoseTap/EventLogger.swift`
 - Session repository: `ios/DoseTap/Storage/SessionRepository.swift`
-- Storage core: `ios/DoseTap/Storage/EventStorage.swift` (+ 7 extensions)
+- Storage core: `ios/DoseTap/Storage/EventStorage.swift` and `ios/DoseTap/Storage/EventStorage+*.swift`
 - Dose storage: `ios/DoseTap/Storage/EventStorage+Dose.swift`
 - Morning check-in storage: `ios/DoseTap/Storage/EventStorage+MorningCheckIn.swift`
 - Check-in submissions: `ios/DoseTap/Storage/EventStorage+CheckInSubmissions.swift`
@@ -38,8 +39,10 @@ This file is a pointer map for the SSOT. The canonical spec lives in `docs/SSOT/
 ## Repository Index
 
 - Project README: `README.md`
-- Architecture overview: `docs/architecture.md`
+- Documentation lifecycle index: `docs/README.md`
+- Architecture overview: `docs/architecture/README.md`
 - Testing guide: `docs/TESTING_GUIDE.md`
 - Feature triage: `docs/FEATURE_TRIAGE.md`
+- Work tracking: `docs/PLANNING.md`
 - Production readiness: `docs/PRODUCTION_READINESS_CHECKLIST.md`
-- Archived point-in-time plans/results: `docs/historical/`
+- Archived point-in-time plans/results: `docs/archive/`

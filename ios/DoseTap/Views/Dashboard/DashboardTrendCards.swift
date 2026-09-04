@@ -192,12 +192,12 @@ struct DashboardTrendChartsCard: View {
                 Chart(weekdayOnTimeValues) { entry in
                     BarMark(
                         x: .value("Weekday", entry.name),
-                        y: .value("On-Time %", entry.value)
+                        y: .value("Recorded On-Time %", entry.value)
                     )
                     .foregroundStyle(.blue.gradient)
                 }
                 .chartYScale(domain: 0...100)
-                .chartYAxisLabel("On-Time %")
+                .chartYAxisLabel("Recorded On-Time %")
             }
         }
     }
@@ -229,8 +229,12 @@ struct DashboardRecentNightsCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Recent Night Aggregates")
-                .font(.headline)
+            HStack(alignment: .top) {
+                Text("Recent Night Aggregates")
+                    .font(.headline)
+                Spacer()
+                CurrentTimeZoneSummaryView(compact: true)
+            }
 
             if nights.isEmpty {
                 Text("No nights with dashboard data yet.")
@@ -251,7 +255,7 @@ struct DashboardRecentNightsCard: View {
                         Text(sleepText(night))
                             .font(.caption)
                             .foregroundColor(.secondary)
-                            .frame(width: 84, alignment: .leading)
+                            .frame(width: 112, alignment: .leading)
 
                         if let recovery = night.whoopRecoveryScore {
                             Text("\(Int(recovery))%")
@@ -304,12 +308,16 @@ struct DashboardRecentNightsCard: View {
         if let interval = night.intervalMinutes {
             return TimeIntervalMath.formatMinutes(interval)
         }
-        return "No interval"
+        if night.dose1Time != nil {
+            return "Dose 2 missing"
+        }
+        return "No dose data"
     }
 
     private func sleepText(_ night: DashboardNightAggregate) -> String {
         guard let totalSleepMinutes = night.totalSleepMinutes else { return "No sleep data" }
-        return TimeIntervalMath.formatMinutes(Int(totalSleepMinutes.rounded()))
+        let source = night.preferredSleepSourceLabel == "WHOOP" ? "WHOOP" : "Health"
+        return "\(source) \(TimeIntervalMath.formatMinutes(Int(totalSleepMinutes.rounded())))"
     }
 }
 
@@ -372,7 +380,7 @@ struct DashboardPeriodComparisonCard: View {
 
     private func formatValue(_ name: String, _ value: Double) -> String {
         switch name {
-        case "On-Time %": return String(format: "%.0f%%", value)
+        case "Recorded On-Time %": return String(format: "%.0f%%", value)
         case "Avg Interval": return TimeIntervalMath.formatMinutes(Int(value.rounded()))
         case "Avg Sleep": return TimeIntervalMath.formatMinutes(Int(value.rounded()))
         case "Sleep Quality": return String(format: "%.1f / 5", value)

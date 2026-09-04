@@ -98,15 +98,16 @@ extension MorningCheckInViewModel {
             : (loggedDose2Skipped ? .skipped : .taken)
     }
 
-    func applyDoseReconciliation() {
+    func applyDoseReconciliation() -> MedicationMutationResult {
         let sessionRepo = SessionRepository.shared
 
         if loggedDose1Time == nil, reconcileDose1Taken {
-            sessionRepo.reconcileDose1(
+            let result = sessionRepo.reconcileDose1(
                 sessionDate: sessionDate,
                 takenAt: reconcileDose1Time,
                 amountMg: Self.normalizedDoseAmount(reconcileDose1AmountMg)
             )
+            guard result.isCommitted else { return result }
         }
 
         if loggedDose2Time == nil {
@@ -114,24 +115,26 @@ extension MorningCheckInViewModel {
             case .leaveAsIs:
                 break
             case .taken:
-                sessionRepo.reconcileDose2(
+                let result = sessionRepo.reconcileDose2(
                     sessionDate: sessionDate,
                     takenAt: reconcileDose2Time,
                     amountMg: Self.normalizedDoseAmount(reconcileDose2AmountMg),
                     reason: selectedDose2TakenReasonRawValue,
                     reasonNotes: normalizedDose2ReasonNotes
                 )
+                guard result.isCommitted else { return result }
             case .skipped:
-                sessionRepo.reconcileDose2Skipped(
+                let result = sessionRepo.reconcileDose2Skipped(
                     sessionDate: sessionDate,
                     timestamp: reconcileDose2Time,
                     reason: selectedDose2SkippedReasonRawValue,
                     reasonNotes: normalizedDose2ReasonNotes
                 )
+                guard result.isCommitted else { return result }
             }
         }
 
-        sessionRepo.updateDose2OutcomeAnnotations(
+        return sessionRepo.updateDose2OutcomeAnnotations(
             sessionDate: sessionDate,
             takenReason: selectedDose2TakenReasonRawValue,
             skipReason: selectedDose2SkippedReasonRawValue,

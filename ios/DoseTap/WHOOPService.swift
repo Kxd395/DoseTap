@@ -64,6 +64,7 @@ final class WHOOPService: NSObject, ObservableObject {
     private var accessToken: String?
     private var refreshToken: String?
     private var tokenExpiry: Date?
+    private var refreshInFlight: Task<Void, Error>?
     
     // MARK: - Web Auth Session
     
@@ -95,6 +96,17 @@ final class WHOOPService: NSObject, ObservableObject {
             .replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: "=", with: "")
     }
+
+    /// WHOOP requires generated OAuth state values to be exactly eight characters.
+    static func generateOAuthState() -> String {
+        var bytes = [UInt8](repeating: 0, count: 6)
+        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        return Data(bytes)
+            .base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+    }
     
     // MARK: - Initialization
     
@@ -121,7 +133,7 @@ final class WHOOPService: NSObject, ObservableObject {
         let challenge = Self.codeChallenge(from: verifier)
         
         // Build authorization URL with PKCE
-        let state = UUID().uuidString
+        let state = Self.generateOAuthState()
         var components = URLComponents(string: Config.authURL)!
         components.queryItems = [
             URLQueryItem(name: "response_type", value: "code"),
@@ -184,7 +196,9 @@ final class WHOOPService: NSObject, ObservableObject {
 
     /// Disconnect and clear tokens
     func disconnect() {
-        Self.logger.info("Disconnecting WHOOP — clearing tokens")
+        Self.logger.info("Disconnecting WHOOP - clearing tokens")
+        refreshInFlight?.cancel()
+        refreshInFlight = nil
         clearTokensFromKeychain()
         accessToken = nil
         refreshToken = nil
@@ -213,9 +227,30 @@ final class WHOOPService: NSObject, ObservableObject {
             updateConnectionState()
             throw WHOOPError.noRefreshToken
         }
-        
-        try await refreshAccessToken(refreshToken: refresh)
+
+        try await refreshAccessTokenSerialized(refreshToken: refresh)
         updateConnectionState()
+    }
+
+    private func refreshAccessTokenSerialized(refreshToken refresh: String) async throws {
+        if let refreshInFlight {
+            do {
+                try await refreshInFlight.value
+            } catch {
+                throw error
+            }
+            return
+        }
+
+        let task = Task { try await self.refreshAccessToken(refreshToken: refresh) }
+        refreshInFlight = task
+        defer { refreshInFlight = nil }
+
+        do {
+            try await task.value
+        } catch {
+            throw error
+        }
     }
     
     // MARK: - Token Exchange
@@ -295,7 +330,8 @@ final class WHOOPService: NSObject, ObservableObject {
             "grant_type": "refresh_token",
             "refresh_token": refreshToken,
             "client_id": clientID,
-            "client_secret": clientSecret
+            "client_secret": clientSecret,
+            "scope": "offline"
         ]
         
         request.httpBody = body
@@ -308,7 +344,7 @@ final class WHOOPService: NSObject, ObservableObject {
         guard let httpResponse = response as? HTTPURLResponse,
               (200..<300).contains(httpResponse.statusCode) else {
             // Refresh token invalid - disconnect
-            Self.logger.warning("WHOOP token refresh failed — disconnecting")
+            Self.logger.warning("WHOOP token refresh failed - disconnecting")
             disconnect()
             throw WHOOPError.refreshFailed
         }
@@ -357,8 +393,8 @@ final class WHOOPService: NSObject, ObservableObject {
                         if !didRefreshAfterUnauthorized,
                            let refresh = refreshToken,
                            !refresh.isEmpty {
-                            Self.logger.warning("WHOOP 401 — refreshing access token before disconnect")
-                            try await refreshAccessToken(refreshToken: refresh)
+                            Self.logger.warning("WHOOP 401 - refreshing access token before disconnect")
+                            try await refreshAccessTokenSerialized(refreshToken: refresh)
                             guard let refreshedToken = accessToken, !refreshedToken.isEmpty else {
                                 disconnect()
                                 throw WHOOPError.notAuthenticated
@@ -369,13 +405,13 @@ final class WHOOPService: NSObject, ObservableObject {
                             continue
                         }
 
-                        Self.logger.warning("WHOOP 401 — disconnecting")
+                        Self.logger.warning("WHOOP 401 - disconnecting")
                         disconnect()
                         throw WHOOPError.notAuthenticated
                     }
                     if httpResponse.statusCode == 429 || (500..<600).contains(httpResponse.statusCode) {
                         // Retryable errors
-                        Self.logger.warning("WHOOP \(httpResponse.statusCode) — will retry")
+                        Self.logger.warning("WHOOP \(httpResponse.statusCode) - will retry")
                         lastError = WHOOPError.httpError(httpResponse.statusCode)
                         continue
                     }

@@ -30,6 +30,38 @@ final class EventStorageIntegrationTests: XCTestCase {
         XCTAssertEqual(storage.getSchemaVersion(), EventStorage.schemaUserVersion)
     }
 
+    func test_inventorySnapshots_persistAndSortNewestFirst() {
+        let older = StoredInventorySnapshot(
+            id: "inventory-old",
+            asOfUTC: makeDate("2026-02-10T12:00:00.000Z"),
+            medicationName: "XYWAV",
+            bottlesRemaining: 1,
+            dosesRemaining: 12,
+            estimatedDaysLeft: 6,
+            nextRefillDate: makeDate("2026-02-16T12:00:00.000Z"),
+            notes: "older"
+        )
+        let newer = StoredInventorySnapshot(
+            id: "inventory-new",
+            asOfUTC: makeDate("2026-02-12T12:00:00.000Z"),
+            medicationName: "XYWAV",
+            bottlesRemaining: 2,
+            dosesRemaining: 28,
+            estimatedDaysLeft: 14,
+            nextRefillDate: makeDate("2026-02-26T12:00:00.000Z"),
+            notes: "newer"
+        )
+
+        storage.upsertInventorySnapshot(older)
+        storage.upsertInventorySnapshot(newer)
+
+        let snapshots = storage.fetchInventorySnapshots(limit: 10)
+        XCTAssertEqual(snapshots.map(\.id), ["inventory-new", "inventory-old"])
+        XCTAssertEqual(storage.fetchLatestInventorySnapshot()?.id, "inventory-new")
+        XCTAssertEqual(snapshots.first?.dosesRemaining, 28)
+        XCTAssertEqual(snapshots.first?.estimatedDaysLeft, 14)
+    }
+
     func test_doseStateInvariant_passesForCanonicalDosePair() {
         let sessionDate = "2026-02-12"
         storage.saveDose1(
@@ -664,6 +696,25 @@ final class EventStorageIntegrationTests: XCTestCase {
         fetched = storage.fetchSymptomEvents(sessionDate: sessionDate)
         XCTAssertTrue(fetched.isEmpty)
         XCTAssertNil(storage.fetchSymptomSummary(sessionDate: sessionDate))
+    }
+
+    func test_morningCheckIn_preservesFractionalSleepQuality() throws {
+        let sessionDate = "2026-02-24"
+        let checkIn = DoseTap.StoredMorningCheckIn(
+            id: "morning-fractional-quality",
+            sessionId: sessionDate,
+            timestamp: makeDate("2026-02-25T12:00:00.000Z"),
+            sessionDate: sessionDate,
+            sleepQuality: 3.25
+        )
+
+        storage.saveMorningCheckIn(checkIn, forSession: sessionDate)
+
+        let local = tryUnwrap(storage.fetchStoredMorningCheckIn(sessionKey: sessionDate))
+        XCTAssertEqual(local.sleepQuality, 3.25, accuracy: 0.001)
+
+        let core = tryUnwrap(storage.fetchMorningCheckIn(sessionKey: sessionDate))
+        XCTAssertEqual(core.sleepQuality, 3.25, accuracy: 0.001)
     }
 
     func test_morningSave_rollsBackSourceRowsWhenDerivedSymptomReplacementFails() throws {

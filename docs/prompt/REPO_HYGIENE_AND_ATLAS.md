@@ -39,13 +39,13 @@ You are surgical, evidence-driven, and hypercritical. No vibes. No assumptions.
 9. **If two implementations exist** (e.g., two storage layers, two versions of a view, two timer engines), you MUST pick a canonical one and justify it based on actual call sites + build membership. The loser goes to `archive/`.
 10. **Every archive move must include a short entry** in `archive/README.md` (create if absent) with date + reason.
 11. **Report any file > 800 LOC** as a refactor candidate and classify why (UI monolith, storage god-object, etc.).
-12. **Known quarantined files** (already wrapped in `#if false` with approval): `TimeEngine.swift` (app layer), `EventStore.swift` (app layer), `UndoManager.swift`, `DoseTapCore.swift` (app layer), `ContentView_Old.swift`, `DashboardView.swift`. Do NOT re-enable these; confirm they remain quarantined or recommend archive.
+12. **Historical quarantine names are not a current inventory**: do not assume old app-layer copies such as `TimeEngine.swift`, `EventStore.swift`, `UndoManager.swift`, `DoseTapCore.swift`, `ContentView_Old.swift`, or `DashboardView.swift` still exist. Resolve current paths and build membership from the checkout; classify only files actually present.
 
 ---
 
 ## Objective
 
-**A) Enforce SSOT**: verify actual repo structure matches `docs/SSOT/README.md` and `docs/architecture.md`.
+**A) Enforce SSOT**: verify actual repo structure matches `docs/SSOT/README.md` and `docs/architecture/README.md`.
 
 **B) Eliminate rot**: identify dead code, unused scaffolding, duplicated implementations, legacy artifacts.
 
@@ -69,13 +69,13 @@ You are surgical, evidence-driven, and hypercritical. No vibes. No assumptions.
 | **SSOT Constants** | `docs/SSOT/constants.json` |
 | **SSOT Contracts** | `docs/SSOT/contracts/DataDictionary.md`, `docs/SSOT/contracts/api.openapi.yaml` |
 | **SSOT Navigation** | `docs/SSOT/navigation.md` |
-| **Architecture Doc** | `docs/architecture.md` |
+| **Architecture Doc** | `docs/architecture/README.md` and maintained records in that directory |
 | **Constitution** | `.specify/memory/constitution.md` |
 | **Copilot Instructions** | `.github/copilot-instructions.md` |
 | **Archive Destination** | `archive/` (exists, has subdirectories) |
 | **Build Systems** | **SwiftPM** (`Package.swift` — `DoseCore` library + `DoseCoreTests`) AND **Xcode** (`ios/DoseTap.xcodeproj` — app targets) |
-| **SwiftPM Source Root** | `ios/Core/` (24 source files enumerated in `Package.swift`) |
-| **SwiftPM Test Root** | `Tests/DoseCoreTests/` (30 test files enumerated in `Package.swift`) |
+| **SwiftPM Source Root** | `ios/Core/`; discover the explicit membership from `Package.swift` |
+| **SwiftPM Test Root** | `Tests/DoseCoreTests/`; discover the explicit membership from `Package.swift` |
 | **Xcode App Root** | `ios/DoseTap/` (SwiftUI app, Storage, Views, Services) |
 | **Xcode Project** | `ios/DoseTap.xcodeproj/` |
 
@@ -104,7 +104,7 @@ You are surgical, evidence-driven, and hypercritical. No vibes. No assumptions.
 3. Recommend a dedicated branch name: `chore/repo-hygiene-YYYYMMDD`.
 4. Verify build is green before starting:
    - `swift build -q` (SwiftPM — DoseCore library)
-   - `swift test -q` (SwiftPM — DoseCoreTests, currently 525+ tests)
+   - `swift test -q` (SwiftPM; record the executed count as dated evidence)
    - If touching `ios/DoseTap/`: `xcodebuild build -project ios/DoseTap.xcodeproj -scheme DoseTap -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO 2>&1 | tail -5`
 
 ### Phase 1 — Read the Law (SSOT + Architecture + Ignore Rules)
@@ -115,7 +115,7 @@ You are surgical, evidence-driven, and hypercritical. No vibes. No assumptions.
    - `docs/SSOT/constants.json` (machine-readable constants)
    - `docs/SSOT/navigation.md` (navigation contracts)
    - `docs/SSOT/contracts/*` (API + data contracts)
-   - `docs/architecture.md` (layer cake + module graph)
+   - `docs/architecture/README.md` (current component and boundary index)
    - `.github/copilot-instructions.md` (hard rules for agents)
    - `.gitignore`
 2. **Extract SSOT "allowed structure"** as explicit constraints:
@@ -136,12 +136,12 @@ Produce an inventory report:
 3. **File counts + top offenders**:
    - Biggest files by LOC (flag anything > 800 LOC)
    - Biggest directories by LOC
-   - Duplicates: same filenames in multiple locations (known risk: `DoseTapCore.swift`, `TimeEngine.swift`, `EventStore.swift` exist in both `ios/Core/` and `ios/DoseTap/`)
+   - Duplicates: same filenames in multiple locations; report only duplicates proven in the current checkout
 4. **Build Inclusion Map** — what is actually compiled/executed:
 
    **SwiftPM** (parse `Package.swift`):
-   - `DoseCore` target: list all 24 source files in `ios/Core/`
-   - `DoseCoreTests` target: list all 30 test files in `Tests/DoseCoreTests/`
+   - `DoseCore` target: list every source currently selected from `ios/Core/`
+   - `DoseCoreTests` target: list every test source currently selected from `Tests/DoseCoreTests/`
    - Any `.swift` file in `ios/Core/` NOT in the `sources:` array = ghost file
 
    **Xcode** (parse `ios/DoseTap.xcodeproj/project.pbxproj`):
@@ -169,15 +169,11 @@ Identify and list, with evidence:
 #### C) SCAFFOLDING WASTE
 - Boilerplate leftovers, unused example code, generated artifacts, stray binaries, one-off scripts.
 - For each: path, why it's waste, proof it's not needed.
-- **Specific DoseTap suspects**: `ios/*.py`, `ios/*.sh`, `ios/TestBuild.swift`, `build/` at root.
+- **DoseTap checks**: generated build roots, untracked one-off scripts, and Swift files absent from every current build target. Discover exact paths before classifying them.
 
 #### D) DUPLICATE / COMPETING IMPLEMENTATIONS
 - Two files/dirs implementing the same concept.
-- **Known DoseTap duplicates to verify**:
-  - `ios/Core/DoseTapCore.swift` (SwiftPM) vs `ios/DoseTap/DoseTapCore.swift` (app — quarantined?)
-  - `ios/Core/TimeEngine.swift` (SwiftPM) vs `ios/DoseTap/TimeEngine.swift` (app — quarantined?)
-  - `ios/Core/EventStore.swift` (SwiftPM) vs `ios/DoseTap/Storage/EventStorage.swift` (app — different?)
-  - `ios/DoseTapTests/` vs `Tests/DoseCoreTests/`
+- Discover duplicate type and file names from the current checkout. Do not restore retired `TimeEngine` or old duplicate app types merely because an archived report names them.
 - For each: list contenders, show references/target membership, pick canonical or archive plan.
 
 ### Phase 4 — Cleanup Strategy (Three Buckets + Risk)
@@ -213,7 +209,7 @@ Output **3 artifacts**:
 - A "stop condition" checklist (what to verify after each step).
 - **DoseTap stop conditions** (must pass after each step):
   - `swift build -q` → exit 0
-  - `swift test -q` → all 525+ tests pass
+  - `swift test -q` → every discovered test passes
   - `xcodebuild build ...` → exit 0 (if Xcode files touched)
   - `bash tools/ssot_check.sh` → no contradictions
 
@@ -285,7 +281,7 @@ Directory tree with 1-line purpose per major directory.
 DoseTap/
 ├── ios/Core/              ← DoseCore SwiftPM library (platform-free domain logic)
 ├── ios/DoseTap/           ← SwiftUI app (views, storage, services)
-├── Tests/DoseCoreTests/   ← Unit tests for DoseCore (525+ tests)
+├── Tests/DoseCoreTests/   ← Unit tests for DoseCore; discover the current count
 ├── docs/SSOT/             ← Single Source of Truth specifications
 ├── docs/                  ← Architecture, guides, checklists
 ├── .specify/              ← Spec Kit artifacts + constitution
@@ -303,7 +299,7 @@ Identify all modules/targets:
 - Show dependencies as ASCII graph.
 
 #### C) Layered Architecture Diagram
-Use the existing layer cake from `docs/architecture.md` as baseline, but **verify it against reality**. Flag any layers that are documented but don't exist, or exist but aren't documented.
+Use the current boundaries from `docs/architecture/README.md` as a baseline, but **verify them against reality**. Flag any documented components that do not exist and any active components that are omitted.
 
 Expected shape (verify/update):
 ```

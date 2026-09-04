@@ -466,7 +466,7 @@ struct DetailsView: View {
         let queryEnd = eveningAnchorDate(for: nextDay, hour: 12)
 
         if UserSettingsManager.shared.healthKitEnabled {
-            healthKit.checkAuthorizationStatus()
+            await healthKit.syncAuthorizationState()
             if healthKit.isAuthorized {
                 do {
                     let segments = try await healthKit.fetchSegmentsForTimeline(from: queryStart, to: queryEnd)

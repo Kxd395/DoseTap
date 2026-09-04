@@ -36,7 +36,7 @@ extension DashboardAnalyticsModel {
 
         var healthByKey: [String: HealthKitService.SleepNightSummary] = [:]
         if settings.healthKitEnabled {
-            healthKit.checkAuthorizationStatus()
+            await healthKit.syncAuthorizationState()
             if healthKit.isAuthorized {
                 await healthKit.computeTTFWBaseline(days: max(14, min(days, 120)))
                 guard !Task.isCancelled else { return }
@@ -161,18 +161,25 @@ extension DashboardAnalyticsModel {
     }
 
     func buildIntegrationStates(healthMatches: Int, whoopMatches: Int = 0) -> [DashboardIntegrationState] {
+        let hasReadableHealthData = healthMatches > 0
         let healthState = DashboardIntegrationState(
             id: "healthkit",
             name: "Apple Health",
             status: settings.healthKitEnabled
-                ? (healthKit.isAuthorized ? "Connected" : "Needs Authorization")
+                ? (healthKit.isAuthorized
+                    ? (hasReadableHealthData ? "Data Available" : "Access Requested")
+                    : "Access Needed")
                 : "Disabled",
             detail: settings.healthKitEnabled
                 ? (healthKit.isAuthorized
-                    ? "\(healthMatches) nights with sleep summaries mapped"
-                    : (healthKit.lastError ?? "Enable read access for sleep analysis"))
+                    ? (hasReadableHealthData
+                        ? "\(healthMatches) nights with Apple Health sleep summaries mapped"
+                        : "No readable summaries matched this range. Apple Health intentionally makes denied access and an empty result indistinguishable.")
+                    : (healthKit.lastError ?? "Request read access for sleep analysis in Settings"))
                 : "Enable in Settings to ingest sleep stages automatically.",
-            color: settings.healthKitEnabled ? (healthKit.isAuthorized ? .green : .orange) : .gray
+            color: settings.healthKitEnabled
+                ? (hasReadableHealthData ? .green : (healthKit.isAuthorized ? .blue : .orange))
+                : .gray
         )
 
         let whoopState: DashboardIntegrationState

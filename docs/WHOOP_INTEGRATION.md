@@ -1,100 +1,65 @@
-# WHOOP Integration - Production Readiness
+# WHOOP integration status and validation plan
 
-Last updated: 2026-06-13
+Status: Implemented code path; production enablement and live end-to-end validation open
+Last verified against code and WHOOP documentation: 2026-09-02
 
-## Current State
+## Current implementation
 
-| Item | Status |
-|------|--------|
-| OAuth 2.0 flow | ✅ Implemented (ASWebAuthenticationSession) |
-| Token management | ✅ Keychain storage + auto-refresh |
-| API client | ✅ Sleep, recovery, cycle, heart rate |
-| Pagination | ✅ Follows `next_token` with `nextToken` on collection endpoints |
-| Retry/resilience | ✅ Exponential backoff, 429/5xx retries |
-| Logging | ✅ os.Logger (no print) |
-| Feature flag | ✅ Dynamic — auto-enabled on connect, disabled on disconnect |
-| Credentials | ❌ Need WHOOP developer app registration |
-| E2E testing | ❌ Blocked on credentials |
+| Capability | Code-backed status | Remaining gate |
+| --- | --- | --- |
+| OAuth UI | `ASWebAuthenticationSession` with state verification and PKCE | Live consent and callback run with an approved WHOOP app |
+| OAuth state | Generated as an eight-character URL-safe value | Verify against the live service during E2E testing |
+| Token storage | Keychain-backed access and refresh tokens | Signed-build lifecycle and disconnect inspection |
+| Refresh | One serialized in-flight refresh; requests `offline` scope | Live rotation, expiry, and concurrent-request run |
+| Data API | Sleep, recovery, cycle, and heart-rate collection requests | Real-account completeness and no-data behavior |
+| Pagination | Follows collection `next_token` through the `nextToken` request parameter | Live multi-page dataset |
+| Resilience | One refresh after 401 plus bounded 429 and 5xx retry behavior | Live rate-limit and outage behavior |
+| UI enablement | Dynamic local flag changes on connect and disconnect | Owner-observed Settings and Dashboard flow |
+| Production credentials | Not complete | A native binary cannot keep a client secret confidential; approve a server-side exchange or another reviewed design |
 
-## Files
+Main source files:
 
-| File | Purpose | Lines |
-|------|---------|-------|
-| `WHOOPService.swift` | OAuth, tokens, API client, keychain | ~470 |
-| `WHOOPDataFetching.swift` | Sleep/recovery/cycle/HR data | ~480 |
-| `WHOOPSettingsView.swift` | Connect/disconnect UI | ~280 |
-| `SleepTimelineOverlays.swift` | Timeline integration | ext |
+- `ios/DoseTap/WHOOPService.swift`
+- `ios/DoseTap/WHOOPDataFetching.swift`
+- `ios/DoseTap/WHOOPSettingsView.swift`
+- `ios/DoseTap/SleepTimelineOverlays.swift`
+- `ios/DoseTap/Views/Dashboard/`
 
-## Enablement Steps
+## External contract
 
-### 1. Register WHOOP Developer App
-- Go to https://developer-dashboard.whoop.com
-- Create a new application
-- Set redirect URI to `dosetap://whoop/callback`
-- Note the Client ID and Client Secret
-- Required scopes: `offline`, `read:recovery`, `read:sleep`, `read:cycles`, `read:profile`
+Current WHOOP documentation states that user data access uses OAuth 2.0, self-generated state is eight characters, the `offline` scope provides refresh tokens, and token requests use a client ID and client secret. Collection endpoints expose `nextToken` pagination.
 
-### 2. Configure Credentials
-Add to `ios/DoseTap/Secrets.swift` (`.gitignore`d):
-```swift
-enum Secrets {
-    static let whoopClientID = "your-client-id"
-    static let whoopClientSecret = "your-client-secret"
-    static let whoopRedirectURI = "dosetap://whoop/callback"
-}
-```
+- [WHOOP OAuth documentation](https://developer.whoop.com/docs/developing/oauth/)
+- [WHOOP API reference](https://developer.whoop.com/api/)
 
-Or set environment variables:
-```bash
-DOSETAP_WHOOP_CLIENT_ID=...
-DOSETAP_WHOOP_CLIENT_SECRET=...
-DOSETAP_WHOOP_REDIRECT_URI=dosetap://whoop/callback
-```
+Recheck those pages before a release. External documentation can change independently of this repository.
 
-### 3. Connect in App
-In Settings > Integrations > WHOOP, tap "Connect WHOOP". The feature flag is now dynamic. `isEnabled` reads `UserDefaults("whoop_enabled")` and is automatically set to `true` on successful OAuth connect, `false` on disconnect. No code change needed.
+## Local development configuration
 
-### 4. Test Checklist
-- [ ] OAuth flow completes (authorize → callback → token exchange)
-- [ ] Token refresh works after expiry
-- [ ] Sleep data fetches all WHOOP pages for last 14 nights
-- [ ] Recovery data maps to DoseTap sleep sessions
-- [ ] 401 refreshes access token once before disconnecting
-- [ ] 429 rate limit triggers retry with backoff
-- [ ] 5xx server errors retry up to 2 times
-- [ ] Airplane mode → queue or graceful error
-- [ ] Disconnect clears all keychain tokens
-- [ ] Re-authorize after disconnect works cleanly
+Register the exact redirect URI `dosetap://whoop/callback` in the WHOOP Developer Dashboard. Request only the scopes the enabled UI needs. The current code expects `offline`, `read:recovery`, `read:sleep`, `read:cycles`, and `read:profile`.
 
-### 5. Privacy Considerations
-- WHOOP sleep/recovery data is health data — ensure `NSHealthShareUsageDescription` covers it
-- Token stored in Keychain (iOS Data Protection automatic)
-- No WHOOP data logged at `.info` or higher (use `.debug` for API responses)
-- User profile (name, email) is only stored in memory, not persisted
+Local secrets may be supplied through ignored development configuration supported by `SecureConfig`. Never commit, print, paste into Plane, or include actual values in a support bundle.
 
-## Architecture
+Production must not ship a reusable WHOOP client secret in source, Info.plist, a build setting, or another extractable client asset. Production enablement requires a reviewed token-exchange boundary, exact data-flow map, privacy disclosure, retention policy, outage behavior, and revocation flow.
 
-```
-┌──────────────────────────────────┐
-│  WHOOPSettingsView               │
-│  ┌────────────────────────────┐  │
-│  │ Connect / Disconnect       │  │
-│  └─────────────┬──────────────┘  │
-│                │                 │
-│  ┌─────────────▼──────────────┐  │
-│  │ WHOOPService (@MainActor)  │  │
-│  │ ├── authorize()            │  │
-│  │ ├── apiRequest() + retry   │  │
-│  │ ├── refreshTokenIfNeeded() │  │
-│  │ └── Keychain storage       │  │
-│  └─────────────┬──────────────┘  │
-│                │                 │
-│  ┌─────────────▼──────────────┐  │
-│  │ WHOOPDataFetching (ext)    │  │
-│  │ ├── fetchSleepData()       │  │
-│  │ ├── fetchRecoveryData()    │  │
-│  │ ├── fetchCycleData()       │  │
-│  │ └── fetchHeartRateData()   │  │
-│  └────────────────────────────┘  │
-└──────────────────────────────────┘
-```
+## Data presentation contract
+
+- Apple Health and WHOOP remain separate named sources.
+- A WHOOP value must not silently replace an Apple Health value under a generic label.
+- Missing or unscored provider data remains missing; do not invent a zero or carry forward an old value.
+- Night matching must preserve canonical DoseTap session identity and provider time provenance.
+- Provider profile and health payloads must not enter diagnostic logs.
+
+## Required live validation
+
+- [ ] Authorization succeeds and returns to `dosetap://whoop/callback`.
+- [ ] Wrong or replayed state is rejected.
+- [ ] Access-token expiry triggers one serialized refresh without disconnecting concurrent reads.
+- [ ] Rotated refresh tokens replace old tokens safely.
+- [ ] Sleep, recovery, cycle, and heart-rate collections traverse more than one page.
+- [ ] Unscored, missing, 401, 429, 5xx, offline, and revoked-access states produce clear non-stale UI.
+- [ ] Disconnect removes DoseTap-owned WHOOP credentials and cached connection state.
+- [ ] Dashboard, History, Night Review, and export identify WHOOP as the source for the same night.
+- [ ] Privacy policy and App Store disclosures match the exact enabled data flow.
+
+Until these gates pass, describe WHOOP as implemented but not production-validated.

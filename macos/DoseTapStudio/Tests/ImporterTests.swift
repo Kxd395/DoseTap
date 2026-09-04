@@ -337,6 +337,131 @@ final class ImporterTests: XCTestCase {
         XCTAssertEqual(bundle.sessions[0].whoop?.spo2Percentage, 97)
     }
 
+    func testParseInsightsBundlePreservesRawCheckInPayloadsAndFractionalSleepQuality() throws {
+        let json = """
+        {
+          "schemaVersion" : 2,
+          "exportVersion" : "2.2",
+          "exportedAtUTC" : "2026-06-17T10:00:00Z",
+          "sessions" : [
+            {
+              "sessionDate" : "2026-06-16",
+              "dose1TimeUTC" : "2026-06-17T01:15:00Z",
+              "dose2TimeUTC" : "2026-06-17T04:45:00Z",
+              "rawEvents" : [],
+              "normalizedEvents" : [],
+              "dataQualityFlags" : [],
+              "preSleep" : {
+                "sessionId" : "night-raw",
+                "completionState" : "complete",
+                "loggedAtUTC" : "2026-06-17T00:40:00Z",
+                "rawAnswersJson" : "{\\"plannedTotalNightlyMg\\":9000,\\"stressProgression\\":\\"worse\\",\\"painEntries\\":[{\\"area\\":\\"neck\\",\\"severity\\":6}]}",
+                "stressLevel" : 3,
+                "stressDrivers" : ["work"],
+                "laterReason" : "work",
+                "bodyPain" : "moderate",
+                "caffeineSources" : ["coffee"],
+                "caffeineLastIntakeAtUTC" : null,
+                "caffeineLastAmountMg" : null,
+                "caffeineDailyTotalMg" : null,
+                "alcohol" : "none",
+                "alcoholLastDrinkAtUTC" : null,
+                "alcoholLastAmountDrinks" : null,
+                "alcoholDailyTotalDrinks" : null,
+                "exercise" : "none",
+                "exerciseLastAtUTC" : null,
+                "exerciseDurationMinutes" : null,
+                "napToday" : "no",
+                "napCount" : null,
+                "napTotalMinutes" : null,
+                "napLastEndAtUTC" : null,
+                "lateMeal" : "no",
+                "lateMealEndedAtUTC" : null,
+                "screensInBed" : "yes",
+                "screensLastUsedAtUTC" : null,
+                "roomTemp" : "cool",
+                "noiseLevel" : "quiet",
+                "sleepAids" : [],
+                "notes" : null
+              },
+              "morning" : {
+                "submittedAtUTC" : "2026-06-17T11:00:00Z",
+                "sleepQuality" : 4.25,
+                "rawPhysicalSymptomsJson" : "{\\"painEntries\\":[{\\"area\\":\\"neck\\",\\"severity\\":5}],\\"headacheIntensity\\":2}",
+                "rawRespiratorySymptomsJson" : "{\\"congestionBurden\\":\\"mild\\",\\"coughBurden\\":\\"none\\"}",
+                "rawSleepTherapyJson" : "{\\"device\\":\\"cpap\\",\\"compliance\\":4}",
+                "rawSleepEnvironmentJson" : "{\\"roomTemp\\":\\"cool\\",\\"noiseLevel\\":\\"quiet\\"}",
+                "rawStressContextJson" : "{\\"stressProgression\\":\\"better\\",\\"stressNotes\\":\\"less pressure\\"}",
+                "rawTimingContextJson" : "{\\"nightType\\":\\"work_night\\",\\"wakeType\\":\\"natural\\",\\"nextDayDemand\\":\\"shift_13h\\"}",
+                "feelRested" : "mostly",
+                "grogginess" : "mild",
+                "sleepInertiaDuration" : "fiveToFifteen",
+                "dreamRecall" : "some",
+                "mentalClarity" : 4,
+                "mood" : "steady",
+                "anxietyLevel" : "low",
+                "stressLevel" : 2,
+                "stressDrivers" : ["work"],
+                "readinessForDay" : 4,
+                "hadSleepParalysis" : false,
+                "hadHallucinations" : false,
+                "hadAutomaticBehavior" : false,
+                "fellOutOfBed" : false,
+                "hadConfusionOnWaking" : false,
+                "sleepTherapyDevice" : "cpap",
+                "sleepTherapyCompliance" : 4,
+                "drivingConfidence" : 4,
+                "daytimeSleepiness" : 2,
+                "cataplexyBurden" : "none",
+                "painBurden" : "mild",
+                "anxietyBurden" : "low",
+                "congestionBurden" : "mild",
+                "refluxBurden" : "none",
+                "restlessLegsBurden" : "none",
+                "bathroomUrgencyBurden" : "none",
+                "sleepDisorders" : ["sleep_apnea"],
+                "sleepDisorderNotes" : null,
+                "coMedicationNotes" : null,
+                "pharmacogenomicFastMetabolizer" : false,
+                "pharmacogenomicClinicianReviewed" : false,
+                "pharmacogenomicNotes" : null,
+                "firstNightOffAfterWorkBlock" : false,
+                "notes" : null
+              },
+              "medications" : [],
+              "checkInSubmissions" : [
+                {
+                  "id" : "morning:morning-raw",
+                  "sourceRecordId" : "morning-raw",
+                  "sessionId" : "night-raw",
+                  "sessionDate" : "2026-06-16",
+                  "checkInType" : "morning",
+                  "questionnaireVersion" : "morning-v2",
+                  "submittedAtUTC" : "2026-06-17T11:00:00Z",
+                  "localOffsetMinutes" : -240,
+                  "responsesJson" : "{\\"sleep.quality\\":4.25,\\"timing.nightType\\":\\"work_night\\"}"
+                }
+              ]
+            }
+          ]
+        }
+        """
+
+        let importer = Importer()
+        let bundle = try importer.parseInsightsBundle(Data(json.utf8))
+        let session = try XCTUnwrap(bundle.sessions.first)
+        let preSleep = try XCTUnwrap(session.preSleep)
+        let morning = try XCTUnwrap(session.morning)
+        let submission = try XCTUnwrap(session.checkInSubmissions?.first)
+
+        XCTAssertTrue(preSleep.rawAnswersJson?.contains("plannedTotalNightlyMg") == true)
+        XCTAssertEqual(morning.sleepQuality, 4.25, accuracy: 0.001)
+        XCTAssertTrue(morning.rawPhysicalSymptomsJson?.contains("painEntries") == true)
+        XCTAssertTrue(morning.rawTimingContextJson?.contains("work_night") == true)
+        XCTAssertEqual(submission.checkInType, "morning")
+        XCTAssertTrue(submission.responsesJson.contains("sleep.quality"))
+    }
+
     func testLoadCleanNightFixtureBundleFromDisk() async throws {
         let importer = Importer()
         let folder = try FixtureLoader.folder(named: "clean-nights")

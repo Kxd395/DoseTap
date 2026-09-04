@@ -188,6 +188,14 @@ struct NightDetailView: View {
                     }
                 }
 
+                if !rawCheckInPayloadRows.isEmpty {
+                    supplementalCard(title: "Raw Check-In Payloads") {
+                        ForEach(Array(rawCheckInPayloadRows.enumerated()), id: \.offset) { _, row in
+                            rawPayloadBlock(title: row.title, payload: row.payload)
+                        }
+                    }
+                }
+
                 if !session.medications.isEmpty {
                     supplementalCard(title: "Other Medications") {
                         ForEach(session.medications) { medication in
@@ -326,6 +334,41 @@ struct NightDetailView: View {
         return session.qualitySummary
     }
 
+    private var rawCheckInPayloadRows: [(title: String, payload: String)] {
+        var rows: [(title: String, payload: String)] = []
+
+        appendRawPayload(&rows, title: "Pre-sleep raw answers", payload: session.preSleep?.rawAnswersJson)
+
+        if let morning = session.morning {
+            appendRawPayload(&rows, title: "Morning physical symptoms", payload: morning.rawPhysicalSymptomsJson)
+            appendRawPayload(&rows, title: "Morning respiratory symptoms", payload: morning.rawRespiratorySymptomsJson)
+            appendRawPayload(&rows, title: "Morning sleep therapy", payload: morning.rawSleepTherapyJson)
+            appendRawPayload(&rows, title: "Morning sleep environment", payload: morning.rawSleepEnvironmentJson)
+            appendRawPayload(&rows, title: "Morning stress context", payload: morning.rawStressContextJson)
+            appendRawPayload(&rows, title: "Morning timing context", payload: morning.rawTimingContextJson)
+        }
+
+        for submission in session.checkInSubmissions.sorted(by: { $0.submittedAtUTC < $1.submittedAtUTC }) {
+            appendRawPayload(
+                &rows,
+                title: "\(submission.checkInType) submission \(timeText(Optional(submission.submittedAtUTC)))",
+                payload: submission.responsesJson
+            )
+        }
+
+        return rows
+    }
+
+    private func appendRawPayload(
+        _ rows: inout [(title: String, payload: String)],
+        title: String,
+        payload: String?
+    ) {
+        let trimmed = payload?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmed.isEmpty else { return }
+        rows.append((title, trimmed))
+    }
+
     private func dose2TimingFlagText(_ outcome: InsightDose2OutcomeContext?) -> String {
         guard let outcome else { return "—" }
         if outcome.takenEarly && outcome.takenLate {
@@ -369,6 +412,19 @@ struct NightDetailView: View {
         .cornerRadius(12)
     }
 
+    private func rawPayloadBlock(title: String, payload: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+            Text(rawPayloadPreview(payload))
+                .font(.system(.caption, design: .monospaced))
+                .foregroundColor(.secondary)
+                .textSelection(.enabled)
+                .lineLimit(12)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     private func detailRow(_ label: String, _ value: String) -> some View {
         HStack(alignment: .top) {
             Text(label)
@@ -378,6 +434,14 @@ struct NightDetailView: View {
                 .multilineTextAlignment(.trailing)
         }
         .font(.subheadline)
+    }
+
+    private func rawPayloadPreview(_ payload: String) -> String {
+        let maxLength = 4_000
+        guard payload.count > maxLength else {
+            return payload
+        }
+        return "\(payload.prefix(maxLength))\n... truncated in view ..."
     }
 
     private func joinedText(_ values: [String]) -> String {

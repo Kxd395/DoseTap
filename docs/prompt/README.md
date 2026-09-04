@@ -1,7 +1,10 @@
 # DoseTap Audit & Governance Prompt Toolkit
 
+Status: Current reusable audit tooling; verify repository paths and claims before every run
+Last reviewed: 2026-09-02
+
 > **Location**: `docs/prompt/`
-> **Last updated**: 2026-02-15
+> **Original toolkit date**: 2026-02-15
 > **Audience**: AI agents, human auditors, new maintainers
 
 ---
@@ -114,19 +117,19 @@ Any prompt can be used independently. To run one:
 3. Paste the entire contents of the prompt file
 4. Let the agent execute
 
-Each prompt is pre-filled with DoseTap-specific paths, file counts, build commands, known hotspots, and severity definitions. No placeholders to replace.
+Each prompt contains DoseTap-specific paths, discovery commands, known hotspots, and severity definitions. Repository counts and tool output must be discovered during the run; examples are never current evidence by themselves.
 
 ---
 
 ## Maintenance
 
 When the repo structure changes significantly:
-- Update the prompts to reflect new file paths, test counts, and known hotspots
+- Update the prompts to reflect new file paths, discovery commands, and known hotspots
 - Update the Master Runbook stop conditions if CI workflows change
 - Bump the "Last updated" date in each modified prompt
 
 The prompts reference these authority documents (keep in sync):
 - `.specify/memory/constitution.md`
 - `docs/SSOT/README.md`
-- `docs/architecture.md`
+- `docs/architecture/README.md`
 - `.github/copilot-instructions.md`

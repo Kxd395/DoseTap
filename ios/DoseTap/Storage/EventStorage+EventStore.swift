@@ -82,9 +82,9 @@ extension EventStorage: EventStore {
     public func fetchDoseEvents(sessionId: String?, sessionDate: String) -> [DoseCore.StoredDoseEvent] {
         var events: [DoseCore.StoredDoseEvent] = []
         let sql = """
-        SELECT id, event_type, timestamp, session_date, metadata
+        SELECT id, event_type, timestamp, session_date, metadata, session_id
         FROM dose_events
-        WHERE \(sessionId != nil ? "(session_id = ? OR session_date = ?)" : "session_date = ?")
+        WHERE \(sessionId != nil ? "(session_id = ? OR ((session_id IS NULL OR session_id = session_date) AND session_date = ?))" : "session_date = ?")
         ORDER BY timestamp ASC
         """
         
@@ -116,7 +116,8 @@ extension EventStorage: EventStore {
                         eventType: eventType,
                         timestamp: timestamp,
                         sessionDate: sessionDate,
-                        metadata: metadata
+                        metadata: metadata,
+                        sessionId: sqlite3_column_text(stmt, 5).map { String(cString: $0) }
                     ))
                 }
             }
@@ -134,11 +135,17 @@ extension EventStorage: EventStore {
     
     // MARK: - Session State (current_session table)
     
-    public func saveDose1(timestamp: Date) {
+    @discardableResult
+    public func saveDose1(timestamp: Date) -> MedicationMutationResult {
         saveDose1(timestamp: timestamp, sessionId: nil, sessionDateOverride: nil)
     }
     
-    public func saveDose2(timestamp: Date, isEarly: Bool, isExtraDose: Bool) {
+    @discardableResult
+    public func saveDose2(
+        timestamp: Date,
+        isEarly: Bool,
+        isExtraDose: Bool
+    ) -> MedicationMutationResult {
         saveDose2(
             timestamp: timestamp,
             isEarly: isEarly,
@@ -151,23 +158,28 @@ extension EventStorage: EventStore {
         )
     }
 
-    public func saveDoseSkipped(reason: String?) {
+    @discardableResult
+    public func saveDoseSkipped(reason: String?) -> MedicationMutationResult {
         saveDoseSkipped(reason: reason, reasonNotes: nil, sessionId: nil, sessionDateOverride: nil)
     }
     
-    public func saveSnooze(count: Int) {
+    @discardableResult
+    public func saveSnooze(count: Int) -> MedicationMutationResult {
         saveSnooze(count: count, sessionId: nil, sessionDateOverride: nil)
     }
     
-    public func clearDose1() {
-        clearDose1(sessionDateOverride: loadCurrentSessionState().sessionDate)
+    @discardableResult
+    public func clearDose1() -> MedicationMutationResult {
+        clearDoseSequence(sessionDateOverride: loadCurrentSessionState().sessionDate)
     }
     
-    public func clearDose2() {
+    @discardableResult
+    public func clearDose2() -> MedicationMutationResult {
         clearDose2(sessionDateOverride: loadCurrentSessionState().sessionDate)
     }
     
-    public func clearSkip() {
+    @discardableResult
+    public func clearSkip() -> MedicationMutationResult {
         clearSkip(sessionDateOverride: loadCurrentSessionState().sessionDate)
     }
     
@@ -374,7 +386,7 @@ extension EventStorage: EventStore {
                used_sleep_therapy, sleep_therapy_json, has_sleep_environment, sleep_environment_json,
                timing_context_json, notes
         FROM morning_checkins
-        WHERE session_id = ? OR session_date = ?
+        WHERE session_id = ? OR ((session_id IS NULL OR session_id = session_date) AND session_date = ?)
         ORDER BY timestamp DESC
         LIMIT 1
         """
@@ -404,7 +416,7 @@ extension EventStorage: EventStore {
             sessionId: String(cString: sessionIdPtr),
             timestamp: timestamp,
             sessionDate: String(cString: sessionDatePtr),
-            sleepQuality: Int(sqlite3_column_int(stmt, 4)),
+            sleepQuality: sqlite3_column_double(stmt, 4),
             feelRested: sqlite3_column_text(stmt, 5).map { String(cString: $0) } ?? "moderate",
             grogginess: sqlite3_column_text(stmt, 6).map { String(cString: $0) } ?? "mild",
             sleepInertiaDuration: sqlite3_column_text(stmt, 7).map { String(cString: $0) } ?? "fiveToFifteen",

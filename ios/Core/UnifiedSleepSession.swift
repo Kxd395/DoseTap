@@ -98,8 +98,8 @@ public struct DoseSessionData: Codable, Sendable {
     
     /// Whether the dose interval is within the 150-240 minute window
     public var isCompliant: Bool {
-        guard let interval = intervalMinutes else { return false }
-        return interval >= 150 && interval <= 240
+        guard let dose2Time else { return false }
+        return MedicationTiming.classify(dose1: dose1Time, dose2: dose2Time) == .inWindow
     }
     
     /// Estimated sleep duration based on lights_out and wake_final events

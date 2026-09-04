@@ -176,7 +176,7 @@ struct InsightReportBuilder {
         if !result.matchedNights.isEmpty {
             lines.append("Matched nights")
             for night in result.matchedNights.prefix(maxMatchedRows) {
-                lines.append("- \(night.sessionDate): \(night.bandLabel ?? "—"), interval \(night.intervalMinutes.map { "\($0)m" } ?? "—"), SQ \(night.sleepQuality.map(String.init) ?? "—"), readiness \(night.readiness.map(String.init) ?? "—"), wake \(night.wakeType)")
+                lines.append("- \(night.sessionDate): \(night.bandLabel ?? "—"), interval \(night.intervalMinutes.map { "\($0)m" } ?? "—"), SQ \(formatted(night.sleepQuality, decimals: 2)), readiness \(night.readiness.map(String.init) ?? "—"), wake \(night.wakeType)")
             }
             lines.append("")
         }
@@ -211,7 +211,7 @@ struct InsightReportBuilder {
             let rowType = night.trainable ? "matched" : "excluded"
             let interval = night.intervalMinutes.map(String.init) ?? ""
             let score = night.score.map { String(format: "%.2f", $0) } ?? ""
-            let sleepQuality = night.sleepQuality.map(String.init) ?? ""
+            let sleepQuality = night.sleepQuality.map { String(format: "%.2f", $0) } ?? ""
             let readiness = night.readiness.map(String.init) ?? ""
             let exclusionReasons = night.exclusionReasons.joined(separator: "; ")
 
@@ -256,7 +256,7 @@ struct InsightReportBuilder {
             let intervalMinutes = session.intervalMinutes.map(String.init) ?? ""
             let eventCount = String(session.eventCount)
             let preSleepStress = session.preSleepStressLevel.map(String.init) ?? ""
-            let morningSleepQuality = session.morningSleepQuality.map(String.init) ?? ""
+            let morningSleepQuality = session.morningSleepQuality.map { String(format: "%.2f", $0) } ?? ""
             let morningReadiness = session.morningReadiness.map(String.init) ?? ""
             let medicationCount = String(session.medicationCount)
             let totalSleepMinutes = session.totalSleepMinutes.map { String(format: "%.1f", $0) } ?? ""

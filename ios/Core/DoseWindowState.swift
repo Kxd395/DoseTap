@@ -7,7 +7,9 @@ public struct DoseWindowConfig {
     public let defaultTargetMin: Int
     public let snoozeStepMin: Int
     public var maxSnoozes: Int
-    public let sleepThroughGraceMin: Int  // Grace period after window closes before auto-marking incomplete
+    /// Delay after the planned window ends before emphasizing the unresolved-record prompt.
+    /// This value never changes medication state on its own.
+    public let unresolvedPromptDelayMin: Int
 
     public init(minIntervalMin: Int = 150,
                 maxIntervalMin: Int = 240,
@@ -15,14 +17,30 @@ public struct DoseWindowConfig {
                 defaultTargetMin: Int = 165,
                 snoozeStepMin: Int = 10,
                 maxSnoozes: Int = 3,
-                sleepThroughGraceMin: Int = 30) {  // 30 min grace after 240 min window
+                unresolvedPromptDelayMin: Int = 30) {
         self.minIntervalMin = minIntervalMin
         self.maxIntervalMin = maxIntervalMin
         self.nearWindowThresholdMin = nearWindowThresholdMin
         self.defaultTargetMin = defaultTargetMin
         self.snoozeStepMin = snoozeStepMin
         self.maxSnoozes = maxSnoozes
-        self.sleepThroughGraceMin = sleepThroughGraceMin
+        self.unresolvedPromptDelayMin = unresolvedPromptDelayMin
+    }
+}
+
+/// Shared timing classification. Only display code may round elapsed minutes.
+public enum MedicationTiming: Equatable, Sendable {
+    case invalid, early, inWindow, late
+
+    public static func classify(elapsedSeconds: TimeInterval, config: DoseWindowConfig = DoseWindowConfig()) -> Self {
+        guard elapsedSeconds.isFinite, elapsedSeconds >= 0 else { return .invalid }
+        if elapsedSeconds < Double(config.minIntervalMin) * 60 { return .early }
+        if elapsedSeconds >= Double(config.maxIntervalMin) * 60 { return .late }
+        return .inWindow
+    }
+
+    public static func classify(dose1: Date, dose2: Date, config: DoseWindowConfig = DoseWindowConfig()) -> Self {
+        classify(elapsedSeconds: dose2.timeIntervalSince(dose1), config: config)
     }
 }
 
@@ -30,7 +48,9 @@ public enum DoseActionPrimaryCTA: Equatable {
     case takeNow
     case takeBeforeWindowEnds(remaining: TimeInterval)
     case waitingUntilEarliest(remaining: TimeInterval)
-    case takeWithOverride(reason: String)  // Window expired but user can override
+    /// The planned window ended with no recorded Dose 2 outcome. The user may
+    /// record an occurrence that already happened or explicitly mark it missed.
+    case resolveExpiredRecord(reason: String)
     case disabled(String)
 }
 
@@ -72,55 +92,77 @@ public struct DoseWindowCalculator {
     }
 
     public func context(dose1At: Date?, dose2TakenAt: Date?, dose2Skipped: Bool, snoozeCount: Int, wakeFinalAt: Date? = nil, checkInCompleted: Bool = false) -> DoseWindowContext {
+        func canonicalSkipState(for phase: DoseWindowPhase) -> DoseSecondaryActionState {
+            switch DoseRegistrationPolicy.evaluateSkipState(
+                dose1Time: dose1At,
+                dose2Time: dose2TakenAt,
+                dose2Skipped: dose2Skipped,
+                windowPhase: phase
+            ) {
+            case .allowed:
+                return .skipEnabled
+            case .blocked(let reason):
+                return .skipDisabled(reason: reason)
+            case .requiresConfirmation:
+                return .skipDisabled(reason: "Confirmation required")
+            }
+        }
+
         // If wake final logged but check-in not done, we're in finalizing state
         if wakeFinalAt != nil && !checkInCompleted {
-            return DoseWindowContext(phase: .finalizing, primary: .disabled("Complete Check-In"), snooze: .snoozeDisabled(reason: "Session ending"), skip: .skipDisabled(reason: "Session ending"), elapsedSinceDose1: elapsed(from: dose1At), remainingToMax: nil, errors: [], snoozeCount: snoozeCount)
+            return DoseWindowContext(phase: .finalizing, primary: .disabled("Complete Check-In"), snooze: .snoozeDisabled(reason: "Session ending"), skip: canonicalSkipState(for: .finalizing), elapsedSinceDose1: elapsed(from: dose1At), remainingToMax: nil, errors: [], snoozeCount: snoozeCount)
         }
         
         // If check-in is completed, session is done
         if checkInCompleted {
-            return DoseWindowContext(phase: .completed, primary: .disabled("Session Complete"), snooze: .snoozeDisabled(reason: "Completed"), skip: .skipDisabled(reason: "Completed"), elapsedSinceDose1: elapsed(from: dose1At), remainingToMax: nil, errors: [], snoozeCount: snoozeCount)
+            return DoseWindowContext(phase: .completed, primary: .disabled("Session Complete"), snooze: .snoozeDisabled(reason: "Completed"), skip: canonicalSkipState(for: .completed), elapsedSinceDose1: elapsed(from: dose1At), remainingToMax: nil, errors: [], snoozeCount: snoozeCount)
         }
         
         if dose2TakenAt != nil || dose2Skipped {
-            return DoseWindowContext(phase: .completed, primary: .disabled("Completed"), snooze: .snoozeDisabled(reason: "Completed"), skip: .skipDisabled(reason: "Completed"), elapsedSinceDose1: elapsed(from: dose1At), remainingToMax: nil, errors: [], snoozeCount: snoozeCount)
+            return DoseWindowContext(phase: .completed, primary: .disabled("Completed"), snooze: .snoozeDisabled(reason: "Completed"), skip: canonicalSkipState(for: .completed), elapsedSinceDose1: elapsed(from: dose1At), remainingToMax: nil, errors: [], snoozeCount: snoozeCount)
         }
         guard let d1 = dose1At else {
-            return DoseWindowContext(phase: .noDose1, primary: .disabled("Log Dose 1 first"), snooze: .snoozeDisabled(reason: "Dose 1 required"), skip: .skipDisabled(reason: "Dose 1 required"), elapsedSinceDose1: nil, remainingToMax: nil, errors: [.dose1Required], snoozeCount: snoozeCount)
+            return DoseWindowContext(phase: .noDose1, primary: .disabled("Log Dose 1 first"), snooze: .snoozeDisabled(reason: "Dose 1 required"), skip: canonicalSkipState(for: .noDose1), elapsedSinceDose1: nil, remainingToMax: nil, errors: [.dose1Required], snoozeCount: snoozeCount)
         }
         let current = now(); let elapsed = current.timeIntervalSince(d1)
         let minS = Double(config.minIntervalMin) * 60
         let maxS = Double(config.maxIntervalMin) * 60
         let remaining = maxS - elapsed
-        if elapsed < minS {
-            return DoseWindowContext(phase: .beforeWindow, primary: .waitingUntilEarliest(remaining: minS - elapsed), snooze: .snoozeDisabled(reason: "Too early"), skip: .skipEnabled, elapsedSinceDose1: elapsed, remainingToMax: remaining, errors: [], snoozeCount: snoozeCount)
+        if MedicationTiming.classify(elapsedSeconds: elapsed, config: config) == .early || elapsed < 0 {
+            return DoseWindowContext(phase: .beforeWindow, primary: .waitingUntilEarliest(remaining: minS - elapsed), snooze: .snoozeDisabled(reason: "Too early"), skip: canonicalSkipState(for: .beforeWindow), elapsedSinceDose1: elapsed, remainingToMax: remaining, errors: [], snoozeCount: snoozeCount)
         }
-        if elapsed >= maxS {
-            // Window expired - allow override with explicit confirmation
-            return DoseWindowContext(phase: .closed, primary: .takeWithOverride(reason: "Window expired"), snooze: .snoozeDisabled(reason: "Window closed"), skip: .skipEnabled, elapsedSinceDose1: elapsed, remainingToMax: 0, errors: [.windowExceeded], snoozeCount: snoozeCount)
+        if MedicationTiming.classify(elapsedSeconds: elapsed, config: config) == .late {
+            // The timing window ended, but the treatment record remains unresolved
+            // until the user records an actual occurrence or explicitly marks it missed.
+            return DoseWindowContext(phase: .closed, primary: .resolveExpiredRecord(reason: "Dose 2 record unresolved"), snooze: .snoozeDisabled(reason: "Window ended"), skip: canonicalSkipState(for: .closed), elapsedSinceDose1: elapsed, remainingToMax: 0, errors: [.windowExceeded], snoozeCount: snoozeCount)
         }
         let nearThresholdS = Double(config.nearWindowThresholdMin) * 60
         let snoozeState: DoseSecondaryActionState
         if remaining <= nearThresholdS {
             snoozeState = .snoozeDisabled(reason: "<\(config.nearWindowThresholdMin)m left")
-            return DoseWindowContext(phase: .nearClose, primary: .takeBeforeWindowEnds(remaining: remaining), snooze: snoozeState, skip: .skipEnabled, elapsedSinceDose1: elapsed, remainingToMax: remaining, errors: [], snoozeCount: snoozeCount)
+            return DoseWindowContext(phase: .nearClose, primary: .takeBeforeWindowEnds(remaining: remaining), snooze: snoozeState, skip: canonicalSkipState(for: .nearClose), elapsedSinceDose1: elapsed, remainingToMax: remaining, errors: [], snoozeCount: snoozeCount)
         } else {
             if config.maxSnoozes > 0 && snoozeCount >= config.maxSnoozes {
                 snoozeState = .snoozeDisabled(reason: "Snooze limit")
             } else {
                 snoozeState = .snoozeEnabled(remaining: remaining)
             }
-            return DoseWindowContext(phase: .active, primary: .takeNow, snooze: snoozeState, skip: .skipEnabled, elapsedSinceDose1: elapsed, remainingToMax: remaining, errors: [], snoozeCount: snoozeCount)
+            return DoseWindowContext(phase: .active, primary: .takeNow, snooze: snoozeState, skip: canonicalSkipState(for: .active), elapsedSinceDose1: elapsed, remainingToMax: remaining, errors: [], snoozeCount: snoozeCount)
         }
     }
 
     private func elapsed(from dose1At: Date?) -> TimeInterval? { dose1At.map { now().timeIntervalSince($0) } }
     
-    // MARK: - Sleep-Through Detection
-    
-    /// Check if a session has expired due to user sleeping through the dose window
-    /// Returns true if: Dose 1 exists, Dose 2 not taken/skipped, and window + grace period has passed
-    public func shouldAutoExpireSession(dose1At: Date?, dose2TakenAt: Date?, dose2Skipped: Bool) -> Bool {
+    // MARK: - Unresolved Record Prompt
+
+    /// Returns whether the UI should emphasize completion of an unresolved Dose 2
+    /// record. This is presentation-only: callers must not infer taken, skipped,
+    /// missed, closed, or unavailable from the passage of time.
+    public func shouldPromptForUnresolvedDose2(
+        dose1At: Date?,
+        dose2TakenAt: Date?,
+        dose2Skipped: Bool
+    ) -> Bool {
         guard let d1 = dose1At,
               dose2TakenAt == nil,
               !dose2Skipped else {
@@ -128,9 +170,9 @@ public struct DoseWindowCalculator {
         }
         
         let elapsed = now().timeIntervalSince(d1)
-        let expiryThresholdSeconds = Double(config.maxIntervalMin + config.sleepThroughGraceMin) * 60
+        let promptThresholdSeconds = Double(config.maxIntervalMin + config.unresolvedPromptDelayMin) * 60
         
-        return elapsed >= expiryThresholdSeconds
+        return elapsed >= promptThresholdSeconds
     }
     
     // MARK: - Late Dose 1 Detection

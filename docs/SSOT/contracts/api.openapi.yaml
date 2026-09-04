@@ -3,4 +3,16 @@ info:
   title: DoseTap API Contract
   version: 1.0.0
   description: Canonical API contract placeholder for CI validation.
-paths: {}
+paths:
+  /events/log:
+    post:
+      summary: Log an approved non-medication event
+      responses:
+        '200':
+          description: Event accepted
+  /analytics/export:
+    get:
+      summary: Export approved analytics data
+      responses:
+        '200':
+          description: Analytics export returned

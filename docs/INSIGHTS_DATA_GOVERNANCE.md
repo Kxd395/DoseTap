@@ -1,6 +1,7 @@
 # DoseTap Insights Data Governance
 
-Last updated: 2026-03-21
+Status: Current data-governance contract
+Last verified: 2026-09-02
 
 ## Scope
 

@@ -1,67 +1,50 @@
-# Encryption at Rest — Decision Record
+# Encryption at Rest — Active Boundary and Future Proposal
 
-Last updated: 2026-02-14
-Status: **Decided — iOS Data Protection sufficient for v1**
+Status: Current decision; system SQLite is active and SQLCipher is proposal-only
+Last verified: 2026-09-02
 
-## Question
+## Active implementation
 
-Should DoseTap add SQLCipher (or equivalent) database-level encryption to the SQLite store, or rely on iOS Data Protection?
+DoseTap stores medication, sleep, check-in, and diagnostic records in the app sandbox using the system SQLite library. `EventStorage` opens `dosetap_events.sqlite`; the shipping target has no SQLCipher dependency, no database-encryption key lifecycle, and no alternate encrypted-storage wrapper.
 
-## Context
+The active boundary is therefore:
 
-DoseTap stores sensitive medication timing data (XYWAV dose times, sleep events, health integrations). The storage layer uses SQLite on-device. No PHI (Protected Health Information) as defined by HIPAA is stored — the app tracks timing only, not prescriptions, diagnoses, or provider records.
+- application sandbox isolation and the device's operating-system Data Protection behavior;
+- plain SQLite pages managed by `EventStorage`;
+- Keychain storage for integration tokens, separate from the database;
+- local transactional mutation through `SessionRepository` and `EventStorage`.
 
-## Decision
+The source tree does not claim a specific effective file-protection class for the database. That attribute must be verified on a signed device, including before-first-unlock and locked-device behavior, before a stronger protection claim is made.
 
-**iOS Data Protection is sufficient for v1. SQLCipher is a non-goal for the initial release.**
+## Medication mutation boundary
 
-## Rationale
+Database protection and medication safety are separate concerns. Dose 1, Dose 2, extra dose, skip, and snooze actions must enter through `DoseActionCoordinator`, then commit through `SessionRepository` and `EventStorage`. The shipping API client exposes no remote medication mutation endpoints. A network retry queue must never become an alternative medication state owner.
 
-### What iOS Data Protection already provides
+`tools/check_legacy_safety_paths.sh` and `tools/check_dose_state_writes.sh` enforce these source boundaries in CI.
 
-| Protection | Coverage |
-|---|---|
-| File-level encryption | All app files encrypted with device passcode (AES-256) |
-| Access class | `NSFileProtectionCompleteUntilFirstUserAuthentication` (default) — files locked until device unlocked after boot |
-| Keychain | OAuth tokens and encryption keys stored in Secure Enclave-backed Keychain with `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` |
-| Backup encryption | App data in iCloud backups is encrypted; iTunes backups can be optionally encrypted |
+## Retired scaffolding
 
-### What SQLCipher would add
+The former `DatabaseSecurity.swift` and `EncryptedEventStorage.swift` files were inactive scaffolding. They could generate an unused Keychain key and expose SQLCipher-shaped APIs while silently operating without SQLCipher. They were removed from the target and source tree on 2026-09-01 so documentation and compiled behavior no longer imply database-level encryption that is not active.
 
-- Column-level encryption of the SQLite database file itself
-- Protection against jailbreak + raw file system access
-- Protection against forensic tools that can extract raw SQLite from device images
-- Defense-in-depth if iOS Data Protection is bypassed
+## Reconsidering SQLCipher
 
-### Why SQLCipher is not needed for v1
+SQLCipher or another database-level encryption design requires a separate, reviewed proposal. At minimum it must define:
 
-1. **Threat model**: The primary threat is a lost/stolen phone. iOS Data Protection + device passcode already mitigates this. A jailbroken device with physical access is an edge case.
-2. **Data sensitivity**: Dose timing data is sensitive but not PHI. No diagnosis, provider, or prescription details are stored.
-3. **Complexity cost**: SQLCipher requires a third-party dependency, database migration tooling, and testing for performance impact on older devices.
-4. **Infrastructure ready**: `DatabaseSecurity.swift` already implements key management (generate, store, rotate, delete) using Keychain. If SQLCipher is needed later, the key infrastructure is in place.
+1. the threat model and the protection gained beyond the signed-device Data Protection baseline;
+2. dependency provenance, version pinning, and release packaging;
+3. key creation, accessibility, rotation, recovery, deletion, and lost-key behavior;
+4. an atomic, restart-safe migration from every supported plain-SQLite schema;
+5. rollback and recovery without data loss or false medication-state success;
+6. performance and storage measurements on supported devices;
+7. automated corruption, wrong-key, interruption, and restore tests;
+8. owner-observed locked-device and before-first-unlock evidence.
 
-### Future consideration
+Until that proposal is approved and its migration is proven, SQLCipher is not a shipping capability and no production code or documentation should describe it as one.
 
-If any of these conditions change, revisit this decision:
+## Related authorities
 
-- App begins storing PHI (prescriptions, provider notes, diagnosis)
-- Regulatory requirement (HIPAA BAA, SOC 2) mandates database encryption
-- CloudKit sync is added (data leaves device → encryption becomes critical)
-- User feedback indicates a need for additional security assurance
-
-## Current security controls
-
-| Layer | Implementation | File |
-|---|---|---|
-| Keychain tokens | `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` | `SecureConfig.swift`, `KeychainHelper.swift` |
-| Key management | 256-bit key generation, Keychain storage, rotation support | `DatabaseSecurity.swift` |
-| Secret loading | Env → Keychain → Secrets.swift (debug only); release returns empty | `SecureConfig.swift` |
-| Certificate pinning | Leaf + intermediate CA SPKI pins | `CertificatePinning.swift` |
-| Mock transport guard | `#if DEBUG` only; CI enforces no mock in production | `MockAPITransport.swift` |
-
-## References
-
-- Apple Data Protection: https://support.apple.com/guide/security/data-protection-overview-secd46de2a1e/web
-- SQLCipher: https://www.zetetic.net/sqlcipher/
-- `DatabaseSecurity.swift`: `ios/DoseTap/Security/DatabaseSecurity.swift`
-- Certificate pinning runbook: `docs/CERTIFICATE_PINNING.md`
+- `docs/SSOT/dose-state-persistence.md`
+- `docs/architecture/12-safety-sensitive-legacy-retirement.md`
+- `docs/archive/architecture/2026-02-16-numbered-reference/05-storage-layer.md` (historical context only)
+- `ios/DoseTap/Storage/EventStorage.swift`
+- `ios/DoseTap/Storage/EventStorage+Schema.swift`

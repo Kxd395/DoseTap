@@ -248,7 +248,13 @@ final class SessionRepositoryTests: XCTestCase {
         let storage = EventStorage.inMemory()
         let now = fixedNow
         let sessionDate = sessionKey(for: now, timeZone: TimeZone(identifier: "UTC")!)
-        storage.saveDose2(timestamp: now, sessionId: "orphan-session", sessionDateOverride: sessionDate)
+        storage.startSession(sessionId: "orphan-session", sessionDate: sessionDate, start: now)
+        storage.insertDoseEvent(
+            eventType: "dose2",
+            timestamp: now,
+            sessionDate: sessionDate,
+            sessionId: "orphan-session"
+        )
 
         let repo = SessionRepository(
             storage: storage,
@@ -501,10 +507,12 @@ final class SessionRepositoryTests: XCTestCase {
     }
     
     func test_skipDose2_updatesState() async throws {
+        repo.setDose1Time(fixedNow.addingTimeInterval(-160 * 60))
         XCTAssertFalse(repo.dose2Skipped)
         
-        repo.skipDose2()
+        let result = repo.skipDose2()
         
+        XCTAssertTrue(result.isCommitted)
         XCTAssertTrue(repo.dose2Skipped)
     }
     
@@ -1232,7 +1240,11 @@ final class SessionRepositoryTests: XCTestCase {
         let dose1 = ISO8601DateFormatter().date(from: "2026-02-13T03:00:00Z")!
 
         repo.setDose1Time(dose1)
-        repo.skipDose2(reason: "side_effect_concern", reasonNotes: "Too sedated to safely continue.")
+        repo.skipDose2(
+            reason: "side_effect_concern",
+            reasonNotes: "Too sedated to safely continue.",
+            surface: .deepLink
+        )
 
         let sessionDate = try XCTUnwrap(repo.activeSessionDate)
         let event = try XCTUnwrap(storage.fetchDoseEvents(sessionId: nil, sessionDate: sessionDate).first { $0.eventType == "dose2_skipped" })
@@ -1240,6 +1252,7 @@ final class SessionRepositoryTests: XCTestCase {
 
         XCTAssertEqual(metadata["reason"] as? String, "side_effect_concern")
         XCTAssertEqual(metadata["reason_notes"] as? String, "Too sedated to safely continue.")
+        XCTAssertEqual(metadata["surface"] as? String, RegistrationSurface.deepLink.rawValue)
     }
 
     func test_deleteMorningCheckIn_removesNormalizedSubmission() async throws {

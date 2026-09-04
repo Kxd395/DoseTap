@@ -87,7 +87,7 @@ struct InsightRecommendationNightDetail: Hashable, Sendable, Identifiable {
     let intervalMinutes: Int?
     let bandLabel: String?
     let score: Double?
-    let sleepQuality: Int?
+    let sleepQuality: Double?
     let readiness: Int?
     let wakeType: String
     let nightType: String
@@ -188,7 +188,7 @@ struct InsightRecommendationEngine {
                 return band.contains(anchoredIntervalMinutes)
             }
 
-            let averageSleepQuality = average(bandSessions.compactMap(\.morningSleepQuality).map(Double.init))
+            let averageSleepQuality = average(bandSessions.compactMap(\.morningSleepQuality))
             let averageReadiness = average(bandSessions.compactMap(\.morningReadiness).map(Double.init))
             let averageTotalSleepMinutes = average(bandSessions.compactMap(\.totalSleepMinutes))
             let averageSleepEfficiency = average(bandSessions.compactMap(\.sleepEfficiency))
@@ -468,6 +468,11 @@ struct InsightRecommendationEngine {
     private func normalizedFivePoint(_ value: Int?) -> Double? {
         guard let value else { return nil }
         return min(max(Double(value) / 5.0, 0), 1)
+    }
+
+    private func normalizedFivePoint(_ value: Double?) -> Double? {
+        guard let value else { return nil }
+        return min(max(value / 5.0, 0), 1)
     }
 
     private func normalizedPercent(_ value: Double?) -> Double? {

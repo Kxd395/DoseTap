@@ -1,5 +1,8 @@
 # How to Read a Session Trace
 
+Status: Current diagnostic runbook
+Last verified: 2026-09-02
+
 This guide helps diagnose a single session from its diagnostic log folder.
 
 ## Quick Start
@@ -89,4 +92,3 @@ Extract a timeline:
 ```bash
 cat events.jsonl | jq -r '[.ts, .event] | @tsv'
 ```
-

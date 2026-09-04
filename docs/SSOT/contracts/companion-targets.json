@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "support_status": "proposal_only",
+  "supported_targets": [],
+  "proposal_sources": {
+    "watchos": "proposals/companions/watchos/DoseTapWatch",
+    "widget": "proposals/companions/widget"
+  },
+  "physical_review_required_when_supported": [
+    "watch app installation, state parity, offline behavior, and action routing",
+    "widget and complication timeline refresh across medication-state transitions"
+  ]
+}

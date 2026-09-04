@@ -398,7 +398,7 @@ final class DeferredCloudKitSyncService: ObservableObject {
                 sessionId: sessionId,
                 timestamp: timestamp,
                 sessionDate: sessionDate,
-                sleepQuality: record["sleepQuality"] as? Int ?? 3,
+                sleepQuality: Self.doubleValue(record["sleepQuality"]) ?? 3,
                 feelRested: record["feelRested"] as? String ?? "moderate",
                 grogginess: record["grogginess"] as? String ?? "mild",
                 sleepInertiaDuration: record["sleepInertiaDuration"] as? String ?? "fiveToFifteen",
@@ -784,6 +784,13 @@ final class DeferredCloudKitSyncService: ObservableObject {
 
     private func clearServerChangeToken() {
         UserDefaults.standard.removeObject(forKey: zoneChangeTokenDefaultsKey)
+    }
+
+    private static func doubleValue(_ value: CKRecordValue?) -> Double? {
+        if let value = value as? Double { return value }
+        if let value = value as? Int { return Double(value) }
+        if let value = value as? NSNumber { return value.doubleValue }
+        return nil
     }
     #endif
 }

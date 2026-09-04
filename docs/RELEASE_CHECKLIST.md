@@ -1,5 +1,8 @@
 # Release Checklist
 
+Status: Current per-release runbook
+Last verified: 2026-09-02
+
 Use this checklist before tagging any release. Every item must pass.
 
 ## Quick Start — Automated Preflight
@@ -13,14 +16,14 @@ bash tools/release_preflight.sh v1.2.3
 The tagged form is strict: missing or invalid `DOSETAP_CERT_PINS` blocks the
 preflight. Untagged runs are local dry runs and only warn when pins are missing.
 
-This checks: tag format, app version/build settings, SSOT integrity, no tracked
-secrets, no hardcoded credentials, certificate pin validation, mock transport
-confinement, CHANGELOG updated, SwiftPM build + tests. The same script runs on CI
-for tag pushes.
+This checks tag format, app version/build settings, documentation lifecycle,
+SSOT integrity, medication and export boundaries, tracked-secret rules,
+certificate pin configuration, mock transport confinement, CHANGELOG state,
+and the SwiftPM build and tests. The same script runs on CI for tag pushes.
 
 ## Automated (CI must be green)
 
-- [ ] `ssot-lint` — SSOT integrity check passes (no drift between docs and code)
+- [ ] Documentation checks — `tools/doc_lint.sh` and `tools/ssot_check.sh` pass
 - [ ] `swiftpm-tests` — All DoseCore unit tests pass (see CI output for current count)
 - [ ] `xcode-tests` — All SessionRepository and app-level tests pass
 - [ ] `release-pin-script-tests` — Pin validation script regression checks pass
@@ -35,21 +38,21 @@ for tag pushes.
 
 - [ ] **Dose 1 happy path** — Tap "Take Dose 1", confirm haptic + visual feedback, verify dose1 state persists after app restart
 - [ ] **Dose 2 window** — Wait until window opens (or mock time), confirm Dose 2 button enabled, verify window math (150–240m range)
-- [ ] **Snooze** — Tap snooze while >15m remaining, confirm 10m added, verify snooze disabled when <15m or after 3 snoozes
+- [ ] **Snooze** — Tap snooze while more than 15m remains, confirm the configured duration is applied, and verify it is disabled near close or at the configured limit; defaults are 10m and 3 snoozes
 - [ ] **Skip** — Skip Dose 2, confirm session ends cleanly, verify next night starts fresh
 - [ ] **Undo** — Take dose, immediately undo within 5s window, confirm state reverts
 
 ### Data Integrity
 
-- [ ] **Export CSV** — Export from History, open CSV, verify columns match schema, spot-check 3 rows
-- [ ] **Support bundle** — Generate support bundle, verify it contains anonymized data (no PII leak)
+- [ ] **Export** — Export from Settings, open the files, verify manifest/schema compatibility, and compare owner-selected records and source labels
+- [ ] **Support bundle** — Generate a support bundle and verify the documented privacy filter; do not assume the bundle is anonymous without inspection
 - [ ] **Session persistence** — Force-quit app mid-session, relaunch, verify state restored correctly
 
 ### Edge Cases
 
-- [ ] **Offline mode** — Enable airplane mode, take dose, verify queued, disable airplane mode, verify synced
-- [ ] **DST transition** — If near DST change, verify window math handles timezone shift (or add to next release)
-- [ ] **Rate limit** — Rapid-tap bathroom event, verify debounce (60s cooldown)
+- [ ] **Offline mode** — Enable airplane mode, record a dose, force-quit, and verify the committed local state survives relaunch; medication actions must not enter the network queue
+- [ ] **DST and timezone** — Run deterministic gap/repeated-hour tests and complete the physical timezone evidence required by the applicable release gate
+- [ ] **Rate limit** — Rapid-tap a Quick Log event and verify its configured cooldown; the current Bathroom default is 30 seconds
 
 ## Final Sign-off
 

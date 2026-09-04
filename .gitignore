@@ -6,6 +6,14 @@ build/
 # Secrets and configuration
 ios/DoseTap/Config.plist
 ios/DoseTap/Secrets.swift
+.env
+.env.*
+!.env.example
+*.p12
+*.pfx
+*.pem
+*.key
+*.mobileprovision
 
 # OS generated files
 .DS_Store
@@ -15,6 +23,8 @@ ios/DoseTap/Secrets.swift
 # IDE files
 .vscode/
 .idea/
+*.xcuserdata
+DerivedData/
 
 # Logs
 *.log
@@ -29,8 +39,9 @@ ios/build/
 # Xcode backup files
 *.pbxproj.backup*
 
-# Archived / one-off artifacts (removed from tracking 2026-02-13)
-archive/
+# Archived / one-off artifacts at the repository root (removed from tracking 2026-02-13).
+# Documentation history under docs/archive/ is intentional and must remain trackable.
+/archive/
 agent/
 shadcn-ui/
 ios/TempProject/
@@ -45,95 +56,6 @@ ios/*.sh
 # Downloaded reference PDFs
 docs/review/*.pdf
 
-# Added by ggshield
-.cache_ggshield
-
-# Added by ggshield
-.cache_ggshield
-
-# Added by ggshield
-.cache_ggshield
-
-# Added by ggshield
-.cache_ggshield
-
-# Added by ggshield
-.cache_ggshield
-
-# Added by ggshield
-.cache_ggshield
-
-# Added by ggshield
-.cache_ggshield
-
-# Added by ggshield
-.cache_ggshield
-
-# Added by ggshield
-.cache_ggshield
-
-# Added by ggshield
-.cache_ggshield
-
-# Added by ggshield
-.cache_ggshield
-
-# Added by ggshield
-.cache_ggshield
-
-# Added by ggshield
-.cache_ggshield
-
-# Added by ggshield
-.cache_ggshield
-
-# Added by ggshield
-.cache_ggshield
-
-# Added by ggshield
-.cache_ggshield
-
-# Added by ggshield
-.cache_ggshield
-
-# Added by ggshield
-.cache_ggshield
-
-# Added by ggshield
-.cache_ggshield
-
-# Added by ggshield
-.cache_ggshield
-
-# Added by ggshield
-.cache_ggshield
-
-# Added by ggshield
-.cache_ggshield
-
-# Added by ggshield
-.cache_ggshield
-
-# Added by ggshield
-.cache_ggshield
-
-# Added by ggshield
-.cache_ggshield
-
-# Added by ggshield
-.cache_ggshield
-
-# Added by ggshield
-.cache_ggshield
-
-# Added by ggshield
-.cache_ggshield
-
-# Added by ggshield
-.cache_ggshield
-
-# Added by ggshield
-.cache_ggshield
-
-# Added by ggshield
-.cache_ggshield
+# Public, self-signed certificate fixtures; private keys remain ignored.
+!Tests/DoseCoreTests/Fixtures/CertificatePinning/ec-cert.pem
+!Tests/DoseCoreTests/Fixtures/CertificatePinning/rsa-cert.pem

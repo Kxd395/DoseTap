@@ -134,6 +134,24 @@ final class SSOTComplianceTests: XCTestCase {
             XCTFail("SSOT P0-2: Snooze must be disabled before window opens")
         }
     }
+
+    /// SSOT: Skip is blocked until the Dose 2 window opens.
+    func testSSOT_skipDisabled_beforeWindow_withCanonicalReason() {
+        let anchor = Date()
+        let calc = DoseWindowCalculator(now: { anchor.addingTimeInterval(100 * 60) })
+        let ctx = calc.context(
+            dose1At: anchor,
+            dose2TakenAt: nil,
+            dose2Skipped: false,
+            snoozeCount: 0
+        )
+
+        XCTAssertEqual(ctx.phase, .beforeWindow)
+        XCTAssertEqual(
+            ctx.skip,
+            .skipDisabled(reason: "Dose 2 window has not opened")
+        )
+    }
     
     /// SSOT: Snooze ENABLED in .active phase when snoozeCount < maxSnoozes
     func testSSOT_snoozeEnabled_activePhase() {
@@ -211,14 +229,14 @@ final class SSOTComplianceTests: XCTestCase {
     // MARK: - P0-3: Closed Phase Must Not Allow Direct Dose Persistence
     // Validates the window state supports P0-3 Flic bypass fix
     
-    /// SSOT: Closed phase has .takeWithOverride (requires explicit confirmation, not auto-persist)
-    func testSSOT_closedPhase_requiresOverride() {
+    /// SSOT: Closed is a calculated timing phase with an unresolved record action.
+    func testSSOT_closedPhase_requiresRecordResolution() {
         let anchor = Date()
         let calc = DoseWindowCalculator(now: { anchor.addingTimeInterval(250 * 60) })
         let ctx = calc.context(dose1At: anchor, dose2TakenAt: nil, dose2Skipped: false, snoozeCount: 0)
         XCTAssertEqual(ctx.phase, .closed)
-        if case .takeWithOverride = ctx.primary { /* expected */ } else {
-            XCTFail("SSOT P0-3: Closed phase must use .takeWithOverride, not .takeNow")
+        if case .resolveExpiredRecord = ctx.primary { /* expected */ } else {
+            XCTFail("SSOT P0-3: Closed phase must resolve the record, not expose .takeNow")
         }
     }
     
@@ -271,4 +289,3 @@ final class SSOTComplianceTests: XCTestCase {
         XCTAssertNotEqual(ctx1.phase, ctx2.phase, "Contexts must be computed fresh, not cached")
     }
 }
-

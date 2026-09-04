@@ -99,7 +99,7 @@ final class InsightCorrelationAnalyzerTests: XCTestCase {
 
         let morning = InsightMorningSummary(
             submittedAtUTC: dose2.addingTimeInterval(8 * 60 * 60),
-            sleepQuality: sleepQuality,
+            sleepQuality: Double(sleepQuality),
             feelRested: "mostly",
             grogginess: "mild",
             sleepInertiaDuration: "5-15 minutes",

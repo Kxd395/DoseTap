@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.12] - 2026-06-17
+
+### Fixed
+
+- Hardened WHOOP OAuth and token refresh handling:
+  - Generate WHOOP OAuth `state` as an 8-character URL-safe value to match the current WHOOP docs.
+  - Serialize refresh-token requests so concurrent API calls cannot race a rotating refresh token and disconnect WHOOP.
+  - Include `scope=offline` in WHOOP refresh-token requests.
+  - Make the WHOOP Settings credential gate read current secure config instead of a stale view-init snapshot.
+
+### Changed
+
+- Bumped `DoseTap` and `DoseTapStaging` to version `0.4.12` build `14`.
+
 ## [0.4.11] - 2026-06-16
 
 ### Fixed

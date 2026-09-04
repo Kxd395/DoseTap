@@ -4,6 +4,17 @@ import XCTest
 @MainActor
 final class WHOOPDecodingTests: XCTestCase {
 
+    func test_whoopOAuthStateIsEightURLSafeCharacters() {
+        for _ in 0..<20 {
+            let state = WHOOPService.generateOAuthState()
+
+            XCTAssertEqual(state.count, 8)
+            XCTAssertNotNil(
+                state.range(of: #"^[A-Za-z0-9_-]{8}$"#, options: .regularExpression)
+            )
+        }
+    }
+
     func test_whoopSleepDecodesFractionalSecondTimestamps() throws {
         let json = """
         {

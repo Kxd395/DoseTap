@@ -145,6 +145,80 @@ final class AppScreenCaptureTests: XCTestCase {
 
         XCTAssertNil(AppScreenCapture.bestFullPageScrollView(in: root))
     }
+
+    func test_bestFullPageScrollView_prefersTallestVisibleReviewContent() {
+        let root = UIView(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+
+        let nestedPreview = UIScrollView(frame: CGRect(x: 24, y: 220, width: 342, height: 300))
+        nestedPreview.contentSize = CGSize(width: 342, height: 900)
+        root.addSubview(nestedPreview)
+
+        let fullReview = UIScrollView(frame: CGRect(x: 0, y: 88, width: 390, height: 692))
+        fullReview.contentSize = CGSize(width: 390, height: 2_600)
+        root.addSubview(fullReview)
+
+        let selected = AppScreenCapture.bestFullPageScrollView(in: root)
+
+        XCTAssertTrue(selected === fullReview)
+    }
+}
+
+final class ReviewContextMetricTests: XCTestCase {
+    func test_wakeToDose1Metric_usesLatestWakeBeforeDose1() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+
+        let olderWake = calendar.date(from: DateComponents(year: 2026, month: 6, day: 15, hour: 7, minute: 0))!
+        let priorWake = calendar.date(from: DateComponents(year: 2026, month: 6, day: 16, hour: 6, minute: 48))!
+        let dose1 = calendar.date(from: DateComponents(year: 2026, month: 6, day: 16, hour: 21, minute: 15))!
+        let sameNightWake = calendar.date(from: DateComponents(year: 2026, month: 6, day: 17, hour: 6, minute: 48))!
+
+        let events = [
+            DoseTap.StoredSleepEvent(
+                id: "older",
+                eventType: "wake_final",
+                timestamp: olderWake,
+                sessionDate: "2026-06-15"
+            ),
+            DoseTap.StoredSleepEvent(
+                id: "prior",
+                eventType: "wake_final",
+                timestamp: priorWake,
+                sessionDate: "2026-06-16"
+            ),
+            DoseTap.StoredSleepEvent(
+                id: "same-night",
+                eventType: "wake_final",
+                timestamp: sameNightWake,
+                sessionDate: "2026-06-17"
+            )
+        ]
+
+        let metric = buildWakeToDose1Metric(dose1Time: dose1, events: events)
+
+        XCTAssertEqual(metric?.wakeTime, priorWake)
+        XCTAssertEqual(metric?.dose1Time, dose1)
+        XCTAssertEqual(metric?.minutes, 867)
+        XCTAssertEqual(metric?.formattedInterval, "14h 27m")
+    }
+
+    func test_wakeToDose1Metric_returnsNilForStaleWake() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+
+        let staleWake = calendar.date(from: DateComponents(year: 2026, month: 6, day: 14, hour: 6, minute: 48))!
+        let dose1 = calendar.date(from: DateComponents(year: 2026, month: 6, day: 16, hour: 21, minute: 15))!
+        let events = [
+            DoseTap.StoredSleepEvent(
+                id: "stale",
+                eventType: "wake_final",
+                timestamp: staleWake,
+                sessionDate: "2026-06-14"
+            )
+        ]
+
+        XCTAssertNil(buildWakeToDose1Metric(dose1Time: dose1, events: events))
+    }
 }
 
 final class HomeStateResolverTests: XCTestCase {
@@ -187,7 +261,7 @@ final class HomeStateResolverTests: XCTestCase {
         XCTAssertEqual(resolve(doseStatus: .beforeWindow).primary, .dose2Waiting)
         XCTAssertEqual(resolve(doseStatus: .active).primary, .dose2Ready)
         XCTAssertEqual(resolve(doseStatus: .nearClose).primary, .dose2Ready)
-        XCTAssertEqual(resolve(doseStatus: .closed).primary, .dose2Closed)
+        XCTAssertEqual(resolve(doseStatus: .closed).primary, .dose2NeedsResolution)
 
         let activeState = resolve(doseStatus: .active, activeSessionDate: currentSessionDate)
         XCTAssertTrue(activeState.showsDoseStatusCard)
@@ -396,15 +470,15 @@ final class UIStateTests: XCTestCase {
         }
     }
 
-    func test_primaryCTA_closedPhase_requiresOverride() async throws {
+    func test_primaryCTA_closedPhase_requiresRecordResolution() async throws {
         repo.setDose1Time(fixedNow.addingTimeInterval(-250 * 60))
         XCTAssertEqual(repo.currentContext.phase, .closed)
 
         switch repo.currentContext.primary {
-        case .takeWithOverride(let reason):
-            XCTAssertFalse(reason.isEmpty, "Override CTA should include rationale.")
+        case .resolveExpiredRecord(let reason):
+            XCTAssertFalse(reason.isEmpty, "Resolution CTA should include rationale.")
         default:
-            XCTFail("Closed phase should surface .takeWithOverride.")
+            XCTFail("Closed phase should surface .resolveExpiredRecord.")
         }
     }
     
@@ -664,7 +738,7 @@ final class DashboardStressTrendTests: XCTestCase {
         bedtimeDrivers: [CommonStressDriver],
         wakeStress: Int,
         wakeDrivers: [CommonStressDriver],
-        sleepQuality: Int,
+        sleepQuality: Double,
         readiness: Int,
         intervalMinutes: Int
     ) -> DashboardNightAggregate {
@@ -720,7 +794,7 @@ final class DashboardStressTrendTests: XCTestCase {
     private func makeMorningCheckIn(
         sessionDate: String,
         timestamp: Date,
-        sleepQuality: Int,
+        sleepQuality: Double,
         readiness: Int,
         stressLevel: Int,
         stressDrivers: [CommonStressDriver]
@@ -745,5 +819,53 @@ final class DashboardStressTrendTests: XCTestCase {
         ]
         let data = try? JSONSerialization.data(withJSONObject: payload)
         return String(data: data ?? Data("{}".utf8), encoding: .utf8) ?? "{}"
+    }
+}
+
+@MainActor
+final class DashboardDoseIntegrityMetricTests: XCTestCase {
+    func test_missingDose2OutcomesAreVisibleAndExcludedOnlyFromRecordedOnTimeRate() {
+        let model = DashboardAnalyticsModel()
+        model.selectedRange = .all
+        model.nights = [
+            makeNight(sessionDate: "2026-08-29", intervalMinutes: 180),
+            makeNight(sessionDate: "2026-08-28", intervalMinutes: 260),
+            makeNight(sessionDate: "2026-08-27", intervalMinutes: nil)
+        ]
+
+        XCTAssertEqual(model.eligibleDose2OutcomeCount, 3)
+        XCTAssertEqual(model.recordedDose2OutcomeCount, 2)
+        XCTAssertEqual(model.missingDose2OutcomeCount, 1)
+        XCTAssertEqual(model.onTimePercentage ?? 0, 50, accuracy: 0.001)
+        XCTAssertEqual(model.completionRate ?? 0, 200.0 / 3.0, accuracy: 0.001)
+    }
+
+    func test_timeZoneLabelIncludesIdentifierAndDateSpecificOffset() throws {
+        let timeZone = try XCTUnwrap(TimeZone(identifier: "America/New_York"))
+        let summer = try XCTUnwrap(AppFormatters.parseISO8601Flexible("2026-08-29T12:00:00Z"))
+
+        XCTAssertEqual(
+            AppFormatters.timeZoneLabel(timeZone: timeZone, at: summer),
+            "America/New_York (UTC-04:00)"
+        )
+    }
+
+    private func makeNight(sessionDate: String, intervalMinutes: Int?) -> DashboardNightAggregate {
+        let dose1 = AppFormatters.sessionDate.date(from: sessionDate) ?? Date()
+        return DashboardNightAggregate(
+            sessionDate: sessionDate,
+            dose1Time: dose1,
+            dose2Time: intervalMinutes.map { dose1.addingTimeInterval(TimeInterval($0 * 60)) },
+            dose2Skipped: false,
+            snoozeCount: 0,
+            extraDoseCount: 0,
+            events: [],
+            morningCheckIn: nil,
+            preSleepLog: nil,
+            healthSummary: nil,
+            whoopSummary: nil,
+            duplicateClusterCount: 0,
+            napSummary: SessionRepository.NapSummary(count: 0, totalMinutes: 0)
+        )
     }
 }

@@ -454,7 +454,7 @@ enum Dose2ReconciliationChoice: String, CaseIterable, Identifiable {
 }
 
 struct SavedCheckInSettings: Codable {
-    var sleepQuality: Int?
+    var sleepQuality: Double?
     var feelRested: String?
     var grogginess: String?
     var sleepInertiaDuration: String?

@@ -265,7 +265,7 @@ extension EventStorage {
         sqlite3_bind_text(stmt, 2, checkIn.sessionId, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 3, timestampStr, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 4, sessionDate, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_int(stmt, 5, Int32(checkIn.sleepQuality))
+        sqlite3_bind_double(stmt, 5, checkIn.sleepQuality)
         sqlite3_bind_text(stmt, 6, checkIn.feelRested, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 7, checkIn.grogginess, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 8, checkIn.sleepInertiaDuration, -1, SQLITE_TRANSIENT)

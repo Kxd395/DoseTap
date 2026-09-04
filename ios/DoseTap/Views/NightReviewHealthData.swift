@@ -65,9 +65,9 @@ enum HealthDataSnapshotLoader {
             return (nil, "Disabled in Settings")
         }
 
-        healthKit.checkAuthorizationStatus()
+        await healthKit.syncAuthorizationState()
         guard healthKit.isAuthorized else {
-            return (nil, "Not authorized")
+            return (nil, "Apple Health access needs review in Settings")
         }
 
         guard let queryRange = queryRange(for: sessionKey) else {
@@ -76,7 +76,11 @@ enum HealthDataSnapshotLoader {
 
         do {
             let segments = try await healthKit.fetchSegmentsForTimeline(from: queryRange.start, to: queryRange.end)
-            let biometrics = try await healthKit.fetchNightBiometrics(from: queryRange.start, to: queryRange.end)
+            let biometrics = try await healthKit.fetchNightBiometrics(
+                from: queryRange.start,
+                to: queryRange.end,
+                matching: segments
+            )
             guard !segments.isEmpty else {
                 if biometrics.hasAnyMetric {
                     return (
@@ -95,40 +99,25 @@ enum HealthDataSnapshotLoader {
                         "Connected"
                     )
                 }
-                return (nil, "No Apple Health data for this night")
+                return (nil, "No readable Apple Health data for this night. Apple reports denied read access and an empty night the same way.")
             }
 
-            let sorted = segments.sorted { $0.start < $1.start }
-            let sleepOnset = sorted.first { $0.stage.isAsleep }?.start
-            let finalWake = sorted.last?.end
-
-            var firstWake: Date?
-            var foundSleep = false
-            for segment in sorted {
-                if segment.stage.isAsleep {
-                    foundSleep = true
-                } else if foundSleep && segment.stage == .awake {
-                    firstWake = segment.start
-                    break
-                }
+            let nightStart = AppFormatters.sessionDate.date(from: sessionKey) ?? queryRange.start
+            guard let sleepSummary = HealthKitService.sleepNightSummary(
+                from: segments,
+                nightStart: nightStart
+            ) else {
+                return (nil, "No Apple Health sleep stages for this night")
             }
-
-            let totalSleepMinutes = sorted
-                .filter { $0.stage.isAsleep }
-                .reduce(0.0) { $0 + $1.end.timeIntervalSince($1.start) / 60 }
-            let wakeCount = sorted.filter { $0.stage == .awake }.count
-            let ttfwMinutes = (sleepOnset != nil && firstWake != nil)
-                ? firstWake!.timeIntervalSince(sleepOnset!) / 60
-                : nil
-            let sources = Array(Set(sorted.map(\.source))).sorted()
+            let sources = Array(Set(segments.map(\.source))).sorted()
 
             return (
                 AppleHealthNightSummaryData(
-                    totalSleepMinutes: totalSleepMinutes,
-                    ttfwMinutes: ttfwMinutes,
-                    wakeCount: wakeCount,
-                    sleepOnset: sleepOnset,
-                    finalWake: finalWake,
+                    totalSleepMinutes: sleepSummary.totalSleepMinutes,
+                    ttfwMinutes: sleepSummary.ttfwMinutes,
+                    wakeCount: sleepSummary.wakeCount,
+                    sleepOnset: sleepSummary.sleepOnset,
+                    finalWake: sleepSummary.finalWake,
                     averageHeartRate: biometrics.averageHeartRate,
                     respiratoryRate: biometrics.respiratoryRate,
                     hrvMs: biometrics.hrvMs,

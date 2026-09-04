@@ -145,13 +145,13 @@ Valid values:
 **Actions**:
 1. Verify baseline builds (where tooling allows):
    - `swift build -q` (SwiftPM — DoseCore)
-   - `swift test -q` (SwiftPM — DoseCoreTests, 525+ tests expected)
+   - `swift test -q` (SwiftPM; record the executed count from this run)
    - `bash tools/ssot_check.sh` (SSOT contradiction checker)
    - If `xcodebuild` available: `xcodebuild build -project ios/DoseTap.xcodeproj -scheme DoseTap -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO 2>&1 | tail -5`
    - If `xcodebuild` NOT available: state this explicitly in `00_run_context.md` and perform static analysis of `project.pbxproj` instead.
 2. Traverse entire file tree (depth 4). Document every directory with purpose.
 3. Build the **Build Inclusion Map**:
-   - Parse `Package.swift` → list all `DoseCore` sources (24 expected) and `DoseCoreTests` sources (30 expected).
+   - Parse `Package.swift` and list all current `DoseCore` and `DoseCoreTests` sources without assuming a prior count.
    - Parse `ios/DoseTap.xcodeproj/project.pbxproj` → list compile sources per target.
    - Flag any `.swift` file NOT in any build target as a ghost.
 4. Identify duplicates (same filename in multiple locations).
@@ -177,7 +177,7 @@ Valid values:
 
 **Actions**:
 1. Read governance documents (constitution, SSOT, architecture, copilot instructions).
-2. Read every key file in `ios/Core/` (24 files) — verify correctness of domain logic against SSOT.
+2. Discover and read every key file in the current `ios/Core/` target, then verify domain logic against SSOT.
 3. Read every key file in `ios/DoseTap/` — verify app layer wiring, service integration, notification handling.
 4. Read test files in `Tests/DoseCoreTests/` — assess coverage and correctness.
 5. Verify domain invariants (from `docs/SSOT/README.md`):

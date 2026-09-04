@@ -179,13 +179,12 @@ public enum DoseEffectivenessCalculator {
                 nonCompliant.append(night)
                 continue
             }
-            switch iv {
-            case windowMin...optimalMax:
-                optimal.append(night)
-            case (optimalMax + 0.001)...windowMax:
-                acceptable.append(night)
-            default:
+            if MedicationTiming.classify(elapsedSeconds: iv * 60) != .inWindow {
                 nonCompliant.append(night)
+            } else if iv <= optimalMax {
+                optimal.append(night)
+            } else {
+                acceptable.append(night)
             }
         }
 

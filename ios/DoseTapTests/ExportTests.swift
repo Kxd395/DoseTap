@@ -201,6 +201,197 @@ final class ExportIntegrityTests: XCTestCase {
         let schemaVersion = storage.getSchemaVersion()
         XCTAssertGreaterThanOrEqual(schemaVersion, 0, "Schema version should be 0 or greater")
     }
+
+    func test_studioExport_preservesCheckInPayloadsAndInventoryRows() throws {
+        let sessionDate = "2026-06-16"
+        let dose1Time = makeDate("2026-06-17T01:15:00.000Z")
+        let dose2Time = makeDate("2026-06-17T04:45:00.000Z")
+        let preSleepTime = makeDate("2026-06-17T00:40:00.000Z")
+        let morningTime = makeDate("2026-06-17T11:00:00.000Z")
+        let physicalJson = #"{"painEntries":[{"area":"neck","severity":5}],"headacheIntensity":2}"#
+        let respiratoryJson = #"{"congestionBurden":"mild","coughBurden":"none"}"#
+        let therapyJson = #"{"device":"cpap","compliance":4}"#
+        let environmentJson = #"{"roomTemp":"cool","noiseLevel":"quiet"}"#
+        let stressJson = #"{"stressProgression":"better","stressNotes":"less pressure"}"#
+        let timingJson = #"{"nightType":"work_night","wakeType":"natural","nextDayDemand":"shift_13h"}"#
+
+        _ = try storage.savePreSleepLogOrThrow(
+            sessionId: sessionDate,
+            answers: DoseTap.PreSleepLogAnswers(
+                intendedSleepTime: .thirtyMin,
+                stressLevel: 3,
+                notes: "preserve raw pre-sleep answers"
+            ),
+            completionState: "complete",
+            now: preSleepTime,
+            timeZone: TimeZone(identifier: "UTC")!
+        )
+        storage.insertDoseEvent(eventType: "dose1", timestamp: dose1Time, sessionDate: sessionDate)
+        storage.insertDoseEvent(eventType: "dose2", timestamp: dose2Time, sessionDate: sessionDate)
+        storage.saveMorningCheckIn(
+            DoseTap.StoredMorningCheckIn(
+                id: "morning-\(sessionDate)",
+                sessionId: sessionDate,
+                timestamp: morningTime,
+                sessionDate: sessionDate,
+                sleepQuality: 4.25,
+                hasPhysicalSymptoms: true,
+                physicalSymptomsJson: physicalJson,
+                hasRespiratorySymptoms: true,
+                respiratorySymptomsJson: respiratoryJson,
+                stressLevel: 2,
+                stressContextJson: stressJson,
+                usedSleepTherapy: true,
+                sleepTherapyJson: therapyJson,
+                hasSleepEnvironment: true,
+                sleepEnvironmentJson: environmentJson,
+                timingContextJson: timingJson
+            ),
+            forSession: sessionDate
+        )
+        storage.upsertInventorySnapshot(
+            DoseTap.StoredInventorySnapshot(
+                id: "inventory-\(sessionDate)",
+                asOfUTC: morningTime,
+                medicationName: "XYWAV",
+                bottlesRemaining: 2,
+                dosesRemaining: 28,
+                estimatedDaysLeft: 14,
+                nextRefillDate: makeDate("2026-06-30T12:00:00.000Z"),
+                notes: "test supply"
+            )
+        )
+
+        let settingsView = SettingsView()
+        let bundleData = try settingsView.buildStudioInsightsBundleDataForTesting(
+            using: repo,
+            sessionDates: [sessionDate]
+        )
+        let bundle = try XCTUnwrap(JSONSerialization.jsonObject(with: bundleData) as? [String: Any])
+        let sessions = try XCTUnwrap(bundle["sessions"] as? [[String: Any]])
+        let exportedSession = try XCTUnwrap(sessions.first)
+        let preSleep = try XCTUnwrap(exportedSession["preSleep"] as? [String: Any])
+        let morning = try XCTUnwrap(exportedSession["morning"] as? [String: Any])
+        let submissions = try XCTUnwrap(exportedSession["checkInSubmissions"] as? [[String: Any]])
+
+        XCTAssertTrue((preSleep["rawAnswersJson"] as? String)?.contains("preserve raw pre-sleep answers") == true)
+        let exportedSleepQuality = try XCTUnwrap(morning["sleepQuality"] as? Double)
+        XCTAssertEqual(exportedSleepQuality, 4.25, accuracy: 0.001)
+        XCTAssertEqual(morning["rawPhysicalSymptomsJson"] as? String, physicalJson)
+        XCTAssertEqual(morning["rawRespiratorySymptomsJson"] as? String, respiratoryJson)
+        XCTAssertEqual(morning["rawSleepTherapyJson"] as? String, therapyJson)
+        XCTAssertEqual(morning["rawSleepEnvironmentJson"] as? String, environmentJson)
+        XCTAssertEqual(morning["rawStressContextJson"] as? String, stressJson)
+        XCTAssertEqual(morning["rawTimingContextJson"] as? String, timingJson)
+
+        let submissionTypes = Set(submissions.compactMap { $0["checkInType"] as? String })
+        XCTAssertTrue(submissionTypes.contains("pre_night"))
+        XCTAssertTrue(submissionTypes.contains("morning"))
+        let responsePayloads = submissions.compactMap { $0["responsesJson"] as? String }
+        XCTAssertTrue(responsePayloads.contains { $0.contains("sleep.quality") })
+        XCTAssertTrue(responsePayloads.contains { $0.contains("overall.stress") })
+
+        let inventoryCSV = settingsView.buildStudioInventoryCSVForTesting(using: repo)
+        let inventoryRows = inventoryCSV.split(whereSeparator: \.isNewline)
+        XCTAssertEqual(inventoryRows.count, 2, "Inventory CSV should include one header and one active snapshot row")
+        XCTAssertTrue(inventoryCSV.contains("28"))
+        XCTAssertTrue(inventoryCSV.contains("source=active_sqlite"))
+
+        let exportDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DoseTapStudioExportTest-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: exportDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: exportDirectory) }
+
+        try settingsView.writeStudioExportBundleForTesting(
+            using: repo,
+            to: exportDirectory,
+            sessionDates: [sessionDate]
+        )
+
+        for fileName in ["events.csv", "sessions.csv", "inventory.csv", "insights_bundle.json"] {
+            XCTAssertTrue(
+                FileManager.default.fileExists(atPath: exportDirectory.appendingPathComponent(fileName).path),
+                "Expected Studio export package to include \(fileName)"
+            )
+        }
+
+        let writtenBundleData = try Data(contentsOf: exportDirectory.appendingPathComponent("insights_bundle.json"))
+        let writtenBundle = try XCTUnwrap(JSONSerialization.jsonObject(with: writtenBundleData) as? [String: Any])
+        let writtenSessions = try XCTUnwrap(writtenBundle["sessions"] as? [[String: Any]])
+        let writtenSession = try XCTUnwrap(writtenSessions.first)
+        XCTAssertEqual(writtenSession["sessionDate"] as? String, sessionDate)
+        XCTAssertEqual((writtenSession["checkInSubmissions"] as? [[String: Any]])?.count, 2)
+
+        let writtenSessionsCSV = try String(contentsOf: exportDirectory.appendingPathComponent("sessions.csv"), encoding: .utf8)
+        XCTAssertTrue(writtenSessionsCSV.contains("2026-06-17T01:15:00.000Z"))
+        XCTAssertTrue(writtenSessionsCSV.contains("210"), "Sessions CSV should include the 3h30 dose interval")
+
+        let writtenInventoryCSV = try String(contentsOf: exportDirectory.appendingPathComponent("inventory.csv"), encoding: .utf8)
+        XCTAssertTrue(writtenInventoryCSV.contains("source=active_sqlite"))
+        XCTAssertEqual(writtenInventoryCSV.split(whereSeparator: \.isNewline).count, 2)
+    }
+
+    func test_studioWHOOPExportRangeUsesChronologicalBoundsForDescendingSessions() throws {
+        let settingsView = SettingsView()
+        let descendingDates = ["2026-06-17", "2026-06-16", "2026-02-09"]
+        let ascendingDates = descendingDates.sorted()
+
+        let descendingRange = try XCTUnwrap(
+            settingsView.studioWHOOPExportQueryRangeForTesting(sessionDates: descendingDates)
+        )
+        let ascendingRange = try XCTUnwrap(
+            settingsView.studioWHOOPExportQueryRangeForTesting(sessionDates: ascendingDates)
+        )
+
+        XCTAssertLessThan(descendingRange.start, descendingRange.end)
+        XCTAssertEqual(descendingRange.start, ascendingRange.start)
+        XCTAssertEqual(descendingRange.end, ascendingRange.end)
+    }
+
+    func test_studioWHOOPSummaryDateUsesSessionRolloverKey() throws {
+        let settingsView = SettingsView()
+        let afterMidnightSleepStart = makeDate("2026-06-17T02:30:00.000Z")
+
+        XCTAssertEqual(
+            settingsView.studioWHOOPSessionDateForTesting(using: repo, summaryDate: afterMidnightSleepStart),
+            "2026-06-16"
+        )
+    }
+
+    func test_studioSessionsCSV_marksMissingDose2OutcomeInsteadOfOk() throws {
+        let sessionDate = "2026-08-29"
+        storage.insertDoseEvent(
+            eventType: "dose1",
+            timestamp: makeDate("2026-08-30T02:00:00.000Z"),
+            sessionDate: sessionDate
+        )
+
+        let exportDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DoseTapMissingOutcomeExportTest-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: exportDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: exportDirectory) }
+
+        try SettingsView().writeStudioExportBundleForTesting(
+            using: repo,
+            to: exportDirectory,
+            sessionDates: [sessionDate]
+        )
+
+        let csv = try String(
+            contentsOf: exportDirectory.appendingPathComponent("sessions.csv"),
+            encoding: .utf8
+        )
+        let rows = csv.split(whereSeparator: \.isNewline)
+        XCTAssertEqual(rows.count, 2)
+        XCTAssertTrue(rows[1].contains(",missing,"), "A missing Dose 2 outcome must never be exported as adherent")
+        XCTAssertFalse(rows[1].contains(",ok,"))
+    }
+
+    private func makeDate(_ isoString: String) -> Date {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.date(from: isoString) ?? Date(timeIntervalSince1970: 0)
+    }
 }
 
 // MARK: - Export/Import Round Trip Tests

@@ -18,6 +18,9 @@ final class DiagnosticLoggerTests: XCTestCase {
         XCTAssertEqual(DiagnosticEvent.dose2Taken.rawValue, "dose.2.taken")
         XCTAssertEqual(DiagnosticEvent.dose2Skipped.rawValue, "dose.2.skipped")
         XCTAssertEqual(DiagnosticEvent.snoozeActivated.rawValue, "dose.snooze.activated")
+        XCTAssertEqual(DiagnosticEvent.doseActionAttempted.rawValue, "dose.action.attempted")
+        XCTAssertEqual(DiagnosticEvent.doseActionCommitted.rawValue, "dose.action.committed")
+        XCTAssertEqual(DiagnosticEvent.doseActionFailed.rawValue, "dose.action.failed")
     }
 
     func test_event_window_rawValues() {
@@ -97,6 +100,10 @@ final class DiagnosticLoggerTests: XCTestCase {
         entry.reason = "test reason"
         entry.scheduledForTime = Date(timeIntervalSince1970: 1200)
         entry.notificationActionId = "dosetap_alarm_snooze"
+        entry.actionId = "attempt-123"
+        entry.doseAction = "dose2"
+        entry.registrationSurface = "tonight_button"
+        entry.mutationFailureCode = "disk_full"
 
         let data = try JSONEncoder().encode(entry)
         let decoded = try JSONDecoder().decode(DiagnosticLogEntry.self, from: data)
@@ -107,6 +114,62 @@ final class DiagnosticLoggerTests: XCTestCase {
         XCTAssertEqual(decoded.remainingMinutes, 12)
         XCTAssertEqual(decoded.scheduledForTime, Date(timeIntervalSince1970: 1200))
         XCTAssertEqual(decoded.notificationActionId, "dosetap_alarm_snooze")
+        XCTAssertEqual(decoded.actionId, "attempt-123")
+        XCTAssertEqual(decoded.doseAction, "dose2")
+        XCTAssertEqual(decoded.registrationSurface, "tonight_button")
+        XCTAssertEqual(decoded.mutationFailureCode, "disk_full")
+    }
+
+    func test_unknownAndIncompleteTerminalStatesNeverLogAsCompleted() {
+        XCTAssertEqual(DiagnosticLogger.lifecycleEvent(for: "checkin_completed"), .sessionCompleted)
+        XCTAssertEqual(DiagnosticLogger.lifecycleEvent(for: "incomplete_missed_checkin"), .sessionExpired)
+        XCTAssertEqual(DiagnosticLogger.lifecycleEvent(for: "incomplete_prep_rollover"), .sessionExpired)
+        XCTAssertEqual(DiagnosticLogger.lifecycleEvent(for: "future_unknown_state"), .sessionExpired)
+    }
+
+    func test_logDoseAction_correlatesAttemptAndFailureWithoutClinicalPayload() async throws {
+        let logger = DiagnosticLogger.shared
+        await logger.updateSettings(isEnabled: true, tier2Enabled: true, tier3Enabled: false)
+        let testSessionId = "unit-test-\(UUID().uuidString)"
+        let actionId = UUID().uuidString
+
+        await logger.logDoseAction(
+            .doseActionAttempted,
+            sessionId: testSessionId,
+            actionId: actionId,
+            action: "dose2",
+            surface: "tonight_button"
+        )
+        await logger.logDoseAction(
+            .doseActionFailed,
+            sessionId: testSessionId,
+            actionId: actionId,
+            action: "dose2",
+            surface: "tonight_button",
+            failureCode: "disk_full"
+        )
+
+        let eventsPath = await logger.eventsFilePath(for: testSessionId)
+        defer { try? FileManager.default.removeItem(at: eventsPath.deletingLastPathComponent()) }
+        let content = try String(contentsOf: eventsPath, encoding: .utf8)
+        let lines = content.split(separator: "\n")
+        XCTAssertEqual(lines.count, 2)
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let entries = try lines.map {
+            try decoder.decode(DiagnosticLogEntry.self, from: Data($0.utf8))
+        }
+        XCTAssertEqual(entries.map(\.event), [.doseActionAttempted, .doseActionFailed])
+        XCTAssertTrue(entries.allSatisfy { $0.actionId == actionId })
+        XCTAssertTrue(entries.allSatisfy { $0.doseAction == "dose2" })
+        XCTAssertTrue(entries.allSatisfy { $0.registrationSurface == "tonight_button" })
+        XCTAssertNil(entries[0].mutationFailureCode)
+        XCTAssertEqual(entries[1].mutationFailureCode, "disk_full")
+        XCTAssertEqual(entries[1].level, .warning)
+        XCTAssertTrue(entries.allSatisfy {
+            $0.dose1Time == nil && $0.dose2Time == nil && $0.reason == nil
+        })
     }
 
     func test_logAlarm_persistsScheduledForTime() async throws {

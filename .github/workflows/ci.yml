@@ -24,8 +24,23 @@ jobs:
       - name: Run SSOT lint
         run: bash tools/ssot_check.sh 2>&1 | tee "$RUNNER_TEMP/ssot-lint.log"
 
+      - name: Run documentation lifecycle and drift lint
+        run: bash tools/doc_lint.sh
+
       - name: Guard dose state write paths
         run: bash tools/check_dose_state_writes.sh
+
+      - name: Guard retired safety-sensitive paths
+        run: bash tools/check_legacy_safety_paths.sh
+
+      - name: Check companion target support contract
+        run: bash tools/check_companion_targets.sh
+
+      - name: Check architecture responsibility boundaries
+        run: bash tools/check_architecture_boundaries.sh
+
+      - name: Check repository and Git-ref hygiene
+        run: bash tools/check_repository_hygiene.sh
 
       - name: Upload SSOT lint log
         if: always()

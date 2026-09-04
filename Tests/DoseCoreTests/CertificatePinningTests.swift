@@ -42,6 +42,61 @@ final class CertificatePinningTests: XCTestCase {
         XCTAssertNotNil(cp)
     }
 
+    func test_rsaFixture_spkiPinMatchesOpenSSLProductionCommand() throws {
+        let certificate = try fixtureCertificateDER(named: "rsa-cert")
+        let expected = try fixtureExpectedPin(named: "rsa-cert")
+
+        XCTAssertEqual(CertificatePinning.spkiPin(forCertificateData: certificate), expected)
+    }
+
+    func test_ecFixture_spkiPinMatchesOpenSSLProductionCommand() throws {
+        let certificate = try fixtureCertificateDER(named: "ec-cert")
+        let expected = try fixtureExpectedPin(named: "ec-cert")
+
+        XCTAssertEqual(CertificatePinning.spkiPin(forCertificateData: certificate), expected)
+    }
+
+    func test_fixtureMismatch_isRejected() throws {
+        let certificate = try fixtureCertificateDER(named: "rsa-cert")
+        let wrongPin = "sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+
+        XCTAssertFalse(CertificatePinning.matchesCertificateChain([certificate], pins: [wrongPin]))
+    }
+
+    func test_twoPinRotation_acceptsWhenEitherReviewedPinMatches() throws {
+        let certificate = try fixtureCertificateDER(named: "rsa-cert")
+        let expected = try fixtureExpectedPin(named: "rsa-cert")
+        let nextRotationPin = try fixtureExpectedPin(named: "ec-cert")
+
+        XCTAssertTrue(
+            CertificatePinning.matchesCertificateChain(
+                [certificate],
+                pins: [nextRotationPin, expected]
+            )
+        )
+    }
+
+    func test_chainEvaluation_acceptsMatchingIntermediateOrLeafFixture() throws {
+        let rsa = try fixtureCertificateDER(named: "rsa-cert")
+        let ec = try fixtureCertificateDER(named: "ec-cert")
+        let ecPin = try fixtureExpectedPin(named: "ec-cert")
+
+        XCTAssertTrue(CertificatePinning.matchesCertificateChain([rsa, ec], pins: [ecPin]))
+    }
+
+    func test_malformedAndDuplicatePins_areRemovedBeforeUse() throws {
+        let valid = try fixtureExpectedPin(named: "rsa-cert")
+        let normalized = CertificatePinning.normalizedPins([
+            "  \(valid)  ",
+            valid,
+            "sha256/not-base64",
+            "md5/AAAAAAAAAAAAAAAAAAAAAA==",
+            "",
+        ])
+
+        XCTAssertEqual(normalized, [valid])
+    }
+
     // MARK: - PinnedURLSessionTransport
 
     func test_pinnedTransport_init_with_custom_pinning() {
@@ -56,45 +111,50 @@ final class CertificatePinningTests: XCTestCase {
     }
 
     func test_pinnedTransport_conforms_to_APITransport() {
-        let transport = PinnedURLSessionTransport()
-        XCTAssertTrue(transport is any APITransport)
+        let _: any APITransport = PinnedURLSessionTransport()
     }
 
     // MARK: - URLSessionDelegate (no-pin scenario)
 
-    func test_delegate_fallback_for_nonPinned_domain() async {
-        // When pinnedDomains is set and challenge host is NOT in it,
-        // the delegate should call performDefaultHandling.
+    func test_delegate_conforms_to_URLSessionDelegate() {
         let cp = CertificatePinning(
             pins: ["sha256/abc="],
             domains: ["api.dosetap.com"]
         )
-
-        // Create a mock challenge for a different domain
-        // URLAuthenticationChallenge can't be easily mocked, so we verify
-        // the object was created correctly and delegate method exists
-        let selector = #selector(URLSessionDelegate.urlSession(_:didReceive:completionHandler:))
-        XCTAssertTrue(cp.responds(to: selector), "Should respond to auth challenge delegate method")
+        let _: any URLSessionDelegate = cp
     }
 
     // MARK: - Transport Safety
 
     func test_urlSessionTransport_conforms_to_APITransport() {
-        let transport = URLSessionTransport()
-        XCTAssertTrue(transport is any APITransport)
+        let _: any APITransport = URLSessionTransport()
     }
 
-    func test_mockTransport_only_exists_in_DEBUG() {
-        // This test compiles in both DEBUG and RELEASE.
-        // In DEBUG, MockAPITransport should be available.
-        // In RELEASE, it should not compile — but since tests always
-        // run in DEBUG, we verify it exists here as a canary.
-        #if DEBUG
-        let mock = MockAPITransport()
-        XCTAssertTrue(mock is any APITransport)
-        #else
-        // If this line ever compiles, MockAPITransport leaked into release
-        XCTFail("Tests should only run in DEBUG configuration")
-        #endif
+    private func fixtureCertificateDER(named name: String) throws -> Data {
+        let url = try XCTUnwrap(
+            Bundle.module.url(
+                forResource: name,
+                withExtension: "pem",
+                subdirectory: "CertificatePinning"
+            )
+        )
+        let pem = try String(contentsOf: url, encoding: .utf8)
+        let base64 = pem
+            .split(whereSeparator: { $0.isNewline })
+            .filter { !$0.hasPrefix("-----") }
+            .joined()
+        return try XCTUnwrap(Data(base64Encoded: base64))
+    }
+
+    private func fixtureExpectedPin(named name: String) throws -> String {
+        let url = try XCTUnwrap(
+            Bundle.module.url(
+                forResource: name,
+                withExtension: "spki-pin",
+                subdirectory: "CertificatePinning"
+            )
+        )
+        return try String(contentsOf: url, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

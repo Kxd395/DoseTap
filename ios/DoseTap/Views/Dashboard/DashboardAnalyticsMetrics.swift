@@ -38,6 +38,20 @@ extension DashboardAnalyticsModel {
         return (Double(onTime) / Double(values.count)) * 100
     }
 
+    var eligibleDose2OutcomeCount: Int {
+        dosingNights.filter { $0.dose1Time != nil }.count
+    }
+
+    var recordedDose2OutcomeCount: Int {
+        dosingNights.filter {
+            $0.dose1Time != nil && ($0.dose2Time != nil || $0.dose2Skipped)
+        }.count
+    }
+
+    var missingDose2OutcomeCount: Int {
+        max(0, eligibleDose2OutcomeCount - recordedDose2OutcomeCount)
+    }
+
     var averageIntervalMinutes: Double? {
         let intervals = dosingNights.compactMap(\.intervalMinutes)
         guard !intervals.isEmpty else { return nil }
@@ -59,6 +73,18 @@ extension DashboardAnalyticsModel {
 
     var averageSleepMinutes: Double? {
         let values = populatedNights.compactMap(\.totalSleepMinutes)
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +) / Double(values.count)
+    }
+
+    var averageAppleHealthSleepMinutes: Double? {
+        let values = populatedNights.compactMap(\.appleHealthSleepMinutes)
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +) / Double(values.count)
+    }
+
+    var averageWhoopSleepMinutes: Double? {
+        let values = populatedNights.compactMap(\.whoopSleepMinutes)
         guard !values.isEmpty else { return nil }
         return values.reduce(0, +) / Double(values.count)
     }

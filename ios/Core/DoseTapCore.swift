@@ -1,8 +1,5 @@
 import Foundation
 import Combine
-#if canImport(OSLog)
-import OSLog
-#endif
 #if canImport(SwiftUI)
 import SwiftUI
 #endif
@@ -36,7 +33,7 @@ public enum DoseStatus: Equatable {
 // Allows DoseTapCore to delegate to the app's SessionRepository without tight coupling
 
 @available(iOS 13.0, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
-public protocol DoseTapSessionRepository: AnyObject {
+public protocol DoseTapSessionStateProviding: AnyObject {
     var dose1Time: Date? { get }
     var dose2Time: Date? { get }
     var snoozeCount: Int { get }
@@ -44,11 +41,6 @@ public protocol DoseTapSessionRepository: AnyObject {
     var wakeFinalTime: Date? { get }
     var checkInCompleted: Bool { get }
     var sessionDidChange: PassthroughSubject<Void, Never> { get }
-    
-    func setDose1Time(_ time: Date)
-    func setDose2Time(_ time: Date, isEarly: Bool, isExtraDose: Bool)
-    func incrementSnooze()
-    func skipDose2()
 }
 
 // MARK: - Core Bridge Class
@@ -61,8 +53,8 @@ public protocol DoseTapSessionRepository: AnyObject {
 public class DoseTapCore: ObservableObject {
     // MARK: - State is now computed from repository (P0 FIX)
     
-    /// Session repository for state storage - set by the app
-    public var sessionRepository: DoseTapSessionRepository?
+    /// Read-only session state provider set by the composition root.
+    private var sessionRepository: DoseTapSessionStateProviding?
     
     /// Current status computed from repository state
     public var currentStatus: DoseStatus {
@@ -85,111 +77,33 @@ public class DoseTapCore: ObservableObject {
     
     /// Dose 1 time - computed from repository
     public var dose1Time: Date? {
-        get { sessionRepository?.dose1Time }
-        set { 
-            if let time = newValue {
-                sessionRepository?.setDose1Time(time)
-            }
-            objectWillChange.send()
-        }
+        sessionRepository?.dose1Time
     }
     
     /// Dose 2 time - computed from repository
     public var dose2Time: Date? {
-        get { sessionRepository?.dose2Time }
-        set {
-            if let time = newValue {
-                sessionRepository?.setDose2Time(time, isEarly: false, isExtraDose: false)
-            }
-            objectWillChange.send()
-        }
+        sessionRepository?.dose2Time
     }
     
     /// Snooze count - computed from repository
     public var snoozeCount: Int {
-        get { sessionRepository?.snoozeCount ?? 0 }
-        set { 
-            // Note: incrementSnooze() is preferred over direct set
-            objectWillChange.send()
-        }
+        sessionRepository?.snoozeCount ?? 0
     }
     
     /// Is skipped - computed from repository
     public var isSkipped: Bool {
-        get { sessionRepository?.dose2Skipped ?? false }
-        set {
-            if newValue {
-                sessionRepository?.skipDose2()
-            }
-            objectWillChange.send()
-        }
+        sessionRepository?.dose2Skipped ?? false
     }
     
     private let windowCalculator: DoseWindowCalculator
-    private let dosingService: DosingService
     private var repositoryObserver: AnyCancellable?
-
-    private static func logWarning(_ message: String) {
-        #if canImport(OSLog)
-        Logger(subsystem: "com.dosetap.core", category: "DoseTapCore")
-            .warning("\(message, privacy: .public)")
-        #endif
-    }
-
-    private static func logError(_ message: String) {
-        #if canImport(OSLog)
-        Logger(subsystem: "com.dosetap.core", category: "DoseTapCore")
-            .error("\(message, privacy: .public)")
-        #endif
-    }
     
-    public init(isOnline: @escaping () -> Bool = { true }) {
+    public init() {
         self.windowCalculator = DoseWindowCalculator()
-
-        let apiClient = APIClient(baseURL: Self.apiBaseURL, transport: Self.makeTransport())
-        let offlineQueue = InMemoryOfflineQueue(isOnline: isOnline)
-        self.dosingService = DosingService(client: apiClient, queue: offlineQueue)
-    }
-
-    private static var apiBaseURL: URL {
-        if let envURL = ProcessInfo.processInfo.environment["DOSETAP_API_URL"],
-           let url = URL(string: envURL) {
-            return url
-        }
-        #if DEBUG
-        return URL(string: "https://api-dev.dosetap.com")!
-        #else
-        return URL(string: "https://api.dosetap.com")!
-        #endif
-    }
-
-    private static func makeTransport() -> APITransport {
-        let env = ProcessInfo.processInfo.environment
-
-        #if DEBUG
-        if env["DOSETAP_USE_MOCK_TRANSPORT"] == "1" {
-            return MockAPITransport()
-        }
-        if env["DOSETAP_USE_PINNED_TRANSPORT"] == "1",
-           CertificatePinning.hasConfiguredPins {
-            return PinnedURLSessionTransport()
-        }
-        return URLSessionTransport()
-        #else
-        if CertificatePinning.hasConfiguredPins {
-            return PinnedURLSessionTransport()
-        }
-        // Release must fail closed if pins are missing.
-        #if canImport(OSLog)
-        Logger(subsystem: "com.dosetap.core", category: "Security")
-            .critical("⚠️ Release build without certificate pins — set DOSETAP_CERT_PINS")
-        #endif
-        fatalError("Certificate pinning is not configured; set DOSETAP_CERT_PINS for release builds.")
-        #endif
     }
     
     /// Set the session repository and observe changes
-    public func setSessionRepository(_ repo: DoseTapSessionRepository) {
+    public func setSessionRepository(_ repo: DoseTapSessionStateProviding) {
         self.sessionRepository = repo
         
         // Observe repository changes to trigger objectWillChange
@@ -199,90 +113,5 @@ public class DoseTapCore: ObservableObject {
                 self?.objectWillChange.send()
             }
     }
-    
-    /// Take dose with optional early override flag
-    /// - Parameter earlyOverride: If true, allows taking Dose 2 before window opens (user confirmed)
-    public func takeDose(earlyOverride: Bool = false, lateOverride: Bool = false) async {
-        let now = Date()
-        
-        await MainActor.run {
-            if dose1Time == nil {
-                // P0 FIX: Write through repository
-                sessionRepository?.setDose1Time(now)
-            } else if dose2Time == nil {
-                // Dose 2 logic
-                let windowOpen = currentStatus == .active || currentStatus == .nearClose
-                
-                if windowOpen || earlyOverride || lateOverride {
-                    // P0 FIX: Write through repository
-                    sessionRepository?.setDose2Time(now, isEarly: earlyOverride, isExtraDose: false)
-                    #if DEBUG
-                    if earlyOverride {
-                        #if canImport(OSLog)
-                        Self.logWarning("Dose 2 taken early with user override")
-                        #endif
-                    } else if lateOverride {
-                        #if canImport(OSLog)
-                        Self.logWarning("Dose 2 taken late with user override")
-                        #endif
-                    }
-                    #endif
-                } else {
-                    // Window not open and no override - block
-                    #if DEBUG
-                    #if canImport(OSLog)
-                    let status = self.currentStatus
-                    Self.logError("Cannot take Dose 2: window not open (status: \(status))")
-                    #endif
-                    #endif
-                    return
-                }
-            } else {
-                // Dose 2 already taken - this should be blocked by UI
-                #if DEBUG
-                #if canImport(OSLog)
-                Self.logWarning("Dose 2 already taken, ignoring duplicate")
-                #endif
-                #endif
-                return
-            }
-        }
-        
-        await dosingService.perform(.takeDose(type: "XYWAV", at: now))
-    }
-    
-    public func skipDose() async {
-        await MainActor.run {
-            // P0 FIX: Write through repository
-            sessionRepository?.skipDose2()
-        }
-        
-        await dosingService.perform(.skipDose(sequence: 2, reason: "user_request"))
-    }
-    
-    public func snooze() async {
-        await MainActor.run {
-            // P0 FIX: Write through repository
-            sessionRepository?.incrementSnooze()
-        }
-        
-        await dosingService.perform(.snooze(minutes: 10))
-    }
 }
-
-// MARK: - Mock Transport for Development (DEBUG only)
-#if DEBUG
-struct MockAPITransport: APITransport {
-    func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
-        // Return mock success response
-        let response = HTTPURLResponse(
-            url: request.url!,
-            statusCode: 200,
-            httpVersion: "1.1",
-            headerFields: ["Content-Type": "application/json"]
-        )!
-        return (Data(), response)
-    }
-}
-#endif // DEBUG
 #endif // canImport(SwiftUI)

@@ -57,7 +57,7 @@ public final class CertificatePinning: NSObject, URLSessionDelegate, @unchecked 
         domains: [String] = [],
         allowFallback: Bool = false
     ) {
-        self.pinnedHashes = Set(pins)
+        self.pinnedHashes = Set(Self.normalizedPins(pins))
         self.pinnedDomains = Set(domains.map { $0.lowercased() })
         #if DEBUG
         self.allowFallback = allowFallback
@@ -96,7 +96,7 @@ public final class CertificatePinning: NSObject, URLSessionDelegate, @unchecked 
         }
 
         if let plistArray = Bundle.main.object(forInfoDictionaryKey: "DOSETAP_CERT_PINS") as? [String] {
-            let parsed = plistArray.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+            let parsed = normalizedPins(plistArray)
             if !parsed.isEmpty { return parsed }
         }
 
@@ -108,10 +108,25 @@ public final class CertificatePinning: NSObject, URLSessionDelegate, @unchecked 
         return []
     }
 
-    private static func parsePins(_ raw: String) -> [String] {
-        raw.split(separator: ",")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+    static func parsePins(_ raw: String) -> [String] {
+        normalizedPins(raw.split(separator: ",").map(String.init))
+    }
+
+    static func normalizedPins(_ rawPins: [String]) -> [String] {
+        var seen: Set<String> = []
+        return rawPins.compactMap { rawPin in
+            let pin = rawPin.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard pin.hasPrefix("sha256/") else { return nil }
+            let encodedDigest = String(pin.dropFirst("sha256/".count))
+            guard encodedDigest.count == 44,
+                  let digest = Data(base64Encoded: encodedDigest),
+                  digest.count == SHA256.Digest.byteCount,
+                  digest.base64EncodedString() == encodedDigest,
+                  seen.insert(pin).inserted else {
+                return nil
+            }
+            return pin
+        }
     }
     
     // MARK: - URLSessionDelegate
@@ -161,7 +176,7 @@ public final class CertificatePinning: NSObject, URLSessionDelegate, @unchecked 
         for i in 0..<certificateCount {
             guard let certificate = SecTrustGetCertificateAtIndex(serverTrust, i) else { continue }
             
-            let publicKeyHash = hashPublicKey(of: certificate)
+            let publicKeyHash = Self.spkiPin(of: certificate)
             if pinnedHashes.contains(publicKeyHash) {
                 pinMatched = true
                 break
@@ -190,20 +205,114 @@ public final class CertificatePinning: NSObject, URLSessionDelegate, @unchecked 
     
     // MARK: - Helpers
     
-    /// Generate SHA-256 hash of the certificate's public key (SPKI)
-    private func hashPublicKey(of certificate: SecCertificate) -> String {
+    /// Generate the SHA-256 pin of the certificate's DER SubjectPublicKeyInfo.
+    /// `SecKeyCopyExternalRepresentation` returns only the algorithm-specific
+    /// key bytes, so the matching SPKI AlgorithmIdentifier must be restored
+    /// before hashing to match the OpenSSL production-pin runbook.
+    private static func spkiPin(of certificate: SecCertificate) -> String {
         guard let publicKey = SecCertificateCopyKey(certificate) else {
             return ""
         }
         
         var error: Unmanaged<CFError>?
-        guard let publicKeyData = SecKeyCopyExternalRepresentation(publicKey, &error) as Data? else {
+        guard let publicKeyData = SecKeyCopyExternalRepresentation(publicKey, &error) as Data?,
+              let subjectPublicKeyInfo = subjectPublicKeyInfo(
+                for: publicKey,
+                externalRepresentation: publicKeyData
+              ) else {
             return ""
         }
-        
-        // Hash the public key data
-        let hash = SHA256.hash(data: publicKeyData)
+
+        let hash = SHA256.hash(data: subjectPublicKeyInfo)
         return "sha256/" + Data(hash).base64EncodedString()
+    }
+
+    static func spkiPin(forCertificateData certificateData: Data) -> String? {
+        guard let certificate = SecCertificateCreateWithData(nil, certificateData as CFData) else {
+            return nil
+        }
+        let pin = spkiPin(of: certificate)
+        return pin.isEmpty ? nil : pin
+    }
+
+    static func matchesCertificateChain(
+        _ certificateData: [Data],
+        pins: [String]
+    ) -> Bool {
+        let normalized = Set(normalizedPins(pins))
+        guard !normalized.isEmpty else { return false }
+        return certificateData.contains { data in
+            spkiPin(forCertificateData: data).map(normalized.contains) == true
+        }
+    }
+
+    private static func subjectPublicKeyInfo(
+        for key: SecKey,
+        externalRepresentation: Data
+    ) -> Data? {
+        guard let attributes = SecKeyCopyAttributes(key) as? [CFString: Any],
+              let keyType = attributes[kSecAttrKeyType] as? String else {
+            return nil
+        }
+
+        let algorithmIdentifier: Data
+        if keyType == (kSecAttrKeyTypeRSA as String) {
+            // rsaEncryption (1.2.840.113549.1.1.1) with the required NULL.
+            algorithmIdentifier = Data([
+                0x30, 0x0D,
+                0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x01,
+                0x05, 0x00,
+            ])
+        } else if keyType == (kSecAttrKeyTypeECSECPrimeRandom as String) {
+            guard let keySize = attributes[kSecAttrKeySizeInBits] as? Int else { return nil }
+            let curveOID: Data
+            switch keySize {
+            case 256:
+                // prime256v1 / secp256r1 (1.2.840.10045.3.1.7)
+                curveOID = Data([0x06, 0x08, 0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x03, 0x01, 0x07])
+            case 384:
+                // secp384r1 (1.3.132.0.34)
+                curveOID = Data([0x06, 0x05, 0x2B, 0x81, 0x04, 0x00, 0x22])
+            case 521:
+                // secp521r1 (1.3.132.0.35)
+                curveOID = Data([0x06, 0x05, 0x2B, 0x81, 0x04, 0x00, 0x23])
+            default:
+                return nil
+            }
+            let ecPublicKeyOID = Data([0x06, 0x07, 0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x02, 0x01])
+            algorithmIdentifier = derSequence(ecPublicKeyOID + curveOID)
+        } else {
+            return nil
+        }
+
+        var bitStringBody = Data([0x00])
+        bitStringBody.append(externalRepresentation)
+        var bitString = Data([0x03])
+        bitString.append(derLength(bitStringBody.count))
+        bitString.append(bitStringBody)
+        return derSequence(algorithmIdentifier + bitString)
+    }
+
+    private static func derSequence(_ body: Data) -> Data {
+        var sequence = Data([0x30])
+        sequence.append(derLength(body.count))
+        sequence.append(body)
+        return sequence
+    }
+
+    private static func derLength(_ length: Int) -> Data {
+        precondition(length >= 0)
+        if length < 0x80 {
+            return Data([UInt8(length)])
+        }
+
+        var value = length
+        var bytes: [UInt8] = []
+        while value > 0 {
+            bytes.insert(UInt8(value & 0xFF), at: 0)
+            value >>= 8
+        }
+        return Data([0x80 | UInt8(bytes.count)] + bytes)
     }
 }
 

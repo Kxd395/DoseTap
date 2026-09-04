@@ -21,6 +21,38 @@ public struct EventRecord: Identifiable {
 /// Stored medication entry model for EventStorage
 public typealias StoredMedicationEntry = SQLiteStoredMedicationEntry
 
+/// Stored medication inventory snapshot for EventStorage.
+public struct StoredInventorySnapshot: Codable, Identifiable, Equatable {
+    public let id: String
+    public let asOfUTC: Date
+    public let medicationName: String
+    public let bottlesRemaining: Int
+    public let dosesRemaining: Int
+    public let estimatedDaysLeft: Int?
+    public let nextRefillDate: Date?
+    public let notes: String?
+
+    public init(
+        id: String = UUID().uuidString,
+        asOfUTC: Date = Date(),
+        medicationName: String,
+        bottlesRemaining: Int,
+        dosesRemaining: Int,
+        estimatedDaysLeft: Int? = nil,
+        nextRefillDate: Date? = nil,
+        notes: String? = nil
+    ) {
+        self.id = id
+        self.asOfUTC = asOfUTC
+        self.medicationName = medicationName
+        self.bottlesRemaining = bottlesRemaining
+        self.dosesRemaining = dosesRemaining
+        self.estimatedDaysLeft = estimatedDaysLeft
+        self.nextRefillDate = nextRefillDate
+        self.notes = notes
+    }
+}
+
 /// Stored pre-sleep log model for EventStorage
 public struct StoredPreSleepLog: Identifiable {
     public let id: String
@@ -407,7 +439,7 @@ public struct StoredMorningCheckIn: Identifiable {
     public let sessionId: String
     public let timestamp: Date
     public let sessionDate: String
-    public let sleepQuality: Int
+    public let sleepQuality: Double
     public let feelRested: String
     public let grogginess: String
     public let sleepInertiaDuration: String
@@ -443,7 +475,7 @@ public struct StoredMorningCheckIn: Identifiable {
         sessionId: String,
         timestamp: Date,
         sessionDate: String,
-        sleepQuality: Int = 3,
+        sleepQuality: Double = 3,
         feelRested: String = "moderate",
         grogginess: String = "mild",
         sleepInertiaDuration: String = "fiveToFifteen",

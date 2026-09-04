@@ -9,7 +9,7 @@ struct WHOOPSettingsView: View {
     @State private var showDisconnectConfirm = false
     @State private var sleepHistory: [WHOOPNightSummary] = []
     @State private var isLoadingHistory = false
-    private let isConfigured = SecureConfig.shared.isConfigured
+    private var isConfigured: Bool { SecureConfig.shared.isConfigured }
     
     var body: some View {
         List {

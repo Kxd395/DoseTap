@@ -45,7 +45,7 @@ jobs:
 
   storage-enforcement:
     name: Storage Enforcement Guard
-    runs-on: macos-14
+    runs-on: macos-latest
     
     steps:
       - name: Checkout
@@ -90,26 +90,9 @@ jobs:
           echo "- EventStorage.shared: Views must use SessionRepository" >> $GITHUB_STEP_SUMMARY
           echo "- SQLiteStorage: Banned (#if false wrapper)" >> $GITHUB_STEP_SUMMARY
 
-      - name: Docs consistency check (stale refs)
+      - name: Documentation lifecycle and drift check
         run: |
-          echo "🔍 Checking for stale references in active docs..."
-          # These patterns should NOT appear in active docs
-          # Scan: all markdown files in repo
-          # Exclude: archive/, legacy/, and intentional changelog/history headers
-          # Allowed exceptions:
-          #   - "Before | After" tables (showing improvement from 268 to 275)
-          #   - "Recent Updates (v2.10.0)" or "New in v2.10.0" changelog headers  
-          #   - "Completed (v2.10.0)" backlog/history headers
-          STALE=$(find . -name "*.md" -type f ! -path "*/archive/*" ! -path "*/legacy/*" -exec grep -Hn "\b268\b\|v2\.10\.0\|v2\.11\.0\|dosetap\.db\|@available.*unavailable" {} \; 2>/dev/null | grep -v "Before.*After\|| 268 | 275\|Recent Updates.*v2\.10\|New in v2\.10\|Completed.*v2\.10\|Completed.*v2\.11" || true)
-          if [ -n "$STALE" ]; then
-            echo "❌ FAIL: Stale references found in active docs"
-            echo "Canonical values: SSOT v2.12.0, 275 tests, dosetap_events.sqlite, #if false wrapper"
-            echo ""
-            echo "Stale refs found:"
-            echo "$STALE"
-            exit 1
-          fi
-          echo "✅ No stale references in active docs"
+          bash tools/doc_lint.sh
 
   print-ban:
     name: Production print() Ban
@@ -147,20 +130,14 @@ jobs:
 
   xcode-build:
     name: Xcode iOS Build
-    runs-on: macos-14
+    runs-on: macos-latest
     
     steps:
       - name: Checkout
         uses: actions/checkout@v4
       
-      - name: Select Xcode
+      - name: Xcode version
         run: |
-          set -euo pipefail
-          if [ -d /Applications/Xcode_15.4.app/Contents/Developer ]; then
-            sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
-          else
-            echo "Xcode 15.4 not found on runner; using default selected Xcode."
-          fi
           xcodebuild -version
       
       - name: Generate CI Secrets stub
@@ -172,6 +149,7 @@ jobs:
 
       - name: Build iOS App
         run: |
+          set -euo pipefail
           cd ios
           xcodebuild build \
             -project DoseTap.xcodeproj \

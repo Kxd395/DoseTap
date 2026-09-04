@@ -8,9 +8,6 @@ import SwiftUI
 import UIKit
 import AudioToolbox
 #endif
-#if canImport(WidgetKit)
-import WidgetKit
-#endif
 
 private let coordinatorLog = Logger(subsystem: "com.dosetap.app", category: "DoseActionCoordinator")
 
@@ -23,6 +20,7 @@ private let coordinatorLog = Logger(subsystem: "com.dosetap.app", category: "Dos
 ///
 /// Surfaces call coordinator methods and handle the returned `ActionResult`:
 ///   .success        → update UI with feedback
+///   .attentionRequired → dose committed, but a follow-up safety effect needs retry
 ///   .needsConfirm   → show confirmation dialog, then call again with override
 ///   .blocked        → show reason to user
 ///
@@ -34,23 +32,28 @@ final class DoseActionCoordinator: ObservableObject {
 
     let core: DoseTapCore
     let alarmService: AlarmService
+    let dateProvider: any DateProviding
     var eventLogger: EventLogger?
     var undoState: UndoStateManager?
     var sessionRepo: SessionRepository?
+    var hapticObserver: ((FeedbackIntensity) -> Void)?
 
     // MARK: - Result Types
 
     enum ActionResult: Equatable {
         case success(message: String)
+        case attentionRequired(message: String)
+        case retryRequired(message: String)
         case needsConfirm(ConfirmationType)
         case blocked(reason: String)
     }
 
     enum ConfirmationType: Equatable {
         /// Window not open yet - tell user how many minutes remain
+        case workWake(WorkWakeWarning)
         case earlyDose(minutesRemaining: Int)
-        /// 240-minute window has passed
-        case lateDose
+        /// A reported occurrence is outside the configured timing window.
+        case outsideWindowOccurrence
         /// Dose 2 was skipped; user wants to un-skip
         case afterSkip
         /// Dose 2 already recorded; this would be a 3rd+ dose
@@ -60,8 +63,6 @@ final class DoseActionCoordinator: ObservableObject {
     enum DoseOverride: Equatable {
         case none
         case earlyConfirmed
-        case lateConfirmed
-        case afterSkipConfirmed
         case extraDoseConfirmed
     }
 
@@ -70,12 +71,14 @@ final class DoseActionCoordinator: ObservableObject {
     init(
         core: DoseTapCore,
         alarmService: AlarmService,
+        dateProvider: any DateProviding = SystemDateProvider(),
         eventLogger: EventLogger? = nil,
         undoState: UndoStateManager? = nil,
         sessionRepo: SessionRepository? = nil
     ) {
         self.core = core
         self.alarmService = alarmService
+        self.dateProvider = dateProvider
         self.eventLogger = eventLogger
         self.undoState = undoState
         self.sessionRepo = sessionRepo
@@ -91,7 +94,11 @@ final class DoseActionCoordinator: ObservableObject {
             return .blocked(reason: "Session store unavailable")
         }
 
-        switch DoseRegistrationPolicy.evaluateDose1(input: registrationInput(surface: surface)) {
+        let decisionTime = dateProvider.now()
+        switch DoseRegistrationPolicy.evaluateDose1(
+            input: registrationInput(surface: surface, at: decisionTime),
+            at: decisionTime
+        ) {
         case .allowed:
             break
         case .requiresConfirmation(let type):
@@ -100,8 +107,29 @@ final class DoseActionCoordinator: ObservableObject {
             return .blocked(reason: reason)
         }
 
-        let now = Date()
-        sessionRepo.setDose1Time(now)
+        let diagnosticActionId = UUID().uuidString
+        let diagnosticSessionId = sessionRepo.currentSessionIdString()
+        await DiagnosticLogger.shared.logDoseAction(
+            .doseActionAttempted,
+            sessionId: diagnosticSessionId,
+            actionId: diagnosticActionId,
+            action: "dose1",
+            surface: surface.rawValue
+        )
+        let mutationResult = sessionRepo.setDose1Time(decisionTime)
+        await logDoseMutationResult(
+            mutationResult,
+            sessionId: diagnosticSessionId,
+            actionId: diagnosticActionId,
+            action: "dose1",
+            surface: surface
+        )
+        guard mutationResult.isCommitted else {
+            return retryResult(
+                mutationResult,
+                action: "Dose 1"
+            )
+        }
 
         // Event log
         eventLogger?.logEvent(
@@ -110,20 +138,31 @@ final class DoseActionCoordinator: ObservableObject {
         )
 
         // Undo
-        undoState?.register(.takeDose1(at: now))
+        undoState?.register(.takeDose1(at: decisionTime))
 
         // Schedule alarms
         let targetMinutes = UserSettingsManager.shared.targetIntervalMinutes
         let target = targetMinutes > 0 ? targetMinutes : 165
-        let wakeTime = now.addingTimeInterval(Double(target) * 60)
-        await alarmService.scheduleDose2Alarm(at: wakeTime, dose1Time: now)
-        await alarmService.scheduleDose2Reminders(dose1Time: now)
+        let wakeTime = decisionTime.addingTimeInterval(Double(target) * 60)
+        let wakeResult = await alarmService.scheduleDose2Alarm(
+            at: wakeTime,
+            dose1Time: decisionTime
+        )
+        let reminderResult = await alarmService.scheduleDose2Reminders(
+            dose1Time: decisionTime
+        )
 
         playHaptic(.dose)
         playConfirmationSound()
-        refreshWidgets()
-
         coordinatorLog.info("Dose 1 logged via coordinator from \(surface.rawValue, privacy: .public)")
+        let schedulingFailures = [wakeResult, reminderResult].compactMap(\.failure)
+        if !schedulingFailures.isEmpty {
+            let messages = Array(Set(schedulingFailures.map(\.userMessage))).sorted()
+            coordinatorLog.error("Dose 1 committed, but notification scheduling needs retry")
+            return .attentionRequired(
+                message: "Dose 1 was logged. \(messages.joined(separator: " "))"
+            )
+        }
         return .success(message: "✓ Dose 1 logged")
     }
 
@@ -131,6 +170,7 @@ final class DoseActionCoordinator: ObservableObject {
 
     func takeDose2(
         override: DoseOverride = .none,
+        acknowledgedWorkWarning: WorkWakeWarning? = nil,
         reason: String? = nil,
         reasonNotes: String? = nil,
         surface: RegistrationSurface = .tonightButton
@@ -142,57 +182,130 @@ final class DoseActionCoordinator: ObservableObject {
             return .blocked(reason: "Session store unavailable")
         }
 
-        let input = registrationInput(surface: surface)
+        let decisionTime = dateProvider.now()
+        let input = registrationInput(surface: surface, at: decisionTime)
         let phase = input.windowPhase
         let overrideConfirmed = override != .none
 
-        switch DoseRegistrationPolicy.evaluateDose2(input: input, overrideConfirmed: overrideConfirmed) {
+        switch DoseRegistrationPolicy.evaluateDose2(
+            input: input,
+            at: decisionTime,
+            overrideConfirmed: overrideConfirmed
+        ) {
         case .allowed:
+            var workWarning: WorkWakeWarning?
+            if input.dose2Time == nil, let first = input.dose1Time, let repo = sessionRepo,
+               let identity = repo.activeSessionId, let sessionDate = repo.activeSessionDate {
+                do {
+                    workWarning = try repo.workWakeSchedule().warning(sessionId: identity, sessionDate: sessionDate, dose1: first, now: decisionTime, doseTargetMinutes: UserSettingsManager.shared.targetIntervalMinutes)
+                } catch {
+                    return .retryRequired(message: "Your work schedule could not be read. Review it in Weekly Schedule and retry.")
+                }
+                if let warning = workWarning, warning != acknowledgedWorkWarning { return .needsConfirm(.workWake(warning)) }
+            }
             if input.dose2Time != nil {
                 guard override == .extraDoseConfirmed else {
                     return .needsConfirm(.extraDose)
                 }
-                return await performExtraDose(reason: reason, reasonNotes: reasonNotes)
-            }
-            if input.dose2Skipped {
-                guard override == .afterSkipConfirmed || override == .lateConfirmed else {
-                    return .needsConfirm(.afterSkip)
-                }
-                return await performDose2(
-                    eventName: "Dose 2 (After Skip)",
-                    isLate: true,
+                return await performExtraDose(
+                    at: decisionTime,
                     reason: reason,
-                    reasonNotes: reasonNotes
+                    reasonNotes: reasonNotes,
+                    surface: surface
                 )
             }
             if phase == .beforeWindow {
                 guard override == .earlyConfirmed else {
-                    return .needsConfirm(.earlyDose(minutesRemaining: remainingMinutesToWindowOpen()))
+                    return .needsConfirm(
+                        .earlyDose(minutesRemaining: remainingMinutesToWindowOpen(at: decisionTime))
+                    )
                 }
                 return await performDose2(
+                    at: decisionTime,
                     eventName: "Dose 2 (Early)",
                     isLate: false,
                     isEarly: true,
                     reason: reason,
-                    reasonNotes: reasonNotes
-                )
-            }
-            if phase == .closed {
-                guard override == .lateConfirmed else {
-                    return .needsConfirm(.lateDose)
-                }
-                return await performDose2(
-                    eventName: "Dose 2 (Late)",
-                    isLate: true,
-                    reason: reason,
-                    reasonNotes: reasonNotes
+                    reasonNotes: reasonNotes,
+                    surface: surface
                 )
             }
             return await performDose2(
+                at: decisionTime,
                 eventName: "Dose 2",
                 isLate: false,
+                workWarning: workWarning,
                 reason: reason,
-                reasonNotes: reasonNotes
+                reasonNotes: reasonNotes,
+                surface: surface
+            )
+        case .requiresConfirmation(let type):
+            return .needsConfirm(mapConfirmation(type))
+        case .blocked(let reason):
+            return .blocked(reason: reason)
+        }
+    }
+
+    /// Record a Dose 2 occurrence that the user confirms already happened.
+    /// This is deliberately separate from `takeDose2`: an outside-window record
+    /// preserves history without presenting the app as permission to take a dose now.
+    func recordDose2Occurrence(
+        at occurrenceTime: Date,
+        warningConfirmed: Bool = false,
+        acknowledgedWorkWarning: WorkWakeWarning? = nil,
+        reason: String? = nil,
+        reasonNotes: String? = nil,
+        surface: RegistrationSurface = .tonightButton
+    ) async -> ActionResult {
+        guard sessionRepo != nil else {
+            return .blocked(reason: "Session store unavailable")
+        }
+
+        let decisionTime = dateProvider.now()
+        let input = registrationInput(surface: surface, at: decisionTime)
+
+        switch DoseRegistrationPolicy.evaluateRetrospectiveDose2(
+            input: input,
+            occurrenceTime: occurrenceTime,
+            decisionTime: decisionTime,
+            warningConfirmed: warningConfirmed
+        ) {
+        case .allowed:
+            guard let dose1Time = input.dose1Time else {
+                return .blocked(reason: "Add the missing Dose 1 record first")
+            }
+            var workWarning: WorkWakeWarning?
+            if let repo = sessionRepo, let identity = repo.activeSessionId, let sessionDate = repo.activeSessionDate {
+                do {
+                    workWarning = try repo.workWakeSchedule().warning(sessionId: identity, sessionDate: sessionDate, dose1: dose1Time, now: occurrenceTime, doseTargetMinutes: UserSettingsManager.shared.targetIntervalMinutes, retrospective: true)
+                } catch {
+                    return .retryRequired(message: "Your work schedule could not be read. Review it in Weekly Schedule and retry.")
+                }
+                if let warning = workWarning, warning != acknowledgedWorkWarning { return .needsConfirm(.workWake(warning)) }
+            }
+            let interval = occurrenceTime.timeIntervalSince(dose1Time)
+            let config = DoseCore.DoseWindowConfig()
+            let isEarly = interval < Double(config.minIntervalMin) * 60
+            let isLate = interval >= Double(config.maxIntervalMin) * 60
+            let eventName: String
+            if isEarly {
+                eventName = "Dose 2 (Early, Recorded Later)"
+            } else if isLate {
+                eventName = "Dose 2 (Late, Recorded Later)"
+            } else {
+                eventName = "Dose 2 (Recorded Later)"
+            }
+            return await performDose2(
+                at: occurrenceTime,
+                eventName: eventName,
+                isLate: isLate,
+                workWarning: workWarning,
+                isEarly: isEarly,
+                entryMode: .retrospective,
+                recordedAt: decisionTime,
+                reason: reason,
+                reasonNotes: reasonNotes,
+                surface: surface
             )
         case .requiresConfirmation(let type):
             return .needsConfirm(mapConfirmation(type))
@@ -211,7 +324,11 @@ final class DoseActionCoordinator: ObservableObject {
             return .blocked(reason: "Session store unavailable")
         }
 
-        switch DoseRegistrationPolicy.evaluateSnooze(input: registrationInput(surface: surface)) {
+        let decisionTime = dateProvider.now()
+        switch DoseRegistrationPolicy.evaluateSnooze(
+            input: registrationInput(surface: surface, at: decisionTime),
+            at: decisionTime
+        ) {
         case .allowed:
             break
         case .requiresConfirmation(let type):
@@ -220,16 +337,23 @@ final class DoseActionCoordinator: ObservableObject {
             return .blocked(reason: reason)
         }
 
-        guard let dose1Time = sessionRepo.dose1Time ?? core.dose1Time else {
+        guard let dose1Time = sessionRepo.dose1Time else {
             return .blocked(reason: "Take Dose 1 first")
         }
 
-        guard sessionRepo.incrementSnoozeIfActive() else {
-            return .blocked(reason: "Snooze not available for the current session")
+        let snoozeMutation = sessionRepo.incrementSnoozeMutationIfActive()
+        guard snoozeMutation.isCommitted else {
+            return retryResult(snoozeMutation, action: "Snooze")
         }
 
         guard let newTime = await alarmService.snoozeAlarm(dose1Time: dose1Time) else {
-            sessionRepo.decrementSnoozeCount()
+            let rollbackResult = sessionRepo.decrementSnoozeCount()
+            if !rollbackResult.isCommitted {
+                return retryResult(
+                    rollbackResult,
+                    action: "Snooze rollback"
+                )
+            }
             return .blocked(reason: "No alarm available to snooze")
         }
 
@@ -237,7 +361,6 @@ final class DoseActionCoordinator: ObservableObject {
         let formatted = newTime.formatted(date: .omitted, time: .shortened)
         coordinatorLog.info("Snoozed to \(formatted, privacy: .public) from \(surface.rawValue, privacy: .public)")
         playHaptic(.action)
-        refreshWidgets()
         return .success(message: "✓ Snoozed to \(formatted)")
     }
 
@@ -255,7 +378,11 @@ final class DoseActionCoordinator: ObservableObject {
             return .blocked(reason: "Session store unavailable")
         }
 
-        switch DoseRegistrationPolicy.evaluateSkip(input: registrationInput(surface: surface)) {
+        let decisionTime = dateProvider.now()
+        switch DoseRegistrationPolicy.evaluateSkip(
+            input: registrationInput(surface: surface, at: decisionTime),
+            at: decisionTime
+        ) {
         case .allowed:
             break
         case .requiresConfirmation(let type):
@@ -264,7 +391,30 @@ final class DoseActionCoordinator: ObservableObject {
             return .blocked(reason: reason)
         }
 
-        sessionRepo.skipDose2(reason: reason, reasonNotes: reasonNotes)
+        let diagnosticActionId = UUID().uuidString
+        let diagnosticSessionId = sessionRepo.currentSessionIdString()
+        await DiagnosticLogger.shared.logDoseAction(
+            .doseActionAttempted,
+            sessionId: diagnosticSessionId,
+            actionId: diagnosticActionId,
+            action: "dose2_skip",
+            surface: surface.rawValue
+        )
+        let mutationResult = sessionRepo.skipDose2(
+            reason: reason,
+            reasonNotes: reasonNotes,
+            surface: surface
+        )
+        await logDoseMutationResult(
+            mutationResult,
+            sessionId: diagnosticSessionId,
+            actionId: diagnosticActionId,
+            action: "dose2_skip",
+            surface: surface
+        )
+        guard mutationResult.isCommitted else {
+            return retryResult(mutationResult, action: "Dose 2 skip")
+        }
         alarmService.cancelAllAlarms()
         alarmService.clearDose2AlarmState()
 
@@ -277,31 +427,58 @@ final class DoseActionCoordinator: ObservableObject {
         playHaptic(.action)
 
         coordinatorLog.info("Dose 2 skipped via coordinator from \(surface.rawValue, privacy: .public)")
-        refreshWidgets()
         return .success(message: "✓ Dose 2 skipped")
     }
 
     // MARK: - Private Helpers
 
     private func performDose2(
+        at decisionTime: Date,
         eventName: String,
         isLate: Bool,
+        workWarning: WorkWakeWarning? = nil,
         isEarly: Bool = false,
+        entryMode: DoseEntryMode = .prospective,
+        recordedAt: Date? = nil,
         reason: String? = nil,
-        reasonNotes: String? = nil
+        reasonNotes: String? = nil,
+        surface: RegistrationSurface
     ) async -> ActionResult {
         guard let sessionRepo else {
             return .blocked(reason: "Session store unavailable")
         }
 
-        let now = Date()
-        sessionRepo.setDose2Time(
-            now,
+        let diagnosticActionId = UUID().uuidString
+        let diagnosticSessionId = sessionRepo.currentSessionIdString()
+        let diagnosticAction = isEarly ? "dose2_early" : (isLate ? "dose2_late" : "dose2")
+        await DiagnosticLogger.shared.logDoseAction(
+            .doseActionAttempted,
+            sessionId: diagnosticSessionId,
+            actionId: diagnosticActionId,
+            action: diagnosticAction,
+            surface: surface.rawValue
+        )
+        let mutationResult = sessionRepo.setDose2Time(
+            decisionTime,
             isEarly: isEarly,
             isExtraDose: false,
+            entryMode: entryMode,
+            workWarning: workWarning,
+            recordedAt: recordedAt ?? decisionTime,
+            surface: surface,
             reason: reason,
             reasonNotes: reasonNotes
         )
+        await logDoseMutationResult(
+            mutationResult,
+            sessionId: diagnosticSessionId,
+            actionId: diagnosticActionId,
+            action: diagnosticAction,
+            surface: surface
+        )
+        guard mutationResult.isCommitted else {
+            return retryResult(mutationResult, action: eventName)
+        }
 
         alarmService.cancelAllAlarms()
         alarmService.clearDose2AlarmState()
@@ -313,29 +490,51 @@ final class DoseActionCoordinator: ObservableObject {
             persist: false
         )
 
-        undoState?.register(.takeDose2(at: now))
+        undoState?.register(.takeDose2(at: decisionTime))
 
         playHaptic(.dose)
         playConfirmationSound()
 
         coordinatorLog.info("\(eventName, privacy: .public) logged via coordinator")
-        refreshWidgets()
         return .success(message: "✓ \(eventName) logged")
     }
 
-    private func performExtraDose(reason: String? = nil, reasonNotes: String? = nil) async -> ActionResult {
+    private func performExtraDose(
+        at decisionTime: Date,
+        reason: String? = nil,
+        reasonNotes: String? = nil,
+        surface: RegistrationSurface
+    ) async -> ActionResult {
         guard let sessionRepo else {
             return .blocked(reason: "Session store unavailable")
         }
 
-        let now = Date()
-        sessionRepo.setDose2Time(
-            now,
+        let diagnosticActionId = UUID().uuidString
+        let diagnosticSessionId = sessionRepo.currentSessionIdString()
+        await DiagnosticLogger.shared.logDoseAction(
+            .doseActionAttempted,
+            sessionId: diagnosticSessionId,
+            actionId: diagnosticActionId,
+            action: "extra_dose",
+            surface: surface.rawValue
+        )
+        let mutationResult = sessionRepo.setDose2Time(
+            decisionTime,
             isEarly: false,
             isExtraDose: true,
             reason: reason,
             reasonNotes: reasonNotes
         )
+        await logDoseMutationResult(
+            mutationResult,
+            sessionId: diagnosticSessionId,
+            actionId: diagnosticActionId,
+            action: "extra_dose",
+            surface: surface
+        )
+        guard mutationResult.isCommitted else {
+            return retryResult(mutationResult, action: "Extra dose")
+        }
 
         eventLogger?.logEvent(
             name: "Extra Dose",
@@ -347,35 +546,73 @@ final class DoseActionCoordinator: ObservableObject {
         playHaptic(.dose)
         playConfirmationSound()
         coordinatorLog.warning("Extra dose logged via coordinator after explicit confirmation")
-        refreshWidgets()
         return .success(message: "Extra dose logged")
     }
 
-    private func registrationInput(surface: RegistrationSurface) -> DoseRegistrationInput {
-        let context = currentWindowContext
+    private func registrationInput(
+        surface: RegistrationSurface,
+        at decisionTime: Date
+    ) -> DoseRegistrationInput {
+        let dose1Time = sessionRepo?.dose1Time
+        let dose2Time = sessionRepo?.dose2Time
+        let dose2Skipped = sessionRepo?.dose2Skipped ?? false
+        let snoozeCount = sessionRepo?.snoozeCount ?? 0
+        let context = DoseWindowCalculator(now: { decisionTime }).context(
+            dose1At: dose1Time,
+            dose2TakenAt: dose2Time,
+            dose2Skipped: dose2Skipped,
+            snoozeCount: snoozeCount,
+            wakeFinalAt: sessionRepo?.wakeFinalTime,
+            checkInCompleted: sessionRepo?.checkInCompleted ?? false
+        )
         return DoseRegistrationInput(
-            dose1Time: sessionRepo?.dose1Time ?? core.dose1Time,
-            dose2Time: sessionRepo?.dose2Time ?? core.dose2Time,
-            dose2Skipped: sessionRepo?.dose2Skipped ?? core.isSkipped,
-            snoozeCount: sessionRepo?.snoozeCount ?? core.snoozeCount,
+            dose1Time: dose1Time,
+            dose2Time: dose2Time,
+            dose2Skipped: dose2Skipped,
+            snoozeCount: snoozeCount,
             windowPhase: context.phase,
             surface: surface
         )
     }
 
-    private var currentWindowContext: DoseWindowContext {
-        if let sessionRepo {
-            return sessionRepo.currentContext
+    private func logDoseMutationResult(
+        _ result: MedicationMutationResult,
+        sessionId: String,
+        actionId: String,
+        action: String,
+        surface: RegistrationSurface
+    ) async {
+        await DiagnosticLogger.shared.logDoseAction(
+            result.isCommitted ? .doseActionCommitted : .doseActionFailed,
+            sessionId: sessionId,
+            actionId: actionId,
+            action: action,
+            surface: surface.rawValue,
+            failureCode: result.failure?.code.rawValue
+        )
+    }
+
+    private func retryResult(
+        _ mutationResult: MedicationMutationResult,
+        action: String
+    ) -> ActionResult {
+        guard let failure = mutationResult.failure else {
+            return .retryRequired(
+                message: "\(action) was not saved. Retry and confirm it appears before relying on it."
+            )
         }
-        return core.windowContext
+        coordinatorLog.error(
+            "\(action, privacy: .public) persistence failed at \(failure.stage.rawValue, privacy: .public) with \(failure.code.rawValue, privacy: .public)"
+        )
+        return .retryRequired(message: failure.userMessage)
     }
 
     private func mapConfirmation(_ type: DoseConfirmationType) -> ConfirmationType {
         switch type {
         case .earlyDose(let minutesRemaining):
             return .earlyDose(minutesRemaining: minutesRemaining)
-        case .lateDose:
-            return .lateDose
+        case .outsideWindowOccurrence:
+            return .outsideWindowOccurrence
         case .afterSkip:
             return .afterSkip
         case .extraDose:
@@ -383,10 +620,10 @@ final class DoseActionCoordinator: ObservableObject {
         }
     }
 
-    private func remainingMinutesToWindowOpen() -> Int {
-        guard let dose1Time = sessionRepo?.dose1Time ?? core.dose1Time else { return 0 }
+    private func remainingMinutesToWindowOpen(at decisionTime: Date) -> Int {
+        guard let dose1Time = sessionRepo?.dose1Time else { return 0 }
         let windowOpen = dose1Time.addingTimeInterval(150 * 60)
-        let remaining = windowOpen.timeIntervalSince(Date())
+        let remaining = windowOpen.timeIntervalSince(decisionTime)
         return max(1, Int(ceil(remaining / 60)))
     }
 
@@ -402,6 +639,7 @@ final class DoseActionCoordinator: ObservableObject {
 
     /// Haptic feedback respecting user preference. P3-1.
     private func playHaptic(_ intensity: FeedbackIntensity) {
+        hapticObserver?(intensity)
         switch intensity {
         case .dose:   Haptics.doseTaken.play()
         case .action: Haptics.action.play()
@@ -416,14 +654,6 @@ final class DoseActionCoordinator: ObservableObject {
         #endif
     }
 
-    /// P4-2: Ask WidgetKit to refresh complications/widgets after any state-changing
-    /// dose action so watch complications, Lock Screen, and Home Screen widgets stay
-    /// in sync with `DoseTapCore` without waiting for the next app-lifecycle refresh.
-    private func refreshWidgets() {
-        #if canImport(WidgetKit)
-        WidgetCenter.shared.reloadAllTimelines()
-        #endif
-    }
 }
 
 // MARK: - Dose Action Result Presentation
@@ -432,6 +662,7 @@ final class DoseActionCoordinator: ObservableObject {
 struct DoseActionFeedback: Equatable {
     enum Kind: Equatable {
         case success
+        case warning
         case blocked
     }
 
@@ -454,6 +685,22 @@ struct DoseActionResultPresentation: Equatable {
                 title: "Dose action complete",
                 message: message,
                 systemImageName: "checkmark.circle.fill"
+            )
+            confirmation = nil
+        case .attentionRequired(let message):
+            feedback = DoseActionFeedback(
+                kind: .warning,
+                title: "Dose logged; alarm needs attention",
+                message: message,
+                systemImageName: "exclamationmark.triangle.fill"
+            )
+            confirmation = nil
+        case .retryRequired(let message):
+            feedback = DoseActionFeedback(
+                kind: .blocked,
+                title: "Dose not saved — retry",
+                message: message,
+                systemImageName: "externaldrive.badge.exclamationmark"
             )
             confirmation = nil
         case .blocked(let reason):
@@ -514,7 +761,7 @@ struct DoseActionFeedbackBanner: View {
         switch feedback.kind {
         case .success:
             return .green
-        case .blocked:
+        case .warning, .blocked:
             return .orange
         }
     }

@@ -53,7 +53,7 @@ enum WakeLongAwakePeriod: String {
 @MainActor
 final class MorningCheckInViewModelV2 {
     var feelingNow: WakeFeelingNow = .okay
-    var sleepQuality: Int = 3
+    var sleepQuality: Double = 3
     var sleepinessNow: Int = 3
     var wakePainLevel: Int = 0
     var painWokeUser: Bool = false
@@ -73,7 +73,7 @@ final class MorningCheckInViewModelV2 {
         }
 
         if let value = payload["feeling"] as? String { feelingNow = WakeFeelingNow(rawSurveyValue: value) }
-        if let value = payload["sleep_quality"] as? Int { sleepQuality = value }
+        if let value = Self.sleepQualityValue(payload["sleep_quality"]) { sleepQuality = value }
         if let value = payload["sleepiness_now"] as? Int { sleepinessNow = value }
         if let value = payload["pain_level"] as? Int { wakePainLevel = value }
         if let value = payload["pain_woke_user"] as? Bool { painWokeUser = value }
@@ -81,5 +81,24 @@ final class MorningCheckInViewModelV2 {
         if let value = payload["long_awake"] as? String { longAwakePeriod = WakeLongAwakePeriod(rawSurveyValue: value) }
         if let value = payload["notes"] as? String { notes = value }
         return true
+    }
+
+    private static func sleepQualityValue(_ rawValue: Any?) -> Double? {
+        let value: Double?
+        switch rawValue {
+        case let raw as Double:
+            value = raw
+        case let raw as Int:
+            value = Double(raw)
+        case let raw as NSNumber:
+            value = raw.doubleValue
+        case let raw as String:
+            value = Double(raw)
+        default:
+            value = nil
+        }
+
+        guard let value else { return nil }
+        return min(5, max(1, (value * 4).rounded() / 4))
     }
 }

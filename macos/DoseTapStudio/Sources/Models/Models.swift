@@ -1,3 +1,4 @@
+import DoseCore
 import Foundation
 
 /// Event types matching SSOT CSV v1 specification
@@ -134,8 +135,8 @@ struct StudioNightAggregate: Identifiable {
     let hrvMs: Double?
 
     var onTimeFlag: Bool? {
-        guard let intervalMinutes else { return nil }
-        return (150...240).contains(intervalMinutes)
+        guard let dose1, let dose2 else { return nil }
+        return MedicationTiming.classify(dose1: dose1, dose2: dose2) == .inWindow
     }
 
     var completenessScore: Double {

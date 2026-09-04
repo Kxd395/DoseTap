@@ -7,9 +7,26 @@ import CryptoKit
 extension EventStorage {
     // MARK: - Database Setup
     
-    func openDatabase() {
-        if sqlite3_open(dbPath, &db) != SQLITE_OK {
-            storageLog.error("Failed to open database: \(String(cString: sqlite3_errmsg(self.db)))")
+    @discardableResult
+    func openDatabase() -> Bool {
+        if let injected = injectedMedicationFailure(at: .open) {
+            databaseInitializationFailure = injected
+            db = nil
+            return false
+        }
+
+        let openResult = sqlite3_open(dbPath, &db)
+        if openResult != SQLITE_OK {
+            let detail = db.map { String(cString: sqlite3_errmsg($0)) }
+                ?? "SQLite did not return a database handle"
+            databaseInitializationFailure = medicationStorageFailure(
+                sqliteCode: openResult,
+                detail: detail
+            )
+            storageLog.error("Failed to open database: \(detail)")
+            sqlite3_close(db)
+            db = nil
+            return false
         }
         
         // Enable foreign key enforcement (required for CASCADE to work)
@@ -24,6 +41,7 @@ extension EventStorage {
             sqlite3_step(stmt)
         }
         sqlite3_finalize(stmt)
+        return true
     }
     
     /// Check if foreign keys are enabled (for test assertions)
@@ -39,8 +57,16 @@ extension EventStorage {
         return enabled
     }
     
-    func createTables() {
+    @discardableResult
+    func createTables() -> Bool {
+        guard db != nil else { return false }
         let createSQL = """
+        CREATE TABLE IF NOT EXISTS work_wake_schedule (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            payload TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
         -- Sleep events table
         CREATE TABLE IF NOT EXISTS sleep_events (
             id TEXT PRIMARY KEY,
@@ -108,7 +134,7 @@ extension EventStorage {
             session_date TEXT NOT NULL,
             
             -- Core sleep assessment (always captured)
-            sleep_quality INTEGER NOT NULL DEFAULT 3,
+            sleep_quality REAL NOT NULL DEFAULT 3,
             feel_rested TEXT NOT NULL DEFAULT 'moderate',
             grogginess TEXT NOT NULL DEFAULT 'mild',
             sleep_inertia_duration TEXT NOT NULL DEFAULT 'fiveToFifteen',
@@ -219,6 +245,22 @@ extension EventStorage {
         CREATE INDEX IF NOT EXISTS idx_medication_events_medication ON medication_events(medication_id);
         CREATE INDEX IF NOT EXISTS idx_medication_events_taken_at ON medication_events(taken_at_utc);
 
+        -- Medication inventory snapshots used by Studio export.
+        CREATE TABLE IF NOT EXISTS inventory_snapshots (
+            id TEXT PRIMARY KEY,
+            as_of_utc TEXT NOT NULL,
+            medication_name TEXT NOT NULL,
+            bottles_remaining INTEGER NOT NULL DEFAULT 0 CHECK (bottles_remaining >= 0),
+            doses_remaining INTEGER NOT NULL DEFAULT 0 CHECK (doses_remaining >= 0),
+            estimated_days_left INTEGER,
+            next_refill_date TEXT,
+            notes TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_inventory_snapshots_as_of ON inventory_snapshots(as_of_utc);
+        CREATE INDEX IF NOT EXISTS idx_inventory_snapshots_medication ON inventory_snapshots(medication_name);
+
         -- Native symptom event foundation for future body-map check-ins.
         CREATE TABLE IF NOT EXISTS symptom_events (
             id TEXT PRIMARY KEY,
@@ -300,10 +342,18 @@ extension EventStorage {
         
         var errMsg: UnsafeMutablePointer<CChar>?
         if sqlite3_exec(db, createSQL, nil, nil, &errMsg) != SQLITE_OK {
+            let code = db.map(sqlite3_extended_errcode) ?? SQLITE_CANTOPEN
+            let detail = errMsg.map { String(cString: $0) }
+                ?? "Failed to create the database schema"
+            databaseInitializationFailure = medicationStorageFailure(
+                sqliteCode: code,
+                detail: detail
+            )
             if let errMsg = errMsg {
                 storageLog.error("Failed to create tables: \(String(cString: errMsg))")
                 sqlite3_free(errMsg)
             }
+            return false
         }
         
         // Migration: Add new columns to existing tables (safe to run multiple times)
@@ -313,6 +363,7 @@ extension EventStorage {
         migrateSessionIdsToUUIDIfNeeded()
         deduplicateLegacyEntriesIfNeeded()
         applyCurrentSchemaUserVersion()
+        return true
     }
     
     /// Add new columns if they don't exist (safe migration)

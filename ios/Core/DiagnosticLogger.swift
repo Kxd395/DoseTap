@@ -467,6 +467,26 @@ public extension DiagnosticLogger {
             entry.isLate = isLate
         }
     }
+
+    /// Log the durable medication-mutation boundary without recording notes,
+    /// amounts, or other free text. `actionId` correlates the pre-write attempt
+    /// with its committed or failed result even when Dose 1 creates a new UUID.
+    func logDoseAction(
+        _ event: DiagnosticEvent,
+        sessionId: String,
+        actionId: String,
+        action: String,
+        surface: String,
+        failureCode: String? = nil
+    ) {
+        let level: DiagnosticLevel = event == .doseActionFailed ? .warning : .info
+        log(event, level: level, sessionId: sessionId) { entry in
+            entry.actionId = actionId
+            entry.doseAction = action
+            entry.registrationSurface = surface
+            entry.mutationFailureCode = failureCode
+        }
+    }
     
     /// Log session completion
     func logSessionCompleted(
@@ -475,13 +495,7 @@ public extension DiagnosticLogger {
         dose1Time: Date? = nil,
         dose2Time: Date? = nil
     ) {
-        let event: DiagnosticEvent
-        switch terminalState {
-        case "completed": event = .sessionCompleted
-        case "skipped": event = .sessionSkipped
-        case "expired", "incomplete_slept_through": event = .sessionExpired
-        default: event = .sessionCompleted
-        }
+        let event = Self.lifecycleEvent(for: terminalState)
         
         log(event, sessionId: sessionId) { entry in
             entry.terminalState = terminalState
@@ -489,6 +503,20 @@ public extension DiagnosticLogger {
             entry.dose2Time = dose2Time
             // Include constants_hash on terminal events for config drift detection
             entry.constantsHash = Self.constantsHash
+        }
+    }
+
+    static func lifecycleEvent(for terminalState: String) -> DiagnosticEvent {
+        switch terminalState {
+        case "completed", "checkin_completed":
+            return .sessionCompleted
+        case "skipped":
+            return .sessionSkipped
+        case "expired", "incomplete_slept_through", "incomplete_missed_checkin", "incomplete_prep_rollover", "invalid_dose_state":
+            return .sessionExpired
+        default:
+            // Unknown terminal states must never inflate successful completion.
+            return .sessionExpired
         }
     }
     

@@ -48,9 +48,11 @@ struct DoseTimingCard: View {
                 return ("Skipped", .orange)
             } else if doseLog?.dose2Time != nil {
                 if let intervalMins = doseLog?.intervalMinutes {
-                    if intervalMins >= 150 && intervalMins <= 240 {
+                    if MedicationTiming.classify(elapsedSeconds: Double(intervalMins) * 60) == .inWindow {
                         return ("Optimal", .green)
-                    } else if intervalMins >= 120 {
+                    } else if intervalMins >= 240 {
+                        return ("Late", .orange)
+                    } else if intervalMins >= 0 {
                         return ("Early", .orange)
                     } else {
                         return ("Off-target", .red)
@@ -81,7 +83,7 @@ struct DoseTimingCard: View {
 
     private func intervalColor(_ interval: TimeInterval) -> Color {
         let mins = interval / 60
-        if mins >= 150 && mins <= 240 { return .green }
+        if MedicationTiming.classify(elapsedSeconds: Double(mins) * 60) == .inWindow { return .green }
         if mins >= 120 { return .orange }
         return .red
     }

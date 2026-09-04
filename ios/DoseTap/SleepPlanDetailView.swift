@@ -8,9 +8,39 @@ struct SleepPlanDetailView: View {
     @State private var offdayWake = SleepPlanDetailView.makeDate(hour: 8, minute: 0)
     @State private var workdays: Set<Int> = [2, 4, 6] // Mon / Wed / Fri default
     @State private var offdaysEnabled = true
+    @State private var workWarningPlan = WorkWakeSchedule()
+    @State private var warningDays: Set<Int> = []
+    @State private var warningWake = SleepPlanDetailView.makeDate(hour: 7, minute: 0)
+    @State private var warningCutoff = SleepPlanDetailView.makeDate(hour: 2, minute: 0)
+    @State private var workSaveMessage: String?
+    private let repository = SessionRepository.shared
     
     var body: some View {
         List {
+            Section("Work and Wake Warning") {
+                Picker("Warning target", selection: $workWarningPlan.target) {
+                    ForEach(WorkWarningTarget.allCases, id: \.self) { target in Text(target.title).tag(target) }
+                }
+                Text("Working days for this advisory")
+                WorkdaySelector(selectedDays: $warningDays)
+                DatePicker("Required work wake time", selection: $warningWake, displayedComponents: .hourAndMinute)
+                if workWarningPlan.target == .fixedCutoff {
+                    DatePicker("Work-night cutoff", selection: $warningCutoff, displayedComponents: .hourAndMinute)
+                } else if workWarningPlan.target == .wakeBuffer {
+                    Stepper("My buffer: \(workWarningPlan.bufferMinutes) minutes", value: $workWarningPlan.bufferMinutes, in: 0...1440, step: 15)
+                    Text("Choose your own planning buffer. DoseTap does not prescribe a buffer or change medication timing.").font(.caption)
+                } else {
+                    Text("Uses your saved Dose 2 target interval on working dates.").font(.caption)
+                }
+                Text("Times use \(workWarningPlan.timeZoneIdentifier). Dated exceptions take priority.").font(.caption)
+                Button("Use Current Timezone") { workWarningPlan.timeZoneIdentifier = TimeZone.current.identifier }
+                Button("Save Work Warning Schedule") { saveWorkWarningPlan() }
+                if let workSaveMessage { Text(workSaveMessage).font(.subheadline) }
+                if workWarningPlan.workingWeekdays == nil {
+                    Text("Work status is unknown until you save. Enabled Typical Week days are not assumed to be working days.").font(.caption)
+                }
+            }
+            .environment(\.timeZone, TimeZone(identifier: workWarningPlan.timeZoneIdentifier) ?? .current)
             Section {
                 TimePickerSheetRow(
                     title: "Workday Wake",
@@ -74,7 +104,30 @@ struct SleepPlanDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             seedTemplateFields()
+            do {
+                workWarningPlan = try repository.workWakeSchedule()
+                if workWarningPlan.workingWeekdays == nil { workWarningPlan.timeZoneIdentifier = TimeZone.current.identifier }
+                warningDays = workWarningPlan.workingWeekdays ?? []
+                var calendar = Calendar(identifier: .gregorian)
+                calendar.timeZone = TimeZone(identifier: workWarningPlan.timeZoneIdentifier) ?? .current
+                warningWake = calendar.date(bySettingHour: workWarningPlan.wakeMinutes / 60, minute: workWarningPlan.wakeMinutes % 60, second: 0, of: Date()) ?? Date()
+                warningCutoff = calendar.date(bySettingHour: workWarningPlan.cutoffMinutes / 60, minute: workWarningPlan.cutoffMinutes % 60, second: 0, of: Date()) ?? Date()
+            } catch { workSaveMessage = "The saved work schedule could not be read. Review and save it again." }
         }
+    }
+
+    private func saveWorkWarningPlan() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: workWarningPlan.timeZoneIdentifier) ?? .current
+        var proposed = workWarningPlan
+        proposed.workingWeekdays = warningDays
+        proposed.wakeMinutes = calendar.component(.hour, from: warningWake) * 60 + calendar.component(.minute, from: warningWake)
+        proposed.cutoffMinutes = calendar.component(.hour, from: warningCutoff) * 60 + calendar.component(.minute, from: warningCutoff)
+        let result = repository.saveWorkWakeSchedule(proposed)
+        if result.isCommitted {
+            workWarningPlan = (try? repository.workWakeSchedule()) ?? proposed
+            workSaveMessage = "Work warning schedule saved. No medication record changed."
+        } else { workSaveMessage = result.failure?.detail ?? "Schedule could not be saved. Please retry." }
     }
 
     private func seedTemplateFields() {

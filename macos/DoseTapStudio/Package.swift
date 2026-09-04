@@ -12,9 +12,11 @@ let package = Package(
             targets: ["DoseTapStudio"]
         )
     ],
+    dependencies: [.package(name: "DoseTap", path: "../..")],
     targets: [
         .executableTarget(
             name: "DoseTapStudio",
+            dependencies: [.product(name: "DoseCore", package: "DoseTap")],
             path: "Sources"
         ),
         .testTarget(

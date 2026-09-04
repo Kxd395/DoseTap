@@ -1,10 +1,35 @@
 // DoseTapApp_Simple.swift
 import SwiftUI
 import DoseCore
-import WidgetKit
 import os.log
 
 private let appLifecycleLog = Logger(subsystem: "com.dosetap.app", category: "DoseTapApp")
+
+private enum ReleaseArtifactSmokeMarker {
+    static let launchArgument = "--release-artifact-smoke"
+    static let fileName = "release-artifact-first-ui-v1.txt"
+
+    static func recordIfRequested() {
+        guard ProcessInfo.processInfo.arguments.contains(launchArgument),
+              let documentsURL = FileManager.default.urls(
+                for: .documentDirectory,
+                in: .userDomainMask
+              ).first else {
+            return
+        }
+
+        do {
+            try Data("first-ui-v1\n".utf8).write(
+                to: documentsURL.appendingPathComponent(fileName),
+                options: .atomic
+            )
+        } catch {
+            appLifecycleLog.error(
+                "Release artifact smoke marker failed: \(error.localizedDescription, privacy: .public)"
+            )
+        }
+    }
+}
 
 @main
 struct DoseTapApp: App {
@@ -27,6 +52,16 @@ struct DoseTapApp: App {
         appLifecycleLog.debug("App initialized (simplified)")
         #endif
         Self.migrateSetupStateIfNeeded()
+        #if DEBUG && targetEnvironment(simulator)
+        if ProcessInfo.processInfo.arguments.contains("--uitesting-work-warning") {
+            UserDefaults.standard.set(true, forKey: SetupWizardService.setupCompletedKey)
+            UserSettingsManager.shared.targetIntervalMinutes = 165
+            UserSettingsManager.shared.soundEnabled = false
+            let repository = SessionRepository.shared
+            repository.prepareWorkWarningUITestSession()
+        }
+        #endif
+
 
         // P3-7: Register background export task
         AutoExportService.shared.registerBackgroundTask()
@@ -80,6 +115,13 @@ struct DoseTapApp: App {
                             if currentTz.identifier != lastKnownTimezone.identifier {
                                 logTimezoneChange(from: lastKnownTimezone, to: currentTz)
                                 lastKnownTimezone = currentTz
+                                Task {
+                                    await container.alarmService.reconcilePendingRequests(
+                                        reason: .timeZoneChange,
+                                        dose1Time: container.sessionRepository.dose1Time,
+                                        forceReschedule: true
+                                    )
+                                }
                             }
                         }
                         .onChange(of: scenePhase) { newPhase in
@@ -98,6 +140,9 @@ struct DoseTapApp: App {
                         .accentColor(themeManager.currentTheme.accentColor)
                         .applyNightModeFilter(themeManager.currentTheme)
                 }
+            }
+            .onAppear {
+                ReleaseArtifactSmokeMarker.recordIfRequested()
             }
             .onChange(of: isSetupComplete) { completed in
                 if completed {
@@ -133,17 +178,15 @@ struct DoseTapApp: App {
                 )
             }
             
-            // Check for expired sessions when app becomes active
-            Task { @MainActor in
-                if SessionRepository.shared.checkAndHandleExpiredSession() {
-                    #if DEBUG
-                    appLifecycleLog.debug("Auto-marked session as slept-through on foreground")
-                    #endif
-                }
-            }
-
             // If the wake alarm time passed while backgrounded, ring now
             AlarmService.shared.checkForDueAlarm()
+
+            Task {
+                await container.alarmService.reconcilePendingRequests(
+                    reason: .appActive,
+                    dose1Time: container.sessionRepository.dose1Time
+                )
+            }
             
             // Check for timezone changes while backgrounded
             let currentTz = TimeZone.current
@@ -159,10 +202,6 @@ struct DoseTapApp: App {
             }
             AlarmService.shared.stopRinging(acknowledge: false)
 
-            // P2-1: Push latest state to widgets before going to background
-            pushWidgetState()
-            WidgetCenter.shared.reloadAllTimelines()
-            
         case .inactive:
             // Transitional state, don't log
             break
@@ -180,20 +219,6 @@ struct DoseTapApp: App {
         }
     }
 
-    // MARK: - Widget State Sync (P2-1)
-    private func pushWidgetState() {
-        let repo = SessionRepository.shared
-        let state = SharedDoseState(
-            dose1Time: repo.dose1Time,
-            dose2Time: repo.dose2Time,
-            dose2Skipped: repo.dose2Skipped,
-            snoozeCount: repo.snoozeCount,
-            sessionDate: repo.activeSessionDate ?? "",
-            updatedAt: Date()
-        )
-        state.save()
-    }
-    
     private func logTimezoneChange(from oldTz: TimeZone, to newTz: TimeZone) {
         Self.logTimezoneChangeStatic(from: oldTz, to: newTz)
     }
@@ -231,6 +256,13 @@ struct DoseTapApp: App {
         
         // Trigger session refresh
         SessionRepository.shared.refreshForTimeChange()
+        Task { @MainActor in
+            await AlarmService.shared.reconcilePendingRequests(
+                reason: .significantTimeChange,
+                dose1Time: SessionRepository.shared.dose1Time,
+                forceReschedule: true
+            )
+        }
     }
 
     // MARK: - Setup / Install Quality
@@ -255,6 +287,10 @@ struct DoseTapApp: App {
         guard isSetupComplete, !didRunPostSetupBootstrap else { return }
         didRunPostSetupBootstrap = true
         await requestNotificationPermissionIfNeeded()
+        await container.alarmService.reconcilePendingRequests(
+            reason: .appActive,
+            dose1Time: container.sessionRepository.dose1Time
+        )
     }
 
     private func requestNotificationPermissionIfNeeded() async {

@@ -9,11 +9,11 @@ struct InsightSessionBuilder {
     ) -> [InsightSession] {
         var sessionsByNight: [String: DoseSession] = [:]
         for session in sessions {
-            sessionsByNight[sessionKey(for: session.startedUTC)] = session
+            sessionsByNight[StudioSessionDateIdentity.key(for: session, events: events)] = session
         }
 
         let groupedEvents = Dictionary(grouping: events) { event in
-            sessionKey(for: event.occurredAtUTC)
+            StudioSessionDateIdentity.key(for: event)
         }
 
         let allKeys = Set(sessionsByNight.keys).union(groupedEvents.keys)
@@ -83,6 +83,7 @@ struct InsightSessionBuilder {
             preSleep: supplement?.preSleep,
             morning: supplement?.morning,
             medications: supplement?.medications ?? [],
+            checkInSubmissions: supplement?.checkInSubmissions ?? [],
             context: supplement?.context,
             healthKit: supplement?.healthKit,
             whoop: supplement?.whoop,
@@ -96,14 +97,4 @@ struct InsightSessionBuilder {
         )
     }
 
-    private func sessionKey(for date: Date) -> String {
-        Self.sessionDateFormatter.string(from: date)
-    }
-
-    private static let sessionDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = .current
-        return formatter
-    }()
 }

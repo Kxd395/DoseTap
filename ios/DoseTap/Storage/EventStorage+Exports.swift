@@ -333,6 +333,146 @@ extension EventStorage {
             createdAt: createdAt
         )
     }
+
+    // MARK: - Inventory Snapshot Operations
+
+    public func upsertInventorySnapshot(_ snapshot: StoredInventorySnapshot) {
+        let sql = """
+        INSERT OR REPLACE INTO inventory_snapshots (
+            id,
+            as_of_utc,
+            medication_name,
+            bottles_remaining,
+            doses_remaining,
+            estimated_days_left,
+            next_refill_date,
+            notes
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """
+
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            storageLog.error("Failed to prepare inventory snapshot upsert")
+            return
+        }
+        defer { sqlite3_finalize(stmt) }
+
+        sqlite3_bind_text(stmt, 1, snapshot.id, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 2, isoFormatter.string(from: snapshot.asOfUTC), -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 3, snapshot.medicationName, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_int(stmt, 4, Int32(snapshot.bottlesRemaining))
+        sqlite3_bind_int(stmt, 5, Int32(snapshot.dosesRemaining))
+
+        if let estimatedDaysLeft = snapshot.estimatedDaysLeft {
+            sqlite3_bind_int(stmt, 6, Int32(estimatedDaysLeft))
+        } else {
+            sqlite3_bind_null(stmt, 6)
+        }
+
+        if let nextRefillDate = snapshot.nextRefillDate {
+            sqlite3_bind_text(stmt, 7, isoFormatter.string(from: nextRefillDate), -1, SQLITE_TRANSIENT)
+        } else {
+            sqlite3_bind_null(stmt, 7)
+        }
+
+        if let notes = snapshot.notes {
+            sqlite3_bind_text(stmt, 8, notes, -1, SQLITE_TRANSIENT)
+        } else {
+            sqlite3_bind_null(stmt, 8)
+        }
+
+        if sqlite3_step(stmt) != SQLITE_DONE {
+            storageLog.error("Failed to upsert inventory snapshot: \(String(cString: sqlite3_errmsg(self.db)))")
+        } else {
+            storageLog.debug("Inventory snapshot upserted for \(snapshot.medicationName, privacy: .private)")
+        }
+    }
+
+    public func fetchInventorySnapshots(limit: Int = 500) -> [StoredInventorySnapshot] {
+        let sql = """
+        SELECT id, as_of_utc, medication_name, bottles_remaining, doses_remaining, estimated_days_left, next_refill_date, notes
+        FROM inventory_snapshots
+        ORDER BY as_of_utc DESC
+        LIMIT ?
+        """
+
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
+        defer { sqlite3_finalize(stmt) }
+
+        sqlite3_bind_int(stmt, 1, Int32(limit))
+
+        var snapshots: [StoredInventorySnapshot] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            if let snapshot = parseInventorySnapshotRow(stmt) {
+                snapshots.append(snapshot)
+            }
+        }
+        return snapshots
+    }
+
+    public func fetchLatestInventorySnapshot() -> StoredInventorySnapshot? {
+        fetchInventorySnapshots(limit: 1).first
+    }
+
+    public func deleteInventorySnapshot(id: String) {
+        let sql = "DELETE FROM inventory_snapshots WHERE id = ?"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(stmt) }
+
+        sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
+        if sqlite3_step(stmt) != SQLITE_DONE {
+            storageLog.error("Failed to delete inventory snapshot: \(String(cString: sqlite3_errmsg(self.db)))")
+        }
+    }
+
+    private func parseInventorySnapshotRow(_ stmt: OpaquePointer?) -> StoredInventorySnapshot? {
+        guard let stmt,
+              let idPtr = sqlite3_column_text(stmt, 0),
+              let asOfPtr = sqlite3_column_text(stmt, 1),
+              let medicationPtr = sqlite3_column_text(stmt, 2) else {
+            return nil
+        }
+
+        let asOfString = String(cString: asOfPtr)
+        guard let asOfUTC = isoFormatter.date(from: asOfString) else { return nil }
+
+        let estimatedDaysLeft: Int?
+        if sqlite3_column_type(stmt, 5) != SQLITE_NULL {
+            estimatedDaysLeft = Int(sqlite3_column_int(stmt, 5))
+        } else {
+            estimatedDaysLeft = nil
+        }
+
+        let nextRefillDate: Date?
+        if sqlite3_column_type(stmt, 6) != SQLITE_NULL,
+           let nextRefillPtr = sqlite3_column_text(stmt, 6) {
+            nextRefillDate = isoFormatter.date(from: String(cString: nextRefillPtr))
+        } else {
+            nextRefillDate = nil
+        }
+
+        let notes: String?
+        if sqlite3_column_type(stmt, 7) != SQLITE_NULL,
+           let notesPtr = sqlite3_column_text(stmt, 7) {
+            notes = String(cString: notesPtr)
+        } else {
+            notes = nil
+        }
+
+        return StoredInventorySnapshot(
+            id: String(cString: idPtr),
+            asOfUTC: asOfUTC,
+            medicationName: String(cString: medicationPtr),
+            bottlesRemaining: Int(sqlite3_column_int(stmt, 3)),
+            dosesRemaining: Int(sqlite3_column_int(stmt, 4)),
+            estimatedDaysLeft: estimatedDaysLeft,
+            nextRefillDate: nextRefillDate,
+            notes: notes
+        )
+    }
     
     /// Export medication events to CSV
     public func exportMedicationEventsToCSV() -> String {

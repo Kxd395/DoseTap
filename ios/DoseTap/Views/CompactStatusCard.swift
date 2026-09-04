@@ -245,9 +245,11 @@ struct CompactStatusCard: View {
             let minutes = Int(windowCloseRemaining / 60)
             return "Warning: Window closing soon! Only \(spokenMinutes(minutes)) remaining."
         case .closed:
-            return "Window has closed. Dose 2 was not taken in time."
+            return "The planned window ended. The Dose 2 record is unresolved; record what actually happened."
         case .completed:
-            return "Session complete. Both doses taken successfully."
+            return core.isSkipped && core.dose2Time == nil
+                ? "Dose 2 is marked missed. You can correct the record if it was actually taken."
+                : "Dose 2 occurrence recorded."
         case .finalizing:
             return "Finalizing session. Complete your morning check-in."
         }
@@ -258,7 +260,7 @@ struct CompactStatusCard: View {
         case .noDose1: return "Double tap to take Dose 1"
         case .beforeWindow: return "Wait for the countdown to finish"
         case .active, .nearClose: return "Double tap to take Dose 2"
-        case .closed: return "Session has expired"
+        case .closed: return "Complete the unresolved Dose 2 record"
         case .completed, .finalizing: return ""
         }
     }
@@ -289,7 +291,7 @@ struct CompactStatusCard: View {
         case .beforeWindow: return "clock"
         case .active: return "checkmark.circle"
         case .nearClose: return "exclamationmark.triangle"
-        case .closed: return "xmark.circle"
+        case .closed: return "questionmark.circle"
         case .completed: return "checkmark.seal.fill"
         case .finalizing: return "sunrise.fill"
         }
@@ -301,8 +303,8 @@ struct CompactStatusCard: View {
         case .beforeWindow: return "Waiting for Window"
         case .active: return "Window Open"
         case .nearClose: return "Closing Soon!"
-        case .closed: return "Window Closed"
-        case .completed: return "Complete"
+        case .closed: return "Dose 2 Record Needed"
+        case .completed: return "Dose 2 Outcome Recorded"
         case .finalizing: return "Finalizing Session"
         }
     }
@@ -313,8 +315,9 @@ struct CompactStatusCard: View {
         case .beforeWindow: return "Wait for optimal timing"
         case .active: return "Take Dose 2 now"
         case .nearClose: return "Less than \(TimeIntervalMath.formatMinutes(15)) left!"
-        case .closed: return "Window has closed"
-        case .completed: return "Both doses taken ✓"
+        case .closed: return "Window ended — record what happened"
+        case .completed:
+            return core.isSkipped && core.dose2Time == nil ? "Marked missed / not taken" : "Actual occurrence saved ✓"
         case .finalizing: return "Complete morning check-in"
         }
     }
@@ -326,7 +329,7 @@ struct CompactStatusCard: View {
         case .beforeWindow: return theme == .night ? theme.warningColor : .orange
         case .active: return theme == .night ? theme.successColor : .green
         case .nearClose: return theme == .night ? theme.errorColor : .red
-        case .closed: return .gray
+        case .closed: return theme == .night ? theme.warningColor : .orange
         case .completed: return theme == .night ? Color(red: 0.6, green: 0.3, blue: 0.2) : .purple
         case .finalizing: return theme == .night ? theme.warningColor : .yellow
         }

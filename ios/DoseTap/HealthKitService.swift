@@ -151,10 +151,10 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
             await refreshReadAuthorization()
             if isAuthorized {
                 lastError = nil
-                healthKitLog.info("Authorization granted")
+                healthKitLog.info("HealthKit read request completed; readable data remains query-dependent")
             } else {
-                lastError = "HealthKit permission not granted"
-                healthKitLog.warning("Authorization denied")
+                lastError = "HealthKit access could not be prepared"
+                healthKitLog.warning("HealthKit read access is not ready")
             }
             return isAuthorized
         } catch AuthorizationError.timedOut {
@@ -376,52 +376,132 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
         }
         return total / Double(samples.count)
     }
-    
-    /// Analyze a single night's sleep data
-    private func analyzeSleepNight(segments: [SleepSegment], nightStart: Date) -> SleepNightSummary? {
-        guard !segments.isEmpty else { return nil }
-        
-        // Sort by start time
-        let sorted = segments.sorted { $0.start < $1.start }
-        
-        // Find bed time (first "in bed" segment)
+
+    static func normalizedSleepSegments(_ segments: [SleepSegment]) -> [SleepSegment] {
+        let validSegments = segments.filter { $0.end > $0.start }
+        guard validSegments.count > 1 else { return validSegments }
+
+        let boundaries = Array(Set(validSegments.flatMap { [$0.start, $0.end] })).sorted()
+        guard boundaries.count > 1 else { return validSegments.sorted { $0.start < $1.start } }
+
+        var normalized: [SleepSegment] = []
+        for index in 0..<(boundaries.count - 1) {
+            let sliceStart = boundaries[index]
+            let sliceEnd = boundaries[index + 1]
+            guard sliceEnd > sliceStart else { continue }
+
+            let covering = validSegments.filter { $0.start < sliceEnd && $0.end > sliceStart }
+            guard let dominant = dominantSleepSegment(
+                in: covering,
+                sliceStart: sliceStart,
+                sliceEnd: sliceEnd
+            ) else {
+                continue
+            }
+
+            appendMergedSleepSegment(dominant, to: &normalized)
+        }
+
+        return normalized
+    }
+
+    static func primaryNightSegments(
+        from segments: [SleepSegment],
+        maxGap: TimeInterval = 90 * 60,
+        maxLeadingAwake: TimeInterval = 25 * 60,
+        maxTrailingAwake: TimeInterval = 30 * 60,
+        minimumSleepDuration: TimeInterval = 20 * 60
+    ) -> [SleepSegment] {
+        let sorted = normalizedSleepSegments(segments).sorted { $0.start < $1.start }
+        guard !sorted.isEmpty else { return [] }
+
+        let sleepOnly = sorted.filter(\.stage.isAsleep)
+        guard !sleepOnly.isEmpty else { return [] }
+
+        var sleepClusters: [[SleepSegment]] = []
+        var current: [SleepSegment] = [sleepOnly[0]]
+
+        for segment in sleepOnly.dropFirst() {
+            guard let last = current.last else {
+                current = [segment]
+                continue
+            }
+
+            let gap = segment.start.timeIntervalSince(last.end)
+            if gap > maxGap {
+                sleepClusters.append(current)
+                current = [segment]
+            } else {
+                current.append(segment)
+            }
+        }
+        sleepClusters.append(current)
+
+        guard let bestCluster = sleepClusters.max(by: { lhs, rhs in
+            let lhsSleep = totalAsleepDuration(lhs)
+            let rhsSleep = totalAsleepDuration(rhs)
+            if lhsSleep == rhsSleep {
+                return coverageDuration(lhs) < coverageDuration(rhs)
+            }
+            return lhsSleep < rhsSleep
+        }),
+        totalAsleepDuration(bestCluster) >= minimumSleepDuration,
+        let sleepStart = bestCluster.first?.start,
+        let sleepEnd = bestCluster.last?.end else {
+            return []
+        }
+
+        let primary = sorted.filter { segment in
+            if segment.stage.isAsleep {
+                return segment.end > sleepStart && segment.start < sleepEnd
+            }
+            if segment.end > sleepStart && segment.start < sleepEnd {
+                return true
+            }
+            if segment.end <= sleepStart {
+                return sleepStart.timeIntervalSince(segment.end) <= maxLeadingAwake
+                    && segment.end.timeIntervalSince(segment.start) <= maxLeadingAwake
+            }
+            if segment.start >= sleepEnd {
+                return segment.start.timeIntervalSince(sleepEnd) <= maxTrailingAwake
+                    && segment.end.timeIntervalSince(segment.start) <= maxTrailingAwake
+            }
+            return false
+        }
+        .sorted { $0.start < $1.start }
+
+        return totalAsleepDuration(primary) >= minimumSleepDuration ? primary : []
+    }
+
+    static func sleepNightSummary(from segments: [SleepSegment], nightStart: Date) -> SleepNightSummary? {
+        let sorted = primaryNightSegments(from: segments)
+        guard !sorted.isEmpty else { return nil }
+
         let bedTime = sorted.first { $0.stage == .inBed }?.start
-        
-        // Find sleep onset (first asleep segment)
         let sleepOnset = sorted.first { $0.stage.isAsleep }?.start
-        
-        // Find first wake after sleep onset
-        var firstWake: Date? = nil
+
+        var firstWake: Date?
         var foundSleep = false
+        var wakeCount = 0
         for segment in sorted {
             if segment.stage.isAsleep {
                 foundSleep = true
             } else if foundSleep && segment.stage == .awake {
-                firstWake = segment.start
-                break
+                if firstWake == nil {
+                    firstWake = segment.start
+                }
+                wakeCount += 1
             }
         }
-        
-        // Find final wake (last segment end that's awake or last segment end)
-        let finalWake = sorted.last?.end
-        
-        // Calculate TTFW (Time to First Wake)
-        var ttfwMinutes: Double? = nil
-        if let onset = sleepOnset, let wake = firstWake {
-            ttfwMinutes = wake.timeIntervalSince(onset) / 60
-        }
-        
-        // Calculate total sleep time (sum of all asleep segments)
-        let totalSleepMinutes = sorted
-            .filter { $0.stage.isAsleep }
-            .reduce(0.0) { $0 + $1.end.timeIntervalSince($1.start) / 60 }
-        
-        // Count wake periods (WASO)
-        let wakeCount = sorted.filter { $0.stage == .awake }.count
-        
-        // Get primary source
-        let source = sorted.first?.source ?? "Unknown"
-        
+
+        let finalWake = sorted.last { $0.stage.isAsleep || $0.stage == .awake }?.end ?? sorted.last?.end
+        let ttfwMinutes = (sleepOnset != nil && firstWake != nil)
+            ? firstWake!.timeIntervalSince(sleepOnset!) / 60
+            : nil
+        let totalSleepMinutes = totalAsleepDuration(sorted) / 60
+        let sourceNames = Array(Set(sorted.map(\.source))).sorted()
+        let source = sourceNames.isEmpty ? "Unknown" : sourceNames.joined(separator: ", ")
+
         return SleepNightSummary(
             date: nightStart,
             bedTime: bedTime,
@@ -434,7 +514,90 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
             source: source
         )
     }
-    
+
+    private static func dominantSleepSegment(
+        in segments: [SleepSegment],
+        sliceStart: Date,
+        sliceEnd: Date
+    ) -> SleepSegment? {
+        segments
+            .map { segment in
+                (
+                    segment: segment,
+                    overlap: min(segment.end, sliceEnd).timeIntervalSince(max(segment.start, sliceStart)),
+                    priority: stagePriority(segment.stage)
+                )
+            }
+            .filter { $0.overlap > 0 }
+            .max { lhs, rhs in
+                if lhs.overlap == rhs.overlap {
+                    return lhs.priority < rhs.priority
+                }
+                return lhs.overlap < rhs.overlap
+            }
+            .map {
+                SleepSegment(
+                    start: sliceStart,
+                    end: sliceEnd,
+                    stage: $0.segment.stage,
+                    source: $0.segment.source
+                )
+            }
+    }
+
+    private static func stagePriority(_ stage: SleepStage) -> Int {
+        switch stage {
+        case .inBed:
+            return 0
+        case .asleep:
+            return 1
+        case .asleepCore:
+            return 2
+        case .asleepDeep:
+            return 3
+        case .asleepREM:
+            return 3
+        case .awake:
+            return 4
+        }
+    }
+
+    private static func appendMergedSleepSegment(_ segment: SleepSegment, to segments: inout [SleepSegment]) {
+        guard let last = segments.last,
+              last.stage == segment.stage,
+              last.end == segment.start else {
+            segments.append(segment)
+            return
+        }
+
+        let source = last.source == segment.source ? last.source : "Multiple Sources"
+        segments[segments.count - 1] = SleepSegment(
+            start: last.start,
+            end: segment.end,
+            stage: last.stage,
+            source: source
+        )
+    }
+
+    private static func totalAsleepDuration(_ segments: [SleepSegment]) -> TimeInterval {
+        segments
+            .filter(\.stage.isAsleep)
+            .reduce(0) { $0 + $1.end.timeIntervalSince($1.start) }
+    }
+
+    private static func coverageDuration(_ segments: [SleepSegment]) -> TimeInterval {
+        guard let start = segments.map(\.start).min(),
+              let end = segments.map(\.end).max() else {
+            return 0
+        }
+        return end.timeIntervalSince(start)
+    }
+
+    /// Analyze a single night's sleep data
+    private func analyzeSleepNight(segments: [SleepSegment], nightStart: Date) -> SleepNightSummary? {
+        Self.sleepNightSummary(from: segments, nightStart: nightStart)
+    }
+
     // MARK: - TTFW Baseline Computation
     
     /// Fetch sleep history and compute TTFW baseline
@@ -544,14 +707,37 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
     /// - Parameters:
     ///   - from: Start date of the range
     ///   - to: End date of the range
-    /// - Returns: Array of SleepSegment for timeline display
+    /// - Returns: Non-overlapping primary-night SleepSegment values for timeline display
     func fetchSegmentsForTimeline(from start: Date, to end: Date) async throws -> [SleepSegment] {
-        try await fetchSleepSegments(from: start, to: end)
+        Self.primaryNightSegments(from: try await fetchSleepSegments(from: start, to: end))
     }
 
-    func fetchNightBiometrics(from start: Date, to end: Date) async throws -> NightBiometricsSummary {
-        let timeline = try await fetchTimelineBiometrics(from: start, to: end)
+    func fetchNightBiometrics(
+        from start: Date,
+        to end: Date,
+        matching sleepSegments: [SleepSegment] = []
+    ) async throws -> NightBiometricsSummary {
+        let range = Self.primarySleepBiometricRange(
+            from: sleepSegments,
+            fallbackStart: start,
+            fallbackEnd: end
+        )
+        let timeline = try await fetchTimelineBiometrics(from: range.start, to: range.end)
         return timeline.summary
+    }
+
+    static func primarySleepBiometricRange(
+        from sleepSegments: [SleepSegment],
+        fallbackStart: Date,
+        fallbackEnd: Date
+    ) -> (start: Date, end: Date) {
+        let primary = primaryNightSegments(from: sleepSegments)
+        guard let start = primary.map(\.start).min(),
+              let end = primary.map(\.end).max(),
+              end > start else {
+            return (fallbackStart, fallbackEnd)
+        }
+        return (start, end)
     }
 
     func fetchTimelineBiometrics(from start: Date, to end: Date) async throws -> TimelineBiometrics {

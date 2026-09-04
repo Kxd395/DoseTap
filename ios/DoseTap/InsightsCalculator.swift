@@ -146,7 +146,7 @@ public class InsightsCalculator: ObservableObject {
                 intervalsCount += 1
                 
                 // On-time if within 150-240 minute window
-                isOnTime = minutes >= 150 && minutes <= 240
+                isOnTime = MedicationTiming.classify(dose1: d1, dose2: d2) == .inWindow
                 if isOnTime {
                     onTimeSessions += 1
                 }

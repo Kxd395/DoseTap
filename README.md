@@ -4,7 +4,7 @@ DoseTap is a local-first iOS app that helps patients manage two-dose nighttime m
 
 ## Core Behavior
 
-- Dose 1 starts the session. Dose 2 is allowed within the window or by explicit early/late override.
+- Dose 1 starts the session. Dose 2 uses the configured timing window. Early recording retains its explicit confirmation; after the window closes, users can record an occurrence already taken or explicitly mark it missed.
 - Late Dose 2 stays Dose 2 (with a late flag). Extra dose starts at dose index 3+ only.
 - Sessions are closed by morning check-in completion, not midnight. Fallbacks: prep-time soft rollover and missed check-in cutoff.
 - Sleep events (bathroom, lights out, brief wake, etc.) are logged and attached to the active session.
@@ -55,12 +55,13 @@ If Xcode shows "Unable to process request - PLA Update available", sign in at
 
 ## Documentation
 
-- SSOT (authoritative behavior): `docs/SSOT/README.md`
-- Database schema: `docs/DATABASE_SCHEMA.md`
-- Data dictionary: `docs/SSOT/contracts/DataDictionary.md`
-- Diagnostic logging: `docs/DIAGNOSTIC_LOGGING.md`
-- Testing guide: `docs/TESTING_GUIDE.md`
-- Symphony monitoring setup: `WORKFLOW.md` and `docs/SYMPHONY_SETUP.md`
+- Documentation lifecycle and authority: `docs/README.md`
+- Current behavior SSOT: `docs/SSOT/README.md`
+- Current work and Plane ownership: `docs/PLANNING.md`
+- Agent workflow and verified Plane closeout: `AGENTS.md`, `.agents/plane-workflow.yml`, and `WORKFLOW.md`
+- Architecture: `docs/architecture/README.md`
+- Testing and release evidence: `docs/TESTING_GUIDE.md` and `docs/PRODUCTION_READINESS_CHECKLIST.md`
+- Historical evidence and superseded plans: `docs/archive/`
 
 ## License
 

@@ -1,5 +1,8 @@
 # CloudKit Go-Live Checklist
 
+Status: Planned staging validation runbook; not shipping sync approval
+Last verified against local build settings: 2026-09-02
+
 This runbook is for the point when Apple Developer CloudKit capability propagation finishes and DoseTap can validate real iCloud sync.
 
 ## Scope
@@ -37,7 +40,7 @@ Verify these in the Apple Developer portal and Xcode signing UI:
 4. The device test account is signed into iCloud.
 5. The Team used by Xcode matches the App ID owner.
 
-If propagation only started on March 8, 2026, do not treat failures before March 10, 2026 as conclusive.
+Do not infer current Apple-side readiness from an old propagation date. Read the Developer portal, signing profile, and signed entitlements during the validation run.
 
 ## 3. Build And Install
 

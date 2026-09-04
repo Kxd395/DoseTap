@@ -91,48 +91,60 @@ final class DoseWindowEdgeTests: XCTestCase {
         XCTAssertEqual(ctx.phase, .active)
     }
     
-    // MARK: - Sleep-Through Detection Tests
+    // MARK: - Unresolved Record Prompt Tests
     
-    func test_shouldAutoExpire_false_when_no_dose1() {
+    func test_shouldPromptForUnresolvedDose2_false_when_no_dose1() {
         let calc = DoseWindowCalculator(now: { Date() })
-        XCTAssertFalse(calc.shouldAutoExpireSession(dose1At: nil, dose2TakenAt: nil, dose2Skipped: false))
+        XCTAssertFalse(calc.shouldPromptForUnresolvedDose2(dose1At: nil, dose2TakenAt: nil, dose2Skipped: false))
     }
     
-    func test_shouldAutoExpire_false_when_dose2_taken() {
+    func test_shouldPromptForUnresolvedDose2_false_when_dose2_taken() {
         let anchor = Date().addingTimeInterval(-300 * 60) // 5 hours ago
         let dose2Time = anchor.addingTimeInterval(165 * 60)
         let calc = DoseWindowCalculator(now: { Date() })
-        XCTAssertFalse(calc.shouldAutoExpireSession(dose1At: anchor, dose2TakenAt: dose2Time, dose2Skipped: false))
+        XCTAssertFalse(calc.shouldPromptForUnresolvedDose2(dose1At: anchor, dose2TakenAt: dose2Time, dose2Skipped: false))
     }
     
-    func test_shouldAutoExpire_false_when_dose2_skipped() {
+    func test_shouldPromptForUnresolvedDose2_false_when_dose2_skipped() {
         let anchor = Date().addingTimeInterval(-300 * 60) // 5 hours ago
         let calc = DoseWindowCalculator(now: { Date() })
-        XCTAssertFalse(calc.shouldAutoExpireSession(dose1At: anchor, dose2TakenAt: nil, dose2Skipped: true))
+        XCTAssertFalse(calc.shouldPromptForUnresolvedDose2(dose1At: anchor, dose2TakenAt: nil, dose2Skipped: true))
     }
     
-    func test_shouldAutoExpire_false_within_window_and_grace() {
+    func test_shouldPromptForUnresolvedDose2_false_beforePromptDelay() {
         let anchor = Date()
-        // At 260 min: window closed (240) + only 20 min grace (need 30)
+        // At 260 min: window ended (240) + only 20 min of the 30-minute prompt delay.
         let now = anchor.addingTimeInterval(260 * 60)
         let calc = DoseWindowCalculator(now: { now })
-        XCTAssertFalse(calc.shouldAutoExpireSession(dose1At: anchor, dose2TakenAt: nil, dose2Skipped: false))
+        XCTAssertFalse(calc.shouldPromptForUnresolvedDose2(dose1At: anchor, dose2TakenAt: nil, dose2Skipped: false))
     }
     
-    func test_shouldAutoExpire_true_after_window_plus_grace() {
+    func test_shouldPromptForUnresolvedDose2_true_afterPromptDelay() {
         let anchor = Date()
-        // At 270 min: window (240) + grace (30) = 270 - should expire
+        // At 270 min: window (240) + prompt delay (30) = 270.
         let now = anchor.addingTimeInterval(270 * 60)
         let calc = DoseWindowCalculator(now: { now })
-        XCTAssertTrue(calc.shouldAutoExpireSession(dose1At: anchor, dose2TakenAt: nil, dose2Skipped: false))
+        XCTAssertTrue(calc.shouldPromptForUnresolvedDose2(dose1At: anchor, dose2TakenAt: nil, dose2Skipped: false))
     }
     
-    func test_shouldAutoExpire_true_well_past_grace() {
+    func test_shouldPromptForUnresolvedDose2_true_wellPastDelay_withoutChangingState() {
         let anchor = Date()
-        // 6 hours after dose 1 (360 min) - definitely slept through
+        // Even far past the delay, the calculator exposes only a prompt and the
+        // medication state remains closed and unresolved.
         let now = anchor.addingTimeInterval(360 * 60)
         let calc = DoseWindowCalculator(now: { now })
-        XCTAssertTrue(calc.shouldAutoExpireSession(dose1At: anchor, dose2TakenAt: nil, dose2Skipped: false))
+        XCTAssertTrue(calc.shouldPromptForUnresolvedDose2(dose1At: anchor, dose2TakenAt: nil, dose2Skipped: false))
+        let context = calc.context(
+            dose1At: anchor,
+            dose2TakenAt: nil,
+            dose2Skipped: false,
+            snoozeCount: 0
+        )
+        XCTAssertEqual(context.phase, .closed)
+        if case .resolveExpiredRecord = context.primary { /* expected */ } else {
+            XCTFail("Elapsed time must leave an unresolved Dose 2 record actionable")
+        }
+        XCTAssertEqual(context.skip, .skipEnabled)
     }
     
     // MARK: - Late Dose 1 Detection Tests

@@ -45,6 +45,11 @@ public extension SessionRepository {
         return convertMorningCheckIn(coreCheckIn)
     }
 
+    /// Fetch normalized check-in submissions for a session.
+    func fetchCheckInSubmissions(for sessionDate: String) -> [StoredCheckInSubmission] {
+        storage.fetchCheckInSubmissions(sessionDate: sessionDate)
+    }
+
     /// Fetch morning check-in for the current session.
     func fetchMorningCheckInForCurrentSession() -> StoredMorningCheckIn? {
         let key = activeSessionId ?? activeSessionDate ?? currentSessionKey
