@@ -6,8 +6,7 @@ import DoseCore
 struct ExportCard: View {
     let sessionKey: String
     @ObservedObject private var sessionRepo = SessionRepository.shared
-    @State private var showingShareSheet = false
-    @State private var exportContent: String = ""
+    @State private var exportSharePayload: ExportSharePayload?
 
     private var doseLog: StoredDoseLog? {
         sessionRepo.fetchDoseLog(forSession: sessionKey)
@@ -29,6 +28,13 @@ struct ExportCard: View {
         sessionRepo.listMedicationEntries(for: sessionKey).sorted { $0.takenAtUTC < $1.takenAtUTC }
     }
 
+    private var wakeToDose1Metric: WakeToDose1Metric? {
+        buildWakeToDose1Metric(
+            dose1Time: doseLog?.dose1Time,
+            events: sessionRepo.fetchAllSleepEvents(limit: 500)
+        )
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("📤 Export")
@@ -40,8 +46,7 @@ struct ExportCard: View {
 
             HStack(spacing: 12) {
                 Button {
-                    exportContent = generateExportContent(format: .text)
-                    showingShareSheet = true
+                    exportSharePayload = ExportSharePayload(content: generateExportContent(format: .text))
                 } label: {
                     Label("Share Report", systemImage: "square.and.arrow.up")
                         .frame(maxWidth: .infinity)
@@ -49,8 +54,7 @@ struct ExportCard: View {
                 .buttonStyle(.borderedProminent)
 
                 Button {
-                    exportContent = generateExportContent(format: .csv)
-                    showingShareSheet = true
+                    exportSharePayload = ExportSharePayload(content: generateExportContent(format: .csv))
                 } label: {
                     Label("CSV", systemImage: "tablecells")
                 }
@@ -61,8 +65,8 @@ struct ExportCard: View {
         .background(Color(.systemBackground))
         .cornerRadius(12)
         .shadow(radius: 2)
-        .sheet(isPresented: $showingShareSheet) {
-            ActivityViewController(activityItems: [exportContent])
+        .sheet(item: $exportSharePayload) { payload in
+            ActivityViewController(activityItems: [payload.content])
         }
     }
 
@@ -75,7 +79,12 @@ struct ExportCard: View {
         case .csv:
             return generateCSVExport()
         }
-    }
+}
+
+private struct ExportSharePayload: Identifiable {
+    let id = UUID()
+    let content: String
+}
 
     private func generateTextExport() -> String {
         var lines: [String] = [
@@ -92,6 +101,13 @@ struct ExportCard: View {
             appendTextField(&lines, label: "Dose 2", value: doseLog.dose2Skipped ? "Skipped" : formatOptionalTime(doseLog.dose2Time))
             appendTextField(&lines, label: "Dose 2 Skipped", value: formatBoolean(doseLog.dose2Skipped))
             appendTextField(&lines, label: "Interval", value: doseLog.intervalMinutes.map(formatInterval))
+            if let wakeToDose1Metric {
+                appendTextField(
+                    &lines,
+                    label: "Wake to Dose 1",
+                    value: "\(wakeToDose1Metric.formattedInterval) since \(formatTime(wakeToDose1Metric.wakeTime))"
+                )
+            }
             appendTextField(&lines, label: "Snooze Count", value: "\(doseLog.snoozeCount)")
         } else {
             lines.append("- No dose log recorded")
@@ -171,7 +187,7 @@ struct ExportCard: View {
         lines.append("Morning Check-In")
         if let checkIn = morningCheckIn {
             appendTextField(&lines, label: "Submitted At", value: AppFormatters.mediumDateTime.string(from: checkIn.timestamp))
-            appendTextField(&lines, label: "Sleep Quality", value: "\(checkIn.sleepQuality)/5")
+            appendTextField(&lines, label: "Sleep Quality", value: "\(AppFormatters.compactRating(checkIn.sleepQuality))/5")
             appendTextField(&lines, label: "Feel Rested", value: humanize(checkIn.feelRested))
             appendTextField(&lines, label: "Grogginess", value: humanize(checkIn.grogginess))
             appendTextField(&lines, label: "Sleep Inertia", value: humanize(checkIn.sleepInertiaDuration))
@@ -268,6 +284,8 @@ struct ExportCard: View {
         appendCSVRow(&rows, section: "dose", field: "dose_2_time", value: doseLog?.dose2Skipped == true ? "Skipped" : doseLog?.dose2Time.map(formatTime))
         appendCSVRow(&rows, section: "dose", field: "dose_2_skipped", value: doseLog.map { formatBoolean($0.dose2Skipped) })
         appendCSVRow(&rows, section: "dose", field: "interval", value: doseLog?.intervalMinutes.map(formatInterval))
+        appendCSVRow(&rows, section: "dose", field: "wake_to_dose_1", value: wakeToDose1Metric?.formattedInterval)
+        appendCSVRow(&rows, section: "dose", field: "wake_before_dose_1", value: wakeToDose1Metric.map { formatTime($0.wakeTime) })
         appendCSVRow(&rows, section: "dose", field: "snooze_count", value: doseLog.map { String($0.snoozeCount) })
 
         if let log = preSleepLog {
@@ -337,7 +355,7 @@ struct ExportCard: View {
 
         if let checkIn = morningCheckIn {
             appendCSVRow(&rows, section: "morning", field: "submitted_at", value: AppFormatters.mediumDateTime.string(from: checkIn.timestamp))
-            appendCSVRow(&rows, section: "morning", field: "sleep_quality", value: "\(checkIn.sleepQuality)/5")
+            appendCSVRow(&rows, section: "morning", field: "sleep_quality", value: "\(AppFormatters.compactRating(checkIn.sleepQuality))/5")
             appendCSVRow(&rows, section: "morning", field: "feel_rested", value: humanize(checkIn.feelRested))
             appendCSVRow(&rows, section: "morning", field: "grogginess", value: humanize(checkIn.grogginess))
             appendCSVRow(&rows, section: "morning", field: "sleep_inertia", value: humanize(checkIn.sleepInertiaDuration))

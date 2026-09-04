@@ -11,7 +11,7 @@ public struct MorningCheckIn: Codable, Identifiable, Sendable {
     public let timestamp: Date
     
     // MARK: - 1. Core Sleep Assessment (Always Visible)
-    public var sleepQuality: Int           // 1-5 Stars
+    public var sleepQuality: Double           // 1-5 Stars
     public var feelRested: RestedLevel
     public var grogginess: GrogginessLevel
     public var sleepInertiaDuration: SleepInertiaDuration
@@ -49,7 +49,7 @@ public struct MorningCheckIn: Codable, Identifiable, Sendable {
         id: UUID = UUID(),
         sessionId: UUID,
         timestamp: Date = Date(),
-        sleepQuality: Int = 3,
+        sleepQuality: Double = 3,
         feelRested: RestedLevel = .moderate,
         grogginess: GrogginessLevel = .mild,
         sleepInertiaDuration: SleepInertiaDuration = .fiveToFifteen,
@@ -546,7 +546,7 @@ extension MorningCheckIn {
         var score = 0.0
         
         // Sleep quality contributes 30%
-        score += Double(sleepQuality) / 5.0 * 30
+        score += sleepQuality / 5.0 * 30
         
         // Rested feeling contributes 25%
         score += Double(feelRested.numericValue) / 5.0 * 25

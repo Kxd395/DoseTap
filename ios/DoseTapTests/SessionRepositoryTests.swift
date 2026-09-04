@@ -1,4 +1,5 @@
 import XCTest
+import SQLite3
 @testable import DoseTap
 import Combine
 import DoseCore
@@ -82,6 +83,25 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertNil(repo.activeSessionEnd, "Active session end should be nil after delete")
         XCTAssertEqual(repo.snoozeCount, 0, "Snooze count should reset")
         XCTAssertFalse(repo.dose2Skipped, "Skip state should reset")
+    }
+
+    func test_insertSleepEvent_canonicalizesBriefWakeAlias() async throws {
+        repo.insertSleepEvent(
+            id: UUID().uuidString,
+            eventType: "brief_wake",
+            timestamp: fixedNow,
+            colorHex: nil
+        )
+
+        let saved = repo.fetchTonightSleepEvents().first
+        XCTAssertEqual(saved?.eventType, "wake_temp", "Repository insert should canonicalize legacy Brief Wake aliases.")
+    }
+
+    func test_logSleepEvent_canonicalizesBriefWakeAlias() async throws {
+        repo.logSleepEvent(eventType: "brief_wake", timestamp: fixedNow)
+
+        let saved = repo.fetchTonightSleepEvents().first
+        XCTAssertEqual(saved?.eventType, "wake_temp", "High-level logging should canonicalize legacy Brief Wake aliases.")
     }
     
     // MARK: - Test: Delete Inactive Session Preserves Active State
@@ -186,9 +206,9 @@ final class SessionRepositoryTests: XCTestCase {
     
     func test_clearTonight_clearsActiveSession() async throws {
         // Arrange
-        repo.setDose1Time(Date())
-        repo.setDose2Time(Date())
+        repo.setDose1Time(fixedNow)
         repo.incrementSnooze()
+        repo.setDose2Time(fixedNow.addingTimeInterval(1))
         
         XCTAssertNotNil(repo.dose1Time)
         XCTAssertNotNil(repo.dose2Time)
@@ -207,8 +227,147 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertNil(repo.activeSessionEnd)
     }
 
+    func test_setDose2WithoutDose1_isBlockedAndDoesNotWriteDoseEvent() async throws {
+        let storage = EventStorage.inMemory()
+        let now = fixedNow
+        let repo = SessionRepository(
+            storage: storage,
+            clock: { now },
+            timeZoneProvider: { TimeZone(identifier: "UTC")! }
+        )
+        let sessionDate = sessionKey(for: now, timeZone: TimeZone(identifier: "UTC")!)
+
+        repo.setDose2Time(now)
+
+        XCTAssertNil(repo.dose2Time, "Dose 2 must not be stored without a canonical Dose 1.")
+        XCTAssertTrue(storage.fetchDoseEvents(sessionId: nil, sessionDate: sessionDate).isEmpty)
+        XCTAssertTrue(storage.validateActiveDoseStateInvariant().isEmpty)
+    }
+
+    func test_reloadQuarantinesPersistedDose2WithoutDose1InsteadOfCrashing() async throws {
+        let storage = EventStorage.inMemory()
+        let now = fixedNow
+        let sessionDate = sessionKey(for: now, timeZone: TimeZone(identifier: "UTC")!)
+        storage.startSession(sessionId: "orphan-session", sessionDate: sessionDate, start: now)
+        storage.insertDoseEvent(
+            eventType: "dose2",
+            timestamp: now,
+            sessionDate: sessionDate,
+            sessionId: "orphan-session"
+        )
+
+        let repo = SessionRepository(
+            storage: storage,
+            clock: { now },
+            timeZoneProvider: { TimeZone(identifier: "UTC")! }
+        )
+
+        let recovered = storage.loadCurrentSessionState()
+        XCTAssertNil(repo.activeSessionDate)
+        XCTAssertNotNil(recovered.sessionEnd)
+        XCTAssertEqual(recovered.terminalState, "invalid_dose_state")
+        XCTAssertTrue(storage.validateActiveDoseStateInvariant().isEmpty)
+    }
+
+    func test_reloadQuarantinesNonCanonicalActiveDoseEventInsteadOfCrashing() async throws {
+        let storage = EventStorage.inMemory()
+        let now = fixedNow
+        let sessionDate = sessionKey(for: now, timeZone: TimeZone(identifier: "UTC")!)
+        storage.saveDose1(timestamp: now.addingTimeInterval(-60 * 60), sessionId: "legacy-session", sessionDateOverride: sessionDate)
+        storage.saveDose2(timestamp: now, sessionId: "legacy-session", sessionDateOverride: sessionDate)
+        executeSQL(
+            "UPDATE dose_events SET event_type = 'dose_2' WHERE session_date = '\(sessionDate)' AND event_type = 'dose2'",
+            on: storage
+        )
+
+        XCTAssertTrue(storage.validateActiveDoseStateInvariant().contains { $0.code == "non_canonical_dose_event_type" })
+
+        let repo = SessionRepository(
+            storage: storage,
+            clock: { now },
+            timeZoneProvider: { TimeZone(identifier: "UTC")! }
+        )
+
+        let recovered = storage.loadCurrentSessionState()
+        XCTAssertNil(repo.activeSessionDate)
+        XCTAssertNotNil(recovered.sessionEnd)
+        XCTAssertEqual(recovered.terminalState, "invalid_dose_state")
+        XCTAssertTrue(storage.validateActiveDoseStateInvariant().isEmpty)
+    }
+
+    func test_clearDose1_clearsDependentDose2AndSnoozeState() async throws {
+        let dose1 = fixedNow.addingTimeInterval(-160 * 60)
+        repo.setDose1Time(dose1)
+        repo.incrementSnooze()
+        repo.setDose2Time(dose1.addingTimeInterval(165 * 60))
+        let sessionDate = try XCTUnwrap(repo.activeSessionDate)
+
+        repo.clearDose1()
+
+        XCTAssertNil(repo.dose1Time)
+        XCTAssertNil(repo.dose2Time)
+        XCTAssertEqual(repo.snoozeCount, 0)
+        XCTAssertFalse(repo.dose2Skipped)
+        XCTAssertTrue(storage.fetchDoseEvents(sessionId: nil, sessionDate: sessionDate).isEmpty)
+        XCTAssertTrue(storage.validateActiveDoseStateInvariant().isEmpty)
+    }
+
+    func test_incrementSnoozeWithoutDose1_isBlockedAndDoesNotCreateSession() async throws {
+        let storage = EventStorage.inMemory()
+        let now = fixedNow
+        let repo = SessionRepository(
+            storage: storage,
+            clock: { now },
+            timeZoneProvider: { TimeZone(identifier: "UTC")! }
+        )
+
+        let incremented = repo.incrementSnoozeIfActive()
+
+        XCTAssertFalse(incremented, "Snooze must not create dose state without Dose 1.")
+        XCTAssertNil(repo.activeSessionDate)
+        XCTAssertEqual(repo.snoozeCount, 0)
+        XCTAssertTrue(storage.validateActiveDoseStateInvariant().isEmpty)
+        XCTAssertTrue(storage.getAllSessionDates().isEmpty)
+    }
+
+    func test_incrementSnoozeAfterPrepRollover_isBlockedWithoutSnoozeOnlyState() async throws {
+        let settings = UserSettingsManager.shared
+        let previousPrepTime = settings.prepTimeMinutes
+        defer { settings.prepTimeMinutes = previousPrepTime }
+        settings.prepTimeMinutes = 18 * 60
+
+        let timeZone = TimeZone(identifier: "UTC")!
+        let clock = TestClock(
+            now: ISO8601DateFormatter().date(from: "2026-01-15T17:50:00Z")!,
+            timeZone: timeZone
+        )
+        let storage = EventStorage.inMemory()
+        let repo = SessionRepository(
+            storage: storage,
+            clock: { clock.now },
+            timeZoneProvider: { clock.timeZone }
+        )
+        let dose1 = clock.now.addingTimeInterval(-160 * 60)
+        let staleSessionDate = sessionKey(for: dose1, timeZone: timeZone)
+
+        repo.setDose1Time(dose1)
+        clock.now = ISO8601DateFormatter().date(from: "2026-01-15T18:10:00Z")!
+
+        let incremented = repo.incrementSnoozeIfActive()
+
+        XCTAssertFalse(incremented, "Snooze must fail after schedule rollover closes the active session.")
+        XCTAssertNil(repo.activeSessionDate)
+        XCTAssertEqual(repo.snoozeCount, 0)
+        XCTAssertFalse(
+            storage.fetchDoseEvents(sessionId: nil, sessionDate: staleSessionDate)
+                .contains { $0.eventType == "snooze" },
+            "Stale-session snooze must not write a snooze event."
+        )
+        XCTAssertTrue(storage.validateActiveDoseStateInvariant().isEmpty)
+    }
+
     func test_clearAllData_clearsSessionIdentityState() async throws {
-        repo.setDose1Time(Date().addingTimeInterval(-120 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-160 * 60))
         repo.incrementSnooze()
 
         XCTAssertNotNil(repo.activeSessionDate)
@@ -337,20 +496,23 @@ final class SessionRepositoryTests: XCTestCase {
     }
     
     func test_incrementSnooze_updatesCount() async throws {
+        repo.setDose1Time(fixedNow.addingTimeInterval(-160 * 60))
         XCTAssertEqual(repo.snoozeCount, 0)
         
-        repo.incrementSnooze()
+        XCTAssertTrue(repo.incrementSnoozeIfActive())
         XCTAssertEqual(repo.snoozeCount, 1)
         
-        repo.incrementSnooze()
+        XCTAssertTrue(repo.incrementSnoozeIfActive())
         XCTAssertEqual(repo.snoozeCount, 2)
     }
     
     func test_skipDose2_updatesState() async throws {
+        repo.setDose1Time(fixedNow.addingTimeInterval(-160 * 60))
         XCTAssertFalse(repo.dose2Skipped)
         
-        repo.skipDose2()
+        let result = repo.skipDose2()
         
+        XCTAssertTrue(result.isCommitted)
         XCTAssertTrue(repo.dose2Skipped)
     }
     
@@ -429,7 +591,7 @@ final class SessionRepositoryTests: XCTestCase {
     /// Verify snoozeCount is correctly reflected in currentContext
     func test_currentContext_reflectsSnoozeCount() async throws {
         // Arrange: Set dose 1 within window (150+ minutes ago)
-        let dose1Time = Date().addingTimeInterval(-155 * 60) // 155 minutes ago
+        let dose1Time = fixedNow.addingTimeInterval(-155 * 60)
         repo.setDose1Time(dose1Time)
         
         // Initial state - no snoozes
@@ -437,13 +599,13 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertEqual(initialContext.snoozeCount, 0, "Initial snooze count should be 0")
         
         // Act: Increment snooze
-        repo.incrementSnooze()
+        XCTAssertTrue(repo.incrementSnoozeIfActive())
         
         // Assert: Context reflects new snooze count
         XCTAssertEqual(repo.currentContext.snoozeCount, 1, "Context should reflect snooze count")
         
         // Act: Increment again
-        repo.incrementSnooze()
+        XCTAssertTrue(repo.incrementSnoozeIfActive())
         
         // Assert
         XCTAssertEqual(repo.currentContext.snoozeCount, 2, "Context should reflect updated snooze count")
@@ -973,6 +1135,7 @@ final class SessionRepositoryTests: XCTestCase {
             sleepTherapyJson: #"{"device":"CPAP","compliance":85,"notes":"mask leak around 4am"}"#,
             hasSleepEnvironment: true,
             sleepEnvironmentJson: #"{"roomTemp":"warm","noiseLevel":"moderate","sleepAids":"white_noise","notes":"hotel HVAC noise"}"#,
+            timingContextJson: #"{"nightType":"work_night","wakeType":"alarm_then_snooze","nextDayDemand":"shift_13h","dose2WakeMethod":"alarm","backToSleepDuration":"15_30m","dose2TakenReason":"ate_too_late","dose2ReasonNotes":"Meal ran late after shift.","hasWorkSafetyContext":true,"wakeRequirement":"work","shiftStartAtUTC":"2026-02-10T12:00:00.000Z","shiftEndAtUTC":"2026-02-11T01:00:00.000Z","nextRequiredWakeAtUTC":"2026-02-10T10:15:00.000Z","commuteMinutes":40,"drivingConfidence":2,"daytimeSleepiness":4,"cataplexyBurden":"mild","hasClinicalContext":true,"sleepDisorders":["narcolepsy","obstructive_sleep_apnea"],"sleepDisorderNotes":"OSA treated with CPAP.","coMedicationNotes":"Adderall XR on workdays.","pharmacogenomicFastMetabolizer":true,"pharmacogenomicClinicianReviewed":true,"pharmacogenomicNotes":"Gnome DNA report reviewed with clinician."}"#,
             notes: "Felt better than expected"
         )
 
@@ -1003,6 +1166,93 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertEqual(responses["sleep_environment.room_temp"] as? String, "warm")
         XCTAssertEqual(responses["sleep_environment.noise_level"] as? String, "moderate")
         XCTAssertEqual(responses["sleep_environment.sleep_aids"] as? String, "white_noise")
+        XCTAssertEqual(responses["night.type"] as? String, "work_night")
+        XCTAssertEqual(responses["wake.type"] as? String, "alarm_then_snooze")
+        XCTAssertEqual(responses["day_demand.type"] as? String, "shift_13h")
+        XCTAssertEqual(responses["dose2.wake_method"] as? String, "alarm")
+        XCTAssertEqual(responses["dose2.back_to_sleep"] as? String, "15_30m")
+        XCTAssertEqual(responses["dose2.taken_reason"] as? String, "ate_too_late")
+        XCTAssertEqual(responses["dose2.reason_notes"] as? String, "Meal ran late after shift.")
+        XCTAssertEqual(responses["wake.requirement"] as? String, "work")
+        XCTAssertEqual(responses["work.shift_start_utc"] as? String, "2026-02-10T12:00:00.000Z")
+        XCTAssertEqual(responses["work.shift_end_utc"] as? String, "2026-02-11T01:00:00.000Z")
+        XCTAssertEqual(responses["wake.required_at_utc"] as? String, "2026-02-10T10:15:00.000Z")
+        XCTAssertEqual(responses["work.commute_minutes"] as? Int, 40)
+        XCTAssertEqual(responses["safety.driving_confidence"] as? Int, 2)
+        XCTAssertEqual(responses["daytime.sleepiness"] as? Int, 4)
+        XCTAssertEqual(responses["daytime.cataplexy_burden"] as? String, "mild")
+        XCTAssertEqual(responses["clinical.sleep_disorders"] as? [String], ["narcolepsy", "obstructive_sleep_apnea"])
+        XCTAssertEqual(responses["clinical.sleep_disorder_notes"] as? String, "OSA treated with CPAP.")
+        XCTAssertEqual(responses["clinical.co_medication_notes"] as? String, "Adderall XR on workdays.")
+        XCTAssertEqual(responses["clinical.pharmacogenomic_fast_metabolizer"] as? Bool, true)
+        XCTAssertEqual(responses["clinical.pharmacogenomic_clinician_reviewed"] as? Bool, true)
+        XCTAssertEqual(responses["clinical.pharmacogenomic_notes"] as? String, "Gnome DNA report reviewed with clinician.")
+    }
+
+    func test_updateDose2OutcomeAnnotations_mergesReasonIntoExistingDose2Metadata() async throws {
+        storage.clearAllData()
+        let sessionDate = "2026-02-11"
+        let dose1 = ISO8601DateFormatter().date(from: "2026-02-11T03:00:00Z")!
+        let dose2 = ISO8601DateFormatter().date(from: "2026-02-11T06:05:00Z")!
+
+        storage.saveDose1(timestamp: dose1, sessionDateOverride: sessionDate)
+        storage.saveDose2(timestamp: dose2, isLate: true, sessionDateOverride: sessionDate)
+
+        repo.updateDose2OutcomeAnnotations(
+            sessionDate: sessionDate,
+            takenReason: "ate_too_late",
+            skipReason: nil,
+            reasonNotes: "Late meal pushed the timing back."
+        )
+
+        let event = try XCTUnwrap(storage.fetchDoseEvents(sessionId: nil, sessionDate: sessionDate).first { $0.eventType == "dose2" })
+        let metadata = decodeJSONDictionary(event.metadata ?? "{}")
+
+        XCTAssertEqual(metadata["reason"] as? String, "ate_too_late")
+        XCTAssertEqual(metadata["reason_notes"] as? String, "Late meal pushed the timing back.")
+        XCTAssertEqual(metadata["is_late"] as? Bool, true)
+    }
+
+    func test_saveDose2_persistsLiveReasonMetadata() async throws {
+        storage.clearAllData()
+        let sessionDate = "2026-02-12"
+        let dose1 = ISO8601DateFormatter().date(from: "2026-02-12T03:00:00Z")!
+        let dose2 = ISO8601DateFormatter().date(from: "2026-02-12T05:10:00Z")!
+
+        storage.saveDose1(timestamp: dose1, sessionDateOverride: sessionDate)
+        repo.saveDose2(
+            timestamp: dose2,
+            isEarly: true,
+            reason: "fell_asleep",
+            reasonNotes: "Woke up late and took it immediately."
+        )
+
+        let event = try XCTUnwrap(storage.fetchDoseEvents(sessionId: nil, sessionDate: sessionDate).first { $0.eventType == "dose2" })
+        let metadata = decodeJSONDictionary(event.metadata ?? "{}")
+
+        XCTAssertEqual(metadata["reason"] as? String, "fell_asleep")
+        XCTAssertEqual(metadata["reason_notes"] as? String, "Woke up late and took it immediately.")
+        XCTAssertEqual(metadata["is_early"] as? Bool, true)
+    }
+
+    func test_skipDose2_persistsLiveSkipReasonMetadata() async throws {
+        storage.clearAllData()
+        let dose1 = ISO8601DateFormatter().date(from: "2026-02-13T03:00:00Z")!
+
+        repo.setDose1Time(dose1)
+        repo.skipDose2(
+            reason: "side_effect_concern",
+            reasonNotes: "Too sedated to safely continue.",
+            surface: .deepLink
+        )
+
+        let sessionDate = try XCTUnwrap(repo.activeSessionDate)
+        let event = try XCTUnwrap(storage.fetchDoseEvents(sessionId: nil, sessionDate: sessionDate).first { $0.eventType == "dose2_skipped" })
+        let metadata = decodeJSONDictionary(event.metadata ?? "{}")
+
+        XCTAssertEqual(metadata["reason"] as? String, "side_effect_concern")
+        XCTAssertEqual(metadata["reason_notes"] as? String, "Too sedated to safely continue.")
+        XCTAssertEqual(metadata["surface"] as? String, RegistrationSurface.deepLink.rawValue)
     }
 
     func test_deleteMorningCheckIn_removesNormalizedSubmission() async throws {
@@ -1051,6 +1301,17 @@ final class SessionRepositoryTests: XCTestCase {
         comps.second = 0
         comps.timeZone = tz
         return Calendar(identifier: .gregorian).date(from: comps) ?? Date()
+    }
+
+    private func executeSQL(_ sql: String, on storage: EventStorage, file: StaticString = #filePath, line: UInt = #line) {
+        var errorMessage: UnsafeMutablePointer<CChar>?
+        let result = sqlite3_exec(storage.db, sql, nil, nil, &errorMessage)
+        defer {
+            if let errorMessage {
+                sqlite3_free(errorMessage)
+            }
+        }
+        XCTAssertEqual(result, SQLITE_OK, errorMessage.map { String(cString: $0) } ?? "SQLite error", file: file, line: line)
     }
 
     private func decodeJSONDictionary(_ json: String) -> [String: Any] {

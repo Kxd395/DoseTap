@@ -37,7 +37,7 @@ struct LiveNextActionCard: View {
         case .active, .nearClose:
             return "Next Action: Take Dose 2"
         case .closed:
-            return "Dose 2 Window Closed"
+            return "Next Action: Complete Dose 2 Record"
         case .completed, .finalizing:
             return "Session Complete"
         }
@@ -65,7 +65,7 @@ struct LiveNextActionCard: View {
         case .active, .nearClose:
             return "Sleep window: \(windowOpen.formatted(date: .omitted, time: .shortened)) - \(windowClose.formatted(date: .omitted, time: .shortened))."
         case .closed:
-            return "Window closed at \(windowClose.formatted(date: .omitted, time: .shortened))."
+            return "The planned window ended at \(windowClose.formatted(date: .omitted, time: .shortened)). Record what actually happened."
         case .completed, .finalizing:
             return "Review last night for tonight's adjustments."
         case .noDose1:
@@ -86,7 +86,7 @@ struct LiveNextActionCard: View {
         case .nearClose:
             return .orange
         case .closed:
-            return .red
+            return .orange
         case .completed, .finalizing:
             return .blue
         default:

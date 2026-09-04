@@ -691,7 +691,7 @@ class SupportBundleExportManager: ObservableObject {
     }
     
     private func loadRecentExports() {
-        // Mock recent exports - in real implementation, load from UserDefaults or Core Data
+        // Mock recent exports. Real export history should load from the local store.
         recentExports = [
             SupportBundleExport(date: Date().addingTimeInterval(-86400 * 3), sizeFormatted: "142 KB"),
             SupportBundleExport(date: Date().addingTimeInterval(-86400 * 10), sizeFormatted: "158 KB"),

@@ -69,8 +69,8 @@ struct DashboardNightAggregate: Identifiable {
     }
 
     var onTimeDosing: Bool? {
-        guard let intervalMinutes else { return nil }
-        return (150...240).contains(intervalMinutes)
+        guard let dose1Time, let dose2Time else { return nil }
+        return MedicationTiming.classify(dose1: dose1Time, dose2: dose2Time) == .inWindow
     }
 
     var totalSleepMinutes: Double? {
@@ -78,6 +78,21 @@ struct DashboardNightAggregate: Identifiable {
             return Double(whoopMin)
         }
         return healthSummary?.totalSleepMinutes
+    }
+
+    var appleHealthSleepMinutes: Double? {
+        healthSummary?.totalSleepMinutes
+    }
+
+    var whoopSleepMinutes: Double? {
+        guard let minutes = whoopSummary?.totalSleepMinutes, minutes > 0 else { return nil }
+        return Double(minutes)
+    }
+
+    var preferredSleepSourceLabel: String? {
+        if whoopSleepMinutes != nil { return "WHOOP" }
+        if appleHealthSleepMinutes != nil { return "Apple Health" }
+        return nil
     }
 
     var ttfwMinutes: Double? { healthSummary?.ttfwMinutes }

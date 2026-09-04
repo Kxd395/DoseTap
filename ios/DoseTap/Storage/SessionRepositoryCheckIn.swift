@@ -45,6 +45,7 @@ public extension SessionRepository {
             sleepTherapyJson: checkIn.sleepTherapyJson,
             hasSleepEnvironment: checkIn.hasSleepEnvironment,
             sleepEnvironmentJson: checkIn.sleepEnvironmentJson,
+            timingContextJson: checkIn.timingContextJson,
             notes: checkIn.notes
         )
 

@@ -12,15 +12,51 @@ struct CompactDoseButton: View {
     @Binding var showEarlyDoseAlert: Bool
     @Binding var earlyDoseMinutes: Int
     @Binding var showExtraDoseWarning: Bool  // For second dose 2 attempt
-    @State private var showWindowExpiredOverride = false  // For taking dose after window expired
+    /// Optional binding to open Morning Check-In sheet when user taps primary
+    /// button in `.finalizing` state.
+    var showMorningCheckIn: Binding<Bool>? = nil
+    @State private var workWakeWarning: WorkWakeWarning?
+    @State private var showExpiredDose2Resolution = false
+    @State private var expiredResolutionReferenceTime = Date()
+    @State private var reasonCaptureMode: Dose2OutcomeReasonMode?
+    @State private var actionFeedback: DoseActionFeedback?
+    @State private var clearFeedbackTask: Task<Void, Never>?
     
-    /// P0-4: Centralised coordinator for all dose actions
-    var coordinator: DoseActionCoordinator?
+    /// Centralized coordinator for all dose actions.
+    var coordinator: DoseActionCoordinator
     
     private let windowOpenMinutes: Double = 150
     
     var body: some View {
         VStack(spacing: 8) {
+            // Prepare nudge: 5-min pre-window warning
+            if let prepareMinutes = prepareNudgeMinutes {
+                HStack(spacing: 8) {
+                    Image(systemName: "bell.badge.fill")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                    Text(prepareMinutes <= 1
+                         ? "Dose 2 window opens in under a minute"
+                         : "Dose 2 window opens in \(prepareMinutes) min")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+                    Spacer()
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.orange.opacity(0.12))
+                )
+                .padding(.horizontal)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(prepareMinutes <= 1
+                                    ? "Dose 2 window opens in under a minute. Get ready."
+                                    : "Dose 2 window opens in \(prepareMinutes) minutes. Get ready.")
+                .accessibilityAddTraits(.updatesFrequently)
+            }
+
             Button(action: handlePrimaryButtonTap) {
                 Text(primaryButtonText)
                     .font(.headline)
@@ -31,17 +67,63 @@ struct CompactDoseButton: View {
                     .cornerRadius(12)
             }
             // Accessibility
+            .accessibilityIdentifier("dose-primary-action")
             .accessibilityLabel(primaryButtonAccessibilityLabel)
             .accessibilityHint(primaryButtonAccessibilityHint)
-            // Allow tapping even when completed (for extra dose warning) or closed (for override)
+            // Closed timing phases remain actionable so the record can be resolved.
             .padding(.horizontal)
-            .alert("Window Expired", isPresented: $showWindowExpiredOverride) {
-                Button("Cancel", role: .cancel) { }
-                Button("Take Dose 2 Anyway", role: .destructive) {
-                    takeDose2WithOverride()
+            .sheet(item: $workWakeWarning) { warning in
+                if let repository = coordinator.sessionRepo {
+                    WorkWakeWarningSheet(warning: warning, repository: repository, coordinator: coordinator, onResult: handleActionResult)
                 }
-            } message: {
-                Text(overrideConfirmationMessage)
+            }
+            .sheet(isPresented: $showExpiredDose2Resolution) {
+                if let repository = coordinator.sessionRepo, let dose1Time = core.dose1Time {
+                    ExpiredDose2ResolutionSheet(
+                        dose1Time: dose1Time,
+                        referenceTime: expiredResolutionReferenceTime,
+                        isAlreadyMarkedMissed: core.isSkipped,
+                        repository: repository,
+                        recordOccurrence: { occurrenceTime, reason, notes, workWarning in
+                            await coordinator.recordDose2Occurrence(
+                                at: occurrenceTime,
+                                warningConfirmed: true,
+                                acknowledgedWorkWarning: workWarning,
+                                reason: reason,
+                                reasonNotes: notes,
+                                surface: .tonightButton
+                            )
+                        },
+                        markMissed: { reason, notes in
+                            await coordinator.skipDose(
+                                reason: reason,
+                                reasonNotes: notes,
+                                surface: .tonightButton
+                            )
+                        },
+                        onCommitted: handleActionResult
+                    )
+                }
+            }
+            .sheet(item: $reasonCaptureMode) { mode in
+                Dose2OutcomeReasonSheet(
+                    mode: mode,
+                    onConfirm: { reason, notes in
+                        switch mode {
+                        case .skipDose:
+                            completeSkip(reason: reason, notes: notes)
+                        case .earlyDose:
+                            break
+                        }
+                        reasonCaptureMode = nil
+                    },
+                    onCancel: { reasonCaptureMode = nil }
+                )
+            }
+
+            if let actionFeedback {
+                DoseActionFeedbackBanner(feedback: actionFeedback)
+                    .padding(.horizontal)
             }
             
             // Secondary buttons row
@@ -49,17 +131,7 @@ struct CompactDoseButton: View {
                 HStack(spacing: 12) {
                     Button {
                         Task {
-                            if let coord = coordinator {
-                                let _ = await coord.snooze()
-                            } else {
-                                // Legacy fallback
-                                if let newTime = await AlarmService.shared.snoozeAlarm(dose1Time: core.dose1Time) {
-                                    await core.snooze()
-                                    appLogger.info("Snoozed to \(newTime.formatted(date: .omitted, time: .shortened))")
-                                } else {
-                                    await core.snooze()
-                                }
-                            }
+                            handleActionResult(await coordinator.snooze())
                         }
                     } label: {
                         Label("Snooze +10m", systemImage: "bell.badge")
@@ -69,14 +141,7 @@ struct CompactDoseButton: View {
                     .disabled(!snoozeEnabled)
                     
                     Button {
-                        Task {
-                            if let coord = coordinator {
-                                let _ = await coord.skipDose()
-                            } else {
-                                await core.skipDose()
-                                AlarmService.shared.cancelAllAlarms()
-                            }
-                        }
+                        reasonCaptureMode = .skipDose
                     } label: {
                         Label("Skip", systemImage: "forward.fill")
                             .font(.caption)
@@ -86,141 +151,93 @@ struct CompactDoseButton: View {
                 }
             }
         }
+        .onDisappear {
+            clearFeedbackTask?.cancel()
+        }
     }
     
     private func handlePrimaryButtonTap() {
-        // P0-4: Use coordinator when available
-        if let coord = coordinator {
-            Task {
-                let result: DoseActionCoordinator.ActionResult
-                if core.dose1Time == nil {
-                    result = await coord.takeDose1()
-                } else {
-                    result = await coord.takeDose2()
-                }
-                switch result {
-                case .success:
-                    break // UI updates via ObservableObject
-                case .needsConfirm(let type):
-                    switch type {
-                    case .earlyDose(let minutes):
-                        earlyDoseMinutes = minutes
-                        showEarlyDoseAlert = true
-                    case .lateDose, .afterSkip:
-                        showWindowExpiredOverride = true
-                    case .extraDose:
-                        showExtraDoseWarning = true
-                    }
-                case .blocked:
-                    break // Nothing to show
-                }
-            }
+        // Finalizing: primary button acts as morning check-in launcher.
+        if core.currentStatus == .finalizing, let binding = showMorningCheckIn {
+            binding.wrappedValue = true
+            Haptics.light.play()
             return
         }
 
-        // Legacy fallback (no coordinator injected)
-        guard core.dose1Time != nil else {
-            Task {
-                let now = Date()
-                await core.takeDose()
-                // Log Dose 1 as event for Details tab
-                eventLogger.logEvent(name: "Dose 1", color: .green, cooldownSeconds: 3600 * 8, persist: false)
-                // Register for undo
-                undoState.register(.takeDose1(at: now))
-                
-                // Schedule wake alarm for default target time (165 min after Dose 1)
-                let targetMinutes = UserDefaults.standard.integer(forKey: "target_interval_minutes")
-                let targetInterval = targetMinutes > 0 ? targetMinutes : 165
-                let wakeTime = now.addingTimeInterval(Double(targetInterval) * 60)
-                await AlarmService.shared.scheduleDose2Alarm(at: wakeTime, dose1Time: now)
-                
-                // Schedule Dose 2 reminders (window open, 15 min warning, 5 min warning)
-                await AlarmService.shared.scheduleDose2Reminders(dose1Time: now)
-            }
-            return
-        }
-        
-        // SAFETY: Check if Dose 2 already taken (extra dose starts at dose 3+)
-        let doseCount = sessionRepo.fetchDoseEventsForActiveSession()
-            .filter { event in
-                switch event.eventType {
-                case "dose1", "dose2", "extra_dose":
-                    return true
-                default:
-                    return false
-                }
-            }
-            .count
-        if doseCount >= 2 {
-            showExtraDoseWarning = true
+        if core.currentStatus == .closed
+            || (core.currentStatus == .completed && core.isSkipped && core.dose2Time == nil) {
+            expiredResolutionReferenceTime = Date()
+            showExpiredDose2Resolution = true
+            Haptics.light.play()
             return
         }
 
-        if core.currentStatus == .completed, core.isSkipped, core.dose2Time == nil {
-            showWindowExpiredOverride = true
-            return
-        }
-        
-        // Window expired - show override confirmation
-        if core.currentStatus == .closed {
-            showWindowExpiredOverride = true
-            return
-        }
-        
-        if core.currentStatus == .beforeWindow {
-            if let dose1Time = core.dose1Time {
-                let remaining = dose1Time.addingTimeInterval(windowOpenMinutes * 60).timeIntervalSince(Date())
-                earlyDoseMinutes = max(1, Int(ceil(remaining / 60)))
-            }
-            showEarlyDoseAlert = true
-            return
-        }
-        
         Task {
-            let now = Date()
-            await core.takeDose()
-            // Log Dose 2 as event for Details tab
-            eventLogger.logEvent(name: "Dose 2", color: .green, cooldownSeconds: 3600 * 8, persist: false)
-            // Register for undo
-            undoState.register(.takeDose2(at: now))
-            // Cancel wake alarm since Dose 2 was taken
-            AlarmService.shared.cancelAllAlarms()
-        }
-    }
-    
-    /// Take Dose 2 after window expired with explicit user override
-    private func takeDose2WithOverride() {
-        Task {
-            if let coord = coordinator {
-                let _ = await coord.takeDose2(override: .lateConfirmed)
+            let result: DoseActionCoordinator.ActionResult
+            if core.dose1Time == nil {
+                result = await coordinator.takeDose1()
             } else {
-                // Legacy fallback
-                let now = Date()
-                let wasSkipped = core.isSkipped && core.dose2Time == nil
-                await core.takeDose(lateOverride: true)
-                AlarmService.shared.cancelAllAlarms()
-                AlarmService.shared.clearDose2AlarmState()
-                let eventName = wasSkipped ? "Dose 2 (After Skip)" : "Dose 2 (Late)"
-                eventLogger.logEvent(name: eventName, color: .orange, cooldownSeconds: 3600 * 8, persist: false)
-                undoState.register(.takeDose2(at: now))
+                result = await coordinator.takeDose2()
+            }
+            handleActionResult(result)
+        }
+    }
+    
+    private func completeSkip(reason: String?, notes: String?) {
+        Task {
+            let result = await coordinator.skipDose(reason: reason, reasonNotes: notes)
+            handleActionResult(result)
+        }
+    }
+
+    private func handleActionResult(_ result: DoseActionCoordinator.ActionResult) {
+        let presentation = DoseActionResultPresentation(result: result)
+        if let feedback = presentation.feedback {
+            showActionFeedback(feedback)
+        }
+        if let confirmation = presentation.confirmation {
+            handleConfirmation(confirmation)
+        }
+    }
+
+    private func handleConfirmation(_ confirmation: DoseActionCoordinator.ConfirmationType) {
+        switch confirmation {
+        case .workWake(let warning):
+            workWakeWarning = warning
+        case .earlyDose(let minutes):
+            earlyDoseMinutes = minutes
+            showEarlyDoseAlert = true
+        case .outsideWindowOccurrence, .afterSkip:
+            expiredResolutionReferenceTime = Date()
+            showExpiredDose2Resolution = true
+        case .extraDose:
+            showExtraDoseWarning = true
+        }
+    }
+
+    private func showActionFeedback(_ feedback: DoseActionFeedback) {
+        actionFeedback = feedback
+        clearFeedbackTask?.cancel()
+        clearFeedbackTask = Task {
+            let delay: UInt64 = feedback.kind == .blocked ? 6_000_000_000 : 3_000_000_000
+            try? await Task.sleep(nanoseconds: delay)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                if actionFeedback == feedback {
+                    actionFeedback = nil
+                }
             }
         }
     }
 
-    private var overrideConfirmationMessage: String {
-        if core.currentStatus == .completed && core.isSkipped && core.dose2Time == nil {
-            return "Dose 2 was previously marked as skipped. This will record Dose 2 now and clear skipped status. Are you sure you want to proceed?"
-        }
-        return "The 240-minute window has passed. Taking Dose 2 late may affect efficacy. Are you sure you want to proceed?"
-    }
-    
     private var primaryButtonText: String {
         switch core.currentStatus {
         case .noDose1: return "Take Dose 1"
         case .beforeWindow: return "Waiting..."
-        case .active, .nearClose: return "Take Dose 2"
-        case .closed: return "Take Dose 2 (Late)"
-        case .completed: return "Complete ✓"
+        case .active, .nearClose: return "Record Dose 2"
+        case .closed: return "Resolve Dose 2"
+        case .completed:
+            return core.isSkipped && core.dose2Time == nil ? "Correct Dose 2 Record" : "Complete ✓"
         case .finalizing: return "Check-In"
         }
     }
@@ -231,8 +248,11 @@ struct CompactDoseButton: View {
         case .beforeWindow: return "Waiting for dose window to open"
         case .active: return "Take Dose 2 button. Window is open."
         case .nearClose: return "Take Dose 2 button. Warning: window closing soon!"
-        case .closed: return "Take Dose 2 late button. Window has closed."
-        case .completed: return "Session complete. Both doses taken."
+        case .closed: return "Complete unresolved Dose 2 record. The planned window has ended."
+        case .completed:
+            return core.isSkipped && core.dose2Time == nil
+                ? "Correct the Dose 2 record currently marked missed"
+                : "Session complete"
         case .finalizing: return "Complete morning check-in button"
         }
     }
@@ -243,7 +263,7 @@ struct CompactDoseButton: View {
         case .beforeWindow: return "Wait for the countdown to finish"
         case .active: return "Double tap to take Dose 2"
         case .nearClose: return "Double tap now to take your second dose before the window closes"
-        case .closed: return "Double tap to take dose late. You will be asked to confirm."
+        case .closed: return "Double tap to record an occurrence that already happened, or mark Dose 2 missed"
         case .completed: return ""
         case .finalizing: return "Double tap to complete your session"
         }
@@ -262,12 +282,24 @@ struct CompactDoseButton: View {
         }
     }
     
+    /// Minutes until the Dose 2 window opens, when <= 5 min remain and we're in pre-window.
+    /// Returns nil outside the 5-min prepare zone so the banner hides.
+    private var prepareNudgeMinutes: Int? {
+        guard core.currentStatus == .beforeWindow,
+              let dose1Time = core.dose1Time else { return nil }
+        let windowOpensAt = dose1Time.addingTimeInterval(windowOpenMinutes * 60)
+        let remaining = windowOpensAt.timeIntervalSince(Date())
+        guard remaining > 0, remaining <= 5 * 60 else { return nil }
+        return max(1, Int(ceil(remaining / 60)))
+    }
+
     private var snoozeEnabled: Bool {
         if case .snoozeEnabled = core.windowContext.snooze { return true }
         return false
     }
     
     private var skipEnabled: Bool {
-        core.currentStatus == .active || core.currentStatus == .nearClose || core.currentStatus == .closed
+        if case .skipEnabled = core.windowContext.skip { return true }
+        return false
     }
 }

@@ -41,7 +41,7 @@ extension DashboardAnalyticsModel {
                 date: date,
                 bedtimeStress: night.preSleepLog?.answers?.stressLevel.map(Double.init),
                 wakeStress: night.morningCheckIn?.stressLevel.map(Double.init),
-                sleepQuality: night.morningCheckIn.map { Double($0.sleepQuality) },
+                sleepQuality: night.morningCheckIn.map(\.sleepQuality),
                 readiness: night.morningCheckIn.map { Double($0.readinessForDay) },
                 intervalMinutes: night.intervalMinutes.map(Double.init),
                 bedtimeDrivers: bedtimeDrivers,
@@ -119,7 +119,7 @@ extension DashboardAnalyticsModel {
             guard let sleepQuality = night.morningCheckIn?.sleepQuality else {
                 return nil
             }
-            return Double(sleepQuality)
+            return sleepQuality
         }
         let lower = populatedNights.compactMap { night -> Double? in
             guard let stress = night.preSleepLog?.answers?.stressLevel, stress <= 3 else {
@@ -128,7 +128,7 @@ extension DashboardAnalyticsModel {
             guard let sleepQuality = night.morningCheckIn?.sleepQuality else {
                 return nil
             }
-            return Double(sleepQuality)
+            return sleepQuality
         }
         return (average(high), average(lower))
     }

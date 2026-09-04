@@ -54,6 +54,8 @@ extension SettingsView {
                 DatePicker("Sleep Start", selection: sleepStartBinding, displayedComponents: .hourAndMinute)
                 DatePicker("Wake Time", selection: wakeTimeBinding, displayedComponents: .hourAndMinute)
 
+                CurrentTimeZoneSummaryView()
+
                 DisclosureGroup("Evening Prep & Auto-Close") {
                     DatePicker("Prep Time", selection: prepTimeBinding, displayedComponents: .hourAndMinute)
                     Stepper("Missed check-in cutoff +\(settings.missedCheckInCutoffHours)h", value: $settings.missedCheckInCutoffHours, in: 1...12)
@@ -65,7 +67,7 @@ extension SettingsView {
                 Label("Night Schedule", systemImage: "moon.stars.fill")
                     .font(.headline)
             } footer: {
-                Text("These times control session rollover. Midnight is not a boundary; the morning check-in (or cutoff) closes the night.")
+                Text("Night identity rolls over at 6:00 PM in the shown timezone. Midnight is not a boundary; the morning check-in (or cutoff) closes the active session.")
             }
 
             Section {
@@ -360,7 +362,6 @@ extension SettingsView {
                 }
             }
         }
-        .preferredColorScheme(settings.colorScheme)
         .alert("Clear All Data", isPresented: $showingResetConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Clear All", role: .destructive) {
@@ -554,6 +555,41 @@ extension SettingsView {
             return "Slow (7s)"
         default:
             return "Very Slow (10s)"
+        }
+    }
+}
+
+struct CurrentTimeZoneSummaryView: View {
+    var compact = false
+    @State private var refreshedAt = Date()
+
+    var body: some View {
+        Group {
+            if compact {
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text(AppFormatters.timeZoneLabel(at: refreshedAt))
+                        .font(.caption2)
+                    Text("Nights roll over at 6:00 PM")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            } else {
+                HStack(alignment: .top, spacing: 10) {
+                    Label("Time Zone", systemImage: "globe.americas.fill")
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(AppFormatters.timeZoneLabel(at: refreshedAt))
+                            .font(.subheadline)
+                        Text("Dose nights use a 6:00 PM local rollover")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .multilineTextAlignment(.trailing)
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name.NSSystemTimeZoneDidChange)) { _ in
+            refreshedAt = Date()
         }
     }
 }

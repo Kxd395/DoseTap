@@ -6,6 +6,8 @@ on:
     branches:
       - main
       - master
+    tags:
+      - 'v*'
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -19,8 +21,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up repository validation tools
+        uses: ./.github/actions/setup-repository-tools
+
       - name: Run SSOT lint
         run: bash tools/ssot_check.sh 2>&1 | tee "$RUNNER_TEMP/ssot-lint.log"
+
+      - name: Run documentation lifecycle and drift lint
+        run: bash tools/doc_lint.sh
+
+      - name: Guard dose state write paths
+        run: bash tools/check_dose_state_writes.sh
+
+      - name: Guard retired safety-sensitive paths
+        run: bash tools/check_legacy_safety_paths.sh
+
+      - name: Check companion target support contract
+        run: bash tools/check_companion_targets.sh
+
+      - name: Check architecture responsibility boundaries
+        run: bash tools/check_architecture_boundaries.sh
+
+      - name: Check repository and Git-ref hygiene
+        run: bash tools/check_repository_hygiene.sh
 
       - name: Upload SSOT lint log
         if: always()
@@ -36,6 +59,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up repository validation tools
+        uses: ./.github/actions/setup-repository-tools
 
       - name: Guard against ghost test directories
         run: |
@@ -144,6 +170,23 @@ jobs:
             exit 1
           fi
 
+  app-version-check:
+    name: App version/build check
+    runs-on: macos-latest
+    needs: ssot-lint
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up repository validation tools
+        uses: ./.github/actions/setup-repository-tools
+
+      - name: Xcode version
+        run: xcodebuild -version
+
+      - name: Validate app version and build settings
+        run: bash tools/check_app_version.sh
+
   release-pin-script-tests:
     name: Release pin script regression checks
     runs-on: macos-latest
@@ -151,6 +194,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up repository validation tools
+        uses: ./.github/actions/setup-repository-tools
 
       - name: Validate release pin script pass/fail behavior
         run: |
@@ -191,10 +237,13 @@ jobs:
   xcode-tests:
     name: Xcode simulator tests
     runs-on: macos-latest
-    needs: ssot-lint
+    needs: [ssot-lint, app-version-check]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up repository validation tools
+        uses: ./.github/actions/setup-repository-tools
 
       - name: Guard against tab split-brain regressions
         run: bash tools/check_tab_split_brain.sh
@@ -355,6 +404,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up repository validation tools
+        uses: ./.github/actions/setup-repository-tools
 
       - name: Run release preflight checks
         run: |

@@ -118,6 +118,7 @@ struct UndoSnackbarView: View {
         case .takeDose2: return "2.circle.fill"
         case .skipDose: return "forward.fill"
         case .snooze: return "clock.badge.plus"
+        case .deleteEvent: return "trash.fill"
         }
     }
     
@@ -127,6 +128,7 @@ struct UndoSnackbarView: View {
         case .takeDose2: return .green
         case .skipDose: return .orange
         case .snooze: return .purple
+        case .deleteEvent: return .red
         }
     }
     
@@ -136,6 +138,7 @@ struct UndoSnackbarView: View {
         case .takeDose2: return "Took Dose 2"
         case .skipDose(let seq, _): return "Skipped Dose \(seq)"
         case .snooze(let mins): return "Snoozed \(mins) min"
+        case .deleteEvent(let snapshot): return "Deleted \(snapshot.displayName)"
         }
     }
     

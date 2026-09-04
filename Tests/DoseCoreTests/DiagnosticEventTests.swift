@@ -118,11 +118,13 @@ final class DiagnosticEventTests: XCTestCase {
         entry.terminalState = "completed"
         entry.reason = "test reason"
         entry.alarmId = "alarm-1"
+        entry.scheduledForTime = Date(timeIntervalSince1970: 915_000)
         entry.previousPhase = "beforeWindow"
         entry.invariantName = "negative_elapsed"
         entry.constantsHash = "abcdef01"
         entry.previousTimezone = "America/New_York"
         entry.newTimezone = "America/Los_Angeles"
+        entry.notificationActionId = "dosetap_alarm_stop"
         entry.undoTargetType = "dose1"
         entry.sleepEventType = "bathroom"
         entry.sleepEventId = "evt-789"
@@ -140,10 +142,13 @@ final class DiagnosticEventTests: XCTestCase {
         XCTAssertEqual(decoded.snoozeCount, 1)
         XCTAssertEqual(decoded.terminalState, "completed")
         XCTAssertEqual(decoded.reason, "test reason")
+        XCTAssertEqual(decoded.alarmId, "alarm-1")
+        XCTAssertEqual(decoded.scheduledForTime, Date(timeIntervalSince1970: 915_000))
         XCTAssertEqual(decoded.invariantName, "negative_elapsed")
         XCTAssertEqual(decoded.constantsHash, "abcdef01")
         XCTAssertEqual(decoded.previousTimezone, "America/New_York")
         XCTAssertEqual(decoded.newTimezone, "America/Los_Angeles")
+        XCTAssertEqual(decoded.notificationActionId, "dosetap_alarm_stop")
         XCTAssertEqual(decoded.undoTargetType, "dose1")
         XCTAssertEqual(decoded.sleepEventType, "bathroom")
         XCTAssertEqual(decoded.sleepEventId, "evt-789")
@@ -164,6 +169,8 @@ final class DiagnosticEventTests: XCTestCase {
         )
         entry.elapsedMinutes = 150
         entry.doseIndex = 1
+        entry.scheduledForTime = Date(timeIntervalSince1970: 1_005_000)
+        entry.notificationActionId = "dosetap_alarm_stop"
         
         let data = try encoder.encode(entry)
         let jsonString = String(data: data, encoding: .utf8)!
@@ -173,12 +180,16 @@ final class DiagnosticEventTests: XCTestCase {
         XCTAssertTrue(jsonString.contains("\"app_version\""), "Should use app_version not appVersion")
         XCTAssertTrue(jsonString.contains("\"elapsed_minutes\""), "Should use elapsed_minutes not elapsedMinutes")
         XCTAssertTrue(jsonString.contains("\"dose_index\""), "Should use dose_index not doseIndex")
+        XCTAssertTrue(jsonString.contains("\"scheduled_for_time\""), "Should use scheduled_for_time not scheduledForTime")
+        XCTAssertTrue(jsonString.contains("\"notification_action_id\""), "Should use notification_action_id not notificationActionId")
         
         // Verify camelCase keys are NOT used
         XCTAssertFalse(jsonString.contains("\"sessionId\""))
         XCTAssertFalse(jsonString.contains("\"appVersion\""))
         XCTAssertFalse(jsonString.contains("\"elapsedMinutes\""))
         XCTAssertFalse(jsonString.contains("\"doseIndex\""))
+        XCTAssertFalse(jsonString.contains("\"scheduledForTime\""))
+        XCTAssertFalse(jsonString.contains("\"notificationActionId\""))
     }
     
     // MARK: - SessionMetadata

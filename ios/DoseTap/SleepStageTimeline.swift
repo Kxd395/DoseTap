@@ -185,12 +185,15 @@ struct LiveSleepTimelineView: View {
             }
         }
         .task(id: nightDate) {
-            healthKit.checkAuthorizationStatus()
+            await healthKit.syncAuthorizationState()
             await loadSessionData()
             await loadHealthKitData()
         }
         .onChange(of: settings.healthKitEnabled) { _ in
-            healthKit.checkAuthorizationStatus()
+            Task {
+                await healthKit.syncAuthorizationState()
+                await loadHealthKitData()
+            }
         }
     }
 
@@ -586,7 +589,12 @@ struct LiveSleepTimelineView: View {
 
         if canUseAppleHealth {
             do {
-                let appleBiometrics = try await healthKit.fetchTimelineBiometrics(from: timeRange.start, to: timeRange.end)
+                let sleepStart = sleepBands.map(\.startTime).min() ?? timeRange.start
+                let sleepEnd = sleepBands.map(\.endTime).max() ?? timeRange.end
+                let appleBiometrics = try await healthKit.fetchTimelineBiometrics(
+                    from: sleepStart,
+                    to: sleepEnd
+                )
                 heartRateData = appleBiometrics.heartRate
                 respiratoryRateData = appleBiometrics.respiratoryRate
                 hrvData = appleBiometrics.hrv

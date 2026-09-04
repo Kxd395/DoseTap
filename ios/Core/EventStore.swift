@@ -28,13 +28,15 @@ public struct StoredDoseEvent: Identifiable, Equatable, Sendable {
     public let timestamp: Date
     public let sessionDate: String
     public let metadata: String?
+    public let sessionId: String?
     
-    public init(id: String, eventType: String, timestamp: Date, sessionDate: String, metadata: String? = nil) {
+    public init(id: String, eventType: String, timestamp: Date, sessionDate: String, metadata: String? = nil, sessionId: String? = nil) {
         self.id = id
         self.eventType = eventType
         self.timestamp = timestamp
         self.sessionDate = sessionDate
         self.metadata = metadata
+        self.sessionId = sessionId
     }
 }
 
@@ -105,7 +107,7 @@ public struct StoredMorningCheckIn: Identifiable, Equatable, Sendable {
     public let sessionId: String
     public let timestamp: Date
     public let sessionDate: String
-    public let sleepQuality: Int
+    public let sleepQuality: Double
     public let feelRested: String
     public let grogginess: String
     public let sleepInertiaDuration: String
@@ -129,6 +131,7 @@ public struct StoredMorningCheckIn: Identifiable, Equatable, Sendable {
     public let sleepTherapyJson: String?
     public let hasSleepEnvironment: Bool
     public let sleepEnvironmentJson: String?
+    public let timingContextJson: String?
     public let notes: String?
     
     public init(
@@ -136,7 +139,7 @@ public struct StoredMorningCheckIn: Identifiable, Equatable, Sendable {
         sessionId: String,
         timestamp: Date,
         sessionDate: String,
-        sleepQuality: Int = 3,
+        sleepQuality: Double = 3,
         feelRested: String = "moderate",
         grogginess: String = "mild",
         sleepInertiaDuration: String = "fiveToFifteen",
@@ -160,6 +163,7 @@ public struct StoredMorningCheckIn: Identifiable, Equatable, Sendable {
         sleepTherapyJson: String? = nil,
         hasSleepEnvironment: Bool = false,
         sleepEnvironmentJson: String? = nil,
+        timingContextJson: String? = nil,
         notes: String? = nil
     ) {
         self.id = id
@@ -190,6 +194,7 @@ public struct StoredMorningCheckIn: Identifiable, Equatable, Sendable {
         self.sleepTherapyJson = sleepTherapyJson
         self.hasSleepEnvironment = hasSleepEnvironment
         self.sleepEnvironmentJson = sleepEnvironmentJson
+        self.timingContextJson = timingContextJson
         self.notes = notes
     }
 }
@@ -231,6 +236,137 @@ public struct SessionSummary: Identifiable, Equatable, Sendable {
         } else {
             self.intervalMinutes = nil
         }
+    }
+}
+
+// MARK: - Medication Mutation Results
+
+/// Canonical operation names for medication writes. These values are suitable
+/// for diagnostics; user-facing copy comes from `MedicationMutationFailure`.
+public enum MedicationMutationOperation: String, Equatable, Sendable {
+    case databaseInitialization = "database_initialization"
+    case dose1 = "dose1"
+    case dose2 = "dose2"
+    case extraDose = "extra_dose"
+    case skipDose2 = "skip_dose2"
+    case snooze = "snooze"
+    case clearDoseSequence = "clear_dose_sequence"
+    case clearDose2 = "clear_dose2"
+    case clearSkip = "clear_skip"
+    case rollbackSnooze = "rollback_snooze"
+    case updateDose1Time = "update_dose1_time"
+    case updateDose2Time = "update_dose2_time"
+    case reconcileDoseState = "reconcile_dose_state"
+    case workSchedule = "work_schedule"
+}
+
+public struct MedicationMutationReceipt: Equatable, Sendable {
+    public let operation: MedicationMutationOperation
+    public let sessionId: String
+    public let sessionDate: String
+    public let timestamp: Date?
+
+    public init(
+        operation: MedicationMutationOperation,
+        sessionId: String,
+        sessionDate: String,
+        timestamp: Date?
+    ) {
+        self.operation = operation
+        self.sessionId = sessionId
+        self.sessionDate = sessionDate
+        self.timestamp = timestamp
+    }
+}
+
+public struct MedicationMutationFailure: Error, Equatable, Sendable {
+    public enum Code: String, Equatable, Sendable {
+        case databaseUnavailable = "database_unavailable"
+        case diskFull = "disk_full"
+        case corrupted = "corrupted"
+        case constraint = "constraint"
+        case busy = "busy"
+        case io = "io"
+        case statement = "statement"
+        case transaction = "transaction"
+        case precondition = "precondition"
+        case unknown = "unknown"
+    }
+
+    public enum Stage: String, Equatable, Sendable {
+        case open
+        case preflight
+        case begin
+        case delete
+        case insert
+        case update
+        case commit
+        case rollback
+    }
+
+    public let operation: MedicationMutationOperation
+    public let code: Code
+    public let stage: Stage
+    public let sqliteCode: Int32?
+    public let detail: String
+
+    public init(
+        operation: MedicationMutationOperation,
+        code: Code,
+        stage: Stage,
+        sqliteCode: Int32? = nil,
+        detail: String
+    ) {
+        self.operation = operation
+        self.code = code
+        self.stage = stage
+        self.sqliteCode = sqliteCode
+        self.detail = detail
+    }
+
+    public var isRetryable: Bool {
+        switch code {
+        case .corrupted, .constraint, .precondition:
+            return false
+        case .databaseUnavailable, .diskFull, .busy, .io, .statement, .transaction, .unknown:
+            return true
+        }
+    }
+
+    public var userMessage: String {
+        switch code {
+        case .databaseUnavailable:
+            return "DoseTap storage is unavailable. Unlock the device or reopen the app, then retry."
+        case .diskFull:
+            return "The dose was not saved because device storage is full. Free space, then retry."
+        case .corrupted:
+            return "The dose was not saved because the local database could not be read safely. Restart DoseTap and contact support if this continues."
+        case .busy:
+            return "The dose was not saved because storage is temporarily busy. Retry now."
+        case .precondition:
+            return detail
+        case .constraint, .io, .statement, .transaction, .unknown:
+            return "The dose was not saved. Retry and confirm it appears before relying on it."
+        }
+    }
+}
+
+public enum MedicationMutationResult: Equatable, Sendable {
+    case committed(MedicationMutationReceipt)
+    case failed(MedicationMutationFailure)
+
+    public var receipt: MedicationMutationReceipt? {
+        if case .committed(let receipt) = self { return receipt }
+        return nil
+    }
+
+    public var failure: MedicationMutationFailure? {
+        if case .failed(let failure) = self { return failure }
+        return nil
+    }
+
+    public var isCommitted: Bool {
+        receipt != nil
     }
 }
 
@@ -295,25 +431,25 @@ public protocol EventStore: AnyObject {
     // MARK: - Session State (current_session table)
     
     /// Save dose 1 timestamp
-    func saveDose1(timestamp: Date)
+    @discardableResult func saveDose1(timestamp: Date) -> MedicationMutationResult
     
     /// Save dose 2 timestamp
-    func saveDose2(timestamp: Date, isEarly: Bool, isExtraDose: Bool)
+    @discardableResult func saveDose2(timestamp: Date, isEarly: Bool, isExtraDose: Bool) -> MedicationMutationResult
     
     /// Save dose skip
-    func saveDoseSkipped(reason: String?)
+    @discardableResult func saveDoseSkipped(reason: String?) -> MedicationMutationResult
     
     /// Save snooze count
-    func saveSnooze(count: Int)
+    @discardableResult func saveSnooze(count: Int) -> MedicationMutationResult
     
     /// Clear dose 1 (for undo)
-    func clearDose1()
+    @discardableResult func clearDose1() -> MedicationMutationResult
     
     /// Clear dose 2 (for undo)
-    func clearDose2()
+    @discardableResult func clearDose2() -> MedicationMutationResult
     
     /// Clear skip (for undo)
-    func clearSkip()
+    @discardableResult func clearSkip() -> MedicationMutationResult
     
     /// Load current session state
     func loadCurrentSession() -> (dose1Time: Date?, dose2Time: Date?, snoozeCount: Int, dose2Skipped: Bool)

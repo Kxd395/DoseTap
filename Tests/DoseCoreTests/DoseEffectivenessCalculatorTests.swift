@@ -60,11 +60,11 @@ struct DoseEffectivenessCalculatorTests {
         #expect(report.complianceRate == 1.0)
     }
 
-    @Test func acceptableZone_166to240() {
+    @Test func acceptableZone_166toBefore240() {
         let nights = [
             point(dayOffset: 0, interval: 170),
             point(dayOffset: 1, interval: 200),
-            point(dayOffset: 2, interval: 240),
+            point(dayOffset: 2, interval: 239.99),
         ]
         let report = DoseEffectivenessCalculator.analyze(nights)
         #expect(report.optimalZone.count == 0)
@@ -265,9 +265,9 @@ struct DoseEffectivenessCalculatorTests {
         #expect(report.nonCompliant.count == 1)
     }
 
-    @Test func boundary_240_isAcceptable() {
+    @Test func boundary_240_isNonCompliant() {
         let report = DoseEffectivenessCalculator.analyze([point(interval: 240)])
-        #expect(report.acceptableZone.count == 1)
+        #expect(report.nonCompliant.count == 1)
     }
 
     @Test func boundary_240_01_isNonCompliant() {

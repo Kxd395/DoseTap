@@ -10,11 +10,34 @@ final class DoseTapUITests: XCTestCase {
         continueAfterFailure = false
         app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
+        if name.contains("testWorkWarning") { app.launchArguments.append("--uitesting-work-warning") }
         app.launch()
     }
 
     override func tearDownWithError() throws {
         app = nil
+    }
+
+    func testWorkWarningNonworkingExceptionDoesNotRecordDose() throws {
+        let action = app.buttons["dose-primary-action"]
+        XCTAssertTrue(action.waitForExistence(timeout: 15))
+        action.tap()
+        let warning = app.navigationBars["Work and Wake Warning"]
+        XCTAssertTrue(warning.waitForExistence(timeout: 5))
+        let before = XCTAttachment(screenshot: app.screenshot())
+        before.name = "Work warning before dated exception"
+        before.lifetime = .keepAlways
+        add(before)
+        let notWorking = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "I'm Not Working ")).firstMatch
+        XCTAssertTrue(notWorking.exists)
+        notWorking.tap()
+        let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: warning)
+        wait(for: [dismissed], timeout: 5)
+        XCTAssertTrue(action.exists, "A schedule exception must leave the pending dose action available")
+        let after = XCTAttachment(screenshot: app.screenshot())
+        after.name = "Dose remains pending after dated exception"
+        after.lifetime = .keepAlways
+        add(after)
     }
 
     // MARK: - App Launch

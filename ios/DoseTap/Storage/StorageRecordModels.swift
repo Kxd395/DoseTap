@@ -21,6 +21,38 @@ public struct EventRecord: Identifiable {
 /// Stored medication entry model for EventStorage
 public typealias StoredMedicationEntry = SQLiteStoredMedicationEntry
 
+/// Stored medication inventory snapshot for EventStorage.
+public struct StoredInventorySnapshot: Codable, Identifiable, Equatable {
+    public let id: String
+    public let asOfUTC: Date
+    public let medicationName: String
+    public let bottlesRemaining: Int
+    public let dosesRemaining: Int
+    public let estimatedDaysLeft: Int?
+    public let nextRefillDate: Date?
+    public let notes: String?
+
+    public init(
+        id: String = UUID().uuidString,
+        asOfUTC: Date = Date(),
+        medicationName: String,
+        bottlesRemaining: Int,
+        dosesRemaining: Int,
+        estimatedDaysLeft: Int? = nil,
+        nextRefillDate: Date? = nil,
+        notes: String? = nil
+    ) {
+        self.id = id
+        self.asOfUTC = asOfUTC
+        self.medicationName = medicationName
+        self.bottlesRemaining = bottlesRemaining
+        self.dosesRemaining = dosesRemaining
+        self.estimatedDaysLeft = estimatedDaysLeft
+        self.nextRefillDate = nextRefillDate
+        self.notes = notes
+    }
+}
+
 /// Stored pre-sleep log model for EventStorage
 public struct StoredPreSleepLog: Identifiable {
     public let id: String
@@ -75,6 +107,218 @@ public struct StoredCheckInSubmission: Identifiable {
         self.submittedAtUTC = submittedAtUTC
         self.localOffsetMinutes = localOffsetMinutes
         self.responsesJson = responsesJson
+    }
+}
+
+public enum SymptomCheckInPhase: String, Codable, CaseIterable {
+    case preSleep = "pre_sleep"
+    case nightLog = "night_log"
+    case morningReview = "morning_review"
+}
+
+public enum SymptomEventSource: String, Codable, CaseIterable {
+    case preSleep = "pre_sleep"
+    case nightQuickLog = "night_quick_log"
+    case morningReview = "morning_review"
+    case bodyMap = "body_map"
+    case migration = "migration"
+    case repair = "repair"
+}
+
+public enum SymptomKind: String, Codable, CaseIterable {
+    case pain
+    case numbness
+    case tingling
+    case burning
+    case pinsNeedles = "pins_needles"
+    case spasm
+    case tightness
+    case pressure
+    case stiffness
+    case weakness
+    case electric
+    case coldSensation = "cold_sensation"
+    case throbbing
+}
+
+public enum SymptomBodySide: String, Codable, CaseIterable {
+    case left
+    case right
+    case both
+    case center
+    case unknown
+}
+
+public enum SymptomAnatomyLayer: String, Codable, CaseIterable {
+    case surface
+    case muscle
+    case nerveLike = "nerve_like"
+    case joint
+    case bone
+    case unsure
+}
+
+public enum SymptomLocationPrecision: String, Codable, CaseIterable {
+    case region
+    case point
+    case distribution
+}
+
+public enum SymptomLocationConfidence: String, Codable, CaseIterable {
+    case exact
+    case approximate
+    case unsure
+}
+
+public enum SymptomBodyView: String, Codable, CaseIterable {
+    case front
+    case back
+    case palm
+    case dorsalHand = "dorsal_hand"
+    case forearmPalm = "forearm_palm"
+    case forearmDorsal = "forearm_dorsal"
+}
+
+public enum SymptomStorageError: Error, Equatable {
+    case invalidSeverity
+    case missingLocation
+    case invalidNormalizedPoint
+    case commandAlreadyProcessed
+    case eventNotFound
+    case sourceRecordMismatch
+}
+
+public struct StoredBodyMapPoint: Identifiable, Codable, Equatable {
+    public let id: String
+    public let mapId: String
+    public let normalizedX: Double
+    public let normalizedY: Double
+    public let zoomLevel: Double
+    public let bodyView: SymptomBodyView
+
+    public init(
+        id: String = UUID().uuidString,
+        mapId: String,
+        normalizedX: Double,
+        normalizedY: Double,
+        zoomLevel: Double = 1.0,
+        bodyView: SymptomBodyView
+    ) throws {
+        guard (0...1).contains(normalizedX), (0...1).contains(normalizedY) else {
+            throw SymptomStorageError.invalidNormalizedPoint
+        }
+        self.id = id
+        self.mapId = mapId
+        self.normalizedX = normalizedX
+        self.normalizedY = normalizedY
+        self.zoomLevel = zoomLevel
+        self.bodyView = bodyView
+    }
+}
+
+public struct StoredSymptomLocation: Identifiable, Codable, Equatable {
+    public let id: String
+    public let bodySide: SymptomBodySide
+    public let bodyRegionId: String
+    public let anatomyLayer: SymptomAnatomyLayer
+    public let precision: SymptomLocationPrecision
+    public let confidence: SymptomLocationConfidence
+    public let points: [StoredBodyMapPoint]
+
+    public init(
+        id: String = UUID().uuidString,
+        bodySide: SymptomBodySide,
+        bodyRegionId: String,
+        anatomyLayer: SymptomAnatomyLayer,
+        precision: SymptomLocationPrecision,
+        confidence: SymptomLocationConfidence,
+        points: [StoredBodyMapPoint] = []
+    ) {
+        self.id = id
+        self.bodySide = bodySide
+        self.bodyRegionId = bodyRegionId
+        self.anatomyLayer = anatomyLayer
+        self.precision = precision
+        self.confidence = confidence
+        self.points = points
+    }
+}
+
+public struct StoredSymptomSummary: Codable, Equatable {
+    public let sessionDate: String
+    public let sessionId: String?
+    public let symptomCount: Int
+    public let highestSeverity: Int?
+    public let sleepDisruptionCount: Int
+    public let stillPresentCount: Int
+    public let summaryHash: String
+    public let rebuiltAt: Date
+}
+
+public struct StoredSymptomEvent: Identifiable, Codable, Equatable {
+    public let id: String
+    public let sessionId: String?
+    public let sessionDate: String
+    public let phase: SymptomCheckInPhase
+    public let source: SymptomEventSource
+    public let sourceRecordId: String?
+    public let sourceEntryKey: String?
+    public let kind: SymptomKind
+    public let noticedAt: Date
+    public let severity0to10: Int?
+    public let sleepDisruption: Bool
+    public let stillPresent: Bool
+    public let functionalImpact: String?
+    public let note: String?
+    public let schemaVersion: Int
+    public let appVersion: String
+    public let createdAt: Date
+    public let locations: [StoredSymptomLocation]
+
+    public init(
+        id: String = UUID().uuidString,
+        sessionId: String?,
+        sessionDate: String,
+        phase: SymptomCheckInPhase,
+        source: SymptomEventSource,
+        sourceRecordId: String? = nil,
+        sourceEntryKey: String? = nil,
+        kind: SymptomKind,
+        noticedAt: Date = Date(),
+        severity0to10: Int? = nil,
+        sleepDisruption: Bool = false,
+        stillPresent: Bool = false,
+        functionalImpact: String? = nil,
+        note: String? = nil,
+        schemaVersion: Int = 1,
+        appVersion: String,
+        createdAt: Date = Date(),
+        locations: [StoredSymptomLocation]
+    ) throws {
+        if let severity0to10, !(0...10).contains(severity0to10) {
+            throw SymptomStorageError.invalidSeverity
+        }
+        guard !locations.isEmpty else {
+            throw SymptomStorageError.missingLocation
+        }
+        self.id = id
+        self.sessionId = sessionId
+        self.sessionDate = sessionDate
+        self.phase = phase
+        self.source = source
+        self.sourceRecordId = sourceRecordId
+        self.sourceEntryKey = sourceEntryKey
+        self.kind = kind
+        self.noticedAt = noticedAt
+        self.severity0to10 = severity0to10
+        self.sleepDisruption = sleepDisruption
+        self.stillPresent = stillPresent
+        self.functionalImpact = functionalImpact
+        self.note = note
+        self.schemaVersion = schemaVersion
+        self.appVersion = appVersion
+        self.createdAt = createdAt
+        self.locations = locations
     }
 }
 
@@ -195,7 +439,7 @@ public struct StoredMorningCheckIn: Identifiable {
     public let sessionId: String
     public let timestamp: Date
     public let sessionDate: String
-    public let sleepQuality: Int
+    public let sleepQuality: Double
     public let feelRested: String
     public let grogginess: String
     public let sleepInertiaDuration: String
@@ -219,6 +463,7 @@ public struct StoredMorningCheckIn: Identifiable {
     public let sleepTherapyJson: String?
     public let hasSleepEnvironment: Bool
     public let sleepEnvironmentJson: String?
+    public let timingContextJson: String?
     public let notes: String?
     
     public var hasNarcolepsySymptoms: Bool {
@@ -230,7 +475,7 @@ public struct StoredMorningCheckIn: Identifiable {
         sessionId: String,
         timestamp: Date,
         sessionDate: String,
-        sleepQuality: Int = 3,
+        sleepQuality: Double = 3,
         feelRested: String = "moderate",
         grogginess: String = "mild",
         sleepInertiaDuration: String = "fiveToFifteen",
@@ -254,6 +499,7 @@ public struct StoredMorningCheckIn: Identifiable {
         sleepTherapyJson: String? = nil,
         hasSleepEnvironment: Bool = false,
         sleepEnvironmentJson: String? = nil,
+        timingContextJson: String? = nil,
         notes: String? = nil
     ) {
         self.id = id
@@ -284,6 +530,7 @@ public struct StoredMorningCheckIn: Identifiable {
         self.sleepTherapyJson = sleepTherapyJson
         self.hasSleepEnvironment = hasSleepEnvironment
         self.sleepEnvironmentJson = sleepEnvironmentJson
+        self.timingContextJson = timingContextJson
         self.notes = notes
     }
 }
@@ -296,6 +543,34 @@ public struct MorningStressContext: Equatable {
     public var primaryDriver: CommonStressDriver? {
         drivers.first
     }
+}
+
+public struct MorningTimingContext: Equatable {
+    public let hasWorkSafetyContext: Bool
+    public let hasClinicalContext: Bool
+    public let nightType: String?
+    public let firstNightOffAfterWorkBlock: Bool
+    public let wakeType: String?
+    public let nextDayDemand: String?
+    public let dose2WakeMethod: String?
+    public let backToSleepDuration: String?
+    public let dose2TakenReason: String?
+    public let dose2SkippedReason: String?
+    public let dose2ReasonNotes: String?
+    public let wakeRequirement: String?
+    public let shiftStartAtUTC: Date?
+    public let shiftEndAtUTC: Date?
+    public let nextRequiredWakeAtUTC: Date?
+    public let commuteMinutes: Int?
+    public let drivingConfidence: Int?
+    public let daytimeSleepiness: Int?
+    public let cataplexyBurden: String?
+    public let sleepDisorders: [String]
+    public let sleepDisorderNotes: String?
+    public let coMedicationNotes: String?
+    public let pharmacogenomicFastMetabolizer: Bool
+    public let pharmacogenomicClinicianReviewed: Bool
+    public let pharmacogenomicNotes: String?
 }
 
 public extension StoredMorningCheckIn {
@@ -340,6 +615,113 @@ public extension StoredMorningCheckIn {
     var stressNotes: String? {
         resolvedStressContext?.notes
     }
+
+    var resolvedTimingContext: MorningTimingContext? {
+        guard let timingContextJson, let data = timingContextJson.data(using: .utf8) else {
+            return nil
+        }
+        guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+            return nil
+        }
+
+        let nightType = (json["nightType"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let firstNightOffAfterWorkBlock = (json["firstNightOffAfterWorkBlock"] as? Bool) ?? false
+        let wakeType = (json["wakeType"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let nextDayDemand = (json["nextDayDemand"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let dose2WakeMethod = (json["dose2WakeMethod"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let backToSleepDuration = (json["backToSleepDuration"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let dose2TakenReason = (json["dose2TakenReason"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let dose2SkippedReason = (json["dose2SkippedReason"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let dose2ReasonNotes = (json["dose2ReasonNotes"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let wakeRequirement = (json["wakeRequirement"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let shiftStartAtUTC = Self.isoDate(from: json["shiftStartAtUTC"])
+        let shiftEndAtUTC = Self.isoDate(from: json["shiftEndAtUTC"])
+        let nextRequiredWakeAtUTC = Self.isoDate(from: json["nextRequiredWakeAtUTC"])
+        let commuteMinutes = Self.intValue(from: json["commuteMinutes"])
+        let drivingConfidence = Self.intValue(from: json["drivingConfidence"])
+        let daytimeSleepiness = Self.intValue(from: json["daytimeSleepiness"])
+        let cataplexyBurden = (json["cataplexyBurden"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sleepDisorders = ((json["sleepDisorders"] as? [String]) ?? [])
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let sleepDisorderNotes = (json["sleepDisorderNotes"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let coMedicationNotes = (json["coMedicationNotes"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let pharmacogenomicFastMetabolizer = (json["pharmacogenomicFastMetabolizer"] as? Bool) ?? false
+        let pharmacogenomicClinicianReviewed = (json["pharmacogenomicClinicianReviewed"] as? Bool) ?? false
+        let pharmacogenomicNotes = (json["pharmacogenomicNotes"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasWorkSafetyContext = (json["hasWorkSafetyContext"] as? Bool) ?? false
+        let hasClinicalContext = (json["hasClinicalContext"] as? Bool) ?? false
+
+        let values = [nightType, wakeType, nextDayDemand, dose2WakeMethod, backToSleepDuration, dose2TakenReason, dose2SkippedReason, dose2ReasonNotes, wakeRequirement, cataplexyBurden, sleepDisorderNotes, coMedicationNotes, pharmacogenomicNotes]
+        let hasAnyValue = values.contains(where: { !($0?.isEmpty ?? true) })
+            || shiftStartAtUTC != nil
+            || shiftEndAtUTC != nil
+            || nextRequiredWakeAtUTC != nil
+            || commuteMinutes != nil
+            || drivingConfidence != nil
+            || daytimeSleepiness != nil
+            || !sleepDisorders.isEmpty
+            || pharmacogenomicFastMetabolizer
+            || pharmacogenomicClinicianReviewed
+            || firstNightOffAfterWorkBlock
+            || hasWorkSafetyContext
+            || hasClinicalContext
+        guard hasAnyValue else {
+            return nil
+        }
+
+        return MorningTimingContext(
+            hasWorkSafetyContext: hasWorkSafetyContext,
+            hasClinicalContext: hasClinicalContext,
+            nightType: nightType?.isEmpty == true ? nil : nightType,
+            firstNightOffAfterWorkBlock: firstNightOffAfterWorkBlock,
+            wakeType: wakeType?.isEmpty == true ? nil : wakeType,
+            nextDayDemand: nextDayDemand?.isEmpty == true ? nil : nextDayDemand,
+            dose2WakeMethod: dose2WakeMethod?.isEmpty == true ? nil : dose2WakeMethod,
+            backToSleepDuration: backToSleepDuration?.isEmpty == true ? nil : backToSleepDuration,
+            dose2TakenReason: dose2TakenReason?.isEmpty == true ? nil : dose2TakenReason,
+            dose2SkippedReason: dose2SkippedReason?.isEmpty == true ? nil : dose2SkippedReason,
+            dose2ReasonNotes: dose2ReasonNotes?.isEmpty == true ? nil : dose2ReasonNotes,
+            wakeRequirement: wakeRequirement?.isEmpty == true ? nil : wakeRequirement,
+            shiftStartAtUTC: shiftStartAtUTC,
+            shiftEndAtUTC: shiftEndAtUTC,
+            nextRequiredWakeAtUTC: nextRequiredWakeAtUTC,
+            commuteMinutes: commuteMinutes,
+            drivingConfidence: drivingConfidence,
+            daytimeSleepiness: daytimeSleepiness,
+            cataplexyBurden: cataplexyBurden?.isEmpty == true ? nil : cataplexyBurden,
+            sleepDisorders: sleepDisorders,
+            sleepDisorderNotes: sleepDisorderNotes?.isEmpty == true ? nil : sleepDisorderNotes,
+            coMedicationNotes: coMedicationNotes?.isEmpty == true ? nil : coMedicationNotes,
+            pharmacogenomicFastMetabolizer: pharmacogenomicFastMetabolizer,
+            pharmacogenomicClinicianReviewed: pharmacogenomicClinicianReviewed,
+            pharmacogenomicNotes: pharmacogenomicNotes?.isEmpty == true ? nil : pharmacogenomicNotes
+        )
+    }
+
+    private static func intValue(from value: Any?) -> Int? {
+        switch value {
+        case let int as Int:
+            return int
+        case let double as Double:
+            return Int(double)
+        case let string as String:
+            return Int(string)
+        default:
+            return nil
+        }
+    }
+
+    private static func isoDate(from value: Any?) -> Date? {
+        guard let string = value as? String else { return nil }
+        return isoFormatter.date(from: string)
+    }
+
+    private static let isoFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
 }
 
 public enum CommonStressDriver: String, Codable, CaseIterable {

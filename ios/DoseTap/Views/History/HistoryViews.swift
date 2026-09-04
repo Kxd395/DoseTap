@@ -27,10 +27,10 @@ enum HistoryFilter: String, CaseIterable, Identifiable {
             return true
         case .onTime:
             guard let interval = session.intervalMinutes else { return false }
-            return (150...165).contains(interval)
+            return MedicationTiming.classify(elapsedSeconds: Double(interval) * 60) == .inWindow
         case .late:
             guard let interval = session.intervalMinutes else { return false }
-            return interval > 165 && interval <= 240
+            return MedicationTiming.classify(elapsedSeconds: Double(interval) * 60) == .late
         case .skipped:
             return session.dose2Skipped
         case .dose1Only:
@@ -82,7 +82,7 @@ struct HistoryView: View {
         if isInSplitView {
             historyContent
         } else {
-            NavigationView {
+            NavigationStack {
                 historyContent
             }
         }

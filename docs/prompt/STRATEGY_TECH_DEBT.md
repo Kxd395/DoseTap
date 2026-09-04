@@ -28,8 +28,8 @@ No hand-waving. No "we should probably fix this someday." Every debt item gets a
 
 | Metric | Value |
 | --- | --- |
-| **SwiftPM tests** | 525+ (30 test files) |
-| **Core library** | 24 files in `ios/Core/` (platform-free) |
+| **SwiftPM tests** | Discover the current files and executed cases from the checkout |
+| **Core library** | Platform-free sources discovered from `Package.swift` and `ios/Core/` |
 | **App layer** | ~40+ files in `ios/DoseTap/` (SwiftUI + Services + Storage) |
 | **CI workflows** | 3 (ci.yml, ci-swift.yml, ci-docs.yml) |
 | **Pre-commit hook** | 5 checks (.githooks/pre-commit) |

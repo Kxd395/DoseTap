@@ -9,6 +9,33 @@
 import XCTest
 @testable import DoseTap
 import DoseCore
+@preconcurrency import UserNotifications
+
+@MainActor
+private final class InMemoryAlarmNotificationCenter: AlarmNotificationCenterClient {
+    private var requestsByIdentifier: [String: UNNotificationRequest] = [:]
+
+    func setDelegate(_ delegate: (any UNUserNotificationCenterDelegate)?) {}
+    func setNotificationCategories(_ categories: Set<UNNotificationCategory>) {}
+    func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool { true }
+    func authorizationStatus() async -> UNAuthorizationStatus { .authorized }
+
+    func add(_ request: UNNotificationRequest) async throws {
+        requestsByIdentifier[request.identifier] = request
+    }
+
+    func pendingRequests() async -> [UNNotificationRequest] {
+        Array(requestsByIdentifier.values)
+    }
+
+    func removePendingRequests(withIdentifiers identifiers: [String]) {
+        for identifier in identifiers {
+            requestsByIdentifier.removeValue(forKey: identifier)
+        }
+    }
+
+    func removeDeliveredNotifications(withIdentifiers identifiers: [String]) {}
+}
 
 // MARK: - E2E Integration Tests
 
@@ -22,7 +49,7 @@ final class E2EIntegrationTests: XCTestCase {
     private var storage: EventStorage!
     private var repo: SessionRepository!
     private var fakeScheduler: FakeNotificationScheduler!
-    /// Fixed reference time: 23:00 UTC — 5 hours past rollover, so offsets up to -300 min stay in-session.
+    /// Fixed reference time: 23:00 UTC - 5 hours past rollover, so offsets up to -300 min stay in-session.
     private var fixedNow: Date!
     
     override func setUp() async throws {
@@ -48,17 +75,17 @@ final class E2EIntegrationTests: XCTestCase {
         XCTAssertNil(repo.activeSessionDate)
         XCTAssertEqual(repo.currentContext.phase, .noDose1)
         
-        let dose1Time = Date().addingTimeInterval(-10 * 60)
+        let dose1Time = fixedNow.addingTimeInterval(-10 * 60)
         repo.setDose1Time(dose1Time)
         
         XCTAssertNotNil(repo.activeSessionDate, "Session should be created")
         XCTAssertNotNil(repo.dose1Time, "Dose 1 should be recorded")
         XCTAssertEqual(repo.currentContext.phase, .beforeWindow, "Should be beforeWindow waiting for window")
         
-        repo.setDose1Time(Date().addingTimeInterval(-155 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-155 * 60))
         XCTAssertEqual(repo.currentContext.phase, .active, "Should be in active window")
         
-        repo.setDose2Time(Date())
+        repo.setDose2Time(fixedNow)
         
         XCTAssertNotNil(repo.dose2Time, "Dose 2 should be recorded")
         XCTAssertEqual(repo.currentContext.phase, .completed, "Should be completed")
@@ -70,20 +97,20 @@ final class E2EIntegrationTests: XCTestCase {
     }
     
     func test_e2e_doseCycleWithSnooze() async throws {
-        repo.setDose1Time(Date().addingTimeInterval(-155 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-155 * 60))
         XCTAssertEqual(repo.currentContext.phase, .active)
         
         if case .snoozeEnabled = repo.currentContext.snooze {
         } else {
             XCTFail("Snooze should be enabled")
         }
-        repo.incrementSnooze()
+        XCTAssertTrue(repo.incrementSnoozeIfActive())
         XCTAssertEqual(repo.snoozeCount, 1)
         
-        repo.incrementSnooze()
+        XCTAssertTrue(repo.incrementSnoozeIfActive())
         XCTAssertEqual(repo.snoozeCount, 2)
         
-        repo.setDose2Time(Date())
+        repo.setDose2Time(fixedNow)
         XCTAssertEqual(repo.currentContext.phase, .completed)
         
         repo.reload()
@@ -91,7 +118,7 @@ final class E2EIntegrationTests: XCTestCase {
     }
     
     func test_e2e_doseCycleWithSkip() async throws {
-        repo.setDose1Time(Date().addingTimeInterval(-155 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-155 * 60))
         XCTAssertEqual(repo.currentContext.phase, .active)
         
         if case .skipEnabled = repo.currentContext.skip {
@@ -109,8 +136,8 @@ final class E2EIntegrationTests: XCTestCase {
     
     func test_e2e_sessionDeletion() async throws {
         repo.setDose1Time(fixedNow.addingTimeInterval(-180 * 60))
-        repo.setDose2Time(fixedNow.addingTimeInterval(-15 * 60))
         repo.incrementSnooze()
+        repo.setDose2Time(fixedNow.addingTimeInterval(-15 * 60))
         
         storage.insertSleepEvent(
             id: UUID().uuidString,
@@ -208,31 +235,85 @@ final class AlarmAndSetupRegressionTests: XCTestCase {
     private var previousNotificationsEnabled = true
     private var previousMaxSnoozes = 3
     private var previousSnoozeDuration = 10
+    private var previousPrepTimeMinutes = 18 * 60
 
-    private let alarm = AlarmService.shared
+    private var alarm: AlarmService!
+    private var alarmDefaultsDomain: String!
     private let repo = SessionRepository.shared
     private let router = URLRouter.shared
     private var core: DoseTapCore!
+    private var coordinator: DoseActionCoordinator!
+    private var undoState: UndoStateManager!
 
     override func setUp() async throws {
         let settings = UserSettingsManager.shared
         previousNotificationsEnabled = settings.notificationsEnabled
         previousMaxSnoozes = settings.maxSnoozes
         previousSnoozeDuration = settings.snoozeDurationMinutes
+        previousPrepTimeMinutes = settings.prepTimeMinutes
 
         settings.notificationsEnabled = true
         settings.maxSnoozes = 3
         settings.snoozeDurationMinutes = 10
+        settings.prepTimeMinutes = Self.prepTimeOutsideActiveDoseWindow()
+
+        alarmDefaultsDomain = "AlarmAndSetupRegressionTests.\(UUID().uuidString)"
+        let alarmDefaults = UserDefaults(suiteName: alarmDefaultsDomain)!
+        alarmDefaults.removePersistentDomain(forName: alarmDefaultsDomain)
+        alarm = AlarmService(
+            notificationClient: InMemoryAlarmNotificationCenter(),
+            defaults: alarmDefaults,
+            nowProvider: { Date() },
+            timeZoneProvider: { .current },
+            configurationProvider: { AlarmConfiguration.current }
+        )
 
         repo.clearTonight()
         alarm.clearDose2AlarmState()
         alarm.cancelAllAlarms()
 
-        core = DoseTapCore(isOnline: { true })
+        core = DoseTapCore()
         core.setSessionRepository(repo)
-        router.configure(core: core, eventLogger: EventLogger.shared)
+        undoState = UndoStateManager()
+        undoState.onUndo = { [repo, alarm] action in
+            Task { @MainActor in
+                switch action {
+                case .takeDose1:
+                    repo.clearDose1()
+                    alarm.cancelAllAlarms()
+                    alarm.clearDose2AlarmState()
+                case .takeDose2:
+                    repo.clearDose2()
+                case .skipDose:
+                    repo.clearSkip()
+                case .snooze(let minutes):
+                    if await alarm.undoSnooze(minutes: minutes, dose1Time: repo.dose1Time) {
+                        repo.decrementSnoozeCount()
+                    }
+                case .deleteEvent:
+                    break
+                }
+            }
+        }
+        coordinator = DoseActionCoordinator(
+            core: core,
+            alarmService: alarm,
+            eventLogger: EventLogger.shared,
+            undoState: undoState,
+            sessionRepo: repo
+        )
+        router.configure(core: core, eventLogger: EventLogger.shared, coordinator: coordinator)
         router.applicationStateProvider = { .active }
         router.protectedDataProvider = { true }
+        FlicButtonService.shared.resetToDefaults()
+        FlicButtonService.shared.configure(coordinator: coordinator, undoState: undoState)
+        let activeCoordinator = coordinator!
+        alarm.configureNotificationSnoozeHandler { [activeCoordinator] in
+            if case .success = await activeCoordinator.snooze() {
+                return true
+            }
+            return false
+        }
         await router.waitForPendingActions()
         router.lastAction = nil
         router.feedbackMessage = ""
@@ -243,18 +324,33 @@ final class AlarmAndSetupRegressionTests: XCTestCase {
         settings.notificationsEnabled = previousNotificationsEnabled
         settings.maxSnoozes = previousMaxSnoozes
         settings.snoozeDurationMinutes = previousSnoozeDuration
+        settings.prepTimeMinutes = previousPrepTimeMinutes
 
         await router.waitForPendingActions()
         router.resetTestOverrides()
+        FlicButtonService.shared.resetCommandHandlersForTests()
+        alarm.resetNotificationSnoozeHandlerForTests()
         alarm.clearDose2AlarmState()
         alarm.cancelAllAlarms()
         repo.clearTonight()
+        if let alarmDefaultsDomain {
+            UserDefaults.standard.removePersistentDomain(forName: alarmDefaultsDomain)
+        }
+        alarm = nil
+        alarmDefaultsDomain = nil
+    }
+
+    private static func prepTimeOutsideActiveDoseWindow(now: Date = Date()) -> Int {
+        let calendar = Calendar.current
+        let currentMinute = calendar.component(.hour, from: now) * 60
+            + calendar.component(.minute, from: now)
+        return (currentMinute + 1) % (24 * 60)
     }
 
     func test_dueAlarm_doesNotRing_afterSessionCompleted() async {
         let now = Date()
-        repo.setDose1Time(now.addingTimeInterval(-180 * 60))
-        repo.setDose2Time(now.addingTimeInterval(-5 * 60))
+        repo.setDose1Time(now)
+        repo.setDose2Time(now.addingTimeInterval(1))
 
         alarm.targetWakeTime = now.addingTimeInterval(-60)
         alarm.alarmScheduled = true
@@ -327,7 +423,7 @@ final class AlarmAndSetupRegressionTests: XCTestCase {
             eventType: "wake_survey",
             timestamp: now.addingTimeInterval(-60),
             sessionDate: "2026-01-09",
-            notes: #"{"feeling":"Great","sleep_quality":5,"sleepiness_now":1,"pain_level":1,"pain_woke_user":false,"awakenings":"1-2","long_awake":"<15m","notes":"latest"}"#
+            notes: #"{"feeling":"Great","sleep_quality":4.25,"sleepiness_now":1,"pain_level":1,"pain_woke_user":false,"awakenings":"1-2","long_awake":"<15m","notes":"latest"}"#
         )
 
         let applied = viewModel.applyLastWakeSurvey(
@@ -337,7 +433,7 @@ final class AlarmAndSetupRegressionTests: XCTestCase {
 
         XCTAssertTrue(applied, "Use Last should apply when a valid historical wake_survey exists.")
         XCTAssertEqual(viewModel.feelingNow, .great)
-        XCTAssertEqual(viewModel.sleepQuality, 5)
+        XCTAssertEqual(viewModel.sleepQuality, 4.25, accuracy: 0.001)
         XCTAssertEqual(viewModel.sleepinessNow, 1)
         XCTAssertEqual(viewModel.wakePainLevel, 1)
         XCTAssertFalse(viewModel.painWokeUser)
@@ -406,9 +502,12 @@ final class AlarmAndSetupRegressionTests: XCTestCase {
         let now = Date()
         let originalTarget = now.addingTimeInterval(5 * 60)
         repo.setDose1Time(now.addingTimeInterval(-160 * 60))
-        alarm.targetWakeTime = originalTarget
-        alarm.alarmScheduled = true
-        alarm.snoozeCount = 0
+        guard case .scheduled = await alarm.scheduleDose2Alarm(
+            at: originalTarget,
+            dose1Time: repo.dose1Time!
+        ) else {
+            return XCTFail("Test precondition requires a verified wake schedule")
+        }
 
         let result = await FlicButtonService.shared.handleGesture(.doublePress)
 
@@ -422,6 +521,127 @@ final class AlarmAndSetupRegressionTests: XCTestCase {
             accuracy: 1.0,
             "Flic snooze should move the target wake time by the configured snooze interval."
         )
+    }
+
+    func test_notificationSnooze_usesConfiguredDoseCommandPath() async {
+        let now = Date()
+        let originalTarget = now.addingTimeInterval(5 * 60)
+        repo.setDose1Time(now.addingTimeInterval(-160 * 60))
+        guard case .scheduled = await alarm.scheduleDose2Alarm(
+            at: originalTarget,
+            dose1Time: repo.dose1Time!
+        ) else {
+            return XCTFail("Test precondition requires a verified wake schedule")
+        }
+        alarm.isAlarmRinging = true
+
+        let didSnooze = await alarm.handleNotificationSnoozeAction()
+
+        XCTAssertTrue(didSnooze, "Notification snooze should use the configured dose command path.")
+        XCTAssertEqual(repo.snoozeCount, 1, "Notification snooze should increment session state exactly once.")
+        XCTAssertEqual(alarm.snoozeCount, 1, "Notification snooze should increment alarm state exactly once.")
+        XCTAssertFalse(alarm.isAlarmRinging, "Successful notification snooze should stop the ringing surface.")
+        XCTAssertEqual(
+            alarm.targetWakeTime!.timeIntervalSinceReferenceDate,
+            originalTarget.addingTimeInterval(10 * 60).timeIntervalSinceReferenceDate,
+            accuracy: 1.0
+        )
+    }
+
+    func test_notificationSnooze_failsClosed_withoutCommandHandler() async {
+        let now = Date()
+        repo.setDose1Time(now.addingTimeInterval(-160 * 60))
+        alarm.targetWakeTime = now.addingTimeInterval(5 * 60)
+        alarm.alarmScheduled = true
+        alarm.snoozeCount = 0
+        alarm.resetNotificationSnoozeHandlerForTests()
+
+        let didSnooze = await alarm.handleNotificationSnoozeAction()
+
+        XCTAssertFalse(didSnooze, "Notification snooze must not fall back to direct repository writes.")
+        XCTAssertEqual(repo.snoozeCount, 0)
+        XCTAssertEqual(alarm.snoozeCount, 0)
+    }
+
+    func test_flicTakeDose_usesCoordinatorUndoPath() async {
+        let result = await FlicButtonService.shared.handleGesture(.singlePress)
+
+        XCTAssertTrue(result.success, "Flic single press should record Dose 1 through the configured coordinator.")
+        XCTAssertNotNil(repo.dose1Time)
+
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        let undo = await FlicButtonService.shared.handleGesture(.longHold)
+        try? await Task.sleep(nanoseconds: 50_000_000)
+
+        XCTAssertTrue(undo.success, "Flic long hold should execute the registered undo.")
+        XCTAssertNil(repo.dose1Time, "Undo should clear the Dose 1 state.")
+    }
+
+    func test_flicTakeDose_blocksProspectiveAction_whenWindowClosed() async {
+        repo.setDose1Time(Date().addingTimeInterval(-250 * 60))
+        XCTAssertEqual(repo.currentContext.phase, .closed, "Precondition: Dose 2 window should be closed.")
+
+        let result = await FlicButtonService.shared.handleGesture(.singlePress)
+
+        XCTAssertFalse(result.success, "Flic must not turn a closed window into a prospective dose action.")
+        XCTAssertEqual(result.message, "The Dose 2 window has ended. Record a dose that already occurred, or mark it missed.")
+        XCTAssertNil(repo.dose2Time, "A closed-window Flic action must leave Dose 2 unresolved.")
+    }
+
+    func test_flicTakeDose_routesAfterSkipCorrectionToApp() async {
+        repo.setDose1Time(Date().addingTimeInterval(-160 * 60))
+        repo.skipDose2()
+        XCTAssertNotNil(repo.dose1Time, "Precondition: Dose 1 should still be present after skip.")
+        XCTAssertTrue(repo.dose2Skipped, "Precondition: Dose 2 should be skipped.")
+
+        let result = await FlicButtonService.shared.handleGesture(.singlePress)
+
+        XCTAssertFalse(result.success, "Flic must not convert a skipped record into a prospective dose action.")
+        XCTAssertEqual(result.message, "Dose 2 is marked missed. Use Correct Dose 2 Record to add an occurrence that already happened.")
+        XCTAssertNil(repo.dose2Time, "After-skip correction should not write from the hardware button.")
+        XCTAssertTrue(repo.dose2Skipped, "Skip state should remain until an actual occurrence is confirmed in-app.")
+    }
+
+    func test_retrospectiveOccurrence_correctsSkipAndPreservesActualTime() async {
+        let dose1Time = Date().addingTimeInterval(-160 * 60)
+        let actualDose2Time = Date().addingTimeInterval(-30)
+        repo.setDose1Time(dose1Time)
+        repo.skipDose2()
+        guard let sessionId = repo.activeSessionId,
+              let sessionDate = repo.activeSessionDate else {
+            return XCTFail("Precondition: an active session must exist after Dose 1.")
+        }
+        EventStorage.shared.updateTerminalState(
+            sessionDate: sessionDate,
+            sessionId: sessionId,
+            state: "incomplete_slept_through"
+        )
+        XCTAssertNotNil(repo.dose1Time, "Precondition: Dose 1 should still be present after skip.")
+        XCTAssertTrue(repo.dose2Skipped, "Precondition: Dose 2 should be skipped.")
+
+        let result = await coordinator.recordDose2Occurrence(
+            at: actualDose2Time,
+            warningConfirmed: true,
+            surface: .tonightButton
+        )
+
+        guard case .success = result else {
+            XCTFail("A confirmed retrospective occurrence should correct the skip.")
+            return
+        }
+        XCTAssertEqual(repo.dose2Time, actualDose2Time, "Correction should preserve the actual occurrence time.")
+        XCTAssertFalse(repo.dose2Skipped, "Confirmed after-skip correction should clear the skip marker.")
+        XCTAssertNil(
+            EventStorage.shared.loadCurrentSessionState().terminalState,
+            "Correcting a legacy auto-inferred skip must clear its stale terminal marker."
+        )
+    }
+
+    func test_flicLongHold_failsWhenUndoUnavailable() async {
+        let undo = await FlicButtonService.shared.handleGesture(.longHold)
+
+        XCTAssertFalse(undo.success, "Flic long hold must not report success when no undo action exists.")
+        XCTAssertEqual(undo.message, "Nothing to undo")
     }
 
     func test_flicSnooze_doesNotIncrement_whenRescheduleFails() async {

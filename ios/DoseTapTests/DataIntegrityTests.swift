@@ -135,10 +135,13 @@ final class DataIntegrityTests: XCTestCase {
             "pre_sleep_logs",
             "morning_checkins",
             "checkin_submissions",
-            "medication_events"
+            "medication_events",
+            "symptom_events",
+            "symptom_command_log",
+            "symptom_summaries"
         ]
         
-        XCTAssertEqual(tablesRequiringManualCascade.count, 6, 
+        XCTAssertEqual(tablesRequiringManualCascade.count, 9,
             "If you added a new table, add it to manual cascade in deleteSession()")
     }
     
@@ -286,6 +289,8 @@ final class DataIntegrityTests: XCTestCase {
             "morning_checkins should have 0 rows after cascade delete")
         XCTAssertEqual(storage.fetchRowCount(table: "pre_sleep_logs", sessionDate: sessionDate), 0,
             "pre_sleep_logs should have 0 rows after cascade delete")
+        XCTAssertEqual(storage.fetchRowCount(table: "symptom_events", sessionDate: sessionDate), 0,
+            "symptom_events should have 0 rows after cascade delete")
         
         XCTAssertNil(repo.dose1Time, "Repo dose1Time should be nil")
         XCTAssertNil(repo.dose2Time, "Repo dose2Time should be nil")

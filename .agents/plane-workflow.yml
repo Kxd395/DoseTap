@@ -1,0 +1,73 @@
+version: 1
+
+tracker:
+  kind: plane
+  provider:
+    base_url_env: PLANE_BASE_URL
+    api_key_env: Plane_DoseTap_API
+    env_file: .env
+    workspace_slug: dark-water-drones
+    project_id: f2300d5b-01c5-4b0d-b930-34a954db2f2e
+    project_identifier: DOSETAP
+    api_resource: work-items
+  active_states:
+    - Todo
+    - In Progress
+  terminal_states:
+    - Done
+    - Cancelled
+
+identity:
+  identifier_pattern: '^DOSETAP-[1-9][0-9]*$'
+  match_strategy: exact_sequence_id
+  reject_zero_matches: true
+  reject_multiple_matches: true
+  duplicate_title_policy: return_existing_exact_match
+
+workpad:
+  heading: DoseTap Agent Workpad
+  marker: '[DoseTap Agent Workpad v1]'
+  strategy: upsert_single_internal_comment
+  include:
+    - summary
+    - changed_files
+    - validation
+    - evidence_class
+    - open_gates
+    - branch
+    - commit
+    - dirty_worktree_scope
+
+completion:
+  start_state: In Progress
+  complete_state: Done
+  incomplete_state: In Progress
+  dry_run_default: true
+  require_apply_flag: true
+  require_current_item_readback: true
+  require_validation_evidence: true
+  require_all_validation_passed_for_done: true
+  require_acceptance_complete_for_done: true
+  require_no_open_gates_for_done: true
+  require_post_write_readback: true
+  preserve_human_and_physical_gates: true
+  tracker_failure_policy: fail_closed
+
+security:
+  never_print_api_key: true
+  never_commit_env_file: true
+  never_include_secrets_in_comments: true
+  local_plane_only: true
+
+orchestration:
+  native_plane_adapter_required: true
+  unattended_handoff_policy_required: true
+  repository_closeout_helper: tools/plane_tracker.rb
+  static_validator: tools/check_plane_workflow.sh
+  note: >-
+    The repository helper provides safe Plane preflight, start, create, closeout,
+    and readback operations. A Symphony installation must have a Plane tracker
+    adapter before it can poll this workflow. That adapter must also define a
+    non-dispatchable handoff for work awaiting human or external gates so an
+    active item is not continuously re-run. Unsupported adapters or incomplete
+    handoff policy must fail startup rather than fall back to another tracker.

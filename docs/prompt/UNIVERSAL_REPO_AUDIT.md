@@ -34,7 +34,7 @@ Before scanning code, internalize these authority documents — they define what
 | **SSOT Constants** | `docs/SSOT/constants.json` | Machine-readable thresholds and limits |
 | **SSOT Navigation** | `docs/SSOT/navigation.md` | Navigation contracts |
 | **SSOT Contracts** | `docs/SSOT/contracts/DataDictionary.md`, `docs/SSOT/contracts/api.openapi.yaml` | API + data contracts |
-| **Architecture** | `docs/architecture.md` | Layer cake, module graph, component map |
+| **Architecture** | `docs/architecture/README.md` | Current component boundaries and maintained decision records |
 | **Copilot Rules** | `.github/copilot-instructions.md` | Hard rules for code changes |
 | **Database Schema** | `docs/DATABASE_SCHEMA.md` | SQLite table definitions |
 | **Diagnostic Logging** | `docs/DIAGNOSTIC_LOGGING.md` | Logging conventions |
@@ -59,14 +59,14 @@ If a document is missing or stale, flag it immediately — do not silently skip 
 | Input | Value |
 |---|---|
 | **Primary Plan/Doc to Audit Against** | `docs/SSOT/README.md` |
-| **Secondary Docs** | `docs/architecture.md`, `docs/SSOT/navigation.md`, `docs/SSOT/constants.json` |
+| **Secondary Docs** | `docs/architecture/README.md`, `docs/SSOT/navigation.md`, `docs/SSOT/constants.json` |
 | **Repository** | Attached / available in workspace |
 
 ### Build Systems
 
 | System | Config | Command | Source Root |
 |---|---|---|---|
-| **SwiftPM** | `Package.swift` | `swift build -q` / `swift test -q` | `ios/Core/` (24 files), `Tests/DoseCoreTests/` (30 files, 525+ tests) |
+| **SwiftPM** | `Package.swift` | `swift build -q` / `swift test -q` | Discover target sources and test cases from the current checkout |
 | **Xcode** | `ios/DoseTap.xcodeproj` | `xcodebuild build -project ios/DoseTap.xcodeproj -scheme DoseTap -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO` | `ios/DoseTap/` |
 
 ### Key Domain Invariants (Must Be Enforced in Code)
@@ -79,7 +79,7 @@ If a document is missing or stale, flag it immediately — do not silently skip 
 | Snooze disabled | When < 15 min remain OR max snoozes reached | `DoseWindowState.context()` |
 | Snooze step | +10 minutes | `DoseWindowConfig.snoozeStepMin` |
 | Extra dose rule | `doseIndex >= 3` only; does not update `dose2_time` | `EventStorage+Dose.swift` |
-| Undo window | 5 seconds | `DoseUndoManager` |
+| Undo window | 5-second default; user choices 3/5/7/10 seconds | `ios/DoseTap/UserSettingsManager.swift`, `ios/DoseTap/UndoStateManager.swift`, `ios/Core/DoseUndoManager.swift` |
 
 ---
 
@@ -114,10 +114,8 @@ For each domain area, read the **worker logic**, not just the entry points:
 - `DoseWindowState.swift` — state machine, phase computation, snooze logic
 - `DoseTapCore.swift` — dose-taking coordination, override flags
 - `APIClient.swift` + `APIErrors.swift` — networking, error mapping
-- `APIClientQueueIntegration.swift` — `DosingService` actor facade
 - `OfflineQueue.swift` — retry queue for failed API calls
 - `EventRateLimiter.swift` — event dedup/throttle
-- `TimeEngine.swift` — time computations
 - `SessionKey.swift` — session day grouping (rollover at 6 PM)
 - `SleepPlan.swift` + `RecommendationEngine.swift` — sleep planning
 - `DiagnosticLogger.swift` + `DiagnosticEvent.swift` — structured logging
@@ -128,11 +126,12 @@ For each domain area, read the **worker logic**, not just the entry points:
 - `CertificatePinning.swift` — TLS pinning config
 - `MedicationConfig.swift` — medication configuration
 - `SleepEvent.swift`, `UnifiedSleepSession.swift` — sleep domain models
-- `DoseUndoManager.swift` — undo support
+- `DoseUndoManager.swift` — platform-independent undo model and default
 - `TimeIntervalMath.swift` — time helpers
 - `EventStore.swift` — event store models
 
 **App Layer (`ios/DoseTap/`):**
+- `UndoStateManager.swift` — shipping undo snackbar state and user-configured window
 - `Storage/SessionRepository.swift` — **CRITICAL**: ~1715 LOC, single source of truth for session state. Read thoroughly.
 - `Storage/EventStorage.swift` + all extensions (`+Schema`, `+Session`, `+Dose`, `+CheckIn`, `+Exports`, `+EventStore`, `+Maintenance`) — SQLite persistence
 - `Views/TonightView.swift` — main session view
@@ -148,7 +147,7 @@ For each domain area, read the **worker logic**, not just the entry points:
 - `UserSettingsManager.swift` — user preferences
 
 **Tests:**
-- `Tests/DoseCoreTests/` — 30 test files (SwiftPM)
+- `Tests/DoseCoreTests/` — SwiftPM tests; discover current membership from `Package.swift`
 - `ios/DoseTapTests/` — Xcode test target (may have integration/UI tests)
 
 #### 1.3 — Document Findings
@@ -174,7 +173,7 @@ This proves you did the work. **Do not skip this step.**
 
 ### Phase 2: The Gap Analysis
 
-Compare your Phase 1 findings against `docs/SSOT/README.md`, `docs/architecture.md`, and `docs/SSOT/constants.json`.
+Compare your Phase 1 findings against `docs/SSOT/README.md`, `docs/architecture/README.md`, and `docs/SSOT/constants.json`.
 
 #### 👻 Identify Ghosts (Plan Says Yes, Code Says No)
 Features described in SSOT or architecture docs that have **no code support** or incomplete implementation:
@@ -245,11 +244,11 @@ For every Ghost or Zombie found, provide a concrete fix:
 
 #### 3.3 — Plan Update
 
-Rewrite or append to `docs/SSOT/README.md` and `docs/architecture.md` to reflect reality. Provide:
+Rewrite or append to `docs/SSOT/README.md` and the maintained records under `docs/architecture/` to reflect reality. Provide:
 - Exact Markdown patches (old text → new text)
 - New sections to add
 - Sections to remove or mark deprecated
-- Missing tasks to add to `docs/ROADMAP_TODO.md`
+- Missing tasks to add to Plane, with repository pointers added to `docs/PLANNING.md`
 
 ---
 

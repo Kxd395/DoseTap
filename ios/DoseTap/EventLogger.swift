@@ -80,7 +80,7 @@ class EventLogger: ObservableObject {
         }
         
         // Haptic feedback
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        Haptics.action.play()
     }
     
     func isOnCooldown(_ name: String) -> Bool {
@@ -105,7 +105,103 @@ class EventLogger: ObservableObject {
         events.removeAll { $0.id == id }
         sessionRepo.deleteSleepEvent(id: id.uuidString)
     }
-    
+
+    /// Delete a specific event and return a snapshot that can be used to restore it
+    /// via `restoreDeletedEvent(_:)`. Returns nil if no stored event matches.
+    /// Intended for the undo-delete flow.
+    func deleteEventReturningSnapshot(id: UUID) -> DeletedEventSnapshot? {
+        let stored = sessionRepo.fetchTonightSleepEvents().first { $0.id == id.uuidString }
+        let logged = events.first { $0.id == id }
+        guard stored != nil || logged != nil else { return nil }
+
+        let eventType: String
+        let displayName: String
+        let timestamp: Date
+        let colorHex: String?
+        let notes: String?
+        if let stored {
+            eventType = stored.eventType
+            displayName = Self.displayName(forEventType: stored.eventType)
+            timestamp = stored.timestamp
+            colorHex = stored.colorHex
+            notes = stored.notes
+        } else if let logged {
+            eventType = Self.canonicalEventType(logged.name)
+            displayName = logged.name
+            timestamp = logged.time
+            colorHex = logged.color.toHex()
+            notes = nil
+        } else {
+            return nil
+        }
+
+        deleteEvent(id: id)
+
+        return DeletedEventSnapshot(
+            id: id.uuidString,
+            eventType: eventType,
+            displayName: displayName,
+            timestamp: timestamp,
+            colorHex: colorHex,
+            notes: notes
+        )
+    }
+
+    /// Restore a previously deleted event from a snapshot. No-op if an event
+    /// with the same id already exists.
+    func restoreDeletedEvent(_ snapshot: DeletedEventSnapshot) {
+        guard let uuid = UUID(uuidString: snapshot.id) else { return }
+        if events.contains(where: { $0.id == uuid }) { return }
+
+        sessionRepo.insertSleepEvent(
+            id: snapshot.id,
+            eventType: snapshot.eventType,
+            timestamp: snapshot.timestamp,
+            colorHex: snapshot.colorHex,
+            notes: snapshot.notes
+        )
+
+        let color = snapshot.colorHex.flatMap { Color(hex: $0) } ?? .gray
+        let restored = LoggedEvent(id: uuid, name: snapshot.displayName, time: snapshot.timestamp, color: color)
+        events.insert(restored, at: 0)
+        events.sort { $0.time > $1.time }
+    }
+
+    /// Manually log an event at a specific date+time (for retroactive entry)
+    func logManualEvent(eventType: String, color: Color, timestamp: Date) {
+        let eventId = UUID()
+        let displayName = EventType(eventType).displayName
+        let event = LoggedEvent(id: eventId, name: displayName, time: timestamp, color: color)
+        events.insert(event, at: 0)
+
+        sessionRepo.insertSleepEvent(
+            id: eventId.uuidString,
+            eventType: eventType,
+            timestamp: timestamp,
+            colorHex: color.toHex(),
+            notes: "manual"
+        )
+
+        Haptics.action.play()
+    }
+
+    /// Update the time for an existing event
+    func updateEventTime(id: UUID, newTime: Date) {
+        sessionRepo.updateEventTime(eventId: id.uuidString, newTime: newTime)
+        loadEventsFromStorage()
+    }
+
+    /// Update notes on an existing event. Pass nil or empty string to clear.
+    func updateEventNotes(id: UUID, notes: String?) {
+        sessionRepo.updateEventNotes(eventId: id.uuidString, notes: notes)
+        loadEventsFromStorage()
+    }
+
+    /// Fetch the underlying StoredSleepEvent for a LoggedEvent ID (for edit sheets)
+    func storedEvent(for id: UUID) -> StoredSleepEvent? {
+        sessionRepo.fetchTonightSleepEvents().first { $0.id == id.uuidString }
+    }
+
     /// Refresh events from storage
     func refresh() {
         loadEventsFromStorage()
@@ -192,22 +288,13 @@ enum DoseEventDisplay {
 
 enum EventDisplayName {
     static func displayName(for eventType: String) -> String {
-        switch eventType {
-        case "bathroom": return "Bathroom"
-        case "water": return "Water"
-        case "lightsOut", "lights_out": return "Lights Out"
-        case "inBed", "in_bed": return "In Bed"
-        case "wakeFinal", "wake_final": return "Wake Up"
-        case "wakeTemp", "wake_temp": return "Brief Wake"
-        case "anxiety": return "Anxiety"
-        case "pain": return "Pain"
-        case "noise": return "Noise"
-        case "snack": return "Snack"
-        case "dream": return "Dream"
-        case "temperature": return "Temperature"
-        case "heartRacing", "heart_racing": return "Heart Racing"
-        default:
+        // Route through EventType which normalises all raw variants
+        // (e.g. "lightsout", "lights_out", "lightsOut" → .lightsOut)
+        let parsed = EventType(eventType)
+        if case .unknown = parsed {
+            // Fallback for truly unknown strings
             return eventType.replacingOccurrences(of: "_", with: " ").capitalized
         }
+        return parsed.displayName
     }
 }

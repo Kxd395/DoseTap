@@ -1,14 +1,19 @@
 ---
 tracker:
-  kind: linear
-  project_slug: "dosetap-d4b1cc70bc7b"
+  kind: plane
+  provider:
+    endpoint: "$PLANE_BASE_URL"
+    api_key: "$Plane_DoseTap_API"
+    workspace_slug: dark-water-drones
+    project_id: f2300d5b-01c5-4b0d-b930-34a954db2f2e
+    project_identifier: DOSETAP
+    api_resource: work-items
   active_states:
     - Todo
     - In Progress
   terminal_states:
     - Done
-    - Canceled
-    - Duplicate
+    - Cancelled
 polling:
   interval_ms: 15000
 workspace:
@@ -20,9 +25,13 @@ hooks:
     if [ ! -f ios/DoseTap/Secrets.swift ] && [ -f ios/DoseTap/Secrets.template.swift ]; then
       cp ios/DoseTap/Secrets.template.swift ios/DoseTap/Secrets.swift
     fi
+  before_run: |
+    set -euo pipefail
+    ruby tools/plane_tracker.rb validate-config
+  timeout_ms: 60000
 agent:
   max_concurrent_agents: 1
-  max_turns: 8
+  max_turns: 12
 codex:
   command: codex --config shell_environment_policy.inherit=all app-server
   approval_policy: never
@@ -31,9 +40,9 @@ codex:
     type: workspaceWrite
 ---
 
-You are working on Linear issue `{{ issue.identifier }}` for the DoseTap iOS repository.
+You are working on Plane work item `{{ issue.identifier }}` for the DoseTap iOS repository.
 
-Issue context:
+Work item context:
 
 - Identifier: `{{ issue.identifier }}`
 - Title: `{{ issue.title }}`
@@ -42,102 +51,95 @@ Issue context:
 - Labels: `{{ issue.labels }}`
 
 {% if issue.description %}
-Issue description:
+Description:
 
 {{ issue.description }}
 {% else %}
-Issue description: none provided.
+Description: none provided.
 {% endif %}
 
 {% if attempt %}
-Retry context:
-
-- This is continuation attempt `#{{ attempt }}`.
-- Resume from the existing workspace state instead of restarting unless the current branch or PR state is unusable.
+This is continuation attempt `#{{ attempt }}`. Resume from the existing workspace state instead of restarting unless the workspace is unusable.
 {% endif %}
+
+## Required Plane preflight
+
+1. Read `.agents/plane-workflow.yml` and `AGENTS.md`.
+2. Confirm the exact current work item before editing:
+
+   ```bash
+   ruby tools/plane_tracker.rb preflight --issue "{{ issue.identifier }}"
+   ```
+
+3. If the item is `Todo` and implementation is beginning, move it to `In Progress` and verify the returned readback:
+
+   ```bash
+   ruby tools/plane_tracker.rb start --issue "{{ issue.identifier }}" --apply
+   ```
+
+Do not claim `Backlog`, `Done`, or `Cancelled` work. Never guess a work item from title similarity, and never display the API key.
 
 ## Operating mode
 
-- This is an unattended orchestration run. Work autonomously end to end.
-- Only stop early for a real blocker: missing auth, missing required secrets, missing required external tooling, or a broken repository state you cannot safely recover from.
-- Do not ask the human to do routine follow-up work while the issue is still actionable.
-- Work only inside the current issue workspace.
+- Work autonomously inside the current issue workspace.
+- Stop only for a real blocker: missing authority, missing auth, missing required external tooling, an unsupported Plane adapter, an ambiguous work item, or a repository state that cannot be preserved safely.
+- Preserve unrelated worktree changes.
+- Reproduce or capture the missing behavior signal before code edits when practical.
+- Read `README.md`, `docs/SSOT/README.md`, `docs/TESTING_GUIDE.md`, and `.specify/memory/constitution.md` as required by the task.
+- Update SSOT before behavior changes.
 
-## DoseTap repository posture
+## Validation gates
 
-- Read only the minimum repo context needed. Start with [README.md](README.md), [docs/SSOT/README.md](docs/SSOT/README.md), and [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) when relevant.
-- This repository is local-first and behavior-sensitive. Reproduce the issue before code edits whenever practical.
-- Do not revert unrelated worktree changes unless the issue explicitly requires it.
-- Prefer the narrowest safe fix over opportunistic refactors.
+Choose the smallest sufficient set, but do not skip a required touched-area gate:
 
-## Linear workflow policy
+- Workflow or tracker changes: `bash tools/check_plane_workflow.sh`.
+- Behavior or contract changes: `bash tools/ssot_check.sh`.
+- SwiftPM or `DoseCore` changes: `swift build -q` and `swift test -q`.
+- App-facing changes: `bash tools/check_app_version.sh`.
+- Changes under `ios/DoseTap/`, `ios/Core/`, `ios/DoseTapTests/`, or the Xcode project: build the `DoseTap` scheme for an iOS Simulator with code signing disabled.
+- Targeted Xcode tests: run when they directly cover the touched behavior.
+- User-facing UI: obtain an available-simulator proof signal; keep signed-device and owner-observed gates separate.
+- Every change: `git diff --check`.
 
-- `Todo`: move to `In Progress` before any code edits.
-- `In Progress`: continue active implementation.
-- `In Review`: do not continue coding; wait for a human decision or for the issue to move back to `In Progress`.
-- `Backlog`: do not claim or modify.
-- `Done`, `Canceled`, `Duplicate`: terminal, no work.
+## Required Plane closeout
 
-If a PR is already attached when work begins, treat the issue as a feedback/rework loop:
+Before the final response, prepare a JSON closeout with:
 
-1. Collect open PR comments and review notes.
-2. Fold each actionable point into the plan.
-3. Address or explicitly rebut each point before handoff.
+- `issue_identifier`
+- `summary`
+- `changed_files`
+- non-empty `validation` entries containing `command`, `result`, and `evidence_class`
+- `open_gates`
+- `acceptance_complete`
+- `target_state`
 
-## Workpad policy
+First inspect the dry-run:
 
-Maintain one persistent Linear comment headed `## Codex Workpad`.
+```bash
+ruby tools/plane_tracker.rb closeout --issue "{{ issue.identifier }}" --input <closeout.json>
+```
 
-Keep it current with these sections:
+Then apply it and independently verify the readback:
 
-- `Plan`
-- `Reproduction`
-- `Validation`
-- `Notes`
-- `Blockers`
+```bash
+ruby tools/plane_tracker.rb closeout --issue "{{ issue.identifier }}" --input <closeout.json> --apply
+ruby tools/plane_tracker.rb verify --issue "{{ issue.identifier }}" --input <closeout.json>
+```
 
-Update the same comment throughout the run instead of posting new progress comments.
+Use `Done` only when acceptance is complete, every recorded validation passed, and `open_gates` is empty. Otherwise keep the item `In Progress` and record the remaining gates. Automated evidence must not close signed-device, human, provider, privacy, legal, or release gates.
 
-## Execution checklist
+The agent must not claim that the task or Plane update is complete unless post-write readback succeeds. If Plane is unavailable, authentication is missing, the work item is ambiguous, or the tracker write/readback fails, preserve the local work and report that exact blocker.
 
-1. Confirm the current issue state and route using the workflow policy above.
-2. Record repo state in the workpad: branch, short SHA, and workspace path.
-3. Reproduce the issue or capture the missing behavior signal before editing code.
-4. Create or update a small plan in the workpad.
-5. Implement the fix.
-6. Run the narrowest validation that proves the change.
-7. If the change is code-facing, run repository validation gates.
-8. Attach or update the PR if GitHub tooling is available.
-9. Move the issue to `In Review` only after validation is green and the workpad is current.
+Do not enable this file for unattended polling until the installed Plane adapter defines a non-dispatchable handoff for items waiting on human or external gates. Leaving such an item in an actively polled state without that policy can cause repeated runs.
 
-## Repository validation gates
+## Handoff
 
-Choose the smallest set that matches the change, but do not skip required gates.
-
-- Behavior or contract changes: run `bash tools/ssot_check.sh`.
-- SwiftPM or `DoseCore` changes: run `swift build -q` and `swift test -q`.
-- Any file under `ios/DoseTap/`, `ios/Core/`, `ios/DoseTapTests/`, or `ios/DoseTap.xcodeproj`: run
-  `xcodebuild build -project ios/DoseTap.xcodeproj -scheme DoseTap -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO`
-- If there is a targeted Xcode test that directly covers the touched behavior, run it with `xcodebuild test -only-testing:...`.
-- If user-facing UI changed, boot an available iPhone simulator, launch the app, and capture a concrete proof signal.
-
-Do not claim completion if the required validation for the touched area has not been run.
-
-## Git and PR policy
-
-- If Linear provides a branch name, use it. Otherwise create a branch named `codex/<issue-identifier>` or a sanitized equivalent.
-- Sync from `origin/main` before significant code edits when it is safe to do so.
-- Keep commits focused and reviewable.
-- If a PR exists, check GitHub Actions status before handoff and do not move to `In Review` while checks are red for your changes.
-- Merge remains manual in this workflow. Do not auto-merge or land changes after review approval.
-
-## Handoff standard
-
-Before stopping, make sure the workpad contains:
+Report only verified outcomes:
 
 - what changed,
-- exact validation run,
-- unresolved risks or blockers,
-- the current PR link if one exists.
+- exact validation and evidence class,
+- the Plane identifier and read-back state,
+- remaining gates,
+- PR or commit state when applicable.
 
-Final output should be concise and factual. Report completed actions and blockers only.
+Merge, release, medical, legal, privacy, and physical-device decisions remain manual unless the work item explicitly grants and satisfies that authority.

@@ -467,6 +467,26 @@ public extension DiagnosticLogger {
             entry.isLate = isLate
         }
     }
+
+    /// Log the durable medication-mutation boundary without recording notes,
+    /// amounts, or other free text. `actionId` correlates the pre-write attempt
+    /// with its committed or failed result even when Dose 1 creates a new UUID.
+    func logDoseAction(
+        _ event: DiagnosticEvent,
+        sessionId: String,
+        actionId: String,
+        action: String,
+        surface: String,
+        failureCode: String? = nil
+    ) {
+        let level: DiagnosticLevel = event == .doseActionFailed ? .warning : .info
+        log(event, level: level, sessionId: sessionId) { entry in
+            entry.actionId = actionId
+            entry.doseAction = action
+            entry.registrationSurface = surface
+            entry.mutationFailureCode = failureCode
+        }
+    }
     
     /// Log session completion
     func logSessionCompleted(
@@ -475,13 +495,7 @@ public extension DiagnosticLogger {
         dose1Time: Date? = nil,
         dose2Time: Date? = nil
     ) {
-        let event: DiagnosticEvent
-        switch terminalState {
-        case "completed": event = .sessionCompleted
-        case "skipped": event = .sessionSkipped
-        case "expired", "incomplete_slept_through": event = .sessionExpired
-        default: event = .sessionCompleted
-        }
+        let event = Self.lifecycleEvent(for: terminalState)
         
         log(event, sessionId: sessionId) { entry in
             entry.terminalState = terminalState
@@ -491,17 +505,33 @@ public extension DiagnosticLogger {
             entry.constantsHash = Self.constantsHash
         }
     }
+
+    static func lifecycleEvent(for terminalState: String) -> DiagnosticEvent {
+        switch terminalState {
+        case "completed", "checkin_completed":
+            return .sessionCompleted
+        case "skipped":
+            return .sessionSkipped
+        case "expired", "incomplete_slept_through", "incomplete_missed_checkin", "incomplete_prep_rollover", "invalid_dose_state":
+            return .sessionExpired
+        default:
+            // Unknown terminal states must never inflate successful completion.
+            return .sessionExpired
+        }
+    }
     
     /// Log alarm event
     func logAlarm(
         _ event: DiagnosticEvent,
         sessionId: String,
         alarmId: String,
-        reason: String? = nil
+        reason: String? = nil,
+        scheduledFor: Date? = nil
     ) {
         log(event, sessionId: sessionId) { entry in
             entry.alarmId = alarmId
             entry.reason = reason
+            entry.scheduledForTime = scheduledFor
         }
     }
     
@@ -589,18 +619,20 @@ public extension DiagnosticLogger {
     }
     
     /// Log notification tapped
-    func logNotificationTapped(sessionId: String, notificationId: String, category: String? = nil) {
+    func logNotificationTapped(sessionId: String, notificationId: String, category: String? = nil, actionId: String? = nil) {
         log(.notificationTapped, sessionId: sessionId) { entry in
             entry.notificationId = notificationId
             entry.notificationCategory = category
+            entry.notificationActionId = actionId
         }
     }
     
     /// Log notification dismissed
-    func logNotificationDismissed(sessionId: String, notificationId: String, category: String? = nil) {
+    func logNotificationDismissed(sessionId: String, notificationId: String, category: String? = nil, actionId: String? = nil) {
         log(.notificationDismissed, sessionId: sessionId) { entry in
             entry.notificationId = notificationId
             entry.notificationCategory = category
+            entry.notificationActionId = actionId
         }
     }
     

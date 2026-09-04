@@ -1,4 +1,5 @@
 import Foundation
+import DoseCore
 
 @MainActor
 public extension SessionRepository {
@@ -14,22 +15,27 @@ public extension SessionRepository {
     }
 
     /// Save dose 1 timestamp through the repository.
-    func saveDose1(timestamp: Date) {
+    @discardableResult
+    func saveDose1(timestamp: Date) -> MedicationMutationResult {
         setDose1Time(timestamp)
     }
 
     /// Save dose 2 timestamp through the repository.
-    func saveDose2(timestamp: Date, isEarly: Bool = false, isExtraDose: Bool = false) {
-        setDose2Time(timestamp, isEarly: isEarly, isExtraDose: isExtraDose)
+    @discardableResult
+    func saveDose2(
+        timestamp: Date,
+        isEarly: Bool = false,
+        isExtraDose: Bool = false,
+        reason: String? = nil,
+        reasonNotes: String? = nil
+    ) -> MedicationMutationResult {
+        setDose2Time(timestamp, isEarly: isEarly, isExtraDose: isExtraDose, reason: reason, reasonNotes: reasonNotes)
     }
 
     /// Insert sleep event for event logging and import flows.
     func insertSleepEvent(id: String, eventType: String, timestamp: Date, colorHex: String?, notes: String? = nil) {
         let session = ensureActiveSession(for: timestamp, reason: "sleep_event_insert")
-        let normalizedType = eventType
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-            .replacingOccurrences(of: " ", with: "_")
+        let normalizedType = normalizeStoredEventType(eventType)
         storage.insertSleepEvent(
             id: id,
             eventType: normalizedType,
@@ -53,7 +59,7 @@ public extension SessionRepository {
     ) {
         storage.insertSleepEvent(
             id: id,
-            eventType: eventType,
+            eventType: normalizeStoredEventType(eventType),
             timestamp: timestamp,
             sessionDate: sessionDate,
             sessionId: sessionId ?? sessionDate,

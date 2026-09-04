@@ -55,16 +55,103 @@ struct NightDetailView: View {
 
     @ViewBuilder
     private var supplementalCards: some View {
-        if session.preSleep != nil || session.morning != nil || !session.medications.isEmpty {
+        if session.hasSupplementalContext {
             VStack(alignment: .leading, spacing: 12) {
                 if let preSleep = session.preSleep {
                     supplementalCard(title: "Pre-Sleep") {
                         detailRow("Stress", preSleep.stressLevel.map(String.init) ?? "—")
                         detailRow("Pain", preSleep.bodyPain ?? "—")
                         detailRow("Later reason", preSleep.laterReason ?? "—")
+                        detailRow("Late meal", preSleep.lateMeal ?? "—")
+                        detailRow("Late meal ended", timeText(preSleep.lateMealEndedAtUTC))
+                        detailRow("Caffeine sources", joinedText(preSleep.caffeineSources))
+                        detailRow("Caffeine last intake", timeText(preSleep.caffeineLastIntakeAtUTC))
+                        detailRow("Alcohol last drink", timeText(preSleep.alcoholLastDrinkAtUTC))
+                        detailRow("Exercise last", timeText(preSleep.exerciseLastAtUTC))
+                        detailRow("Screens last used", timeText(preSleep.screensLastUsedAtUTC))
                         detailRow("Sleep aids", joinedText(preSleep.sleepAids))
                         if let notes = preSleep.notes, !notes.isEmpty {
                             detailRow("Notes", notes)
+                        }
+                    }
+                }
+
+                if let context = session.context {
+                    supplementalCard(title: "Night Context") {
+                        detailRow("Next morning", session.nextMorningWeekdayLabel ?? "—")
+                        detailRow("Scheduled wake", timeText(context.scheduledWakeByUTC))
+                        detailRow("Schedule type", context.scheduleDayType ?? "—")
+                        detailRow("Night type", session.explicitNightTypeLabel ?? "—")
+                        detailRow("First night off after work block", context.firstNightOffAfterWorkBlock ? "Yes" : "No")
+                        detailRow("Wake signal", session.wakeSignalLabel)
+                        detailRow("Next-day demand", session.explicitNextDayDemandLabel ?? "—")
+                        detailRow("Dose 2 wake method", session.explicitDose2WakeMethodLabel ?? "—")
+                        detailRow("Back to sleep after Dose 2", session.explicitBackToSleepDurationLabel ?? "—")
+                        detailRow("Wake requirement", context.wakeRequirement ?? "—")
+                        detailRow("Shift start", timeText(context.shiftStartAtUTC))
+                        detailRow("Shift end", timeText(context.shiftEndAtUTC))
+                        detailRow("Next required wake", timeText(context.nextRequiredWakeAtUTC))
+                        detailRow("Commute burden", timingText(context.commuteMinutes))
+                        detailRow("Alarm scheduled for", timeText(context.alarm?.scheduledForUTC))
+                        detailRow("Alarm first fire", timeText(context.alarm?.firstFireAtUTC))
+                        detailRow("Alarm acknowledged", timeText(context.alarm?.acknowledgedAtUTC))
+                        detailRow("Alarm action", session.alarmAcknowledgementActionLabel ?? "—")
+                        detailRow("Follow-up alarms delivered", "\(context.alarm?.followUpDeliveredCount ?? 0)")
+                        detailRow("Wake final logged", timeText(context.wakeFinalLoggedAtUTC))
+                        detailRow("Snoozes used", "\(context.snoozeCount)")
+                        detailRow("Dose 2 source", session.dose2TakenSourceLabel ?? "—")
+                        detailRow("Dose 2 early / late", dose2TimingFlagText(context.dose2Outcome))
+                        detailRow("Dose 2 reason mismatch", session.hasDose2ReasonMismatch ? "Yes" : "No")
+                        detailRow("Dose 2 taken reason", session.dose2TakenReasonLabel ?? "—")
+                        detailRow("Dose 2 live taken reason", labelOrDash(context.dose2Outcome?.liveTakenReason, session.dose2TakenReasonLabel))
+                        detailRow("Dose 2 morning taken reason", labelOrDash(context.dose2Outcome?.morningTakenReason, session.dose2TakenReasonLabel))
+                        detailRow("Dose 2 taken reason notes", context.dose2Outcome?.takenReasonNotes ?? "—")
+                        detailRow("Dose 2 skip reason", session.dose2SkipReasonLabel ?? "—")
+                        detailRow("Dose 2 live skip reason", labelOrDash(context.dose2Outcome?.liveSkipReason, session.dose2SkipReasonLabel))
+                        detailRow("Dose 2 morning skip reason", labelOrDash(context.dose2Outcome?.morningSkipReason, session.dose2SkipReasonLabel))
+                        detailRow("Dose 2 skip reason notes", context.dose2Outcome?.skipReasonNotes ?? "—")
+                        detailRow("Dose 2 skip source", session.dose2SkipSourceLabel ?? "—")
+                        detailRow("Schedule markers", joinedText(context.scheduleMarkers))
+                        detailRow("Late meal type", context.lateMealType ?? "—")
+                        detailRow("Late meal -> Dose 1", timingText(context.lateMealMinutesBeforeDose1))
+                        detailRow("Late meal -> Dose 2", timingText(context.lateMealMinutesBeforeDose2))
+                        detailRow("Caffeine -> Dose 1", timingText(context.caffeineMinutesBeforeDose1))
+                        detailRow("Alcohol -> Dose 1", timingText(context.alcoholMinutesBeforeDose1))
+                        detailRow("Exercise -> Dose 1", timingText(context.exerciseMinutesBeforeDose1))
+                        detailRow("Nap -> Dose 1", timingText(context.napMinutesBeforeDose1))
+                        detailRow("Screen use -> Dose 1", timingText(context.screenMinutesBeforeDose1))
+                    }
+                }
+
+                supplementalCard(title: "Classification") {
+                    detailRow("Comparable cohort", session.comparableCohortKey)
+                    detailRow("Confidence", session.classification.confidenceBucket.label)
+                    detailRow("Trainable night", session.countsTowardRecommendationTraining ? "Yes" : "No")
+                    detailRow("Tags", joinedText(session.classification.tags.map(\.label)))
+                    detailRow("Bundle exclusions", joinedText(session.exportExclusionReasons))
+                    detailRow("Exclusions", joinedText(session.classification.exclusionReasons))
+                }
+
+                supplementalCard(title: "Data Sources") {
+                    detailRow("Available sources", joinedText(session.sourceAvailabilitySummary))
+                    detailRow("Raw event count", "\(session.rawEvents.count)")
+                    detailRow("Normalized event count", "\(session.normalizedEvents.count)")
+                    detailRow("Bundle quality flags", joinedText(session.dataQualityFlags))
+                    detailRow("Metric provenance", joinedText(session.metricProvenance.map { "\($0.key): \($0.value)" }.sorted()))
+                }
+
+                if !session.normalizedFacts.isEmpty {
+                    supplementalCard(title: "Metric Facts") {
+                        ForEach(InsightMetricFactCategory.allCases, id: \.self) { category in
+                            let facts = session.normalizedFacts.filter { $0.category == category }
+                            if !facts.isEmpty {
+                                Text(category.label)
+                                    .font(.subheadline.weight(.semibold))
+                                    .padding(.top, category == .dosing ? 0 : 8)
+                                ForEach(facts) { fact in
+                                    detailRow("\(fact.title) [\(fact.source)]", fact.displayValue)
+                                }
+                            }
                         }
                     }
                 }
@@ -77,8 +164,34 @@ struct NightDetailView: View {
                         detailRow("Mental clarity", "\(morning.mentalClarity)/5")
                         detailRow("Mood", morning.mood)
                         detailRow("Readiness", "\(morning.readinessForDay)/5")
+                        detailRow("Driving confidence", morning.drivingConfidence.map { "\($0)/5" } ?? "—")
+                        detailRow("Daytime sleepiness", morning.daytimeSleepiness.map { "\($0)/5" } ?? "—")
+                        detailRow("Cataplexy burden", morning.cataplexyBurden ?? "—")
+                        detailRow("Pain burden", morning.painBurden ?? "—")
+                        detailRow("Anxiety burden", morning.anxietyBurden ?? morning.anxietyLevel)
+                        detailRow("Congestion burden", morning.congestionBurden ?? "—")
+                        detailRow("Reflux burden", morning.refluxBurden ?? "—")
+                        detailRow("Restless legs burden", morning.restlessLegsBurden ?? "—")
+                        detailRow("Bathroom urgency burden", morning.bathroomUrgencyBurden ?? "—")
+                        detailRow("Sleep therapy device", morning.sleepTherapyDevice ?? "—")
+                        detailRow("Sleep therapy compliance", morning.sleepTherapyCompliance.map { "\($0)%" } ?? "—")
+                        detailRow("First night off after work block", (morning.firstNightOffAfterWorkBlock ?? false) ? "Yes" : "No")
+                        detailRow("Sleep disorders", joinedText(morning.sleepDisorders ?? []))
+                        detailRow("Sleep disorder notes", morning.sleepDisorderNotes ?? "—")
+                        detailRow("Co-medication notes", morning.coMedicationNotes ?? "—")
+                        detailRow("Fast-metabolizer flag", (morning.pharmacogenomicFastMetabolizer ?? false) ? "Yes" : "No")
+                        detailRow("Genetics clinician-reviewed", (morning.pharmacogenomicClinicianReviewed ?? false) ? "Yes" : "No")
+                        detailRow("Genetics notes", morning.pharmacogenomicNotes ?? "—")
                         if let notes = morning.notes, !notes.isEmpty {
                             detailRow("Notes", notes)
+                        }
+                    }
+                }
+
+                if !rawCheckInPayloadRows.isEmpty {
+                    supplementalCard(title: "Raw Check-In Payloads") {
+                        ForEach(Array(rawCheckInPayloadRows.enumerated()), id: \.offset) { _, row in
+                            rawPayloadBlock(title: row.title, payload: row.payload)
                         }
                     }
                 }
@@ -105,6 +218,45 @@ struct NightDetailView: View {
                                 Divider()
                             }
                         }
+                    }
+                }
+
+                if let healthKit = session.healthKit {
+                    supplementalCard(title: "Apple Health") {
+                        detailRow("Total sleep", durationText(minutes: healthKit.totalSleepMinutes))
+                        detailRow("Time to first wake", minutesText(healthKit.ttfwMinutes))
+                        detailRow("Wake count", "\(healthKit.wakeCount)")
+                        detailRow("Awake minutes", minutesText(healthKit.awakeMinutes))
+                        detailRow("WASO", minutesText(healthKit.wakeAfterSleepOnsetMinutes))
+                        detailRow("In bed", minutesText(healthKit.inBedMinutes))
+                        detailRow("Core / Deep / REM", "\(minutesLabel(healthKit.coreSleepMinutes)) / \(minutesLabel(healthKit.deepSleepMinutes)) / \(minutesLabel(healthKit.remSleepMinutes))")
+                        detailRow("Sleep onset", timeText(healthKit.sleepOnsetUTC))
+                        detailRow("Final wake", timeText(healthKit.finalWakeUTC))
+                        detailRow("Avg heart rate", rateText(healthKit.averageHeartRate, unit: "bpm"))
+                        detailRow("Respiratory rate", rateText(healthKit.respiratoryRate, unit: "br/min"))
+                        detailRow("HRV", rateText(healthKit.hrvMs, unit: "ms"))
+                        detailRow("Resting HR", rateText(healthKit.restingHeartRate, unit: "bpm"))
+                        detailRow("Sources", joinedText(healthKit.sources))
+                    }
+                }
+
+                if let whoop = session.whoop {
+                    supplementalCard(title: "WHOOP") {
+                        detailRow("Recovery", percentText(whoop.recoveryScore))
+                        detailRow("Sleep efficiency", percentText(whoop.sleepEfficiency))
+                        detailRow("Sleep performance", percentText(whoop.sleepPerformance))
+                        detailRow("Sleep consistency", percentText(whoop.sleepConsistency))
+                        detailRow("Total sleep", durationText(minutes: Double(whoop.totalSleepMinutes)))
+                        detailRow("In bed", whoop.inBedMinutes.map { "\($0)m" } ?? "—")
+                        detailRow("Deep / REM / Light", "\(whoop.deepMinutes)m / \(whoop.remMinutes)m / \(whoop.lightMinutes)m")
+                        detailRow("Awake", "\(whoop.awakeMinutes)m")
+                        detailRow("Disturbances", "\(whoop.disturbanceCount)")
+                        detailRow("Respiratory rate", rateText(whoop.respiratoryRate, unit: "br/min"))
+                        detailRow("HRV", rateText(whoop.hrvMs, unit: "ms"))
+                        detailRow("Resting HR", rateText(whoop.restingHeartRate, unit: "bpm"))
+                        detailRow("SpO2", percentText(whoop.spo2Percentage))
+                        detailRow("Skin temp", rateText(whoop.skinTempCelsius, unit: "°C"))
+                        detailRow("Sleep need baseline / debt / strain / nap", "\(minutesLabel(whoop.sleepNeedBaselineMinutes.map(Double.init))) / \(minutesLabel(whoop.sleepNeedDebtMinutes.map(Double.init))) / \(minutesLabel(whoop.sleepNeedStrainMinutes.map(Double.init))) / \(minutesLabel(whoop.sleepNeedNapMinutes.map(Double.init)))")
                     }
                 }
             }
@@ -182,6 +334,58 @@ struct NightDetailView: View {
         return session.qualitySummary
     }
 
+    private var rawCheckInPayloadRows: [(title: String, payload: String)] {
+        var rows: [(title: String, payload: String)] = []
+
+        appendRawPayload(&rows, title: "Pre-sleep raw answers", payload: session.preSleep?.rawAnswersJson)
+
+        if let morning = session.morning {
+            appendRawPayload(&rows, title: "Morning physical symptoms", payload: morning.rawPhysicalSymptomsJson)
+            appendRawPayload(&rows, title: "Morning respiratory symptoms", payload: morning.rawRespiratorySymptomsJson)
+            appendRawPayload(&rows, title: "Morning sleep therapy", payload: morning.rawSleepTherapyJson)
+            appendRawPayload(&rows, title: "Morning sleep environment", payload: morning.rawSleepEnvironmentJson)
+            appendRawPayload(&rows, title: "Morning stress context", payload: morning.rawStressContextJson)
+            appendRawPayload(&rows, title: "Morning timing context", payload: morning.rawTimingContextJson)
+        }
+
+        for submission in session.checkInSubmissions.sorted(by: { $0.submittedAtUTC < $1.submittedAtUTC }) {
+            appendRawPayload(
+                &rows,
+                title: "\(submission.checkInType) submission \(timeText(Optional(submission.submittedAtUTC)))",
+                payload: submission.responsesJson
+            )
+        }
+
+        return rows
+    }
+
+    private func appendRawPayload(
+        _ rows: inout [(title: String, payload: String)],
+        title: String,
+        payload: String?
+    ) {
+        let trimmed = payload?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmed.isEmpty else { return }
+        rows.append((title, trimmed))
+    }
+
+    private func dose2TimingFlagText(_ outcome: InsightDose2OutcomeContext?) -> String {
+        guard let outcome else { return "—" }
+        if outcome.takenEarly && outcome.takenLate {
+            return "Early + Late flags"
+        }
+        if outcome.takenEarly {
+            return "Early"
+        }
+        if outcome.takenLate {
+            return "Late"
+        }
+        if outcome.hasExtraDose {
+            return "Extra dose recorded"
+        }
+        return "None"
+    }
+
     private func metricCard(title: String, value: String, accent: Color) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(value)
@@ -208,6 +412,19 @@ struct NightDetailView: View {
         .cornerRadius(12)
     }
 
+    private func rawPayloadBlock(title: String, payload: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+            Text(rawPayloadPreview(payload))
+                .font(.system(.caption, design: .monospaced))
+                .foregroundColor(.secondary)
+                .textSelection(.enabled)
+                .lineLimit(12)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     private func detailRow(_ label: String, _ value: String) -> some View {
         HStack(alignment: .top) {
             Text(label)
@@ -219,8 +436,58 @@ struct NightDetailView: View {
         .font(.subheadline)
     }
 
+    private func rawPayloadPreview(_ payload: String) -> String {
+        let maxLength = 4_000
+        guard payload.count > maxLength else {
+            return payload
+        }
+        return "\(payload.prefix(maxLength))\n... truncated in view ..."
+    }
+
     private func joinedText(_ values: [String]) -> String {
         values.isEmpty ? "—" : values.joined(separator: ", ")
+    }
+
+    private func labelOrDash(_ rawValue: String?, _ fallbackLabel: String?) -> String {
+        rawValue ?? fallbackLabel ?? "—"
+    }
+
+    private func durationText(minutes: Double) -> String {
+        let roundedMinutes = Int(minutes.rounded())
+        let hours = roundedMinutes / 60
+        let remainder = roundedMinutes % 60
+        return hours > 0 ? "\(hours)h \(remainder)m" : "\(remainder)m"
+    }
+
+    private func minutesText(_ minutes: Double?) -> String {
+        guard let minutes else { return "—" }
+        return "\(Int(minutes.rounded()))m"
+    }
+
+    private func percentText(_ value: Double?) -> String {
+        guard let value else { return "—" }
+        return "\(Int(value.rounded()))%"
+    }
+
+    private func minutesLabel(_ value: Double?) -> String {
+        guard let value else { return "—" }
+        return "\(Int(value.rounded()))m"
+    }
+
+    private func timingText(_ minutes: Int?) -> String {
+        guard let minutes else { return "—" }
+        let hours = minutes / 60
+        let remainder = minutes % 60
+        if hours > 0 {
+            return remainder == 0 ? "\(hours)h" : "\(hours)h \(remainder)m"
+        }
+        return "\(minutes)m"
+    }
+
+    private func rateText(_ value: Double?, unit: String) -> String {
+        guard let value else { return "—" }
+        let formatted = value.rounded() == value ? String(Int(value)) : String(format: "%.1f", value)
+        return "\(formatted) \(unit)"
     }
 
     private func label(for event: InsightEvent) -> String {

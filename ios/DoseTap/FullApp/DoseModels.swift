@@ -51,7 +51,7 @@ extension DoseWindowContext {
         case .takeNow: return "Take Dose 2"
         case .takeBeforeWindowEnds(let rem): return "Take Dose 2 (\(Int(rem/60))m left)"
         case .waitingUntilEarliest(let rem): return "Wait (\(Int(rem/60))m left)"
-        case .takeWithOverride: return "Take Dose 2 (Override)"
+        case .resolveExpiredRecord: return "Complete Dose 2 Record"
         case .disabled(let reason): return reason
         }
     }
@@ -89,7 +89,7 @@ public struct SQLiteStoredMorningCheckIn: Codable {
     public let sessionId: String
     public let timestamp: Date
     public let sessionDate: String
-    public let sleepQuality: Int
+    public let sleepQuality: Double
     public let feelRested: String
     public let grogginess: String
     public let sleepInertiaDuration: String
@@ -113,6 +113,7 @@ public struct SQLiteStoredMorningCheckIn: Codable {
     public let sleepTherapyJson: String?
     public let hasSleepEnvironment: Bool
     public let sleepEnvironmentJson: String?
+    public let timingContextJson: String?
     public let notes: String?
     
     public init(
@@ -120,7 +121,7 @@ public struct SQLiteStoredMorningCheckIn: Codable {
         sessionId: String,
         timestamp: Date,
         sessionDate: String,
-        sleepQuality: Int,
+        sleepQuality: Double,
         feelRested: String,
         grogginess: String,
         sleepInertiaDuration: String,
@@ -144,6 +145,7 @@ public struct SQLiteStoredMorningCheckIn: Codable {
         sleepTherapyJson: String? = nil,
         hasSleepEnvironment: Bool = false,
         sleepEnvironmentJson: String? = nil,
+        timingContextJson: String? = nil,
         notes: String? = nil
     ) {
         self.id = id
@@ -174,6 +176,7 @@ public struct SQLiteStoredMorningCheckIn: Codable {
         self.sleepTherapyJson = sleepTherapyJson
         self.hasSleepEnvironment = hasSleepEnvironment
         self.sleepEnvironmentJson = sleepEnvironmentJson
+        self.timingContextJson = timingContextJson
         self.notes = notes
     }
 }

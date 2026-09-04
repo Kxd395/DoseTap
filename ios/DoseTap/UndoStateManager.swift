@@ -77,34 +77,41 @@ class UndoStateManager: ObservableObject {
     
     func performUndo() {
         Task {
-            if let manager = undoManager {
-                let action = currentAction
-                let result = await manager.undo()
-                await MainActor.run {
-                    #if DEBUG
-                    switch result {
-                    case .success(let action):
-                        undoStateLog.debug("Undo successful: \(String(describing: action), privacy: .private)")
-                    case .expired:
-                        undoStateLog.debug("Undo window expired")
-                    case .noAction:
-                        undoStateLog.debug("No action to undo")
-                    }
-                    #endif
-                    
-                    // Diagnostic logging: undo executed
-                    if case .success = result, let action = action {
-                        let sessionId = SessionRepository.shared.currentSessionIdString()
-                        let targetType = undoTargetType(for: action)
-                        Task {
-                            await DiagnosticLogger.shared.logUndoExecuted(sessionId: sessionId, targetType: targetType)
-                        }
-                    }
-                    
-                    dismiss()
-                }
+            _ = await performUndoResult()
+        }
+    }
+
+    @discardableResult
+    func performUndoResult() async -> UndoResult {
+        guard let manager = undoManager else {
+            dismiss()
+            return .noAction
+        }
+
+        let action = currentAction
+        let result = await manager.undo()
+
+        #if DEBUG
+        switch result {
+        case .success(let action):
+            undoStateLog.debug("Undo successful: \(String(describing: action), privacy: .private)")
+        case .expired:
+            undoStateLog.debug("Undo window expired")
+        case .noAction:
+            undoStateLog.debug("No action to undo")
+        }
+        #endif
+
+        if case .success = result, let action = action {
+            let sessionId = SessionRepository.shared.currentSessionIdString()
+            let targetType = undoTargetType(for: action)
+            Task {
+                await DiagnosticLogger.shared.logUndoExecuted(sessionId: sessionId, targetType: targetType)
             }
         }
+
+        dismiss()
+        return result
     }
     
     func dismiss() {
@@ -159,6 +166,7 @@ class UndoStateManager: ObservableObject {
         case .takeDose2: return "dose2"
         case .skipDose: return "skipDose"
         case .snooze: return "snooze"
+        case .deleteEvent: return "deleteEvent"
         }
     }
 }

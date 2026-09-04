@@ -88,7 +88,7 @@ struct SessionSearchResultRow: View {
             return ("No Doses", .gray)
         }
         if (150...165).contains(interval) { return ("On Time", .green) }
-        if interval > 165 && interval <= 240 { return ("Late", .red) }
+        if interval > 165 && MedicationTiming.classify(elapsedSeconds: Double(interval) * 60) == .inWindow { return ("In Window", .green) }
         return ("Out of Window", .red)
     }
 

@@ -29,7 +29,7 @@ struct DashboardTabView: View {
         if isInSplitView {
             dashboardContent
         } else {
-            NavigationView {
+            NavigationStack {
                 dashboardContent
             }
         }

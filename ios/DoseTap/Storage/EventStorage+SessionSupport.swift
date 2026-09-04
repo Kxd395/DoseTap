@@ -30,6 +30,8 @@ extension EventStorage {
         SELECT DISTINCT session_date FROM checkin_submissions
         UNION
         SELECT DISTINCT session_date FROM medication_events
+        UNION
+        SELECT DISTINCT session_date FROM symptom_events
         ORDER BY session_date DESC
         """
 
@@ -160,6 +162,11 @@ extension EventStorage {
 
     /// Upsert a dose event with explicit id (used by sync import).
     public func upsertDoseEvent(id: String, eventType: String, timestamp: Date, sessionDate: String, sessionId: String? = nil, metadata: String? = nil) {
+        guard let canonicalEventType = CanonicalDoseEventType(canonicalizing: eventType) else {
+            storageLog.warning("Rejected unknown dose event type during import: \(eventType, privacy: .public)")
+            return
+        }
+
         let sql = """
         INSERT OR REPLACE INTO dose_events (id, event_type, timestamp, session_date, session_id, metadata)
         VALUES (?, ?, ?, ?, ?, ?)
@@ -174,7 +181,7 @@ extension EventStorage {
         let timestampStr = isoFormatter.string(from: timestamp)
 
         sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 2, eventType, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 2, canonicalEventType.rawValue, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 3, timestampStr, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 4, sessionDate, -1, SQLITE_TRANSIENT)
 

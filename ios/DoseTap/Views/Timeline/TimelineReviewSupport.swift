@@ -277,6 +277,43 @@ struct StoredEventDuplicateGroup: Identifiable {
     let events: [StoredSleepEvent]
 }
 
+struct WakeToDose1Metric: Equatable {
+    let wakeTime: Date
+    let dose1Time: Date
+    let minutes: Int
+
+    var formattedInterval: String {
+        TimeIntervalMath.formatMinutes(minutes)
+    }
+}
+
+func buildWakeToDose1Metric(
+    dose1Time: Date?,
+    events: [StoredSleepEvent],
+    maxLookback: TimeInterval = 36 * 60 * 60
+) -> WakeToDose1Metric? {
+    guard let dose1Time else { return nil }
+
+    let wakeTime = events
+        .filter {
+            normalizeStoredEventType($0.eventType) == "wake_final"
+                && $0.timestamp <= dose1Time
+                && dose1Time.timeIntervalSince($0.timestamp) <= maxLookback
+        }
+        .map(\.timestamp)
+        .max()
+
+    guard let wakeTime else { return nil }
+    let minutes = TimeIntervalMath.minutesBetween(start: wakeTime, end: dose1Time)
+    guard minutes >= 0 else { return nil }
+
+    return WakeToDose1Metric(
+        wakeTime: wakeTime,
+        dose1Time: dose1Time,
+        minutes: minutes
+    )
+}
+
 func buildStoredEventDuplicateGroups(events: [StoredSleepEvent], threshold: TimeInterval = 30 * 60) -> [StoredEventDuplicateGroup] {
     let grouped = Dictionary(grouping: events.sorted(by: { $0.timestamp < $1.timestamp })) {
         normalizeStoredEventType($0.eventType)

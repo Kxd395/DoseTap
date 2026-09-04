@@ -7,13 +7,38 @@ import os.log
 
 extension EventStorage {
 
+    enum CloudKitTombstoneStoreError: Error, LocalizedError {
+        case prepareFailed(String)
+        case stepFailed(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .prepareFailed(let message): return "Failed to prepare CloudKit tombstone enqueue: \(message)"
+            case .stepFailed(let message): return "Failed to enqueue CloudKit tombstone: \(message)"
+            }
+        }
+    }
+
+    enum StorageDeleteError: Error, LocalizedError {
+        case prepareFailed(String, String)
+        case stepFailed(String, String)
+
+        var errorDescription: String? {
+            switch self {
+            case .prepareFailed(let context, let message): return "Failed to prepare \(context): \(message)"
+            case .stepFailed(let context, let message): return "Failed to execute \(context): \(message)"
+            }
+        }
+    }
+
     // MARK: - Bulk Data Management
 
     /// Clear all data (for testing/debug)
     public func clearAllData() {
         let tables = [
             "sleep_events", "dose_events", "current_session", "sleep_sessions", "pre_sleep_logs",
-            "morning_checkins", "checkin_submissions", "medication_events"
+            "morning_checkins", "checkin_submissions", "medication_events", "inventory_snapshots", "body_map_points",
+            "symptom_locations", "symptom_events", "symptom_command_log", "symptom_summaries", "work_wake_schedule"
         ]
         for table in tables {
             let sql = "DELETE FROM \(table)"
@@ -32,7 +57,7 @@ extension EventStorage {
         // Sanitize table name to prevent SQL injection (only allow known tables)
         let allowedTables = [
             "sleep_events", "dose_events", "current_session", "sleep_sessions", "pre_sleep_logs",
-            "morning_checkins", "checkin_submissions", "medication_events"
+            "morning_checkins", "checkin_submissions", "medication_events", "symptom_events"
         ]
         guard allowedTables.contains(table) else {
             storageLog.warning("fetchRowCount: Unknown table '\(table)'")
@@ -78,7 +103,7 @@ extension EventStorage {
 
         sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
 
-        let tables = ["sleep_events", "dose_events", "sleep_sessions", "morning_checkins", "checkin_submissions", "medication_events"]
+        let tables = ["sleep_events", "dose_events", "sleep_sessions", "morning_checkins", "checkin_submissions", "medication_events", "symptom_events", "symptom_command_log", "symptom_summaries"]
         for table in tables {
             let sql = "DELETE FROM \(table) WHERE session_date < ?"
             var stmt: OpaquePointer?
@@ -114,64 +139,45 @@ extension EventStorage {
 
     /// Delete a session by date
     public func deleteSession(sessionDate: String, recordCloudKitDeletion: Bool = true) {
-        if recordCloudKitDeletion {
-            enqueueCloudKitTombstone(recordType: "DoseTapSession", recordName: sessionDate)
+        do {
+            try withSQLiteTransaction {
+                if recordCloudKitDeletion {
+                    try enqueueCloudKitTombstoneOrThrow(recordType: "DoseTapSession", recordName: sessionDate)
 
-            for id in fetchRecordIDsForSession(table: "sleep_events", sessionDate: sessionDate) {
-                enqueueCloudKitTombstone(recordType: "DoseTapSleepEvent", recordName: id)
+                    for id in fetchRecordIDsForSession(table: "sleep_events", sessionDate: sessionDate) {
+                        try enqueueCloudKitTombstoneOrThrow(recordType: "DoseTapSleepEvent", recordName: id)
+                    }
+                    for id in fetchRecordIDsForSession(table: "dose_events", sessionDate: sessionDate) {
+                        try enqueueCloudKitTombstoneOrThrow(recordType: "DoseTapDoseEvent", recordName: id)
+                    }
+                    for id in fetchRecordIDsForSession(table: "morning_checkins", sessionDate: sessionDate) {
+                        try enqueueCloudKitTombstoneOrThrow(recordType: "DoseTapMorningCheckIn", recordName: id)
+                    }
+                    for id in fetchRecordIDsForSession(table: "medication_events", sessionDate: sessionDate) {
+                        try enqueueCloudKitTombstoneOrThrow(recordType: "DoseTapMedicationEvent", recordName: id)
+                    }
+                    for id in fetchPreSleepLogIDsForSession(sessionDate: sessionDate) {
+                        try enqueueCloudKitTombstoneOrThrow(recordType: "DoseTapPreSleepLog", recordName: id)
+                    }
+                }
+
+                try deletePreSleepLogsForSessionOrThrow(sessionDate: sessionDate)
+
+                let tables = [
+                    "sleep_events", "dose_events", "sleep_sessions", "morning_checkins",
+                    "checkin_submissions", "medication_events", "symptom_events",
+                    "symptom_command_log", "symptom_summaries"
+                ]
+                for table in tables {
+                    try deleteRowsForSessionOrThrow(table: table, sessionDate: sessionDate)
+                }
+
+                try deleteCurrentSessionRowOrThrow(sessionDate: sessionDate)
             }
-            for id in fetchRecordIDsForSession(table: "dose_events", sessionDate: sessionDate) {
-                enqueueCloudKitTombstone(recordType: "DoseTapDoseEvent", recordName: id)
-            }
-            for id in fetchRecordIDsForSession(table: "morning_checkins", sessionDate: sessionDate) {
-                enqueueCloudKitTombstone(recordType: "DoseTapMorningCheckIn", recordName: id)
-            }
-            for id in fetchRecordIDsForSession(table: "medication_events", sessionDate: sessionDate) {
-                enqueueCloudKitTombstone(recordType: "DoseTapMedicationEvent", recordName: id)
-            }
-            for id in fetchPreSleepLogIDsForSession(sessionDate: sessionDate) {
-                enqueueCloudKitTombstone(recordType: "DoseTapPreSleepLog", recordName: id)
-            }
+            storageLog.info("Session \(sessionDate, privacy: .public) deleted")
+        } catch {
+            storageLog.error("Failed to delete session \(sessionDate, privacy: .public): \(error.localizedDescription)")
         }
-
-        // Use transaction for atomicity
-        sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
-
-        let preSleepSQL = """
-            DELETE FROM pre_sleep_logs
-            WHERE session_id = ?
-               OR session_id IN (SELECT session_id FROM sleep_sessions WHERE session_date = ?)
-        """
-        var preSleepStmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, preSleepSQL, -1, &preSleepStmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(preSleepStmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
-            sqlite3_bind_text(preSleepStmt, 2, sessionDate, -1, SQLITE_TRANSIENT)
-            sqlite3_step(preSleepStmt)
-            sqlite3_finalize(preSleepStmt)
-        }
-
-        let tables = ["sleep_events", "dose_events", "sleep_sessions", "morning_checkins", "checkin_submissions", "medication_events"]
-        for table in tables {
-            let sql = "DELETE FROM \(table) WHERE session_date = ?"
-            var stmt: OpaquePointer?
-            if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-                sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
-                sqlite3_step(stmt)
-                sqlite3_finalize(stmt)
-            }
-        }
-
-        // Remove current_session row for this session to prevent ghost entries in exports/timeline
-        let deleteCurrentSQL = "DELETE FROM current_session WHERE session_date = ?"
-        var clearStmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, deleteCurrentSQL, -1, &clearStmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(clearStmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
-            sqlite3_step(clearStmt)
-            sqlite3_finalize(clearStmt)
-        }
-
-        sqlite3_exec(db, "COMMIT", nil, nil, nil)
-        storageLog.info("Session \(sessionDate, privacy: .public) deleted")
     }
 
     // MARK: - Individual Record Deletes
@@ -183,18 +189,15 @@ extension EventStorage {
 
     /// Delete a specific sleep event by ID with optional outbound CloudKit tombstone.
     public func deleteSleepEvent(id: String, recordCloudKitDeletion: Bool = true) {
-        if recordCloudKitDeletion {
-            enqueueCloudKitTombstone(recordType: "DoseTapSleepEvent", recordName: id)
-        }
-        let sql = "DELETE FROM sleep_events WHERE id = ?"
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
-        defer { sqlite3_finalize(stmt) }
-
-        sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
-
-        if sqlite3_step(stmt) == SQLITE_DONE {
+        do {
+            try deleteRecordByIdOrThrow(
+                table: "sleep_events",
+                id: id,
+                tombstoneRecordType: recordCloudKitDeletion ? "DoseTapSleepEvent" : nil
+            )
             storageLog.debug("Sleep event deleted: \(id, privacy: .private)")
+        } catch {
+            storageLog.error("Failed to delete sleep event \(id, privacy: .private): \(error.localizedDescription)")
         }
     }
 
@@ -205,18 +208,15 @@ extension EventStorage {
 
     /// Delete a specific dose event by ID with optional outbound CloudKit tombstone.
     public func deleteDoseEvent(id: String, recordCloudKitDeletion: Bool = true) {
-        if recordCloudKitDeletion {
-            enqueueCloudKitTombstone(recordType: "DoseTapDoseEvent", recordName: id)
-        }
-        let sql = "DELETE FROM dose_events WHERE id = ?"
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
-        defer { sqlite3_finalize(stmt) }
-
-        sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
-
-        if sqlite3_step(stmt) == SQLITE_DONE {
+        do {
+            try deleteRecordByIdOrThrow(
+                table: "dose_events",
+                id: id,
+                tombstoneRecordType: recordCloudKitDeletion ? "DoseTapDoseEvent" : nil
+            )
             storageLog.debug("Dose event deleted: \(id, privacy: .private)")
+        } catch {
+            storageLog.error("Failed to delete dose event \(id, privacy: .private): \(error.localizedDescription)")
         }
     }
 
@@ -227,19 +227,18 @@ extension EventStorage {
 
     /// Delete a specific morning check-in by ID with optional outbound CloudKit tombstone.
     public func deleteMorningCheckIn(id: String, recordCloudKitDeletion: Bool = true) {
-        if recordCloudKitDeletion {
-            enqueueCloudKitTombstone(recordType: "DoseTapMorningCheckIn", recordName: id)
-        }
-        let sql = "DELETE FROM morning_checkins WHERE id = ?"
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
-        defer { sqlite3_finalize(stmt) }
-
-        sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
-
-        if sqlite3_step(stmt) == SQLITE_DONE {
-            deleteCheckInSubmission(sourceRecordId: id, checkInType: .morning)
+        do {
+            try withSQLiteTransaction {
+                if recordCloudKitDeletion {
+                    try enqueueCloudKitTombstoneOrThrow(recordType: "DoseTapMorningCheckIn", recordName: id)
+                }
+                try deleteRecordByIdInCurrentTransactionOrThrow(table: "morning_checkins", id: id)
+                try deleteCheckInSubmissionOrThrow(sourceRecordId: id, checkInType: .morning)
+                try clearSymptomEventsInCurrentTransaction(source: .morningReview, sourceRecordId: id)
+            }
             storageLog.debug("Morning check-in deleted: \(id, privacy: .private)")
+        } catch {
+            storageLog.error("Failed to delete morning check-in \(id, privacy: .private): \(error.localizedDescription)")
         }
     }
 
@@ -304,6 +303,14 @@ extension EventStorage {
     }
 
     func enqueueCloudKitTombstone(recordType: String, recordName: String) {
+        do {
+            try enqueueCloudKitTombstoneOrThrow(recordType: recordType, recordName: recordName)
+        } catch {
+            storageLog.error("Failed to enqueue CloudKit tombstone for \(recordType, privacy: .public):\(recordName, privacy: .private): \(error.localizedDescription)")
+        }
+    }
+
+    func enqueueCloudKitTombstoneOrThrow(recordType: String, recordName: String) throws {
         let key = "\(recordType):\(recordName)"
         let createdAt = isoFormatter.string(from: Date())
         let sql = """
@@ -312,14 +319,102 @@ extension EventStorage {
         """
 
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            throw CloudKitTombstoneStoreError.prepareFailed(String(cString: sqlite3_errmsg(db)))
+        }
         defer { sqlite3_finalize(stmt) }
 
         sqlite3_bind_text(stmt, 1, key, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 2, recordType, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 3, recordName, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 4, createdAt, -1, SQLITE_TRANSIENT)
-        sqlite3_step(stmt)
+        guard sqlite3_step(stmt) == SQLITE_DONE else {
+            throw CloudKitTombstoneStoreError.stepFailed(String(cString: sqlite3_errmsg(db)))
+        }
+    }
+
+    func deleteRecordByIdOrThrow(table: String, id: String, tombstoneRecordType: String?) throws {
+        try withSQLiteTransaction {
+            if let tombstoneRecordType {
+                try enqueueCloudKitTombstoneOrThrow(recordType: tombstoneRecordType, recordName: id)
+            }
+            try deleteRecordByIdInCurrentTransactionOrThrow(table: table, id: id)
+        }
+    }
+
+    func deleteRecordByIdInCurrentTransactionOrThrow(table: String, id: String) throws {
+        let allowedTables = Set(["sleep_events", "dose_events", "morning_checkins", "medication_events"])
+        guard allowedTables.contains(table) else {
+            throw StorageDeleteError.prepareFailed("delete from \(table)", "Unsupported table")
+        }
+
+        let sql = "DELETE FROM \(table) WHERE id = ?"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            throw StorageDeleteError.prepareFailed("delete from \(table)", String(cString: sqlite3_errmsg(db)))
+        }
+        defer { sqlite3_finalize(stmt) }
+
+        sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
+        guard sqlite3_step(stmt) == SQLITE_DONE else {
+            throw StorageDeleteError.stepFailed("delete from \(table)", String(cString: sqlite3_errmsg(db)))
+        }
+    }
+
+    private func deletePreSleepLogsForSessionOrThrow(sessionDate: String) throws {
+        let sql = """
+            DELETE FROM pre_sleep_logs
+            WHERE session_id = ?
+               OR session_id IN (SELECT session_id FROM sleep_sessions WHERE session_date = ?)
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            throw StorageDeleteError.prepareFailed("delete pre-sleep logs for session", String(cString: sqlite3_errmsg(db)))
+        }
+        defer { sqlite3_finalize(stmt) }
+
+        sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 2, sessionDate, -1, SQLITE_TRANSIENT)
+        guard sqlite3_step(stmt) == SQLITE_DONE else {
+            throw StorageDeleteError.stepFailed("delete pre-sleep logs for session", String(cString: sqlite3_errmsg(db)))
+        }
+    }
+
+    private func deleteRowsForSessionOrThrow(table: String, sessionDate: String) throws {
+        let allowedTables = Set([
+            "sleep_events", "dose_events", "sleep_sessions", "morning_checkins",
+            "checkin_submissions", "medication_events", "symptom_events",
+            "symptom_command_log", "symptom_summaries"
+        ])
+        guard allowedTables.contains(table) else {
+            throw StorageDeleteError.prepareFailed("delete from \(table)", "Unsupported table")
+        }
+
+        let sql = "DELETE FROM \(table) WHERE session_date = ?"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            throw StorageDeleteError.prepareFailed("delete from \(table)", String(cString: sqlite3_errmsg(db)))
+        }
+        defer { sqlite3_finalize(stmt) }
+
+        sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
+        guard sqlite3_step(stmt) == SQLITE_DONE else {
+            throw StorageDeleteError.stepFailed("delete from \(table)", String(cString: sqlite3_errmsg(db)))
+        }
+    }
+
+    private func deleteCurrentSessionRowOrThrow(sessionDate: String) throws {
+        let sql = "DELETE FROM current_session WHERE session_date = ?"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            throw StorageDeleteError.prepareFailed("delete current session", String(cString: sqlite3_errmsg(db)))
+        }
+        defer { sqlite3_finalize(stmt) }
+
+        sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
+        guard sqlite3_step(stmt) == SQLITE_DONE else {
+            throw StorageDeleteError.stepFailed("delete current session", String(cString: sqlite3_errmsg(db)))
+        }
     }
 
     private func fetchRecordIDsForSession(table: String, sessionDate: String) -> [String] {
@@ -476,7 +571,7 @@ extension EventStorage {
             let dose1 = doseEvents.first { isDose1EventType($0.eventType) }
             let dose2 = doseEvents.first { isDose2EventType($0.eventType) }
             let dose2Skipped = doseEvents.contains { isDose2SkippedEventType($0.eventType) }
-            let snoozeCount = doseEvents.filter { $0.eventType.lowercased().hasPrefix("snooze") }.count
+            let snoozeCount = doseEvents.filter { CanonicalDoseEventType(canonicalizing: $0.eventType) == .snooze }.count
             let sleepEvents = fetchSleepEvents(forSession: sessionDate)
             let eventCount = sleepEvents.count
 
@@ -497,20 +592,15 @@ extension EventStorage {
     // MARK: - Dose Event Type Helpers
 
     private func isDose1EventType(_ raw: String) -> Bool {
-        let t = raw.lowercased().replacingOccurrences(of: " ", with: "_").replacingOccurrences(of: "-", with: "_")
-        return t == "dose1" || t == "dose_1" || t == "dose1_taken" || t == "dose_1_taken"
+        CanonicalDoseEventType(canonicalizing: raw) == .dose1
     }
 
     private func isDose2EventType(_ raw: String) -> Bool {
-        let t = raw.lowercased().replacingOccurrences(of: " ", with: "_").replacingOccurrences(of: "-", with: "_")
-        return t == "dose2" || t == "dose_2" || t == "dose2_taken" || t == "dose_2_taken"
-            || t == "dose2_early" || t == "dose_2_early" || t == "dose2_late" || t == "dose_2_late"
-            || t == "dose_2_(early)" || t == "dose_2_(late)"
+        CanonicalDoseEventType(canonicalizing: raw) == .dose2
     }
 
     private func isDose2SkippedEventType(_ raw: String) -> Bool {
-        let t = raw.lowercased().replacingOccurrences(of: " ", with: "_").replacingOccurrences(of: "-", with: "_")
-        return t == "dose2_skipped" || t == "dose_2_skipped" || t == "skip" || t == "skipped"
+        CanonicalDoseEventType(canonicalizing: raw) == .dose2Skipped
     }
 
     private func countSleepEvents(for sessionDate: String) -> Int {
@@ -581,7 +671,7 @@ extension EventStorage {
                 dose2Time = event.timestamp
             } else if isDose2SkippedEventType(event.eventType) {
                 dose2Skipped = true
-            } else if event.eventType.lowercased() == "snooze" {
+            } else if CanonicalDoseEventType(canonicalizing: event.eventType) == .snooze {
                 snoozeCount += 1
             }
         }

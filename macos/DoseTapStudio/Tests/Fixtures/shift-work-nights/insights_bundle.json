@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 2,
+  "exportVersion": "2.3",
+  "appVersion": "1.5.0 (220)",
+  "exportedAtUTC": "2026-03-21T14:05:00Z",
+  "sessions": [
+    {
+      "sessionDate": "2024-09-13",
+      "dose1TimeUTC": "2024-09-13T19:45:00Z",
+      "dose2TimeUTC": "2024-09-13T22:35:00Z",
+      "rawEvents": [],
+      "normalizedEvents": [],
+      "medications": [],
+      "context": {
+        "nextMorningWeekdayIndex": 6,
+        "nextMorningIsWeekend": true,
+        "scheduleDayType": "worklike",
+        "previousScheduleDayType": "worklike",
+        "nextScheduleDayType": "worklike",
+        "explicitNightType": "work_night",
+        "explicitWakeType": "alarm",
+        "explicitNextDayDemand": "shift_13h",
+        "wakeSignal": "alarm_assisted",
+        "wakeFinalLoggedAtUTC": "2024-09-14T06:20:00Z",
+        "snoozeCount": 1,
+        "scheduleMarkers": ["schedule"],
+        "wakeRequirement": "work",
+        "shiftStartAtUTC": "2024-09-14T11:00:00Z",
+        "shiftEndAtUTC": "2024-09-15T00:00:00Z",
+        "nextRequiredWakeAtUTC": "2024-09-14T09:00:00Z",
+        "commuteMinutes": 45
+      }
+    },
+    {
+      "sessionDate": "2024-09-14",
+      "dose1TimeUTC": "2024-09-14T20:05:00Z",
+      "dose2TimeUTC": "2024-09-14T23:05:00Z",
+      "rawEvents": [],
+      "normalizedEvents": [],
+      "medications": [],
+      "context": {
+        "nextMorningWeekdayIndex": 7,
+        "nextMorningIsWeekend": true,
+        "scheduleDayType": "offlike",
+        "previousScheduleDayType": "worklike",
+        "nextScheduleDayType": "offlike",
+        "explicitNightType": "transition_out_of_work_block",
+        "explicitWakeType": "natural",
+        "explicitNextDayDemand": "recovery_day",
+        "wakeSignal": "likely_natural",
+        "wakeFinalLoggedAtUTC": "2024-09-15T07:10:00Z",
+        "snoozeCount": 0,
+        "scheduleMarkers": ["schedule"],
+        "wakeRequirement": "self_selected"
+      }
+    }
+  ]
+}

@@ -29,7 +29,7 @@ DoseTap is an iOS/watchOS medical dose timer with a dual build system (SwiftPM +
 | Artifact | Path | Purpose | Status |
 | --- | --- | --- | --- |
 | README | `README.md` | Repo overview + getting started | ? |
-| Architecture doc | `docs/architecture.md` | System design overview | Exists |
+| Architecture doc | `docs/architecture/README.md` | Current architecture index | Exists |
 | Testing guide | `docs/TESTING_GUIDE.md` | How to run tests | ? |
 | TestFlight guide | `docs/TESTFLIGHT_GUIDE.md` | How to deploy to TestFlight | ? |
 | Release checklist | `docs/RELEASE_CHECKLIST.md` | Release process | Exists |
@@ -71,7 +71,7 @@ swift build -q
 swift test -q
 ```
 
-**Checkpoint**: Do all 525+ tests pass? How long? Any flaky tests?
+**Checkpoint**: Do all tests discovered in this checkout pass? Record the executed count as dated run evidence, plus duration and any flakiness.
 
 #### 1.4 — Build (Xcode)
 
@@ -134,7 +134,7 @@ For each doc, grade on: **Accuracy** (matches reality), **Completeness** (covers
 - [ ] Time injection patterns
 - [ ] Known test quirks (terminal SIGTSTP, `script -q` workaround)
 
-#### 2.3 — docs/architecture.md
+#### 2.3 — docs/architecture/README.md and maintained architecture records
 
 - [ ] Layer cake diagram matches actual code
 - [ ] Module dependency graph is accurate

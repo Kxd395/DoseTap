@@ -13,8 +13,9 @@ class MorningCheckInViewModel: ObservableObject {
     private let originalSleepTherapy: [String: Any]
     private let originalSleepEnvironment: [String: Any]
     private let originalStressContext: [String: Any]
+    private let originalTimingContext: [String: Any]
 
-    @Published var sleepQuality: Int = 3
+    @Published var sleepQuality: Double = 3
     @Published var feelRested: RestedLevel = .moderate
     @Published var grogginess: GrogginessLevel = .mild
     @Published var sleepInertiaDuration: SleepInertiaDuration = .fiveToFifteen
@@ -25,6 +26,33 @@ class MorningCheckInViewModel: ObservableObject {
     @Published var stressProgression: PreSleepLogAnswers.StressProgression?
     @Published var stressNotes: String = ""
     @Published var readinessForDay: Int = 3
+    @Published var nightType: NightType = .unsure
+    @Published var firstNightOffAfterWorkBlock: Bool = false
+    @Published var wakeType: WakeType = .unsure
+    @Published var nextDayDemand: NextDayDemand = .unsure
+    @Published var dose2WakeMethod: Dose2WakeMethod = .unsure
+    @Published var backToSleepDuration: BackToSleepDuration = .unsure
+    @Published var dose2TakenReason: Dose2TakenReason = .unsure
+    @Published var dose2SkippedReason: Dose2SkippedReason = .unsure
+    @Published var dose2ReasonNotes: String = ""
+    @Published var hasWorkSafetyContext: Bool = false
+    @Published var hasClinicalContext: Bool = false
+    @Published var wakeRequirement: WakeRequirement = .unsure
+    @Published var trackShiftWindow: Bool = false
+    @Published var shiftStartAt: Date = Date()
+    @Published var shiftEndAt: Date = Date()
+    @Published var trackNextRequiredWake: Bool = false
+    @Published var nextRequiredWakeAt: Date = Date()
+    @Published var commuteMinutes: Int = 0
+    @Published var drivingConfidence: Int = 3
+    @Published var daytimeSleepiness: Int = 3
+    @Published var cataplexyBurden: CataplexyBurden = .unsure
+    @Published var sleepDisorders: [SleepDisorder] = []
+    @Published var sleepDisorderNotes: String = ""
+    @Published var coMedicationNotes: String = ""
+    @Published var pharmacogenomicFastMetabolizer: Bool = false
+    @Published var pharmacogenomicClinicianReviewed: Bool = false
+    @Published var pharmacogenomicNotes: String = ""
 
     @Published var hasPhysicalSymptoms: Bool = false
     @Published var hasRespiratorySymptoms: Bool = false
@@ -36,6 +64,9 @@ class MorningCheckInViewModel: ObservableObject {
     @Published var headacheSeverity: HeadacheSeverity = .mild
     @Published var headacheLocation: HeadacheLocation = .forehead
     @Published var isMigraine: Bool = false
+    @Published var refluxBurden: SymptomBurden = .unsure
+    @Published var restlessLegsBurden: SymptomBurden = .unsure
+    @Published var bathroomUrgencyBurden: SymptomBurden = .unsure
     @Published var muscleStiffness: StiffnessLevel = .none
     @Published var muscleSoreness: SorenessLevel = .none
     @Published var painNotes: String = ""
@@ -66,6 +97,7 @@ class MorningCheckInViewModel: ObservableObject {
     @Published var rememberSettings: Bool = false
     @Published var showDeepDive: Bool = false
     @Published var isSubmitting: Bool = false
+    @Published var submissionErrorMessage: String?
     @Published var showNarcolepsySection: Bool = false
     @Published var showSleepTherapySection: Bool = false
     @Published var showSleepEnvironmentSection: Bool = false
@@ -84,6 +116,10 @@ class MorningCheckInViewModel: ObservableObject {
     static let maxDoseAmountMg = 20_000
     private static let doseWarningThresholdMg = 9_000
 
+    private static func normalizedSleepQuality(_ rawValue: Double) -> Double {
+        min(5, max(1, (rawValue * 4).rounded() / 4))
+    }
+
     init(sessionId: String, sessionDate: String) {
         self.sessionId = sessionId
         self.sessionDate = sessionDate
@@ -93,6 +129,7 @@ class MorningCheckInViewModel: ObservableObject {
         self.originalSleepTherapy = [:]
         self.originalSleepEnvironment = [:]
         self.originalStressContext = [:]
+        self.originalTimingContext = [:]
         loadSavedSettings()
         configureDoseReconciliationState()
     }
@@ -106,7 +143,8 @@ class MorningCheckInViewModel: ObservableObject {
         self.originalSleepTherapy = Self.jsonDictionary(from: existing.sleepTherapyJson)
         self.originalSleepEnvironment = Self.jsonDictionary(from: existing.sleepEnvironmentJson)
         self.originalStressContext = Self.jsonDictionary(from: existing.stressContextJson)
-        self.sleepQuality = existing.sleepQuality
+        self.originalTimingContext = Self.jsonDictionary(from: existing.timingContextJson)
+        self.sleepQuality = Self.normalizedSleepQuality(existing.sleepQuality)
         self.feelRested = RestedLevel(rawValue: existing.feelRested) ?? .moderate
         self.grogginess = GrogginessLevel(rawValue: existing.grogginess) ?? .mild
         self.sleepInertiaDuration = SleepInertiaDuration(rawValue: existing.sleepInertiaDuration) ?? .fiveToFifteen
@@ -131,6 +169,7 @@ class MorningCheckInViewModel: ObservableObject {
         hydrateSleepTherapyState(from: originalSleepTherapy)
         hydrateSleepEnvironmentState(from: originalSleepEnvironment)
         hydrateStressState(from: originalStressContext)
+        hydrateTimingContextState(from: originalTimingContext)
         if existing.usedSleepTherapy {
             self.showSleepTherapySection = true
         }
@@ -144,18 +183,28 @@ class MorningCheckInViewModel: ObservableObject {
     }
 
     private func loadSavedSettings() {
-        rememberSettings = UserDefaults.standard.bool(forKey: Self.rememberSettingsKey)
+        rememberSettings = Self.rememberSettingsDefault()
         if rememberSettings, let data = UserDefaults.standard.data(forKey: Self.savedSettingsKey),
            let saved = try? JSONDecoder().decode(SavedCheckInSettings.self, from: data) {
             applySavedSettings(saved)
+        } else if rememberSettings,
+                  let latest = SessionRepository.shared.fetchMostRecentMorningCheckIn(excluding: sessionDate) {
+            applyCarryForward(from: latest)
         }
+    }
+
+    static func rememberSettingsDefault(userDefaults: UserDefaults = .standard) -> Bool {
+        if let stored = userDefaults.object(forKey: rememberSettingsKey) as? Bool {
+            return stored
+        }
+        return true
     }
 
     func saveSettingsForNextTime() {
         UserDefaults.standard.set(rememberSettings, forKey: Self.rememberSettingsKey)
         if rememberSettings {
             let settings = SavedCheckInSettings(
-                sleepQuality: sleepQuality,
+                sleepQuality: Self.normalizedSleepQuality(sleepQuality),
                 feelRested: feelRested.rawValue,
                 grogginess: grogginess.rawValue,
                 sleepInertiaDuration: sleepInertiaDuration.rawValue,
@@ -176,7 +225,12 @@ class MorningCheckInViewModel: ObservableObject {
                 sleepEnvironmentRoomTemp: sleepEnvironmentRoomTemp.rawValue,
                 sleepEnvironmentNoiseLevel: sleepEnvironmentNoiseLevel.rawValue,
                 sleepEnvironmentSleepAid: sleepEnvironmentSleepAid.rawValue,
-                sleepEnvironmentNotes: sleepEnvironmentNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : sleepEnvironmentNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+                sleepEnvironmentNotes: sleepEnvironmentNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : sleepEnvironmentNotes.trimmingCharacters(in: .whitespacesAndNewlines),
+                sleepDisorders: sleepDisorders.map(\.rawValue),
+                pharmacogenomicFastMetabolizer: pharmacogenomicFastMetabolizer,
+                pharmacogenomicClinicianReviewed: pharmacogenomicClinicianReviewed,
+                pharmacogenomicNotes: pharmacogenomicNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : pharmacogenomicNotes.trimmingCharacters(in: .whitespacesAndNewlines),
+                coMedicationNotes: coMedicationNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : coMedicationNotes.trimmingCharacters(in: .whitespacesAndNewlines)
             )
             if let data = try? JSONEncoder().encode(settings) {
                 UserDefaults.standard.set(data, forKey: Self.savedSettingsKey)
@@ -200,6 +254,46 @@ class MorningCheckInViewModel: ObservableObject {
 
     var reconcileDose2NeedsWarning: Bool {
         reconcileDose2AmountMg > Self.doseWarningThresholdMg
+    }
+
+    var effectiveDose2Status: Dose2ReconciliationChoice? {
+        if loggedDose2Time != nil {
+            return .taken
+        }
+        if loggedDose2Skipped {
+            return .skipped
+        }
+        return dose2Reconciliation == .leaveAsIs ? nil : dose2Reconciliation
+    }
+
+    var showsDose2TakenReason: Bool {
+        effectiveDose2Status == .taken
+    }
+
+    var showsDose2SkippedReason: Bool {
+        effectiveDose2Status == .skipped
+    }
+
+    var derivedPainBurden: SymptomBurden {
+        let highestPainIntensity = painEntries.map(\.intensity).max() ?? painSeverity
+        if isMigraine || headacheSeverity == .migraine {
+            return .extreme
+        }
+        switch highestPainIntensity {
+        case 9...:
+            return .extreme
+        case 7...8:
+            return .severe
+        case 4...6:
+            return .moderate
+        case 1...3:
+            return .mild
+        default:
+            if hasHeadache || muscleStiffness != .none || muscleSoreness != .none {
+                return .mild
+            }
+            return .none
+        }
     }
 
     func toStoredCheckIn() -> SQLiteStoredMorningCheckIn {
@@ -233,6 +327,10 @@ class MorningCheckInViewModel: ObservableObject {
             dict["headacheSeverity"] = headacheSeverity.rawValue
             dict["headacheLocation"] = headacheLocation.rawValue
             dict["isMigraine"] = isMigraine
+            dict["painBurden"] = derivedPainBurden.rawValue
+            dict["refluxBurden"] = refluxBurden.rawValue
+            dict["restlessLegsBurden"] = restlessLegsBurden.rawValue
+            dict["bathroomUrgencyBurden"] = bathroomUrgencyBurden.rawValue
             dict["muscleStiffness"] = muscleStiffness.rawValue
             dict["muscleSoreness"] = muscleSoreness.rawValue
             if painNotes.isEmpty {
@@ -321,12 +419,105 @@ class MorningCheckInViewModel: ObservableObject {
             }
         }
 
+        var timingContextJson: String? = nil
+        if nightType != .unsure
+            || firstNightOffAfterWorkBlock
+            || wakeType != .unsure
+            || nextDayDemand != .unsure
+            || dose2WakeMethod != .unsure
+            || backToSleepDuration != .unsure
+            || dose2TakenReason != .unsure
+            || dose2SkippedReason != .unsure
+            || hasWorkSafetyContext
+            || hasClinicalContext
+            || !dose2ReasonNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            var dict = originalTimingContext
+            dict["nightType"] = nightType.rawValue
+            dict["firstNightOffAfterWorkBlock"] = firstNightOffAfterWorkBlock
+            dict["wakeType"] = wakeType.rawValue
+            dict["nextDayDemand"] = nextDayDemand.rawValue
+            dict["dose2WakeMethod"] = dose2WakeMethod.rawValue
+            dict["backToSleepDuration"] = backToSleepDuration.rawValue
+            dict["dose2TakenReason"] = dose2TakenReason.rawValue
+            dict["dose2SkippedReason"] = dose2SkippedReason.rawValue
+            dict["hasWorkSafetyContext"] = hasWorkSafetyContext
+            dict["hasClinicalContext"] = hasClinicalContext
+            let trimmedDose2ReasonNotes = dose2ReasonNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmedDose2ReasonNotes.isEmpty {
+                dict.removeValue(forKey: "dose2ReasonNotes")
+            } else {
+                dict["dose2ReasonNotes"] = trimmedDose2ReasonNotes
+            }
+            if hasWorkSafetyContext {
+                dict["wakeRequirement"] = wakeRequirement.rawValue
+                dict["commuteMinutes"] = commuteMinutes
+                dict["drivingConfidence"] = drivingConfidence
+                dict["daytimeSleepiness"] = daytimeSleepiness
+                dict["cataplexyBurden"] = cataplexyBurden.rawValue
+                if trackShiftWindow {
+                    dict["shiftStartAtUTC"] = Self.isoFormatter.string(from: shiftStartAt)
+                    dict["shiftEndAtUTC"] = Self.isoFormatter.string(from: shiftEndAt)
+                } else {
+                    dict.removeValue(forKey: "shiftStartAtUTC")
+                    dict.removeValue(forKey: "shiftEndAtUTC")
+                }
+                if trackNextRequiredWake {
+                    dict["nextRequiredWakeAtUTC"] = Self.isoFormatter.string(from: nextRequiredWakeAt)
+                } else {
+                    dict.removeValue(forKey: "nextRequiredWakeAtUTC")
+                }
+            } else {
+                [
+                    "wakeRequirement",
+                    "commuteMinutes",
+                    "drivingConfidence",
+                    "daytimeSleepiness",
+                    "cataplexyBurden",
+                    "shiftStartAtUTC",
+                    "shiftEndAtUTC",
+                    "nextRequiredWakeAtUTC"
+                ].forEach { dict.removeValue(forKey: $0) }
+            }
+            if hasClinicalContext {
+                dict["sleepDisorders"] = sleepDisorders.map(\.rawValue)
+                if sleepDisorderNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    dict.removeValue(forKey: "sleepDisorderNotes")
+                } else {
+                    dict["sleepDisorderNotes"] = sleepDisorderNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+                if coMedicationNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    dict.removeValue(forKey: "coMedicationNotes")
+                } else {
+                    dict["coMedicationNotes"] = coMedicationNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+                dict["pharmacogenomicFastMetabolizer"] = pharmacogenomicFastMetabolizer
+                dict["pharmacogenomicClinicianReviewed"] = pharmacogenomicClinicianReviewed
+                if pharmacogenomicNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    dict.removeValue(forKey: "pharmacogenomicNotes")
+                } else {
+                    dict["pharmacogenomicNotes"] = pharmacogenomicNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+            } else {
+                [
+                    "sleepDisorders",
+                    "sleepDisorderNotes",
+                    "coMedicationNotes",
+                    "pharmacogenomicFastMetabolizer",
+                    "pharmacogenomicClinicianReviewed",
+                    "pharmacogenomicNotes"
+                ].forEach { dict.removeValue(forKey: $0) }
+            }
+            if let data = try? JSONSerialization.data(withJSONObject: dict) {
+                timingContextJson = String(data: data, encoding: .utf8)
+            }
+        }
+
         return SQLiteStoredMorningCheckIn(
             id: existingCheckInId ?? UUID().uuidString,
             sessionId: sessionId,
             timestamp: Date(),
             sessionDate: sessionDate,
-            sleepQuality: sleepQuality,
+            sleepQuality: Self.normalizedSleepQuality(sleepQuality),
             feelRested: feelRested.rawValue,
             grogginess: grogginess.rawValue,
             sleepInertiaDuration: sleepInertiaDuration.rawValue,
@@ -350,19 +541,28 @@ class MorningCheckInViewModel: ObservableObject {
             sleepTherapyJson: sleepTherapyJson,
             hasSleepEnvironment: hasSleepEnvironment,
             sleepEnvironmentJson: sleepEnvironmentJson,
+            timingContextJson: timingContextJson,
             notes: notes.isEmpty ? nil : notes
         )
     }
 
-    func submit() async {
+    @discardableResult
+    func submit() async -> Bool {
         isSubmitting = true
-        saveSettingsForNextTime()
+        submissionErrorMessage = nil
+        defer { isSubmitting = false }
+
         let checkIn = toStoredCheckIn()
-        await MainActor.run {
-            applyDoseReconciliation()
-            SessionRepository.shared.saveMorningCheckIn(checkIn, sessionDateOverride: sessionDate)
+        let reconciliationResult = applyDoseReconciliation()
+        guard reconciliationResult.isCommitted else {
+            submissionErrorMessage = reconciliationResult.failure?.userMessage
+                ?? "The dose reconciliation was not saved. Retry before completing the check-in."
+            return false
         }
-        isSubmitting = false
+
+        saveSettingsForNextTime()
+        SessionRepository.shared.saveMorningCheckIn(checkIn, sessionDateOverride: sessionDate)
+        return true
     }
 
     private func hydratePhysicalState(from physical: [String: Any]) {
@@ -383,6 +583,15 @@ class MorningCheckInViewModel: ObservableObject {
         }
         if let value = physical["isMigraine"] as? Bool {
             isMigraine = value
+        }
+        if let value = physical["refluxBurden"] as? String {
+            refluxBurden = SymptomBurden(rawValue: value) ?? refluxBurden
+        }
+        if let value = physical["restlessLegsBurden"] as? String {
+            restlessLegsBurden = SymptomBurden(rawValue: value) ?? restlessLegsBurden
+        }
+        if let value = physical["bathroomUrgencyBurden"] as? String {
+            bathroomUrgencyBurden = SymptomBurden(rawValue: value) ?? bathroomUrgencyBurden
         }
         if let value = physical["muscleStiffness"] as? String {
             muscleStiffness = StiffnessLevel(rawValue: value) ?? muscleStiffness
@@ -470,9 +679,102 @@ class MorningCheckInViewModel: ObservableObject {
         }
     }
 
+    private func hydrateTimingContextState(from timing: [String: Any]) {
+        if let value = timing["nightType"] as? String {
+            nightType = NightType(rawValue: value) ?? .unsure
+        }
+        if let value = timing["firstNightOffAfterWorkBlock"] as? Bool {
+            firstNightOffAfterWorkBlock = value
+        }
+        if let value = timing["wakeType"] as? String {
+            wakeType = WakeType(rawValue: value) ?? .unsure
+        }
+        if let value = timing["nextDayDemand"] as? String {
+            nextDayDemand = NextDayDemand(rawValue: value) ?? .unsure
+        }
+        if let value = timing["dose2WakeMethod"] as? String {
+            dose2WakeMethod = Dose2WakeMethod(rawValue: value) ?? .unsure
+        }
+        if let value = timing["backToSleepDuration"] as? String {
+            backToSleepDuration = BackToSleepDuration(rawValue: value) ?? .unsure
+        }
+        if let value = timing["dose2TakenReason"] as? String {
+            dose2TakenReason = Dose2TakenReason(rawValue: value) ?? .unsure
+        }
+        if let value = timing["dose2SkippedReason"] as? String {
+            dose2SkippedReason = Dose2SkippedReason(rawValue: value) ?? .unsure
+        }
+        if let value = timing["dose2ReasonNotes"] as? String {
+            dose2ReasonNotes = value
+        }
+        if let value = timing["hasWorkSafetyContext"] as? Bool {
+            hasWorkSafetyContext = value
+        }
+        if let value = timing["hasClinicalContext"] as? Bool {
+            hasClinicalContext = value
+        }
+        if let value = timing["wakeRequirement"] as? String {
+            wakeRequirement = WakeRequirement(rawValue: value) ?? .unsure
+        }
+        if let value = Self.intValue(from: timing["commuteMinutes"]) {
+            commuteMinutes = max(0, min(240, value))
+        }
+        if let value = Self.intValue(from: timing["drivingConfidence"]) {
+            drivingConfidence = max(1, min(5, value))
+            hasWorkSafetyContext = true
+        }
+        if let value = Self.intValue(from: timing["daytimeSleepiness"]) {
+            daytimeSleepiness = max(1, min(5, value))
+            hasWorkSafetyContext = true
+        }
+        if let value = timing["cataplexyBurden"] as? String {
+            cataplexyBurden = CataplexyBurden(rawValue: value) ?? .unsure
+            hasWorkSafetyContext = true
+        }
+        if let value = Self.dateValue(from: timing["shiftStartAtUTC"]) {
+            shiftStartAt = value
+            trackShiftWindow = true
+            hasWorkSafetyContext = true
+        }
+        if let value = Self.dateValue(from: timing["shiftEndAtUTC"]) {
+            shiftEndAt = value
+            trackShiftWindow = true
+            hasWorkSafetyContext = true
+        }
+        if let value = Self.dateValue(from: timing["nextRequiredWakeAtUTC"]) {
+            nextRequiredWakeAt = value
+            trackNextRequiredWake = true
+            hasWorkSafetyContext = true
+        }
+        if let values = timing["sleepDisorders"] as? [String] {
+            sleepDisorders = values.compactMap(SleepDisorder.init(rawValue:))
+            hasClinicalContext = hasClinicalContext || !sleepDisorders.isEmpty
+        }
+        if let value = timing["sleepDisorderNotes"] as? String {
+            sleepDisorderNotes = value
+            hasClinicalContext = true
+        }
+        if let value = timing["coMedicationNotes"] as? String {
+            coMedicationNotes = value
+            hasClinicalContext = true
+        }
+        if let value = timing["pharmacogenomicFastMetabolizer"] as? Bool {
+            pharmacogenomicFastMetabolizer = value
+            hasClinicalContext = hasClinicalContext || value
+        }
+        if let value = timing["pharmacogenomicClinicianReviewed"] as? Bool {
+            pharmacogenomicClinicianReviewed = value
+            hasClinicalContext = hasClinicalContext || value
+        }
+        if let value = timing["pharmacogenomicNotes"] as? String {
+            pharmacogenomicNotes = value
+            hasClinicalContext = true
+        }
+    }
+
     private func applySavedSettings(_ saved: SavedCheckInSettings) {
         if let sleepQuality = saved.sleepQuality {
-            self.sleepQuality = max(1, min(5, sleepQuality))
+            self.sleepQuality = Self.normalizedSleepQuality(sleepQuality)
         }
         if let value = saved.feelRested {
             self.feelRested = RestedLevel(rawValue: value) ?? self.feelRested
@@ -533,6 +835,77 @@ class MorningCheckInViewModel: ObservableObject {
             self.sleepEnvironmentSleepAid = PreSleepLogAnswers.SleepAid(rawValue: value) ?? self.sleepEnvironmentSleepAid
         }
         self.sleepEnvironmentNotes = saved.sleepEnvironmentNotes ?? ""
+        if let savedSleepDisorders = saved.sleepDisorders {
+            self.sleepDisorders = savedSleepDisorders.compactMap(SleepDisorder.init(rawValue:))
+            self.hasClinicalContext = hasClinicalContext || !self.sleepDisorders.isEmpty
+        }
+        if let value = saved.pharmacogenomicFastMetabolizer {
+            self.pharmacogenomicFastMetabolizer = value
+            self.hasClinicalContext = hasClinicalContext || value
+        }
+        if let value = saved.pharmacogenomicClinicianReviewed {
+            self.pharmacogenomicClinicianReviewed = value
+            self.hasClinicalContext = hasClinicalContext || value
+        }
+        self.pharmacogenomicNotes = saved.pharmacogenomicNotes ?? ""
+        self.coMedicationNotes = saved.coMedicationNotes ?? ""
+        if !self.pharmacogenomicNotes.isEmpty || !self.coMedicationNotes.isEmpty {
+            self.hasClinicalContext = true
+        }
+    }
+
+    private func applyCarryForward(from checkIn: StoredMorningCheckIn) {
+        sleepQuality = Self.normalizedSleepQuality(checkIn.sleepQuality)
+        feelRested = RestedLevel(rawValue: checkIn.feelRested) ?? feelRested
+        grogginess = GrogginessLevel(rawValue: checkIn.grogginess) ?? grogginess
+        sleepInertiaDuration = SleepInertiaDuration(rawValue: checkIn.sleepInertiaDuration) ?? sleepInertiaDuration
+        dreamRecall = DreamRecallType(rawValue: checkIn.dreamRecall) ?? dreamRecall
+        mentalClarity = checkIn.mentalClarity
+        mood = MoodLevel(rawValue: checkIn.mood) ?? mood
+        anxietyLevel = AnxietyLevel(rawValue: checkIn.anxietyLevel) ?? anxietyLevel
+        stressLevel = checkIn.stressLevel
+        readinessForDay = checkIn.readinessForDay
+
+        hasPhysicalSymptoms = checkIn.hasPhysicalSymptoms
+        hasRespiratorySymptoms = checkIn.hasRespiratorySymptoms
+        usedSleepTherapy = checkIn.usedSleepTherapy
+        hasSleepEnvironment = checkIn.hasSleepEnvironment
+        hadSleepParalysis = checkIn.hadSleepParalysis
+        hadHallucinations = checkIn.hadHallucinations
+        hadAutomaticBehavior = checkIn.hadAutomaticBehavior
+        fellOutOfBed = checkIn.fellOutOfBed
+        hadConfusionOnWaking = checkIn.hadConfusionOnWaking
+
+        hydratePhysicalState(from: Self.jsonDictionary(from: checkIn.physicalSymptomsJson))
+        hydrateRespiratoryState(from: Self.jsonDictionary(from: checkIn.respiratorySymptomsJson))
+        hydrateSleepTherapyState(from: Self.jsonDictionary(from: checkIn.sleepTherapyJson))
+        hydrateSleepEnvironmentState(from: Self.jsonDictionary(from: checkIn.sleepEnvironmentJson))
+        hydrateStressState(from: Self.jsonDictionary(from: checkIn.stressContextJson))
+        hydrateTimingContextState(from: Self.carryForwardTimingContext(from: checkIn.timingContextJson))
+
+        if usedSleepTherapy {
+            showSleepTherapySection = true
+        }
+        if hasSleepEnvironment {
+            showSleepEnvironmentSection = true
+        }
+        if hadSleepParalysis || hadHallucinations || hadAutomaticBehavior || fellOutOfBed || hadConfusionOnWaking {
+            showNarcolepsySection = true
+        }
+        notes = ""
+    }
+
+    private static func carryForwardTimingContext(from json: String?) -> [String: Any] {
+        var timing = jsonDictionary(from: json)
+        [
+            "dose2TakenReason",
+            "dose2SkippedReason",
+            "dose2ReasonNotes",
+            "shiftStartAtUTC",
+            "shiftEndAtUTC",
+            "nextRequiredWakeAtUTC"
+        ].forEach { timing.removeValue(forKey: $0) }
+        return timing
     }
 
     private static func jsonDictionary(from json: String?) -> [String: Any] {
@@ -640,4 +1013,15 @@ class MorningCheckInViewModel: ObservableObject {
             return nil
         }
     }
+
+    private static func dateValue(from value: Any?) -> Date? {
+        guard let string = value as? String else { return nil }
+        return isoFormatter.date(from: string)
+    }
+
+    private static let isoFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
 }

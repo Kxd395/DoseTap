@@ -7,7 +7,207 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.12] - 2026-06-17
+
+### Fixed
+
+- Hardened WHOOP OAuth and token refresh handling:
+  - Generate WHOOP OAuth `state` as an 8-character URL-safe value to match the current WHOOP docs.
+  - Serialize refresh-token requests so concurrent API calls cannot race a rotating refresh token and disconnect WHOOP.
+  - Include `scope=offline` in WHOOP refresh-token requests.
+  - Make the WHOOP Settings credential gate read current secure config instead of a stale view-init snapshot.
+
+### Changed
+
+- Bumped `DoseTap` and `DoseTapStaging` to version `0.4.12` build `14`.
+
+## [0.4.11] - 2026-06-16
+
+### Fixed
+
+- Hardened external dose command paths:
+  - Flic dose, snooze, and skip actions now enter the coordinator with an explicit `.flic` registration surface.
+  - Deep-link dose, snooze, and skip actions now enter the coordinator with an explicit `.deepLink` registration surface.
+  - Notification snooze now enters the coordinator with an explicit `.notificationAction` registration surface.
+  - Added regressions proving Flic/deep-link late Dose 2 and after-skip Dose 2 require confirmation and do not write Dose 2 directly.
+  - Added a regression proving confirmed after-skip correction writes Dose 2 and clears the skip marker.
+
+### Changed
+
+- Bumped `DoseTap` and `DoseTapStaging` to version `0.4.11` build `13`.
+
+## [0.4.10] - 2026-06-13
+
+### Fixed
+
+- Fixed WHOOP collection fetches to follow `next_token` pagination for sleep, recovery, cycle, and heart-rate date ranges.
+- Updated stale WHOOP integration docs so architecture/readiness notes match the live data path and `dosetap://whoop/callback`.
+
+### Changed
+
+- Bumped `DoseTap` and `DoseTapStaging` to version `0.4.10` build `12`.
+
+## [0.4.9] - 2026-06-13
+
+### Fixed
+
+- Stabilized WHOOP connection and display behavior:
+  - WHOOP now remains connected when the access token expires but a refresh token is present.
+  - WHOOP API 401 responses now try one access-token refresh before disconnecting.
+  - Settings and Dashboard now use merged WHOOP sleep plus recovery summaries so Recovery, HRV, resting HR, SpO2, and skin temperature are available consistently.
+  - Updated tracked WHOOP redirect setup docs/templates to `dosetap://whoop/callback`.
+
+### Changed
+
+- Bumped `DoseTap` and `DoseTapStaging` to version `0.4.9` build `11`.
+
+## [0.4.8] - 2026-06-13
+
+### Fixed
+
+- Prevented debug startup breakpoints when persisted active dose state is already invalid:
+  - `SessionRepository` now quarantines any active dose invariant violation on reload, not only a short allowlist.
+  - Invariant failures still log through `os.Logger` and diagnostics, but app startup no longer stops on `SessionRepository.shared`.
+  - Added regression coverage for legacy noncanonical active dose events.
+
+### Changed
+
+- Bumped `DoseTap` and `DoseTapStaging` to version `0.4.8` build `10`.
+
+## [0.4.7] - 2026-06-13
+
+### Fixed
+
+- Closed the CloudKit delete tombstone split-brain window:
+  - CloudKit-tracked sleep, dose, morning check-in, pre-sleep, medication, and session deletes now fail closed if outbound tombstone queueing fails.
+  - Local delete rows and outbound tombstones now commit in the same SQLite transaction for these delete paths.
+  - Morning check-in delete now clears derived morning symptom events in the same transaction as the source row and normalized submission delete.
+  - Added rollback tests proving local rows remain when the tombstone queue is unavailable.
+
+### Changed
+
+- Bumped `DoseTap` and `DoseTapStaging` to version `0.4.7` build `9`.
+
+## [0.4.6] - 2026-06-13
+
+### Fixed
+
+- Closed the pre-sleep and morning check-in symptom split-brain window:
+  - Source row save, normalized `checkin_submissions` upsert, and derived symptom event replacement now run in one SQLite transaction.
+  - Pre-sleep sync upsert and pre-sleep delete now use the same transaction boundary for source, normalized submission, and derived symptom cleanup.
+  - Added rollback tests for new pre-sleep saves, pre-sleep edits, and morning saves when derived symptom replacement fails.
+
+### Changed
+
+- Bumped `DoseTap` and `DoseTapStaging` to version `0.4.6` build `8`.
+
+## [0.4.5] - 2026-06-13
+
+### Fixed
+
+- Added edit-safe source identity for derived symptom events:
+  - Added `source_record_id` and `source_entry_key` to `symptom_events` and `symptom_command_log`.
+  - Added a replace-by-source storage API so edits to the same pre-sleep or morning row replace prior derived symptom rows instead of appending stale rows.
+  - Wired pre-sleep pain entries and morning physical pain entries into the normalized symptom event log.
+  - Clearing or deleting a source row now clears its derived symptom rows and rebuilds or removes session symptom summaries.
+
+### Changed
+
+- Bumped SQLite `user_version` to `3`.
+- Bumped `DoseTap` and `DoseTapStaging` to version `0.4.5` build `7`.
+
+## [0.4.4] - 2026-06-13
+
 ### Added
+
+- Added the native symptom-event storage foundation for future Body Map Symptom Check-in:
+  - SQLite tables for `symptom_events`, `symptom_locations`, `body_map_points`, `symptom_command_log`, and `symptom_summaries`.
+  - Typed symptom event, location, point, and summary models with severity and normalized-point validation.
+  - A single idempotent symptom-event write gate through `EventStorage` and `SessionRepository`.
+  - Session discovery, session deletion, and legacy session-id migration coverage for symptom events.
+  - Focused storage tests for schema idempotency, persistence, summaries, idempotency, and cascading deletes.
+
+### Changed
+
+- Bumped SQLite `user_version` to `2`.
+- Bumped `DoseTap` and `DoseTapStaging` to version `0.4.4` build `6`.
+
+## [0.4.3] - 2026-06-12
+
+### Fixed
+
+- **P0 Tonight home state resolver**
+  - Added a single resolved home presentation state for Tonight so the screen chooses the primary workflow before rendering secondary sections.
+  - Stopped the screenshot state from showing a separate "Ready for Dose 1 / Tap below to start" status card alongside the actual Dose 1 button.
+  - Gated "Wake Up & End Session" to the closeout workflow instead of showing it as a peer action while Dose 1 is ready.
+  - Kept previous incomplete check-ins non-blocking unless they affect the current session identity, rollover, or dose state.
+  - Removed the Settings tab's separate runtime color-scheme override so all main tabs follow the app shell theme.
+  - Extended the tab split-brain CI guard to reject direct tab-level `settings.colorScheme` ownership.
+  - Updated compact Timeline, History, Dashboard, and Settings tab roots from `NavigationView` to `NavigationStack` for consistent iOS 16 navigation behavior.
+  - Made pre-sleep and morning check-in carry-forward default on for new entries.
+  - Changed pre-sleep "Use last" to copy the latest completed pre-sleep check, carry time-of-day fields onto the new night, and drop one-off freeform notes.
+  - Made new morning check-ins fall back to the latest prior morning check-in when no explicit saved template exists, while avoiding stale dose-reconciliation reasons.
+
+### Changed
+
+- Bumped `DoseTap` and `DoseTapStaging` to version `0.4.3` build `5`.
+
+## [0.4.2] - 2026-06-12
+
+### Fixed
+
+- **P0 dose sequence persistence**
+  - Blocked Dose 2 persistence unless an active canonical Dose 1 exists.
+  - Recovered persisted Dose 2 without Dose 1 by quarantining the active session with `invalid_dose_state` instead of crashing on launch.
+  - Made Dose 1 undo clear dependent Dose 2, extra dose, skip, snooze, and alarm state.
+
+- **P0 snooze split-brain prevention**
+  - Made snooze persistence fail closed unless an active Dose 1 session is still open.
+  - Changed snooze coordination to commit repository state before alarm rescheduling and roll back repository state if alarm scheduling fails.
+  - Added persisted snooze invariants so snooze-only active state is detected and recovered.
+
+### Changed
+
+- Bumped `DoseTap` and `DoseTapStaging` to version `0.4.2` build `4`.
+
+## [0.4.1] - 2026-06-12
+
+### Fixed
+
+- **P0 dose action feedback**
+  - Added shared dose action result presentation for success, blocked, and confirmation coordinator results.
+  - Wired `CompactDoseButton` and `DoseButtonsSection` so blocked Dose 2, snooze, skip, and override results are no longer silently ignored.
+  - Added focused app tests for dose action result presentation.
+
+- **CloudKit readiness validation**
+  - Fixed the zsh readiness gate by avoiding the reserved `status` variable name.
+  - Made release preflight print app-version checker progress and use the longer build-settings timeout needed by Xcode.
+  - Raised the default build-settings watchdog to 240 seconds after local Xcode reads exceeded 120 seconds.
+  - Made tagged release preflight fail when `DOSETAP_CERT_PINS` is unset instead of reporting a warning-only pass.
+
+- **Sleep event mapping**
+  - Canonicalized Brief Wake aliases to `wake_temp` at the repository boundary and in the legacy storage migration.
+  - Fixed the doc lint schema-version gate so missing schema versions no longer pass as blank matches.
+
+- **Migration state hardening**
+  - Added a SQLite `schema_migrations` ledger for one-time data migrations while preserving existing UserDefaults flags for current installs.
+  - Bumped SQLite `user_version` to `1` and added a regression test that storage initialization applies it.
+  - Replaced duplicate-column-error based additive migrations with explicit column-exists checks.
+
+### Changed
+
+- **Dose command composition**
+  - Moved dose core, coordinator, undo, URL router, Flic, and notification snooze wiring into `AppContainer`.
+  - Bumped `DoseTap` and `DoseTapStaging` to version `0.4.1` build `3`.
+
+## [0.4.0] - 2026-06-12
+
+### Added
+
+- **Build identity enforcement**
+  - Set `DoseTap` and `DoseTapStaging` app targets to version `0.4.0` build `2`.
+  - Added `tools/check_app_version.sh` to validate app/staging Debug and Release version/build consistency.
+  - Wired app version/build validation into release preflight, CI, PR checklist, and the Linear workflow handoff standard.
 
 - **Planner turnover control for Tonight UI**
   - Added `After check-in, show upcoming night` setting in Night Schedule.
@@ -81,6 +281,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Archived historical code review docs to `archive/audits_2025-12-24/`
 
 ### Fixed
+- **Release validation reachability** - `ci.yml` now runs on `v*` tag pushes so the existing release-pinning validation job can execute for tagged builds.
+- **Bounded Xcode build-setting reads** - `check_app_version.sh` and `check_cloudkit_readiness.sh` use watchdogs around `xcodebuild -showBuildSettings` so automation fails cleanly instead of hanging.
+
 - **Local-vs-staging product boundary drift**
   - Removed dead setup-wizard cloud-sync preference.
   - Hid the manual CloudKit sync action in the local-first shipping target.

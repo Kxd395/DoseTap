@@ -30,7 +30,7 @@ This audit examines DoseTap from an adversarial perspective, focusing on securit
 **Evidence:**
 ```swift
 static let whoopClientID = "edf2495a-adff-4b87-b845-9529051a7b39"
-static let whoopClientSecret = "0aca5c56ec53b210260d85ac24cf57ced13dc4b4e77cbf7cf2ca20b7d3a9ed9e"
+- Historical credential detail removed. Credential revocation and rotation remain tracked by DOSETAP-1.
 ```
 
 **Risk:** While `Secrets.swift` is in `.gitignore`, the file exists on disk with production credentials. If:

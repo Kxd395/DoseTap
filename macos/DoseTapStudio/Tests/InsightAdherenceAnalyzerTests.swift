@@ -38,7 +38,48 @@ final class InsightAdherenceAnalyzerTests: XCTestCase {
         XCTAssertEqual(summary.lowStressOnTimeRate, 1.0)
     }
 
-    private func makeSession(date: String, interval: Int?, skipped: Bool, stress: Int) -> InsightSession {
+    func testBiometricOutcomeSummaryComparesOnTimeAndLateNights() {
+        let analyzer = InsightAdherenceAnalyzer()
+        let sessions = [
+            makeSession(
+                date: "2024-09-08",
+                interval: 165,
+                skipped: false,
+                stress: 2,
+                totalSleepMinutes: 420,
+                sleepEfficiency: 91,
+                whoopRecovery: 80
+            ),
+            makeSession(
+                date: "2024-09-07",
+                interval: 250,
+                skipped: false,
+                stress: 4,
+                totalSleepMinutes: 360,
+                sleepEfficiency: 84,
+                whoopRecovery: 62
+            )
+        ]
+
+        let summary = analyzer.biometricOutcomeSummary(sessions: sessions)
+
+        XCTAssertEqual(summary.onTimeAverageSleepEfficiency, 91)
+        XCTAssertEqual(summary.lateAverageSleepEfficiency, 84)
+        XCTAssertEqual(summary.onTimeAverageRecovery, 80)
+        XCTAssertEqual(summary.lateAverageRecovery, 62)
+        XCTAssertEqual(summary.onTimeAverageTotalSleepMinutes, 420)
+        XCTAssertEqual(summary.lateAverageTotalSleepMinutes, 360)
+    }
+
+    private func makeSession(
+        date: String,
+        interval: Int?,
+        skipped: Bool,
+        stress: Int,
+        totalSleepMinutes: Double? = nil,
+        sleepEfficiency: Double? = nil,
+        whoopRecovery: Int? = nil
+    ) -> InsightSession {
         let formatter = ISO8601DateFormatter()
         let dose1 = formatter.date(from: "\(date)T22:00:00Z")!
         let dose2 = interval.map { dose1.addingTimeInterval(TimeInterval($0 * 60)) }
@@ -53,8 +94,8 @@ final class InsightAdherenceAnalyzerTests: XCTestCase {
             dose2Skipped: skipped,
             snoozeCount: 0,
             adherenceFlag: skipped ? "missed" : nil,
-            sleepEfficiency: nil,
-            whoopRecovery: nil,
+            sleepEfficiency: sleepEfficiency,
+            whoopRecovery: whoopRecovery,
             averageHeartRate: nil,
             notes: nil,
             events: [],
@@ -97,7 +138,38 @@ final class InsightAdherenceAnalyzerTests: XCTestCase {
                 hadConfusionOnWaking: false,
                 notes: nil
             ),
-            medications: []
+            medications: [],
+            healthKit: totalSleepMinutes.map {
+                InsightHealthKitSummary(
+                    totalSleepMinutes: $0,
+                    ttfwMinutes: nil,
+                    wakeCount: 2,
+                    bedTimeUTC: nil,
+                    sleepOnsetUTC: nil,
+                    finalWakeUTC: nil,
+                    averageHeartRate: nil,
+                    respiratoryRate: nil,
+                    hrvMs: nil,
+                    restingHeartRate: nil,
+                    sources: ["Test"]
+                )
+            },
+            whoop: whoopRecovery.map {
+                InsightWHOOPSummary(
+                    sleepId: "sleep-\(date)",
+                    totalSleepMinutes: Int((totalSleepMinutes ?? 0).rounded()),
+                    remMinutes: 0,
+                    deepMinutes: 0,
+                    lightMinutes: 0,
+                    awakeMinutes: 0,
+                    disturbanceCount: 0,
+                    sleepEfficiency: sleepEfficiency,
+                    respiratoryRate: nil,
+                    recoveryScore: Double($0),
+                    hrvMs: nil,
+                    restingHeartRate: nil
+                )
+            }
         )
     }
 }

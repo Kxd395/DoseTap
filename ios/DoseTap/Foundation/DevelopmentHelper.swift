@@ -127,18 +127,6 @@ struct DevelopmentHelper {
             let mockData: Data
             
             switch path {
-            case "/doses/take":
-                mockData = Data("""
-                {"success": true, "message": "Dose recorded", "timestamp": "\(AppFormatters.iso8601.string(from: Date()))"}
-                """.utf8)
-            case "/doses/skip":
-                mockData = Data("""
-                {"success": true, "message": "Dose skipped", "timestamp": "\(AppFormatters.iso8601.string(from: Date()))"}
-                """.utf8)
-            case "/doses/snooze":
-                mockData = Data("""
-                {"success": true, "message": "Dose snoozed", "snooze_until": "\(AppFormatters.iso8601.string(from: Date().addingTimeInterval(600)))"}
-                """.utf8)
             case "/events/log":
                 mockData = Data("""
                 {"success": true, "message": "Event logged"}

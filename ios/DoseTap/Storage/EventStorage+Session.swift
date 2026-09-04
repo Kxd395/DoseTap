@@ -121,6 +121,31 @@ extension EventStorage {
             sqlite3_finalize(currentStmt)
         }
     }
+
+    /// Quarantine an invalid active session so startup can recover without deleting evidence rows.
+    public func markCurrentSessionInvalid(sessionDate: String, sessionId: String, endedAt: Date, terminalState: String) {
+        let endStr = isoFormatter.string(from: endedAt)
+        let updateSQL = """
+        UPDATE current_session
+        SET session_id = COALESCE(session_id, ?),
+            session_end_utc = ?,
+            terminal_state = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = 1 AND session_date = ?
+        """
+
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, updateSQL, -1, &stmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(stmt) }
+
+        sqlite3_bind_text(stmt, 1, sessionId, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 2, endStr, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 3, terminalState, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 4, sessionDate, -1, SQLITE_TRANSIENT)
+        sqlite3_step(stmt)
+
+        upsertSleepSession(sessionId: sessionId, sessionDate: sessionDate, start: nil, end: endedAt, terminalState: terminalState)
+    }
     
     private func upsertSleepSession(
         sessionId: String,

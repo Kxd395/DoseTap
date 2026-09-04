@@ -7,7 +7,9 @@
 //
 // Rule A: Every surface calls the same policy function.
 // Rule B: If .requiresConfirmation, surface MUST show UI before proceeding.
-// Rule C: Late dose override requires explicit confirmation on ALL surfaces.
+// Rule C: A prospective Dose 2 action is unavailable after the configured window.
+//         An occurrence that already happened remains recordable through the
+//         separate retrospective policy with explicit outside-window confirmation.
 // Rule D: Extra dose requires double-confirmation on ALL surfaces.
 // Rule E: Undo is available for all dose actions regardless of surface.
 
@@ -19,9 +21,11 @@ import Foundation
 /// Used for logging/audit; policy rules are identical across surfaces.
 public enum RegistrationSurface: String, Sendable, Equatable {
     case tonightButton = "tonight_button"
+    case sessionDetail = "session_detail"
     case deepLink = "deep_link"
     case flic = "flic"
     case historyButton = "history_button"
+    case notificationAction = "notification_action"
 }
 
 // MARK: - Registration Decision
@@ -44,14 +48,23 @@ public enum DoseConfirmationType: Equatable, Sendable {
     /// `minutesRemaining` = time until window opens.
     case earlyDose(minutesRemaining: Int)
 
-    /// Dose 2 attempted after window closes (> 240m).
-    case lateDose
+    /// A reported Dose 2 occurrence was outside the configured window.
+    /// This confirms record accuracy; it is never permission to take a dose now.
+    case outsideWindowOccurrence
 
-    /// Dose 2 was skipped; user wants to un-skip and take it.
+    /// Dose 2 was marked skipped; user is correcting the record with an
+    /// occurrence that already happened.
     case afterSkip
 
     /// Dose 2 already recorded; this would be a 3rd+ dose.
     case extraDose
+}
+
+/// Whether a dose command represents an action happening now or an occurrence
+/// that the user reports already happened. Persist this distinction for audit.
+public enum DoseEntryMode: String, Equatable, Sendable {
+    case prospective
+    case retrospective
 }
 
 // MARK: - Policy Input
@@ -92,7 +105,10 @@ public enum DoseRegistrationPolicy {
     // MARK: - Dose 1
 
     /// Evaluate whether Dose 1 can be taken.
-    public static func evaluateDose1(input: DoseRegistrationInput) -> RegistrationDecision {
+    public static func evaluateDose1(
+        input: DoseRegistrationInput,
+        at _: Date
+    ) -> RegistrationDecision {
         if input.dose1Time != nil {
             return .blocked(reason: "Dose 1 already taken")
         }
@@ -105,6 +121,7 @@ public enum DoseRegistrationPolicy {
     /// If an override has been confirmed, set `overrideConfirmed = true`.
     public static func evaluateDose2(
         input: DoseRegistrationInput,
+        at decisionTime: Date,
         overrideConfirmed: Bool = false
     ) -> RegistrationDecision {
 
@@ -121,12 +138,12 @@ public enum DoseRegistrationPolicy {
             return .requiresConfirmation(.extraDose)
         }
 
-        // Rule: After skip, allow un-skip with confirmation
+        // A skipped outcome can be corrected only through the retrospective
+        // occurrence path. It must never turn back into a prospective command.
         if input.dose2Skipped {
-            if overrideConfirmed {
-                return .allowed
-            }
-            return .requiresConfirmation(.afterSkip)
+            return .blocked(
+                reason: "Dose 2 is marked missed. Use Correct Dose 2 Record to add an occurrence that already happened."
+            )
         }
 
         // Phase-based routing
@@ -139,7 +156,11 @@ public enum DoseRegistrationPolicy {
             if overrideConfirmed {
                 return .allowed
             }
-            let remaining = minutesUntilWindowOpen(dose1Time: input.dose1Time!, minIntervalMin: 150)
+            let remaining = minutesUntilWindowOpen(
+                dose1Time: input.dose1Time!,
+                minIntervalMin: 150,
+                at: decisionTime
+            )
             return .requiresConfirmation(.earlyDose(minutesRemaining: remaining))
 
         case .active, .nearClose:
@@ -147,21 +168,70 @@ public enum DoseRegistrationPolicy {
             return .allowed
 
         case .closed:
-            // Rule C: Late dose requires confirmation
-            if overrideConfirmed {
-                return .allowed
-            }
-            return .requiresConfirmation(.lateDose)
+            // A closed timing window is not a missing record, but it is no longer
+            // a prospective "take now" state. Use evaluateRetrospectiveDose2 to
+            // record an occurrence that the user confirms already happened.
+            return .blocked(
+                reason: "The Dose 2 window has ended. Record a dose that already occurred, or mark it missed."
+            )
 
         case .completed, .finalizing:
             return .blocked(reason: "Session already complete")
         }
     }
 
+    // MARK: - Retrospective Dose 2
+
+    /// Evaluate a Dose 2 occurrence that the user reports already happened.
+    ///
+    /// This path intentionally uses the occurrence time for timing classification
+    /// and the decision time only to prevent future-dated records. It does not
+    /// authorize a prospective dose outside the configured window.
+    public static func evaluateRetrospectiveDose2(
+        input: DoseRegistrationInput,
+        occurrenceTime: Date,
+        decisionTime: Date,
+        warningConfirmed: Bool = false,
+        config: DoseWindowConfig = DoseWindowConfig()
+    ) -> RegistrationDecision {
+        guard occurrenceTime <= decisionTime else {
+            return .blocked(reason: "Dose 2 time cannot be in the future")
+        }
+
+        guard let dose1Time = input.dose1Time else {
+            return .blocked(reason: "Add the missing Dose 1 record first")
+        }
+
+        guard occurrenceTime >= dose1Time else {
+            return .blocked(reason: "Dose 2 time cannot be before Dose 1")
+        }
+
+        if input.dose2Time != nil {
+            return .blocked(reason: "Dose 2 is already recorded. Use Edit to correct it.")
+        }
+
+        if input.dose2Skipped, !warningConfirmed {
+            return .requiresConfirmation(.afterSkip)
+        }
+
+        let elapsed = occurrenceTime.timeIntervalSince(dose1Time)
+        let isOutsideWindow = MedicationTiming.classify(elapsedSeconds: elapsed, config: config) != .inWindow
+
+        if isOutsideWindow, !warningConfirmed {
+            return .requiresConfirmation(.outsideWindowOccurrence)
+        }
+
+        return .allowed
+    }
+
     // MARK: - Snooze
 
     /// Evaluate whether a snooze is permitted.
-    public static func evaluateSnooze(input: DoseRegistrationInput, config: DoseWindowConfig = DoseWindowConfig()) -> RegistrationDecision {
+    public static func evaluateSnooze(
+        input: DoseRegistrationInput,
+        at _: Date,
+        config: DoseWindowConfig = DoseWindowConfig()
+    ) -> RegistrationDecision {
         guard input.dose1Time != nil else {
             return .blocked(reason: "Take Dose 1 first")
         }
@@ -185,24 +255,58 @@ public enum DoseRegistrationPolicy {
     // MARK: - Skip
 
     /// Evaluate whether Dose 2 can be skipped.
-    public static func evaluateSkip(input: DoseRegistrationInput) -> RegistrationDecision {
-        guard input.dose1Time != nil else {
+    public static func evaluateSkip(
+        input: DoseRegistrationInput,
+        at _: Date
+    ) -> RegistrationDecision {
+        evaluateSkipState(
+            dose1Time: input.dose1Time,
+            dose2Time: input.dose2Time,
+            dose2Skipped: input.dose2Skipped,
+            windowPhase: input.windowPhase
+        )
+    }
+
+    /// Canonical skip eligibility shared by the action policy and window-state UI.
+    /// The initiating surface is intentionally absent: every surface must receive
+    /// the same decision and denial reason for the same medication state.
+    static func evaluateSkipState(
+        dose1Time: Date?,
+        dose2Time: Date?,
+        dose2Skipped: Bool,
+        windowPhase: DoseWindowPhase
+    ) -> RegistrationDecision {
+        guard dose1Time != nil else {
             return .blocked(reason: "Take Dose 1 first")
         }
-        if input.dose2Time != nil {
+        if dose2Time != nil {
             return .blocked(reason: "Dose 2 already taken")
         }
-        if input.dose2Skipped {
+        if dose2Skipped {
             return .blocked(reason: "Dose 2 already skipped")
         }
-        return .allowed
+
+        switch windowPhase {
+        case .active, .nearClose, .closed:
+            return .allowed
+        case .beforeWindow:
+            return .blocked(reason: "Dose 2 window has not opened")
+        case .noDose1:
+            return .blocked(reason: "Take Dose 1 first")
+        case .completed, .finalizing:
+            return .blocked(reason: "Session already complete")
+        }
     }
 
     // MARK: - Helpers
 
-    private static func minutesUntilWindowOpen(dose1Time: Date, minIntervalMin: Int) -> Int {
+    private static func minutesUntilWindowOpen(
+        dose1Time: Date,
+        minIntervalMin: Int,
+        at decisionTime: Date
+    ) -> Int {
         let windowOpen = dose1Time.addingTimeInterval(Double(minIntervalMin) * 60)
-        let remaining = windowOpen.timeIntervalSinceNow
+        let remaining = windowOpen.timeIntervalSince(decisionTime)
         return max(1, Int(ceil(remaining / 60)))
     }
 }

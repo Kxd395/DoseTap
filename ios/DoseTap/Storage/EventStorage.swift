@@ -12,6 +12,48 @@ let storageLog = Logger(subsystem: "com.dosetap.app", category: "EventStorage")
 // We use unsafeBitCast to create the equivalent behavior
 let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 
+enum MedicationStorageFaultPoint: Equatable {
+    case open
+    case preflight
+    case begin
+    case delete
+    case insert
+    case update
+    case commit
+    case rollback
+
+    var stage: MedicationMutationFailure.Stage {
+        switch self {
+        case .open: return .open
+        case .preflight: return .preflight
+        case .begin: return .begin
+        case .delete: return .delete
+        case .insert: return .insert
+        case .update: return .update
+        case .commit: return .commit
+        case .rollback: return .rollback
+        }
+    }
+}
+
+struct MedicationStorageInjectedFailure: Error, Equatable {
+    let code: MedicationMutationFailure.Code
+    let sqliteCode: Int32?
+    let detail: String
+
+    init(
+        code: MedicationMutationFailure.Code,
+        sqliteCode: Int32? = nil,
+        detail: String
+    ) {
+        self.code = code
+        self.sqliteCode = sqliteCode
+        self.detail = detail
+    }
+}
+
+typealias MedicationStorageFaultInjector = (MedicationStorageFaultPoint) -> MedicationStorageInjectedFailure?
+
 // MARK: - Event Storage (SQLite)
 /// Persists sleep events and dose logs to local SQLite database
 @MainActor
@@ -32,6 +74,8 @@ public class EventStorage {
     let dbPath: String
     var nowProvider: () -> Date = { Date() }
     var timeZoneProvider: () -> TimeZone = { TimeZone.current }
+    var medicationFaultInjector: MedicationStorageFaultInjector?
+    var databaseInitializationFailure: MedicationStorageInjectedFailure?
     
     // ISO8601 formatter for date serialization — reuse shared instance
     var isoFormatter: ISO8601DateFormatter { AppFormatters.iso8601Fractional }
@@ -49,12 +93,21 @@ public class EventStorage {
     }
     
     public static let constantsVersion = "1.0.0"
+    public static let schemaUserVersion = 4
 
-    public init(dbPath: String) {
+    init(
+        dbPath: String,
+        medicationFaultInjector: MedicationStorageFaultInjector?
+    ) {
         self.dbPath = dbPath
-        openDatabase()
-        createTables()
-        storageLog.info("EventStorage initialized at: \(self.dbPath)")
+        self.medicationFaultInjector = medicationFaultInjector
+        if openDatabase(), createTables() {
+            storageLog.info("EventStorage initialized at: \(self.dbPath)")
+        }
+    }
+
+    public convenience init(dbPath: String) {
+        self.init(dbPath: dbPath, medicationFaultInjector: nil)
     }
 
     private convenience init() {
@@ -70,6 +123,41 @@ public class EventStorage {
     
     deinit {
         sqlite3_close(db)
+    }
+
+    func injectedMedicationFailure(
+        at point: MedicationStorageFaultPoint
+    ) -> MedicationStorageInjectedFailure? {
+        medicationFaultInjector?(point)
+    }
+
+    func medicationStorageFailure(
+        sqliteCode: Int32,
+        detail: String
+    ) -> MedicationStorageInjectedFailure {
+        let primaryCode = sqliteCode & 0xFF
+        let code: MedicationMutationFailure.Code
+        switch primaryCode {
+        case SQLITE_CANTOPEN:
+            code = .databaseUnavailable
+        case SQLITE_FULL:
+            code = .diskFull
+        case SQLITE_CORRUPT, SQLITE_NOTADB:
+            code = .corrupted
+        case SQLITE_CONSTRAINT:
+            code = .constraint
+        case SQLITE_BUSY, SQLITE_LOCKED:
+            code = .busy
+        case SQLITE_IOERR:
+            code = .io
+        default:
+            code = .statement
+        }
+        return MedicationStorageInjectedFailure(
+            code: code,
+            sqliteCode: sqliteCode,
+            detail: detail
+        )
     }
     
     // MARK: - Sleep Event Operations

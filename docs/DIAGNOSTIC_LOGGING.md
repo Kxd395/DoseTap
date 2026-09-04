@@ -1,6 +1,7 @@
 # DoseTap Diagnostic Logging
 
-Last updated: 2026-01-14
+Status: Current diagnostic reference
+Last verified: 2026-09-02
 Source of truth: `ios/Core/DiagnosticLogger.swift`, `ios/Core/DiagnosticEvent.swift`.
 
 ## Purpose
@@ -67,4 +68,3 @@ Documents/diagnostics/sessions/<session-id>/
 ## How to Read a Session Trace
 
 See `docs/HOW_TO_READ_A_SESSION_TRACE.md` for step-by-step triage guidance.
-

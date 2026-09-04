@@ -15,7 +15,7 @@ final class TimeZoneMonitor: ObservableObject {
         let nc = NotificationCenter.default
         tokens.append(nc.addObserver(forName: .NSSystemTimeZoneDidChange, object: nil, queue: .main) { [weak self] _ in
             self?.lastChange = Date()
-            // Hook: call into your DosingService to recalc tonight and reschedule.
+            // AlarmService owns notification reconciliation after a time-zone change.
             // Also log a lightweight `system` event if you want visibility in History.
             timeZoneLog.debug("Time zone changed - triggering recalculation")
             self?.handleTimeZoneChange()

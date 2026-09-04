@@ -17,6 +17,8 @@
 			</array>
 		</dict>
 	</array>
+	<key>DOSETAP_CERT_PINS</key>
+	<string>$(DOSETAP_CERT_PINS)</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>DoseTap reads your sleep, heart rate, respiratory rate, resting heart rate, and HRV from Apple Health to relate dose timing to sleep quality.</string>
 	<key>NSHealthUpdateUsageDescription</key>

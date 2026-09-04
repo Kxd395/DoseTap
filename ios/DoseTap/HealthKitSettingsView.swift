@@ -15,10 +15,10 @@ struct HealthKitSettingsView: View {
             return "Unavailable"
         }
         if healthKit.isAuthorized && settings.healthKitEnabled {
-            return "Connected"
+            return healthKit.sleepHistory.isEmpty ? "Access Requested" : "Data Available"
         }
         if healthKit.isAuthorized {
-            return "Connected"
+            return "Access Requested"
         }
         return "Not Connected"
     }
@@ -28,10 +28,12 @@ struct HealthKitSettingsView: View {
             return "Apple Health is unavailable on this device"
         }
         if healthKit.isAuthorized && settings.healthKitEnabled {
-            return "Sleep access is enabled in DoseTap"
+            return healthKit.sleepHistory.isEmpty
+                ? "Ready to query sleep data; Apple does not reveal read approval directly"
+                : "Readable sleep data was returned to DoseTap"
         }
         if healthKit.isAuthorized {
-            return "Permission granted, but disabled in DoseTap"
+            return "Read access was requested, but use is disabled in DoseTap"
         }
         return "Grant sleep access to sync Apple Health nights"
     }
@@ -79,7 +81,7 @@ struct HealthKitSettingsView: View {
                                 let authorized = await healthKit.requestAuthorization()
                                 isLoading = false
                                 if !authorized {
-                                    healthKit.checkAuthorizationStatus()
+                                    await healthKit.syncAuthorizationState()
                                 }
                             }
                         } label: {
@@ -211,8 +213,8 @@ struct HealthKitSettingsView: View {
             }
         }
         .navigationTitle("Apple Health")
-        .onAppear {
-            healthKit.checkAuthorizationStatus()
+        .task {
+            await healthKit.syncAuthorizationState()
         }
     }
 }
@@ -228,10 +230,10 @@ struct AppleHealthStatusRow: View {
             return "Unavailable on this device"
         }
         if healthKit.isAuthorized && settings.healthKitEnabled {
-            return "Connected"
+            return healthKit.sleepHistory.isEmpty ? "Access requested" : "Data available"
         }
         if healthKit.isAuthorized {
-            return "Connected, but disabled in DoseTap"
+            return "Access requested, but disabled in DoseTap"
         }
         return "Not connected"
     }
@@ -271,8 +273,8 @@ struct AppleHealthStatusRow: View {
                 }
             }
         }
-        .onAppear {
-            healthKit.checkAuthorizationStatus()
+        .task {
+            await healthKit.syncAuthorizationState()
         }
     }
 }

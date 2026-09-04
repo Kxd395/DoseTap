@@ -149,7 +149,7 @@ struct NightComparisonView: View {
             return s.dose2Skipped ? "Skipped" : "—"
         }
         if (150...165).contains(iv) { return "Optimal" }
-        if iv > 165 && iv <= 240 { return "Acceptable" }
+        if iv > 165 && MedicationTiming.classify(elapsedSeconds: Double(iv) * 60) == .inWindow { return "Acceptable" }
         return "Out of window"
     }
 
@@ -157,7 +157,7 @@ struct NightComparisonView: View {
         if s.dose2Skipped { return "Skipped" }
         guard let iv = s.intervalMinutes else { return "Incomplete" }
         if (150...165).contains(iv) { return "On Time" }
-        if iv > 165 && iv <= 240 { return "Late" }
+        if iv > 165 && MedicationTiming.classify(elapsedSeconds: Double(iv) * 60) == .inWindow { return "In Window" }
         return "Out of Window"
     }
 
@@ -165,7 +165,7 @@ struct NightComparisonView: View {
         if s.dose2Skipped { return .orange }
         guard let iv = s.intervalMinutes else { return .secondary }
         if (150...165).contains(iv) { return .green }
-        if iv > 165 && iv <= 240 { return .yellow }
+        if iv > 165 && MedicationTiming.classify(elapsedSeconds: Double(iv) * 60) == .inWindow { return .yellow }
         return .red
     }
 }

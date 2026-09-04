@@ -27,7 +27,7 @@ struct DashboardExecutiveSummaryCard: View {
 
             HStack(spacing: 10) {
                 dashboardKPI(
-                    title: "On-Time",
+                    title: "On-Time (recorded)",
                     value: model.onTimePercentage.map { String(format: "%.0f%%", $0) } ?? "—",
                     color: kpiColor(for: model.onTimePercentage, good: 70, okay: 40)
                 )
@@ -71,6 +71,12 @@ struct DashboardExecutiveSummaryCard: View {
             Text(nextActionText)
                 .font(.caption)
                 .foregroundColor(.secondary)
+
+            if model.eligibleDose2OutcomeCount > 0 {
+                Text("\(model.recordedDose2OutcomeCount)/\(model.eligibleDose2OutcomeCount) Dose 2 outcomes recorded. Missing outcomes are excluded from the on-time rate.")
+                    .font(.caption2)
+                    .foregroundColor(model.missingDose2OutcomeCount > 0 ? .orange : .secondary)
+            }
 
             if let lastRefresh = model.lastRefresh {
                 Text("Updated \(lastRefresh.formatted(date: .omitted, time: .shortened))")
@@ -118,6 +124,7 @@ struct DashboardDosingSnapshotCard: View {
                 .font(.headline)
             metricRow(title: "Avg Interval", value: formatInterval(minutes: model.averageIntervalMinutes))
             metricRow(title: "Avg Snoozes", value: model.averageSnoozeCount.map { String(format: "%.1f", $0) } ?? "No data")
+            metricRow(title: "Missing Dose 2 Outcomes", value: "\(model.missingDose2OutcomeCount)")
             metricRow(title: "Duplicate Nights", value: "\(model.duplicateNightCount)")
             metricRow(title: "Quality Issues", value: "\(model.qualityIssueCount)")
         }
@@ -153,7 +160,10 @@ struct DashboardSleepSnapshotCard: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Sleep Outcomes")
                 .font(.headline)
-            metricRow(title: "Avg Total Sleep", value: formatMinutes(model.averageSleepMinutes))
+            metricRow(title: "Avg Apple Health Sleep", value: formatMinutes(model.averageAppleHealthSleepMinutes))
+            if model.averageWhoopSleepMinutes != nil {
+                metricRow(title: "Avg WHOOP Sleep", value: formatMinutes(model.averageWhoopSleepMinutes))
+            }
             metricRow(title: "Avg TTFW", value: formatMinutes(model.averageTTFW))
             metricRow(title: "Avg Wake Count", value: model.averageWakeCount.map { String(format: "%.1f", $0) } ?? "No data")
             metricRow(title: "Avg Bathroom Wake", value: formatMinutes(model.averageBathroomWakeMinutes))

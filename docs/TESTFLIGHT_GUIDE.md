@@ -1,125 +1,102 @@
-# TestFlight Distribution Guide
+# TestFlight distribution guide
 
-TestFlight allows you to install DoseTap on up to 100 devices for 90 days of testing.
+Status: Current external-service runbook
+Last verified against Apple documentation: 2026-09-02
+
+This procedure uploads the shipping `DoseTap` iPhone target. It does not enable the staging CloudKit path and does not grant production readiness.
 
 ## Prerequisites
 
-1. **Apple Developer Account** ($99/year)
-   - Sign up at: https://developer.apple.com/programs/
+- An App Store Connect app record for bundle ID `com.dosetap.ios` must exist before upload.
+- The person uploading needs an App Store Connect role that Apple permits to upload builds.
+- Current agreements, signing certificates, provisioning profiles, privacy disclosures, export-compliance answers, and required metadata must be ready.
+- The release commit must pass `docs/PRODUCTION_READINESS_CHECKLIST.md` and `docs/RELEASE_CHECKLIST.md`.
+- `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` must identify a new upload as required by App Store Connect.
 
-2. **App Store Connect Access**
-   - Create your app listing at: https://appstoreconnect.apple.com/
+Apple's current references:
 
-## Steps to Distribute via TestFlight
+- [Create an app record](https://developer.apple.com/help/app-store-connect/create-an-app-record/add-a-new-app/)
+- [Upload builds](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds/)
+- [TestFlight overview](https://developer.apple.com/help/app-store-connect/test-a-beta-version/testflight-overview)
 
-### 1. Configure Code Signing
+## 1. Validate the release candidate
+
+From the repository root:
 
 ```bash
-cd /Users/VScode_Projects/projects/DoseTap/ios
-
-# Open Xcode and configure signing
-open DoseTap.xcodeproj
-
-# In Xcode:
-# - Select the DoseTap project
-# - Go to "Signing & Capabilities"
-# - Check "Automatically manage signing"
-# - Select your Team from dropdown
-# - Xcode will create/download the necessary certificates
+bash tools/check_app_version.sh
+bash tools/release_preflight.sh vX.Y.Z
 ```
 
-### 2. Archive the App
+Use the real approved release environment. Do not put credentials or certificate pins into this document.
+
+## 2. Open the correct Xcode project
 
 ```bash
-# Clean and archive
+open ios/DoseTap.xcodeproj
+```
+
+Select the `DoseTap` scheme and a generic or connected iOS device. A simulator destination cannot produce an archive for upload.
+
+## 3. Archive
+
+In Xcode, choose Product > Archive. When the build succeeds, Xcode opens the archive in Window > Organizer > Archives.
+
+Command-line archive creation is available when signing is already configured:
+
+```bash
 xcodebuild clean archive \
-  -project DoseTap.xcodeproj \
+  -project ios/DoseTap.xcodeproj \
   -scheme DoseTap \
-  -archivePath ~/Desktop/DoseTap.xcarchive \
-  -destination "generic/platform=iOS" \
-  CODE_SIGN_STYLE=Automatic \
+  -configuration Release \
+  -destination 'generic/platform=iOS' \
+  -archivePath /tmp/DoseTap.xcarchive \
   -allowProvisioningUpdates
 ```
 
-### 3. Export for TestFlight
+Inspect the archive's bundle ID, version, build number, entitlements, privacy manifest, symbols, and signing identity before upload.
 
-```bash
-# Create export options plist
-cat > /tmp/ExportOptions.plist << 'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>method</key>
-    <string>app-store</string>
-    <key>uploadSymbols</key>
-    <true/>
-    <key>uploadBitcode</key>
-    <false/>
-</dict>
-</plist>
-EOF
+## 4. Upload with Xcode
 
-# Export IPA
-xcodebuild -exportArchive \
-  -archivePath ~/Desktop/DoseTap.xcarchive \
-  -exportPath ~/Desktop/DoseTap_Export \
-  -exportOptionsPlist /tmp/ExportOptions.plist
-```
+Apple's current Xcode workflow is:
 
-### 4. Upload to App Store Connect
+1. Select the archive in Organizer.
+2. Choose Distribute App.
+3. Choose App Store Connect.
+4. Choose Upload.
+5. Review distribution and signing options.
+6. Review the certificate, provisioning profile, and entitlements.
+7. Upload.
 
-**Option A: Using Xcode**
-```bash
-# Open the archive in Xcode
-open ~/Desktop/DoseTap.xcarchive
+See [Upload an app to App Store Connect](https://help.apple.com/xcode/mac/current/en.lproj/dev442d7f2ca.html).
 
-# Then click "Distribute App" > "TestFlight & App Store" > "Upload"
-```
+Transporter and authenticated command-line upload options also exist, but Xcode Organizer is the maintained default for this project. Do not place an Apple Account password in a shell command or repository file.
 
-**Option B: Using Command Line**
-```bash
-xcrun altool --upload-app \
-  --type ios \
-  --file ~/Desktop/DoseTap_Export/DoseTap.ipa \
-  --username "your-apple-id@email.com" \
-  --password "your-app-specific-password"
-```
+## 5. Wait for processing and review warnings
 
-### 5. Configure TestFlight
+The upload must finish processing before it can be assigned to testers. In App Store Connect, open the TestFlight tab and review build status, warnings, export-compliance state, and crash-symbol availability. A `Complete` upload status is not product acceptance.
 
-1. Go to [App Store Connect](https://appstoreconnect.apple.com/)
-2. Select your app
-3. Go to "TestFlight" tab
-4. Wait for processing (10-30 minutes)
-5. Add internal testers (up to 100)
-6. Share the TestFlight link
+## 6. Configure testing
 
-### 6. Install on Test Devices
+- Provide beta description, feedback contact, and what-to-test notes.
+- Assign the processed build to the intended internal or external group.
+- External testing may require Beta App Review.
+- Confirm supported device and OS coverage from the build metadata.
+- Record which build, group, and acceptance script each tester used.
 
-Testers will:
-1. Install TestFlight app from App Store
-2. Click the TestFlight invite link
-3. Install DoseTap
-4. App will auto-update when you upload new builds
+Apple currently permits up to 100 internal App Store Connect users and up to 10,000 external testers. A TestFlight build is testable for up to 90 days. Recheck those limits in Apple's TestFlight overview before relying on them.
 
-## Benefits of TestFlight
+## 7. DoseTap acceptance
 
-- ✅ Install on 100+ devices
-- ✅ 90-day testing window per build
-- ✅ Automatic updates
-- ✅ Crash reports and analytics
-- ✅ Beta feedback collection
-- ✅ No cable required
-- ✅ Works like a "real" App Store app
+TestFlight distribution must retain explicit evidence for:
 
-## Alternative: Ad Hoc Distribution
+- committed Dose 1 and Dose 2 surviving process termination;
+- notification scheduling and recovery;
+- Apple Health permission and real-data states;
+- Dashboard, History, Night Review, and export parity for the same night;
+- timezone display and travel behavior;
+- Clear All Data and credential disconnect behavior;
+- VoiceOver, Dynamic Type, contrast, and reduced motion;
+- crash and diagnostic review without health-data leakage.
 
-For <100 devices without TestFlight ($99/year not needed if you already have devices registered):
-
-1. Register device UDIDs in Apple Developer Portal
-2. Create Ad Hoc provisioning profile
-3. Export IPA with Ad Hoc profile
-4. Distribute via direct download or services like Diawi
-
-See: `tools/adhoc_distribution.sh` for automation
+Record failures in Plane. Do not reconstruct missing medication records from indirect evidence.

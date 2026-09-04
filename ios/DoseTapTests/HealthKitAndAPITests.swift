@@ -94,6 +94,90 @@ final class HealthKitProviderTests: XCTestCase {
     func test_healthKitService_conformsToProtocol() {
         let _: any HealthKitProviding.Type = HealthKitService.self
     }
+
+    func test_healthKitSummary_doesNotDoubleCountOverlappingInBedAndStageSamples() {
+        let calendar = Calendar(identifier: .gregorian)
+        let start = calendar.date(from: DateComponents(year: 2026, month: 6, day: 16, hour: 21, minute: 0))!
+        let sleepOnset = start.addingTimeInterval(23 * 60)
+        let firstWake = start.addingTimeInterval(2 * 60 * 60)
+        let finalWake = calendar.date(from: DateComponents(year: 2026, month: 6, day: 17, hour: 4, minute: 36))!
+        let inBedEnd = calendar.date(from: DateComponents(year: 2026, month: 6, day: 17, hour: 7, minute: 0))!
+
+        let segments: [HealthKitService.SleepSegment] = [
+            HealthKitService.SleepSegment(
+                start: start,
+                end: inBedEnd,
+                stage: .inBed,
+                source: "Kevin's Apple Watch"
+            ),
+            HealthKitService.SleepSegment(
+                start: sleepOnset,
+                end: finalWake,
+                stage: .asleepCore,
+                source: "Kevin's Apple Watch"
+            ),
+            HealthKitService.SleepSegment(
+                start: firstWake,
+                end: firstWake.addingTimeInterval(7 * 60),
+                stage: .awake,
+                source: "Kevin's Apple Watch"
+            ),
+            HealthKitService.SleepSegment(
+                start: calendar.date(from: DateComponents(year: 2026, month: 6, day: 17, hour: 1, minute: 0))!,
+                end: calendar.date(from: DateComponents(year: 2026, month: 6, day: 17, hour: 1, minute: 30))!,
+                stage: .asleepDeep,
+                source: "Kevin's Apple Watch"
+            ),
+            HealthKitService.SleepSegment(
+                start: calendar.date(from: DateComponents(year: 2026, month: 6, day: 17, hour: 2, minute: 0))!,
+                end: calendar.date(from: DateComponents(year: 2026, month: 6, day: 17, hour: 2, minute: 28))!,
+                stage: .asleepREM,
+                source: "Kevin's Apple Watch"
+            )
+        ]
+
+        let summary = HealthKitService.sleepNightSummary(from: segments, nightStart: start)
+
+        XCTAssertEqual(summary?.sleepOnset, sleepOnset)
+        XCTAssertEqual(summary?.firstWake, firstWake)
+        XCTAssertEqual(summary?.finalWake, finalWake)
+        XCTAssertEqual(summary?.wakeCount, 1)
+        XCTAssertEqual(summary?.ttfwMinutes ?? 0, 97, accuracy: 0.001)
+        XCTAssertEqual(summary?.totalSleepMinutes ?? 0, 426, accuracy: 0.001)
+
+        let primary = HealthKitService.primaryNightSegments(from: segments)
+        XCTAssertFalse(primary.contains { $0.stage == .inBed && $0.end.timeIntervalSince($0.start) > 25 * 60 })
+        for index in 0..<(primary.count - 1) {
+            XCTAssertLessThanOrEqual(primary[index].end, primary[index + 1].start)
+        }
+    }
+
+    func test_primarySleepBiometricRange_excludesSecondarySleepCluster() {
+        let start = Date(timeIntervalSince1970: 1_788_200_000)
+        let segments: [HealthKitService.SleepSegment] = [
+            .init(
+                start: start,
+                end: start.addingTimeInterval(7 * 60 * 60),
+                stage: .asleepCore,
+                source: "Apple Watch"
+            ),
+            .init(
+                start: start.addingTimeInterval(9 * 60 * 60),
+                end: start.addingTimeInterval(9.5 * 60 * 60),
+                stage: .asleepCore,
+                source: "Apple Watch"
+            )
+        ]
+
+        let range = HealthKitService.primarySleepBiometricRange(
+            from: segments,
+            fallbackStart: start.addingTimeInterval(-4 * 60 * 60),
+            fallbackEnd: start.addingTimeInterval(14 * 60 * 60)
+        )
+
+        XCTAssertEqual(range.start, start)
+        XCTAssertEqual(range.end, start.addingTimeInterval(7 * 60 * 60))
+    }
     
     func test_whoopService_disabledWhenNoTokens() {
         // WHOOP isEnabled is dynamic: reads UserDefaults "whoop_enabled".
@@ -135,9 +219,6 @@ final class HealthKitProviderTests: XCTestCase {
 final class APIContractTests: XCTestCase {
     func test_openAPIMatchesClientEndpoints() throws {
         let expected: Set<String> = [
-            "/doses/take",
-            "/doses/skip",
-            "/doses/snooze",
             "/events/log",
             "/analytics/export"
         ]

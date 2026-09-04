@@ -1,0 +1,5 @@
+event_type,occurred_at_utc,details,device_time
+dose1,2024-09-11T20:00:00.000Z,Manual entry,2024-09-11T20:00:00Z
+lightsout,2024-09-11T20:05:00.000Z,,2024-09-11T20:05:00Z
+dose2,2024-09-11T22:50:00.000Z,,2024-09-11T22:50:00Z
+wake_final,2024-09-12T06:30:00.000Z,,2024-09-12T06:30:00Z

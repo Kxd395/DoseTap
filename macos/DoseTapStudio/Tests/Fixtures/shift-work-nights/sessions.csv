@@ -1,0 +1,3 @@
+started_utc,ended_utc,window_target_min,window_actual_min,adherence_flag,whoop_recovery,avg_hr,sleep_efficiency,notes
+2024-09-13T19:45:00.000Z,2024-09-13T22:35:00.000Z,165,170,ok,72,62,88.4,Work block night
+2024-09-14T20:05:00.000Z,2024-09-14T23:05:00.000Z,165,180,ok,68,64,86.1,Transition out night

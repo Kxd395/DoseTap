@@ -60,17 +60,21 @@ struct QuickEventPanel: View {
                 }
             }
             
-            // Display rows with dynamic column count
-            ForEach(0..<eventRows.count, id: \.self) { rowIndex in
-                HStack(spacing: 4) {
-                    ForEach(eventRows[rowIndex], id: \.name) { event in
-                        quickButton(for: event)
-                    }
-                    // Fill remaining space if row is incomplete
-                    let cols = columnsForCount
-                    if eventRows[rowIndex].count < cols {
-                        ForEach(0..<(cols - eventRows[rowIndex].count), id: \.self) { _ in
-                            Color.clear.frame(maxWidth: .infinity)
+            if quickEvents.isEmpty {
+                emptyState
+            } else {
+                // Display rows with dynamic column count
+                ForEach(0..<eventRows.count, id: \.self) { rowIndex in
+                    HStack(spacing: 4) {
+                        ForEach(eventRows[rowIndex], id: \.name) { event in
+                            quickButton(for: event)
+                        }
+                        // Fill remaining space if row is incomplete
+                        let cols = columnsForCount
+                        if eventRows[rowIndex].count < cols {
+                            ForEach(0..<(cols - eventRows[rowIndex].count), id: \.self) { _ in
+                                Color.clear.frame(maxWidth: .infinity)
+                            }
                         }
                     }
                 }
@@ -81,6 +85,39 @@ struct QuickEventPanel: View {
             RoundedRectangle(cornerRadius: 10)
                 .fill(Color(.systemGray6))
         )
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(accessibilityPanelLabel)
+    }
+
+    @ViewBuilder
+    private var emptyState: some View {
+        VStack(spacing: 6) {
+            Image(systemName: "slider.horizontal.3")
+                .font(.title3)
+                .foregroundColor(.secondary)
+            Text("No Quick Log buttons enabled")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Text("Add them in Settings → Quick Log")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("No Quick Log buttons enabled. Add them in Settings, Quick Log.")
+    }
+
+    private var accessibilityPanelLabel: String {
+        let count = eventLogger.events.count
+        let suffix: String
+        switch count {
+        case 0: suffix = "No events logged tonight."
+        case 1: suffix = "1 event logged tonight."
+        default: suffix = "\(count) events logged tonight."
+        }
+        return "Quick Log panel. \(suffix)"
     }
     
     @ViewBuilder
@@ -253,6 +290,9 @@ struct WakeUpButton: View {
         }
         .disabled(isOnCooldown)
         .opacity(isOnCooldown ? 0.5 : 1.0)
+        .accessibilityLabel(wakeButtonAccessibilityLabel)
+        .accessibilityHint(wakeButtonAccessibilityHint)
+        .accessibilityAddTraits(.isButton)
         .confirmationDialog(
             confirmationTitle,
             isPresented: $showConfirmation,
@@ -288,5 +328,21 @@ struct WakeUpButton: View {
     private var isOnCooldown: Bool {
         guard let end = eventLogger.cooldownEnd(for: "Wake Up") else { return false }
         return Date() < end
+    }
+
+    private var wakeButtonAccessibilityLabel: String {
+        if isOnCooldown {
+            return "Wake up and end session, on cooldown"
+        }
+        return hasDoseOrEventContext
+            ? "Wake up and end session. Complete your morning check-in."
+            : "Start morning check-in. No dose or events logged yet."
+    }
+
+    private var wakeButtonAccessibilityHint: String {
+        if isOnCooldown { return "Wait for cooldown to end before logging another wake-up." }
+        return hasDoseOrEventContext
+            ? "Double tap to log your wake time and open the morning check-in."
+            : "Double tap to start the morning check-in and backfill doses."
     }
 }

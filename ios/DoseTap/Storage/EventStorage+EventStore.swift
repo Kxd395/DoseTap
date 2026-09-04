@@ -82,9 +82,9 @@ extension EventStorage: EventStore {
     public func fetchDoseEvents(sessionId: String?, sessionDate: String) -> [DoseCore.StoredDoseEvent] {
         var events: [DoseCore.StoredDoseEvent] = []
         let sql = """
-        SELECT id, event_type, timestamp, session_date, metadata
+        SELECT id, event_type, timestamp, session_date, metadata, session_id
         FROM dose_events
-        WHERE \(sessionId != nil ? "(session_id = ? OR session_date = ?)" : "session_date = ?")
+        WHERE \(sessionId != nil ? "(session_id = ? OR ((session_id IS NULL OR session_id = session_date) AND session_date = ?))" : "session_date = ?")
         ORDER BY timestamp ASC
         """
         
@@ -116,7 +116,8 @@ extension EventStorage: EventStore {
                         eventType: eventType,
                         timestamp: timestamp,
                         sessionDate: sessionDate,
-                        metadata: metadata
+                        metadata: metadata,
+                        sessionId: sqlite3_column_text(stmt, 5).map { String(cString: $0) }
                     ))
                 }
             }
@@ -134,59 +135,52 @@ extension EventStorage: EventStore {
     
     // MARK: - Session State (current_session table)
     
-    public func saveDose1(timestamp: Date) {
+    @discardableResult
+    public func saveDose1(timestamp: Date) -> MedicationMutationResult {
         saveDose1(timestamp: timestamp, sessionId: nil, sessionDateOverride: nil)
     }
     
-    public func saveDose2(timestamp: Date, isEarly: Bool, isExtraDose: Bool) {
-        saveDose2(timestamp: timestamp, isEarly: isEarly, isExtraDose: isExtraDose, isLate: false, sessionId: nil, sessionDateOverride: nil)
+    @discardableResult
+    public func saveDose2(
+        timestamp: Date,
+        isEarly: Bool,
+        isExtraDose: Bool
+    ) -> MedicationMutationResult {
+        saveDose2(
+            timestamp: timestamp,
+            isEarly: isEarly,
+            isExtraDose: isExtraDose,
+            isLate: false,
+            reason: nil,
+            reasonNotes: nil,
+            sessionId: nil,
+            sessionDateOverride: nil
+        )
+    }
+
+    @discardableResult
+    public func saveDoseSkipped(reason: String?) -> MedicationMutationResult {
+        saveDoseSkipped(reason: reason, reasonNotes: nil, sessionId: nil, sessionDateOverride: nil)
     }
     
-    public func saveDoseSkipped(reason: String?) {
-        saveDoseSkipped(reason: reason, sessionId: nil, sessionDateOverride: nil)
-    }
-    
-    public func saveSnooze(count: Int) {
+    @discardableResult
+    public func saveSnooze(count: Int) -> MedicationMutationResult {
         saveSnooze(count: count, sessionId: nil, sessionDateOverride: nil)
     }
     
-    public func clearDose1() {
-        // Clear dose 1 from current_session
-        let sql = """
-        UPDATE current_session
-        SET dose1_time = NULL
-        WHERE id = 1
-        """
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
-        defer { sqlite3_finalize(stmt) }
-        sqlite3_step(stmt)
+    @discardableResult
+    public func clearDose1() -> MedicationMutationResult {
+        clearDoseSequence(sessionDateOverride: loadCurrentSessionState().sessionDate, sessionId: loadCurrentSessionState().sessionId)
     }
     
-    public func clearDose2() {
-        // Clear dose 2 from current_session
-        let sql = """
-        UPDATE current_session
-        SET dose2_time = NULL, dose2_skipped = 0
-        WHERE id = 1
-        """
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
-        defer { sqlite3_finalize(stmt) }
-        sqlite3_step(stmt)
+    @discardableResult
+    public func clearDose2() -> MedicationMutationResult {
+        clearDose2(sessionDateOverride: loadCurrentSessionState().sessionDate, sessionId: loadCurrentSessionState().sessionId)
     }
     
-    public func clearSkip() {
-        // Clear skip from current_session
-        let sql = """
-        UPDATE current_session
-        SET dose2_skipped = 0
-        WHERE id = 1
-        """
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
-        defer { sqlite3_finalize(stmt) }
-        sqlite3_step(stmt)
+    @discardableResult
+    public func clearSkip() -> MedicationMutationResult {
+        clearSkip(sessionDateOverride: loadCurrentSessionState().sessionDate, sessionId: loadCurrentSessionState().sessionId)
     }
     
     // MARK: - Pre-Sleep Logs
@@ -299,6 +293,7 @@ extension EventStorage: EventStore {
             sleepTherapyJson: checkIn.sleepTherapyJson,
             hasSleepEnvironment: checkIn.hasSleepEnvironment,
             sleepEnvironmentJson: checkIn.sleepEnvironmentJson,
+            timingContextJson: checkIn.timingContextJson,
             notes: checkIn.notes
         )
         saveMorningCheckIn(local, forSession: sessionKey)
@@ -335,10 +330,52 @@ extension EventStorage: EventStore {
             sleepTherapyJson: local.sleepTherapyJson,
             hasSleepEnvironment: local.hasSleepEnvironment,
             sleepEnvironmentJson: local.sleepEnvironmentJson,
+            timingContextJson: local.timingContextJson,
             notes: local.notes
         )
     }
     
+    /// Fetches the DoseTap-local `StoredMorningCheckIn` (which carries richer
+    /// fields and helpers like `resolvedTimingContext`). Exposed as `internal`
+    /// so the app target's tests can round-trip timing context without going
+    /// through the DoseCore bridge (which strips the helper extensions).
+    internal func fetchStoredMorningCheckIn(sessionKey: String) -> StoredMorningCheckIn? {
+        fetchMorningCheckInInternal(sessionKey: sessionKey)
+    }
+
+    internal func fetchMostRecentStoredMorningCheckIn(excludingSessionKey: String? = nil) -> StoredMorningCheckIn? {
+        let sql = """
+        SELECT id, session_id, timestamp, session_date, sleep_quality, feel_rested, grogginess,
+               sleep_inertia_duration, dream_recall, has_physical_symptoms, physical_symptoms_json,
+               has_respiratory_symptoms, respiratory_symptoms_json, mental_clarity, mood, anxiety_level,
+               stress_level, stress_context_json, readiness_for_day, had_sleep_paralysis,
+               had_hallucinations, had_automatic_behavior, fell_out_of_bed, had_confusion_on_waking,
+               used_sleep_therapy, sleep_therapy_json, has_sleep_environment, sleep_environment_json,
+               timing_context_json, notes
+        FROM morning_checkins
+        WHERE ? IS NULL OR (session_id != ? AND session_date != ?)
+        ORDER BY timestamp DESC
+        LIMIT 1
+        """
+
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return nil }
+        defer { sqlite3_finalize(stmt) }
+
+        if let excludingSessionKey {
+            sqlite3_bind_text(stmt, 1, excludingSessionKey, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, excludingSessionKey, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 3, excludingSessionKey, -1, SQLITE_TRANSIENT)
+        } else {
+            sqlite3_bind_null(stmt, 1)
+            sqlite3_bind_null(stmt, 2)
+            sqlite3_bind_null(stmt, 3)
+        }
+
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
+        return decodeMorningCheckInRow(stmt)
+    }
+
     private func fetchMorningCheckInInternal(sessionKey: String) -> StoredMorningCheckIn? {
         let sql = """
         SELECT id, session_id, timestamp, session_date, sleep_quality, feel_rested, grogginess,
@@ -346,9 +383,10 @@ extension EventStorage: EventStore {
                has_respiratory_symptoms, respiratory_symptoms_json, mental_clarity, mood, anxiety_level,
                stress_level, stress_context_json, readiness_for_day, had_sleep_paralysis,
                had_hallucinations, had_automatic_behavior, fell_out_of_bed, had_confusion_on_waking,
-               used_sleep_therapy, sleep_therapy_json, has_sleep_environment, sleep_environment_json, notes
+               used_sleep_therapy, sleep_therapy_json, has_sleep_environment, sleep_environment_json,
+               timing_context_json, notes
         FROM morning_checkins
-        WHERE session_id = ? OR session_date = ?
+        WHERE session_id = ? OR ((session_id IS NULL OR session_id = session_date) AND session_date = ?)
         ORDER BY timestamp DESC
         LIMIT 1
         """
@@ -361,7 +399,11 @@ extension EventStorage: EventStore {
         sqlite3_bind_text(stmt, 2, sessionKey, -1, SQLITE_TRANSIENT)
         
         guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
-        
+
+        return decodeMorningCheckInRow(stmt)
+    }
+
+    private func decodeMorningCheckInRow(_ stmt: OpaquePointer?) -> StoredMorningCheckIn? {
         guard let idPtr = sqlite3_column_text(stmt, 0),
               let sessionIdPtr = sqlite3_column_text(stmt, 1),
               let timestampPtr = sqlite3_column_text(stmt, 2),
@@ -374,7 +416,7 @@ extension EventStorage: EventStore {
             sessionId: String(cString: sessionIdPtr),
             timestamp: timestamp,
             sessionDate: String(cString: sessionDatePtr),
-            sleepQuality: Int(sqlite3_column_int(stmt, 4)),
+            sleepQuality: sqlite3_column_double(stmt, 4),
             feelRested: sqlite3_column_text(stmt, 5).map { String(cString: $0) } ?? "moderate",
             grogginess: sqlite3_column_text(stmt, 6).map { String(cString: $0) } ?? "mild",
             sleepInertiaDuration: sqlite3_column_text(stmt, 7).map { String(cString: $0) } ?? "fiveToFifteen",
@@ -398,7 +440,8 @@ extension EventStorage: EventStore {
             sleepTherapyJson: sqlite3_column_text(stmt, 25).map { String(cString: $0) },
             hasSleepEnvironment: sqlite3_column_int(stmt, 26) != 0,
             sleepEnvironmentJson: sqlite3_column_text(stmt, 27).map { String(cString: $0) },
-            notes: sqlite3_column_text(stmt, 28).map { String(cString: $0) }
+            timingContextJson: sqlite3_column_text(stmt, 28).map { String(cString: $0) },
+            notes: sqlite3_column_text(stmt, 29).map { String(cString: $0) }
         )
     }
     

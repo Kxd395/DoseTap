@@ -9,30 +9,6 @@ final class APIClientTests: XCTestCase {
         func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) { try respond(request) }
     }
 
-    func testTakeDoseFormsCorrectRequest() async throws {
-        var captured: URLRequest? = nil
-        let responseData = """
-        {
-            "event_id": "evt_123",
-            "type": "dose2",
-            "at": "2023-01-01T22:00:00Z"
-        }
-        """.data(using: .utf8)!
-        
-        let transport = StubTransport { req in
-            captured = req
-            let response = HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
-            return (responseData, response)
-        }
-        let client = APIClient(baseURL: URL(string: "https://example.com")!, transport: transport)
-        try await client.takeDose(type: "dose2", at: Date(timeIntervalSince1970: 0))
-        XCTAssertEqual(captured?.httpMethod, "POST")
-        XCTAssertEqual(captured?.url?.path, "/doses/take")
-        // Checking body is skipped here as we verified the encoded struct logic in implementation
-    }
-
-    // ... (Error Mapping Tests don't decode on 4xx so they are fine) ...
-
     func testExportAnalyticsGET() async throws {
         // ... (Existing implementation was fine as it returned "{}")
         var captured: URLRequest? = nil
@@ -47,51 +23,8 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(captured?.url?.path, "/analytics/export")
     }
     
-    // MARK: - Additional API Method Tests
-    
-    func testSkipDoseFormsCorrectRequest() async throws {
-        var captured: URLRequest? = nil
-        let responseData = """
-        {
-            "event_id": "evt_skip",
-            "reason": "too_tired"
-        }
-        """.data(using: .utf8)!
-        
-        let transport = StubTransport { req in
-            captured = req
-            let response = HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
-            return (responseData, response)
-        }
-        let client = APIClient(baseURL: URL(string: "https://example.com")!, transport: transport)
-        try await client.skipDose(sequence: 2, reason: "too_tired", at: Date())
-        
-        XCTAssertEqual(captured?.httpMethod, "POST")
-        XCTAssertEqual(captured?.url?.path, "/doses/skip")
-    }
-    
-    func testSnoozeFormsCorrectRequest() async throws {
-        var captured: URLRequest? = nil
-        let responseData = """
-        {
-            "event_id": "evt_snooze",
-            "minutes": 10,
-            "new_target_at": "2023-01-01T22:10:00Z"
-        }
-        """.data(using: .utf8)!
-        
-        let transport = StubTransport { req in
-            captured = req
-            let response = HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
-            return (responseData, response)
-        }
-        let client = APIClient(baseURL: URL(string: "https://example.com")!, transport: transport)
-        try await client.snooze(minutes: 10)
-        
-        XCTAssertEqual(captured?.httpMethod, "POST")
-        XCTAssertEqual(captured?.url?.path, "/doses/snooze")
-    }
-    
+    // MARK: - Supported API Method Tests
+
     func testLogEventFormsCorrectRequest() async throws {
         var captured: URLRequest? = nil
         let responseData = """
@@ -125,7 +58,7 @@ final class APIClientTests: XCTestCase {
         let client = APIClient(baseURL: URL(string: "https://example.com")!, transport: transport)
         
         do {
-            try await client.takeDose(type: "dose1", at: Date())
+            try await client.logEvent("test", at: Date())
             XCTFail("Expected error")
         } catch let e as APIError {
             if case .deviceNotRegistered = e {} else { XCTFail("Wrong case \(e)") }
@@ -142,7 +75,7 @@ final class APIClientTests: XCTestCase {
         let client = APIClient(baseURL: URL(string: "https://example.com")!, transport: transport)
         
         do {
-            try await client.takeDose(type: "dose2", at: Date())
+            try await client.logEvent("test", at: Date())
             XCTFail("Expected error")
         } catch let e as APIError {
             if case .alreadyTaken = e {} else { XCTFail("Wrong case \(e)") }
@@ -157,7 +90,7 @@ final class APIClientTests: XCTestCase {
         let client = APIClient(baseURL: URL(string: "https://example.com")!, transport: transport)
         
         do {
-            try await client.takeDose(type: "dose2", at: Date())
+            try await client.logEvent("test", at: Date())
             XCTFail("Expected error")
         } catch let e as APIError {
             if case .rateLimit = e {} else { XCTFail("Wrong case \(e)") }
@@ -174,7 +107,7 @@ final class APIClientTests: XCTestCase {
         let client = APIClient(baseURL: URL(string: "https://example.com")!, transport: transport)
         
         do {
-            try await client.takeDose(type: "dose2", at: Date())
+            try await client.logEvent("test", at: Date())
             XCTFail("Expected error")
         } catch let e as APIError {
             if case .windowExceeded = e {} else { XCTFail("Wrong case \(e)") }
@@ -190,7 +123,7 @@ final class APIClientTests: XCTestCase {
         let client = APIClient(baseURL: URL(string: "https://example.com")!, transport: transport)
         
         do {
-            try await client.takeDose(type: "dose2", at: Date())
+            try await client.logEvent("test", at: Date())
             XCTFail("Expected error")
         } catch let e as APIError {
             if case .dose1Required = e {} else { XCTFail("Wrong case \(e)") }
@@ -204,7 +137,7 @@ final class APIClientTests: XCTestCase {
         let client = APIClient(baseURL: URL(string: "https://example.com")!, transport: transport)
         
         do {
-            try await client.takeDose(type: "dose1", at: Date())
+            try await client.logEvent("test", at: Date())
             XCTFail("Expected error")
         } catch let error as URLError {
             XCTAssertEqual(error.code, .notConnectedToInternet)

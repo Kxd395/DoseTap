@@ -11,6 +11,16 @@ import DoseCore
 
 struct MedicationSettingsView: View {
     @StateObject private var settings = UserSettingsManager.shared
+    @State private var latestInventorySnapshot: StoredInventorySnapshot?
+    @State private var inventoryMedicationName = "XYWAV"
+    @State private var inventoryBottlesRemaining = 0
+    @State private var inventoryDosesRemaining = 0
+    @State private var tracksEstimatedDays = false
+    @State private var inventoryEstimatedDaysLeft = 0
+    @State private var tracksNextRefillDate = false
+    @State private var inventoryNextRefillDate = Date()
+    @State private var inventoryNotes = ""
+    @State private var inventorySavedMessage: String?
     
     var body: some View {
         List {
@@ -80,6 +90,67 @@ struct MedicationSettingsView: View {
                     Text("These values will be pre-filled when logging a new medication dose.")
                 }
             }
+
+            // MARK: - Supply Tracking
+            Section {
+                if let latestInventorySnapshot {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Latest Snapshot")
+                            .font(.subheadline.bold())
+                        Text("\(latestInventorySnapshot.medicationName): \(latestInventorySnapshot.bottlesRemaining) bottle(s), \(latestInventorySnapshot.dosesRemaining) dose(s)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text(latestInventorySnapshot.asOfUTC.formatted(date: .abbreviated, time: .shortened))
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.vertical, 4)
+                }
+
+                TextField("Medication", text: $inventoryMedicationName)
+                    .textInputAutocapitalization(.characters)
+
+                Stepper(value: $inventoryBottlesRemaining, in: 0...99) {
+                    inventoryValueRow(title: "Bottles Remaining", value: "\(inventoryBottlesRemaining)")
+                }
+
+                Stepper(value: $inventoryDosesRemaining, in: 0...999) {
+                    inventoryValueRow(title: "Doses Remaining", value: "\(inventoryDosesRemaining)")
+                }
+
+                Toggle("Track Estimated Days", isOn: $tracksEstimatedDays)
+
+                if tracksEstimatedDays {
+                    Stepper(value: $inventoryEstimatedDaysLeft, in: 0...365) {
+                        inventoryValueRow(title: "Estimated Days Left", value: "\(inventoryEstimatedDaysLeft)")
+                    }
+                }
+
+                Toggle("Track Next Refill Date", isOn: $tracksNextRefillDate)
+
+                if tracksNextRefillDate {
+                    DatePicker("Next Refill", selection: $inventoryNextRefillDate, displayedComponents: .date)
+                }
+
+                TextField("Notes", text: $inventoryNotes)
+
+                Button {
+                    saveInventorySnapshot()
+                } label: {
+                    Label("Save Supply Snapshot", systemImage: "tray.and.arrow.down.fill")
+                }
+                .disabled(!canSaveInventorySnapshot)
+
+                if let inventorySavedMessage {
+                    Text(inventorySavedMessage)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            } header: {
+                Label("Medication Supply", systemImage: "shippingbox.fill")
+            } footer: {
+                Text("Snapshots are exported to inventory.csv for Studio. Dose logs are not used as inventory counts.")
+            }
             
             // MARK: - Info Section
             Section {
@@ -112,6 +183,62 @@ struct MedicationSettingsView: View {
         }
         .navigationTitle("Medications")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            loadInventoryDefaults()
+        }
+    }
+
+    private var canSaveInventorySnapshot: Bool {
+        !inventoryMedicationName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func inventoryValueRow(title: String, value: String) -> some View {
+        HStack {
+            Text(title)
+            Spacer()
+            Text(value)
+                .foregroundColor(.secondary)
+        }
+    }
+
+    private func loadInventoryDefaults() {
+        if let latest = SessionRepository.shared.latestInventorySnapshot() {
+            latestInventorySnapshot = latest
+            inventoryMedicationName = latest.medicationName
+            inventoryBottlesRemaining = latest.bottlesRemaining
+            inventoryDosesRemaining = latest.dosesRemaining
+            if let estimatedDaysLeft = latest.estimatedDaysLeft {
+                tracksEstimatedDays = true
+                inventoryEstimatedDaysLeft = estimatedDaysLeft
+            }
+            if let nextRefillDate = latest.nextRefillDate {
+                tracksNextRefillDate = true
+                inventoryNextRefillDate = nextRefillDate
+            }
+            inventoryNotes = latest.notes ?? ""
+            return
+        }
+
+        guard let data = UserDefaults.standard.data(forKey: "DoseTapUserConfig"),
+              let config = try? JSONDecoder().decode(UserConfig.self, from: data) else {
+            return
+        }
+
+        inventoryMedicationName = config.medicationProfile.medicationName
+    }
+
+    private func saveInventorySnapshot() {
+        SessionRepository.shared.saveInventorySnapshot(
+            medicationName: inventoryMedicationName,
+            bottlesRemaining: inventoryBottlesRemaining,
+            dosesRemaining: inventoryDosesRemaining,
+            estimatedDaysLeft: tracksEstimatedDays ? inventoryEstimatedDaysLeft : nil,
+            nextRefillDate: tracksNextRefillDate ? inventoryNextRefillDate : nil,
+            notes: inventoryNotes
+        )
+
+        latestInventorySnapshot = SessionRepository.shared.latestInventorySnapshot()
+        inventorySavedMessage = "Supply snapshot saved."
     }
 }
 

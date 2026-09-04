@@ -6,6 +6,88 @@ import OSLog
 
 @MainActor
 public extension SessionRepository {
+    #if DEBUG && targetEnvironment(simulator)
+    func prepareWorkWarningUITestSession() {
+        clearTonight()
+        _ = setDose1Time(clock().addingTimeInterval(-180 * 60))
+        let previous = try? workWakeSchedule()
+        var plan = WorkWakeSchedule(timeZoneIdentifier: timeZoneProvider().identifier, workingWeekdays: Set(1...7), wakeMinutes: 420, target: .doseTarget)
+        if let previous { plan.revision = previous.revision }
+        _ = saveWorkWakeSchedule(plan)
+    }
+    #endif
+
+    public func workWakeSchedule() throws -> WorkWakeSchedule { try storage.loadWorkWakeSchedule() }
+
+    @discardableResult
+    public func saveWorkWakeSchedule(_ value: WorkWakeSchedule) -> MedicationMutationResult {
+        var revised = value
+        revised.revision = UUID()
+        let result = storage.saveWorkWakeSchedule(revised, expectedRevision: value.revision)
+        if result.isCommitted { sessionDidChange.send() }
+        return result
+    }
+
+    @discardableResult
+    public func changeWorkWakeDate(_ warning: WorkWakeWarning, isWorking: Bool, wakeMinutes: Int? = nil) -> MedicationMutationResult {
+        do {
+            var plan = try workWakeSchedule()
+            guard plan.revision == warning.revision else {
+                return failedMedicationMutation(operation: .workSchedule, detail: "Your schedule changed. Reopen the warning to review it.", sessionId: warning.sessionId)
+            }
+            plan.exceptions[warning.wakeDate] = WorkWakeException(isWorking: isWorking, wakeMinutes: wakeMinutes ?? plan.exceptions[warning.wakeDate]?.wakeMinutes)
+            return saveWorkWakeSchedule(plan)
+        } catch {
+            return failedMedicationMutation(operation: .workSchedule, detail: "Work schedule could not be saved. Your dose record has not changed.", sessionId: warning.sessionId)
+        }
+    }
+
+    /// Resolve one explicitly selected historical session without reopening it.
+    /// Does not schedule/cancel alarms; live-session actions use the coordinator.
+    @discardableResult
+    public func recordHistoricalDose2Occurrence(
+        sessionId: String,
+        sessionDate: String,
+        occurrenceTime: Date,
+        confirmed: Bool,
+        reason: String?,
+        notes: String?,
+        workWarning: WorkWakeWarning? = nil
+    ) -> MedicationMutationResult {
+        let enteredAt = clock()
+        guard confirmed, sessionId != activeSessionId else {
+            return failedMedicationMutation(operation: .reconcileDoseState, detail: "Confirm a historical occurrence, or resolve the active session from Tonight.", sessionId: sessionId)
+        }
+        let events = storage.fetchDoseEvents(sessionId: sessionId, sessionDate: sessionDate)
+        let firstDoses = events.filter { $0.eventType == "dose1" }
+        guard firstDoses.count == 1, let first = firstDoses.first,
+              occurrenceTime >= first.timestamp, occurrenceTime <= enteredAt,
+              !events.contains(where: { $0.eventType == "dose2" || $0.eventType == "extra_dose" }) else {
+            return failedMedicationMutation(operation: .reconcileDoseState, detail: "Reload this session. Dose 1 must be unambiguous, Dose 2 must be unrecorded, and its occurrence must be between Dose 1 and now.", sessionId: sessionId)
+        }
+        let timing = MedicationTiming.classify(dose1: first.timestamp, dose2: occurrenceTime)
+        var metadata: [String: Any] = [
+            "entry_mode": "retrospective", "recorded_at_utc": ISO8601DateFormatter().string(from: enteredAt),
+            "source": "history_user_review", "surface": "session_detail",
+            "is_early": timing == .early, "is_late": timing == .late,
+            "occurrence_confirmed": true
+        ]
+        if let workWarning, let data = try? JSONEncoder().encode(workWarning), let json = try? JSONSerialization.jsonObject(with: data) {
+            metadata["work_warning_acknowledgement"] = json
+        }
+        metadata["reason"] = reason
+        metadata["reason_notes"] = notes
+        guard let data = try? JSONSerialization.data(withJSONObject: metadata), let json = String(data: data, encoding: .utf8) else {
+            return failedMedicationMutation(operation: .reconcileDoseState, detail: "The correction could not be encoded. No record changed.", sessionId: sessionId)
+        }
+        let result = recordMedicationMutation(storage.reconcileDoseEvent(
+            eventType: .dose2, timestamp: occurrenceTime, sessionDate: sessionDate,
+            sessionId: sessionId, metadata: json, expectedDose1Time: first.timestamp, onlyIfDose2Missing: true, workWarning: workWarning
+        ))
+        if result.isCommitted { sessionDidChange.send() }
+        return result
+    }
+
     /// Log a medication entry for the session date derived from its timestamp.
     /// Returns the DuplicateGuardResult for UI to handle.
     func logMedicationEntry(
@@ -119,6 +201,38 @@ public extension SessionRepository {
         storage.deleteMedicationEvent(id: id)
         sessionDidChange.send()
     }
+
+    /// Save a medication supply snapshot for export and Studio tracking.
+    func saveInventorySnapshot(
+        medicationName: String,
+        bottlesRemaining: Int,
+        dosesRemaining: Int,
+        estimatedDaysLeft: Int?,
+        nextRefillDate: Date?,
+        notes: String?
+    ) {
+        let snapshot = StoredInventorySnapshot(
+            medicationName: medicationName.trimmingCharacters(in: .whitespacesAndNewlines),
+            bottlesRemaining: max(0, bottlesRemaining),
+            dosesRemaining: max(0, dosesRemaining),
+            estimatedDaysLeft: estimatedDaysLeft.map { max(0, $0) },
+            nextRefillDate: nextRefillDate,
+            notes: notes?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        )
+
+        storage.upsertInventorySnapshot(snapshot)
+        sessionDidChange.send()
+    }
+
+    /// List inventory snapshots, newest first.
+    func listInventorySnapshots(limit: Int = 500) -> [StoredInventorySnapshot] {
+        storage.fetchInventorySnapshots(limit: limit)
+    }
+
+    /// Latest saved inventory snapshot.
+    func latestInventorySnapshot() -> StoredInventorySnapshot? {
+        storage.fetchLatestInventorySnapshot()
+    }
 }
 
 private extension SessionRepository {
@@ -137,5 +251,11 @@ private extension SessionRepository {
     /// Compute session date for a given timestamp using the repository rollover boundary.
     func computeSessionDate(for date: Date) -> String {
         sessionKey(for: date, timeZone: timeZoneProvider(), rolloverHour: rolloverHour)
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
     }
 }

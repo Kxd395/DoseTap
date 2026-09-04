@@ -1,5 +1,8 @@
 import SwiftUI
+import DoseCore
 import os.log
+
+private let appContainerLog = Logger(subsystem: "com.dosetap.app", category: "AppContainer")
 
 // MARK: - Date Provider
 /// Protocol for injectable time source. Use `SystemDateProvider` in production,
@@ -35,23 +38,129 @@ final class AppContainer: ObservableObject {
 
     // Service references — currently forwarding to singletons.
     // Future: accept these via init parameters for testability.
+    let core: DoseTapCore
+    let eventLogger: EventLogger
+    let undoState: UndoStateManager
     let sessionRepository: SessionRepository
     let settings: UserSettingsManager
     let healthKit: HealthKitService
     let alarmService: AlarmService
+    let doseCoordinator: DoseActionCoordinator
+
+    private var didConfigureDoseCommands = false
 
     init(
         dateProvider: DateProviding = SystemDateProvider(),
+        core: DoseTapCore? = nil,
+        eventLogger: EventLogger? = nil,
+        undoState: UndoStateManager? = nil,
         sessionRepository: SessionRepository? = nil,
         settings: UserSettingsManager? = nil,
         healthKit: HealthKitService? = nil,
         alarmService: AlarmService? = nil
     ) {
+        let resolvedCore = core ?? DoseTapCore()
+        let resolvedEventLogger = eventLogger ?? .shared
+        let resolvedUndoState = undoState ?? UndoStateManager()
+        let resolvedSessionRepository = sessionRepository ?? .shared
+        let resolvedAlarmService = alarmService ?? .shared
+
         self.dateProvider = dateProvider
-        self.sessionRepository = sessionRepository ?? .shared
+        self.core = resolvedCore
+        self.eventLogger = resolvedEventLogger
+        self.undoState = resolvedUndoState
+        self.sessionRepository = resolvedSessionRepository
         self.settings = settings ?? .shared
         self.healthKit = healthKit ?? .shared
-        self.alarmService = alarmService ?? .shared
+        self.alarmService = resolvedAlarmService
+        self.doseCoordinator = DoseActionCoordinator(
+            core: resolvedCore,
+            alarmService: resolvedAlarmService,
+            dateProvider: dateProvider,
+            eventLogger: resolvedEventLogger,
+            undoState: resolvedUndoState,
+            sessionRepo: resolvedSessionRepository
+        )
+
+        configureDoseCommandRoutes()
+    }
+
+    func configureDoseCommandRoutes(
+        urlRouter: URLRouter? = nil,
+        flicButtonService: FlicButtonService? = nil
+    ) {
+        guard !didConfigureDoseCommands else { return }
+
+        let urlRouter = urlRouter ?? URLRouter.shared
+        let flicButtonService = flicButtonService ?? FlicButtonService.shared
+
+        core.setSessionRepository(sessionRepository)
+        doseCoordinator.eventLogger = eventLogger
+        doseCoordinator.undoState = undoState
+        doseCoordinator.sessionRepo = sessionRepository
+        urlRouter.configure(core: core, eventLogger: eventLogger, coordinator: doseCoordinator)
+        flicButtonService.configure(coordinator: doseCoordinator, undoState: undoState)
+        alarmService.configureNotificationSnoozeHandler { [weak doseCoordinator] in
+            guard let doseCoordinator else { return false }
+            if case .success = await doseCoordinator.snooze(surface: .notificationAction) {
+                return true
+            }
+            return false
+        }
+        setupUndoCallbacks()
+        didConfigureDoseCommands = true
+    }
+
+    private func setupUndoCallbacks() {
+        undoState.onCommit = { action in
+            appContainerLog.info("Action committed: \(String(describing: action), privacy: .private)")
+        }
+
+        undoState.onUndo = { [weak self] action in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                switch action {
+                case .takeDose1(let time):
+                    if sessionRepository.clearDose1().isCommitted {
+                        alarmService.cancelAllAlarms()
+                        alarmService.clearDose2AlarmState()
+                        appContainerLog.info("Undid Dose 1 taken at \(time, privacy: .private)")
+                    } else {
+                        appContainerLog.error("Dose 1 undo was not committed")
+                    }
+
+                case .takeDose2(let time):
+                    if sessionRepository.clearDose2().isCommitted {
+                        appContainerLog.info("Undid Dose 2 taken at \(time, privacy: .private)")
+                    } else {
+                        appContainerLog.error("Dose 2 undo was not committed")
+                    }
+
+                case .skipDose(let seq, _):
+                    if sessionRepository.clearSkip().isCommitted {
+                        appContainerLog.info("Undid skip of dose \(seq)")
+                    } else {
+                        appContainerLog.error("Dose skip undo was not committed")
+                    }
+
+                case .snooze(let mins):
+                    let restoredAlarm = await alarmService.undoSnooze(minutes: mins, dose1Time: sessionRepository.dose1Time)
+                    if restoredAlarm {
+                        if sessionRepository.decrementSnoozeCount().isCommitted {
+                            appContainerLog.info("Undid snooze of \(mins) minutes")
+                        } else {
+                            appContainerLog.error("Alarm restored but snooze-state undo was not committed")
+                        }
+                    } else {
+                        appContainerLog.error("Failed to undo snooze of \(mins) minutes")
+                    }
+
+                case .deleteEvent(let snapshot):
+                    eventLogger.restoreDeletedEvent(snapshot)
+                    appContainerLog.info("Undid delete of event \(snapshot.displayName, privacy: .private)")
+                }
+            }
+        }
     }
 }
 

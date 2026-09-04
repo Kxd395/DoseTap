@@ -70,6 +70,15 @@ public enum DiagnosticEvent: String, Codable, Sendable {
     
     /// Snooze activated
     case snoozeActivated = "dose.snooze.activated"
+
+    /// A validated medication action reached the persistence boundary.
+    case doseActionAttempted = "dose.action.attempted"
+
+    /// The corresponding medication transaction committed durably.
+    case doseActionCommitted = "dose.action.committed"
+
+    /// The corresponding medication transaction failed or was rejected.
+    case doseActionFailed = "dose.action.failed"
     
     // MARK: - Alarms / Notifications
     
@@ -254,9 +263,25 @@ public struct DiagnosticLogEntry: Codable, Sendable {
     
     /// Reason for blocked/suppressed events
     public var reason: String?
+
+    /// Per-attempt identifier linking attempted, committed, and failed events.
+    public var actionId: String?
+
+    /// Privacy-safe medication action name (dose1, dose2, dose2_early,
+    /// dose2_late, dose2_skip, or extra_dose).
+    public var doseAction: String?
+
+    /// Registration surface that initiated the action.
+    public var registrationSurface: String?
+
+    /// Typed medication mutation failure code, when applicable.
+    public var mutationFailureCode: String?
     
     /// Alarm/notification identifier
     public var alarmId: String?
+
+    /// Scheduled fire time for an alarm or reminder notification
+    public var scheduledForTime: Date?
     
     /// Previous phase (for transitions)
     public var previousPhase: String?
@@ -283,6 +308,9 @@ public struct DiagnosticLogEntry: Codable, Sendable {
     
     /// Notification category (dose_reminder, window_opening, etc.)
     public var notificationCategory: String?
+
+    /// Notification action identifier (stop, snooze, default open, dismiss)
+    public var notificationActionId: String?
     
     /// Undo target type (dose1, dose2, sleepEvent)
     public var undoTargetType: String?
@@ -340,7 +368,12 @@ public struct DiagnosticLogEntry: Codable, Sendable {
         case snoozeCount = "snooze_count"
         case terminalState = "terminal_state"
         case reason
+        case actionId = "action_id"
+        case doseAction = "dose_action"
+        case registrationSurface = "registration_surface"
+        case mutationFailureCode = "mutation_failure_code"
         case alarmId = "alarm_id"
+        case scheduledForTime = "scheduled_for_time"
         case previousPhase = "previous_phase"
         // Tier 1 fields
         case previousTimezone = "previous_timezone"
@@ -350,6 +383,7 @@ public struct DiagnosticLogEntry: Codable, Sendable {
         case timeDeltaSeconds = "time_delta_seconds"
         case notificationId = "notification_id"
         case notificationCategory = "notification_category"
+        case notificationActionId = "notification_action_id"
         case undoTargetType = "undo_target_type"
         case sleepEventType = "sleep_event_type"
         case sleepEventId = "sleep_event_id"

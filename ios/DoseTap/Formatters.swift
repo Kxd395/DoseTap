@@ -11,11 +11,11 @@ enum AppFormatters {
 
     // MARK: - Session Key  ("2025-06-15")
 
-    /// `"yyyy-MM-dd"` with `.current` timezone — parses and formats session date keys.
+    /// `"yyyy-MM-dd"` with the autoupdating device timezone — parses and formats session date keys.
     static let sessionDate: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd"
-        f.timeZone = .current
+        f.timeZone = .autoupdatingCurrent
         return f
     }()
 
@@ -25,6 +25,7 @@ enum AppFormatters {
     static let weekdayMedium: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "EEEE, MMM d"
+        f.timeZone = .autoupdatingCurrent
         return f
     }()
 
@@ -32,7 +33,7 @@ enum AppFormatters {
     static let shortDate: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "MMM d"
-        f.timeZone = .current
+        f.timeZone = .autoupdatingCurrent
         return f
     }()
 
@@ -40,6 +41,7 @@ enum AppFormatters {
     static let fullDate: DateFormatter = {
         let f = DateFormatter()
         f.dateStyle = .full
+        f.timeZone = .autoupdatingCurrent
         return f
     }()
 
@@ -49,6 +51,7 @@ enum AppFormatters {
     static let shortTime: DateFormatter = {
         let f = DateFormatter()
         f.timeStyle = .short
+        f.timeZone = .autoupdatingCurrent
         return f
     }()
 
@@ -57,6 +60,7 @@ enum AppFormatters {
         let f = DateFormatter()
         f.dateStyle = .medium
         f.timeStyle = .short
+        f.timeZone = .autoupdatingCurrent
         return f
     }()
 
@@ -64,6 +68,7 @@ enum AppFormatters {
     static let shortWeekday: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "EEE, MMM d"
+        f.timeZone = .autoupdatingCurrent
         return f
     }()
 
@@ -71,8 +76,39 @@ enum AppFormatters {
     static let detailedTime: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "h:mm:ss a"
+        f.timeZone = .autoupdatingCurrent
         return f
     }()
+
+    static func compactRating(_ value: Double) -> String {
+        let rounded = (value * 100).rounded() / 100
+        if rounded == rounded.rounded(.towardZero) {
+            return String(Int(rounded))
+        }
+        if (rounded * 10) == (rounded * 10).rounded(.towardZero) {
+            return String(format: "%.1f", rounded)
+        }
+        return String(format: "%.2f", rounded)
+    }
+
+    static func timeZoneLabel(
+        timeZone: TimeZone = .autoupdatingCurrent,
+        at date: Date = Date()
+    ) -> String {
+        "\(timeZone.identifier) (\(utcOffsetLabel(timeZone: timeZone, at: date)))"
+    }
+
+    static func utcOffsetLabel(timeZone: TimeZone, at date: Date) -> String {
+        let seconds = timeZone.secondsFromGMT(for: date)
+        let sign = seconds >= 0 ? "+" : "-"
+        let absoluteMinutes = abs(seconds) / 60
+        return String(
+            format: "UTC%@%02d:%02d",
+            sign,
+            absoluteMinutes / 60,
+            absoluteMinutes % 60
+        )
+    }
 
     // MARK: - Export / Filenames
 
@@ -80,6 +116,7 @@ enum AppFormatters {
     static let exportFilename: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd_HHmmss"
+        f.timeZone = .autoupdatingCurrent
         return f
     }()
 

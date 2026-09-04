@@ -43,7 +43,7 @@ struct PreSleepLogView: View {
         let initialAnswers = existingLog?.answers ?? PreSleepLogAnswers()
         _answers = State(initialValue: initialAnswers)
         _showMoreDetails = State(initialValue: Self.shouldExpandOptionalDetails(for: initialAnswers))
-        _rememberLastSettings = State(initialValue: UserDefaults.standard.bool(forKey: Self.rememberLastSettingsKey))
+        _rememberLastSettings = State(initialValue: Self.rememberLastSettingsDefault())
     }
     
     var body: some View {
@@ -277,19 +277,9 @@ struct PreSleepLogView: View {
     }
     
     private func loadLastAnswers() {
-        // Load stable items from last log (not caffeine/alcohol)
-        if let lastLog = sessionRepo.fetchMostRecentPreSleepLog(),
+        if let lastLog = sessionRepo.fetchMostRecentCompletedPreSleepLog(),
            let lastAnswers = lastLog.answers {
-            // Only copy stable environment items
-            answers.roomTemp = lastAnswers.roomTemp
-            answers.noiseLevel = lastAnswers.noiseLevel
-            answers.screensInBed = lastAnswers.screensInBed
-            answers.sleepAids = lastAnswers.sleepAids
-            answers.sleepAidSelections = lastAnswers.sleepAidSelections
-            answers.plannedTotalNightlyMg = lastAnswers.plannedTotalNightlyMg
-            answers.plannedDoseSplitRatio = lastAnswers.plannedDoseSplitRatio
-            answers.plannedDose1Mg = lastAnswers.plannedDose1Mg
-            answers.plannedDose2Mg = lastAnswers.plannedDose2Mg
+            answers = lastAnswers.carriedForwardForNewNight(referenceDate: Date())
             showMoreDetails = showMoreDetails || Self.shouldExpandOptionalDetails(for: answers)
         }
     }
@@ -310,6 +300,13 @@ struct PreSleepLogView: View {
         if rememberLastSettings {
             applyRememberedSettingsIfNeeded()
         }
+    }
+
+    static func rememberLastSettingsDefault(userDefaults: UserDefaults = .standard) -> Bool {
+        if let stored = userDefaults.object(forKey: rememberLastSettingsKey) as? Bool {
+            return stored
+        }
+        return true
     }
 
     private var planSummary: (wakeBy: Date, inBed: Date, windDown: Date, expectedSleep: Double)? {
@@ -358,6 +355,38 @@ struct PreSleepLogView: View {
         .onTapGesture {
             toggleRememberLastSettings()
         }
+    }
+}
+
+extension PreSleepLogAnswers {
+    func carriedForwardForNewNight(referenceDate: Date, calendar: Calendar = .current) -> PreSleepLogAnswers {
+        var carried = self
+        carried.caffeineLastIntakeAt = Self.carryTimeOfDay(caffeineLastIntakeAt, to: referenceDate, calendar: calendar)
+        carried.alcoholLastDrinkAt = Self.carryTimeOfDay(alcoholLastDrinkAt, to: referenceDate, calendar: calendar)
+        carried.exerciseLastAt = Self.carryTimeOfDay(exerciseLastAt, to: referenceDate, calendar: calendar)
+        carried.napLastEndAt = Self.carryTimeOfDay(napLastEndAt, to: referenceDate, calendar: calendar)
+        carried.lateMealEndedAt = Self.carryTimeOfDay(lateMealEndedAt, to: referenceDate, calendar: calendar)
+        carried.screensLastUsedAt = Self.carryTimeOfDay(screensLastUsedAt, to: referenceDate, calendar: calendar)
+        carried.stressNotes = nil
+        carried.notes = nil
+        return carried
+    }
+
+    private static func carryTimeOfDay(_ source: Date?, to referenceDate: Date, calendar: Calendar) -> Date? {
+        guard let source else { return nil }
+        let dateComponents = calendar.dateComponents([.year, .month, .day], from: referenceDate)
+        let timeComponents = calendar.dateComponents([.hour, .minute, .second, .nanosecond], from: source)
+        var carried = DateComponents()
+        carried.calendar = calendar
+        carried.timeZone = calendar.timeZone
+        carried.year = dateComponents.year
+        carried.month = dateComponents.month
+        carried.day = dateComponents.day
+        carried.hour = timeComponents.hour
+        carried.minute = timeComponents.minute
+        carried.second = timeComponents.second
+        carried.nanosecond = timeComponents.nanosecond
+        return calendar.date(from: carried)
     }
 }
 

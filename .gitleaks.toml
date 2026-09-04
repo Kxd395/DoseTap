@@ -1,0 +1,7 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Public storage and analytics field names, not credentials"
+regexTarget = "secret"
+regexes = ['''^sleepPlan\.schedule\.v1$''', '''^dose2_interval_minutes$''']

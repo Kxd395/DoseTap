@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 2,
+  "exportedAtUTC": "2026-03-21T14:15:00Z",
+  "sessions": [
+    {
+      "sessionDate": "2024-09-15",
+      "dose1TimeUTC": "2024-09-15T20:00:00Z",
+      "dose2TimeUTC": "2024-09-15T22:45:00Z",
+      "rawEvents": [],
+      "normalizedEvents": [],
+      "medications": []
+    }
+  ]
+}

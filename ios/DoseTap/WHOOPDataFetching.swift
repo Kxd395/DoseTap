@@ -13,39 +13,35 @@ extension WHOOPService {
     ///   - endDate: End of range (inclusive)
     /// - Returns: Array of sleep records
     func fetchSleepData(from startDate: Date, to endDate: Date) async throws -> [WHOOPSleep] {
-        let formatter = AppFormatters.iso8601
-        let start = formatter.string(from: startDate)
-        let end = formatter.string(from: endDate)
-        
-        let endpoint = "/developer/v2/activity/sleep?start=\(start)&end=\(end)"
-        let response: WHOOPPaginatedResponse<WHOOPSleep> = try await apiRequest(endpoint, type: WHOOPPaginatedResponse<WHOOPSleep>.self)
-        
+        let endpoint = Self.makeDateRangeEndpoint(
+            path: "/developer/v2/activity/sleep",
+            startDate: startDate,
+            endDate: endDate
+        )
+        let records = try await fetchPaginatedRecords(endpoint: endpoint, type: WHOOPSleep.self)
+
         lastSyncTime = Date()
-        return response.records
+        return records
     }
     
     /// Fetch recovery data for date range
     func fetchRecoveryData(from startDate: Date, to endDate: Date) async throws -> [WHOOPRecovery] {
-        let formatter = AppFormatters.iso8601
-        let start = formatter.string(from: startDate)
-        let end = formatter.string(from: endDate)
-        
-        let endpoint = "/developer/v2/recovery?start=\(start)&end=\(end)"
-        let response: WHOOPPaginatedResponse<WHOOPRecovery> = try await apiRequest(endpoint, type: WHOOPPaginatedResponse<WHOOPRecovery>.self)
-        
-        return response.records
+        let endpoint = Self.makeDateRangeEndpoint(
+            path: "/developer/v2/recovery",
+            startDate: startDate,
+            endDate: endDate
+        )
+        return try await fetchPaginatedRecords(endpoint: endpoint, type: WHOOPRecovery.self)
     }
     
     /// Fetch cycle (daily) data for date range
     func fetchCycleData(from startDate: Date, to endDate: Date) async throws -> [WHOOPCycle] {
-        let formatter = AppFormatters.iso8601
-        let start = formatter.string(from: startDate)
-        let end = formatter.string(from: endDate)
-        
-        let endpoint = "/developer/v2/cycle?start=\(start)&end=\(end)"
-        let response: WHOOPPaginatedResponse<WHOOPCycle> = try await apiRequest(endpoint, type: WHOOPPaginatedResponse<WHOOPCycle>.self)
-        
-        return response.records
+        let endpoint = Self.makeDateRangeEndpoint(
+            path: "/developer/v2/cycle",
+            startDate: startDate,
+            endDate: endDate
+        )
+        return try await fetchPaginatedRecords(endpoint: endpoint, type: WHOOPCycle.self)
     }
     
     /// Fetch recent sleep data (last N nights)
@@ -75,14 +71,135 @@ extension WHOOPService {
     
     /// Fetch heart rate data for date range
     func fetchHeartRateData(from startDate: Date, to endDate: Date) async throws -> [WHOOPHeartRate] {
-        let formatter = AppFormatters.iso8601
-        let start = formatter.string(from: startDate)
-        let end = formatter.string(from: endDate)
-        
-        let endpoint = "/developer/v2/activity/heart_rate?start=\(start)&end=\(end)"
-        let response: WHOOPPaginatedResponse<WHOOPHeartRate> = try await apiRequest(endpoint, type: WHOOPPaginatedResponse<WHOOPHeartRate>.self)
-        
-        return response.records
+        let endpoint = Self.makeDateRangeEndpoint(
+            path: "/developer/v2/activity/heart_rate",
+            startDate: startDate,
+            endDate: endDate
+        )
+        return try await fetchPaginatedRecords(endpoint: endpoint, type: WHOOPHeartRate.self)
+    }
+
+    /// Fetch scored WHOOP nights and merge in recovery metrics when available.
+    func fetchNightSummaries(from startDate: Date, to endDate: Date) async throws -> [WHOOPNightSummary] {
+        let sleeps = try await fetchSleepData(from: startDate, to: endDate)
+
+        do {
+            let recoveries = try await fetchRecoveryData(from: startDate, to: endDate)
+            return Self.makeNightSummaries(sleeps: sleeps, recoveries: recoveries)
+        } catch {
+            // Recovery enrichment is additive. Keep the scored sleep payloads even if recovery fails.
+            return Self.makeNightSummaries(sleeps: sleeps, recoveries: [])
+        }
+    }
+
+    static func makeNightSummaries(sleeps: [WHOOPSleep], recoveries: [WHOOPRecovery]) -> [WHOOPNightSummary] {
+        var summariesBySleepID: [String: WHOOPNightSummary] = [:]
+
+        for sleep in sleeps {
+            if let state = sleep.scoreState?.uppercased(), state != "SCORED" {
+                continue
+            }
+
+            let summary = sleep.toNightSummary()
+            guard summary.hasValidSleepData else { continue }
+            summariesBySleepID[summary.sleepId] = summary
+        }
+
+        guard !summariesBySleepID.isEmpty else {
+            return []
+        }
+
+        for recovery in recoveries {
+            guard let sleepId = recovery.sleepId,
+                  var summary = summariesBySleepID[sleepId] else {
+                continue
+            }
+
+            summary.recoveryScore = recovery.score?.recoveryScore
+            summary.hrvMs = recovery.score?.hrvMs
+            summary.restingHeartRate = recovery.score?.restingHeartRate
+            summary.spo2Percentage = recovery.score?.spo2Percentage
+            summary.skinTempCelsius = recovery.score?.skinTempCelsius
+            summariesBySleepID[sleepId] = summary
+        }
+
+        return summariesBySleepID.values.sorted { $0.date < $1.date }
+    }
+
+    private func fetchPaginatedRecords<T: Codable>(endpoint: String, type _: T.Type) async throws -> [T] {
+        var records: [T] = []
+        var nextToken: String?
+        var seenTokens = Set<String>()
+        var pageCount = 0
+
+        repeat {
+            pageCount += 1
+            if pageCount > Self.paginationPageLimit {
+                throw WHOOPError.apiError(
+                    "pagination_limit_exceeded",
+                    "WHOOP pagination exceeded \(Self.paginationPageLimit) pages"
+                )
+            }
+
+            let pageEndpoint = Self.endpoint(endpoint, addingNextToken: nextToken)
+            let response: WHOOPPaginatedResponse<T> = try await apiRequest(
+                pageEndpoint,
+                type: WHOOPPaginatedResponse<T>.self
+            )
+
+            records.append(contentsOf: response.records)
+
+            guard let token = response.nextToken?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !token.isEmpty else {
+                nextToken = nil
+                continue
+            }
+
+            if seenTokens.contains(token) {
+                throw WHOOPError.apiError(
+                    "pagination_loop",
+                    "WHOOP pagination returned a repeated next_token"
+                )
+            }
+
+            seenTokens.insert(token)
+            nextToken = token
+        } while nextToken != nil
+
+        return records
+    }
+
+    static func makeDateRangeEndpoint(path: String, startDate: Date, endDate: Date) -> String {
+        makeEndpoint(
+            path: path,
+            queryItems: [
+                URLQueryItem(name: "start", value: AppFormatters.iso8601.string(from: startDate)),
+                URLQueryItem(name: "end", value: AppFormatters.iso8601.string(from: endDate))
+            ]
+        )
+    }
+
+    static func endpoint(_ endpoint: String, addingNextToken nextToken: String?) -> String {
+        guard let nextToken = nextToken?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !nextToken.isEmpty,
+              var components = URLComponents(string: endpoint) else {
+            return endpoint
+        }
+
+        var queryItems = components.queryItems ?? []
+        queryItems.removeAll { $0.name == "nextToken" }
+        queryItems.append(URLQueryItem(name: "nextToken", value: nextToken))
+        components.queryItems = queryItems
+        return components.string ?? endpoint
+    }
+
+    private static var paginationPageLimit: Int { 100 }
+
+    private static func makeEndpoint(path: String, queryItems: [URLQueryItem]) -> String {
+        var components = URLComponents()
+        components.path = path
+        components.queryItems = queryItems
+        return components.string ?? "\(path)?\(queryItems.map { "\($0.name)=\($0.value ?? "")" }.joined(separator: "&"))"
     }
 }
 
@@ -451,9 +568,16 @@ extension WHOOPSleep {
             deepMinutes: score?.stageSummary?.deepSleepMinutes ?? 0,
             lightMinutes: score?.stageSummary?.lightSleepMinutes ?? 0,
             awakeMinutes: score?.stageSummary?.awakeMinutes ?? 0,
+            inBedMinutes: score?.stageSummary?.totalInBedTimeMilli.map { $0 / 60000 },
             disturbanceCount: score?.stageSummary?.disturbanceCount ?? 0,
             sleepEfficiency: score?.sleepEfficiencyPercentage,
-            respiratoryRate: score?.respiratoryRate
+            sleepPerformance: score?.sleepPerformancePercentage,
+            sleepConsistency: score?.sleepConsistencyPercentage,
+            respiratoryRate: score?.respiratoryRate,
+            sleepNeedBaselineMinutes: score?.sleepNeeded?.baselineMilli.map { $0 / 60000 },
+            sleepNeedDebtMinutes: score?.sleepNeeded?.needFromSleepDebtMilli.map { $0 / 60000 },
+            sleepNeedStrainMinutes: score?.sleepNeeded?.needFromRecentStrainMilli.map { $0 / 60000 },
+            sleepNeedNapMinutes: score?.sleepNeeded?.needFromRecentNapMilli.map { $0 / 60000 }
         )
     }
 }
@@ -467,14 +591,23 @@ struct WHOOPNightSummary: Identifiable {
     let deepMinutes: Int
     let lightMinutes: Int
     let awakeMinutes: Int
+    let inBedMinutes: Int?
     let disturbanceCount: Int
     let sleepEfficiency: Double?
+    let sleepPerformance: Double?
+    let sleepConsistency: Double?
     let respiratoryRate: Double?
+    let sleepNeedBaselineMinutes: Int?
+    let sleepNeedDebtMinutes: Int?
+    let sleepNeedStrainMinutes: Int?
+    let sleepNeedNapMinutes: Int?
     
     // Recovery data (merged from WHOOPRecovery — set after initial creation)
     var recoveryScore: Double?
     var hrvMs: Double?
     var restingHeartRate: Double?
+    var spo2Percentage: Double?
+    var skinTempCelsius: Double?
     
     var id: String { sleepId }
     

@@ -44,7 +44,7 @@ struct MorningCheckInCard: View {
 
             if let ci = checkIn {
                 VStack(spacing: 8) {
-                    MorningRow(label: "Sleep Quality", value: "\(ci.sleepQuality)/5 ⭐", icon: "star.fill")
+                    MorningRow(label: "Sleep Quality", value: "\(AppFormatters.compactRating(ci.sleepQuality))/5 ⭐", icon: "star.fill")
                     MorningRow(label: "Feel Rested", value: ci.feelRested, icon: "battery.100.bolt")
                     MorningRow(label: "Grogginess", value: ci.grogginess, icon: "cloud.fog.fill")
                     MorningRow(label: "Sleep Inertia", value: ci.sleepInertiaDuration, icon: "timer")

@@ -45,11 +45,40 @@ public extension SessionRepository {
         return convertMorningCheckIn(coreCheckIn)
     }
 
+    /// Fetch normalized check-in submissions for a session.
+    func fetchCheckInSubmissions(for sessionDate: String) -> [StoredCheckInSubmission] {
+        storage.fetchCheckInSubmissions(sessionDate: sessionDate)
+    }
+
     /// Fetch morning check-in for the current session.
     func fetchMorningCheckInForCurrentSession() -> StoredMorningCheckIn? {
         let key = activeSessionId ?? activeSessionDate ?? currentSessionKey
         guard let coreCheckIn = storage.fetchMorningCheckIn(sessionKey: key) else { return nil }
         return convertMorningCheckIn(coreCheckIn)
+    }
+
+    /// Fetch the most recent prior morning check-in for carry-forward defaults.
+    func fetchMostRecentMorningCheckIn(excluding sessionKey: String? = nil) -> StoredMorningCheckIn? {
+        storage.fetchMostRecentStoredMorningCheckIn(excludingSessionKey: sessionKey)
+    }
+
+    /// Record a durable symptom event through the native symptom-event write gate.
+    @discardableResult
+    func recordSymptomEvent(
+        _ event: StoredSymptomEvent,
+        idempotencyKey: String
+    ) throws -> StoredSymptomEvent {
+        try storage.recordSymptomEvent(event, idempotencyKey: idempotencyKey)
+    }
+
+    /// Fetch symptom events for a session date.
+    func fetchSymptomEvents(sessionDate: String) -> [StoredSymptomEvent] {
+        storage.fetchSymptomEvents(sessionDate: sessionDate)
+    }
+
+    /// Fetch the rebuilt symptom summary for a session date.
+    func fetchSymptomSummary(sessionDate: String) -> StoredSymptomSummary? {
+        storage.fetchSymptomSummary(sessionDate: sessionDate)
     }
 
     /// Fetch tonight's sleep events for the current session.
@@ -158,6 +187,11 @@ public extension SessionRepository {
         storage.fetchMostRecentPreSleepLog()
     }
 
+    /// Fetch the most recent completed pre-sleep log for carry-forward defaults.
+    func fetchMostRecentCompletedPreSleepLog() -> StoredPreSleepLog? {
+        storage.fetchMostRecentCompletedPreSleepLog()
+    }
+
     /// Get schema version for debug display.
     func getSchemaVersion() -> Int {
         storage.getSchemaVersion()
@@ -258,6 +292,7 @@ private extension SessionRepository {
             sleepTherapyJson: core.sleepTherapyJson,
             hasSleepEnvironment: core.hasSleepEnvironment,
             sleepEnvironmentJson: core.sleepEnvironmentJson,
+            timingContextJson: core.timingContextJson,
             notes: core.notes
         )
     }

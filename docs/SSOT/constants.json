@@ -2,9 +2,9 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://dosetap.com/ssot/constants.json",
   "title": "DoseTap SSOT Constants",
-  "description": "Single source of truth for all numeric and enum constants. Generate code and validate docs from this file.",
-  "version": "0.1.1",
-  "lastUpdated": "2026-02-15",
+  "description": "Checked contract snapshot for constants that are manually mirrored in code. This file is not a runtime generator.",
+  "version": "1.0.0",
+  "lastUpdated": "2026-09-04",
   
   "doseWindow": {
     "description": "Core dose timing window constraints (non-negotiable medical safety)",
@@ -34,9 +34,9 @@
       "description": "Snooze disabled when this many minutes remain",
       "configurable": false
     },
-    "sleepThroughGraceMinutes": {
+    "unresolvedPromptDelayMinutes": {
       "value": 30,
-      "description": "Grace period after window closes before auto-marking session incomplete (user slept through)",
+      "description": "Presentation-only delay after the window ends before emphasizing the unresolved Dose 2 record prompt; never mutates medication state",
       "configurable": false
     }
   },
@@ -45,14 +45,19 @@
     "description": "Snooze behavior for Dose 2 reminder",
     "durationMinutes": {
       "value": 10,
-      "description": "How long each snooze delays the reminder",
-      "configurable": false
+      "description": "Default snooze delay. The setup UI offers the listed choices; the broader persistence normalization range is defensive tolerance, not an approved UI range.",
+      "configurable": true,
+      "setupChoices": [5, 10, 15],
+      "persistenceNormalizationRange": [1, 30],
+      "default": 10
     },
     "maxCount": {
       "value": 3,
-      "description": "Maximum number of snoozes per session",
+      "description": "Default maximum number of snoozes per session. The setup UI offers the listed choices; the broader persistence normalization range is defensive tolerance, not an approved UI range.",
       "configurable": true,
-      "range": [1, 5],
+      "setupChoices": [1, 2, 3, 5],
+      "persistenceNormalizationRange": [0, 10],
+      "implementationNote": "A persisted value of zero disables snooze, but zero is not offered by the current setup picker.",
       "default": 3
     }
   },
@@ -61,8 +66,10 @@
     "description": "Undo window for accidental taps",
     "windowSeconds": {
       "value": 5,
-      "description": "Seconds after dose/skip action to allow undo",
-      "configurable": false
+      "description": "Default seconds after an eligible action to allow undo",
+      "configurable": true,
+      "validOptions": [3, 5, 7, 10],
+      "default": 5
     }
   },
   
@@ -71,14 +78,14 @@
     "maxSlots": 16,
     "layout": "4x4 grid",
     "customizable": true,
-    "defaultSlots": ["bathroom", "water", "lightsOut", "wakeFinal", "wakeTemp", "anxiety", "noise", "pain"],
-    "note": "User can choose any events from sleepEvents.types plus custom user-defined events"
+    "defaultSlots": ["bathroom", "water", "lightsOut", "wakeTemp", "anxiety", "noise", "pain", "dream"],
+    "note": "Current selectable UI values are defined by UserSettingsManager.allAvailableEvents; this snapshot does not enumerate every stored or app-normalized value"
   },
   
   "sleepEventEditing": {
     "description": "Sleep events can be edited, deleted, or undone",
     "undoWindowSeconds": 5,
-    "undoNote": "5-second undo snackbar appears after logging any event",
+    "undoNote": "The undo snackbar uses the configured window; the default is 5 seconds.",
     "deleteEnabled": true,
     "deleteNote": "Swipe to delete individual events in timeline, or tap event to edit/delete",
     "editEnabled": true,
@@ -91,10 +98,28 @@
   },
   
   "sleepEvents": {
-    "description": "Sleep event types. All are LOCAL-ONLY (SQLite), NOT sent to API.",
+    "description": "DoseCore SleepEventType compatibility cases. SQLite and the app UI support a broader forward-compatible vocabulary. All are local-only and are not sent to the API.",
+    "scope": "DoseCore compatibility subset, not a closed storage or UI enum",
+    "additionalAppValues": ["nap_start", "nap_end"],
     "storage": "local-only",
     "storageNote": "Sleep events are stored in SQLite sleep_events table. The API /events/log endpoint does NOT accept these.",
-    "rateLimitingNote": "REVISED: Only physical events (bathroom, water, snack) have cooldowns to prevent accidental double-taps. Mental/environment events have NO cooldown - log as many times as needed.",
+    "rateLimitingNote": "The values in types are DoseCore compatibility defaults. The shipping Quick Log uses configurable UserSettingsManager values instead; its current defaults are listed in runtimeQuickLogCooldownDefaultsSeconds.",
+    "runtimeQuickLogCooldownDefaultsSeconds": {
+      "bathroom": 30,
+      "water": 30,
+      "snack": 300,
+      "nap_start": 30,
+      "nap_end": 30,
+      "lights_out": 1800,
+      "wake_temp": 60,
+      "in_bed": 30,
+      "anxiety": 60,
+      "dream": 30,
+      "heart_racing": 60,
+      "noise": 30,
+      "temperature": 60,
+      "pain": 60
+    },
     "types": [
       {"rawValue": "bathroom", "cooldownSeconds": 60, "category": "physical", "wireFormat": "bathroom", "rationale": "Prevent accidental double-tap"},
       {"rawValue": "water", "cooldownSeconds": 60, "category": "physical", "wireFormat": "water", "rationale": "Prevent accidental double-tap"},

@@ -21,12 +21,18 @@
 - [ ] If this changes navigation or contracts, I have updated `docs/SSOT/navigation.md` or `docs/SSOT/contracts/*`
 - [ ] I have run `bash tools/ssot_check.sh` and reviewed any warnings
 
+## Build Tracking
+
+- [ ] App-facing changes bump `CURRENT_PROJECT_VERSION`
+- [ ] Major behavior, storage, sync, or dosing changes bump `MARKETING_VERSION`
+- [ ] I have run `bash tools/check_app_version.sh`
+
 ## For Release PRs
 
 If this PR is a release (version bump, tag):
 
 - [ ] I have completed the [Release Checklist](../docs/RELEASE_CHECKLIST.md)
-- [ ] Version number is updated in Xcode project
+- [ ] Version and build numbers are updated in the Xcode project
 - [ ] CHANGELOG.md is updated
 
 ---

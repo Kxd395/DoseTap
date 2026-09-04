@@ -1,10 +1,13 @@
 # GitHub Branch Protection — Recommended Settings
 
-> Applied to `main` branch via GitHub → Settings → Branches → Branch protection rules.
+Status: Current configuration guide; remote state not reverified
+Last reviewed: 2026-09-02
 
-## Current Status (As Of February 9, 2026)
+Apply these rules through GitHub settings. Re-read the remote branch protection and the actual CI check names before each release.
 
-`main` branch protection is now active on `Kxd395/DoseTap` with:
+## Last recorded remote status
+
+The governance report recorded this state on 2026-02-09. It was not reverified from GitHub during the 2026-09-02 local documentation pass:
 - required checks: `CI / SSOT integrity check`, `CI / SwiftPM tests`, `CI / Xcode simulator tests`
 - strict status checks (branch must be up to date): enabled
 - admin enforcement: enabled
@@ -19,7 +22,7 @@
 | **Require a pull request before merging** | ✅ On | Prevents direct pushes; forces CI to run |
 | Require approvals | 0 (solo dev) / 1+ (team) | Scale with team size |
 | **Require status checks to pass** | ✅ On | Gates on CI results |
-| Required checks | `CI / SSOT integrity check`, `CI / SwiftPM tests`, `CI / Xcode simulator tests` | Core quality gates from `.github/workflows/ci.yml` |
+| Required checks | Names from the latest successful required workflows | Check names can change when workflow jobs are renamed; verify them remotely |
 | **Require branches to be up to date** | ✅ On | Prevents stale merges |
 | **Do not allow bypassing the above settings** | ✅ On | Applies even to admins |
 | Require linear history | Optional | Nice for clean history |

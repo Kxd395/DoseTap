@@ -196,7 +196,7 @@ struct CoachSummaryCard: View {
             }
         }
 
-        if let interval = session.intervalMinutes, !(150...240).contains(interval) {
+        if let interval = session.intervalMinutes, !(MedicationTiming.classify(elapsedSeconds: Double(interval) * 60) == .inWindow) {
             suggestions.append("Move Dose 2 toward the 150-240 minute window after Dose 1.")
         }
 
@@ -377,7 +377,7 @@ struct ReviewKeyMetricsCard: View {
         guard let minutes = session.intervalMinutes else {
             return session.dose2Skipped ? .orange : .gray
         }
-        if (150...240).contains(minutes) {
+        if (MedicationTiming.classify(elapsedSeconds: Double(minutes) * 60) == .inWindow) {
             return .green
         }
         return .red
@@ -385,7 +385,7 @@ struct ReviewKeyMetricsCard: View {
 
     private var isOnTime: Bool {
         guard let minutes = session.intervalMinutes else { return false }
-        return (150...240).contains(minutes)
+        return (MedicationTiming.classify(elapsedSeconds: Double(minutes) * 60) == .inWindow)
     }
 
     private var bathroomCount: Int {
@@ -410,6 +410,18 @@ struct ReviewKeyMetricsCard: View {
             .filter { normalizeStoredEventType($0.eventType) == "wake_final" }
             .map(\.timestamp)
             .max()
+    }
+
+    private var wakeToDose1Metric: WakeToDose1Metric? {
+        let allEvents = SessionRepository.shared.fetchAllSleepEvents(limit: 500)
+        return buildWakeToDose1Metric(
+            dose1Time: session.dose1Time,
+            events: allEvents + events
+        )
+    }
+
+    private var wakeToDose1Text: String {
+        wakeToDose1Metric?.formattedInterval ?? "No wake"
     }
 
     private var timeInBedText: String {
@@ -459,6 +471,19 @@ struct ReviewKeyMetricsCard: View {
                     icon: "bed.double.fill",
                     color: lightsOutTime != nil && finalWakeTime != nil ? .blue : .gray
                 )
+            }
+
+            HStack(spacing: 8) {
+                Image(systemName: "sun.max.fill")
+                    .foregroundColor(wakeToDose1Metric == nil ? .gray : .orange)
+                    .font(.caption)
+                Text("Wake to Dose 1")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Spacer()
+                Text(wakeToDose1Text)
+                    .font(.caption.bold())
+                    .foregroundColor(wakeToDose1Metric == nil ? .secondary : .primary)
             }
 
             HStack(spacing: 12) {

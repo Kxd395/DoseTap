@@ -1,0 +1,2 @@
+started_utc,ended_utc,window_target_min,window_actual_min,adherence_flag,whoop_recovery,avg_hr,sleep_efficiency,notes
+2024-09-16T20:00:00.000Z,2024-09-16T22:45:00.000Z,165,165,ok,65,63,84.0,Contradictory outcome fixture

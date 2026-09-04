@@ -2,11 +2,158 @@ import SwiftUI
 import DoseCore
 import os.log
 
+// MARK: - Home Presentation State
+struct HomePresentationState: Equatable {
+    enum Primary: Equatable {
+        case previousSessionNeedsReview
+        case tonightReady
+        case dose2Waiting
+        case dose2Ready
+        case dose2NeedsResolution
+        case morningCloseout
+        case reviewOnly
+    }
+
+    struct PriorSessionReview: Equatable {
+        let sessionDate: String
+        let isBlocking: Bool
+    }
+
+    let primary: Primary
+    let priorSessionReview: PriorSessionReview?
+
+    var isBlockedByPriorSession: Bool {
+        primary == .previousSessionNeedsReview
+    }
+
+    var showsDoseStatusCard: Bool {
+        switch primary {
+        case .dose2Waiting, .dose2Ready, .dose2NeedsResolution, .morningCloseout:
+            return true
+        case .previousSessionNeedsReview, .tonightReady, .reviewOnly:
+            return false
+        }
+    }
+
+    var showsDosePrimaryAction: Bool {
+        switch primary {
+        case .tonightReady, .dose2Waiting, .dose2Ready, .dose2NeedsResolution:
+            return true
+        case .previousSessionNeedsReview, .morningCloseout, .reviewOnly:
+            return false
+        }
+    }
+
+    var showsWakeAction: Bool {
+        primary == .morningCloseout
+    }
+
+    var showsPreSleepCard: Bool {
+        switch primary {
+        case .previousSessionNeedsReview, .reviewOnly:
+            return false
+        case .tonightReady, .dose2Waiting, .dose2Ready, .dose2NeedsResolution, .morningCloseout:
+            return true
+        }
+    }
+
+    var showsQuickLog: Bool {
+        switch primary {
+        case .previousSessionNeedsReview, .reviewOnly:
+            return false
+        case .tonightReady, .dose2Waiting, .dose2Ready, .dose2NeedsResolution, .morningCloseout:
+            return true
+        }
+    }
+
+    var showsSessionSummary: Bool {
+        switch primary {
+        case .previousSessionNeedsReview, .tonightReady:
+            return false
+        case .dose2Waiting, .dose2Ready, .dose2NeedsResolution, .morningCloseout, .reviewOnly:
+            return true
+        }
+    }
+
+    var showsWeeklyInsights: Bool {
+        !isBlockedByPriorSession
+    }
+
+    var showsLiveDoseIntervals: Bool {
+        switch primary {
+        case .dose2Waiting, .dose2Ready, .dose2NeedsResolution, .morningCloseout, .reviewOnly:
+            return true
+        case .previousSessionNeedsReview, .tonightReady:
+            return false
+        }
+    }
+}
+
+enum HomeStateResolver {
+    static func resolve(
+        doseStatus: DoseStatus,
+        currentSessionDate: String,
+        activeSessionDate: String?,
+        incompleteSessionDate: String?,
+        awaitingRolloverMessage: String?,
+        checkInCompleted: Bool,
+        hasMorningCheckIn: Bool
+    ) -> HomePresentationState {
+        let priorReview = incompleteSessionDate.map { sessionDate in
+            HomePresentationState.PriorSessionReview(
+                sessionDate: sessionDate,
+                isBlocking: incompleteSessionBlocksCurrentSession(
+                    sessionDate: sessionDate,
+                    currentSessionDate: currentSessionDate,
+                    activeSessionDate: activeSessionDate,
+                    awaitingRolloverMessage: awaitingRolloverMessage
+                )
+            )
+        }
+
+        if let priorReview, priorReview.isBlocking {
+            return HomePresentationState(primary: .previousSessionNeedsReview, priorSessionReview: priorReview)
+        }
+
+        if checkInCompleted || hasMorningCheckIn {
+            return HomePresentationState(primary: .reviewOnly, priorSessionReview: priorReview)
+        }
+
+        let primary: HomePresentationState.Primary
+        switch doseStatus {
+        case .noDose1:
+            primary = .tonightReady
+        case .beforeWindow:
+            primary = .dose2Waiting
+        case .active, .nearClose:
+            primary = .dose2Ready
+        case .closed:
+            primary = .dose2NeedsResolution
+        case .completed, .finalizing:
+            primary = .morningCloseout
+        }
+
+        return HomePresentationState(primary: primary, priorSessionReview: priorReview)
+    }
+
+    private static func incompleteSessionBlocksCurrentSession(
+        sessionDate: String,
+        currentSessionDate: String,
+        activeSessionDate: String?,
+        awaitingRolloverMessage: String?
+    ) -> Bool {
+        if sessionDate == currentSessionDate { return true }
+        if sessionDate == activeSessionDate { return true }
+        return awaitingRolloverMessage != nil && sessionDate == activeSessionDate
+    }
+}
+
 // MARK: - Legacy Tonight View
 struct LegacyTonightView: View {
     @ObservedObject var core: DoseTapCore
     @ObservedObject var eventLogger: EventLogger
     @ObservedObject var undoState: UndoStateManager
+    @ObservedObject var coordinator: DoseActionCoordinator
     @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.isInSplitView) private var isInSplitView
@@ -25,8 +172,10 @@ struct LegacyTonightView: View {
     @State private var preSleepLog: StoredPreSleepLog? = nil
     @State private var preSleepEditingLog: StoredPreSleepLog? = nil
     @State private var morningCheckIn: StoredMorningCheckIn? = nil
-    
+
     var body: some View {
+        let homeState = resolvedHomeState
+
         ScrollView {
             VStack(spacing: 0) {
                 // Header - add extra top padding to account for safe area in page-style TabView
@@ -41,13 +190,13 @@ struct LegacyTonightView: View {
                     }
                     .frame(maxWidth: .infinity)
                     TonightDateLabel()
-                    
+
                     // Show scheduled wake alarm when dose 1 taken
                     AlarmIndicatorView(dose1Time: core.dose1Time)
                         .padding(.top, 4)
                 }
                 .padding(.top, isInSplitView ? 16 : 50) // Safe area offset for page-style TabView (less needed in split view)
-                
+
                 if let message = sessionRepo.awaitingRolloverMessage {
                     HStack(spacing: 8) {
                         Image(systemName: "clock.arrow.circlepath")
@@ -63,7 +212,23 @@ struct LegacyTonightView: View {
                     .cornerRadius(10)
                     .padding(.horizontal)
                 }
-            
+
+            if let priorReview = homeState.priorSessionReview {
+                IncompleteSessionBanner(
+                    sessionDate: priorReview.sessionDate,
+                    isBlocking: priorReview.isBlocking,
+                    onComplete: {
+                        showIncompleteCheckIn = true
+                    },
+                    onDismiss: {
+                        Self.dismissIncompleteSession(priorReview.sessionDate)
+                        incompleteSessionDate = nil
+                    }
+                )
+                .padding(.horizontal)
+                .padding(.top, 8)
+            }
+
             if let plan = sleepPlanSummary {
                 SleepPlanSummaryCard(
                     wakeBy: plan.wakeBy,
@@ -73,7 +238,7 @@ struct LegacyTonightView: View {
                 )
                 .padding(.horizontal)
                 .padding(.top, 8)
-                
+
                 SleepPlanOverrideCard(
                     overrideEnabled: $overrideEnabled,
                     overrideWake: $overrideWake,
@@ -88,35 +253,19 @@ struct LegacyTonightView: View {
                 .padding(.horizontal)
                 .padding(.top, 4)
             }
-            
-            // Incomplete Session Banner (if previous night wasn't completed)
-            if let sessionDate = incompleteSessionDate {
-                IncompleteSessionBanner(
-                    sessionDate: sessionDate,
-                    onComplete: {
-                        showIncompleteCheckIn = true
-                    },
-                    onDismiss: {
-                        // Persist dismissal so the banner doesn't reappear on next onAppear
-                        Self.dismissIncompleteSession(sessionDate)
-                        incompleteSessionDate = nil
-                    }
-                )
-                .padding(.horizontal)
-                .padding(.top, 8)
+            if homeState.showsDoseStatusCard {
+                Spacer().frame(height: 12)
+
+                // Combined Status + Timer Card (compact)
+                CompactStatusCard(core: core)
             }
-            
+
             Spacer().frame(height: 12)
-            
-            // Combined Status + Timer Card (compact)
-            CompactStatusCard(core: core)
-            
-            Spacer().frame(height: 12)
-            
+
             // Pre-Sleep Log Card — always visible during a session so users can
             // log, view, or edit pre-sleep info at any time (before or after Dose 1).
             // Only hidden once the session has fully ended (wake/morning check-in).
-            if !sessionRepo.checkInCompleted {
+            if homeState.showsPreSleepCard && !sessionRepo.checkInCompleted {
                 PreSleepCard(
                     state: PreSleepCardState(log: preSleepLog),
                     onAction: { action in
@@ -135,94 +284,124 @@ struct LegacyTonightView: View {
                     }
                 )
                 .padding(.horizontal)
-                
+
                 Spacer().frame(height: 12)
             }
-            
+
             // Morning Check-In Card (view/edit completed check-in)
             if let checkIn = morningCheckIn {
                 MorningCheckInCompactCard(checkIn: checkIn) {
                     showMorningCheckIn = true
                 }
                 .padding(.horizontal)
-                
+
                 Spacer().frame(height: 12)
             }
-            
+
             // Wide layout: dose controls left, events right
             // Compact layout: stacked vertically (default)
-            if horizontalSizeClass == .regular {
+            if !homeState.isBlockedByPriorSession, horizontalSizeClass == .regular {
                 HStack(alignment: .top, spacing: 16) {
                     // LEFT: Dose controls + status
                     VStack(spacing: 12) {
-                        CompactDoseButton(
-                            core: core,
-                            eventLogger: eventLogger,
-                            undoState: undoState,
-                            sessionRepo: sessionRepo,
-                            showEarlyDoseAlert: $showEarlyDoseAlert,
-                            earlyDoseMinutes: $earlyDoseMinutesRemaining,
-                            showExtraDoseWarning: $showExtraDoseWarning
-                        )
-                        
-                        WakeUpButton(
-                            eventLogger: eventLogger,
-                            showMorningCheckIn: $showMorningCheckIn
-                        )
-                        
-                        LiveDoseIntervalsCard(sessionRepo: sessionRepo)
+                        if homeState.showsDosePrimaryAction {
+                            CompactDoseButton(
+                                core: core,
+                                eventLogger: eventLogger,
+                                undoState: undoState,
+                                sessionRepo: sessionRepo,
+                                showEarlyDoseAlert: $showEarlyDoseAlert,
+                                earlyDoseMinutes: $earlyDoseMinutesRemaining,
+                                showExtraDoseWarning: $showExtraDoseWarning,
+                                showMorningCheckIn: $showMorningCheckIn,
+                                coordinator: coordinator
+                            )
+                        }
+
+                        if homeState.showsWakeAction {
+                            WakeUpButton(
+                                eventLogger: eventLogger,
+                                showMorningCheckIn: $showMorningCheckIn
+                            )
+                        }
+
+                        if homeState.showsLiveDoseIntervals {
+                            LiveDoseIntervalsCard(sessionRepo: sessionRepo)
+                        }
                     }
                     .frame(maxWidth: .infinity)
-                    
+
                     // RIGHT: Event log + session summary
                     VStack(spacing: 12) {
-                        QuickEventPanel(eventLogger: eventLogger)
-                        
-                        CompactSessionSummary(core: core, eventLogger: eventLogger)
+                        if homeState.showsQuickLog {
+                            QuickEventPanel(eventLogger: eventLogger)
+                        }
+
+                        if homeState.showsSessionSummary {
+                            CompactSessionSummary(core: core, eventLogger: eventLogger)
+                        }
+
+                        if homeState.showsWeeklyInsights {
+                            WeeklyInsightsCard(sessionRepo: sessionRepo)
+                        }
                     }
                     .frame(maxWidth: .infinity)
                 }
                 .padding(.horizontal)
-            } else {
-            // Main Dose Button
-            CompactDoseButton(
-                core: core,
-                eventLogger: eventLogger,
-                undoState: undoState,
-                sessionRepo: sessionRepo,
-                showEarlyDoseAlert: $showEarlyDoseAlert,
-                earlyDoseMinutes: $earlyDoseMinutesRemaining,
-                showExtraDoseWarning: $showExtraDoseWarning
-            )
-            
-            Spacer().frame(height: 12)
-            
-            // Quick Event Log
-            QuickEventPanel(eventLogger: eventLogger)
-                .padding(.horizontal)
-            
-            Spacer().frame(height: 12)
-            
-            // Wake Up & End Session Button (prominent)
-            WakeUpButton(
-                eventLogger: eventLogger,
-                showMorningCheckIn: $showMorningCheckIn
-            )
-            .padding(.horizontal)
-            
-            Spacer().frame(height: 12)
-            
-            // Compact Session Summary (tap events to expand list)
-            CompactSessionSummary(core: core, eventLogger: eventLogger)
-                .padding(.horizontal)
-            
-            Spacer().frame(height: 12)
-            
-            // Inter-dose intervals for this session
-            LiveDoseIntervalsCard(sessionRepo: sessionRepo)
-                .padding(.horizontal)
+            } else if !homeState.isBlockedByPriorSession {
+                if homeState.showsDosePrimaryAction {
+                    CompactDoseButton(
+                        core: core,
+                        eventLogger: eventLogger,
+                        undoState: undoState,
+                        sessionRepo: sessionRepo,
+                        showEarlyDoseAlert: $showEarlyDoseAlert,
+                        earlyDoseMinutes: $earlyDoseMinutesRemaining,
+                        showExtraDoseWarning: $showExtraDoseWarning,
+                        showMorningCheckIn: $showMorningCheckIn,
+                        coordinator: coordinator
+                    )
+                }
+
+                if homeState.showsQuickLog {
+                    Spacer().frame(height: 12)
+
+                    QuickEventPanel(eventLogger: eventLogger)
+                        .padding(.horizontal)
+                }
+
+                if homeState.showsWakeAction {
+                    Spacer().frame(height: 12)
+
+                    WakeUpButton(
+                        eventLogger: eventLogger,
+                        showMorningCheckIn: $showMorningCheckIn
+                    )
+                    .padding(.horizontal)
+                }
+
+                if homeState.showsSessionSummary {
+                    Spacer().frame(height: 12)
+
+                    CompactSessionSummary(core: core, eventLogger: eventLogger)
+                        .padding(.horizontal)
+                }
+
+                if homeState.showsWeeklyInsights {
+                    Spacer().frame(height: 12)
+
+                    WeeklyInsightsCard(sessionRepo: sessionRepo)
+                        .padding(.horizontal)
+                }
+
+                if homeState.showsLiveDoseIntervals {
+                    Spacer().frame(height: 12)
+
+                    LiveDoseIntervalsCard(sessionRepo: sessionRepo)
+                        .padding(.horizontal)
+                }
             } // end compact layout
-            
+
             Spacer()
                 .frame(height: 100) // Space for tab bar (increased from 80)
             }
@@ -306,12 +485,16 @@ struct LegacyTonightView: View {
         .sheet(isPresented: $showOverrideConfirmation) {
             EarlyDoseOverrideSheet(
                 minutesRemaining: earlyDoseMinutesRemaining,
-                onConfirm: {
+                onConfirm: { reason, notes in
                     Task {
-                        // Taking Dose 2 early with explicit override
-                        await core.takeDose(earlyOverride: true)
-                        // Log dose as event with Early badge for Details tab
-                        eventLogger.logEvent(name: "Dose 2 (Early)", color: .orange, cooldownSeconds: 3600 * 8, persist: false)
+                        let result = await coordinator.takeDose2(
+                            override: .earlyConfirmed,
+                            reason: reason,
+                            reasonNotes: notes
+                        )
+                        if case .blocked(let reason) = result {
+                            appLogger.warning("Early dose override blocked: \(reason, privacy: .public)")
+                        }
                     }
                     showOverrideConfirmation = false
                 },
@@ -322,14 +505,11 @@ struct LegacyTonightView: View {
         .alert("⚠️ STOP - Dose 2 Already Taken", isPresented: $showExtraDoseWarning) {
             Button("Cancel", role: .cancel) { }
             Button("I Accept Full Responsibility", role: .destructive) {
-                // Record as extra_dose with explicit user confirmation
                 Task {
-                    let now = Date()
-                    // Save as extra_dose (does NOT update dose2_time)
-                    sessionRepo.saveDose2(timestamp: now, isExtraDose: true)
-                    // Log with warning color
-                    eventLogger.logEvent(name: "Extra Dose ⚠️", color: .red, cooldownSeconds: 0, persist: false)
-                    appLogger.warning("Extra dose logged at \(now, privacy: .private) - user confirmed")
+                    let result = await coordinator.takeDose2(override: .extraDoseConfirmed)
+                    if case .blocked(let reason) = result {
+                        appLogger.warning("Extra dose override blocked: \(reason, privacy: .public)")
+                    }
                 }
             }
         } message: {
@@ -395,16 +575,28 @@ struct LegacyTonightView: View {
             overrideWake = base
         }
     }
-    
+
+    private var resolvedHomeState: HomePresentationState {
+        HomeStateResolver.resolve(
+            doseStatus: core.currentStatus,
+            currentSessionDate: sessionRepo.currentSessionDateString(),
+            activeSessionDate: sessionRepo.activeSessionDate,
+            incompleteSessionDate: incompleteSessionDate,
+            awaitingRolloverMessage: sessionRepo.awaitingRolloverMessage,
+            checkInCompleted: sessionRepo.checkInCompleted,
+            hasMorningCheckIn: morningCheckIn != nil
+        )
+    }
+
     private var sleepPlanSummary: (wakeBy: Date, recommendedInBed: Date, windDown: Date, expectedSleepMinutes: Double)? {
         let key = sessionRepo.currentSessionKey
         return sleepPlanStore.plan(for: key, now: Date(), tz: TimeZone.current)
     }
-    
+
     private func reloadPreSleepLog() {
         let key = sessionRepo.preSleepLogSessionKey(for: Date())
         preSleepLog = sessionRepo.fetchMostRecentPreSleepLog(sessionId: key)
-        
+
         // Fallback: if the primary key is a UUID (post-dose-1) and linking hasn't
         // updated the pre-sleep log yet, try the date-string key.
         if preSleepLog == nil {
@@ -420,21 +612,21 @@ struct LegacyTonightView: View {
                 preSleepLog = sessionRepo.fetchMostRecentPreSleepLog(sessionId: dateKey)
             }
         }
-        
+
         if preSleepLog == nil {
             preSleepEditingLog = nil
         }
     }
-    
+
     private func reloadMorningCheckIn() {
         let key = sessionRepo.activeSessionDate ?? sessionRepo.currentSessionKey
         morningCheckIn = sessionRepo.fetchMorningCheckIn(for: key)
     }
-    
+
     // MARK: - Persistent Banner Dismissal
-    
+
     private static let dismissedSessionsKey = "dismissedIncompleteSessions"
-    
+
     /// Persist that a user dismissed the incomplete-session banner for this date.
     static func dismissIncompleteSession(_ sessionDate: String) {
         var dismissed = UserDefaults.standard.stringArray(forKey: dismissedSessionsKey) ?? []
@@ -445,7 +637,7 @@ struct LegacyTonightView: View {
             UserDefaults.standard.set(dismissed, forKey: dismissedSessionsKey)
         }
     }
-    
+
     /// Check if a session date has been permanently dismissed.
     static func isDismissed(_ sessionDate: String) -> Bool {
         let dismissed = UserDefaults.standard.stringArray(forKey: dismissedSessionsKey) ?? []
@@ -471,7 +663,7 @@ struct QuickThemeSwitchButton: View {
     var body: some View {
         Button {
             themeManager.applyTheme(nextTheme)
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            Haptics.light.play()
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: themeManager.currentTheme.icon)
@@ -509,22 +701,22 @@ struct QuickThemeSwitchButton: View {
 // MARK: - Tonight Date Label
 struct TonightDateLabel: View {
     @ObservedObject private var sessionRepo = SessionRepository.shared
-    
+
     var body: some View {
         Text(tonightDateString)
             .font(.subheadline)
             .foregroundColor(.secondary)
     }
-    
+
     private var tonightDateString: String {
         // Use the session key to determine the "Tonight" date
         // If the session key is 2025-12-26, we want to show Friday, Dec 26
         let key = sessionRepo.currentSessionKey
-        
+
         if let date = AppFormatters.sessionDate.date(from: key) {
             return "Tonight – " + AppFormatters.weekdayMedium.string(from: date)
         }
-        
+
         return "Tonight – " + AppFormatters.weekdayMedium.string(from: Date())
     }
 }
@@ -533,8 +725,30 @@ struct TonightDateLabel: View {
 struct TonightEventsSheet: View {
     let events: [LoggedEvent]
     let onDelete: (UUID) -> Void
+    let onEditTime: ((UUID, Date) -> Void)?
+    let onEditNotes: ((UUID, String?) -> Void)?
+    let onAddEvent: ((String, Color, Date) -> Void)?
+    let storedEventLookup: ((UUID) -> StoredSleepEvent?)?
     @Environment(\.dismiss) private var dismiss
-    
+    @State private var editingEvent: StoredSleepEvent?
+    @State private var showAddEvent = false
+
+    init(
+        events: [LoggedEvent],
+        onDelete: @escaping (UUID) -> Void,
+        onEditTime: ((UUID, Date) -> Void)? = nil,
+        onEditNotes: ((UUID, String?) -> Void)? = nil,
+        onAddEvent: ((String, Color, Date) -> Void)? = nil,
+        storedEventLookup: ((UUID) -> StoredSleepEvent?)? = nil
+    ) {
+        self.events = events
+        self.onDelete = onDelete
+        self.onEditTime = onEditTime
+        self.onEditNotes = onEditNotes
+        self.onAddEvent = onAddEvent
+        self.storedEventLookup = storedEventLookup
+    }
+
     var body: some View {
         NavigationView {
             Group {
@@ -555,22 +769,45 @@ struct TonightEventsSheet: View {
                 } else {
                     List {
                         ForEach(events.sorted(by: { $0.time > $1.time })) { event in
-                            HStack(spacing: 12) {
-                                Circle()
-                                    .fill(event.color)
-                                    .frame(width: 12, height: 12)
-                                
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(event.name)
-                                        .font(.body)
-                                    Text(event.time.formatted(date: .omitted, time: .shortened))
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
+                            Button {
+                                if let lookup = storedEventLookup,
+                                   let stored = lookup(event.id) {
+                                    editingEvent = stored
                                 }
-                                
-                                Spacer()
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Circle()
+                                        .fill(event.color)
+                                        .frame(width: 12, height: 12)
+
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(event.name)
+                                            .font(.body)
+                                        Text(event.time.formatted(date: .abbreviated, time: .shortened))
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                        if let stored = storedEventLookup?(event.id),
+                                           let notes = stored.notes,
+                                           !notes.isEmpty, notes != "manual" {
+                                            Text(notes)
+                                                .font(.caption2)
+                                                .italic()
+                                                .foregroundStyle(.tertiary)
+                                                .lineLimit(2)
+                                        }
+                                    }
+
+                                    Spacer()
+
+                                    if storedEventLookup != nil {
+                                        Image(systemName: "pencil")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                                .padding(.vertical, 4)
                             }
-                            .padding(.vertical, 4)
+                            .tint(.primary)
                         }
                         .onDelete { indexSet in
                             let sorted = events.sorted(by: { $0.time > $1.time })
@@ -586,14 +823,35 @@ struct TonightEventsSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Text("\(events.count) event\(events.count == 1 ? "" : "s")")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    Button {
+                        showAddEvent = true
+                    } label: {
+                        Image(systemName: "plus")
+                    }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
+                }
+            }
+            .sheet(item: $editingEvent) { event in
+                EditEventTimeView(
+                    event: event,
+                    sessionDate: SessionRepository.shared.currentSessionKey,
+                    onSave: { newTime in
+                        onEditTime?(UUID(uuidString: event.id) ?? UUID(), newTime)
+                    },
+                    onSaveNotes: onEditNotes.map { handler in
+                        { notes in
+                            handler(UUID(uuidString: event.id) ?? UUID(), notes)
+                        }
+                    }
+                )
+            }
+            .sheet(isPresented: $showAddEvent) {
+                ManualEventLogView { eventType, color, timestamp in
+                    onAddEvent?(eventType, color, timestamp)
                 }
             }
         }

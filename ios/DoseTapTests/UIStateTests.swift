@@ -9,6 +9,7 @@
 import XCTest
 @testable import DoseTap
 import DoseCore
+import UIKit
 
 // MARK: - UI Smoke Tests
 
@@ -40,9 +41,9 @@ final class UISmokeTests: XCTestCase {
     }
     
     func test_tonightEmptyState_afterSessionDelete() async throws {
-        repo.setDose1Time(Date().addingTimeInterval(-180 * 60))
-        repo.setDose2Time(Date().addingTimeInterval(-15 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-180 * 60))
         repo.incrementSnooze()
+        repo.setDose2Time(fixedNow.addingTimeInterval(-15 * 60))
         
         let sessionDate = repo.currentSessionDateString()
         
@@ -108,6 +109,214 @@ final class UISmokeTests: XCTestCase {
     }
 }
 
+@MainActor
+final class AppScreenCaptureTests: XCTestCase {
+    func test_bestFullPageScrollView_prefersVisibleVerticalContentOverPagingScrollView() {
+        let root = UIView(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+
+        let pageScrollView = UIScrollView(frame: root.bounds)
+        pageScrollView.contentSize = CGSize(width: 390 * 5, height: 844)
+        root.addSubview(pageScrollView)
+
+        let contentScrollView = UIScrollView(frame: CGRect(x: 0, y: 80, width: 390, height: 700))
+        contentScrollView.contentSize = CGSize(width: 390, height: 1_600)
+        root.addSubview(contentScrollView)
+
+        let selected = AppScreenCapture.bestFullPageScrollView(in: root)
+
+        XCTAssertTrue(selected === contentScrollView)
+    }
+
+    func test_bestFullPageScrollView_returnsNilWithoutVerticalOverflow() {
+        let root = UIView(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        let scrollView = UIScrollView(frame: root.bounds)
+        scrollView.contentSize = root.bounds.size
+        root.addSubview(scrollView)
+
+        XCTAssertNil(AppScreenCapture.bestFullPageScrollView(in: root))
+    }
+
+    func test_bestFullPageScrollView_ignoresHiddenScrollableContent() {
+        let root = UIView(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        let scrollView = UIScrollView(frame: root.bounds)
+        scrollView.contentSize = CGSize(width: 390, height: 1_600)
+        scrollView.isHidden = true
+        root.addSubview(scrollView)
+
+        XCTAssertNil(AppScreenCapture.bestFullPageScrollView(in: root))
+    }
+
+    func test_bestFullPageScrollView_prefersTallestVisibleReviewContent() {
+        let root = UIView(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+
+        let nestedPreview = UIScrollView(frame: CGRect(x: 24, y: 220, width: 342, height: 300))
+        nestedPreview.contentSize = CGSize(width: 342, height: 900)
+        root.addSubview(nestedPreview)
+
+        let fullReview = UIScrollView(frame: CGRect(x: 0, y: 88, width: 390, height: 692))
+        fullReview.contentSize = CGSize(width: 390, height: 2_600)
+        root.addSubview(fullReview)
+
+        let selected = AppScreenCapture.bestFullPageScrollView(in: root)
+
+        XCTAssertTrue(selected === fullReview)
+    }
+}
+
+final class ReviewContextMetricTests: XCTestCase {
+    func test_wakeToDose1Metric_usesLatestWakeBeforeDose1() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+
+        let olderWake = calendar.date(from: DateComponents(year: 2026, month: 6, day: 15, hour: 7, minute: 0))!
+        let priorWake = calendar.date(from: DateComponents(year: 2026, month: 6, day: 16, hour: 6, minute: 48))!
+        let dose1 = calendar.date(from: DateComponents(year: 2026, month: 6, day: 16, hour: 21, minute: 15))!
+        let sameNightWake = calendar.date(from: DateComponents(year: 2026, month: 6, day: 17, hour: 6, minute: 48))!
+
+        let events = [
+            DoseTap.StoredSleepEvent(
+                id: "older",
+                eventType: "wake_final",
+                timestamp: olderWake,
+                sessionDate: "2026-06-15"
+            ),
+            DoseTap.StoredSleepEvent(
+                id: "prior",
+                eventType: "wake_final",
+                timestamp: priorWake,
+                sessionDate: "2026-06-16"
+            ),
+            DoseTap.StoredSleepEvent(
+                id: "same-night",
+                eventType: "wake_final",
+                timestamp: sameNightWake,
+                sessionDate: "2026-06-17"
+            )
+        ]
+
+        let metric = buildWakeToDose1Metric(dose1Time: dose1, events: events)
+
+        XCTAssertEqual(metric?.wakeTime, priorWake)
+        XCTAssertEqual(metric?.dose1Time, dose1)
+        XCTAssertEqual(metric?.minutes, 867)
+        XCTAssertEqual(metric?.formattedInterval, "14h 27m")
+    }
+
+    func test_wakeToDose1Metric_returnsNilForStaleWake() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+
+        let staleWake = calendar.date(from: DateComponents(year: 2026, month: 6, day: 14, hour: 6, minute: 48))!
+        let dose1 = calendar.date(from: DateComponents(year: 2026, month: 6, day: 16, hour: 21, minute: 15))!
+        let events = [
+            DoseTap.StoredSleepEvent(
+                id: "stale",
+                eventType: "wake_final",
+                timestamp: staleWake,
+                sessionDate: "2026-06-14"
+            )
+        ]
+
+        XCTAssertNil(buildWakeToDose1Metric(dose1Time: dose1, events: events))
+    }
+}
+
+final class HomeStateResolverTests: XCTestCase {
+    private let currentSessionDate = "2026-01-15"
+
+    func test_screenshotState_keepsPriorCheckInNonBlockingAndHidesDuplicateStatus() {
+        let state = resolve(
+            doseStatus: .noDose1,
+            activeSessionDate: nil,
+            incompleteSessionDate: "2026-01-14"
+        )
+
+        XCTAssertEqual(state.primary, .tonightReady)
+        XCTAssertEqual(state.priorSessionReview?.sessionDate, "2026-01-14")
+        XCTAssertEqual(state.priorSessionReview?.isBlocking, false)
+        XCTAssertFalse(state.isBlockedByPriorSession)
+        XCTAssertTrue(state.showsDosePrimaryAction)
+        XCTAssertFalse(state.showsDoseStatusCard, "Tonight-ready should not show a second Ready for Dose 1 status card above the Take Dose 1 button.")
+        XCTAssertFalse(state.showsWakeAction)
+        XCTAssertTrue(state.showsQuickLog)
+        XCTAssertFalse(state.showsLiveDoseIntervals)
+    }
+
+    func test_currentSessionIncompleteBlocksCurrentActions() {
+        let state = resolve(
+            doseStatus: .noDose1,
+            activeSessionDate: nil,
+            incompleteSessionDate: currentSessionDate
+        )
+
+        XCTAssertEqual(state.primary, .previousSessionNeedsReview)
+        XCTAssertTrue(state.isBlockedByPriorSession)
+        XCTAssertEqual(state.priorSessionReview?.isBlocking, true)
+        XCTAssertFalse(state.showsDosePrimaryAction)
+        XCTAssertFalse(state.showsQuickLog)
+        XCTAssertFalse(state.showsWakeAction)
+    }
+
+    func test_dosePhasesResolveToSinglePrimaryWorkflow() {
+        XCTAssertEqual(resolve(doseStatus: .beforeWindow).primary, .dose2Waiting)
+        XCTAssertEqual(resolve(doseStatus: .active).primary, .dose2Ready)
+        XCTAssertEqual(resolve(doseStatus: .nearClose).primary, .dose2Ready)
+        XCTAssertEqual(resolve(doseStatus: .closed).primary, .dose2NeedsResolution)
+
+        let activeState = resolve(doseStatus: .active, activeSessionDate: currentSessionDate)
+        XCTAssertTrue(activeState.showsDoseStatusCard)
+        XCTAssertTrue(activeState.showsDosePrimaryAction)
+        XCTAssertFalse(activeState.showsWakeAction)
+        XCTAssertTrue(activeState.showsLiveDoseIntervals)
+    }
+
+    func test_completedAndFinalizingUseWakeActionInsteadOfDoseButton() {
+        let completed = resolve(doseStatus: .completed, activeSessionDate: currentSessionDate)
+        XCTAssertEqual(completed.primary, .morningCloseout)
+        XCTAssertFalse(completed.showsDosePrimaryAction)
+        XCTAssertTrue(completed.showsWakeAction)
+
+        let finalizing = resolve(doseStatus: .finalizing, activeSessionDate: currentSessionDate)
+        XCTAssertEqual(finalizing.primary, .morningCloseout)
+        XCTAssertFalse(finalizing.showsDosePrimaryAction)
+        XCTAssertTrue(finalizing.showsWakeAction)
+    }
+
+    func test_completedCheckInResolvesToReviewOnly() {
+        let state = resolve(
+            doseStatus: .completed,
+            activeSessionDate: nil,
+            checkInCompleted: true,
+            hasMorningCheckIn: true
+        )
+
+        XCTAssertEqual(state.primary, .reviewOnly)
+        XCTAssertFalse(state.showsDosePrimaryAction)
+        XCTAssertFalse(state.showsWakeAction)
+        XCTAssertFalse(state.showsQuickLog)
+        XCTAssertTrue(state.showsWeeklyInsights)
+    }
+
+    private func resolve(
+        doseStatus: DoseStatus,
+        activeSessionDate: String? = nil,
+        incompleteSessionDate: String? = nil,
+        awaitingRolloverMessage: String? = nil,
+        checkInCompleted: Bool = false,
+        hasMorningCheckIn: Bool = false
+    ) -> HomePresentationState {
+        HomeStateResolver.resolve(
+            doseStatus: doseStatus,
+            currentSessionDate: currentSessionDate,
+            activeSessionDate: activeSessionDate,
+            incompleteSessionDate: incompleteSessionDate,
+            awaitingRolloverMessage: awaitingRolloverMessage,
+            checkInCompleted: checkInCompleted,
+            hasMorningCheckIn: hasMorningCheckIn
+        )
+    }
+}
+
 // MARK: - Full UI State Tests
 
 @MainActor
@@ -142,28 +351,28 @@ final class UIStateTests: XCTestCase {
     func test_phaseTransitions_fullCycle() async throws {
         XCTAssertEqual(repo.currentContext.phase, .noDose1, "Initial phase should be noDose1")
         
-        let dose1Time = Date().addingTimeInterval(-100 * 60)
+        let dose1Time = fixedNow.addingTimeInterval(-100 * 60)
         repo.setDose1Time(dose1Time)
         XCTAssertEqual(repo.currentContext.phase, .beforeWindow, "Should be beforeWindow when window not open")
         
-        repo.setDose1Time(Date().addingTimeInterval(-155 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-155 * 60))
         XCTAssertEqual(repo.currentContext.phase, .active, "Should be active when in window")
         
-        repo.setDose1Time(Date().addingTimeInterval(-235 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-235 * 60))
         XCTAssertEqual(repo.currentContext.phase, .nearClose, "Should be nearClose near window end")
         
-        repo.setDose1Time(Date().addingTimeInterval(-250 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-250 * 60))
         XCTAssertEqual(repo.currentContext.phase, .closed, "Should be closed past window")
     }
     
     func test_completedPhase_afterDose2() async throws {
-        repo.setDose1Time(Date().addingTimeInterval(-160 * 60))
-        repo.setDose2Time(Date())
+        repo.setDose1Time(fixedNow.addingTimeInterval(-160 * 60))
+        repo.setDose2Time(fixedNow)
         XCTAssertEqual(repo.currentContext.phase, .completed, "Should be completed after dose2")
     }
     
     func test_completedPhase_afterSkip() async throws {
-        repo.setDose1Time(Date().addingTimeInterval(-160 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-160 * 60))
         repo.skipDose2()
         XCTAssertEqual(repo.currentContext.phase, .completed, "Should be completed after skip")
     }
@@ -191,19 +400,19 @@ final class UIStateTests: XCTestCase {
     // MARK: - Snooze State Tests
     
     func test_snoozeState_throughCycles() async throws {
-        repo.setDose1Time(Date().addingTimeInterval(-155 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-155 * 60))
         
         if case .snoozeEnabled = repo.currentContext.snooze {
         } else {
             XCTFail("Snooze should be enabled initially")
         }
-        repo.incrementSnooze()
+        XCTAssertTrue(repo.incrementSnoozeIfActive())
         XCTAssertEqual(repo.snoozeCount, 1)
         
-        repo.incrementSnooze()
+        XCTAssertTrue(repo.incrementSnoozeIfActive())
         XCTAssertEqual(repo.snoozeCount, 2)
         
-        repo.incrementSnooze()
+        XCTAssertTrue(repo.incrementSnoozeIfActive())
         XCTAssertEqual(repo.snoozeCount, 3)
         if case .snoozeDisabled = repo.currentContext.snooze {
         } else {
@@ -212,7 +421,7 @@ final class UIStateTests: XCTestCase {
     }
     
     func test_snoozeDisabled_nearWindowEnd() async throws {
-        repo.setDose1Time(Date().addingTimeInterval(-230 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-230 * 60))
         if case .snoozeDisabled = repo.currentContext.snooze {
         } else {
             XCTFail("Snooze should be disabled when <15 min remain")
@@ -222,7 +431,7 @@ final class UIStateTests: XCTestCase {
     // MARK: - Skip State Tests
     
     func test_skipState_enabledInActiveWindow() async throws {
-        repo.setDose1Time(Date().addingTimeInterval(-155 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-155 * 60))
         if case .skipEnabled = repo.currentContext.skip {
         } else {
             XCTFail("Skip should be enabled in active window")
@@ -230,7 +439,7 @@ final class UIStateTests: XCTestCase {
     }
     
     func test_skipState_disabledAfterSkip() async throws {
-        repo.setDose1Time(Date().addingTimeInterval(-155 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-155 * 60))
         repo.skipDose2()
         if case .skipDisabled = repo.currentContext.skip {
         } else {
@@ -246,7 +455,7 @@ final class UIStateTests: XCTestCase {
             XCTFail("Primary should be disabled without dose1")
         }
         
-        repo.setDose1Time(Date().addingTimeInterval(-155 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-155 * 60))
         switch repo.currentContext.primary {
         case .takeNow, .takeBeforeWindowEnds:
             break
@@ -254,22 +463,22 @@ final class UIStateTests: XCTestCase {
             XCTFail("Primary should be take action in active window")
         }
         
-        repo.setDose2Time(Date())
+        repo.setDose2Time(fixedNow)
         if case .disabled = repo.currentContext.primary {
         } else {
             XCTFail("Primary should be disabled after completion")
         }
     }
 
-    func test_primaryCTA_closedPhase_requiresOverride() async throws {
-        repo.setDose1Time(Date().addingTimeInterval(-250 * 60))
+    func test_primaryCTA_closedPhase_requiresRecordResolution() async throws {
+        repo.setDose1Time(fixedNow.addingTimeInterval(-250 * 60))
         XCTAssertEqual(repo.currentContext.phase, .closed)
 
         switch repo.currentContext.primary {
-        case .takeWithOverride(let reason):
-            XCTAssertFalse(reason.isEmpty, "Override CTA should include rationale.")
+        case .resolveExpiredRecord(let reason):
+            XCTAssertFalse(reason.isEmpty, "Resolution CTA should include rationale.")
         default:
-            XCTFail("Closed phase should surface .takeWithOverride.")
+            XCTFail("Closed phase should surface .resolveExpiredRecord.")
         }
     }
     
@@ -300,7 +509,7 @@ final class UIStateTests: XCTestCase {
     // MARK: - Timer Display Tests
     
     func test_remainingTime_availableInWindow() async throws {
-        repo.setDose1Time(Date().addingTimeInterval(-155 * 60))
+        repo.setDose1Time(fixedNow.addingTimeInterval(-155 * 60))
         let remaining = repo.currentContext.remainingToMax
         XCTAssertNotNil(remaining, "Should have remainingToMax in window")
         if let secs = remaining {
@@ -346,6 +555,128 @@ final class PreSleepCardStateTests: XCTestCase {
         )
         let state = PreSleepCardState(log: log)
         XCTAssertEqual(state.action, .edit(id: "log-999"))
+    }
+}
+
+final class CheckInCarryForwardTests: XCTestCase {
+    func test_preSleepCarryForwardMovesTimesToReferenceDayAndDropsOneOffNotes() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let sourceDate = try XCTUnwrap(AppFormatters.parseISO8601Flexible("2026-01-10T02:15:00Z"))
+        let referenceDate = try XCTUnwrap(AppFormatters.parseISO8601Flexible("2026-01-15T23:00:00Z"))
+
+        var answers = DoseTap.PreSleepLogAnswers()
+        answers.intendedSleepTime = .thirtyMin
+        answers.stressLevel = 3
+        answers.stressDrivers = [.work, .health]
+        answers.stressNotes = "one-off stress note"
+        answers.stimulants = .coffee
+        answers.caffeineLastIntakeAt = sourceDate
+        answers.caffeineLastAmountMg = 12
+        answers.caffeineDailyTotalMg = 24
+        answers.exercise = .light
+        answers.exerciseLastAt = sourceDate.addingTimeInterval(-3600)
+        answers.screensInBed = .briefly
+        answers.screensLastUsedAt = sourceDate.addingTimeInterval(1800)
+        answers.roomTemp = .cool
+        answers.noiseLevel = .quiet
+        answers.sleepAidSelections = [.fan]
+        answers.notes = "one-off note"
+
+        let carried = answers.carriedForwardForNewNight(referenceDate: referenceDate, calendar: calendar)
+
+        XCTAssertEqual(carried.intendedSleepTime, .thirtyMin)
+        XCTAssertEqual(carried.stressLevel, 3)
+        XCTAssertEqual(carried.stressDrivers, [.work, .health])
+        XCTAssertEqual(carried.stimulants, .coffee)
+        XCTAssertEqual(carried.caffeineLastAmountMg, 12)
+        XCTAssertEqual(carried.caffeineDailyTotalMg, 24)
+        XCTAssertEqual(carried.exercise, .light)
+        XCTAssertEqual(carried.roomTemp, .cool)
+        XCTAssertEqual(carried.noiseLevel, .quiet)
+        XCTAssertEqual(carried.sleepAidSelections, [.fan])
+        XCTAssertNil(carried.stressNotes)
+        XCTAssertNil(carried.notes)
+
+        let caffeineComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: try XCTUnwrap(carried.caffeineLastIntakeAt))
+        XCTAssertEqual(caffeineComponents.year, 2026)
+        XCTAssertEqual(caffeineComponents.month, 1)
+        XCTAssertEqual(caffeineComponents.day, 15)
+        XCTAssertEqual(caffeineComponents.hour, 2)
+        XCTAssertEqual(caffeineComponents.minute, 15)
+    }
+
+    @MainActor
+    func test_morningCheckInDefaultsToRememberingPriorCheckIn() throws {
+        let storage = EventStorage.shared
+        storage.clearAllData()
+        SessionRepository.shared.reload()
+        UserDefaults.standard.removeObject(forKey: "morningCheckIn.rememberSettings")
+        UserDefaults.standard.removeObject(forKey: "morningCheckIn.savedSettings")
+        defer {
+            storage.clearAllData()
+            SessionRepository.shared.reload()
+            UserDefaults.standard.removeObject(forKey: "morningCheckIn.rememberSettings")
+            UserDefaults.standard.removeObject(forKey: "morningCheckIn.savedSettings")
+        }
+
+        let repo = SessionRepository.shared
+        repo.saveMorningCheckIn(
+            SQLiteStoredMorningCheckIn(
+                id: "prior-checkin",
+                sessionId: "prior-session",
+                timestamp: try XCTUnwrap(AppFormatters.parseISO8601Flexible("2026-01-14T12:00:00Z")),
+                sessionDate: "2026-01-14",
+                sleepQuality: 4,
+                feelRested: DoseTap.RestedLevel.well.rawValue,
+                grogginess: DoseTap.GrogginessLevel.none.rawValue,
+                sleepInertiaDuration: DoseTap.SleepInertiaDuration.lessThanFive.rawValue,
+                dreamRecall: DoseTap.DreamRecallType.normal.rawValue,
+                hasPhysicalSymptoms: false,
+                physicalSymptomsJson: nil,
+                hasRespiratorySymptoms: false,
+                respiratorySymptomsJson: nil,
+                mentalClarity: 4,
+                mood: DoseTap.MoodLevel.good.rawValue,
+                anxietyLevel: DoseTap.AnxietyLevel.none.rawValue,
+                stressLevel: 2,
+                stressContextJson: #"{"drivers":["work"],"notes":"routine"}"#,
+                readinessForDay: 4,
+                hadSleepParalysis: false,
+                hadHallucinations: false,
+                hadAutomaticBehavior: false,
+                fellOutOfBed: false,
+                hadConfusionOnWaking: false,
+                usedSleepTherapy: true,
+                sleepTherapyJson: #"{"device":"CPAP","compliance":95}"#,
+                hasSleepEnvironment: true,
+                sleepEnvironmentJson: #"{"roomTemp":"cool","noiseLevel":"quiet","sleepAids":"fan"}"#,
+                timingContextJson: #"{"nightType":"work_night","dose2TakenReason":"forgot_to_tap","dose2ReasonNotes":"old reason"}"#,
+                notes: "old one-off note"
+            ),
+            sessionDateOverride: "2026-01-14"
+        )
+
+        let viewModel = MorningCheckInViewModel(sessionId: "new-session", sessionDate: "2026-01-15")
+
+        XCTAssertTrue(viewModel.rememberSettings)
+        XCTAssertEqual(viewModel.sleepQuality, 4)
+        XCTAssertEqual(viewModel.feelRested, .well)
+        XCTAssertEqual(viewModel.grogginess, .none)
+        XCTAssertEqual(viewModel.mentalClarity, 4)
+        XCTAssertEqual(viewModel.mood, .good)
+        XCTAssertEqual(viewModel.stressLevel, 2)
+        XCTAssertEqual(viewModel.stressDrivers, [.work])
+        XCTAssertTrue(viewModel.usedSleepTherapy)
+        XCTAssertEqual(viewModel.sleepTherapyDevice, .cpap)
+        XCTAssertTrue(viewModel.hasSleepEnvironment)
+        XCTAssertEqual(viewModel.sleepEnvironmentRoomTemp, .cool)
+        XCTAssertEqual(viewModel.sleepEnvironmentNoiseLevel, .quiet)
+        XCTAssertEqual(viewModel.sleepEnvironmentSleepAid, .fan)
+        XCTAssertEqual(viewModel.nightType, .workNight)
+        XCTAssertEqual(viewModel.dose2TakenReason, .unsure)
+        XCTAssertTrue(viewModel.dose2ReasonNotes.isEmpty)
+        XCTAssertTrue(viewModel.notes.isEmpty)
     }
 }
 
@@ -407,7 +738,7 @@ final class DashboardStressTrendTests: XCTestCase {
         bedtimeDrivers: [CommonStressDriver],
         wakeStress: Int,
         wakeDrivers: [CommonStressDriver],
-        sleepQuality: Int,
+        sleepQuality: Double,
         readiness: Int,
         intervalMinutes: Int
     ) -> DashboardNightAggregate {
@@ -453,7 +784,7 @@ final class DashboardStressTrendTests: XCTestCase {
             createdAtUtc: ISO8601DateFormatter().string(from: timestamp),
             localOffsetMinutes: 0,
             completionState: "complete",
-            answers: PreSleepLogAnswers(
+            answers: DoseTap.PreSleepLogAnswers(
                 stressLevel: stressLevel,
                 stressDrivers: stressDrivers
             )
@@ -463,7 +794,7 @@ final class DashboardStressTrendTests: XCTestCase {
     private func makeMorningCheckIn(
         sessionDate: String,
         timestamp: Date,
-        sleepQuality: Int,
+        sleepQuality: Double,
         readiness: Int,
         stressLevel: Int,
         stressDrivers: [CommonStressDriver]
@@ -488,5 +819,53 @@ final class DashboardStressTrendTests: XCTestCase {
         ]
         let data = try? JSONSerialization.data(withJSONObject: payload)
         return String(data: data ?? Data("{}".utf8), encoding: .utf8) ?? "{}"
+    }
+}
+
+@MainActor
+final class DashboardDoseIntegrityMetricTests: XCTestCase {
+    func test_missingDose2OutcomesAreVisibleAndExcludedOnlyFromRecordedOnTimeRate() {
+        let model = DashboardAnalyticsModel()
+        model.selectedRange = .all
+        model.nights = [
+            makeNight(sessionDate: "2026-08-29", intervalMinutes: 180),
+            makeNight(sessionDate: "2026-08-28", intervalMinutes: 260),
+            makeNight(sessionDate: "2026-08-27", intervalMinutes: nil)
+        ]
+
+        XCTAssertEqual(model.eligibleDose2OutcomeCount, 3)
+        XCTAssertEqual(model.recordedDose2OutcomeCount, 2)
+        XCTAssertEqual(model.missingDose2OutcomeCount, 1)
+        XCTAssertEqual(model.onTimePercentage ?? 0, 50, accuracy: 0.001)
+        XCTAssertEqual(model.completionRate ?? 0, 200.0 / 3.0, accuracy: 0.001)
+    }
+
+    func test_timeZoneLabelIncludesIdentifierAndDateSpecificOffset() throws {
+        let timeZone = try XCTUnwrap(TimeZone(identifier: "America/New_York"))
+        let summer = try XCTUnwrap(AppFormatters.parseISO8601Flexible("2026-08-29T12:00:00Z"))
+
+        XCTAssertEqual(
+            AppFormatters.timeZoneLabel(timeZone: timeZone, at: summer),
+            "America/New_York (UTC-04:00)"
+        )
+    }
+
+    private func makeNight(sessionDate: String, intervalMinutes: Int?) -> DashboardNightAggregate {
+        let dose1 = AppFormatters.sessionDate.date(from: sessionDate) ?? Date()
+        return DashboardNightAggregate(
+            sessionDate: sessionDate,
+            dose1Time: dose1,
+            dose2Time: intervalMinutes.map { dose1.addingTimeInterval(TimeInterval($0 * 60)) },
+            dose2Skipped: false,
+            snoozeCount: 0,
+            extraDoseCount: 0,
+            events: [],
+            morningCheckIn: nil,
+            preSleepLog: nil,
+            healthSummary: nil,
+            whoopSummary: nil,
+            duplicateClusterCount: 0,
+            napSummary: SessionRepository.NapSummary(count: 0, totalMinutes: 0)
+        )
     }
 }

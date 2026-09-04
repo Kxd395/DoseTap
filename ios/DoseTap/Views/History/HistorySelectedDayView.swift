@@ -14,10 +14,13 @@ struct SelectedDayView: View {
     @State private var healthSleepRangeText: String?
     @State private var healthSleepStatusText: String?
     @State private var healthSleepSourceText: String?
+    @State private var resolvingDose2 = false
+    @State private var resolutionReferenceTime = Date()
     @State private var editingDose1 = false
     @State private var editingDose2 = false
     @State private var editingEvent: StoredSleepEvent?
     @State private var eventToDelete: StoredSleepEvent?
+    @State private var medicationSaveError: String?
 
     private let sessionRepo = SessionRepository.shared
 
@@ -174,6 +177,17 @@ struct SelectedDayView: View {
                 )
             }
 
+            if let dose = doseLog, dose.dose2Time == nil,
+               let identity = doseEvents.first(where: { $0.eventType == "dose1" })?.sessionId,
+               identity != sessionRepo.activeSessionId {
+                Button(dose.skipped ? "Review or Correct Dose 2" : "Record a Dose Already Taken") {
+                    resolutionReferenceTime = Date()
+                    resolvingDose2 = true
+                }
+                .buttonStyle(.bordered)
+                .accessibilityHint("Review the actual occurrence time for this historical session.")
+            }
+
             if doseLog != nil {
                 DoseIntervalsCard(doseEvents: doseEvents)
             }
@@ -253,6 +267,34 @@ struct SelectedDayView: View {
         .onChange(of: date) { _ in loadData() }
         .onChange(of: refreshTrigger) { _ in loadData() }
         .onAppear { loadData() }
+        .sheet(isPresented: $resolvingDose2) {
+            if let dose = doseLog,
+               let identity = doseEvents.first(where: { $0.eventType == "dose1" })?.sessionId {
+                ExpiredDose2ResolutionSheet(
+                    dose1Time: dose.dose1Time,
+                    referenceTime: resolutionReferenceTime,
+                    isAlreadyMarkedMissed: dose.skipped,
+                    repository: sessionRepo,
+                    recordOccurrence: { occurrence, reason, notes, acknowledgement in
+                        do {
+                            let warning = try sessionRepo.workWakeSchedule().warning(sessionId: identity, sessionDate: sessionDateString, dose1: dose.dose1Time, now: occurrence, doseTargetMinutes: UserSettingsManager.shared.targetIntervalMinutes, retrospective: true)
+                            if let warning, warning != acknowledgement { return .needsConfirm(.workWake(warning)) }
+                        } catch {
+                            return .retryRequired(message: "Your work schedule could not be read. Review it in Weekly Schedule and retry.")
+                        }
+                        let result = sessionRepo.recordHistoricalDose2Occurrence(
+                            sessionId: identity, sessionDate: sessionDateString,
+                            occurrenceTime: occurrence, confirmed: true, reason: reason, notes: notes, workWarning: acknowledgement
+                        )
+                        if result.isCommitted { return .success(message: "Historical Dose 2 record saved") }
+                        return .retryRequired(message: result.failure?.detail ?? "The record could not be saved. Reload and retry.")
+                    },
+                    markMissed: { _, _ in .blocked(reason: "This history flow records an occurrence already taken. Use the reviewed morning check-in to change a missed outcome.") },
+                    onCommitted: { _ in loadData() },
+                    allowsMarkMissed: false
+                )
+            }
+        }
         .sheet(isPresented: $editingDose1) {
             if let dose = doseLog {
                 EditDoseTimeView(
@@ -305,6 +347,14 @@ struct SelectedDayView: View {
                 Text("Delete \"\(EventDisplayName.displayName(for: event.eventType))\" at \(event.timestamp.formatted(date: .omitted, time: .shortened))?")
             }
         }
+        .alert("Dose time not saved", isPresented: Binding<Bool>(
+            get: { medicationSaveError != nil },
+            set: { if !$0 { medicationSaveError = nil } }
+        )) {
+            Button("OK", role: .cancel) { medicationSaveError = nil }
+        } message: {
+            Text(medicationSaveError ?? "Retry and confirm the edited time appears before relying on it.")
+        }
     }
 
     private var dateTitle: String {
@@ -320,13 +370,27 @@ struct SelectedDayView: View {
     }
 
     private func saveDose1Time(_ newTime: Date) {
-        sessionRepo.updateDose1Time(newTime: newTime, sessionDate: sessionDateString)
-        loadData()
+        let result = sessionRepo.updateDose1Time(
+            newTime: newTime,
+            sessionDate: sessionDateString
+        )
+        if result.isCommitted {
+            loadData()
+        } else {
+            medicationSaveError = result.failure?.userMessage
+        }
     }
 
     private func saveDose2Time(_ newTime: Date) {
-        sessionRepo.updateDose2Time(newTime: newTime, sessionDate: sessionDateString)
-        loadData()
+        let result = sessionRepo.updateDose2Time(
+            newTime: newTime,
+            sessionDate: sessionDateString
+        )
+        if result.isCommitted {
+            loadData()
+        } else {
+            medicationSaveError = result.failure?.userMessage
+        }
     }
 
     private func saveEventTime(event: StoredSleepEvent, newTime: Date) {
@@ -345,9 +409,9 @@ struct SelectedDayView: View {
                 return
             }
 
-            healthKit.checkAuthorizationStatus()
+            await healthKit.syncAuthorizationState()
             guard healthKit.isAuthorized else {
-                healthSleepStatusText = "Apple Health not authorized."
+                healthSleepStatusText = "Apple Health access needs review in Settings."
                 return
             }
 

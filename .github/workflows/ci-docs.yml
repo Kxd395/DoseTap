@@ -4,13 +4,29 @@ on:
   push:
     branches: [ main, develop ]
     paths:
+      - 'AGENTS.md'
+      - 'WORKFLOW.md'
+      - '.agents/plane-workflow.yml'
+      - '.env.example'
       - 'docs/**'
+      - 'tools/check_plane_workflow.sh'
+      - 'tools/plane_tracker.rb'
+      - 'tools/tests/plane_tracker_test.rb'
       - 'tools/ssot_check.sh'
+      - 'tools/doc_lint.sh'
   pull_request:
     branches: [ main ]
     paths:
+      - 'AGENTS.md'
+      - 'WORKFLOW.md'
+      - '.agents/plane-workflow.yml'
+      - '.env.example'
       - 'docs/**'
+      - 'tools/check_plane_workflow.sh'
+      - 'tools/plane_tracker.rb'
+      - 'tools/tests/plane_tracker_test.rb'
       - 'tools/ssot_check.sh'
+      - 'tools/doc_lint.sh'
 
 jobs:
   docs-validation:
@@ -19,9 +35,18 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+
+    - name: Set up repository validation tools
+      uses: ./.github/actions/setup-repository-tools
       
-    - name: Make ssot_check.sh executable
-      run: chmod +x tools/ssot_check.sh
+    - name: Make documentation checks executable
+      run: chmod +x tools/ssot_check.sh tools/doc_lint.sh tools/check_plane_workflow.sh tools/plane_tracker.rb
+
+    - name: Validate Plane agent workflow wiring
+      run: tools/check_plane_workflow.sh
+
+    - name: Run documentation lifecycle and drift lint
+      run: tools/doc_lint.sh
       
     - name: Run SSOT integrity check
       run: tools/ssot_check.sh

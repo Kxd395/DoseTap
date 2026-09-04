@@ -380,6 +380,7 @@ struct AlarmIndicatorView: View {
     let dose1Time: Date?
     @ObservedObject private var alarmService = AlarmService.shared
     @AppStorage("target_interval_minutes") private var targetIntervalMinutes: Int = 165
+    @State private var isRetryingAlarm = false
     
     var body: some View {
         if let d1 = dose1Time {
@@ -388,26 +389,55 @@ struct AlarmIndicatorView: View {
             let alarmTime = alarmService.targetWakeTime ?? d1.addingTimeInterval(Double(targetIntervalMinutes) * 60)
             let snoozeCount = alarmService.snoozeCount
             
-            HStack(spacing: 4) {
-                Image(systemName: alarmService.alarmScheduled ? "alarm.fill" : "alarm")
+            HStack(alignment: .top, spacing: 6) {
+                Image(systemName: alarmService.alarmScheduled ? "alarm.fill" : "alarm.badge.exclamationmark")
                     .font(.caption)
-                    .foregroundColor(alarmService.alarmScheduled ? .orange : .gray)
-                
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("Wake: \(formattedTime(alarmTime))")
+                    .foregroundColor(alarmService.alarmScheduled ? .orange : .red)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Wake deadline: \(formattedTime(alarmTime))")
                         .font(.caption.bold())
-                        .foregroundColor(alarmService.alarmScheduled ? .orange : .gray)
-                    
-                    if snoozeCount > 0 {
-                        Text("(+\(snoozeCount * 10)m)")
+                        .foregroundColor(alarmService.alarmScheduled ? .orange : .red)
+
+                    if let timeZone = alarmService.reconciledTimeZoneIdentifier {
+                        Text("Absolute deadline • reconciled for \(timeZone)")
                             .font(.caption2)
                             .foregroundColor(.secondary)
+                    }
+
+                    if snoozeCount > 0 {
+                        Text("(+\(snoozeCount * alarmService.snoozeDurationMinutes)m)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+
+                    if let schedulingError = alarmService.lastSchedulingError {
+                        Text(schedulingError)
+                            .font(.caption2)
+                            .foregroundColor(.red)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Button(isRetryingAlarm ? "Retrying…" : "Retry Alarm") {
+                            isRetryingAlarm = true
+                            Task {
+                                await alarmService.retryLastSchedule(dose1Time: d1)
+                                isRetryingAlarm = false
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                        .disabled(isRetryingAlarm)
+                        .accessibilityHint("Rebuilds and verifies the pending Dose 2 alarm and safety reminders")
                     }
                 }
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(Color.orange.opacity(alarmService.alarmScheduled ? 0.15 : 0.05))
+            .background(
+                alarmService.alarmScheduled
+                    ? Color.orange.opacity(0.15)
+                    : Color.red.opacity(0.08)
+            )
             .cornerRadius(8)
         }
     }
@@ -420,26 +450,38 @@ struct AlarmIndicatorView: View {
 // MARK: - Incomplete Session Banner
 struct IncompleteSessionBanner: View {
     let sessionDate: String
+    let isBlocking: Bool
     let onComplete: () -> Void
     let onDismiss: () -> Void
+
+    private var titleText: String {
+        isBlocking ? "Finish previous session" : "Finish previous check-in"
+    }
+
+    private var bodyText: String {
+        isBlocking
+            ? "\(formattedDate) must be completed before tonight starts"
+            : "\(formattedDate) is incomplete"
+    }
     
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "exclamationmark.circle.fill")
-                .font(.title2)
+                .font(.title3)
                 .foregroundColor(.orange)
             
             VStack(alignment: .leading, spacing: 2) {
-                Text("Incomplete Session")
+                Text(titleText)
                     .font(.subheadline.bold())
-                Text("Complete check-in for \(formattedDate)")
+                Text(bodyText)
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    .lineLimit(2)
             }
             
             Spacer()
             
-            Button("Complete") {
+            Button("Finish") {
                 onComplete()
             }
             .font(.caption.bold())
@@ -454,7 +496,9 @@ struct IncompleteSessionBanner: View {
                 Image(systemName: "xmark")
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    .frame(width: 44, height: 44)
             }
+            .accessibilityLabel("Dismiss previous check-in reminder")
         }
         .padding(12)
         .background(
@@ -465,6 +509,8 @@ struct IncompleteSessionBanner: View {
                         .stroke(Color.orange.opacity(0.3), lineWidth: 1)
                 )
         )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(titleText). \(bodyText).")
     }
     
     private var formattedDate: String {
@@ -493,7 +539,7 @@ struct MorningCheckInCompactCard: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Morning check-in logged")
                         .font(.subheadline.bold())
-                    Text("Sleep \(checkIn.sleepQuality)/5 · Mood: \(checkIn.mood) · Readiness: \(checkIn.readinessForDay)/5")
+                    Text("Sleep \(AppFormatters.compactRating(checkIn.sleepQuality))/5 · Mood: \(checkIn.mood) · Readiness: \(checkIn.readinessForDay)/5")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .lineLimit(1)

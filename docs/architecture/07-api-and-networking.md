@@ -1,237 +1,50 @@
-# 07 — API & Networking
+# 07 — API and Networking
+
+Status: Current architecture reference
+Last verified: 2026-09-02
+
+## Shipping boundary
+
+DoseTap is local-first. Medication state is not sent through `APIClient`, and the client has no take, skip, or snooze endpoint. Every medication action must use the local `DoseActionCoordinator` → `SessionRepository` → `EventStorage` path described in `12-safety-sensitive-legacy-retirement.md`.
+
+No production call site currently initializes `APIClient`. Its remaining surface is retained for explicit future integration work and is not evidence that an off-device service is active.
 
 ## APIClient
 
-File: `ios/Core/APIClient.swift` (179 lines)
+File: `ios/Core/APIClient.swift`
 
-Platform-free async/await HTTP client in DoseCore.
-
-### Transport Protocol
-
-```swift
-public protocol APITransport {
-    func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse)
-}
-
-// Production: URLSessionTransport
-// Tests: StubTransport (returns canned responses)
-```
-
-### Endpoints
+`APIClient` is an async HTTP client with an injected transport. Its endpoint enum contains only:
 
 ```swift
 public enum Endpoint: String, CaseIterable {
-    case takeDose        = "/doses/take"
-    case skipDose        = "/doses/skip"
-    case snoozeDose      = "/doses/snooze"
-    case logEvent        = "/events/log"
+    case logEvent = "/events/log"
     case exportAnalytics = "/analytics/export"
 }
 ```
 
-### Response Models
+The methods are:
 
-```swift
-struct DoseResponse: Codable {
-    let eventId: String      // "event_id"
-    let type: String
-    let at: String           // ISO8601
-    let dose2Window: WindowResponse?
-}
+- `logEvent(_:at:)` — POST an explicitly supplied non-medication event.
+- `exportAnalytics()` — GET an explicitly requested analytics payload.
 
-struct WindowResponse: Codable {
-    let min: String          // ISO8601 earliest
-    let max: String          // ISO8601 latest
-}
+Both methods map HTTP failures through `APIError`. Neither method is wired into the shipping app runtime.
 
-struct SnoozeResponse: Codable {
-    let eventId: String
-    let minutes: Int
-    let newTargetAt: String
-}
+## Transport and pinning
 
-struct SkipResponse: Codable {
-    let eventId: String
-    let reason: String?
-}
+`APITransport` provides the injected send boundary. `URLSessionTransport` is the ordinary implementation and test suites use stubs. `PinnedURLSessionTransport` and `CertificatePinning` provide the Release TLS trust policy for any approved future production call site.
 
-struct EventResponse: Codable {
-    let eventId: String
-    let event: String
-    let at: String
-}
-```
+Certificate pins are SHA-256 SPKI pins injected into the final Release `Info.plist`. Release packaging fails when the required pins are absent or malformed. Pinning does not authorize a new data flow; privacy, consent, offline behavior, and endpoint semantics still require their own approved integration.
 
-### Request Construction
+## Offline queue
 
-```swift
-func makeRequest(path:method:body:) throws -> URLRequest
-// Sets: Content-Type: application/json
-// Sets: Authorization: Bearer <token>
-// Encodes body as JSON
-```
+`OfflineQueue.swift` remains a generic tested utility, but no shipping medication action uses it. The former `DosingService` action façade was removed because replaying medication mutations outside the local policy and transaction context is unsafe.
 
----
+Any future queue must define payload classification, retention, redaction, idempotency, replay conflicts, cancellation, and user-visible failure. Medication actions require a new architecture decision and may not be added as generic queued requests.
 
-## APIErrors
+## Contract guard
 
-File: `ios/Core/APIErrors.swift`
+`tools/check_legacy_safety_paths.sh` rejects remote medication endpoint strings and retired mutation façades in shipping source. `APIContractTests` asserts that the client and OpenAPI placeholder expose the same two non-medication paths.
 
-### Error Types
+## Errors
 
-```swift
-public enum APIError: Error, Equatable {
-    case invalidResponse
-    case httpError(Int)
-    case decodingError
-    case networkError(String)
-}
-
-public enum DoseAPIError: Error, Equatable {
-    case windowExceeded          // 422_WINDOW_EXCEEDED
-    case snoozeLimit             // 422_SNOOZE_LIMIT
-    case dose1Required           // 422_DOSE1_REQUIRED
-    case alreadyTaken            // 409_ALREADY_TAKEN
-    case rateLimit               // 429_RATE_LIMIT
-    case deviceNotRegistered     // 401_DEVICE_NOT_REGISTERED
-    case unknown(Int, String)    // Unmapped error
-}
-```
-
-### Error Mapper
-
-```swift
-struct APIErrorMapper {
-    static func map(data: Data, status: Int) -> Error
-    // Decodes APIErrorPayload { code, message }
-    // Maps to DoseAPIError based on code string
-}
-
-struct APIErrorPayload: Codable {
-    let code: String
-    let message: String
-}
-```
-
----
-
-## OfflineQueue
-
-File: `ios/Core/OfflineQueue.swift`
-
-Actor-based retry queue for failed API calls.
-
-```swift
-public actor OfflineQueue {
-    func enqueue(_ action: DosingService.Action) async
-    func flushPending() async
-    func pendingCount() -> Int
-    func clear() async
-}
-```
-
-### Behavior
-
-```text
-API call fails (network/timeout)
-  │
-  ▼
-DosingService catches error
-  │
-  ▼
-OfflineQueue.enqueue(action)
-  │
-  ▼
-On next app foreground or connectivity:
-  │
-  ▼
-OfflineQueue.flushPending()
-  ├── Retry each queued action
-  ├── Remove on success
-  └── Keep on failure (retry next time)
-```
-
----
-
-## DosingService (Façade)
-
-File: `ios/Core/APIClientQueueIntegration.swift`
-
-Actor combining APIClient + OfflineQueue + EventRateLimiter.
-
-```swift
-public actor DosingService {
-    public enum Action: Codable, Sendable, Equatable {
-        case takeDose(type: String, at: Date)
-        case skipDose(sequence: Int, reason: String?)
-        case snooze(minutes: Int)
-        case logEvent(name: String, at: Date)
-    }
-
-    func perform(_ action: Action) async throws
-    // Routes to APIClient method
-    // On failure: enqueues in OfflineQueue
-    // Respects EventRateLimiter
-
-    func flushPending() async
-    // Retries offline queue
-}
-```
-
----
-
-## EventRateLimiter
-
-File: `ios/Core/EventRateLimiter.swift`
-
-Actor-based debounce for repeated events.
-
-```swift
-public actor EventRateLimiter {
-    func shouldAllow(_ event: String) async -> Bool
-    func recordEvent(_ event: String) async
-
-    // Default cooldowns:
-    // "bathroom": 60 seconds
-}
-```
-
----
-
-## CertificatePinning
-
-File: `ios/Core/CertificatePinning.swift` (251 lines)
-
-TLS certificate pinning for API calls.
-
-```swift
-public final class CertificatePinning: NSObject, URLSessionDelegate {
-    init(pins: [String], domains: [String], allowFallback: Bool)
-
-    // Pins: SHA-256 of SPKI (Subject Public Key Info)
-    // Domains: ["api.dosetap.com", "auth.dosetap.com"]
-    // Fallback: false in production, configurable in DEBUG
-
-    static func forDoseTapAPI() -> CertificatePinning
-    static var hasConfiguredPins: Bool
-}
-```
-
-Pin sources (priority order):
-
-1. Environment variable `DOSETAP_CERT_PINS`
-2. Info.plist key `DOSETAP_CERT_PINS`
-
----
-
-## CSVExporter
-
-File: `ios/Core/CSVExporter.swift`
-
-Exports session data to CSV format for sharing.
-
-```swift
-public struct CSVExporter {
-    static func export(sessions: [ExportableSession]) -> String
-}
-```
+`APIErrors.swift` retains transport and server error decoding used by API tests and possible future non-medication integrations. Some historical medication-domain error cases remain data types only; they do not create a request path.
