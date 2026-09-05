@@ -107,6 +107,16 @@ final class DashboardAnalyticsAuditTests: XCTestCase {
         XCTAssertEqual(model.sleepSampleCount, 0)
     }
 
+    func testWeekdayChartKeepsRealZeroAndOmitsUnobservedWeekdays() {
+        let model = DashboardAnalyticsModel()
+        model.selectedRange = .all
+        model.nights = [night("2026-09-01", interval: 260)]
+        XCTAssertEqual(model.weekdayTimingValues.count, 1)
+        XCTAssertEqual(model.weekdayTimingValues.first?.value, 0)
+        XCTAssertEqual(model.weekdayTimingValues.first?.count, 1)
+        XCTAssertTrue(model.screenSleepValues.isEmpty)
+    }
+
     private func night(_ key: String, dose1: Date? = nil, interval: Double? = 180, skipped: Bool = false, answers: DoseTap.PreSleepLogAnswers? = nil, completion: String = "complete", health: HealthKitService.SleepNightSummary? = nil, quality: Double? = nil) -> DashboardNightAggregate {
         let first = dose1 ?? date("2026-09-01")
         return DashboardNightAggregate(sessionDate: key, dose1Time: first,

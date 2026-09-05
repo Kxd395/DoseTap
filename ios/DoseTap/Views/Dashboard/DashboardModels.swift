@@ -20,9 +20,9 @@ final class DashboardAnalyticsModel: ObservableObject {
 
     let now: () -> Date
 
-    init(now: @escaping () -> Date = Date.init, sessionRepo: SessionRepository = .shared) {
+    init(now: @escaping () -> Date = Date.init, sessionRepo: SessionRepository? = nil) {
         self.now = now
-        self.sessionRepo = sessionRepo
+        self.sessionRepo = sessionRepo ?? .shared
     }
 
     let sessionRepo: SessionRepository

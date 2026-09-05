@@ -171,6 +171,15 @@ extension DashboardAnalyticsModel {
         return (average(high), average(lower))
     }
 
+    func lifestyleSampleCounts(_ answer: (PreSleepLogAnswers) -> Bool?) -> (answered: Int, yes: Int, no: Int) {
+        let answered = nightsWithPreSleep.filter { $0.preSleepLog?.answers.flatMap(answer) != nil }.count
+        let paired = nightsWithPreSleep.compactMap { night -> Bool? in
+            guard night.morningCheckIn != nil, let answers = night.preSleepLog?.answers else { return nil }
+            return answer(answers)
+        }
+        return (answered, paired.filter { $0 }.count, paired.filter { !$0 }.count)
+    }
+
     var caffeineRate: Double? {
         percentage(matching: nightsWithPreSleep.compactMap { $0.preSleepLog?.answers?.reportedCaffeine }, where: { $0 })
     }

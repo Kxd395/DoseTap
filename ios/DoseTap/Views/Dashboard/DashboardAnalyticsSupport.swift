@@ -50,3 +50,40 @@ extension DashboardAnalyticsModel {
         return values.reduce(0, +) / Double(values.count)
     }
 }
+
+struct DashboardChartValue: Identifiable {
+    let name: String
+    let value: Double
+    let count: Int
+    var id: String { name }
+}
+
+extension DashboardAnalyticsModel {
+    var weekdayTimingValues: [DashboardChartValue] {
+        let calendar = Calendar.current
+        var buckets: [Int: [Bool]] = [:]
+        for night in populatedNights {
+            guard let onTime = night.onTimeDosing, let date = Self.keyFormatter.date(from: night.sessionDate) else { continue }
+            buckets[calendar.component(.weekday, from: date), default: []].append(onTime)
+        }
+        return (0..<7).compactMap { offset in
+            let day = (calendar.firstWeekday - 1 + offset) % 7 + 1
+            guard let values = buckets[day], !values.isEmpty else { return nil }
+            return DashboardChartValue(name: calendar.shortWeekdaySymbols[day - 1],
+                value: Double(values.filter { $0 }.count) / Double(values.count) * 100, count: values.count)
+        }
+    }
+
+    var screenSleepValues: [DashboardChartValue] {
+        [false, true].compactMap { screens in
+            let values = populatedNights.compactMap { night -> Double? in
+                guard night.preSleepLog?.completionState == "complete",
+                      let answer = night.preSleepLog?.answers?.screensInBed,
+                      (answer != .none) == screens else { return nil }
+                return sleepMinutes(for: night)
+            }
+            guard let value = average(values) else { return nil }
+            return DashboardChartValue(name: screens ? "Screens" : "No screens", value: value, count: values.count)
+        }
+    }
+}

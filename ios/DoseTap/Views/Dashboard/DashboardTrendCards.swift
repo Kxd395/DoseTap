@@ -16,20 +16,14 @@ struct DashboardTrendChartsCard: View {
     @State private var trendMode: DashboardTrendMode = .intervalVsSleep
 
     private struct IntervalSleepPoint: Identifiable {
-        let id = UUID()
+        let id: String
         let intervalMinutes: Double
         let sleepMinutes: Double
         let onTime: Bool
     }
 
-    private struct NamedValue: Identifiable {
-        let id = UUID()
-        let name: String
-        let value: Double
-    }
-
     private struct RecoveryPoint: Identifiable {
-        let id = UUID()
+        var id: Date { date }
         let date: Date
         let recovery: Double
         let hrv: Double?
@@ -48,45 +42,8 @@ struct DashboardTrendChartsCard: View {
 
     private var intervalSleepPoints: [IntervalSleepPoint] {
         model.populatedNights.compactMap { night in
-            guard let interval = night.intervalMinutes, let sleep = night.totalSleepMinutes else { return nil }
-            return IntervalSleepPoint(intervalMinutes: Double(interval), sleepMinutes: sleep, onTime: night.onTimeDosing ?? false)
-        }
-    }
-
-    private var cohortSleepValues: [NamedValue] {
-        let withScreens = model.populatedNights.filter {
-            guard let screens = $0.preSleepLog?.answers?.screensInBed else { return false }
-            return screens != .none && $0.totalSleepMinutes != nil
-        }
-        let withoutScreens = model.populatedNights.filter {
-            guard let screens = $0.preSleepLog?.answers?.screensInBed else { return false }
-            return screens == .none && $0.totalSleepMinutes != nil
-        }
-        let withAvg = averageSleep(for: withScreens)
-        let withoutAvg = averageSleep(for: withoutScreens)
-        return [
-            NamedValue(name: "Screens", value: withAvg),
-            NamedValue(name: "No Screens", value: withoutAvg)
-        ]
-    }
-
-    private var weekdayOnTimeValues: [NamedValue] {
-        let calendar = Calendar.current
-        let weekdaySymbols = calendar.shortWeekdaySymbols
-
-        var buckets: [Int: [Bool]] = [:]
-        for night in model.populatedNights {
-            guard let onTime = night.onTimeDosing,
-                  let date = AppFormatters.sessionDate.date(from: night.sessionDate)
-            else { continue }
-            let weekday = calendar.component(.weekday, from: date)
-            buckets[weekday, default: []].append(onTime)
-        }
-
-        return (1...7).map { weekday in
-            let values = buckets[weekday] ?? []
-            let ratio = values.isEmpty ? 0 : (Double(values.filter { $0 }.count) / Double(values.count)) * 100
-            return NamedValue(name: weekdaySymbols[weekday - 1], value: ratio)
+            guard let interval = night.exactIntervalMinutes, let sleep = model.sleepMinutes(for: night) else { return nil }
+            return IntervalSleepPoint(id: night.sessionDate, intervalMinutes: Double(interval), sleepMinutes: sleep, onTime: night.onTimeDosing ?? false)
         }
     }
 
@@ -102,11 +59,16 @@ struct DashboardTrendChartsCard: View {
                     }
                 }
                 .pickerStyle(.menu)
+                .accessibilityIdentifier("dashboard-trend-picker")
             }
 
             #if canImport(Charts)
             chartBody
                 .frame(height: 220)
+            if trendMode == .weekday {
+                Text(model.weekdayTimingValues.map { "\($0.name): n=\($0.count)" }.joined(separator: " · "))
+                    .font(.caption).foregroundColor(.secondary)
+            }
             #else
             Text("Charts are unavailable on this platform build.")
                 .font(.subheadline)
@@ -136,7 +98,8 @@ struct DashboardTrendChartsCard: View {
                     )
                     .foregroundStyle(point.onTime ? .green : .orange)
                 }
-                .chartXAxisLabel("Dose Interval")
+                .chartXAxisLabel("Dose interval (minutes)")
+                .accessibilityLabel("\(intervalSleepPoints.count) recorded pairs with \(model.sleepSource.rawValue) sleep")
                 .chartYAxisLabel("Sleep Minutes")
             }
 
@@ -152,7 +115,7 @@ struct DashboardTrendChartsCard: View {
                             y: .value("Recovery %", point.recovery)
                         )
                         .foregroundStyle(.green)
-                        .interpolationMethod(.catmullRom)
+                        .interpolationMethod(.linear)
 
                         PointMark(
                             x: .value("Date", point.date),
@@ -171,8 +134,8 @@ struct DashboardTrendChartsCard: View {
             }
 
         case .cohorts:
-            let values = cohortSleepValues
-            if values.allSatisfy({ $0.value <= 0 }) {
+            let values = model.screenSleepValues
+            if values.isEmpty {
                 emptyChartState("Need pre-sleep screen/no-screen data with sleep totals.")
             } else {
                 Chart(values) { entry in
@@ -180,21 +143,23 @@ struct DashboardTrendChartsCard: View {
                         x: .value("Cohort", entry.name),
                         y: .value("Avg Sleep (min)", entry.value)
                     )
-                    .foregroundStyle(entry.name == "No Screens" ? .green : .indigo)
+                    .foregroundStyle(entry.name == "No screens" ? .green : .indigo)
+                    .annotation(position: .top) { Text("n=\(entry.count)").font(.caption) }
                 }
                 .chartYAxisLabel("Avg Sleep Minutes")
             }
 
         case .weekday:
-            if weekdayOnTimeValues.allSatisfy({ $0.value == 0 }) {
+            if model.weekdayTimingValues.isEmpty {
                 emptyChartState("Need completed dose intervals to compute on-time weekdays.")
             } else {
-                Chart(weekdayOnTimeValues) { entry in
+                Chart(model.weekdayTimingValues) { entry in
                     BarMark(
                         x: .value("Weekday", entry.name),
                         y: .value("Recorded On-Time %", entry.value)
                     )
                     .foregroundStyle(.blue.gradient)
+                    .annotation(position: .top) { Text("\(Int(entry.value.rounded()))%").font(.caption2) }
                 }
                 .chartYScale(domain: 0...100)
                 .chartYAxisLabel("Recorded On-Time %")
@@ -216,11 +181,7 @@ struct DashboardTrendChartsCard: View {
     }
     #endif
 
-    private func averageSleep(for nights: [DashboardNightAggregate]) -> Double {
-        let values = nights.compactMap(\.totalSleepMinutes)
-        guard !values.isEmpty else { return 0 }
-        return values.reduce(0, +) / Double(values.count)
-    }
+
 }
 
 struct DashboardRecentNightsCard: View {
@@ -229,8 +190,8 @@ struct DashboardRecentNightsCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top) {
-                Text("Recent Night Aggregates")
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Recent Nights · up to 14")
                     .font(.headline)
                 Spacer()
                 CurrentTimeZoneSummaryView(compact: true)
@@ -242,35 +203,13 @@ struct DashboardRecentNightsCard: View {
                     .foregroundColor(.secondary)
             } else {
                 ForEach(nights) { night in
-                    HStack(spacing: 10) {
-                        Text(shortDate(night.sessionDate))
-                            .font(.caption.bold())
-                            .frame(width: 58, alignment: .leading)
-
-                        Text(intervalText(night))
-                            .font(.caption)
-                            .foregroundColor(night.onTimeDosing == true ? .green : .secondary)
-                            .frame(width: 88, alignment: .leading)
-
-                        Text(sleepText(night))
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .frame(width: 112, alignment: .leading)
-
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(shortDate(night.sessionDate)).font(.subheadline.bold())
+                        Text("Dose timing: \(intervalText(night))").font(.callout)
+                        Text(sleepText(night)).font(.caption).foregroundColor(.secondary)
                         if let recovery = night.whoopRecoveryScore {
-                            Text("\(Int(recovery))%")
-                                .font(.caption2.bold())
-                                .foregroundColor(recovery >= 67 ? .green : recovery >= 34 ? .orange : .red)
-                                .frame(width: 36, alignment: .leading)
+                            Text("WHOOP recovery: \(Int(recovery))%").font(.caption)
                         }
-
-                        Text("Q \(Int((night.dataCompletenessScore * 100).rounded()))%")
-                            .font(.caption2)
-                            .foregroundColor(night.dataCompletenessScore >= 0.75 ? .green : .orange)
-                            .frame(width: 50, alignment: .leading)
-
-                        Spacer()
-
                         let duplicates = buildStoredEventDuplicateGroups(events: night.events)
                         if let firstGroup = duplicates.first {
                             Button {
@@ -284,7 +223,9 @@ struct DashboardRecentNightsCard: View {
                             .accessibilityLabel("Resolve duplicates for \(night.sessionDate)")
                         }
                     }
-                    .padding(.vertical, 2)
+                    .padding(.vertical, 6)
+                    .accessibilityElement(children: .contain)
+                    Divider()
                 }
             }
         }
@@ -302,22 +243,23 @@ struct DashboardRecentNightsCard: View {
     }
 
     private func intervalText(_ night: DashboardNightAggregate) -> String {
-        if night.dose2Skipped {
+        if night.dose2Skipped && night.dose2Time == nil {
             return "Skipped"
         }
         if let interval = night.intervalMinutes {
             return TimeIntervalMath.formatMinutes(interval)
         }
         if night.dose1Time != nil {
-            return "Dose 2 missing"
+            return night.isPendingDose2(at: Date()) ? "Dose 2 pending" : "Dose 2 not recorded"
         }
         return "No dose data"
     }
 
     private func sleepText(_ night: DashboardNightAggregate) -> String {
-        guard let totalSleepMinutes = night.totalSleepMinutes else { return "No sleep data" }
-        let source = night.preferredSleepSourceLabel == "WHOOP" ? "WHOOP" : "Health"
-        return "\(source) \(TimeIntervalMath.formatMinutes(Int(totalSleepMinutes.rounded())))"
+        var values: [String] = []
+        if let minutes = night.appleHealthSleepMinutes { values.append("Apple Health: \(TimeIntervalMath.formatMinutes(Int(minutes.rounded())))") }
+        if let minutes = night.whoopSleepMinutes { values.append("WHOOP: \(TimeIntervalMath.formatMinutes(Int(minutes.rounded())))") }
+        return values.isEmpty ? "No sleep data" : values.joined(separator: " • ")
     }
 }
 
@@ -335,6 +277,8 @@ struct DashboardPeriodComparisonCard: View {
                     .foregroundColor(.secondary)
             }
 
+            Text("Relative change versus the preceding equal-length period. Missing values are excluded; increases are not automatically improvements. Sleep: \(model.sleepSource.rawValue).")
+                .font(.caption).foregroundColor(.secondary)
             ForEach(model.periodComparison, id: \.metricName) { delta in
                 HStack {
                     Text(delta.metricName)
@@ -353,7 +297,9 @@ struct DashboardPeriodComparisonCard: View {
                             .font(.caption.bold())
                             .foregroundColor(deltaColor(delta))
                             .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
+                            .padding(.vertical, 6)
+                    .accessibilityElement(children: .contain)
+                    Divider()
                             .background(
                                 Capsule().fill(deltaColor(delta).opacity(0.15))
                             )
@@ -362,7 +308,9 @@ struct DashboardPeriodComparisonCard: View {
                             .font(.caption.bold())
                             .foregroundColor(.blue)
                             .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
+                            .padding(.vertical, 6)
+                    .accessibilityElement(children: .contain)
+                    Divider()
                             .background(
                                 Capsule().fill(Color.blue.opacity(0.15))
                             )
@@ -383,15 +331,14 @@ struct DashboardPeriodComparisonCard: View {
         case "Recorded On-Time %": return String(format: "%.0f%%", value)
         case "Avg Interval": return TimeIntervalMath.formatMinutes(Int(value.rounded()))
         case "Avg Sleep": return TimeIntervalMath.formatMinutes(Int(value.rounded()))
+        case "Recovery": return String(format: "%.0f%%", value)
+        case "HRV": return String(format: "%.1f ms", value)
         case "Sleep Quality": return String(format: "%.1f / 5", value)
         default: return String(format: "%.1f", value)
         }
     }
 
     private func deltaColor(_ delta: DashboardAnalyticsModel.PeriodDelta) -> Color {
-        guard let deltaValue = delta.delta else { return .secondary }
-        if deltaValue > 5 { return .green }
-        if deltaValue < -5 { return .red }
-        return .secondary
+        .secondary
     }
 }

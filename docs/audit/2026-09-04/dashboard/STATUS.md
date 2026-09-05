@@ -32,3 +32,9 @@
 - Overview/Trends/Data navigation, source selector, meaningful outcome counts, bathroom log counts, full WHOOP light/deep/REM composition, coverage language and visible empty/provider errors implemented.
 - UI test passed in iPhone 17/iOS 26.5 simulator; four XCTest screenshots exported to `/tmp/dosetap-dashboard-ui-images` and inspected. Overview is readable; Data confirms old recent-row width overflow, and Trends confirms old chart fallback still differs from selected source. Both are next corrections, not accepted as final.
 - Display-only simulator fixtures do not write data or connect providers. UI test/build plus Swift build/tests, SSOT/navigation, app version and Plane checks passed. New fixture initially lacked app target membership; moved into existing DashboardModels compilation unit and reran successfully, preserving owner project edits.
+
+## Chart and comparison checkpoint
+- DA-03/05/06/08: selected-source scatter/cohort charts, real zero versus missing weekday buckets, sample counts, linear interpolation, neutral timing-group and period language, and readable multi-line recent nights corrected.
+- Eleven simulator unit tests passed, including a real 0% weekday with all other weekdays absent. Two UI tests passed and screenshots inspected: source selection now yields the correct five fixture readings, zero weekday remains visible, recent rows fit. Initial weekday annotations collided; shortened labels, moved sample counts beneath chart, reran and visually confirmed.
+- Large-text screenshot exposed KPI columns colliding; landscape screenshot captured during rotation, so neither is accepted. Next: single-column accessibility layout and wait for rotation, Tonight weekly semantics, remaining sample labels, final verification/Plane closeout.
+- Evidence: `/tmp/dosetap-dashboard-chart-tests.log`, `/tmp/dosetap-supply-build/Logs/Test/Test-DoseTapUITests-2026.09.05_00-19-42--0400.xcresult`, `/tmp/dosetap-dashboard-responsive`.

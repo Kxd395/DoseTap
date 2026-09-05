@@ -10,7 +10,7 @@ struct DashboardLifestyleFactorsCard: View {
             Text("Lifestyle Factors")
                 .font(.headline)
 
-            if model.averageStressLevel != nil || model.caffeineRate != nil {
+            if model.populatedNights.contains(where: { $0.preSleepLog?.completionState == "complete" }) {
                 if let stress = model.averageStressLevel {
                     metricRow(title: "Avg Pre-Sleep Stress", value: String(format: "%.1f / 5", stress), color: stressColor(stress))
                 }
@@ -20,9 +20,11 @@ struct DashboardLifestyleFactorsCard: View {
                 if let topDriver = model.topPreSleepStressDriver {
                     metricRow(title: "Top Bedtime Stressor", value: topDriver.displayText)
                 }
-                factorRow(title: "Caffeine", rate: model.caffeineRate, impact: model.sleepQualityByCaffeine)
-                factorRow(title: "Alcohol", rate: model.alcoholRate, impact: model.sleepQualityByAlcohol)
-                factorRow(title: "Screens in Bed", rate: model.screenTimeRate, impact: model.sleepQualityByScreens)
+                Text("Rates use answered completed logs. Quality comparisons use paired morning ratings on the 1–5 scale; they do not establish cause.")
+                    .font(.caption).foregroundColor(.secondary)
+                factorRow(title: "Caffeine", samples: model.lifestyleSampleCounts { $0.reportedCaffeine }, rate: model.caffeineRate, impact: model.sleepQualityByCaffeine)
+                factorRow(title: "Alcohol", samples: model.lifestyleSampleCounts { $0.alcohol.map { $0 != .none } }, rate: model.alcoholRate, impact: model.sleepQualityByAlcohol)
+                factorRow(title: "Screens in Bed", samples: model.lifestyleSampleCounts { $0.screensInBed.map { $0 != .none } }, rate: model.screenTimeRate, impact: model.sleepQualityByScreens)
 
                 if let exercise = model.exerciseRate {
                     metricRow(title: "Exercise Days", value: String(format: "%.0f%%", exercise), color: .green)
@@ -31,7 +33,7 @@ struct DashboardLifestyleFactorsCard: View {
                     metricRow(title: "Late Meals", value: String(format: "%.0f%%", meals), color: meals > 40 ? .orange : .secondary)
                 }
             } else {
-                Text("Complete pre-sleep logs to see lifestyle impact.")
+                Text("Complete pre-sleep logs to see recorded lifestyle patterns.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -55,22 +57,13 @@ struct DashboardLifestyleFactorsCard: View {
     }
 
     @ViewBuilder
-    private func factorRow(title: String, rate: Double?, impact: (with: Double?, without: Double?)) -> some View {
+    private func factorRow(title: String, samples: (answered: Int, yes: Int, no: Int), rate: Double?, impact: (with: Double?, without: Double?)) -> some View {
         if let rate {
-            HStack {
-                Text(title).font(.subheadline)
-                Spacer()
-                Text(String(format: "%.0f%%", rate))
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(.secondary)
-                if let withImpact = impact.with, let withoutImpact = impact.without {
-                    let diff = withImpact - withoutImpact
-                    Text(diff >= 0 ? "+\(String(format: "%.1f", diff))" : String(format: "%.1f", diff))
-                        .font(.caption2.bold())
-                        .foregroundColor(diff >= 0 ? .green : .orange)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 1)
-                        .background(Capsule().fill((diff >= 0 ? Color.green : Color.orange).opacity(0.15)))
+            VStack(alignment: .leading, spacing: 4) {
+                Text("\(title): \(String(format: "%.0f%%", rate)) · \(samples.answered) answered nights").font(.subheadline)
+                if let yes = impact.with, let no = impact.without {
+                    Text(String(format: "Sleep quality: Yes %.1f (n=%d) · No %.1f (n=%d)", yes, samples.yes, no, samples.no))
+                        .font(.caption).foregroundColor(.secondary)
                 }
             }
         }
@@ -198,7 +191,7 @@ struct DashboardStressTrendsCard: View {
     @ObservedObject var model: DashboardAnalyticsModel
 
     private struct StressSeriesPoint: Identifiable {
-        let id = UUID()
+        var id: String { "\(date.timeIntervalSince1970)-\(series)" }
         let date: Date
         let series: String
         let value: Double
@@ -248,7 +241,7 @@ struct DashboardStressTrendsCard: View {
                         y: .value("Score", point.value)
                     )
                     .foregroundStyle(by: .value("Series", point.series))
-                    .interpolationMethod(.catmullRom)
+                    .interpolationMethod(.linear)
 
                     PointMark(
                         x: .value("Date", point.date),
@@ -278,7 +271,7 @@ struct DashboardStressTrendsCard: View {
             #endif
 
             Group {
-                Text("Impact")
+                Text("Observed comparisons · high stress 4–5, lower 1–3")
                     .font(.caption.bold())
                     .foregroundColor(.secondary)
                 comparisonRow(
@@ -395,13 +388,7 @@ struct DashboardStressTrendsCard: View {
     }
 
     private func impactColor(high: Double?, lower: Double?, preferHigher: Bool) -> Color {
-        guard let high, let lower else { return .secondary }
-        let delta = high - lower
-        if abs(delta) < 0.15 { return .secondary }
-        if preferHigher {
-            return delta >= 0 ? .green : .orange
-        }
-        return delta <= 0 ? .green : .orange
+        .secondary
     }
 
     private func emptyChartState(_ text: String) -> some View {
@@ -465,13 +452,13 @@ struct DashboardDoseEffectivenessCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Label("Dose Effectiveness", systemImage: "chart.bar.doc.horizontal")
+                Label("Timing Groups", systemImage: "chart.bar.doc.horizontal")
                     .font(.headline)
                 Spacer()
-                trendBadge
+                Text("Recorded pairs").font(.caption).foregroundColor(.secondary)
             }
 
-            Text("How your dose timing correlates with sleep quality")
+            Text("Descriptive groups of recorded intervals. These do not measure medication effectiveness.")
                 .font(.caption)
                 .foregroundColor(.secondary)
 
@@ -496,17 +483,17 @@ struct DashboardDoseEffectivenessCard: View {
                     .font(.subheadline.bold())
 
                 zoneRow(
-                    label: "Optimal (150-165m)",
+                    label: "150–165 min",
                     zone: report.optimalZone,
                     color: .green
                 )
                 zoneRow(
-                    label: "Acceptable (166-240m)",
+                    label: ">165–<240 min",
                     zone: report.acceptableZone,
                     color: .blue
                 )
                 zoneRow(
-                    label: "Non-compliant",
+                    label: "Outside window",
                     zone: report.nonCompliant,
                     color: .orange
                 )
@@ -515,11 +502,11 @@ struct DashboardDoseEffectivenessCard: View {
             if report.optimalZone.averageTotalSleep != nil || report.acceptableZone.averageTotalSleep != nil {
                 Divider()
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Sleep by Zone")
+                    Text("Sleep by timing group")
                         .font(.subheadline.bold())
-                    sleepComparisonRow(label: "Optimal", zone: report.optimalZone, color: .green)
-                    sleepComparisonRow(label: "Acceptable", zone: report.acceptableZone, color: .blue)
-                    sleepComparisonRow(label: "Non-compliant", zone: report.nonCompliant, color: .orange)
+                    sleepComparisonRow(label: "150–165 min", zone: report.optimalZone, color: .green)
+                    sleepComparisonRow(label: ">165–<240 min", zone: report.acceptableZone, color: .blue)
+                    sleepComparisonRow(label: "Outside window", zone: report.nonCompliant, color: .orange)
                 }
             }
         }
@@ -541,7 +528,7 @@ struct DashboardDoseEffectivenessCard: View {
             VStack(spacing: 0) {
                 Text("\(Int(report.complianceRate * 100))")
                     .font(.system(.title3, design: .rounded).bold())
-                Text("%")
+                Text("% in window")
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
@@ -550,41 +537,7 @@ struct DashboardDoseEffectivenessCard: View {
     }
 
     private var complianceColor: Color {
-        switch report.complianceRate {
-        case 0.8...: return .green
-        case 0.6...: return .blue
-        case 0.4...: return .orange
-        default: return .red
-        }
-    }
-
-    @ViewBuilder
-    private var trendBadge: some View {
-        if let trend = report.recentTrend {
-            HStack(spacing: 4) {
-                switch trend {
-                case .improving(let delta):
-                    Image(systemName: "arrow.down.right")
-                        .foregroundColor(.green)
-                    Text(String(format: "-%.0fm", delta))
-                        .foregroundColor(.green)
-                case .worsening(let delta):
-                    Image(systemName: "arrow.up.right")
-                        .foregroundColor(.orange)
-                    Text(String(format: "+%.0fm", delta))
-                        .foregroundColor(.orange)
-                case .stable:
-                    Image(systemName: "equal")
-                        .foregroundColor(.secondary)
-                    Text("Stable")
-                        .foregroundColor(.secondary)
-                }
-            }
-            .font(.caption.bold())
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Capsule().fill(Color(.tertiarySystemFill)))
-        }
+        .blue
     }
 
     private func zoneRow(label: String, zone: DoseEffectivenessReport.ZoneSummary, color: Color) -> some View {

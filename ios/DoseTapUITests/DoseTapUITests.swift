@@ -29,15 +29,32 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Interactive Trends"].waitForExistence(timeout: 5))
         app.buttons["WHOOP"].tap()
         captureDashboard("Dashboard trends WHOOP")
+        app.buttons["dashboard-trend-picker"].tap()
+        app.buttons["Weekday"].tap()
+        captureDashboard("Dashboard weekday observed samples")
         app.buttons["Data"].tap()
         XCTAssertTrue(app.staticTexts["Data Coverage"].waitForExistence(timeout: 5))
         captureDashboard("Dashboard data coverage")
+        app.swipeUp()
+        captureDashboard("Dashboard readable recent nights")
         app.terminate()
         app.launchArguments += ["--dashboard-empty", "--dashboard-partial"]
         app.launch()
         app.buttons["Dashboard"].tap()
         XCTAssertTrue(app.staticTexts["No data in this range"].waitForExistence(timeout: 10))
         captureDashboard("Dashboard empty and provider error")
+    }
+
+    func testDashboardLargeTextAndLandscape() throws {
+        app.terminate()
+        app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launch()
+        app.buttons["Dashboard"].tap()
+        XCTAssertTrue(app.staticTexts["Recorded Nights"].waitForExistence(timeout: 10))
+        captureDashboard("Dashboard accessibility text")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        captureDashboard("Dashboard landscape accessibility text")
     }
 
     private func captureDashboard(_ name: String) {
