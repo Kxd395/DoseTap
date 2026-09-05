@@ -19,6 +19,7 @@
 		270FF25D2FCE5D7505B259FB /* AutoExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5347FFF5FFC1A4A33C32C8D /* AutoExportService.swift */; };
 		36C1109C06A24E03A747B9E6 /* SessionSummaryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0C7941006B40BEA391DD9A /* SessionSummaryViews.swift */; };
 		40BDAEDF308A4508940C55F7 /* AlarmService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E912715BD5C4BBAAA735378 /* AlarmService.swift */; };
+		5355504255494C4400000001 /* SupplyReminderService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53555046494C450000000001 /* SupplyReminderService.swift */; };
 		46EBB63DD7FE446C8EEF4021 /* AnalyticsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCEDF0A0E4BE41F582C2221F /* AnalyticsService.swift */; };
 		49BABB381D1350BB62368638 /* ReducedMotionSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A3C6B3DB1EBBE10E2F3E7FB /* ReducedMotionSupport.swift */; };
 		51117520922E2EF076DD4A81 /* DiagnosticExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EF211068DBC684F390BC8F9 /* DiagnosticExportView.swift */; };
@@ -180,6 +181,7 @@
 		311EA8D6A45E43B9B8E477B6 /* Signposts.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Signposts.swift; sourceTree = "<group>"; };
 		395ADBC5158F41E79333066E /* Haptics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
 		3E912715BD5C4BBAAA735378 /* AlarmService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmService.swift; sourceTree = "<group>"; };
+		53555046494C450000000001 /* SupplyReminderService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplyReminderService.swift; sourceTree = "<group>"; };
 		403FF1A5371F4BA427EC1520 /* WHOOPSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WHOOPSettingsView.swift; sourceTree = "<group>"; };
 		418F7D12D4A2473F800C75ED /* FullApp/DoseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/DoseModels.swift; sourceTree = "<group>"; };
 		49D083E0EC7947B795F0DD57 /* Formatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Formatters.swift; sourceTree = "<group>"; };
@@ -434,6 +436,7 @@
 				SWZ002 /* FullApp/SetupWizardStepViews.swift */,
 				SWZ004 /* FullApp/SetupWizardComponents.swift */,
 				3E912715BD5C4BBAAA735378 /* AlarmService.swift */,
+				53555046494C450000000001 /* SupplyReminderService.swift */,
 				APC002 /* AppContainer.swift */,
 				FCEDF0A0E4BE41F582C2221F /* AnalyticsService.swift */,
 				B02 /* ContentView.swift */,
@@ -881,6 +884,7 @@
 				EVT001 /* EventType.swift in Sources */,
 				APC001 /* AppContainer.swift in Sources */,
 				40BDAEDF308A4508940C55F7 /* AlarmService.swift in Sources */,
+				5355504255494C4400000001 /* SupplyReminderService.swift in Sources */,
 				DD45B910AB7B414A9948C5A9 /* URLRouter.swift in Sources */,
 				BC3BD8377E674DB98BB83F35 /* InsightsCalculator.swift in Sources */,
 				HK001 /* HealthKitService.swift in Sources */,

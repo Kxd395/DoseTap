@@ -25,7 +25,7 @@ protocol AlarmNotificationCenterClient: AnyObject {
 }
 
 @MainActor
-private final class SystemAlarmNotificationCenterClient: AlarmNotificationCenterClient {
+final class SystemAlarmNotificationCenterClient: AlarmNotificationCenterClient {
     private let center: UNUserNotificationCenter
 
     init(center: UNUserNotificationCenter = .current()) {

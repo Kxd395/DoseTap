@@ -147,6 +147,16 @@ struct DoseTapApp: App {
             }
             .onAppear {
                 ReleaseArtifactSmokeMarker.recordIfRequested()
+                Task { await SupplyReminderService.shared.reconcile() }
+            }
+            .onChange(of: scenePhase) { phase in
+                if phase == .active { Task { await SupplyReminderService.shared.reconcile() } }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
+                Task { await SupplyReminderService.shared.reconcile() }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in
+                Task { await SupplyReminderService.shared.reconcile() }
             }
             .onChange(of: isSetupComplete) { completed in
                 if completed {
