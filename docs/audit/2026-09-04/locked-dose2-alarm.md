@@ -9,7 +9,7 @@
 - Confirmed capability: Apple's current AlarmKit documentation supports iOS 26+ system alarms through Silent/Focus with user permission; the installed iOS 26.5 SDK exposes fixed-date alarms, query/readback, cancellation, and authorization. This does not bypass authentication or remove the OS Stop control.
 - Implemented in `aec8ce5`: injectable AlarmKit wake backend, fixed-date readback, separate permission, replacement rollback, cancellation generation guards, in-app snooze policy, explicit system Stop/open behavior, and a separate one-minute test alarm under Settings.
 - Checks so far: system backend/legacy alarm/supply suites passed (23 cases); Swift build and 634 XCTest + 43 Swift Testing cases passed; static SSOT/workflow/version/architecture guards passed. The initial new test compile failed on an actor-isolated default argument and was corrected.
-- Next step: apply/verify DOSETAP-4 closeout, then signed-device owner acceptance. The one-minute test alarm was verified through real AlarmManager readback and the app was backgrounded by XCTest. A CUA Sleep/Wake action was attempted, but retained evidence establishes Home-screen/background presentation, not a confirmed locked state.
+- Next step: signed-device owner acceptance using the test workflow below. The one-minute test alarm was verified through real AlarmManager readback and the app was backgrounded by XCTest. A CUA Sleep/Wake action was attempted, but retained evidence establishes Home-screen/background presentation, not a confirmed locked state.
 - Open gate: actual signed-device locked/Silent/Focus delivery on the owner's phone. Simulator and source evidence cannot close that gate.
 
 ## Decisions
@@ -56,3 +56,4 @@ Install the reviewed signed build, then open Settings > Locked-phone alarm setup
 - Added `SystemAlarmSettingsView.swift`; updated Settings labels, Info.plist permission description and Xcode target membership.
 - Added system-alarm unit and UI tests, updated the normative alarm contract, and retained the two simulator screenshots above.
 - Changes are local commits on `fix/locked-dose2-system-alarm`, based on the supply feature commits. The preserved original checkout and the owner phone install remain untouched.
+- Implementation commits: `aec8ce5` and `99e1a98`. DOSETAP-4 workpad and In Progress state were applied and independently verified (closeout `787d060dedb36809`). Signed-device/owner/release gates remain open; the item is not marked Done.
