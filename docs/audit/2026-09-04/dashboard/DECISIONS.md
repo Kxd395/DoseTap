@@ -7,3 +7,13 @@
 - Favor existing recorded data and small corrections; no new dependency, provider, migration, cloud upload or production-data mutation.
 - Add useful metrics only with explicit denominator, units, coverage and tests. Record unsupported candidates rather than fabricating values.
 - Current artifact/runtime tests are not proof of physical provider accuracy or owner/device/accessibility acceptance.
+
+## Confirmed implementation decisions
+- Manual supply, first pre-sleep bottle entry, Typical Week/nightly override, and locked-dose alarm behavior stay outside this analytics correction. Existing bottle UI regression passed.
+- Separate source selection rather than automatically blend Apple Health and WHOOP. Longest scored overnight WHOOP segment per mapped night; no overlapping-segment summation or inferred timestamps.
+- Recorded pairs drive timing; active outcomes are pending, explicit skips are recorded outcomes, missing means no recorded outcome after the configured maximum boundary. This is descriptive history, not prospective dose advice.
+- Relative percentage change is retained for averages with nonzero prior value; rate change is percentage points and works from a zero baseline. Neutral color does not rank a higher/lower interval as healthier.
+- No new dependency, database/schema migration, production write, phone install, push or deployment. Pure UI fixtures are guarded by DEBUG + simulator + explicit launch argument and do not write records.
+- Build 0.4.15 (17) distinguishes the analytics update. Only version hunks from project.pbxproj were staged; concurrent Xcode reorder and pre-existing UI scheme edits remain uncommitted.
+- P1/P2 describe audit severity, not medical risk scores. Plane DOSETAP-45 remains In Progress while physical provider/device/accessibility gates remain.
+- Pending questions: source parity during travel; treatment of multiple legitimate sleep segments versus overlapping imported duplicates; whether optional supply status and median/range earn dashboard space. Defaults or settings changes must not be applied retroactively as historical facts.
