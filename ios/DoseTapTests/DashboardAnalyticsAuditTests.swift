@@ -51,6 +51,35 @@ final class DashboardAnalyticsAuditTests: XCTestCase {
         XCTAssertEqual(model.doseEffectivenessReport.totalNights, 1)
     }
 
+    func testCanonicalDoseProjectionDoesNotInventDose1() {
+        let timestamp = date("2026-09-01")
+        let orphan = StoredDoseEvent(id: "orphan", eventType: "dose_2_(late)", timestamp: timestamp, sessionDate: "2026-09-01")
+        let extra = StoredDoseEvent(id: "extra", eventType: "dose_3_taken", timestamp: timestamp, sessionDate: "2026-09-01")
+        let result = DashboardAnalyticsModel.deriveDoseMetrics(from: [extra, orphan])
+        XCTAssertNil(result.dose1Time)
+        XCTAssertEqual(result.dose2Time, timestamp)
+        XCTAssertEqual(result.extraDoseCount, 1)
+        XCTAssertEqual(result.snoozeCount, 0)
+    }
+
+    func testAllTimeRefreshIncludesOldLocalRecordsWithoutSyntheticEmptyNights() async {
+        let storage = EventStorage.inMemory()
+        let repository = SessionRepository(storage: storage)
+        storage.insertDoseEvent(eventType: "dose1", timestamp: date("2020-01-01"), sessionKey: "2020-01-01", metadata: nil)
+        let model = DashboardAnalyticsModel(sessionRepo: repository)
+        model.selectedRange = .all
+        await model.performRefresh(days: 730, includeProviders: false)
+        XCTAssertTrue(model.populatedNights.contains { $0.sessionDate == "2020-01-01" })
+        XCTAssertLessThan(model.nights.count, 3)
+        XCTAssertFalse(model.isLoading)
+    }
+
+    func testWHOOPNightSummariesExcludeNapsAndUndatedRecords() throws {
+        let json = #"[{"id":"nap","nap":true,"start":"2026-09-01T20:00:00Z","score":{"stage_summary":{"total_light_sleep_time_milli":600000}}},{"id":"undated","score":{"stage_summary":{"total_light_sleep_time_milli":600000}}},{"id":"night","nap":false,"start":"2026-09-01T23:00:00Z","score":{"stage_summary":{"total_light_sleep_time_milli":600000}}}]"#
+        let sleeps = try WHOOPService.makeAPIDecoder().decode([WHOOPSleep].self, from: Data(json.utf8))
+        XCTAssertEqual(WHOOPService.makeNightSummaries(sleeps: sleeps, recoveries: []).map(\.sleepId), ["night"])
+    }
+
     private func night(_ key: String, dose1: Date? = nil, interval: Double? = 180, skipped: Bool = false) -> DashboardNightAggregate {
         let first = dose1 ?? date("2026-09-01")
         return DashboardNightAggregate(sessionDate: key, dose1Time: first,

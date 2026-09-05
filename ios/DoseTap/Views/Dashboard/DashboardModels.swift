@@ -19,15 +19,19 @@ final class DashboardAnalyticsModel: ObservableObject {
 
     let now: () -> Date
 
-    init(now: @escaping () -> Date = Date.init) { self.now = now }
+    init(now: @escaping () -> Date = Date.init, sessionRepo: SessionRepository = .shared) {
+        self.now = now
+        self.sessionRepo = sessionRepo
+    }
 
-    let sessionRepo = SessionRepository.shared
+    let sessionRepo: SessionRepository
     let settings = UserSettingsManager.shared
     let healthKit = HealthKitService.shared
     let whoop = WHOOPService.shared
     let cloudSync = DeferredCloudKitSyncService.shared
 
     /// Cancels in-flight refresh when a new one starts (prevents race on rapid range changes).
+    var refreshGeneration = UUID()
     var refreshTask: Task<Void, Never>?
 
     static let keyFormatter: DateFormatter = AppFormatters.sessionDate

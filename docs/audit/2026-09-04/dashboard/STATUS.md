@@ -16,3 +16,9 @@
 - Swift build passed; Swift tests 634 XCTest + 43 Swift Testing passed; SSOT, app version and Plane checks passed. First app compile exposed local DoseWindowConfig shadowing; qualified DoseCore type and reran successfully.
 - Evidence: `/tmp/dosetap-dashboard-math-tests.log`, `/tmp/dosetap-supply-build/Logs/Test/Test-DoseTap-2026.09.05_00-02-33--0400.xcresult`.
 - Next: canonical refresh/history coverage; missing-answer and source-specific comparisons; UI organization and runtime fixtures.
+
+## Data-source checkpoint
+- DA-01/02/07: refresh now enumerates discovered history, projects canonical dose events without inferred doses or current-session cache fallbacks, uses repository pre-sleep fallback, yields between nights, and awaits owned refresh tasks. WHOOP fetch errors now surface; provider horizons are labeled.
+- DA-06 additional confirmed defect: WHOOP nightly summaries admitted naps and undated records. Excluded both; for multiple overnight segments mapped to one night, dashboard selects longest scored sleep (does not sum potentially overlapping intervals).
+- Fifteen targeted simulator tests passed: seven audit regressions and eight WHOOP decoding/integration-boundary tests. In-memory SQLite fixture verified 2020 history survives All Time. Swift build/tests, SSOT and Plane workflow checks passed again.
+- Evidence: `/tmp/dosetap-dashboard-refresh-tests.log`. Simulator native CUA inspection timed out; use XCTest attachments for UI verification.

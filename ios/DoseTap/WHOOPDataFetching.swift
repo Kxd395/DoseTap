@@ -96,6 +96,7 @@ extension WHOOPService {
         var summariesBySleepID: [String: WHOOPNightSummary] = [:]
 
         for sleep in sleeps {
+            guard sleep.nap != true, sleep.start != nil else { continue }
             if let state = sleep.scoreState?.uppercased(), state != "SCORED" {
                 continue
             }

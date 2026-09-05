@@ -106,7 +106,7 @@ struct DashboardTabView: View {
             }
             .navigationTitle("Dashboard")
             .refreshable {
-                model.refresh()
+                await model.refreshAndWait()
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) { PageCaptureButton() }
