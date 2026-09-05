@@ -559,7 +559,7 @@ final class PreSleepCardStateTests: XCTestCase {
 }
 
 final class CheckInCarryForwardTests: XCTestCase {
-    func test_preSleepCarryForwardMovesTimesToReferenceDayAndDropsOneOffNotes() throws {
+    func test_preSleepCarryForwardMovesTimesToReferenceDayAndPreservesAnswers() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         let sourceDate = try XCTUnwrap(AppFormatters.parseISO8601Flexible("2026-01-10T02:15:00Z"))
@@ -595,8 +595,8 @@ final class CheckInCarryForwardTests: XCTestCase {
         XCTAssertEqual(carried.roomTemp, .cool)
         XCTAssertEqual(carried.noiseLevel, .quiet)
         XCTAssertEqual(carried.sleepAidSelections, [.fan])
-        XCTAssertNil(carried.stressNotes)
-        XCTAssertNil(carried.notes)
+        XCTAssertEqual(carried.stressNotes, answers.stressNotes)
+        XCTAssertEqual(carried.notes, answers.notes)
 
         let caffeineComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: try XCTUnwrap(carried.caffeineLastIntakeAt))
         XCTAssertEqual(caffeineComponents.year, 2026)

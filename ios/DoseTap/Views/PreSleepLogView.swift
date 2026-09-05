@@ -54,20 +54,15 @@ struct PreSleepLogView: View {
                     .padding(.horizontal)
                     .padding(.top, 8)
                 
-                if let plan = planSummary {
-                    PlanInlineHint(plan: plan)
-                        .padding(.horizontal)
-                        .padding(.top, 4)
-                }
-
-                rememberLastSettingsSection
-                    .padding(.horizontal)
-                    .padding(.top, 8)
-                
                 // Card content
                 TabView(selection: $currentCard) {
                     // Card 1: Timing + Stress
-                    Card1TimingStress(answers: $answers)
+                    Card1TimingStress(answers: $answers) {
+                        if let plan = planSummary {
+                            PlanInlineHint(plan: plan)
+                        }
+                        rememberLastSettingsSection
+                    }
                         .tag(0)
                     
                     // Card 2: Body + Substances
@@ -367,8 +362,6 @@ extension PreSleepLogAnswers {
         carried.napLastEndAt = Self.carryTimeOfDay(napLastEndAt, to: referenceDate, calendar: calendar)
         carried.lateMealEndedAt = Self.carryTimeOfDay(lateMealEndedAt, to: referenceDate, calendar: calendar)
         carried.screensLastUsedAt = Self.carryTimeOfDay(screensLastUsedAt, to: referenceDate, calendar: calendar)
-        carried.stressNotes = nil
-        carried.notes = nil
         return carried
     }
 

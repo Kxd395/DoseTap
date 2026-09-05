@@ -177,11 +177,31 @@ struct SupplySettingsView: View {
     }
 }
 
+struct PreSleepBottleSection: View {
+    @ObservedObject private var service = SupplyReminderService.shared
+
+    var body: some View {
+        QuestionSection(title: "Started a new bottle?", icon: "drop.fill") {
+            SupplyBottleButton(accessibilityID: "preSleepStartedNewBottle")
+                .buttonStyle(.bordered)
+            if let latest = service.backup?.bottleStarts.max(by: { $0.openedAt < $1.openedAt }) {
+                Text("Last recorded opening: \(latest.openedAt.formatted(date: .abbreviated, time: .shortened))")
+                    .font(.caption)
+                    .accessibilityIdentifier("preSleepLastBottleOpening")
+            }
+            Text("Optional. Saved when you confirm, even if you skip this check. Your reorder date stays the same.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
 struct SupplyBottleButton: View {
+    var accessibilityID = "startedNewBottle"
     @State private var showing = false
     var body: some View {
         Button { showing = true } label: { Label("Started a new bottle", systemImage: "plus.circle") }
-            .accessibilityIdentifier("startedNewBottle")
+            .accessibilityIdentifier(accessibilityID)
             .sheet(isPresented: $showing) { SupplyBottleSheet() }
     }
 }
@@ -193,7 +213,7 @@ private struct SupplyBottleSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                DatePicker("Bottle opened", selection: $openedAt, in: ...Date())
+                DatePicker("Started on", selection: $openedAt, in: ...Date())
                 Text("Optional personal record. This does not log a dose or change the reorder reminder.")
                 Button("Record bottle start") {
                     Task { if await service.recordBottleStart(at: openedAt) { dismiss() } }

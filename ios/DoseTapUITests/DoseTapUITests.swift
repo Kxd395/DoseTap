@@ -122,6 +122,49 @@ final class DoseTapUITests: XCTestCase {
         if springboard.buttons["Stop"].exists { springboard.buttons["Stop"].tap() }
     }
 
+    func testSupplyBottleIsFirstInPreSleepAndNeverCarriedForward() throws {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        if springboard.buttons["Allow"].waitForExistence(timeout: 3) { springboard.buttons["Allow"].tap() }
+        let dose = app.buttons["dose-primary-action"]
+        XCTAssertTrue(dose.waitForExistence(timeout: 15))
+        let doseBefore = dose.label
+        let check = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Pre-sleep")).firstMatch
+        for _ in 0..<5 where !check.isHittable { app.swipeUp() }
+        XCTAssertTrue(check.isHittable)
+        check.tap()
+        let bottle = app.buttons["preSleepStartedNewBottle"]
+        XCTAssertTrue(bottle.waitForExistence(timeout: 5))
+        XCTAssertTrue(bottle.isHittable, "Bottle opening must be visible without scrolling")
+        let remembered = app.staticTexts["Remember last pre-sleep settings"]
+        XCTAssertLessThan(bottle.frame.minY, remembered.frame.minY)
+        bottle.tap()
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(bottle.waitForExistence(timeout: 5))
+        bottle.tap()
+        app.buttons["Record bottle start"].tap()
+        let saved = app.staticTexts["preSleepLastBottleOpening"]
+        XCTAssertTrue(saved.waitForExistence(timeout: 5))
+        let savedLabel = saved.label
+        let proof = XCTAttachment(screenshot: app.screenshot())
+        proof.name = "Bottle opening first in pre-sleep check"
+        proof.lifetime = .keepAlways
+        add(proof)
+        app.buttons["Use last"].tap()
+        XCTAssertEqual(saved.label, savedLabel)
+        app.buttons["Next"].tap()
+        app.buttons["Back"].tap()
+        XCTAssertEqual(saved.label, savedLabel)
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(dose.waitForExistence(timeout: 15))
+        XCTAssertEqual(dose.label, doseBefore)
+        for _ in 0..<5 where !check.isHittable { app.swipeUp() }
+        check.tap()
+        XCTAssertTrue(saved.waitForExistence(timeout: 5))
+        XCTAssertEqual(saved.label, savedLabel)
+        XCTAssertTrue(bottle.isHittable, "A new check offers an explicit action, never an auto-selected answer")
+    }
+
     func testSupplyReceiptReminderAndOptionalBottleSurviveRelaunch() throws {
         addUIInterruptionMonitor(withDescription: "Notification permission") { alert in
             if alert.buttons["Allow"].exists { alert.buttons["Allow"].tap(); return true }

@@ -2,6 +2,23 @@
 
 ## Status
 
+### Pre-sleep placement follow-up
+
+- User correction: bottle opening must be the first item in the normal pre-sleep check, never carried forward as a new opening. History remains saved. Other pre-sleep answers, including notes previously cleared by the legacy implementation, carry forward when remembering is enabled or Use last is selected.
+- Baseline: clean `faf2042` on `fix/locked-dose2-system-alarm`; DOSETAP-30 independently read In Progress before editing.
+- Implemented: first-card bottle section before plan/remembered settings, shared confirmation/save sheet with editable Started on date/time defaulting to now, dated latest-opening feedback. No new storage field, schema, or competing source of truth.
+- Validation: core build, 634 XCTest and 43 Swift Testing cases passed; 9 app tests passed (CheckInCarryForwardTests, SupplyStorageTests, SupplyReminderServiceTests). Plane workflow, SSOT, architecture, app-version and whitespace guards passed. Initial UI query selected the underlying Tonight button; distinct accessibility identifiers corrected the test ambiguity. First complete UI run passed in 25.97 seconds; final rerun after the Started on copy change is recorded below.
+- Exact next step: signed-device and owner acceptance after Plane readback. App version remains 0.4.12 (14); no phone installation or deployment.
+
+Follow-up commands and logs (same simulator destination as below):
+
+```sh
+xcodebuild -project ios/DoseTap.xcodeproj -scheme DoseTap -destination 'platform=iOS Simulator,id=829089F8-76D6-475A-A794-CFBD0BE9F43B' -derivedDataPath /tmp/dosetap-supply-build CODE_SIGNING_ALLOWED=NO -only-testing:DoseTapTests/CheckInCarryForwardTests -only-testing:DoseTapTests/SupplyStorageTests -only-testing:DoseTapTests/SupplyReminderServiceTests test
+xcodebuild -project ios/DoseTap.xcodeproj -scheme DoseTapUITests -destination 'platform=iOS Simulator,id=829089F8-76D6-475A-A794-CFBD0BE9F43B' -derivedDataPath /tmp/dosetap-supply-build CODE_SIGNING_ALLOWED=NO -only-testing:DoseTapUITests/DoseTapUITests/testSupplyBottleIsFirstInPreSleepAndNeverCarriedForward test
+```
+
+Logs: `/tmp/dosetap-presleep-core.log`, `/tmp/dosetap-presleep-version.log`, `/tmp/dosetap-presleep-app-tests.log`, `/tmp/dosetap-presleep-bottle-ui-final.log`. Action log: first-card composition in PreSleepLogView/PreSleepLogTimingStressCard, shared bottle UI in SupplySettingsView, carry-forward and UI regressions in UIStateTests/DoseTapUITests, SSOT and this evidence record. No storage or notification implementation changed.
+
 - Scope: user-authorized improvement of the missing local order reminder.
 - Baseline: clean `DoseTap-main`, main `5d1fa4b48bec00007a0b6f8327a8edee7b096569`.
 - Branch: `feat/local-order-reminder`; preserved `/Volumes/Developer/projects/DoseTap` is untouched.
@@ -56,3 +73,5 @@ Final logs: `/tmp/dosetap-supply-core-test.log`, `/tmp/dosetap-supply-final-app-
 Final clean simulator UI test: **passed**, one complete journey (66.35 seconds), including bottle start, unchanged dose action, verified scheduling, relaunch persistence and handled state. Screenshots: [Scheduled](supply-reminder-scheduled.png), [Handled](supply-reminder-handled.png).
 
 Implementation commits: `f2ebf4c`, `a4bb2ac`, `7c113b4`, `f649f90`. DOSETAP-30 workpad and In Progress state were applied and independently verified (closeout `d88c994c8b04c3d2`). The initial Backlog state was explicitly promoted following the owner's implementation request, then the reviewed start/closeout helpers were used. Physical and owner gates remain open.
+
+Final pre-sleep clean build/UI rerun: **1 passed, 0 failures**, 26.45 seconds. The incremental rerun used an older test identifier despite the on-disk source; clean build resolved this stale artifact. Screenshot exported from the final successful xcresult and visually inspected: [Bottle prompt first](presleep-bottle-first.png). It is the first question, above the plan and remembered settings; Next remains visible. Cancellation, confirmed save, Use last, Back/Next, relaunch and unchanged dose action passed. This is simulator evidence, not physical-device acceptance.

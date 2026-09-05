@@ -53,8 +53,9 @@ struct PlanInlineHint: View {
 }
 
 // MARK: - Card 1: Timing + Stress
-struct Card1TimingStress: View {
+struct Card1TimingStress<Context: View>: View {
     @Binding var answers: PreSleepLogAnswers
+    @ViewBuilder var context: () -> Context
 
     private var hasStressDetails: Bool {
         answers.stressLevel != nil
@@ -84,6 +85,9 @@ struct Card1TimingStress: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
+                PreSleepBottleSection()
+                context()
+
                 QuestionSection(title: "When do you plan to sleep?", icon: "bed.double.fill") {
                     OptionGrid(
                         options: PreSleepLogAnswers.IntendedSleepTime.allCases,
