@@ -9,11 +9,15 @@ final class SystemDoseAlarmTests: XCTestCase {
         var denied = false
         var drops = false
         var failNext = false
+        var failsCancel = false
         var onSchedule: (() -> Void)?
         var authorizationDescription: String { "Test authorization" }
         func requestAuthorization() async throws { if denied { throw SystemDoseAlarmError.permission } }
         func deadline() throws -> Date? { target }
-        func cancel() throws { target = nil }
+        func cancel() throws {
+            if failsCancel { throw SystemDoseAlarmError.verification }
+            target = nil
+        }
         func schedule(at date: Date) async throws {
             if failNext { failNext = false; throw SystemDoseAlarmError.verification }
             onSchedule?()
@@ -83,5 +87,20 @@ final class SystemDoseAlarmTests: XCTestCase {
         XCTAssertEqual(cancelled.failure?.code, .cancelled)
         XCTAssertNil(native.target)
         XCTAssertFalse(alarm.alarmScheduled)
+    }
+    func testCancellationFailureRemainsVisibleAfterSessionStateReset() async {
+        let native = Native(), now = Date()
+        let alarm = service(native, now: now)
+        _ = await alarm.scheduleDose2Alarm(at: now.addingTimeInterval(100), dose1Time: now)
+        native.failsCancel = true
+        alarm.cancelAllAlarms()
+        alarm.clearDose2AlarmState()
+        XCTAssertNotNil(native.target)
+        XCTAssertNotNil(alarm.lastSchedulingError)
+        XCTAssertTrue(alarm.lockScreenAlarmStatus.contains("Could not cancel"))
+        native.failsCancel = false
+        alarm.cancelAllAlarms()
+        XCTAssertNil(native.target)
+        XCTAssertNil(alarm.lastSystemAlarmCancellationError)
     }
 }

@@ -77,10 +77,12 @@ extension SettingsView {
                 }
 
                 if settings.notificationsEnabled {
-                    Toggle(isOn: $settings.criticalAlertsEnabled) {
-                        Label("Critical Alerts", systemImage: "exclamationmark.triangle.fill")
+                    if Bundle.main.object(forInfoDictionaryKey: "CriticalAlertsCapabilityEnabled") as? Bool == true {
+                        Toggle(isOn: $settings.criticalAlertsEnabled) {
+                            Label("Critical Alerts", systemImage: "exclamationmark.triangle.fill")
+                        }
+                        .tint(.red)
                     }
-                    .tint(.red)
 
                     Toggle(isOn: $settings.windowOpenAlert) {
                         Label("Window Open (150 min)", systemImage: "door.left.hand.open")
@@ -97,7 +99,7 @@ extension SettingsView {
                     Divider()
 
                     Toggle(isOn: $settings.soundEnabled) {
-                        Label("Sound", systemImage: "speaker.wave.2.fill")
+                        Label("In-App & Notification Sound", systemImage: "speaker.wave.2.fill")
                     }
 
                     Toggle(isOn: $settings.hapticsEnabled) {
@@ -108,7 +110,7 @@ extension SettingsView {
                 Label("Dose Notifications & Alerts", systemImage: "bell.badge.fill")
                     .font(.headline)
             } footer: {
-                Text("Critical alerts can override Do Not Disturb for important dose reminders. Order reminders have their own enable and disable controls under Supply & order reminder.")
+                Text("On iOS 26+, the Dose 2 system alarm has its own permission and system-controlled sound. Use Locked-phone alarm setup & test to check it. Order reminders have separate controls under Supply & order reminder.")
             }
 
             Section {

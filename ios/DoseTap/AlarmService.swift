@@ -163,6 +163,7 @@ public class AlarmService: NSObject, ObservableObject {
     @Published public var reminderScheduled: Bool = false
     @Published public var isAlarmRinging: Bool = false
     @Published public private(set) var lastSchedulingError: String?
+    @Published private(set) var lastSystemAlarmCancellationError: String?
     @Published public private(set) var reconciledTimeZoneIdentifier: String?
     
     private let notificationClient: any AlarmNotificationCenterClient
@@ -305,7 +306,7 @@ public class AlarmService: NSObject, ObservableObject {
         notificationClient.setDelegate(self)
         registerNotificationCategories()
         loadTargetWakeTime()
-        configureAudioSession()
+        if systemWakeAlarm == nil { configureAudioSession() }
     }
 
     private func registerNotificationCategories() {
@@ -567,7 +568,7 @@ public class AlarmService: NSObject, ObservableObject {
 
     var supportsSystemWakeAlarm: Bool { systemWakeAlarm != nil }
     var lockScreenAlarmStatus: String {
-        systemWakeAlarm?.authorizationDescription ?? "This iOS version uses notification alarms, subject to Silent and Focus settings."
+        lastSystemAlarmCancellationError ?? systemWakeAlarm?.authorizationDescription ?? "This iOS version uses notification alarms, subject to Silent and Focus settings."
     }
 
     func authorizeSystemWakeAlarm() async {
@@ -589,9 +590,17 @@ public class AlarmService: NSObject, ObservableObject {
             detail: error.localizedDescription, previousScheduleRestored: restored)
     }
 
-    private func cancelSystemWakeAlarm() {
-        do { try systemWakeAlarm?.cancel() }
-        catch { lastSchedulingError = "Could not cancel the system alarm: \(error.localizedDescription)" }
+    @discardableResult private func cancelSystemWakeAlarm() -> AlarmSchedulingFailure? {
+        do {
+            try systemWakeAlarm?.cancel()
+            lastSystemAlarmCancellationError = nil
+            return nil
+        } catch {
+            let message = "Could not cancel the system alarm: \(error.localizedDescription)"
+            lastSystemAlarmCancellationError = message
+            lastSchedulingError = message
+            return systemWakeFailure(NSError(domain: "DoseTapAlarm", code: 2, userInfo: [NSLocalizedDescriptionKey: message]))
+        }
     }
 
     private func performSystemWakeTransaction(client: any SystemDoseAlarmScheduling, at date: Date) async -> AlarmScheduleResult {
@@ -610,6 +619,7 @@ public class AlarmService: NSObject, ObservableObject {
             // Migration from the notification wake backend is role-specific.
             notificationClient.removePendingRequests(withIdentifiers: Self.wakeNotificationIdentifiers)
             notificationClient.removeDeliveredNotifications(withIdentifiers: Self.wakeNotificationIdentifiers)
+            lastSystemAlarmCancellationError = nil
             return systemWakeReceipt(at: date)
         } catch {
             guard isCurrent(generation, for: .wake) else {
@@ -827,7 +837,7 @@ public class AlarmService: NSObject, ObservableObject {
         alarmScheduled = false
         reminderScheduled = false
         failuresByGroup.removeAll()
-        lastSchedulingError = nil
+        lastSchedulingError = lastSystemAlarmCancellationError
         reconciledTimeZoneIdentifier = nil
     }
     
@@ -1008,7 +1018,7 @@ public class AlarmService: NSObject, ObservableObject {
         let allGroupIdentifiers = identifiers(for: group)
         guard configurationProvider().notificationsEnabled else {
             invalidateScheduling(for: group)
-            if group == .wake { cancelSystemWakeAlarm() }
+            if group == .wake, let failure = cancelSystemWakeAlarm() { return .failed(failure) }
             notificationClient.removePendingRequests(withIdentifiers: allGroupIdentifiers)
             return .notNeeded(reason: "Notifications disabled")
         }
@@ -1226,11 +1236,10 @@ public class AlarmService: NSObject, ObservableObject {
         case .failed(let failure):
             failuresByGroup[group] = failure
         }
-        lastSchedulingError = failuresByGroup
+        let groupMessages = failuresByGroup
             .sorted { $0.key.rawValue < $1.key.rawValue }
             .map { $0.value.userMessage }
-            .joined(separator: " ")
-            .nilIfEmpty
+        lastSchedulingError = (groupMessages + [lastSystemAlarmCancellationError].compactMap { $0 }).joined(separator: " ").nilIfEmpty
     }
 
     private func logVerifiedSchedule(_ requests: [UNNotificationRequest]) async {

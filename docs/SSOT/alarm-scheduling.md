@@ -23,6 +23,12 @@ DoseTap's in-app snooze continues to enforce the canonical window and limit.
 The stable system-alarm identifier is isolated from supply reminders. Reset,
 completion and cancellation invalidate pending system-alarm writes and cancel it.
 The UI shows permission or scheduling errors and offers a permission/retry path.
+Cancellation errors survive session-state cleanup and remain visible until corrected.
+Settings provides a separate, stable-ID one-minute test alarm; it neither replaces
+the Dose 2 alarm nor creates a medication event. The unsupported Critical Alerts
+toggle is hidden unless the app declares its existing capability flag; no entitlement
+or account approval is fabricated. In-app/notification sound and system-alarm sound
+are labeled separately.
 
 A call to `UNUserNotificationCenter.add` is an attempted write, not proof of a durable schedule. DoseTap may show a wake alarm or reminder group as scheduled only when all required requests for that group are present in the pending-request store and match the requested absolute instants.
 

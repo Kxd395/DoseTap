@@ -10,7 +10,7 @@ final class DoseTapUITests: XCTestCase {
         continueAfterFailure = false
         app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
-        if name.contains("testSupply") { app.launchArguments += ["-setup_completed_v2", "YES"] }
+        if name.contains("testSupply") || name.contains("testSystemAlarm") { app.launchArguments += ["-setup_completed_v2", "YES"] }
         if name.contains("testWorkWarning") { app.launchArguments.append("--uitesting-work-warning") }
         if name.contains("testExpiredSessionLaunch") { app.launchArguments.append("--uitesting-expired-session") }
         app.launch()
@@ -92,6 +92,35 @@ final class DoseTapUITests: XCTestCase {
     }
 
     // MARK: - App Launch
+
+    func testSystemAlarmPermissionAndBackgroundDelivery() throws {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        if springboard.buttons["Allow"].waitForExistence(timeout: 3) { springboard.buttons["Allow"].tap() }
+        XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 15))
+        app.buttons["Settings"].tap()
+        let link = app.buttons["Locked-phone alarm setup & test"]
+        for _ in 0..<5 where !link.isHittable { app.swipeUp() }
+        XCTAssertTrue(link.isHittable)
+        link.tap()
+        app.buttons["testLockedAlarm"].tap()
+        app.buttons["Schedule test alarm"].tap()
+        if springboard.buttons["Allow"].waitForExistence(timeout: 4) { springboard.buttons["Allow"].tap() }
+        let result = app.staticTexts["systemAlarmTestResult"]
+        for _ in 0..<4 where !result.isHittable { app.swipeUp() }
+        expectation(for: NSPredicate(format: "label BEGINSWITH %@", "Test alarm verified."), evaluatedWith: result)
+        waitForExpectations(timeout: 10)
+        let configured = XCTAttachment(screenshot: app.screenshot())
+        configured.name = "AlarmKit test schedule verified"
+        configured.lifetime = .keepAlways
+        add(configured)
+        XCUIDevice.shared.press(.home)
+        XCTAssertTrue(springboard.staticTexts["DoseTap alarm test"].waitForExistence(timeout: 75))
+        let delivered = XCTAttachment(screenshot: springboard.screenshot())
+        delivered.name = "System alarm delivered with DoseTap backgrounded"
+        delivered.lifetime = .keepAlways
+        add(delivered)
+        if springboard.buttons["Stop"].exists { springboard.buttons["Stop"].tap() }
+    }
 
     func testSupplyReceiptReminderAndOptionalBottleSurviveRelaunch() throws {
         addUIInterruptionMonitor(withDescription: "Notification permission") { alert in
