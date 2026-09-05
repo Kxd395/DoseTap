@@ -78,6 +78,7 @@
 		EA02466EA69547DF963A8BA7 /* WHOOPService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7084981AA100483EB6E6ADE1 /* WHOOPService.swift */; };
 		EDIT002 /* EditDoseTimeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDIT001 /* EditDoseTimeView.swift */; };
 		ESB001 /* EventStorage+Schema.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF001 /* EventStorage+Schema.swift */; };
+		SUPB01 /* EventStorage+Supply.swift in Sources */ = {isa = PBXBuildFile; fileRef = SUPF01 /* EventStorage+Supply.swift */; };
 		ESB002 /* EventStorage+Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF002 /* EventStorage+Session.swift */; };
 		ESB003 /* EventStorage+Exports.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF003 /* EventStorage+Exports.swift */; };
 		ESB004 /* EventStorage+EventStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF004 /* EventStorage+EventStore.swift */; };
@@ -265,6 +266,7 @@
 		E0BC9035E4ACF20D1D40B9A9 /* SleepTimelineOverlays.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SleepTimelineOverlays.swift; sourceTree = "<group>"; };
 		EDIT001 /* EditDoseTimeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditDoseTimeView.swift; sourceTree = "<group>"; };
 		ESF001 /* EventStorage+Schema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+Schema.swift"; sourceTree = "<group>"; };
+		SUPF01 /* EventStorage+Supply.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+Supply.swift"; sourceTree = "<group>"; };
 		ESF002 /* EventStorage+Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+Session.swift"; sourceTree = "<group>"; };
 		ESF003 /* EventStorage+Exports.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+Exports.swift"; sourceTree = "<group>"; };
 		ESF004 /* EventStorage+EventStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+EventStore.swift"; sourceTree = "<group>"; };
@@ -570,6 +572,7 @@
 			children = (
 				B5D8DC9D91D38419C97E97FA /* EventStorage.swift */,
 				ESF001 /* EventStorage+Schema.swift */,
+				SUPF01 /* EventStorage+Supply.swift */,
 				ESF002 /* EventStorage+Session.swift */,
 				ESF003 /* EventStorage+Exports.swift */,
 				ESF004 /* EventStorage+EventStore.swift */,
@@ -905,6 +908,7 @@
 				1B86C969549644B2A31C /* DiagnosticLoggingSettingsView.swift in Sources */,
 				81A5CD7A3DD244DEB70FA0B2 /* EventStorage.swift in Sources */,
 				ESB001 /* EventStorage+Schema.swift in Sources */,
+				SUPB01 /* EventStorage+Supply.swift in Sources */,
 				ESB002 /* EventStorage+Session.swift in Sources */,
 				ESB003 /* EventStorage+Exports.swift in Sources */,
 				ESB004 /* EventStorage+EventStore.swift in Sources */,

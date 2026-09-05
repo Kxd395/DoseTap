@@ -93,7 +93,7 @@ public class EventStorage {
     }
     
     public static let constantsVersion = "1.0.0"
-    public static let schemaUserVersion = 4
+    public static let schemaUserVersion = 5
 
     init(
         dbPath: String,

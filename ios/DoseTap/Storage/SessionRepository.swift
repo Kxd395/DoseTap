@@ -58,6 +58,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     
     /// Emits whenever session data changes (for observers that need explicit signal)
     public let sessionDidChange = PassthroughSubject<Void, Never>()
+    var supplyGeneration: UInt = 0
     
     // MARK: - Phase Tracking (for diagnostic logging)
     /// Tracks last known phase to detect transitions at edges
@@ -1367,6 +1368,8 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     /// ⚠️ DESTRUCTIVE: This removes all dose logs, sleep events, check-ins, etc.
     public func clearAllData() {
         storage.clearAllData()
+        supplyGeneration &+= 1
+        notificationScheduler.cancelNotifications(withIdentifiers: ["dosetap_supply_order_reminder"])
         cancelPendingNotifications()
         
         // Reset in-memory state

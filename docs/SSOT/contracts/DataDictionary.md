@@ -2,11 +2,11 @@
 
 Status: Current field-meaning contract
 Last verified: 2026-09-02
-SQLite user_version: 4
+SQLite user_version: 5
 DDL source: `ios/DoseTap/Storage/EventStorage+Schema.swift`
 Exact column mirror: `docs/DATABASE_SCHEMA.md`
 
-This dictionary defines how persisted fields are interpreted. It covers all 16 application tables plus the internal migration ledger. It does not redefine SQL types or migrations from the executable schema.
+This dictionary defines how persisted fields are interpreted. It covers all 17 application tables plus the internal migration ledger. It does not redefine SQL types or migrations from the executable schema.
 
 ## Identity and time
 
@@ -85,3 +85,7 @@ A replacement event retains `correction.previous_events`, an array of the replac
 ## Work/wake schedule (schema 4)
 
 `work_wake_schedule` stores one row (`id = 1`): `payload TEXT NOT NULL` is the versioned WorkWakeSchedule JSON, and `updated_at TEXT NOT NULL` is UTC. Creation is additive and existing medication rows are unchanged. Its payload owns explicit recurring work identity, advisory-mode parameters, timezone, revision, and dated overrides; Typical Week enabled flags are not migrated to work identity. Whole-database backups include this table. Clear All Data clears it; session deletion does not. Schedule load/validation failures are surfaced to the user.
+
+## Local supply state (schema version 5)
+
+`supply_state` contains one row (`id INTEGER PRIMARY KEY CHECK (id = 1)`, `payload TEXT NOT NULL`). The versioned SupplyBackup JSON owns optional reminder source and correction history, plus independent bottle-start IDs, opened-at and recorded-at timestamps. Reminder dates preserve Gregorian year/month/day and local hour/minute, mode, lead days, current-device-wall-clock policy, entry timezone, enabled and handled state. Received-date mode adds 21 calendar days. No quantity is inferred from bottle starts. A single upsert commits the complete supply document; load/validation/write errors are surfaced. Reminder-only deletion preserves bottle starts and all medication data. Supply export/restore includes both reminder and bottle records; Clear All Data clears the row. The additive table does not rewrite existing medication records.
