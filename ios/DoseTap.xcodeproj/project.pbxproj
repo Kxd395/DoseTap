@@ -20,6 +20,7 @@
 		36C1109C06A24E03A747B9E6 /* SessionSummaryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0C7941006B40BEA391DD9A /* SessionSummaryViews.swift */; };
 		40BDAEDF308A4508940C55F7 /* AlarmService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E912715BD5C4BBAAA735378 /* AlarmService.swift */; };
 		5355504255494C4400000001 /* SupplyReminderService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53555046494C450000000001 /* SupplyReminderService.swift */; };
+		5359534255494C4400000001 /* SystemDoseAlarm.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53595346494C450000000001 /* SystemDoseAlarm.swift */; };
 		46EBB63DD7FE446C8EEF4021 /* AnalyticsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCEDF0A0E4BE41F582C2221F /* AnalyticsService.swift */; };
 		49BABB381D1350BB62368638 /* ReducedMotionSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A3C6B3DB1EBBE10E2F3E7FB /* ReducedMotionSupport.swift */; };
 		51117520922E2EF076DD4A81 /* DiagnosticExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EF211068DBC684F390BC8F9 /* DiagnosticExportView.swift */; };
@@ -148,6 +149,7 @@
 		UNDO003 /* UndoSnackbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNDO004 /* UndoSnackbarView.swift */; };
 		UNDO005 /* MedicationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNDO006 /* MedicationSettingsView.swift */; };
 		SUPUIB01 /* SupplySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SUPUIF01 /* SupplySettingsView.swift */; };
+		SYSUIB01 /* SystemAlarmSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SYSUIF01 /* SystemAlarmSettingsView.swift */; };
 		UNDO007 /* MedicationPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNDO008 /* MedicationPickerView.swift */; };
 		WHM001 /* WHOOPModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = WHM002 /* WHOOPModels.swift */; };
 		WP001 /* WeeklyPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP002 /* WeeklyPlanner.swift */; };
@@ -183,6 +185,7 @@
 		395ADBC5158F41E79333066E /* Haptics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
 		3E912715BD5C4BBAAA735378 /* AlarmService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmService.swift; sourceTree = "<group>"; };
 		53555046494C450000000001 /* SupplyReminderService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplyReminderService.swift; sourceTree = "<group>"; };
+		53595346494C450000000001 /* SystemDoseAlarm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemDoseAlarm.swift; sourceTree = "<group>"; };
 		403FF1A5371F4BA427EC1520 /* WHOOPSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WHOOPSettingsView.swift; sourceTree = "<group>"; };
 		418F7D12D4A2473F800C75ED /* FullApp/DoseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/DoseModels.swift; sourceTree = "<group>"; };
 		49D083E0EC7947B795F0DD57 /* Formatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Formatters.swift; sourceTree = "<group>"; };
@@ -338,6 +341,7 @@
 		UNDO004 /* UndoSnackbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoSnackbarView.swift; sourceTree = "<group>"; };
 		UNDO006 /* MedicationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationSettingsView.swift; sourceTree = "<group>"; };
 		SUPUIF01 /* SupplySettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplySettingsView.swift; sourceTree = "<group>"; };
+		SYSUIF01 /* SystemAlarmSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemAlarmSettingsView.swift; sourceTree = "<group>"; };
 		UNDO008 /* MedicationPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationPickerView.swift; sourceTree = "<group>"; };
 		WHM002 /* WHOOPModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WHOOPModels.swift; sourceTree = "<group>"; };
 		WP002 /* WeeklyPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyPlanner.swift; sourceTree = "<group>"; };
@@ -439,6 +443,7 @@
 				SWZ004 /* FullApp/SetupWizardComponents.swift */,
 				3E912715BD5C4BBAAA735378 /* AlarmService.swift */,
 				53555046494C450000000001 /* SupplyReminderService.swift */,
+				53595346494C450000000001 /* SystemDoseAlarm.swift */,
 				APC002 /* AppContainer.swift */,
 				FCEDF0A0E4BE41F582C2221F /* AnalyticsService.swift */,
 				B02 /* ContentView.swift */,
@@ -634,6 +639,7 @@
 				UNDO004 /* UndoSnackbarView.swift */,
 				UNDO006 /* MedicationSettingsView.swift */,
 				SUPUIF01 /* SupplySettingsView.swift */,
+				SYSUIF01 /* SystemAlarmSettingsView.swift */,
 				UNDO008 /* MedicationPickerView.swift */,
 				2EF211068DBC684F390BC8F9 /* DiagnosticExportView.swift */,
 				8FABFEE0765C943A32E6ACC2 /* NightReviewView.swift */,
@@ -888,6 +894,7 @@
 				APC001 /* AppContainer.swift in Sources */,
 				40BDAEDF308A4508940C55F7 /* AlarmService.swift in Sources */,
 				5355504255494C4400000001 /* SupplyReminderService.swift in Sources */,
+				5359534255494C4400000001 /* SystemDoseAlarm.swift in Sources */,
 				DD45B910AB7B414A9948C5A9 /* URLRouter.swift in Sources */,
 				BC3BD8377E674DB98BB83F35 /* InsightsCalculator.swift in Sources */,
 				HK001 /* HealthKitService.swift in Sources */,
@@ -899,6 +906,7 @@
 				UNDO003 /* UndoSnackbarView.swift in Sources */,
 				UNDO005 /* MedicationSettingsView.swift in Sources */,
 				SUPUIB01 /* SupplySettingsView.swift in Sources */,
+				SYSUIB01 /* SystemAlarmSettingsView.swift in Sources */,
 				UNDO007 /* MedicationPickerView.swift in Sources */,
 				EDIT002 /* EditDoseTimeView.swift in Sources */,
 				0A777B0D5CC54803B060A980 /* UserSettingsManager.swift in Sources */,

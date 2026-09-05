@@ -71,6 +71,7 @@ extension SettingsView {
             }
 
             Section {
+                NavigationLink("Locked-phone alarm setup & test") { SystemAlarmSettingsView() }
                 Toggle(isOn: $settings.notificationsEnabled) {
                     Label("Enable Dose Notifications", systemImage: "bell.fill")
                 }

@@ -19,6 +19,7 @@ import UIKit
 
 /// Protocol for notification scheduling to enable testing without real UNUserNotificationCenter
 public protocol NotificationScheduling: Sendable {
+    @MainActor
     func cancelNotifications(withIdentifiers ids: [String])
 }
 
@@ -26,8 +27,12 @@ public protocol NotificationScheduling: Sendable {
 public final class SystemNotificationScheduler: NotificationScheduling {
     public static let shared = SystemNotificationScheduler()
     
-    public func cancelNotifications(withIdentifiers ids: [String]) {
+    @MainActor public func cancelNotifications(withIdentifiers ids: [String]) {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ids)
+        if ids.contains("dosetap_dose2_alarm") {
+            // This cancellation path never reads SessionRepository.shared.
+            AlarmService.shared.cancelWakeAlarms()
+        }
     }
 }
 

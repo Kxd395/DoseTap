@@ -8,8 +8,8 @@
 - Plane: DOSETAP-30 preflight confirmed Backlog. State mismatch reported; user explicitly requested implementation. Closeout will retain physical/owner gates.
 - Completed: source review, actual UI/storage/notification call-path review, current remote main readback, feature contract.
 - Implemented: received-date + 21 calendar days, direct/cycle-end choices, correction history, atomic SQLite supply record, independent bottle starts, verified role-specific scheduling, permission/retry/handled/disable states, lifecycle reconciliation, Settings and Tonight controls, supply JSON export/restore.
-- Remaining: Plane closeout/readback, signed-device and owner acceptance.
-- Next step: commit validated supply implementation, apply/verify DOSETAP-30 closeout, then investigate the newly reported Dose 2 locked-phone alarm issue separately.
+- Remaining: signed-device and owner acceptance.
+- Next step: owner acceptance of the supply feature; engineering continues separately in `locked-dose2-alarm.md`.
 
 ## Findings and decisions
 
@@ -54,3 +54,5 @@ xcodebuild -project ios/DoseTap.xcodeproj -scheme DoseTapUITests -destination 'p
 Final logs: `/tmp/dosetap-supply-core-test.log`, `/tmp/dosetap-supply-final-app-test.log`, `/tmp/dosetap-supply-final-ui-test.log`. Local evidence does not prove signed-device delivery, notification-tap routing on a physical device, Files-provider import/export interaction, or assistive-technology acceptance. Supply JSON roundtrip, replacement validation and persistence were automated; the Files sheet itself remains an owner acceptance step.
 
 Final clean simulator UI test: **passed**, one complete journey (66.35 seconds), including bottle start, unchanged dose action, verified scheduling, relaunch persistence and handled state. Screenshots: [Scheduled](supply-reminder-scheduled.png), [Handled](supply-reminder-handled.png).
+
+Implementation commits: `f2ebf4c`, `a4bb2ac`, `7c113b4`, `f649f90`. DOSETAP-30 workpad and In Progress state were applied and independently verified (closeout `d88c994c8b04c3d2`). The initial Backlog state was explicitly promoted following the owner's implementation request, then the reviewed start/closeout helpers were used. Physical and owner gates remain open.
