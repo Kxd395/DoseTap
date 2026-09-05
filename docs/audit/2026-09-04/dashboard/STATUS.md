@@ -105,3 +105,12 @@
 - Followup files: dashboard Views, InsightCards, AnalyticsCatalog, Models (simulator-only sparse fixture), UI tests, app version values, SSOT README/navigation, existing audit STATUS/FINDINGS/DECISIONS and evidence. Owner project reorder and UI scheme remain excluded. No dependencies, DB/schema changes, phone install, push or deployment.
 - Source correction committed as `21c2f8c`; pre-commit SwiftPM and simulator app builds passed. Plane DOSETAP-45 closeout `66705e0d6f496c72` applied and independently verified, In Progress for existing owner/device/provider/accessibility gates.
 - Exact next step: owner phone/provider review using build 0.4.16 (18) from DoseTap-main; confirm default All view and compare recorded nights. Local correction and evidence are complete.
+
+
+## Build-14 metric and color parity — in progress
+- User explicitly expanded comparison to build 14. Verified both `433ef43` and `2b93aa0` advertise 0.4.12 (14); the dashboard at latest build-14 `2b93aa0` is identical to `37da941`. Early build-14 differs in recorded-outcome labeling and blended sleep, so both are comparison evidence.
+- Baseline for this correction: `7ae2687`; Plane DOSETAP-45 preflight In Progress. Existing owner project reordering and scheme edits preserved. Original DoseTap checkout inspected read-only and remains untouched.
+- Confirmed missing inside-card content: streak, summary coverage, nightly status, compact recovery/HRV, recent-row coverage, descriptive timing-change badge. Remaining missing provider/lifestyle values are often conditionally hidden; prior-period badges also have misplaced Divider modifiers.
+- Exact next step: regression-test corrected streak/coverage, restore useful summaries, then apply consistent color/availability treatment and individually exercise Overview, Trends and Data. No version rollback requested; build 14 is the comparison baseline.
+
+- Metric checkpoint: restored summary/streak/coverage/status/review counts and neutral interval-change text. Test-first compile failure observed for new properties; then 15 dashboard audit tests passed, including calendar gaps, range cap, active-night exclusion and skipped-check-in coverage. Swift build and 634 XCTest +43 Swift Testing passed; SSOT/Plane/diff checks passed. Log `/tmp/dosetap-parity-unit.log`. Next: color/missing-value consistency, prior-period layout, individual-filter runtime coverage.

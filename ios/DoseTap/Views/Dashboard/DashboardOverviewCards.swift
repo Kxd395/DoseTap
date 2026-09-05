@@ -14,9 +14,18 @@ struct DashboardExecutiveSummaryCard: View {
                 kpi("Outcomes recorded", model.completionRate.map { String(format: "%.0f%%", $0) } ?? "—")
                 kpi("Recorded pairs", "\(model.recordedPairCount)")
                 kpi("Pending Dose 2", "\(model.pendingDose2OutcomeCount)")
+                kpi("Finished-night streak", "\(model.finishedNightStreak) nights")
+                kpi("Nights with data", "\(model.populatedNights.count)")
+                kpi("Coverage · 3+ categories", "\(model.threeCategoryNightCount) nights", color: DashboardPalette.coverage)
+                kpi("WHOOP Recovery", model.averageWhoopRecovery.map { String(format: "%.0f%%", $0) } ?? "No data", color: DashboardPalette.sleep)
+                kpi("WHOOP HRV", model.averageWhoopHRV.map { String(format: "%.0f ms", $0) } ?? "No data", color: DashboardPalette.sleep)
             }
             Text("In-window rate uses \(model.recordedPairCount) valid recorded pairs. Outcomes: \(model.recordedDose2OutcomeCount)/\(model.eligibleDose2OutcomeCount), including explicit skips; pending nights are excluded.")
                 .font(.caption).foregroundColor(.secondary)
+            Text("Streak ends with the previous night, resets at gaps and is limited to this range. Coverage counts records, not confidence.")
+                .font(.caption).foregroundColor(.secondary)
+            Label(tonightStatus, systemImage: "moon")
+                .font(.callout).foregroundColor(DashboardPalette.timing)
             if let lastRefresh = model.lastRefresh {
                 Text("Updated \(lastRefresh.formatted(date: .omitted, time: .shortened))")
                     .font(.caption2).foregroundColor(.secondary)
@@ -26,12 +35,23 @@ struct DashboardExecutiveSummaryCard: View {
         .padding().background(RoundedRectangle(cornerRadius: 16).fill(Color(.systemGray6)))
     }
 
-    private func kpi(_ title: String, _ value: String) -> some View {
+    private func kpi(_ title: String, _ value: String, color: Color = DashboardPalette.timing) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title).font(.caption).foregroundColor(.secondary)
-            Text(value).font(.title2.bold())
+            Text(value).font(.title2.bold()).foregroundColor(value == "No data" || value == "—" ? .secondary : color)
         }.accessibilityElement(children: .combine)
     }
+
+    private var tonightStatus: String {
+        switch core.currentStatus {
+        case .noDose1: return "Tonight: Dose 1 not recorded"
+        case .beforeWindow: return "Tonight: Waiting for Dose 2 window"
+        case .active, .nearClose: return "Tonight: Dose 2 window open"
+        case .closed: return "Tonight: Dose 2 window closed"
+        case .completed, .finalizing: return "Tonight: Session complete"
+        }
+    }
+
 }
 
 struct DashboardDosingSnapshotCard: View {
@@ -44,6 +64,10 @@ struct DashboardDosingSnapshotCard: View {
             metricRow(title: "Avg Interval", value: formatInterval(minutes: model.averageIntervalMinutes))
             metricRow(title: "Avg Snoozes", value: model.averageSnoozeCount.map { String(format: "%.1f", $0) } ?? "No data")
             metricRow(title: "Missing Dose 2 Outcomes", value: "\(model.missingDose2OutcomeCount)")
+            metricRow(title: "Duplicate Nights", value: "\(model.duplicateNightCount)")
+            metricRow(title: "Record review flags", value: "\(model.duplicateNightCount + model.missingDose2OutcomeCount)")
+            Text("Review flags count duplicate-event nights and unrecorded Dose 2 outcomes; one night may contribute both.")
+                .font(.caption).foregroundColor(.secondary)
             metricRow(title: "Early pairs", value: "\(model.timingCount(.early))")
             metricRow(title: "In-window pairs", value: "\(model.timingCount(.inWindow))")
             metricRow(title: "Late pairs", value: "\(model.timingCount(.late))")
@@ -87,9 +111,7 @@ struct DashboardSleepSnapshotCard: View {
             Text("Sleep readings: Apple Health n=\(model.populatedNights.compactMap(\.appleHealthSleepMinutes).count), WHOOP n=\(model.populatedNights.compactMap(\.whoopSleepMinutes).count).")
                 .font(.caption).foregroundColor(.secondary)
             metricRow(title: "Avg Apple Health Sleep", value: formatMinutes(model.averageAppleHealthSleepMinutes))
-            if model.averageWhoopSleepMinutes != nil {
-                metricRow(title: "Avg WHOOP Sleep", value: formatMinutes(model.averageWhoopSleepMinutes))
-            }
+            metricRow(title: "Avg WHOOP Sleep", value: formatMinutes(model.averageWhoopSleepMinutes))
             metricRow(title: "Time to first wake · Health", value: formatMinutes(model.averageTTFW))
             metricRow(title: "Avg wakes · Health", value: model.averageWakeCount.map { String(format: "%.1f", $0) } ?? "No data")
             metricRow(title: "Bathroom logs", value: "\(model.bathroomLogCount)")
@@ -99,10 +121,8 @@ struct DashboardSleepSnapshotCard: View {
             Text("Morning ratings: n=\(model.populatedNights.filter { $0.morningCheckIn != nil }.count).")
                 .font(.caption).foregroundColor(.secondary)
             metricRow(title: "Avg Readiness", value: model.averageReadiness.map { String(format: "%.1f / 5", $0) } ?? "No data")
-            if model.napNightCount > 0 {
-                metricRow(title: "Nap Nights", value: "\(model.napNightCount)")
-                metricRow(title: "Avg nap time per nap night", value: formatMinutes(model.averageNapMinutes))
-            }
+            metricRow(title: "Nap Nights", value: "\(model.napNightCount)")
+            metricRow(title: "Avg nap time per nap night", value: formatMinutes(model.averageNapMinutes))
 
 
         }

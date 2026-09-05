@@ -210,6 +210,8 @@ struct DashboardRecentNightsCard: View {
                         if let recovery = night.whoopRecoveryScore {
                             Text("WHOOP recovery: \(Int(recovery))%").font(.caption)
                         }
+                        Text("Coverage: \(night.dataCategoryCount)/4 categories")
+                            .font(.caption).foregroundColor(DashboardPalette.coverage)
                         let duplicates = buildStoredEventDuplicateGroups(events: night.events)
                         if let firstGroup = duplicates.first {
                             Button {

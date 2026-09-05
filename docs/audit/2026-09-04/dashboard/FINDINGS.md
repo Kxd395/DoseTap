@@ -64,3 +64,25 @@ Readiness: substantially more coherent for local descriptive review. The correct
 - Impact: lifestyle, symptoms, stress, charts, coverage, integrations and recent nights were no longer discoverable through the established scroll flow; the metric reference was absent.
 - Correction: All becomes the default and includes all three groups. Existing filters remain optional. Restore the metric reference with availability wording, actual coverage terminology and WHOOP/lifestyle categories. WHOOP/period/timing prerequisites appear explicitly when absent.
 - Verification: `testDashboardAllRestoresEveryCardWithoutChangingSections` scrolls through 13 card headings after Recorded Nights without changing filters, then verifies empty data still offers integrations and the reference. Existing source/filter, empty/error, large-text and landscape checks remain required; phone acceptance stays open.
+
+
+## DA-12 — Build-14 inside-card parity and inconsistent colors (P2, confirmed)
+Comparison is explicitly against **0.4.12 (14)**: early `433ef43` and latest `2b93aa0`. Latest build-14 dashboard sources equal `37da941`; early build-14 used blended sleep and shorter on-time labeling. Current correction baseline is `7ae2687`. Previous card-heading tests did not prove metric parity.
+
+| Build-14 content | Correction / retained equivalent | Location |
+| --- | --- | --- |
+| Operations Snapshot, On-Time, Completion | Recorded Nights, In-window pairs, Outcomes recorded with observed denominators | Overview / All |
+| Streak | Restore finished-night streak; consecutive civil dates, range-limited, gaps reset | Overview / All |
+| Confidence and Q percentage | Restore overview and per-night coverage using four existing categories; do not claim confidence | Overview, Data / All |
+| Tonight next-action text | Restore factual session status without instructions to adjust medication | Overview / All |
+| Summary Recovery / HRV | Restore compact values from the same provider aggregates as WHOOP card | Overview / All |
+| Duplicate Nights / Quality Issues | Restore duplicates and record-review flag count across selected nights; missing outcomes and duplicates may both contribute | Overview; Data has breakdown / All |
+| Avg Total Sleep / TTFW / wakes / bathroom / naps | Separate labeled Health and WHOOP sleep; retained first-wake/wake metrics, bathroom log count; expose unavailable WHOOP/nap fields | Overview / All |
+| WHOOP metrics / stages | Retained full provider card; missing fields must be visible as unavailable rather than disappearing | Overview / All |
+| Dose Effectiveness / trend badge | Timing Groups with numerical interval bands; restore neutral newer-half versus older-half interval change | Trends / All |
+| Lifestyle factor impact badges | Paired Yes/No sleep-quality values and sample sizes; show unavailable groups independently | Trends / All |
+| Mood, symptoms, stress, four chart modes | Retained; explicit unknown states and labeled chart colors replace unexplained conditional disappearance | Trends / All |
+| Data Quality, integrations, recent rows, metric inventory | Retained as Data Coverage plus integrations/recent/reference; per-night category count restored | Data / All |
+
+Color root cause: `DashboardOverviewCards` executive values and coverage rates lost all accents while lifestyle/mood retained arbitrary green/orange/red thresholds. `DashboardTrendCards` prior-period badge backgrounds were accidentally attached to inserted Dividers; recent timing/recovery color cues were removed. Correction uses a shared category palette, explicit record-review/provider states and chart legends; comparison direction is not a health rating.
+Verification: injected-clock streak and category-count tests; separate Overview/Trends/Data UI assertions for restored values, missing fields, color explanation and prior-period comparison, plus inspected screenshots. Owner comparison to the actual build-14 phone experience remains open.

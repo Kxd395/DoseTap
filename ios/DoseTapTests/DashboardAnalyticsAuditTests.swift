@@ -161,6 +161,31 @@ final class DashboardAnalyticsAuditTests: XCTestCase {
         XCTAssertEqual(model.doseEffectivenessReport.nonCompliant.count, 0)
     }
 
+    func testFinishedNightStreakStopsAtGapsAndIgnoresActiveNight() {
+        let model = DashboardAnalyticsModel(now: { self.date("2026-09-05").addingTimeInterval(22 * 3600) })
+        model.selectedRange = .week
+        model.nights = [night("2026-09-05", interval: nil), night("2026-09-04"), night("2026-09-03"), night("2026-09-01")]
+        XCTAssertEqual(model.finishedNightStreak, 2)
+        model.nights.removeAll { $0.sessionDate == "2026-09-04" }
+        XCTAssertEqual(model.finishedNightStreak, 0)
+        model.nights = (1...10).map { offset in
+            night(AppFormatters.sessionDate.string(from: Calendar.current.date(byAdding: .day, value: -offset, to: date("2026-09-05"))!))
+        }
+        XCTAssertEqual(model.finishedNightStreak, 6, "The current selected night is not finished")
+        model.selectedRange = .all
+        XCTAssertEqual(model.finishedNightStreak, 10)
+        model.nights[0] = night("2026-09-04", interval: 240)
+        XCTAssertEqual(model.finishedNightStreak, 0)
+    }
+
+    func testNightCoverageCountsCompletedCategoriesWithoutCallingThemConfidence() {
+        let partial = night("2026-09-01", interval: nil, answers: .init(stressLevel: 3), completion: "skipped")
+        XCTAssertEqual(partial.dataCategoryCount, 0)
+        let recorded = night("2026-09-01", answers: .init(stressLevel: 3), quality: 4)
+        XCTAssertEqual(recorded.dataCategoryCount, 3)
+        XCTAssertEqual(recorded.dataCompletenessScore, 0.75)
+    }
+
     private func night(_ key: String, dose1: Date? = nil, interval: Double? = 180, skipped: Bool = false, answers: DoseTap.PreSleepLogAnswers? = nil, completion: String = "complete", health: HealthKitService.SleepNightSummary? = nil, quality: Double? = nil, whoop: WHOOPNightSummary? = nil) -> DashboardNightAggregate {
         let first = dose1 ?? date("2026-09-01")
         return DashboardNightAggregate(sessionDate: key, dose1Time: first,

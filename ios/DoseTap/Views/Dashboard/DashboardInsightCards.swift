@@ -458,6 +458,10 @@ struct DashboardDoseEffectivenessCard: View {
                 Text("Recorded pairs").font(.caption).foregroundColor(.secondary)
             }
 
+            Text(intervalChangeText)
+                .font(.subheadline.bold()).foregroundColor(DashboardPalette.timing)
+            Text("Recent interval change compares the newer half of recorded pairs with the older half; it does not rate a shorter or longer interval as better.")
+                .font(.caption).foregroundColor(.secondary)
             Text("Descriptive groups of recorded intervals. These do not measure medication effectiveness.")
                 .font(.caption)
                 .foregroundColor(.secondary)
@@ -534,6 +538,15 @@ struct DashboardDoseEffectivenessCard: View {
             }
         }
         .frame(width: 60, height: 60)
+    }
+
+    private var intervalChangeText: String {
+        switch report.recentTrend {
+        case .improving(let delta): return String(format: "Recent interval change: −%.0f min", delta)
+        case .worsening(let delta): return String(format: "Recent interval change: +%.0f min", delta)
+        case .stable: return "Recent interval change: within \(Int(DoseEffectivenessCalculator.trendStableThreshold)) min"
+        case nil: return "Recent interval change: needs 4 recorded pairs"
+        }
     }
 
     private var complianceColor: Color {

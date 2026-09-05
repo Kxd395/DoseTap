@@ -56,6 +56,21 @@ extension DashboardAnalyticsModel {
         max(0, eligibleDose2OutcomeCount - recordedDose2OutcomeCount)
     }
 
+    /// Finished civil nights only; gaps break the streak and the selected range bounds it.
+    var finishedNightStreak: Int {
+        let key = SessionIdentity(date: now(), timeZone: .current, rolloverHour: 18).key
+        guard let anchor = Self.keyFormatter.date(from: key) else { return 0 }
+        let eligibleKeys = Set(populatedNights.filter { $0.onTimeDosing == true }.map(\.sessionDate))
+        var cursor = anchor
+        var count = 0
+        while let previous = Calendar.current.date(byAdding: .day, value: -1, to: cursor),
+              eligibleKeys.contains(Self.keyFormatter.string(from: previous)) {
+            count += 1
+            cursor = previous
+        }
+        return count
+    }
+
     var averageIntervalMinutes: Double? {
         let intervals = dosingNights.compactMap(\.exactIntervalMinutes)
         guard !intervals.isEmpty else { return nil }

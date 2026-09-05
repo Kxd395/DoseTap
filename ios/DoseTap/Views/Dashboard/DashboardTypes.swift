@@ -116,14 +116,17 @@ struct DashboardNightAggregate: Identifiable {
         dose1Time != nil || dose2Time != nil || dose2Skipped || extraDoseCount > 0 || !events.isEmpty || morningCheckIn != nil || preSleepLog != nil || healthSummary != nil || whoopSummary != nil
     }
 
-    var dataCompletenessScore: Double {
-        var score = 0.0
-        if dose1Time != nil && (dose2Time != nil || dose2Skipped) { score += 0.25 }
-        if healthSummary != nil || whoopSummary != nil { score += 0.25 }
-        if morningCheckIn != nil { score += 0.25 }
-        if preSleepLog?.completionState == "complete" { score += 0.25 }
-        return score
+    var dataCategoryCount: Int {
+        var count = 0
+        if dose1Time != nil && (dose2Time != nil || dose2Skipped) { count += 1 }
+        if healthSummary != nil || whoopSummary != nil { count += 1 }
+        if morningCheckIn != nil { count += 1 }
+        if preSleepLog?.completionState == "complete" { count += 1 }
+        return count
     }
+
+    var dataCompletenessScore: Double { Double(dataCategoryCount) / 4 }
+
 
 
 }
@@ -170,4 +173,13 @@ struct DashboardMetricCategory: Identifiable {
     let id: String
     let title: String
     let metrics: [String]
+}
+
+
+/// Category accents are descriptive, not health or treatment ratings.
+enum DashboardPalette {
+    static let timing: Color = .blue
+    static let sleep: Color = .purple
+    static let coverage: Color = .teal
+    static let review: Color = .orange
 }

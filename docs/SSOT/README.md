@@ -543,3 +543,10 @@ Work schedule configuration and dated overrides are stored together in SQLite `w
 Tonight’s weekly summary covers the seven finished civil nights before the current night. “Dose 2 recorded” is the fraction of Dose-1 nights with a recorded second dose; explicit skips and unrecorded outcomes are shown separately. Gaps are not a day streak, and orphan second doses cannot inflate the rate.
 
 Dashboard WHOOP sleep totals/stage proportions require all three sleep-stage fields; omitted stage, awake or disturbance fields are unavailable rather than zero. A recovery-enrichment failure preserves scored sleep data and surfaces a warning. This changes missingness presentation, not provider records.
+
+
+### Dashboard build-14 metric parity (DOSETAP-45)
+- Restore the useful build-14 summaries in every applicable section, using the same dashboard model: selected-range night count, finished-night in-window streak, category coverage, summary WHOOP recovery/HRV, nightly status, per-night coverage and descriptive interval change.
+- The finished-night streak ends on the civil night before the current 18:00 night key, stops at a missing/non-in-window night, and is limited to the selected range. An active night never breaks or inflates it.
+- Coverage is a count out of four existing record categories, never statistical confidence. Missing fields stay visible as unavailable; unknown observations never become zero.
+- Colors identify timing (blue), sleep/check-ins (purple) and coverage (teal). Orange identifies record-review actions; provider recovery ranges and chart series retain explicit text legends. Directional comparison colors never imply that shorter intervals or higher values are better.
