@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 0.4.13 (15) — local device-validation build
+
+- Add manual received-date-plus-21-day reminders and independent bottle-opening history.
+- Put optional bottle recording first in Pre-Sleep Check, before the scheduled Wake by summary; preserve other remembered answers including notes.
+- Use verified AlarmKit scheduling on iOS 26+ for Dose 2 alarms, with a separate alarm setup/test screen.
+- Distinguish this build from the preserved 0.4.12 (14) checkout. Physical-device acceptance and release remain pending.
+
 ## [0.4.12] - 2026-06-17
 
 ### Fixed
