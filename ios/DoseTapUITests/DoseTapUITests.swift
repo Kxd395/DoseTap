@@ -88,7 +88,7 @@ final class DoseTapUITests: XCTestCase {
         record.tap()
         XCTAssertTrue(app.staticTexts[night].waitForExistence(timeout: 5))
         XCTAssertFalse(action.exists)
-        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Wake deadline:")).firstMatch.exists)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Dose 2 alarm:")).firstMatch.exists)
     }
 
     // MARK: - App Launch
@@ -122,6 +122,21 @@ final class DoseTapUITests: XCTestCase {
         if springboard.buttons["Stop"].exists { springboard.buttons["Stop"].tap() }
     }
 
+    func testWorkWarningPreSleepImmediatelyPrecedesActiveDoseAction() throws {
+        let dose = app.buttons["dose-primary-action"]
+        XCTAssertTrue(dose.waitForExistence(timeout: 15))
+        let check = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Pre-sleep")).firstMatch
+        XCTAssertTrue(check.exists)
+        XCTAssertLessThan(check.frame.maxY, dose.frame.minY)
+        XCTAssertLessThan(dose.frame.minY - check.frame.maxY, 80)
+        XCTAssertTrue(app.staticTexts["tonightWakeTime"].exists)
+        XCTAssertFalse(app.buttons["startedNewBottle"].exists)
+        let proof = XCTAttachment(screenshot: app.screenshot())
+        proof.name = "Tonight active session preparation before dose"
+        proof.lifetime = .keepAlways
+        add(proof)
+    }
+
     func testSupplyBottleIsFirstInPreSleepAndNeverCarriedForward() throws {
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         if springboard.buttons["Allow"].waitForExistence(timeout: 3) { springboard.buttons["Allow"].tap() }
@@ -131,6 +146,13 @@ final class DoseTapUITests: XCTestCase {
         let check = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Pre-sleep")).firstMatch
         for _ in 0..<5 where !check.isHittable { app.swipeUp() }
         XCTAssertTrue(check.isHittable)
+        XCTAssertLessThan(check.frame.maxY, dose.frame.minY, "Pre-sleep preparation must precede the dose action")
+        XCTAssertFalse(app.buttons["startedNewBottle"].exists, "Tonight must not duplicate the bottle action outside the check")
+        XCTAssertTrue(app.staticTexts["tonightWakeTime"].exists)
+        let tonightProof = XCTAttachment(screenshot: app.screenshot())
+        tonightProof.name = "Tonight preparation before Dose 1"
+        tonightProof.lifetime = .keepAlways
+        add(tonightProof)
         check.tap()
         let bottle = app.buttons["preSleepStartedNewBottle"]
         XCTAssertTrue(bottle.waitForExistence(timeout: 5))
@@ -145,6 +167,15 @@ final class DoseTapUITests: XCTestCase {
         let saved = app.staticTexts["preSleepLastBottleOpening"]
         XCTAssertTrue(saved.waitForExistence(timeout: 5))
         let savedLabel = saved.label
+        let wakeToggle = app.switches["preSleepWakeOverride"]
+        XCTAssertTrue(wakeToggle.exists)
+        wakeToggle.tap()
+        XCTAssertTrue(app.datePickers["preSleepWakeTime"].waitForExistence(timeout: 5))
+        let resetWake = app.buttons["resetPreSleepWakeTime"]
+        for _ in 0..<3 where !resetWake.isHittable { app.swipeUp() }
+        resetWake.tap()
+        XCTAssertFalse(app.datePickers["preSleepWakeTime"].exists)
+        for _ in 0..<3 where !bottle.isHittable { app.swipeDown() }
         let proof = XCTAttachment(screenshot: app.screenshot())
         proof.name = "Bottle opening first in pre-sleep check"
         proof.lifetime = .keepAlways
@@ -175,11 +206,16 @@ final class DoseTapUITests: XCTestCase {
         let dose = app.buttons["dose-primary-action"]
         XCTAssertTrue(dose.waitForExistence(timeout: 15))
         let doseBefore = dose.label
-        let bottle = app.buttons["startedNewBottle"]
-        for _ in 0..<5 where !bottle.isHittable { app.swipeUp() }
-        XCTAssertTrue(bottle.isHittable)
+        let check = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Pre-sleep")).firstMatch
+        XCTAssertTrue(check.waitForExistence(timeout: 5))
+        XCTAssertLessThan(check.frame.maxY, dose.frame.minY)
+        check.tap()
+        let bottle = app.buttons["preSleepStartedNewBottle"]
+        XCTAssertTrue(bottle.waitForExistence(timeout: 5))
         bottle.tap()
         app.buttons["Record bottle start"].tap()
+        XCTAssertTrue(app.staticTexts["preSleepLastBottleOpening"].waitForExistence(timeout: 5))
+        app.buttons["Skip for tonight"].tap()
         XCTAssertTrue(dose.waitForExistence(timeout: 5))
         XCTAssertEqual(dose.label, doseBefore)
 

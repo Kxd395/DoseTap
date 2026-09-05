@@ -201,6 +201,8 @@ struct SleepPlanOverrideCard: View {
                 Spacer()
                 Toggle("", isOn: $overrideEnabled)
                     .labelsHidden()
+                    .accessibilityLabel("Change wake time just for tonight")
+                    .accessibilityIdentifier("preSleepWakeOverride")
                     .onChange(of: overrideEnabled) { newValue in
                         if newValue {
                             onUpdate(overrideWake)
@@ -217,6 +219,7 @@ struct SleepPlanOverrideCard: View {
                     displayedComponents: .hourAndMinute
                 )
                 .datePickerStyle(.compact)
+                .accessibilityIdentifier("preSleepWakeTime")
                 .onChange(of: overrideWake) { newValue in
                     onUpdate(newValue)
                 }
@@ -229,6 +232,7 @@ struct SleepPlanOverrideCard: View {
                     Label("Reset to schedule (\(timeFormatter.string(from: baselineWake)))", systemImage: "arrow.uturn.backward")
                 }
                 .font(.caption)
+                .accessibilityIdentifier("resetPreSleepWakeTime")
             } else {
                 Text("Uses your Typical Week wake time (\(timeFormatter.string(from: baselineWake)))")
                     .font(.caption)
@@ -390,20 +394,14 @@ struct AlarmIndicatorView: View {
             let snoozeCount = alarmService.snoozeCount
             
             HStack(alignment: .top, spacing: 6) {
-                Image(systemName: alarmService.alarmScheduled ? "alarm.fill" : "alarm.badge.exclamationmark")
+                Image(systemName: alarmService.alarmScheduled ? "alarm.fill" : "exclamationmark.triangle.fill")
                     .font(.caption)
                     .foregroundColor(alarmService.alarmScheduled ? .orange : .red)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Wake deadline: \(formattedTime(alarmTime))")
+                    Text("Dose 2 alarm: \(formattedTime(alarmTime))")
                         .font(.caption.bold())
                         .foregroundColor(alarmService.alarmScheduled ? .orange : .red)
-
-                    if let timeZone = alarmService.reconciledTimeZoneIdentifier {
-                        Text("Absolute deadline • reconciled for \(timeZone)")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
 
                     if snoozeCount > 0 {
                         Text("(+\(snoozeCount * alarmService.snoozeDurationMinutes)m)")

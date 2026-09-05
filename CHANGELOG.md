@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 0.4.14 (16) — local device-validation build
+
+- Place Pre-Sleep Check directly before the nightly dose action.
+- Show a compact Wake by summary on Tonight; edit the nightly override inside Pre-Sleep Check without changing Typical Week.
+- Remove the duplicate Tonight bottle button and label the overnight reminder Dose 2 alarm.
+
 ### 0.4.13 (15) — local device-validation build
 
 - Add manual received-date-plus-21-day reminders and independent bottle-opening history.

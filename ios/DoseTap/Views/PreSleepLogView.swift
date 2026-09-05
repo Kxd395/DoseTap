@@ -20,6 +20,8 @@ struct PreSleepLogView: View {
     @State private var didApplyRememberedSettings = false
     @State private var showSaveError = false
     @State private var saveErrorMessage = ""
+    @State private var overrideEnabled = false
+    @State private var overrideWake = Date()
     @ObservedObject private var sessionRepo = SessionRepository.shared
     @ObservedObject private var sleepPlanStore = SleepPlanStore.shared
     
@@ -60,6 +62,20 @@ struct PreSleepLogView: View {
                     Card1TimingStress(answers: $answers) {
                         if let plan = planSummary {
                             PlanInlineHint(plan: plan)
+                            SleepPlanOverrideCard(
+                                overrideEnabled: $overrideEnabled,
+                                overrideWake: $overrideWake,
+                                onUpdate: { date in
+                                    sleepPlanStore.setTonightOverride(sessionKey: planSessionKey, wakeBy: date)
+                                },
+                                onClear: {
+                                    sleepPlanStore.setTonightOverride(sessionKey: planSessionKey, wakeBy: nil)
+                                },
+                                baselineWake: SleepPlanCalculator.wakeByDateTime(
+                                    forActiveSessionKey: planSessionKey,
+                                    schedule: sleepPlanStore.schedule, tz: .current
+                                )
+                            )
                         }
                         rememberLastSettingsSection
                     }
@@ -180,7 +196,9 @@ struct PreSleepLogView: View {
         }
         .onAppear {
             applyRememberedSettingsIfNeeded()
+            syncWakeOverride()
         }
+        .onChange(of: planSessionKey) { _ in syncWakeOverride() }
     }
     
     private func saveAndComplete() {
@@ -304,9 +322,16 @@ struct PreSleepLogView: View {
         return true
     }
 
+    private var planSessionKey: String { sessionRepo.preSleepDisplaySessionKey(for: Date()) }
+
+    private func syncWakeOverride() {
+        let saved = sleepPlanStore.overrideForSession(planSessionKey)
+        overrideEnabled = saved != nil
+        overrideWake = saved ?? sleepPlanStore.wakeByDate(for: planSessionKey)
+    }
+
     private var planSummary: (wakeBy: Date, inBed: Date, windDown: Date, expectedSleep: Double)? {
-        let key = sessionRepo.preSleepDisplaySessionKey(for: Date())
-        let plan = sleepPlanStore.plan(for: key, now: Date(), tz: TimeZone.current)
+        let plan = sleepPlanStore.plan(for: planSessionKey, now: Date(), tz: TimeZone.current)
         return (plan.wakeBy, plan.recommendedInBed, plan.windDown, plan.expectedSleepMinutes)
     }
 

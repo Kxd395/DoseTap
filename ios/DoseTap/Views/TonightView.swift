@@ -159,8 +159,6 @@ struct LegacyTonightView: View {
     @Environment(\.isInSplitView) private var isInSplitView
     @ObservedObject private var sessionRepo = SessionRepository.shared
     @ObservedObject private var sleepPlanStore = SleepPlanStore.shared
-    @State private var overrideEnabled: Bool = false
-    @State private var overrideWake: Date = Date()
     @State private var showEarlyDoseAlert = false
     @State private var showOverrideConfirmation = false
     @State private var earlyDoseMinutesRemaining: Int = 0
@@ -250,52 +248,21 @@ struct LegacyTonightView: View {
 
             Spacer().frame(height: 12)
 
-            if !homeState.isBlockedByPriorSession, horizontalSizeClass != .regular {
-                if homeState.showsDosePrimaryAction {
-                    CompactDoseButton(
-                        core: core,
-                        eventLogger: eventLogger,
-                        undoState: undoState,
-                        sessionRepo: sessionRepo,
-                        showEarlyDoseAlert: $showEarlyDoseAlert,
-                        earlyDoseMinutes: $earlyDoseMinutesRemaining,
-                        showExtraDoseWarning: $showExtraDoseWarning,
-                        showMorningCheckIn: $showMorningCheckIn,
-                        coordinator: coordinator
-                    )
+            if homeState.showsPreSleepCard && !sessionRepo.checkInCompleted {
+                HStack {
+                    Label("Wake by", systemImage: "bed.double.fill")
+                    Spacer()
+                    Text(sleepPlanStore.plan(
+                        for: sessionRepo.preSleepDisplaySessionKey(for: Date()),
+                        now: Date(), tz: .current
+                    ).wakeBy, style: .time)
+                    .accessibilityIdentifier("tonightWakeTime")
                 }
-
-            }
-
-            if let plan = sleepPlanSummary {
-                SleepPlanSummaryCard(
-                    wakeBy: plan.wakeBy,
-                    recommendedInBed: plan.recommendedInBed,
-                    windDown: plan.windDown,
-                    expectedSleepMinutes: plan.expectedSleepMinutes
-                )
+                .font(.subheadline.weight(.semibold))
                 .padding(.horizontal)
-                .padding(.top, 8)
+                .padding(.bottom, 12)
+            }
 
-                SleepPlanOverrideCard(
-                    overrideEnabled: $overrideEnabled,
-                    overrideWake: $overrideWake,
-                    onUpdate: { date in
-                        sleepPlanStore.setTonightOverride(sessionKey: sessionRepo.currentSessionKey, wakeBy: date)
-                    },
-                    onClear: {
-                        sleepPlanStore.setTonightOverride(sessionKey: sessionRepo.currentSessionKey, wakeBy: nil)
-                    },
-                    baselineWake: plan.wakeBy
-                )
-                .padding(.horizontal)
-                .padding(.top, 4)
-            }
-            if homeState.showsDosePrimaryAction {
-                SupplyBottleButton()
-                    .padding(.horizontal)
-                    .padding(.vertical, 8)
-            }
             // Pre-Sleep Log Card — always visible during a session so users can
             // log, view, or edit pre-sleep info at any time (before or after Dose 1).
             // Only hidden once the session has fully ended (wake/morning check-in).
@@ -320,6 +287,23 @@ struct LegacyTonightView: View {
                 .padding(.horizontal)
 
                 Spacer().frame(height: 12)
+            }
+
+            if !homeState.isBlockedByPriorSession, horizontalSizeClass != .regular {
+                if homeState.showsDosePrimaryAction {
+                    CompactDoseButton(
+                        core: core,
+                        eventLogger: eventLogger,
+                        undoState: undoState,
+                        sessionRepo: sessionRepo,
+                        showEarlyDoseAlert: $showEarlyDoseAlert,
+                        earlyDoseMinutes: $earlyDoseMinutesRemaining,
+                        showExtraDoseWarning: $showExtraDoseWarning,
+                        showMorningCheckIn: $showMorningCheckIn,
+                        coordinator: coordinator
+                    )
+                }
+
             }
 
             // Morning Check-In Card (view/edit completed check-in)
@@ -557,12 +541,12 @@ struct LegacyTonightView: View {
             } else {
                 incompleteSessionDate = nil
             }
-            syncOverrideState()
+            sleepPlanStore.clearObsoleteOverrides(currentSessionKey: sessionRepo.preSleepDisplaySessionKey(for: Date()))
             reloadPreSleepLog()
             reloadMorningCheckIn()
         }
         .onChange(of: sessionRepo.currentSessionKey) { _ in
-            syncOverrideState()
+            sleepPlanStore.clearObsoleteOverrides(currentSessionKey: sessionRepo.preSleepDisplaySessionKey(for: Date()))
             reloadPreSleepLog()
             reloadMorningCheckIn()
         }
@@ -583,19 +567,6 @@ struct LegacyTonightView: View {
         }
     }
 
-    private func syncOverrideState() {
-        let key = sessionRepo.currentSessionKey
-        sleepPlanStore.clearObsoleteOverrides(currentSessionKey: key)
-        if let override = sleepPlanStore.overrideForSession(key) {
-            overrideEnabled = true
-            overrideWake = override
-        } else {
-            overrideEnabled = false
-            let base = sleepPlanStore.wakeByDate(for: key)
-            overrideWake = base
-        }
-    }
-
     private var resolvedHomeState: HomePresentationState {
         HomeStateResolver.resolve(
             doseStatus: core.currentStatus,
@@ -606,11 +577,6 @@ struct LegacyTonightView: View {
             checkInCompleted: sessionRepo.checkInCompleted,
             hasMorningCheckIn: morningCheckIn != nil
         )
-    }
-
-    private var sleepPlanSummary: (wakeBy: Date, recommendedInBed: Date, windDown: Date, expectedSleepMinutes: Double)? {
-        let key = sessionRepo.currentSessionKey
-        return sleepPlanStore.plan(for: key, now: Date(), tz: TimeZone.current)
     }
 
     private func reloadPreSleepLog() {

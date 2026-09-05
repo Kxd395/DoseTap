@@ -422,18 +422,31 @@ final class SleepPlanStore: ObservableObject {
     
     @Published private(set) var schedule: TypicalWeekSchedule
     @Published private(set) var settings: SleepPlanSettings
-    @Published private var tonightOverrides: [String: Date] = [:]
+    @Published private var tonightOverrides: [String: Date] = [:] {
+        didSet { persistOverrides() }
+    }
     
     private let defaults: UserDefaults
     private let scheduleKey = "sleepPlan.schedule.v1"
     private let settingsKey = "sleepPlan.settings.v1"
+    private let overridesKey = "sleepPlan.tonightOverrides.v1"
     private var defaultsObserver: AnyCancellable?
     
     init(userDefaults: UserDefaults = .standard) {
         self.defaults = userDefaults
         self.schedule = Self.loadSchedule(defaults: userDefaults)
         self.settings = Self.loadSettings(defaults: userDefaults)
+        if let data = userDefaults.data(forKey: overridesKey),
+           let saved = try? JSONDecoder().decode([String: Date].self, from: data) {
+            self.tonightOverrides = saved
+        }
         observeDefaultsChanges()
+    }
+
+    private func persistOverrides() {
+        if let data = try? JSONEncoder().encode(tonightOverrides) {
+            defaults.set(data, forKey: overridesKey)
+        }
     }
     
     private static func loadSchedule(defaults: UserDefaults) -> TypicalWeekSchedule {

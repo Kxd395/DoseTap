@@ -22,7 +22,7 @@ nonexistent local times have visible recovery states. Ambiguous fall-back times
 use the first occurrence; nonexistent spring-forward times require user correction.
 The first content on the first Pre-Sleep Check card, above the plan summary and
 remembered-settings control, asks “Started a new bottle?” with the same optional
-bottle-record sheet available on Tonight and in supply settings. Confirmation saves
+bottle-record sheet available in supply settings. Tonight links into this check immediately above the dose action. Confirmation saves
 the bottle immediately and returns to the check; cancelling the sheet writes nothing.
 The last saved opening is displayed with its date and time. This record is independent
 of completing, skipping or cancelling the check and is never carried forward by

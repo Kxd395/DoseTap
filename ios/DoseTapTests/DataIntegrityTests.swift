@@ -29,6 +29,26 @@ final class SleepPlanStoreTemplateTests: XCTestCase {
         defaults.removePersistentDomain(forName: suiteName)
     }
 
+    func test_nightlyWakeOverridePreservesTypicalWeekAndRestoresItWhenCleared() async throws {
+        let key = "2026-09-04"
+        let nextKey = "2026-09-05"
+        let zone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        let scheduleBefore = try encoder.encode(store.schedule)
+        let usualWake = store.wakeByDate(for: key, tz: zone)
+        let nextWake = store.wakeByDate(for: nextKey, tz: zone)
+        let changedWake = usualWake.addingTimeInterval(3600)
+        store.setTonightOverride(sessionKey: key, wakeBy: changedWake)
+        XCTAssertEqual(store.wakeByDate(for: key, tz: zone), changedWake)
+        XCTAssertEqual(store.wakeByDate(for: nextKey, tz: zone), nextWake)
+        XCTAssertEqual(try encoder.encode(store.schedule), scheduleBefore)
+        let restored = SleepPlanStore(userDefaults: defaults)
+        XCTAssertEqual(restored.overrideForSession(key), changedWake)
+        restored.setTonightOverride(sessionKey: key, wakeBy: nil)
+        XCTAssertEqual(restored.wakeByDate(for: key, tz: zone), usualWake)
+    }
+
     func test_applyWorkWeekTemplate_assignsWorkdaysAndOffdays() async {
         let workWake = makeTime(hour: 5, minute: 45)
         let offWake = makeTime(hour: 8, minute: 30)
