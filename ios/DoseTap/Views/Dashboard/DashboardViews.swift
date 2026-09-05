@@ -63,6 +63,11 @@ struct DashboardTabView: View {
                 }.pickerStyle(.segmented).padding(.horizontal)
                     .accessibilityIdentifier("dashboard-section-picker")
 
+                DisclosureGroup("Dashboard colors & missing data") {
+                    Text("Blue values: dose timing. Purple: sleep and check-ins. Teal: record coverage. Gray: context or no data. Orange review flags need a record check. Chart legends identify their series; WHOOP recovery uses its labeled ranges. Color alone is not a health rating.")
+                        .font(.caption).foregroundColor(.secondary)
+                }.font(.callout).padding(.horizontal).padding(.top, 8)
+
                 if let error = model.errorMessage {
                     Label(error, systemImage: "exclamationmark.triangle")
                         .font(.callout).foregroundColor(.orange).padding()

@@ -5,11 +5,11 @@
 - Preserved dirty file: `ios/DoseTap.xcodeproj/xcshareddata/xcschemes/DoseTapUITests.xcscheme` (pre-existing owner/Xcode edit).
 - Read: repository AGENTS, README, SSOT, testing/workflow/constitution (current session), dashboard view/model/metrics/refresh/types/catalog and major cards, storage queries, prior Plane status.
 - Plane: DOSETAP-45 created, preflighted and started In Progress with verified readback; DOSETAP-36 remains Done.
-- Completed: baseline, source inventory/data-flow audit, DA-01…10 analytics corrections and DA-11 full-dashboard visibility restoration. Current build 0.4.16 (18); regression and simulator UI evidence below.
+- Completed: baseline, source inventory/data-flow audit, DA-01…10 analytics corrections and DA-11 full-dashboard visibility restoration. Current build 0.4.17 (19), including DA-12 build-14 metric/color parity; regression and simulator UI evidence below.
 - Remaining: external gates are live-provider parity, signed-device/owner review, and comprehensive accessibility. Plane closeout result is recorded below.
 - Blockers: physical Apple Health/WHOOP parity and owner accessibility acceptance cannot be established from simulator fixtures. No real medication database changes or phone installs are part of verification.
 - Concurrent edit: Xcode reordered project.pbxproj entries during investigation; preserve that unrelated change alongside the scheme edit.
-- Exact next step for owner acceptance: build `/Volumes/Developer/projects/DoseTap-main/ios/DoseTap.xcodeproj`, confirm 0.4.16 (18), review default All dashboard and compare 3–5 recorded nights to Timeline/Health/WHOOP. No phone installation was performed.
+- Exact next step for owner acceptance: build `/Volumes/Developer/projects/DoseTap-main/ios/DoseTap.xcodeproj`, confirm 0.4.17 (19), review All and each individual dashboard and compare 3–5 recorded nights to Timeline/Health/WHOOP. No phone installation was performed.
 
 ## Calculation checkpoint
 - DA-01 civil range and DA-05 pair/pending denominators corrected. Exact seconds retained; negative intervals excluded, active outcome separated. Six simulator unit tests passed (DashboardAnalyticsAuditTests + DashboardDoseIntegrityMetricTests), including both DST transitions and morning night identity.
@@ -107,10 +107,18 @@
 - Exact next step: owner phone/provider review using build 0.4.16 (18) from DoseTap-main; confirm default All view and compare recorded nights. Local correction and evidence are complete.
 
 
-## Build-14 metric and color parity — in progress
+## Build-14 metric and color parity — locally verified
 - User explicitly expanded comparison to build 14. Verified both `433ef43` and `2b93aa0` advertise 0.4.12 (14); the dashboard at latest build-14 `2b93aa0` is identical to `37da941`. Early build-14 differs in recorded-outcome labeling and blended sleep, so both are comparison evidence.
 - Baseline for this correction: `7ae2687`; Plane DOSETAP-45 preflight In Progress. Existing owner project reordering and scheme edits preserved. Original DoseTap checkout inspected read-only and remains untouched.
 - Confirmed missing inside-card content: streak, summary coverage, nightly status, compact recovery/HRV, recent-row coverage, descriptive timing-change badge. Remaining missing provider/lifestyle values are often conditionally hidden; prior-period badges also have misplaced Divider modifiers.
 - Exact next step: regression-test corrected streak/coverage, restore useful summaries, then apply consistent color/availability treatment and individually exercise Overview, Trends and Data. No version rollback requested; build 14 is the comparison baseline.
 
 - Metric checkpoint: restored summary/streak/coverage/status/review counts and neutral interval-change text. Test-first compile failure observed for new properties; then 15 dashboard audit tests passed, including calendar gaps, range cap, active-night exclusion and skipped-check-in coverage. Swift build and 634 XCTest +43 Swift Testing passed; SSOT/Plane/diff checks passed. Log `/tmp/dosetap-parity-unit.log`. Next: color/missing-value consistency, prior-period layout, individual-filter runtime coverage.
+
+- Presentation checkpoint: individually verified Overview restored summaries, review counts, visible missing WHOOP readings; Trends prior/current values and fixed badges, neutral interval change, one-sided lifestyle samples, morning metrics; Data per-night coverage; shared color key. New parity UI test and existing large-text/landscape test passed (2/2) in `Test-DoseTapUITests-2026.09.05_09-15-03--0400.xcresult`. Screenshots inspected. Initial compile caught a color modifier applied to explanatory text; corrected. Initial runner Busy resolved by booting the dedicated simulator. Neither failed attempt counts as UI proof.
+- Final build identity 0.4.17 (19) read back from all four app/staging configurations and built simulator Info.plist. Current final regression log `/tmp/dosetap-parity-regression-ui.log`; next: inspect final attachments, commit color/availability changes and verified Plane closeout.
+
+- Final regression: 3 UI tests passed, 0 failures, in `Test-DoseTapUITests-2026.09.05_09-18-08--0400.xcresult` (All normal/sparse/empty, build-14 individual sections, source/weekday/error). After screenshot inspection, moved gauge label outside its ring; individual-section rerun passed (1/1) in `Test-DoseTapUITests-2026.09.05_09-22-40--0400.xcresult`. Both use the previously recorded xcodebuild UI command/destination with their `-only-testing` selectors and `-parallel-testing-enabled NO`. Final inspected evidence saved as `evidence/build14-*.png`.
+- Checks: `swift build -q`, `swift test -q` (634 XCTest +43 Swift Testing), 15 targeted DashboardAnalyticsAuditTests, SSOT/app-version/Plane/architecture guards and `git diff --check` passed. Logs `/tmp/dosetap-parity-{unit,colors-tests,version,regression-ui,gauge-ui}.log`. Provider/alarm/phone state was not exercised or changed by these fixture tests.
+- Changed files for DA-12: dashboard AnalyticsMetrics, Types, OverviewCards, InsightCards, TrendCards, Views; DashboardAnalyticsAuditTests and DoseTapUITests; app version values; SSOT README/navigation; existing audit FINDINGS/DECISIONS/STATUS and six evidence screenshots. Existing project reordering and UI scheme stay excluded. No dependency installation, real database/schema change, phone installation, push or deployment.
+- Exact next step: commit final presentation correction and apply/verify DOSETAP-45 workpad; owner then compares 0.4.17 (19) on the phone against the desired build-14 experience and original provider records.

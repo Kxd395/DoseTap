@@ -17,7 +17,7 @@ struct DashboardExecutiveSummaryCard: View {
                 kpi("Finished-night streak", "\(model.finishedNightStreak) nights")
                 kpi("Nights with data", "\(model.populatedNights.count)")
                 kpi("Coverage · 3+ categories", "\(model.threeCategoryNightCount) nights", color: DashboardPalette.coverage)
-                kpi("WHOOP Recovery", model.averageWhoopRecovery.map { String(format: "%.0f%%", $0) } ?? "No data", color: DashboardPalette.sleep)
+                kpi("WHOOP Recovery", model.averageWhoopRecovery.map { String(format: "%.0f%%", $0) } ?? "No data", color: DashboardPalette.recovery(model.averageWhoopRecovery))
                 kpi("WHOOP HRV", model.averageWhoopHRV.map { String(format: "%.0f ms", $0) } ?? "No data", color: DashboardPalette.sleep)
             }
             Text("In-window rate uses \(model.recordedPairCount) valid recorded pairs. Outcomes: \(model.recordedDose2OutcomeCount)/\(model.eligibleDose2OutcomeCount), including explicit skips; pending nights are excluded.")
@@ -91,7 +91,7 @@ struct DashboardDosingSnapshotCard: View {
             Spacer()
             Text(value)
                 .font(.subheadline.weight(.semibold))
-                .foregroundColor(.secondary)
+                .foregroundColor(value == "No data" ? .secondary : (title == "Record review flags" && value != "0" ? DashboardPalette.review : DashboardPalette.timing))
         }
     }
 
@@ -134,14 +134,14 @@ struct DashboardSleepSnapshotCard: View {
         )
     }
 
-    private func metricRow(title: String, value: String, color: Color = .secondary) -> some View {
+    private func metricRow(title: String, value: String, color: Color = DashboardPalette.sleep) -> some View {
         HStack {
             Text(title)
                 .font(.subheadline)
             Spacer()
             Text(value)
                 .font(.subheadline.weight(.semibold))
-                .foregroundColor(color)
+                .foregroundColor(value == "No data" ? .secondary : color)
         }
     }
 
@@ -151,13 +151,12 @@ struct DashboardSleepSnapshotCard: View {
     }
 
     private func recoveryColor(_ score: Double) -> Color {
-        if score >= 67 { return .green }
-        if score >= 34 { return .orange }
-        return .red
+        DashboardPalette.recovery(score)
     }
 }
 
 struct DashboardWHOOPCard: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ObservedObject var model: DashboardAnalyticsModel
 
     var body: some View {
@@ -197,42 +196,23 @@ struct DashboardWHOOPCard: View {
 
             Divider()
 
-            LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: 12),
-                GridItem(.flexible(), spacing: 12)
-            ], spacing: 10) {
-                if let hrv = model.averageWhoopHRV {
-                    biometricTile(
-                        icon: "waveform.path.ecg",
-                        title: "HRV",
-                        value: String(format: "%.0f ms", hrv),
-                        color: .blue
-                    )
-                }
-                if let rhr = model.averageWhoopRestingHR {
-                    biometricTile(
-                        icon: "heart.fill",
-                        title: "Resting HR",
-                        value: String(format: "%.0f bpm", rhr),
-                        color: .red
-                    )
-                }
-                if let efficiency = model.averageWhoopSleepEfficiency {
-                    biometricTile(
-                        icon: "moon.fill",
-                        title: "Sleep Efficiency",
-                        value: String(format: "%.0f%%", efficiency),
-                        color: .purple
-                    )
-                }
-                if let rr = model.averageWhoopRespiratoryRate {
-                    biometricTile(
-                        icon: "lungs.fill",
-                        title: "Respiratory Rate",
-                        value: String(format: "%.1f brpm", rr),
-                        color: .teal
-                    )
-                }
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: dynamicTypeSize.isAccessibilitySize ? 1 : 2), spacing: 10) {
+                biometricTile(icon: "waveform.path.ecg", title: "HRV", value: model.averageWhoopHRV.map { String(format: "%.0f ms", $0) } ?? "No data", color: DashboardPalette.sleep)
+                biometricTile(icon: "heart.fill", title: "Resting HR", value: model.averageWhoopRestingHR.map { String(format: "%.0f bpm", $0) } ?? "No data", color: DashboardPalette.sleep)
+                biometricTile(icon: "moon.fill", title: "Sleep Efficiency", value: model.averageWhoopSleepEfficiency.map { String(format: "%.0f%%", $0) } ?? "No data", color: DashboardPalette.sleep)
+                biometricTile(icon: "lungs.fill", title: "Respiratory Rate", value: model.averageWhoopRespiratoryRate.map { String(format: "%.1f brpm", $0) } ?? "No data", color: DashboardPalette.sleep)
+            }
+            if model.averageWhoopDeepMinutes == nil && model.averageWhoopREMMinutes == nil {
+                Text("Sleep stages: No complete stage readings").font(.callout).foregroundColor(.secondary)
+            }
+            if model.averageWhoopAwakeMinutes == nil {
+                Text("Awake: No data").font(.callout).foregroundColor(.secondary)
+            }
+            if model.averageWhoopDisturbances == nil {
+                Text("Disturbances: No data").font(.callout).foregroundColor(.secondary)
+            }
+            if model.averageWhoopRecovery == nil {
+                Text("WHOOP Recovery: No data").font(.callout).foregroundColor(.secondary)
             }
 
             if model.averageWhoopDeepMinutes != nil || model.averageWhoopREMMinutes != nil {
@@ -291,7 +271,7 @@ struct DashboardWHOOPCard: View {
         HStack(spacing: 8) {
             Image(systemName: icon)
                 .font(.caption)
-                .foregroundColor(color)
+                .foregroundColor(value == "No data" ? .secondary : color)
                 .frame(width: 20)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
@@ -299,7 +279,7 @@ struct DashboardWHOOPCard: View {
                     .foregroundColor(.secondary)
                 Text(value)
                     .font(.subheadline.bold())
-                    .foregroundColor(.primary)
+                    .foregroundColor(value == "No data" ? .secondary : color)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -339,9 +319,7 @@ struct DashboardWHOOPCard: View {
     }
 
     private func whoopRecoveryColor(_ score: Double) -> Color {
-        if score >= 67 { return .green }
-        if score >= 34 { return .orange }
-        return .red
+        DashboardPalette.recovery(score)
     }
 
     private func recoveryLabel(_ score: Double) -> String {
@@ -371,21 +349,21 @@ struct DashboardDataQualityCard: View {
                 .font(.caption).foregroundColor(.secondary)
             Text("Morning check-in rate: \(model.morningCheckInRate.map { String(format: "%.0f%%", $0) } ?? "No data")")
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundColor(model.morningCheckInRate == nil ? .secondary : DashboardPalette.coverage)
             Text("Pre-sleep log rate: \(model.preSleepLogRate.map { String(format: "%.0f%%", $0) } ?? "No data")")
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundColor(model.preSleepLogRate == nil ? .secondary : DashboardPalette.coverage)
             Text("Nights without Apple Health data: \(model.missingHealthSummaryCount)")
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundColor(DashboardPalette.coverage)
             Text("Nights with duplicate event clusters: \(model.duplicateNightCount)")
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundColor(DashboardPalette.coverage)
             Text("Categories: dose outcome, sleep reading, morning check-in, completed pre-sleep log.")
                 .font(.caption).foregroundColor(.secondary)
             Text("Nights with at least 3 of 4 data categories: \(model.threeCategoryNightCount)")
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundColor(DashboardPalette.coverage)
             if let error = model.errorMessage, !error.isEmpty {
                 Text(error)
                     .font(.caption)
@@ -400,12 +378,6 @@ struct DashboardDataQualityCard: View {
         )
     }
 
-    private func rateColor(_ rate: Double?) -> Color {
-        guard let rate else { return .secondary }
-        if rate >= 75 { return .green }
-        if rate >= 40 { return .orange }
-        return .red
-    }
 }
 
 struct DashboardIntegrationsCard: View {

@@ -40,6 +40,15 @@ struct DashboardTrendChartsCard: View {
             .sorted { $0.date < $1.date }
     }
 
+    private var trendColorLegend: String {
+        switch trendMode {
+        case .intervalVsSleep: return "Green: recorded pair in the timing window. Orange: outside the window."
+        case .recoveryTrend: return "WHOOP recovery: green 67–100, yellow/orange 34–66, red below 34."
+        case .cohorts: return "Indigo: screens. Green: no screens. Colors identify groups, not better sleep."
+        case .weekday: return "Blue bars: recorded pairs in the timing window, by weekday."
+        }
+    }
+
     private var intervalSleepPoints: [IntervalSleepPoint] {
         model.populatedNights.compactMap { night in
             guard let interval = night.exactIntervalMinutes, let sleep = model.sleepMinutes(for: night) else { return nil }
@@ -65,6 +74,7 @@ struct DashboardTrendChartsCard: View {
             #if canImport(Charts)
             chartBody
                 .frame(height: 220)
+            Text(trendColorLegend).font(.caption).foregroundColor(.secondary)
             if trendMode == .weekday {
                 Text(model.weekdayTimingValues.map { "\($0.name): n=\($0.count)" }.joined(separator: " · "))
                     .font(.caption).foregroundColor(.secondary)
@@ -205,10 +215,10 @@ struct DashboardRecentNightsCard: View {
                 ForEach(nights) { night in
                     VStack(alignment: .leading, spacing: 6) {
                         Text(shortDate(night.sessionDate)).font(.subheadline.bold())
-                        Text("Dose timing: \(intervalText(night))").font(.callout)
-                        Text(sleepText(night)).font(.caption).foregroundColor(.secondary)
+                        Text("Dose timing: \(intervalText(night))").font(.callout).foregroundColor(DashboardPalette.timing)
+                        Text(sleepText(night)).font(.caption).foregroundColor(night.appleHealthSleepMinutes == nil && night.whoopSleepMinutes == nil ? .secondary : DashboardPalette.sleep)
                         if let recovery = night.whoopRecoveryScore {
-                            Text("WHOOP recovery: \(Int(recovery))%").font(.caption)
+                            Text("WHOOP recovery: \(Int(recovery))%").font(.caption).foregroundColor(DashboardPalette.recovery(recovery))
                         }
                         Text("Coverage: \(night.dataCategoryCount)/4 categories")
                             .font(.caption).foregroundColor(DashboardPalette.coverage)
@@ -282,42 +292,17 @@ struct DashboardPeriodComparisonCard: View {
             Text("Changes versus the preceding equal-length period: rate in percentage points (pp), other metrics in relative percent. Missing values are excluded; increases are not automatically improvements. Sleep: \(model.sleepSource.rawValue).")
                 .font(.caption).foregroundColor(.secondary)
             ForEach(model.periodComparison, id: \.metricName) { delta in
-                HStack {
-                    Text(delta.metricName)
-                        .font(.subheadline)
-                    Spacer()
-                    if let current = delta.current {
-                        Text(formatValue(delta.metricName, current))
-                            .font(.subheadline.weight(.semibold))
-                    } else {
-                        Text("—")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                    if let deltaValue = delta.delta {
-                        Text(String(format: "%+.0f", deltaValue) + " " + delta.deltaUnit)
-                            .font(.caption.bold())
-                            .foregroundColor(deltaColor(delta))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 6)
-                    .accessibilityElement(children: .contain)
-                    Divider()
-                            .background(
-                                Capsule().fill(deltaColor(delta).opacity(0.15))
-                            )
-                    } else if delta.isNew {
-                        Text("from 0")
-                            .font(.caption.bold())
-                            .foregroundColor(.blue)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 6)
-                    .accessibilityElement(children: .contain)
-                    Divider()
-                            .background(
-                                Capsule().fill(Color.blue.opacity(0.15))
-                            )
-                    }
-                }
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(delta.metricName).font(.subheadline.bold())
+                    Text("Current: \(delta.current.map { formatValue(delta.metricName, $0) } ?? "No data") · Prior: \(delta.prior.map { formatValue(delta.metricName, $0) } ?? "No data")")
+                        .font(.subheadline).foregroundColor(comparisonColor(delta.metricName))
+                    Text(delta.delta.map { String(format: "%+.0f", $0) + " " + delta.deltaUnit } ?? (delta.isNew ? "From a zero baseline" : "Change unavailable"))
+                        .font(.caption.bold())
+                        .foregroundColor(comparisonColor(delta.metricName))
+                        .padding(.horizontal, 8).padding(.vertical, 4)
+                        .background(Capsule().fill(comparisonColor(delta.metricName).opacity(0.15)))
+                }.accessibilityElement(children: .combine)
+                Divider()
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -326,6 +311,10 @@ struct DashboardPeriodComparisonCard: View {
             RoundedRectangle(cornerRadius: 16)
                 .fill(Color(.systemGray6))
         )
+    }
+
+    private func comparisonColor(_ name: String) -> Color {
+        ["Avg Sleep", "Sleep Quality", "Recovery", "HRV"].contains(name) ? DashboardPalette.sleep : DashboardPalette.timing
     }
 
     private func formatValue(_ name: String, _ value: Double) -> String {
@@ -340,7 +329,4 @@ struct DashboardPeriodComparisonCard: View {
         }
     }
 
-    private func deltaColor(_ delta: DashboardAnalyticsModel.PeriodDelta) -> Color {
-        .secondary
-    }
 }

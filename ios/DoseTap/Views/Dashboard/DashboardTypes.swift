@@ -182,4 +182,9 @@ enum DashboardPalette {
     static let sleep: Color = .purple
     static let coverage: Color = .teal
     static let review: Color = .orange
+
+    static func recovery(_ score: Double?) -> Color {
+        guard let score else { return .secondary }
+        return score >= 67 ? .green : score >= 34 ? .orange : .red
+    }
 }

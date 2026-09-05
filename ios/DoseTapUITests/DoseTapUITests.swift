@@ -47,6 +47,53 @@ final class DoseTapUITests: XCTestCase {
         captureDashboard("Dashboard empty and provider error")
     }
 
+    func testDashboardBuild14MetricsInEverySection() throws {
+        app.buttons["Dashboard"].tap()
+        XCTAssertTrue(app.staticTexts["Recorded Nights"].waitForExistence(timeout: 10))
+        selectDashboardSection("Overview")
+        revealDashboardText("Finished-night streak", prefix: true)
+        revealDashboardText("Coverage · 3+ categories", prefix: true)
+        revealDashboardText("WHOOP HRV", prefix: true)
+        revealDashboardText("Tonight:", prefix: true)
+        captureDashboard("Build14 parity Overview summaries")
+        revealDashboardText("Duplicate Nights")
+        revealDashboardText("Record review flags")
+        revealDashboardText("Nap Nights")
+        revealDashboardText("Resting HR")
+        captureDashboard("Build14 parity WHOOP missing readings")
+
+        selectDashboardSection("Trends")
+        app.buttons["7D"].tap()
+        revealDashboardText("vs. Prior Week")
+        revealDashboardText("Recorded On-Time %", prefix: true)
+        captureDashboard("Build14 parity prior comparison")
+        revealDashboardText("Recent interval change:", prefix: true)
+        captureDashboard("Build14 parity interval change")
+        revealDashboardText("Alcohol: No data", prefix: true)
+        revealDashboardText("Exercise Days")
+        captureDashboard("Build14 parity lifestyle missing answers")
+        revealDashboardText("Mental Clarity")
+        revealDashboardText("Narcolepsy Symptoms")
+        captureDashboard("Build14 parity morning metrics")
+
+        selectDashboardSection("Data")
+        revealDashboardText("Morning check-in rate:", prefix: true)
+        revealDashboardText("Nights with at least 3 of 4 data categories:", prefix: true)
+        revealDashboardText("Coverage: 4/4 categories")
+        captureDashboard("Build14 parity Data per-night coverage")
+        selectDashboardSection("Overview")
+        app.buttons["Dashboard colors & missing data"].tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Blue values:")).firstMatch.waitForExistence(timeout: 5))
+        captureDashboard("Build14 parity color key")
+    }
+
+    private func selectDashboardSection(_ title: String) {
+        let picker = app.segmentedControls["dashboard-section-picker"]
+        for _ in 0..<30 where !picker.isHittable { app.swipeDown(velocity: .fast) }
+        XCTAssertTrue(picker.isHittable)
+        picker.buttons[title].tap()
+    }
+
     func testDashboardAllRestoresEveryCardWithoutChangingSections() throws {
         app.buttons["Dashboard"].tap()
         XCTAssertTrue(app.staticTexts["Recorded Nights"].waitForExistence(timeout: 10))
@@ -81,8 +128,8 @@ final class DoseTapUITests: XCTestCase {
         captureDashboard("Empty dashboard keeps data reference")
     }
 
-    private func revealDashboardText(_ title: String) {
-        let element = app.staticTexts.matching(NSPredicate(format: "label == %@", title)).firstMatch
+    private func revealDashboardText(_ title: String, prefix: Bool = false) {
+        let element = app.staticTexts.matching(NSPredicate(format: prefix ? "label BEGINSWITH %@" : "label == %@", title)).firstMatch
         for _ in 0..<18 {
             if element.exists && element.isHittable { return }
             app.swipeUp(velocity: .slow)

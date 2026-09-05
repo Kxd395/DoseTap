@@ -24,3 +24,11 @@
 - Keep corrected source-specific measurements, observed denominators and timing semantics. Do not reintroduce invented bathroom duration, statistical-confidence wording, an invalid streak or treatment-effectiveness claims to reproduce the old appearance.
 - Captured Metrics Inventory returns as a reference, with explicit availability wording. Empty datasets retain access to integrations and reference information.
 - App version 0.4.16 (18) identifies this visibility correction; no signed-device installation is performed.
+
+
+## Build-14 comparison and shared section presentation
+- User clarified that the original means build 14, including earlier work. Git verifies 0.4.12 (14) in `433ef43` and `2b93aa0`; the latter dashboard is unchanged through `37da941`. The comparison includes both revisions, not just the recent rewrite.
+- One set of cards/model properties serves All, Overview, Trends and Data. Restore useful duplicate summary displays using existing aggregate values; these are not competing calculations.
+- Replace old confidence wording with category coverage; count consecutive finished civil nights for streak; describe timing change direction without health judgments. Preserve distinct Health/WHOOP values and actual observed denominators.
+- Existing WHOOP range colors are centralized; category accents and chart legends explain remaining color differences. No new palette dependency, clinical threshold, provider, DB mutation or migration.
+- Version advances to 0.4.17 (19), not a rollback to build 14. Signed-device and owner-observed comparison remain acceptance gates.

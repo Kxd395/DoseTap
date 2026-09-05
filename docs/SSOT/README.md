@@ -2,8 +2,8 @@
 
 Status: Current behavior authority
 Last verified: 2026-09-05
-SSOT revision: 0.4.16
-Shipping app version observed in the Xcode project: 0.4.16 (build 18)
+SSOT revision: 0.4.17
+Shipping app version observed in the Xcode project: 0.4.17 (build 19)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -500,7 +500,7 @@ State transitions:
 ### Data Surface Gating
 
 All WHOOP data display is gated behind `WHOOPService.isEnabled` and/or data presence checks:
-- **Dashboard:** WHOOP measurements appear only with recorded WHOOP nights; otherwise its card explains the missing data and connection/range checks. Recovery and HRV remain in the WHOOP card, with observed sample counts. No duplicate recovery tiles appear in Executive Summary.
+- **Dashboard:** WHOOP measurements appear only with recorded WHOOP nights; otherwise its card explains the missing data and connection/range checks. Recovery and HRV appear in the WHOOP card with observed sample counts and as compact Overview summaries, all using the same provider aggregates.
 - **Timeline:** `extractBiometricData()` returns empty arrays when `!WHOOPService.isEnabled`.
 - **Night Review:** `HealthDataCard` WHOOP section guarded behind `WHOOPService.isEnabled`.
 - **Sleep Snapshot:** WHOOP Metrics section guarded behind `averageWhoopRecovery != nil || averageWhoopHRV != nil`.
