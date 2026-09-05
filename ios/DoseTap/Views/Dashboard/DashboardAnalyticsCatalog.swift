@@ -11,10 +11,10 @@ extension DashboardAnalyticsModel {
                     "Dose 2 timestamp",
                     "Dose 2 skipped status",
                     "Inter-dose interval (minutes)",
-                    "On-time dosing (150-240m window)",
+                    "In-window recorded pairs (150 to less than 240 minutes)",
                     "Snooze count",
                     "Extra dose count",
-                    "Consecutive on-time streak"
+                    "Pending and unrecorded Dose 2 outcomes"
                 ]
             ),
             DashboardMetricCategory(

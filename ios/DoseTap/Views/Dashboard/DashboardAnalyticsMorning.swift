@@ -120,9 +120,13 @@ extension DashboardAnalyticsModel {
         let prior: Double?
 
         var delta: Double? {
-            guard let c = current, let p = prior, p != 0 else { return nil }
+            guard let c = current, let p = prior else { return nil }
+            if metricName == "Recorded On-Time %" { return c - p }
+            guard p != 0 else { return nil }
             return ((c - p) / abs(p)) * 100
         }
+
+        var deltaUnit: String { metricName == "Recorded On-Time %" ? "pp" : "%" }
 
         var isNew: Bool {
             guard let c = current, let p = prior else { return false }

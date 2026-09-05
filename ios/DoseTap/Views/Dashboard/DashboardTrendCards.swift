@@ -277,7 +277,7 @@ struct DashboardPeriodComparisonCard: View {
                     .foregroundColor(.secondary)
             }
 
-            Text("Relative change versus the preceding equal-length period. Missing values are excluded; increases are not automatically improvements. Sleep: \(model.sleepSource.rawValue).")
+            Text("Changes versus the preceding equal-length period: rate in percentage points (pp), other metrics in relative percent. Missing values are excluded; increases are not automatically improvements. Sleep: \(model.sleepSource.rawValue).")
                 .font(.caption).foregroundColor(.secondary)
             ForEach(model.periodComparison, id: \.metricName) { delta in
                 HStack {
@@ -293,7 +293,7 @@ struct DashboardPeriodComparisonCard: View {
                             .foregroundColor(.secondary)
                     }
                     if let deltaValue = delta.delta {
-                        Text(deltaValue >= 0 ? "+\(String(format: "%.0f", deltaValue))%" : "\(String(format: "%.0f", deltaValue))%")
+                        Text(String(format: "%+.0f", deltaValue) + " " + delta.deltaUnit)
                             .font(.caption.bold())
                             .foregroundColor(deltaColor(delta))
                             .padding(.horizontal, 6)
@@ -304,7 +304,7 @@ struct DashboardPeriodComparisonCard: View {
                                 Capsule().fill(deltaColor(delta).opacity(0.15))
                             )
                     } else if delta.isNew {
-                        Text("New")
+                        Text("from 0")
                             .font(.caption.bold())
                             .foregroundColor(.blue)
                             .padding(.horizontal, 6)

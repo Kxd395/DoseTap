@@ -176,7 +176,7 @@ extension DashboardAnalyticsModel {
             DoseEffectivenessDataPoint(
                 date: Self.keyFormatter.date(from: night.sessionDate) ?? Date(),
                 intervalMinutes: night.exactIntervalMinutes,
-                dose2Skipped: night.dose2Skipped,
+                dose2Skipped: false, // This report only receives recorded timestamp pairs.
                 totalSleepMinutes: sleepMinutes(for: night),
                 deepSleepMinutes: sleepSource == .whoop ? night.whoopDeepSleepMinutes.map(Double.init) : nil,
                 recoveryScore: sleepSource == .whoop ? night.whoopRecoveryScore.map(Int.init) : nil,
@@ -224,34 +224,17 @@ extension DashboardAnalyticsModel {
         return Double(totalMinutes) / Double(napNights.count)
     }
 
-    // MARK: - Streaks
-
-    var consecutiveOnTimeStreak: Int {
-        var streak = 0
-        let sorted = dosingNights.sorted { $0.sessionDate > $1.sessionDate }
-        for night in sorted {
-            guard night.onTimeDosing == true else { break }
-            streak += 1
-        }
-        return streak
-    }
-
     var duplicateNightCount: Int {
         populatedNights.filter { $0.duplicateClusterCount > 0 }.count
     }
 
     var missingHealthSummaryCount: Int {
-        guard settings.healthKitEnabled else { return 0 }
-        return populatedNights.filter {
-            $0.healthSummary == nil && ($0.dose1Time != nil || !$0.events.isEmpty || $0.morningCheckIn != nil)
-        }.count
+        populatedNights.filter { $0.healthSummary == nil }.count
     }
 
-    var highConfidenceNightCount: Int {
+    var threeCategoryNightCount: Int {
         populatedNights.filter { $0.dataCompletenessScore >= 0.75 }.count
     }
 
-    var qualityIssueCount: Int {
-        duplicateNightCount + missingDose2OutcomeCount
-    }
+
 }

@@ -74,6 +74,7 @@ struct DashboardTabView: View {
                 }
 
                 LazyVGrid(columns: columns, spacing: 12) {
+                    if !model.populatedNights.isEmpty || section == "Data" {
                     if section == "Overview" {
                         DashboardExecutiveSummaryCard(model: model, core: core)
                         DashboardDosingSnapshotCard(model: model)
@@ -100,6 +101,7 @@ struct DashboardTabView: View {
                         DashboardIntegrationsCard(states: model.integrationStates)
                         DashboardRecentNightsCard(nights: model.trendNights, onResolveDuplicateGroup: { resolvingDuplicateGroup = $0 })
                             .gridCellColumns(columns.count)
+                    }
                     }
                 }
                 .padding()

@@ -2,13 +2,14 @@ import SwiftUI
 import DoseCore
 
 struct DashboardExecutiveSummaryCard: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ObservedObject var model: DashboardAnalyticsModel
     @ObservedObject var core: DoseTapCore
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Recorded Nights").font(.headline)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), alignment: .leading)], alignment: .leading, spacing: 12) {
+            LazyVGrid(columns: dynamicTypeSize.isAccessibilitySize ? [GridItem(.flexible(), alignment: .leading)] : [GridItem(.adaptive(minimum: 130), alignment: .leading)], alignment: .leading, spacing: 12) {
                 kpi("In-window pairs", model.onTimePercentage.map { String(format: "%.0f%%", $0) } ?? "—")
                 kpi("Outcomes recorded", model.completionRate.map { String(format: "%.0f%%", $0) } ?? "—")
                 kpi("Recorded pairs", "\(model.recordedPairCount)")
@@ -83,6 +84,8 @@ struct DashboardSleepSnapshotCard: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Sleep Outcomes")
                 .font(.headline)
+            Text("Sleep readings: Apple Health n=\(model.populatedNights.compactMap(\.appleHealthSleepMinutes).count), WHOOP n=\(model.populatedNights.compactMap(\.whoopSleepMinutes).count).")
+                .font(.caption).foregroundColor(.secondary)
             metricRow(title: "Avg Apple Health Sleep", value: formatMinutes(model.averageAppleHealthSleepMinutes))
             if model.averageWhoopSleepMinutes != nil {
                 metricRow(title: "Avg WHOOP Sleep", value: formatMinutes(model.averageWhoopSleepMinutes))
@@ -90,7 +93,11 @@ struct DashboardSleepSnapshotCard: View {
             metricRow(title: "Time to first wake · Health", value: formatMinutes(model.averageTTFW))
             metricRow(title: "Avg wakes · Health", value: model.averageWakeCount.map { String(format: "%.1f", $0) } ?? "No data")
             metricRow(title: "Bathroom logs", value: "\(model.bathroomLogCount)")
+            Text("First-wake timing n=\(model.populatedNights.compactMap(\.ttfwMinutes).count); wake counts n=\(model.populatedNights.compactMap(\.wakeCount).count). Bathroom logs do not measure duration.")
+                .font(.caption).foregroundColor(.secondary)
             metricRow(title: "Avg Sleep Quality", value: model.averageSleepQuality.map { String(format: "%.1f / 5", $0) } ?? "No data")
+            Text("Morning ratings: n=\(model.populatedNights.filter { $0.morningCheckIn != nil }.count).")
+                .font(.caption).foregroundColor(.secondary)
             metricRow(title: "Avg Readiness", value: model.averageReadiness.map { String(format: "%.1f / 5", $0) } ?? "No data")
             if model.napNightCount > 0 {
                 metricRow(title: "Nap Nights", value: "\(model.napNightCount)")
@@ -147,6 +154,8 @@ struct DashboardWHOOPCard: View {
                     .foregroundColor(.secondary)
             }
 
+            Text("Recovery n=\(model.whoopNights.compactMap(\.whoopRecoveryScore).count) · HRV n=\(model.whoopNights.compactMap(\.whoopHRV).count). Missing readings are excluded from each average.")
+                .font(.caption).foregroundColor(.secondary)
             if let recovery = model.averageWhoopRecovery {
                 HStack(spacing: 16) {
                     recoveryGauge(score: recovery)
@@ -346,13 +355,15 @@ struct DashboardDataQualityCard: View {
             Text("Pre-sleep log rate: \(model.preSleepLogRate.map { String(format: "%.0f%%", $0) } ?? "No data")")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
-            Text("Nights missing Apple Health summary: \(model.missingHealthSummaryCount)")
+            Text("Nights without Apple Health data: \(model.missingHealthSummaryCount)")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
             Text("Nights with duplicate event clusters: \(model.duplicateNightCount)")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
-            Text("Nights with at least 3 of 4 data categories: \(model.highConfidenceNightCount)")
+            Text("Categories: dose outcome, sleep reading, morning check-in, completed pre-sleep log.")
+                .font(.caption).foregroundColor(.secondary)
+            Text("Nights with at least 3 of 4 data categories: \(model.threeCategoryNightCount)")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
             if let error = model.errorMessage, !error.isEmpty {

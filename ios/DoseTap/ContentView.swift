@@ -356,6 +356,7 @@ enum AppScreenCapture {
 
 // MARK: - Custom Tab Bar
 struct CustomTabBar: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Binding var selectedTab: AppTab
     
     var body: some View {
@@ -369,12 +370,15 @@ struct CustomTabBar: View {
                     VStack(spacing: 4) {
                         Image(systemName: tab.icon)
                             .font(.system(size: 20))
-                        Text(tab.label)
-                            .font(.caption2)
+                        if !dynamicTypeSize.isAccessibilitySize {
+                            Text(tab.label).font(.caption2)
+                        }
                     }
                     .foregroundColor(selectedTab == tab ? .blue : .gray)
-                    .frame(maxWidth: .infinity)
+                    .frame(maxWidth: .infinity, minHeight: 44)
                 }
+                .accessibilityLabel(tab.label)
+                .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
             }
         }
         .padding(.vertical, 6)

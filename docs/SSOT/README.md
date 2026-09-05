@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-04
 SSOT revision: 0.4.15
-Shipping app version observed in the Xcode project: 0.4.14 (build 16)
+Shipping app version observed in the Xcode project: 0.4.15 (build 17)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -539,3 +539,5 @@ Work schedule configuration and dated overrides are stored together in SQLite `w
 - Missing observations remain missing, never zero or an implicit negative answer. Bathroom analytics count logs; duration is not measured. Pre-sleep completion requires a completed log. Stress-driver frequency counts each driver at most once per night.
 - Sleep comparisons use one explicitly selected provider without fallback. Show sample counts, source coverage and fetch errors. Descriptive timing groups and associations do not measure medication effectiveness or establish causation; changes in an average are not automatically improvements.
 - Dashboard separates Overview, Trends, and Data. Empty, loading and partial-provider states remain visible. Existing Typical Week, nightly overrides, medication supply and alarm behavior are unchanged.
+
+Tonight’s weekly summary covers the seven finished civil nights before the current night. “Dose 2 recorded” is the fraction of Dose-1 nights with a recorded second dose; explicit skips and unrecorded outcomes are shown separately. Gaps are not a day streak, and orphan second doses cannot inflate the rate.

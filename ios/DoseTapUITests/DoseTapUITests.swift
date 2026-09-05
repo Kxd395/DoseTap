@@ -54,11 +54,14 @@ final class DoseTapUITests: XCTestCase {
         captureDashboard("Dashboard accessibility text")
         XCUIDevice.shared.orientation = .landscapeLeft
         defer { XCUIDevice.shared.orientation = .portrait }
+        let landscape = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in self.app.frame.width > self.app.frame.height }, object: app)
+        wait(for: [landscape], timeout: 10)
+        app.swipeUp()
         captureDashboard("Dashboard landscape accessibility text")
     }
 
     private func captureDashboard(_ name: String) {
-        let attachment = XCTAttachment(screenshot: app.screenshot())
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)

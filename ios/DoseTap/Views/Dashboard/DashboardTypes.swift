@@ -90,13 +90,6 @@ struct DashboardNightAggregate: Identifiable {
         return MedicationTiming.classify(dose1: dose1Time, dose2: dose2Time) == .inWindow
     }
 
-    var totalSleepMinutes: Double? {
-        if let whoopMin = whoopSummary?.totalSleepMinutes, whoopMin > 0 {
-            return Double(whoopMin)
-        }
-        return healthSummary?.totalSleepMinutes
-    }
-
     var appleHealthSleepMinutes: Double? {
         healthSummary?.totalSleepMinutes
     }
@@ -104,12 +97,6 @@ struct DashboardNightAggregate: Identifiable {
     var whoopSleepMinutes: Double? {
         guard let minutes = whoopSummary?.totalSleepMinutes, minutes > 0 else { return nil }
         return Double(minutes)
-    }
-
-    var preferredSleepSourceLabel: String? {
-        if whoopSleepMinutes != nil { return "WHOOP" }
-        if appleHealthSleepMinutes != nil { return "Apple Health" }
-        return nil
     }
 
     var ttfwMinutes: Double? { healthSummary?.ttfwMinutes }
@@ -138,16 +125,7 @@ struct DashboardNightAggregate: Identifiable {
         return score
     }
 
-    var qualityFlags: [String] {
-        var flags: [String] = []
-        if duplicateClusterCount > 0 {
-            flags.append("Duplicate event cluster")
-        }
-        if dose1Time != nil && dose2Time == nil && !dose2Skipped {
-            flags.append("Dose 2 outcome missing")
-        }
-        return flags
-    }
+
 }
 
 struct DashboardIntegrationState: Identifiable {

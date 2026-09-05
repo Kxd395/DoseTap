@@ -117,6 +117,37 @@ final class DashboardAnalyticsAuditTests: XCTestCase {
         XCTAssertTrue(model.screenSleepValues.isEmpty)
     }
 
+    func testTonightWeekUsesSevenFinishedNightsAndNeverCountsOrphanDose2() {
+        let first = date("2026-08-29")
+        let valid = DoseTap.SessionSummary(sessionDate: "2026-08-29", dose1Time: first, dose2Time: first.addingTimeInterval(180 * 60))
+        let orphan = DoseTap.SessionSummary(sessionDate: "2026-09-01", dose2Time: date("2026-09-01"))
+        let old = DoseTap.SessionSummary(sessionDate: "2020-01-01", dose1Time: date("2020-01-01"))
+        let result = WeeklyRecordedDoseMetrics(sessions: [valid, orphan, old, DoseTap.SessionSummary(sessionDate: "2026-09-05")], currentNight: "2026-09-05")
+        XCTAssertEqual(result.sessions.count, 2)
+        XCTAssertEqual(result.tracked, 1)
+        XCTAssertEqual(result.recorded, 1)
+        XCTAssertEqual(result.missing, 0)
+    }
+
+    func testRateComparisonsUsePercentagePointsIncludingZeroBaseline() {
+        let rate = DashboardAnalyticsModel.PeriodDelta(metricName: "Recorded On-Time %", current: 75, prior: 50)
+        XCTAssertEqual(rate.delta, 25)
+        XCTAssertEqual(rate.deltaUnit, "pp")
+        let zero = DashboardAnalyticsModel.PeriodDelta(metricName: "Recorded On-Time %", current: 25, prior: 0)
+        XCTAssertEqual(zero.delta, 25)
+        XCTAssertNil(DashboardAnalyticsModel.PeriodDelta(metricName: "Avg Interval", current: 180, prior: 0).delta)
+    }
+
+    func testRecordedPairTakesPrecedenceOverHistoricalSkipInTimingComparison() {
+        let model = DashboardAnalyticsModel()
+        model.selectedRange = .all
+        model.nights = [night("2026-09-01", interval: 180, skipped: true)]
+        XCTAssertEqual(model.onTimePercentage, 100)
+        XCTAssertEqual(model.skippedDose2Count, 0)
+        XCTAssertEqual(model.doseEffectivenessReport.acceptableZone.count, 1)
+        XCTAssertEqual(model.doseEffectivenessReport.nonCompliant.count, 0)
+    }
+
     private func night(_ key: String, dose1: Date? = nil, interval: Double? = 180, skipped: Bool = false, answers: DoseTap.PreSleepLogAnswers? = nil, completion: String = "complete", health: HealthKitService.SleepNightSummary? = nil, quality: Double? = nil) -> DashboardNightAggregate {
         let first = dose1 ?? date("2026-09-01")
         return DashboardNightAggregate(sessionDate: key, dose1Time: first,

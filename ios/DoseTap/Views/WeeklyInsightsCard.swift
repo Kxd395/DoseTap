@@ -8,6 +8,27 @@
 
 import SwiftUI
 
+struct WeeklyRecordedDoseMetrics {
+    let sessions: [SessionSummary]
+
+    init(sessions: [SessionSummary], currentNight: String) {
+        guard let anchor = AppFormatters.sessionDate.date(from: currentNight),
+              let lower = Calendar.current.date(byAdding: .day, value: -7, to: anchor) else {
+            self.sessions = []
+            return
+        }
+        self.sessions = sessions.filter {
+            guard let date = AppFormatters.sessionDate.date(from: $0.sessionDate) else { return false }
+            return date >= lower && date < anchor
+        }
+    }
+
+    var tracked: Int { sessions.filter { $0.dose1Time != nil }.count }
+    var recorded: Int { sessions.filter { $0.dose1Time != nil && $0.dose2Time != nil }.count }
+    var skipped: Int { sessions.filter { $0.dose1Time != nil && $0.dose2Time == nil && $0.dose2Skipped }.count }
+    var missing: Int { max(0, tracked - recorded - skipped) }
+}
+
 struct WeeklyInsightsCard: View {
     @ObservedObject var sessionRepo: SessionRepository
     @State private var sessions: [SessionSummary] = []
@@ -18,48 +39,44 @@ struct WeeklyInsightsCard: View {
         sessionRepo.currentSessionDateString()
     }
 
+    private var weeklyMetrics: WeeklyRecordedDoseMetrics {
+        WeeklyRecordedDoseMetrics(sessions: sessions, currentNight: activeSessionDate)
+    }
+
     private var pastSessions: [SessionSummary] {
-        sessions.filter { $0.sessionDate != activeSessionDate }
+        weeklyMetrics.sessions
     }
 
     private var completedCount: Int {
-        pastSessions.filter { $0.dose2Time != nil && !$0.dose2Skipped }.count
+        weeklyMetrics.recorded
     }
 
     private var skippedCount: Int {
-        pastSessions.filter { $0.dose2Skipped }.count
+        weeklyMetrics.skipped
     }
 
     private var trackedCount: Int {
-        pastSessions.filter { $0.dose1Time != nil }.count
+        weeklyMetrics.tracked
     }
 
     /// Completed / tracked, nil if nothing tracked yet.
-    private var adherenceRate: Double? {
+    private var dose2RecordedRate: Double? {
         guard trackedCount > 0 else { return nil }
         return Double(completedCount) / Double(trackedCount)
     }
 
     /// Average interval in minutes (Dose 1 → Dose 2) across completed sessions.
     private var averageInterval: Int? {
-        let intervals = pastSessions.compactMap { $0.intervalMinutes }
+        let intervals = pastSessions.compactMap { session -> Double? in
+            guard let first = session.dose1Time, let second = session.dose2Time else { return nil }
+            let seconds = second.timeIntervalSince(first)
+            return seconds.isFinite && seconds >= 0 ? seconds / 60 : nil
+        }
         guard !intervals.isEmpty else { return nil }
-        return intervals.reduce(0, +) / intervals.count
+        return Int((intervals.reduce(0, +) / Double(intervals.count)).rounded())
     }
 
-    /// Longest consecutive completed streak (most-recent contiguous run).
-    private var currentStreak: Int {
-        let ordered = pastSessions.sorted { $0.sessionDate > $1.sessionDate }
-        var streak = 0
-        for s in ordered {
-            if s.dose2Time != nil && !s.dose2Skipped {
-                streak += 1
-            } else {
-                break
-            }
-        }
-        return streak
-    }
+    private var missingCount: Int { weeklyMetrics.missing }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -67,7 +84,7 @@ struct WeeklyInsightsCard: View {
                 Image(systemName: "chart.line.uptrend.xyaxis")
                     .font(.caption.bold())
                     .foregroundColor(.blue)
-                Text("This Week")
+                Text("Last 7 Nights")
                     .font(.headline)
                 Spacer()
                 if trackedCount > 0 {
@@ -110,9 +127,9 @@ struct WeeklyInsightsCard: View {
     private var statsGrid: some View {
         HStack(spacing: 12) {
             statTile(
-                value: adherenceText,
-                label: "Adherence",
-                color: adherenceColor,
+                value: dose2RecordedText,
+                label: "Dose 2 recorded",
+                color: dose2RecordedColor,
                 icon: "checkmark.seal.fill"
             )
             statTile(
@@ -122,10 +139,10 @@ struct WeeklyInsightsCard: View {
                 icon: "timer"
             )
             statTile(
-                value: "\(currentStreak)",
-                label: currentStreak == 1 ? "Day streak" : "Day streak",
-                color: currentStreak >= 3 ? .orange : .secondary,
-                icon: "flame.fill"
+                value: "\(missingCount)",
+                label: "Unrecorded",
+                color: missingCount > 0 ? .orange : .secondary,
+                icon: "info.circle"
             )
         }
 
@@ -133,7 +150,7 @@ struct WeeklyInsightsCard: View {
             HStack(spacing: 6) {
                 Image(systemName: "info.circle")
                     .font(.caption2)
-                Text("\(skippedCount) skipped this week")
+                Text("\(skippedCount) explicitly skipped")
                     .font(.caption2)
                 Spacer()
             }
@@ -165,13 +182,13 @@ struct WeeklyInsightsCard: View {
         )
     }
 
-    private var adherenceText: String {
-        guard let rate = adherenceRate else { return "—" }
+    private var dose2RecordedText: String {
+        guard let rate = dose2RecordedRate else { return "—" }
         return "\(Int((rate * 100).rounded()))%"
     }
 
-    private var adherenceColor: Color {
-        guard let rate = adherenceRate else { return .secondary }
+    private var dose2RecordedColor: Color {
+        guard let rate = dose2RecordedRate else { return .secondary }
         if rate >= 0.85 { return .green }
         if rate >= 0.6 { return .orange }
         return .red
@@ -183,22 +200,22 @@ struct WeeklyInsightsCard: View {
         }
         var parts: [String] = []
         parts.append("\(trackedCount) of 7 nights tracked")
-        if let rate = adherenceRate {
-            parts.append("\(Int((rate * 100).rounded())) percent adherence")
+        if let rate = dose2RecordedRate {
+            parts.append("\(Int((rate * 100).rounded())) percent with Dose 2 recorded")
         }
         if let avg = averageInterval {
             parts.append("average interval \(avg) minutes")
         }
-        if currentStreak > 0 {
-            parts.append("\(currentStreak) day streak")
+        if missingCount > 0 {
+            parts.append("\(missingCount) unrecorded outcomes")
         }
         if skippedCount > 0 {
             parts.append("\(skippedCount) skipped")
         }
-        return "This week. " + parts.joined(separator: ", ")
+        return "Last seven finished nights. " + parts.joined(separator: ", ")
     }
 
     private func reload() {
-        sessions = sessionRepo.fetchRecentSessions(days: 7)
+        sessions = sessionRepo.fetchRecentSessions(days: 8)
     }
 }
