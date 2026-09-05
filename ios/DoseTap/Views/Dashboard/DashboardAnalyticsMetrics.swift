@@ -74,7 +74,7 @@ extension DashboardAnalyticsModel {
     }
 
     var averageSleepMinutes: Double? {
-        let values = populatedNights.compactMap(\.totalSleepMinutes)
+        let values = populatedNights.compactMap { sleepMinutes(for: $0) }
         guard !values.isEmpty else { return nil }
         return values.reduce(0, +) / Double(values.count)
     }
@@ -184,11 +184,11 @@ extension DashboardAnalyticsModel {
                 date: Self.keyFormatter.date(from: night.sessionDate) ?? Date(),
                 intervalMinutes: night.exactIntervalMinutes,
                 dose2Skipped: night.dose2Skipped,
-                totalSleepMinutes: night.totalSleepMinutes,
-                deepSleepMinutes: night.whoopDeepSleepMinutes.map(Double.init),
-                recoveryScore: night.whoopRecoveryScore.map(Int.init),
-                averageHRV: night.whoopHRV,
-                awakenings: night.wakeCount ?? night.whoopDisturbances
+                totalSleepMinutes: sleepMinutes(for: night),
+                deepSleepMinutes: sleepSource == .whoop ? night.whoopDeepSleepMinutes.map(Double.init) : nil,
+                recoveryScore: sleepSource == .whoop ? night.whoopRecoveryScore.map(Int.init) : nil,
+                averageHRV: sleepSource == .whoop ? night.whoopHRV : nil,
+                awakenings: sleepSource == .whoop ? night.whoopDisturbances : night.wakeCount
             )
         }
         return DoseEffectivenessCalculator.analyze(dataPoints)

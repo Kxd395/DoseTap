@@ -153,8 +153,8 @@ extension DashboardAnalyticsModel {
             guard !vals.isEmpty else { return nil }
             return pct(vals.filter { $0 }.count, vals.count)
         }()
-        let priorAvgInterval = avg(priorDosing.compactMap(\.intervalMinutes).map(Double.init))
-        let priorAvgSleep = avg(prior.compactMap(\.totalSleepMinutes))
+        let priorAvgInterval = avg(priorDosing.compactMap(\.exactIntervalMinutes))
+        let priorAvgSleep = avg(prior.compactMap { sleepMinutes(for: $0) })
         let priorAvgQuality = avg(prior.compactMap { $0.morningCheckIn?.sleepQuality })
 
         let priorWhoopNights = prior.filter { $0.whoopSummary?.hasValidSleepData == true }

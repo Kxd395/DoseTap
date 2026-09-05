@@ -721,7 +721,7 @@ final class DashboardStressTrendTests: XCTestCase {
         XCTAssertEqual(model.stressTrendNightCount, 3)
         XCTAssertEqual(model.topRecurringStressDriver, .work)
         XCTAssertEqual(model.topCarryoverStressDriver, .work)
-        XCTAssertEqual(model.recurringStressDrivers.first?.totalCount, 3)
+        XCTAssertEqual(model.recurringStressDrivers.first?.totalCount, 2)
         XCTAssertEqual(model.recurringStressDrivers.first?.carryoverCount, 1)
         XCTAssertEqual(model.stressCarryoverNightRate ?? 0, 50, accuracy: 0.01)
         XCTAssertEqual(model.sleepQualityByHighBedtimeStress.high ?? 0, 2.5, accuracy: 0.01)

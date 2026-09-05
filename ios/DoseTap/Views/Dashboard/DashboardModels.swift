@@ -15,6 +15,7 @@ final class DashboardAnalyticsModel: ObservableObject {
     @Published var isLoading = false
     @Published var lastRefresh: Date?
     @Published var errorMessage: String?
+    @Published var sleepSource: DashboardSleepSource = .appleHealth
     @Published var selectedRange: DashboardDateRange = .month
 
     let now: () -> Date

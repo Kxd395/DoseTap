@@ -1,6 +1,24 @@
 import Foundation
+import DoseCore
 
 extension DashboardAnalyticsModel {
+    func sleepMinutes(for night: DashboardNightAggregate) -> Double? {
+        sleepSource == .appleHealth ? night.appleHealthSleepMinutes : night.whoopSleepMinutes
+    }
+
+    var sleepSampleCount: Int { populatedNights.compactMap { sleepMinutes(for: $0) }.count }
+    var recordedPairCount: Int { dosingNights.compactMap(\.exactIntervalMinutes).count }
+    var skippedDose2Count: Int { dosingNights.filter { $0.dose2Skipped && $0.dose2Time == nil }.count }
+    var bathroomLogCount: Int { populatedNights.reduce(0) { $0 + $1.bathroomEventCount } }
+    var extraDoseCount: Int { populatedNights.reduce(0) { $0 + $1.extraDoseCount } }
+
+    func timingCount(_ timing: DoseCore.MedicationTiming) -> Int {
+        dosingNights.filter { night in
+            guard let first = night.dose1Time, let second = night.dose2Time else { return false }
+            return DoseCore.MedicationTiming.classify(dose1: first, dose2: second) == timing
+        }.count
+    }
+
     func counts<T: Hashable>(for values: [T]) -> [T: Int] {
         var result: [T: Int] = [:]
         for value in values {

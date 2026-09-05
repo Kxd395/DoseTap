@@ -4,7 +4,7 @@ extension DashboardAnalyticsModel {
     // MARK: - Lifestyle Factor Metrics (from Pre-Sleep Log)
 
     private var nightsWithPreSleep: [DashboardNightAggregate] {
-        populatedNights.filter { $0.preSleepLog?.answers != nil }
+        populatedNights.filter { $0.preSleepLog?.completionState == "complete" && $0.preSleepLog?.answers != nil }
     }
 
     var averageStressLevel: Double? {
@@ -65,7 +65,7 @@ extension DashboardAnalyticsModel {
     }
 
     var combinedStressDriverCounts: [CommonStressDriver: Int] {
-        counts(for: stressTrendPoints.flatMap { $0.bedtimeDrivers + $0.wakeDrivers })
+        counts(for: stressTrendPoints.flatMap { Array(Set($0.bedtimeDrivers + $0.wakeDrivers)) })
     }
 
     var carryoverStressDriverCounts: [CommonStressDriver: Int] {
@@ -172,55 +172,31 @@ extension DashboardAnalyticsModel {
     }
 
     var caffeineRate: Double? {
-        guard !nightsWithPreSleep.isEmpty else { return nil }
-        let withCaffeine = nightsWithPreSleep.filter {
-            $0.preSleepLog?.answers?.hasCaffeineIntake == true
-        }.count
-        return (Double(withCaffeine) / Double(nightsWithPreSleep.count)) * 100
+        percentage(matching: nightsWithPreSleep.compactMap { $0.preSleepLog?.answers?.reportedCaffeine }, where: { $0 })
     }
 
     var alcoholRate: Double? {
-        guard !nightsWithPreSleep.isEmpty else { return nil }
-        let withAlcohol = nightsWithPreSleep.filter {
-            guard let a = $0.preSleepLog?.answers?.alcohol else { return false }
-            return a != PreSleepLogAnswers.AlcoholLevel.none
-        }.count
-        return (Double(withAlcohol) / Double(nightsWithPreSleep.count)) * 100
+        percentage(matching: nightsWithPreSleep.compactMap { $0.preSleepLog?.answers?.alcohol }, where: { $0 != .none })
     }
 
     var exerciseRate: Double? {
-        guard !nightsWithPreSleep.isEmpty else { return nil }
-        let withExercise = nightsWithPreSleep.filter {
-            guard let e = $0.preSleepLog?.answers?.exercise else { return false }
-            return e != PreSleepLogAnswers.ExerciseLevel.none
-        }.count
-        return (Double(withExercise) / Double(nightsWithPreSleep.count)) * 100
+        percentage(matching: nightsWithPreSleep.compactMap { $0.preSleepLog?.answers?.exercise }, where: { $0 != .none })
     }
 
     var screenTimeRate: Double? {
-        guard !nightsWithPreSleep.isEmpty else { return nil }
-        let withScreens = nightsWithPreSleep.filter {
-            guard let s = $0.preSleepLog?.answers?.screensInBed else { return false }
-            return s != PreSleepLogAnswers.ScreensInBed.none
-        }.count
-        return (Double(withScreens) / Double(nightsWithPreSleep.count)) * 100
+        percentage(matching: nightsWithPreSleep.compactMap { $0.preSleepLog?.answers?.screensInBed }, where: { $0 != .none })
     }
 
     var lateMealRate: Double? {
-        guard !nightsWithPreSleep.isEmpty else { return nil }
-        let withMeal = nightsWithPreSleep.filter {
-            guard let m = $0.preSleepLog?.answers?.lateMeal else { return false }
-            return m != PreSleepLogAnswers.LateMeal.none
-        }.count
-        return (Double(withMeal) / Double(nightsWithPreSleep.count)) * 100
+        percentage(matching: nightsWithPreSleep.compactMap { $0.preSleepLog?.answers?.lateMeal }, where: { $0 != .none })
     }
 
     var sleepQualityByCaffeine: (with: Double?, without: Double?) {
-        let withCaff = populatedNights.filter {
-            $0.preSleepLog?.answers?.hasCaffeineIntake == true
+        let withCaff = nightsWithPreSleep.filter {
+            $0.preSleepLog?.answers?.reportedCaffeine == true
         }.compactMap { $0.morningCheckIn?.sleepQuality }
-        let noCaff = populatedNights.filter {
-            $0.preSleepLog?.answers?.hasCaffeineIntake != true
+        let noCaff = nightsWithPreSleep.filter {
+            $0.preSleepLog?.answers?.reportedCaffeine == false
         }.compactMap { $0.morningCheckIn?.sleepQuality }
         let avgWith = withCaff.isEmpty ? nil : Double(withCaff.reduce(0, +)) / Double(withCaff.count)
         let avgWithout = noCaff.isEmpty ? nil : Double(noCaff.reduce(0, +)) / Double(noCaff.count)
@@ -228,12 +204,12 @@ extension DashboardAnalyticsModel {
     }
 
     var sleepQualityByAlcohol: (with: Double?, without: Double?) {
-        let withAlc = populatedNights.filter {
+        let withAlc = nightsWithPreSleep.filter {
             guard let a = $0.preSleepLog?.answers?.alcohol else { return false }
             return a != PreSleepLogAnswers.AlcoholLevel.none
         }.compactMap { $0.morningCheckIn?.sleepQuality }
-        let noAlc = populatedNights.filter {
-            $0.preSleepLog?.answers?.alcohol == PreSleepLogAnswers.AlcoholLevel.none || $0.preSleepLog?.answers?.alcohol == nil
+        let noAlc = nightsWithPreSleep.filter {
+            $0.preSleepLog?.answers?.alcohol == PreSleepLogAnswers.AlcoholLevel.none
         }.compactMap { $0.morningCheckIn?.sleepQuality }
         let avgWith = withAlc.isEmpty ? nil : Double(withAlc.reduce(0, +)) / Double(withAlc.count)
         let avgWithout = noAlc.isEmpty ? nil : Double(noAlc.reduce(0, +)) / Double(noAlc.count)
@@ -241,15 +217,22 @@ extension DashboardAnalyticsModel {
     }
 
     var sleepQualityByScreens: (with: Double?, without: Double?) {
-        let withScr = populatedNights.filter {
+        let withScr = nightsWithPreSleep.filter {
             guard let s = $0.preSleepLog?.answers?.screensInBed else { return false }
             return s != PreSleepLogAnswers.ScreensInBed.none
         }.compactMap { $0.morningCheckIn?.sleepQuality }
-        let noScr = populatedNights.filter {
-            $0.preSleepLog?.answers?.screensInBed == PreSleepLogAnswers.ScreensInBed.none || $0.preSleepLog?.answers?.screensInBed == nil
+        let noScr = nightsWithPreSleep.filter {
+            $0.preSleepLog?.answers?.screensInBed == PreSleepLogAnswers.ScreensInBed.none
         }.compactMap { $0.morningCheckIn?.sleepQuality }
         let avgWith = withScr.isEmpty ? nil : Double(withScr.reduce(0, +)) / Double(withScr.count)
         let avgWithout = noScr.isEmpty ? nil : Double(noScr.reduce(0, +)) / Double(noScr.count)
         return (avgWith, avgWithout)
+    }
+}
+
+extension PreSleepLogAnswers {
+    var reportedCaffeine: Bool? {
+        guard caffeineSourceSummary != nil || caffeineSources != nil else { return nil }
+        return hasCaffeineIntake
     }
 }

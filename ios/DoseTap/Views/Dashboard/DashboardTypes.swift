@@ -1,6 +1,12 @@
 import SwiftUI
 import DoseCore
 
+enum DashboardSleepSource: String, CaseIterable, Identifiable {
+    case appleHealth = "Apple Health"
+    case whoop = "WHOOP"
+    var id: String { rawValue }
+}
+
 enum DashboardDateRange: String, CaseIterable, Identifiable {
     case week = "7D"
     case twoWeeks = "14D"

@@ -22,3 +22,8 @@
 - DA-06 additional confirmed defect: WHOOP nightly summaries admitted naps and undated records. Excluded both; for multiple overnight segments mapped to one night, dashboard selects longest scored sleep (does not sum potentially overlapping intervals).
 - Fifteen targeted simulator tests passed: seven audit regressions and eight WHOOP decoding/integration-boundary tests. In-memory SQLite fixture verified 2020 history survives All Time. Swift build/tests, SSOT and Plane workflow checks passed again.
 - Evidence: `/tmp/dosetap-dashboard-refresh-tests.log`. Simulator native CUA inspection timed out; use XCTest attachments for UI verification.
+
+## Missingness checkpoint
+- DA-04: caffeine/alcohol/exercise/screens/meal rates now use answered completed logs; unknown and skipped logs do not enter negative cohorts. Stressors deduplicate bedtime/morning per night. Updated old regression expectation that encoded the duplicate count.
+- DA-06: aggregate sleep and period comparisons use explicit Apple Health/WHOOP choice without fallback. Provider-specific report enrichment follows that choice.
+- Ten simulator tests passed (nine audit tests plus existing stress suite), including explicit No versus unknown/skipped and provider non-fallback. Swift build/tests, SSOT and Plane checks passed. Next: expose source control and restructure UI; remove misleading duration and confidence labels; chart zero/missing fixtures.
