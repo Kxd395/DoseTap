@@ -1,0 +1,34 @@
+# Local order reminder
+
+Implementation contract for DOSETAP-30, on `feat/local-order-reminder`.
+
+Settings > Medications provides one private, local order reminder. The user enters
+either a last-received date plus 21 calendar days, a reminder date, or a cycle-end date minus selected lead days,
+and a local time. These are entered planning dates, not forecasts. Bottle counts
+remain independent snapshots. No pharmacy, shipping, ordering or receipt service
+is connected, and no dose history is used to infer consumption.
+
+The source record lives in SQLite through SessionRepository. It preserves civil
+date/time, source mode, lead days, enabled/handled state, revision history and a
+named current-device-wall-clock timezone policy. Export/restore uses a versioned
+reminder-only JSON file; importing replaces this one reminder after confirmation.
+Deleting it removes its history, after confirmation, without touching dose data.
+
+The notification uses only `dosetap_supply_order_reminder`. Notification content
+is generic: “DoseTap reminder due.” Saving commits source data before attempting
+scheduling. Scheduled means pending-request readback matched the current revision
+and calendar trigger. Permission denial, failed/missing requests and past or
+nonexistent local times have visible recovery states. Ambiguous fall-back times
+use the first occurrence; nonexistent spring-forward times require user correction.
+Optional Tonight bottle-start records preserve opened-at and recorded-at times,
+can be deleted if entered accidentally, and never move the reminder or alter dose records.
+Launch, foreground, significant clock changes and timezone changes reconcile the
+same identifier. No supply operation touches medication alarm identifiers.
+
+Handled acknowledges the local reminder only. Disable/handled/delete cancels the
+supply request. Changes preserve previous source revisions and their times. The
+UI serializes commands; reset invalidates any scheduling work in flight.
+
+Automatic quantity-based estimates are deferred until a confirmed compatible
+quantity, plan and treatment schedule exist. Physical delivery, permission
+recovery, accessibility and owner acceptance remain distinct from automated tests.

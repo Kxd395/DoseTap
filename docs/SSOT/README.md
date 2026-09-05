@@ -16,6 +16,7 @@ This document is the authoritative specification for current DoseTap behavior. I
 - Human-readable schema: `docs/DATABASE_SCHEMA.md`
 - Dose persistence contract: `docs/SSOT/dose-state-persistence.md`
 - Alarm scheduling contract: `docs/SSOT/alarm-scheduling.md`
+- Local order reminder contract: `docs/SSOT/supply-reminder.md`
 - Data dictionary: `docs/SSOT/contracts/DataDictionary.md`
 - Diagnostic logging: `docs/DIAGNOSTIC_LOGGING.md`
 
