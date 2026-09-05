@@ -1,9 +1,9 @@
 # DoseTap SSOT (Single Source of Truth)
 
 Status: Current behavior authority
-Last verified: 2026-09-04
-SSOT revision: 0.4.15
-Shipping app version observed in the Xcode project: 0.4.15 (build 17)
+Last verified: 2026-09-05
+SSOT revision: 0.4.16
+Shipping app version observed in the Xcode project: 0.4.16 (build 18)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -500,7 +500,7 @@ State transitions:
 ### Data Surface Gating
 
 All WHOOP data display is gated behind `WHOOPService.isEnabled` and/or data presence checks:
-- **Dashboard:** WHOOP Card shown only when `!model.whoopNights.isEmpty`. Recovery KPIs in Executive Summary conditional on `averageWhoopRecovery != nil`.
+- **Dashboard:** WHOOP measurements appear only with recorded WHOOP nights; otherwise its card explains the missing data and connection/range checks. Recovery and HRV remain in the WHOOP card, with observed sample counts. No duplicate recovery tiles appear in Executive Summary.
 - **Timeline:** `extractBiometricData()` returns empty arrays when `!WHOOPService.isEnabled`.
 - **Night Review:** `HealthDataCard` WHOOP section guarded behind `WHOOPService.isEnabled`.
 - **Sleep Snapshot:** WHOOP Metrics section guarded behind `averageWhoopRecovery != nil || averageWhoopHRV != nil`.
@@ -538,7 +538,7 @@ Work schedule configuration and dated overrides are stored together in SQLite `w
 - Recorded dose events own retrospective timing; never infer Dose 1 from Dose 2 or an extra dose. Pending Dose 2 (before the existing upper timing boundary) is separate from missing outcomes. Recorded outcomes include explicit skips; on-time percentages use valid timestamp pairs only, with exact elapsed seconds and the shared MedicationTiming classification.
 - Missing observations remain missing, never zero or an implicit negative answer. Bathroom analytics count logs; duration is not measured. Pre-sleep completion requires a completed log. Stress-driver frequency counts each driver at most once per night.
 - Sleep comparisons use one explicitly selected provider without fallback. Show sample counts, source coverage and fetch errors. Descriptive timing groups and associations do not measure medication effectiveness or establish causation; changes in an average are not automatically improvements.
-- Dashboard separates Overview, Trends, and Data. Empty, loading and partial-provider states remain visible. Existing Typical Week, nightly overrides, medication supply and alarm behavior are unchanged.
+- Dashboard defaults to All, showing Overview, Trends and Data in one scroll; these groups remain optional filters. The captured metric reference is available in All and Data. Missing WHOOP, prior-period or timing-group inputs show explanatory cards. Empty, loading and partial-provider states remain visible. Existing Typical Week, nightly overrides, medication supply and alarm behavior are unchanged.
 
 Tonight’s weekly summary covers the seven finished civil nights before the current night. “Dose 2 recorded” is the fraction of Dose-1 nights with a recorded second dose; explicit skips and unrecorded outcomes are shown separately. Gaps are not a day streak, and orphan second doses cannot inflate the rate.
 

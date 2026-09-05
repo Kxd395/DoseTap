@@ -413,7 +413,7 @@ struct DashboardCapturedMetricsCard: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Captured Metrics Inventory")
                 .font(.headline)
-            Text("This is the complete metric surface currently modeled for dashboarding.")
+            Text("Reference for the records used in this dashboard. Availability depends on your logs, connected sources and selected dates; this list does not mean every field has data.")
                 .font(.caption)
                 .foregroundColor(.secondary)
 

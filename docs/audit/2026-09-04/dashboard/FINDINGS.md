@@ -57,3 +57,10 @@ Severity: **P1** misleading calculations/data ownership; **P2** usability, acces
 | Later / validation | iPad split view, additional locale/time-zone travel cases, VoiceOver charts, all dashboard cards at maximum text size, release optimization/performance | Medium | Dedicated device/accessibility pass; current screenshots cover sampled screens, not every combination. |
 
 Readiness: substantially more coherent for local descriptive review. The corrected calculations have regression evidence and the principal phone flows have simulator evidence. It is not yet accepted as a live-provider-validated, fully accessible or clinical decision-support system. Remaining live-provider validation/per-field coverage limitations are explicit above rather than hidden behind an overall confidence score.
+
+
+## DA-11 — Dashboard content lost discoverability after section redesign (P2, confirmed)
+- Evidence: `37da941:DashboardViews.swift` rendered all card families in a single scroll. `86019d4:DashboardViews.swift:16,77–106` defaulted to Overview and gated Trends/Data; Captured Metrics Inventory had no rendering call. User reported missing previous content. This was a presentation regression, not evidence of deleted records.
+- Impact: lifestyle, symptoms, stress, charts, coverage, integrations and recent nights were no longer discoverable through the established scroll flow; the metric reference was absent.
+- Correction: All becomes the default and includes all three groups. Existing filters remain optional. Restore the metric reference with availability wording, actual coverage terminology and WHOOP/lifestyle categories. WHOOP/period/timing prerequisites appear explicitly when absent.
+- Verification: `testDashboardAllRestoresEveryCardWithoutChangingSections` scrolls through 13 card headings after Recorded Nights without changing filters, then verifies empty data still offers integrations and the reference. Existing source/filter, empty/error, large-text and landscape checks remain required; phone acceptance stays open.

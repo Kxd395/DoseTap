@@ -17,3 +17,10 @@
 - Build 0.4.15 (17) distinguishes the analytics update. Only version hunks from project.pbxproj were staged; concurrent Xcode reorder and pre-existing UI scheme edits remain uncommitted.
 - P1/P2 describe audit severity, not medical risk scores. Plane DOSETAP-45 remains In Progress while physical provider/device/accessibility gates remain.
 - Pending questions: source parity during travel; treatment of multiple legitimate sleep segments versus overlapping imported duplicates; whether optional supply status and median/range earn dashboard space. Defaults or settings changes must not be applied retroactively as historical facts.
+
+
+## Owner missing-content correction (2026-09-05)
+- Restore the established full-scroll dashboard as the default All view; Overview/Trends/Data are optional filters. This supersedes the previous default Overview presentation.
+- Keep corrected source-specific measurements, observed denominators and timing semantics. Do not reintroduce invented bathroom duration, statistical-confidence wording, an invalid streak or treatment-effectiveness claims to reproduce the old appearance.
+- Captured Metrics Inventory returns as a reference, with explicit availability wording. Empty datasets retain access to integrations and reference information.
+- App version 0.4.16 (18) identifies this visibility correction; no signed-device installation is performed.

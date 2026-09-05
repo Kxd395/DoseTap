@@ -5,11 +5,11 @@
 - Preserved dirty file: `ios/DoseTap.xcodeproj/xcshareddata/xcschemes/DoseTapUITests.xcscheme` (pre-existing owner/Xcode edit).
 - Read: repository AGENTS, README, SSOT, testing/workflow/constitution (current session), dashboard view/model/metrics/refresh/types/catalog and major cards, storage queries, prior Plane status.
 - Plane: DOSETAP-45 created, preflighted and started In Progress with verified readback; DOSETAP-36 remains Done.
-- Completed: baseline, source inventory/data-flow audit, DA-01…10 local corrections, build 0.4.15 (17), regression and simulator UI checks; detailed evidence below.
+- Completed: baseline, source inventory/data-flow audit, DA-01…10 analytics corrections and DA-11 full-dashboard visibility restoration. Current build 0.4.16 (18); regression and simulator UI evidence below.
 - Remaining: external gates are live-provider parity, signed-device/owner review, and comprehensive accessibility. Plane closeout result is recorded below.
 - Blockers: physical Apple Health/WHOOP parity and owner accessibility acceptance cannot be established from simulator fixtures. No real medication database changes or phone installs are part of verification.
 - Concurrent edit: Xcode reordered project.pbxproj entries during investigation; preserve that unrelated change alongside the scheme edit.
-- Exact next step for owner acceptance: build `/Volumes/Developer/projects/DoseTap-main/ios/DoseTap.xcodeproj`, confirm 0.4.15 (17), compare 3–5 recorded nights to Timeline/Health/WHOOP, and review the dashboard on the phone. No further local implementation is pending in this pass.
+- Exact next step for owner acceptance: build `/Volumes/Developer/projects/DoseTap-main/ios/DoseTap.xcodeproj`, confirm 0.4.16 (18), review default All dashboard and compare 3–5 recorded nights to Timeline/Health/WHOOP. No phone installation was performed.
 
 ## Calculation checkpoint
 - DA-01 civil range and DA-05 pair/pending denominators corrected. Exact seconds retained; negative intervals excluded, active outcome separated. Six simulator unit tests passed (DashboardAnalyticsAuditTests + DashboardDoseIntegrityMetricTests), including both DST transitions and morning night identity.
@@ -92,3 +92,15 @@
 - DOSETAP-45 structured closeout `946f6cde43de3703` applied and independently verified on 2026-09-05. State **In Progress**, acceptance incomplete only for the named device/provider/comprehensive-accessibility gates; local implementation and requested documentation are written and checked.
 - Exact work item: http://plane.localhost:3301/dark-water-drones/browse/DOSETAP-45/
 - Final source commit: `6ef4633`; audit baseline `37da941`; version 0.4.15 (17). Seven source commits preserve reviewable stages. Documentation closeout follows separately. Owner Xcode edits remain untouched.
+
+## Missing-content followup — locally verified
+- Owner reports previously visible dashboard content missing. Baseline `86019d4`; Plane DOSETAP-45 preflight confirms In Progress. Owner project reorder and scheme edits preserved.
+- Compared `37da941` to current view: nine card families moved behind filters; Captured Metrics Inventory removed from rendering. WHOOP, period comparison and timing groups also disappear when their prerequisites are absent. No stored data was deleted by that layout change.
+- Correction: All is the default full dashboard; filters remain optional, metric reference returns, conditional analytics explain missing data. Preserve all audited calculations and source boundaries.
+- Implemented: All default, restored inventory with accurate availability/coverage wording, visible prerequisites, retained filters and corrected calculations. Version 0.4.16 (18) read back from built simulator Info.plist and all four app/staging configurations.
+- Validation: `swift build -q` passed; `swift test -q` passed 634 XCTest + 43 Swift Testing. Logs `/tmp/dosetap-restore-{build,core}.log`. SSOT, app-version, Plane-workflow, architecture and `git diff --check` passed.
+- UI commands use `xcodebuild test -project ios/DoseTap.xcodeproj -scheme DoseTapUITests -destination 'platform=iOS Simulator,id=829089F8-76D6-475A-A794-CFBD0BE9F43B' -derivedDataPath /tmp/dosetap-supply-build -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO`, with `-only-testing:DoseTapUITests/DoseTapUITests/` selectors: `testDashboardAllRestoresEveryCardWithoutChangingSections`, `testDashboardOverviewTrendsAndData`, `testDashboardLargeTextAndLandscape`.
+- Final full-scroll test passed (1 test, 0 failures), bundle `Test-DoseTapUITests-2026.09.05_08-43-01--0400.xcresult`, log `/tmp/dosetap-restore-coverage-ui.log`. Verifies all 14 headings, WHOOP/timing prerequisites and empty-range data access. Two other UI tests passed in `Test-DoseTapUITests-2026.09.05_08-41-03--0400.xcresult`. Initial runs omitted the new selector, hit simulator launch Busy, then exposed XCTest's 128-character identifier limit; booted the dedicated simulator and corrected query construction. Only observed test results count.
+- Screenshot inspection: full-scroll cards, restored reference, sparse/empty explanations, portrait and landscape navigation. Rotation capture now waits for screenshot dimensions. Saved `evidence/restored-*.png`; no real medication records/providers used.
+- Followup files: dashboard Views, InsightCards, AnalyticsCatalog, Models (simulator-only sparse fixture), UI tests, app version values, SSOT README/navigation, existing audit STATUS/FINDINGS/DECISIONS and evidence. Owner project reorder and UI scheme remain excluded. No dependencies, DB/schema changes, phone install, push or deployment.
+- Exact next step: commit this correction and apply/read back DOSETAP-45 closeout; then owner phone/provider review using build 0.4.16 (18).

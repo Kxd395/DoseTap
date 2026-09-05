@@ -25,14 +25,16 @@ final class DoseTapUITests: XCTestCase {
         app.buttons["Dashboard"].tap()
         XCTAssertTrue(app.staticTexts["Recorded Nights"].waitForExistence(timeout: 10))
         captureDashboard("Dashboard overview")
-        app.buttons["Trends"].tap()
-        XCTAssertTrue(app.staticTexts["Interactive Trends"].waitForExistence(timeout: 5))
+        app.segmentedControls["dashboard-section-picker"].buttons["Trends"].tap()
+        revealDashboardText("Interactive Trends")
         app.buttons["WHOOP"].tap()
         captureDashboard("Dashboard trends WHOOP")
         app.buttons["dashboard-trend-picker"].tap()
         app.buttons["Weekday"].tap()
         captureDashboard("Dashboard weekday observed samples")
-        app.buttons["Data"].tap()
+        let sectionPicker = app.segmentedControls["dashboard-section-picker"]
+        for _ in 0..<8 where !sectionPicker.isHittable { app.swipeDown() }
+        sectionPicker.buttons["Data"].tap()
         XCTAssertTrue(app.staticTexts["Data Coverage"].waitForExistence(timeout: 5))
         captureDashboard("Dashboard data coverage")
         app.swipeUp()
@@ -43,6 +45,49 @@ final class DoseTapUITests: XCTestCase {
         app.buttons["Dashboard"].tap()
         XCTAssertTrue(app.staticTexts["No data in this range"].waitForExistence(timeout: 10))
         captureDashboard("Dashboard empty and provider error")
+    }
+
+    func testDashboardAllRestoresEveryCardWithoutChangingSections() throws {
+        app.buttons["Dashboard"].tap()
+        XCTAssertTrue(app.staticTexts["Recorded Nights"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.segmentedControls["dashboard-section-picker"].buttons["All"].isSelected)
+        captureDashboard("Restored dashboard All overview")
+        for title in ["Recorded Dose Timing", "Sleep Outcomes", "WHOOP Recovery & Biometrics",
+                      "Period Comparison", "Interactive Trends", "Timing Groups", "Lifestyle Factors",
+                      "Mood & Symptoms", "Stress Trends", "Data Coverage", "Integrations",
+                      "Recent Nights · up to 14", "Captured Metrics Inventory"] {
+            revealDashboardText(title)
+            if ["Lifestyle Factors", "Data Coverage", "Captured Metrics Inventory"].contains(title) {
+                captureDashboard("Restored dashboard " + title)
+            }
+        }
+        app.terminate()
+        app.launchArguments += ["--dashboard-sparse"]
+        app.launch()
+        app.buttons["Dashboard"].tap()
+        XCTAssertTrue(app.staticTexts["Recorded Nights"].waitForExistence(timeout: 10))
+        revealDashboardText("WHOOP Recovery & Biometrics")
+        revealDashboardText("No WHOOP nights in this range. Check the WHOOP connection in Settings, then refresh or choose a wider range.")
+        revealDashboardText("Timing Groups")
+        revealDashboardText("Available after at least 3 nights with both dose timestamps recorded. Provider comparisons also need sleep measurements from the selected source.")
+        captureDashboard("Sparse dashboard explains prerequisites")
+        app.terminate()
+        app.launchArguments += ["--dashboard-empty"]
+        app.launch()
+        app.buttons["Dashboard"].tap()
+        XCTAssertTrue(app.staticTexts["No data in this range"].waitForExistence(timeout: 10))
+        revealDashboardText("Integrations")
+        revealDashboardText("Captured Metrics Inventory")
+        captureDashboard("Empty dashboard keeps data reference")
+    }
+
+    private func revealDashboardText(_ title: String) {
+        let element = app.staticTexts.matching(NSPredicate(format: "label == %@", title)).firstMatch
+        for _ in 0..<18 {
+            if element.exists && element.isHittable { return }
+            app.swipeUp(velocity: .slow)
+        }
+        XCTFail("Dashboard card not reachable: " + title)
     }
 
     func testDashboardLargeTextAndLandscape() throws {
@@ -57,6 +102,11 @@ final class DoseTapUITests: XCTestCase {
         let landscape = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in self.app.frame.width > self.app.frame.height }, object: app)
         wait(for: [landscape], timeout: 10)
         app.swipeUp()
+        let screenRotated = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            let size = XCUIScreen.main.screenshot().image.size
+            return size.width > size.height
+        }, object: nil)
+        wait(for: [screenRotated], timeout: 10)
         captureDashboard("Dashboard landscape accessibility text")
     }
 

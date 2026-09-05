@@ -13,7 +13,7 @@ struct DashboardTabView: View {
     @StateObject private var model = DashboardAnalyticsModel()
     @StateObject private var cloudSync = DeferredCloudKitSyncService.shared
     @State private var resolvingDuplicateGroup: StoredEventDuplicateGroup?
-    @State private var section = "Overview"
+    @State private var section = "All"
     @State private var cloudSyncError: String?
 
     private var isWideLayout: Bool {
@@ -56,10 +56,12 @@ struct DashboardTabView: View {
                 }
 
                 Picker("Dashboard section", selection: $section) {
+                    Text("All").tag("All")
                     Text("Overview").tag("Overview")
                     Text("Trends").tag("Trends")
                     Text("Data").tag("Data")
                 }.pickerStyle(.segmented).padding(.horizontal)
+                    .accessibilityIdentifier("dashboard-section-picker")
 
                 if let error = model.errorMessage {
                     Label(error, systemImage: "exclamationmark.triangle")
@@ -74,34 +76,51 @@ struct DashboardTabView: View {
                 }
 
                 LazyVGrid(columns: columns, spacing: 12) {
-                    if !model.populatedNights.isEmpty || section == "Data" {
-                    if section == "Overview" {
-                        DashboardExecutiveSummaryCard(model: model, core: core)
-                        DashboardDosingSnapshotCard(model: model)
-                        DashboardSleepSnapshotCard(model: model)
-                        if !model.whoopNights.isEmpty { DashboardWHOOPCard(model: model) }
-                    } else if section == "Trends" {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Picker("Sleep source for comparisons", selection: $model.sleepSource) {
-                                ForEach(DashboardSleepSource.allCases) { Text($0.rawValue).tag($0) }
-                            }.pickerStyle(.segmented)
-                            Text("\(model.sleepSampleCount) nights from \(model.sleepSource.rawValue). Missing readings are excluded; sources are never substituted.")
-                                .font(.caption).foregroundColor(.secondary)
-                        }.gridCellColumns(columns.count)
-                        if !model.periodComparison.isEmpty { DashboardPeriodComparisonCard(model: model) }
-                        DashboardTrendChartsCard(model: model).gridCellColumns(columns.count)
-                        if model.doseEffectivenessReport.totalNights >= 3 {
-                            DashboardDoseEffectivenessCard(report: model.doseEffectivenessReport)
+                    if !model.populatedNights.isEmpty {
+                        if section == "All" || section == "Overview" {
+                            dashboardHeading("Overview")
+                            DashboardExecutiveSummaryCard(model: model, core: core)
+                            DashboardDosingSnapshotCard(model: model)
+                            DashboardSleepSnapshotCard(model: model)
+                            if !model.whoopNights.isEmpty {
+                                DashboardWHOOPCard(model: model)
+                            } else {
+                                unavailableCard("WHOOP Recovery & Biometrics", detail: "No WHOOP nights in this range. Check the WHOOP connection in Settings, then refresh or choose a wider range.")
+                            }
                         }
-                        DashboardLifestyleFactorsCard(model: model)
-                        DashboardMoodSymptomsCard(model: model)
-                        DashboardStressTrendsCard(model: model).gridCellColumns(columns.count)
-                    } else {
+                        if section == "All" || section == "Trends" {
+                            dashboardHeading("Trends")
+                            VStack(alignment: .leading, spacing: 8) {
+                                Picker("Sleep source for comparisons", selection: $model.sleepSource) {
+                                    ForEach(DashboardSleepSource.allCases) { Text($0.rawValue).tag($0) }
+                                }.pickerStyle(.segmented)
+                                Text("\(model.sleepSampleCount) nights from \(model.sleepSource.rawValue). Missing readings are excluded; sources are never substituted.")
+                                    .font(.caption).foregroundColor(.secondary)
+                            }.gridCellColumns(columns.count)
+                            if !model.periodComparison.isEmpty {
+                                DashboardPeriodComparisonCard(model: model)
+                            } else {
+                                unavailableCard("Period Comparison", detail: "A comparison needs matching measurements in this range and the preceding period. All Time has no preceding comparison period.")
+                            }
+                            DashboardTrendChartsCard(model: model).gridCellColumns(columns.count)
+                            if model.doseEffectivenessReport.totalNights >= 3 {
+                                DashboardDoseEffectivenessCard(report: model.doseEffectivenessReport)
+                            } else {
+                                unavailableCard("Timing Groups", detail: "Available after at least 3 nights with both dose timestamps recorded. Provider comparisons also need sleep measurements from the selected source.")
+                            }
+                            DashboardLifestyleFactorsCard(model: model)
+                            DashboardMoodSymptomsCard(model: model)
+                            DashboardStressTrendsCard(model: model).gridCellColumns(columns.count)
+                        }
+                    }
+                    if section == "All" || section == "Data" {
+                        dashboardHeading("Data")
                         DashboardDataQualityCard(model: model)
                         DashboardIntegrationsCard(states: model.integrationStates)
                         DashboardRecentNightsCard(nights: model.trendNights, onResolveDuplicateGroup: { resolvingDuplicateGroup = $0 })
                             .gridCellColumns(columns.count)
-                    }
+                        DashboardCapturedMetricsCard(categories: model.metricsCatalog)
+                            .gridCellColumns(columns.count)
                     }
                 }
                 .padding()
@@ -192,4 +211,23 @@ struct DashboardTabView: View {
                 Text(cloudSyncError ?? "Unknown cloud sync error")
             }
     }
+
+    private func dashboardHeading(_ title: String) -> some View {
+        Text(title)
+            .font(.title2.bold())
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityAddTraits(.isHeader)
+            .gridCellColumns(columns.count)
+    }
+
+    private func unavailableCard(_ title: String, detail: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).font(.headline)
+            Text(detail).font(.callout).foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 16))
+    }
+
 }

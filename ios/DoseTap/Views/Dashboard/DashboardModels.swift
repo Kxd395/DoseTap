@@ -70,6 +70,7 @@ extension DashboardAnalyticsModel {
                     duplicateClusterCount: 0, napSummary: .init(count: 0, totalMinutes: 0))
             }
         }
+        if arguments.contains("--dashboard-sparse") { nights = Array(nights.prefix(2)) }
         integrationStates = []
         errorMessage = arguments.contains("--dashboard-partial") ? "WHOOP sleep could not refresh. Local records are still available. Try Refresh again." : nil
         lastRefresh = now()

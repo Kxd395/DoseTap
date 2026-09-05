@@ -55,4 +55,4 @@ Nightly wake overrides persist in the existing local UserDefaults store under `s
 - Production readiness: `docs/PRODUCTION_READINESS_CHECKLIST.md`
 - Archived point-in-time plans/results: `docs/archive/`
 
-Dashboard sections: Overview (recorded timing, sleep and WHOOP), Trends (explicit sleep source, comparisons, lifestyle/mood/stress), Data (coverage, integrations, recent 14 nights). Range selection applies across sections; switching sections preserves it. Pull-to-refresh awaits data loading. Empty ranges and provider errors appear above the cards.
+Dashboard opens with All selected: Overview (recorded timing, sleep and WHOOP), Trends (explicit sleep source, comparisons, lifestyle/mood/stress), and Data (coverage, integrations, recent 14 nights, captured metric reference) appear in one scroll. Overview, Trends and Data remain optional filters and preserve the date range. Missing WHOOP, prior-period or timing-group data has an explanatory card rather than silently removing the section. Empty ranges retain Data cards and the metric reference without showing fabricated outcome statistics. Pull-to-refresh awaits data loading; provider errors stay visible.
