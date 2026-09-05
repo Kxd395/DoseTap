@@ -120,6 +120,7 @@ public class URLRouter: ObservableObject {
     
     // MARK: - Published State
     @Published var selectedTab: AppTab = .tonight
+    @Published var showingSupplyReminder = false
     @Published var lastAction: URLAction?
     @Published var showActionFeedback: Bool = false
     @Published var feedbackMessage: String = ""

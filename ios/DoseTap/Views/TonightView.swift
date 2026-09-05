@@ -291,6 +291,11 @@ struct LegacyTonightView: View {
                 .padding(.horizontal)
                 .padding(.top, 4)
             }
+            if homeState.showsDosePrimaryAction {
+                SupplyBottleButton()
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+            }
             // Pre-Sleep Log Card — always visible during a session so users can
             // log, view, or edit pre-sleep info at any time (before or after Dose 1).
             // Only hidden once the session has fully ended (wake/morning check-in).

@@ -109,6 +109,7 @@ final class SupplyReminderService: ObservableObject {
     private func reconcileLocked(requestPermission: Bool) async {
         needsSettings = false
         status = "Checking reminder…"
+        backup = nil
         do {
             backup = try repository.loadSupply()
             let generation = repository.supplyGeneration

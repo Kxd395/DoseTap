@@ -11,6 +11,7 @@ final class SupplyReminderServiceTests: XCTestCase {
         var removed: [String] = []
         var dropsAdds = false
         var failsAdds = false
+        var mismatchesTrigger = false
         var onAdd: (() -> Void)?
         func setDelegate(_ delegate: (any UNUserNotificationCenterDelegate)?) {}
         func setNotificationCategories(_ categories: Set<UNNotificationCategory>) {}
@@ -19,7 +20,11 @@ final class SupplyReminderServiceTests: XCTestCase {
         func add(_ request: UNNotificationRequest) async throws {
             if failsAdds { throw SupplyStorageError.unavailable }
             onAdd?()
-            if !dropsAdds { requests[request.identifier] = request }
+            if !dropsAdds {
+                requests[request.identifier] = mismatchesTrigger
+                    ? UNNotificationRequest(identifier: request.identifier, content: request.content,
+                        trigger: UNTimeIntervalNotificationTrigger(timeInterval: 600, repeats: false)) : request
+            }
         }
         func pendingRequests() async -> [UNNotificationRequest] { Array(requests.values) }
         func removePendingRequests(withIdentifiers identifiers: [String]) {
@@ -34,6 +39,8 @@ final class SupplyReminderServiceTests: XCTestCase {
 
     func testReplaceRetryHandledAndDisableOnlyTouchSupplyRole() async throws {
         let client = Client()
+        client.requests["dosetap_dose2_alarm"] = UNNotificationRequest(identifier: "dosetap_dose2_alarm",
+            content: UNMutableNotificationContent(), trigger: UNTimeIntervalNotificationTrigger(timeInterval: 60, repeats: false))
         let repo = SessionRepository(storage: EventStorage.inMemory())
         let service = SupplyReminderService(repository: repo, client: client)
         let firstSave = await service.save(entry())
@@ -42,11 +49,11 @@ final class SupplyReminderServiceTests: XCTestCase {
         var changed = entry(); changed.day = 5
         _ = await service.save(changed)
         await service.reconcile()
-        XCTAssertEqual(client.requests.count, 1)
+        XCTAssertEqual(client.requests.count, 2)
         XCTAssertEqual(try repo.loadSupply().reminder?.history.count, 1)
         await service.setHandledOrDisabled(handled: true)
         XCTAssertTrue(service.status.hasPrefix("Handled"))
-        XCTAssertTrue(client.requests.isEmpty)
+        XCTAssertEqual(Set(client.requests.keys), ["dosetap_dose2_alarm"])
         XCTAssertEqual(Set(client.removed), [SupplyReminderService.requestID])
     }
 
@@ -67,6 +74,10 @@ final class SupplyReminderServiceTests: XCTestCase {
         await service.reconcile()
         XCTAssertTrue(service.status.hasPrefix("Failed:"))
         client.failsAdds = false
+        client.mismatchesTrigger = true
+        await service.reconcile()
+        XCTAssertTrue(service.status.hasPrefix("Failed:"))
+        client.mismatchesTrigger = false
         await service.reconcile()
         XCTAssertTrue(service.status.hasPrefix("Scheduled:"))
     }
@@ -85,5 +96,22 @@ final class SupplyReminderServiceTests: XCTestCase {
         await service.reconcile()
         XCTAssertTrue(client.requests.isEmpty)
         XCTAssertNil(try repo.loadSupply().reminder)
+    }
+
+    func testFailedSupplyWriteDoesNotPreventDoseRecordAndPastReminderNeedsAttention() async throws {
+        let storage = EventStorage.inMemory()
+        let repo = SessionRepository(storage: storage)
+        let service = SupplyReminderService(repository: repo, client: Client())
+        var past = entry(); past.year = 2001
+        _ = await service.save(past)
+        let savedSource = try repo.loadSupply().reminder?.current
+        XCTAssertTrue(service.status.hasPrefix("Needs attention:"))
+        var invalid = entry(); invalid.day = 99
+        let saved = await service.save(invalid)
+        XCTAssertFalse(saved)
+        let doseAt = Date()
+        repo.setDose1Time(doseAt)
+        XCTAssertEqual(repo.dose1Time, doseAt)
+        XCTAssertEqual(try repo.loadSupply().reminder?.current, savedSource)
     }
 }

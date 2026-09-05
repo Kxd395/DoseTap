@@ -1369,7 +1369,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     public func clearAllData() {
         storage.clearAllData()
         supplyGeneration &+= 1
-        notificationScheduler.cancelNotifications(withIdentifiers: ["dosetap_supply_order_reminder"])
+        notificationScheduler.cancelNotifications(withIdentifiers: [SupplyReminderService.requestID])
         cancelPendingNotifications()
         
         // Reset in-memory state

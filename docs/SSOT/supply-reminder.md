@@ -11,7 +11,7 @@ is connected, and no dose history is used to infer consumption.
 The source record lives in SQLite through SessionRepository. It preserves civil
 date/time, source mode, lead days, enabled/handled state, revision history and a
 named current-device-wall-clock timezone policy. Export/restore uses a versioned
-reminder-only JSON file; importing replaces this one reminder after confirmation.
+local supply JSON file; importing replaces reminder and bottle records after confirmation.
 Deleting it removes its history, after confirmation, without touching dose data.
 
 The notification uses only `dosetap_supply_order_reminder`. Notification content
@@ -24,6 +24,8 @@ Optional Tonight bottle-start records preserve opened-at and recorded-at times,
 can be deleted if entered accidentally, and never move the reminder or alter dose records.
 Launch, foreground, significant clock changes and timezone changes reconcile the
 same identifier. No supply operation touches medication alarm identifiers.
+Tapping the supply notification opens its management screen; it does not acknowledge
+the reminder or record a medication event.
 
 Handled acknowledges the local reminder only. Disable/handled/delete cancels the
 supply request. Changes preserve previous source revisions and their times. The

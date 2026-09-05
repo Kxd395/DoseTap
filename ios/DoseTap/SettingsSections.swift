@@ -72,7 +72,7 @@ extension SettingsView {
 
             Section {
                 Toggle(isOn: $settings.notificationsEnabled) {
-                    Label("Enable Notifications", systemImage: "bell.fill")
+                    Label("Enable Dose Notifications", systemImage: "bell.fill")
                 }
 
                 if settings.notificationsEnabled {
@@ -104,10 +104,10 @@ extension SettingsView {
                     }
                 }
             } header: {
-                Label("Notifications & Alerts", systemImage: "bell.badge.fill")
+                Label("Dose Notifications & Alerts", systemImage: "bell.badge.fill")
                     .font(.headline)
             } footer: {
-                Text("Critical alerts can override Do Not Disturb for important dose reminders.")
+                Text("Critical alerts can override Do Not Disturb for important dose reminders. Order reminders have their own enable and disable controls under Supply & order reminder.")
             }
 
             Section {
@@ -192,6 +192,11 @@ extension SettingsView {
                         Text(medicationSummary)
                             .foregroundColor(.secondary)
                     }
+                }
+                NavigationLink {
+                    SupplySettingsView()
+                } label: {
+                    Label("Supply & order reminder", systemImage: "bell.badge")
                 }
             } header: {
                 Label("Medications", systemImage: "cross.case.fill")

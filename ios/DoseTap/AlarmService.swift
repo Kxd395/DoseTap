@@ -1586,7 +1586,7 @@ extension AlarmService: UNUserNotificationCenterDelegate {
         // Show notification even when app is in foreground.
         // Respect live sound toggle changes.
         var options: UNNotificationPresentationOptions = [.banner, .badge]
-        if UserSettingsManager.shared.soundEnabled {
+        if notificationId == SupplyReminderService.requestID || UserSettingsManager.shared.soundEnabled {
             options.insert(.sound)
         }
         completionHandler(options)
@@ -1627,6 +1627,9 @@ extension AlarmService: UNUserNotificationCenterDelegate {
                 // active until the user explicitly logs Dose 2 or a skip.
                 self.startRinging()
             } else if actionId == UNNotificationDefaultActionIdentifier {
+                if notificationId == SupplyReminderService.requestID {
+                    URLRouter.shared.showingSupplyReminder = true
+                }
                 if notificationId == NotificationID.dose2Alarm || notificationId.hasPrefix(NotificationID.followUp) {
                     self.startRinging()
                 }

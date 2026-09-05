@@ -5,6 +5,19 @@ import SQLite3
 
 @MainActor
 final class SupplyStorageTests: XCTestCase {
+    func testReopenDatabasePreservesSupplyAndCorrectionHistory() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let path = directory.appendingPathComponent("supply.sqlite").path
+        var backup = SupplyBackup(reminder: SupplyReminderDocument(current:
+            SupplyReminderEntry(year: 2035, month: 10, day: 4, hour: 9, minute: 0)))
+        var corrected = backup.reminder!.current
+        corrected.day = 5
+        backup.reminder!.replace(with: corrected, at: Date())
+        do { try EventStorage(dbPath: path).saveSupply(backup) }
+        XCTAssertEqual(try EventStorage(dbPath: path).loadSupply(), backup)
+    }
     func testRoundTripRestoreAndResetPreserveIndependentRecords() throws {
         let storage = EventStorage.inMemory()
         var backup = SupplyBackup(reminder: SupplyReminderDocument(current:

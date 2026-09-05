@@ -10,6 +10,7 @@ final class DoseTapUITests: XCTestCase {
         continueAfterFailure = false
         app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
+        if name.contains("testSupply") { app.launchArguments += ["-setup_completed_v2", "YES"] }
         if name.contains("testWorkWarning") { app.launchArguments.append("--uitesting-work-warning") }
         if name.contains("testExpiredSessionLaunch") { app.launchArguments.append("--uitesting-expired-session") }
         app.launch()
@@ -91,6 +92,62 @@ final class DoseTapUITests: XCTestCase {
     }
 
     // MARK: - App Launch
+
+    func testSupplyReceiptReminderAndOptionalBottleSurviveRelaunch() throws {
+        addUIInterruptionMonitor(withDescription: "Notification permission") { alert in
+            if alert.buttons["Allow"].exists { alert.buttons["Allow"].tap(); return true }
+            return false
+        }
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        if springboard.buttons["Allow"].waitForExistence(timeout: 3) { springboard.buttons["Allow"].tap() }
+        let dose = app.buttons["dose-primary-action"]
+        XCTAssertTrue(dose.waitForExistence(timeout: 15))
+        let doseBefore = dose.label
+        let bottle = app.buttons["startedNewBottle"]
+        for _ in 0..<5 where !bottle.isHittable { app.swipeUp() }
+        XCTAssertTrue(bottle.isHittable)
+        bottle.tap()
+        app.buttons["Record bottle start"].tap()
+        XCTAssertTrue(dose.waitForExistence(timeout: 5))
+        XCTAssertEqual(dose.label, doseBefore)
+
+        func openSupply() {
+            app.buttons["Settings"].tap()
+            let link = app.buttons["Supply & order reminder"]
+            for _ in 0..<8 where !link.isHittable { app.swipeUp() }
+            XCTAssertTrue(link.isHittable)
+            link.tap()
+        }
+        openSupply()
+        let save = app.buttons["saveSupplyReminder"]
+        XCTAssertTrue(save.waitForExistence(timeout: 5))
+        save.tap()
+        if springboard.buttons["Allow"].waitForExistence(timeout: 2) { springboard.buttons["Allow"].tap() }
+        let status = app.staticTexts["supplyReminderStatus"]
+        let scheduled = NSPredicate(format: "label BEGINSWITH %@", "Scheduled:")
+        expectation(for: scheduled, evaluatedWith: status)
+        waitForExpectations(timeout: 10)
+        let proof = XCTAttachment(screenshot: app.screenshot())
+        proof.name = "Received date plus 21 days with verified reminder"
+        proof.lifetime = .keepAlways
+        add(proof)
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 15))
+        openSupply()
+        expectation(for: scheduled, evaluatedWith: app.staticTexts["supplyReminderStatus"])
+        waitForExpectations(timeout: 10)
+        let handled = app.buttons["Mark handled"]
+        for _ in 0..<4 where !handled.isHittable { app.swipeUp() }
+        handled.tap()
+        for _ in 0..<4 where !app.staticTexts["supplyReminderStatus"].isHittable { app.swipeDown() }
+        expectation(for: NSPredicate(format: "label BEGINSWITH %@", "Handled"), evaluatedWith: app.staticTexts["supplyReminderStatus"])
+        waitForExpectations(timeout: 5)
+        let handledProof = XCTAttachment(screenshot: app.screenshot())
+        handledProof.name = "Reminder handled without changing dose history"
+        handledProof.lifetime = .keepAlways
+        add(handledProof)
+    }
 
     func testExpiredSessionLaunchDoesNotReenterRepository() throws {
         XCTAssertTrue(app.buttons["dose-primary-action"].waitForExistence(timeout: 15))

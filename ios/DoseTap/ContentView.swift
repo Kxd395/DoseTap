@@ -56,6 +56,16 @@ struct ContentView: View {
                 }
             }
         }
+        .sheet(isPresented: $urlRouter.showingSupplyReminder) {
+            NavigationStack {
+                SupplySettingsView()
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { urlRouter.showingSupplyReminder = false }
+                        }
+                    }
+            }
+        }
         .alert("Unable to Share Screen", isPresented: Binding(
             get: { pageShareErrorMessage != nil },
             set: { if !$0 { pageShareErrorMessage = nil } }

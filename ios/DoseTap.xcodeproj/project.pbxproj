@@ -147,6 +147,7 @@
 		UI_B02 /* DoseTapUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI_F02 /* DoseTapUITestsLaunchTests.swift */; };
 		UNDO003 /* UndoSnackbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNDO004 /* UndoSnackbarView.swift */; };
 		UNDO005 /* MedicationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNDO006 /* MedicationSettingsView.swift */; };
+		SUPUIB01 /* SupplySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SUPUIF01 /* SupplySettingsView.swift */; };
 		UNDO007 /* MedicationPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNDO008 /* MedicationPickerView.swift */; };
 		WHM001 /* WHOOPModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = WHM002 /* WHOOPModels.swift */; };
 		WP001 /* WeeklyPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP002 /* WeeklyPlanner.swift */; };
@@ -336,6 +337,7 @@
 		UI_PROD01 /* DoseTapUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DoseTapUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		UNDO004 /* UndoSnackbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoSnackbarView.swift; sourceTree = "<group>"; };
 		UNDO006 /* MedicationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationSettingsView.swift; sourceTree = "<group>"; };
+		SUPUIF01 /* SupplySettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplySettingsView.swift; sourceTree = "<group>"; };
 		UNDO008 /* MedicationPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationPickerView.swift; sourceTree = "<group>"; };
 		WHM002 /* WHOOPModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WHOOPModels.swift; sourceTree = "<group>"; };
 		WP002 /* WeeklyPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyPlanner.swift; sourceTree = "<group>"; };
@@ -631,6 +633,7 @@
 				PSL008 /* PreSleepLogActivityNapsCard.swift */,
 				UNDO004 /* UndoSnackbarView.swift */,
 				UNDO006 /* MedicationSettingsView.swift */,
+				SUPUIF01 /* SupplySettingsView.swift */,
 				UNDO008 /* MedicationPickerView.swift */,
 				2EF211068DBC684F390BC8F9 /* DiagnosticExportView.swift */,
 				8FABFEE0765C943A32E6ACC2 /* NightReviewView.swift */,
@@ -895,6 +898,7 @@
 				HKP001 /* HealthKitProviding.swift in Sources */,
 				UNDO003 /* UndoSnackbarView.swift in Sources */,
 				UNDO005 /* MedicationSettingsView.swift in Sources */,
+				SUPUIB01 /* SupplySettingsView.swift in Sources */,
 				UNDO007 /* MedicationPickerView.swift in Sources */,
 				EDIT002 /* EditDoseTimeView.swift in Sources */,
 				0A777B0D5CC54803B060A980 /* UserSettingsManager.swift in Sources */,
