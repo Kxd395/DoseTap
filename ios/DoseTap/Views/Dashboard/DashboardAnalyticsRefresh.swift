@@ -11,6 +11,9 @@ struct DashboardDerivedDoseMetrics {
 
 extension DashboardAnalyticsModel {
     func refresh(days: Int = 730) {
+        #if DEBUG && targetEnvironment(simulator)
+        if loadDashboardUITestFixtureIfRequested() { return }
+        #endif
         refreshTask?.cancel()
         refreshTask = Task { [weak self] in
             await self?.performRefresh(days: days)

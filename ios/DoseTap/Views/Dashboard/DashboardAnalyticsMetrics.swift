@@ -103,13 +103,6 @@ extension DashboardAnalyticsModel {
         return values.reduce(0, +) / Double(values.count)
     }
 
-    var averageBathroomWakeMinutes: Double? {
-        let nightsWithBathroom = populatedNights.filter { $0.bathroomEventCount > 0 }
-        guard !nightsWithBathroom.isEmpty else { return nil }
-        let estimatedMinutes = nightsWithBathroom.reduce(0) { $0 + ($1.bathroomEventCount * 5) }
-        return Double(estimatedMinutes) / Double(nightsWithBathroom.count)
-    }
-
     // MARK: - WHOOP Aggregate Metrics
 
     var whoopNights: [DashboardNightAggregate] {

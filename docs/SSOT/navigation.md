@@ -54,3 +54,5 @@ Nightly wake overrides persist in the existing local UserDefaults store under `s
 - Work tracking: `docs/PLANNING.md`
 - Production readiness: `docs/PRODUCTION_READINESS_CHECKLIST.md`
 - Archived point-in-time plans/results: `docs/archive/`
+
+Dashboard sections: Overview (recorded timing, sleep and WHOOP), Trends (explicit sleep source, comparisons, lifestyle/mood/stress), Data (coverage, integrations, recent 14 nights). Range selection applies across sections; switching sections preserves it. Pull-to-refresh awaits data loading. Empty ranges and provider errors appear above the cards.

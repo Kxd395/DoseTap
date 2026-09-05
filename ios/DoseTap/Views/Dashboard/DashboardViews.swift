@@ -13,6 +13,7 @@ struct DashboardTabView: View {
     @StateObject private var model = DashboardAnalyticsModel()
     @StateObject private var cloudSync = DeferredCloudKitSyncService.shared
     @State private var resolvingDuplicateGroup: StoredEventDuplicateGroup?
+    @State private var section = "Overview"
     @State private var cloudSyncError: String?
 
     private var isWideLayout: Bool {
@@ -48,58 +49,58 @@ struct DashboardTabView: View {
                     .padding(.horizontal)
                     .padding(.vertical, 8)
 
-                    Text(model.selectedRange.label + " • \(model.populatedNights.count) nights")
+                    Text(model.selectedRange.label + " • \(model.populatedNights.count) nights with data")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .padding(.bottom, 4)
                 }
 
+                Picker("Dashboard section", selection: $section) {
+                    Text("Overview").tag("Overview")
+                    Text("Trends").tag("Trends")
+                    Text("Data").tag("Data")
+                }.pickerStyle(.segmented).padding(.horizontal)
+
+                if let error = model.errorMessage {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                        .font(.callout).foregroundColor(.orange).padding()
+                }
+                if !model.isLoading && model.populatedNights.isEmpty {
+                    VStack(spacing: 8) {
+                        Text("No data in this range").font(.headline)
+                        Text("Choose a wider range or record a night from Tonight. Connected sleep sources appear after Refresh.")
+                            .font(.callout).foregroundColor(.secondary)
+                    }.multilineTextAlignment(.center).padding()
+                }
+
                 LazyVGrid(columns: columns, spacing: 12) {
-                    DashboardExecutiveSummaryCard(model: model, core: core)
-                        .gridCellColumns(columns.count)
-
-                    // Period comparison (if prior data exists)
-                    if !model.periodComparison.isEmpty {
-                        DashboardPeriodComparisonCard(model: model)
-                            .gridCellColumns(columns.count)
-                    }
-
-                    DashboardDosingSnapshotCard(model: model)
-                    DashboardSleepSnapshotCard(model: model)
-
-                    // WHOOP Recovery & Biometrics (only when data exists)
-                    if !model.whoopNights.isEmpty {
-                        DashboardWHOOPCard(model: model)
-                            .gridCellColumns(columns.count)
-                    }
-
-                    // Dose Effectiveness Analysis (when enough data)
-                    if model.doseEffectivenessReport.totalNights >= 3 {
-                        DashboardDoseEffectivenessCard(report: model.doseEffectivenessReport)
-                            .gridCellColumns(columns.count)
-                    }
-
-                    DashboardLifestyleFactorsCard(model: model)
-                    DashboardMoodSymptomsCard(model: model)
-                    DashboardStressTrendsCard(model: model)
-                        .gridCellColumns(columns.count)
-
-                    DashboardDataQualityCard(model: model)
-                    DashboardIntegrationsCard(states: model.integrationStates)
-
-                    DashboardTrendChartsCard(model: model)
-                        .gridCellColumns(columns.count)
-
-                    DashboardRecentNightsCard(
-                        nights: model.trendNights,
-                        onResolveDuplicateGroup: { group in
-                            resolvingDuplicateGroup = group
+                    if section == "Overview" {
+                        DashboardExecutiveSummaryCard(model: model, core: core)
+                        DashboardDosingSnapshotCard(model: model)
+                        DashboardSleepSnapshotCard(model: model)
+                        if !model.whoopNights.isEmpty { DashboardWHOOPCard(model: model) }
+                    } else if section == "Trends" {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Picker("Sleep source for comparisons", selection: $model.sleepSource) {
+                                ForEach(DashboardSleepSource.allCases) { Text($0.rawValue).tag($0) }
+                            }.pickerStyle(.segmented)
+                            Text("\(model.sleepSampleCount) nights from \(model.sleepSource.rawValue). Missing readings are excluded; sources are never substituted.")
+                                .font(.caption).foregroundColor(.secondary)
+                        }.gridCellColumns(columns.count)
+                        if !model.periodComparison.isEmpty { DashboardPeriodComparisonCard(model: model) }
+                        DashboardTrendChartsCard(model: model).gridCellColumns(columns.count)
+                        if model.doseEffectivenessReport.totalNights >= 3 {
+                            DashboardDoseEffectivenessCard(report: model.doseEffectivenessReport)
                         }
-                    )
-                        .gridCellColumns(columns.count)
-
-                    DashboardCapturedMetricsCard(categories: model.metricsCatalog)
-                        .gridCellColumns(columns.count)
+                        DashboardLifestyleFactorsCard(model: model)
+                        DashboardMoodSymptomsCard(model: model)
+                        DashboardStressTrendsCard(model: model).gridCellColumns(columns.count)
+                    } else {
+                        DashboardDataQualityCard(model: model)
+                        DashboardIntegrationsCard(states: model.integrationStates)
+                        DashboardRecentNightsCard(nights: model.trendNights, onResolveDuplicateGroup: { resolvingDuplicateGroup = $0 })
+                            .gridCellColumns(columns.count)
+                    }
                 }
                 .padding()
                 .padding(.bottom, 90)

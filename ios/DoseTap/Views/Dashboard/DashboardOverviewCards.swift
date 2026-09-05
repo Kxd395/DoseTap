@@ -5,113 +5,31 @@ struct DashboardExecutiveSummaryCard: View {
     @ObservedObject var model: DashboardAnalyticsModel
     @ObservedObject var core: DoseTapCore
 
-    private var nextActionText: String {
-        switch core.currentStatus {
-        case .noDose1:
-            return "Tonight: Take Dose 1 to start session tracking."
-        case .beforeWindow:
-            return "Tonight: Dose 2 window has not opened yet."
-        case .active, .nearClose:
-            return "Tonight: Dose 2 is active. Keep interval in the 150-240m range."
-        case .closed:
-            return "Tonight: Dose 2 window closed. Review trend for drift."
-        case .completed, .finalizing:
-            return "Tonight: Session complete. Use review findings to adjust next night."
-        }
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Operations Snapshot")
-                .font(.headline)
-
-            HStack(spacing: 10) {
-                dashboardKPI(
-                    title: "On-Time (recorded)",
-                    value: model.onTimePercentage.map { String(format: "%.0f%%", $0) } ?? "—",
-                    color: kpiColor(for: model.onTimePercentage, good: 70, okay: 40)
-                )
-                dashboardKPI(
-                    title: "Completion",
-                    value: model.completionRate.map { String(format: "%.0f%%", $0) } ?? "—",
-                    color: kpiColor(for: model.completionRate, good: 80, okay: 50)
-                )
-                dashboardKPI(
-                    title: "Streak",
-                    value: "\(model.consecutiveOnTimeStreak)",
-                    color: model.consecutiveOnTimeStreak >= 5 ? .green
-                        : model.consecutiveOnTimeStreak > 0 ? .orange : .secondary
-                )
-                dashboardKPI(
-                    title: "Confidence",
-                    value: "\(model.highConfidenceNightCount)",
-                    color: model.highConfidenceNightCount >= 5 ? .green
-                        : model.highConfidenceNightCount > 0 ? .blue : .secondary
-                )
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Recorded Nights").font(.headline)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), alignment: .leading)], alignment: .leading, spacing: 12) {
+                kpi("In-window pairs", model.onTimePercentage.map { String(format: "%.0f%%", $0) } ?? "—")
+                kpi("Outcomes recorded", model.completionRate.map { String(format: "%.0f%%", $0) } ?? "—")
+                kpi("Recorded pairs", "\(model.recordedPairCount)")
+                kpi("Pending Dose 2", "\(model.pendingDose2OutcomeCount)")
             }
-
-            if let recovery = model.averageWhoopRecovery {
-                HStack(spacing: 10) {
-                    dashboardKPI(
-                        title: "Recovery",
-                        value: String(format: "%.0f%%", recovery),
-                        color: recovery >= 67 ? .green : recovery >= 34 ? .orange : .red
-                    )
-                    if let hrv = model.averageWhoopHRV {
-                        dashboardKPI(
-                            title: "HRV",
-                            value: String(format: "%.0f ms", hrv),
-                            color: .blue
-                        )
-                    }
-                    Spacer()
-                }
-            }
-
-            Text(nextActionText)
-                .font(.caption)
-                .foregroundColor(.secondary)
-
-            if model.eligibleDose2OutcomeCount > 0 {
-                Text("\(model.recordedDose2OutcomeCount)/\(model.eligibleDose2OutcomeCount) Dose 2 outcomes recorded. Missing outcomes are excluded from the on-time rate.")
-                    .font(.caption2)
-                    .foregroundColor(model.missingDose2OutcomeCount > 0 ? .orange : .secondary)
-            }
-
+            Text("In-window rate uses \(model.recordedPairCount) valid recorded pairs. Outcomes: \(model.recordedDose2OutcomeCount)/\(model.eligibleDose2OutcomeCount), including explicit skips; pending nights are excluded.")
+                .font(.caption).foregroundColor(.secondary)
             if let lastRefresh = model.lastRefresh {
                 Text("Updated \(lastRefresh.formatted(date: .omitted, time: .shortened))")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .font(.caption2).foregroundColor(.secondary)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemGray6))
-        )
+        .padding().background(RoundedRectangle(cornerRadius: 16).fill(Color(.systemGray6)))
     }
 
-    private func dashboardKPI(title: String, value: String, color: Color) -> some View {
+    private func kpi(_ title: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(title)
-                .font(.caption2)
-                .foregroundColor(.secondary)
-            Text(value)
-                .font(.subheadline.bold())
-                .foregroundColor(color)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 4)
-    }
-
-    private func kpiColor(for value: Double?, good: Double, okay: Double) -> Color {
-        guard let value else { return .secondary }
-        if value >= good { return .green }
-        if value >= okay { return .orange }
-        return .red
+            Text(title).font(.caption).foregroundColor(.secondary)
+            Text(value).font(.title2.bold())
+        }.accessibilityElement(children: .combine)
     }
 }
 
@@ -120,13 +38,18 @@ struct DashboardDosingSnapshotCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Dosing Performance")
+            Text("Recorded Dose Timing")
                 .font(.headline)
             metricRow(title: "Avg Interval", value: formatInterval(minutes: model.averageIntervalMinutes))
             metricRow(title: "Avg Snoozes", value: model.averageSnoozeCount.map { String(format: "%.1f", $0) } ?? "No data")
             metricRow(title: "Missing Dose 2 Outcomes", value: "\(model.missingDose2OutcomeCount)")
-            metricRow(title: "Duplicate Nights", value: "\(model.duplicateNightCount)")
-            metricRow(title: "Quality Issues", value: "\(model.qualityIssueCount)")
+            metricRow(title: "Early pairs", value: "\(model.timingCount(.early))")
+            metricRow(title: "In-window pairs", value: "\(model.timingCount(.inWindow))")
+            metricRow(title: "Late pairs", value: "\(model.timingCount(.late))")
+            metricRow(title: "Explicitly skipped", value: "\(model.skippedDose2Count)")
+            metricRow(title: "Extra doses logged", value: "\(model.extraDoseCount)")
+            Text("Timing describes recorded timestamps using the app's existing window. It does not assess treatment effectiveness.")
+                .font(.caption).foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
@@ -164,40 +87,17 @@ struct DashboardSleepSnapshotCard: View {
             if model.averageWhoopSleepMinutes != nil {
                 metricRow(title: "Avg WHOOP Sleep", value: formatMinutes(model.averageWhoopSleepMinutes))
             }
-            metricRow(title: "Avg TTFW", value: formatMinutes(model.averageTTFW))
-            metricRow(title: "Avg Wake Count", value: model.averageWakeCount.map { String(format: "%.1f", $0) } ?? "No data")
-            metricRow(title: "Avg Bathroom Wake", value: formatMinutes(model.averageBathroomWakeMinutes))
+            metricRow(title: "Time to first wake · Health", value: formatMinutes(model.averageTTFW))
+            metricRow(title: "Avg wakes · Health", value: model.averageWakeCount.map { String(format: "%.1f", $0) } ?? "No data")
+            metricRow(title: "Bathroom logs", value: "\(model.bathroomLogCount)")
             metricRow(title: "Avg Sleep Quality", value: model.averageSleepQuality.map { String(format: "%.1f / 5", $0) } ?? "No data")
             metricRow(title: "Avg Readiness", value: model.averageReadiness.map { String(format: "%.1f / 5", $0) } ?? "No data")
             if model.napNightCount > 0 {
                 metricRow(title: "Nap Nights", value: "\(model.napNightCount)")
-                metricRow(title: "Avg Nap Duration", value: formatMinutes(model.averageNapMinutes))
+                metricRow(title: "Avg nap time per nap night", value: formatMinutes(model.averageNapMinutes))
             }
 
-            if model.averageWhoopRecovery != nil || model.averageWhoopHRV != nil {
-                Divider()
-                HStack(spacing: 4) {
-                    Image(systemName: "w.circle.fill")
-                        .font(.caption)
-                    Text("WHOOP Metrics")
-                        .font(.caption.bold())
-                }
-                .foregroundColor(.secondary)
-                .padding(.top, 2)
 
-                if let recovery = model.averageWhoopRecovery {
-                    metricRow(title: "Avg Recovery", value: String(format: "%.0f%%", recovery), color: recoveryColor(recovery))
-                }
-                if let hrv = model.averageWhoopHRV {
-                    metricRow(title: "Avg HRV", value: String(format: "%.0f ms", hrv))
-                }
-                if let efficiency = model.averageWhoopSleepEfficiency {
-                    metricRow(title: "Avg Sleep Efficiency", value: String(format: "%.0f%%", efficiency))
-                }
-                if let rr = model.averageWhoopRespiratoryRate {
-                    metricRow(title: "Avg Respiratory Rate", value: String(format: "%.1f brpm", rr))
-                }
-            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
@@ -314,7 +214,13 @@ struct DashboardWHOOPCard: View {
 
                 sleepStageBar
 
-                HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 8) {
+                    if let light = model.averageWhoopLightMinutes {
+                        stageLegend(label: "Light", value: formatMin(light), color: .blue)
+                    }
+                    if let awake = model.averageWhoopAwakeMinutes {
+                        stageLegend(label: "Awake (outside sleep total)", value: formatMin(awake), color: .gray)
+                    }
                     if let deep = model.averageWhoopDeepMinutes {
                         stageLegend(label: "Deep", value: formatMin(deep), color: .indigo)
                     }
@@ -374,16 +280,18 @@ struct DashboardWHOOPCard: View {
     private var sleepStageBar: some View {
         let deep = model.averageWhoopDeepMinutes ?? 0
         let rem = model.averageWhoopREMMinutes ?? 0
-        let total = deep + rem
+        let light = model.averageWhoopLightMinutes ?? 0
+        let total = deep + rem + light
         if total > 0 {
             GeometryReader { geo in
-                HStack(spacing: 2) {
+                HStack(spacing: 0) {
+                    Color.blue.frame(width: geo.size.width * CGFloat(light / total))
                     RoundedRectangle(cornerRadius: 3)
                         .fill(Color.indigo)
-                        .frame(width: max(geo.size.width * CGFloat(deep / total) - 1, 4))
+                        .frame(width: geo.size.width * CGFloat(deep / total))
                     RoundedRectangle(cornerRadius: 3)
                         .fill(Color.cyan)
-                        .frame(width: max(geo.size.width * CGFloat(rem / total) - 1, 4))
+                        .frame(width: geo.size.width * CGFloat(rem / total))
                 }
             }
             .frame(height: 10)
@@ -408,9 +316,9 @@ struct DashboardWHOOPCard: View {
     }
 
     private func recoveryLabel(_ score: Double) -> String {
-        if score >= 67 { return "Green — Ready" }
-        if score >= 34 { return "Yellow — Strained" }
-        return "Red — Rest"
+        if score >= 67 { return "WHOOP green range" }
+        if score >= 34 { return "WHOOP yellow range" }
+        return "WHOOP red range"
     }
 
     private func formatMin(_ minutes: Double) -> String {
@@ -426,21 +334,25 @@ struct DashboardDataQualityCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Data Quality")
+            Text("Data Coverage")
                 .font(.headline)
+            Text("Rates use all \(model.populatedNights.count) nights with data in this range. Coverage describes available records, not accuracy or statistical confidence.")
+                .font(.caption).foregroundColor(.secondary)
+            Text("Apple Health: \(model.populatedNights.filter { $0.healthSummary != nil }.count) nights • WHOOP: \(model.whoopNights.count) nights")
+                .font(.caption).foregroundColor(.secondary)
             Text("Morning check-in rate: \(model.morningCheckInRate.map { String(format: "%.0f%%", $0) } ?? "No data")")
                 .font(.subheadline)
-                .foregroundColor(rateColor(model.morningCheckInRate))
+                .foregroundColor(.secondary)
             Text("Pre-sleep log rate: \(model.preSleepLogRate.map { String(format: "%.0f%%", $0) } ?? "No data")")
                 .font(.subheadline)
-                .foregroundColor(rateColor(model.preSleepLogRate))
+                .foregroundColor(.secondary)
             Text("Nights missing Apple Health summary: \(model.missingHealthSummaryCount)")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
             Text("Nights with duplicate event clusters: \(model.duplicateNightCount)")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
-            Text("High confidence nights (>=0.75 completeness): \(model.highConfidenceNightCount)")
+            Text("Nights with at least 3 of 4 data categories: \(model.highConfidenceNightCount)")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
             if let error = model.errorMessage, !error.isEmpty {

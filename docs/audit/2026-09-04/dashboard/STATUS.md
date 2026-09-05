@@ -27,3 +27,8 @@
 - DA-04: caffeine/alcohol/exercise/screens/meal rates now use answered completed logs; unknown and skipped logs do not enter negative cohorts. Stressors deduplicate bedtime/morning per night. Updated old regression expectation that encoded the duplicate count.
 - DA-06: aggregate sleep and period comparisons use explicit Apple Health/WHOOP choice without fallback. Provider-specific report enrichment follows that choice.
 - Ten simulator tests passed (nine audit tests plus existing stress suite), including explicit No versus unknown/skipped and provider non-fallback. Swift build/tests, SSOT and Plane checks passed. Next: expose source control and restructure UI; remove misleading duration and confidence labels; chart zero/missing fixtures.
+
+## Dashboard layout checkpoint
+- Overview/Trends/Data navigation, source selector, meaningful outcome counts, bathroom log counts, full WHOOP light/deep/REM composition, coverage language and visible empty/provider errors implemented.
+- UI test passed in iPhone 17/iOS 26.5 simulator; four XCTest screenshots exported to `/tmp/dosetap-dashboard-ui-images` and inspected. Overview is readable; Data confirms old recent-row width overflow, and Trends confirms old chart fallback still differs from selected source. Both are next corrections, not accepted as final.
+- Display-only simulator fixtures do not write data or connect providers. UI test/build plus Swift build/tests, SSOT/navigation, app version and Plane checks passed. New fixture initially lacked app target membership; moved into existing DashboardModels compilation unit and reran successfully, preserving owner project edits.

@@ -11,6 +11,7 @@ final class DoseTapUITests: XCTestCase {
         app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
         if name.contains("testSupply") || name.contains("testSystemAlarm") { app.launchArguments += ["-setup_completed_v2", "YES"] }
+        if name.contains("testDashboard") { app.launchArguments += ["--uitesting-dashboard", "-setup_completed_v2", "YES"] }
         if name.contains("testWorkWarning") { app.launchArguments.append("--uitesting-work-warning") }
         if name.contains("testExpiredSessionLaunch") { app.launchArguments.append("--uitesting-expired-session") }
         app.launch()
@@ -18,6 +19,32 @@ final class DoseTapUITests: XCTestCase {
 
     override func tearDownWithError() throws {
         app = nil
+    }
+
+    func testDashboardOverviewTrendsAndData() throws {
+        app.buttons["Dashboard"].tap()
+        XCTAssertTrue(app.staticTexts["Recorded Nights"].waitForExistence(timeout: 10))
+        captureDashboard("Dashboard overview")
+        app.buttons["Trends"].tap()
+        XCTAssertTrue(app.staticTexts["Interactive Trends"].waitForExistence(timeout: 5))
+        app.buttons["WHOOP"].tap()
+        captureDashboard("Dashboard trends WHOOP")
+        app.buttons["Data"].tap()
+        XCTAssertTrue(app.staticTexts["Data Coverage"].waitForExistence(timeout: 5))
+        captureDashboard("Dashboard data coverage")
+        app.terminate()
+        app.launchArguments += ["--dashboard-empty", "--dashboard-partial"]
+        app.launch()
+        app.buttons["Dashboard"].tap()
+        XCTAssertTrue(app.staticTexts["No data in this range"].waitForExistence(timeout: 10))
+        captureDashboard("Dashboard empty and provider error")
+    }
+
+    private func captureDashboard(_ name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     func testWorkWarningNonworkingExceptionDoesNotRecordDose() throws {
