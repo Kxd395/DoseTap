@@ -77,7 +77,20 @@ final class DashboardAnalyticsAuditTests: XCTestCase {
     func testWHOOPNightSummariesExcludeNapsAndUndatedRecords() throws {
         let json = #"[{"id":"nap","nap":true,"start":"2026-09-01T20:00:00Z","score":{"stage_summary":{"total_light_sleep_time_milli":600000}}},{"id":"undated","score":{"stage_summary":{"total_light_sleep_time_milli":600000}}},{"id":"night","nap":false,"start":"2026-09-01T23:00:00Z","score":{"stage_summary":{"total_light_sleep_time_milli":600000}}}]"#
         let sleeps = try WHOOPService.makeAPIDecoder().decode([WHOOPSleep].self, from: Data(json.utf8))
-        XCTAssertEqual(WHOOPService.makeNightSummaries(sleeps: sleeps, recoveries: []).map(\.sleepId), ["night"])
+        let summaries = WHOOPService.makeNightSummaries(sleeps: sleeps, recoveries: [])
+        XCTAssertEqual(summaries.map(\.sleepId), ["night"])
+        let partial = try XCTUnwrap(summaries.first)
+        XCTAssertFalse(partial.hasCompleteSleepStages)
+        XCTAssertFalse(partial.hasAwakeData)
+        XCTAssertFalse(partial.hasDisturbanceData)
+        let model = DashboardAnalyticsModel()
+        model.selectedRange = .all
+        model.nights = [night("2026-09-01", whoop: partial)]
+        XCTAssertNil(model.averageWhoopSleepMinutes)
+        XCTAssertNil(model.averageWhoopDeepMinutes)
+        XCTAssertNil(model.averageWhoopLightMinutes)
+        XCTAssertNil(model.averageWhoopAwakeMinutes)
+        XCTAssertNil(model.averageWhoopDisturbances)
     }
 
     func testUnansweredLifestyleFieldsAndSkippedLogsAreNotNegativeAnswers() {
@@ -148,12 +161,12 @@ final class DashboardAnalyticsAuditTests: XCTestCase {
         XCTAssertEqual(model.doseEffectivenessReport.nonCompliant.count, 0)
     }
 
-    private func night(_ key: String, dose1: Date? = nil, interval: Double? = 180, skipped: Bool = false, answers: DoseTap.PreSleepLogAnswers? = nil, completion: String = "complete", health: HealthKitService.SleepNightSummary? = nil, quality: Double? = nil) -> DashboardNightAggregate {
+    private func night(_ key: String, dose1: Date? = nil, interval: Double? = 180, skipped: Bool = false, answers: DoseTap.PreSleepLogAnswers? = nil, completion: String = "complete", health: HealthKitService.SleepNightSummary? = nil, quality: Double? = nil, whoop: WHOOPNightSummary? = nil) -> DashboardNightAggregate {
         let first = dose1 ?? date("2026-09-01")
         return DashboardNightAggregate(sessionDate: key, dose1Time: first,
             dose2Time: interval.map { first.addingTimeInterval($0 * 60) }, dose2Skipped: skipped,
             snoozeCount: 0, extraDoseCount: 0, events: [], morningCheckIn: quality.map { .init(id: key, sessionId: key, timestamp: first, sessionDate: key, sleepQuality: $0) }, preSleepLog: answers.map { .init(id: key, sessionId: key, createdAtUtc: "", localOffsetMinutes: 0, completionState: completion, answers: $0) },
-            healthSummary: health, whoopSummary: nil, duplicateClusterCount: 0,
+            healthSummary: health, whoopSummary: whoop, duplicateClusterCount: 0,
             napSummary: .init(count: 0, totalMinutes: 0))
     }
 }

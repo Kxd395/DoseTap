@@ -85,8 +85,11 @@ extension WHOOPService {
 
         do {
             let recoveries = try await fetchRecoveryData(from: startDate, to: endDate)
+            lastError = nil
             return Self.makeNightSummaries(sleeps: sleeps, recoveries: recoveries)
         } catch {
+            if Task.isCancelled { throw error }
+            lastError = "WHOOP sleep loaded, but recovery metrics could not refresh. Try Refresh again."
             // Recovery enrichment is additive. Keep the scored sleep payloads even if recovery fails.
             return Self.makeNightSummaries(sleeps: sleeps, recoveries: [])
         }
@@ -578,7 +581,12 @@ extension WHOOPSleep {
             sleepNeedBaselineMinutes: score?.sleepNeeded?.baselineMilli.map { $0 / 60000 },
             sleepNeedDebtMinutes: score?.sleepNeeded?.needFromSleepDebtMilli.map { $0 / 60000 },
             sleepNeedStrainMinutes: score?.sleepNeeded?.needFromRecentStrainMilli.map { $0 / 60000 },
-            sleepNeedNapMinutes: score?.sleepNeeded?.needFromRecentNapMilli.map { $0 / 60000 }
+            sleepNeedNapMinutes: score?.sleepNeeded?.needFromRecentNapMilli.map { $0 / 60000 },
+            hasCompleteSleepStages: score?.stageSummary?.totalLightSleepTimeMilli != nil
+                && score?.stageSummary?.totalSlowWaveSleepTimeMilli != nil
+                && score?.stageSummary?.totalRemSleepTimeMilli != nil,
+            hasAwakeData: score?.stageSummary?.totalAwakeTimeMilli != nil,
+            hasDisturbanceData: score?.stageSummary?.disturbanceCount != nil
         )
     }
 }
@@ -603,6 +611,10 @@ struct WHOOPNightSummary: Identifiable {
     let sleepNeedStrainMinutes: Int?
     let sleepNeedNapMinutes: Int?
     
+    var hasCompleteSleepStages: Bool = true
+    var hasAwakeData: Bool = true
+    var hasDisturbanceData: Bool = true
+
     // Recovery data (merged from WHOOPRecovery — set after initial creation)
     var recoveryScore: Double?
     var hrvMs: Double?

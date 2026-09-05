@@ -5,11 +5,11 @@
 - Preserved dirty file: `ios/DoseTap.xcodeproj/xcshareddata/xcschemes/DoseTapUITests.xcscheme` (pre-existing owner/Xcode edit).
 - Read: repository AGENTS, README, SSOT, testing/workflow/constitution (current session), dashboard view/model/metrics/refresh/types/catalog and major cards, storage queries, prior Plane status.
 - Plane: DOSETAP-45 created, preflighted and started In Progress with verified readback; DOSETAP-36 remains Done.
-- Completed: baseline, initial source inventory and data-flow trace. Findings are code-reviewed until regression/runtime checks are recorded.
-- Remaining: verify date/sample/source/missingness defects; regression fixtures; corrections in small tested commits; UI navigation/empty/populated screenshots; integration limits; metric inventory and improvement plan; build identity and Plane closeout.
+- Completed: baseline, source inventory/data-flow audit, DA-01…10 local corrections, build 0.4.15 (17), regression and simulator UI checks; detailed evidence below.
+- Remaining: final documentation commit and Plane closeout; external gates are live-provider parity, signed-device/owner review, and comprehensive accessibility.
 - Blockers: physical Apple Health/WHOOP parity and owner accessibility acceptance cannot be established from simulator fixtures. No real medication database changes or phone installs are part of verification.
 - Concurrent edit: Xcode reordered project.pbxproj entries during investigation; preserve that unrelated change alongside the scheme edit.
-- Exact next step: preflight new Plane item, complete remaining dashboard/calculator input audit, write focused regressions for range boundaries, unknown-vs-zero and source attribution before correcting calculations.
+- Exact next step: finish final source check, commit audit evidence, then apply and independently verify DOSETAP-45 closeout with external gates open.
 
 ## Calculation checkpoint
 - DA-01 civil range and DA-05 pair/pending denominators corrected. Exact seconds retained; negative intervals excluded, active outcome separated. Six simulator unit tests passed (DashboardAnalyticsAuditTests + DashboardDoseIntegrityMetricTests), including both DST transitions and morning night identity.
@@ -46,3 +46,7 @@
 - Removed inactive implicit provider fallback and streak/quality-flag calculators from dashboard aggregates. Compared rates now use percentage points, with a zero-baseline regression. Historical skip flags cannot override an actual recorded pair in timing-group comparisons.
 - Evidence: `/tmp/dosetap-dashboard-final-unit.log`; UI bundle `Test-DoseTapUITests-2026.09.05_00-25-14--0400.xcresult`; additional landscape bundle `Test-DoseTapUITests-2026.09.05_00-29-34--0400.xcresult`; images `/tmp/dosetap-dashboard-final-images` and `/tmp/dosetap-dashboard-screen-capture`.
 - Exact next step: finalize findings/metric inventory/decisions, preserve screenshot evidence in audit folder, commit documentation, apply and independently verify DOSETAP-45 closeout with provider/device/VoiceOver gates open. No phone installation or real database mutation performed.
+
+## Provider missingness closeout checkpoint
+- DA-10 corrected after final inventory review: incomplete WHOOP stages/awake/disturbances stay unavailable in dashboard totals/averages; recovery-enrichment failures retain scored sleep but expose a warning. The decoded partial fixture now verifies unavailable values rather than assumed zero.
+- Final targeted run again passed 24 tests, zero skipped/failed: `/tmp/dosetap-supply-build/Logs/Test/Test-DoseTap-2026.09.05_00-36-43--0400.xcresult`. Built simulator Info.plist read back 0.4.15 (17). Swift build/test, SSOT, app version and Plane checks passed again. Real recovery outage is not behaviorally tested.

@@ -95,7 +95,7 @@ struct DashboardNightAggregate: Identifiable {
     }
 
     var whoopSleepMinutes: Double? {
-        guard let minutes = whoopSummary?.totalSleepMinutes, minutes > 0 else { return nil }
+        guard whoopSummary?.hasCompleteSleepStages == true, let minutes = whoopSummary?.totalSleepMinutes, minutes > 0 else { return nil }
         return Double(minutes)
     }
 
@@ -105,8 +105,8 @@ struct DashboardNightAggregate: Identifiable {
     var whoopHRV: Double? { whoopSummary?.hrvMs }
     var whoopSleepEfficiency: Double? { whoopSummary?.sleepEfficiency }
     var whoopRespiratoryRate: Double? { whoopSummary?.respiratoryRate }
-    var whoopDisturbances: Int? { whoopSummary.map(\.disturbanceCount) }
-    var whoopDeepSleepMinutes: Int? { whoopSummary?.deepMinutes }
+    var whoopDisturbances: Int? { whoopSummary?.hasDisturbanceData == true ? whoopSummary?.disturbanceCount : nil }
+    var whoopDeepSleepMinutes: Int? { whoopSummary?.hasCompleteSleepStages == true ? whoopSummary?.deepMinutes : nil }
 
     var bathroomEventCount: Int {
         events.filter { normalizeStoredEventType($0.eventType) == "bathroom" }.count

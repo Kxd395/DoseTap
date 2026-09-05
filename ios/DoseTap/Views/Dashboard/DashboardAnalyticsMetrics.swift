@@ -146,19 +146,19 @@ extension DashboardAnalyticsModel {
     }
 
     var averageWhoopREMMinutes: Double? {
-        let values = whoopNights.compactMap { $0.whoopSummary?.remMinutes }.map(Double.init)
+        let values = whoopNights.filter { $0.whoopSummary?.hasCompleteSleepStages == true }.compactMap { $0.whoopSummary?.remMinutes }.map(Double.init)
         guard !values.isEmpty else { return nil }
         return values.reduce(0, +) / Double(values.count)
     }
 
     var averageWhoopLightMinutes: Double? {
-        let values = whoopNights.compactMap { $0.whoopSummary?.lightMinutes }.map(Double.init)
+        let values = whoopNights.filter { $0.whoopSummary?.hasCompleteSleepStages == true }.compactMap { $0.whoopSummary?.lightMinutes }.map(Double.init)
         guard !values.isEmpty else { return nil }
         return values.reduce(0, +) / Double(values.count)
     }
 
     var averageWhoopAwakeMinutes: Double? {
-        let values = whoopNights.compactMap { $0.whoopSummary?.awakeMinutes }.map(Double.init)
+        let values = whoopNights.filter { $0.whoopSummary?.hasAwakeData == true }.compactMap { $0.whoopSummary?.awakeMinutes }.map(Double.init)
         guard !values.isEmpty else { return nil }
         return values.reduce(0, +) / Double(values.count)
     }

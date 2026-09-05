@@ -52,6 +52,7 @@ extension DashboardAnalyticsModel {
                 let startDate = Calendar.current.date(byAdding: .day, value: -fetchDays, to: endDate) ?? endDate
                 let summaries = try await whoop.fetchNightSummaries(from: startDate, to: endDate)
                 guard !Task.isCancelled else { return }
+                if let warning = whoop.lastError { errorMessage = warning }
                 for summary in summaries {
                     let key = sessionRepo.sessionDateString(for: summary.date)
                     if summary.totalSleepMinutes > (whoopByKey[key]?.totalSleepMinutes ?? -1) {

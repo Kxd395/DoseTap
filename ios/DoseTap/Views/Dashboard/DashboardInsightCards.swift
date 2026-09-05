@@ -469,7 +469,7 @@ struct DashboardDoseEffectivenessCard: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("\(report.totalNights) nights analyzed")
                         .font(.subheadline)
-                    Text("\(report.pairableNights) with sleep data")
+                    Text("\(report.pairableNights) with provider measurements")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }

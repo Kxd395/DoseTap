@@ -541,3 +541,5 @@ Work schedule configuration and dated overrides are stored together in SQLite `w
 - Dashboard separates Overview, Trends, and Data. Empty, loading and partial-provider states remain visible. Existing Typical Week, nightly overrides, medication supply and alarm behavior are unchanged.
 
 Tonight’s weekly summary covers the seven finished civil nights before the current night. “Dose 2 recorded” is the fraction of Dose-1 nights with a recorded second dose; explicit skips and unrecorded outcomes are shown separately. Gaps are not a day streak, and orphan second doses cannot inflate the rate.
+
+Dashboard WHOOP sleep totals/stage proportions require all three sleep-stage fields; omitted stage, awake or disturbance fields are unavailable rather than zero. A recovery-enrichment failure preserves scored sleep data and surfaces a warning. This changes missingness presentation, not provider records.
