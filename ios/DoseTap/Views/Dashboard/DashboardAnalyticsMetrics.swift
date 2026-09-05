@@ -5,22 +5,24 @@ extension DashboardAnalyticsModel {
     // MARK: - Range-filtered views
 
     var populatedNights: [DashboardNightAggregate] {
-        let cutoff = selectedRange.cutoffDate()
-        return nights.filter { night in
-            guard night.hasAnyData else { return false }
-            guard let d = Self.keyFormatter.date(from: night.sessionDate) else { return true }
-            return d >= cutoff
-        }
+        filteredNights(prior: false)
     }
 
     var priorPeriodNights: [DashboardNightAggregate] {
-        guard selectedRange != .all else { return [] }
-        let pp = selectedRange.priorPeriodCutoff()
+        selectedRange == .all ? [] : filteredNights(prior: true)
+    }
+
+    private func filteredNights(prior: Bool) -> [DashboardNightAggregate] {
+        let key = SessionIdentity(date: now(), timeZone: .current, rolloverHour: 18).key
+        guard let anchor = Self.keyFormatter.date(from: key) else { return [] }
+        let cutoff = selectedRange.cutoffDate(from: anchor)
+        let lower = prior ? selectedRange.priorPeriodCutoff(from: anchor).start : cutoff
         return nights.filter { night in
-            guard night.hasAnyData else { return false }
-            guard let d = Self.keyFormatter.date(from: night.sessionDate) else { return false }
-            return d >= pp.start && d < pp.end
-        }
+            guard night.hasAnyData,
+                  let date = Self.keyFormatter.date(from: night.sessionDate),
+                  Self.keyFormatter.string(from: date) == night.sessionDate else { return false }
+            return date >= lower && (prior ? date < cutoff : date <= anchor)
+        }.sorted { $0.sessionDate > $1.sessionDate }
     }
 
     var trendNights: [DashboardNightAggregate] {
@@ -39,7 +41,7 @@ extension DashboardAnalyticsModel {
     }
 
     var eligibleDose2OutcomeCount: Int {
-        dosingNights.filter { $0.dose1Time != nil }.count
+        dosingNights.filter { $0.dose1Time != nil && !$0.isPendingDose2(at: now()) }.count
     }
 
     var recordedDose2OutcomeCount: Int {
@@ -48,21 +50,21 @@ extension DashboardAnalyticsModel {
         }.count
     }
 
+    var pendingDose2OutcomeCount: Int { dosingNights.filter { $0.isPendingDose2(at: now()) }.count }
+
     var missingDose2OutcomeCount: Int {
         max(0, eligibleDose2OutcomeCount - recordedDose2OutcomeCount)
     }
 
     var averageIntervalMinutes: Double? {
-        let intervals = dosingNights.compactMap(\.intervalMinutes)
+        let intervals = dosingNights.compactMap(\.exactIntervalMinutes)
         guard !intervals.isEmpty else { return nil }
         return Double(intervals.reduce(0, +)) / Double(intervals.count)
     }
 
     var completionRate: Double? {
-        let eligible = dosingNights.filter { $0.dose1Time != nil }
-        guard !eligible.isEmpty else { return nil }
-        let completed = eligible.filter { $0.dose2Time != nil || $0.dose2Skipped }.count
-        return (Double(completed) / Double(eligible.count)) * 100
+        guard eligibleDose2OutcomeCount > 0 else { return nil }
+        return Double(recordedDose2OutcomeCount) / Double(eligibleDose2OutcomeCount) * 100
     }
 
     var averageSnoozeCount: Double? {
@@ -177,10 +179,10 @@ extension DashboardAnalyticsModel {
     // MARK: - Check-in & Pre-Sleep Completion
 
     var doseEffectivenessReport: DoseEffectivenessReport {
-        let dataPoints: [DoseEffectivenessDataPoint] = populatedNights.map { night in
+        let dataPoints: [DoseEffectivenessDataPoint] = dosingNights.filter { $0.exactIntervalMinutes != nil }.map { night in
             DoseEffectivenessDataPoint(
                 date: Self.keyFormatter.date(from: night.sessionDate) ?? Date(),
-                intervalMinutes: night.intervalMinutes.map(Double.init),
+                intervalMinutes: night.exactIntervalMinutes,
                 dose2Skipped: night.dose2Skipped,
                 totalSleepMinutes: night.totalSleepMinutes,
                 deepSleepMinutes: night.whoopDeepSleepMinutes.map(Double.init),
@@ -200,7 +202,7 @@ extension DashboardAnalyticsModel {
 
     var preSleepLogRate: Double? {
         guard !populatedNights.isEmpty else { return nil }
-        let withLog = populatedNights.filter { $0.preSleepLog != nil }.count
+        let withLog = populatedNights.filter { $0.preSleepLog?.completionState == "complete" }.count
         return (Double(withLog) / Double(populatedNights.count)) * 100
     }
 
@@ -247,7 +249,7 @@ extension DashboardAnalyticsModel {
 
     var missingHealthSummaryCount: Int {
         guard settings.healthKitEnabled else { return 0 }
-        return trendNights.filter {
+        return populatedNights.filter {
             $0.healthSummary == nil && ($0.dose1Time != nil || !$0.events.isEmpty || $0.morningCheckIn != nil)
         }.count
     }
@@ -257,6 +259,6 @@ extension DashboardAnalyticsModel {
     }
 
     var qualityIssueCount: Int {
-        trendNights.reduce(0) { $0 + $1.qualityFlags.count }
+        duplicateNightCount + missingDose2OutcomeCount
     }
 }

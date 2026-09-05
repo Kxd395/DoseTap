@@ -531,3 +531,11 @@ Resolve the wake date in the saved work schedule timezone from the canonical tre
 Inside the medication window, passing the selected target on a working wake date presents Continue to Record Dose 2, I'm Not Working [exact date], Change Wake Time, and Cancel. Continue revalidates timing and the schedule revision; its acknowledgement is committed in dose metadata. Schedule changes never create a dose. A failed schedule write leaves the previous schedule and warning effective. After the medication window, only the retrospective resolution policy applies.
 
 Work schedule configuration and dated overrides are stored together in SQLite `work_wake_schedule`. Weekly confirmation is an independent reminder and is deferred; its absence never blocks medication recording. Historical acknowledgements retain the schedule revision, timezone, wake instant, target instant and selected mode.
+
+### Dashboard analytics contract (DOSETAP-45)
+
+- Date ranges include exactly the selected number of civil night keys through the current evening-anchored night; malformed and future keys are excluded. All Time includes all discovered local history. Provider fetch horizons remain explicit (Apple Health up to 120 nights, WHOOP 30 days).
+- Recorded dose events own retrospective timing; never infer Dose 1 from Dose 2 or an extra dose. Pending Dose 2 (before the existing upper timing boundary) is separate from missing outcomes. Recorded outcomes include explicit skips; on-time percentages use valid timestamp pairs only, with exact elapsed seconds and the shared MedicationTiming classification.
+- Missing observations remain missing, never zero or an implicit negative answer. Bathroom analytics count logs; duration is not measured. Pre-sleep completion requires a completed log. Stress-driver frequency counts each driver at most once per night.
+- Sleep comparisons use one explicitly selected provider without fallback. Show sample counts, source coverage and fetch errors. Descriptive timing groups and associations do not measure medication effectiveness or establish causation; changes in an average are not automatically improvements.
+- Dashboard separates Overview, Trends, and Data. Empty, loading and partial-provider states remain visible. Existing Typical Week, nightly overrides, medication supply and alarm behavior are unchanged.

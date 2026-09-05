@@ -17,6 +17,10 @@ final class DashboardAnalyticsModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var selectedRange: DashboardDateRange = .month
 
+    let now: () -> Date
+
+    init(now: @escaping () -> Date = Date.init) { self.now = now }
+
     let sessionRepo = SessionRepository.shared
     let settings = UserSettingsManager.shared
     let healthKit = HealthKitService.shared

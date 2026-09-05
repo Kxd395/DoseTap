@@ -33,14 +33,14 @@ enum DashboardDateRange: String, CaseIterable, Identifiable {
         }
     }
 
-    func cutoffDate(from anchor: Date = Date()) -> Date {
+    func cutoffDate(from anchor: Date = Date(), calendar: Calendar = .current) -> Date {
         guard self != .all else { return .distantPast }
-        return Calendar.current.date(byAdding: .day, value: -(days - 1), to: anchor) ?? .distantPast
+        return calendar.date(byAdding: .day, value: -(days - 1), to: calendar.startOfDay(for: anchor)) ?? .distantPast
     }
 
-    func priorPeriodCutoff(from anchor: Date = Date()) -> (start: Date, end: Date) {
-        let end = cutoffDate(from: anchor)
-        let start = Calendar.current.date(byAdding: .day, value: -days, to: end) ?? .distantPast
+    func priorPeriodCutoff(from anchor: Date = Date(), calendar: Calendar = .current) -> (start: Date, end: Date) {
+        let end = cutoffDate(from: anchor, calendar: calendar)
+        let start = calendar.date(byAdding: .day, value: -days, to: end) ?? .distantPast
         return (start, end)
     }
 }
@@ -62,6 +62,17 @@ struct DashboardNightAggregate: Identifiable {
 
     var id: String { sessionDate }
 
+    var exactIntervalMinutes: Double? {
+        guard let dose1Time, let dose2Time else { return nil }
+        let seconds = dose2Time.timeIntervalSince(dose1Time)
+        return seconds.isFinite && seconds >= 0 ? seconds / 60 : nil
+    }
+
+    func isPendingDose2(at now: Date) -> Bool {
+        guard let dose1Time, dose2Time == nil, !dose2Skipped else { return false }
+        return now < dose1Time.addingTimeInterval(Double(DoseCore.DoseWindowConfig().maxIntervalMin) * 60)
+    }
+
     var intervalMinutes: Int? {
         guard let dose1Time, let dose2Time else { return nil }
         let minutes = TimeIntervalMath.minutesBetween(start: dose1Time, end: dose2Time)
@@ -69,7 +80,7 @@ struct DashboardNightAggregate: Identifiable {
     }
 
     var onTimeDosing: Bool? {
-        guard let dose1Time, let dose2Time else { return nil }
+        guard let dose1Time, let dose2Time, exactIntervalMinutes != nil else { return nil }
         return MedicationTiming.classify(dose1: dose1Time, dose2: dose2Time) == .inWindow
     }
 
@@ -109,7 +120,7 @@ struct DashboardNightAggregate: Identifiable {
     }
 
     var hasAnyData: Bool {
-        dose1Time != nil || dose2Time != nil || dose2Skipped || !events.isEmpty || morningCheckIn != nil || preSleepLog != nil || healthSummary != nil || whoopSummary != nil
+        dose1Time != nil || dose2Time != nil || dose2Skipped || extraDoseCount > 0 || !events.isEmpty || morningCheckIn != nil || preSleepLog != nil || healthSummary != nil || whoopSummary != nil
     }
 
     var dataCompletenessScore: Double {
@@ -117,7 +128,7 @@ struct DashboardNightAggregate: Identifiable {
         if dose1Time != nil && (dose2Time != nil || dose2Skipped) { score += 0.25 }
         if healthSummary != nil || whoopSummary != nil { score += 0.25 }
         if morningCheckIn != nil { score += 0.25 }
-        if preSleepLog != nil { score += 0.25 }
+        if preSleepLog?.completionState == "complete" { score += 0.25 }
         return score
     }
 
