@@ -11,6 +11,7 @@ enum CanonicalDoseEventType: String, CaseIterable {
     case extraDose = "extra_dose"
     case dose2Skipped = "dose2_skipped"
     case snooze = "snooze"
+    case historyCorrection = "history_correction"
 
     init?(canonicalizing rawValue: String) {
         let normalized = rawValue
@@ -20,6 +21,7 @@ enum CanonicalDoseEventType: String, CaseIterable {
             .replacingOccurrences(of: "-", with: "_")
 
         switch normalized {
+        case "history_correction": self = .historyCorrection
         case "dose1", "dose_1", "dose1_taken", "dose_1_taken":
             self = .dose1
         case "dose2", "dose_2", "dose2_taken", "dose_2_taken",
@@ -41,13 +43,127 @@ enum CanonicalDoseEventType: String, CaseIterable {
         switch self {
         case .dose1, .dose2, .extraDose:
             return true
-        case .dose2Skipped, .snooze:
+        case .dose2Skipped, .snooze, .historyCorrection:
             return false
         }
     }
 }
 
+struct HistoryRecordSnapshot {
+    let sessionId: String
+    let sessionDate: String
+    let events: [DoseCore.StoredDoseEvent]
+    let isNew: Bool
+}
+
 extension EventStorage {
+
+    func historySnapshot(sessionDate: String) throws -> HistoryRecordSnapshot {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.isLenient = false
+        guard let date = formatter.date(from: sessionDate), formatter.string(from: date) == sessionDate else {
+            throw MedicationStorageInjectedFailure(code: .precondition, detail: "Choose a valid treatment night.")
+        }
+        guard let identity = medicationSessionIdentity(nil, sessionDate: sessionDate) else {
+            throw MedicationStorageInjectedFailure(code: .precondition, detail: "This night has conflicting session identities or cannot be read. No record was selected for editing.")
+        }
+        let rows = fetchDoseEvents(sessionId: identity, sessionDate: sessionDate).sorted { $0.id < $1.id }
+        var statement: OpaquePointer?
+        let sql = "SELECT COUNT(*) FROM dose_events WHERE session_id = ?1 OR ((session_id IS NULL OR session_id = session_date) AND session_date = ?2)"
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+            throw MedicationStorageInjectedFailure(code: .statement, detail: "History could not be read.")
+        }
+        defer { sqlite3_finalize(statement) }
+        sqlite3_bind_text(statement, 1, identity, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(statement, 2, sessionDate, -1, SQLITE_TRANSIENT)
+        guard sqlite3_step(statement) == SQLITE_ROW, Int(sqlite3_column_int(statement, 0)) == rows.count,
+              rows.allSatisfy({ $0.sessionDate == sessionDate }) else {
+            throw MedicationStorageInjectedFailure(code: .precondition, detail: "Some original records could not be read. Nothing has changed.")
+        }
+        let isNew = identity == sessionDate && rows.isEmpty && fetchSessionId(forSessionDate: sessionDate) == nil
+        return HistoryRecordSnapshot(sessionId: isNew ? UUID().uuidString : identity, sessionDate: sessionDate, events: rows, isNew: isNew)
+    }
+
+    func saveHistoryDoseChange(_ change: HistoryDoseChange, review: HistoryRecordSnapshot,
+                               confirmed: Bool, warningConfirmed: Bool, recordedAt: Date) -> MedicationMutationResult {
+        performMedicationTransaction(operation: .reconcileDoseState, sessionId: review.sessionId,
+                                     sessionDate: review.sessionDate, timestamp: change.timestamp) {
+            let current = try historySnapshot(sessionDate: review.sessionDate)
+            guard confirmed, current.events == review.events,
+                  (current.sessionId == review.sessionId || (current.isNew && review.isNew)) else {
+                throw MedicationStorageInjectedFailure(code: .precondition, detail: "History changed or was not confirmed. Reload and review it again.")
+            }
+            if let error = change.validationError(existing: current.events, now: recordedAt) {
+                throw MedicationStorageInjectedFailure(code: .precondition, detail: error)
+            }
+            guard warningConfirmed || !change.needsTimingWarning(existing: current.events) else {
+                throw MedicationStorageInjectedFailure(code: .precondition, detail: "Confirm that this unusual timing accurately records an occurrence already taken.")
+            }
+            guard review.sessionDate <= sessionDateString(for: recordedAt),
+                  change.remove || change.eventType != "dose1" || sessionDateString(for: change.timestamp) == review.sessionDate else {
+                throw MedicationStorageInjectedFailure(code: .precondition, detail: "Select the treatment night containing the actual Dose 1 time.")
+            }
+            if review.isNew {
+                try executeMedicationStatement("INSERT INTO sleep_sessions (session_id, session_date, start_utc, end_utc, terminal_state) VALUES (?, ?, ?, ?, 'history_manual')", at: .insert) { s in
+                    sqlite3_bind_text(s, 1, review.sessionId, -1, SQLITE_TRANSIENT)
+                    sqlite3_bind_text(s, 2, review.sessionDate, -1, SQLITE_TRANSIENT)
+                    sqlite3_bind_text(s, 3, isoFormatter.string(from: change.timestamp), -1, SQLITE_TRANSIENT)
+                    sqlite3_bind_text(s, 4, isoFormatter.string(from: recordedAt), -1, SQLITE_TRANSIENT)
+                }
+            }
+            var metadata: [String: Any] = [:]
+            if let old = current.events.first(where: { $0.id == change.replacingEventID })?.metadata {
+                guard let data = old.data(using: .utf8), let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                    throw MedicationStorageInjectedFailure(code: .precondition, detail: "Original metadata could not be preserved.")
+                }
+                metadata = object
+            }
+            metadata["entry_mode"] = "retrospective"
+            metadata["recorded_at_utc"] = isoFormatter.string(from: recordedAt)
+            metadata["source"] = "history_user_review"
+            metadata["surface"] = "history_editor"
+            metadata["reason_notes"] = change.reason
+            metadata["removed_from_effective_record"] = change.remove
+            let raw = String(decoding: try JSONSerialization.data(withJSONObject: metadata), as: UTF8.self)
+            let original = current.events.first { $0.id == change.replacingEventID }
+            let preserved = try correctionMetadata(raw, sessionId: review.sessionId, sessionDate: review.sessionDate,
+                                                  eventTypes: original.map { "'\($0.eventType)'" } ?? "''", eventID: original?.id)
+            if let id = change.replacingEventID {
+                try enqueueCloudKitTombstoneOrThrow(recordType: "DoseTapDoseEvent", recordName: id)
+                try executeMedicationStatement("DELETE FROM dose_events WHERE id = ?", at: .delete, requireChanges: true) { s in
+                    sqlite3_bind_text(s, 1, id, -1, SQLITE_TRANSIENT)
+                }
+            }
+            try executeMedicationStatement("INSERT INTO dose_events (id, event_type, timestamp, session_date, session_id, metadata) VALUES (?, ?, ?, ?, ?, ?)", at: .insert) { s in
+                sqlite3_bind_text(s, 1, UUID().uuidString, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(s, 2, change.remove ? "history_correction" : change.eventType, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(s, 3, isoFormatter.string(from: change.remove ? recordedAt : change.timestamp), -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(s, 4, review.sessionDate, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(s, 5, review.sessionId, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_text(s, 6, preserved, -1, SQLITE_TRANSIENT)
+            }
+            let rows = fetchDoseEvents(sessionId: review.sessionId, sessionDate: review.sessionDate)
+            let first = rows.first { $0.eventType == "dose1" }?.timestamp
+            let second = rows.first { $0.eventType == "dose2" }
+            if let first, let second {
+                let timing = MedicationTiming.classify(dose1: first, dose2: second.timestamp)
+                try executeMedicationStatement("UPDATE dose_events SET metadata = json_set(COALESCE(metadata, '{}'), '$.is_early', json(?), '$.is_late', json(?)) WHERE id = ?", at: .update) { s in
+                    sqlite3_bind_text(s, 1, timing == .early ? "true" : "false", -1, SQLITE_TRANSIENT)
+                    sqlite3_bind_text(s, 2, timing == .late ? "true" : "false", -1, SQLITE_TRANSIENT)
+                    sqlite3_bind_text(s, 3, second.id, -1, SQLITE_TRANSIENT)
+                }
+            }
+            try executeMedicationStatement("UPDATE current_session SET dose1_time = ?, dose2_time = ?, dose2_skipped = ?, updated_at = CURRENT_TIMESTAMP WHERE session_id = ?", at: .update) { s in
+                if let first { sqlite3_bind_text(s, 1, isoFormatter.string(from: first), -1, SQLITE_TRANSIENT) } else { sqlite3_bind_null(s, 1) }
+                if let second { sqlite3_bind_text(s, 2, isoFormatter.string(from: second.timestamp), -1, SQLITE_TRANSIENT) } else { sqlite3_bind_null(s, 2) }
+                sqlite3_bind_int(s, 3, rows.contains { $0.eventType == "dose2_skipped" } ? 1 : 0)
+                sqlite3_bind_text(s, 4, review.sessionId, -1, SQLITE_TRANSIENT)
+            }
+        }
+    }
 
     // MARK: - Transaction Boundary
 
@@ -299,8 +415,8 @@ extension EventStorage {
             detail: "This date does not identify one medication session. Select a specific session and retry."))
     }
 
-    private func correctionMetadata(_ metadata: String?, sessionId: String, sessionDate: String, eventTypes: String) throws -> String {
-        let sql = "SELECT id, event_type, timestamp, session_date, session_id, metadata, created_at FROM dose_events WHERE (session_id = ? OR ((session_id IS NULL OR session_id = session_date) AND session_date = ?)) AND event_type IN (\(eventTypes)) ORDER BY timestamp, id"
+    private func correctionMetadata(_ metadata: String?, sessionId: String, sessionDate: String, eventTypes: String, eventID: String? = nil) throws -> String {
+        let sql = "SELECT id, event_type, timestamp, session_date, session_id, metadata, created_at FROM dose_events WHERE (session_id = ?1 OR ((session_id IS NULL OR session_id = session_date) AND session_date = ?2)) AND event_type IN (\(eventTypes)) AND (?3 IS NULL OR id = ?3) ORDER BY timestamp, id"
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK, let statement else {
             throw MedicationStorageInjectedFailure(code: .statement, detail: "Cannot preserve the original medication record. Retry without changing history.")
@@ -308,6 +424,7 @@ extension EventStorage {
         defer { sqlite3_finalize(statement) }
         sqlite3_bind_text(statement, 1, sessionId, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(statement, 2, sessionDate, -1, SQLITE_TRANSIENT)
+        if let eventID { sqlite3_bind_text(statement, 3, eventID, -1, SQLITE_TRANSIENT) } else { sqlite3_bind_null(statement, 3) }
         let keys = ["id", "event_type", "timestamp", "session_date", "session_id", "metadata", "created_at"]
         var previous: [[String: Any]] = []
         var step = sqlite3_step(statement)
@@ -993,7 +1110,7 @@ extension EventStorage {
                 eventTypesToReplace = "'dose1'"
             case .dose2, .dose2Skipped:
                 eventTypesToReplace = "'dose2','dose2_skipped'"
-            case .extraDose, .snooze:
+            case .extraDose, .snooze, .historyCorrection:
                 eventTypesToReplace = "''"
             }
             let preservedMetadata = try correctionMetadata(metadata, sessionId: resolvedSessionId, sessionDate: sessionDate, eventTypes: eventTypesToReplace)
@@ -1052,7 +1169,7 @@ extension EventStorage {
                 ) { statement in
                     sqlite3_bind_text(statement, 1, resolvedSessionId, -1, SQLITE_TRANSIENT)
                 }
-            case .extraDose, .snooze:
+            case .extraDose, .snooze, .historyCorrection:
                 break
             }
         }

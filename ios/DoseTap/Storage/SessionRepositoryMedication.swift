@@ -6,6 +6,21 @@ import OSLog
 
 @MainActor
 public extension SessionRepository {
+    internal func historySnapshot(sessionDate: String) throws -> HistoryRecordSnapshot {
+        try storage.historySnapshot(sessionDate: sessionDate)
+    }
+
+    internal func applyHistoryDoseChange(_ change: HistoryDoseChange, review: HistoryRecordSnapshot,
+                                         confirmed: Bool, warningConfirmed: Bool) -> MedicationMutationResult {
+        let result = recordMedicationMutation(storage.saveHistoryDoseChange(change, review: review,
+            confirmed: confirmed, warningConfirmed: warningConfirmed, recordedAt: clock()))
+        if result.isCommitted {
+            if review.sessionId == activeSessionId { refreshForTimeChange() }
+            sessionDidChange.send()
+        }
+        return result
+    }
+
     #if DEBUG && targetEnvironment(simulator)
     /// Persist a prior-night fixture before the singleton is initialized, so
     /// process-level UI tests cover synchronous startup rollover.

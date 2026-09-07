@@ -348,16 +348,17 @@ Data retention:
 
 ---
 
-## Known Limitations (Truth, Not Plans)
-
-### Manual history and reviewed corrections (DOSETAP-47)
+## Manual history and reviewed corrections (DOSETAP-47)
 
 - History exposes Add / Correct Records for the selected treatment night, even when no record exists. Manual entry records an occurrence already past; it is never permission to take medication now. Apple Health and WHOOP observations remain read-only.
 - Dose 1, Dose 2, explicit missed/not-taken outcomes, and extra doses may be added or corrected with an actual timestamp, a reason, and explicit confirmation. Early/late occurrences remain recordable with an accuracy warning, not an arbitrary retrospective interval cap. Future or reversed timestamps and contradictory/duplicate primary outcomes are rejected. Dose 1 is never inferred from Dose 2.
 - An erroneous medication row may be removed from the effective record only after review. Its original contents remain in a non-dose `history_correction` audit event. Removing a row does not mean skipped; dependent doses must be corrected first. Replacements preserve original metadata and correction chains.
+- The standard CSV includes the medication event ledger and metadata, including extra doses and non-dose correction evidence, instead of only primary-dose projections. This still is not a whole-project backup.
 - A save is tied to the reviewed session identity and original rows. Stale or ambiguous reviews fail without writing; no date-only fallback may select another session. Empty-night entries create an isolated historical identity, never a new active session.
 - Manual quick-log events are available for the selected past night, not just the preceding 24 hours. Failed writes keep the editor open. Medication and sleep history changes publish only after transaction commit.
 - Historical edits do not reopen sessions or affect unrelated alarms. An edit to the active medication record invalidates pending consent and reconciles its alarms from the updated state; a saved record and a failed alarm side effect must be reported separately.
+
+## Known Limitations (Truth, Not Plans)
 
 - Recent owner-reported Dose 2 actions did not reach the retained durable-write path. Prospective commit-gated writes and diagnostics are implemented, but reviewed recovery and signed-device registration/restart evidence remain open under DOSETAP-34 and DOSETAP-38.
 - Apple Health authorization, no-data, real-data, and same-night cross-screen parity still require signed-device verification under DOSETAP-10.

@@ -33,6 +33,58 @@ private final class MedicationMutationNotificationCenter: AlarmNotificationCente
 
 @MainActor
 final class MedicationMutationTransactionTests: XCTestCase {
+    func testHistoryMissingNightDoesNotReplaceActiveSessionAndRejectsReplay() throws {
+        let storage = EventStorage.inMemory()
+        try seedDose1(in: storage)
+        let review = try storage.historySnapshot(sessionDate: "2026-01-14")
+        let time = ISO8601DateFormatter().date(from: "2026-01-15T03:00:00Z")!
+        let change = HistoryDoseChange(eventType: "dose1", timestamp: time, reason: "Forgot to log")
+        XCTAssertTrue(storage.saveHistoryDoseChange(change, review: review, confirmed: true, warningConfirmed: true, recordedAt: oldDose1).isCommitted)
+        XCTAssertEqual(storage.loadCurrentSessionState().sessionId, sessionId)
+        XCTAssertEqual(storage.loadCurrentSessionState().dose1Time, oldDose1)
+        XCTAssertFalse(storage.saveHistoryDoseChange(change, review: review, confirmed: true, warningConfirmed: true, recordedAt: oldDose1).isCommitted)
+        XCTAssertEqual(try storage.historySnapshot(sessionDate: review.sessionDate).events.count, 1)
+    }
+
+    func testHistoryCorrectionRemovalAndRollbackPreserveOriginalEvidence() throws {
+        let storage = EventStorage.inMemory()
+        try seedDose1(in: storage)
+        XCTAssertTrue(storage.saveDose2(timestamp: oldDose1.addingTimeInterval(180 * 60), sessionId: sessionId, sessionDateOverride: sessionDate).isCommitted)
+        var review = try storage.historySnapshot(sessionDate: sessionDate)
+        let original = try XCTUnwrap(review.events.first { $0.eventType == "dose2" })
+        let correction = HistoryDoseChange(eventType: "dose2", timestamp: oldDose1.addingTimeInterval(285 * 60), replacingEventID: original.id, reason: "Wrong recorded time")
+        XCTAssertFalse(storage.saveHistoryDoseChange(correction, review: review, confirmed: true, warningConfirmed: false, recordedAt: oldDose1.addingTimeInterval(600 * 60)).isCommitted)
+        storage.medicationFaultInjector = { $0 == .commit ? MedicationStorageInjectedFailure(code: .diskFull, detail: "Injected") : nil }
+        XCTAssertFalse(storage.saveHistoryDoseChange(correction, review: review, confirmed: true, warningConfirmed: true, recordedAt: oldDose1.addingTimeInterval(600 * 60)).isCommitted)
+        XCTAssertEqual(try storage.historySnapshot(sessionDate: sessionDate).events, review.events)
+        storage.medicationFaultInjector = nil
+        XCTAssertTrue(storage.saveHistoryDoseChange(correction, review: review, confirmed: true, warningConfirmed: true, recordedAt: oldDose1.addingTimeInterval(600 * 60)).isCommitted)
+        review = try storage.historySnapshot(sessionDate: sessionDate)
+        let revised = try XCTUnwrap(review.events.first { $0.eventType == "dose2" })
+        XCTAssertTrue(revised.metadata?.contains(original.id) == true)
+        XCTAssertTrue(revised.metadata?.contains("retrospective") == true)
+        XCTAssertEqual(storage.loadCurrentSessionState().dose2Time, correction.timestamp)
+        let removal = HistoryDoseChange(eventType: "dose2", timestamp: revised.timestamp, replacingEventID: revised.id, remove: true, reason: "Not actually taken")
+        XCTAssertTrue(storage.saveHistoryDoseChange(removal, review: review, confirmed: true, warningConfirmed: true, recordedAt: oldDose1.addingTimeInterval(600 * 60)).isCommitted)
+        let rows = try storage.historySnapshot(sessionDate: sessionDate).events
+        XCTAssertFalse(rows.contains { $0.eventType == "dose2" || $0.eventType == "dose2_skipped" })
+        XCTAssertTrue(rows.first { $0.eventType == "history_correction" }?.metadata?.contains(original.id) == true)
+        XCTAssertNil(storage.loadCurrentSessionState().dose2Time)
+        XCTAssertFalse(storage.loadCurrentSessionState().dose2Skipped)
+        XCTAssertTrue(storage.exportToCSV().contains("history_correction"))
+    }
+
+    func testHistoryRequiresConsentAndUnambiguousUnchangedSession() throws {
+        let storage = EventStorage.inMemory()
+        try seedDose1(in: storage)
+        let review = try storage.historySnapshot(sessionDate: sessionDate)
+        let change = HistoryDoseChange(eventType: "dose2", timestamp: oldDose1.addingTimeInterval(180 * 60), reason: "Forgot to log")
+        XCTAssertFalse(storage.saveHistoryDoseChange(change, review: review, confirmed: false, warningConfirmed: true, recordedAt: oldDose1.addingTimeInterval(500 * 60)).isCommitted)
+        storage.insertDoseEvent(eventType: "dose1", timestamp: oldDose1, sessionDate: sessionDate, sessionId: "another-night")
+        XCTAssertThrowsError(try storage.historySnapshot(sessionDate: sessionDate))
+        XCTAssertFalse(storage.saveHistoryDoseChange(change, review: review, confirmed: true, warningConfirmed: true, recordedAt: oldDose1.addingTimeInterval(500 * 60)).isCommitted)
+    }
+
     private let sessionId = "transaction-session"
     private let sessionDate = "2026-08-31"
     private let oldDose1 = Date(timeIntervalSince1970: 1_788_200_000)
