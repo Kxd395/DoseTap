@@ -213,6 +213,8 @@ final class DashboardAnalyticsAuditTests: XCTestCase {
         model.selectedRange = .all
         XCTAssertEqual(model.finishedNightStreak, 10)
         model.nights[0] = night("2026-09-04", interval: 240)
+        XCTAssertEqual(model.finishedNightStreak, 10)
+        model.nights[0] = night("2026-09-04", interval: 240.001)
         XCTAssertEqual(model.finishedNightStreak, 0)
     }
 

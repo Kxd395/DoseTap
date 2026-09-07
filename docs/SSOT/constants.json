@@ -346,6 +346,14 @@
     }
   },
   
+  "nightOutcomeDiary": {
+    "questionnaireVersion": "night_outcome.v1",
+    "sleepinessMinimum": 0,
+    "sleepinessMaximum": 10,
+    "suggestedAssessmentHoursAfterFinalWake": 6,
+    "description": "Personal diary rating, not a validated clinical score. The assessment target is consistency guidance, not an alarm or a fitness-to-drive threshold."
+  },
+
   "states": {
     "description": "Session state machine phases (literal naming)",
     "phases": [
@@ -362,12 +370,12 @@
       {
         "name": "WindowNearClose",
         "description": "Less than 15 minutes remain, snooze disabled",
-        "condition": "minutesSinceDose1 >= 225 && minutesSinceDose1 < 240"
+        "condition": "minutesSinceDose1 >= 225 && minutesSinceDose1 <= 240"
       },
       {
         "name": "WindowExpired",
         "description": "240 minutes passed without Dose 2",
-        "condition": "minutesSinceDose1 >= 240 && dose2TakenAt == nil && !dose2Skipped"
+        "condition": "minutesSinceDose1 > 240 && dose2TakenAt == nil && !dose2Skipped"
       },
       {
         "name": "Dose2Taken",

@@ -52,7 +52,8 @@ Schedule settings used by rollover logic (from `UserSettingsManager`):
 - `missedCheckInCutoffHours` (default 4)
 
 Safety constraints (authoritative):
-- Dose 2 timing is classified from absolute elapsed seconds: before 150 minutes is early; 150 minutes inclusive through 240 minutes exclusive is in-window; 240 minutes or later is late. Negative or non-finite elapsed values are invalid. Display rounding must never determine eligibility, adherence, export status, or scores.
+- Dose 2 timing is classified from absolute elapsed seconds: 150 minutes inclusive through 240 minutes inclusive is in-window; before 150 minutes is early and more than 240 minutes is late. Negative or non-finite elapsed values are invalid. Display rounding must never determine eligibility, adherence, export status, or scores.
+- Endpoint reconciliation (DOSETAP-15, 2026-09-07): the owner-requested inclusive upper endpoint replaces the prior exclusive contract. It implements the twice-nightly 2.5-to-4-hour interval in the [XYWAV prescribing information, sections 2.2 and 2.3](https://pp.jazzpharma.com/pi/xywav.en.USPI.pdf). Exactly 14,400 elapsed seconds is in-window; any larger interval is late. This does not change prescribed amounts, permit automatic medication recording, or equate in-window timing with medication effectiveness.
 - Default target interval is 165 minutes (valid planner targets: 165, 180, 195, 210, 225).
 - Session day grouping rolls over at 18:00 (6 PM) local time.
 - Undo window is 5 seconds by default for dose/event actions.
@@ -67,7 +68,7 @@ Safety constraints (authoritative):
 - Storage: `dose_events` table with `session_id` and `session_date`. See `EventStorage+Dose.swift` for `saveDose1/saveDose2/saveDoseSkipped/saveSnooze`.
 - Event types (exact strings): `dose1`, `dose2`, `extra_dose`, `dose2_skipped`, `snooze`.
 - Dose index rule: `doseIndex = (count of dose events in session) + 1` where count includes `dose1`, `dose2`, `extra_dose` only.
-- Dose 2 late flag: `is_late = true` if `doseIndex == 2` and `timestamp >= dose1 + maxInterval`.
+- Dose 2 late flag: `is_late = true` if `doseIndex == 2` and `timestamp > dose1 + maxInterval`.
 - Retrospective Dose 2 records persist `entry_mode = retrospective`, `recorded_at_utc`, and the initiating `surface` in metadata while keeping the event timestamp equal to the actual occurrence time.
 - Extra dose rule: `doseIndex >= 3` only. Timer expiration never changes dose index.
 - An ordinary Dose 2 command must never be promoted to `extra_dose` because another surface committed first. Repository and storage preconditions require an explicit extra-dose confirmation.
@@ -195,7 +196,7 @@ ASCII diagram:
 noDose1
   | takeDose1
   v
-beforeWindow --(150m)--> active --(<15m left)--> nearClose --(240m, no write)--> closed
+beforeWindow --(150m)--> active --(<=15m left)--> nearClose --(>240m, no write)--> closed
    | takeDose2 (early override)        | takeDose2                       | record actual occurrence
    v                                   v                                 | or explicitly mark missed
 completed <----------------------------+---------------------------------+
@@ -379,6 +380,7 @@ Data retention:
 - Estimated sleep after Dose 2 sums the union of recorded asleep intervals clipped between the actual second dose and final awakening, subtracting recorded awake intervals. It does not count elapsed time, in-bed time or provider totals as sleep segments. Missing segment data is unavailable, never zero. Coverage gaps remain unmeasured and are disclosed; WHOOP totals alone cannot supply this estimate.
 - The natural-versus-alarm comparison shows medians, usable sample counts and expandable middle-50% ranges, with Other/Unknown visible separately and an explicit following-day filter. Missing outcomes remain distinct from confirmed skipped/missed doses. Descriptive differences are not medication-effectiveness or causation claims.
 - Comparison groups use the explicit session-bound wake diary only. Legacy morning-questionnaire wake fields may be carry-forward defaults and cannot distinguish an explicitly reconfirmed answer; they remain preserved but are not silently treated as verified wake-method observations. Older nights can be confirmed through History.
+- History's Natural Wake percentage also uses explicit Dose 2 wake answers, dividing Natural by answered Natural/Alarm/Other nights. Unknown and unreadable answers do not enter that denominator. No answered nights is unavailable, not zero; a zero-snooze night is never assumed to be a natural wake.
 
 ## Known Limitations (Truth, Not Plans)
 

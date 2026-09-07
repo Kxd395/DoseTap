@@ -4,7 +4,7 @@ import XCTest
 final class InsightSessionBuilderTests: XCTestCase {
     func testTimingBoundaryUsesOccurrenceSecondsRatherThanTruncatedMinutes() {
         let first = Date(timeIntervalSince1970: 1_800_000_000)
-        for (seconds, onTime, late) in [(8999.0, false, false), (9000, true, false), (14399, true, false), (14400, false, true), (14430, false, true)] {
+        for (seconds, onTime, late) in [(8999.0, false, false), (9000, true, false), (14399, true, false), (14400, true, false), (14400.001, false, true), (14430, false, true)] {
             let second = first.addingTimeInterval(seconds)
             let session = DoseSession(startedUTC: first, endedUTC: second, windowTargetMin: 165, windowActualMin: Int(seconds / 60), adherenceFlag: "ok", whoopRecovery: nil, avgHR: nil, sleepEfficiency: nil, notes: nil)
             let events = [DoseEvent(eventType: .dose1_taken, occurredAtUTC: first, details: nil, deviceTime: nil), DoseEvent(eventType: .dose2_taken, occurredAtUTC: second, details: nil, deviceTime: nil)]

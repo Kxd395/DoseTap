@@ -46,9 +46,9 @@ final class UnifiedSleepSessionTests: XCTestCase {
         XCTAssertTrue(makeDoseData(dose2: d2).isCompliant)
     }
     
-    func test_isCompliant_false_at240minutes() {
+    func test_isCompliant_true_at240minutes() {
         let d2 = anchor.addingTimeInterval(240 * 60)
-        XCTAssertFalse(makeDoseData(dose2: d2).isCompliant)
+        XCTAssertTrue(makeDoseData(dose2: d2).isCompliant)
     }
     
     func test_isCompliant_false_at149minutes() {
@@ -62,7 +62,7 @@ final class UnifiedSleepSessionTests: XCTestCase {
     }
     
     func test_complianceUsesSecondsAtBothBoundaries() {
-        for (seconds, expected) in [(8999.0, false), (9000, true), (14399, true), (14400, false), (14430, false), (14459, false), (-72000, false)] {
+        for (seconds, expected) in [(8999.0, false), (9000, true), (14399, true), (14400, true), (14400.001, false), (14430, false), (14459, false), (-72000, false)] {
             XCTAssertEqual(makeDoseData(dose2: anchor.addingTimeInterval(seconds)).isCompliant, expected, "elapsed seconds: \(seconds)")
         }
     }

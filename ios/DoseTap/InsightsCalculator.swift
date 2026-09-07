@@ -13,6 +13,7 @@ public class InsightsCalculator: ObservableObject {
     @Published var onTimePercentage: Double = 0
     @Published var averageIntervalMinutes: Double = 0
     @Published var naturalWakePercentage: Double = 0
+    @Published var wakeMethodSampleCount: Int = 0
     @Published var averageWASO: TimeInterval = 0  // Wake After Sleep Onset (in minutes)
     @Published var totalSessions: Int = 0
     @Published var completedSessions: Int = 0
@@ -120,7 +121,7 @@ public class InsightsCalculator: ObservableObject {
         var skippedCount = 0
         var totalInterval: Double = 0
         var intervalsCount = 0
-        var naturalWakes = 0
+        var wakeMethods: [Dose2WakeKind] = []
         var totalWASO: TimeInterval = 0
         var wasoCount = 0
         
@@ -153,9 +154,9 @@ public class InsightsCalculator: ObservableObject {
                 
                 completedCount += 1
                 
-                // Natural wake detection: no snoozes used = likely natural wake
-                if resolvedSnoozeCount == 0 {
-                    naturalWakes += 1
+                if let diary = try? SessionRepository.shared.nightOutcomeSnapshot(sessionDate: session.sessionDate),
+                   diary.history.events.contains(where: { $0.eventType == "dose2" }) {
+                    wakeMethods.append(diary.record?.answers.wakeMethod ?? .unknown)
                 }
             }
             
@@ -194,10 +195,12 @@ public class InsightsCalculator: ObservableObject {
         onTimeSessionCount = onTimeSessions
         intervalSampleCount = intervalsCount
         bathroomWakeSampleCount = wasoCount
+        let wakeSummary = WakeMethodSummary(wakeMethods)
+        wakeMethodSampleCount = wakeSummary.answeredCount
+        naturalWakePercentage = wakeSummary.naturalPercentage ?? 0
         
         if completedCount > 0 {
             onTimePercentage = Double(onTimeSessions) / Double(completedCount) * 100
-            naturalWakePercentage = Double(naturalWakes) / Double(completedCount) * 100
         } else {
             onTimePercentage = 0
             naturalWakePercentage = 0
@@ -223,6 +226,7 @@ public class InsightsCalculator: ObservableObject {
         onTimePercentage = 0
         averageIntervalMinutes = 0
         naturalWakePercentage = 0
+        wakeMethodSampleCount = 0
         averageWASO = 0
         totalSessions = 0
         completedSessions = 0
@@ -248,7 +252,7 @@ public class InsightsCalculator: ObservableObject {
     }
     
     var formattedNaturalWakePercentage: String {
-        guard completedSessions > 0 else { return "No data yet" }
+        guard wakeMethodSampleCount > 0 else { return "No data yet" }
         return String(format: "%.0f%%", naturalWakePercentage)
     }
     
@@ -275,10 +279,10 @@ public class InsightsCalculator: ObservableObject {
     }
 
     var naturalWakeSummary: String {
-        guard completedSessions > 0 else {
-            return "Natural wake = no snoozes used"
+        guard wakeMethodSampleCount > 0 else {
+            return "Record how you woke for Dose 2; snoozes do not identify wake method"
         }
-        return "\(completedSessions) completed nights analyzed"
+        return "\(wakeMethodSampleCount) explicitly answered Dose 2 wakes; unknown answers excluded"
     }
 
     var bathroomWakeSummary: String {
@@ -338,7 +342,7 @@ struct InsightsSummaryCard: View {
                     title: "Natural Wake",
                     value: insights.formattedNaturalWakePercentage,
                     icon: "sun.max.fill",
-                    color: insights.completedSessions == 0 ? .gray : .yellow,
+                    color: insights.wakeMethodSampleCount == 0 ? .gray : .yellow,
                     detail: insights.naturalWakeSummary,
                     showDetail: showDefinitions
                 )

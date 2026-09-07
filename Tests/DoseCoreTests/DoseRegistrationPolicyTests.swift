@@ -474,8 +474,9 @@ final class DoseRegistrationPolicyTests: XCTestCase {
         )
         XCTAssertEqual(decision(at: d1.addingTimeInterval(150 * 60)), .allowed)
         XCTAssertEqual(decision(at: d1.addingTimeInterval(240 * 60 - 1)), .allowed)
+        XCTAssertEqual(decision(at: d1.addingTimeInterval(240 * 60)), .allowed)
         XCTAssertEqual(
-            decision(at: d1.addingTimeInterval(240 * 60)),
+            decision(at: d1.addingTimeInterval(240 * 60 + 0.001)),
             .blocked(reason: closedReason)
         )
     }

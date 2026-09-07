@@ -16,6 +16,16 @@ public enum FollowingDayKind: String, Codable, CaseIterable, Sendable {
     case workday, dayOff, unknown
 }
 
+public struct WakeMethodSummary: Sendable {
+    public let answeredCount: Int
+    public let naturalPercentage: Double?
+    public init(_ methods: [Dose2WakeKind]) {
+        let answered = methods.filter { $0 != .unknown }
+        answeredCount = answered.count
+        naturalPercentage = answered.isEmpty ? nil : Double(answered.filter { $0 == .natural }.count) / Double(answered.count) * 100
+    }
+}
+
 /// Personal diary observations, never an instruction or medication event.
 public struct NightOutcomeDiary: Codable, Equatable, Sendable {
     public var wakeMethod: Dose2WakeKind = .unknown

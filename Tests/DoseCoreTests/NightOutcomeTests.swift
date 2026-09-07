@@ -2,6 +2,13 @@ import XCTest
 @testable import DoseCore
 
 final class NightOutcomeTests: XCTestCase {
+    func testNaturalWakePercentageExcludesUnknownAnswers() {
+        XCTAssertNil(WakeMethodSummary([.unknown, .unknown]).naturalPercentage)
+        let summary = WakeMethodSummary([.natural, .alarm, .other, .unknown])
+        XCTAssertEqual(summary.answeredCount, 3)
+        XCTAssertEqual(summary.naturalPercentage ?? -1, 100.0 / 3, accuracy: 0.001)
+        XCTAssertEqual(WakeMethodSummary([.alarm]).naturalPercentage, 0)
+    }
     private let start = Date(timeIntervalSince1970: 1_800_000_000)
     private func sample(_ from: Double, _ to: Double, _ asleep: Bool) -> RecordedSleepInterval {
         .init(start: start.addingTimeInterval(from * 60), end: start.addingTimeInterval(to * 60), asleep: asleep)

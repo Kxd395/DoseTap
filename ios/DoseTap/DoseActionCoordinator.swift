@@ -395,8 +395,9 @@ final class DoseActionCoordinator: ObservableObject {
             }
             let interval = occurrenceTime.timeIntervalSince(dose1Time)
             let config = DoseCore.DoseWindowConfig()
-            let isEarly = interval < Double(config.minIntervalMin) * 60
-            let isLate = interval >= Double(config.maxIntervalMin) * 60
+            let timing = MedicationTiming.classify(elapsedSeconds: interval, config: config)
+            let isEarly = timing == .early
+            let isLate = timing == .late
             let eventName: String
             if isEarly {
                 eventName = "Dose 2 (Early, Recorded Later)"

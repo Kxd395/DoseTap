@@ -35,7 +35,7 @@ public enum MedicationTiming: Equatable, Sendable {
     public static func classify(elapsedSeconds: TimeInterval, config: DoseWindowConfig = DoseWindowConfig()) -> Self {
         guard elapsedSeconds.isFinite, elapsedSeconds >= 0 else { return .invalid }
         if elapsedSeconds < Double(config.minIntervalMin) * 60 { return .early }
-        if elapsedSeconds >= Double(config.maxIntervalMin) * 60 { return .late }
+        if elapsedSeconds > Double(config.maxIntervalMin) * 60 { return .late }
         return .inWindow
     }
 

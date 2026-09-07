@@ -758,7 +758,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         }
 
         let isDose2 = nextDoseIndex == 2 && !isExtra
-        let isLate = isDose2 && time >= doseWindowCloseTime(dose1Time: firstDoseTime)
+        let isLate = isDose2 && MedicationTiming.classify(dose1: firstDoseTime, dose2: time) == .late
         let previousDoseTime = sortedEvents.last?.timestamp
         let elapsedSincePrev = previousDoseTime.map { TimeIntervalMath.minutesBetween(start: $0, end: time) }
         let elapsedSinceFirst = TimeIntervalMath.minutesBetween(start: firstDoseTime, end: time)

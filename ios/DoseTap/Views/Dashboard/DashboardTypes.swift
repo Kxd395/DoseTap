@@ -91,7 +91,7 @@ struct DashboardNightAggregate: Identifiable {
 
     func isPendingDose2(at now: Date) -> Bool {
         guard let dose1Time, dose2Time == nil, !dose2Skipped else { return false }
-        return now < dose1Time.addingTimeInterval(Double(DoseCore.DoseWindowConfig().maxIntervalMin) * 60)
+        return now <= dose1Time.addingTimeInterval(Double(DoseCore.DoseWindowConfig().maxIntervalMin) * 60)
     }
 
     var intervalMinutes: Int? {

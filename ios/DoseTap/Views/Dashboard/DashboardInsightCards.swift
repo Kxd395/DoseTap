@@ -514,6 +514,8 @@ struct DashboardWakeComparisonCard: View {
             Text("Timing & status · full date range").font(.subheadline.bold())
             Text("Before window: \(model.timingCount(.early)) · Within window: \(model.timingCount(.inWindow)) · After window: \(model.timingCount(.late))")
                 .font(.caption)
+            Text("Before: <150 min · Within: 150–240 min inclusive · After: >240 min. Classified using unrounded elapsed time.")
+                .font(.caption).foregroundStyle(.secondary)
             Text("Confirmed skipped: \(model.skippedDose2Count) · Not logged: \(model.missingDose2OutcomeCount) · Pending: \(model.pendingDose2OutcomeCount)")
                 .font(.caption)
             Text("Day filtering affects the outcome comparison only; the timing/status report keeps all nights in the selected date range.")

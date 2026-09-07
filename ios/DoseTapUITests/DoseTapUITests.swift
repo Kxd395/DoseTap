@@ -278,6 +278,26 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(app.alerts["Answers not saved"].waitForExistence(timeout: 5))
         captureDashboard("Wake correction requires a visible reason")
         app.alerts["Answers not saved"].buttons["OK"].tap()
+        let reason = app.textFields["night-outcome-reason"]
+        reason.tap(); reason.typeText("Corrected wake method")
+        app.buttons["night-outcome-save"].tap()
+        XCTAssertTrue(app.alerts["Answers saved"].waitForExistence(timeout: 5))
+        app.alerts["Answers saved"].buttons["OK"].tap()
+        diary.tap()
+        let finalWake = app.switches["Record final awakening"]
+        for _ in 0..<4 where !finalWake.isHittable { app.swipeUp() }
+        finalWake.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
+        let sleepiness = app.switches["night-sleepiness-toggle"]
+        for _ in 0..<4 where !sleepiness.isHittable { app.swipeUp() }
+        sleepiness.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
+        app.buttons["night-outcome-save"].tap()
+        XCTAssertTrue(app.alerts["Answers saved"].waitForExistence(timeout: 5), "Adding a later assessment must not require a correction reason")
+        app.alerts["Answers saved"].buttons["OK"].tap()
+        app.terminate(); app.launch()
+        XCTAssertTrue(diary.waitForExistence(timeout: 15)); diary.tap()
+        for _ in 0..<4 where !sleepiness.isHittable { app.swipeUp() }
+        XCTAssertEqual(sleepiness.value as? String, "1")
+        captureDashboard("Timestamped next-day sleepiness restored after restart")
         app.buttons["Done"].tap()
     }
 

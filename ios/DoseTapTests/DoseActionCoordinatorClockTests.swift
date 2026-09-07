@@ -57,8 +57,14 @@ final class DoseActionCoordinatorClockTests: XCTestCase {
     private var dateProvider: MutableDateProvider!
     private var coordinator: DoseActionCoordinator!
     private var previousSoundEnabled = true
+    private var previousSchedule: (prep: Int, wake: Int, cutoff: Int)!
 
     override func setUp() async throws {
+        let settings = UserSettingsManager.shared
+        previousSchedule = (settings.prepTimeMinutes, settings.wakeTimeMinutes, settings.missedCheckInCutoffHours)
+        settings.prepTimeMinutes = 18 * 60
+        settings.wakeTimeMinutes = 7 * 60
+        settings.missedCheckInCutoffHours = 4
         let beforeWindow = dose1Time.addingTimeInterval(150 * 60 - 30)
         let repositoryNow = beforeWindow
 
@@ -92,6 +98,10 @@ final class DoseActionCoordinatorClockTests: XCTestCase {
         AlarmService.shared.cancelAllAlarms()
         AlarmService.shared.clearDose2AlarmState()
         repository?.clearTonight()
+        let settings = UserSettingsManager.shared
+        settings.prepTimeMinutes = previousSchedule.prep
+        settings.wakeTimeMinutes = previousSchedule.wake
+        settings.missedCheckInCutoffHours = previousSchedule.cutoff
         coordinator = nil
         core = nil
         repository = nil
@@ -384,7 +394,7 @@ final class DoseActionCoordinatorClockTests: XCTestCase {
         guard case .needsConfirm(.dose2Record(let confirmation)) = await coordinator.takeDose2() else {
             return XCTFail("Expected confirmation")
         }
-        dateProvider.advance(by: 90 * 60)
+        dateProvider.advance(by: 90 * 60 + 1)
         guard case .blocked = await coordinator.confirmDose2(confirmation) else {
             return XCTFail("An old prompt cannot authorize a later closed-window action")
         }

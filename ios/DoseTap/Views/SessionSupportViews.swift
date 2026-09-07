@@ -594,15 +594,14 @@ struct ExpiredDose2ResolutionSheet: View {
     }
 
     private var isOutsideWindow: Bool {
-        elapsedSeconds < Double(timingConfig.minIntervalMin) * 60
-            || elapsedSeconds >= Double(timingConfig.maxIntervalMin) * 60
+        MedicationTiming.classify(elapsedSeconds: elapsedSeconds, config: timingConfig) != .inWindow
     }
 
     private var timingWarningText: String {
-        if elapsedSeconds < Double(timingConfig.minIntervalMin) * 60 {
+        if MedicationTiming.classify(elapsedSeconds: elapsedSeconds, config: timingConfig) == .early {
             return "\(elapsedMinutes) minutes after Dose 1 — before the configured \(timingConfig.minIntervalMin)-minute window. Saving requires confirmation."
         }
-        if elapsedSeconds >= Double(timingConfig.maxIntervalMin) * 60 {
+        if MedicationTiming.classify(elapsedSeconds: elapsedSeconds, config: timingConfig) == .late {
             return "\(elapsedMinutes) minutes after Dose 1 — outside the configured \(timingConfig.maxIntervalMin)-minute window. Saving requires confirmation."
         }
         return "\(elapsedMinutes) minutes after Dose 1 — within the configured timing window. Verify this historical time before saving."

@@ -18,7 +18,7 @@ final class HistoryDoseChangeTests: XCTestCase {
         XCTAssertNotNil(late.validationError(existing: [], now: now))
     }
     func testTimingWarningUsesExactBoundaries() {
-        for (minutes, warning) in [(149.99, true), (150.0, false), (239.99, false), (240.0, true)] {
+        for (minutes, warning) in [(149.99, true), (150.0, false), (239.99, false), (240.0, false), (240.001, true)] {
             XCTAssertEqual(change("dose2", minutes).needsTimingWarning(existing: [row("dose1", 0)]), warning)
         }
     }

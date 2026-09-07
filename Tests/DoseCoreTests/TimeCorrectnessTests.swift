@@ -162,15 +162,14 @@ final class TimeCorrectnessTests: XCTestCase {
             XCTFail("Failed to create dose1 date"); return
         }
         
-        // 240 real minutes later (window should close)
+        // The 240-real-minute endpoint remains in-window across the DST jump.
         let now = dose1Time.addingTimeInterval(240 * 60)
         
         let calc = DoseWindowCalculator(now: { now })
         let ctx = calc.context(dose1At: dose1Time, dose2TakenAt: nil, dose2Skipped: false, snoozeCount: 0)
         
-        // Window should be closed after 240 real minutes
-        XCTAssertEqual(ctx.phase, .closed,
-            "DST forward: window should close after 240 real minutes")
+        XCTAssertEqual(ctx.phase, .nearClose,
+            "DST forward: exactly 240 real minutes remains in-window")
     }
     
     // MARK: - DST Backward Transition Tests (Fall - gain an hour)
@@ -222,8 +221,8 @@ final class TimeCorrectnessTests: XCTestCase {
         let calc = DoseWindowCalculator(now: { now })
         let ctx = calc.context(dose1At: dose1Time, dose2TakenAt: nil, dose2Skipped: false, snoozeCount: 0)
         
-        XCTAssertEqual(ctx.phase, .closed,
-            "DST backward: window closes after 240 real minutes regardless of wall clock")
+        XCTAssertEqual(ctx.phase, .nearClose,
+            "DST backward: exactly 240 real minutes remains in-window regardless of wall clock")
     }
     
     // MARK: - Timezone Change Tests
