@@ -44,7 +44,8 @@ let package = Package(
                 "NightScoreCalculator.swift",
                 "DoseRegistrationPolicy.swift",
                 "HistoryDoseChange.swift",
-                "DoseEffectivenessCalculator.swift"
+                "DoseEffectivenessCalculator.swift",
+                "NightOutcome.swift"
             ]
         ),
         .testTarget(
@@ -88,7 +89,8 @@ let package = Package(
                 "HistoryDoseChangeTests.swift",
                 "DoseEffectivenessCalculatorTests.swift",
                 "TimeIntervalMathCharacterizationTests.swift",
-                "DeletedEventSnapshotTests.swift"
+                "DeletedEventSnapshotTests.swift",
+                "NightOutcomeTests.swift"
             ],
             resources: [
                 .copy("Fixtures/CertificatePinning")

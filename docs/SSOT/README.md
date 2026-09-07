@@ -371,6 +371,14 @@ Data retention:
 - Manual quick-log events are available for the selected past night, not just the preceding 24 hours. Failed writes keep the editor open. Medication and sleep history changes publish only after transaction commit.
 - Historical edits do not reopen sessions or affect unrelated alarms. An edit to the active medication record invalidates pending consent and reconciles its alarms from the updated state; a saved record and a failed alarm side effect must be reported separately.
 
+## Dose 2 wake and next-day diary (DOSETAP-49)
+
+- Explicit Dose 2 wake method is Natural, Alarm, Other or Unknown; backup-alarm setup is an independent optional answer. Natural waking before a backup alarm remains Natural. Alarm delivery, snoozes, timestamps and missing answers never imply a wake method or a medication event.
+- A session-bound night-outcome submission records wake details, optional final awakening, following-day Workday/Day off/Unknown, and an optional personal 0–10 sleepiness rating with assessment time. It does not replace the legacy 1–5 morning-questionnaire field or represent a validated clinical score. Epworth is not a per-night outcome.
+- Outcome saves cannot write medication, finish a session, or schedule alarms. Stale dose/session or outcome snapshots fail without writing. Revisions retain prior answers and require a reason when an already answered value is changed; filling an unanswered field is a new observation. History exposes the same diary for an existing selected night.
+- Estimated sleep after Dose 2 sums the union of recorded asleep intervals clipped between the actual second dose and final awakening, subtracting recorded awake intervals. It does not count elapsed time, in-bed time or provider totals as sleep segments. Missing segment data is unavailable, never zero. Coverage gaps remain unmeasured and are disclosed; WHOOP totals alone cannot supply this estimate.
+- The natural-versus-alarm comparison shows medians, usable sample counts and expandable middle-50% ranges, with Other/Unknown visible separately and an explicit following-day filter. Missing outcomes remain distinct from confirmed skipped/missed doses. Descriptive differences are not medication-effectiveness or causation claims.
+
 ## Known Limitations (Truth, Not Plans)
 
 - Recent owner-reported Dose 2 actions did not reach the retained durable-write path. Prospective commit-gated writes and diagnostics are implemented, but reviewed recovery and signed-device registration/restart evidence remain open under DOSETAP-34 and DOSETAP-38.
