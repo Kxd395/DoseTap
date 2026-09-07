@@ -18,6 +18,7 @@ The latest audit recommendation is `HOLD`. The current integration decision reco
 
 | Plane item | Status represented in repository evidence |
 | --- | --- |
+| DOSETAP-43 | High, In Progress. The September 7 layout follow-up puts History insights in one row and removes Tonight's duplicate bottom spacer and nested card inset. Standard portrait fit is simulator-tested; owner/device review remains open. See `docs/audit/2026-09-07/compact-tonight-layout.md`. |
 | DOSETAP-47 | High, In Progress. Manual dose/sleep History entry and corrections, plus both full questionnaires for a selected past night, are implemented locally. Reviewed transactions preserve original evidence and keep questionnaire saves separate from medication and active-session effects. Signed-device, owner, accessibility, and broader integration gates remain open. See `docs/audit/2026-09-07/manual-history-entry.md`. |
 | DOSETAP-46 | Urgent, In Progress. Unexpected durable Dose 2 record verified read-only on build 19; original activation remains unresolved. Session-bound explicit confirmation is locally committed and app/targeted simulator tests passed on 2026-09-07. Signed-device acceptance remains open; no historical medication data was changed and no new build was installed. See `docs/audit/2026-09-07/dose2-recording-incident.md`. |
 | DOSETAP-1 | Urgent, In Progress. Current-tree credential material is excluded, but Plane key rotation, old-key failure readback, WHOOP provider-side revocation confirmation, and a reviewed history-retention or rewrite decision remain open. |

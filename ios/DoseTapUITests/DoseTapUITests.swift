@@ -11,6 +11,7 @@ final class DoseTapUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
+        if name.contains("testCompactLayout") { app.launchArguments += ["--uitesting-layout", "-setup_completed_v2", "YES"] }
         if name.contains("testSupply") || name.contains("testSystemAlarm") { app.launchArguments += ["-setup_completed_v2", "YES"] }
         if name.contains("testDashboard") { app.launchArguments += ["--uitesting-dashboard", "-setup_completed_v2", "YES"] }
         if name.contains("testWorkWarning") { app.launchArguments.append("--uitesting-work-warning") }
@@ -22,6 +23,42 @@ final class DoseTapUITests: XCTestCase {
 
     override func tearDownWithError() throws {
         app = nil
+    }
+
+    func testCompactLayoutTonightFitsAndHistoryUsesOneMetricRow() throws {
+        let heading = app.staticTexts["DoseTap"].firstMatch
+        XCTAssertTrue(heading.waitForExistence(timeout: 15))
+        let originalY = heading.frame.minY
+        let weekly = app.descendants(matching: .any).matching(identifier: "tonight-weekly-insights").firstMatch
+        XCTAssertTrue(weekly.exists)
+        XCTAssertLessThanOrEqual(weekly.frame.maxY, app.buttons["Tonight"].frame.minY)
+        captureDashboard("Compact Tonight before scroll")
+        app.swipeUp()
+        XCTAssertEqual(heading.frame.minY, originalY, accuracy: 2, "A fitting Tonight page must not scroll into empty padding")
+        app.buttons["History"].tap()
+        let titles = ["On-Time", "Avg Interval", "Natural Wake", "Avg Bathroom Wake"]
+        let cells = titles.map { app.descendants(matching: .any).matching(identifier: "insight-\($0)").firstMatch }
+        XCTAssertTrue(cells[0].waitForExistence(timeout: 10))
+        for cell in cells { XCTAssertEqual(cell.frame.minY, cells[0].frame.minY, accuracy: 2) }
+        captureDashboard("History four-metric row")
+    }
+
+    func testCompactLayoutLargeTextKeepsContentReachable() throws {
+        app.terminate()
+        app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Finish"].waitForExistence(timeout: 15))
+        captureDashboard("Tonight largest accessibility text top")
+        let weekly = app.descendants(matching: .any).matching(identifier: "tonight-weekly-insights").firstMatch
+        for _ in 0..<15 where !weekly.exists || weekly.frame.maxY > app.buttons["Tonight"].frame.minY { app.swipeUp() }
+        XCTAssertLessThanOrEqual(weekly.frame.maxY, app.buttons["Tonight"].frame.minY, "The bottom of the summary must remain reachable")
+        captureDashboard("Tonight largest accessibility text weekly summary")
+        app.buttons["History"].tap()
+        let first = app.descendants(matching: .any).matching(identifier: "insight-On-Time").firstMatch
+        let second = app.descendants(matching: .any).matching(identifier: "insight-Avg Interval").firstMatch
+        XCTAssertTrue(first.waitForExistence(timeout: 10))
+        XCTAssertGreaterThan(second.frame.minY, first.frame.minY, "Large text must stack metrics instead of squeezing four columns")
+        captureDashboard("History largest accessibility text metrics")
     }
 
     func testHistoryManualEntriesCorrectionsAndRestart() throws {

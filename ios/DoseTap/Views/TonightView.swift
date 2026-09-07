@@ -176,7 +176,7 @@ struct LegacyTonightView: View {
 
         ScrollView {
             VStack(spacing: 0) {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 4) {
                     ViewThatFits(in: .horizontal) {
                         HStack(alignment: .center, spacing: 12) {
                             Text("DoseTap")
@@ -204,8 +204,9 @@ struct LegacyTonightView: View {
                             .padding(.top, 4)
                     }
                 }
-                .padding(.top, 12)
-                .padding(.bottom, 12)
+                .padding(.horizontal)
+                .padding(.top, 8)
+                .padding(.bottom, 8)
 
                 if let message = sessionRepo.awaitingRolloverMessage {
                     HStack(spacing: 8) {
@@ -236,7 +237,7 @@ struct LegacyTonightView: View {
                     }
                 )
                 .padding(.horizontal)
-                .padding(.top, 8)
+                .padding(.top, 4)
             }
 
             if homeState.showsDoseStatusCard {
@@ -260,7 +261,7 @@ struct LegacyTonightView: View {
                 }
                 .font(.subheadline.weight(.semibold))
                 .padding(.horizontal)
-                .padding(.bottom, 12)
+                .padding(.bottom, 8)
             }
 
             // Pre-Sleep Log Card — always visible during a session so users can
@@ -406,12 +407,13 @@ struct LegacyTonightView: View {
                 }
             } // end compact layout
 
-            Spacer()
-                .frame(height: 100) // Space for tab bar (increased from 80)
+            // ContentView already reserves the tab bar's safe-area space.
+            // Keep a small content inset, not a second tab-bar-sized spacer.
+            Spacer().frame(height: 12)
             }
-            .padding(.horizontal)
         }
         .scrollIndicators(.hidden)
+        .modifier(TonightContentBounce())
         .sheet(isPresented: $showMorningCheckIn) {
             if let existing = morningCheckIn {
                 // Edit existing check-in
@@ -568,7 +570,12 @@ struct LegacyTonightView: View {
     }
 
     private var resolvedHomeState: HomePresentationState {
-        HomeStateResolver.resolve(
+        #if DEBUG && targetEnvironment(simulator)
+        if ProcessInfo.processInfo.arguments.contains("--uitesting-layout") {
+            return HomePresentationState(primary: .tonightReady, priorSessionReview: .init(sessionDate: "2020-01-14", isBlocking: false))
+        }
+        #endif
+        return HomeStateResolver.resolve(
             doseStatus: core.currentStatus,
             currentSessionDate: sessionRepo.currentSessionDateString(),
             activeSessionDate: sessionRepo.activeSessionDate,
@@ -628,6 +635,16 @@ struct LegacyTonightView: View {
     static func isDismissed(_ sessionDate: String) -> Bool {
         let dismissed = UserDefaults.standard.stringArray(forKey: dismissedSessionsKey) ?? []
         return dismissed.contains(sessionDate)
+    }
+}
+
+private struct TonightContentBounce: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 16.4, *) {
+            content.scrollBounceBehavior(.basedOnSize)
+        } else {
+            content
+        }
     }
 }
 

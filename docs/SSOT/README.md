@@ -303,6 +303,8 @@ Wide-layout adaptations:
 - **History**: Side-by-side calendar picker (left) and selected day detail (right) on iPad.
 - **Timeline/Settings**: Benefit from wider content area; no structural change needed.
 
+Compact History insights use one row of four metrics at standard text sizes, with wrapping labels. Larger accessibility text and detailed definitions use fewer columns. Tonight uses one outer horizontal inset and no duplicate tab-bar spacer. The ready-for-tonight layout, including a previous-night reminder and the weekly summary, should fit a standard portrait phone without incidental scrolling. Scrolling remains available for smaller screens, larger text, additional logs, and safety warnings; controls and warnings must never be clipped to force a fit.
+
 Tab selection is synced between compact (TabView `$urlRouter.selectedTab`) and regular (sidebar selection `$urlRouter.selectedTab`) layouts. Deep links work identically in both modes.
 
 Code references:

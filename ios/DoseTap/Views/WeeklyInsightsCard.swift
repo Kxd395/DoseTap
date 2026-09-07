@@ -30,6 +30,7 @@ struct WeeklyRecordedDoseMetrics {
 }
 
 struct WeeklyInsightsCard: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ObservedObject var sessionRepo: SessionRepository
     @State private var sessions: [SessionSummary] = []
 
@@ -79,7 +80,7 @@ struct WeeklyInsightsCard: View {
     private var missingCount: Int { weeklyMetrics.missing }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Image(systemName: "chart.line.uptrend.xyaxis")
                     .font(.caption.bold())
@@ -100,13 +101,14 @@ struct WeeklyInsightsCard: View {
                 statsGrid
             }
         }
-        .padding()
+        .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color(.systemGray6))
         )
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilitySummary)
+        .accessibilityIdentifier("tonight-weekly-insights")
         .onAppear(perform: reload)
         .onReceive(sessionRepo.sessionDidChange) { _ in reload() }
     }
@@ -125,7 +127,10 @@ struct WeeklyInsightsCard: View {
 
     @ViewBuilder
     private var statsGrid: some View {
-        HStack(spacing: 12) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: 8))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: 8))
+        layout {
             statTile(
                 value: dose2RecordedText,
                 label: "Dose 2 recorded",
@@ -165,17 +170,19 @@ struct WeeklyInsightsCard: View {
                     .font(.caption2)
                     .foregroundColor(color)
                 Text(value)
-                    .font(.title3.bold())
+                    .font(.headline)
                     .foregroundColor(.primary)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                     .minimumScaleFactor(0.7)
             }
             Text(label)
                 .font(.caption2)
                 .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
+        .padding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: 8)
                 .fill(Color(.systemBackground).opacity(0.5))
@@ -216,6 +223,20 @@ struct WeeklyInsightsCard: View {
     }
 
     private func reload() {
+        #if DEBUG && targetEnvironment(simulator)
+        // Display-only populated layout fixture, never writes medication history.
+        if ProcessInfo.processInfo.arguments.contains("--uitesting-layout"),
+           let anchor = AppFormatters.sessionDate.date(from: activeSessionDate) {
+            sessions = (1...7).map { offset in
+                let date = Calendar.current.date(byAdding: .day, value: -offset, to: anchor)!
+                let first = date.addingTimeInterval(22 * 3600)
+                return SessionSummary(sessionDate: AppFormatters.sessionDate.string(from: date),
+                    dose1Time: first, dose2Time: offset <= 2 ? first.addingTimeInterval(215 * 60) : nil,
+                    dose2Skipped: offset >= 6)
+            }
+            return
+        }
+        #endif
         sessions = sessionRepo.fetchRecentSessions(days: 8)
     }
 }

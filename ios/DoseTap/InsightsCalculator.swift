@@ -299,6 +299,7 @@ public class InsightsCalculator: ObservableObject {
 
 struct InsightsSummaryCard: View {
     @ObservedObject var insights = InsightsCalculator.shared
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var title: String = "Your Insights"
     var showDefinitions: Bool = false
     
@@ -313,7 +314,9 @@ struct InsightsSummaryCard: View {
                     .foregroundColor(.secondary)
             }
             
-            HStack(spacing: 12) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8, alignment: .top),
+                                     count: dynamicTypeSize.isAccessibilitySize ? 1 : (showDefinitions ? 2 : 4)),
+                      alignment: .center, spacing: 8) {
                 InsightMetricView(
                     title: "On-Time",
                     value: insights.formattedOnTimePercentage,
@@ -331,9 +334,6 @@ struct InsightsSummaryCard: View {
                     detail: insights.intervalSummary,
                     showDetail: showDefinitions
                 )
-            }
-
-            HStack(spacing: 12) {
                 InsightMetricView(
                     title: "Natural Wake",
                     value: insights.formattedNaturalWakePercentage,
@@ -365,6 +365,7 @@ struct InsightsSummaryCard: View {
 }
 
 struct InsightMetricView: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let title: String
     let value: String
     let icon: String
@@ -381,22 +382,26 @@ struct InsightMetricView: View {
             Text(value)
                 .font(.system(.subheadline, design: .rounded).bold())
                 .multilineTextAlignment(.center)
-                .lineLimit(1)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                 .minimumScaleFactor(0.7)
             
             Text(title)
                 .font(.caption2)
                 .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
 
             if showDetail, let detail {
                 Text(detail)
                     .font(.caption2)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
-                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("insight-\(title)")
     }
 }

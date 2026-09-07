@@ -360,7 +360,8 @@ struct PreSleepCard: View {
                         .foregroundColor(.secondary)
                 }
             }
-            .padding()
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
             .background(
                 RoundedRectangle(cornerRadius: 12)
                     .fill(state.isLogged ? Color(.secondarySystemBackground) : Color.indigo.opacity(0.1))
@@ -447,13 +448,14 @@ struct AlarmIndicatorView: View {
 
 // MARK: - Incomplete Session Banner
 struct IncompleteSessionBanner: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let sessionDate: String
     let isBlocking: Bool
     let onComplete: () -> Void
     let onDismiss: () -> Void
 
     private var titleText: String {
-        isBlocking ? "Finish previous session" : "Finish previous check-in"
+        isBlocking ? "Finish previous session" : "Previous check-in"
     }
 
     private var bodyText: String {
@@ -463,7 +465,11 @@ struct IncompleteSessionBanner: View {
     }
     
     var body: some View {
-        HStack(spacing: 12) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(spacing: 8))
+        layout {
+          HStack(spacing: 8) {
             Image(systemName: "exclamationmark.circle.fill")
                 .font(.title3)
                 .foregroundColor(.orange)
@@ -474,18 +480,18 @@ struct IncompleteSessionBanner: View {
                 Text(bodyText)
                     .font(.caption)
                     .foregroundColor(.secondary)
-                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            
-            Spacer()
-            
+            .frame(maxWidth: .infinity, alignment: .leading)
+          }
+          HStack(spacing: 4) {
             Button("Finish") {
                 onComplete()
             }
             .font(.caption.bold())
             .foregroundColor(.white)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+            .padding(.horizontal, 10)
+            .frame(minHeight: 44)
             .background(Capsule().fill(Color.orange))
             
             Button {
@@ -497,6 +503,7 @@ struct IncompleteSessionBanner: View {
                     .frame(width: 44, height: 44)
             }
             .accessibilityLabel("Dismiss previous check-in reminder")
+          }
         }
         .padding(12)
         .background(
@@ -507,8 +514,7 @@ struct IncompleteSessionBanner: View {
                         .stroke(Color.orange.opacity(0.3), lineWidth: 1)
                 )
         )
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(titleText). \(bodyText).")
+        .accessibilityElement(children: .contain)
     }
     
     private var formattedDate: String {
