@@ -181,6 +181,7 @@ public class AlarmService: NSObject, ObservableObject {
     private var persistedSchedule: PersistedAlarmSchedule?
     private var scheduleGenerations: [NotificationGroup: UInt64] = [:]
     private var failuresByGroup: [NotificationGroup: AlarmSchedulingFailure] = [:]
+    private var wakeScheduleInFlight = false
 
     private static let persistedScheduleKey = "alarmService_schedule_v1"
     private static let legacyTargetWakeTimeKey = "alarmService_targetWakeTime"
@@ -474,6 +475,23 @@ public class AlarmService: NSObject, ObservableObject {
     ///   - dose1Time: Time of Dose 1 (for window calculations)
     @discardableResult
     public func scheduleDose2Alarm(at time: Date, dose1Time: Date) async -> AlarmScheduleResult {
+        // AlarmKit uses one stable app-owned identifier. Do not allow two
+        // reentrant scheduling transactions to race across suspension points:
+        // stale cleanup from the older transaction could otherwise remove the
+        // newer verified alarm. A concurrent caller fails closed and may retry.
+        guard !wakeScheduleInFlight else {
+            let result = AlarmScheduleResult.failed(AlarmSchedulingFailure(
+                code: .cancelled,
+                failedIdentifier: NotificationID.dose2Alarm,
+                detail: "Another Dose 2 alarm update is still in progress",
+                previousScheduleRestored: false
+            ))
+            record(result: result, for: .wake)
+            return result
+        }
+        wakeScheduleInFlight = true
+        defer { wakeScheduleInFlight = false }
+
         // Keep action titles in sync with current user snooze settings.
         registerNotificationCategories()
         let now = nowProvider()

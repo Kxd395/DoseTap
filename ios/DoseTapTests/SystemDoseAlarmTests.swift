@@ -24,6 +24,27 @@ final class SystemDoseAlarmTests: XCTestCase {
             target = drops ? nil : date
         }
     }
+    final class SuspendingNative: SystemDoseAlarmScheduling {
+        var target: Date?
+        var scheduleCalls = 0
+        private var pending: (date: Date, continuation: CheckedContinuation<Void, Never>)?
+        var authorizationDescription: String { "Test authorization" }
+        func requestAuthorization() async throws {}
+        func deadline() throws -> Date? { target }
+        func cancel() throws { target = nil }
+        func schedule(at date: Date) async throws {
+            scheduleCalls += 1
+            await withCheckedContinuation { continuation in
+                pending = (date, continuation)
+            }
+            target = date
+        }
+        func resumeSchedule() {
+            guard let pending else { return }
+            self.pending = nil
+            pending.continuation.resume()
+        }
+    }
     final class Notifications: AlarmNotificationCenterClient {
         var removed: [String] = []
         func setDelegate(_ delegate: (any UNUserNotificationCenterDelegate)?) {}
@@ -39,7 +60,7 @@ final class SystemDoseAlarmTests: XCTestCase {
     override func tearDown() async throws {
         for domain in domains { UserDefaults.standard.removePersistentDomain(forName: domain) }
     }
-    private func service(_ native: Native, _ notifications: Notifications? = nil, now: Date) -> AlarmService {
+    private func service(_ native: any SystemDoseAlarmScheduling, _ notifications: Notifications? = nil, now: Date) -> AlarmService {
         let domain = "SystemDoseAlarmTests.\(UUID())"; domains.append(domain)
         return AlarmService(notificationClient: notifications ?? Notifications(), defaults: UserDefaults(suiteName: domain)!,
             nowProvider: { now }, timeZoneProvider: { TimeZone(secondsFromGMT: 0)! },
@@ -102,5 +123,26 @@ final class SystemDoseAlarmTests: XCTestCase {
         alarm.cancelAllAlarms()
         XCTAssertNil(native.target)
         XCTAssertNil(alarm.lastSystemAlarmCancellationError)
+    }
+    func testOverlappingWakeSchedulesFailClosedWithoutCancellingVerifiedWinner() async {
+        let native = SuspendingNative(), now = Date()
+        let alarm = service(native, now: now)
+        let firstTarget = now.addingTimeInterval(100)
+        let secondTarget = now.addingTimeInterval(200)
+        let first = Task { @MainActor in
+            await alarm.scheduleDose2Alarm(at: firstTarget, dose1Time: now)
+        }
+        while native.scheduleCalls == 0 { await Task.yield() }
+
+        let overlapping = await alarm.scheduleDose2Alarm(at: secondTarget, dose1Time: now)
+        XCTAssertEqual(overlapping.failure?.code, .cancelled)
+        XCTAssertEqual(native.scheduleCalls, 1)
+
+        native.resumeSchedule()
+        let verified = await first.value
+        XCTAssertNil(verified.failure)
+        XCTAssertEqual(native.target, firstTarget)
+        XCTAssertTrue(alarm.alarmScheduled)
+        XCTAssertEqual(alarm.targetWakeTime, firstTarget)
     }
 }
