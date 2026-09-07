@@ -142,10 +142,7 @@ struct SupplySettingsView: View {
                 let url = try result.get()
                 let granted = url.startAccessingSecurityScopedResource()
                 defer { if granted { url.stopAccessingSecurityScopedResource() } }
-                let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
-                guard size <= 10_000_000 else { throw SupplyStorageError.invalid }
-                let value = try JSONDecoder().decode(SupplyBackup.self, from: Data(contentsOf: url))
-                guard value.isValid else { throw SupplyStorageError.invalid }
+                let value = try SupplyBackupFileCodec.decode(contentsOf: url)
                 pendingRestore = value; showConfirmation = true
             } catch { fileMessage = "Restore failed: \(error.localizedDescription)" }
         }

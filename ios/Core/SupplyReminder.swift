@@ -1,5 +1,17 @@
 import Foundation
 
+public enum SupplyBackupFileError: LocalizedError, Equatable {
+    case invalid
+    case tooLarge
+
+    public var errorDescription: String? {
+        switch self {
+        case .invalid: return "The supply backup is invalid."
+        case .tooLarge: return "The supply backup is larger than the 10 MB limit."
+        }
+    }
+}
+
 public enum SupplyReminderDateMode: String, Codable, CaseIterable {
     case reminderDate, cycleEnd, receivedDate
 }
@@ -76,12 +88,14 @@ public struct SupplyBottleStart: Codable, Equatable, Identifiable {
 }
 
 public struct SupplyBackup: Codable, Equatable {
+    public static let maximumRecordCount = 10_000
     public var version = 1
     public var reminder: SupplyReminderDocument?
     public var bottleStarts: [SupplyBottleStart] = []
     public init(reminder: SupplyReminderDocument? = nil) { self.reminder = reminder }
     public var isValid: Bool {
-        version == 1 && reminder?.isValid != false
+        version == 1 && bottleStarts.count <= Self.maximumRecordCount
+            && reminder?.isValid != false
             && Set(bottleStarts.map(\.id)).count == bottleStarts.count
             && bottleStarts.allSatisfy {
                 $0.openedAt.timeIntervalSince1970.isFinite && $0.recordedAt.timeIntervalSince1970.isFinite
@@ -99,8 +113,11 @@ public struct SupplyReminderDocument: Codable, Equatable {
     public init(current: SupplyReminderEntry) { self.current = current }
 
     public var isValid: Bool {
+        guard version == 1, history.count <= SupplyBackup.maximumRecordCount else {
+            return false
+        }
         let entries = history + [current]
-        return version == 1 && entries.allSatisfy(\.isValid)
+        return entries.allSatisfy(\.isValid)
             && Set(entries.map(\.revision)).count == entries.count
     }
 
@@ -110,5 +127,27 @@ public struct SupplyReminderDocument: Codable, Equatable {
         current.revision = UUID()
         current.changedAt = time
         current.source = source
+    }
+}
+
+/// Reads at most the configured byte limit plus one sentinel byte. File-provider
+/// metadata is advisory and cannot be trusted as the import allocation bound.
+public enum SupplyBackupFileCodec {
+    public static let maximumBytes = 10_000_000
+
+    public static func decode(
+        contentsOf url: URL,
+        maximumBytes: Int = maximumBytes
+    ) throws -> SupplyBackup {
+        guard maximumBytes > 0, maximumBytes < Int.max else {
+            throw SupplyBackupFileError.invalid
+        }
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { handle.closeFile() }
+        let data = handle.readData(ofLength: maximumBytes + 1)
+        guard data.count <= maximumBytes else { throw SupplyBackupFileError.tooLarge }
+        let value = try JSONDecoder().decode(SupplyBackup.self, from: data)
+        guard value.isValid else { throw SupplyBackupFileError.invalid }
+        return value
     }
 }

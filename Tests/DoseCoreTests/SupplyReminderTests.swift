@@ -59,4 +59,53 @@ final class SupplyReminderTests: XCTestCase {
         document.version = 2
         XCTAssertFalse(document.isValid)
     }
+
+    func testBackupFileDecodeEnforcesActualByteLimit() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SupplyReminderTests-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let value = SupplyBackup()
+        let encoded = try JSONEncoder().encode(value)
+        try encoded.write(to: url)
+
+        XCTAssertEqual(
+            try SupplyBackupFileCodec.decode(contentsOf: url, maximumBytes: encoded.count),
+            value
+        )
+        XCTAssertThrowsError(
+            try SupplyBackupFileCodec.decode(contentsOf: url, maximumBytes: encoded.count - 1)
+        ) { error in
+            XCTAssertEqual(error as? SupplyBackupFileError, .tooLarge)
+        }
+    }
+
+    func testBackupFileDecodeRejectsOneBytePastDefaultLimitBeforeDecoding() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SupplyReminderTests-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try Data(repeating: 0x20, count: SupplyBackupFileCodec.maximumBytes + 1).write(to: url)
+
+        XCTAssertThrowsError(try SupplyBackupFileCodec.decode(contentsOf: url)) { error in
+            XCTAssertEqual(error as? SupplyBackupFileError, .tooLarge)
+        }
+    }
+
+    func testBackupValidationCapsImportedCollectionCounts() {
+        let date = Date(timeIntervalSince1970: 1_800_000_000)
+        var value = SupplyBackup()
+        value.bottleStarts = (0...SupplyBackup.maximumRecordCount).map { offset in
+            SupplyBottleStart(openedAt: date, recordedAt: date.addingTimeInterval(TimeInterval(offset)))
+        }
+        XCTAssertFalse(value.isValid)
+
+        var document = SupplyReminderDocument(
+            current: SupplyReminderEntry(year: 2026, month: 9, day: 5, hour: 9, minute: 0)
+        )
+        document.history = (0...SupplyBackup.maximumRecordCount).map { _ in
+            var entry = document.current
+            entry.revision = UUID()
+            return entry
+        }
+        XCTAssertFalse(document.isValid)
+    }
 }
