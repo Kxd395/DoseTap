@@ -16,6 +16,7 @@ struct CompactDoseButton: View {
     /// button in `.finalizing` state.
     var showMorningCheckIn: Binding<Bool>? = nil
     @State private var workWakeWarning: WorkWakeWarning?
+    @State private var dose2Confirmation: DoseActionCoordinator.Dose2Confirmation?
     @State private var showExpiredDose2Resolution = false
     @State private var expiredResolutionReferenceTime = Date()
     @State private var reasonCaptureMode: Dose2OutcomeReasonMode?
@@ -72,6 +73,9 @@ struct CompactDoseButton: View {
             .accessibilityHint(primaryButtonAccessibilityHint)
             // Closed timing phases remain actionable so the record can be resolved.
             .padding(.horizontal)
+            .sheet(item: $dose2Confirmation) { confirmation in
+                Dose2RecordConfirmationSheet(confirmation: confirmation, coordinator: coordinator, onCommitted: handleActionResult)
+            }
             .sheet(item: $workWakeWarning) { warning in
                 if let repository = coordinator.sessionRepo {
                     WorkWakeWarningSheet(warning: warning, repository: repository, coordinator: coordinator, onResult: handleActionResult)
@@ -202,6 +206,8 @@ struct CompactDoseButton: View {
 
     private func handleConfirmation(_ confirmation: DoseActionCoordinator.ConfirmationType) {
         switch confirmation {
+        case .dose2Record(let request):
+            dose2Confirmation = request
         case .workWake(let warning):
             workWakeWarning = warning
         case .earlyDose(let minutes):

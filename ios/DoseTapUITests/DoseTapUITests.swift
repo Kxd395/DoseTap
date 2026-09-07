@@ -8,17 +8,52 @@ final class DoseTapUITests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
         app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
         if name.contains("testSupply") || name.contains("testSystemAlarm") { app.launchArguments += ["-setup_completed_v2", "YES"] }
         if name.contains("testDashboard") { app.launchArguments += ["--uitesting-dashboard", "-setup_completed_v2", "YES"] }
         if name.contains("testWorkWarning") { app.launchArguments.append("--uitesting-work-warning") }
+        if name.contains("testDose2Confirmation") { app.launchArguments.append("--uitesting-dose2-confirmation") }
         if name.contains("testExpiredSessionLaunch") { app.launchArguments.append("--uitesting-expired-session") }
         app.launch()
     }
 
     override func tearDownWithError() throws {
         app = nil
+    }
+
+    func testDose2ConfirmationCancelBackgroundAndExplicitSave() throws {
+        // Seed only once. Relaunch below must read the committed database.
+        app.launchArguments.removeAll { $0 == "--uitesting-dose2-confirmation" }
+        let action = app.buttons["dose-primary-action"]
+        XCTAssertTrue(action.waitForExistence(timeout: 15))
+        for _ in 0..<6 where !action.isHittable { app.swipeUp() }
+        XCTAssertTrue(action.isHittable)
+        action.tap()
+        let confirm = app.buttons["dose2-confirm-record"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "The first tap must only open confirmation")
+        captureDashboard("Dose 2 explicit confirmation before any medication write")
+        app.buttons["dose2-cancel-record"].tap()
+        XCTAssertTrue(action.waitForExistence(timeout: 5), "Cancel must leave Dose 2 pending")
+
+        action.tap()
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        XCTAssertTrue(action.waitForExistence(timeout: 5))
+        XCTAssertFalse(confirm.exists, "Backgrounding must dismiss stale confirmation")
+
+        action.tap()
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        confirm.tap()
+        let committed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: action)
+        wait(for: [committed], timeout: 5)
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["Tonight"].waitForExistence(timeout: 15))
+        XCTAssertFalse(action.exists, "Confirmed Dose 2 must survive process restart without reseeding")
+        captureDashboard("Dose 2 confirmed record restored after relaunch")
     }
 
     func testDashboardOverviewTrendsAndData() throws {
@@ -230,6 +265,9 @@ final class DoseTapUITests: XCTestCase {
         let record = app.buttons["Continue to Record Dose 2"]
         XCTAssertTrue(record.waitForExistence(timeout: 5))
         record.tap()
+        let confirm = app.buttons["dose2-confirm-record"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "Acknowledging a work warning must not record Dose 2")
+        confirm.tap()
         XCTAssertTrue(app.staticTexts[night].waitForExistence(timeout: 5))
         XCTAssertFalse(action.exists)
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Dose 2 alarm:")).firstMatch.exists)

@@ -385,6 +385,9 @@ public class URLRouter: ObservableObject {
             showFeedback(reason)
         case .needsConfirm(let type):
             switch type {
+            case .dose2Record:
+                selectedTab = .tonight
+                showFeedback("Dose 2 is not recorded. Review and confirm Record Dose 2 in the app.")
             case .workWake:
                 showFeedback("Work/wake warning - review in the app")
             case .earlyDose:

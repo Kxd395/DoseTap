@@ -2,8 +2,8 @@
 
 Status: Current behavior authority
 Last verified: 2026-09-05
-SSOT revision: 0.4.17
-Shipping app version observed in the Xcode project: 0.4.17 (build 19)
+SSOT revision: 0.4.18
+Shipping app version observed in the Xcode project: 0.4.18 (build 20)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -57,6 +57,8 @@ Safety constraints (authoritative):
 - Session day grouping rolls over at 18:00 (6 PM) local time.
 - Undo window is 5 seconds by default for dose/event actions.
 - Elapsed time, an unanswered alarm, app foregrounding, or session rollover must never persist a taken, skipped, or missed medication outcome.
+- An ordinary Dose 2 request opens an explicit record confirmation; the initial tap, deep link, or Flic action cannot commit it. Confirmation is single-use, bound to the active session and its Dose 1 timestamp, and invalidated when the app becomes inactive. Confirming rechecks the current timing and work-warning policy and captures the commit-time clock; a stale prompt must never supply an earlier alarm or request timestamp.
+- The confirmation control says that it records a dose already taken. Cancel, dismissal, alarm open/stop, and backgrounding leave the medication record unchanged. The early warning plus hold-to-confirm remains its existing explicit confirmation path; retrospective and extra-dose confirmations also remain distinct. A work-warning acknowledgement alone does not replace ordinary Dose 2 record confirmation.
 - `closed` is a calculated timing phase, not a persisted medication outcome. An unresolved record remains unresolved until the user explicitly records an occurrence that already happened or marks Dose 2 missed / not taken.
 - Prospective Dose 2 actions are blocked after the configured window. A real occurrence remains recordable retrospectively with its actual timestamp; an occurrence outside the configured window requires an explicit accuracy warning and confirmation.
 

@@ -57,12 +57,15 @@ struct DoseTapApp: App {
             UserDefaults.standard.set(true, forKey: SetupWizardService.setupCompletedKey)
             SessionRepository.prepareExpiredSessionUITestFixture()
         }
-        if ProcessInfo.processInfo.arguments.contains("--uitesting-work-warning") {
+        if ProcessInfo.processInfo.arguments.contains("--uitesting-work-warning")
+            || ProcessInfo.processInfo.arguments.contains("--uitesting-dose2-confirmation") {
             UserDefaults.standard.set(true, forKey: SetupWizardService.setupCompletedKey)
             UserSettingsManager.shared.targetIntervalMinutes = 165
             UserSettingsManager.shared.soundEnabled = false
             let repository = SessionRepository.shared
-            repository.prepareWorkWarningUITestSession()
+            repository.prepareWorkWarningUITestSession(
+                working: !ProcessInfo.processInfo.arguments.contains("--uitesting-dose2-confirmation")
+            )
         }
         #endif
 
@@ -210,6 +213,7 @@ struct DoseTapApp: App {
             }
             
         case .background:
+            container.doseCoordinator.cancelDose2Confirmation()
             backgroundedAt = Date()
             Task {
                 await DiagnosticLogger.shared.logAppBackgrounded(sessionId: sessionId)
@@ -217,6 +221,7 @@ struct DoseTapApp: App {
             AlarmService.shared.stopRinging(acknowledge: false)
 
         case .inactive:
+            container.doseCoordinator.cancelDose2Confirmation()
             // Transitional state, don't log
             break
             

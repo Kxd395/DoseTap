@@ -344,6 +344,16 @@ final class URLRouterTests: XCTestCase {
         XCTAssertTrue(router.feedbackMessage.contains("Record a dose that already occurred"), "Should tell user to open app to confirm.")
     }
 
+    func test_dose2_deepLink_inWindowDoesNotRecordWithoutExplicitConfirmation() async {
+        let repo = SessionRepository.shared
+        XCTAssertTrue(repo.setDose1Time(Date().addingTimeInterval(-160 * 60)).isCommitted)
+        XCTAssertTrue(router.handle(URL(string: "dosetap://dose2")!))
+        await router.waitForPendingActions()
+        XCTAssertNil(repo.dose2Time)
+        XCTAssertTrue(router.feedbackMessage.contains("Dose 2 is not recorded"))
+        XCTAssertEqual(router.selectedTab, .tonight)
+    }
+
     func test_dose2_deepLink_blocksBeforeWindow_withoutOverride() async {
         let repo = SessionRepository.shared
         repo.setDose1Time(Date().addingTimeInterval(-100 * 60))

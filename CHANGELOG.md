@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 0.4.18 (20) — integration-audit build
+
+- Require a separate, single-use, session-bound confirmation before an ordinary Dose 2 record. Initial taps, deep links, Flic actions, canceled prompts, and backgrounded confirmations cannot save it.
+- Capture Dose 2 at confirmation time and recheck timing, session identity, and work warnings; keep late historical entry separate. Correct the Dose 2 alarm screen's misleading morning-check-in wording.
+- Serialize Dose 2 wake-alarm updates so an overlapping request cannot let stale cleanup remove a newer verified AlarmKit alarm.
+- Enforce the supply-backup byte limit against bytes actually read, including file-provider imports with missing or stale size metadata.
+- Cap imported supply reminder and bottle-history collections and add regression coverage for both boundaries.
+- Keep release approval separate from merge readiness; signed-device, owner, provider, privacy, and credential-revocation gates remain open.
+
+### 0.4.17 (19) — dashboard parity build
+
+- Restore the requested build-14 metric summaries and section-color hierarchy without restoring obsolete calculations.
+- Preserve unavailable provider values as unavailable instead of rendering synthetic zeroes.
+- Retain corrected source, denominator, and missingness semantics from the analytics audit.
+
+### 0.4.16 (18) — dashboard visibility build
+
+- Show the full analytics dashboard by default with explicit prerequisites and data-coverage explanations.
+- Preserve source and section filters while keeping unavailable cards visible and accurately labeled.
+
+### 0.4.15 (17) — analytics-correction build
+
+- Correct civil-date ranges, dose-outcome denominators, source selection, and screen-time cohort handling.
+- Read canonical local history, validate imported sleep samples, and keep unanswered observations missing.
+- Add focused dashboard audit tests and simulator evidence for representative, empty, sparse, and accessibility-size states.
+
 ### 0.4.14 (16) — local device-validation build
 
 - Place Pre-Sleep Check directly before the nightly dose action.

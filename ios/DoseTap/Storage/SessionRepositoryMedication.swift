@@ -17,7 +17,7 @@ public extension SessionRepository {
         _ = storage.saveDose1(timestamp: start, sessionId: id, sessionDateOverride: date, sessionStart: start)
     }
 
-    func prepareWorkWarningUITestSession() {
+    func prepareWorkWarningUITestSession(working: Bool = true) {
         AlarmService.shared.resetForNewSession(closingSessionId: currentSessionIdString())
         clearTonight()
         let now = clock()
@@ -32,7 +32,7 @@ public extension SessionRepository {
         UserSettingsManager.shared.wakeTimeMinutes = calendar.component(.hour, from: wake) * 60 + calendar.component(.minute, from: wake)
         _ = setDose1Time(firstDose)
         let previous = try? workWakeSchedule()
-        var plan = WorkWakeSchedule(timeZoneIdentifier: timeZoneProvider().identifier, workingWeekdays: Set(1...7), wakeMinutes: 420, target: .doseTarget)
+        var plan = WorkWakeSchedule(timeZoneIdentifier: timeZoneProvider().identifier, workingWeekdays: working ? Set(1...7) : [], wakeMinutes: 420, target: .doseTarget)
         if let previous { plan.revision = previous.revision }
         _ = saveWorkWakeSchedule(plan)
     }

@@ -671,11 +671,79 @@ struct ExpiredDose2ResolutionSheet: View {
     }
 }
 
+/// The first dose-button activation only presents this review. Only its
+/// deliberate confirm action may consume the coordinator's session-bound intent.
+struct Dose2RecordConfirmationSheet: View {
+    let confirmation: DoseActionCoordinator.Dose2Confirmation
+    let coordinator: DoseActionCoordinator
+    let onCommitted: (DoseActionCoordinator.ActionResult) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Text("Have you taken Dose 2?")
+                        .font(.title2.bold())
+                    Text("Confirm only if you have just taken it. This saves the time you confirm, not the alarm time.")
+                    Text("Opening or stopping an alarm does not record a dose.")
+                        .foregroundStyle(.secondary)
+                }
+                Section {
+                    Button("Yes — Record Dose 2 Now") {
+                        guard !isSaving, scenePhase == .active else { return }
+                        isSaving = true
+                        Task {
+                            let result = await coordinator.confirmDose2(confirmation)
+                            isSaving = false
+                            switch result {
+                            case .success, .attentionRequired:
+                                onCommitted(result)
+                                dismiss()
+                            case .blocked(let message), .retryRequired(let message):
+                                errorMessage = message
+                            case .needsConfirm:
+                                errorMessage = "The timing or work warning changed. Cancel and review Record Dose 2 again."
+                            }
+                        }
+                    }
+                    .accessibilityIdentifier("dose2-confirm-record")
+                    .disabled(isSaving || errorMessage != nil)
+                    if let errorMessage {
+                        Text(errorMessage).foregroundStyle(.red)
+                    }
+                }
+            }
+            .navigationTitle("Confirm Dose 2")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .accessibilityIdentifier("dose2-cancel-record")
+                        .disabled(isSaving)
+                }
+            }
+        }
+        .interactiveDismissDisabled(isSaving)
+        .onDisappear { coordinator.cancelDose2Confirmation(confirmation) }
+        .onChange(of: scenePhase) { phase in
+            if phase != .active {
+                coordinator.cancelDose2Confirmation(confirmation)
+                dismiss()
+            }
+        }
+    }
+}
+
 struct DoseButtonsSection: View {
     @ObservedObject var core: DoseTapCore
     @Binding var showEarlyDoseAlert: Bool
     @Binding var earlyDoseMinutes: Int
     @State private var workWakeWarning: WorkWakeWarning?
+    @State private var dose2Confirmation: DoseActionCoordinator.Dose2Confirmation?
     @State private var showExpiredDose2Resolution = false
     @State private var expiredResolutionReferenceTime = Date()
     @State private var reasonCaptureMode: Dose2OutcomeReasonMode?
@@ -698,6 +766,9 @@ struct DoseButtonsSection: View {
                     .cornerRadius(12)
             }
             .disabled(primaryButtonDisabled)
+            .sheet(item: $dose2Confirmation) { confirmation in
+                Dose2RecordConfirmationSheet(confirmation: confirmation, coordinator: coordinator, onCommitted: handleActionResult)
+            }
             .sheet(item: $workWakeWarning) { warning in
                 if let repository = coordinator.sessionRepo {
                     WorkWakeWarningSheet(warning: warning, repository: repository, coordinator: coordinator, onResult: handleActionResult)
@@ -819,6 +890,8 @@ struct DoseButtonsSection: View {
 
     private func handleConfirmation(_ confirmation: DoseActionCoordinator.ConfirmationType) {
         switch confirmation {
+        case .dose2Record(let request):
+            dose2Confirmation = request
         case .workWake(let warning):
             workWakeWarning = warning
         case .earlyDose(let minutes):
@@ -1150,6 +1223,7 @@ struct WorkWakeWarningSheet: View {
     @State private var saving = false
     @State private var changingWake = false
     @State private var wakeTime = Date()
+    @State private var dose2Confirmation: DoseActionCoordinator.Dose2Confirmation?
 
     var body: some View {
         NavigationStack {
@@ -1191,6 +1265,8 @@ struct WorkWakeWarningSheet: View {
                             case .needsConfirm(.workWake(let updated)):
                                 warning = updated
                                 error = "Your schedule changed. Review the updated warning."
+                            case .needsConfirm(.dose2Record(let confirmation)):
+                                dose2Confirmation = confirmation
                             case .blocked(let message), .retryRequired(let message): error = message
                             case .needsConfirm: error = "Dose state changed. Cancel and review the current dose action."
                             }
@@ -1202,6 +1278,14 @@ struct WorkWakeWarningSheet: View {
                     .disabled(saving)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                    .sheet(item: $dose2Confirmation) { confirmation in
+                        if let coordinator {
+                            Dose2RecordConfirmationSheet(confirmation: confirmation, coordinator: coordinator) { result in
+                                onResult(result)
+                                dismiss()
+                            }
+                        }
+                    }
                 }
                 Section {
                     Button {
