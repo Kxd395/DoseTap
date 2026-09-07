@@ -111,6 +111,8 @@ struct SelectedDayView: View {
                     .fill(Color(.secondarySystemBackground))
             )
 
+            if hasData { NightOutcomeButton(sessionDate: sessionDateString) }
+
             if let dose = doseLog {
                 VStack(alignment: .leading, spacing: 8) {
                     Button {

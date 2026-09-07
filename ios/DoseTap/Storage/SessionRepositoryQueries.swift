@@ -13,6 +13,17 @@ public extension SessionRepository {
         }
     }
 
+    internal func nightOutcomeSnapshot(sessionDate: String) throws -> NightOutcomeSnapshot {
+        try storage.nightOutcomeSnapshot(sessionDate: sessionDate)
+    }
+
+    @discardableResult
+    internal func saveNightOutcome(_ answers: NightOutcomeDiary, review: NightOutcomeSnapshot, reason: String) -> MedicationMutationResult {
+        let result = storage.saveNightOutcome(answers, review: review, reason: reason, recordedAt: clock())
+        if result.isCommitted { sessionDidChange.send() }
+        return result
+    }
+
     /// Get the current session date string (based on the rollover boundary).
     func currentSessionDateString() -> String {
         activeSessionDate ?? currentSessionKey

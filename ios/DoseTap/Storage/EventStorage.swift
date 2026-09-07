@@ -62,6 +62,7 @@ public class EventStorage {
     public enum CheckInType: String, CaseIterable {
         case preNight = "pre_night"
         case morning = "morning"
+        case nightOutcome = "night_outcome"
     }
 
     enum CheckInQuestionnaireVersion {

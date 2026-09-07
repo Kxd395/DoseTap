@@ -307,6 +307,10 @@ struct LegacyTonightView: View {
 
             }
 
+            if let night = sessionRepo.activeSessionDate, sessionRepo.dose2Time != nil {
+                NightOutcomeButton(sessionDate: night).padding(.horizontal)
+            }
+
             // Morning Check-In Card (view/edit completed check-in)
             if let checkIn = morningCheckIn {
                 MorningCheckInCompactCard(checkIn: checkIn) {

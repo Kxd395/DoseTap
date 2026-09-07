@@ -79,6 +79,7 @@
 		E7EA21EC3FE949B3890BF69A /* FullApp/SetupWizardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1BA2E6CCFB845E6BFC919FA /* FullApp/SetupWizardService.swift */; };
 		EA02466EA69547DF963A8BA7 /* WHOOPService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7084981AA100483EB6E6ADE1 /* WHOOPService.swift */; };
 		EDIT002 /* EditDoseTimeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDIT001 /* EditDoseTimeView.swift */; };
+		NWB001 /* NightOutcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = NWF001 /* NightOutcomeView.swift */; };
 		ESB001 /* EventStorage+Schema.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF001 /* EventStorage+Schema.swift */; };
 		SUPB01 /* EventStorage+Supply.swift in Sources */ = {isa = PBXBuildFile; fileRef = SUPF01 /* EventStorage+Supply.swift */; };
 		ESB002 /* EventStorage+Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF002 /* EventStorage+Session.swift */; };
@@ -272,6 +273,7 @@
 		DED8B35BAB0493115DB99CA4 /* SecureLogger.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SecureLogger.swift; sourceTree = "<group>"; };
 		E0BC9035E4ACF20D1D40B9A9 /* SleepTimelineOverlays.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SleepTimelineOverlays.swift; sourceTree = "<group>"; };
 		EDIT001 /* EditDoseTimeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditDoseTimeView.swift; sourceTree = "<group>"; };
+		NWF001 /* NightOutcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightOutcomeView.swift; sourceTree = "<group>"; };
 		ESF001 /* EventStorage+Schema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+Schema.swift"; sourceTree = "<group>"; };
 		SUPF01 /* EventStorage+Supply.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+Supply.swift"; sourceTree = "<group>"; };
 		ESF002 /* EventStorage+Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+Session.swift"; sourceTree = "<group>"; };
@@ -653,6 +655,7 @@
 				NRV009 /* NightReviewSummary.swift */,
 				707FF265ADBBA04484376264 /* ThemeSettingsView.swift */,
 				EDIT001 /* EditDoseTimeView.swift */,
+				NWF001 /* NightOutcomeView.swift */,
 				GRP_DASHBOARD /* Dashboard */,
 				GRP_TIMELINE /* Timeline */,
 				GRP_HISTORY /* History */,
@@ -912,6 +915,7 @@
 				SYSUIB01 /* SystemAlarmSettingsView.swift in Sources */,
 				UNDO007 /* MedicationPickerView.swift in Sources */,
 				EDIT002 /* EditDoseTimeView.swift in Sources */,
+				NWB001 /* NightOutcomeView.swift in Sources */,
 				0A777B0D5CC54803B060A980 /* UserSettingsManager.swift in Sources */,
 				626911F284B24C54BA73D7F8 /* SettingsView.swift in Sources */,
 				SET001 /* SettingsSections.swift in Sources */,

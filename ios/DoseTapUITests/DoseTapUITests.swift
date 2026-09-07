@@ -261,6 +261,24 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Tonight"].waitForExistence(timeout: 15))
         XCTAssertFalse(action.exists, "Confirmed Dose 2 must survive process restart without reseeding")
         captureDashboard("Dose 2 confirmed record restored after relaunch")
+        let diary = app.buttons["night-outcome-open"]
+        XCTAssertTrue(diary.waitForExistence(timeout: 5)); diary.tap()
+        app.segmentedControls["night-wake-method"].buttons["Natural"].tap()
+        captureDashboard("Dose 2 wake choices do not record medication")
+        app.buttons["night-outcome-save"].tap()
+        XCTAssertTrue(app.alerts["Answers saved"].waitForExistence(timeout: 5))
+        app.alerts["Answers saved"].buttons["OK"].tap()
+        app.terminate(); app.launch()
+        XCTAssertTrue(diary.waitForExistence(timeout: 15))
+        XCTAssertTrue(diary.label.contains("Natural"))
+        XCTAssertFalse(action.exists, "Wake answers must not change the recorded dose")
+        diary.tap()
+        app.segmentedControls["night-wake-method"].buttons["Alarm"].tap()
+        app.buttons["night-outcome-save"].tap()
+        XCTAssertTrue(app.alerts["Answers not saved"].waitForExistence(timeout: 5))
+        captureDashboard("Wake correction requires a visible reason")
+        app.alerts["Answers not saved"].buttons["OK"].tap()
+        app.buttons["Done"].tap()
     }
 
     func testDashboardOverviewTrendsAndData() throws {

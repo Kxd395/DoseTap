@@ -33,6 +33,56 @@ private final class MedicationMutationNotificationCenter: AlarmNotificationCente
 
 @MainActor
 final class MedicationMutationTransactionTests: XCTestCase {
+    func testNightOutcomeCommitFailureStaleCorrectionAndMedicationIsolation() throws {
+        let storage = EventStorage.inMemory()
+        try seedDose1(in: storage)
+        let dose2 = oldDose1.addingTimeInterval(180 * 60)
+        XCTAssertTrue(storage.saveDose2(timestamp: dose2, sessionId: sessionId, sessionDateOverride: sessionDate).isCommitted)
+        let original = try storage.nightOutcomeSnapshot(sessionDate: sessionDate)
+        var diary = NightOutcomeDiary(); diary.wakeMethod = .natural; diary.backupAlarmSet = true
+        func save(_ snapshot: NightOutcomeSnapshot, reason: String = "") -> MedicationMutationResult {
+            storage.saveNightOutcome(diary, review: snapshot, reason: reason, recordedAt: dose2)
+        }
+        storage.medicationFaultInjector = { $0 == .commit ? MedicationStorageInjectedFailure(code: .diskFull, detail: "Injected") : nil }
+        XCTAssertFalse(save(original).isCommitted)
+        XCTAssertNil(try storage.nightOutcomeSnapshot(sessionDate: sessionDate).record)
+        storage.medicationFaultInjector = nil
+        XCTAssertTrue(save(original).isCommitted)
+        XCTAssertFalse(save(original).isCommitted, "Stale form cannot overwrite a saved observation")
+        let saved = try storage.nightOutcomeSnapshot(sessionDate: sessionDate)
+        XCTAssertEqual(saved.record?.answers.wakeMethod, .natural)
+        XCTAssertEqual(saved.record?.answers.backupAlarmSet, true)
+        diary.wakeMethod = .alarm
+        XCTAssertFalse(save(saved).isCommitted, "Changing an answered field needs a reason")
+        XCTAssertTrue(save(saved, reason: "Remembered the alarm").isCommitted)
+        let corrected = try storage.nightOutcomeSnapshot(sessionDate: sessionDate)
+        XCTAssertEqual(corrected.record?.revisions.first?.answers.wakeMethod, .natural)
+        XCTAssertEqual(corrected.history.events, original.history.events, "No medication rows may change")
+        XCTAssertEqual(storage.loadCurrentSessionState().dose2Time, dose2)
+        XCTAssertEqual(storage.fetchCheckInSubmissions(sessionDate: sessionDate, checkInType: .nightOutcome).count, 1)
+        diary.finalWakeAt = dose2.addingTimeInterval(2 * 3600)
+        diary.sleepiness = 0; diary.assessedAt = dose2.addingTimeInterval(8 * 3600)
+        XCTAssertTrue(storage.saveNightOutcome(diary, review: corrected, reason: "", recordedAt: diary.assessedAt!).isCommitted,
+                      "A later, previously unanswered rating is not a correction")
+        let later = try storage.nightOutcomeSnapshot(sessionDate: sessionDate)
+        XCTAssertEqual(later.record?.answers.sleepiness, 0, "Fully alert is a valid observed zero")
+        XCTAssertEqual(later.record?.answers.assessedAt, diary.assessedAt)
+        XCTAssertEqual(later.history.events, original.history.events)
+    }
+
+    func testWakeAnswerCannotCreateDoseTwoAndCorruptOutcomeFailsClosed() throws {
+        let storage = EventStorage.inMemory()
+        try seedDose1(in: storage)
+        let snapshot = try storage.nightOutcomeSnapshot(sessionDate: sessionDate)
+        var diary = NightOutcomeDiary(); diary.wakeMethod = .alarm
+        XCTAssertFalse(storage.saveNightOutcome(diary, review: snapshot, reason: "", recordedAt: oldDose1).isCommitted)
+        XCTAssertNil(storage.loadCurrentSessionState().dose2Time)
+        diary.wakeMethod = .unknown; diary.dayType = .workday
+        XCTAssertTrue(storage.saveNightOutcome(diary, review: snapshot, reason: "", recordedAt: oldDose1).isCommitted)
+        XCTAssertEqual(sqlite3_exec(storage.db, "UPDATE checkin_submissions SET responses_json = '{}' WHERE checkin_type = 'night_outcome'", nil, nil, nil), SQLITE_OK)
+        XCTAssertThrowsError(try storage.nightOutcomeSnapshot(sessionDate: sessionDate))
+    }
+
     func testHistoryQuestionnairesCreateAnEmptyPastNightWithoutMedicationAndRejectStaleEdits() throws {
         let storage = EventStorage.inMemory()
         try seedDose1(in: storage)
