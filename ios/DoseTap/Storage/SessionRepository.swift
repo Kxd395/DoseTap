@@ -689,7 +689,8 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         recordedAt: Date? = nil,
         surface: RegistrationSurface? = nil,
         reason: String? = nil,
-        reasonNotes: String? = nil
+        reasonNotes: String? = nil,
+        wakeMethod: Dose2WakeKind? = nil
     ) -> MedicationMutationResult {
         evaluateSessionBoundaries(reason: "set_dose2_preflight")
         let storedState = storage.loadCurrentSessionState()
@@ -775,7 +776,8 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             reason: reason,
             reasonNotes: reasonNotes,
             sessionId: session.sessionId,
-            sessionDateOverride: session.sessionDate
+            sessionDateOverride: session.sessionDate,
+            wakeMethod: wakeMethod
         ))
         guard result.isCommitted else {
             return result

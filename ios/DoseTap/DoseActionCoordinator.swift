@@ -224,7 +224,8 @@ final class DoseActionCoordinator: ObservableObject {
         acknowledgedWorkWarning: WorkWakeWarning? = nil,
         reason: String? = nil,
         reasonNotes: String? = nil,
-        surface: RegistrationSurface = .tonightButton
+        surface: RegistrationSurface = .tonightButton,
+        wakeMethod: Dose2WakeKind? = nil
     ) async -> ActionResult {
         // Bind the challenge to canonical persisted precision, not the
         // sub-millisecond Date still in memory immediately after Dose 1.
@@ -232,7 +233,7 @@ final class DoseActionCoordinator: ObservableObject {
         return await evaluateDose2(
             override: override, acknowledgedWorkWarning: acknowledgedWorkWarning,
             reason: reason, reasonNotes: reasonNotes, surface: surface,
-            explicitlyConfirmed: false
+            explicitlyConfirmed: false, wakeMethod: wakeMethod
         )
     }
 
@@ -242,7 +243,7 @@ final class DoseActionCoordinator: ObservableObject {
         }
     }
 
-    func confirmDose2(_ confirmation: Dose2Confirmation) async -> ActionResult {
+    func confirmDose2(_ confirmation: Dose2Confirmation, wakeMethod: Dose2WakeKind? = nil) async -> ActionResult {
         guard pendingDose2Confirmation == confirmation else {
             return .blocked(reason: "This confirmation expired. Reopen Record Dose 2 and review it again.")
         }
@@ -259,7 +260,7 @@ final class DoseActionCoordinator: ObservableObject {
             override: confirmation.override,
             acknowledgedWorkWarning: confirmation.workWarning,
             reason: confirmation.reason, reasonNotes: confirmation.reasonNotes,
-            surface: confirmation.surface, explicitlyConfirmed: true
+            surface: confirmation.surface, explicitlyConfirmed: true, wakeMethod: wakeMethod
         )
     }
 
@@ -269,7 +270,8 @@ final class DoseActionCoordinator: ObservableObject {
         reason: String?,
         reasonNotes: String?,
         surface: RegistrationSurface,
-        explicitlyConfirmed: Bool
+        explicitlyConfirmed: Bool,
+        wakeMethod: Dose2WakeKind? = nil
     ) async -> ActionResult {
         let sig = DoseSignpost.begin(.takeDose2, "override=\(override),surface=\(surface.rawValue)")
         defer { DoseSignpost.end(.takeDose2, sig) }
@@ -337,7 +339,7 @@ final class DoseActionCoordinator: ObservableObject {
                     isEarly: true,
                     reason: reason,
                     reasonNotes: reasonNotes,
-                    surface: surface
+                    surface: surface, wakeMethod: wakeMethod
                 )
             }
             return await performDose2(
@@ -347,7 +349,7 @@ final class DoseActionCoordinator: ObservableObject {
                 workWarning: workWarning,
                 reason: reason,
                 reasonNotes: reasonNotes,
-                surface: surface
+                surface: surface, wakeMethod: wakeMethod
             )
         case .requiresConfirmation(let type):
             return .needsConfirm(mapConfirmation(type))
@@ -365,7 +367,8 @@ final class DoseActionCoordinator: ObservableObject {
         acknowledgedWorkWarning: WorkWakeWarning? = nil,
         reason: String? = nil,
         reasonNotes: String? = nil,
-        surface: RegistrationSurface = .tonightButton
+        surface: RegistrationSurface = .tonightButton,
+        wakeMethod: Dose2WakeKind? = nil
     ) async -> ActionResult {
         guard sessionRepo != nil else {
             return .blocked(reason: "Session store unavailable")
@@ -416,7 +419,7 @@ final class DoseActionCoordinator: ObservableObject {
                 recordedAt: decisionTime,
                 reason: reason,
                 reasonNotes: reasonNotes,
-                surface: surface
+                surface: surface, wakeMethod: wakeMethod
             )
         case .requiresConfirmation(let type):
             return .needsConfirm(mapConfirmation(type))
@@ -553,7 +556,8 @@ final class DoseActionCoordinator: ObservableObject {
         recordedAt: Date? = nil,
         reason: String? = nil,
         reasonNotes: String? = nil,
-        surface: RegistrationSurface
+        surface: RegistrationSurface,
+        wakeMethod: Dose2WakeKind? = nil
     ) async -> ActionResult {
         guard let sessionRepo else {
             return .blocked(reason: "Session store unavailable")
@@ -578,7 +582,7 @@ final class DoseActionCoordinator: ObservableObject {
             recordedAt: recordedAt ?? decisionTime,
             surface: surface,
             reason: reason,
-            reasonNotes: reasonNotes
+            reasonNotes: reasonNotes, wakeMethod: wakeMethod
         )
         await logDoseMutationResult(
             mutationResult,

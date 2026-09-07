@@ -97,7 +97,8 @@ public extension SessionRepository {
         confirmed: Bool,
         reason: String?,
         notes: String?,
-        workWarning: WorkWakeWarning? = nil
+        workWarning: WorkWakeWarning? = nil,
+        wakeMethod: Dose2WakeKind? = nil
     ) -> MedicationMutationResult {
         let enteredAt = clock()
         guard confirmed, sessionId != activeSessionId else {
@@ -127,7 +128,8 @@ public extension SessionRepository {
         }
         let result = recordMedicationMutation(storage.reconcileDoseEvent(
             eventType: .dose2, timestamp: occurrenceTime, sessionDate: sessionDate,
-            sessionId: sessionId, metadata: json, expectedDose1Time: first.timestamp, onlyIfDose2Missing: true, workWarning: workWarning
+            sessionId: sessionId, metadata: json, expectedDose1Time: first.timestamp, onlyIfDose2Missing: true,
+            workWarning: workWarning, wakeMethod: wakeMethod, recordedAt: enteredAt
         ))
         if result.isCommitted { sessionDidChange.send() }
         return result

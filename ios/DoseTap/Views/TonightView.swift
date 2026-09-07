@@ -495,12 +495,12 @@ struct LegacyTonightView: View {
         .sheet(isPresented: $showOverrideConfirmation) {
             EarlyDoseOverrideSheet(
                 minutesRemaining: earlyDoseMinutesRemaining,
-                onConfirm: { reason, notes in
+                onConfirm: { reason, notes, wakeMethod in
                     Task {
                         let result = await coordinator.takeDose2(
                             override: .earlyConfirmed,
                             reason: reason,
-                            reasonNotes: notes
+                            reasonNotes: notes, wakeMethod: wakeMethod
                         )
                         if case .blocked(let reason) = result {
                             appLogger.warning("Early dose override blocked: \(reason, privacy: .public)")

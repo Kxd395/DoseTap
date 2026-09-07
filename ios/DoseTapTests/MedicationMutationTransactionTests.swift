@@ -33,6 +33,45 @@ private final class MedicationMutationNotificationCenter: AlarmNotificationCente
 
 @MainActor
 final class MedicationMutationTransactionTests: XCTestCase {
+    func testConfirmedDoseTwoAndWakeAnswerCommitOrRollBackTogether() throws {
+        let storage = EventStorage.inMemory()
+        try seedDose1(in: storage)
+        let dose2 = oldDose1.addingTimeInterval(180 * 60)
+        let original = try storage.nightOutcomeSnapshot(sessionDate: sessionDate)
+        var diary = NightOutcomeDiary(); diary.backupAlarmSet = true; diary.dayType = .dayOff
+        XCTAssertTrue(storage.saveNightOutcome(diary, review: original, reason: "", recordedAt: oldDose1).isCommitted)
+        storage.medicationFaultInjector = { $0 == .commit ? MedicationStorageInjectedFailure(code: .diskFull, detail: "Injected") : nil }
+        XCTAssertFalse(storage.saveDose2(timestamp: dose2, sessionId: sessionId,
+            sessionDateOverride: sessionDate, wakeMethod: .natural).isCommitted)
+        XCTAssertNil(storage.loadCurrentSessionState().dose2Time)
+        XCTAssertFalse(storage.fetchDoseEvents(sessionId: sessionId, sessionDate: sessionDate).contains { $0.eventType == "dose2" })
+        XCTAssertEqual(try storage.nightOutcomeSnapshot(sessionDate: sessionDate).record?.answers.wakeMethod, .unknown)
+        storage.medicationFaultInjector = nil
+        let result = storage.saveDose2(timestamp: dose2, sessionId: sessionId,
+            sessionDateOverride: sessionDate, wakeMethod: .natural)
+        XCTAssertTrue(result.isCommitted, result.failure?.detail ?? "Expected atomic commit")
+        let saved = try storage.nightOutcomeSnapshot(sessionDate: sessionDate)
+        XCTAssertEqual(saved.record?.answers.wakeMethod, .natural)
+        XCTAssertEqual(saved.record?.answers.backupAlarmSet, true, "A backup alarm does not change natural waking")
+        XCTAssertEqual(saved.record?.answers.dayType, .dayOff)
+        XCTAssertEqual(storage.loadCurrentSessionState().dose2Time, dose2)
+    }
+
+    func testRetrospectiveDoseTwoWakeUsesSameDiaryAndActualOccurrence() throws {
+        let storage = EventStorage.inMemory()
+        try seedDose1(in: storage)
+        let occurred = oldDose1.addingTimeInterval(300 * 60)
+        let entered = occurred.addingTimeInterval(3600)
+        XCTAssertTrue(storage.reconcileDoseEvent(eventType: .dose2, timestamp: occurred,
+            sessionDate: sessionDate, sessionId: sessionId, metadata: nil,
+            expectedDose1Time: oldDose1, onlyIfDose2Missing: true, wakeMethod: .alarm, recordedAt: entered).isCommitted)
+        let saved = try storage.nightOutcomeSnapshot(sessionDate: sessionDate)
+        XCTAssertEqual(saved.record?.answers.wakeMethod, .alarm)
+        XCTAssertEqual(saved.record?.recordedAt, entered)
+        XCTAssertEqual(saved.history.events.first { $0.eventType == "dose2" }?.timestamp, occurred)
+        XCTAssertEqual(storage.fetchCheckInSubmissions(sessionDate: sessionDate, checkInType: .nightOutcome).count, 1)
+    }
+
     func testNightOutcomeCommitFailureStaleCorrectionAndMedicationIsolation() throws {
         let storage = EventStorage.inMemory()
         try seedDose1(in: storage)

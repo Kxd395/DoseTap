@@ -399,7 +399,7 @@ struct ExpiredDose2ResolutionSheet: View {
     let referenceTime: Date
     let isAlreadyMarkedMissed: Bool
     let repository: SessionRepository
-    let recordOccurrence: (Date, String?, String?, WorkWakeWarning?) async -> DoseActionCoordinator.ActionResult
+    let recordOccurrence: (Date, String?, String?, WorkWakeWarning?, Dose2WakeKind) async -> DoseActionCoordinator.ActionResult
     let markMissed: (String?, String?) async -> DoseActionCoordinator.ActionResult
     let onCommitted: (DoseActionCoordinator.ActionResult) -> Void
 
@@ -407,6 +407,7 @@ struct ExpiredDose2ResolutionSheet: View {
     @State private var choice: ExpiredDose2ResolutionChoice
     @State private var occurrenceTime: Date
     @State private var occurrenceConfirmed = false
+    @State private var wakeMethod: Dose2WakeKind = .unknown
     @State private var takenReason: Dose2TakenReason = .unsure
     @State private var skippedReason: Dose2SkippedReason = .unsure
     @State private var notes = ""
@@ -419,7 +420,7 @@ struct ExpiredDose2ResolutionSheet: View {
         referenceTime: Date,
         isAlreadyMarkedMissed: Bool,
         repository: SessionRepository,
-        recordOccurrence: @escaping (Date, String?, String?, WorkWakeWarning?) async -> DoseActionCoordinator.ActionResult,
+        recordOccurrence: @escaping (Date, String?, String?, WorkWakeWarning?, Dose2WakeKind) async -> DoseActionCoordinator.ActionResult,
         markMissed: @escaping (String?, String?) async -> DoseActionCoordinator.ActionResult,
         onCommitted: @escaping (DoseActionCoordinator.ActionResult) -> Void,
         allowsMarkMissed: Bool = true
@@ -485,6 +486,7 @@ struct ExpiredDose2ResolutionSheet: View {
                         Label(timingWarningText, systemImage: timingWarningSymbol)
                             .font(.subheadline)
                             .foregroundColor(timingWarningColor)
+                        Dose2WakeSelection(selection: $wakeMethod)
                     } header: {
                         Text("Actual occurrence")
                     } footer: {
@@ -567,7 +569,7 @@ struct ExpiredDose2ResolutionSheet: View {
         .interactiveDismissDisabled(isSaving)
         .sheet(item: $workWarning) { warning in
             WorkWakeWarningSheet(warning: warning, repository: repository, recordOccurrence: { acknowledged in
-                await recordOccurrence(occurrenceTime, takenReason == .unsure ? nil : takenReason.rawValue, normalizedNotes, acknowledged)
+                await recordOccurrence(occurrenceTime, takenReason == .unsure ? nil : takenReason.rawValue, normalizedNotes, acknowledged, wakeMethod)
             }, onResult: { result in
                 onCommitted(result)
                 dismiss()
@@ -641,7 +643,7 @@ struct ExpiredDose2ResolutionSheet: View {
                     occurrenceTime,
                     takenReason == .unsure ? nil : takenReason.rawValue,
                     normalizedNotes,
-                    nil
+                    nil, wakeMethod
                 )
             case .missed:
                 result = await markMissed(
@@ -680,6 +682,7 @@ struct Dose2RecordConfirmationSheet: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var isSaving = false
     @State private var errorMessage: String?
+    @State private var wakeMethod: Dose2WakeKind = .unknown
 
     var body: some View {
         NavigationStack {
@@ -691,12 +694,13 @@ struct Dose2RecordConfirmationSheet: View {
                     Text("Opening or stopping an alarm does not record a dose.")
                         .foregroundStyle(.secondary)
                 }
+                Section { Dose2WakeSelection(selection: $wakeMethod) }
                 Section {
                     Button("Yes — Record Dose 2 Now") {
                         guard !isSaving, scenePhase == .active else { return }
                         isSaving = true
                         Task {
-                            let result = await coordinator.confirmDose2(confirmation)
+                            let result = await coordinator.confirmDose2(confirmation, wakeMethod: wakeMethod)
                             isSaving = false
                             switch result {
                             case .success, .attentionRequired:
@@ -780,14 +784,14 @@ struct DoseButtonsSection: View {
                         referenceTime: expiredResolutionReferenceTime,
                         isAlreadyMarkedMissed: core.isSkipped,
                         repository: repository,
-                        recordOccurrence: { occurrenceTime, reason, notes, workWarning in
+                        recordOccurrence: { occurrenceTime, reason, notes, workWarning, wakeMethod in
                             await coordinator.recordDose2Occurrence(
                                 at: occurrenceTime,
                                 warningConfirmed: true,
                                 acknowledgedWorkWarning: workWarning,
                                 reason: reason,
                                 reasonNotes: notes,
-                                surface: .sessionDetail
+                                surface: .sessionDetail, wakeMethod: wakeMethod
                             )
                         },
                         markMissed: { reason, notes in
@@ -802,6 +806,16 @@ struct DoseButtonsSection: View {
                 }
             }
             .sheet(item: $reasonCaptureMode) { mode in
+                if mode == .earlyDose {
+                    EarlyDoseOverrideSheet(minutesRemaining: earlyDoseMinutes, onConfirm: { reason, notes, wakeMethod in
+                        Task {
+                            let result = await coordinator.takeDose2(override: .earlyConfirmed,
+                                reason: reason, reasonNotes: notes, surface: .sessionDetail, wakeMethod: wakeMethod)
+                            handleActionResult(result)
+                            reasonCaptureMode = nil
+                        }
+                    }, onCancel: { reasonCaptureMode = nil })
+                } else {
                 Dose2OutcomeReasonSheet(
                     mode: mode,
                     onConfirm: { reason, notes in
@@ -811,7 +825,7 @@ struct DoseButtonsSection: View {
                             case .skipDose:
                                 result = await coordinator.skipDose(reason: reason, reasonNotes: notes)
                             case .earlyDose:
-                                result = await coordinator.takeDose2(override: .earlyConfirmed, reason: reason, reasonNotes: notes)
+                                return // Early dosing uses the hold confirmation above.
                             }
                             handleActionResult(result)
                             reasonCaptureMode = nil
@@ -819,6 +833,7 @@ struct DoseButtonsSection: View {
                     },
                     onCancel: { reasonCaptureMode = nil }
                 )
+                }
             }
 
             if let actionFeedback {
@@ -1075,10 +1090,12 @@ struct Dose2OutcomeReasonSheet: View {
 
 struct EarlyDoseOverrideSheet: View {
     let minutesRemaining: Int
-    let onConfirm: (String?, String?) -> Void
+    let onConfirm: (String?, String?, Dose2WakeKind) -> Void
     let onCancel: () -> Void
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var holdProgress: CGFloat = 0
+    @State private var wakeMethod: Dose2WakeKind = .unknown
     @State private var isHolding = false
     @State private var holdTimer: Timer?
     @State private var takenReason: Dose2TakenReason = .unsure
@@ -1127,6 +1144,7 @@ struct EarlyDoseOverrideSheet: View {
             }
             .padding(.horizontal)
 
+            Dose2WakeSelection(selection: $wakeMethod).padding(.horizontal)
             Spacer()
 
             VStack(spacing: 12) {
@@ -1162,19 +1180,24 @@ struct EarlyDoseOverrideSheet: View {
                 .foregroundColor(.blue)
                 .padding(.bottom, 30)
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+        .onDisappear { stopHolding() }
+        .onChange(of: scenePhase) { phase in
+            if phase != .active { stopHolding() }
+        }
     }
 
     private func startHolding() {
         isHolding = true
         holdProgress = 0
             holdTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { _ in
+            guard isHolding, scenePhase == .active else { stopHolding(); return }
             holdProgress += 0.05 / requiredHoldDuration
             if holdProgress >= 1.0 {
                 holdTimer?.invalidate()
                 Haptics.warning.play()
-                onConfirm(selectedReason, normalizedNotes)
+                onConfirm(selectedReason, normalizedNotes, wakeMethod)
             }
         }
     }

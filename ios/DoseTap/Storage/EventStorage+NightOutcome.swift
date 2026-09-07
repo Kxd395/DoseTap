@@ -20,6 +20,34 @@ struct NightOutcomeSnapshot {
 }
 
 extension EventStorage {
+    /// Called only inside a confirmed Dose 2 transaction, after its ledger insert.
+    /// A failed answer write rolls back the dose too; selecting a checkbox never writes.
+    func recordDose2WakeInCurrentTransaction(_ method: Dose2WakeKind?, sessionId: String,
+                                             sessionDate: String, recordedAt: Date) throws {
+        guard let method, method != .unknown else { return }
+        let current = try nightOutcomeSnapshot(sessionDate: sessionDate)
+        guard current.history.sessionId == sessionId,
+              current.history.events.contains(where: { $0.eventType == "dose2" }) else {
+            throw MedicationStorageInjectedFailure(code: .precondition, detail: "The Dose 2 wake answer needs the confirmed dose record.")
+        }
+        var answers = current.record?.answers ?? NightOutcomeDiary()
+        answers.wakeMethod = method
+        var revisions = current.record?.revisions ?? []
+        if let previous = current.record, previous.answers != answers {
+            revisions.append(.init(answers: previous.answers, recordedAt: previous.recordedAt,
+                reason: "Wake method selected with explicit Dose 2 confirmation"))
+        }
+        let record = NightOutcomeRecord(answers: answers, recordedAt: recordedAt, revisions: revisions)
+        let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(record)
+        guard let responses = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw MedicationStorageInjectedFailure(code: .statement, detail: "The wake answer could not be encoded.")
+        }
+        try upsertCheckInSubmissionOrThrow(sourceRecordId: sessionId, sessionId: sessionId,
+            sessionDate: sessionDate, checkInType: .nightOutcome, questionnaireVersion: "night_outcome.v1",
+            submittedAt: recordedAt, responsesByQuestionID: responses)
+    }
+
     /// Unlike the reporting query, editing must throw on missing/partial reads,
     /// unknown versions, malformed answers, and conflicting stable identities.
     func nightOutcomeSnapshot(sessionDate: String) throws -> NightOutcomeSnapshot {

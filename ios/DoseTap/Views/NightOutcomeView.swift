@@ -8,9 +8,35 @@ extension FollowingDayKind {
     var title: String { self == .dayOff ? "Day off" : rawValue.capitalized }
 }
 
-/// A diary entry point, deliberately independent of medication confirmation.
+/// Local selection only. The enclosing dose confirmation owns the eventual write.
+struct Dose2WakeSelection: View {
+    @Binding var selection: Dose2WakeKind
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("How did you wake for Dose 2?").font(.headline)
+            HStack(spacing: 12) {
+                option(.natural, "Woke naturally")
+                option(.alarm, "Woke to an alarm")
+            }
+            Text("Optional. Leave both unchecked if unsure; you can add or correct this in the morning.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+    private func option(_ kind: Dose2WakeKind, _ title: String) -> some View {
+        Button { selection = selection == kind ? .unknown : kind } label: {
+            Label(title, systemImage: selection == kind ? "checkmark.square.fill" : "square")
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        }
+        .buttonStyle(.borderless)
+        .accessibilityIdentifier("dose2-wake-\(kind.rawValue)")
+        .accessibilityValue(selection == kind ? "Selected" : "Not selected")
+    }
+}
+
+/// Review the same wake answer later without changing the medication record.
 struct NightOutcomeButton: View {
     let sessionDate: String
+    var accessibilityID: String = "night-outcome-open"
     @State private var showing = false
     @State private var summary = "Natural / Alarm · Next-day check-in"
     private let repo = SessionRepository.shared
@@ -19,7 +45,7 @@ struct NightOutcomeButton: View {
             Label(summary, systemImage: "sun.and.horizon")
                 .font(.subheadline).frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
         }
-        .accessibilityIdentifier("night-outcome-open")
+        .accessibilityIdentifier(accessibilityID)
         .sheet(isPresented: $showing, onDismiss: load) { NightOutcomeEditor(sessionDate: sessionDate) }
         .task(id: sessionDate) { load() }
         .onReceive(repo.sessionDidChange) { load() }

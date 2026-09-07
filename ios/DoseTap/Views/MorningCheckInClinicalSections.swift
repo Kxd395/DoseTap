@@ -43,10 +43,9 @@ struct MorningCheckInNightContextSection: View {
             }
 
             MorningCheckInSectionCard(title: "What Woke You For Dose 2?", icon: "moon.stars") {
-                OptionGrid(
-                    options: Dose2WakeMethod.allCases,
-                    selection: morningCheckInOptionalBinding(viewModel, \.dose2WakeMethod)
-                )
+                NightOutcomeButton(sessionDate: viewModel.sessionDate, accessibilityID: "morning-dose2-wake-review")
+                Text("Review the answer saved with Dose 2, or add it if you left it unanswered. This is separate from your final morning awakening.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
 
             MorningCheckInSectionCard(title: "Back To Sleep After Dose 2", icon: "bed.double") {

@@ -277,7 +277,7 @@ struct SelectedDayView: View {
                     referenceTime: resolutionReferenceTime,
                     isAlreadyMarkedMissed: dose.skipped,
                     repository: sessionRepo,
-                    recordOccurrence: { occurrence, reason, notes, acknowledgement in
+                    recordOccurrence: { occurrence, reason, notes, acknowledgement, wakeMethod in
                         do {
                             let warning = try sessionRepo.workWakeSchedule().warning(sessionId: identity, sessionDate: sessionDateString, dose1: dose.dose1Time, now: occurrence, doseTargetMinutes: UserSettingsManager.shared.targetIntervalMinutes, retrospective: true)
                             if let warning, warning != acknowledgement { return .needsConfirm(.workWake(warning)) }
@@ -286,7 +286,8 @@ struct SelectedDayView: View {
                         }
                         let result = sessionRepo.recordHistoricalDose2Occurrence(
                             sessionId: identity, sessionDate: sessionDateString,
-                            occurrenceTime: occurrence, confirmed: true, reason: reason, notes: notes, workWarning: acknowledgement
+                            occurrenceTime: occurrence, confirmed: true, reason: reason, notes: notes,
+                            workWarning: acknowledgement, wakeMethod: wakeMethod
                         )
                         if result.isCommitted { return .success(message: "Historical Dose 2 record saved") }
                         return .retryRequired(message: result.failure?.detail ?? "The record could not be saved. Reload and retry.")

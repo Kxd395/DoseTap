@@ -88,14 +88,14 @@ struct CompactDoseButton: View {
                         referenceTime: expiredResolutionReferenceTime,
                         isAlreadyMarkedMissed: core.isSkipped,
                         repository: repository,
-                        recordOccurrence: { occurrenceTime, reason, notes, workWarning in
+                        recordOccurrence: { occurrenceTime, reason, notes, workWarning, wakeMethod in
                             await coordinator.recordDose2Occurrence(
                                 at: occurrenceTime,
                                 warningConfirmed: true,
                                 acknowledgedWorkWarning: workWarning,
                                 reason: reason,
                                 reasonNotes: notes,
-                                surface: .tonightButton
+                                surface: .tonightButton, wakeMethod: wakeMethod
                             )
                         },
                         markMissed: { reason, notes in

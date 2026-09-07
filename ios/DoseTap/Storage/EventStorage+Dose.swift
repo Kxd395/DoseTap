@@ -814,7 +814,8 @@ extension EventStorage {
         reason: String? = nil,
         reasonNotes: String? = nil,
         sessionId: String? = nil,
-        sessionDateOverride: String? = nil
+        sessionDateOverride: String? = nil,
+        wakeMethod: Dose2WakeKind? = nil
     ) -> MedicationMutationResult {
         var metadata: [String: Any] = [:]
         if isEarly { metadata["is_early"] = true }
@@ -916,6 +917,8 @@ extension EventStorage {
             }
 
             if !isExtraDose {
+                try recordDose2WakeInCurrentTransaction(wakeMethod, sessionId: resolvedSessionId,
+                    sessionDate: sessionDate, recordedAt: recordedAt ?? timestamp)
                 try executeMedicationStatement(
                     """
                     UPDATE current_session
@@ -1114,7 +1117,9 @@ extension EventStorage {
         metadata: String?,
         expectedDose1Time: Date? = nil,
         onlyIfDose2Missing: Bool = false,
-        workWarning: WorkWakeWarning? = nil
+        workWarning: WorkWakeWarning? = nil,
+        wakeMethod: Dose2WakeKind? = nil,
+        recordedAt: Date? = nil
     ) -> MedicationMutationResult {
         guard eventType == .dose1 || eventType == .dose2 || eventType == .dose2Skipped else {
             return .failed(MedicationMutationFailure(
@@ -1207,6 +1212,8 @@ extension EventStorage {
                     sqlite3_bind_text(statement, 2, resolvedSessionId, -1, SQLITE_TRANSIENT)
                 }
             case .dose2:
+                try recordDose2WakeInCurrentTransaction(wakeMethod, sessionId: resolvedSessionId,
+                    sessionDate: sessionDate, recordedAt: recordedAt ?? timestamp)
                 try executeMedicationStatement(
                     """
                     UPDATE current_session

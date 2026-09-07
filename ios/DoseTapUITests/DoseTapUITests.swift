@@ -240,12 +240,20 @@ final class DoseTapUITests: XCTestCase {
         action.tap()
         let confirm = app.buttons["dose2-confirm-record"]
         XCTAssertTrue(confirm.waitForExistence(timeout: 5), "The first tap must only open confirmation")
+        let natural = app.buttons["dose2-wake-natural"]
+        let alarm = app.buttons["dose2-wake-alarm"]
+        natural.tap()
+        XCTAssertEqual(natural.value as? String, "Selected")
+        alarm.tap()
+        XCTAssertEqual(natural.value as? String, "Not selected")
+        XCTAssertEqual(alarm.value as? String, "Selected")
         captureDashboard("Dose 2 explicit confirmation before any medication write")
         app.buttons["dose2-cancel-record"].tap()
         XCTAssertTrue(action.waitForExistence(timeout: 5), "Cancel must leave Dose 2 pending")
 
         action.tap()
         XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        XCTAssertEqual(natural.value as? String, "Not selected", "Cancelled choices must not be saved or reused")
         XCUIDevice.shared.press(.home)
         app.activate()
         XCTAssertTrue(action.waitForExistence(timeout: 5))
@@ -253,6 +261,8 @@ final class DoseTapUITests: XCTestCase {
 
         action.tap()
         XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        natural.tap()
+        captureDashboard("Natural wake selected on Dose 2 confirmation before saving")
         confirm.tap()
         let committed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: action)
         wait(for: [committed], timeout: 5)
@@ -262,15 +272,8 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertFalse(action.exists, "Confirmed Dose 2 must survive process restart without reseeding")
         captureDashboard("Dose 2 confirmed record restored after relaunch")
         let diary = app.buttons["night-outcome-open"]
-        XCTAssertTrue(diary.waitForExistence(timeout: 5)); diary.tap()
-        app.segmentedControls["night-wake-method"].buttons["Natural"].tap()
-        captureDashboard("Dose 2 wake choices do not record medication")
-        app.buttons["night-outcome-save"].tap()
-        XCTAssertTrue(app.alerts["Answers saved"].waitForExistence(timeout: 5))
-        app.alerts["Answers saved"].buttons["OK"].tap()
-        app.terminate(); app.launch()
         XCTAssertTrue(diary.waitForExistence(timeout: 15))
-        XCTAssertTrue(diary.label.contains("Natural"))
+        XCTAssertTrue(diary.label.contains("Natural"), "The checkbox answer must be committed with Dose 2 and survive relaunch")
         XCTAssertFalse(action.exists, "Wake answers must not change the recorded dose")
         diary.tap()
         app.segmentedControls["night-wake-method"].buttons["Alarm"].tap()
@@ -294,11 +297,50 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(app.alerts["Answers saved"].waitForExistence(timeout: 5), "Adding a later assessment must not require a correction reason")
         app.alerts["Answers saved"].buttons["OK"].tap()
         app.terminate(); app.launch()
-        XCTAssertTrue(diary.waitForExistence(timeout: 15)); diary.tap()
+        XCTAssertTrue(diary.waitForExistence(timeout: 15))
+        expectation(for: NSPredicate(format: "hittable == true"), evaluatedWith: diary)
+        waitForExpectations(timeout: 10)
+        diary.tap()
         for _ in 0..<4 where !sleepiness.isHittable { app.swipeUp() }
         XCTAssertEqual(sleepiness.value as? String, "1")
         captureDashboard("Timestamped next-day sleepiness restored after restart")
         app.buttons["Done"].tap()
+        verifyMorningWakeReview(expected: "Alarm")
+    }
+
+    private func verifyMorningWakeReview(expected: String) {
+        app.buttons["History"].tap()
+        let manage = app.buttons["history-manage-records"]
+        XCTAssertTrue(manage.waitForExistence(timeout: 5)); manage.tap()
+        app.buttons["history-morning-questionnaire"].tap()
+        let historyReason = app.descendants(matching: .any).matching(identifier: "history-questionnaire-reason").firstMatch
+        XCTAssertTrue(historyReason.waitForExistence(timeout: 5))
+        historyReason.tap(); historyReason.typeText("Review wake answer")
+        app.buttons["history-open-questionnaire"].tap()
+        XCTAssertTrue(app.navigationBars["Morning Check-In"].waitForExistence(timeout: 5))
+        captureDashboard("Morning questionnaire initial viewport")
+        let morningWake = app.buttons["morning-dose2-wake-review"]
+        let editor = app.navigationBars["Wake & Next Day"]
+        for index in 0..<14 where !morningWake.isHittable && !editor.exists {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75))
+                .press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.48)))
+            if index < 4 { captureDashboard("Morning wake review scroll \(index)") }
+        }
+        // A drag beginning on this large button can activate it while revealing
+        // the card. Do not continue scrolling the editor over its parent button.
+        if !editor.exists {
+            XCTAssertTrue(morningWake.isHittable)
+            XCTAssertTrue(morningWake.label.contains(expected), "Morning review must show the same Dose 2 answer")
+            captureDashboard("Morning questionnaire reviews the same Dose 2 wake answer")
+            morningWake.tap()
+        }
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.segmentedControls["night-wake-method"].buttons[expected].isSelected)
+        captureDashboard("Shared Dose 2 wake answer opened from morning questionnaire")
+        editor.buttons["Done"].tap()
+        XCTAssertTrue(morningWake.label.contains(expected))
+        captureDashboard("Morning questionnaire saved wake summary")
+        app.navigationBars["Morning Check-In"].buttons["Cancel"].tap()
     }
 
     func testDashboardOverviewTrendsAndData() throws {
