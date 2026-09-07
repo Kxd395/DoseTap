@@ -1,7 +1,28 @@
 import Foundation
 import DoseCore
 
+enum WakeOutcomeMetric: String, CaseIterable {
+    case interval = "Dose interval"
+    case totalSleep = "Total sleep"
+    case sleepAfterDose2 = "Est. sleep after D2"
+    case sleepiness = "Sleepiness 0–10"
+}
+
 extension DashboardAnalyticsModel {
+    func wakeComparisonNights(day: FollowingDayKind?) -> [DashboardNightAggregate] {
+        dosingNights.filter { day == nil || ($0.outcome?.dayType ?? .unknown) == day }
+    }
+
+    func wakeMetric(_ metric: WakeOutcomeMetric, kind: Dose2WakeKind, day: FollowingDayKind?) -> DiaryMetricSummary {
+        DiaryMetricSummary(wakeComparisonNights(day: day).filter { $0.effectiveWakeMethod == kind }.map { night in
+            switch metric {
+            case .interval: return night.exactIntervalMinutes
+            case .totalSleep: return sleepMinutes(for: night)
+            case .sleepAfterDose2: return sleepSource == .appleHealth ? night.postDoseSleep?.asleepMinutes : nil
+            case .sleepiness: return night.outcome?.sleepiness.map(Double.init)
+            }
+        })
+    }
     func sleepMinutes(for night: DashboardNightAggregate) -> Double? {
         sleepSource == .appleHealth ? night.appleHealthSleepMinutes : night.whoopSleepMinutes
     }

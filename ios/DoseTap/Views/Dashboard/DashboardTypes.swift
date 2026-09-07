@@ -65,6 +65,21 @@ struct DashboardNightAggregate: Identifiable {
     let whoopSummary: WHOOPNightSummary?
     let duplicateClusterCount: Int
     let napSummary: SessionRepository.NapSummary
+    var outcome: NightOutcomeDiary? = nil
+    var outcomeReadFailed = false
+
+    var effectiveWakeMethod: Dose2WakeKind {
+        guard dose2Time != nil, !outcomeReadFailed else { return .unknown }
+        // Legacy questionnaires may carry this answer forward from another night.
+        // Only the explicitly saved, session-bound diary is comparison evidence.
+        return outcome?.wakeMethod ?? .unknown
+    }
+
+    var postDoseSleep: PostDoseSleepEstimate? {
+        guard let dose2Time, let wake = outcome?.finalWakeAt ?? healthSummary?.finalWake else { return nil }
+        return PostDoseSleepEstimate.calculate(dose2: dose2Time, finalWake: wake,
+            intervals: healthSummary?.recordedIntervals ?? [])
+    }
 
     var id: String { sessionDate }
 

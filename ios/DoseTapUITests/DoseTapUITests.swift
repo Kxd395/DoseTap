@@ -388,6 +388,19 @@ final class DoseTapUITests: XCTestCase {
         captureDashboard("Empty dashboard keeps data reference")
     }
 
+    func testDashboardWakeComparison() throws {
+        app.buttons["Dashboard"].tap()
+        XCTAssertTrue(app.staticTexts["Recorded Nights"].waitForExistence(timeout: 10))
+        app.segmentedControls["dashboard-section-picker"].buttons["Trends"].tap()
+        revealDashboardText("Natural waking vs. alarm waking")
+        captureDashboard("Wake comparison heading and day filter")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75)).press(forDuration: 0.1,
+            thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)))
+        captureDashboard("Wake comparison medians and independent usable counts")
+        revealDashboardText("Timing & status · full date range")
+        captureDashboard("Wake comparison missing-data and full-status disclosures")
+    }
+
     private func revealDashboardText(_ title: String, prefix: Bool = false) {
         let element = app.staticTexts.matching(NSPredicate(format: prefix ? "label BEGINSWITH %@" : "label == %@", title)).firstMatch
         for _ in 0..<18 {

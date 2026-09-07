@@ -60,7 +60,7 @@ extension DashboardAnalyticsModel {
                     sleepPerformance: nil, sleepConsistency: nil, respiratoryRate: 16,
                     sleepNeedBaselineMinutes: nil, sleepNeedDebtMinutes: nil, sleepNeedStrainMinutes: nil, sleepNeedNapMinutes: nil,
                     recoveryScore: 65, hrvMs: 42)
-                return DashboardNightAggregate(sessionDate: key, dose1Time: date,
+                var aggregate = DashboardNightAggregate(sessionDate: key, dose1Time: date,
                     dose2Time: offset == 2 ? nil : date.addingTimeInterval(Double(140 + offset * 15) * 60),
                     dose2Skipped: offset == 2, snoozeCount: 1, extraDoseCount: 0, events: [],
                     morningCheckIn: .init(id: key, sessionId: key, timestamp: date, sessionDate: key, sleepQuality: 3, stressLevel: offset % 5 + 1),
@@ -68,6 +68,12 @@ extension DashboardAnalyticsModel {
                         answers: .init(stressLevel: offset % 5 + 1, stimulants: .coffee, screensInBed: PreSleepLogAnswers.ScreensInBed.none)),
                     healthSummary: health, whoopSummary: offset > 3 ? whoop : nil,
                     duplicateClusterCount: 0, napSummary: .init(count: 0, totalMinutes: 0))
+                var diary = NightOutcomeDiary()
+                diary.wakeMethod = offset > 6 ? .unknown : (offset % 2 == 0 ? .alarm : .natural)
+                diary.dayType = offset % 2 == 0 ? .workday : .dayOff
+                if offset % 3 == 0 { diary.sleepiness = offset; diary.assessedAt = date.addingTimeInterval(14 * 3600) }
+                aggregate.outcome = diary
+                return aggregate
             }
         }
         if arguments.contains("--dashboard-sparse") { nights = Array(nights.prefix(2)) }

@@ -108,11 +108,7 @@ struct DashboardTabView: View {
                                 unavailableCard("Period Comparison", detail: "A comparison needs matching measurements in this range and the preceding period. All Time has no preceding comparison period.")
                             }
                             DashboardTrendChartsCard(model: model).gridCellColumns(columns.count)
-                            if model.doseEffectivenessReport.totalNights >= 3 {
-                                DashboardDoseEffectivenessCard(report: model.doseEffectivenessReport)
-                            } else {
-                                unavailableCard("Timing Groups", detail: "Available after at least 3 nights with both dose timestamps recorded. Provider comparisons also need sleep measurements from the selected source.")
-                            }
+                            DashboardWakeComparisonCard(model: model).gridCellColumns(columns.count)
                             DashboardLifestyleFactorsCard(model: model)
                             DashboardMoodSymptomsCard(model: model)
                             DashboardStressTrendsCard(model: model).gridCellColumns(columns.count)

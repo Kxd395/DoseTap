@@ -429,191 +429,108 @@ struct DashboardCapturedMetricsCard: View {
     }
 }
 
-struct DashboardDoseEffectivenessCard: View {
-    let report: DoseEffectivenessReport
+struct DashboardWakeComparisonCard: View {
+    @ObservedObject var model: DashboardAnalyticsModel
+    @State private var day: FollowingDayKind?
+    @Environment(\.dynamicTypeSize) private var typeSize
 
-    private let fmt = IntervalFormat.minutes
+    private var nights: [DashboardNightAggregate] { model.wakeComparisonNights(day: day) }
+    private func group(_ kind: Dose2WakeKind) -> [DashboardNightAggregate] { nights.filter { $0.effectiveWakeMethod == kind } }
+    private func value(_ value: Double?, metric: WakeOutcomeMetric) -> String {
+        guard let value else { return "—" }
+        if metric == .sleepiness { return String(format: "%.1f", value) }
+        return IntervalFormat.minutes.string(from: value)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Label("Timing Groups", systemImage: "chart.bar.doc.horizontal")
-                    .font(.headline)
-                Spacer()
-                Text("Recorded pairs").font(.caption).foregroundColor(.secondary)
+            Label("Natural waking vs. alarm waking", systemImage: "sun.and.horizon").font(.headline)
+            Text("Wake before Dose 2, not final morning awakening. Sleep source: \(model.sleepSource.rawValue).")
+                .font(.caption).foregroundStyle(.secondary)
+            Picker("Following day", selection: $day) {
+                Text("All days").tag(nil as FollowingDayKind?)
+                ForEach(FollowingDayKind.allCases, id: \.self) { Text($0.title).tag(Optional($0)) }
+            }.accessibilityIdentifier("wake-comparison-day-filter")
+            Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 12) {
+                GridRow { Text("Metric"); Text("Natural"); Text("Alarm") }.font(.caption.bold())
+                GridRow {
+                    Text("Recorded nights")
+                    Text("\(group(.natural).count)")
+                    Text("\(group(.alarm).count)")
+                }
+                GridRow {
+                    Text("Within-window pairs")
+                    Text("\(group(.natural).filter { $0.onTimeDosing == true }.count)")
+                    Text("\(group(.alarm).filter { $0.onTimeDosing == true }.count)")
+                }
+                if !typeSize.isAccessibilitySize {
+                    ForEach(WakeOutcomeMetric.allCases, id: \.self) { metric in
+                        GridRow {
+                            Text("Median \(metric.rawValue.lowercased())")
+                            metricCell(metric, kind: .natural)
+                            metricCell(metric, kind: .alarm)
+                        }
+                    }
+                }
+            }.font(.caption)
+            if typeSize.isAccessibilitySize {
+                ForEach(WakeOutcomeMetric.allCases, id: \.self) { metric in
+                    VStack(alignment: .leading) {
+                        Text("Median \(metric.rawValue.lowercased())").font(.headline)
+                        ForEach([Dose2WakeKind.natural, .alarm], id: \.self) { kind in
+                            HStack { Text(kind.title); metricCell(metric, kind: kind) }
+                        }
+                    }
+                }
             }
-
-            Text(intervalChangeText)
-                .font(.subheadline.bold()).foregroundColor(DashboardPalette.timing)
-            Text("Recent interval change compares the newer half of recorded pairs with the older half; it does not rate a shorter or longer interval as better.")
-                .font(.caption).foregroundColor(.secondary)
-            Text("Descriptive groups of recorded intervals. These do not measure medication effectiveness.")
+            Text("Other: \(group(.other).count) nights · Unknown: \(group(.unknown).count) nights")
                 .font(.caption)
-                .foregroundColor(.secondary)
-
-            Divider()
-
-            HStack(spacing: 16) {
-                complianceGauge
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("In-window pairs").font(.caption).foregroundColor(.secondary)
-                    Text("\(report.totalNights) nights analyzed")
-                        .font(.subheadline)
-                    Text("\(report.pairableNights) with provider measurements")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                Spacer()
-            }
-
-            Divider()
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Zone Breakdown")
-                    .font(.subheadline.bold())
-
-                zoneRow(
-                    label: "150–165 min",
-                    zone: report.optimalZone,
-                    color: .green
-                )
-                zoneRow(
-                    label: ">165–<240 min",
-                    zone: report.acceptableZone,
-                    color: .blue
-                )
-                zoneRow(
-                    label: "Outside window",
-                    zone: report.nonCompliant,
-                    color: .orange
-                )
-            }
-
-            if report.optimalZone.averageTotalSleep != nil || report.acceptableZone.averageTotalSleep != nil {
-                Divider()
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Sleep by timing group")
-                        .font(.subheadline.bold())
-                    sleepComparisonRow(label: "150–165 min", zone: report.optimalZone, color: .green)
-                    sleepComparisonRow(label: ">165–<240 min", zone: report.acceptableZone, color: .blue)
-                    sleepComparisonRow(label: "Outside window", zone: report.nonCompliant, color: .orange)
+            Text("Each n counts nights with that measurement, not all recorded pairs. Missing data is not zero.")
+                .font(.caption).foregroundStyle(.secondary)
+            DisclosureGroup("Middle 50% ranges") {
+                ForEach(WakeOutcomeMetric.allCases, id: \.self) { metric in
+                    ForEach([Dose2WakeKind.natural, .alarm], id: \.self) { kind in
+                        let summary = model.wakeMetric(metric, kind: kind, day: day)
+                        Text("\(metric.rawValue) · \(kind.title): \(value(summary.lowerQuartile, metric: metric))–\(value(summary.upperQuartile, metric: metric)) · n = \(summary.count)")
+                            .font(.caption)
+                    }
                 }
             }
+            DisclosureGroup("Data notes and sources") {
+                let gaps = model.sleepSource == .appleHealth ? nights.filter { $0.postDoseSleep?.hasCoverageGaps == true }.count : 0
+                Text(model.sleepSource == .appleHealth
+                 ? "Sleep after D2 is estimated from recorded asleep segments, excluding awake periods. \(gaps) estimates have coverage gaps; unmeasured time is excluded."
+                 : "Sleep after D2 is unavailable from WHOOP nightly totals; totals do not identify post-dose sleep segments.")
+                .font(.caption).foregroundStyle(.secondary)
+                Text("Groups use explicitly saved wake-diary answers. Confirm older nights in History; questionnaire carry-forward values are not assumed correct.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Text("Sleepiness is a personal 0–10 diary rating. Older 1–5 answers are not converted. These associations do not establish medication effectiveness or causation.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if nights.contains(where: \.outcomeReadFailed) {
+                Text("Some diaries could not be read. Those wake methods remain Unknown.").font(.caption).foregroundStyle(.orange)
+            }
+            Divider()
+            Text("Timing & status · full date range").font(.subheadline.bold())
+            Text("Before window: \(model.timingCount(.early)) · Within window: \(model.timingCount(.inWindow)) · After window: \(model.timingCount(.late))")
+                .font(.caption)
+            Text("Confirmed skipped: \(model.skippedDose2Count) · Not logged: \(model.missingDose2OutcomeCount) · Pending: \(model.pendingDose2OutcomeCount)")
+                .font(.caption)
+            Text("Day filtering affects the outcome comparison only; the timing/status report keeps all nights in the selected date range.")
+                .font(.caption).foregroundStyle(.secondary)
         }
         .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemGray6))
-        )
+        .background(RoundedRectangle(cornerRadius: 16).fill(Color(.systemGray6)))
+        .accessibilityIdentifier("wake-comparison-card")
     }
 
-    private var complianceGauge: some View {
-        ZStack {
-            Circle()
-                .stroke(Color(.systemGray4), lineWidth: 6)
-            Circle()
-                .trim(from: 0, to: report.complianceRate)
-                .stroke(complianceColor, style: StrokeStyle(lineWidth: 6, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-            VStack(spacing: 0) {
-                Text("\(Int(report.complianceRate * 100))")
-                    .font(.system(.title3, design: .rounded).bold())
-                Text("%")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
+    private func metricCell(_ metric: WakeOutcomeMetric, kind: Dose2WakeKind) -> some View {
+        let summary = model.wakeMetric(metric, kind: kind, day: day)
+        return VStack(alignment: .leading, spacing: 2) {
+            Text(value(summary.median, metric: metric)).bold()
+            Text("n = \(summary.count)").foregroundStyle(.secondary)
         }
-        .frame(width: 60, height: 60)
-    }
-
-    private var intervalChangeText: String {
-        switch report.recentTrend {
-        case .improving(let delta): return String(format: "Recent interval change: −%.0f min", delta)
-        case .worsening(let delta): return String(format: "Recent interval change: +%.0f min", delta)
-        case .stable: return "Recent interval change: within \(Int(DoseEffectivenessCalculator.trendStableThreshold)) min"
-        case nil: return "Recent interval change: needs 4 recorded pairs"
-        }
-    }
-
-    private var complianceColor: Color {
-        .blue
-    }
-
-    private func zoneRow(label: String, zone: DoseEffectivenessReport.ZoneSummary, color: Color) -> some View {
-        HStack {
-            Circle()
-                .fill(color)
-                .frame(width: 8, height: 8)
-            Text(label)
-                .font(.caption)
-            Spacer()
-            Text("\(zone.count) night\(zone.count == 1 ? "" : "s")")
-                .font(.caption.bold())
-                .foregroundColor(color)
-            if let averageInterval = zone.averageInterval {
-                Text("avg \(fmt.string(from: averageInterval))")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
-        }
-    }
-
-    private func sleepComparisonRow(label: String, zone: DoseEffectivenessReport.ZoneSummary, color: Color) -> some View {
-        HStack(spacing: 12) {
-            Text(label)
-                .font(.caption)
-                .frame(width: 80, alignment: .leading)
-                .foregroundColor(color)
-
-            if let sleep = zone.averageTotalSleep {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Sleep")
-                        .font(.system(size: 9))
-                        .foregroundColor(.secondary)
-                    Text(formatHM(sleep))
-                        .font(.caption.bold())
-                }
-            }
-
-            if let deep = zone.averageDeepSleep {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Deep")
-                        .font(.system(size: 9))
-                        .foregroundColor(.secondary)
-                    Text(formatHM(deep))
-                        .font(.caption.bold())
-                }
-            }
-
-            if let recovery = zone.averageRecovery {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Recovery")
-                        .font(.system(size: 9))
-                        .foregroundColor(.secondary)
-                    Text("\(Int(recovery))%")
-                        .font(.caption.bold())
-                }
-            }
-
-            if let hrv = zone.averageHRV {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("HRV")
-                        .font(.system(size: 9))
-                        .foregroundColor(.secondary)
-                    Text("\(Int(hrv))ms")
-                        .font(.caption.bold())
-                }
-            }
-
-            Spacer()
-        }
-    }
-
-    private func formatHM(_ minutes: Double) -> String {
-        let hours = Int(minutes) / 60
-        let mins = Int(minutes) % 60
-        if hours > 0 && mins > 0 { return "\(hours)h \(mins)m" }
-        if hours > 0 { return "\(hours)h" }
-        return "\(mins)m"
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(kind.title), median \(metric.rawValue): \(value(summary.median, metric: metric)), \(summary.count) usable nights")
     }
 }

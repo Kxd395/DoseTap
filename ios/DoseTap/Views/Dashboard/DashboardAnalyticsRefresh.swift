@@ -74,7 +74,7 @@ extension DashboardAnalyticsModel {
             let events = sessionRepo.fetchSleepEvents(for: key).sorted { $0.timestamp < $1.timestamp }
             let duplicateClusters = buildStoredEventDuplicateGroups(events: events).count
 
-            aggregates.append(DashboardNightAggregate(
+            var aggregate = DashboardNightAggregate(
                 sessionDate: key,
                 dose1Time: derivedDose.dose1Time,
                 dose2Time: derivedDose.dose2Time,
@@ -88,7 +88,10 @@ extension DashboardAnalyticsModel {
                 whoopSummary: whoopByKey[key],
                 duplicateClusterCount: duplicateClusters,
                 napSummary: sessionRepo.napSummary(for: key)
-            ))
+            )
+            do { aggregate.outcome = try sessionRepo.nightOutcomeSnapshot(sessionDate: key).record?.answers }
+            catch { aggregate.outcomeReadFailed = true }
+            aggregates.append(aggregate)
             await Task.yield()
         }
 

@@ -4,7 +4,45 @@ import DoseCore
 
 @MainActor
 final class DashboardAnalyticsAuditTests: XCTestCase {
+    func testWakeComparisonUsesIndependentCountsExplicitDayAndNoProviderSubstitution() {
+        let model = DashboardAnalyticsModel(now: { self.date("2026-09-07").addingTimeInterval(22 * 3600) })
+        model.selectedRange = .all
+        var natural = night("2026-09-01")
+        var diary = NightOutcomeDiary(); diary.wakeMethod = .natural; diary.backupAlarmSet = true
+        diary.dayType = .dayOff; diary.sleepiness = 0; diary.assessedAt = date("2026-09-02")
+        natural.outcome = diary
+        var alarm = night("2026-09-02"); diary.wakeMethod = .alarm; diary.sleepiness = nil; diary.assessedAt = nil
+        diary.dayType = .workday; alarm.outcome = diary
+        model.nights = [natural, alarm, night("2026-09-03", interval: nil, skipped: true)]
+        XCTAssertEqual(model.wakeComparisonNights(day: .dayOff).count, 1)
+        XCTAssertEqual(model.wakeMetric(.sleepiness, kind: .natural, day: nil).median, 0)
+        XCTAssertEqual(model.wakeMetric(.sleepiness, kind: .alarm, day: nil).count, 0)
+        XCTAssertEqual(model.wakeMetric(.interval, kind: .alarm, day: nil).count, 1)
+        XCTAssertEqual(model.wakeMetric(.totalSleep, kind: .natural, day: nil).count, 0)
+        XCTAssertEqual(natural.effectiveWakeMethod, .natural, "A backup alarm does not reclassify natural waking")
+        model.sleepSource = .whoop
+        XCTAssertEqual(model.wakeMetric(.sleepAfterDose2, kind: .natural, day: nil).count, 0)
+        XCTAssertEqual(model.skippedDose2Count, 1)
+    }
+
     private func date(_ key: String) -> Date { AppFormatters.sessionDate.date(from: key)! }
+
+    func testPostDoseEstimateUsesMeasuredStagesAndSelectedProviderOnly() throws {
+        let start = date("2026-09-01")
+        func segment(_ a: Double, _ b: Double, _ stage: HealthKitService.SleepStage) -> HealthKitService.SleepSegment {
+            .init(start: start.addingTimeInterval(a * 60), end: start.addingTimeInterval(b * 60), stage: stage, source: "Test Watch")
+        }
+        let health = try XCTUnwrap(HealthKitService.sleepNightSummary(from: [segment(0, 300, .asleepCore),
+            segment(300, 320, .awake), segment(320, 600, .asleepREM)], nightStart: start))
+        var observed = night("2026-09-01", health: health)
+        var answers = NightOutcomeDiary(); answers.wakeMethod = .natural; observed.outcome = answers
+        XCTAssertEqual(observed.postDoseSleep?.asleepMinutes, 400)
+        XCTAssertEqual(observed.postDoseSleep?.coveredMinutes, 420)
+        let model = DashboardAnalyticsModel(); model.selectedRange = .all; model.nights = [observed]
+        XCTAssertEqual(model.wakeMetric(.sleepAfterDose2, kind: .natural, day: nil).count, 1)
+        model.sleepSource = .whoop
+        XCTAssertEqual(model.wakeMetric(.sleepAfterDose2, kind: .natural, day: nil).count, 0)
+    }
 
     func testRangeIncludesFirstCivilNightAndExcludesFutureAndMalformedKeys() {
         let model = DashboardAnalyticsModel(now: { self.date("2026-09-04").addingTimeInterval(22 * 3600) })
