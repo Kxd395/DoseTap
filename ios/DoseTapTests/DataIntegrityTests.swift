@@ -117,10 +117,13 @@ final class DataIntegrityTests: XCTestCase {
     private var storage: EventStorage!
     private var repo: SessionRepository!
     private var fakeScheduler: FakeNotificationScheduler!
+    private var previousPrepTimeMinutes: Int!
     /// Fixed reference time: 23:00 UTC — 5 hours past rollover, so offsets up to -300 min stay in-session.
     private var fixedNow: Date!
     
     override func setUp() async throws {
+        previousPrepTimeMinutes = UserSettingsManager.shared.prepTimeMinutes
+        UserSettingsManager.shared.prepTimeMinutes = 18 * 60
         fixedNow = ISO8601DateFormatter().date(from: "2026-01-15T23:00:00Z")!
         let now = fixedNow!
         storage = EventStorage.shared
@@ -137,6 +140,7 @@ final class DataIntegrityTests: XCTestCase {
     
     override func tearDown() async throws {
         storage.clearAllData()
+        UserSettingsManager.shared.prepTimeMinutes = previousPrepTimeMinutes
     }
     
     // MARK: - SQLite Configuration Tests
@@ -377,8 +381,10 @@ final class DataIntegrityTests: XCTestCase {
         XCTAssertEqual(repo.currentContext.phase, .noDose1, "Context should return to noDose1 after clearAllData")
 
         let cancelledSet = Set(fakeScheduler.cancelledIdentifiers)
-        let expectedSet = Set(SessionRepository.sessionNotificationIdentifiers)
-        XCTAssertEqual(cancelledSet, expectedSet, "clearAllData should cancel canonical session notifications")
+        let expectedSet = Set(
+            SessionRepository.sessionNotificationIdentifiers + [SupplyReminderService.requestID]
+        )
+        XCTAssertEqual(cancelledSet, expectedSet, "clearAllData should cancel every managed notification")
     }
     
     // MARK: - Data Consistency Tests

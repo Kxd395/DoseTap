@@ -18,6 +18,7 @@ final class UISmokeTests: XCTestCase {
     
     private var storage: EventStorage!
     private var repo: SessionRepository!
+    private var previousPrepTimeMinutes: Int!
     
     /// Fixed clock well after the 18:00 UTC rollover so dose times at
     /// `Date() - 180 min` never cross a session boundary on CI (UTC).
@@ -26,6 +27,8 @@ final class UISmokeTests: XCTestCase {
     }()
     
     override func setUp() async throws {
+        previousPrepTimeMinutes = UserSettingsManager.shared.prepTimeMinutes
+        UserSettingsManager.shared.prepTimeMinutes = 18 * 60
         storage = EventStorage.shared
         repo = SessionRepository(
             storage: storage,
@@ -38,6 +41,7 @@ final class UISmokeTests: XCTestCase {
     
     override func tearDown() async throws {
         storage.clearAllData()
+        UserSettingsManager.shared.prepTimeMinutes = previousPrepTimeMinutes
     }
     
     func test_tonightEmptyState_afterSessionDelete() async throws {
@@ -324,6 +328,7 @@ final class UIStateTests: XCTestCase {
     
     private var storage: EventStorage!
     private var repo: SessionRepository!
+    private var previousPrepTimeMinutes: Int!
     
     /// Fixed clock well after the 18:00 UTC rollover so dose times at
     /// `Date() - N min` never cross a session boundary on CI (UTC).
@@ -332,6 +337,8 @@ final class UIStateTests: XCTestCase {
     }()
     
     override func setUp() async throws {
+        previousPrepTimeMinutes = UserSettingsManager.shared.prepTimeMinutes
+        UserSettingsManager.shared.prepTimeMinutes = 18 * 60
         storage = EventStorage.shared
         repo = SessionRepository(
             storage: storage,
@@ -344,6 +351,7 @@ final class UIStateTests: XCTestCase {
     
     override func tearDown() async throws {
         storage.clearAllData()
+        UserSettingsManager.shared.prepTimeMinutes = previousPrepTimeMinutes
     }
     
     // MARK: - Phase Transition Tests

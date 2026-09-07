@@ -49,10 +49,13 @@ final class E2EIntegrationTests: XCTestCase {
     private var storage: EventStorage!
     private var repo: SessionRepository!
     private var fakeScheduler: FakeNotificationScheduler!
+    private var previousPrepTimeMinutes: Int!
     /// Fixed reference time: 23:00 UTC - 5 hours past rollover, so offsets up to -300 min stay in-session.
     private var fixedNow: Date!
     
     override func setUp() async throws {
+        previousPrepTimeMinutes = UserSettingsManager.shared.prepTimeMinutes
+        UserSettingsManager.shared.prepTimeMinutes = 18 * 60
         fixedNow = ISO8601DateFormatter().date(from: "2026-01-15T23:00:00Z")!
         let now = fixedNow!
         storage = EventStorage.shared
@@ -69,6 +72,7 @@ final class E2EIntegrationTests: XCTestCase {
     
     override func tearDown() async throws {
         storage.clearAllData()
+        UserSettingsManager.shared.prepTimeMinutes = previousPrepTimeMinutes
     }
     
     func test_e2e_completeDoseCycle() async throws {
