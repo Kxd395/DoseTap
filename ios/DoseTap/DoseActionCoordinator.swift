@@ -182,6 +182,43 @@ final class DoseActionCoordinator: ObservableObject {
 
     // MARK: - Take Dose 2
 
+    /// Historical writes are not live-dose commands. Only a matching active
+    /// night's existing alarm state is reconciled after the record commits.
+    func saveHistoryDoseChange(_ change: HistoryDoseChange, review: HistoryRecordSnapshot,
+                               confirmed: Bool, warningConfirmed: Bool) async -> ActionResult {
+        guard let repo = sessionRepo else { return .blocked(reason: "Session store unavailable") }
+        let wasActive = repo.activeSessionId == review.sessionId
+        if wasActive { await undoState?.invalidateForHistoryReview() }
+        let result = repo.applyHistoryDoseChange(change, review: review, confirmed: confirmed, warningConfirmed: warningConfirmed)
+        guard result.isCommitted else { return .retryRequired(message: result.failure?.detail ?? "History was not saved.") }
+        guard wasActive else { return .success(message: "History record saved") }
+        cancelDose2Confirmation()
+        undoState?.dismiss()
+        alarmService.cancelAllAlarms()
+        guard repo.activeSessionId == review.sessionId, let first = repo.dose1Time,
+              repo.dose2Time == nil, !repo.dose2Skipped else {
+            if let error = alarmService.lastSchedulingError { return .attentionRequired(message: "History saved. \(error)") }
+            return .success(message: "History record saved")
+        }
+        let target = first.addingTimeInterval(Double(UserSettingsManager.shared.targetIntervalMinutes) * 60)
+        var failures: [String] = []
+        if target > dateProvider.now() {
+            let wake = await alarmService.scheduleDose2Alarm(at: target, dose1Time: first)
+            if let failure = wake.failure { failures.append(failure.userMessage) }
+        }
+        guard repo.activeSessionId == review.sessionId, repo.dose1Time == first,
+              repo.dose2Time == nil, !repo.dose2Skipped else {
+            return .attentionRequired(message: "History saved. The active session changed during alarm reconciliation; review Tonight.")
+        }
+        let reminders = await alarmService.scheduleDose2Reminders(dose1Time: first)
+        if let failure = reminders.failure { failures.append(failure.userMessage) }
+        if !failures.isEmpty { return .attentionRequired(message: "History saved. \(failures.joined(separator: " "))") }
+        if target <= dateProvider.now() {
+            return .attentionRequired(message: "History saved. The original alarm time is past and was not replayed. Review Tonight's alarm status.")
+        }
+        return .success(message: "History saved and remaining reminders updated")
+    }
+
     func takeDose2(
         override: DoseOverride = .none,
         acknowledgedWorkWarning: WorkWakeWarning? = nil,

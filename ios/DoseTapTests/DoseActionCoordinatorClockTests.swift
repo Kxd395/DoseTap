@@ -34,6 +34,22 @@ private final class MutableDateProvider: DateProviding, @unchecked Sendable {
 
 @MainActor
 final class DoseActionCoordinatorClockTests: XCTestCase {
+    func testHistorySaveInvalidatesPendingDoseConsentAndCommitsOnlyReviewedTime() async throws {
+        dateProvider.advance(by: 30)
+        guard case .needsConfirm(.dose2Record(let token)) = await coordinator.takeDose2() else {
+            return XCTFail("Expected ordinary confirmation")
+        }
+        let review = try repository.historySnapshot(sessionDate: repository.activeSessionDate!)
+        let occurrence = dose1Time.addingTimeInterval(100 * 60)
+        let result = await coordinator.saveHistoryDoseChange(
+            HistoryDoseChange(eventType: "dose2", timestamp: occurrence, reason: "Entered afterward"),
+            review: review, confirmed: true, warningConfirmed: true)
+        guard case .success = result else { return XCTFail("Expected saved history: \(result)") }
+        XCTAssertEqual(repository.dose2Time, occurrence)
+        guard case .blocked = await coordinator.confirmDose2(token) else { return XCTFail("Old consent must be invalid") }
+        XCTAssertEqual(repository.dose2Time, occurrence)
+        XCTAssertFalse(storage.fetchDoseEvents(sessionId: review.sessionId, sessionDate: review.sessionDate).contains { $0.eventType == "extra_dose" })
+    }
     private let dose1Time = Date(timeIntervalSince1970: 1_800_000_000)
     private var storage: EventStorage!
     private var repository: SessionRepository!

@@ -57,6 +57,58 @@ struct HistoryRecordSnapshot {
 }
 
 extension EventStorage {
+    func saveHistorySleepEvent(id: String, eventType: String, timestamp: Date, notes: String,
+                               review: HistoryRecordSnapshot, original: StoredSleepEvent?, remove: Bool,
+                               confirmed: Bool, recordedAt: Date) -> MedicationMutationResult {
+        performMedicationTransaction(operation: .reconcileDoseState, sessionId: review.sessionId,
+                                     sessionDate: review.sessionDate, timestamp: timestamp) {
+            let current = try historySnapshot(sessionDate: review.sessionDate)
+            guard confirmed, EventType.historySleepTypes.contains(eventType), notes.count <= 500,
+                  recordedAt.timeIntervalSince1970.isFinite,
+                  remove || (timestamp.timeIntervalSince1970.isFinite && timestamp <= recordedAt && sessionDateString(for: timestamp) == review.sessionDate),
+                  current.events == review.events,
+                  current.sessionId == review.sessionId || (current.isNew && review.isNew) else {
+                throw MedicationStorageInjectedFailure(code: .precondition, detail: "Confirm a past sleep event in the selected treatment night. If history changed, reload first.")
+            }
+            if let original {
+                guard id == original.id, let saved = fetchSleepEvents(forSession: review.sessionDate).first(where: { $0.id == id }),
+                      saved.timestamp == original.timestamp, saved.eventType == original.eventType,
+                      saved.notes == original.notes, saved.colorHex == original.colorHex else {
+                    throw MedicationStorageInjectedFailure(code: .precondition, detail: "This event changed. Reload before correcting it.")
+                }
+            } else if remove {
+                throw MedicationStorageInjectedFailure(code: .precondition, detail: "Select the event to remove.")
+            }
+            if current.isNew {
+                try executeMedicationStatement("INSERT INTO sleep_sessions (session_id, session_date, start_utc, end_utc, terminal_state) VALUES (?, ?, ?, ?, 'history_manual')", at: .insert) { s in
+                    sqlite3_bind_text(s, 1, review.sessionId, -1, SQLITE_TRANSIENT)
+                    sqlite3_bind_text(s, 2, review.sessionDate, -1, SQLITE_TRANSIENT)
+                    sqlite3_bind_text(s, 3, isoFormatter.string(from: timestamp), -1, SQLITE_TRANSIENT)
+                    sqlite3_bind_text(s, 4, isoFormatter.string(from: recordedAt), -1, SQLITE_TRANSIENT)
+                }
+            }
+            if original != nil {
+                try enqueueCloudKitTombstoneOrThrow(recordType: "DoseTapSleepEvent", recordName: id)
+                try executeMedicationStatement("DELETE FROM sleep_events WHERE id = ? AND session_date = ?", at: .delete, requireChanges: true) { s in
+                    sqlite3_bind_text(s, 1, id, -1, SQLITE_TRANSIENT)
+                    sqlite3_bind_text(s, 2, review.sessionDate, -1, SQLITE_TRANSIENT)
+                }
+            }
+            if !remove {
+                // Updates get a fresh ID so a pending tombstone cannot delete the replacement.
+                let newID = original == nil ? id : UUID().uuidString
+                let provenance = "Manual history entry; recorded \(isoFormatter.string(from: recordedAt)). \(notes)"
+                try executeMedicationStatement("INSERT INTO sleep_events (id, event_type, timestamp, session_date, session_id, notes) VALUES (?, ?, ?, ?, ?, ?)", at: .insert) { s in
+                    sqlite3_bind_text(s, 1, newID, -1, SQLITE_TRANSIENT)
+                    sqlite3_bind_text(s, 2, eventType, -1, SQLITE_TRANSIENT)
+                    sqlite3_bind_text(s, 3, isoFormatter.string(from: timestamp), -1, SQLITE_TRANSIENT)
+                    sqlite3_bind_text(s, 4, review.sessionDate, -1, SQLITE_TRANSIENT)
+                    sqlite3_bind_text(s, 5, review.sessionId, -1, SQLITE_TRANSIENT)
+                    sqlite3_bind_text(s, 6, provenance, -1, SQLITE_TRANSIENT)
+                }
+            }
+        }
+    }
 
     func historySnapshot(sessionDate: String) throws -> HistoryRecordSnapshot {
         let formatter = DateFormatter()

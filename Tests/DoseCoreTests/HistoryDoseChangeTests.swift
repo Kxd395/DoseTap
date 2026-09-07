@@ -54,4 +54,9 @@ final class HistoryDoseChangeTests: XCTestCase {
         XCTAssertNotNil(HistoryDoseChange(eventType: "dose1", timestamp: first, reason: " ").validationError(existing: [], now: now))
         XCTAssertNotNil(HistoryDoseChange(eventType: "dose1", timestamp: Date(timeIntervalSince1970: .nan), reason: "Correction").validationError(existing: [], now: now))
     }
+
+    func testCanRemoveAnErroneousFutureRecordButCannotOrphanSnoozes() {
+        XCTAssertNil(change("dose1", 900, replacing: "dose1", remove: true).validationError(existing: [row("dose1", 900)], now: now))
+        XCTAssertNotNil(change("dose1", 0, replacing: "dose1", remove: true).validationError(existing: [row("dose1", 0), row("snooze", 180)], now: now))
+    }
 }

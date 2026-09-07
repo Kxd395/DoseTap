@@ -10,6 +10,15 @@ public extension SessionRepository {
         try storage.historySnapshot(sessionDate: sessionDate)
     }
 
+    internal func applyHistorySleepEvent(id: String, eventType: String, timestamp: Date, notes: String,
+                                         review: HistoryRecordSnapshot, original: StoredSleepEvent?,
+                                         remove: Bool, confirmed: Bool) -> MedicationMutationResult {
+        let result = storage.saveHistorySleepEvent(id: id, eventType: eventType, timestamp: timestamp,
+            notes: notes, review: review, original: original, remove: remove, confirmed: confirmed, recordedAt: clock())
+        if result.isCommitted { sessionDidChange.send() }
+        return result
+    }
+
     internal func applyHistoryDoseChange(_ change: HistoryDoseChange, review: HistoryRecordSnapshot,
                                          confirmed: Bool, warningConfirmed: Bool) -> MedicationMutationResult {
         let result = recordMedicationMutation(storage.saveHistoryDoseChange(change, review: review,

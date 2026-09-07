@@ -33,6 +33,28 @@ private final class MedicationMutationNotificationCenter: AlarmNotificationCente
 
 @MainActor
 final class MedicationMutationTransactionTests: XCTestCase {
+    func testHistoricalSleepEntrySupportsOldNightsAndRejectsReplayFutureAndDoseNames() throws {
+        let storage = EventStorage.inMemory()
+        try seedDose1(in: storage)
+        let review = try storage.historySnapshot(sessionDate: "2026-01-14")
+        let time = ISO8601DateFormatter().date(from: "2026-01-15T03:00:00Z")!
+        func save(_ id: String, type: String = "bathroom", at: Date? = nil, original: DoseTap.StoredSleepEvent? = nil) -> MedicationMutationResult {
+            storage.saveHistorySleepEvent(id: id, eventType: type, timestamp: at ?? time, notes: "Entered after the fact", review: review,
+                original: original, remove: false, confirmed: true, recordedAt: oldDose1)
+        }
+        XCTAssertFalse(save("future", at: oldDose1.addingTimeInterval(1)).isCommitted)
+        XCTAssertFalse(save("dose", type: "dose2").isCommitted)
+        XCTAssertTrue(save("manual-event").isCommitted)
+        XCTAssertFalse(save("manual-event").isCommitted)
+        let event = try XCTUnwrap(storage.fetchSleepEvents(forSession: review.sessionDate).first)
+        XCTAssertEqual(event.timestamp, time)
+        XCTAssertTrue(save(event.id, at: time.addingTimeInterval(60), original: event).isCommitted)
+        XCTAssertFalse(save(event.id, at: time.addingTimeInterval(120), original: event).isCommitted)
+        XCTAssertEqual(storage.loadCurrentSessionState().sessionId, sessionId)
+        storage.medicationFaultInjector = { $0 == .commit ? MedicationStorageInjectedFailure(code: .diskFull, detail: "Injected") : nil }
+        XCTAssertFalse(save("rollback").isCommitted)
+        XCTAssertEqual(storage.fetchSleepEvents(forSession: review.sessionDate).count, 1)
+    }
     func testHistoryMissingNightDoesNotReplaceActiveSessionAndRejectsReplay() throws {
         let storage = EventStorage.inMemory()
         try seedDose1(in: storage)

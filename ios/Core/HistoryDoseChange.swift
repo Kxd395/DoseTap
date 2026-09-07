@@ -23,8 +23,13 @@ public struct HistoryDoseChange: Equatable, Sendable {
         guard !reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, reason.count <= 500 else {
             return "Explain the entry or correction in 1–500 characters."
         }
-        guard timestamp.timeIntervalSince1970.isFinite, now.timeIntervalSince1970.isFinite,
-              timestamp <= now else { return "Enter an actual occurrence time, not a future time." }
+        guard now.timeIntervalSince1970.isFinite,
+              remove || (timestamp.timeIntervalSince1970.isFinite && timestamp <= now) else {
+            return "Enter an actual occurrence time, not a future time."
+        }
+        if remove, eventType == "dose1", existing.contains(where: { $0.eventType == "snooze" }) {
+            return "A snoozed session needs its Dose 1 record. Correct its time instead."
+        }
         if let id = replacingEventID {
             guard let original = existing.first(where: { $0.id == id }), Self.doseTypes.contains(original.eventType) else {
                 return "The original record changed. Reload before editing."
