@@ -689,6 +689,7 @@ struct QuickThemeSwitchButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Theme quick switch")
+        .accessibilityValue(themeManager.isAutomaticNightActive ? "Automatic Night Mode" : themeManager.currentTheme.rawValue)
         .accessibilityHint("Switches to \(nextTheme.rawValue)")
         .contextMenu {
             ForEach(AppTheme.allCases) { theme in

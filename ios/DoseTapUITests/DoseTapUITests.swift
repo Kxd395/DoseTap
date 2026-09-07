@@ -11,6 +11,7 @@ final class DoseTapUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
+        if name.contains("testAutomaticNightMode") { app.launchArguments += ["--uitesting-auto-night-reset", "-setup_completed_v2", "YES"] }
         if name.contains("testCompactLayout") { app.launchArguments += ["--uitesting-layout", "-setup_completed_v2", "YES"] }
         if name.contains("testSupply") || name.contains("testSystemAlarm") { app.launchArguments += ["-setup_completed_v2", "YES"] }
         if name.contains("testDashboard") { app.launchArguments += ["--uitesting-dashboard", "-setup_completed_v2", "YES"] }
@@ -23,6 +24,65 @@ final class DoseTapUITests: XCTestCase {
 
     override func tearDownWithError() throws {
         app = nil
+    }
+
+    func testAutomaticNightModeRecordsRestartsAndRestoresAtWake() throws {
+        let theme = app.buttons["Theme quick switch"]
+        XCTAssertTrue(theme.waitForExistence(timeout: 15))
+        XCTAssertEqual(theme.value as? String, "Dark")
+        let dose1 = app.buttons["dose-primary-action"]
+        XCTAssertTrue(dose1.waitForExistence(timeout: 10))
+        dose1.tap()
+        captureDashboard("Dose 1 action before automatic appearance assertion")
+        let night = NSPredicate(format: "value == %@", "Automatic Night Mode")
+        expectation(for: night, evaluatedWith: theme)
+        waitForExpectations(timeout: 10)
+        captureDashboard("Automatic Night Mode after recorded Dose 1")
+        for event in ["Bathroom", "Water", "Noise", "Dream"] {
+            XCTAssertTrue(app.buttons["\(event) event button"].exists, "Quick Log must remain available")
+        }
+        app.launchArguments.removeAll { $0 == "--uitesting-auto-night-reset" }
+        app.terminate(); app.launch()
+        XCTAssertTrue(theme.waitForExistence(timeout: 15))
+        expectation(for: night, evaluatedWith: theme)
+        waitForExpectations(timeout: 10)
+        app.terminate()
+        app.launchArguments.append("--uitesting-auto-night-wake")
+        app.launch()
+        XCTAssertTrue(theme.waitForExistence(timeout: 15))
+        expectation(for: NSPredicate(format: "value == %@", "Dark"), evaluatedWith: theme)
+        waitForExpectations(timeout: 25)
+        captureDashboard("Saved appearance restored at Wake by")
+        XCTAssertFalse(app.buttons["dose-primary-action"].label.contains("Dose 1"), "Changing appearance must not clear the dose")
+    }
+
+    func testAutomaticNightModeManualOverrideSurvivesRestart() throws {
+        let dose1 = app.buttons["dose-primary-action"]
+        XCTAssertTrue(dose1.waitForExistence(timeout: 15)); dose1.tap()
+        let theme = app.buttons["Theme quick switch"]
+        expectation(for: NSPredicate(format: "value == %@", "Automatic Night Mode"), evaluatedWith: theme)
+        waitForExpectations(timeout: 10)
+        theme.tap()
+        XCTAssertEqual(theme.value as? String, "Light")
+        app.launchArguments.removeAll { $0 == "--uitesting-auto-night-reset" }
+        app.terminate(); app.launch()
+        XCTAssertTrue(theme.waitForExistence(timeout: 15))
+        XCTAssertEqual(theme.value as? String, "Light")
+        captureDashboard("Manual appearance override survives restart")
+        app.buttons["Settings"].tap()
+        let themeLink = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Theme")).firstMatch
+        for _ in 0..<10 where !themeLink.isHittable { app.swipeUp() }
+        XCTAssertTrue(themeLink.isHittable); themeLink.tap()
+        let automatic = app.switches["automatic-night-mode"]
+        XCTAssertTrue(automatic.waitForExistence(timeout: 5))
+        captureDashboard("Automatic Night Mode setting before toggle")
+        automatic.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
+        expectation(for: NSPredicate(format: "value == %@", "0"), evaluatedWith: automatic)
+        waitForExpectations(timeout: 5)
+        automatic.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
+        expectation(for: NSPredicate(format: "value == %@", "1"), evaluatedWith: automatic)
+        waitForExpectations(timeout: 5)
+        captureDashboard("Automatic Night Mode setting")
     }
 
     func testCompactLayoutTonightFitsAndHistoryUsesOneMetricRow() throws {

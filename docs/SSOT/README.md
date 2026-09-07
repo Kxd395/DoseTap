@@ -314,6 +314,16 @@ Code references:
 
 ---
 
+## Appearance
+
+### Automatic Night Mode (DOSETAP-48)
+
+- Automatic Night Mode is enabled by default and can be disabled in Settings → Theme. It changes DoseTap's appearance only, not device brightness, Focus, alarms, or medication state.
+- A committed Dose 1 in the open active session enables the existing red/amber theme until that treatment night's Sleep Plan `Wake by` instant (including its nightly override). Dose 2, skips, and brief wakes do not end it. Explicit final wake, session closure, or removing/undoing Dose 1 ends it early.
+- The saved manual appearance is preserved during automation and restored at wake-up. Selecting a theme manually overrides automation for that session, including across app restart; the next session can automate again. Turning automation off restores the saved appearance; turning it back on explicitly resumes eligibility.
+- Launch, foreground, committed session changes, and the visible clock reconcile appearance from current session state. Historical-only records and failed/unconfirmed medication actions cannot start it. While visible, the wake boundary is checked once per second; after suspension it is checked on foreground, without requiring background execution.
+- Quick Log events and all dosing confirmation/hold behavior remain unchanged.
+
 ## Time Boundary Model
 
 - All timestamps are absolute `Date` instants stored as ISO8601 strings.

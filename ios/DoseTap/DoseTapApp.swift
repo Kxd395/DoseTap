@@ -53,6 +53,27 @@ struct DoseTapApp: App {
         #endif
         Self.migrateSetupStateIfNeeded()
         #if DEBUG && targetEnvironment(simulator)
+        if ProcessInfo.processInfo.arguments.contains("--uitesting-auto-night-reset") {
+            let repository = SessionRepository.shared
+            repository.clearTonight()
+            let now = Date()
+            let calendar = Calendar.current
+            let minutes = calendar.component(.hour, from: now) * 60 + calendar.component(.minute, from: now)
+            UserSettingsManager.shared.prepTimeMinutes = (minutes + 1439) % 1440
+            UserSettingsManager.shared.wakeTimeMinutes = (minutes + 60) % 1440
+            UserSettingsManager.shared.soundEnabled = false
+            // Use the recurring schedule: Tonight prunes dated overrides for
+            // non-active nights before the UI records its first dose.
+            for weekday in 1...7 {
+                SleepPlanStore.shared.updateEntry(weekday: weekday, wakeTime: now.addingTimeInterval(3600), enabled: true)
+            }
+            ThemeManager.shared.automaticNightModeEnabled = true
+            ThemeManager.shared.applyTheme(.dark)
+        }
+        if ProcessInfo.processInfo.arguments.contains("--uitesting-auto-night-wake"),
+           let key = SessionRepository.shared.activeSessionDate {
+            SleepPlanStore.shared.setTonightOverride(sessionKey: key, wakeBy: Date().addingTimeInterval(15))
+        }
         if ProcessInfo.processInfo.arguments.contains("--uitesting-layout") {
             SessionRepository.shared.clearTonight()
         }

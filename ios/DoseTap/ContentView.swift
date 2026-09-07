@@ -11,6 +11,8 @@ struct ContentView: View {
     @StateObject private var themeManager = ThemeManager.shared
     @ObservedObject private var urlRouter = URLRouter.shared
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.scenePhase) private var scenePhase
+    private let appearanceClock = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     @State private var sharedPageImage: UIImage?
     @State private var showPageShareSheet = false
     @State private var isPreparingPageShare = false
@@ -39,6 +41,14 @@ struct ContentView: View {
         .preferredColorScheme(themeManager.currentTheme == .night ? .dark : (themeManager.currentTheme.colorScheme ?? settings.colorScheme))
         .accentColor(themeManager.currentTheme.accentColor)
         .applyNightModeFilter(themeManager.currentTheme)
+        .onAppear { refreshNightAppearance() }
+        .onReceive(sessionRepo.sessionDidChange) { _ in refreshNightAppearance() }
+        .onReceive(appearanceClock) { _ in
+            if scenePhase == .active { refreshNightAppearance() }
+        }
+        .onChange(of: scenePhase) { phase in
+            if phase == .active { refreshNightAppearance() }
+        }
         .fullScreenCover(isPresented: Binding(
             get: { alarmService.isAlarmRinging },
             set: { alarmService.isAlarmRinging = $0 }
@@ -79,6 +89,17 @@ struct ContentView: View {
     }
 
     // MARK: - iPad / Regular Width Layout (NavigationSplitView)
+
+    private func refreshNightAppearance() {
+        let key = sessionRepo.activeSessionDate
+        themeManager.refreshAutomaticNight(
+            sessionID: sessionRepo.activeSessionEnd == nil ? sessionRepo.activeSessionId : nil,
+            dose1: sessionRepo.dose1Time,
+            wakeBy: key.map { SleepPlanStore.shared.wakeByDate(for: $0) },
+            wokeUp: sessionRepo.wakeFinalTime != nil || sessionRepo.checkInCompleted,
+            now: Date()
+        )
+    }
 
     private var iPadBody: some View {
         NavigationSplitView(columnVisibility: $isSidebarVisible) {
