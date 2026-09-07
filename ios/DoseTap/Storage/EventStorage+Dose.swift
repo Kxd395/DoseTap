@@ -241,7 +241,7 @@ extension EventStorage {
         ))
     }
 
-    private func performMedicationTransaction(
+    func performMedicationTransaction(
         operation: MedicationMutationOperation,
         sessionId: String,
         sessionDate: String,
@@ -390,7 +390,7 @@ extension EventStorage {
         return String(detail[detail.index(after: end)...])
     }
 
-    private func executeMedicationStatement(
+    func executeMedicationStatement(
         _ sql: String,
         at point: MedicationStorageFaultPoint,
         requireChanges: Bool = false,

@@ -33,6 +33,73 @@ private final class MedicationMutationNotificationCenter: AlarmNotificationCente
 
 @MainActor
 final class MedicationMutationTransactionTests: XCTestCase {
+    func testHistoryQuestionnairesCreateAnEmptyPastNightWithoutMedicationAndRejectStaleEdits() throws {
+        let storage = EventStorage.inMemory()
+        try seedDose1(in: storage)
+        let night = "2026-01-14"
+        let time = ISO8601DateFormatter().date(from: "2026-01-15T03:00:00Z")!
+        let review = try storage.historyQuestionnaireSnapshot(sessionDate: night, kind: .preSleep)
+        var answers = DoseTap.PreSleepLogAnswers(); answers.notes = "Remembered evening"
+        func save(_ review: HistoryQuestionnaireSnapshot, confirmed: Bool = true) -> MedicationMutationResult {
+            storage.saveHistoryPreSleep(answers: answers, review: review, occurredAt: time, recordedAt: oldDose1,
+                reason: "Forgot questionnaire", confirmed: confirmed)
+        }
+        XCTAssertFalse(save(review, confirmed: false).isCommitted)
+        XCTAssertNil(storage.fetchSessionId(forSessionDate: night))
+        XCTAssertTrue(save(review).isCommitted)
+        XCTAssertFalse(save(review).isCommitted, "A second submission with a stale snapshot must fail")
+        XCTAssertEqual(storage.loadCurrentSessionState().sessionId, sessionId)
+        XCTAssertTrue(storage.fetchDoseEvents(sessionId: review.history.sessionId, sessionDate: night).isEmpty)
+        let updated = try storage.historyQuestionnaireSnapshot(sessionDate: night, kind: .preSleep)
+        answers.notes = "Corrected evening"
+        XCTAssertTrue(save(updated).isCommitted)
+        let submission = try XCTUnwrap(storage.fetchCheckInSubmissions(sessionDate: night).first)
+        XCTAssertTrue(submission.responsesJson.contains("Remembered evening"))
+        XCTAssertTrue(submission.responsesJson.contains("history.provenance"))
+        XCTAssertEqual(storage.fetchMostRecentPreSleepLog(sessionId: updated.history.sessionId)?.answers?.notes, "Corrected evening")
+        let morning = try storage.historyQuestionnaireSnapshot(sessionDate: night, kind: .morning)
+        let checkIn = DoseTap.StoredMorningCheckIn(id: UUID().uuidString, sessionId: morning.history.sessionId,
+            timestamp: time, sessionDate: night, notes: "Remembered morning")
+        storage.medicationFaultInjector = { $0 == .commit ? MedicationStorageInjectedFailure(code: .diskFull, detail: "Injected") : nil }
+        XCTAssertFalse(storage.saveHistoryMorning(checkIn, review: morning, occurredAt: time, recordedAt: oldDose1,
+            reason: "Late questionnaire", confirmed: true).isCommitted)
+        XCTAssertEqual(storage.fetchCheckInSubmissions(sessionDate: night).count, 1)
+        storage.medicationFaultInjector = nil
+        XCTAssertTrue(storage.saveHistoryMorning(checkIn, review: morning, occurredAt: time, recordedAt: oldDose1,
+            reason: "Late questionnaire", confirmed: true).isCommitted)
+        XCTAssertEqual(storage.fetchCheckInSubmissions(sessionDate: night).count, 2)
+        XCTAssertEqual(storage.loadCurrentSessionState().sessionId, sessionId)
+        XCTAssertEqual(makeRepository(storage: storage, now: oldDose1).fetchMorningCheckIn(for: night)?.id, checkIn.id,
+                       "Date-based presentation must resolve the saved stable session ID")
+    }
+    func testHistoryQuestionnaireRejectsFutureAndAmbiguousRecords() throws {
+        let storage = EventStorage.inMemory()
+        let night = "2026-01-14"
+        let time = ISO8601DateFormatter().date(from: "2026-01-15T03:00:00Z")!
+        let review = try storage.historyQuestionnaireSnapshot(sessionDate: night, kind: .preSleep)
+        XCTAssertFalse(storage.saveHistoryPreSleep(answers: DoseTap.PreSleepLogAnswers(), review: review,
+            occurredAt: time, recordedAt: time.addingTimeInterval(-1), reason: "Test", confirmed: true).isCommitted)
+        XCTAssertFalse(storage.saveHistoryPreSleep(answers: DoseTap.PreSleepLogAnswers(), review: review,
+            occurredAt: time.addingTimeInterval(86400), recordedAt: oldDose1, reason: "Wrong night", confirmed: true).isCommitted)
+        let first = DoseTap.StoredMorningCheckIn(id: "first", sessionId: night, timestamp: time, sessionDate: night)
+        let second = DoseTap.StoredMorningCheckIn(id: "second", sessionId: night, timestamp: time, sessionDate: night)
+        storage.saveMorningCheckIn(first, forSession: night)
+        storage.saveMorningCheckIn(second, forSession: night)
+        XCTAssertThrowsError(try storage.historyQuestionnaireSnapshot(sessionDate: night, kind: .morning))
+    }
+    func testHistoryMorningCannotOverwriteAnotherNightsRecordID() throws {
+        let storage = EventStorage.inMemory()
+        let time = ISO8601DateFormatter().date(from: "2026-01-15T03:00:00Z")!
+        storage.saveMorningCheckIn(DoseTap.StoredMorningCheckIn(id: "protected", sessionId: "2026-01-12",
+            timestamp: time, sessionDate: "2026-01-12", notes: "Original"), forSession: "2026-01-12")
+        let review = try storage.historyQuestionnaireSnapshot(sessionDate: "2026-01-14", kind: .morning)
+        let candidate = DoseTap.StoredMorningCheckIn(id: "protected", sessionId: review.history.sessionId,
+            timestamp: time, sessionDate: review.history.sessionDate, notes: "Wrong overwrite")
+        XCTAssertFalse(storage.saveHistoryMorning(candidate, review: review, occurredAt: time,
+            recordedAt: oldDose1, reason: "Late entry", confirmed: true).isCommitted)
+        XCTAssertEqual(storage.fetchCheckInSubmissions(sessionDate: "2026-01-12").count, 1)
+        XCTAssertTrue(storage.fetchCheckInSubmissions(sessionDate: "2026-01-14").isEmpty)
+    }
     func testHistoricalSleepEntrySupportsOldNightsAndRejectsReplayFutureAndDoseNames() throws {
         let storage = EventStorage.inMemory()
         try seedDose1(in: storage)

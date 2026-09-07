@@ -65,7 +65,7 @@ extension EventStorage {
         }
     }
 
-    private func normalizedPreSleepAnswers(_ answers: PreSleepLogAnswers) -> PreSleepLogAnswers {
+    func normalizedPreSleepAnswers(_ answers: PreSleepLogAnswers) -> PreSleepLogAnswers {
         var normalized = answers
         let trimmedNotes = normalized.notes?.trimmingCharacters(in: .whitespacesAndNewlines)
         normalized.notes = trimmedNotes?.isEmpty == true ? nil : trimmedNotes
@@ -228,7 +228,7 @@ extension EventStorage {
         return normalized
     }
 
-    private func preSleepResponsesByQuestionID(_ answers: PreSleepLogAnswers) -> [String: Any] {
+    func preSleepResponsesByQuestionID(_ answers: PreSleepLogAnswers) -> [String: Any] {
         let normalized = normalizedPreSleepAnswers(answers)
         var responses: [String: Any] = [:]
         if let value = normalized.intendedSleepTime?.rawValue { responses["pre.sleep.intended_time"] = value }
@@ -588,7 +588,7 @@ extension EventStorage {
         return sqlite3_changes(db) > 0
     }
 
-    private func upsertPreSleepLogRowOrThrow(
+    func upsertPreSleepLogRowOrThrow(
         id: String,
         sessionId: String?,
         createdAtUtc: String,
@@ -778,7 +778,7 @@ extension EventStorage {
         }
     }
 
-    private func replacePreSleepSymptomEventsInCurrentTransaction(
+    func replacePreSleepSymptomEventsInCurrentTransaction(
         sourceRecordId: String,
         sessionId: String?,
         sessionDate: String,

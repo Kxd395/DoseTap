@@ -41,7 +41,10 @@ public extension SessionRepository {
 
     /// Fetch morning check-in for a session.
     func fetchMorningCheckIn(for sessionDate: String) -> StoredMorningCheckIn? {
-        guard let coreCheckIn = storage.fetchMorningCheckIn(sessionKey: sessionDate) else { return nil }
+        guard let identity = storage.medicationSessionIdentity(nil, sessionDate: sessionDate),
+              let coreCheckIn = storage.fetchMorningCheckIn(sessionKey: identity)
+                ?? (identity == sessionDate ? nil : storage.fetchMorningCheckIn(sessionKey: sessionDate)),
+              coreCheckIn.sessionDate == sessionDate else { return nil }
         return convertMorningCheckIn(coreCheckIn)
     }
 
