@@ -26,6 +26,7 @@ struct HistoryRecordsEditor: View {
     @State private var feedback: String?
     @State private var initialized = false
     @FocusState private var notesFocused: Bool
+    @State private var questionnaire: HistoryQuestionnaireKind?
 
     private var repo: SessionRepository { container.sessionRepository }
     private var isDose: Bool { HistoryDoseChange.doseTypes.contains(eventType) }
@@ -57,6 +58,12 @@ struct HistoryRecordsEditor: View {
                     Text("A treatment night starts at 6 p.m. and continues after midnight.").font(.footnote)
                 }
                 if let review {
+                    Section("Full questionnaires for this night") {
+                        Button("Add / Edit Pre-Sleep Questionnaire") { questionnaire = .preSleep }
+                            .accessibilityIdentifier("history-pre-sleep-questionnaire")
+                        Button("Add / Edit Morning Questionnaire") { questionnaire = .morning }
+                            .accessibilityIdentifier("history-morning-questionnaire")
+                    }
                     Section("Existing medication records — tap to correct") {
                         let rows = review.events.filter { HistoryDoseChange.doseTypes.contains($0.eventType) }.sorted { $0.timestamp < $1.timestamp }
                         if rows.isEmpty { Text("No medication records for this night").accessibilityIdentifier("history-no-doses") }
@@ -142,6 +149,9 @@ struct HistoryRecordsEditor: View {
                 selectedTime = min(type == "extra_dose" ? base : base.addingTimeInterval(165 * 60), container.dateProvider.now())
             }
             .onChange(of: scenePhase) { if $0 != .active { confirming = false; removing = false } }
+            .sheet(item: $questionnaire, onDismiss: { load(); onCommitted() }) { kind in
+                HistoryQuestionnaireEditor(sessionDate: sessionDate, kind: kind, onCommitted: onCommitted)
+            }
             .alert("Review History Change", isPresented: $confirming) {
                 Button("Cancel", role: .cancel) { removing = false }
                 Button(removing ? "Confirm Removal" : "Confirm Save", role: removing ? .destructive : nil) { save() }
@@ -209,6 +219,123 @@ struct HistoryRecordsEditor: View {
             case .needsConfirm: error = "Review the record again before saving."
             }
         }
+    }
+}
+
+/// Questionnaire-only history workflow. The full forms produce drafts; only
+/// this explicit review boundary persists them to the selected night.
+struct HistoryQuestionnaireEditor: View {
+    @EnvironmentObject private var container: AppContainer
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
+    let sessionDate: String
+    let kind: HistoryQuestionnaireKind
+    var onCommitted: () -> Void = {}
+    @State private var review: HistoryQuestionnaireSnapshot?
+    @State private var preSleep: StoredPreSleepLog?
+    @State private var morning: StoredMorningCheckIn?
+    @State private var occurredAt = Date()
+    @State private var reason = ""
+    @State private var formPresented = false
+    @State private var confirming = false
+    @State private var preSleepDraft: PreSleepLogAnswers?
+    @State private var morningDraft: SQLiteStoredMorningCheckIn?
+    @State private var error: String?
+    @State private var saved = false
+    @FocusState private var reasonFocused: Bool
+    private var repo: SessionRepository { container.sessionRepository }
+    private var hasDraft: Bool { preSleepDraft != nil || morningDraft != nil }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Text("Treatment night: \(sessionDate)").font(.headline)
+                    Text("Describe this past night, not tonight. Set the time the answers describe; the app also preserves when you actually submit them. Times are in \(TimeZone.current.identifier).")
+                }
+                if let review {
+                    Section(review.existingID == nil ? "Add missing answers" : "Correct existing answers") {
+                        DatePicker("Time these answers describe", selection: $occurredAt, in: ...container.dateProvider.now(), displayedComponents: [.date, .hourAndMinute])
+                        Text("For a new questionnaire, the initial time is a placeholder. Review every answer in the full form.").font(.footnote)
+                        TextField("Reason for adding or correcting", text: $reason, axis: .vertical)
+                            .focused($reasonFocused)
+                            .accessibilityIdentifier("history-questionnaire-reason")
+                        Button("Open Full Questionnaire") { reasonFocused = false; preSleepDraft = nil; morningDraft = nil; formPresented = true }
+                            .accessibilityIdentifier("history-open-questionnaire")
+                            .disabled(reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || reason.count > 500)
+                        if hasDraft {
+                            Button("Review & Save Answers") { confirming = true }
+                                .accessibilityIdentifier("history-save-questionnaire")
+                        }
+                        if saved { Text("Questionnaire saved for \(sessionDate)").accessibilityIdentifier("history-questionnaire-saved") }
+                    }
+                    if !review.originalSubmissions.isEmpty {
+                        DisclosureGroup("Saved questionnaire and correction evidence") {
+                            Text(review.originalSubmissions.first?["responses_json"] ?? "").font(.caption).textSelection(.enabled)
+                        }
+                    }
+                }
+                if let error { Section(saved ? "Saved; reload required" : "Not saved") { Text(error).foregroundStyle(.red) } }
+                Text("This saves questionnaire answers only. It does not record medication, change reminders or remembered defaults, or finish the active night.").font(.footnote)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .navigationTitle(kind.title).navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
+            .onAppear { if review == nil { load() } }
+            .onChange(of: scenePhase) { if $0 != .active { confirming = false } }
+            .sheet(isPresented: $formPresented, onDismiss: { if hasDraft && scenePhase == .active { confirming = true } }) {
+                if let review {
+                    if kind == .preSleep {
+                        PreSleepLogView(existingLog: preSleep, historyNight: sessionDate, historyReferenceTime: occurredAt,
+                            onComplete: { preSleepDraft = $0 }, onSkip: {})
+                    } else {
+                        MorningCheckInView(history: review, existing: morning, referenceTime: occurredAt) { morningDraft = $0 }
+                    }
+                }
+            }
+            .alert("Confirm Questionnaire History", isPresented: $confirming) {
+                Button("Cancel", role: .cancel) { }
+                Button("Confirm Save") { save() }
+            } message: {
+                Text("Save \(kind.title) for treatment night \(sessionDate), describing \(occurredAt.formatted(date: .abbreviated, time: .shortened))? Reason: \(reason). Existing answers remain in correction evidence. No dose will be logged.")
+            }
+        }
+    }
+
+    private func load() {
+        do {
+            let snapshot = try repo.historyQuestionnaireSnapshot(sessionDate: sessionDate, kind: kind)
+            review = snapshot
+            preSleep = repo.fetchPreSleepLog(forSessionDate: sessionDate)
+            morning = repo.fetchMorningCheckIn(for: sessionDate)
+            if let existing = snapshot.existingID,
+               (kind == .preSleep ? preSleep?.id != existing || preSleep?.answers == nil : morning?.id != existing) {
+                review = nil
+                error = "The original questionnaire could not be loaded completely. Reopen History before making a correction."
+                return
+            }
+            let key = kind == .preSleep ? "created_at_utc" : "timestamp"
+            let original = snapshot.originalRows.first?[key]
+            let prior = original.flatMap { AppFormatters.iso8601Fractional.date(from: $0) ?? AppFormatters.iso8601.date(from: $0) }
+            let date = AppFormatters.sessionDate.date(from: sessionDate) ?? container.dateProvider.now()
+            let anchor = kind == .preSleep ? date : Calendar.current.date(byAdding: .day, value: 1, to: date) ?? date
+            occurredAt = prior ?? min(Calendar.current.date(bySettingHour: kind == .preSleep ? 22 : 8, minute: 0, second: 0, of: anchor) ?? anchor, container.dateProvider.now())
+            error = nil
+        } catch let failure as MedicationStorageInjectedFailure { error = failure.detail; review = nil }
+        catch { self.error = error.localizedDescription; review = nil }
+    }
+
+    private func save() {
+        guard let review, scenePhase == .active else { return }
+        let result: MedicationMutationResult
+        if let draft = preSleepDraft {
+            result = repo.saveHistoryPreSleep(answers: draft, review: review, occurredAt: occurredAt, reason: reason)
+        } else if let draft = morningDraft {
+            result = repo.saveHistoryMorning(draft, review: review, occurredAt: occurredAt, reason: reason)
+        } else { return }
+        if result.isCommitted {
+            preSleepDraft = nil; morningDraft = nil; saved = true; load(); onCommitted()
+        } else { error = result.failure?.detail ?? "Questionnaire was not saved. Reopen history to review the current record." }
     }
 }
 

@@ -8,6 +8,8 @@ class MorningCheckInViewModel: ObservableObject {
     let sessionDate: String
     /// When editing, reuse the original check-in ID so INSERT OR REPLACE updates in place.
     let existingCheckInId: String?
+    var historyReview: ((SQLiteStoredMorningCheckIn) -> Void)?
+    var isHistory: Bool { historyReview != nil }
     private let originalPhysicalSymptoms: [String: Any]
     private let originalRespiratorySymptoms: [String: Any]
     private let originalSleepTherapy: [String: Any]
@@ -120,7 +122,7 @@ class MorningCheckInViewModel: ObservableObject {
         min(5, max(1, (rawValue * 4).rounded() / 4))
     }
 
-    init(sessionId: String, sessionDate: String) {
+    init(sessionId: String, sessionDate: String, loadRememberedSettings: Bool = true) {
         self.sessionId = sessionId
         self.sessionDate = sessionDate
         self.existingCheckInId = nil
@@ -130,7 +132,7 @@ class MorningCheckInViewModel: ObservableObject {
         self.originalSleepEnvironment = [:]
         self.originalStressContext = [:]
         self.originalTimingContext = [:]
-        loadSavedSettings()
+        if loadRememberedSettings { loadSavedSettings() }
         configureDoseReconciliationState()
     }
 
@@ -548,6 +550,10 @@ class MorningCheckInViewModel: ObservableObject {
 
     @discardableResult
     func submit() async -> Bool {
+        if let historyReview {
+            historyReview(toStoredCheckIn())
+            return true // Returns a draft for confirmation; no storage or live-session effects.
+        }
         isSubmitting = true
         submissionErrorMessage = nil
         defer { isSubmitting = false }

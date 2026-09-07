@@ -6,6 +6,8 @@ import SwiftUI
 struct Card2BodySubstances: View {
     @Binding var answers: PreSleepLogAnswers
     let medicationSessionKey: String
+    var historyReferenceTime: Date? = nil
+    private var referenceTime: Date { historyReferenceTime ?? Date() }
     @State private var showMedicationPicker = false
     @State private var showPainEntryEditor = false
     @State private var editingPainEntry: PreSleepLogAnswers.PainEntry?
@@ -230,7 +232,7 @@ struct Card2BodySubstances: View {
                                 SubstanceTimePickerRow(
                                     label: "Last intake time",
                                     value: Binding(
-                                        get: { answers.caffeineLastIntakeAt ?? Date() },
+                                        get: { answers.caffeineLastIntakeAt ?? referenceTime },
                                         set: { answers.caffeineLastIntakeAt = $0 }
                                     )
                                 )
@@ -274,7 +276,7 @@ struct Card2BodySubstances: View {
                                 SubstanceTimePickerRow(
                                     label: "Last drink time",
                                     value: Binding(
-                                        get: { answers.alcoholLastDrinkAt ?? Date() },
+                                        get: { answers.alcoholLastDrinkAt ?? referenceTime },
                                         set: { answers.alcoholLastDrinkAt = $0 }
                                     )
                                 )
@@ -339,6 +341,7 @@ struct Card2BodySubstances: View {
                                             Image(systemName: "trash")
                                         }
                                         .buttonStyle(.plain)
+                                        .disabled(historyReferenceTime != nil)
                                     }
                                     .padding(10)
                                     .background(Color(.secondarySystemGroupedBackground))
@@ -361,6 +364,8 @@ struct Card2BodySubstances: View {
                             .background(Color.orange)
                             .cornerRadius(10)
                         }
+                        .disabled(historyReferenceTime != nil)
+                        if historyReferenceTime != nil { Text("Medication logging is separate from this questionnaire. No medication entries change when you save these answers.").font(.caption) }
                     }
                 }
 
@@ -395,7 +400,7 @@ struct Card2BodySubstances: View {
                 answers.alcoholLastAmountDrinks = nil
                 answers.alcoholDailyTotalDrinks = nil
             } else {
-                if answers.alcoholLastDrinkAt == nil { answers.alcoholLastDrinkAt = Date() }
+                if answers.alcoholLastDrinkAt == nil { answers.alcoholLastDrinkAt = referenceTime }
                 if answers.alcoholLastAmountDrinks == nil { answers.alcoholLastAmountDrinks = defaultAlcoholAmountDrinks() }
                 if answers.alcoholDailyTotalDrinks == nil { answers.alcoholDailyTotalDrinks = max(defaultAlcoholAmountDrinks(), answers.alcoholLastAmountDrinks ?? 0) }
                 normalizeAlcoholDetails()
@@ -608,7 +613,7 @@ struct Card2BodySubstances: View {
         }
 
         guard answers.hasCaffeineIntake else { return }
-        if answers.caffeineLastIntakeAt == nil { answers.caffeineLastIntakeAt = Date() }
+        if answers.caffeineLastIntakeAt == nil { answers.caffeineLastIntakeAt = referenceTime }
         if answers.caffeineLastAmountMg == nil { answers.caffeineLastAmountMg = defaultCaffeineAmountOz() }
         if answers.caffeineDailyTotalMg == nil { answers.caffeineDailyTotalMg = max(defaultCaffeineAmountOz(), answers.caffeineLastAmountMg ?? 0) }
         normalizeCaffeineDetails()
@@ -633,7 +638,7 @@ struct Card2BodySubstances: View {
         bootstrapCaffeineDetailsIfNeeded()
 
         if (answers.alcohol ?? PreSleepLogAnswers.AlcoholLevel.none) != .none {
-            if answers.alcoholLastDrinkAt == nil { answers.alcoholLastDrinkAt = Date() }
+            if answers.alcoholLastDrinkAt == nil { answers.alcoholLastDrinkAt = referenceTime }
             if answers.alcoholLastAmountDrinks == nil { answers.alcoholLastAmountDrinks = defaultAlcoholAmountDrinks() }
             if answers.alcoholDailyTotalDrinks == nil { answers.alcoholDailyTotalDrinks = max(defaultAlcoholAmountDrinks(), answers.alcoholLastAmountDrinks ?? 0) }
             normalizeAlcoholDetails()

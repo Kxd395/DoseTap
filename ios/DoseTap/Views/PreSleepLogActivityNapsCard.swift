@@ -6,6 +6,7 @@ import SwiftUI
 struct Card3ActivityNaps: View {
     @Binding var answers: PreSleepLogAnswers
     @Binding var showMoreDetails: Bool
+    var referenceTime: Date? = nil
 
     var body: some View {
         ScrollView {
@@ -274,7 +275,7 @@ struct Card3ActivityNaps: View {
     }
 
     private func defaultExerciseLastAt() -> Date {
-        Date().addingTimeInterval(-4 * 3600)
+        (referenceTime ?? Date()).addingTimeInterval(-4 * 3600)
     }
 
     private func defaultExerciseDurationMinutes() -> Int {
@@ -296,15 +297,15 @@ struct Card3ActivityNaps: View {
     }
 
     private func defaultNapLastEndAt() -> Date {
-        Date().addingTimeInterval(-6 * 3600)
+        (referenceTime ?? Date()).addingTimeInterval(-6 * 3600)
     }
 
     private func defaultLateMealEndedAt() -> Date {
-        Date().addingTimeInterval(-2 * 3600)
+        (referenceTime ?? Date()).addingTimeInterval(-2 * 3600)
     }
 
     private func defaultScreensLastUsedAt() -> Date {
-        Date().addingTimeInterval(-45 * 60)
+        (referenceTime ?? Date()).addingTimeInterval(-45 * 60)
     }
 
     private var sleepAidDetailTitle: String {

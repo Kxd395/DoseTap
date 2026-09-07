@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 0.4.19 (21) — manual history records
 
+- Add and correct full pre-sleep and morning questionnaires for the selected past night. Preserve prior answers and separate occurrence time from submission time; questionnaire saves never log a dose or close the active night.
 - Add a visible History Add / Correct editor for missing nights, Dose 1, Dose 2, missed outcomes, extra doses, and past sleep events. Existing pencil controls open the same editor.
 - Preserve original medication records and correction chains; removing an erroneous entry does not mark it skipped. Reject future, contradictory, duplicate, ambiguous, and stale writes.
 - Include medication event provenance in CSV, preserve sleep notes/colors, and separate committed history from alarm-reconciliation warnings.

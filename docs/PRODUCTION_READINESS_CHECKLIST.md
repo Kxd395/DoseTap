@@ -13,6 +13,7 @@ This checklist separates local automation from simulator, signed-device, externa
 - Latest data-integrity audit: `docs/audit/2026-09-01/`
 - Current merge-readiness audit: `docs/audit/2026-09-05/integration-readiness.md`
 - Unexpected Dose 2 recording incident: `docs/audit/2026-09-07/dose2-recording-incident.md` (DOSETAP-46)
+- Manual History and questionnaire corrections: `docs/audit/2026-09-07/manual-history-entry.md` (DOSETAP-47)
 - CRUD matrix: `docs/audit/2026-09-01/crud-matrix.md`
 - Active tracker: `docs/PLANNING.md`
 - Per-release procedure: `docs/RELEASE_CHECKLIST.md`
@@ -45,6 +46,7 @@ Also run the iOS and Studio suites described in `docs/TESTING_GUIDE.md`. Do not 
 
 ## Signed-device and owner-observed gates
 
+- [ ] Manual History adds/corrections and both full questionnaires use the selected night, preserve reviewed times and prior evidence, survive restart, and do not log doses or alter the active night as a questionnaire side effect (DOSETAP-47).
 - [ ] A real Dose 2 registration survives restart and appears in a privacy-filtered diagnostic export.
 - [ ] Initial Dose 2 taps, alarm open/stop/snooze, canceled prompts, and backgrounded confirmations leave the record unchanged; only a fresh explicit confirmation saves it once at the reviewed time (DOSETAP-46).
 - [ ] Apple Health grant, denial, Settings change, no-data, and real-data cases are checked on a signed build.

@@ -35,7 +35,7 @@ final class DoseTapUITests: XCTestCase {
             reveal(picker); picker.tap(); app.buttons[title].tap()
         }
         func enterReason() {
-            let reason = app.textFields["history-record-reason"].exists ? app.textFields["history-record-reason"] : app.textViews["history-record-reason"]
+            let reason = app.descendants(matching: .any).matching(identifier: "history-record-reason").firstMatch
             reveal(reason); reason.tap(); reason.typeText("Reviewed manual history")
         }
         func save() {
@@ -54,13 +54,15 @@ final class DoseTapUITests: XCTestCase {
         save()
         choose("Dose 2"); enterReason(); save()
         choose("Extra Dose"); enterReason(); save()
-        for _ in 0..<8 where !app.buttons["history-record-extra_dose"].isHittable { app.swipeDown() }
+        // iOS can report a row beneath the translucent navigation bar as
+        // hittable. Bring the whole record below the bar before selecting it.
+        for _ in 0..<8 where !app.buttons["history-record-extra_dose"].isHittable || app.buttons["history-record-extra_dose"].frame.minY < 180 { app.swipeDown() }
         app.buttons["history-record-extra_dose"].tap(); enterReason()
         reveal(app.buttons["history-remove-record"]); app.buttons["history-remove-record"].tap()
         app.alerts.buttons["Confirm Removal"].tap()
         XCTAssertTrue(app.staticTexts["history-save-feedback"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["history-record-extra_dose"].exists)
-        for _ in 0..<8 where !app.buttons["history-record-dose2"].isHittable { app.swipeDown() }
+        for _ in 0..<8 where !app.buttons["history-record-dose2"].isHittable || app.buttons["history-record-dose2"].frame.minY < 180 { app.swipeDown() }
         app.buttons["history-record-dose2"].tap()
         choose("Dose 2 — missed / not taken"); enterReason(); save()
         choose("Bathroom"); enterReason(); save()
@@ -74,9 +76,61 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(app.buttons["history-sleep-bathroom"].exists)
         captureDashboard("Reviewed history survived a fresh process")
         app.buttons["history-sleep-bathroom"].tap()
-        let notes = app.textFields["history-record-reason"]
+        let notes = app.descendants(matching: .any).matching(identifier: "history-record-reason").firstMatch
         reveal(notes)
         XCTAssertEqual(notes.value as? String, "Reviewed manual history", "Editing a time must preserve the original notes")
+    }
+
+    func testHistoryManualQuestionnairesCancelSaveEditAndRestart() throws {
+        app.launchArguments.removeAll { $0 == "--uitesting-history-reset" }
+        func reveal(_ element: XCUIElement) {
+            for _ in 0..<18 where !element.isHittable { app.swipeUp() }
+            XCTAssertTrue(element.isHittable)
+        }
+        func openHistory() {
+            XCTAssertTrue(app.buttons["History"].waitForExistence(timeout: 15)); app.buttons["History"].tap()
+            app.buttons["history-manage-records"].tap()
+        }
+        func openQuestionnaire(_ id: String) {
+            app.buttons[id].tap()
+            let reason = app.descendants(matching: .any).matching(identifier: "history-questionnaire-reason").firstMatch
+            XCTAssertTrue(reason.waitForExistence(timeout: 5)); reason.tap(); reason.typeText("Remembered this night")
+            app.buttons["history-open-questionnaire"].tap()
+        }
+        func confirmSaved() {
+            XCTAssertTrue(app.alerts["Confirm Questionnaire History"].waitForExistence(timeout: 5))
+            app.alerts.buttons["Confirm Save"].tap()
+            XCTAssertTrue(app.staticTexts["history-questionnaire-saved"].waitForExistence(timeout: 5))
+        }
+        openHistory()
+        openQuestionnaire("history-pre-sleep-questionnaire")
+        XCTAssertFalse(app.buttons["Skip for tonight"].exists)
+        XCTAssertFalse(app.buttons["Use last"].exists)
+        app.buttons["Next"].tap(); app.buttons["Next"].tap(); app.buttons["Review"].tap()
+        XCTAssertTrue(app.alerts["Confirm Questionnaire History"].waitForExistence(timeout: 5))
+        app.alerts.buttons["Cancel"].tap()
+        XCTAssertFalse(app.staticTexts["history-questionnaire-saved"].exists)
+        app.buttons["history-save-questionnaire"].tap(); confirmSaved()
+        captureDashboard("Past-night pre-sleep questionnaire saved after review")
+        app.buttons["Done"].firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["history-no-doses"].exists, "Questionnaires must not infer medication")
+        openQuestionnaire("history-morning-questionnaire")
+        let notes = app.descendants(matching: .any).matching(identifier: "morning-check-in-notes").firstMatch
+        reveal(notes); notes.tap(); notes.typeText("Remembered morning")
+        let submit = app.buttons["Review History Answers"]
+        reveal(submit); submit.tap(); confirmSaved()
+        app.terminate(); app.launch(); openHistory()
+        XCTAssertTrue(app.staticTexts["history-no-doses"].exists, "Neither questionnaire creates doses after restart")
+        openQuestionnaire("history-morning-questionnaire")
+        reveal(notes)
+        XCTAssertEqual(notes.value as? String, "Remembered morning")
+        notes.tap(); notes.typeText(". Corrected")
+        reveal(submit); submit.tap(); confirmSaved()
+        captureDashboard("Morning history correction saved without medication side effects")
+        app.buttons["Done"].firstMatch.tap()
+        openQuestionnaire("history-pre-sleep-questionnaire")
+        XCTAssertTrue(app.navigationBars["Edit Pre-Sleep"].waitForExistence(timeout: 5), "Pre-sleep answers must also survive restart")
+        app.buttons["Cancel"].tap()
     }
 
     func testDose2ConfirmationCancelBackgroundAndExplicitSave() throws {

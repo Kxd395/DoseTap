@@ -16,6 +16,7 @@ struct MorningCheckInNotesSection: View {
             TextField("Anything else to note?", text: $viewModel.notes, axis: .vertical)
                 .lineLimit(3...6)
                 .textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("morning-check-in-notes")
         }
     }
 }
@@ -80,7 +81,7 @@ struct MorningCheckInSubmitSection: View {
                         ProgressView().tint(.white)
                     } else {
                         Image(systemName: "checkmark.circle.fill")
-                        Text("Complete Check-In")
+                        Text(viewModel.isHistory ? "Review History Answers" : "Complete Check-In")
                     }
                 }
                 .font(.headline)

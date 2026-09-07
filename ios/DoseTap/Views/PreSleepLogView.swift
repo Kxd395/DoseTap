@@ -26,6 +26,8 @@ struct PreSleepLogView: View {
     @ObservedObject private var sleepPlanStore = SleepPlanStore.shared
     
     let existingLog: StoredPreSleepLog?
+    let historyNight: String?
+    let historyReferenceTime: Date?
     let onComplete: (PreSleepLogAnswers) throws -> Void
     let onSkip: () throws -> Void
     
@@ -36,10 +38,14 @@ struct PreSleepLogView: View {
     
     init(
         existingLog: StoredPreSleepLog? = nil,
+        historyNight: String? = nil,
+        historyReferenceTime: Date? = nil,
         onComplete: @escaping (PreSleepLogAnswers) throws -> Void,
         onSkip: @escaping () throws -> Void
     ) {
         self.existingLog = existingLog
+        self.historyNight = historyNight
+        self.historyReferenceTime = historyReferenceTime
         self.onComplete = onComplete
         self.onSkip = onSkip
         let initialAnswers = existingLog?.answers ?? PreSleepLogAnswers()
@@ -60,7 +66,7 @@ struct PreSleepLogView: View {
                 TabView(selection: $currentCard) {
                     // Card 1: Timing + Stress
                     Card1TimingStress(answers: $answers) {
-                        if let plan = planSummary {
+                        if historyNight == nil, let plan = planSummary {
                             PlanInlineHint(plan: plan)
                             SleepPlanOverrideCard(
                                 overrideEnabled: $overrideEnabled,
@@ -77,21 +83,24 @@ struct PreSleepLogView: View {
                                 )
                             )
                         }
-                        rememberLastSettingsSection
+                        if historyNight == nil { rememberLastSettingsSection }
+                        else { Text("Treatment night: \(historyNight ?? "") · Review remembered answers. This does not change tonight's plan.").font(.footnote) }
                     }
                         .tag(0)
                     
                     // Card 2: Body + Substances
                     Card2BodySubstances(
                         answers: $answers,
-                        medicationSessionKey: medicationSessionKey
+                        medicationSessionKey: medicationSessionKey,
+                        historyReferenceTime: historyReferenceTime
                     )
                         .tag(1)
                     
                     // Card 3: Activity + Naps
                     Card3ActivityNaps(
                         answers: $answers,
-                        showMoreDetails: $showMoreDetails
+                        showMoreDetails: $showMoreDetails,
+                        referenceTime: historyReferenceTime
                     )
                     .tag(2)
                 }
@@ -140,7 +149,7 @@ struct PreSleepLogView: View {
                         } label: {
                             HStack {
                                 Image(systemName: "checkmark")
-                                Text(existingLog == nil ? "Done" : "Save")
+                                Text(historyNight != nil ? "Review" : (existingLog == nil ? "Done" : "Save"))
                             }
                             .font(.headline)
                             .foregroundColor(.white)
@@ -158,7 +167,7 @@ struct PreSleepLogView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    if existingLog == nil {
+                    if existingLog == nil && historyNight == nil {
                         Button("Skip for tonight") {
                             do {
                                 try onSkip()
@@ -180,11 +189,13 @@ struct PreSleepLogView: View {
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
+                    if historyNight == nil {
                     Button {
                         loadLastAnswers()
                     } label: {
                         Text("Use last")
                             .font(.subheadline)
+                    }
                     }
                 }
             }
@@ -195,10 +206,9 @@ struct PreSleepLogView: View {
             Text(saveErrorMessage)
         }
         .onAppear {
-            applyRememberedSettingsIfNeeded()
-            syncWakeOverride()
+            if historyNight == nil { applyRememberedSettingsIfNeeded(); syncWakeOverride() }
         }
-        .onChange(of: planSessionKey) { _ in syncWakeOverride() }
+        .onChange(of: planSessionKey) { _ in if historyNight == nil { syncWakeOverride() } }
     }
     
     private func saveAndComplete() {
@@ -280,7 +290,7 @@ struct PreSleepLogView: View {
             return
         }
         do {
-            UserDefaults.standard.set(rememberLastSettings, forKey: Self.rememberLastSettingsKey)
+            if historyNight == nil { UserDefaults.standard.set(rememberLastSettings, forKey: Self.rememberLastSettingsKey) }
             try onComplete(answers)
             dismiss()
         } catch {
@@ -336,6 +346,7 @@ struct PreSleepLogView: View {
     }
 
     private var medicationSessionKey: String {
+        if let historyNight { return historyNight }
         let referenceDate: Date
         if let timestamp = existingLog.flatMap({ AppFormatters.iso8601Fractional.date(from: $0.createdAtUtc) }) {
             referenceDate = timestamp
