@@ -98,13 +98,17 @@ extension EventStorage {
                 // Updates get a fresh ID so a pending tombstone cannot delete the replacement.
                 let newID = original == nil ? id : UUID().uuidString
                 let provenance = "Manual history entry; recorded \(isoFormatter.string(from: recordedAt)). \(notes)"
-                try executeMedicationStatement("INSERT INTO sleep_events (id, event_type, timestamp, session_date, session_id, notes) VALUES (?, ?, ?, ?, ?, ?)", at: .insert) { s in
+                let color = original.flatMap { EventType($0.eventType).canonicalString == eventType ? $0.colorHex : nil }
+                    ?? UserSettingsManager.allAvailableEvents.first { EventType($0.name).canonicalString == eventType }?.colorHex
+                    ?? "#888888"
+                try executeMedicationStatement("INSERT INTO sleep_events (id, event_type, timestamp, session_date, session_id, notes, color_hex) VALUES (?, ?, ?, ?, ?, ?, ?)", at: .insert) { s in
                     sqlite3_bind_text(s, 1, newID, -1, SQLITE_TRANSIENT)
                     sqlite3_bind_text(s, 2, eventType, -1, SQLITE_TRANSIENT)
                     sqlite3_bind_text(s, 3, isoFormatter.string(from: timestamp), -1, SQLITE_TRANSIENT)
                     sqlite3_bind_text(s, 4, review.sessionDate, -1, SQLITE_TRANSIENT)
                     sqlite3_bind_text(s, 5, review.sessionId, -1, SQLITE_TRANSIENT)
                     sqlite3_bind_text(s, 6, provenance, -1, SQLITE_TRANSIENT)
+                    sqlite3_bind_text(s, 7, color, -1, SQLITE_TRANSIENT)
                 }
             }
         }
@@ -179,6 +183,10 @@ extension EventStorage {
             metadata["surface"] = "history_editor"
             metadata["reason_notes"] = change.reason
             metadata["removed_from_effective_record"] = change.remove
+            metadata.removeValue(forKey: "reason")
+            if change.remove || change.eventType == "dose2_skipped" {
+                for key in ["amount_mg", "dose_mg", "is_early", "is_late"] { metadata.removeValue(forKey: key) }
+            }
             let raw = String(decoding: try JSONSerialization.data(withJSONObject: metadata), as: UTF8.self)
             let original = current.events.first { $0.id == change.replacingEventID }
             let preserved = try correctionMetadata(raw, sessionId: review.sessionId, sessionDate: review.sessionDate,

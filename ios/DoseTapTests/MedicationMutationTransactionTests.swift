@@ -47,6 +47,7 @@ final class MedicationMutationTransactionTests: XCTestCase {
         XCTAssertTrue(save("manual-event").isCommitted)
         XCTAssertFalse(save("manual-event").isCommitted)
         let event = try XCTUnwrap(storage.fetchSleepEvents(forSession: review.sessionDate).first)
+        XCTAssertEqual(event.colorHex, "#007AFF")
         XCTAssertEqual(event.timestamp, time)
         XCTAssertTrue(save(event.id, at: time.addingTimeInterval(60), original: event).isCommitted)
         XCTAssertFalse(save(event.id, at: time.addingTimeInterval(120), original: event).isCommitted)
@@ -105,6 +106,22 @@ final class MedicationMutationTransactionTests: XCTestCase {
         storage.insertDoseEvent(eventType: "dose1", timestamp: oldDose1, sessionDate: sessionDate, sessionId: "another-night")
         XCTAssertThrowsError(try storage.historySnapshot(sessionDate: sessionDate))
         XCTAssertFalse(storage.saveHistoryDoseChange(change, review: review, confirmed: true, warningConfirmed: true, recordedAt: oldDose1.addingTimeInterval(500 * 60)).isCommitted)
+    }
+
+    func testHistoryMissedOutcomeDoesNotInheritTakenAmountOrTimingFlags() throws {
+        let storage = EventStorage.inMemory()
+        try seedDose1(in: storage)
+        storage.insertDoseEvent(eventType: "dose2", timestamp: oldDose1.addingTimeInterval(180 * 60), sessionDate: sessionDate, sessionId: sessionId,
+                                metadata: "{\"amount_mg\":4500,\"is_late\":true}")
+        let review = try storage.historySnapshot(sessionDate: sessionDate)
+        let original = try XCTUnwrap(review.events.first { $0.eventType == "dose2" })
+        let change = HistoryDoseChange(eventType: "dose2_skipped", timestamp: original.timestamp, replacingEventID: original.id, reason: "Not taken")
+        XCTAssertTrue(storage.saveHistoryDoseChange(change, review: review, confirmed: true, warningConfirmed: true, recordedAt: oldDose1.addingTimeInterval(600 * 60)).isCommitted)
+        let skip = try XCTUnwrap(try storage.historySnapshot(sessionDate: sessionDate).events.first { $0.eventType == "dose2_skipped" })
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(skip.metadata!.utf8)) as? [String: Any])
+        XCTAssertNil(object["amount_mg"])
+        XCTAssertNil(object["is_late"])
+        XCTAssertTrue(skip.metadata!.contains("4500"), "The original belongs in correction history only")
     }
 
     private let sessionId = "transaction-session"

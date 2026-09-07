@@ -57,6 +57,9 @@ struct DoseTapApp: App {
             UserDefaults.standard.set(true, forKey: SetupWizardService.setupCompletedKey)
             SessionRepository.prepareExpiredSessionUITestFixture()
         }
+        if ProcessInfo.processInfo.arguments.contains("--uitesting-history-reset") {
+            SessionRepository.shared.deleteSession(sessionDate: "2020-01-14")
+        }
         if ProcessInfo.processInfo.arguments.contains("--uitesting-work-warning")
             || ProcessInfo.processInfo.arguments.contains("--uitesting-dose2-confirmation") {
             UserDefaults.standard.set(true, forKey: SetupWizardService.setupCompletedKey)

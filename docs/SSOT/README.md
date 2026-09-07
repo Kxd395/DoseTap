@@ -1,9 +1,9 @@
 # DoseTap SSOT (Single Source of Truth)
 
 Status: Current behavior authority
-Last verified: 2026-09-05
-SSOT revision: 0.4.18
-Shipping app version observed in the Xcode project: 0.4.18 (build 20)
+Last verified: 2026-09-07
+SSOT revision: 0.4.19
+Shipping app version observed in the Xcode project: 0.4.19 (build 21)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 

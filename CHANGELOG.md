@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 0.4.19 (21) — manual history records
+
+- Add a visible History Add / Correct editor for missing nights, Dose 1, Dose 2, missed outcomes, extra doses, and past sleep events. Existing pencil controls open the same editor.
+- Preserve original medication records and correction chains; removing an erroneous entry does not mark it skipped. Reject future, contradictory, duplicate, ambiguous, and stale writes.
+- Include medication event provenance in CSV, preserve sleep notes/colors, and separate committed history from alarm-reconciliation warnings.
+- Local/simulator evidence does not authorize signed-device deployment or release. Integration remains on hold for the separately tracked gates.
+
 ### 0.4.18 (20) — integration-audit build
 
 - Require a separate, single-use, session-bound confirmation before an ordinary Dose 2 record. Initial taps, deep links, Flic actions, canceled prompts, and backgrounded confirmations cannot save it.

@@ -16,11 +16,67 @@ final class DoseTapUITests: XCTestCase {
         if name.contains("testWorkWarning") { app.launchArguments.append("--uitesting-work-warning") }
         if name.contains("testDose2Confirmation") { app.launchArguments.append("--uitesting-dose2-confirmation") }
         if name.contains("testExpiredSessionLaunch") { app.launchArguments.append("--uitesting-expired-session") }
+        if name.contains("testHistoryManual") { app.launchArguments += ["--uitesting-history", "--uitesting-history-reset", "-setup_completed_v2", "YES"] }
         app.launch()
     }
 
     override func tearDownWithError() throws {
         app = nil
+    }
+
+    func testHistoryManualEntriesCorrectionsAndRestart() throws {
+        app.launchArguments.removeAll { $0 == "--uitesting-history-reset" }
+        func reveal(_ element: XCUIElement) {
+            for _ in 0..<8 where !element.isHittable { app.swipeUp() }
+            XCTAssertTrue(element.isHittable)
+        }
+        func choose(_ title: String) {
+            let picker = app.buttons["history-record-type"]
+            reveal(picker); picker.tap(); app.buttons[title].tap()
+        }
+        func enterReason() {
+            let reason = app.textFields["history-record-reason"].exists ? app.textFields["history-record-reason"] : app.textViews["history-record-reason"]
+            reveal(reason); reason.tap(); reason.typeText("Reviewed manual history")
+        }
+        func save() {
+            let button = app.buttons["history-review-save"]
+            reveal(button); button.tap(); app.alerts.buttons["Confirm Save"].tap()
+            XCTAssertTrue(app.staticTexts["history-save-feedback"].waitForExistence(timeout: 5))
+        }
+        app.buttons["History"].tap()
+        let manage = app.buttons["history-manage-records"]
+        XCTAssertTrue(manage.waitForExistence(timeout: 10)); manage.tap()
+        XCTAssertTrue(app.staticTexts["history-no-doses"].waitForExistence(timeout: 5))
+        enterReason()
+        reveal(app.buttons["history-review-save"]); app.buttons["history-review-save"].tap()
+        app.alerts.buttons["Cancel"].tap()
+        XCTAssertTrue(app.staticTexts["history-no-doses"].exists, "Cancel must not create a night")
+        save()
+        choose("Dose 2"); enterReason(); save()
+        choose("Extra Dose"); enterReason(); save()
+        for _ in 0..<8 where !app.buttons["history-record-extra_dose"].isHittable { app.swipeDown() }
+        app.buttons["history-record-extra_dose"].tap(); enterReason()
+        reveal(app.buttons["history-remove-record"]); app.buttons["history-remove-record"].tap()
+        app.alerts.buttons["Confirm Removal"].tap()
+        XCTAssertTrue(app.staticTexts["history-save-feedback"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["history-record-extra_dose"].exists)
+        for _ in 0..<8 where !app.buttons["history-record-dose2"].isHittable { app.swipeDown() }
+        app.buttons["history-record-dose2"].tap()
+        choose("Dose 2 — missed / not taken"); enterReason(); save()
+        choose("Bathroom"); enterReason(); save()
+        captureDashboard("Manual history entry for a night older than 24 hours")
+        app.terminate(); app.launch()
+        XCTAssertTrue(app.buttons["History"].waitForExistence(timeout: 15)); app.buttons["History"].tap()
+        XCTAssertTrue(manage.waitForExistence(timeout: 10)); manage.tap()
+        XCTAssertTrue(app.buttons["history-record-dose1"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["history-record-dose2_skipped"].exists)
+        XCTAssertFalse(app.buttons["history-record-extra_dose"].exists, "Removal must survive restart")
+        XCTAssertTrue(app.buttons["history-sleep-bathroom"].exists)
+        captureDashboard("Reviewed history survived a fresh process")
+        app.buttons["history-sleep-bathroom"].tap()
+        let notes = app.textFields["history-record-reason"]
+        reveal(notes)
+        XCTAssertEqual(notes.value as? String, "Reviewed manual history", "Editing a time must preserve the original notes")
     }
 
     func testDose2ConfirmationCancelBackgroundAndExplicitSave() throws {

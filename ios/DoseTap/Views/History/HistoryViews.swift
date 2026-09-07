@@ -42,7 +42,8 @@ enum HistoryFilter: String, CaseIterable, Identifiable {
 struct HistoryView: View {
     @Environment(\.isInSplitView) private var isInSplitView
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @State private var selectedDate = Date()
+    @State private var selectedDate = HistoryView.initialDate
+    @State private var showHistoryEditor = false
     @State private var pastSessions: [SessionSummary] = []
     @State private var showDeleteDayConfirmation = false
     @State private var refreshTrigger = false
@@ -50,6 +51,15 @@ struct HistoryView: View {
     @State private var activeFilter: HistoryFilter = .all
 
     private let sessionRepo = SessionRepository.shared
+
+    private static var initialDate: Date {
+        #if DEBUG && targetEnvironment(simulator)
+        if ProcessInfo.processInfo.arguments.contains("--uitesting-history") {
+            return AppFormatters.sessionDate.date(from: "2020-01-14")!
+        }
+        #endif
+        return AppFormatters.sessionDate.date(from: sessionKey(for: Date(), timeZone: .current)) ?? Date()
+    }
 
     private var isWideLayout: Bool { horizontalSizeClass == .regular }
 
@@ -101,7 +111,18 @@ struct HistoryView: View {
             }
         }
         .navigationTitle("History")
-        .toolbar { ToolbarItem(placement: .topBarTrailing) { PageCaptureButton() } }
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button { showHistoryEditor = true } label: { Label("Add / Correct", systemImage: "square.and.pencil") }
+                    .accessibilityIdentifier("history-manage-records")
+                PageCaptureButton()
+            }
+        }
+        .sheet(isPresented: $showHistoryEditor) {
+            HistoryRecordsEditor(sessionDate: AppFormatters.sessionDate.string(from: selectedDate)) {
+                refreshTrigger.toggle(); loadHistory()
+            }
+        }
         .searchable(text: $searchText, prompt: "Search sessions, events…")
         .onChange(of: searchText) { _ in
             if isSearchActive {

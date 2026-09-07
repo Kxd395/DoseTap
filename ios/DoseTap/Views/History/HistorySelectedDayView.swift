@@ -296,39 +296,13 @@ struct SelectedDayView: View {
             }
         }
         .sheet(isPresented: $editingDose1) {
-            if let dose = doseLog {
-                EditDoseTimeView(
-                    doseNumber: 1,
-                    originalTime: dose.dose1Time,
-                    dose1Time: nil,
-                    sessionDate: sessionDateString,
-                    onSave: { newTime in
-                        saveDose1Time(newTime)
-                    }
-                )
-            }
+            HistoryRecordsEditor(sessionDate: sessionDateString, initialDoseType: "dose1", onCommitted: { loadData() })
         }
         .sheet(isPresented: $editingDose2) {
-            if let dose = doseLog, let dose2Time = dose.dose2Time {
-                EditDoseTimeView(
-                    doseNumber: 2,
-                    originalTime: dose2Time,
-                    dose1Time: dose.dose1Time,
-                    sessionDate: sessionDateString,
-                    onSave: { newTime in
-                        saveDose2Time(newTime)
-                    }
-                )
-            }
+            HistoryRecordsEditor(sessionDate: sessionDateString, initialDoseType: "dose2", onCommitted: { loadData() })
         }
         .sheet(item: $editingEvent) { event in
-            EditEventTimeView(
-                event: event,
-                sessionDate: sessionDateString,
-                onSave: { newTime in
-                    saveEventTime(event: event, newTime: newTime)
-                }
-            )
+            HistoryRecordsEditor(sessionDate: sessionDateString, initialSleepID: event.id, onCommitted: { loadData() })
         }
         .alert("Delete Event?", isPresented: Binding<Bool>(
             get: { eventToDelete != nil },
