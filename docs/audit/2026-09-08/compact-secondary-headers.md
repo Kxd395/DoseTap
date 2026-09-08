@@ -16,7 +16,9 @@ DOSETAP-43. The owner reported that Timeline and Dashboard headers sat too low, 
 
 The final regression run passed both standard-text and largest-accessibility-text header tests (2 tests, zero failures). It also checks the header-to-first-control gap. Log: `/tmp/dosetap-header-final-tests.log`. The built app's Info.plist was read back as 0.4.19 (24).
 
-The separate build-23 full UI run exposed three failures outside header layout. Two supply journeys assumed a new pre-sleep questionnaire and an unambiguous Cancel button. The tests now scope Cancel to the New bottle navigation bar and close an existing questionnaire without changing it. Both supply tests passed after these test-only corrections (`/tmp/dosetap-supply-selectors.log`). The History questionnaire journey also failed while trying to reveal the morning notes field; its follow-up result is tracked separately. A targeted pass does not turn the earlier full run into a clean run.
+The separate build-23 full UI run finished with 35 of 38 tests passing. Two supply journeys assumed a new pre-sleep questionnaire and an unambiguous Cancel button. The tests now scope Cancel to the New bottle navigation bar and close an existing questionnaire without changing it. Both supply tests passed after these test-only corrections (`/tmp/dosetap-supply-selectors.log`). The History questionnaire journey also failed while trying to reveal the morning notes field, then passed unchanged on an isolated rerun (`/tmp/dosetap-history-questionnaire-recheck.log`). That failure's cause remains unverified. A targeted pass does not turn the earlier full run into a clean run.
+
+PR review caught a stale build-23 label at the top of the SSOT README. It now matches the four build-24 app configurations and built Info.plist. The existing SSOT guard had passed without detecting that label mismatch; its earlier pass was not proof of build-label consistency.
 
 ## Integration and remaining acceptance
 
