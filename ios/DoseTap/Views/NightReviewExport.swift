@@ -161,6 +161,12 @@ private struct ExportSharePayload: Identifiable {
                 appendTextField(&lines, label: "Nap Total Minutes", value: answers.napTotalMinutes.map { "\($0) min" })
                 appendTextField(&lines, label: "Last Nap End", value: answers.napLastEndAt.map(formatTime))
                 appendTextField(&lines, label: "Late Meal", value: answers.lateMeal?.displayText)
+                if let food = answers.lastFood {
+                    appendTextField(&lines, label: "Last food finished", value: food.finishedAt.ISO8601Format())
+                    appendTextField(&lines, label: "Food type", value: food.kind?.title ?? "Not specified")
+                    appendTextField(&lines, label: "High-fat or oily", value: food.highFatText)
+                    appendTextField(&lines, label: "Food notes", value: food.notes)
+                }
                 appendTextField(&lines, label: "Late Meal Ended", value: answers.lateMealEndedAt.map(formatTime))
                 appendTextField(&lines, label: "Screens In Bed", value: answers.screensInBed?.displayText)
                 appendTextField(&lines, label: "Last Screen Use", value: answers.screensLastUsedAt.map(formatTime))
@@ -335,6 +341,12 @@ private struct ExportSharePayload: Identifiable {
                 appendCSVRow(&rows, section: "pre_sleep", field: "nap_total_minutes", value: answers.napTotalMinutes.map { String($0) })
                 appendCSVRow(&rows, section: "pre_sleep", field: "nap_last_end", value: answers.napLastEndAt.map(formatTime))
                 appendCSVRow(&rows, section: "pre_sleep", field: "late_meal", value: answers.lateMeal?.displayText)
+                if let food = answers.lastFood {
+                    appendCSVRow(&rows, section: "pre_sleep", field: "last_food_finished_at_utc", value: food.finishedAt.ISO8601Format())
+                    appendCSVRow(&rows, section: "pre_sleep", field: "last_food_kind", value: food.kind?.rawValue)
+                    appendCSVRow(&rows, section: "pre_sleep", field: "last_food_high_fat", value: food.highFat.map { String($0) })
+                    appendCSVRow(&rows, section: "pre_sleep", field: "last_food_notes", value: food.notes)
+                }
                 appendCSVRow(&rows, section: "pre_sleep", field: "late_meal_ended", value: answers.lateMealEndedAt.map(formatTime))
                 appendCSVRow(&rows, section: "pre_sleep", field: "screens_in_bed", value: answers.screensInBed?.displayText)
                 appendCSVRow(&rows, section: "pre_sleep", field: "screens_last_used", value: answers.screensLastUsedAt.map(formatTime))

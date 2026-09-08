@@ -10,6 +10,12 @@ This dictionary defines how persisted fields are interpreted. It covers all 17 a
 
 ## Identity and time
 
+### Last food in pre-sleep answers (DOSETAP-50)
+
+`lastFood` is an optional JSON object with `finishedAt` (absolute Date), `kind` (optional `meal`, `snack`, `caloricDrink`), `highFat` (optional Boolean), and `notes` (optional, trimmed, at most 500 characters). No object means unrecorded, not no food. Missing fat means Unsure, never false. New-night carry-forward clears this object and legacy `lateMeal`/`lateMealEndedAt`; editing an existing questionnaire retains them.
+
+Normalized responses are `pre.food.last.finished_at_utc` (ISO 8601), `pre.food.last.kind`, `pre.food.last.high_fat`, and `pre.food.last.notes`. Optional unanswered values are absent. These are additive responses in the existing pre-night questionnaire, not a database migration. Studio exports include the nested object in pre-sleep and session projections; their existing ISO 8601 date encoder applies. Legacy heavy-meal answers cannot establish high-fat content.
+
 | Field | Meaning |
 | --- | --- |
 | `id` | Stable row or event identity within its table |

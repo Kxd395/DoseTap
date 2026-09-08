@@ -28,6 +28,14 @@ Notes:
 
 ## Domain Entities and Invariants
 
+### Last food in pre-sleep logging (DOSETAP-50)
+
+- Record the last food finish date/time, meal/snack/calorie-containing drink type, optional high-fat/oily Yes/No/Unsure answer, and optional notes (500 characters). Unrecorded is not fasting; Unsure is not No.
+- Store an optional `lastFood` object in pre-sleep answers and additive `pre.food.last.*` normalized responses. Preserve legacy late-meal records without inferring fat content or treating them as a verified last-food record. Food observations never carry forward into a new night.
+- Save and History correction use existing questionnaire transactions and provenance. Reject non-finite/future finish times relative to questionnaire occurrence, and overlong notes, without partial writes.
+- Show the same fields in History review and exports. This is a diary entry, not dose eligibility, dose adjustment, alarm control, or a safe-to-dose indicator.
+- Food guidance follows XYWAV prescribing information sections 2.4 and 12.3 (revised July 2025): at least two hours after eating; a high-fat meal affects exposure, but the label does not define an additional fatty-food wait. Source: https://pp.jazzpharma.com/pi/xywav.en.USPI.pdf.
+
 ### SleepSession
 
 Identity and lifecycle are separate from calendar day grouping.

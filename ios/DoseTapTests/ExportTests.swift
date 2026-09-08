@@ -215,13 +215,13 @@ final class ExportIntegrityTests: XCTestCase {
         let stressJson = #"{"stressProgression":"better","stressNotes":"less pressure"}"#
         let timingJson = #"{"nightType":"work_night","wakeType":"natural","nextDayDemand":"shift_13h"}"#
 
+        var foodAnswers = DoseTap.PreSleepLogAnswers(intendedSleepTime: .thirtyMin,
+            stressLevel: 3, notes: "preserve raw pre-sleep answers")
+        foodAnswers.lastFood = .init(finishedAt: preSleepTime.addingTimeInterval(-7200), kind: .meal,
+            highFat: true, notes: "Fried food")
         _ = try storage.savePreSleepLogOrThrow(
             sessionId: sessionDate,
-            answers: DoseTap.PreSleepLogAnswers(
-                intendedSleepTime: .thirtyMin,
-                stressLevel: 3,
-                notes: "preserve raw pre-sleep answers"
-            ),
+            answers: foodAnswers,
             completionState: "complete",
             now: preSleepTime,
             timeZone: TimeZone(identifier: "UTC")!
@@ -275,6 +275,11 @@ final class ExportIntegrityTests: XCTestCase {
         let submissions = try XCTUnwrap(exportedSession["checkInSubmissions"] as? [[String: Any]])
 
         XCTAssertTrue((preSleep["rawAnswersJson"] as? String)?.contains("preserve raw pre-sleep answers") == true)
+        let food = try XCTUnwrap(preSleep["lastFood"] as? [String: Any])
+        XCTAssertEqual(food["kind"] as? String, "meal")
+        XCTAssertEqual(food["highFat"] as? Bool, true)
+        XCTAssertEqual(food["notes"] as? String, "Fried food")
+        XCTAssertNotNil(ISO8601DateFormatter().date(from: try XCTUnwrap(food["finishedAt"] as? String)))
         let exportedSleepQuality = try XCTUnwrap(morning["sleepQuality"] as? Double)
         XCTAssertEqual(exportedSleepQuality, 4.25, accuracy: 0.001)
         XCTAssertEqual(morning["rawPhysicalSymptomsJson"] as? String, physicalJson)

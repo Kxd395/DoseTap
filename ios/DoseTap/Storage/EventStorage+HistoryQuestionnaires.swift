@@ -94,6 +94,7 @@ extension EventStorage {
         occurredAt: Date, recordedAt: Date, reason: String, confirmed: Bool) -> MedicationMutationResult {
         saveHistoryQuestionnaire(review: review, occurredAt: occurredAt, recordedAt: recordedAt, reason: reason, confirmed: confirmed) { provenance in
             guard review.kind == .preSleep else { throw MedicationStorageInjectedFailure(code: .precondition, detail: "Reopen the pre-sleep questionnaire.") }
+            try answers.lastFood?.validate(at: occurredAt)
             let normalized = normalizedPreSleepAnswers(answers)
             let json = String(decoding: try JSONEncoder().encode(normalized), as: UTF8.self)
             let id = review.existingID ?? UUID().uuidString

@@ -19,6 +19,7 @@ The latest audit recommendation is `HOLD`. The current integration decision reco
 | Plane item | Status represented in repository evidence |
 | --- | --- |
 | DOSETAP-49 | High, In Progress. Dose 2 Natural / Alarm confirmation choices and a shared morning/History diary feed explicit-wake comparisons, timestamped next-day sleepiness, and measured post-dose sleep. Simulator/device acceptance is tracked in `docs/audit/2026-09-07/dose2-wake-outcomes.md`. |
+| DOSETAP-50 | High, In Progress. Last-food timing, food type, optional high-fat/oily answer and notes in pre-sleep logging, with History and export support. Label research and acceptance evidence: `docs/audit/2026-09-07/pre-sleep-last-food.md`. |
 | DOSETAP-15 | High, In Progress. Owner-requested September 7 reconciliation includes exactly 240 minutes in the window, using elapsed seconds rather than rounded displays. Reversed/invalid timestamps remain rejected; device/export/provider parity remains open. See the wake-outcomes audit. |
 | DOSETAP-48 | Medium, In Progress. Automatic Night Mode follows committed active Dose 1 through the night's Wake by time, with an opt-out and session-scoped manual override. Device and owner acceptance remain open. See `docs/audit/2026-09-07/automatic-night-mode.md`. |
 | DOSETAP-43 | High, In Progress. The September 7 layout follow-up puts History insights in one row and removes Tonight's duplicate bottom spacer and nested card inset. Standard portrait fit is simulator-tested; owner/device review remains open. See `docs/audit/2026-09-07/compact-tonight-layout.md`. |

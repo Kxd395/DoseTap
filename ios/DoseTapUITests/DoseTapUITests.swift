@@ -181,7 +181,10 @@ final class DoseTapUITests: XCTestCase {
     func testHistoryManualQuestionnairesCancelSaveEditAndRestart() throws {
         app.launchArguments.removeAll { $0 == "--uitesting-history-reset" }
         func reveal(_ element: XCUIElement) {
-            for _ in 0..<18 where !element.isHittable { app.swipeUp() }
+            for _ in 0..<18 {
+                if element.isHittable { break }
+                app.swipeUp()
+            }
             XCTAssertTrue(element.isHittable)
         }
         func openHistory() {
@@ -203,7 +206,19 @@ final class DoseTapUITests: XCTestCase {
         openQuestionnaire("history-pre-sleep-questionnaire")
         XCTAssertFalse(app.buttons["Skip for tonight"].exists)
         XCTAssertFalse(app.buttons["Use last"].exists)
-        app.buttons["Next"].tap(); app.buttons["Next"].tap(); app.buttons["Review"].tap()
+        app.buttons["Next"].tap(); app.buttons["Next"].tap()
+        let foodToggle = app.switches["pre-last-food-toggle"]
+        reveal(foodToggle); foodToggle.tap()
+        let foodNotes = app.textFields["pre-last-food-notes"].firstMatch
+        let foodEditor = app.textViews["pre-last-food-notes"].firstMatch
+        let foodInput = foodNotes.exists ? foodNotes : foodEditor
+        reveal(foodInput)
+        app.buttons["pre-last-food-kind"].tap()
+        app.buttons["Meal"].tap()
+        app.segmentedControls["pre-last-food-fat"].buttons["Yes"].tap()
+        foodInput.tap(); foodInput.typeText("Fried chicken and fries")
+        captureDashboard("Last food with high-fat answer in pre-sleep history")
+        app.buttons["Review"].tap()
         XCTAssertTrue(app.alerts["Confirm Questionnaire History"].waitForExistence(timeout: 5))
         app.alerts.buttons["Cancel"].tap()
         XCTAssertFalse(app.staticTexts["history-questionnaire-saved"].exists)
@@ -227,6 +242,13 @@ final class DoseTapUITests: XCTestCase {
         app.buttons["Done"].firstMatch.tap()
         openQuestionnaire("history-pre-sleep-questionnaire")
         XCTAssertTrue(app.navigationBars["Edit Pre-Sleep"].waitForExistence(timeout: 5), "Pre-sleep answers must also survive restart")
+        app.buttons["Next"].tap(); app.buttons["Next"].tap()
+        reveal(foodInput)
+        XCTAssertEqual(foodInput.value as? String, "Fried chicken and fries")
+        let foodKind = app.buttons["pre-last-food-kind"]
+        XCTAssertTrue("\(foodKind.label) \(foodKind.value ?? "")".contains("Meal"))
+        XCTAssertTrue(app.segmentedControls["pre-last-food-fat"].buttons["Yes"].isSelected)
+        captureDashboard("Last food restored after restart in History")
         app.buttons["Cancel"].tap()
     }
 

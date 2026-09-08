@@ -93,6 +93,14 @@ struct PreSleepLogCard: View {
                             highlight: max(answers.plannedDose1Mg ?? 0, answers.plannedDose2Mg ?? 0) > 4500
                         )
                     }
+                    if let food = answers.lastFood {
+                        PreSleepRow(label: "Last food finished", value: food.finishedAt.formatted(date: .abbreviated, time: .shortened), icon: "fork.knife")
+                        PreSleepRow(label: "Food type", value: food.kind?.title ?? "Not specified", icon: "fork.knife")
+                        PreSleepRow(label: "High-fat or oily", value: food.highFatText, icon: "questionmark.circle")
+                        if let notes = food.notes {
+                            PreSleepRow(label: "Food notes", value: notes, icon: "note.text")
+                        }
+                    }
                     if let meal = answers.lateMeal, meal != .none {
                         PreSleepRow(label: "Late Meal", value: meal.displayText, icon: "fork.knife", highlight: true)
                     }

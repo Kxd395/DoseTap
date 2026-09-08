@@ -159,6 +159,7 @@ extension SettingsView {
             napTotalMinutes: answers?.napTotalMinutes,
             napLastEndAtUTC: answers?.napLastEndAt,
             lateMeal: answers?.lateMeal?.rawValue,
+            lastFood: answers?.lastFood,
             lateMealEndedAtUTC: answers?.lateMealEndedAt,
             screensInBed: answers?.screensInBed?.rawValue,
             screensLastUsedAtUTC: answers?.screensLastUsedAt,
@@ -743,6 +744,7 @@ extension SettingsView {
             nextRequiredWakeAtUTC: timingContext?.nextRequiredWakeAtUTC,
             commuteMinutes: timingContext?.commuteMinutes,
             lateMealType: answers?.lateMeal?.rawValue,
+            lastFood: answers?.lastFood,
             lateMealEndedAtUTC: answers?.lateMealEndedAt,
             lateMealMinutesBeforeDose1: minutesBetween(answers?.lateMealEndedAt, and: doseLog?.dose1Time),
             lateMealMinutesBeforeDose2: minutesBetween(answers?.lateMealEndedAt, and: doseLog?.dose2Time),
@@ -1568,6 +1570,7 @@ private struct InsightsPreSleepSummary: Codable {
     let napTotalMinutes: Int?
     let napLastEndAtUTC: Date?
     let lateMeal: String?
+    let lastFood: PreSleepLogAnswers.LastFoodEntry?
     let lateMealEndedAtUTC: Date?
     let screensInBed: String?
     let screensLastUsedAtUTC: Date?
@@ -1714,6 +1717,7 @@ private struct InsightsSessionContext: Codable {
     let nextRequiredWakeAtUTC: Date?
     let commuteMinutes: Int?
     let lateMealType: String?
+    let lastFood: PreSleepLogAnswers.LastFoodEntry?
     let lateMealEndedAtUTC: Date?
     let lateMealMinutesBeforeDose1: Int?
     let lateMealMinutesBeforeDose2: Int?

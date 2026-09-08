@@ -279,17 +279,13 @@ struct PreSleepLogView: View {
             showSaveError = true
             return
         }
-        if (answers.lateMeal ?? PreSleepLogAnswers.LateMeal.none) != .none && answers.lateMealEndedAt == nil {
-            saveErrorMessage = "Add when your last late meal ended."
-            showSaveError = true
-            return
-        }
         if (answers.screensInBed ?? PreSleepLogAnswers.ScreensInBed.none) != .none && answers.screensLastUsedAt == nil {
             saveErrorMessage = "Add when you last used a screen in bed."
             showSaveError = true
             return
         }
         do {
+            try answers.lastFood?.validate(at: historyReferenceTime ?? Date())
             if historyNight == nil { UserDefaults.standard.set(rememberLastSettings, forKey: Self.rememberLastSettingsKey) }
             try onComplete(answers)
             dismiss()
@@ -396,7 +392,9 @@ extension PreSleepLogAnswers {
         carried.alcoholLastDrinkAt = Self.carryTimeOfDay(alcoholLastDrinkAt, to: referenceDate, calendar: calendar)
         carried.exerciseLastAt = Self.carryTimeOfDay(exerciseLastAt, to: referenceDate, calendar: calendar)
         carried.napLastEndAt = Self.carryTimeOfDay(napLastEndAt, to: referenceDate, calendar: calendar)
-        carried.lateMealEndedAt = Self.carryTimeOfDay(lateMealEndedAt, to: referenceDate, calendar: calendar)
+        carried.lastFood = nil
+        carried.lateMeal = nil
+        carried.lateMealEndedAt = nil
         carried.screensLastUsedAt = Self.carryTimeOfDay(screensLastUsedAt, to: referenceDate, calendar: calendar)
         return carried
     }

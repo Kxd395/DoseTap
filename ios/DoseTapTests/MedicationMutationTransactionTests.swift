@@ -135,15 +135,28 @@ final class MedicationMutationTransactionTests: XCTestCase {
         }
         XCTAssertFalse(save(review, confirmed: false).isCommitted)
         XCTAssertNil(storage.fetchSessionId(forSessionDate: night))
+        answers.lastFood = .init(finishedAt: time.addingTimeInterval(1), highFat: true, notes: "Original food")
+        XCTAssertFalse(save(review).isCommitted, "Food cannot occur after the historical questionnaire")
+        XCTAssertNil(storage.fetchSessionId(forSessionDate: night), "Invalid food must roll back session creation")
+        answers.lastFood?.finishedAt = time.addingTimeInterval(-10800)
+        storage.medicationFaultInjector = { $0 == .commit ? MedicationStorageInjectedFailure(code: .diskFull, detail: "Injected") : nil }
+        XCTAssertFalse(save(review).isCommitted)
+        XCTAssertNil(storage.fetchSessionId(forSessionDate: night))
+        XCTAssertNil(storage.fetchMostRecentPreSleepLog())
+        storage.medicationFaultInjector = nil
         XCTAssertTrue(save(review).isCommitted)
         XCTAssertFalse(save(review).isCommitted, "A second submission with a stale snapshot must fail")
         XCTAssertEqual(storage.loadCurrentSessionState().sessionId, sessionId)
         XCTAssertTrue(storage.fetchDoseEvents(sessionId: review.history.sessionId, sessionDate: night).isEmpty)
         let updated = try storage.historyQuestionnaireSnapshot(sessionDate: night, kind: .preSleep)
         answers.notes = "Corrected evening"
+        answers.lastFood?.highFat = false
+        answers.lastFood?.notes = "Corrected food"
         XCTAssertTrue(save(updated).isCommitted)
         let submission = try XCTUnwrap(storage.fetchCheckInSubmissions(sessionDate: night).first)
         XCTAssertTrue(submission.responsesJson.contains("Remembered evening"))
+        XCTAssertTrue(submission.responsesJson.contains("Original food"), "Correction must retain old food in provenance")
+        XCTAssertEqual(storage.fetchMostRecentPreSleepLog(sessionId: updated.history.sessionId)?.answers?.lastFood?.highFat, false)
         XCTAssertTrue(submission.responsesJson.contains("history.provenance"))
         XCTAssertEqual(storage.fetchMostRecentPreSleepLog(sessionId: updated.history.sessionId)?.answers?.notes, "Corrected evening")
         let morning = try storage.historyQuestionnaireSnapshot(sessionDate: night, kind: .morning)

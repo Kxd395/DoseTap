@@ -10,6 +10,8 @@ The executable DDL and migrations remain decisive if this document drifts. `Even
 
 The current schema contains 17 application tables plus the internal `schema_migrations` ledger.
 
+DOSETAP-50 adds optional `lastFood` inside `pre_sleep_logs.answers_json` and `pre.food.last.*` responses inside `checkin_submissions.responses_json`; no columns or schema version change. See the data dictionary for missingness, timestamps, and legacy compatibility. The two representations save in the existing questionnaire transaction, including historical correction provenance.
+
 ## Session and event tables
 
 ### `sleep_events`
