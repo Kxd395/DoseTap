@@ -45,32 +45,45 @@ struct ExportView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Export & Reports")
-                    .font(.largeTitle.bold())
-
-                Text("Generate provider-facing summaries, matched-night review exports, and raw night-level CSV from the imported DoseTap bundle.")
-                    .foregroundColor(.secondary)
-
-                Toggle("Redact free text, exact timestamps, and bundle fingerprint for clinician exports", isOn: $redactClinicianExport)
-                    .toggleStyle(.switch)
-
-                Toggle("Encrypt saved exports with a passphrase", isOn: $encryptSavedExports)
-                    .toggleStyle(.switch)
-
-                actionRow
-                bundleMetadataCard
-                availabilityCard
-                previewCard
-                recommendationPreviewCard
-            }
-            .padding()
+            exportContent
         }
         .navigationTitle("Export")
     }
 
+    var exportContent: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Export & Reports")
+                .font(.largeTitle.bold())
+
+            Text("Generate provider-facing summaries, matched-night review exports, and raw night-level CSV from the imported DoseTap bundle.")
+                .foregroundColor(.secondary)
+
+            Toggle("Redact free text, exact timestamps, and bundle fingerprint for clinician exports", isOn: $redactClinicianExport)
+                .toggleStyle(.switch)
+
+            Toggle("Encrypt saved exports with a passphrase", isOn: $encryptSavedExports)
+                .toggleStyle(.switch)
+
+            actionRow
+            Text("Redaction applies to generated reports. An imported bundle copy keeps the original data.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            if let exportStatus {
+                Text(exportStatus)
+                    .font(.callout)
+                    .foregroundColor(.secondary)
+                    .textSelection(.enabled)
+            }
+            bundleMetadataCard
+            availabilityCard
+            previewCard
+            recommendationPreviewCard
+        }
+        .padding()
+    }
+
     private var actionRow: some View {
-        HStack(spacing: 12) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 240), alignment: .leading)], alignment: .leading, spacing: 12) {
             Button("Save Provider Summary") {
                 saveFile(
                     suggestedName: "DoseTap-Provider-Summary.txt",
@@ -133,24 +146,12 @@ struct ExportView: View {
                 exportStatus = "Provider summary copied to clipboard."
             }
             .disabled(sessions.isEmpty)
-
-            Spacer()
-
-            if let exportStatus {
-                Text(exportStatus)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
         }
     }
 
     private var availabilityCard: some View {
         LazyVGrid(
-            columns: [
-                GridItem(.flexible(minimum: 150)),
-                GridItem(.flexible(minimum: 150)),
-                GridItem(.flexible(minimum: 150))
-            ],
+            columns: [GridItem(.adaptive(minimum: 180), alignment: .leading)],
             alignment: .leading,
             spacing: 12
         ) {
@@ -166,18 +167,19 @@ struct ExportView: View {
     @ViewBuilder
     private var bundleMetadataCard: some View {
         if let bundle = dataStore.importedInsightsBundle {
+            Text("Imported archive")
+                .font(.headline)
+            Text("The source iPhone build below created this export. It is not the running Studio build or the version currently installed on your phone.")
+                .font(.caption)
+                .foregroundColor(.secondary)
             LazyVGrid(
-                columns: [
-                    GridItem(.flexible(minimum: 150)),
-                    GridItem(.flexible(minimum: 150)),
-                    GridItem(.flexible(minimum: 150))
-                ],
+                columns: [GridItem(.adaptive(minimum: 180), alignment: .leading)],
                 alignment: .leading,
                 spacing: 12
             ) {
                 availabilityMetric(title: "Schema", value: "\(bundle.schemaVersion)", color: .secondary)
                 availabilityMetric(title: "Export Version", value: bundle.exportVersion ?? "—", color: .secondary)
-                availabilityMetric(title: "App Version", value: bundle.appVersion ?? "—", color: .secondary)
+                availabilityMetric(title: "Source iPhone build", value: bundle.appVersion ?? "—", color: .secondary)
                 availabilityMetric(title: "Timezone", value: bundle.timeZoneIdentifier ?? "—", color: .secondary)
                 availabilityMetric(
                     title: "UTC Offset",
@@ -308,7 +310,7 @@ struct ExportView: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
-        .frame(width: 150, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
         .background(Color(.controlBackgroundColor))
         .cornerRadius(12)
