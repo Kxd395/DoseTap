@@ -172,31 +172,23 @@ struct LegacyTonightView: View {
     @State private var morningCheckIn: StoredMorningCheckIn? = nil
 
     var body: some View {
+        if isInSplitView {
+            tonightContent
+        } else {
+            NavigationStack {
+                tonightContent
+            }
+        }
+    }
+
+    @ViewBuilder private var tonightContent: some View {
         let homeState = resolvedHomeState
 
         ScrollView {
             VStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 4) {
-                    ViewThatFits(in: .horizontal) {
-                        HStack(alignment: .center, spacing: 12) {
-                            Text("DoseTap")
-                                .font(.largeTitle.bold())
-                                .fixedSize()
-                            Spacer(minLength: 8)
-                            QuickThemeSwitchButton()
-                            PageCaptureButton()
-                        }
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("DoseTap").font(.largeTitle.bold())
-                            HStack {
-                                QuickThemeSwitchButton()
-                                Spacer()
-                                PageCaptureButton()
-                            }
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
                     TonightDateLabel()
+                        .accessibilityIdentifier("tonight-session-date")
 
                     // Show scheduled wake alarm when dose 1 taken
                     if sessionRepo.dose2Time == nil && !sessionRepo.dose2Skipped {
@@ -204,6 +196,7 @@ struct LegacyTonightView: View {
                             .padding(.top, 4)
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal)
                 .padding(.top, 8)
                 .padding(.bottom, 8)
@@ -417,6 +410,10 @@ struct LegacyTonightView: View {
             }
         }
         .scrollIndicators(.hidden)
+        .navigationTitle("Tonight")
+        .navigationBarTitleDisplayMode(isInSplitView ? .automatic : .inline)
+        .toolbar(.visible, for: .navigationBar)
+        .toolbar { PageToolbar { EmptyView() } }
         .modifier(TonightContentBounce())
         .sheet(isPresented: $showMorningCheckIn) {
             if let existing = morningCheckIn {
@@ -655,6 +652,7 @@ private struct TonightContentBounce: ViewModifier {
 // MARK: - Quick Theme Switch Button
 struct QuickThemeSwitchButton: View {
     @EnvironmentObject var themeManager: ThemeManager
+    var compact = false
 
     private var nextTheme: AppTheme {
         switch themeManager.currentTheme {
@@ -672,24 +670,29 @@ struct QuickThemeSwitchButton: View {
             themeManager.applyTheme(nextTheme)
             Haptics.light.play()
         } label: {
-            HStack(spacing: 6) {
+            if compact {
                 Image(systemName: themeManager.currentTheme.icon)
-                    .font(.caption.bold())
-                Text(themeManager.currentTheme.rawValue)
-                    .font(.caption2.weight(.semibold))
-                    .lineLimit(1)
+                    .frame(minWidth: 44, minHeight: 44)
+            } else {
+                HStack(spacing: 6) {
+                    Image(systemName: themeManager.currentTheme.icon)
+                        .font(.caption.bold())
+                    Text(themeManager.currentTheme.rawValue)
+                        .font(.caption2.weight(.semibold))
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .frame(minHeight: 44)
+                .background(
+                    Capsule()
+                        .fill(Color(.secondarySystemBackground))
+                )
+                .overlay(
+                    Capsule()
+                        .stroke(themeManager.currentTheme.accentColor.opacity(0.35), lineWidth: 1)
+                )
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .frame(minHeight: 44)
-            .background(
-                Capsule()
-                    .fill(Color(.secondarySystemBackground))
-            )
-            .overlay(
-                Capsule()
-                    .stroke(themeManager.currentTheme.accentColor.opacity(0.35), lineWidth: 1)
-            )
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Theme quick switch")

@@ -70,7 +70,7 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertEqual(theme.value as? String, "Light")
         captureDashboard("Manual appearance override survives restart")
         app.buttons["Settings"].tap()
-        let themeLink = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Theme")).firstMatch
+        let themeLink = app.buttons["settings-theme"]
         for _ in 0..<10 where !themeLink.isHittable { app.swipeUp() }
         XCTAssertTrue(themeLink.isHittable); themeLink.tap()
         let automatic = app.switches["automatic-night-mode"]
@@ -86,7 +86,7 @@ final class DoseTapUITests: XCTestCase {
     }
 
     func testCompactLayoutTonightFitsAndHistoryUsesOneMetricRow() throws {
-        let heading = app.staticTexts["DoseTap"].firstMatch
+        let heading = app.staticTexts["tonight-session-date"].firstMatch
         XCTAssertTrue(heading.waitForExistence(timeout: 15))
         let originalY = heading.frame.minY
         let weekly = app.descendants(matching: .any).matching(identifier: "tonight-weekly-insights").firstMatch
@@ -105,13 +105,13 @@ final class DoseTapUITests: XCTestCase {
 
     func testCompactLayoutSecondaryHeaders() throws {
         var headerHeights: [String: CGFloat] = [:]
-        for title in ["Timeline", "Dashboard", "Settings"] {
+        for title in ["Tonight", "Timeline", "History", "Dashboard", "Settings"] {
             app.buttons[title].tap()
             let header = app.navigationBars[title]
             XCTAssertTrue(header.waitForExistence(timeout: 10))
             headerHeights[title] = header.frame.height
             XCTAssertLessThan(header.frame.minY, 100, "The header should start just below the status bar")
-            if title != "Settings" {
+            if title == "Timeline" || title == "Dashboard" {
                 let picker = app.segmentedControls.firstMatch
                 XCTAssertTrue(picker.exists)
                 XCTAssertLessThanOrEqual(picker.frame.minY - header.frame.maxY, 40, "The first control should follow the header without an extra spacer")
@@ -128,6 +128,55 @@ final class DoseTapUITests: XCTestCase {
         app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         app.launch()
         try testCompactLayoutSecondaryHeaders()
+    }
+
+    func testCompactLayoutSharedPageControls() throws {
+        for title in ["Tonight", "Timeline", "History", "Dashboard", "Settings"] {
+            app.buttons[title].tap()
+            let header = app.navigationBars[title]
+            XCTAssertTrue(header.waitForExistence(timeout: 10))
+            XCTAssertLessThanOrEqual(header.frame.height, 64)
+            let theme = header.buttons["Theme quick switch"]
+            let capture = header.buttons["Share current page capture"]
+            XCTAssertTrue(theme.isHittable, "\(title) must expose the shared theme control")
+            XCTAssertTrue(capture.isHittable, "\(title) must expose page capture")
+            XCTAssertLessThan(theme.frame.midX, header.frame.midX)
+            XCTAssertGreaterThan(capture.frame.midX, header.frame.midX)
+            captureDashboard("Shared controls on \(title)")
+            capture.tap()
+            XCTAssertTrue(app.navigationBars["Full Screen Capture"].waitForExistence(timeout: 10))
+            captureDashboard("Page capture preview on \(title)")
+            app.navigationBars["Full Screen Capture"].buttons["Done"].tap()
+            XCTAssertTrue(header.waitForExistence(timeout: 5))
+            if title == "Timeline" {
+                app.segmentedControls.firstMatch.buttons["Review"].tap()
+                XCTAssertTrue(capture.isHittable)
+                captureDashboard("Shared controls on Timeline Review")
+                capture.tap()
+                XCTAssertTrue(app.navigationBars["Full Screen Capture"].waitForExistence(timeout: 10))
+                app.navigationBars["Full Screen Capture"].buttons["Done"].tap()
+                app.segmentedControls.firstMatch.buttons["Live"].tap()
+            }
+        }
+    }
+
+    func testCompactLayoutSharedThemeAcrossTabs() throws {
+        app.buttons["Timeline"].tap()
+        let theme = app.navigationBars["Timeline"].buttons["Theme quick switch"]
+        XCTAssertTrue(theme.waitForExistence(timeout: 10))
+        theme.press(forDuration: 1)
+        app.buttons["Dark"].tap()
+        theme.tap()
+        for title in ["Tonight", "History", "Dashboard", "Settings", "Timeline", "Tonight", "History", "Dashboard", "Settings", "Timeline"] {
+            app.buttons[title].tap()
+            let control = app.navigationBars[title].buttons["Theme quick switch"]
+            XCTAssertTrue(control.waitForExistence(timeout: 10), "\(title) must retain its header after appearance changes")
+            captureDashboard("Night Mode shared controls on \(title)")
+            XCTAssertEqual(control.value as? String, "Night Mode", "Appearance must be shared across every tab")
+        }
+        theme.press(forDuration: 1)
+        app.buttons["Dark"].tap()
+        XCTAssertEqual(theme.value as? String, "Dark")
     }
 
     func testCompactLayoutLargeTextKeepsContentReachable() throws {

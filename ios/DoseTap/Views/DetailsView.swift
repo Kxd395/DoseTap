@@ -156,23 +156,9 @@ struct DetailsView: View {
             }
             .navigationTitle("Timeline")
             .navigationBarTitleDisplayMode(isInSplitView ? .automatic : .inline)
+            .toolbar(.visible, for: .navigationBar)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    if selectedMode == .review, reviewSession != nil {
-                        Button {
-                            shareReviewSnapshot()
-                        } label: {
-                            if isPreparingReviewShare {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Image(systemName: "square.and.arrow.up")
-                            }
-                        }
-                        .disabled(isPreparingReviewShare)
-                        .accessibilityLabel("Share review screenshot")
-                    }
-                }
+                PageToolbar { EmptyView() }
             }
             .onAppear {
                 refreshReviewContext()
@@ -229,8 +215,6 @@ struct DetailsView: View {
             } message: {
                 Text(reviewShareErrorMessage ?? "Unknown error.")
             }
-            .toolbarBackground(.hidden, for: .navigationBar)
-            .navigationBarTitleDisplayMode(.inline)
     }
 
     @ViewBuilder
@@ -255,6 +239,14 @@ struct DetailsView: View {
     private var reviewContent: some View {
         if let session = reviewSession {
             VStack(spacing: 20) {
+                Button {
+                    shareReviewSnapshot()
+                } label: {
+                    Label(isPreparingReviewShare ? "Preparing review summary…" : "Capture review summary", systemImage: "doc.text.image")
+                }
+                .disabled(isPreparingReviewShare)
+                .accessibilityLabel("Share review screenshot")
+
                 ReviewStickyHeaderBar(
                     session: session,
                     events: reviewEvents,

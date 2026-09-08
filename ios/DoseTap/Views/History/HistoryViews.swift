@@ -111,11 +111,12 @@ struct HistoryView: View {
             }
         }
         .navigationTitle("History")
+        .navigationBarTitleDisplayMode(isInSplitView ? .automatic : .inline)
+        .toolbar(.visible, for: .navigationBar)
         .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
+            PageToolbar {
                 Button { showHistoryEditor = true } label: { Label("Add / Correct", systemImage: "square.and.pencil") }
                     .accessibilityIdentifier("history-manage-records")
-                PageCaptureButton()
             }
         }
         .sheet(isPresented: $showHistoryEditor) {

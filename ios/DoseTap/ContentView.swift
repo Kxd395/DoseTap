@@ -230,6 +230,25 @@ extension EnvironmentValues {
     }
 }
 
+/// One toolbar contract for all root tabs. Screen-specific actions precede capture.
+struct PageToolbar<Actions: View>: ToolbarContent {
+    let actions: Actions
+
+    init(@ViewBuilder actions: () -> Actions) {
+        self.actions = actions()
+    }
+
+    var body: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            QuickThemeSwitchButton(compact: true)
+        }
+        ToolbarItemGroup(placement: .topBarTrailing) {
+            actions
+            PageCaptureButton()
+        }
+    }
+}
+
 /// Placed in the owning screen's header so it cannot cover navigation or content.
 struct PageCaptureButton: View {
     @Environment(\.pageCapture) private var capture
