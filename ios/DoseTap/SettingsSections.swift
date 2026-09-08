@@ -169,6 +169,7 @@ extension SettingsView {
                             .foregroundColor(.secondary)
                     }
                 }
+                .accessibilityIdentifier("settings-theme")
 
                 appearancePicker
 
@@ -358,11 +359,12 @@ extension SettingsView {
         }
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(isInSplitView ? .large : .inline)
+        .toolbar(.visible, for: .navigationBar)
         .safeAreaInset(edge: .bottom) {
             Color.clear.frame(height: tabBarInsetHeight)
         }
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) { PageCaptureButton() }
+            PageToolbar { EmptyView() }
         }
         .alert("Clear All Data", isPresented: $showingResetConfirmation) {
             Button("Cancel", role: .cancel) {}

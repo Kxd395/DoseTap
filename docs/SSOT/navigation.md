@@ -1,11 +1,11 @@
 # DoseTap SSOT Navigation
 
 Status: Current SSOT index
-Last verified: 2026-09-02
+Last verified: 2026-09-08
 
 This file is a pointer map for the SSOT. The canonical spec lives in `docs/SSOT/README.md`.
 
-On iPhone, Tonight places the Pre-Sleep Check entry immediately before the primary dose action, including its logged/edit state. Preparation precedes taking a dose; quick logs and statistics follow the nightly actions. Optional bottle recording is the first item inside Pre-Sleep Check, with no duplicate standalone bottle button on Tonight. Theme and page capture controls occupy separate header positions. History, Dashboard, and Settings expose page capture in their native navigation toolbar; global floating controls must not cover screen content or back navigation. The work-warning sheet separates its dated schedule summary, explicit recording action, and date-only adjustments.
+On iPhone, Tonight places the Pre-Sleep Check entry immediately before the primary dose action, including its logged/edit state. Preparation precedes taking a dose; quick logs and statistics follow the nightly actions. Optional bottle recording is the first item inside Pre-Sleep Check, with no duplicate standalone bottle button on Tonight. All five tabs share a native toolbar with theme at the leading edge and current-page capture at the trailing edge. Timeline exposes capture in both Live and Review, even without records. Its separate review-summary capture stays within Review content. Global floating controls must not cover screen content or back navigation. The work-warning sheet separates its dated schedule summary, explicit recording action, and date-only adjustments.
 
 ## Quick Links
 

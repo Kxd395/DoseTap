@@ -130,13 +130,13 @@ struct DashboardTabView: View {
             }
             .navigationTitle("Dashboard")
             .navigationBarTitleDisplayMode(isInSplitView ? .automatic : .inline)
+            .toolbar(.visible, for: .navigationBar)
             .refreshable {
                 await model.refreshAndWait()
             }
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) { PageCaptureButton() }
-                if cloudSync.cloudSyncAvailableInBuild {
-                    ToolbarItem(placement: .navigationBarTrailing) {
+                PageToolbar {
+                    if cloudSync.cloudSyncAvailableInBuild {
                         if cloudSync.isSyncing {
                             ProgressView()
                                 .controlSize(.small)
@@ -156,8 +156,6 @@ struct DashboardTabView: View {
                             .accessibilityLabel("Sync with iCloud")
                         }
                     }
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
                     if model.isLoading {
                         ProgressView()
                             .controlSize(.small)

@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-08
 SSOT revision: 0.4.19
-Shipping app version observed in the Xcode project: 0.4.19 (build 24)
+Shipping app version observed in the Xcode project: 0.4.19 (build 25)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -316,7 +316,7 @@ Compact History insights use one row of four metrics at standard text sizes, wit
 
 Tab selection is synced between compact (TabView `$urlRouter.selectedTab`) and regular (sidebar selection `$urlRouter.selectedTab`) layouts. Deep links work identically in both modes.
 
-On compact screens, Timeline, Dashboard, and Settings use inline navigation titles. Timeline uses its normal content inset without a second top spacer. Titles remain below the system status area, and scrolling stays available for larger text. Regular-width split-view title behavior is unchanged.
+All five tabs use native navigation headers, with inline titles on compact screens. The shared toolbar places the theme quick switch at the leading edge and current-page capture at the trailing edge. Capture is available in Timeline Live and Review, including empty states. History's record editor and Dashboard's refresh/sync controls remain contextual actions beside capture. Timeline's separate review-summary capture stays in the Review content. Tonight keeps its session date and dose/alarm information below the header. Titles remain below the system status area, and scrolling stays available for larger text.
 
 Code references:
 - `ios/DoseTap/ContentView.swift` (adaptive root)
