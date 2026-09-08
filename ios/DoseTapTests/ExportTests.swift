@@ -228,6 +228,11 @@ final class ExportIntegrityTests: XCTestCase {
         )
         storage.insertDoseEvent(eventType: "dose1", timestamp: dose1Time, sessionDate: sessionDate)
         storage.insertDoseEvent(eventType: "dose2", timestamp: dose2Time, sessionDate: sessionDate)
+        let review = try repo.nightOutcomeSnapshot(sessionDate: sessionDate)
+        var diary = NightOutcomeDiary()
+        diary.wakeMethod = .natural; diary.backupAlarmSet = true; diary.dayType = .dayOff
+        diary.finalWakeAt = morningTime; diary.sleepiness = 0; diary.assessedAt = morningTime.addingTimeInterval(21600)
+        XCTAssertTrue(storage.saveNightOutcome(diary, review: review, reason: "", recordedAt: diary.assessedAt!).isCommitted)
         storage.saveMorningCheckIn(
             DoseTap.StoredMorningCheckIn(
                 id: "morning-\(sessionDate)",
@@ -271,6 +276,19 @@ final class ExportIntegrityTests: XCTestCase {
         let sessions = try XCTUnwrap(bundle["sessions"] as? [[String: Any]])
         let exportedSession = try XCTUnwrap(sessions.first)
         let preSleep = try XCTUnwrap(exportedSession["preSleep"] as? [String: Any])
+        let collected = try XCTUnwrap(exportedSession["collectedNight"] as? [String: Any])
+        XCTAssertEqual(collected["dose2WakeMethod"] as? String, "natural")
+        XCTAssertEqual(collected["backupAlarmSet"] as? Bool, true)
+        XCTAssertEqual(collected["sleepiness0To10"] as? Int, 0)
+        XCTAssertEqual(collected["lastFoodHighFat"] as? Bool, true)
+        XCTAssertEqual(collected["lastFoodToDose1Minutes"] as? Double, 155)
+        XCTAssertNil(collected["estimatedSleepAfterDose2Minutes"], "No segments is not zero sleep")
+        let measured = try repo.collectedNightSummary(for: sessionDate, intervals: [
+            .init(start: dose2Time, end: morningTime, asleep: true),
+            .init(start: dose2Time, end: dose2Time.addingTimeInterval(600), asleep: false)
+        ])
+        XCTAssertEqual(measured.estimatedSleepAfterDose2Minutes, 365)
+        XCTAssertEqual(measured.sleepAfterDose2CoveredMinutes, 375)
         let morning = try XCTUnwrap(exportedSession["morning"] as? [String: Any])
         let submissions = try XCTUnwrap(exportedSession["checkInSubmissions"] as? [[String: Any]])
 
@@ -325,7 +343,7 @@ final class ExportIntegrityTests: XCTestCase {
         let writtenSessions = try XCTUnwrap(writtenBundle["sessions"] as? [[String: Any]])
         let writtenSession = try XCTUnwrap(writtenSessions.first)
         XCTAssertEqual(writtenSession["sessionDate"] as? String, sessionDate)
-        XCTAssertEqual((writtenSession["checkInSubmissions"] as? [[String: Any]])?.count, 2)
+        XCTAssertEqual((writtenSession["checkInSubmissions"] as? [[String: Any]])?.count, 3)
 
         let writtenSessionsCSV = try String(contentsOf: exportDirectory.appendingPathComponent("sessions.csv"), encoding: .utf8)
         XCTAssertTrue(writtenSessionsCSV.contains("2026-06-17T01:15:00.000Z"))

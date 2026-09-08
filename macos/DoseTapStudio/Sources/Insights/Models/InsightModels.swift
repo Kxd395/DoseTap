@@ -109,6 +109,7 @@ struct InsightSession: Identifiable, Hashable, Sendable {
     let medications: [InsightMedicationSummary]
     let checkInSubmissions: [InsightCheckInSubmission]
     let context: InsightSessionContext?
+    let collectedNight: CollectedNightSummary?
     let healthKit: InsightHealthKitSummary?
     let whoop: InsightWHOOPSummary?
     let rawEvents: [InsightBundleEvent]
@@ -139,6 +140,7 @@ struct InsightSession: Identifiable, Hashable, Sendable {
         medications: [InsightMedicationSummary],
         checkInSubmissions: [InsightCheckInSubmission] = [],
         context: InsightSessionContext? = nil,
+        collectedNight: CollectedNightSummary? = nil,
         healthKit: InsightHealthKitSummary? = nil,
         whoop: InsightWHOOPSummary? = nil,
         rawEvents: [InsightBundleEvent] = [],
@@ -168,6 +170,7 @@ struct InsightSession: Identifiable, Hashable, Sendable {
         self.medications = medications
         self.checkInSubmissions = checkInSubmissions
         self.context = context
+        self.collectedNight = collectedNight
         self.healthKit = healthKit
         self.whoop = whoop
         self.rawEvents = rawEvents
@@ -347,7 +350,7 @@ struct InsightSession: Identifiable, Hashable, Sendable {
     }
 
     var hasSupplementalContext: Bool {
-        preSleep != nil || morning != nil || !medications.isEmpty || context != nil || healthKit != nil || whoop != nil
+        collectedNight != nil || preSleep != nil || morning != nil || !medications.isEmpty || context != nil || healthKit != nil || whoop != nil
     }
 
     var hasWorkSafetyContext: Bool {

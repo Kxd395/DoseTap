@@ -73,11 +73,15 @@ struct ExportCard: View {
     enum ExportFormat { case text, csv }
 
     private func generateExportContent(format: ExportFormat) -> String {
+        // Fail explicitly rather than silently omitting an unreadable diary.
+        guard let report = try? sessionRepo.collectedNightSummary(for: sessionKey) else {
+            return "Report unavailable: this night's records need review. No data was changed."
+        }
         switch format {
         case .text:
-            return generateTextExport()
+            return generateTextExport(report: report)
         case .csv:
-            return generateCSVExport()
+            return generateCSVExport(report: report)
         }
 }
 
@@ -86,7 +90,7 @@ private struct ExportSharePayload: Identifiable {
     let content: String
 }
 
-    private func generateTextExport() -> String {
+    private func generateTextExport(report: CollectedNightSummary) -> String {
         var lines: [String] = [
             "DoseTap Night Report",
             "Session: \(sessionDateLabel)",
@@ -279,10 +283,15 @@ private struct ExportSharePayload: Identifiable {
             }
         }
 
+        lines.append("\nFood and next-day diary (0–10 sleepiness; separate from older 1–5 ratings)")
+        for (field, value) in report.fields {
+            appendTextField(&lines, label: humanize(field), value: value ?? "Not recorded / unavailable")
+        }
+        lines.append("Sleep after Dose 2 needs measured Apple Health segments; use the enriched Studio bundle for that estimate.")
         return lines.joined(separator: "\n")
     }
 
-    private func generateCSVExport() -> String {
+    private func generateCSVExport(report: CollectedNightSummary) -> String {
         var rows = ["session_key,session_date,section,field,value"]
 
         appendCSVRow(&rows, section: "meta", field: "generated_at", value: AppFormatters.mediumDateTime.string(from: Date()))
@@ -445,6 +454,9 @@ private struct ExportSharePayload: Identifiable {
             appendCSVRow(&rows, section: "sleep_events", field: "event_\(index + 1)", value: formattedEvent(event))
         }
 
+        for (field, value) in report.fields {
+            appendCSVRow(&rows, section: "collected_night_v1", field: field, value: value ?? "")
+        }
         return rows.joined(separator: "\n")
     }
 

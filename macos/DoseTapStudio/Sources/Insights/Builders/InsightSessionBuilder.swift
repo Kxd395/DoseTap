@@ -85,6 +85,7 @@ struct InsightSessionBuilder {
             medications: supplement?.medications ?? [],
             checkInSubmissions: supplement?.checkInSubmissions ?? [],
             context: supplement?.context,
+            collectedNight: supplement?.collectedNight,
             healthKit: supplement?.healthKit,
             whoop: supplement?.whoop,
             rawEvents: supplement?.rawEvents ?? [],

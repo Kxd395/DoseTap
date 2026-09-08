@@ -56,11 +56,77 @@ public struct NightOutcomeDiary: Codable, Equatable, Sendable {
     }
 }
 
-public struct RecordedSleepInterval: Sendable {
+public struct RecordedSleepInterval: Codable, Hashable, Sendable {
     public let start: Date
     public let end: Date
     public let asleep: Bool
     public init(start: Date, end: Date, asleep: Bool) { self.start = start; self.end = end; self.asleep = asleep }
+}
+
+/// Additive reporting contract shared by iOS exports and Studio. Never a dose policy.
+public struct CollectedNightSummary: Codable, Hashable, Sendable {
+    public var version = 1
+    public var lastFoodFinishedAt: Date?
+    public var lastFoodKind: String?
+    public var lastFoodHighFat: Bool?
+    public var lastFoodNotes: String?
+    public var lastFoodToDose1Minutes: Double?
+    public var lastFoodToDose2Minutes: Double?
+    public var dose2WakeMethod: String?
+    public var backupAlarmSet: Bool?
+    public var followingDayType: String?
+    public var finalWakeAt: Date?
+    public var sleepiness0To10: Int?
+    public var sleepinessAssessedAt: Date?
+    public var outcomeRecordedAt: Date?
+    public var estimatedSleepAfterDose2Minutes: Double?
+    public var sleepAfterDose2CoveredMinutes: Double?
+    public var sleepAfterDose2IntervalMinutes: Double?
+    public var sleepAfterDose2FinalWakeAt: Date?
+    public var sleepAfterDose2Source: String?
+    public init() {}
+
+    public static func minutes(from start: Date?, to end: Date?) -> Double? {
+        guard let start, let end else { return nil }
+        let seconds = end.timeIntervalSince(start)
+        return seconds.isFinite && seconds >= 0 ? seconds / 60 : nil
+    }
+
+    public mutating func estimateSleep(dose2: Date?, finalWake: Date?, intervals: [RecordedSleepInterval]) {
+        guard let dose2, let finalWake,
+              let estimate = PostDoseSleepEstimate.calculate(dose2: dose2, finalWake: finalWake, intervals: intervals) else { return }
+        estimatedSleepAfterDose2Minutes = estimate.asleepMinutes
+        sleepAfterDose2CoveredMinutes = estimate.coveredMinutes
+        sleepAfterDose2IntervalMinutes = estimate.intervalMinutes
+        sleepAfterDose2FinalWakeAt = finalWake
+        sleepAfterDose2Source = "apple_health_recorded_segments"
+    }
+
+    /// Stable, flat export columns. Missing stays empty, while false and zero survive.
+    public var fields: [(String, String?)] {
+        let formatter = ISO8601DateFormatter()
+        func stamp(_ date: Date?) -> String? { date.map { formatter.string(from: $0) } }
+        return [
+            ("last_food_finished_at_utc", stamp(lastFoodFinishedAt)),
+            ("last_food_kind", lastFoodKind),
+            ("last_food_high_fat", lastFoodHighFat.map { String($0) }),
+            ("last_food_notes", lastFoodNotes),
+            ("last_food_to_dose1_minutes", lastFoodToDose1Minutes.map { String($0) }),
+            ("last_food_to_dose2_minutes", lastFoodToDose2Minutes.map { String($0) }),
+            ("dose2_wake_method", dose2WakeMethod),
+            ("backup_alarm_set", backupAlarmSet.map { String($0) }),
+            ("following_day_type", followingDayType),
+            ("final_wake_at_utc", stamp(finalWakeAt)),
+            ("sleepiness_0_to_10", sleepiness0To10.map { String($0) }),
+            ("sleepiness_assessed_at_utc", stamp(sleepinessAssessedAt)),
+            ("outcome_recorded_at_utc", stamp(outcomeRecordedAt)),
+            ("estimated_sleep_after_dose2_minutes", estimatedSleepAfterDose2Minutes.map { String($0) }),
+            ("sleep_after_dose2_covered_minutes", sleepAfterDose2CoveredMinutes.map { String($0) }),
+            ("sleep_after_dose2_interval_minutes", sleepAfterDose2IntervalMinutes.map { String($0) }),
+            ("sleep_after_dose2_final_wake_at_utc", stamp(sleepAfterDose2FinalWakeAt)),
+            ("sleep_after_dose2_source", sleepAfterDose2Source)
+        ]
+    }
 }
 
 public struct PostDoseSleepEstimate: Sendable {

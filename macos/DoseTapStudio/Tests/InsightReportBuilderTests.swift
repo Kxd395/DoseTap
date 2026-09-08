@@ -1,7 +1,28 @@
 import XCTest
+import DoseCore
 @testable import DoseTapStudio
 
 final class InsightReportBuilderTests: XCTestCase {
+    func testCollectedDiaryColumnsAndRedaction() throws {
+        var report = CollectedNightSummary()
+        report.lastFoodFinishedAt = Date(timeIntervalSince1970: 1000)
+        report.lastFoodNotes = "Oil, cream\n\"notes\""
+        report.lastFoodHighFat = false
+        report.dose2WakeMethod = "natural"
+        report.sleepiness0To10 = 0
+        let decoded = try JSONDecoder().decode(CollectedNightSummary.self, from: JSONEncoder().encode(report))
+        let session = makeSession(sessionDate: "2024-09-08", intervalMinutes: 180, late: false, skipped: false, stress: 2, sleepQuality: 4, readiness: 4, collectedNight: decoded)
+        let builder = InsightReportBuilder()
+        let full = builder.buildSessionCSV(sessions: [session])
+        XCTAssertTrue(full.contains("sleepiness_0_to_10"))
+        XCTAssertTrue(full.contains("Oil, cream"))
+        XCTAssertTrue(full.contains("natural"))
+        let safe = builder.buildSessionCSV(sessions: [session], redaction: .clinicianSafe)
+        XCTAssertFalse(safe.contains("Oil, cream"))
+        XCTAssertFalse(safe.contains("1970-01-01T00:16:40Z"))
+        XCTAssertTrue(builder.buildProviderSummary(sessions: [session]).contains("sleepiness_0_to_10: 0"))
+    }
+
     func testProviderSummaryIncludesKeyMetrics() {
         let builder = InsightReportBuilder()
         let sessions = [
@@ -447,7 +468,8 @@ final class InsightReportBuilderTests: XCTestCase {
         notes: String? = nil,
         healthKit: InsightHealthKitSummary? = nil,
         whoop: InsightWHOOPSummary? = nil,
-        context: InsightSessionContext? = nil
+        context: InsightSessionContext? = nil,
+        collectedNight: CollectedNightSummary? = nil
     ) -> InsightSession {
         let dose1 = ISO8601DateFormatter().date(from: "\(sessionDate)T22:00:00Z")!
         let dose2 = dose1.addingTimeInterval(TimeInterval(intervalMinutes * 60))
@@ -508,6 +530,7 @@ final class InsightReportBuilderTests: XCTestCase {
             ),
             medications: [],
             context: context,
+            collectedNight: collectedNight,
             healthKit: healthKit,
             whoop: whoop
         )

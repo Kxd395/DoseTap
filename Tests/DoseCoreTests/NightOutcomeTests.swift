@@ -2,6 +2,20 @@ import XCTest
 @testable import DoseCore
 
 final class NightOutcomeTests: XCTestCase {
+    func testCollectedNightKeepsUnknownZeroAndExactFoodIntervals() throws {
+        var report = CollectedNightSummary()
+        XCTAssertNil(report.lastFoodHighFat)
+        XCTAssertNil(report.sleepiness0To10)
+        XCTAssertNil(CollectedNightSummary.minutes(from: start, to: start.addingTimeInterval(-1)))
+        XCTAssertEqual(CollectedNightSummary.minutes(from: start, to: start.addingTimeInterval(7199)), 7199.0 / 60)
+        report.lastFoodHighFat = false
+        report.sleepiness0To10 = 0
+        report.lastFoodNotes = "Oil, cream\n\"notes\""
+        let decoded = try JSONDecoder().decode(CollectedNightSummary.self, from: JSONEncoder().encode(report))
+        XCTAssertEqual(decoded, report)
+        XCTAssertEqual(decoded.fields.first { $0.0 == "sleepiness_0_to_10" }?.1, "0")
+        XCTAssertEqual(decoded.fields.count, CollectedNightSummary().fields.count)
+    }
     func testNaturalWakePercentageExcludesUnknownAnswers() {
         XCTAssertNil(WakeMethodSummary([.unknown, .unknown]).naturalPercentage)
         let summary = WakeMethodSummary([.natural, .alarm, .other, .unknown])

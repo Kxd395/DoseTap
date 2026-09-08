@@ -1,4 +1,5 @@
 import Foundation
+import DoseCore
 
 struct InsightExportRedactionOptions: Hashable, Sendable {
     let redactFreeText: Bool
@@ -125,6 +126,12 @@ struct InsightReportBuilder {
         lines.append("This summary is generated from local DoseTap exports and is intended for review, not diagnosis.")
         if redaction != .none {
             lines.append("Redaction applied: free-text notes, exact timestamps, and bundle fingerprint details removed.")
+        }
+        lines.append("\nFood and next-day diary (personal 0–10 scale; not the legacy 1–5 answer)")
+        for session in selected {
+            guard let report = session.collectedNight, report.version == 1 else { continue }
+            lines.append(session.sessionDate)
+            lines += collectedFields(report, redaction: redaction).map { "\($0.0): \($0.1.isEmpty ? "Not recorded / unavailable" : $0.1)" }
         }
         return lines.joined(separator: "\n")
     }
@@ -448,12 +455,13 @@ struct InsightReportBuilder {
                 metricProvenance,
                 notes
             ]
-            rows.append(values.map(csvField).joined(separator: ","))
+            let report = session.collectedNight.flatMap { $0.version == 1 ? $0 : nil } ?? CollectedNightSummary()
+            rows.append((values + collectedFields(report, redaction: redaction).map(\.1)).map(csvField).joined(separator: ","))
         }
 
         return ([
             "session_date,dose1_utc,dose2_utc,dose2_skipped,interval_minutes,event_count,pre_sleep_stress,morning_sleep_quality,morning_readiness,medication_count,total_sleep_minutes,sleep_efficiency,sleep_performance,sleep_consistency,whoop_recovery,avg_hr,hrv_ms,wake_disruption_count,awake_minutes,waso_minutes,in_bed_minutes,core_sleep_minutes,deep_sleep_minutes,rem_sleep_minutes,light_sleep_minutes,spo2_percentage,skin_temp_celsius,next_morning_weekday,wake_signal,schedule_day_type,explicit_night_type,explicit_next_day_demand,explicit_dose2_wake_method,explicit_back_to_sleep_duration,wake_requirement,shift_start_utc,shift_end_utc,next_required_wake_utc,commute_minutes,alarm_scheduled_for_utc,alarm_first_fire_utc,alarm_acknowledged_utc,alarm_ack_action,alarm_followup_delivered_count,dose2_taken_source,dose2_live_taken_reason,dose2_morning_taken_reason,dose2_taken_reason,dose2_taken_reason_notes,dose2_live_skip_reason,dose2_morning_skip_reason,dose2_skip_reason,dose2_skip_reason_notes,dose2_skip_source,dose2_reason_mismatch,dose2_taken_early,dose2_taken_late,dose2_has_extra_dose,driving_confidence,daytime_sleepiness,cataplexy_burden,pain_burden,anxiety_burden,congestion_burden,reflux_burden,restless_legs_burden,bathroom_urgency_burden,sleep_therapy_device,sleep_therapy_compliance,first_night_off_after_work_block,sleep_disorders,sleep_disorder_notes,co_medication_notes,pharmacogenomic_fast_metabolizer,pharmacogenomic_clinician_reviewed,pharmacogenomic_notes,late_meal_type,late_meal_to_dose1_min,caffeine_to_dose1_min,alcohol_to_dose1_min,exercise_to_dose1_min,screen_to_dose1_min,schedule_markers,comparable_cohort_key,confidence_bucket,training_eligible,quality_flags,export_exclusion_reasons,metric_provenance,notes"
-        ] + rows).joined(separator: "\n") + "\n"
+        ].map { $0 + "," + CollectedNightSummary().fields.map(\.0).joined(separator: ",") } + rows).joined(separator: "\n") + "\n"
     }
 
     func buildMetricFactsCSV(sessions: [InsightSession]) -> String {
@@ -542,6 +550,14 @@ struct InsightReportBuilder {
             return "Late Dose 2"
         }
         return session.qualityFlags.joined(separator: ", ")
+    }
+
+    private func collectedFields(_ report: CollectedNightSummary, redaction: InsightExportRedactionOptions) -> [(String, String)] {
+        report.fields.map { key, value in
+            let hidden = (redaction.redactFreeText && key == "last_food_notes")
+                || (redaction.redactExactTimestamps && key.hasSuffix("_utc"))
+            return (key, hidden ? "" : (value ?? ""))
+        }
     }
 
     private func iso8601(_ date: Date?, redaction: InsightExportRedactionOptions = .none) -> String {

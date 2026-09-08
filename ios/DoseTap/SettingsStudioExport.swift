@@ -44,9 +44,9 @@ extension SettingsView {
         sessionDates: [String],
         enrichmentBySessionDate: [String: StudioExportSessionContext],
         consent: InsightsConsentState
-    ) -> InsightsBundleExport {
+    ) throws -> InsightsBundleExport {
         let sortedSessionDates = sessionDates.sorted(by: >)
-        let sessions = sortedSessionDates.map { sessionDate in
+        let sessions = try sortedSessionDates.map { sessionDate in
             let doseLog = repo.fetchDoseLog(forSession: sessionDate)
             let doseEvents = repo.fetchDoseEvents(forSessionDate: sessionDate)
             let sleepEvents = repo.fetchSleepEvents(for: sessionDate)
@@ -114,6 +114,8 @@ extension SettingsView {
                     sleepEvents: sleepEvents,
                     precomputedAlarmContext: alarmContext
                 ),
+                collectedNight: try repo.collectedNightSummary(for: sessionDate,
+                    intervals: healthKit?.recordedIntervals ?? [], providerFinalWake: healthKit?.finalWakeUTC),
                 healthKit: healthKit,
                 whoop: whoop
             )
@@ -294,7 +296,7 @@ extension SettingsView {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
         try encoder.encode(
-            buildInsightsBundle(
+            try buildInsightsBundle(
                 using: repo,
                 sessionDates: sessionDates,
                 enrichmentBySessionDate: enrichmentBySessionDate,
@@ -314,7 +316,7 @@ extension SettingsView {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
         return try encoder.encode(
-            buildInsightsBundle(
+            try buildInsightsBundle(
                 using: repo,
                 sessionDates: sessionDates,
                 enrichmentBySessionDate: [:],
@@ -548,7 +550,10 @@ extension SettingsView {
                 respiratoryRate: biometrics.respiratoryRate,
                 hrvMs: biometrics.hrvMs,
                 restingHeartRate: biometrics.restingHeartRate,
-                sources: Array(Set(sortedSegments.map(\.source))).sorted()
+                sources: Array(Set(sortedSegments.map(\.source))).sorted(),
+                recordedIntervals: sortedSegments.filter { $0.stage.isAsleep || $0.stage == .awake }.map {
+                    .init(start: $0.start, end: $0.end, asleep: $0.stage.isAsleep)
+                }
             )
         } catch {
             settingsActionsLog.warning("Apple Health export enrichment failed for \(sessionDate, privacy: .private): \(error.localizedDescription, privacy: .public)")
@@ -1541,6 +1546,7 @@ private struct InsightsBundleSession: Codable {
     let medications: [InsightsMedicationSummary]
     let checkInSubmissions: [InsightsCheckInSubmissionSummary]
     let context: InsightsSessionContext?
+    let collectedNight: CollectedNightSummary
     let healthKit: InsightsAppleHealthSummary?
     let whoop: InsightsWHOOPSummary?
 }
@@ -1665,6 +1671,7 @@ private struct InsightsAppleHealthSummary: Codable {
     let hrvMs: Double?
     let restingHeartRate: Double?
     let sources: [String]
+    var recordedIntervals: [RecordedSleepInterval]? = nil
 }
 
 private struct InsightsWHOOPSummary: Codable {

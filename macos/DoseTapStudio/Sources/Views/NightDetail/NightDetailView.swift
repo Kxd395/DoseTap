@@ -57,6 +57,18 @@ struct NightDetailView: View {
     private var supplementalCards: some View {
         if session.hasSupplementalContext {
             VStack(alignment: .leading, spacing: 12) {
+                if let report = session.collectedNight {
+                    supplementalCard(title: "Food and Next-Day Diary") {
+                        if report.version == 1 {
+                            ForEach(report.fields, id: \.0) { key, value in
+                                detailRow(key.replacingOccurrences(of: "_", with: " ").capitalized, value ?? "Not recorded / unavailable")
+                            }
+                            Text("Sleepiness uses the personal 0–10 scale. Sleep estimates include recorded segments only; compare covered minutes with the full interval.").font(.caption).foregroundStyle(.secondary)
+                        } else {
+                            Text("This diary version needs a newer Studio. Raw source records are retained.")
+                        }
+                    }
+                }
                 if let preSleep = session.preSleep {
                     supplementalCard(title: "Pre-Sleep") {
                         detailRow("Stress", preSleep.stressLevel.map(String.init) ?? "—")

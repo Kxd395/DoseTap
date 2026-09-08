@@ -2,6 +2,31 @@ import Foundation
 import SQLite3
 import DoseCore
 
+extension SessionRepository {
+    func collectedNightSummary(for key: String, intervals: [RecordedSleepInterval] = [],
+                               providerFinalWake: Date? = nil) throws -> CollectedNightSummary {
+        let dose = fetchDoseLog(forSession: key)
+        let food = fetchPreSleepLog(forSessionDate: key)?.answers?.lastFood
+        let record = try nightOutcomeSnapshot(sessionDate: key).record
+        var result = CollectedNightSummary()
+        result.lastFoodFinishedAt = food?.finishedAt
+        result.lastFoodKind = food?.kind?.rawValue
+        result.lastFoodHighFat = food?.highFat
+        result.lastFoodNotes = food?.notes
+        result.lastFoodToDose1Minutes = CollectedNightSummary.minutes(from: food?.finishedAt, to: dose?.dose1Time)
+        result.lastFoodToDose2Minutes = CollectedNightSummary.minutes(from: food?.finishedAt, to: dose?.dose2Time)
+        result.dose2WakeMethod = record?.answers.wakeMethod.rawValue
+        result.backupAlarmSet = record?.answers.backupAlarmSet
+        result.followingDayType = record?.answers.dayType.rawValue
+        result.finalWakeAt = record?.answers.finalWakeAt
+        result.sleepiness0To10 = record?.answers.sleepiness
+        result.sleepinessAssessedAt = record?.answers.assessedAt
+        result.outcomeRecordedAt = record?.recordedAt
+        result.estimateSleep(dose2: dose?.dose2Time, finalWake: result.finalWakeAt ?? providerFinalWake, intervals: intervals)
+        return result
+    }
+}
+
 struct NightOutcomeRecord: Codable {
     struct Revision: Codable {
         let answers: NightOutcomeDiary
