@@ -16,6 +16,8 @@ DOSETAP-43. The owner reported that Timeline and Dashboard headers sat too low, 
 
 The final regression run passed both standard-text and largest-accessibility-text header tests (2 tests, zero failures). It also checks the header-to-first-control gap. Log: `/tmp/dosetap-header-final-tests.log`. The built app's Info.plist was read back as 0.4.19 (24).
 
+The separate build-23 full UI run exposed three failures outside header layout. Two supply journeys assumed a new pre-sleep questionnaire and an unambiguous Cancel button. The tests now scope Cancel to the New bottle navigation bar and close an existing questionnaire without changing it. Both supply tests passed after these test-only corrections (`/tmp/dosetap-supply-selectors.log`). The History questionnaire journey also failed while trying to reveal the morning notes field; its follow-up result is tracked separately. A targeted pass does not turn the earlier full run into a clean run.
+
 ## Integration and remaining acceptance
 
 The preceding update was merged through PR #8 at `f1e38c0ca6e0e71656235f3f06011a9b80a78b79` after protected CI checks passed. This header adjustment is a separate follow-up. Source integration is not release acceptance. Owner review on the signed phone, full accessibility acceptance, and the previously recorded security/provider/release gates remain open. No phone installation was performed for this change.

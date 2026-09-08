@@ -710,7 +710,7 @@ final class DoseTapUITests: XCTestCase {
         let remembered = app.staticTexts["Remember last pre-sleep settings"]
         XCTAssertLessThan(bottle.frame.minY, remembered.frame.minY)
         bottle.tap()
-        app.buttons["Cancel"].tap()
+        app.navigationBars["New bottle"].buttons["Cancel"].tap()
         XCTAssertTrue(bottle.waitForExistence(timeout: 5))
         bottle.tap()
         app.buttons["Record bottle start"].tap()
@@ -765,7 +765,14 @@ final class DoseTapUITests: XCTestCase {
         bottle.tap()
         app.buttons["Record bottle start"].tap()
         XCTAssertTrue(app.staticTexts["preSleepLastBottleOpening"].waitForExistence(timeout: 5))
-        app.buttons["Skip for tonight"].tap()
+        // Earlier questionnaire journeys may leave a saved check for this night.
+        // Close its editor without changing that record; new checks can be skipped.
+        let existingCheck = app.navigationBars["Edit Pre-Sleep"]
+        if existingCheck.exists {
+            existingCheck.buttons["Cancel"].tap()
+        } else {
+            app.navigationBars["Pre-Sleep Check"].buttons["Skip for tonight"].tap()
+        }
         XCTAssertTrue(dose.waitForExistence(timeout: 5))
         XCTAssertEqual(dose.label, doseBefore)
 
