@@ -2,6 +2,14 @@ import XCTest
 @testable import DoseTapStudio
 
 final class InsightRecommendationEngineTests: XCTestCase {
+    func testNaturalWakeModeDoesNotRankLegacyOnlyWakeHints() {
+        let sessions = (10...14).map { makeSession(sessionDate: "2024-09-\($0)", intervalMinutes: 165, sleepQuality: 5, readiness: 5) }
+        let result = InsightRecommendationEngine().recommend(sessions: sessions, mode: .naturalWakeProbability)
+        XCTAssertNil(result.recommendedBand)
+        XCTAssertTrue(result.candidates.isEmpty)
+        XCTAssertEqual(result.nightsUsed, 0)
+    }
+
     func testRecommendationPrefersBestScoringTimingBandWithinComparableCohort() {
         let engine = InsightRecommendationEngine()
         let sessions = [
@@ -19,7 +27,7 @@ final class InsightRecommendationEngineTests: XCTestCase {
         XCTAssertEqual(result.nightsUsed, 5)
         XCTAssertEqual(
             result.cohortKey,
-            "work__natural__baseline_demand__wake_req_self__baseline_commute__no_sleep_therapy__baseline_metabolism__baseline_clinical__baseline_stress__baseline_pain__baseline_disruption"
+            "work__unknown__baseline_demand__wake_req_self__baseline_commute__no_sleep_therapy__baseline_metabolism__baseline_clinical__baseline_stress__baseline_pain__baseline_disruption"
         )
         XCTAssertTrue(result.cohortDescription.contains("mostly work nights"))
         XCTAssertFalse(result.topFactors.isEmpty)
@@ -874,9 +882,9 @@ final class InsightRecommendationEngineTests: XCTestCase {
             XCTFail("Expected both timing bands in the comparison output")
             return
         }
-        XCTAssertEqual(alarmBand.alarmDependenceRate ?? 0, 1.0, accuracy: 0.001)
+        XCTAssertNil(alarmBand.alarmDependenceRate, "Legacy alarm context is not a confirmed Dose 2 wake answer")
         XCTAssertEqual(alarmBand.skipLateRiskRate ?? 0, 1.0 / 3.0, accuracy: 0.001)
-        XCTAssertEqual(naturalBand.alarmDependenceRate ?? 0, 1.0, accuracy: 0.001)
+        XCTAssertNil(naturalBand.alarmDependenceRate)
         XCTAssertEqual(naturalBand.skipLateRiskRate ?? 1, 0.0, accuracy: 0.001)
         XCTAssertTrue(result.topFactors.contains { $0.contains("skip / late risk") })
     }

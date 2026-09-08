@@ -38,11 +38,15 @@ let package = Package(
                 "DiagnosticLogger.swift",
                 "DosingModels.swift",
                 "MedicationInventoryModels.swift",
+                "SupplyReminder.swift",
                 "MedicationInventoryForecast.swift",
                 "CertificatePinning.swift",
                 "NightScoreCalculator.swift",
                 "DoseRegistrationPolicy.swift",
-                "DoseEffectivenessCalculator.swift"
+                "HistoryDoseChange.swift",
+                "DoseEffectivenessCalculator.swift",
+                "NightOutcome.swift",
+                "ReportCSV.swift"
             ]
         ),
         .testTarget(
@@ -75,6 +79,7 @@ let package = Package(
                 "MorningCheckInTests.swift",
                 "DosingModelsTests.swift",
                 "MedicationInventoryForecastTests.swift",
+                "SupplyReminderTests.swift",
                 "CertificatePinningTests.swift",
                 "DiagnosticLoggerTests.swift",
                 "RecommendationEngineTests.swift",
@@ -82,9 +87,11 @@ let package = Package(
                 "SessionRolloverRegressionTests.swift",
                 "NightScoreCalculatorTests.swift",
                 "DoseRegistrationPolicyTests.swift",
+                "HistoryDoseChangeTests.swift",
                 "DoseEffectivenessCalculatorTests.swift",
                 "TimeIntervalMathCharacterizationTests.swift",
-                "DeletedEventSnapshotTests.swift"
+                "DeletedEventSnapshotTests.swift",
+                "NightOutcomeTests.swift"
             ],
             resources: [
                 .copy("Fixtures/CertificatePinning")

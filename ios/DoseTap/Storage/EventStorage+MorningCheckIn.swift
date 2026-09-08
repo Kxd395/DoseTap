@@ -7,7 +7,7 @@ import os.log
 
 extension EventStorage {
 
-    private func morningResponsesByQuestionID(_ checkIn: StoredMorningCheckIn) -> [String: Any] {
+    func morningResponsesByQuestionID(_ checkIn: StoredMorningCheckIn) -> [String: Any] {
         var responses: [String: Any] = [
             "sleep.quality": checkIn.sleepQuality,
             "sleep.rested": checkIn.feelRested,
@@ -237,9 +237,10 @@ extension EventStorage {
         }
     }
 
-    private func saveMorningCheckInRowOrThrow(_ checkIn: StoredMorningCheckIn, sessionDate: String) throws {
+    func saveMorningCheckInRowOrThrow(_ checkIn: StoredMorningCheckIn, sessionDate: String, replacing: Bool = true) throws {
+        let insert = replacing ? "INSERT OR REPLACE" : "INSERT"
         let sql = """
-            INSERT OR REPLACE INTO morning_checkins (
+            \(insert) INTO morning_checkins (
                 id, session_id, timestamp, session_date,
                 sleep_quality, feel_rested, grogginess, sleep_inertia_duration, dream_recall,
                 has_physical_symptoms, physical_symptoms_json,
@@ -329,7 +330,7 @@ extension EventStorage {
         }
     }
 
-    private func replaceMorningCheckInSymptomEventsInCurrentTransaction(
+    func replaceMorningCheckInSymptomEventsInCurrentTransaction(
         _ checkIn: StoredMorningCheckIn,
         sessionDate: String
     ) throws {

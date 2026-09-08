@@ -315,7 +315,7 @@ struct CorrelationsView: View {
             return .orange
         case .weekend:
             return .purple
-        case .weekday, .all:
+        case .weekday, .unknown, .all:
             return .secondary
         }
     }

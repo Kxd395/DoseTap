@@ -105,6 +105,13 @@ public actor DoseUndoManager {
     }
     
     /// Attempt to undo the pending action
+    public func invalidate() {
+        undoTask?.cancel()
+        pendingAction = nil
+        actionTimestamp = nil
+    }
+
+    /// Attempt to undo the pending action
     /// - Returns: Result indicating success/failure
     public func undo() -> UndoResult {
         guard let action = pendingAction, let timestamp = actionTimestamp else {

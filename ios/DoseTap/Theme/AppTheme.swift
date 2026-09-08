@@ -133,19 +133,64 @@ enum AppTheme: String, CaseIterable, Identifiable {
 final class ThemeManager: ObservableObject {
     static let shared = ThemeManager()
     
-    @Published var currentTheme: AppTheme {
+    @Published private(set) var currentTheme: AppTheme
+    @Published private(set) var isAutomaticNightActive = false
+    @Published var automaticNightModeEnabled: Bool {
         didSet {
-            UserDefaults.standard.set(currentTheme.rawValue, forKey: "selectedTheme")
+            defaults.set(automaticNightModeEnabled, forKey: "automaticNightModeEnabled")
+            if automaticNightModeEnabled {
+                suppressedSessionID = nil
+                defaults.removeObject(forKey: "nightModeSuppressedSession")
+            }
+            resolveAppearance()
         }
     }
-    
-    private init() {
-        let saved = UserDefaults.standard.string(forKey: "selectedTheme")
-        self.currentTheme = AppTheme(rawValue: saved ?? "") ?? .dark
+
+    private let defaults: UserDefaults
+    private var preferredTheme: AppTheme
+    private var suppressedSessionID: String?
+    private var eligibleSessionID: String?
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        let saved = AppTheme(rawValue: defaults.string(forKey: "selectedTheme") ?? "") ?? .dark
+        self.preferredTheme = saved
+        self.currentTheme = saved
+        self.automaticNightModeEnabled = defaults.object(forKey: "automaticNightModeEnabled") as? Bool ?? true
+        self.suppressedSessionID = defaults.string(forKey: "nightModeSuppressedSession")
     }
-    
+
     func applyTheme(_ theme: AppTheme) {
-        currentTheme = theme
+        preferredTheme = theme
+        defaults.set(theme.rawValue, forKey: "selectedTheme")
+        if let eligibleSessionID {
+            suppressedSessionID = eligibleSessionID
+            defaults.set(eligibleSessionID, forKey: "nightModeSuppressedSession")
+        }
+        resolveAppearance()
+    }
+
+    /// Appearance-only projection of committed active-session state. Never writes medication or alarms.
+    func refreshAutomaticNight(sessionID: String?, dose1: Date?, wakeBy: Date?, wokeUp: Bool, now: Date) {
+        // Keep an explicit final wake effective after relaunch, even while
+        // the repository is still awaiting the morning questionnaire.
+        if wokeUp, let sessionID, suppressedSessionID != sessionID {
+            suppressedSessionID = sessionID
+            defaults.set(sessionID, forKey: "nightModeSuppressedSession")
+        }
+        if let sessionID, let dose1, let wakeBy, !wokeUp, dose1 <= now, now < wakeBy {
+            eligibleSessionID = sessionID
+        } else {
+            eligibleSessionID = nil
+        }
+        resolveAppearance()
+    }
+
+    private func resolveAppearance() {
+        let automatic = automaticNightModeEnabled && eligibleSessionID != nil && eligibleSessionID != suppressedSessionID
+        let theme: AppTheme = automatic ? .night : preferredTheme
+        if isAutomaticNightActive != automatic { isAutomaticNightActive = automatic }
+        if currentTheme != theme { currentTheme = theme }
     }
 }
 
@@ -161,14 +206,10 @@ extension View {
     
     /// Apply Night Mode red filter overlay
     func applyNightModeFilter(_ theme: AppTheme) -> some View {
-        Group {
-            if theme == .night {
-                self
-                    .colorMultiply(Color(red: 1.0, green: 0.4, blue: 0.3)) // Red filter
-                    .background(theme.backgroundColor.ignoresSafeArea())
-            } else {
-                self
-            }
-        }
+        // Keep view identity stable when automation changes appearance. A
+        // conditional subtree would discard navigation and presented editors.
+        self
+            .colorMultiply(theme == .night ? Color(red: 1.0, green: 0.4, blue: 0.3) : .white)
+            .background((theme == .night ? theme.backgroundColor : .clear).ignoresSafeArea())
     }
 }

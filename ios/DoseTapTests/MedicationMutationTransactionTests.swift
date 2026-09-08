@@ -33,6 +33,266 @@ private final class MedicationMutationNotificationCenter: AlarmNotificationCente
 
 @MainActor
 final class MedicationMutationTransactionTests: XCTestCase {
+    func testConfirmedDoseTwoAndWakeAnswerCommitOrRollBackTogether() throws {
+        let storage = EventStorage.inMemory()
+        try seedDose1(in: storage)
+        let dose2 = oldDose1.addingTimeInterval(180 * 60)
+        let original = try storage.nightOutcomeSnapshot(sessionDate: sessionDate)
+        var diary = NightOutcomeDiary(); diary.backupAlarmSet = true; diary.dayType = .dayOff
+        XCTAssertTrue(storage.saveNightOutcome(diary, review: original, reason: "", recordedAt: oldDose1).isCommitted)
+        storage.medicationFaultInjector = { $0 == .commit ? MedicationStorageInjectedFailure(code: .diskFull, detail: "Injected") : nil }
+        XCTAssertFalse(storage.saveDose2(timestamp: dose2, sessionId: sessionId,
+            sessionDateOverride: sessionDate, wakeMethod: .natural).isCommitted)
+        XCTAssertNil(storage.loadCurrentSessionState().dose2Time)
+        XCTAssertFalse(storage.fetchDoseEvents(sessionId: sessionId, sessionDate: sessionDate).contains { $0.eventType == "dose2" })
+        XCTAssertEqual(try storage.nightOutcomeSnapshot(sessionDate: sessionDate).record?.answers.wakeMethod, .unknown)
+        storage.medicationFaultInjector = nil
+        let result = storage.saveDose2(timestamp: dose2, sessionId: sessionId,
+            sessionDateOverride: sessionDate, wakeMethod: .natural)
+        XCTAssertTrue(result.isCommitted, result.failure?.detail ?? "Expected atomic commit")
+        let saved = try storage.nightOutcomeSnapshot(sessionDate: sessionDate)
+        XCTAssertEqual(saved.record?.answers.wakeMethod, .natural)
+        XCTAssertEqual(saved.record?.answers.backupAlarmSet, true, "A backup alarm does not change natural waking")
+        XCTAssertEqual(saved.record?.answers.dayType, .dayOff)
+        XCTAssertEqual(storage.loadCurrentSessionState().dose2Time, dose2)
+    }
+
+    func testRetrospectiveDoseTwoWakeUsesSameDiaryAndActualOccurrence() throws {
+        let storage = EventStorage.inMemory()
+        try seedDose1(in: storage)
+        let occurred = oldDose1.addingTimeInterval(300 * 60)
+        let entered = occurred.addingTimeInterval(3600)
+        XCTAssertTrue(storage.reconcileDoseEvent(eventType: .dose2, timestamp: occurred,
+            sessionDate: sessionDate, sessionId: sessionId, metadata: nil,
+            expectedDose1Time: oldDose1, onlyIfDose2Missing: true, wakeMethod: .alarm, recordedAt: entered).isCommitted)
+        let saved = try storage.nightOutcomeSnapshot(sessionDate: sessionDate)
+        XCTAssertEqual(saved.record?.answers.wakeMethod, .alarm)
+        XCTAssertEqual(saved.record?.recordedAt, entered)
+        XCTAssertEqual(saved.history.events.first { $0.eventType == "dose2" }?.timestamp, occurred)
+        XCTAssertEqual(storage.fetchCheckInSubmissions(sessionDate: sessionDate, checkInType: .nightOutcome).count, 1)
+    }
+
+    func testNightOutcomeCommitFailureStaleCorrectionAndMedicationIsolation() throws {
+        let storage = EventStorage.inMemory()
+        try seedDose1(in: storage)
+        let dose2 = oldDose1.addingTimeInterval(180 * 60)
+        XCTAssertTrue(storage.saveDose2(timestamp: dose2, sessionId: sessionId, sessionDateOverride: sessionDate).isCommitted)
+        let original = try storage.nightOutcomeSnapshot(sessionDate: sessionDate)
+        var diary = NightOutcomeDiary(); diary.wakeMethod = .natural; diary.backupAlarmSet = true
+        func save(_ snapshot: NightOutcomeSnapshot, reason: String = "") -> MedicationMutationResult {
+            storage.saveNightOutcome(diary, review: snapshot, reason: reason, recordedAt: dose2)
+        }
+        storage.medicationFaultInjector = { $0 == .commit ? MedicationStorageInjectedFailure(code: .diskFull, detail: "Injected") : nil }
+        XCTAssertFalse(save(original).isCommitted)
+        XCTAssertNil(try storage.nightOutcomeSnapshot(sessionDate: sessionDate).record)
+        storage.medicationFaultInjector = nil
+        XCTAssertTrue(save(original).isCommitted)
+        XCTAssertFalse(save(original).isCommitted, "Stale form cannot overwrite a saved observation")
+        let saved = try storage.nightOutcomeSnapshot(sessionDate: sessionDate)
+        XCTAssertEqual(saved.record?.answers.wakeMethod, .natural)
+        XCTAssertEqual(saved.record?.answers.backupAlarmSet, true)
+        diary.wakeMethod = .alarm
+        XCTAssertFalse(save(saved).isCommitted, "Changing an answered field needs a reason")
+        XCTAssertTrue(save(saved, reason: "Remembered the alarm").isCommitted)
+        let corrected = try storage.nightOutcomeSnapshot(sessionDate: sessionDate)
+        XCTAssertEqual(corrected.record?.revisions.first?.answers.wakeMethod, .natural)
+        XCTAssertEqual(corrected.history.events, original.history.events, "No medication rows may change")
+        XCTAssertEqual(storage.loadCurrentSessionState().dose2Time, dose2)
+        XCTAssertEqual(storage.fetchCheckInSubmissions(sessionDate: sessionDate, checkInType: .nightOutcome).count, 1)
+        diary.finalWakeAt = dose2.addingTimeInterval(2 * 3600)
+        diary.sleepiness = 0; diary.assessedAt = dose2.addingTimeInterval(8 * 3600)
+        XCTAssertTrue(storage.saveNightOutcome(diary, review: corrected, reason: "", recordedAt: diary.assessedAt!).isCommitted,
+                      "A later, previously unanswered rating is not a correction")
+        let later = try storage.nightOutcomeSnapshot(sessionDate: sessionDate)
+        XCTAssertEqual(later.record?.answers.sleepiness, 0, "Fully alert is a valid observed zero")
+        XCTAssertEqual(later.record?.answers.assessedAt, diary.assessedAt)
+        XCTAssertEqual(later.history.events, original.history.events)
+    }
+
+    func testWakeAnswerCannotCreateDoseTwoAndCorruptOutcomeFailsClosed() throws {
+        let storage = EventStorage.inMemory()
+        try seedDose1(in: storage)
+        let snapshot = try storage.nightOutcomeSnapshot(sessionDate: sessionDate)
+        var diary = NightOutcomeDiary(); diary.wakeMethod = .alarm
+        XCTAssertFalse(storage.saveNightOutcome(diary, review: snapshot, reason: "", recordedAt: oldDose1).isCommitted)
+        XCTAssertNil(storage.loadCurrentSessionState().dose2Time)
+        diary.wakeMethod = .unknown; diary.dayType = .workday
+        XCTAssertTrue(storage.saveNightOutcome(diary, review: snapshot, reason: "", recordedAt: oldDose1).isCommitted)
+        XCTAssertEqual(sqlite3_exec(storage.db, "UPDATE checkin_submissions SET responses_json = '{}' WHERE checkin_type = 'night_outcome'", nil, nil, nil), SQLITE_OK)
+        XCTAssertThrowsError(try storage.nightOutcomeSnapshot(sessionDate: sessionDate))
+    }
+
+    func testHistoryQuestionnairesCreateAnEmptyPastNightWithoutMedicationAndRejectStaleEdits() throws {
+        let storage = EventStorage.inMemory()
+        try seedDose1(in: storage)
+        let night = "2026-01-14"
+        let time = ISO8601DateFormatter().date(from: "2026-01-15T03:00:00Z")!
+        let review = try storage.historyQuestionnaireSnapshot(sessionDate: night, kind: .preSleep)
+        var answers = DoseTap.PreSleepLogAnswers(); answers.notes = "Remembered evening"
+        func save(_ review: HistoryQuestionnaireSnapshot, confirmed: Bool = true) -> MedicationMutationResult {
+            storage.saveHistoryPreSleep(answers: answers, review: review, occurredAt: time, recordedAt: oldDose1,
+                reason: "Forgot questionnaire", confirmed: confirmed)
+        }
+        XCTAssertFalse(save(review, confirmed: false).isCommitted)
+        XCTAssertNil(storage.fetchSessionId(forSessionDate: night))
+        answers.lastFood = .init(finishedAt: time.addingTimeInterval(1), highFat: true, notes: "Original food")
+        XCTAssertFalse(save(review).isCommitted, "Food cannot occur after the historical questionnaire")
+        XCTAssertNil(storage.fetchSessionId(forSessionDate: night), "Invalid food must roll back session creation")
+        answers.lastFood?.finishedAt = time.addingTimeInterval(-10800)
+        storage.medicationFaultInjector = { $0 == .commit ? MedicationStorageInjectedFailure(code: .diskFull, detail: "Injected") : nil }
+        XCTAssertFalse(save(review).isCommitted)
+        XCTAssertNil(storage.fetchSessionId(forSessionDate: night))
+        XCTAssertNil(storage.fetchMostRecentPreSleepLog())
+        storage.medicationFaultInjector = nil
+        XCTAssertTrue(save(review).isCommitted)
+        XCTAssertFalse(save(review).isCommitted, "A second submission with a stale snapshot must fail")
+        XCTAssertEqual(storage.loadCurrentSessionState().sessionId, sessionId)
+        XCTAssertTrue(storage.fetchDoseEvents(sessionId: review.history.sessionId, sessionDate: night).isEmpty)
+        let updated = try storage.historyQuestionnaireSnapshot(sessionDate: night, kind: .preSleep)
+        answers.notes = "Corrected evening"
+        answers.lastFood?.highFat = false
+        answers.lastFood?.notes = "Corrected food"
+        XCTAssertTrue(save(updated).isCommitted)
+        let submission = try XCTUnwrap(storage.fetchCheckInSubmissions(sessionDate: night).first)
+        XCTAssertTrue(submission.responsesJson.contains("Remembered evening"))
+        XCTAssertTrue(submission.responsesJson.contains("Original food"), "Correction must retain old food in provenance")
+        XCTAssertEqual(storage.fetchMostRecentPreSleepLog(sessionId: updated.history.sessionId)?.answers?.lastFood?.highFat, false)
+        XCTAssertTrue(submission.responsesJson.contains("history.provenance"))
+        XCTAssertEqual(storage.fetchMostRecentPreSleepLog(sessionId: updated.history.sessionId)?.answers?.notes, "Corrected evening")
+        let morning = try storage.historyQuestionnaireSnapshot(sessionDate: night, kind: .morning)
+        let checkIn = DoseTap.StoredMorningCheckIn(id: UUID().uuidString, sessionId: morning.history.sessionId,
+            timestamp: time, sessionDate: night, notes: "Remembered morning")
+        storage.medicationFaultInjector = { $0 == .commit ? MedicationStorageInjectedFailure(code: .diskFull, detail: "Injected") : nil }
+        XCTAssertFalse(storage.saveHistoryMorning(checkIn, review: morning, occurredAt: time, recordedAt: oldDose1,
+            reason: "Late questionnaire", confirmed: true).isCommitted)
+        XCTAssertEqual(storage.fetchCheckInSubmissions(sessionDate: night).count, 1)
+        storage.medicationFaultInjector = nil
+        XCTAssertTrue(storage.saveHistoryMorning(checkIn, review: morning, occurredAt: time, recordedAt: oldDose1,
+            reason: "Late questionnaire", confirmed: true).isCommitted)
+        XCTAssertEqual(storage.fetchCheckInSubmissions(sessionDate: night).count, 2)
+        XCTAssertEqual(storage.loadCurrentSessionState().sessionId, sessionId)
+        XCTAssertEqual(makeRepository(storage: storage, now: oldDose1).fetchMorningCheckIn(for: night)?.id, checkIn.id,
+                       "Date-based presentation must resolve the saved stable session ID")
+    }
+    func testHistoryQuestionnaireRejectsFutureAndAmbiguousRecords() throws {
+        let storage = EventStorage.inMemory()
+        let night = "2026-01-14"
+        let time = ISO8601DateFormatter().date(from: "2026-01-15T03:00:00Z")!
+        let review = try storage.historyQuestionnaireSnapshot(sessionDate: night, kind: .preSleep)
+        XCTAssertFalse(storage.saveHistoryPreSleep(answers: DoseTap.PreSleepLogAnswers(), review: review,
+            occurredAt: time, recordedAt: time.addingTimeInterval(-1), reason: "Test", confirmed: true).isCommitted)
+        XCTAssertFalse(storage.saveHistoryPreSleep(answers: DoseTap.PreSleepLogAnswers(), review: review,
+            occurredAt: time.addingTimeInterval(86400), recordedAt: oldDose1, reason: "Wrong night", confirmed: true).isCommitted)
+        let first = DoseTap.StoredMorningCheckIn(id: "first", sessionId: night, timestamp: time, sessionDate: night)
+        let second = DoseTap.StoredMorningCheckIn(id: "second", sessionId: night, timestamp: time, sessionDate: night)
+        storage.saveMorningCheckIn(first, forSession: night)
+        storage.saveMorningCheckIn(second, forSession: night)
+        XCTAssertThrowsError(try storage.historyQuestionnaireSnapshot(sessionDate: night, kind: .morning))
+    }
+    func testHistoryMorningCannotOverwriteAnotherNightsRecordID() throws {
+        let storage = EventStorage.inMemory()
+        let time = ISO8601DateFormatter().date(from: "2026-01-15T03:00:00Z")!
+        storage.saveMorningCheckIn(DoseTap.StoredMorningCheckIn(id: "protected", sessionId: "2026-01-12",
+            timestamp: time, sessionDate: "2026-01-12", notes: "Original"), forSession: "2026-01-12")
+        let review = try storage.historyQuestionnaireSnapshot(sessionDate: "2026-01-14", kind: .morning)
+        let candidate = DoseTap.StoredMorningCheckIn(id: "protected", sessionId: review.history.sessionId,
+            timestamp: time, sessionDate: review.history.sessionDate, notes: "Wrong overwrite")
+        XCTAssertFalse(storage.saveHistoryMorning(candidate, review: review, occurredAt: time,
+            recordedAt: oldDose1, reason: "Late entry", confirmed: true).isCommitted)
+        XCTAssertEqual(storage.fetchCheckInSubmissions(sessionDate: "2026-01-12").count, 1)
+        XCTAssertTrue(storage.fetchCheckInSubmissions(sessionDate: "2026-01-14").isEmpty)
+    }
+    func testHistoricalSleepEntrySupportsOldNightsAndRejectsReplayFutureAndDoseNames() throws {
+        let storage = EventStorage.inMemory()
+        try seedDose1(in: storage)
+        let review = try storage.historySnapshot(sessionDate: "2026-01-14")
+        let time = ISO8601DateFormatter().date(from: "2026-01-15T03:00:00Z")!
+        func save(_ id: String, type: String = "bathroom", at: Date? = nil, original: DoseTap.StoredSleepEvent? = nil) -> MedicationMutationResult {
+            storage.saveHistorySleepEvent(id: id, eventType: type, timestamp: at ?? time, notes: "Entered after the fact", review: review,
+                original: original, remove: false, confirmed: true, recordedAt: oldDose1)
+        }
+        XCTAssertFalse(save("future", at: oldDose1.addingTimeInterval(1)).isCommitted)
+        XCTAssertFalse(save("dose", type: "dose2").isCommitted)
+        XCTAssertTrue(save("manual-event").isCommitted)
+        XCTAssertFalse(save("manual-event").isCommitted)
+        let event = try XCTUnwrap(storage.fetchSleepEvents(forSession: review.sessionDate).first)
+        XCTAssertEqual(event.colorHex, "#007AFF")
+        XCTAssertEqual(event.timestamp, time)
+        XCTAssertTrue(save(event.id, at: time.addingTimeInterval(60), original: event).isCommitted)
+        XCTAssertFalse(save(event.id, at: time.addingTimeInterval(120), original: event).isCommitted)
+        XCTAssertEqual(storage.loadCurrentSessionState().sessionId, sessionId)
+        storage.medicationFaultInjector = { $0 == .commit ? MedicationStorageInjectedFailure(code: .diskFull, detail: "Injected") : nil }
+        XCTAssertFalse(save("rollback").isCommitted)
+        XCTAssertEqual(storage.fetchSleepEvents(forSession: review.sessionDate).count, 1)
+    }
+    func testHistoryMissingNightDoesNotReplaceActiveSessionAndRejectsReplay() throws {
+        let storage = EventStorage.inMemory()
+        try seedDose1(in: storage)
+        let review = try storage.historySnapshot(sessionDate: "2026-01-14")
+        let time = ISO8601DateFormatter().date(from: "2026-01-15T03:00:00Z")!
+        let change = HistoryDoseChange(eventType: "dose1", timestamp: time, reason: "Forgot to log")
+        XCTAssertTrue(storage.saveHistoryDoseChange(change, review: review, confirmed: true, warningConfirmed: true, recordedAt: oldDose1).isCommitted)
+        XCTAssertEqual(storage.loadCurrentSessionState().sessionId, sessionId)
+        XCTAssertEqual(storage.loadCurrentSessionState().dose1Time, oldDose1)
+        XCTAssertFalse(storage.saveHistoryDoseChange(change, review: review, confirmed: true, warningConfirmed: true, recordedAt: oldDose1).isCommitted)
+        XCTAssertEqual(try storage.historySnapshot(sessionDate: review.sessionDate).events.count, 1)
+    }
+
+    func testHistoryCorrectionRemovalAndRollbackPreserveOriginalEvidence() throws {
+        let storage = EventStorage.inMemory()
+        try seedDose1(in: storage)
+        XCTAssertTrue(storage.saveDose2(timestamp: oldDose1.addingTimeInterval(180 * 60), sessionId: sessionId, sessionDateOverride: sessionDate).isCommitted)
+        var review = try storage.historySnapshot(sessionDate: sessionDate)
+        let original = try XCTUnwrap(review.events.first { $0.eventType == "dose2" })
+        let correction = HistoryDoseChange(eventType: "dose2", timestamp: oldDose1.addingTimeInterval(285 * 60), replacingEventID: original.id, reason: "Wrong recorded time")
+        XCTAssertFalse(storage.saveHistoryDoseChange(correction, review: review, confirmed: true, warningConfirmed: false, recordedAt: oldDose1.addingTimeInterval(600 * 60)).isCommitted)
+        storage.medicationFaultInjector = { $0 == .commit ? MedicationStorageInjectedFailure(code: .diskFull, detail: "Injected") : nil }
+        XCTAssertFalse(storage.saveHistoryDoseChange(correction, review: review, confirmed: true, warningConfirmed: true, recordedAt: oldDose1.addingTimeInterval(600 * 60)).isCommitted)
+        XCTAssertEqual(try storage.historySnapshot(sessionDate: sessionDate).events, review.events)
+        storage.medicationFaultInjector = nil
+        XCTAssertTrue(storage.saveHistoryDoseChange(correction, review: review, confirmed: true, warningConfirmed: true, recordedAt: oldDose1.addingTimeInterval(600 * 60)).isCommitted)
+        review = try storage.historySnapshot(sessionDate: sessionDate)
+        let revised = try XCTUnwrap(review.events.first { $0.eventType == "dose2" })
+        XCTAssertTrue(revised.metadata?.contains(original.id) == true)
+        XCTAssertTrue(revised.metadata?.contains("retrospective") == true)
+        XCTAssertEqual(storage.loadCurrentSessionState().dose2Time, correction.timestamp)
+        let removal = HistoryDoseChange(eventType: "dose2", timestamp: revised.timestamp, replacingEventID: revised.id, remove: true, reason: "Not actually taken")
+        XCTAssertTrue(storage.saveHistoryDoseChange(removal, review: review, confirmed: true, warningConfirmed: true, recordedAt: oldDose1.addingTimeInterval(600 * 60)).isCommitted)
+        let rows = try storage.historySnapshot(sessionDate: sessionDate).events
+        XCTAssertFalse(rows.contains { $0.eventType == "dose2" || $0.eventType == "dose2_skipped" })
+        XCTAssertTrue(rows.first { $0.eventType == "history_correction" }?.metadata?.contains(original.id) == true)
+        XCTAssertNil(storage.loadCurrentSessionState().dose2Time)
+        XCTAssertFalse(storage.loadCurrentSessionState().dose2Skipped)
+        XCTAssertTrue(storage.exportToCSV().contains("history_correction"))
+    }
+
+    func testHistoryRequiresConsentAndUnambiguousUnchangedSession() throws {
+        let storage = EventStorage.inMemory()
+        try seedDose1(in: storage)
+        let review = try storage.historySnapshot(sessionDate: sessionDate)
+        let change = HistoryDoseChange(eventType: "dose2", timestamp: oldDose1.addingTimeInterval(180 * 60), reason: "Forgot to log")
+        XCTAssertFalse(storage.saveHistoryDoseChange(change, review: review, confirmed: false, warningConfirmed: true, recordedAt: oldDose1.addingTimeInterval(500 * 60)).isCommitted)
+        storage.insertDoseEvent(eventType: "dose1", timestamp: oldDose1, sessionDate: sessionDate, sessionId: "another-night")
+        XCTAssertThrowsError(try storage.historySnapshot(sessionDate: sessionDate))
+        XCTAssertFalse(storage.saveHistoryDoseChange(change, review: review, confirmed: true, warningConfirmed: true, recordedAt: oldDose1.addingTimeInterval(500 * 60)).isCommitted)
+    }
+
+    func testHistoryMissedOutcomeDoesNotInheritTakenAmountOrTimingFlags() throws {
+        let storage = EventStorage.inMemory()
+        try seedDose1(in: storage)
+        storage.insertDoseEvent(eventType: "dose2", timestamp: oldDose1.addingTimeInterval(180 * 60), sessionDate: sessionDate, sessionId: sessionId,
+                                metadata: "{\"amount_mg\":4500,\"is_late\":true}")
+        let review = try storage.historySnapshot(sessionDate: sessionDate)
+        let original = try XCTUnwrap(review.events.first { $0.eventType == "dose2" })
+        let change = HistoryDoseChange(eventType: "dose2_skipped", timestamp: original.timestamp, replacingEventID: original.id, reason: "Not taken")
+        XCTAssertTrue(storage.saveHistoryDoseChange(change, review: review, confirmed: true, warningConfirmed: true, recordedAt: oldDose1.addingTimeInterval(600 * 60)).isCommitted)
+        let skip = try XCTUnwrap(try storage.historySnapshot(sessionDate: sessionDate).events.first { $0.eventType == "dose2_skipped" })
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(skip.metadata!.utf8)) as? [String: Any])
+        XCTAssertNil(object["amount_mg"])
+        XCTAssertNil(object["is_late"])
+        XCTAssertTrue(skip.metadata!.contains("4500"), "The original belongs in correction history only")
+    }
+
     private let sessionId = "transaction-session"
     private let sessionDate = "2026-08-31"
     private let oldDose1 = Date(timeIntervalSince1970: 1_788_200_000)

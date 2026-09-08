@@ -65,8 +65,10 @@ extension EventStorage {
         }
     }
 
-    private func normalizedPreSleepAnswers(_ answers: PreSleepLogAnswers) -> PreSleepLogAnswers {
+    func normalizedPreSleepAnswers(_ answers: PreSleepLogAnswers) -> PreSleepLogAnswers {
         var normalized = answers
+        let foodNotes = normalized.lastFood?.notes?.trimmingCharacters(in: .whitespacesAndNewlines)
+        normalized.lastFood?.notes = foodNotes?.isEmpty == true ? nil : foodNotes
         let trimmedNotes = normalized.notes?.trimmingCharacters(in: .whitespacesAndNewlines)
         normalized.notes = trimmedNotes?.isEmpty == true ? nil : trimmedNotes
         let trimmedStressNotes = normalized.stressNotes?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -228,7 +230,7 @@ extension EventStorage {
         return normalized
     }
 
-    private func preSleepResponsesByQuestionID(_ answers: PreSleepLogAnswers) -> [String: Any] {
+    func preSleepResponsesByQuestionID(_ answers: PreSleepLogAnswers) -> [String: Any] {
         let normalized = normalizedPreSleepAnswers(answers)
         var responses: [String: Any] = [:]
         if let value = normalized.intendedSleepTime?.rawValue { responses["pre.sleep.intended_time"] = value }
@@ -305,6 +307,12 @@ extension EventStorage {
         if let value = normalized.napTotalMinutes { responses["pre.day.nap.total_minutes"] = value }
         if let value = normalized.napLastEndAt { responses["pre.day.nap.last_end_time_utc"] = isoFormatter.string(from: value) }
         if let value = normalized.lateMeal?.rawValue { responses["pre.day.late_meal"] = value }
+        if let food = normalized.lastFood {
+            responses["pre.food.last.finished_at_utc"] = isoFormatter.string(from: food.finishedAt)
+            responses["pre.food.last.kind"] = food.kind?.rawValue
+            responses["pre.food.last.high_fat"] = food.highFat
+            responses["pre.food.last.notes"] = food.notes
+        }
         if let value = normalized.lateMealEndedAt { responses["pre.day.late_meal.last_time_utc"] = isoFormatter.string(from: value) }
         if let value = normalized.screensInBed?.rawValue { responses["pre.sleep.screens_in_bed"] = value }
         if let value = normalized.screensLastUsedAt { responses["pre.sleep.screens_in_bed.last_time_utc"] = isoFormatter.string(from: value) }
@@ -588,7 +596,7 @@ extension EventStorage {
         return sqlite3_changes(db) > 0
     }
 
-    private func upsertPreSleepLogRowOrThrow(
+    func upsertPreSleepLogRowOrThrow(
         id: String,
         sessionId: String?,
         createdAtUtc: String,
@@ -649,6 +657,7 @@ extension EventStorage {
         timeZone: TimeZone = .current,
         existingLog: StoredPreSleepLog? = nil
     ) throws -> StoredPreSleepLog {
+        try answers.lastFood?.validate(at: now)
         let normalizedAnswers = normalizedPreSleepAnswers(answers)
 
         guard let data = try? JSONEncoder().encode(normalizedAnswers),
@@ -778,7 +787,7 @@ extension EventStorage {
         }
     }
 
-    private func replacePreSleepSymptomEventsInCurrentTransaction(
+    func replacePreSleepSymptomEventsInCurrentTransaction(
         sourceRecordId: String,
         sessionId: String?,
         sessionDate: String,

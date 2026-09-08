@@ -38,7 +38,7 @@ extension EventStorage {
         let tables = [
             "sleep_events", "dose_events", "current_session", "sleep_sessions", "pre_sleep_logs",
             "morning_checkins", "checkin_submissions", "medication_events", "inventory_snapshots", "body_map_points",
-            "symptom_locations", "symptom_events", "symptom_command_log", "symptom_summaries", "work_wake_schedule"
+            "symptom_locations", "symptom_events", "symptom_command_log", "symptom_summaries", "work_wake_schedule", "supply_state"
         ]
         for table in tables {
             let sql = "DELETE FROM \(table)"

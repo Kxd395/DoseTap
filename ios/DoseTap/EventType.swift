@@ -5,6 +5,10 @@ import SwiftUI
 /// Replaces the 3 divergent normalization functions that existed before.
 /// Uses `unknown(String)` for forward compatibility — new event types don't crash.
 enum EventType: Hashable, Sendable {
+    static var historySleepTypes: [String] {
+        UserSettingsManager.allAvailableEvents.map { EventType($0.name).canonicalString }
+            + ["wake_final", "congestion", "grogginess"]
+    }
     // Sleep session events
     case lightsOut
     case inBed

@@ -171,16 +171,15 @@ final class Dose2EdgeCaseTests: XCTestCase {
         XCTAssertEqual(ctx.phase, .active, "Exactly 150 minutes should be active window")
     }
     
-    func test_windowBoundary_240Minutes_isClosed() {
-        // At exactly 240 minutes, window is closed (exclusive boundary)
+    func test_windowBoundary_240Minutes_isInclusive() {
+        // The owner-approved endpoint is inclusive; a later instant is closed.
         let anchor = Date()
         let now = makeDate(anchor, addMinutes: 240)
         
         let calc = DoseWindowCalculator(now: { now })
         let ctx = calc.context(dose1At: anchor, dose2TakenAt: nil, dose2Skipped: false, snoozeCount: 0)
         
-        // Window is [150, 240) - 240 is closed
-        XCTAssertEqual(ctx.phase, .closed, "At exactly 240 minutes, window is closed (boundary exclusive)")
+        XCTAssertEqual(ctx.phase, .nearClose, "Exactly 240 minutes remains in-window")
     }
     
     func test_windowBoundary_239Minutes_isNearClose() {

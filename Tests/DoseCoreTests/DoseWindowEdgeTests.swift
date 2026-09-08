@@ -2,6 +2,13 @@ import XCTest
 @testable import DoseCore
 
 final class DoseWindowEdgeTests: XCTestCase {
+    func testInclusiveEndpointsUseUnroundedElapsedSeconds() {
+        for (seconds, expected): (Double, MedicationTiming) in [
+            (150 * 60 - 0.001, .early), (150 * 60, .inWindow),
+            (240 * 60 - 0.001, .inWindow), (240 * 60, .inWindow),
+            (240 * 60 + 0.001, .late), (-1, .invalid), (.nan, .invalid), (.infinity, .invalid)
+        ] { XCTAssertEqual(MedicationTiming.classify(elapsedSeconds: seconds), expected) }
+    }
     private func makeDate(_ base: Date, addMinutes: Int) -> Date { base.addingTimeInterval(Double(addMinutes) * 60) }
 
     func test_exact_150_enters_active() {
@@ -39,12 +46,12 @@ final class DoseWindowEdgeTests: XCTestCase {
         XCTAssertEqual(ctx.phase, .nearClose)
     }
 
-    func test_exact_240_closed() {
+    func test_exact_240_remainsInWindow() {
         let anchor = Date()
         let now = makeDate(anchor, addMinutes: 240)
         let calc = DoseWindowCalculator(now: { now })
         let ctx = calc.context(dose1At: anchor, dose2TakenAt: nil, dose2Skipped: false, snoozeCount: 0)
-        XCTAssertEqual(ctx.phase, .closed)
+        XCTAssertEqual(ctx.phase, .nearClose)
     }
 
     func test_dst_forward_skip() {

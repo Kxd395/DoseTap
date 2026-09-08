@@ -13,6 +13,17 @@ public extension SessionRepository {
         }
     }
 
+    internal func nightOutcomeSnapshot(sessionDate: String) throws -> NightOutcomeSnapshot {
+        try storage.nightOutcomeSnapshot(sessionDate: sessionDate)
+    }
+
+    @discardableResult
+    internal func saveNightOutcome(_ answers: NightOutcomeDiary, review: NightOutcomeSnapshot, reason: String) -> MedicationMutationResult {
+        let result = storage.saveNightOutcome(answers, review: review, reason: reason, recordedAt: clock())
+        if result.isCommitted { sessionDidChange.send() }
+        return result
+    }
+
     /// Get the current session date string (based on the rollover boundary).
     func currentSessionDateString() -> String {
         activeSessionDate ?? currentSessionKey
@@ -41,7 +52,10 @@ public extension SessionRepository {
 
     /// Fetch morning check-in for a session.
     func fetchMorningCheckIn(for sessionDate: String) -> StoredMorningCheckIn? {
-        guard let coreCheckIn = storage.fetchMorningCheckIn(sessionKey: sessionDate) else { return nil }
+        guard let identity = storage.medicationSessionIdentity(nil, sessionDate: sessionDate),
+              let coreCheckIn = storage.fetchMorningCheckIn(sessionKey: identity)
+                ?? (identity == sessionDate ? nil : storage.fetchMorningCheckIn(sessionKey: sessionDate)),
+              coreCheckIn.sessionDate == sessionDate else { return nil }
         return convertMorningCheckIn(coreCheckIn)
     }
 

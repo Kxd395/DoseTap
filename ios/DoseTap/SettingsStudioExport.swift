@@ -20,13 +20,14 @@ extension SettingsView {
         let repo = SessionRepository.shared
         let tempDirectory = FileManager.default.temporaryDirectory
         let timestamp = DateFormatter.exportDateFormatter.string(from: Date())
-        let exportDirectory = tempDirectory.appendingPathComponent("DoseTapStudioExport_\(timestamp)", isDirectory: true)
+        let exportDirectory = tempDirectory.appendingPathComponent("DoseTapStudioExport_\(timestamp)_\(UUID().uuidString)", isDirectory: true)
+        let exporter = StudioBundleExporter()
+        defer { try? FileManager.default.removeItem(at: exportDirectory) }
 
         do {
-            try? FileManager.default.removeItem(at: exportDirectory)
             try FileManager.default.createDirectory(at: exportDirectory, withIntermediateDirectories: true)
-            try await writeStudioExportBundle(using: repo, to: exportDirectory)
-            let archiveURL = try archiveExportDirectory(exportDirectory)
+            try await exporter.writeStudioExportBundle(using: repo, to: exportDirectory)
+            let archiveURL = try exporter.archiveExportDirectory(exportDirectory)
 
             exportItems = [archiveURL]
             showingExportSheet = true
@@ -38,15 +39,21 @@ extension SettingsView {
         }
     }
 
+}
+
+@MainActor
+struct StudioBundleExporter {
+    private var settings: UserSettingsManager { .shared }
+
     @MainActor
     private func buildInsightsBundle(
         using repo: SessionRepository,
         sessionDates: [String],
         enrichmentBySessionDate: [String: StudioExportSessionContext],
-        consent: InsightsConsentState
-    ) -> InsightsBundleExport {
+        consent: InsightsConsentState?
+    ) throws -> InsightsBundleExport {
         let sortedSessionDates = sessionDates.sorted(by: >)
-        let sessions = sortedSessionDates.map { sessionDate in
+        let sessions = try sortedSessionDates.map { sessionDate in
             let doseLog = repo.fetchDoseLog(forSession: sessionDate)
             let doseEvents = repo.fetchDoseEvents(forSessionDate: sessionDate)
             let sleepEvents = repo.fetchSleepEvents(for: sessionDate)
@@ -114,6 +121,8 @@ extension SettingsView {
                     sleepEvents: sleepEvents,
                     precomputedAlarmContext: alarmContext
                 ),
+                collectedNight: try repo.collectedNightSummary(for: sessionDate,
+                    intervals: healthKit?.recordedIntervals ?? [], providerFinalWake: healthKit?.finalWakeUTC),
                 healthKit: healthKit,
                 whoop: whoop
             )
@@ -121,13 +130,13 @@ extension SettingsView {
 
         return InsightsBundleExport(
             schemaVersion: 2,
-            exportVersion: "2.2",
+            exportVersion: "2.3",
             appVersion: bundleVersionString(),
             exportedAtUTC: Date(),
             timeZoneIdentifier: TimeZone.current.identifier,
             localOffsetMinutes: TimeZone.current.secondsFromGMT(for: Date()) / 60,
             consent: consent,
-            exportWarnings: buildBundleExportWarnings(sessions: sessions),
+            exportWarnings: buildBundleExportWarnings(sessions: sessions) + (consent == nil ? ["Local snapshot only; provider enrichment was not fetched."] : []),
             sessions: sessions
         )
     }
@@ -159,6 +168,7 @@ extension SettingsView {
             napTotalMinutes: answers?.napTotalMinutes,
             napLastEndAtUTC: answers?.napLastEndAt,
             lateMeal: answers?.lateMeal?.rawValue,
+            lastFood: answers?.lastFood,
             lateMealEndedAtUTC: answers?.lateMealEndedAt,
             screensInBed: answers?.screensInBed?.rawValue,
             screensLastUsedAtUTC: answers?.screensLastUsedAt,
@@ -255,7 +265,7 @@ extension SettingsView {
     }
 
     @MainActor
-    private func writeStudioExportBundle(using repo: SessionRepository, to directory: URL) async throws {
+    func writeStudioExportBundle(using repo: SessionRepository, to directory: URL) async throws {
         let sessionDates = repo.getAllSessions().sorted()
         let consentState = await exportConsentState()
         let enrichmentBySessionDate = await collectStudioExportEnrichment(using: repo, sessionDates: sessionDates)
@@ -270,12 +280,22 @@ extension SettingsView {
     }
 
     @MainActor
+    func writeLocalStudioExportBundle(using repo: SessionRepository, to directory: URL) throws {
+        try writeStudioExportBundle(using: repo, to: directory, sessionDates: repo.getAllSessions().sorted(), enrichmentBySessionDate: [:], consent: nil)
+    }
+
+    func enrichedNightSummary(using repo: SessionRepository, sessionDate: String) async throws -> CollectedNightSummary {
+        let health = await fetchAppleHealthSummaryForExport(sessionDate: sessionDate)
+        return try repo.collectedNightSummary(for: sessionDate, intervals: health?.recordedIntervals ?? [], providerFinalWake: health?.finalWakeUTC)
+    }
+
+    @MainActor
     private func writeStudioExportBundle(
         using repo: SessionRepository,
         to directory: URL,
         sessionDates: [String],
         enrichmentBySessionDate: [String: StudioExportSessionContext],
-        consent: InsightsConsentState
+        consent: InsightsConsentState?
     ) throws {
 
         try buildStudioEventsCSV(using: repo, sessionDates: sessionDates)
@@ -292,14 +312,14 @@ extension SettingsView {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
-        try encoder.encode(
-            buildInsightsBundle(
+        let bundle = try buildInsightsBundle(
                 using: repo,
                 sessionDates: sessionDates,
                 enrichmentBySessionDate: enrichmentBySessionDate,
                 consent: consent
             )
-        )
+        try writeCollectedNightCSV(bundle.sessions.map { ($0.sessionDate, $0.collectedNight) }, to: directory)
+        try encoder.encode(bundle)
             .write(to: directory.appendingPathComponent("insights_bundle.json"), options: .atomic)
     }
 
@@ -313,7 +333,7 @@ extension SettingsView {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
         return try encoder.encode(
-            buildInsightsBundle(
+            try buildInsightsBundle(
                 using: repo,
                 sessionDates: sessionDates,
                 enrichmentBySessionDate: [:],
@@ -547,7 +567,10 @@ extension SettingsView {
                 respiratoryRate: biometrics.respiratoryRate,
                 hrvMs: biometrics.hrvMs,
                 restingHeartRate: biometrics.restingHeartRate,
-                sources: Array(Set(sortedSegments.map(\.source))).sorted()
+                sources: Array(Set(sortedSegments.map(\.source))).sorted(),
+                recordedIntervals: sortedSegments.filter { $0.stage.isAsleep || $0.stage == .awake }.map {
+                    .init(start: $0.start, end: $0.end, asleep: $0.stage.isAsleep)
+                }
             )
         } catch {
             settingsActionsLog.warning("Apple Health export enrichment failed for \(sessionDate, privacy: .private): \(error.localizedDescription, privacy: .public)")
@@ -743,6 +766,7 @@ extension SettingsView {
             nextRequiredWakeAtUTC: timingContext?.nextRequiredWakeAtUTC,
             commuteMinutes: timingContext?.commuteMinutes,
             lateMealType: answers?.lateMeal?.rawValue,
+            lastFood: answers?.lastFood,
             lateMealEndedAtUTC: answers?.lateMealEndedAt,
             lateMealMinutesBeforeDose1: minutesBetween(answers?.lateMealEndedAt, and: doseLog?.dose1Time),
             lateMealMinutesBeforeDose2: minutesBetween(answers?.lateMealEndedAt, and: doseLog?.dose2Time),
@@ -1446,10 +1470,7 @@ extension SettingsView {
     }
 
     private func csvField(_ value: String) -> String {
-        if value.contains(",") || value.contains("\"") || value.contains("\n") {
-            return "\"\(value.replacingOccurrences(of: "\"", with: "\"\""))\""
-        }
-        return value
+        ReportCSV.field(value)
     }
 
     private func numericCSVField(_ value: Double?) -> String {
@@ -1460,9 +1481,8 @@ extension SettingsView {
         return String(format: "%.1f", value)
     }
 
-    private func archiveExportDirectory(_ directory: URL) throws -> URL {
+    func archiveExportDirectory(_ directory: URL) throws -> URL {
         let archiveURL = directory.deletingLastPathComponent().appendingPathComponent("\(directory.lastPathComponent).zip")
-        try? FileManager.default.removeItem(at: archiveURL)
 
         var coordinatorError: NSError?
         var copyError: Error?
@@ -1539,6 +1559,7 @@ private struct InsightsBundleSession: Codable {
     let medications: [InsightsMedicationSummary]
     let checkInSubmissions: [InsightsCheckInSubmissionSummary]
     let context: InsightsSessionContext?
+    let collectedNight: CollectedNightSummary
     let healthKit: InsightsAppleHealthSummary?
     let whoop: InsightsWHOOPSummary?
 }
@@ -1568,6 +1589,7 @@ private struct InsightsPreSleepSummary: Codable {
     let napTotalMinutes: Int?
     let napLastEndAtUTC: Date?
     let lateMeal: String?
+    let lastFood: PreSleepLogAnswers.LastFoodEntry?
     let lateMealEndedAtUTC: Date?
     let screensInBed: String?
     let screensLastUsedAtUTC: Date?
@@ -1662,6 +1684,7 @@ private struct InsightsAppleHealthSummary: Codable {
     let hrvMs: Double?
     let restingHeartRate: Double?
     let sources: [String]
+    var recordedIntervals: [RecordedSleepInterval]? = nil
 }
 
 private struct InsightsWHOOPSummary: Codable {
@@ -1714,6 +1737,7 @@ private struct InsightsSessionContext: Codable {
     let nextRequiredWakeAtUTC: Date?
     let commuteMinutes: Int?
     let lateMealType: String?
+    let lastFood: PreSleepLogAnswers.LastFoodEntry?
     let lateMealEndedAtUTC: Date?
     let lateMealMinutesBeforeDose1: Int?
     let lateMealMinutesBeforeDose2: Int?

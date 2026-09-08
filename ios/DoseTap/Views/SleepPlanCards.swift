@@ -201,6 +201,8 @@ struct SleepPlanOverrideCard: View {
                 Spacer()
                 Toggle("", isOn: $overrideEnabled)
                     .labelsHidden()
+                    .accessibilityLabel("Change wake time just for tonight")
+                    .accessibilityIdentifier("preSleepWakeOverride")
                     .onChange(of: overrideEnabled) { newValue in
                         if newValue {
                             onUpdate(overrideWake)
@@ -217,6 +219,7 @@ struct SleepPlanOverrideCard: View {
                     displayedComponents: .hourAndMinute
                 )
                 .datePickerStyle(.compact)
+                .accessibilityIdentifier("preSleepWakeTime")
                 .onChange(of: overrideWake) { newValue in
                     onUpdate(newValue)
                 }
@@ -229,6 +232,7 @@ struct SleepPlanOverrideCard: View {
                     Label("Reset to schedule (\(timeFormatter.string(from: baselineWake)))", systemImage: "arrow.uturn.backward")
                 }
                 .font(.caption)
+                .accessibilityIdentifier("resetPreSleepWakeTime")
             } else {
                 Text("Uses your Typical Week wake time (\(timeFormatter.string(from: baselineWake)))")
                     .font(.caption)
@@ -356,7 +360,8 @@ struct PreSleepCard: View {
                         .foregroundColor(.secondary)
                 }
             }
-            .padding()
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
             .background(
                 RoundedRectangle(cornerRadius: 12)
                     .fill(state.isLogged ? Color(.secondarySystemBackground) : Color.indigo.opacity(0.1))
@@ -390,20 +395,14 @@ struct AlarmIndicatorView: View {
             let snoozeCount = alarmService.snoozeCount
             
             HStack(alignment: .top, spacing: 6) {
-                Image(systemName: alarmService.alarmScheduled ? "alarm.fill" : "alarm.badge.exclamationmark")
+                Image(systemName: alarmService.alarmScheduled ? "alarm.fill" : "exclamationmark.triangle.fill")
                     .font(.caption)
                     .foregroundColor(alarmService.alarmScheduled ? .orange : .red)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Wake deadline: \(formattedTime(alarmTime))")
+                    Text("Dose 2 alarm: \(formattedTime(alarmTime))")
                         .font(.caption.bold())
                         .foregroundColor(alarmService.alarmScheduled ? .orange : .red)
-
-                    if let timeZone = alarmService.reconciledTimeZoneIdentifier {
-                        Text("Absolute deadline • reconciled for \(timeZone)")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
 
                     if snoozeCount > 0 {
                         Text("(+\(snoozeCount * alarmService.snoozeDurationMinutes)m)")
@@ -449,13 +448,14 @@ struct AlarmIndicatorView: View {
 
 // MARK: - Incomplete Session Banner
 struct IncompleteSessionBanner: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let sessionDate: String
     let isBlocking: Bool
     let onComplete: () -> Void
     let onDismiss: () -> Void
 
     private var titleText: String {
-        isBlocking ? "Finish previous session" : "Finish previous check-in"
+        isBlocking ? "Finish previous session" : "Previous check-in"
     }
 
     private var bodyText: String {
@@ -465,7 +465,11 @@ struct IncompleteSessionBanner: View {
     }
     
     var body: some View {
-        HStack(spacing: 12) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(spacing: 8))
+        layout {
+          HStack(spacing: 8) {
             Image(systemName: "exclamationmark.circle.fill")
                 .font(.title3)
                 .foregroundColor(.orange)
@@ -476,18 +480,18 @@ struct IncompleteSessionBanner: View {
                 Text(bodyText)
                     .font(.caption)
                     .foregroundColor(.secondary)
-                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            
-            Spacer()
-            
+            .frame(maxWidth: .infinity, alignment: .leading)
+          }
+          HStack(spacing: 4) {
             Button("Finish") {
                 onComplete()
             }
             .font(.caption.bold())
             .foregroundColor(.white)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+            .padding(.horizontal, 10)
+            .frame(minHeight: 44)
             .background(Capsule().fill(Color.orange))
             
             Button {
@@ -499,6 +503,7 @@ struct IncompleteSessionBanner: View {
                     .frame(width: 44, height: 44)
             }
             .accessibilityLabel("Dismiss previous check-in reminder")
+          }
         }
         .padding(12)
         .background(
@@ -509,8 +514,7 @@ struct IncompleteSessionBanner: View {
                         .stroke(Color.orange.opacity(0.3), lineWidth: 1)
                 )
         )
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(titleText). \(bodyText).")
+        .accessibilityElement(children: .contain)
     }
     
     private var formattedDate: String {

@@ -256,10 +256,12 @@ final class CRUDActionTests: XCTestCase {
         let ctx239 = calc239.context(dose1At: dose1, dose2TakenAt: nil, dose2Skipped: false, snoozeCount: 0)
         XCTAssertEqual(ctx239.phase, .nearClose)
         
-        // At 240 minutes - closed
+        // At 240 minutes the endpoint is included; one second later is closed.
         let calc240 = DoseWindowCalculator(now: { dose1.addingTimeInterval(240 * 60) })
         let ctx240 = calc240.context(dose1At: dose1, dose2TakenAt: nil, dose2Skipped: false, snoozeCount: 0)
-        XCTAssertEqual(ctx240.phase, .closed)
+        XCTAssertEqual(ctx240.phase, .nearClose)
+        let after = DoseWindowCalculator(now: { dose1.addingTimeInterval(240 * 60 + 1) })
+        XCTAssertEqual(after.context(dose1At: dose1, dose2TakenAt: nil, dose2Skipped: false, snoozeCount: 0).phase, .closed)
     }
     
     func testTransition_active_to_completed() {

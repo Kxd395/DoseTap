@@ -215,19 +215,24 @@ final class ExportIntegrityTests: XCTestCase {
         let stressJson = #"{"stressProgression":"better","stressNotes":"less pressure"}"#
         let timingJson = #"{"nightType":"work_night","wakeType":"natural","nextDayDemand":"shift_13h"}"#
 
+        var foodAnswers = DoseTap.PreSleepLogAnswers(intendedSleepTime: .thirtyMin,
+            stressLevel: 3, notes: "preserve raw pre-sleep answers")
+        foodAnswers.lastFood = .init(finishedAt: preSleepTime.addingTimeInterval(-7200), kind: .meal,
+            highFat: true, notes: "Fried food")
         _ = try storage.savePreSleepLogOrThrow(
             sessionId: sessionDate,
-            answers: DoseTap.PreSleepLogAnswers(
-                intendedSleepTime: .thirtyMin,
-                stressLevel: 3,
-                notes: "preserve raw pre-sleep answers"
-            ),
+            answers: foodAnswers,
             completionState: "complete",
             now: preSleepTime,
             timeZone: TimeZone(identifier: "UTC")!
         )
         storage.insertDoseEvent(eventType: "dose1", timestamp: dose1Time, sessionDate: sessionDate)
         storage.insertDoseEvent(eventType: "dose2", timestamp: dose2Time, sessionDate: sessionDate)
+        let review = try repo.nightOutcomeSnapshot(sessionDate: sessionDate)
+        var diary = NightOutcomeDiary()
+        diary.wakeMethod = .natural; diary.backupAlarmSet = true; diary.dayType = .dayOff
+        diary.finalWakeAt = morningTime; diary.sleepiness = 0; diary.assessedAt = morningTime.addingTimeInterval(21600)
+        XCTAssertTrue(storage.saveNightOutcome(diary, review: review, reason: "", recordedAt: diary.assessedAt!).isCommitted)
         storage.saveMorningCheckIn(
             DoseTap.StoredMorningCheckIn(
                 id: "morning-\(sessionDate)",
@@ -262,7 +267,7 @@ final class ExportIntegrityTests: XCTestCase {
             )
         )
 
-        let settingsView = SettingsView()
+        let settingsView = StudioBundleExporter()
         let bundleData = try settingsView.buildStudioInsightsBundleDataForTesting(
             using: repo,
             sessionDates: [sessionDate]
@@ -271,10 +276,28 @@ final class ExportIntegrityTests: XCTestCase {
         let sessions = try XCTUnwrap(bundle["sessions"] as? [[String: Any]])
         let exportedSession = try XCTUnwrap(sessions.first)
         let preSleep = try XCTUnwrap(exportedSession["preSleep"] as? [String: Any])
+        let collected = try XCTUnwrap(exportedSession["collectedNight"] as? [String: Any])
+        XCTAssertEqual(collected["dose2WakeMethod"] as? String, "natural")
+        XCTAssertEqual(collected["backupAlarmSet"] as? Bool, true)
+        XCTAssertEqual(collected["sleepiness0To10"] as? Int, 0)
+        XCTAssertEqual(collected["lastFoodHighFat"] as? Bool, true)
+        XCTAssertEqual(collected["lastFoodToDose1Minutes"] as? Double, 155)
+        XCTAssertNil(collected["estimatedSleepAfterDose2Minutes"], "No segments is not zero sleep")
+        let measured = try repo.collectedNightSummary(for: sessionDate, intervals: [
+            .init(start: dose2Time, end: morningTime, asleep: true),
+            .init(start: dose2Time, end: dose2Time.addingTimeInterval(600), asleep: false)
+        ])
+        XCTAssertEqual(measured.estimatedSleepAfterDose2Minutes, 365)
+        XCTAssertEqual(measured.sleepAfterDose2CoveredMinutes, 375)
         let morning = try XCTUnwrap(exportedSession["morning"] as? [String: Any])
         let submissions = try XCTUnwrap(exportedSession["checkInSubmissions"] as? [[String: Any]])
 
         XCTAssertTrue((preSleep["rawAnswersJson"] as? String)?.contains("preserve raw pre-sleep answers") == true)
+        let food = try XCTUnwrap(preSleep["lastFood"] as? [String: Any])
+        XCTAssertEqual(food["kind"] as? String, "meal")
+        XCTAssertEqual(food["highFat"] as? Bool, true)
+        XCTAssertEqual(food["notes"] as? String, "Fried food")
+        XCTAssertNotNil(ISO8601DateFormatter().date(from: try XCTUnwrap(food["finishedAt"] as? String)))
         let exportedSleepQuality = try XCTUnwrap(morning["sleepQuality"] as? Double)
         XCTAssertEqual(exportedSleepQuality, 4.25, accuracy: 0.001)
         XCTAssertEqual(morning["rawPhysicalSymptomsJson"] as? String, physicalJson)
@@ -308,7 +331,7 @@ final class ExportIntegrityTests: XCTestCase {
             sessionDates: [sessionDate]
         )
 
-        for fileName in ["events.csv", "sessions.csv", "inventory.csv", "insights_bundle.json"] {
+        for fileName in ["events.csv", "sessions.csv", "inventory.csv", "insights_bundle.json", "collected_nights.csv"] {
             XCTAssertTrue(
                 FileManager.default.fileExists(atPath: exportDirectory.appendingPathComponent(fileName).path),
                 "Expected Studio export package to include \(fileName)"
@@ -320,7 +343,7 @@ final class ExportIntegrityTests: XCTestCase {
         let writtenSessions = try XCTUnwrap(writtenBundle["sessions"] as? [[String: Any]])
         let writtenSession = try XCTUnwrap(writtenSessions.first)
         XCTAssertEqual(writtenSession["sessionDate"] as? String, sessionDate)
-        XCTAssertEqual((writtenSession["checkInSubmissions"] as? [[String: Any]])?.count, 2)
+        XCTAssertEqual((writtenSession["checkInSubmissions"] as? [[String: Any]])?.count, 3)
 
         let writtenSessionsCSV = try String(contentsOf: exportDirectory.appendingPathComponent("sessions.csv"), encoding: .utf8)
         XCTAssertTrue(writtenSessionsCSV.contains("2026-06-17T01:15:00.000Z"))
@@ -329,10 +352,32 @@ final class ExportIntegrityTests: XCTestCase {
         let writtenInventoryCSV = try String(contentsOf: exportDirectory.appendingPathComponent("inventory.csv"), encoding: .utf8)
         XCTAssertTrue(writtenInventoryCSV.contains("source=active_sqlite"))
         XCTAssertEqual(writtenInventoryCSV.split(whereSeparator: \.isNewline).count, 2)
+
+        // Scheduled and manual exports use the same local record writer.
+        try settingsView.writeLocalStudioExportBundle(using: repo, to: exportDirectory)
+        let localData = try Data(contentsOf: exportDirectory.appendingPathComponent("insights_bundle.json"))
+        let local = try XCTUnwrap(JSONSerialization.jsonObject(with: localData) as? [String: Any])
+        XCTAssertNil(local["consent"])
+        XCTAssertTrue((local["exportWarnings"] as? [String])?.contains(where: { $0.contains("Local snapshot") }) == true)
+        let flat = try ReportCSV.rows(String(contentsOf: exportDirectory.appendingPathComponent("collected_nights.csv"), encoding: .utf8))
+        XCTAssertEqual(flat.count, 2)
+        XCTAssertEqual(flat[0].count, flat[1].count)
+        XCTAssertEqual(flat[1][try XCTUnwrap(flat[0].firstIndex(of: "sleepiness_0_to_10"))], "0")
+        var cancellationChecks = 0
+        XCTAssertThrowsError(try settingsView.writeScheduledArchive(using: repo, to: exportDirectory, cancelled: {
+            cancellationChecks += 1; return cancellationChecks == 2
+        }))
+        XCTAssertFalse(try FileManager.default.contentsOfDirectory(atPath: exportDirectory.path).contains { $0.hasSuffix(".zip") })
+        let archive = try settingsView.writeScheduledArchive(using: repo, to: exportDirectory)
+        let archiveData = try Data(contentsOf: archive)
+        XCTAssertEqual(Array(archiveData.prefix(2)), [0x50, 0x4b])
+        let attachment = XCTAttachment(data: archiveData, uniformTypeIdentifier: "public.zip-archive")
+        attachment.name = "collected-night-roundtrip.zip"; attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     func test_studioWHOOPExportRangeUsesChronologicalBoundsForDescendingSessions() throws {
-        let settingsView = SettingsView()
+        let settingsView = StudioBundleExporter()
         let descendingDates = ["2026-06-17", "2026-06-16", "2026-02-09"]
         let ascendingDates = descendingDates.sorted()
 
@@ -349,7 +394,7 @@ final class ExportIntegrityTests: XCTestCase {
     }
 
     func test_studioWHOOPSummaryDateUsesSessionRolloverKey() throws {
-        let settingsView = SettingsView()
+        let settingsView = StudioBundleExporter()
         let afterMidnightSleepStart = makeDate("2026-06-17T02:30:00.000Z")
 
         XCTAssertEqual(
@@ -371,7 +416,7 @@ final class ExportIntegrityTests: XCTestCase {
         try FileManager.default.createDirectory(at: exportDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: exportDirectory) }
 
-        try SettingsView().writeStudioExportBundleForTesting(
+        try StudioBundleExporter().writeStudioExportBundleForTesting(
             using: repo,
             to: exportDirectory,
             sessionDates: [sessionDate]

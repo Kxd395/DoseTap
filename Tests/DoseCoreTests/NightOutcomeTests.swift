@@ -1,0 +1,101 @@
+import XCTest
+@testable import DoseCore
+
+final class NightOutcomeTests: XCTestCase {
+    func testFoodDiaryCountsEachUsableOutcomeAndKeepsUnknownSeparate() {
+        var yes = CollectedNightSummary()
+        yes.lastFoodFinishedAt = Date(timeIntervalSince1970: 1000)
+        yes.lastFoodHighFat = true; yes.sleepiness0To10 = 0
+        yes.lastFoodToDose1Minutes = 119.99
+        var no = yes; no.lastFoodHighFat = false; no.sleepiness0To10 = nil; no.lastFoodToDose1Minutes = 180
+        var unsure = yes; unsure.lastFoodHighFat = nil; unsure.lastFoodToDose1Minutes = nil
+        let summary = FoodDiaryAnalytics([yes, no, unsure, .init()])
+        XCTAssertEqual(summary.food.count, 3)
+        XCTAssertEqual(summary.missingFoodCount, 1)
+        XCTAssertEqual(summary.unsureFatCount, 1)
+        XCTAssertEqual(summary.fatCount(false), 1)
+        XCTAssertEqual(summary.interval(dose: 1).count, 2)
+        XCTAssertEqual(summary.interval(dose: 1).median, 149.995)
+        XCTAssertEqual(summary.sleepiness(highFat: true).median, 0)
+        XCTAssertEqual(summary.sleepiness(highFat: false).count, 0)
+        XCTAssertEqual(summary.sleepAfterDose2(highFat: true).count, 0)
+    }
+
+    func testReportCSVPreservesMultilineAndSpreadsheetText() throws {
+        let fields = ["plain", "Oil, cream\r\n\"notes\"", "=SUM(A1:A2)", " +formula", "-3.5", "'literal", "'\u{200B}literal", "\tdata", ""]
+        let encoded = ReportCSV.row(fields)
+        XCTAssertTrue(encoded.contains("'\u{200B}=SUM"))
+        XCTAssertEqual(try ReportCSV.rows(encoded + "\r\n"), [fields])
+        XCTAssertEqual(try ReportCSV.rows("a,b\r\nc,d"), [["a", "b"], ["c", "d"]])
+        XCTAssertThrowsError(try ReportCSV.rows("a,\"unfinished"))
+    }
+
+    func testCollectedNightKeepsUnknownZeroAndExactFoodIntervals() throws {
+        var report = CollectedNightSummary()
+        XCTAssertNil(report.lastFoodHighFat)
+        XCTAssertNil(report.sleepiness0To10)
+        XCTAssertNil(CollectedNightSummary.minutes(from: start, to: start.addingTimeInterval(-1)))
+        XCTAssertEqual(CollectedNightSummary.minutes(from: start, to: start.addingTimeInterval(7199)), 7199.0 / 60)
+        report.lastFoodHighFat = false
+        report.sleepiness0To10 = 0
+        report.lastFoodNotes = "Oil, cream\n\"notes\""
+        let decoded = try JSONDecoder().decode(CollectedNightSummary.self, from: JSONEncoder().encode(report))
+        XCTAssertEqual(decoded, report)
+        XCTAssertEqual(decoded.fields.first { $0.0 == "sleepiness_0_to_10" }?.1, "0")
+        XCTAssertEqual(decoded.fields.count, CollectedNightSummary().fields.count)
+    }
+    func testNaturalWakePercentageExcludesUnknownAnswers() {
+        XCTAssertNil(WakeMethodSummary([.unknown, .unknown]).naturalPercentage)
+        let summary = WakeMethodSummary([.natural, .alarm, .other, .unknown])
+        XCTAssertEqual(summary.answeredCount, 3)
+        XCTAssertEqual(summary.naturalPercentage ?? -1, 100.0 / 3, accuracy: 0.001)
+        XCTAssertEqual(WakeMethodSummary([.alarm]).naturalPercentage, 0)
+    }
+    private let start = Date(timeIntervalSince1970: 1_800_000_000)
+    private func sample(_ from: Double, _ to: Double, _ asleep: Bool) -> RecordedSleepInterval {
+        .init(start: start.addingTimeInterval(from * 60), end: start.addingTimeInterval(to * 60), asleep: asleep)
+    }
+
+    func testSleepEstimateClipsUnionsAndSubtractsAwake() {
+        let estimate = PostDoseSleepEstimate.calculate(dose2: start, finalWake: start.addingTimeInterval(120 * 60),
+            intervals: [sample(-20, 60, true), sample(30, 130, true), sample(40, 50, false)])
+        XCTAssertEqual(estimate?.asleepMinutes, 110)
+        XCTAssertEqual(estimate?.coveredMinutes, 120)
+    }
+
+    func testMissingIsNotZeroAndGapsAreUnmeasured() {
+        XCTAssertNil(PostDoseSleepEstimate.calculate(dose2: start, finalWake: start, intervals: []))
+        XCTAssertNil(PostDoseSleepEstimate.calculate(dose2: start, finalWake: start.addingTimeInterval(3600), intervals: []))
+        let partial = PostDoseSleepEstimate.calculate(dose2: start, finalWake: start.addingTimeInterval(3600), intervals: [sample(20, 40, true)])
+        XCTAssertEqual(partial?.asleepMinutes, 20)
+        XCTAssertEqual(partial?.coveredMinutes, 20)
+        XCTAssertEqual(partial?.intervalMinutes, 60)
+        let awake = PostDoseSleepEstimate.calculate(dose2: start, finalWake: start.addingTimeInterval(3600), intervals: [sample(0, 60, false)])
+        XCTAssertEqual(awake?.asleepMinutes, 0)
+    }
+
+    func testMedianCountsOnlyUsableObservationsAndIQRIsExplicit() {
+        let summary = DiaryMetricSummary([nil, 10, 20, 30, 40, .nan, -.infinity, -1])
+        XCTAssertEqual(summary.count, 4)
+        XCTAssertEqual(summary.median, 25)
+        XCTAssertEqual(summary.lowerQuartile, 17.5)
+        XCTAssertEqual(summary.upperQuartile, 32.5)
+        XCTAssertNil(DiaryMetricSummary([]).median)
+    }
+
+    func testDiaryValidationAndLegacyWakeMapping() {
+        var diary = NightOutcomeDiary()
+        XCTAssertEqual(diary.wakeMethod, .unknown)
+        XCTAssertNil(diary.sleepiness)
+        diary.sleepiness = 11
+        XCTAssertNotNil(diary.validationError(now: start))
+        diary.sleepiness = 0
+        diary.assessedAt = start
+        XCTAssertNil(diary.validationError(now: start))
+        diary.assessedAt = start.addingTimeInterval(1)
+        XCTAssertNotNil(diary.validationError(now: start))
+        XCTAssertEqual(Dose2WakeKind(legacy: "alarm_then_snooze"), .alarm)
+        XCTAssertEqual(Dose2WakeKind(legacy: "already_awake"), .other)
+        XCTAssertEqual(Dose2WakeKind(legacy: nil), .unknown)
+    }
+}

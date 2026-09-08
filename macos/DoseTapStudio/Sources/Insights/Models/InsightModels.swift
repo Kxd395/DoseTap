@@ -109,6 +109,7 @@ struct InsightSession: Identifiable, Hashable, Sendable {
     let medications: [InsightMedicationSummary]
     let checkInSubmissions: [InsightCheckInSubmission]
     let context: InsightSessionContext?
+    let collectedNight: CollectedNightSummary?
     let healthKit: InsightHealthKitSummary?
     let whoop: InsightWHOOPSummary?
     let rawEvents: [InsightBundleEvent]
@@ -139,6 +140,7 @@ struct InsightSession: Identifiable, Hashable, Sendable {
         medications: [InsightMedicationSummary],
         checkInSubmissions: [InsightCheckInSubmission] = [],
         context: InsightSessionContext? = nil,
+        collectedNight: CollectedNightSummary? = nil,
         healthKit: InsightHealthKitSummary? = nil,
         whoop: InsightWHOOPSummary? = nil,
         rawEvents: [InsightBundleEvent] = [],
@@ -168,6 +170,7 @@ struct InsightSession: Identifiable, Hashable, Sendable {
         self.medications = medications
         self.checkInSubmissions = checkInSubmissions
         self.context = context
+        self.collectedNight = collectedNight
         self.healthKit = healthKit
         self.whoop = whoop
         self.rawEvents = rawEvents
@@ -324,7 +327,7 @@ struct InsightSession: Identifiable, Hashable, Sendable {
             }
         }
 
-        add(likelyNaturalWake == false)
+        if let natural = recordedNaturalWake { add(!natural) }
         add(classification.tags.contains(.forcedWakeNight))
         add((context?.snoozeCount ?? 0) > 0)
         add(hasLongCommuteBurden)
@@ -347,7 +350,7 @@ struct InsightSession: Identifiable, Hashable, Sendable {
     }
 
     var hasSupplementalContext: Bool {
-        preSleep != nil || morning != nil || !medications.isEmpty || context != nil || healthKit != nil || whoop != nil
+        collectedNight != nil || preSleep != nil || morning != nil || !medications.isEmpty || context != nil || healthKit != nil || whoop != nil
     }
 
     var hasWorkSafetyContext: Bool {
@@ -928,36 +931,35 @@ struct InsightSession: Identifiable, Hashable, Sendable {
         return Self.weekdaySymbols[context.nextMorningWeekdayIndex - 1]
     }
 
-    var wakeSignalLabel: String {
-        switch explicitWakeType ?? context?.wakeSignal {
-        case "natural":
-            return "Natural"
-        case "alarm":
-            return "Alarm"
-        case "alarm_then_snooze":
-            return "Alarm + Snooze"
-        case "external_interrupt":
-            return "External"
-        case "mixed":
-            return "Mixed"
-        case "alarm_assisted":
-            return "Alarm-assisted"
-        case "likely_natural":
-            return "Likely natural"
-        default:
-            return "Unknown"
+    var recordedDose2Wake: Dose2WakeKind {
+        guard dose2Time != nil, let diary = collectedNight, diary.version == 1,
+              let raw = diary.dose2WakeMethod, let kind = Dose2WakeKind(rawValue: raw) else { return .unknown }
+        return kind
+    }
+
+    var recordedFollowingDay: FollowingDayKind? {
+        guard let diary = collectedNight, diary.version == 1, let raw = diary.followingDayType else { return nil }
+        return FollowingDayKind(rawValue: raw)
+    }
+
+    var followingDayLabel: String? {
+        switch recordedFollowingDay {
+        case .workday: return "Workday"
+        case .dayOff: return "Day off"
+        case .unknown: return "Unknown"
+        case nil: return nil
         }
     }
 
-    var likelyNaturalWake: Bool? {
-        switch explicitWakeType ?? context?.wakeSignal {
-        case "natural":
+    var wakeSignalLabel: String {
+        recordedDose2Wake.rawValue.capitalized
+    }
+
+    var recordedNaturalWake: Bool? {
+        switch recordedDose2Wake {
+        case .natural:
             return true
-        case "alarm", "alarm_then_snooze":
-            return false
-        case "likely_natural":
-            return true
-        case "alarm_assisted":
+        case .alarm:
             return false
         default:
             return nil
@@ -1025,9 +1027,9 @@ struct InsightSession: Identifiable, Hashable, Sendable {
             tags.append(.weekdayDemandNight)
         }
 
-        if likelyNaturalWake == true {
+        if recordedNaturalWake == true {
             tags.append(.naturalWakeNight)
-        } else if likelyNaturalWake == false {
+        } else if recordedNaturalWake == false {
             tags.append(.alarmDependentNight)
         }
 
@@ -1208,7 +1210,9 @@ struct InsightSession: Identifiable, Hashable, Sendable {
 
     private func cohortKeyForClassification(tags: [InsightNightTag]) -> String {
         let scheduleType: String
-        if tags.contains(.workNight) {
+        if recordedFollowingDay == .unknown {
+            scheduleType = "unknown"
+        } else if tags.contains(.workNight) {
             scheduleType = tags.contains(.transitionIntoWorkBlock) ? "transition_into_work" : "work"
         } else if tags.contains(.offNight) {
             if tags.contains(.postShiftRecoveryNight) {
@@ -1219,9 +1223,7 @@ struct InsightSession: Identifiable, Hashable, Sendable {
         } else {
             scheduleType = tags.contains(.weekendNight) ? "weekend" : "weekday"
         }
-        let wakeType = tags.contains(.naturalWakeNight)
-            ? "natural"
-            : (tags.contains(.alarmDependentNight) ? "alarm" : "unknown")
+        let wakeType = recordedDose2Wake.rawValue
         let demandBand = demandBandKey
         let wakeRequirementBand = wakeRequirementBandKey
         let therapyBand = hasSleepTherapyContext ? "sleep_therapy" : "no_sleep_therapy"
@@ -1244,10 +1246,6 @@ struct InsightSession: Identifiable, Hashable, Sendable {
             painBand,
             disruptionBand
         ].joined(separator: "__")
-    }
-
-    private var explicitWakeType: String? {
-        normalizedContextValue(context?.explicitWakeType)
     }
 
     private var demandBandKey: String {
@@ -1301,6 +1299,11 @@ struct InsightSession: Identifiable, Hashable, Sendable {
     }
 
     private func applyScheduleTags(to tags: inout [InsightNightTag]) {
+        if let day = recordedFollowingDay {
+            if day == .workday { tags.append(.workNight) }
+            if day == .dayOff { tags.append(.offNight) }
+            return
+        }
         if context?.firstNightOffAfterWorkBlock == true || morning?.firstNightOffAfterWorkBlock == true {
             tags.append(.transitionOutOfWorkBlock)
             tags.append(.offNight)

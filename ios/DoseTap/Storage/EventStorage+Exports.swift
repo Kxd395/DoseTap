@@ -79,17 +79,12 @@ extension EventStorage {
             csv += line + "\n"
         }
         
-        // Export dose sessions
-        let sessions = fetchRecentSessionsLocal(days: 365)
-        for session in sessions {
-            if let d1 = session.dose1Time {
-                csv += "dose1,\(isoFormatter.string(from: d1)),\(session.sessionDate),\n"
-            }
-            if let d2 = session.dose2Time {
-                csv += "dose2,\(isoFormatter.string(from: d2)),\(session.sessionDate),\n"
-            }
-            if session.dose2Skipped {
-                csv += "dose2_skipped,,\(session.sessionDate),\n"
+        // Export the event ledger, including retrospective provenance, extra
+        // doses and non-dose correction evidence; projections lose that history.
+        for date in getAllSessionDates() {
+            for event in fetchDoseEvents(sessionId: nil, sessionDate: date) {
+                let details = (event.metadata ?? "").replacingOccurrences(of: "\"", with: "\"\"")
+                csv += "\(event.eventType),\(isoFormatter.string(from: event.timestamp)),\(event.sessionDate),\"\(details)\"\n"
             }
         }
         

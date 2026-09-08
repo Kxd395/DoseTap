@@ -7,13 +7,15 @@ struct ExportCard: View {
     let sessionKey: String
     @ObservedObject private var sessionRepo = SessionRepository.shared
     @State private var exportSharePayload: ExportSharePayload?
+    @State private var isPreparingExport = false
+    @State private var exportFailed = false
 
     private var doseLog: StoredDoseLog? {
         sessionRepo.fetchDoseLog(forSession: sessionKey)
     }
 
     private var preSleepLog: StoredPreSleepLog? {
-        sessionRepo.fetchMostRecentPreSleepLog(sessionId: sessionKey)
+        sessionRepo.fetchPreSleepLog(forSessionDate: sessionKey)
     }
 
     private var morningCheckIn: StoredMorningCheckIn? {
@@ -46,7 +48,7 @@ struct ExportCard: View {
 
             HStack(spacing: 12) {
                 Button {
-                    exportSharePayload = ExportSharePayload(content: generateExportContent(format: .text))
+                    prepareExport(format: .text)
                 } label: {
                     Label("Share Report", systemImage: "square.and.arrow.up")
                         .frame(maxWidth: .infinity)
@@ -54,12 +56,14 @@ struct ExportCard: View {
                 .buttonStyle(.borderedProminent)
 
                 Button {
-                    exportSharePayload = ExportSharePayload(content: generateExportContent(format: .csv))
+                    prepareExport(format: .csv)
                 } label: {
                     Label("CSV", systemImage: "tablecells")
                 }
                 .buttonStyle(.bordered)
             }
+            .disabled(isPreparingExport)
+            if isPreparingExport { ProgressView("Preparing report…") }
         }
         .padding()
         .background(Color(.systemBackground))
@@ -68,16 +72,30 @@ struct ExportCard: View {
         .sheet(item: $exportSharePayload) { payload in
             ActivityViewController(activityItems: [payload.content])
         }
+        .alert("Report unavailable", isPresented: $exportFailed) {
+            Button("OK", role: .cancel) { }
+        } message: { Text("This night's records need review. No data was changed.") }
     }
 
     enum ExportFormat { case text, csv }
 
-    private func generateExportContent(format: ExportFormat) -> String {
+    private func prepareExport(format: ExportFormat) {
+        isPreparingExport = true
+        Task { @MainActor in
+            defer { isPreparingExport = false }
+            do {
+                let report = try await StudioBundleExporter().enrichedNightSummary(using: sessionRepo, sessionDate: sessionKey)
+                exportSharePayload = ExportSharePayload(content: generateExportContent(format: format, report: report))
+            } catch { exportFailed = true }
+        }
+    }
+
+    private func generateExportContent(format: ExportFormat, report: CollectedNightSummary) -> String {
         switch format {
         case .text:
-            return generateTextExport()
+            return generateTextExport(report: report)
         case .csv:
-            return generateCSVExport()
+            return generateCSVExport(report: report)
         }
 }
 
@@ -86,7 +104,7 @@ private struct ExportSharePayload: Identifiable {
     let content: String
 }
 
-    private func generateTextExport() -> String {
+    private func generateTextExport(report: CollectedNightSummary) -> String {
         var lines: [String] = [
             "DoseTap Night Report",
             "Session: \(sessionDateLabel)",
@@ -161,6 +179,12 @@ private struct ExportSharePayload: Identifiable {
                 appendTextField(&lines, label: "Nap Total Minutes", value: answers.napTotalMinutes.map { "\($0) min" })
                 appendTextField(&lines, label: "Last Nap End", value: answers.napLastEndAt.map(formatTime))
                 appendTextField(&lines, label: "Late Meal", value: answers.lateMeal?.displayText)
+                if let food = answers.lastFood {
+                    appendTextField(&lines, label: "Last food finished", value: food.finishedAt.ISO8601Format())
+                    appendTextField(&lines, label: "Food type", value: food.kind?.title ?? "Not specified")
+                    appendTextField(&lines, label: "High-fat or oily", value: food.highFatText)
+                    appendTextField(&lines, label: "Food notes", value: food.notes)
+                }
                 appendTextField(&lines, label: "Late Meal Ended", value: answers.lateMealEndedAt.map(formatTime))
                 appendTextField(&lines, label: "Screens In Bed", value: answers.screensInBed?.displayText)
                 appendTextField(&lines, label: "Last Screen Use", value: answers.screensLastUsedAt.map(formatTime))
@@ -273,10 +297,15 @@ private struct ExportSharePayload: Identifiable {
             }
         }
 
+        lines.append("\nFood and next-day diary (0–10 sleepiness; separate from older 1–5 ratings)")
+        for (field, value) in report.fields {
+            appendTextField(&lines, label: humanize(field), value: value ?? "Not recorded / unavailable")
+        }
+        lines.append("Sleep after Dose 2 uses recorded Apple Health segments only. Compare covered minutes with the full interval; unmeasured time is not counted as sleep.")
         return lines.joined(separator: "\n")
     }
 
-    private func generateCSVExport() -> String {
+    private func generateCSVExport(report: CollectedNightSummary) -> String {
         var rows = ["session_key,session_date,section,field,value"]
 
         appendCSVRow(&rows, section: "meta", field: "generated_at", value: AppFormatters.mediumDateTime.string(from: Date()))
@@ -335,6 +364,12 @@ private struct ExportSharePayload: Identifiable {
                 appendCSVRow(&rows, section: "pre_sleep", field: "nap_total_minutes", value: answers.napTotalMinutes.map { String($0) })
                 appendCSVRow(&rows, section: "pre_sleep", field: "nap_last_end", value: answers.napLastEndAt.map(formatTime))
                 appendCSVRow(&rows, section: "pre_sleep", field: "late_meal", value: answers.lateMeal?.displayText)
+                if let food = answers.lastFood {
+                    appendCSVRow(&rows, section: "pre_sleep", field: "last_food_finished_at_utc", value: food.finishedAt.ISO8601Format())
+                    appendCSVRow(&rows, section: "pre_sleep", field: "last_food_kind", value: food.kind?.rawValue)
+                    appendCSVRow(&rows, section: "pre_sleep", field: "last_food_high_fat", value: food.highFat.map { String($0) })
+                    appendCSVRow(&rows, section: "pre_sleep", field: "last_food_notes", value: food.notes)
+                }
                 appendCSVRow(&rows, section: "pre_sleep", field: "late_meal_ended", value: answers.lateMealEndedAt.map(formatTime))
                 appendCSVRow(&rows, section: "pre_sleep", field: "screens_in_bed", value: answers.screensInBed?.displayText)
                 appendCSVRow(&rows, section: "pre_sleep", field: "screens_last_used", value: answers.screensLastUsedAt.map(formatTime))
@@ -433,6 +468,9 @@ private struct ExportSharePayload: Identifiable {
             appendCSVRow(&rows, section: "sleep_events", field: "event_\(index + 1)", value: formattedEvent(event))
         }
 
+        for (field, value) in report.fields {
+            appendCSVRow(&rows, section: "collected_night_v1", field: field, value: value ?? "")
+        }
         return rows.joined(separator: "\n")
     }
 
@@ -453,8 +491,7 @@ private struct ExportSharePayload: Identifiable {
     }
 
     private func csvEscaped(_ value: String) -> String {
-        let escaped = value.replacingOccurrences(of: "\"", with: "\"\"")
-        return "\"\(escaped)\""
+        ReportCSV.field(value)
     }
 
     private func formatStoredTimestamp(_ value: String) -> String {

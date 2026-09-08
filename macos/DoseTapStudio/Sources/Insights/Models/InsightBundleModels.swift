@@ -1,4 +1,5 @@
 import Foundation
+import DoseCore
 
 enum InsightDoseEventKind: String, Sendable {
     case dose1
@@ -150,6 +151,7 @@ struct InsightConsentState: Codable, Hashable, Sendable {
 }
 
 struct InsightSessionSupplement: Codable, Hashable, Sendable {
+    let collectedNight: CollectedNightSummary?
     let sessionDate: String
     let dose1TimeUTC: Date?
     let dose2TimeUTC: Date?
@@ -182,6 +184,7 @@ struct InsightSessionSupplement: Codable, Hashable, Sendable {
         medications: [InsightMedicationSummary],
         checkInSubmissions: [InsightCheckInSubmission] = [],
         context: InsightSessionContext? = nil,
+        collectedNight: CollectedNightSummary? = nil,
         healthKit: InsightHealthKitSummary? = nil,
         whoop: InsightWHOOPSummary? = nil
     ) {
@@ -199,6 +202,7 @@ struct InsightSessionSupplement: Codable, Hashable, Sendable {
         self.medications = medications
         self.checkInSubmissions = checkInSubmissions
         self.context = context
+        self.collectedNight = collectedNight
         self.healthKit = healthKit
         self.whoop = whoop
     }

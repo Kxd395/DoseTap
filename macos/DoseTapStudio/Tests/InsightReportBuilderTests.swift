@@ -1,7 +1,70 @@
 import XCTest
+import DoseCore
+import SwiftUI
+import AppKit
 @testable import DoseTapStudio
 
 final class InsightReportBuilderTests: XCTestCase {
+    @MainActor
+    func testCollectedDiaryNativePreview() throws {
+        guard let path = ProcessInfo.processInfo.environment["DOSETAP_STUDIO_PREVIEW"] else {
+            throw XCTSkip("Set DOSETAP_STUDIO_PREVIEW to save the native SwiftUI preview.")
+        }
+        var report = CollectedNightSummary()
+        report.lastFoodFinishedAt = Date(timeIntervalSince1970: 1000)
+        report.lastFoodHighFat = true; report.lastFoodToDose1Minutes = 155; report.lastFoodToDose2Minutes = 365
+        report.dose2WakeMethod = "natural"; report.sleepiness0To10 = 0
+        let session = makeSession(sessionDate: "2024-09-08", intervalMinutes: 210, late: false, skipped: false, stress: 2, sleepQuality: 4, readiness: 4, collectedNight: report)
+        let renderer = ImageRenderer(content: CollectedDiaryOverview(sessions: [session]).padding().frame(width: 1050).environment(\.colorScheme, .dark))
+        renderer.scale = 2
+        let image = try XCTUnwrap(renderer.nsImage)
+        let representation = try XCTUnwrap(NSBitmapImageRep(data: try XCTUnwrap(image.tiffRepresentation)))
+        let png = try XCTUnwrap(representation.representation(using: .png, properties: [:]))
+        try png.write(to: URL(fileURLWithPath: path))
+        XCTAssertGreaterThan(png.count, 1000)
+    }
+
+    func testCollectedDiaryColumnsAndRedaction() throws {
+        var report = CollectedNightSummary()
+        report.lastFoodFinishedAt = Date(timeIntervalSince1970: 1000)
+        report.lastFoodNotes = "Oil, cream\n\"notes\""
+        report.lastFoodHighFat = false
+        report.dose2WakeMethod = "natural"
+        report.sleepiness0To10 = 0
+        let decoded = try JSONDecoder().decode(CollectedNightSummary.self, from: JSONEncoder().encode(report))
+        let session = makeSession(sessionDate: "2024-09-08", intervalMinutes: 180, late: false, skipped: false, stress: 2, sleepQuality: 4, readiness: 4, collectedNight: decoded)
+        let builder = InsightReportBuilder()
+        let full = builder.buildSessionCSV(sessions: [session])
+        XCTAssertTrue(full.contains("sleepiness_0_to_10"))
+        XCTAssertTrue(full.contains("Oil, cream"))
+        XCTAssertTrue(full.contains("natural"))
+        let safe = builder.buildSessionCSV(sessions: [session], redaction: .clinicianSafe)
+        XCTAssertFalse(safe.contains("Oil, cream"))
+        XCTAssertFalse(safe.contains("1970-01-01T00:16:40Z"))
+        XCTAssertTrue(builder.buildProviderSummary(sessions: [session]).contains("sleepiness_0_to_10: 0"))
+        for mode in InsightRecommendationMode.allCases {
+            let package = builder.buildRecommendationPackage(sessions: [session], mode: mode)
+            XCTAssertTrue(package.contains("sleepiness_0_to_10: 0"))
+            XCTAssertTrue(package.contains("last_food_notes: Oil, cream"))
+            let csv = builder.buildRecommendationComparisonCSV(sessions: [session], mode: mode)
+            let rows = try ReportCSV.rows(csv)
+            XCTAssertEqual(rows.count, 2, "A night must not be exported twice")
+            let column = try XCTUnwrap(rows[0].firstIndex(of: "sleepiness_0_to_10"))
+            XCTAssertEqual(rows[1][column], "0")
+            XCTAssertTrue(csv.contains("legacy_composite"))
+            let safeCSV = builder.buildRecommendationComparisonCSV(sessions: [session], mode: mode, redaction: .clinicianSafe)
+            XCTAssertFalse(safeCSV.contains("Oil, cream"))
+            XCTAssertFalse(safeCSV.contains("1970-01-01T00:16:40Z"))
+            let safePackage = builder.buildRecommendationPackage(sessions: [session], mode: mode, redaction: .clinicianSafe)
+            XCTAssertFalse(safePackage.contains("Oil, cream"))
+            XCTAssertFalse(safePackage.contains("1970-01-01T00:16:40Z"))
+        }
+        let supplement = InsightSessionSupplement(sessionDate: "2024-09-08", preSleep: nil, morning: nil, medications: [], collectedNight: decoded)
+        let questionnaireOnly = InsightSessionBuilder().build(sessions: [], events: [], supplementsBySessionDate: ["2024-09-08": supplement])
+        XCTAssertEqual(questionnaireOnly.count, 1, "Questionnaire-only nights must survive Studio import")
+        XCTAssertEqual(questionnaireOnly.first?.collectedNight?.sleepiness0To10, 0)
+    }
+
     func testProviderSummaryIncludesKeyMetrics() {
         let builder = InsightReportBuilder()
         let sessions = [
@@ -59,7 +122,7 @@ final class InsightReportBuilderTests: XCTestCase {
         XCTAssertTrue(summary.contains("Late Dose 2 nights: 1"))
         XCTAssertTrue(summary.contains("Average morning sleep quality: 3.0 / 5"))
         XCTAssertTrue(summary.contains("High-stress pre-sleep nights: 1"))
-        XCTAssertTrue(summary.contains("Alarm-assisted wake nights: 1"))
+        XCTAssertTrue(summary.contains("Recorded alarm Dose 2 wake nights: 0"))
         XCTAssertTrue(summary.contains("Schedule-marker nights: 1"))
         XCTAssertTrue(summary.contains("Morning-reconciled Dose 2 nights: 0"))
         XCTAssertTrue(summary.contains("Trainable nights: 1"))
@@ -216,7 +279,7 @@ final class InsightReportBuilderTests: XCTestCase {
         XCTAssertTrue(summary.contains("WHOOP nights: 1"))
         XCTAssertTrue(summary.contains("Bundle SHA-256: abc123def456"))
         XCTAssertTrue(summary.contains("Average WHOOP recovery: 70.0%"))
-        XCTAssertTrue(summary.contains("Likely natural wake nights: 1"))
+        XCTAssertTrue(summary.contains("Unknown Dose 2 wake nights: 1"))
         XCTAssertTrue(summary.contains("Morning-reconciled Dose 2 nights: 0"))
         XCTAssertTrue(summary.contains("Dose 2 timing-exception nights: 1"))
         XCTAssertTrue(summary.contains("Dose 2 reason-mismatch nights: 0"))
@@ -238,7 +301,7 @@ final class InsightReportBuilderTests: XCTestCase {
         XCTAssertTrue(csv.contains("2024-09-09T01:02:00"))
         XCTAssertTrue(csv.contains("stop,1,manual"))
         XCTAssertTrue(csv.contains("ate_too_late"))
-        XCTAssertTrue(csv.contains("work__natural__shift_13h"))
+        XCTAssertTrue(csv.contains("work__unknown__shift_13h"))
         XCTAssertTrue(csv.contains("wake_req_self"))
         XCTAssertTrue(factsCSV.contains("session_date,category,metric_key"))
         XCTAssertTrue(factsCSV.contains("sleep_performance"))
@@ -447,7 +510,8 @@ final class InsightReportBuilderTests: XCTestCase {
         notes: String? = nil,
         healthKit: InsightHealthKitSummary? = nil,
         whoop: InsightWHOOPSummary? = nil,
-        context: InsightSessionContext? = nil
+        context: InsightSessionContext? = nil,
+        collectedNight: CollectedNightSummary? = nil
     ) -> InsightSession {
         let dose1 = ISO8601DateFormatter().date(from: "\(sessionDate)T22:00:00Z")!
         let dose2 = dose1.addingTimeInterval(TimeInterval(intervalMinutes * 60))
@@ -508,6 +572,7 @@ final class InsightReportBuilderTests: XCTestCase {
             ),
             medications: [],
             context: context,
+            collectedNight: collectedNight,
             healthKit: healthKit,
             whoop: whoop
         )

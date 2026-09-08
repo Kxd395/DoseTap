@@ -83,13 +83,13 @@ final class SSOTComplianceTests: XCTestCase {
         XCTAssertEqual(ctx.phase, .active, "SSOT: Window is OPEN at exactly 150 minutes")
     }
     
-    /// At exactly 240 minutes, phase should be .closed
-    func testSSOT_exact240minutes_isClosed() {
+    /// At exactly 240 minutes, the upper endpoint remains in-window.
+    func testSSOT_exact240minutes_isInclusive() {
         let d1 = Date(timeIntervalSince1970: 0)
         let now = d1.addingTimeInterval(240 * 60)
         let calc = DoseWindowCalculator(now: { now })
         let ctx = calc.context(dose1At: d1, dose2TakenAt: nil, dose2Skipped: false, snoozeCount: 0)
-        XCTAssertEqual(ctx.phase, .closed, "SSOT: Window is CLOSED at exactly 240 minutes")
+        XCTAssertEqual(ctx.phase, .nearClose, "SSOT: Exactly 240 minutes remains in-window")
     }
     
     /// At exactly 225 minutes (15 remaining), snooze should be disabled

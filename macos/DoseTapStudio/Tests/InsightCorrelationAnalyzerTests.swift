@@ -1,4 +1,5 @@
 import XCTest
+import DoseCore
 @testable import DoseTapStudio
 
 final class InsightCorrelationAnalyzerTests: XCTestCase {
@@ -123,6 +124,9 @@ final class InsightCorrelationAnalyzerTests: XCTestCase {
                 notes: nil
             )
 
+        // Explicit diary observations for this fixture, not a production legacy conversion.
+        var diary = CollectedNightSummary()
+        diary.dose2WakeMethod = wakeType == "alarm_then_snooze" ? "alarm" : wakeType
         return InsightSession(
             id: sessionDate,
             sessionDate: sessionDate,
@@ -210,6 +214,7 @@ final class InsightCorrelationAnalyzerTests: XCTestCase {
                 screensLastUsedAtUTC: nil,
                 screenMinutesBeforeDose1: nil
             ),
+            collectedNight: diary,
             healthKit: InsightHealthKitSummary(
                 totalSleepMinutes: 420,
                 ttfwMinutes: 160,

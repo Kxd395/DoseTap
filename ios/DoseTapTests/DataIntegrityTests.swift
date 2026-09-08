@@ -29,6 +29,26 @@ final class SleepPlanStoreTemplateTests: XCTestCase {
         defaults.removePersistentDomain(forName: suiteName)
     }
 
+    func test_nightlyWakeOverridePreservesTypicalWeekAndRestoresItWhenCleared() async throws {
+        let key = "2026-09-04"
+        let nextKey = "2026-09-05"
+        let zone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        let scheduleBefore = try encoder.encode(store.schedule)
+        let usualWake = store.wakeByDate(for: key, tz: zone)
+        let nextWake = store.wakeByDate(for: nextKey, tz: zone)
+        let changedWake = usualWake.addingTimeInterval(3600)
+        store.setTonightOverride(sessionKey: key, wakeBy: changedWake)
+        XCTAssertEqual(store.wakeByDate(for: key, tz: zone), changedWake)
+        XCTAssertEqual(store.wakeByDate(for: nextKey, tz: zone), nextWake)
+        XCTAssertEqual(try encoder.encode(store.schedule), scheduleBefore)
+        let restored = SleepPlanStore(userDefaults: defaults)
+        XCTAssertEqual(restored.overrideForSession(key), changedWake)
+        restored.setTonightOverride(sessionKey: key, wakeBy: nil)
+        XCTAssertEqual(restored.wakeByDate(for: key, tz: zone), usualWake)
+    }
+
     func test_applyWorkWeekTemplate_assignsWorkdaysAndOffdays() async {
         let workWake = makeTime(hour: 5, minute: 45)
         let offWake = makeTime(hour: 8, minute: 30)
@@ -97,10 +117,13 @@ final class DataIntegrityTests: XCTestCase {
     private var storage: EventStorage!
     private var repo: SessionRepository!
     private var fakeScheduler: FakeNotificationScheduler!
+    private var previousPrepTimeMinutes: Int!
     /// Fixed reference time: 23:00 UTC — 5 hours past rollover, so offsets up to -300 min stay in-session.
     private var fixedNow: Date!
     
     override func setUp() async throws {
+        previousPrepTimeMinutes = UserSettingsManager.shared.prepTimeMinutes
+        UserSettingsManager.shared.prepTimeMinutes = 18 * 60
         fixedNow = ISO8601DateFormatter().date(from: "2026-01-15T23:00:00Z")!
         let now = fixedNow!
         storage = EventStorage.shared
@@ -117,6 +140,7 @@ final class DataIntegrityTests: XCTestCase {
     
     override func tearDown() async throws {
         storage.clearAllData()
+        UserSettingsManager.shared.prepTimeMinutes = previousPrepTimeMinutes
     }
     
     // MARK: - SQLite Configuration Tests
@@ -357,8 +381,10 @@ final class DataIntegrityTests: XCTestCase {
         XCTAssertEqual(repo.currentContext.phase, .noDose1, "Context should return to noDose1 after clearAllData")
 
         let cancelledSet = Set(fakeScheduler.cancelledIdentifiers)
-        let expectedSet = Set(SessionRepository.sessionNotificationIdentifiers)
-        XCTAssertEqual(cancelledSet, expectedSet, "clearAllData should cancel canonical session notifications")
+        let expectedSet = Set(
+            SessionRepository.sessionNotificationIdentifiers + [SupplyReminderService.requestID]
+        )
+        XCTAssertEqual(cancelledSet, expectedSet, "clearAllData should cancel every managed notification")
     }
     
     // MARK: - Data Consistency Tests

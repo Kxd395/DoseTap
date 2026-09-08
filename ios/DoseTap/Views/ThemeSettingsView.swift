@@ -7,6 +7,16 @@ struct ThemeSettingsView: View {
     var body: some View {
         List {
             Section {
+                Toggle("Night Mode after Dose 1", isOn: $themeManager.automaticNightModeEnabled)
+                    .accessibilityIdentifier("automatic-night-mode")
+                if themeManager.isAutomaticNightActive {
+                    Text("Automatic Night Mode is active until Wake by or your final wake-up.")
+                        .font(.caption)
+                }
+            } footer: {
+                Text("Uses red/amber Night Mode after Dose 1 is recorded, then restores your chosen appearance at Wake by. Choosing a theme below overrides it for this night. This changes DoseTap only.")
+            }
+            Section {
                 ForEach(AppTheme.allCases) { theme in
                     ThemeRow(
                         theme: theme,
@@ -22,6 +32,8 @@ struct ThemeSettingsView: View {
             }
         }
         .navigationTitle("Theme")
+        .environment(\.colorScheme, themeManager.currentTheme == .light ? .light : .dark)
+        .preferredColorScheme(themeManager.currentTheme == .light ? .light : .dark)
         .themedBackground(themeManager.currentTheme)
     }
 }

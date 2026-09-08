@@ -9,6 +9,33 @@
 import XCTest
 @testable import DoseTap
 import DoseCore
+@preconcurrency import UserNotifications
+
+@MainActor
+private final class URLRouterTestNotificationCenter: AlarmNotificationCenterClient {
+    private var requestsByIdentifier: [String: UNNotificationRequest] = [:]
+
+    func setDelegate(_ delegate: (any UNUserNotificationCenterDelegate)?) {}
+    func setNotificationCategories(_ categories: Set<UNNotificationCategory>) {}
+    func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool { true }
+    func authorizationStatus() async -> UNAuthorizationStatus { .authorized }
+
+    func add(_ request: UNNotificationRequest) async throws {
+        requestsByIdentifier[request.identifier] = request
+    }
+
+    func pendingRequests() async -> [UNNotificationRequest] {
+        Array(requestsByIdentifier.values)
+    }
+
+    func removePendingRequests(withIdentifiers identifiers: [String]) {
+        for identifier in identifiers {
+            requestsByIdentifier.removeValue(forKey: identifier)
+        }
+    }
+
+    func removeDeliveredNotifications(withIdentifiers identifiers: [String]) {}
+}
 
 // MARK: - Dose Action Presentation Tests
 
@@ -71,6 +98,8 @@ final class URLRouterTests: XCTestCase {
     private var router: URLRouter!
     private var core: DoseTapCore!
     private var coordinator: DoseActionCoordinator!
+    private var alarm: AlarmService!
+    private var alarmDefaultsDomain: String!
     private var previousPrepTimeMinutes: Int?
     
     override func setUp() async throws {
@@ -78,12 +107,22 @@ final class URLRouterTests: XCTestCase {
         previousPrepTimeMinutes = settings.prepTimeMinutes
         settings.prepTimeMinutes = Self.prepTimeOutsideActiveDoseWindow()
 
-        router = URLRouter.shared
+        router = URLRouter()
         core = DoseTapCore()
         core.setSessionRepository(SessionRepository.shared)
+        alarmDefaultsDomain = "URLRouterTests.\(UUID().uuidString)"
+        let alarmDefaults = UserDefaults(suiteName: alarmDefaultsDomain)!
+        alarmDefaults.removePersistentDomain(forName: alarmDefaultsDomain)
+        alarm = AlarmService(
+            notificationClient: URLRouterTestNotificationCenter(),
+            defaults: alarmDefaults,
+            nowProvider: { Date() },
+            timeZoneProvider: { .current },
+            configurationProvider: { AlarmConfiguration.current }
+        )
         coordinator = DoseActionCoordinator(
             core: core,
-            alarmService: AlarmService.shared,
+            alarmService: alarm,
             eventLogger: EventLogger.shared,
             sessionRepo: SessionRepository.shared
         )
@@ -99,7 +138,9 @@ final class URLRouterTests: XCTestCase {
     override func tearDown() async throws {
         await router.waitForPendingActions()
         router.resetTestOverrides()
+        alarm.cancelAllAlarms()
         SessionRepository.shared.clearTonight()
+        UserDefaults(suiteName: alarmDefaultsDomain)?.removePersistentDomain(forName: alarmDefaultsDomain)
         if let previousPrepTimeMinutes {
             UserSettingsManager.shared.prepTimeMinutes = previousPrepTimeMinutes
         }
@@ -301,6 +342,16 @@ final class URLRouterTests: XCTestCase {
         XCTAssertNil(repo.dose2Time, "Late deep link must not log Dose 2 without in-app confirmation.")
         XCTAssertEqual(repo.currentContext.phase, .closed, "Session should remain closed until user confirms in app.")
         XCTAssertTrue(router.feedbackMessage.contains("Record a dose that already occurred"), "Should tell user to open app to confirm.")
+    }
+
+    func test_dose2_deepLink_inWindowDoesNotRecordWithoutExplicitConfirmation() async {
+        let repo = SessionRepository.shared
+        XCTAssertTrue(repo.setDose1Time(Date().addingTimeInterval(-160 * 60)).isCommitted)
+        XCTAssertTrue(router.handle(URL(string: "dosetap://dose2")!))
+        await router.waitForPendingActions()
+        XCTAssertNil(repo.dose2Time)
+        XCTAssertTrue(router.feedbackMessage.contains("Dose 2 is not recorded"))
+        XCTAssertEqual(router.selectedTab, .tonight)
     }
 
     func test_dose2_deepLink_blocksBeforeWindow_withoutOverride() async {

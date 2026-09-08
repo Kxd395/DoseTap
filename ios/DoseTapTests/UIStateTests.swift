@@ -18,6 +18,7 @@ final class UISmokeTests: XCTestCase {
     
     private var storage: EventStorage!
     private var repo: SessionRepository!
+    private var previousPrepTimeMinutes: Int!
     
     /// Fixed clock well after the 18:00 UTC rollover so dose times at
     /// `Date() - 180 min` never cross a session boundary on CI (UTC).
@@ -26,6 +27,8 @@ final class UISmokeTests: XCTestCase {
     }()
     
     override func setUp() async throws {
+        previousPrepTimeMinutes = UserSettingsManager.shared.prepTimeMinutes
+        UserSettingsManager.shared.prepTimeMinutes = 18 * 60
         storage = EventStorage.shared
         repo = SessionRepository(
             storage: storage,
@@ -38,6 +41,7 @@ final class UISmokeTests: XCTestCase {
     
     override func tearDown() async throws {
         storage.clearAllData()
+        UserSettingsManager.shared.prepTimeMinutes = previousPrepTimeMinutes
     }
     
     func test_tonightEmptyState_afterSessionDelete() async throws {
@@ -324,6 +328,7 @@ final class UIStateTests: XCTestCase {
     
     private var storage: EventStorage!
     private var repo: SessionRepository!
+    private var previousPrepTimeMinutes: Int!
     
     /// Fixed clock well after the 18:00 UTC rollover so dose times at
     /// `Date() - N min` never cross a session boundary on CI (UTC).
@@ -332,6 +337,8 @@ final class UIStateTests: XCTestCase {
     }()
     
     override func setUp() async throws {
+        previousPrepTimeMinutes = UserSettingsManager.shared.prepTimeMinutes
+        UserSettingsManager.shared.prepTimeMinutes = 18 * 60
         storage = EventStorage.shared
         repo = SessionRepository(
             storage: storage,
@@ -344,6 +351,7 @@ final class UIStateTests: XCTestCase {
     
     override func tearDown() async throws {
         storage.clearAllData()
+        UserSettingsManager.shared.prepTimeMinutes = previousPrepTimeMinutes
     }
     
     // MARK: - Phase Transition Tests
@@ -559,7 +567,7 @@ final class PreSleepCardStateTests: XCTestCase {
 }
 
 final class CheckInCarryForwardTests: XCTestCase {
-    func test_preSleepCarryForwardMovesTimesToReferenceDayAndDropsOneOffNotes() throws {
+    func test_preSleepCarryForwardMovesTimesToReferenceDayAndPreservesAnswers() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         let sourceDate = try XCTUnwrap(AppFormatters.parseISO8601Flexible("2026-01-10T02:15:00Z"))
@@ -595,8 +603,8 @@ final class CheckInCarryForwardTests: XCTestCase {
         XCTAssertEqual(carried.roomTemp, .cool)
         XCTAssertEqual(carried.noiseLevel, .quiet)
         XCTAssertEqual(carried.sleepAidSelections, [.fan])
-        XCTAssertNil(carried.stressNotes)
-        XCTAssertNil(carried.notes)
+        XCTAssertEqual(carried.stressNotes, answers.stressNotes)
+        XCTAssertEqual(carried.notes, answers.notes)
 
         let caffeineComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: try XCTUnwrap(carried.caffeineLastIntakeAt))
         XCTAssertEqual(caffeineComponents.year, 2026)
@@ -721,7 +729,7 @@ final class DashboardStressTrendTests: XCTestCase {
         XCTAssertEqual(model.stressTrendNightCount, 3)
         XCTAssertEqual(model.topRecurringStressDriver, .work)
         XCTAssertEqual(model.topCarryoverStressDriver, .work)
-        XCTAssertEqual(model.recurringStressDrivers.first?.totalCount, 3)
+        XCTAssertEqual(model.recurringStressDrivers.first?.totalCount, 2)
         XCTAssertEqual(model.recurringStressDrivers.first?.carryoverCount, 1)
         XCTAssertEqual(model.stressCarryoverNightRate ?? 0, 50, accuracy: 0.01)
         XCTAssertEqual(model.sleepQualityByHighBedtimeStress.high ?? 0, 2.5, accuracy: 0.01)

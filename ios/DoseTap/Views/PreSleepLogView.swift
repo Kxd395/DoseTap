@@ -20,10 +20,14 @@ struct PreSleepLogView: View {
     @State private var didApplyRememberedSettings = false
     @State private var showSaveError = false
     @State private var saveErrorMessage = ""
+    @State private var overrideEnabled = false
+    @State private var overrideWake = Date()
     @ObservedObject private var sessionRepo = SessionRepository.shared
     @ObservedObject private var sleepPlanStore = SleepPlanStore.shared
     
     let existingLog: StoredPreSleepLog?
+    let historyNight: String?
+    let historyReferenceTime: Date?
     let onComplete: (PreSleepLogAnswers) throws -> Void
     let onSkip: () throws -> Void
     
@@ -34,10 +38,14 @@ struct PreSleepLogView: View {
     
     init(
         existingLog: StoredPreSleepLog? = nil,
+        historyNight: String? = nil,
+        historyReferenceTime: Date? = nil,
         onComplete: @escaping (PreSleepLogAnswers) throws -> Void,
         onSkip: @escaping () throws -> Void
     ) {
         self.existingLog = existingLog
+        self.historyNight = historyNight
+        self.historyReferenceTime = historyReferenceTime
         self.onComplete = onComplete
         self.onSkip = onSkip
         let initialAnswers = existingLog?.answers ?? PreSleepLogAnswers()
@@ -54,33 +62,45 @@ struct PreSleepLogView: View {
                     .padding(.horizontal)
                     .padding(.top, 8)
                 
-                if let plan = planSummary {
-                    PlanInlineHint(plan: plan)
-                        .padding(.horizontal)
-                        .padding(.top, 4)
-                }
-
-                rememberLastSettingsSection
-                    .padding(.horizontal)
-                    .padding(.top, 8)
-                
                 // Card content
                 TabView(selection: $currentCard) {
                     // Card 1: Timing + Stress
-                    Card1TimingStress(answers: $answers)
+                    Card1TimingStress(answers: $answers) {
+                        if historyNight == nil, let plan = planSummary {
+                            PlanInlineHint(plan: plan)
+                            SleepPlanOverrideCard(
+                                overrideEnabled: $overrideEnabled,
+                                overrideWake: $overrideWake,
+                                onUpdate: { date in
+                                    sleepPlanStore.setTonightOverride(sessionKey: planSessionKey, wakeBy: date)
+                                },
+                                onClear: {
+                                    sleepPlanStore.setTonightOverride(sessionKey: planSessionKey, wakeBy: nil)
+                                },
+                                baselineWake: SleepPlanCalculator.wakeByDateTime(
+                                    forActiveSessionKey: planSessionKey,
+                                    schedule: sleepPlanStore.schedule, tz: .current
+                                )
+                            )
+                        }
+                        if historyNight == nil { rememberLastSettingsSection }
+                        else { Text("Treatment night: \(historyNight ?? "") · Review remembered answers. This does not change tonight's plan.").font(.footnote) }
+                    }
                         .tag(0)
                     
                     // Card 2: Body + Substances
                     Card2BodySubstances(
                         answers: $answers,
-                        medicationSessionKey: medicationSessionKey
+                        medicationSessionKey: medicationSessionKey,
+                        historyReferenceTime: historyReferenceTime
                     )
                         .tag(1)
                     
                     // Card 3: Activity + Naps
                     Card3ActivityNaps(
                         answers: $answers,
-                        showMoreDetails: $showMoreDetails
+                        showMoreDetails: $showMoreDetails,
+                        referenceTime: historyReferenceTime
                     )
                     .tag(2)
                 }
@@ -129,7 +149,7 @@ struct PreSleepLogView: View {
                         } label: {
                             HStack {
                                 Image(systemName: "checkmark")
-                                Text(existingLog == nil ? "Done" : "Save")
+                                Text(historyNight != nil ? "Review" : (existingLog == nil ? "Done" : "Save"))
                             }
                             .font(.headline)
                             .foregroundColor(.white)
@@ -147,7 +167,7 @@ struct PreSleepLogView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    if existingLog == nil {
+                    if existingLog == nil && historyNight == nil {
                         Button("Skip for tonight") {
                             do {
                                 try onSkip()
@@ -169,11 +189,13 @@ struct PreSleepLogView: View {
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
+                    if historyNight == nil {
                     Button {
                         loadLastAnswers()
                     } label: {
                         Text("Use last")
                             .font(.subheadline)
+                    }
                     }
                 }
             }
@@ -184,8 +206,9 @@ struct PreSleepLogView: View {
             Text(saveErrorMessage)
         }
         .onAppear {
-            applyRememberedSettingsIfNeeded()
+            if historyNight == nil { applyRememberedSettingsIfNeeded(); syncWakeOverride() }
         }
+        .onChange(of: planSessionKey) { _ in if historyNight == nil { syncWakeOverride() } }
     }
     
     private func saveAndComplete() {
@@ -256,18 +279,14 @@ struct PreSleepLogView: View {
             showSaveError = true
             return
         }
-        if (answers.lateMeal ?? PreSleepLogAnswers.LateMeal.none) != .none && answers.lateMealEndedAt == nil {
-            saveErrorMessage = "Add when your last late meal ended."
-            showSaveError = true
-            return
-        }
         if (answers.screensInBed ?? PreSleepLogAnswers.ScreensInBed.none) != .none && answers.screensLastUsedAt == nil {
             saveErrorMessage = "Add when you last used a screen in bed."
             showSaveError = true
             return
         }
         do {
-            UserDefaults.standard.set(rememberLastSettings, forKey: Self.rememberLastSettingsKey)
+            try answers.lastFood?.validate(at: historyReferenceTime ?? Date())
+            if historyNight == nil { UserDefaults.standard.set(rememberLastSettings, forKey: Self.rememberLastSettingsKey) }
             try onComplete(answers)
             dismiss()
         } catch {
@@ -309,13 +328,21 @@ struct PreSleepLogView: View {
         return true
     }
 
+    private var planSessionKey: String { sessionRepo.preSleepDisplaySessionKey(for: Date()) }
+
+    private func syncWakeOverride() {
+        let saved = sleepPlanStore.overrideForSession(planSessionKey)
+        overrideEnabled = saved != nil
+        overrideWake = saved ?? sleepPlanStore.wakeByDate(for: planSessionKey)
+    }
+
     private var planSummary: (wakeBy: Date, inBed: Date, windDown: Date, expectedSleep: Double)? {
-        let key = sessionRepo.preSleepDisplaySessionKey(for: Date())
-        let plan = sleepPlanStore.plan(for: key, now: Date(), tz: TimeZone.current)
+        let plan = sleepPlanStore.plan(for: planSessionKey, now: Date(), tz: TimeZone.current)
         return (plan.wakeBy, plan.recommendedInBed, plan.windDown, plan.expectedSleepMinutes)
     }
 
     private var medicationSessionKey: String {
+        if let historyNight { return historyNight }
         let referenceDate: Date
         if let timestamp = existingLog.flatMap({ AppFormatters.iso8601Fractional.date(from: $0.createdAtUtc) }) {
             referenceDate = timestamp
@@ -365,10 +392,10 @@ extension PreSleepLogAnswers {
         carried.alcoholLastDrinkAt = Self.carryTimeOfDay(alcoholLastDrinkAt, to: referenceDate, calendar: calendar)
         carried.exerciseLastAt = Self.carryTimeOfDay(exerciseLastAt, to: referenceDate, calendar: calendar)
         carried.napLastEndAt = Self.carryTimeOfDay(napLastEndAt, to: referenceDate, calendar: calendar)
-        carried.lateMealEndedAt = Self.carryTimeOfDay(lateMealEndedAt, to: referenceDate, calendar: calendar)
+        carried.lastFood = nil
+        carried.lateMeal = nil
+        carried.lateMealEndedAt = nil
         carried.screensLastUsedAt = Self.carryTimeOfDay(screensLastUsedAt, to: referenceDate, calendar: calendar)
-        carried.stressNotes = nil
-        carried.notes = nil
         return carried
     }
 

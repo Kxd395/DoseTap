@@ -11,6 +11,8 @@ struct ContentView: View {
     @StateObject private var themeManager = ThemeManager.shared
     @ObservedObject private var urlRouter = URLRouter.shared
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.scenePhase) private var scenePhase
+    private let appearanceClock = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     @State private var sharedPageImage: UIImage?
     @State private var showPageShareSheet = false
     @State private var isPreparingPageShare = false
@@ -39,6 +41,14 @@ struct ContentView: View {
         .preferredColorScheme(themeManager.currentTheme == .night ? .dark : (themeManager.currentTheme.colorScheme ?? settings.colorScheme))
         .accentColor(themeManager.currentTheme.accentColor)
         .applyNightModeFilter(themeManager.currentTheme)
+        .onAppear { refreshNightAppearance() }
+        .onReceive(sessionRepo.sessionDidChange) { _ in refreshNightAppearance() }
+        .onReceive(appearanceClock) { _ in
+            if scenePhase == .active { refreshNightAppearance() }
+        }
+        .onChange(of: scenePhase) { phase in
+            if phase == .active { refreshNightAppearance() }
+        }
         .fullScreenCover(isPresented: Binding(
             get: { alarmService.isAlarmRinging },
             set: { alarmService.isAlarmRinging = $0 }
@@ -56,6 +66,16 @@ struct ContentView: View {
                 }
             }
         }
+        .sheet(isPresented: $urlRouter.showingSupplyReminder) {
+            NavigationStack {
+                SupplySettingsView()
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { urlRouter.showingSupplyReminder = false }
+                        }
+                    }
+            }
+        }
         .alert("Unable to Share Screen", isPresented: Binding(
             get: { pageShareErrorMessage != nil },
             set: { if !$0 { pageShareErrorMessage = nil } }
@@ -69,6 +89,17 @@ struct ContentView: View {
     }
 
     // MARK: - iPad / Regular Width Layout (NavigationSplitView)
+
+    private func refreshNightAppearance() {
+        let key = sessionRepo.activeSessionDate
+        themeManager.refreshAutomaticNight(
+            sessionID: sessionRepo.activeSessionEnd == nil ? sessionRepo.activeSessionId : nil,
+            dose1: sessionRepo.dose1Time,
+            wakeBy: key.map { SleepPlanStore.shared.wakeByDate(for: $0) },
+            wokeUp: sessionRepo.wakeFinalTime != nil || sessionRepo.checkInCompleted,
+            now: Date()
+        )
+    }
 
     private var iPadBody: some View {
         NavigationSplitView(columnVisibility: $isSidebarVisible) {
@@ -346,6 +377,7 @@ enum AppScreenCapture {
 
 // MARK: - Custom Tab Bar
 struct CustomTabBar: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Binding var selectedTab: AppTab
     
     var body: some View {
@@ -359,12 +391,15 @@ struct CustomTabBar: View {
                     VStack(spacing: 4) {
                         Image(systemName: tab.icon)
                             .font(.system(size: 20))
-                        Text(tab.label)
-                            .font(.caption2)
+                        if !dynamicTypeSize.isAccessibilitySize {
+                            Text(tab.label).font(.caption2)
+                        }
                     }
                     .foregroundColor(selectedTab == tab ? .blue : .gray)
-                    .frame(maxWidth: .infinity)
+                    .frame(maxWidth: .infinity, minHeight: 44)
                 }
+                .accessibilityLabel(tab.label)
+                .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
             }
         }
         .padding(.vertical, 6)

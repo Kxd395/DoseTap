@@ -41,7 +41,8 @@ final class WorkWakeScheduleTests: XCTestCase {
         let first = Date(timeIntervalSince1970: 1_800_000_000)
         XCTAssertNil(WorkWakeSchedule().warning(sessionId: "a", sessionDate: "2027-01-14", dose1: first, now: first.addingTimeInterval(180 * 60), doseTargetMinutes: 165))
         let configured = WorkWakeSchedule(timeZoneIdentifier: "UTC", workingWeekdays: Set(1...7), wakeMinutes: 420, target: .doseTarget, cutoffMinutes: 115, bufferMinutes: 60)
-        XCTAssertNil(configured.warning(sessionId: "a", sessionDate: "2027-01-14", dose1: first, now: first.addingTimeInterval(240 * 60), doseTargetMinutes: 165))
+        XCTAssertNotNil(configured.warning(sessionId: "a", sessionDate: "2027-01-14", dose1: first, now: first.addingTimeInterval(240 * 60), doseTargetMinutes: 165))
+        XCTAssertNil(configured.warning(sessionId: "a", sessionDate: "2027-01-14", dose1: first, now: first.addingTimeInterval(240 * 60 + 1), doseTargetMinutes: 165))
         XCTAssertNil(configured.warning(sessionId: "a", sessionDate: "bad-date", dose1: first, now: first.addingTimeInterval(180 * 60), doseTargetMinutes: 165))
     }
 }

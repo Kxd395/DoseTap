@@ -71,15 +71,18 @@ extension SettingsView {
             }
 
             Section {
+                NavigationLink("Locked-phone alarm setup & test") { SystemAlarmSettingsView() }
                 Toggle(isOn: $settings.notificationsEnabled) {
-                    Label("Enable Notifications", systemImage: "bell.fill")
+                    Label("Enable Dose Notifications", systemImage: "bell.fill")
                 }
 
                 if settings.notificationsEnabled {
-                    Toggle(isOn: $settings.criticalAlertsEnabled) {
-                        Label("Critical Alerts", systemImage: "exclamationmark.triangle.fill")
+                    if Bundle.main.object(forInfoDictionaryKey: "CriticalAlertsCapabilityEnabled") as? Bool == true {
+                        Toggle(isOn: $settings.criticalAlertsEnabled) {
+                            Label("Critical Alerts", systemImage: "exclamationmark.triangle.fill")
+                        }
+                        .tint(.red)
                     }
-                    .tint(.red)
 
                     Toggle(isOn: $settings.windowOpenAlert) {
                         Label("Window Open (150 min)", systemImage: "door.left.hand.open")
@@ -96,7 +99,7 @@ extension SettingsView {
                     Divider()
 
                     Toggle(isOn: $settings.soundEnabled) {
-                        Label("Sound", systemImage: "speaker.wave.2.fill")
+                        Label("In-App & Notification Sound", systemImage: "speaker.wave.2.fill")
                     }
 
                     Toggle(isOn: $settings.hapticsEnabled) {
@@ -104,10 +107,10 @@ extension SettingsView {
                     }
                 }
             } header: {
-                Label("Notifications & Alerts", systemImage: "bell.badge.fill")
+                Label("Dose Notifications & Alerts", systemImage: "bell.badge.fill")
                     .font(.headline)
             } footer: {
-                Text("Critical alerts can override Do Not Disturb for important dose reminders.")
+                Text("On iOS 26+, the Dose 2 system alarm has its own permission and system-controlled sound. Use Locked-phone alarm setup & test to check it. Order reminders have separate controls under Supply & order reminder.")
             }
 
             Section {
@@ -192,6 +195,11 @@ extension SettingsView {
                         Text(medicationSummary)
                             .foregroundColor(.secondary)
                     }
+                }
+                NavigationLink {
+                    SupplySettingsView()
+                } label: {
+                    Label("Supply & order reminder", systemImage: "bell.badge")
                 }
             } header: {
                 Label("Medications", systemImage: "cross.case.fill")
@@ -294,7 +302,7 @@ extension SettingsView {
             } header: {
                 Label("Data Management", systemImage: "externaldrive.fill")
             } footer: {
-                Text("Export a DoseTap Studio bundle for backup or desktop analysis. All data is stored locally on your device only.")
+                Text("Studio bundles include dose and quick-log events, both questionnaires, the wake/sleepiness diary, medication entries, and inventory. Scheduled ZIPs save local records to Files > DoseTap Exports; iOS decides when they run. Use a manual export for available provider measurements. Exports are not a tested full-app restore.")
             }
 
             Section {

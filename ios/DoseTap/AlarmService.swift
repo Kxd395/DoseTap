@@ -25,7 +25,7 @@ protocol AlarmNotificationCenterClient: AnyObject {
 }
 
 @MainActor
-private final class SystemAlarmNotificationCenterClient: AlarmNotificationCenterClient {
+final class SystemAlarmNotificationCenterClient: AlarmNotificationCenterClient {
     private let center: UNUserNotificationCenter
 
     init(center: UNUserNotificationCenter = .current()) {
@@ -163,9 +163,11 @@ public class AlarmService: NSObject, ObservableObject {
     @Published public var reminderScheduled: Bool = false
     @Published public var isAlarmRinging: Bool = false
     @Published public private(set) var lastSchedulingError: String?
+    @Published private(set) var lastSystemAlarmCancellationError: String?
     @Published public private(set) var reconciledTimeZoneIdentifier: String?
     
     private let notificationClient: any AlarmNotificationCenterClient
+    private let systemWakeAlarm: (any SystemDoseAlarmScheduling)?
     private let defaults: UserDefaults
     private let nowProvider: () -> Date
     private let timeZoneProvider: () -> TimeZone
@@ -179,6 +181,7 @@ public class AlarmService: NSObject, ObservableObject {
     private var persistedSchedule: PersistedAlarmSchedule?
     private var scheduleGenerations: [NotificationGroup: UInt64] = [:]
     private var failuresByGroup: [NotificationGroup: AlarmSchedulingFailure] = [:]
+    private var wakeScheduleInFlight = false
 
     private static let persistedScheduleKey = "alarmService_schedule_v1"
     private static let legacyTargetWakeTimeKey = "alarmService_targetWakeTime"
@@ -205,6 +208,7 @@ public class AlarmService: NSObject, ObservableObject {
             case verificationFailed
             case cancelled
             case missingReconstructionMetadata
+            case systemAlarm
         }
 
         public let code: Code
@@ -214,6 +218,8 @@ public class AlarmService: NSObject, ObservableObject {
 
         public var userMessage: String {
             switch code {
+            case .systemAlarm:
+                return detail
             case .notificationsDisabled:
                 return "Notifications are disabled. Enable them to schedule Dose 2 alarms."
             case .authorizationDenied:
@@ -270,6 +276,7 @@ public class AlarmService: NSObject, ObservableObject {
     
     public override init() {
         notificationClient = SystemAlarmNotificationCenterClient()
+        systemWakeAlarm = SystemDoseAlarmFactory.make()
         defaults = .standard
         nowProvider = { Date() }
         timeZoneProvider = { .current }
@@ -283,9 +290,11 @@ public class AlarmService: NSObject, ObservableObject {
         defaults: UserDefaults,
         nowProvider: @escaping () -> Date,
         timeZoneProvider: @escaping () -> TimeZone,
-        configurationProvider: @escaping () -> AlarmConfiguration
+        configurationProvider: @escaping () -> AlarmConfiguration,
+        systemWakeAlarm: (any SystemDoseAlarmScheduling)? = nil
     ) {
         self.notificationClient = notificationClient
+        self.systemWakeAlarm = systemWakeAlarm
         self.defaults = defaults
         self.nowProvider = nowProvider
         self.timeZoneProvider = timeZoneProvider
@@ -298,7 +307,7 @@ public class AlarmService: NSObject, ObservableObject {
         notificationClient.setDelegate(self)
         registerNotificationCategories()
         loadTargetWakeTime()
-        configureAudioSession()
+        if systemWakeAlarm == nil { configureAudioSession() }
     }
 
     private func registerNotificationCategories() {
@@ -466,6 +475,23 @@ public class AlarmService: NSObject, ObservableObject {
     ///   - dose1Time: Time of Dose 1 (for window calculations)
     @discardableResult
     public func scheduleDose2Alarm(at time: Date, dose1Time: Date) async -> AlarmScheduleResult {
+        // AlarmKit uses one stable app-owned identifier. Do not allow two
+        // reentrant scheduling transactions to race across suspension points:
+        // stale cleanup from the older transaction could otherwise remove the
+        // newer verified alarm. A concurrent caller fails closed and may retry.
+        guard !wakeScheduleInFlight else {
+            let result = AlarmScheduleResult.failed(AlarmSchedulingFailure(
+                code: .cancelled,
+                failedIdentifier: NotificationID.dose2Alarm,
+                detail: "Another Dose 2 alarm update is still in progress",
+                previousScheduleRestored: false
+            ))
+            record(result: result, for: .wake)
+            return result
+        }
+        wakeScheduleInFlight = true
+        defer { wakeScheduleInFlight = false }
+
         // Keep action titles in sync with current user snooze settings.
         registerNotificationCategories()
         let now = nowProvider()
@@ -556,6 +582,88 @@ public class AlarmService: NSObject, ObservableObject {
         return result
     }
     
+    // MARK: - System Wake Delivery
+
+    var supportsSystemWakeAlarm: Bool { systemWakeAlarm != nil }
+    var lockScreenAlarmStatus: String {
+        lastSystemAlarmCancellationError ?? systemWakeAlarm?.authorizationDescription ?? "This iOS version uses notification alarms, subject to Silent and Focus settings."
+    }
+
+    func authorizeSystemWakeAlarm() async {
+        do {
+            try await systemWakeAlarm?.requestAuthorization()
+            _ = await reconcilePendingRequests(reason: .manualRetry)
+        } catch { lastSchedulingError = error.localizedDescription }
+        objectWillChange.send()
+    }
+
+    private func systemWakeReceipt(at date: Date) -> AlarmScheduleResult {
+        .scheduled(AlarmScheduleReceipt(group: NotificationGroup.wake.rawValue,
+            scheduledIdentifiers: [SystemDoseAlarmFactory.requestIdentifier], absoluteDeadline: date,
+            timeZoneIdentifier: timeZoneProvider().identifier))
+    }
+
+    private func systemWakeFailure(_ error: Error, restored: Bool = false) -> AlarmSchedulingFailure {
+        AlarmSchedulingFailure(code: .systemAlarm, failedIdentifier: SystemDoseAlarmFactory.requestIdentifier,
+            detail: error.localizedDescription, previousScheduleRestored: restored)
+    }
+
+    @discardableResult private func cancelSystemWakeAlarm() -> AlarmSchedulingFailure? {
+        do {
+            try systemWakeAlarm?.cancel()
+            lastSystemAlarmCancellationError = nil
+            return nil
+        } catch {
+            let message = "Could not cancel the system alarm: \(error.localizedDescription)"
+            lastSystemAlarmCancellationError = message
+            lastSchedulingError = message
+            return systemWakeFailure(NSError(domain: "DoseTapAlarm", code: 2, userInfo: [NSLocalizedDescriptionKey: message]))
+        }
+    }
+
+    private func performSystemWakeTransaction(client: any SystemDoseAlarmScheduling, at date: Date) async -> AlarmScheduleResult {
+        let generation = beginScheduling(for: .wake)
+        var prior: Date?
+        do {
+            try await client.requestAuthorization()
+            guard isCurrent(generation, for: .wake) else { return .failed(cancelledFailure()) }
+            prior = try client.deadline()
+            try await client.schedule(at: date)
+            guard isCurrent(generation, for: .wake) else {
+                try client.cancel()
+                return .failed(cancelledFailure())
+            }
+            guard try client.deadline() == date else { throw SystemDoseAlarmError.verification }
+            // Migration from the notification wake backend is role-specific.
+            notificationClient.removePendingRequests(withIdentifiers: Self.wakeNotificationIdentifiers)
+            notificationClient.removeDeliveredNotifications(withIdentifiers: Self.wakeNotificationIdentifiers)
+            lastSystemAlarmCancellationError = nil
+            return systemWakeReceipt(at: date)
+        } catch {
+            guard isCurrent(generation, for: .wake) else {
+                cancelSystemWakeAlarm()
+                return .failed(cancelledFailure())
+            }
+            let originalError = error
+            var restored = false
+            do {
+                try client.cancel()
+                if let prior, prior > nowProvider() {
+                    try await client.schedule(at: prior)
+                    guard isCurrent(generation, for: .wake) else {
+                        try client.cancel()
+                        return .failed(cancelledFailure())
+                    }
+                    restored = try client.deadline() == prior
+                }
+            } catch {
+                return .failed(systemWakeFailure(NSError(domain: "DoseTapAlarm", code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "\(originalError.localizedDescription) Previous alarm could not be restored: \(error.localizedDescription)"])))
+            }
+            return .failed(systemWakeFailure(originalError, restored: restored))
+        }
+    }
+
     // MARK: - Snooze
     
     /// Snooze the alarm by adding 10 minutes to current target time
@@ -684,8 +792,7 @@ public class AlarmService: NSObject, ObservableObject {
     public func startRinging() {
         guard !isAlarmRinging else { return }
         isAlarmRinging = true
-        playAlarmSound()
-        startVibrationLoop()
+        if systemWakeAlarm == nil { playAlarmSound(); startVibrationLoop() }
     }
 
     public func stopRinging(acknowledge: Bool = true) {
@@ -710,6 +817,7 @@ public class AlarmService: NSObject, ObservableObject {
     /// Cancel all scheduled alarms
     public func cancelAllAlarms() {
         invalidateScheduling(for: .wake)
+        cancelSystemWakeAlarm()
         invalidateScheduling(for: .reminders)
         let ids = Self.wakeNotificationIdentifiers + Self.reminderNotificationIdentifiers
         notificationClient.removePendingRequests(withIdentifiers: ids)
@@ -729,6 +837,7 @@ public class AlarmService: NSObject, ObservableObject {
     /// excluded so snooze and wake-target edits cannot erase them.
     public func cancelWakeAlarms() {
         invalidateScheduling(for: .wake)
+        cancelSystemWakeAlarm()
         notificationClient.removePendingRequests(withIdentifiers: Self.wakeNotificationIdentifiers)
         notificationClient.removeDeliveredNotifications(withIdentifiers: Self.wakeNotificationIdentifiers)
         alarmScheduled = false
@@ -746,7 +855,7 @@ public class AlarmService: NSObject, ObservableObject {
         alarmScheduled = false
         reminderScheduled = false
         failuresByGroup.removeAll()
-        lastSchedulingError = nil
+        lastSchedulingError = lastSystemAlarmCancellationError
         reconciledTimeZoneIdentifier = nil
     }
     
@@ -927,8 +1036,13 @@ public class AlarmService: NSObject, ObservableObject {
         let allGroupIdentifiers = identifiers(for: group)
         guard configurationProvider().notificationsEnabled else {
             invalidateScheduling(for: group)
+            if group == .wake, let failure = cancelSystemWakeAlarm() { return .failed(failure) }
             notificationClient.removePendingRequests(withIdentifiers: allGroupIdentifiers)
             return .notNeeded(reason: "Notifications disabled")
+        }
+
+        if group == .wake, let systemWakeAlarm, let absoluteDeadline {
+            return await performSystemWakeTransaction(client: systemWakeAlarm, at: absoluteDeadline)
         }
 
         let authorization = await notificationClient.authorizationStatus()
@@ -1140,11 +1254,10 @@ public class AlarmService: NSObject, ObservableObject {
         case .failed(let failure):
             failuresByGroup[group] = failure
         }
-        lastSchedulingError = failuresByGroup
+        let groupMessages = failuresByGroup
             .sorted { $0.key.rawValue < $1.key.rawValue }
             .map { $0.value.userMessage }
-            .joined(separator: " ")
-            .nilIfEmpty
+        lastSchedulingError = (groupMessages + [lastSystemAlarmCancellationError].compactMap { $0 }).joined(separator: " ").nilIfEmpty
     }
 
     private func logVerifiedSchedule(_ requests: [UNNotificationRequest]) async {
@@ -1264,8 +1377,23 @@ public class AlarmService: NSObject, ObservableObject {
             || reason == .significantTimeChange
 
         let wakeResult: AlarmScheduleResult
-        let wakeNeedsRepair = force || !wakeIssues.isEmpty || !metadata.wakeVerified
-        if wakeRequests.isEmpty {
+        let wakeNeedsRepair = systemWakeAlarm != nil || force || !wakeIssues.isEmpty || !metadata.wakeVerified
+        if let systemWakeAlarm, metadata.absoluteWakeDeadline <= now {
+            // A system alarm may still be sounding. Foregrounding must not silence it.
+            do {
+                if try systemWakeAlarm.deadline() == metadata.absoluteWakeDeadline {
+                    wakeResult = systemWakeReceipt(at: metadata.absoluteWakeDeadline)
+                    alarmScheduled = true
+                } else {
+                    wakeResult = .notNeeded(reason: "System alarm stopped or expired; medication remains unresolved")
+                    alarmScheduled = false
+                }
+            } catch {
+                wakeResult = .failed(systemWakeFailure(error))
+                alarmScheduled = false
+            }
+            record(result: wakeResult, for: .wake)
+        } else if wakeRequests.isEmpty {
             invalidateScheduling(for: .wake)
             notificationClient.removePendingRequests(withIdentifiers: Self.wakeNotificationIdentifiers)
             alarmScheduled = false
@@ -1586,7 +1714,7 @@ extension AlarmService: UNUserNotificationCenterDelegate {
         // Show notification even when app is in foreground.
         // Respect live sound toggle changes.
         var options: UNNotificationPresentationOptions = [.banner, .badge]
-        if UserSettingsManager.shared.soundEnabled {
+        if notificationId == SupplyReminderService.requestID || UserSettingsManager.shared.soundEnabled {
             options.insert(.sound)
         }
         completionHandler(options)
@@ -1627,6 +1755,9 @@ extension AlarmService: UNUserNotificationCenterDelegate {
                 // active until the user explicitly logs Dose 2 or a skip.
                 self.startRinging()
             } else if actionId == UNNotificationDefaultActionIdentifier {
+                if notificationId == SupplyReminderService.requestID {
+                    URLRouter.shared.showingSupplyReminder = true
+                }
                 if notificationId == NotificationID.dose2Alarm || notificationId.hasPrefix(NotificationID.followUp) {
                     self.startRinging()
                 }

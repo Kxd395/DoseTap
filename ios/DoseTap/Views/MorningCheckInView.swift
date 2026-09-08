@@ -18,6 +18,16 @@ public struct MorningCheckInView: View {
 
     let onComplete: () -> Void
 
+    init(history: HistoryQuestionnaireSnapshot, existing: StoredMorningCheckIn?, referenceTime: Date,
+         onReview: @escaping (SQLiteStoredMorningCheckIn) -> Void) {
+        let model = existing.map { MorningCheckInViewModel(sessionId: history.history.sessionId, sessionDate: history.history.sessionDate, existing: $0) }
+            ?? MorningCheckInViewModel(sessionId: history.history.sessionId, sessionDate: history.history.sessionDate, loadRememberedSettings: false)
+        model.historyReview = onReview
+        if existing == nil { model.shiftStartAt = referenceTime; model.shiftEndAt = referenceTime; model.nextRequiredWakeAt = referenceTime }
+        _viewModel = StateObject(wrappedValue: model)
+        self.onComplete = {}
+    }
+
     public init(sessionId: String, sessionDate: String, onComplete: @escaping () -> Void = {}) {
         _viewModel = StateObject(wrappedValue: MorningCheckInViewModel(sessionId: sessionId, sessionDate: sessionDate))
         self.onComplete = onComplete
@@ -34,7 +44,8 @@ public struct MorningCheckInView: View {
                 VStack(spacing: 24) {
                     headerSection
                     MorningCheckInQuickModeSection(viewModel: viewModel)
-                    MorningCheckInDoseReconciliationSection(viewModel: viewModel)
+                    if !viewModel.isHistory { MorningCheckInDoseReconciliationSection(viewModel: viewModel) }
+                    else { Text("Treatment night: \(viewModel.sessionDate). These answers do not add doses or close tonight's session. Use Add / Correct Records for medication changes.").font(.footnote) }
                     MorningCheckInNightContextSection(viewModel: viewModel)
                     MorningCheckInMorningFunctioningSection(viewModel: viewModel)
                     MorningCheckInWorkSafetySection(viewModel: viewModel)
@@ -54,7 +65,7 @@ public struct MorningCheckInView: View {
                     MorningCheckInSleepTherapySection(viewModel: viewModel)
                     MorningCheckInNarcolepsySection(viewModel: viewModel)
                     MorningCheckInNotesSection(viewModel: viewModel)
-                    MorningCheckInRememberSettingsSection(viewModel: viewModel)
+                    if !viewModel.isHistory { MorningCheckInRememberSettingsSection(viewModel: viewModel) }
                     MorningCheckInSubmitSection(
                         viewModel: viewModel,
                         dismissAction: { dismiss() },
@@ -68,7 +79,7 @@ public struct MorningCheckInView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Skip") {
+                    Button(viewModel.isHistory ? "Cancel" : "Skip") {
                         dismiss()
                         onComplete()
                     }
@@ -88,9 +99,9 @@ public struct MorningCheckInView: View {
             Image(systemName: "sunrise.fill")
                 .font(.system(size: 48))
                 .foregroundStyle(.orange.gradient)
-            Text("Good Morning!")
+            Text(viewModel.isHistory ? "Review a Past Morning" : "Good Morning!")
                 .font(.title2.bold())
-            Text("Quick check-in about last night's sleep")
+            Text(viewModel.isHistory ? "Answer for treatment night \(viewModel.sessionDate)" : "Quick check-in about last night's sleep")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
         }

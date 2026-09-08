@@ -11,10 +11,10 @@ extension DashboardAnalyticsModel {
                     "Dose 2 timestamp",
                     "Dose 2 skipped status",
                     "Inter-dose interval (minutes)",
-                    "On-time dosing (150-240m window)",
+                    "In-window recorded pairs (150 to less than 240 minutes)",
                     "Snooze count",
                     "Extra dose count",
-                    "Consecutive on-time streak"
+                    "Pending and unrecorded Dose 2 outcomes"
                 ]
             ),
             DashboardMetricCategory(
@@ -47,11 +47,30 @@ extension DashboardAnalyticsModel {
                 ]
             ),
             DashboardMetricCategory(
+                id: "whoop",
+                title: "WHOOP Recovery & Biometrics",
+                metrics: [
+                    "Recovery score and HRV",
+                    "Resting heart rate and respiratory rate",
+                    "Sleep efficiency and disturbances",
+                    "REM, deep, light and awake minutes"
+                ]
+            ),
+            DashboardMetricCategory(
+                id: "lifestyle",
+                title: "Pre-Sleep & Lifestyle",
+                metrics: [
+                    "Caffeine, alcohol, exercise, screens and late meals",
+                    "Bedtime and morning stress with reported stressors",
+                    "Answered-log counts; unanswered questions are excluded"
+                ]
+            ),
+            DashboardMetricCategory(
                 id: "quality",
                 title: "Data Quality & Reliability",
                 metrics: [
                     "Duplicate event cluster count",
-                    "Completeness score (0.0-1.0)",
+                    "Nights with at least 3 of 4 data categories",
                     "Missing Dose 2 outcome",
                     "Missing HealthKit summary",
                     "Missing morning check-in",

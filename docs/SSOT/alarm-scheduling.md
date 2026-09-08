@@ -7,6 +7,29 @@ This document is normative for DoseTap medication alarms and Dose 2 safety remin
 
 ## Safety Model
 
+### System wake alarms on iOS 26+
+
+The Dose 2 wake role uses a fixed-date AlarmKit alarm on iOS 26 and later,
+with its separate user authorization and pending-alarm readback. AlarmService
+retains ownership of the absolute wake target, retry and snooze policy. Existing
+UNUserNotificationCenter safety reminders and supply reminders remain separate.
+Earlier iOS versions retain the notification wake path described below; its
+sound and presentation remain subject to notification, Silent and Focus settings.
+The app must not claim continuous locked-phone audio from its AVAudioPlayer.
+
+System Stop silences the alarm without recording Dose 2. Opening DoseTap leads
+to the existing explicit medication controls. System snooze is not enabled;
+DoseTap's in-app snooze continues to enforce the canonical window and limit.
+The stable system-alarm identifier is isolated from supply reminders. Reset,
+completion and cancellation invalidate pending system-alarm writes and cancel it.
+The UI shows permission or scheduling errors and offers a permission/retry path.
+Cancellation errors survive session-state cleanup and remain visible until corrected.
+Settings provides a separate, stable-ID one-minute test alarm; it neither replaces
+the Dose 2 alarm nor creates a medication event. The unsupported Critical Alerts
+toggle is hidden unless the app declares its existing capability flag; no entitlement
+or account approval is fabricated. In-app/notification sound and system-alarm sound
+are labeled separately.
+
 A call to `UNUserNotificationCenter.add` is an attempted write, not proof of a durable schedule. DoseTap may show a wake alarm or reminder group as scheduled only when all required requests for that group are present in the pending-request store and match the requested absolute instants.
 
 There are two independently managed notification groups:

@@ -74,12 +74,12 @@ struct TrendsView: View {
         recentSessions.filter { $0.whoop != nil }.count
     }
 
-    private var likelyNaturalWakeCount: Int {
-        recentSessions.filter { $0.likelyNaturalWake == true }.count
+    private var recordedNaturalWakeCount: Int {
+        recentSessions.filter { $0.recordedNaturalWake == true }.count
     }
 
     private var alarmAssistedCount: Int {
-        recentSessions.filter { $0.likelyNaturalWake == false }.count
+        recentSessions.filter { $0.recordedNaturalWake == false }.count
     }
 
     private var lateMealCount: Int {
@@ -201,8 +201,8 @@ struct TrendsView: View {
             trendCard(title: "Avg Recovery", value: averageRecovery.map { String(format: "%.0f%%", $0) } ?? "—", accent: .purple)
             trendCard(title: "Apple Health", value: "\(healthKitCount)", accent: .green)
             trendCard(title: "WHOOP", value: "\(whoopCount)", accent: .purple)
-            trendCard(title: "Likely Natural Wake", value: "\(likelyNaturalWakeCount)", accent: .teal)
-            trendCard(title: "Alarm-Assisted", value: "\(alarmAssistedCount)", accent: .orange)
+            trendCard(title: "Recorded Natural D2 Wake", value: "\(recordedNaturalWakeCount)", accent: .teal)
+            trendCard(title: "Recorded Alarm D2 Wake", value: "\(alarmAssistedCount)", accent: .orange)
             trendCard(title: "Late Meal Nights", value: "\(lateMealCount)", accent: .pink)
             trendCard(title: "Schedule Markers", value: "\(scheduleMarkerCount)", accent: .indigo)
             trendCard(title: "Trainable Nights", value: "\(trainableNightCount)", accent: .green)

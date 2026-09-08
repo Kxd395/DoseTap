@@ -70,7 +70,7 @@ for heading in "${REQUIRED_SECTIONS[@]}"; do
   fi
 done
 
-if rg -Fq '150 minutes inclusive through 240 minutes exclusive' "$SSOT" && rg -qi 'default target interval is 165' "$SSOT" && rg -qi 'rolls over at 18:00' "$SSOT" && rg -qi 'undo window is 5 seconds' "$SSOT"; then
+if rg -Fq '150 minutes inclusive through 240 minutes inclusive' "$SSOT" && rg -qi 'default target interval is 165' "$SSOT" && rg -qi 'rolls over at 18:00' "$SSOT" && rg -qi 'undo window is 5 seconds' "$SSOT"; then
   pass "medication window, default target, rollover, and undo constraints are present"
 else
   fail "one or more core safety constraints are absent from the SSOT"

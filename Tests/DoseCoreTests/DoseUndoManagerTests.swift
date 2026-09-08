@@ -2,6 +2,13 @@ import XCTest
 @testable import DoseCore
 
 final class DoseUndoManagerTests: XCTestCase {
+    func testInvalidatingForHistoryReviewPreventsUndoOfTheReplacement() async {
+        let manager = DoseUndoManager()
+        await manager.register(.takeDose2(at: Date()))
+        await manager.invalidate()
+        let result = await manager.undo()
+        XCTAssertEqual(result, .noAction)
+    }
     
     // MARK: - Registration Tests
     

@@ -3,6 +3,43 @@ import DoseCore
 
 /// Pre-sleep log answers model with nested enums for type-safe options
 public struct PreSleepLogAnswers: Codable {
+    public struct LastFoodEntry: Codable, Equatable {
+        public enum Kind: String, Codable, CaseIterable {
+            case meal, snack, caloricDrink
+            var title: String {
+                switch self {
+                case .meal: return "Meal"
+                case .snack: return "Snack"
+                case .caloricDrink: return "Calorie-containing drink"
+                }
+            }
+        }
+        public var finishedAt: Date
+        public var kind: Kind?
+        public var highFat: Bool?
+        public var notes: String?
+        public init(finishedAt: Date, kind: Kind? = nil, highFat: Bool? = nil, notes: String? = nil) {
+            self.finishedAt = finishedAt
+            self.kind = kind
+            self.highFat = highFat
+            self.notes = notes
+        }
+        var highFatText: String { highFat.map { $0 ? "Yes" : "No" } ?? "Unsure" }
+        func validate(at reference: Date) throws {
+            guard finishedAt.timeIntervalSince1970.isFinite, reference.timeIntervalSince1970.isFinite,
+                  finishedAt <= reference else { throw ValidationError.invalidTime }
+            guard (notes?.count ?? 0) <= 500 else { throw ValidationError.longNotes }
+        }
+        enum ValidationError: LocalizedError {
+            case invalidTime, longNotes
+            var errorDescription: String? {
+                switch self {
+                case .invalidTime: return "Last food must finish at or before this check-in's date and time."
+                case .longNotes: return "Keep food notes to 500 characters or fewer."
+                }
+            }
+        }
+    }
     
     // MARK: - Nested Enums for Question Options
     
@@ -486,6 +523,7 @@ public struct PreSleepLogAnswers: Codable {
     public var napLastEndAt: Date?
     
     // Optional details
+    public var lastFood: LastFoodEntry?
     public var lateMeal: LateMeal?
     public var lateMealEndedAt: Date?
     public var screensInBed: ScreensInBed?

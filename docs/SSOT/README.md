@@ -1,9 +1,9 @@
 # DoseTap SSOT (Single Source of Truth)
 
 Status: Current behavior authority
-Last verified: 2026-09-04
-SSOT revision: 0.4.15
-Shipping app version observed in the Xcode project: 0.4.12 (build 14)
+Last verified: 2026-09-07
+SSOT revision: 0.4.19
+Shipping app version observed in the Xcode project: 0.4.19 (build 23)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -16,6 +16,7 @@ This document is the authoritative specification for current DoseTap behavior. I
 - Human-readable schema: `docs/DATABASE_SCHEMA.md`
 - Dose persistence contract: `docs/SSOT/dose-state-persistence.md`
 - Alarm scheduling contract: `docs/SSOT/alarm-scheduling.md`
+- Local order reminder contract: `docs/SSOT/supply-reminder.md`
 - Data dictionary: `docs/SSOT/contracts/DataDictionary.md`
 - Diagnostic logging: `docs/DIAGNOSTIC_LOGGING.md`
 
@@ -26,6 +27,14 @@ Notes:
 ---
 
 ## Domain Entities and Invariants
+
+### Last food in pre-sleep logging (DOSETAP-50)
+
+- Record the last food finish date/time, meal/snack/calorie-containing drink type, optional high-fat/oily Yes/No/Unsure answer, and optional notes (500 characters). Unrecorded is not fasting; Unsure is not No.
+- Store an optional `lastFood` object in pre-sleep answers and additive `pre.food.last.*` normalized responses. Preserve legacy late-meal records without inferring fat content or treating them as a verified last-food record. Food observations never carry forward into a new night.
+- Save and History correction use existing questionnaire transactions and provenance. Reject non-finite/future finish times relative to questionnaire occurrence, and overlong notes, without partial writes.
+- Show the same fields in History review and exports. This is a diary entry, not dose eligibility, dose adjustment, alarm control, or a safe-to-dose indicator.
+- Food guidance follows XYWAV prescribing information sections 2.4 and 12.3 (revised July 2025): at least two hours after eating; a high-fat meal affects exposure, but the label does not define an additional fatty-food wait. Source: https://pp.jazzpharma.com/pi/xywav.en.USPI.pdf.
 
 ### SleepSession
 
@@ -51,11 +60,14 @@ Schedule settings used by rollover logic (from `UserSettingsManager`):
 - `missedCheckInCutoffHours` (default 4)
 
 Safety constraints (authoritative):
-- Dose 2 timing is classified from absolute elapsed seconds: before 150 minutes is early; 150 minutes inclusive through 240 minutes exclusive is in-window; 240 minutes or later is late. Negative or non-finite elapsed values are invalid. Display rounding must never determine eligibility, adherence, export status, or scores.
+- Dose 2 timing is classified from absolute elapsed seconds: 150 minutes inclusive through 240 minutes inclusive is in-window; before 150 minutes is early and more than 240 minutes is late. Negative or non-finite elapsed values are invalid. Display rounding must never determine eligibility, adherence, export status, or scores.
+- Endpoint reconciliation (DOSETAP-15, 2026-09-07): the owner-requested inclusive upper endpoint replaces the prior exclusive contract. It implements the twice-nightly 2.5-to-4-hour interval in the [XYWAV prescribing information, sections 2.2 and 2.3](https://pp.jazzpharma.com/pi/xywav.en.USPI.pdf). Exactly 14,400 elapsed seconds is in-window; any larger interval is late. This does not change prescribed amounts, permit automatic medication recording, or equate in-window timing with medication effectiveness.
 - Default target interval is 165 minutes (valid planner targets: 165, 180, 195, 210, 225).
 - Session day grouping rolls over at 18:00 (6 PM) local time.
 - Undo window is 5 seconds by default for dose/event actions.
 - Elapsed time, an unanswered alarm, app foregrounding, or session rollover must never persist a taken, skipped, or missed medication outcome.
+- An ordinary Dose 2 request opens an explicit record confirmation; the initial tap, deep link, or Flic action cannot commit it. Confirmation is single-use, bound to the active session and its Dose 1 timestamp, and invalidated when the app becomes inactive. Confirming rechecks the current timing and work-warning policy and captures the commit-time clock; a stale prompt must never supply an earlier alarm or request timestamp.
+- The confirmation control says that it records a dose already taken. Cancel, dismissal, alarm open/stop, and backgrounding leave the medication record unchanged. The early warning plus hold-to-confirm remains its existing explicit confirmation path; retrospective and extra-dose confirmations also remain distinct. A work-warning acknowledgement alone does not replace ordinary Dose 2 record confirmation.
 - `closed` is a calculated timing phase, not a persisted medication outcome. An unresolved record remains unresolved until the user explicitly records an occurrence that already happened or marks Dose 2 missed / not taken.
 - Prospective Dose 2 actions are blocked after the configured window. A real occurrence remains recordable retrospectively with its actual timestamp; an occurrence outside the configured window requires an explicit accuracy warning and confirmation.
 
@@ -64,7 +76,7 @@ Safety constraints (authoritative):
 - Storage: `dose_events` table with `session_id` and `session_date`. See `EventStorage+Dose.swift` for `saveDose1/saveDose2/saveDoseSkipped/saveSnooze`.
 - Event types (exact strings): `dose1`, `dose2`, `extra_dose`, `dose2_skipped`, `snooze`.
 - Dose index rule: `doseIndex = (count of dose events in session) + 1` where count includes `dose1`, `dose2`, `extra_dose` only.
-- Dose 2 late flag: `is_late = true` if `doseIndex == 2` and `timestamp >= dose1 + maxInterval`.
+- Dose 2 late flag: `is_late = true` if `doseIndex == 2` and `timestamp > dose1 + maxInterval`.
 - Retrospective Dose 2 records persist `entry_mode = retrospective`, `recorded_at_utc`, and the initiating `surface` in metadata while keeping the event timestamp equal to the actual occurrence time.
 - Extra dose rule: `doseIndex >= 3` only. Timer expiration never changes dose index.
 - An ordinary Dose 2 command must never be promoted to `extra_dose` because another surface committed first. Repository and storage preconditions require an explicit extra-dose confirmation.
@@ -192,7 +204,7 @@ ASCII diagram:
 noDose1
   | takeDose1
   v
-beforeWindow --(150m)--> active --(<15m left)--> nearClose --(240m, no write)--> closed
+beforeWindow --(150m)--> active --(<=15m left)--> nearClose --(>240m, no write)--> closed
    | takeDose2 (early override)        | takeDose2                       | record actual occurrence
    v                                   v                                 | or explicitly mark missed
 completed <----------------------------+---------------------------------+
@@ -300,6 +312,8 @@ Wide-layout adaptations:
 - **History**: Side-by-side calendar picker (left) and selected day detail (right) on iPad.
 - **Timeline/Settings**: Benefit from wider content area; no structural change needed.
 
+Compact History insights use one row of four metrics at standard text sizes, with wrapping labels. Larger accessibility text and detailed definitions use fewer columns. Tonight uses one outer horizontal inset and no duplicate tab-bar spacer. The ready-for-tonight layout, including a previous-night reminder and the weekly summary, should fit a standard portrait phone without incidental scrolling. Scrolling remains available for smaller screens, larger text, additional logs, and safety warnings; controls and warnings must never be clipped to force a fit.
+
 Tab selection is synced between compact (TabView `$urlRouter.selectedTab`) and regular (sidebar selection `$urlRouter.selectedTab`) layouts. Deep links work identically in both modes.
 
 Code references:
@@ -308,6 +322,16 @@ Code references:
 - `ios/DoseTap/URLRouter.swift` (`AppTab` enum, `selectedTab`)
 
 ---
+
+## Appearance
+
+### Automatic Night Mode (DOSETAP-48)
+
+- Automatic Night Mode is enabled by default and can be disabled in Settings → Theme. It changes DoseTap's appearance only, not device brightness, Focus, alarms, or medication state.
+- A committed Dose 1 in the open active session enables the existing red/amber theme until that treatment night's Sleep Plan `Wake by` instant (including its nightly override). Dose 2, skips, and brief wakes do not end it. Explicit final wake, session closure, or removing/undoing Dose 1 ends it early.
+- The saved manual appearance is preserved during automation and restored at wake-up. Selecting a theme manually overrides automation for that session, including across app restart; the next session can automate again. Turning automation off restores the saved appearance; turning it back on explicitly resumes eligibility.
+- Launch, foreground, committed session changes, and the visible clock reconcile appearance from current session state. Historical-only records and failed/unconfirmed medication actions cannot start it. While visible, the wake boundary is checked once per second; after suspension it is checked on foreground, without requiring background execution.
+- Quick Log events and all dosing confirmation/hold behavior remain unchanged.
 
 ## Time Boundary Model
 
@@ -344,6 +368,31 @@ Data retention:
 - `DoseTapStaging` target: a quarantined CloudKit implementation exists for validation. Hosted round-trip, conflict, privacy, and delete-convergence evidence remain open; it is not a shipping backup guarantee.
 
 ---
+
+## Manual history and reviewed corrections (DOSETAP-47)
+
+- History exposes Add / Correct Records for the selected treatment night, even when no record exists. Manual entry records an occurrence already past; it is never permission to take medication now. Apple Health and WHOOP observations remain read-only.
+- History also exposes the full pre-sleep and morning questionnaires for the explicitly selected treatment night, including nights without dose records. Each add/correction requires a reviewed past occurrence time, reason, and confirmation; the actual submission time is retained separately. Existing answers and their prior revisions are preserved in questionnaire provenance. Conflicting identities or concurrent changes fail closed. Questionnaire-only saves do not reconcile medication, write remembered defaults or wake overrides, schedule alarms, or complete the active session. Cancel leaves both questionnaires and medication unchanged.
+- Dose 1, Dose 2, explicit missed/not-taken outcomes, and extra doses may be added or corrected with an actual timestamp, a reason, and explicit confirmation. Early/late occurrences remain recordable with an accuracy warning, not an arbitrary retrospective interval cap. Future or reversed timestamps and contradictory/duplicate primary outcomes are rejected. Dose 1 is never inferred from Dose 2.
+- An erroneous medication row may be removed from the effective record only after review. Its original contents remain in a non-dose `history_correction` audit event. Removing a row does not mean skipped; dependent doses must be corrected first. Replacements preserve original metadata and correction chains.
+- The standard CSV includes the medication event ledger and metadata, including extra doses and non-dose correction evidence, instead of only primary-dose projections. This still is not a whole-project backup.
+- A save is tied to the reviewed session identity and original rows. Stale or ambiguous reviews fail without writing; no date-only fallback may select another session. Empty-night entries create an isolated historical identity, never a new active session.
+- Manual quick-log events are available for the selected past night, not just the preceding 24 hours. Failed writes keep the editor open. Medication and sleep history changes publish only after transaction commit.
+- Historical edits do not reopen sessions or affect unrelated alarms. An edit to the active medication record invalidates pending consent and reconciles its alarms from the updated state; a saved record and a failed alarm side effect must be reported separately.
+
+## Dose 2 wake and next-day diary (DOSETAP-49)
+
+- Explicit Dose 2 wake method is Natural, Alarm, Other or Unknown; backup-alarm setup is an independent optional answer. Natural waking before a backup alarm remains Natural. Alarm delivery, snoozes, timestamps and missing answers never imply a wake method or a medication event.
+- Dose 2 confirmation offers mutually exclusive Natural / Alarm checkboxes, initially unanswered. Selecting, cancelling or backgrounding does not persist a choice or record medication. The confirmed dose and its selected wake answer commit in one transaction, including early-hold and retrospective occurrence entry. The morning check-in and History review the same `night_outcome.v1` answer, not a duplicate morning-only answer; final morning awakening remains a separate question.
+- A session-bound night-outcome submission records wake details, optional final awakening, following-day Workday/Day off/Unknown, and an optional personal 0–10 sleepiness rating with assessment time. It does not replace the legacy 1–5 morning-questionnaire field or represent a validated clinical score. Epworth is not a per-night outcome.
+- Outcome saves cannot write medication, finish a session, or schedule alarms. Stale dose/session or outcome snapshots fail without writing. Revisions retain prior answers and require a reason when an already answered value is changed; filling an unanswered field is a new observation. History exposes the same diary for an existing selected night.
+- Estimated sleep after Dose 2 sums the union of recorded asleep intervals clipped between the actual second dose and final awakening, subtracting recorded awake intervals. It does not count elapsed time, in-bed time or provider totals as sleep segments. Missing segment data is unavailable, never zero. Coverage gaps remain unmeasured and are disclosed; WHOOP totals alone cannot supply this estimate.
+- The natural-versus-alarm comparison shows medians, usable sample counts and expandable middle-50% ranges, with Other/Unknown visible separately and an explicit following-day filter. Missing outcomes remain distinct from confirmed skipped/missed doses. Descriptive differences are not medication-effectiveness or causation claims.
+- Comparison groups use the explicit session-bound wake diary only. Legacy morning-questionnaire wake fields may be carry-forward defaults and cannot distinguish an explicitly reconfirmed answer; they remain preserved but are not silently treated as verified wake-method observations. Older nights can be confirmed through History.
+- Studio uses the version-1 collected-night Dose 2 wake answer for wake labels, tags, cohorts, trend counts and report calculations. Unknown, unsupported versions and nights without a recorded Dose 2 cannot become Natural or Alarm from legacy fields or alarm diagnostics. Other remains distinct. Legacy context stays available in raw exports for review.
+- A recorded following-day Workday, Day off or Unknown answer overrides Studio's legacy work/off context for grouping and filters. Older bundles without this answer retain their separate legacy context; it is not filled into the diary. Natural-wake scoring requires a recorded Natural or Alarm answer. Unanswered/Other wake methods do not enter that score or its denominator.
+- Studio's older composite timing score remains an exploratory legacy measure, not a validated outcome or dosing/driving recommendation. Its existing 1–5 questionnaire inputs are not replaced or combined with the personal 0–10 sleepiness rating or post-Dose-2 sleep estimate. Timing reports disclose that distinction and carry the collected diary fields alongside the legacy score, with the same redaction rules as the night CSV.
+- History's Natural Wake percentage also uses explicit Dose 2 wake answers, dividing Natural by answered Natural/Alarm/Other nights. Unknown and unreadable answers do not enter that denominator. No answered nights is unavailable, not zero; a zero-snooze night is never assumed to be a natural wake.
 
 ## Known Limitations (Truth, Not Plans)
 
@@ -499,7 +548,7 @@ State transitions:
 ### Data Surface Gating
 
 All WHOOP data display is gated behind `WHOOPService.isEnabled` and/or data presence checks:
-- **Dashboard:** WHOOP Card shown only when `!model.whoopNights.isEmpty`. Recovery KPIs in Executive Summary conditional on `averageWhoopRecovery != nil`.
+- **Dashboard:** WHOOP measurements appear only with recorded WHOOP nights; otherwise its card explains the missing data and connection/range checks. Recovery and HRV appear in the WHOOP card with observed sample counts and as compact Overview summaries, all using the same provider aggregates.
 - **Timeline:** `extractBiometricData()` returns empty arrays when `!WHOOPService.isEnabled`.
 - **Night Review:** `HealthDataCard` WHOOP section guarded behind `WHOOPService.isEnabled`.
 - **Sleep Snapshot:** WHOOP Metrics section guarded behind `averageWhoopRecovery != nil || averageWhoopHRV != nil`.
@@ -530,3 +579,29 @@ Resolve the wake date in the saved work schedule timezone from the canonical tre
 Inside the medication window, passing the selected target on a working wake date presents Continue to Record Dose 2, I'm Not Working [exact date], Change Wake Time, and Cancel. Continue revalidates timing and the schedule revision; its acknowledgement is committed in dose metadata. Schedule changes never create a dose. A failed schedule write leaves the previous schedule and warning effective. After the medication window, only the retrospective resolution policy applies.
 
 Work schedule configuration and dated overrides are stored together in SQLite `work_wake_schedule`. Weekly confirmation is an independent reminder and is deferred; its absence never blocks medication recording. Historical acknowledgements retain the schedule revision, timezone, wake instant, target instant and selected mode.
+
+### Dashboard analytics contract (DOSETAP-45)
+
+- Food/outcome reporting parity: one versioned `collectedNight` projection exposes last-food finish/type/high-fat/notes, exact non-negative food-to-dose intervals, explicit Dose 2 wake/backup-alarm/following-day/final-wake answers, personal 0–10 sleepiness and assessment/record timestamps, and measured post-Dose-2 sleep with source/coverage. Raw questionnaire answers and revision history remain in the bundle; legacy 1–5 ratings and late-meal answers stay separate.
+- Food analytics use completed pre-sleep logs only. High-fat Yes/No/Unsure groups and unrecorded nights remain distinct, use medians with per-outcome usable counts, and follow the selected range/provider. No dose changes, inferred fasting, causal claims or food-effectiveness score. Food notes remain a detail field rather than an aggregate.
+- Manual and scheduled local exports share the Studio bundle writer and include all local questionnaire submissions, events, medication and inventory rows, plus a flat collected-night CSV. Scheduled exports do not fetch network/provider enrichment; source unavailability stays explicit. Publish a unique completed archive only after all files succeed; cancellation/failure must not advance the successful-export date. Scheduled timing and signed-device background behavior remain OS-controlled acceptance gates.
+- Studio imports the versioned projection and shows/report-exports its fields without converting old ratings or inferring legacy wake answers. Missing projections in older bundles are unavailable, not zero. CSV quoting must preserve commas, quotes, CR/LF; spreadsheet-safe text escaping must round-trip through Studio. Export remains an analysis archive, not a content-equal whole-project restore guarantee.
+- Studio export actions and metadata adapt to the available window width. Save status remains below the actions. Source iPhone build identifies the imported archive, not the running Studio app or the current phone installation. Redaction applies to generated reports; an imported bundle copy preserves the original data.
+
+- Date ranges include exactly the selected number of civil night keys through the current evening-anchored night; malformed and future keys are excluded. All Time includes all discovered local history. Provider fetch horizons remain explicit (Apple Health up to 120 nights, WHOOP 30 days).
+- Recorded dose events own retrospective timing; never infer Dose 1 from Dose 2 or an extra dose. Pending Dose 2 (before the existing upper timing boundary) is separate from missing outcomes. Recorded outcomes include explicit skips; on-time percentages use valid timestamp pairs only, with exact elapsed seconds and the shared MedicationTiming classification.
+- Missing observations remain missing, never zero or an implicit negative answer. Bathroom analytics count logs; duration is not measured. Pre-sleep completion requires a completed log. Stress-driver frequency counts each driver at most once per night.
+- Studio's 30-day dose-timing cards use valid recorded timestamp pairs only, disclose their usable pair count, and show No data when no pairs exist. Classify each pair from unrounded elapsed seconds, never a legacy adherence flag. The average interval is descriptive; it is not labeled Optimal, Good, or an effectiveness result.
+- Sleep comparisons use one explicitly selected provider without fallback. Show sample counts, source coverage and fetch errors. Descriptive timing groups and associations do not measure medication effectiveness or establish causation; changes in an average are not automatically improvements.
+- Dashboard defaults to All, showing Overview, Trends and Data in one scroll; these groups remain optional filters. The captured metric reference is available in All and Data. Missing WHOOP, prior-period or timing-group inputs show explanatory cards. Empty, loading and partial-provider states remain visible. Existing Typical Week, nightly overrides, medication supply and alarm behavior are unchanged.
+
+Tonight’s weekly summary covers the seven finished civil nights before the current night. “Dose 2 recorded” is the fraction of Dose-1 nights with a recorded second dose; explicit skips and unrecorded outcomes are shown separately. Gaps are not a day streak, and orphan second doses cannot inflate the rate.
+
+Dashboard WHOOP sleep totals/stage proportions require all three sleep-stage fields; omitted stage, awake or disturbance fields are unavailable rather than zero. A recovery-enrichment failure preserves scored sleep data and surfaces a warning. This changes missingness presentation, not provider records.
+
+
+### Dashboard build-14 metric parity (DOSETAP-45)
+- Restore the useful build-14 summaries in every applicable section, using the same dashboard model: selected-range night count, finished-night in-window streak, category coverage, summary WHOOP recovery/HRV, nightly status, per-night coverage and descriptive interval change.
+- The finished-night streak ends on the civil night before the current 18:00 night key, stops at a missing/non-in-window night, and is limited to the selected range. An active night never breaks or inflates it.
+- Coverage is a count out of four existing record categories, never statistical confidence. Missing fields stay visible as unavailable; unknown observations never become zero.
+- Colors identify timing (blue), sleep/check-ins (purple) and coverage (teal). Orange identifies record-review actions; provider recovery ranges and chart series retain explicit text legends. Directional comparison colors never imply that shorter intervals or higher values are better.

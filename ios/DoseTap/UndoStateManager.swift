@@ -119,6 +119,11 @@ class UndoStateManager: ObservableObject {
         isVisible = false
         currentAction = nil
     }
+
+    func invalidateForHistoryReview() async {
+        await undoManager?.invalidate()
+        dismiss()
+    }
     
     // MARK: - Private
     

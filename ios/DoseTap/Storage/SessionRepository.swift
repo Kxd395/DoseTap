@@ -19,6 +19,7 @@ import UIKit
 
 /// Protocol for notification scheduling to enable testing without real UNUserNotificationCenter
 public protocol NotificationScheduling: Sendable {
+    @MainActor
     func cancelNotifications(withIdentifiers ids: [String])
 }
 
@@ -26,8 +27,12 @@ public protocol NotificationScheduling: Sendable {
 public final class SystemNotificationScheduler: NotificationScheduling {
     public static let shared = SystemNotificationScheduler()
     
-    public func cancelNotifications(withIdentifiers ids: [String]) {
+    @MainActor public func cancelNotifications(withIdentifiers ids: [String]) {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ids)
+        if ids.contains("dosetap_dose2_alarm") {
+            // This cancellation path never reads SessionRepository.shared.
+            AlarmService.shared.cancelWakeAlarms()
+        }
     }
 }
 
@@ -58,6 +63,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     
     /// Emits whenever session data changes (for observers that need explicit signal)
     public let sessionDidChange = PassthroughSubject<Void, Never>()
+    var supplyGeneration: UInt = 0
     
     // MARK: - Phase Tracking (for diagnostic logging)
     /// Tracks last known phase to detect transitions at edges
@@ -683,7 +689,8 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         recordedAt: Date? = nil,
         surface: RegistrationSurface? = nil,
         reason: String? = nil,
-        reasonNotes: String? = nil
+        reasonNotes: String? = nil,
+        wakeMethod: Dose2WakeKind? = nil
     ) -> MedicationMutationResult {
         evaluateSessionBoundaries(reason: "set_dose2_preflight")
         let storedState = storage.loadCurrentSessionState()
@@ -752,7 +759,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         }
 
         let isDose2 = nextDoseIndex == 2 && !isExtra
-        let isLate = isDose2 && time >= doseWindowCloseTime(dose1Time: firstDoseTime)
+        let isLate = isDose2 && MedicationTiming.classify(dose1: firstDoseTime, dose2: time) == .late
         let previousDoseTime = sortedEvents.last?.timestamp
         let elapsedSincePrev = previousDoseTime.map { TimeIntervalMath.minutesBetween(start: $0, end: time) }
         let elapsedSinceFirst = TimeIntervalMath.minutesBetween(start: firstDoseTime, end: time)
@@ -769,7 +776,8 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             reason: reason,
             reasonNotes: reasonNotes,
             sessionId: session.sessionId,
-            sessionDateOverride: session.sessionDate
+            sessionDateOverride: session.sessionDate,
+            wakeMethod: wakeMethod
         ))
         guard result.isCommitted else {
             return result
@@ -1367,6 +1375,8 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     /// ⚠️ DESTRUCTIVE: This removes all dose logs, sleep events, check-ins, etc.
     public func clearAllData() {
         storage.clearAllData()
+        supplyGeneration &+= 1
+        notificationScheduler.cancelNotifications(withIdentifiers: [SupplyReminderService.requestID])
         cancelPendingNotifications()
         
         // Reset in-memory state

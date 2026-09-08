@@ -1,0 +1,178 @@
+import SwiftUI
+import DoseCore
+
+extension Dose2WakeKind {
+    var title: String { rawValue.capitalized }
+}
+extension FollowingDayKind {
+    var title: String { self == .dayOff ? "Day off" : rawValue.capitalized }
+}
+
+/// Local selection only. The enclosing dose confirmation owns the eventual write.
+struct Dose2WakeSelection: View {
+    @Binding var selection: Dose2WakeKind
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("How did you wake for Dose 2?").font(.headline)
+            HStack(spacing: 12) {
+                option(.natural, "Woke naturally")
+                option(.alarm, "Woke to an alarm")
+            }
+            Text("Optional. Leave both unchecked if unsure; you can add or correct this in the morning.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+    private func option(_ kind: Dose2WakeKind, _ title: String) -> some View {
+        Button { selection = selection == kind ? .unknown : kind } label: {
+            Label(title, systemImage: selection == kind ? "checkmark.square.fill" : "square")
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        }
+        .buttonStyle(.borderless)
+        .accessibilityIdentifier("dose2-wake-\(kind.rawValue)")
+        .accessibilityValue(selection == kind ? "Selected" : "Not selected")
+    }
+}
+
+/// Review the same wake answer later without changing the medication record.
+struct NightOutcomeButton: View {
+    let sessionDate: String
+    var accessibilityID: String = "night-outcome-open"
+    @State private var showing = false
+    @State private var summary = "Natural / Alarm · Next-day check-in"
+    private let repo = SessionRepository.shared
+    var body: some View {
+        Button { showing = true } label: {
+            Label(summary, systemImage: "sun.and.horizon")
+                .font(.subheadline).frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        }
+        .accessibilityIdentifier(accessibilityID)
+        .sheet(isPresented: $showing, onDismiss: load) { NightOutcomeEditor(sessionDate: sessionDate) }
+        .task(id: sessionDate) { load() }
+        .onReceive(repo.sessionDidChange) { load() }
+    }
+    private func load() {
+        if let answers = try? repo.nightOutcomeSnapshot(sessionDate: sessionDate).record?.answers {
+            summary = "Dose 2 wake: \(answers.wakeMethod.title) · Next-day check-in"
+        } else { summary = "Natural / Alarm · Next-day check-in" }
+    }
+}
+
+struct NightOutcomeEditor: View {
+    let sessionDate: String
+    @Environment(\.dismiss) private var dismiss
+    @State private var review: NightOutcomeSnapshot?
+    @State private var answers = NightOutcomeDiary()
+    @State private var finalWake = Date()
+    @State private var assessedAt = Date()
+    @State private var hasFinalWake = false
+    @State private var hasSleepiness = false
+    @State private var rating = 5
+    @State private var reason = ""
+    @State private var error: String?
+    @State private var saved = false
+    @State private var showSaveError = false
+    private let repo = SessionRepository.shared
+
+    private var draft: NightOutcomeDiary {
+        var value = answers
+        value.finalWakeAt = hasFinalWake ? finalWake : nil
+        value.sleepiness = hasSleepiness ? rating : nil
+        value.assessedAt = hasSleepiness ? assessedAt : nil
+        return value
+    }
+    private var needsReason: Bool { review?.record.map { draft.changesAnsweredFields(of: $0.answers) } ?? false }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Text("Treatment night: \(sessionDate)")
+                    Text("These answers do not record a dose or change alarms.").font(.footnote)
+                }
+                if needsReason {
+                    Section("Reason required for correction") {
+                        TextField("Why are you changing this answer?", text: $reason, axis: .vertical)
+                            .accessibilityIdentifier("night-outcome-reason")
+                        Text("Prior answers are retained. Adding an unanswered field does not need a correction reason.").font(.footnote)
+                    }
+                }
+                Section("Wake method for Dose 2") {
+                    Picker("Wake method", selection: $answers.wakeMethod) {
+                        ForEach(Dose2WakeKind.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("night-wake-method")
+                    .disabled(review?.history.events.contains(where: { $0.eventType == "dose2" }) != true)
+                    Picker("Backup alarm set", selection: $answers.backupAlarmSet) {
+                        Text("Unknown").tag(nil as Bool?)
+                        Text("Yes").tag(true as Bool?)
+                        Text("No").tag(false as Bool?)
+                    }
+                    Text("Waking naturally before a backup alarm still counts as Natural.").font(.footnote)
+                }
+                Section("Following day") {
+                    Picker("Day type", selection: $answers.dayType) {
+                        ForEach(FollowingDayKind.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    Text("Workday or day off refers to the day after this treatment night.").font(.footnote)
+                    Toggle("Record final awakening", isOn: $hasFinalWake)
+                    if hasFinalWake {
+                        DatePicker("Final awakening", selection: $finalWake, in: ...Date())
+                    }
+                    Toggle("Record next-day sleepiness", isOn: $hasSleepiness)
+                        .accessibilityIdentifier("night-sleepiness-toggle")
+                    if hasSleepiness {
+                        Stepper("Sleepiness: \(rating) / 10", value: $rating, in: 0...10)
+                        DatePicker("Assessed at", selection: $assessedAt, in: ...Date())
+                        Text("0 = fully alert; 10 = struggling to stay awake. Record final awakening too. Aim for a consistent time, such as six hours after final awakening. This is a personal diary rating, not a validated clinical score.")
+                            .font(.footnote)
+                    }
+                }
+                if let error {
+                    Section("Not saved") {
+                        Text(error).foregroundStyle(.red)
+                        Button("Reload saved answers") { load() }
+                    }
+                }
+                if let revisions = review?.record?.revisions, !revisions.isEmpty {
+                    DisclosureGroup("Previous answers (\(revisions.count))") {
+                        ForEach(Array(revisions.enumerated()), id: \.offset) { _, revision in
+                            Text("\(revision.recordedAt.formatted()): \(revision.answers.wakeMethod.title), sleepiness \(revision.answers.sleepiness.map(String.init) ?? "not recorded"). \(revision.reason)")
+                                .font(.footnote)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Wake & Next Day")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") { save() }.disabled(review == nil)
+                        .accessibilityIdentifier("night-outcome-save")
+                }
+            }
+            .onAppear { load() }
+            .alert("Answers saved", isPresented: $saved) { Button("OK") { dismiss() } }
+            .alert("Answers not saved", isPresented: $showSaveError) { Button("OK", role: .cancel) {} } message: {
+                Text(error ?? "Please review the answers and try again.")
+            }
+        }
+    }
+    private func load() {
+        do {
+            let snapshot = try repo.nightOutcomeSnapshot(sessionDate: sessionDate)
+            guard !snapshot.history.isNew else { error = "Add this night's dose or questionnaire record first."; review = nil; return }
+            review = snapshot; answers = snapshot.record?.answers ?? NightOutcomeDiary()
+            hasFinalWake = answers.finalWakeAt != nil; hasSleepiness = answers.sleepiness != nil
+            finalWake = answers.finalWakeAt ?? Date(); assessedAt = answers.assessedAt ?? Date()
+            rating = answers.sleepiness ?? 5; reason = ""; error = nil
+        } catch { self.error = "This night's answers could not be read. Nothing has changed."; review = nil }
+    }
+    private func save() {
+        guard let review else { return }
+        let result = repo.saveNightOutcome(draft, review: review, reason: reason)
+        if result.isCommitted { error = nil; saved = true }
+        else { error = result.failure?.detail ?? "Answers were not saved. Please reload and review."; showSaveError = true }
+    }
+}

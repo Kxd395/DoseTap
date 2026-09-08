@@ -53,16 +53,46 @@ struct DoseTapApp: App {
         #endif
         Self.migrateSetupStateIfNeeded()
         #if DEBUG && targetEnvironment(simulator)
+        if ProcessInfo.processInfo.arguments.contains("--uitesting-auto-night-reset") {
+            let repository = SessionRepository.shared
+            repository.clearTonight()
+            let now = Date()
+            let calendar = Calendar.current
+            let minutes = calendar.component(.hour, from: now) * 60 + calendar.component(.minute, from: now)
+            UserSettingsManager.shared.prepTimeMinutes = (minutes + 1439) % 1440
+            UserSettingsManager.shared.wakeTimeMinutes = (minutes + 60) % 1440
+            UserSettingsManager.shared.soundEnabled = false
+            // Use the recurring schedule: Tonight prunes dated overrides for
+            // non-active nights before the UI records its first dose.
+            for weekday in 1...7 {
+                SleepPlanStore.shared.updateEntry(weekday: weekday, wakeTime: now.addingTimeInterval(3600), enabled: true)
+            }
+            ThemeManager.shared.automaticNightModeEnabled = true
+            ThemeManager.shared.applyTheme(.dark)
+        }
+        if ProcessInfo.processInfo.arguments.contains("--uitesting-auto-night-wake"),
+           let key = SessionRepository.shared.activeSessionDate {
+            SleepPlanStore.shared.setTonightOverride(sessionKey: key, wakeBy: Date().addingTimeInterval(15))
+        }
+        if ProcessInfo.processInfo.arguments.contains("--uitesting-layout") {
+            SessionRepository.shared.clearTonight()
+        }
         if ProcessInfo.processInfo.arguments.contains("--uitesting-expired-session") {
             UserDefaults.standard.set(true, forKey: SetupWizardService.setupCompletedKey)
             SessionRepository.prepareExpiredSessionUITestFixture()
         }
-        if ProcessInfo.processInfo.arguments.contains("--uitesting-work-warning") {
+        if ProcessInfo.processInfo.arguments.contains("--uitesting-history-reset") {
+            SessionRepository.shared.deleteSession(sessionDate: "2020-01-14")
+        }
+        if ProcessInfo.processInfo.arguments.contains("--uitesting-work-warning")
+            || ProcessInfo.processInfo.arguments.contains("--uitesting-dose2-confirmation") {
             UserDefaults.standard.set(true, forKey: SetupWizardService.setupCompletedKey)
             UserSettingsManager.shared.targetIntervalMinutes = 165
             UserSettingsManager.shared.soundEnabled = false
             let repository = SessionRepository.shared
-            repository.prepareWorkWarningUITestSession()
+            repository.prepareWorkWarningUITestSession(
+                working: !ProcessInfo.processInfo.arguments.contains("--uitesting-dose2-confirmation")
+            )
         }
         #endif
 
@@ -147,6 +177,16 @@ struct DoseTapApp: App {
             }
             .onAppear {
                 ReleaseArtifactSmokeMarker.recordIfRequested()
+                Task { await SupplyReminderService.shared.reconcile() }
+            }
+            .onChange(of: scenePhase) { phase in
+                if phase == .active { Task { await SupplyReminderService.shared.reconcile() } }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
+                Task { await SupplyReminderService.shared.reconcile() }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in
+                Task { await SupplyReminderService.shared.reconcile() }
             }
             .onChange(of: isSetupComplete) { completed in
                 if completed {
@@ -200,6 +240,7 @@ struct DoseTapApp: App {
             }
             
         case .background:
+            container.doseCoordinator.cancelDose2Confirmation()
             backgroundedAt = Date()
             Task {
                 await DiagnosticLogger.shared.logAppBackgrounded(sessionId: sessionId)
@@ -207,6 +248,7 @@ struct DoseTapApp: App {
             AlarmService.shared.stopRinging(acknowledge: false)
 
         case .inactive:
+            container.doseCoordinator.cancelDose2Confirmation()
             // Transitional state, don't log
             break
             

@@ -111,6 +111,8 @@ struct SelectedDayView: View {
                     .fill(Color(.secondarySystemBackground))
             )
 
+            if hasData { NightOutcomeButton(sessionDate: sessionDateString) }
+
             if let dose = doseLog {
                 VStack(alignment: .leading, spacing: 8) {
                     Button {
@@ -275,7 +277,7 @@ struct SelectedDayView: View {
                     referenceTime: resolutionReferenceTime,
                     isAlreadyMarkedMissed: dose.skipped,
                     repository: sessionRepo,
-                    recordOccurrence: { occurrence, reason, notes, acknowledgement in
+                    recordOccurrence: { occurrence, reason, notes, acknowledgement, wakeMethod in
                         do {
                             let warning = try sessionRepo.workWakeSchedule().warning(sessionId: identity, sessionDate: sessionDateString, dose1: dose.dose1Time, now: occurrence, doseTargetMinutes: UserSettingsManager.shared.targetIntervalMinutes, retrospective: true)
                             if let warning, warning != acknowledgement { return .needsConfirm(.workWake(warning)) }
@@ -284,7 +286,8 @@ struct SelectedDayView: View {
                         }
                         let result = sessionRepo.recordHistoricalDose2Occurrence(
                             sessionId: identity, sessionDate: sessionDateString,
-                            occurrenceTime: occurrence, confirmed: true, reason: reason, notes: notes, workWarning: acknowledgement
+                            occurrenceTime: occurrence, confirmed: true, reason: reason, notes: notes,
+                            workWarning: acknowledgement, wakeMethod: wakeMethod
                         )
                         if result.isCommitted { return .success(message: "Historical Dose 2 record saved") }
                         return .retryRequired(message: result.failure?.detail ?? "The record could not be saved. Reload and retry.")
@@ -296,39 +299,13 @@ struct SelectedDayView: View {
             }
         }
         .sheet(isPresented: $editingDose1) {
-            if let dose = doseLog {
-                EditDoseTimeView(
-                    doseNumber: 1,
-                    originalTime: dose.dose1Time,
-                    dose1Time: nil,
-                    sessionDate: sessionDateString,
-                    onSave: { newTime in
-                        saveDose1Time(newTime)
-                    }
-                )
-            }
+            HistoryRecordsEditor(sessionDate: sessionDateString, initialDoseType: "dose1", onCommitted: { loadData() })
         }
         .sheet(isPresented: $editingDose2) {
-            if let dose = doseLog, let dose2Time = dose.dose2Time {
-                EditDoseTimeView(
-                    doseNumber: 2,
-                    originalTime: dose2Time,
-                    dose1Time: dose.dose1Time,
-                    sessionDate: sessionDateString,
-                    onSave: { newTime in
-                        saveDose2Time(newTime)
-                    }
-                )
-            }
+            HistoryRecordsEditor(sessionDate: sessionDateString, initialDoseType: "dose2", onCommitted: { loadData() })
         }
         .sheet(item: $editingEvent) { event in
-            EditEventTimeView(
-                event: event,
-                sessionDate: sessionDateString,
-                onSave: { newTime in
-                    saveEventTime(event: event, newTime: newTime)
-                }
-            )
+            HistoryRecordsEditor(sessionDate: sessionDateString, initialSleepID: event.id, onCommitted: { loadData() })
         }
         .alert("Delete Event?", isPresented: Binding<Bool>(
             get: { eventToDelete != nil },

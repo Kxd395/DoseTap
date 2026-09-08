@@ -5,6 +5,7 @@ import os.log
 
 // MARK: - Normalized Check-In Submission Storage
 
+
 extension EventStorage {
 
     enum SQLiteTransactionError: Error, LocalizedError {

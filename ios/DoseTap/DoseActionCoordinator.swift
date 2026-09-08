@@ -37,6 +37,7 @@ final class DoseActionCoordinator: ObservableObject {
     var undoState: UndoStateManager?
     var sessionRepo: SessionRepository?
     var hapticObserver: ((FeedbackIntensity) -> Void)?
+    private var pendingDose2Confirmation: Dose2Confirmation?
 
     // MARK: - Result Types
 
@@ -49,6 +50,7 @@ final class DoseActionCoordinator: ObservableObject {
     }
 
     enum ConfirmationType: Equatable {
+        case dose2Record(Dose2Confirmation)
         /// Window not open yet - tell user how many minutes remain
         case workWake(WorkWakeWarning)
         case earlyDose(minutesRemaining: Int)
@@ -64,6 +66,18 @@ final class DoseActionCoordinator: ObservableObject {
         case none
         case earlyConfirmed
         case extraDoseConfirmed
+    }
+
+    /// A one-use intent challenge, never a saved dose or an alarm timestamp.
+    struct Dose2Confirmation: Equatable, Identifiable {
+        let id = UUID()
+        fileprivate let sessionId: String
+        fileprivate let dose1Time: Date
+        fileprivate let override: DoseOverride
+        fileprivate let workWarning: WorkWakeWarning?
+        fileprivate let reason: String?
+        fileprivate let reasonNotes: String?
+        fileprivate let surface: RegistrationSurface
     }
 
     // MARK: - Init
@@ -168,12 +182,96 @@ final class DoseActionCoordinator: ObservableObject {
 
     // MARK: - Take Dose 2
 
+    /// Historical writes are not live-dose commands. Only a matching active
+    /// night's existing alarm state is reconciled after the record commits.
+    func saveHistoryDoseChange(_ change: HistoryDoseChange, review: HistoryRecordSnapshot,
+                               confirmed: Bool, warningConfirmed: Bool) async -> ActionResult {
+        guard let repo = sessionRepo else { return .blocked(reason: "Session store unavailable") }
+        let wasActive = repo.activeSessionId == review.sessionId
+        if wasActive { await undoState?.invalidateForHistoryReview() }
+        let result = repo.applyHistoryDoseChange(change, review: review, confirmed: confirmed, warningConfirmed: warningConfirmed)
+        guard result.isCommitted else { return .retryRequired(message: result.failure?.detail ?? "History was not saved.") }
+        guard wasActive else { return .success(message: "History record saved") }
+        cancelDose2Confirmation()
+        undoState?.dismiss()
+        alarmService.cancelAllAlarms()
+        guard repo.activeSessionId == review.sessionId, let first = repo.dose1Time,
+              repo.dose2Time == nil, !repo.dose2Skipped else {
+            if let error = alarmService.lastSchedulingError { return .attentionRequired(message: "History saved. \(error)") }
+            return .success(message: "History record saved")
+        }
+        let target = first.addingTimeInterval(Double(UserSettingsManager.shared.targetIntervalMinutes) * 60)
+        var failures: [String] = []
+        if target > dateProvider.now() {
+            let wake = await alarmService.scheduleDose2Alarm(at: target, dose1Time: first)
+            if let failure = wake.failure { failures.append(failure.userMessage) }
+        }
+        guard repo.activeSessionId == review.sessionId, repo.dose1Time == first,
+              repo.dose2Time == nil, !repo.dose2Skipped else {
+            return .attentionRequired(message: "History saved. The active session changed during alarm reconciliation; review Tonight.")
+        }
+        let reminders = await alarmService.scheduleDose2Reminders(dose1Time: first)
+        if let failure = reminders.failure { failures.append(failure.userMessage) }
+        if !failures.isEmpty { return .attentionRequired(message: "History saved. \(failures.joined(separator: " "))") }
+        if target <= dateProvider.now() {
+            return .attentionRequired(message: "History saved. The original alarm time is past and was not replayed. Review Tonight's alarm status.")
+        }
+        return .success(message: "History saved and remaining reminders updated")
+    }
+
     func takeDose2(
         override: DoseOverride = .none,
         acknowledgedWorkWarning: WorkWakeWarning? = nil,
         reason: String? = nil,
         reasonNotes: String? = nil,
-        surface: RegistrationSurface = .tonightButton
+        surface: RegistrationSurface = .tonightButton,
+        wakeMethod: Dose2WakeKind? = nil
+    ) async -> ActionResult {
+        // Bind the challenge to canonical persisted precision, not the
+        // sub-millisecond Date still in memory immediately after Dose 1.
+        sessionRepo?.refreshForTimeChange()
+        return await evaluateDose2(
+            override: override, acknowledgedWorkWarning: acknowledgedWorkWarning,
+            reason: reason, reasonNotes: reasonNotes, surface: surface,
+            explicitlyConfirmed: false, wakeMethod: wakeMethod
+        )
+    }
+
+    func cancelDose2Confirmation(_ confirmation: Dose2Confirmation? = nil) {
+        if confirmation == nil || pendingDose2Confirmation == confirmation {
+            pendingDose2Confirmation = nil
+        }
+    }
+
+    func confirmDose2(_ confirmation: Dose2Confirmation, wakeMethod: Dose2WakeKind? = nil) async -> ActionResult {
+        guard pendingDose2Confirmation == confirmation else {
+            return .blocked(reason: "This confirmation expired. Reopen Record Dose 2 and review it again.")
+        }
+        // Consume before any suspension: duplicate taps cannot replay consent.
+        pendingDose2Confirmation = nil
+        sessionRepo?.refreshForTimeChange()
+        guard let repository = sessionRepo,
+              repository.activeSessionId == confirmation.sessionId,
+              repository.dose1Time == confirmation.dose1Time,
+              repository.dose2Time == nil, !repository.dose2Skipped else {
+            return .blocked(reason: "The session changed. Review the current record before confirming Dose 2.")
+        }
+        return await evaluateDose2(
+            override: confirmation.override,
+            acknowledgedWorkWarning: confirmation.workWarning,
+            reason: confirmation.reason, reasonNotes: confirmation.reasonNotes,
+            surface: confirmation.surface, explicitlyConfirmed: true, wakeMethod: wakeMethod
+        )
+    }
+
+    private func evaluateDose2(
+        override: DoseOverride,
+        acknowledgedWorkWarning: WorkWakeWarning?,
+        reason: String?,
+        reasonNotes: String?,
+        surface: RegistrationSurface,
+        explicitlyConfirmed: Bool,
+        wakeMethod: Dose2WakeKind? = nil
     ) async -> ActionResult {
         let sig = DoseSignpost.begin(.takeDose2, "override=\(override),surface=\(surface.rawValue)")
         defer { DoseSignpost.end(.takeDose2, sig) }
@@ -214,6 +312,20 @@ final class DoseActionCoordinator: ObservableObject {
                     surface: surface
                 )
             }
+            // The early path already has a warning and an explicit hold-to-confirm
+            // screen. Ordinary in-window requests have no such consent yet.
+            if !explicitlyConfirmed && override != .earlyConfirmed {
+                guard let sessionId = sessionRepo?.activeSessionId, let firstDose = input.dose1Time else {
+                    return .blocked(reason: "Reload the current session before recording Dose 2.")
+                }
+                let confirmation = Dose2Confirmation(
+                    sessionId: sessionId, dose1Time: firstDose, override: override,
+                    workWarning: workWarning, reason: reason, reasonNotes: reasonNotes,
+                    surface: surface
+                )
+                pendingDose2Confirmation = confirmation
+                return .needsConfirm(.dose2Record(confirmation))
+            }
             if phase == .beforeWindow {
                 guard override == .earlyConfirmed else {
                     return .needsConfirm(
@@ -227,7 +339,7 @@ final class DoseActionCoordinator: ObservableObject {
                     isEarly: true,
                     reason: reason,
                     reasonNotes: reasonNotes,
-                    surface: surface
+                    surface: surface, wakeMethod: wakeMethod
                 )
             }
             return await performDose2(
@@ -237,7 +349,7 @@ final class DoseActionCoordinator: ObservableObject {
                 workWarning: workWarning,
                 reason: reason,
                 reasonNotes: reasonNotes,
-                surface: surface
+                surface: surface, wakeMethod: wakeMethod
             )
         case .requiresConfirmation(let type):
             return .needsConfirm(mapConfirmation(type))
@@ -255,7 +367,8 @@ final class DoseActionCoordinator: ObservableObject {
         acknowledgedWorkWarning: WorkWakeWarning? = nil,
         reason: String? = nil,
         reasonNotes: String? = nil,
-        surface: RegistrationSurface = .tonightButton
+        surface: RegistrationSurface = .tonightButton,
+        wakeMethod: Dose2WakeKind? = nil
     ) async -> ActionResult {
         guard sessionRepo != nil else {
             return .blocked(reason: "Session store unavailable")
@@ -285,8 +398,9 @@ final class DoseActionCoordinator: ObservableObject {
             }
             let interval = occurrenceTime.timeIntervalSince(dose1Time)
             let config = DoseCore.DoseWindowConfig()
-            let isEarly = interval < Double(config.minIntervalMin) * 60
-            let isLate = interval >= Double(config.maxIntervalMin) * 60
+            let timing = MedicationTiming.classify(elapsedSeconds: interval, config: config)
+            let isEarly = timing == .early
+            let isLate = timing == .late
             let eventName: String
             if isEarly {
                 eventName = "Dose 2 (Early, Recorded Later)"
@@ -305,7 +419,7 @@ final class DoseActionCoordinator: ObservableObject {
                 recordedAt: decisionTime,
                 reason: reason,
                 reasonNotes: reasonNotes,
-                surface: surface
+                surface: surface, wakeMethod: wakeMethod
             )
         case .requiresConfirmation(let type):
             return .needsConfirm(mapConfirmation(type))
@@ -442,7 +556,8 @@ final class DoseActionCoordinator: ObservableObject {
         recordedAt: Date? = nil,
         reason: String? = nil,
         reasonNotes: String? = nil,
-        surface: RegistrationSurface
+        surface: RegistrationSurface,
+        wakeMethod: Dose2WakeKind? = nil
     ) async -> ActionResult {
         guard let sessionRepo else {
             return .blocked(reason: "Session store unavailable")
@@ -467,7 +582,7 @@ final class DoseActionCoordinator: ObservableObject {
             recordedAt: recordedAt ?? decisionTime,
             surface: surface,
             reason: reason,
-            reasonNotes: reasonNotes
+            reasonNotes: reasonNotes, wakeMethod: wakeMethod
         )
         await logDoseMutationResult(
             mutationResult,

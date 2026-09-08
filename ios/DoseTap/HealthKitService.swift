@@ -1,5 +1,6 @@
 import Foundation
 import HealthKit
+import DoseCore
 import os.log
 
 private let healthKitLog = Logger(subsystem: "com.dosetap.app", category: "HealthKitService")
@@ -54,6 +55,7 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
         let totalSleepMinutes: Double
         let wakeCount: Int      // Number of wake periods (WASO proxy)
         let source: String
+        var recordedIntervals: [RecordedSleepInterval] = []
     }
     
     enum SleepStage {
@@ -511,7 +513,10 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
             ttfwMinutes: ttfwMinutes,
             totalSleepMinutes: totalSleepMinutes,
             wakeCount: wakeCount,
-            source: source
+            source: source,
+            recordedIntervals: sorted.filter { $0.stage.isAsleep || $0.stage == .awake }.map {
+                RecordedSleepInterval(start: $0.start, end: $0.end, asleep: $0.stage.isAsleep)
+            }
         )
     }
 

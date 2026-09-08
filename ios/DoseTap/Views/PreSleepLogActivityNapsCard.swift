@@ -2,10 +2,77 @@ import DoseCore
 import Foundation
 import SwiftUI
 
+private struct PreSleepLastFoodSection: View {
+    @Binding var answers: PreSleepLogAnswers
+    let referenceTime: Date?
+
+    var body: some View {
+        QuestionSection(title: "Last food", icon: "fork.knife") {
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle("Record last food", isOn: Binding(
+                    get: { answers.lastFood != nil },
+                    set: { answers.lastFood = $0 ? .init(finishedAt: referenceTime ?? Date()) : nil }
+                ))
+                .accessibilityIdentifier("pre-last-food-toggle")
+                if answers.lastFood != nil {
+                    Text("Set when you finished eating or drinking. Include a snack or calorie-containing drink if it came after your meal.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    DatePicker("Finished at", selection: Binding(
+                        get: { answers.lastFood?.finishedAt ?? referenceTime ?? Date() },
+                        set: { answers.lastFood?.finishedAt = $0 }
+                    ), in: ...(referenceTime ?? Date()), displayedComponents: [.date, .hourAndMinute])
+                    .accessibilityIdentifier("pre-last-food-time")
+                    HStack {
+                        Text("Food type")
+                        Spacer()
+                        Picker("Food type", selection: Binding(
+                            get: { answers.lastFood?.kind }, set: { answers.lastFood?.kind = $0 }
+                        )) {
+                            Text("Not specified").tag(Optional<PreSleepLogAnswers.LastFoodEntry.Kind>.none)
+                            ForEach(PreSleepLogAnswers.LastFoodEntry.Kind.allCases, id: \.self) { kind in
+                                Text(kind.title).tag(Optional(kind))
+                            }
+                        }
+                        .labelsHidden()
+                        .accessibilityIdentifier("pre-last-food-kind")
+                    }
+                    Text("High-fat or oily?").font(.subheadline)
+                    Picker("High-fat or oily?", selection: Binding(
+                        get: { answers.lastFood?.highFat }, set: { answers.lastFood?.highFat = $0 }
+                    )) {
+                        Text("Unsure").tag(Optional<Bool>.none)
+                        Text("No").tag(Optional(false))
+                        Text("Yes").tag(Optional(true))
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("pre-last-food-fat")
+                    TextField("Food notes (optional, 500 characters)", text: Binding(
+                        get: { answers.lastFood?.notes ?? "" }, set: { answers.lastFood?.notes = $0 }
+                    ), axis: .vertical)
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityIdentifier("pre-last-food-notes")
+                } else {
+                    Text("Not recorded. This does not mean you had no food.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Text("XYWAV labeling says to take it at least 2 hours after eating. A high-fat meal can affect absorption; the label does not give an extra wait for oily foods. Follow your prescriber's instructions. This log does not change your dose or confirm it is time to take it.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Link("XYWAV food guidance", destination: URL(string: "https://pp.jazzpharma.com/pi/xywav.en.USPI.pdf")!)
+                    .font(.caption)
+                if let legacy = answers.lateMeal {
+                    Text("Earlier late-meal answer: \(legacy.displayText). Kept separately from last food.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+}
+
 // MARK: - Card 3: Activity + Naps + Optional More Details
 struct Card3ActivityNaps: View {
     @Binding var answers: PreSleepLogAnswers
     @Binding var showMoreDetails: Bool
+    var referenceTime: Date? = nil
 
     var body: some View {
         ScrollView {
@@ -90,6 +157,8 @@ struct Card3ActivityNaps: View {
                     }
                 }
 
+                PreSleepLastFoodSection(answers: $answers, referenceTime: referenceTime)
+
                 Divider()
                     .padding(.vertical, 8)
 
@@ -101,26 +170,6 @@ struct Card3ActivityNaps: View {
 
                 if showMoreDetails {
                     Group {
-                        QuestionSection(title: "Late meal?", icon: "fork.knife") {
-                            VStack(spacing: 10) {
-                                OptionGrid(
-                                    options: PreSleepLogAnswers.LateMeal.allCases,
-                                    selection: $answers.lateMeal
-                                )
-                                if (answers.lateMeal ?? PreSleepLogAnswers.LateMeal.none) != .none {
-                                    SubstanceDetailCard(title: "Meal Timing") {
-                                        SubstanceTimePickerRow(
-                                            label: "Last meal ended",
-                                            value: Binding(
-                                                get: { answers.lateMealEndedAt ?? defaultLateMealEndedAt() },
-                                                set: { answers.lateMealEndedAt = $0 }
-                                            )
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
                         QuestionSection(title: "Screens in bed?", icon: "iphone") {
                             VStack(spacing: 10) {
                                 OptionGrid(
@@ -244,13 +293,6 @@ struct Card3ActivityNaps: View {
         .onChange(of: answers.napTotalMinutes) { _ in
             normalizeNapDetails()
         }
-        .onChange(of: answers.lateMeal) { newValue in
-            if (newValue ?? PreSleepLogAnswers.LateMeal.none) == .none {
-                answers.lateMealEndedAt = nil
-            } else if answers.lateMealEndedAt == nil {
-                answers.lateMealEndedAt = defaultLateMealEndedAt()
-            }
-        }
         .onChange(of: answers.screensInBed) { newValue in
             if (newValue ?? PreSleepLogAnswers.ScreensInBed.none) == .none {
                 answers.screensLastUsedAt = nil
@@ -274,7 +316,7 @@ struct Card3ActivityNaps: View {
     }
 
     private func defaultExerciseLastAt() -> Date {
-        Date().addingTimeInterval(-4 * 3600)
+        (referenceTime ?? Date()).addingTimeInterval(-4 * 3600)
     }
 
     private func defaultExerciseDurationMinutes() -> Int {
@@ -296,15 +338,11 @@ struct Card3ActivityNaps: View {
     }
 
     private func defaultNapLastEndAt() -> Date {
-        Date().addingTimeInterval(-6 * 3600)
-    }
-
-    private func defaultLateMealEndedAt() -> Date {
-        Date().addingTimeInterval(-2 * 3600)
+        (referenceTime ?? Date()).addingTimeInterval(-6 * 3600)
     }
 
     private func defaultScreensLastUsedAt() -> Date {
-        Date().addingTimeInterval(-45 * 60)
+        (referenceTime ?? Date()).addingTimeInterval(-45 * 60)
     }
 
     private var sleepAidDetailTitle: String {
@@ -361,10 +399,6 @@ struct Card3ActivityNaps: View {
     }
 
     private func bootstrapOptionalDetailsIfNeeded() {
-        if (answers.lateMeal ?? PreSleepLogAnswers.LateMeal.none) != .none, answers.lateMealEndedAt == nil {
-            answers.lateMealEndedAt = defaultLateMealEndedAt()
-        }
-
         if (answers.screensInBed ?? PreSleepLogAnswers.ScreensInBed.none) != .none, answers.screensLastUsedAt == nil {
             answers.screensLastUsedAt = defaultScreensLastUsedAt()
         }

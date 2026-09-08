@@ -1,6 +1,12 @@
 import SwiftUI
 import DoseCore
 
+enum DashboardSleepSource: String, CaseIterable, Identifiable {
+    case appleHealth = "Apple Health"
+    case whoop = "WHOOP"
+    var id: String { rawValue }
+}
+
 enum DashboardDateRange: String, CaseIterable, Identifiable {
     case week = "7D"
     case twoWeeks = "14D"
@@ -33,14 +39,14 @@ enum DashboardDateRange: String, CaseIterable, Identifiable {
         }
     }
 
-    func cutoffDate(from anchor: Date = Date()) -> Date {
+    func cutoffDate(from anchor: Date = Date(), calendar: Calendar = .current) -> Date {
         guard self != .all else { return .distantPast }
-        return Calendar.current.date(byAdding: .day, value: -(days - 1), to: anchor) ?? .distantPast
+        return calendar.date(byAdding: .day, value: -(days - 1), to: calendar.startOfDay(for: anchor)) ?? .distantPast
     }
 
-    func priorPeriodCutoff(from anchor: Date = Date()) -> (start: Date, end: Date) {
-        let end = cutoffDate(from: anchor)
-        let start = Calendar.current.date(byAdding: .day, value: -days, to: end) ?? .distantPast
+    func priorPeriodCutoff(from anchor: Date = Date(), calendar: Calendar = .current) -> (start: Date, end: Date) {
+        let end = cutoffDate(from: anchor, calendar: calendar)
+        let start = calendar.date(byAdding: .day, value: -days, to: end) ?? .distantPast
         return (start, end)
     }
 }
@@ -59,8 +65,34 @@ struct DashboardNightAggregate: Identifiable {
     let whoopSummary: WHOOPNightSummary?
     let duplicateClusterCount: Int
     let napSummary: SessionRepository.NapSummary
+    var outcome: NightOutcomeDiary? = nil
+    var outcomeReadFailed = false
+
+    var effectiveWakeMethod: Dose2WakeKind {
+        guard dose2Time != nil, !outcomeReadFailed else { return .unknown }
+        // Legacy questionnaires may carry this answer forward from another night.
+        // Only the explicitly saved, session-bound diary is comparison evidence.
+        return outcome?.wakeMethod ?? .unknown
+    }
+
+    var postDoseSleep: PostDoseSleepEstimate? {
+        guard let dose2Time, let wake = outcome?.finalWakeAt ?? healthSummary?.finalWake else { return nil }
+        return PostDoseSleepEstimate.calculate(dose2: dose2Time, finalWake: wake,
+            intervals: healthSummary?.recordedIntervals ?? [])
+    }
 
     var id: String { sessionDate }
+
+    var exactIntervalMinutes: Double? {
+        guard let dose1Time, let dose2Time else { return nil }
+        let seconds = dose2Time.timeIntervalSince(dose1Time)
+        return seconds.isFinite && seconds >= 0 ? seconds / 60 : nil
+    }
+
+    func isPendingDose2(at now: Date) -> Bool {
+        guard let dose1Time, dose2Time == nil, !dose2Skipped else { return false }
+        return now <= dose1Time.addingTimeInterval(Double(DoseCore.DoseWindowConfig().maxIntervalMin) * 60)
+    }
 
     var intervalMinutes: Int? {
         guard let dose1Time, let dose2Time else { return nil }
@@ -69,15 +101,8 @@ struct DashboardNightAggregate: Identifiable {
     }
 
     var onTimeDosing: Bool? {
-        guard let dose1Time, let dose2Time else { return nil }
+        guard let dose1Time, let dose2Time, exactIntervalMinutes != nil else { return nil }
         return MedicationTiming.classify(dose1: dose1Time, dose2: dose2Time) == .inWindow
-    }
-
-    var totalSleepMinutes: Double? {
-        if let whoopMin = whoopSummary?.totalSleepMinutes, whoopMin > 0 {
-            return Double(whoopMin)
-        }
-        return healthSummary?.totalSleepMinutes
     }
 
     var appleHealthSleepMinutes: Double? {
@@ -85,14 +110,8 @@ struct DashboardNightAggregate: Identifiable {
     }
 
     var whoopSleepMinutes: Double? {
-        guard let minutes = whoopSummary?.totalSleepMinutes, minutes > 0 else { return nil }
+        guard whoopSummary?.hasCompleteSleepStages == true, let minutes = whoopSummary?.totalSleepMinutes, minutes > 0 else { return nil }
         return Double(minutes)
-    }
-
-    var preferredSleepSourceLabel: String? {
-        if whoopSleepMinutes != nil { return "WHOOP" }
-        if appleHealthSleepMinutes != nil { return "Apple Health" }
-        return nil
     }
 
     var ttfwMinutes: Double? { healthSummary?.ttfwMinutes }
@@ -101,36 +120,30 @@ struct DashboardNightAggregate: Identifiable {
     var whoopHRV: Double? { whoopSummary?.hrvMs }
     var whoopSleepEfficiency: Double? { whoopSummary?.sleepEfficiency }
     var whoopRespiratoryRate: Double? { whoopSummary?.respiratoryRate }
-    var whoopDisturbances: Int? { whoopSummary.map(\.disturbanceCount) }
-    var whoopDeepSleepMinutes: Int? { whoopSummary?.deepMinutes }
+    var whoopDisturbances: Int? { whoopSummary?.hasDisturbanceData == true ? whoopSummary?.disturbanceCount : nil }
+    var whoopDeepSleepMinutes: Int? { whoopSummary?.hasCompleteSleepStages == true ? whoopSummary?.deepMinutes : nil }
 
     var bathroomEventCount: Int {
         events.filter { normalizeStoredEventType($0.eventType) == "bathroom" }.count
     }
 
     var hasAnyData: Bool {
-        dose1Time != nil || dose2Time != nil || dose2Skipped || !events.isEmpty || morningCheckIn != nil || preSleepLog != nil || healthSummary != nil || whoopSummary != nil
+        dose1Time != nil || dose2Time != nil || dose2Skipped || extraDoseCount > 0 || !events.isEmpty || morningCheckIn != nil || preSleepLog != nil || healthSummary != nil || whoopSummary != nil
     }
 
-    var dataCompletenessScore: Double {
-        var score = 0.0
-        if dose1Time != nil && (dose2Time != nil || dose2Skipped) { score += 0.25 }
-        if healthSummary != nil || whoopSummary != nil { score += 0.25 }
-        if morningCheckIn != nil { score += 0.25 }
-        if preSleepLog != nil { score += 0.25 }
-        return score
+    var dataCategoryCount: Int {
+        var count = 0
+        if dose1Time != nil && (dose2Time != nil || dose2Skipped) { count += 1 }
+        if healthSummary != nil || whoopSummary != nil { count += 1 }
+        if morningCheckIn != nil { count += 1 }
+        if preSleepLog?.completionState == "complete" { count += 1 }
+        return count
     }
 
-    var qualityFlags: [String] {
-        var flags: [String] = []
-        if duplicateClusterCount > 0 {
-            flags.append("Duplicate event cluster")
-        }
-        if dose1Time != nil && dose2Time == nil && !dose2Skipped {
-            flags.append("Dose 2 outcome missing")
-        }
-        return flags
-    }
+    var dataCompletenessScore: Double { Double(dataCategoryCount) / 4 }
+
+
+
 }
 
 struct DashboardIntegrationState: Identifiable {
@@ -175,4 +188,18 @@ struct DashboardMetricCategory: Identifiable {
     let id: String
     let title: String
     let metrics: [String]
+}
+
+
+/// Category accents are descriptive, not health or treatment ratings.
+enum DashboardPalette {
+    static let timing: Color = .blue
+    static let sleep: Color = .purple
+    static let coverage: Color = .teal
+    static let review: Color = .orange
+
+    static func recovery(_ score: Double?) -> Color {
+        guard let score else { return .secondary }
+        return score >= 67 ? .green : score >= 34 ? .orange : .red
+    }
 }

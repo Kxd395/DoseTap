@@ -126,10 +126,10 @@ struct MedicationSettingsView: View {
                     }
                 }
 
-                Toggle("Track Next Refill Date", isOn: $tracksNextRefillDate)
+                Toggle("Keep a Reference Date (No Alert)", isOn: $tracksNextRefillDate)
 
                 if tracksNextRefillDate {
-                    DatePicker("Next Refill", selection: $inventoryNextRefillDate, displayedComponents: .date)
+                    DatePicker("Reference Date", selection: $inventoryNextRefillDate, displayedComponents: .date)
                 }
 
                 TextField("Notes", text: $inventoryNotes)
@@ -149,7 +149,7 @@ struct MedicationSettingsView: View {
             } header: {
                 Label("Medication Supply", systemImage: "shippingbox.fill")
             } footer: {
-                Text("Snapshots are exported to inventory.csv for Studio. Dose logs are not used as inventory counts.")
+                Text("Snapshots are exported to inventory.csv for Studio. Dose logs are not used as inventory counts. Reference dates do not schedule alerts; use Supply & order reminder in Settings.")
             }
             
             // MARK: - Info Section

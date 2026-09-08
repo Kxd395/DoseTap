@@ -1,6 +1,7 @@
 // AutoExportService.swift — P3-7 Scheduled auto-export to Files app
-// Uses BGTaskScheduler for weekly/monthly background CSV export.
+// Uses BGTaskScheduler for weekly/monthly local Studio bundle export.
 import Foundation
+import DoseCore
 import BackgroundTasks
 import os.log
 #if canImport(UIKit)
@@ -126,13 +127,13 @@ final class AutoExportService {
         // Schedule the next occurrence before doing work
         scheduleNextExport()
 
-        task.expirationHandler = {
-            autoExportLog.warning("Background export expired before completion")
-        }
-
-        Task { @MainActor in
+        let work = Task { @MainActor in
             let success = performExport()
             task.setTaskCompleted(success: success)
+        }
+        task.expirationHandler = {
+            work.cancel()
+            autoExportLog.warning("Background export expired before completion")
         }
     }
 
@@ -161,12 +162,8 @@ final class AutoExportService {
             return false
         }
 
-        let dateStr = DateFormatter.exportDateFormatter.string(from: Date())
-        let csvContent = SessionRepository.shared.exportToCSV()
-        let fileURL = exportDir.appendingPathComponent("DoseTap_AutoExport_\(dateStr).csv")
-
         do {
-            try csvContent.write(to: fileURL, atomically: true, encoding: .utf8)
+            let fileURL = try StudioBundleExporter().writeScheduledArchive(using: .shared, to: exportDir)
             lastExportDate = Date()
             autoExportLog.info("Auto-export saved: \(fileURL.lastPathComponent, privacy: .public)")
             return true
@@ -174,5 +171,34 @@ final class AutoExportService {
             autoExportLog.error("Auto-export failed: \(error.localizedDescription, privacy: .public)")
             return false
         }
+    }
+}
+
+extension StudioBundleExporter {
+    func writeCollectedNightCSV(_ nights: [(String, CollectedNightSummary)], to directory: URL) throws {
+        let header = ["session_date"] + CollectedNightSummary().fields.map(\.0)
+        let rows = [header] + nights.map { key, report in [key] + report.fields.map { $0.1 ?? "" } }
+        try (rows.map(ReportCSV.row).joined(separator: "\r\n") + "\r\n")
+            .write(to: directory.appendingPathComponent("collected_nights.csv"), atomically: true, encoding: .utf8)
+    }
+
+    /// Publishes only a finished archive. Temporary files are unique to this attempt.
+    @MainActor
+    func writeScheduledArchive(using repo: SessionRepository, to destination: URL,
+                               cancelled: () -> Bool = { Task.isCancelled }) throws -> URL {
+        let fm = FileManager.default
+        let name = "DoseTap_AutoExport_\(DateFormatter.exportDateFormatter.string(from: Date()))_\(UUID().uuidString)"
+        let staging = fm.temporaryDirectory.appendingPathComponent(name, isDirectory: true)
+        let archive = staging.appendingPathExtension("zip")
+        defer { try? fm.removeItem(at: staging); try? fm.removeItem(at: archive) }
+        guard !cancelled() else { throw CancellationError() }
+        try fm.createDirectory(at: staging, withIntermediateDirectories: false)
+        try writeLocalStudioExportBundle(using: repo, to: staging)
+        guard !cancelled() else { throw CancellationError() }
+        let ready = try archiveExportDirectory(staging)
+        guard !cancelled() else { throw CancellationError() }
+        let published = destination.appendingPathComponent(ready.lastPathComponent)
+        try fm.moveItem(at: ready, to: published)
+        return published
     }
 }

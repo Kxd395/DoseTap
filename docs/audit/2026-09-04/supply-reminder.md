@@ -1,0 +1,97 @@
+# Supply reminder implementation evidence
+
+## Status
+
+### Pre-sleep placement follow-up
+
+- User correction: bottle opening must be the first item in the normal pre-sleep check, never carried forward as a new opening. History remains saved. Other pre-sleep answers, including notes previously cleared by the legacy implementation, carry forward when remembering is enabled or Use last is selected.
+- Baseline: clean `faf2042` on `fix/locked-dose2-system-alarm`; DOSETAP-30 independently read In Progress before editing.
+- Implemented: first-card bottle section before plan/remembered settings, shared confirmation/save sheet with editable Started on date/time defaulting to now, dated latest-opening feedback. No new storage field, schema, or competing source of truth.
+- Validation: core build, 634 XCTest and 43 Swift Testing cases passed; 9 app tests passed (CheckInCarryForwardTests, SupplyStorageTests, SupplyReminderServiceTests). Plane workflow, SSOT, architecture, app-version and whitespace guards passed. Initial UI query selected the underlying Tonight button; distinct accessibility identifiers corrected the test ambiguity. First complete UI run passed in 25.97 seconds; final rerun after the Started on copy change is recorded below.
+- Exact next step: signed-device and owner acceptance after Plane readback. App version remains 0.4.12 (14); no phone installation or deployment.
+
+Follow-up commands and logs (same simulator destination as below):
+
+```sh
+xcodebuild -project ios/DoseTap.xcodeproj -scheme DoseTap -destination 'platform=iOS Simulator,id=829089F8-76D6-475A-A794-CFBD0BE9F43B' -derivedDataPath /tmp/dosetap-supply-build CODE_SIGNING_ALLOWED=NO -only-testing:DoseTapTests/CheckInCarryForwardTests -only-testing:DoseTapTests/SupplyStorageTests -only-testing:DoseTapTests/SupplyReminderServiceTests test
+xcodebuild -project ios/DoseTap.xcodeproj -scheme DoseTapUITests -destination 'platform=iOS Simulator,id=829089F8-76D6-475A-A794-CFBD0BE9F43B' -derivedDataPath /tmp/dosetap-supply-build CODE_SIGNING_ALLOWED=NO -only-testing:DoseTapUITests/DoseTapUITests/testSupplyBottleIsFirstInPreSleepAndNeverCarriedForward test
+```
+
+Logs: `/tmp/dosetap-presleep-core.log`, `/tmp/dosetap-presleep-version.log`, `/tmp/dosetap-presleep-app-tests.log`, `/tmp/dosetap-presleep-bottle-ui-final.log`. Action log: first-card composition in PreSleepLogView/PreSleepLogTimingStressCard, shared bottle UI in SupplySettingsView, carry-forward and UI regressions in UIStateTests/DoseTapUITests, SSOT and this evidence record. No storage or notification implementation changed.
+
+- Scope: user-authorized improvement of the missing local order reminder.
+- Baseline: clean `DoseTap-main`, main `5d1fa4b48bec00007a0b6f8327a8edee7b096569`.
+- Branch: `feat/local-order-reminder`; preserved `/Volumes/Developer/projects/DoseTap` is untouched.
+- Plane: DOSETAP-30 preflight confirmed Backlog. State mismatch reported; user explicitly requested implementation. Closeout will retain physical/owner gates.
+- Completed: source review, actual UI/storage/notification call-path review, current remote main readback, feature contract.
+- Implemented: received-date + 21 calendar days, direct/cycle-end choices, correction history, atomic SQLite supply record, independent bottle starts, verified role-specific scheduling, permission/retry/handled/disable states, lifecycle reconciliation, Settings and Tonight controls, supply JSON export/restore.
+- Remaining: signed-device and owner acceptance.
+- Next step: owner acceptance of the supply feature; engineering continues separately in `locked-dose2-alarm.md`.
+
+## Findings and decisions
+
+- SUP-A01 (confirmed): the existing Next Refill snapshot date saves to SQLite only; it schedules no notification. Fix with a separately labeled order-reminder workflow.
+- SUP-A02 (confirmed): the old inventory forecast is pure/disconnected, and the referenced proposal is explicitly superseded. Do not wire unconfirmed quantities into an alert.
+- Decision: no dependency upgrade or rewrite is needed. Use existing SQLite, SwiftUI and notification boundary.
+- Decision: preserve snapshot dates as historical notes, never auto-convert them into reminder intent.
+- Owner clarification: manually enter last received date; remind 21 calendar days later. Add optional Started a new bottle action on Tonight. Bottle starts do not move reminder dates.
+- Open gates: signed-device notification delivery, owner copy/privacy acceptance, assistive-technology review. No production/user database migration or deployment is authorized by this work.
+
+## Action log
+
+- Added this evidence record and `docs/SSOT/supply-reminder.md` before behavior changes.
+- Core build/test passed: 634 XCTest cases and 43 Swift Testing cases. Six new manual-date fixtures cover +21 days, month boundaries, DST, timezone, invalid inputs and correction backup.
+- Initial red check failed on missing SupplyReminder types as expected; implementation then passed.
+- iOS storage tests: 2 passed, including query-only write failure and invalid restore preservation.
+- iOS service/storage tests: 5 passed, including permission denial, missing/add failures, retry, role isolation, reset during add and bottle/reminder independence.
+- Static SSOT, Plane workflow (10 tests/64 assertions), app-version and architecture guards passed.
+- Initial UI build was attempted before new-file target membership was added and failed on missing SupplyBottleButton. Membership corrected. An initial combined test command used DoseTap, which excludes UI tests; switched to the existing DoseTapUITests scheme.
+- Tests use a new isolated iPhone 17/iOS 26.5 simulator (829089F8-76D6-475A-A794-CFBD0BE9F43B), not the user's running iPhone 17 container.
+- Expanded iOS checks: 51 passed (3 supply storage, 4 supply reminder, 28 existing storage integration, 16 existing alarm scheduling). This includes SQLite reopen, invalid restore, failed source write, overdue reminders, mismatched triggers, and an existing dose alarm retained through supply changes.
+- An incremental UI run crashed constructing Settings. A clean build passed launch and reached the feature; no application rewrite was used to mask a generated-build problem. The next run confirmed scheduling and relaunch, then failed because the handled-status assertion addressed a scrolled-offscreen row. Read-only inspection of the isolated fixture database confirmed `enabled=false`, an acknowledgement timestamp, and one independent bottle record. The UI test now scrolls the status back into view before asserting it.
+- Observed simulator UI: last received September 4, 2026 → reminder September 25, 2026 at 09:00 America/New_York; Scheduled was shown after OS readback and after relaunch. Bottle recording preserved the nightly dose action.
+- The dose-notification toggle is now explicitly labeled for dose notifications. Supply reminders retain separate controls and standard iOS sound/Focus behavior; their default notification tap opens supply management.
+
+## Validation commands
+
+Run from `/Volumes/Developer/projects/DoseTap-main`:
+
+```sh
+swift build -q
+swift test -q
+bash tools/check_plane_workflow.sh
+bash tools/ssot_check.sh
+bash tools/check_app_version.sh
+bash tools/check_architecture_boundaries.sh
+git diff --check
+xcodebuild -project ios/DoseTap.xcodeproj -scheme DoseTap -destination 'platform=iOS Simulator,id=829089F8-76D6-475A-A794-CFBD0BE9F43B' -derivedDataPath /tmp/dosetap-supply-build CODE_SIGNING_ALLOWED=NO -only-testing:DoseTapTests/SupplyStorageTests -only-testing:DoseTapTests/SupplyReminderServiceTests -only-testing:DoseTapTests/AlarmSchedulingTests -only-testing:DoseTapTests/EventStorageIntegrationTests test
+xcodebuild -project ios/DoseTap.xcodeproj -scheme DoseTapUITests -destination 'platform=iOS Simulator,id=829089F8-76D6-475A-A794-CFBD0BE9F43B' -derivedDataPath /tmp/dosetap-supply-build CODE_SIGNING_ALLOWED=NO -only-testing:DoseTapUITests/DoseTapUITests/testSupplyReceiptReminderAndOptionalBottleSurviveRelaunch clean test
+```
+
+Final logs: `/tmp/dosetap-supply-core-test.log`, `/tmp/dosetap-supply-final-app-test.log`, `/tmp/dosetap-supply-final-ui-test.log`. Local evidence does not prove signed-device delivery, notification-tap routing on a physical device, Files-provider import/export interaction, or assistive-technology acceptance. Supply JSON roundtrip, replacement validation and persistence were automated; the Files sheet itself remains an owner acceptance step.
+
+Final clean simulator UI test: **passed**, one complete journey (66.35 seconds), including bottle start, unchanged dose action, verified scheduling, relaunch persistence and handled state. Screenshots: [Scheduled](supply-reminder-scheduled.png), [Handled](supply-reminder-handled.png).
+
+Implementation commits: `f2ebf4c`, `a4bb2ac`, `7c113b4`, `f649f90`. DOSETAP-30 workpad and In Progress state were applied and independently verified (closeout `d88c994c8b04c3d2`). The initial Backlog state was explicitly promoted following the owner's implementation request, then the reviewed start/closeout helpers were used. Physical and owner gates remain open.
+
+Final pre-sleep clean build/UI rerun: **1 passed, 0 failures**, 26.45 seconds. The incremental rerun used an older test identifier despite the on-disk source; clean build resolved this stale artifact. Screenshot exported from the final successful xcresult and visually inspected: [Bottle prompt first](presleep-bottle-first.png). It is the first question, above the plan and remembered settings; Next remains visible. Cancellation, confirmed save, Use last, Back/Next, relaunch and unchanged dose action passed. This is simulator evidence, not physical-device acceptance.
+
+## Device build mismatch follow-up
+
+The owner reported a phone rebuild without the bottle prompt. Xcode UI readback showed the open project `/Volumes/Developer/projects/DoseTap/ios/DoseTap.xcodeproj`, branch `feat/phase-2-ux`, and a completed physical-device run. That preserved checkout lacks the bottle implementation. The verified implementation is `/Volumes/Developer/projects/DoseTap-main/ios/DoseTap.xcodeproj`, branch `fix/locked-dose2-system-alarm`, feature commit `2b93aa0`. Both previously advertised 0.4.12 (14). Bumped DoseTap and DoseTapStaging Debug/Release to 0.4.13 (15) to make the correct build identifiable. The old dirty checkout remains untouched. Wake by is already composed after the bottle section and reads the saved sleep plan; no hard-coded 07:00 override was introduced. Next: validate built metadata and open the correct Xcode project; owner then builds/runs that project on the phone and checks About version plus the pre-sleep screen.
+
+Build-identity validation: `swift build -q`, `swift test -q` (634 XCTest +43 Swift Testing), Plane workflow, SSOT, app-version guard and `git diff --check` passed. `xcodebuild build -project ios/DoseTap.xcodeproj -scheme DoseTap -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/dosetap-supply-build CODE_SIGNING_ALLOWED=NO` passed. Read the built app Info.plist directly: com.dosetap.ios, 0.4.13, build 15. Logs `/tmp/dosetap-build15-{core,version,build}.log`. Xcode UI readback confirms DoseTap-main, fix/locked-dose2-system-alarm, DoseTap scheme; subsequent readback shows the owner building to the phone. Installation, visible phone version and feature acceptance are not yet verified. Action log: project.pbxproj version/build only, SSOT version readback, CHANGELOG pending build notes, this audit evidence.
+
+## Tonight order follow-up
+
+Owner phone screenshot confirms the preparation cards were below the dose action. Requested correction: Pre-Sleep Check immediately above the dose action; bottle recording inside the check; wake time visible on Tonight and editable for that night inside the check while Typical Week remains the recurring default. Baseline f9a67bb; preserved pre-existing DoseTapUITests.xcscheme edit. Implementing compact Wake by summary, pre-sleep/dose adjacency, nightly-only wake editor and clearer Dose 2 alarm label. Next: app tests, simulator screenshots for initial and active-session flows, new build identity, verified Plane update.
+
+Implemented order: existing dose status, compact effective Wake by, Pre-Sleep Check, dose action, quick logs/summaries. Removed the large Sleep Plan/Just for tonight cards and standalone bottle action from Tonight. The first pre-sleep card still starts with bottle recording, then the plan and nightly override editor. Recurring schedule stays in Settings. Renamed Wake deadline to Dose 2 alarm and removed internal reconciliation copy; visible scheduling errors/retry remain.
+
+Verified code defect: SleepPlanStore previously held nightly overrides only in memory. Added local UserDefaults persistence keyed by night. The editor and Tonight summary use the same pre-sleep display key; reset derives the original schedule rather than the current override. Five app tests passed, including restart persistence, next-night isolation, schedule preservation/reset and existing carry-forward behavior (`/tmp/dosetap-order-app-final.log`). The initial test comparison of unsorted JSON bytes was nondeterministic; sorted encoding fixed the assertion. Core build and 634 XCTest +43 Swift Testing cases, Plane workflow, SSOT, architecture, app-version (0.4.14/16) and diff checks passed. UI clean build/journeys are in progress (`/tmp/dosetap-order-ui.log`).
+
+App test command: `xcodebuild -project ios/DoseTap.xcodeproj -scheme DoseTap -destination 'platform=iOS Simulator,id=829089F8-76D6-475A-A794-CFBD0BE9F43B' -derivedDataPath /tmp/dosetap-supply-build CODE_SIGNING_ALLOWED=NO -only-testing:DoseTapTests/SleepPlanStoreTemplateTests -only-testing:DoseTapTests/CheckInCarryForwardTests test`. UI command uses the same destination/path with scheme DoseTapUITests and only-testing selectors testSupplyBottleIsFirstInPreSleepAndNeverCarriedForward, testWorkWarningPreSleepImmediatelyPrecedesActiveDoseAction, testSupplyReceiptReminderAndOptionalBottleSurviveRelaunch, followed by `clean test`.
+
+Final order verification: clean iOS simulator build and **3 UI journeys passed**, 0 failures (112.35 seconds). Visually inspected exported screenshots: [Before Dose 1](tonight-preparation-dose1.png), [Active Dose 2](tonight-preparation-active.png), [Pre-sleep bottle and nightly wake editor](presleep-bottle-first.png). Both Tonight states show Wake by, Pre-Sleep Check and dose button in order; no standalone bottle button. UI toggling/resetting the nightly editor, bottle recording/carry-forward isolation, reminder scheduling/relaunch/handled all passed. Built Info.plist verified **0.4.14 (16)**. Screenshot 07:30 is the isolated simulator schedule, not a change to the owner’s 07:00 phone setting.
+
+Action log: TonightView order/compact wake summary; PreSleepLogView wake editor; SleepPlanCards labels/accessibility; UserSettingsManager dated override persistence; DataIntegrityTests and DoseTapUITests regression coverage; Xcode project version/build; CHANGELOG and SSOT/navigation/supply audit evidence. Pre-existing DoseTapUITests.xcscheme modification remains untouched and excluded from commit. Next step is owner build/install 0.4.14 (16) from DoseTap-main and physical-device/owner acceptance; no phone data was modified in this validation.

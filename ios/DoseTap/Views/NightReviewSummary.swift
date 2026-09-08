@@ -10,6 +10,11 @@ struct DoseTimingCard: View {
         sessionRepo.fetchDoseLog(forSession: sessionKey)
     }
 
+    private var exactInterval: TimeInterval? {
+        guard let first = doseLog?.dose1Time, let second = doseLog?.dose2Time else { return nil }
+        return second.timeIntervalSince(first)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -23,15 +28,15 @@ struct DoseTimingCard: View {
                 DoseTimeRow(label: "Dose 1", time: doseLog?.dose1Time, icon: "1.circle.fill")
                 DoseTimeRow(label: "Dose 2", time: doseLog?.dose2Time, icon: "2.circle.fill", skipped: doseLog?.dose2Skipped ?? false)
 
-                if let intervalMins = doseLog?.intervalMinutes {
+                if let interval = exactInterval, interval.isFinite {
                     Divider()
                     HStack {
                         Text("Interval")
                             .foregroundColor(.secondary)
                         Spacer()
-                        Text(formatInterval(Double(intervalMins) * 60))
+                        Text(formatInterval(interval))
                             .font(.headline)
-                            .foregroundColor(intervalColor(Double(intervalMins) * 60))
+                            .foregroundColor(intervalColor(interval))
                     }
                 }
             }
@@ -47,15 +52,12 @@ struct DoseTimingCard: View {
             if doseLog?.dose2Skipped == true {
                 return ("Skipped", .orange)
             } else if doseLog?.dose2Time != nil {
-                if let intervalMins = doseLog?.intervalMinutes {
-                    if MedicationTiming.classify(elapsedSeconds: Double(intervalMins) * 60) == .inWindow {
-                        return ("Optimal", .green)
-                    } else if intervalMins >= 240 {
-                        return ("Late", .orange)
-                    } else if intervalMins >= 0 {
-                        return ("Early", .orange)
-                    } else {
-                        return ("Off-target", .red)
+                if let interval = exactInterval {
+                    switch MedicationTiming.classify(elapsedSeconds: interval) {
+                    case .inWindow: return ("Within window", .green)
+                    case .late: return ("Late", .orange)
+                    case .early: return ("Early", .orange)
+                    case .invalid: return ("Invalid interval", .red)
                     }
                 }
                 return ("Complete", .green)

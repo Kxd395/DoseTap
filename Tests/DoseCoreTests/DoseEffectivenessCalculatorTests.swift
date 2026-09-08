@@ -265,9 +265,9 @@ struct DoseEffectivenessCalculatorTests {
         #expect(report.nonCompliant.count == 1)
     }
 
-    @Test func boundary_240_isNonCompliant() {
+    @Test func boundary_240_isInWindow() {
         let report = DoseEffectivenessCalculator.analyze([point(interval: 240)])
-        #expect(report.nonCompliant.count == 1)
+        #expect(report.acceptableZone.count == 1)
     }
 
     @Test func boundary_240_01_isNonCompliant() {

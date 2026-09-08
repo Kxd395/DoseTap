@@ -1,4 +1,5 @@
 import XCTest
+import DoseCore
 @testable import DoseTapStudio
 
 final class InsightCoverageSummaryTests: XCTestCase {
@@ -149,6 +150,9 @@ final class InsightCoverageSummaryTests: XCTestCase {
             )
             : nil
 
+        // This fixture explicitly supplies a diary answer; production never converts legacy hints.
+        var diary = CollectedNightSummary()
+        diary.dose2WakeMethod = wakeType == "alarm_then_snooze" ? "alarm" : wakeType
         return InsightSession(
             id: sessionDate,
             sessionDate: sessionDate,
@@ -195,6 +199,7 @@ final class InsightCoverageSummaryTests: XCTestCase {
                 screensLastUsedAtUTC: nil,
                 screenMinutesBeforeDose1: nil
             ),
+            collectedNight: diary,
             healthKit: withHealthKit
                 ? InsightHealthKitSummary(
                     totalSleepMinutes: 420,

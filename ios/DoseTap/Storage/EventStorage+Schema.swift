@@ -61,6 +61,11 @@ extension EventStorage {
     func createTables() -> Bool {
         guard db != nil else { return false }
         let createSQL = """
+        CREATE TABLE IF NOT EXISTS supply_state (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            payload TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS work_wake_schedule (
             id INTEGER PRIMARY KEY CHECK (id = 1),
             payload TEXT NOT NULL,

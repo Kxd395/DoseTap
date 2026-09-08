@@ -6,6 +6,30 @@ import OSLog
 
 @MainActor
 public extension SessionRepository {
+    internal func historySnapshot(sessionDate: String) throws -> HistoryRecordSnapshot {
+        try storage.historySnapshot(sessionDate: sessionDate)
+    }
+
+    internal func applyHistorySleepEvent(id: String, eventType: String, timestamp: Date, notes: String,
+                                         review: HistoryRecordSnapshot, original: StoredSleepEvent?,
+                                         remove: Bool, confirmed: Bool) -> MedicationMutationResult {
+        let result = storage.saveHistorySleepEvent(id: id, eventType: eventType, timestamp: timestamp,
+            notes: notes, review: review, original: original, remove: remove, confirmed: confirmed, recordedAt: clock())
+        if result.isCommitted { sessionDidChange.send() }
+        return result
+    }
+
+    internal func applyHistoryDoseChange(_ change: HistoryDoseChange, review: HistoryRecordSnapshot,
+                                         confirmed: Bool, warningConfirmed: Bool) -> MedicationMutationResult {
+        let result = recordMedicationMutation(storage.saveHistoryDoseChange(change, review: review,
+            confirmed: confirmed, warningConfirmed: warningConfirmed, recordedAt: clock()))
+        if result.isCommitted {
+            if review.sessionId == activeSessionId { refreshForTimeChange() }
+            sessionDidChange.send()
+        }
+        return result
+    }
+
     #if DEBUG && targetEnvironment(simulator)
     /// Persist a prior-night fixture before the singleton is initialized, so
     /// process-level UI tests cover synchronous startup rollover.
@@ -17,7 +41,7 @@ public extension SessionRepository {
         _ = storage.saveDose1(timestamp: start, sessionId: id, sessionDateOverride: date, sessionStart: start)
     }
 
-    func prepareWorkWarningUITestSession() {
+    func prepareWorkWarningUITestSession(working: Bool = true) {
         AlarmService.shared.resetForNewSession(closingSessionId: currentSessionIdString())
         clearTonight()
         let now = clock()
@@ -32,7 +56,7 @@ public extension SessionRepository {
         UserSettingsManager.shared.wakeTimeMinutes = calendar.component(.hour, from: wake) * 60 + calendar.component(.minute, from: wake)
         _ = setDose1Time(firstDose)
         let previous = try? workWakeSchedule()
-        var plan = WorkWakeSchedule(timeZoneIdentifier: timeZoneProvider().identifier, workingWeekdays: Set(1...7), wakeMinutes: 420, target: .doseTarget)
+        var plan = WorkWakeSchedule(timeZoneIdentifier: timeZoneProvider().identifier, workingWeekdays: working ? Set(1...7) : [], wakeMinutes: 420, target: .doseTarget)
         if let previous { plan.revision = previous.revision }
         _ = saveWorkWakeSchedule(plan)
     }
@@ -73,7 +97,8 @@ public extension SessionRepository {
         confirmed: Bool,
         reason: String?,
         notes: String?,
-        workWarning: WorkWakeWarning? = nil
+        workWarning: WorkWakeWarning? = nil,
+        wakeMethod: Dose2WakeKind? = nil
     ) -> MedicationMutationResult {
         let enteredAt = clock()
         guard confirmed, sessionId != activeSessionId else {
@@ -103,7 +128,8 @@ public extension SessionRepository {
         }
         let result = recordMedicationMutation(storage.reconcileDoseEvent(
             eventType: .dose2, timestamp: occurrenceTime, sessionDate: sessionDate,
-            sessionId: sessionId, metadata: json, expectedDose1Time: first.timestamp, onlyIfDose2Missing: true, workWarning: workWarning
+            sessionId: sessionId, metadata: json, expectedDose1Time: first.timestamp, onlyIfDose2Missing: true,
+            workWarning: workWarning, wakeMethod: wakeMethod, recordedAt: enteredAt
         ))
         if result.isCommitted { sessionDidChange.send() }
         return result

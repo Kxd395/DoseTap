@@ -22,6 +22,51 @@ final class TestClock {
 /// These tests verify that delete operations properly broadcast state changes.
 @MainActor
 final class SessionRepositoryTests: XCTestCase {
+    func test_lastFood_roundTripMissingnessAndNoCarryForward() throws {
+        var answers = try JSONDecoder().decode(DoseTap.PreSleepLogAnswers.self,
+            from: Data(#"{"lateMeal":"heavy"}"#.utf8))
+        XCTAssertNil(answers.lastFood)
+        XCTAssertEqual(answers.lateMeal, .heavyMeal)
+        answers.lastFood = .init(finishedAt: fixedNow.addingTimeInterval(-7200), kind: .snack,
+            highFat: nil, notes: "  toast  ")
+        let saved = try storage.savePreSleepLogOrThrow(sessionId: nil, answers: answers, now: fixedNow)
+        let restored = try XCTUnwrap(storage.fetchMostRecentPreSleepLog()?.answers?.lastFood)
+        XCTAssertEqual(restored.finishedAt, answers.lastFood?.finishedAt)
+        XCTAssertEqual(restored.kind, .snack)
+        XCTAssertNil(restored.highFat)
+        XCTAssertEqual(restored.notes, "toast")
+        XCTAssertNotNil(saved.answers?.lastFood)
+        let responses = decodeJSONDictionary(try XCTUnwrap(storage.fetchCheckInSubmissions(checkInType: .preNight).first).responsesJson)
+        XCTAssertEqual(responses["pre.food.last.kind"] as? String, "snack")
+        XCTAssertNil(responses["pre.food.last.high_fat"])
+        let carried = answers.carriedForwardForNewNight(referenceDate: fixedNow.addingTimeInterval(86400))
+        XCTAssertNil(carried.lastFood)
+        XCTAssertNil(carried.lateMeal)
+        XCTAssertNil(carried.lateMealEndedAt)
+        for choice in [false, true] {
+            answers.lastFood?.highFat = choice
+            let updated = try storage.savePreSleepLogOrThrow(sessionId: nil, answers: answers, now: fixedNow, existingLog: saved)
+            XCTAssertEqual(updated.answers?.lastFood?.highFat, choice)
+        }
+        answers.lastFood = nil
+        _ = try storage.savePreSleepLogOrThrow(sessionId: nil, answers: answers, now: fixedNow, existingLog: saved)
+        XCTAssertNil(storage.fetchMostRecentPreSleepLog()?.answers?.lastFood)
+        let cleared = decodeJSONDictionary(try XCTUnwrap(storage.fetchCheckInSubmissions(checkInType: .preNight).first).responsesJson)
+        XCTAssertFalse(cleared.keys.contains { $0.hasPrefix("pre.food.last.") })
+        XCTAssertEqual(storage.fetchMostRecentPreSleepLog()?.answers?.lateMeal, .heavyMeal)
+    }
+
+    func test_lastFood_rejectsInvalidTimeAndNotesWithoutWriting() throws {
+        var answers = DoseTap.PreSleepLogAnswers()
+        for time in [fixedNow.addingTimeInterval(1), Date(timeIntervalSince1970: .infinity)] {
+            answers.lastFood = .init(finishedAt: time)
+            XCTAssertThrowsError(try storage.savePreSleepLogOrThrow(sessionId: nil, answers: answers, now: fixedNow))
+        }
+        answers.lastFood = .init(finishedAt: fixedNow, notes: String(repeating: "a", count: 501))
+        XCTAssertThrowsError(try storage.savePreSleepLogOrThrow(sessionId: nil, answers: answers, now: fixedNow))
+        XCTAssertNil(storage.fetchMostRecentPreSleepLog())
+        XCTAssertTrue(storage.fetchCheckInSubmissions(checkInType: .preNight).isEmpty)
+    }
     
     private var storage: EventStorage!
     private var repo: SessionRepository!
