@@ -49,8 +49,8 @@ struct InsightReportBuilder {
         let missingMorningCount = selected.filter { $0.morning == nil }.count
         let healthKitCount = selected.filter { $0.healthKit != nil }.count
         let whoopCount = selected.filter { $0.whoop != nil }.count
-        let likelyNaturalWakeCount = selected.filter { $0.likelyNaturalWake == true }.count
-        let alarmAssistedCount = selected.filter { $0.likelyNaturalWake == false }.count
+        let recordedNaturalWakeCount = selected.filter { $0.recordedNaturalWake == true }.count
+        let alarmAssistedCount = selected.filter { $0.recordedNaturalWake == false }.count
         let lateMealCount = selected.filter(\.hasLateMealContext).count
         let scheduleMarkerCount = selected.filter { !($0.context?.scheduleMarkers.isEmpty ?? true) }.count
         let trainableNightCount = selected.filter(\.countsTowardRecommendationTraining).count
@@ -83,8 +83,10 @@ struct InsightReportBuilder {
             "Missing morning check-ins: \(missingMorningCount)",
             "Apple Health nights: \(healthKitCount)",
             "WHOOP nights: \(whoopCount)",
-            "Likely natural wake nights: \(likelyNaturalWakeCount)",
-            "Alarm-assisted wake nights: \(alarmAssistedCount)",
+            "Recorded natural Dose 2 wake nights: \(recordedNaturalWakeCount)",
+            "Recorded alarm Dose 2 wake nights: \(alarmAssistedCount)",
+            "Recorded Other Dose 2 wake nights: \(selected.filter { $0.recordedDose2Wake == .other }.count)",
+            "Unknown Dose 2 wake nights: \(selected.filter { $0.recordedDose2Wake == .unknown }.count)",
             "Late meal nights: \(lateMealCount)",
             "Schedule-marker nights: \(scheduleMarkerCount)",
             "Morning-reconciled Dose 2 nights: \(reconciledDose2Count)",
@@ -198,6 +200,12 @@ struct InsightReportBuilder {
 
         lines.append("Clinical note")
         lines.append(result.disclaimer)
+        lines.append("\nCollected diary alongside the legacy score")
+        for night in (result.matchedNights + result.excludedNights).prefix(maxMatchedRows) {
+            guard let report = night.collectedNight, report.version == 1 else { continue }
+            lines.append(night.sessionDate)
+            lines += collectedFields(report, redaction: redaction).map { "\($0.0): \($0.1.isEmpty ? "Not recorded / unavailable" : $0.1)" }
+        }
         if redaction != .none {
             lines.append("Redaction applied: free-text notes, exact timestamps, and bundle fingerprint details removed.")
         }
@@ -207,7 +215,8 @@ struct InsightReportBuilder {
 
     func buildRecommendationComparisonCSV(
         sessions: [InsightSession],
-        mode: InsightRecommendationMode
+        mode: InsightRecommendationMode,
+        redaction: InsightExportRedactionOptions = .none
     ) -> String {
         let result = recommendationEngine.recommend(sessions: sessions, mode: mode)
         let nights = result.matchedNights + result.excludedNights
@@ -236,11 +245,12 @@ struct InsightReportBuilder {
                 night.nightType,
                 exclusionReasons
             ]
-            rows.append(values.map(csvField).joined(separator: ","))
+            let diary = night.collectedNight?.version == 1 ? night.collectedNight! : CollectedNightSummary()
+            rows.append((values + ["legacy_composite"] + collectedFields(diary, redaction: redaction).map(\.1)).map(csvField).joined(separator: ","))
         }
 
         return ([
-            "session_date,row_type,mode,cohort_key,timing_band,interval_minutes,score,sleep_quality,readiness,wake_type,night_type,exclusion_reasons"
+            "session_date,row_type,mode,cohort_key,timing_band,interval_minutes,score,sleep_quality,readiness,wake_type,night_type,exclusion_reasons,score_basis," + CollectedNightSummary().fields.map(\.0).joined(separator: ",")
         ] + rows).joined(separator: "\n") + "\n"
     }
 

@@ -11,8 +11,7 @@ struct CollectedDiaryOverview: View {
         FoodDiaryAnalytics(selected.map { $0.preSleep?.completionState == "complete" ? ($0.collectedNight ?? .init()) : .init() })
     }
     private func group(_ wake: Dose2WakeKind) -> [CollectedNightSummary] {
-        selected.filter { $0.dose2Time != nil }.compactMap(\.collectedNight)
-            .filter { $0.version == 1 && $0.dose2WakeMethod == wake.rawValue }
+        selected.filter { $0.recordedDose2Wake == wake }.compactMap(\.collectedNight)
     }
     private func value(_ metric: DiaryMetricSummary, unit: String) -> String {
         let number = metric.median.map { String(format: "%.1f", $0) + unit } ?? "—"

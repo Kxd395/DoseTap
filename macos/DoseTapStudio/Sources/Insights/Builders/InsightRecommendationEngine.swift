@@ -1,4 +1,5 @@
 import Foundation
+import DoseCore
 
 enum InsightRecommendationMode: String, CaseIterable, Identifiable, Sendable {
     case restfulSleep = "restful_sleep"
@@ -35,6 +36,10 @@ enum InsightRecommendationMode: String, CaseIterable, Identifiable, Sendable {
     }
 
     var transparencySummary: String {
+        legacyScoringSummary + " Exploratory legacy composite, not a validated outcome or dosing/driving recommendation. The personal 0–10 sleepiness rating and estimated sleep after Dose 2 are not included; review them separately in the diary. Wake terms use recorded Dose 2 answers only, never alarm-time inference."
+    }
+
+    private var legacyScoringSummary: String {
         switch self {
         case .restfulSleep:
             return "Composite uses morning sleep quality, readiness, total sleep, efficiency, wake disruption, stage balance, and wearable recovery signals."
@@ -93,6 +98,7 @@ struct InsightRecommendationNightDetail: Hashable, Sendable, Identifiable {
     let nightType: String
     let exclusionReasons: [String]
     let trainable: Bool
+    let collectedNight: CollectedNightSummary?
 
     var id: String { sessionDate }
 }
@@ -141,7 +147,7 @@ struct InsightRecommendationEngine {
         let recommendationCandidates = sessions.filter {
             $0.intervalMinutes != nil || $0.anchoredIntervalMinutes != nil || $0.dose2Skipped
         }
-        let trainable = recommendationCandidates.filter(\.countsTowardRecommendationTraining)
+        let trainable = recommendationCandidates.filter { canTrain($0, mode: mode) }
         let cohortKey = preferredCohortKey ?? mostCommonCohortKey(from: trainable)
 
         guard let cohortKey else {
@@ -163,7 +169,7 @@ struct InsightRecommendationEngine {
         }
 
         let cohortSessions = recommendationCandidates.filter { $0.comparableCohortKey == cohortKey }
-        let eligibleSessions = cohortSessions.filter(\.countsTowardRecommendationTraining)
+        let eligibleSessions = cohortSessions.filter { canTrain($0, mode: mode) }
         let anchoredCohortSessions = cohortSessions.filter { $0.anchoredIntervalMinutes != nil }
         let baseline = CohortBandBaseline(
             averageHRV: average(eligibleSessions.compactMap(\.hrvMs)),
@@ -172,7 +178,7 @@ struct InsightRecommendationEngine {
             averageRestorativeSleepRatio: average(eligibleSessions.compactMap(\.restorativeSleepRatio)),
             averageSleepStageBalance: average(eligibleSessions.compactMap(\.sleepStageBalanceScore)),
             averageWakeDisruptionCount: average(eligibleSessions.compactMap(\.wakeDisruptionCount).map(Double.init)),
-            averageAlarmDependenceRate: rate(for: anchoredCohortSessions) { $0.likelyNaturalWake == false },
+            averageAlarmDependenceRate: alarmWakeRate(for: anchoredCohortSessions),
             averageSkipLateRiskRate: rate(for: anchoredCohortSessions) { $0.hasSkipOrLateRiskSignal },
             averageOperationalRiskRate: average(eligibleSessions.map(\.operationalRiskRate))
         )
@@ -194,7 +200,7 @@ struct InsightRecommendationEngine {
             let averageSleepEfficiency = average(bandSessions.compactMap(\.sleepEfficiency))
             let averageWakeDisruptionCount = average(bandSessions.compactMap(\.wakeDisruptionCount).map(Double.init))
             let naturalWakeRate = naturalWakeRate(for: bandSessions)
-            let alarmDependenceRate = rate(for: bandAnchoredSessions) { $0.likelyNaturalWake == false }
+            let alarmDependenceRate = alarmWakeRate(for: bandAnchoredSessions)
             let averageDrivingConfidence = average(bandSessions.compactMap { $0.morning?.drivingConfidence }.map(Double.init))
             let averageDaytimeSleepiness = average(bandSessions.compactMap { $0.morning?.daytimeSleepiness }.map(Double.init))
             let averageHRV = average(bandSessions.compactMap(\.hrvMs))
@@ -265,9 +271,8 @@ struct InsightRecommendationEngine {
                 nightsExcluded: cohortSessions.count,
                 summary: "Comparable nights exist, but none have enough outcome data for \(mode.summaryLabel).",
                 topFactors: [],
-                matchedNights: cohortSessions.map { makeNightDetail(for: $0, bands: Self.defaultBands, mode: mode) },
+                matchedNights: [],
                 excludedNights: cohortSessions
-                    .filter { !$0.countsTowardRecommendationTraining }
                     .map { makeNightDetail(for: $0, bands: Self.defaultBands, mode: mode) },
                 disclaimer: disclaimerText,
                 candidates: []
@@ -301,7 +306,7 @@ struct InsightRecommendationEngine {
                     return (lhs.score ?? 0) > (rhs.score ?? 0)
                 },
             excludedNights: cohortSessions
-                .filter { !$0.countsTowardRecommendationTraining }
+                .filter { !canTrain($0, mode: mode) }
                 .map { makeNightDetail(for: $0, bands: Self.defaultBands, mode: mode) }
                 .sorted { $0.sessionDate > $1.sessionDate },
             disclaimer: disclaimerText,
@@ -319,6 +324,10 @@ struct InsightRecommendationEngine {
             .key
     }
 
+    private func canTrain(_ session: InsightSession, mode: InsightRecommendationMode) -> Bool {
+        session.countsTowardRecommendationTraining && (mode != .naturalWakeProbability || session.recordedNaturalWake != nil)
+    }
+
     private func score(session: InsightSession, mode: InsightRecommendationMode) -> Double? {
         switch mode {
         case .restfulSleep:
@@ -329,7 +338,7 @@ struct InsightRecommendationEngine {
                 normalizedMinutes(session.totalSleepMinutes, target: 480)
             ])
         case .naturalWakeProbability:
-            switch session.likelyNaturalWake {
+            switch session.recordedNaturalWake {
             case true:
                 return 1.0
             case false:
@@ -354,7 +363,7 @@ struct InsightRecommendationEngine {
                 inverseFivePoint(session.morning?.daytimeSleepiness),
                 cataplexySafetyScore(session.morning?.cataplexyBurden),
                 inverseInertiaScore(session.morning?.sleepInertiaDuration),
-                session.likelyNaturalWake == false ? 0.8 : 1.0
+                session.recordedNaturalWake.map { $0 ? 1.0 : 0.8 }
             ])
             let commuteBias: Double
             if session.hasLongCommuteBurden {
@@ -523,10 +532,16 @@ struct InsightRecommendationEngine {
     }
 
     private func naturalWakeRate(for sessions: [InsightSession]) -> Double? {
-        let classified = sessions.compactMap(\.likelyNaturalWake)
+        let classified = sessions.compactMap(\.recordedNaturalWake)
         guard !classified.isEmpty else { return nil }
         let naturalCount = classified.filter { $0 }.count
         return Double(naturalCount) / Double(classified.count)
+    }
+
+    private func alarmWakeRate(for sessions: [InsightSession]) -> Double? {
+        // Unknown and Other are not negative answers to the natural/alarm question.
+        let answered = sessions.filter { $0.recordedNaturalWake != nil }
+        return rate(for: answered) { $0.recordedNaturalWake == false }
     }
 
     private func rate(for sessions: [InsightSession], matching predicate: (InsightSession) -> Bool) -> Double? {
@@ -720,9 +735,10 @@ struct InsightRecommendationEngine {
             sleepQuality: session.morningSleepQuality,
             readiness: session.morningReadiness,
             wakeType: session.wakeSignalLabel,
-            nightType: session.explicitNightTypeLabel ?? session.nightTypeFilter.rawValue,
-            exclusionReasons: session.classification.exclusionReasons,
-            trainable: session.countsTowardRecommendationTraining
+            nightType: session.followingDayLabel ?? session.explicitNightTypeLabel ?? session.nightTypeFilter.rawValue,
+            exclusionReasons: session.classification.exclusionReasons + (mode == .naturalWakeProbability && session.recordedNaturalWake == nil ? ["No recorded Natural/Alarm Dose 2 wake answer"] : []),
+            trainable: canTrain(session, mode: mode),
+            collectedNight: session.collectedNight
         )
     }
 

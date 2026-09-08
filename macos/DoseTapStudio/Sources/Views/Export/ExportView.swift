@@ -111,7 +111,8 @@ struct ExportView: View {
                     suggestedName: "DoseTap-Timing-Comparison.csv",
                     content: reportBuilder.buildRecommendationComparisonCSV(
                         sessions: sessions,
-                        mode: recommendationMode
+                        mode: recommendationMode,
+                        redaction: redaction
                     )
                 )
             }

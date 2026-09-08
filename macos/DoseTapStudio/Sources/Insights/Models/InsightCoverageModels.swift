@@ -7,6 +7,7 @@ enum InsightNightTypeFilter: String, CaseIterable, Identifiable, Sendable {
     case transition = "Transitions"
     case weekend = "Weekend"
     case weekday = "Weekday"
+    case unknown = "Unknown Night"
 
     var id: String { rawValue }
 }
@@ -15,7 +16,7 @@ enum InsightWakeTypeFilter: String, CaseIterable, Identifiable, Sendable {
     case all = "All Wake Types"
     case natural = "Natural Wake"
     case alarm = "Alarm Wake"
-    case mixed = "Mixed / External"
+    case mixed = "Other Wake"
     case unknown = "Unknown Wake"
 
     var id: String { rawValue }
@@ -28,6 +29,7 @@ enum InsightScheduleFilter: String, CaseIterable, Identifiable, Sendable {
     case transition = "Transition"
     case uniform = "Uniform"
     case highDemand = "High Demand"
+    case unknown = "Unknown Schedule"
 
     var id: String { rawValue }
 }
@@ -171,6 +173,7 @@ struct InsightCoverageSummary: Hashable, Sendable {
 
 extension InsightSession {
     var nightTypeFilter: InsightNightTypeFilter {
+        if recordedFollowingDay == .unknown { return .unknown }
         let tags = classification.tags
         if tags.contains(.transitionIntoWorkBlock) || tags.contains(.transitionOutOfWorkBlock) {
             return .transition
@@ -188,12 +191,12 @@ extension InsightSession {
     }
 
     var nightWakeFilter: InsightWakeTypeFilter {
-        switch normalizedFilterValue(context?.explicitWakeType) ?? normalizedFilterValue(context?.wakeSignal) {
-        case "natural", "likely_natural":
+        switch recordedDose2Wake {
+        case .natural:
             return .natural
-        case "alarm", "alarm_then_snooze", "alarm_assisted":
+        case .alarm:
             return .alarm
-        case "mixed", "external_interrupt":
+        case .other:
             return .mixed
         default:
             return .unknown
@@ -201,6 +204,13 @@ extension InsightSession {
     }
 
     var scheduleFilter: InsightScheduleFilter {
+        if let day = recordedFollowingDay {
+            switch day {
+            case .workday: return .worklike
+            case .dayOff: return .offlike
+            case .unknown: return .unknown
+            }
+        }
         if nightTypeFilter == .transition {
             return .transition
         }

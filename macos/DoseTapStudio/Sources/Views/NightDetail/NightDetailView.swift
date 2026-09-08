@@ -95,7 +95,7 @@ struct NightDetailView: View {
                         detailRow("Schedule type", context.scheduleDayType ?? "—")
                         detailRow("Night type", session.explicitNightTypeLabel ?? "—")
                         detailRow("First night off after work block", context.firstNightOffAfterWorkBlock ? "Yes" : "No")
-                        detailRow("Wake signal", session.wakeSignalLabel)
+                        detailRow("Recorded Dose 2 wake", session.wakeSignalLabel)
                         detailRow("Next-day demand", session.explicitNextDayDemandLabel ?? "—")
                         detailRow("Dose 2 wake method", session.explicitDose2WakeMethodLabel ?? "—")
                         detailRow("Back to sleep after Dose 2", session.explicitBackToSleepDurationLabel ?? "—")
