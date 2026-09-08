@@ -4,6 +4,23 @@ import DoseCore
 
 @MainActor
 final class DashboardAnalyticsAuditTests: XCTestCase {
+    func testFoodAnalyticsUseCompletedLogsExplicitDaysAndIndependentCounts() {
+        let first = date("2026-09-01")
+        var answers = DoseTap.PreSleepLogAnswers()
+        answers.lastFood = .init(finishedAt: first.addingTimeInterval(-7199), highFat: true)
+        var yes = night("2026-09-01", answers: answers)
+        var diary = NightOutcomeDiary(); diary.dayType = .dayOff; diary.sleepiness = 0; yes.outcome = diary
+        let model = DashboardAnalyticsModel(); model.selectedRange = .all
+        model.nights = [yes, night("2026-09-02", answers: answers, completion: "partial"), night("2026-09-03")]
+        XCTAssertEqual(model.foodDiaryAnalytics().food.count, 1)
+        XCTAssertEqual(model.foodDiaryAnalytics().missingFoodCount, 2)
+        XCTAssertEqual(model.foodDiaryAnalytics().interval(dose: 1).median!, 7199 / 60.0, accuracy: 0.001)
+        XCTAssertEqual(model.foodDiaryAnalytics(day: .dayOff).nightCount, 1)
+        XCTAssertEqual(model.foodDiaryAnalytics().sleepiness(highFat: true).median, 0)
+        model.sleepSource = .whoop
+        XCTAssertEqual(model.foodDiaryAnalytics().sleepAfterDose2(highFat: true).count, 0)
+    }
+
     func testWakeComparisonUsesIndependentCountsExplicitDayAndNoProviderSubstitution() {
         let model = DashboardAnalyticsModel(now: { self.date("2026-09-07").addingTimeInterval(22 * 3600) })
         model.selectedRange = .all

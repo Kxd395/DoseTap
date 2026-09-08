@@ -19,7 +19,7 @@ struct DashboardLifestyleFactorsCard: View {
             factorRow(title: "Alcohol", samples: model.lifestyleSampleCounts { $0.alcohol.map { $0 != .none } }, rate: model.alcoholRate, impact: model.sleepQualityByAlcohol)
             factorRow(title: "Screens in Bed", samples: model.lifestyleSampleCounts { $0.screensInBed.map { $0 != .none } }, rate: model.screenTimeRate, impact: model.sleepQualityByScreens)
             metricRow(title: "Exercise Days", value: model.exerciseRate.map { String(format: "%.0f%%", $0) } ?? "No data")
-            metricRow(title: "Late Meals", value: model.lateMealRate.map { String(format: "%.0f%%", $0) } ?? "No data")
+            metricRow(title: "Late Meals (older question)", value: model.lateMealRate.map { String(format: "%.0f%%", $0) } ?? "No data")
             Text("No data means that this field was not answered in a completed log in this range.")
                 .font(.caption).foregroundColor(.secondary)
         }
@@ -426,6 +426,52 @@ struct DashboardCapturedMetricsCard: View {
             RoundedRectangle(cornerRadius: 16)
                 .fill(Color(.systemGray6))
         )
+    }
+}
+
+struct DashboardFoodDiaryCard: View {
+    @ObservedObject var model: DashboardAnalyticsModel
+    @State private var day: FollowingDayKind?
+    private var summary: FoodDiaryAnalytics { model.foodDiaryAnalytics(day: day) }
+
+    private func value(_ metric: DiaryMetricSummary, minutes: Bool = true) -> String {
+        let number = metric.median.map { minutes ? IntervalFormat.minutes.string(from: $0) : String(format: "%.1f / 10", $0) } ?? "—"
+        return "\(number) · n = \(metric.count)"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Food timing & next-day diary", systemImage: "fork.knife").font(.headline)
+            Picker("Following day for food comparison", selection: $day) {
+                Text("All days").tag(nil as FollowingDayKind?)
+                ForEach(FollowingDayKind.allCases, id: \.self) { Text($0.title).tag(Optional($0)) }
+            }.pickerStyle(.menu).fixedSize(horizontal: true, vertical: false)
+                .accessibilityIdentifier("food-comparison-day-filter")
+            Text("Last food recorded: \(summary.food.count) of \(summary.nightCount) nights")
+                .font(.subheadline)
+            Text("No completed food entry: \(summary.missingFoodCount). Older late-meal answers are kept separate.")
+                .font(.caption).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Median food → Dose 1: \(value(summary.interval(dose: 1)))")
+                Text("Median food → Dose 2: \(value(summary.interval(dose: 2)))")
+            }.font(.subheadline)
+            Text("High-fat: Yes \(summary.fatCount(true)) · No \(summary.fatCount(false)) · Unsure/blank \(summary.unsureFatCount)")
+                .font(.caption)
+            DisclosureGroup("Compare recorded food answers") {
+                ForEach([true, false], id: \.self) { fat in
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(fat ? "High-fat: Yes" : "High-fat: No").font(.subheadline.bold())
+                        Text("Median next-day sleepiness: \(value(summary.sleepiness(highFat: fat), minutes: false))")
+                        Text("Median sleep after Dose 2: \(value(summary.sleepAfterDose2(highFat: fat)))")
+                    }.font(.caption).frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 4)
+                }
+                Text("Sleep source: \(model.sleepSource.rawValue). Post-dose estimates need Apple Health segments; unmeasured time is excluded. Each n counts paired food and outcome records.").font(.caption)
+            }
+            Text("These are diary observations, not evidence that food caused an outcome. Missing answers are not No or zero. Food logged after a dose is excluded from that dose's interval.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading).padding()
+        .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 16))
     }
 }
 

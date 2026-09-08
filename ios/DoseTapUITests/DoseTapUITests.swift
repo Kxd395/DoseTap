@@ -483,6 +483,21 @@ final class DoseTapUITests: XCTestCase {
         captureDashboard("Wake comparison medians and independent usable counts")
         revealDashboardText("Timing & status · full date range")
         captureDashboard("Wake comparison missing-data and full-status disclosures")
+        revealDashboardText("Food timing & next-day diary")
+        let foodFilter = app.descendants(matching: .any).matching(identifier: "food-comparison-day-filter").firstMatch
+        XCTAssertTrue(foodFilter.isHittable, app.debugDescription)
+        foodFilter.tap()
+        app.buttons["Day off"].tap()
+        XCTAssertTrue(app.staticTexts["Last food recorded: 3 of 4 nights"].exists)
+        foodFilter.tap()
+        app.buttons["All days"].tap()
+        captureDashboard("Food timing recorded and missing counts")
+        let foodComparison = app.buttons["Compare recorded food answers"]
+        for _ in 0..<4 where !foodComparison.isHittable { app.swipeUp(velocity: .slow) }
+        XCTAssertTrue(foodComparison.isHittable)
+        foodComparison.tap()
+        revealDashboardText("High-fat: No")
+        captureDashboard("Food timing paired outcomes and usable counts")
     }
 
     private func revealDashboardText(_ title: String, prefix: Bool = false) {

@@ -16,7 +16,7 @@ struct InsightSessionBuilder {
             StudioSessionDateIdentity.key(for: event)
         }
 
-        let allKeys = Set(sessionsByNight.keys).union(groupedEvents.keys)
+        let allKeys = Set(sessionsByNight.keys).union(groupedEvents.keys).union(supplementsBySessionDate.keys)
         return allKeys.compactMap { key in
             buildSession(
                 key: key,
@@ -61,7 +61,7 @@ struct InsightSessionBuilder {
         let whoopRecovery = session?.whoopRecovery ?? supplement?.whoop?.recoveryScore.map { Int($0.rounded()) }
         let averageHeartRate = session?.avgHR ?? supplement?.healthKit?.averageHeartRate
 
-        guard session != nil || !mappedEvents.isEmpty else {
+        guard session != nil || !mappedEvents.isEmpty || supplement != nil else {
             return nil
         }
 

@@ -11,6 +11,7 @@ struct DashboardView: View {
         ScrollView {
             VStack(spacing: 16) {
                 DashboardHeader(dataStore: dataStore)
+                CollectedDiaryOverview(sessions: dataStore.insightSessions)
 
                 LazyVGrid(
                     columns: [

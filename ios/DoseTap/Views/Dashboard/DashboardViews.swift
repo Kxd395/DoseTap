@@ -109,6 +109,7 @@ struct DashboardTabView: View {
                             }
                             DashboardTrendChartsCard(model: model).gridCellColumns(columns.count)
                             DashboardWakeComparisonCard(model: model).gridCellColumns(columns.count)
+                            DashboardFoodDiaryCard(model: model).gridCellColumns(columns.count)
                             DashboardLifestyleFactorsCard(model: model)
                             DashboardMoodSymptomsCard(model: model)
                             DashboardStressTrendsCard(model: model).gridCellColumns(columns.count)

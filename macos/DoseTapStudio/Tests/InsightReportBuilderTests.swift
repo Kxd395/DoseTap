@@ -1,8 +1,29 @@
 import XCTest
 import DoseCore
+import SwiftUI
+import AppKit
 @testable import DoseTapStudio
 
 final class InsightReportBuilderTests: XCTestCase {
+    @MainActor
+    func testCollectedDiaryNativePreview() throws {
+        guard let path = ProcessInfo.processInfo.environment["DOSETAP_STUDIO_PREVIEW"] else {
+            throw XCTSkip("Set DOSETAP_STUDIO_PREVIEW to save the native SwiftUI preview.")
+        }
+        var report = CollectedNightSummary()
+        report.lastFoodFinishedAt = Date(timeIntervalSince1970: 1000)
+        report.lastFoodHighFat = true; report.lastFoodToDose1Minutes = 155; report.lastFoodToDose2Minutes = 365
+        report.dose2WakeMethod = "natural"; report.sleepiness0To10 = 0
+        let session = makeSession(sessionDate: "2024-09-08", intervalMinutes: 210, late: false, skipped: false, stress: 2, sleepQuality: 4, readiness: 4, collectedNight: report)
+        let renderer = ImageRenderer(content: CollectedDiaryOverview(sessions: [session]).padding().frame(width: 1050).environment(\.colorScheme, .dark))
+        renderer.scale = 2
+        let image = try XCTUnwrap(renderer.nsImage)
+        let representation = try XCTUnwrap(NSBitmapImageRep(data: try XCTUnwrap(image.tiffRepresentation)))
+        let png = try XCTUnwrap(representation.representation(using: .png, properties: [:]))
+        try png.write(to: URL(fileURLWithPath: path))
+        XCTAssertGreaterThan(png.count, 1000)
+    }
+
     func testCollectedDiaryColumnsAndRedaction() throws {
         var report = CollectedNightSummary()
         report.lastFoodFinishedAt = Date(timeIntervalSince1970: 1000)
@@ -21,6 +42,10 @@ final class InsightReportBuilderTests: XCTestCase {
         XCTAssertFalse(safe.contains("Oil, cream"))
         XCTAssertFalse(safe.contains("1970-01-01T00:16:40Z"))
         XCTAssertTrue(builder.buildProviderSummary(sessions: [session]).contains("sleepiness_0_to_10: 0"))
+        let supplement = InsightSessionSupplement(sessionDate: "2024-09-08", preSleep: nil, morning: nil, medications: [], collectedNight: decoded)
+        let questionnaireOnly = InsightSessionBuilder().build(sessions: [], events: [], supplementsBySessionDate: ["2024-09-08": supplement])
+        XCTAssertEqual(questionnaireOnly.count, 1, "Questionnaire-only nights must survive Studio import")
+        XCTAssertEqual(questionnaireOnly.first?.collectedNight?.sleepiness0To10, 0)
     }
 
     func testProviderSummaryIncludesKeyMetrics() {

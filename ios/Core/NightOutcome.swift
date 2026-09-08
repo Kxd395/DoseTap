@@ -177,3 +177,26 @@ public struct DiaryMetricSummary: Sendable {
         median = quantile(0.5); lowerQuartile = quantile(0.25); upperQuartile = quantile(0.75)
     }
 }
+
+/// Descriptive food comparisons. Callers supply only completed pre-sleep observations
+/// in the chosen range; pass an empty summary for a night without a usable food entry.
+public struct FoodDiaryAnalytics {
+    public let nightCount: Int
+    public let food: [CollectedNightSummary]
+    public init(_ nights: [CollectedNightSummary]) {
+        nightCount = nights.count
+        food = nights.filter { $0.version == 1 && $0.lastFoodFinishedAt != nil }
+    }
+    public var missingFoodCount: Int { nightCount - food.count }
+    public var unsureFatCount: Int { food.filter { $0.lastFoodHighFat == nil }.count }
+    public func fatCount(_ value: Bool) -> Int { food.filter { $0.lastFoodHighFat == value }.count }
+    public func interval(dose: Int) -> DiaryMetricSummary {
+        DiaryMetricSummary(food.map { dose == 1 ? $0.lastFoodToDose1Minutes : $0.lastFoodToDose2Minutes })
+    }
+    public func sleepiness(highFat: Bool) -> DiaryMetricSummary {
+        DiaryMetricSummary(food.filter { $0.lastFoodHighFat == highFat }.map { $0.sleepiness0To10.map(Double.init) })
+    }
+    public func sleepAfterDose2(highFat: Bool) -> DiaryMetricSummary {
+        DiaryMetricSummary(food.filter { $0.lastFoodHighFat == highFat }.map(\.estimatedSleepAfterDose2Minutes))
+    }
+}

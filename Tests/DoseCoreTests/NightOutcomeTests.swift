@@ -2,6 +2,25 @@ import XCTest
 @testable import DoseCore
 
 final class NightOutcomeTests: XCTestCase {
+    func testFoodDiaryCountsEachUsableOutcomeAndKeepsUnknownSeparate() {
+        var yes = CollectedNightSummary()
+        yes.lastFoodFinishedAt = Date(timeIntervalSince1970: 1000)
+        yes.lastFoodHighFat = true; yes.sleepiness0To10 = 0
+        yes.lastFoodToDose1Minutes = 119.99
+        var no = yes; no.lastFoodHighFat = false; no.sleepiness0To10 = nil; no.lastFoodToDose1Minutes = 180
+        var unsure = yes; unsure.lastFoodHighFat = nil; unsure.lastFoodToDose1Minutes = nil
+        let summary = FoodDiaryAnalytics([yes, no, unsure, .init()])
+        XCTAssertEqual(summary.food.count, 3)
+        XCTAssertEqual(summary.missingFoodCount, 1)
+        XCTAssertEqual(summary.unsureFatCount, 1)
+        XCTAssertEqual(summary.fatCount(false), 1)
+        XCTAssertEqual(summary.interval(dose: 1).count, 2)
+        XCTAssertEqual(summary.interval(dose: 1).median, 149.995)
+        XCTAssertEqual(summary.sleepiness(highFat: true).median, 0)
+        XCTAssertEqual(summary.sleepiness(highFat: false).count, 0)
+        XCTAssertEqual(summary.sleepAfterDose2(highFat: true).count, 0)
+    }
+
     func testReportCSVPreservesMultilineAndSpreadsheetText() throws {
         let fields = ["plain", "Oil, cream\r\n\"notes\"", "=SUM(A1:A2)", " +formula", "-3.5", "'literal", "'\u{200B}literal", "\tdata", ""]
         let encoded = ReportCSV.row(fields)

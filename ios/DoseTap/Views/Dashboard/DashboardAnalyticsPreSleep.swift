@@ -1,6 +1,22 @@
 import Foundation
+import DoseCore
 
 extension DashboardAnalyticsModel {
+    func foodDiaryAnalytics(day: FollowingDayKind? = nil) -> FoodDiaryAnalytics {
+        let selected = populatedNights.filter { day == nil || ($0.outcome?.dayType ?? .unknown) == day }
+        return FoodDiaryAnalytics(selected.map { night in
+            var report = CollectedNightSummary()
+            guard night.preSleepLog?.completionState == "complete", let food = night.preSleepLog?.answers?.lastFood else { return report }
+            report.lastFoodFinishedAt = food.finishedAt
+            report.lastFoodHighFat = food.highFat
+            report.lastFoodToDose1Minutes = CollectedNightSummary.minutes(from: food.finishedAt, to: night.dose1Time)
+            report.lastFoodToDose2Minutes = CollectedNightSummary.minutes(from: food.finishedAt, to: night.dose2Time)
+            if !night.outcomeReadFailed { report.sleepiness0To10 = night.outcome?.sleepiness }
+            report.estimatedSleepAfterDose2Minutes = sleepSource == .appleHealth ? night.postDoseSleep?.asleepMinutes : nil
+            return report
+        })
+    }
+
     // MARK: - Lifestyle Factor Metrics (from Pre-Sleep Log)
 
     private var nightsWithPreSleep: [DashboardNightAggregate] {
