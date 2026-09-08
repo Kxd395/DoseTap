@@ -1,9 +1,9 @@
 # DoseTap SSOT (Single Source of Truth)
 
 Status: Current behavior authority
-Last verified: 2026-09-07
+Last verified: 2026-09-08
 SSOT revision: 0.4.19
-Shipping app version observed in the Xcode project: 0.4.19 (build 23)
+Shipping app version observed in the Xcode project: 0.4.19 (build 24)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -315,6 +315,8 @@ Wide-layout adaptations:
 Compact History insights use one row of four metrics at standard text sizes, with wrapping labels. Larger accessibility text and detailed definitions use fewer columns. Tonight uses one outer horizontal inset and no duplicate tab-bar spacer. The ready-for-tonight layout, including a previous-night reminder and the weekly summary, should fit a standard portrait phone without incidental scrolling. Scrolling remains available for smaller screens, larger text, additional logs, and safety warnings; controls and warnings must never be clipped to force a fit.
 
 Tab selection is synced between compact (TabView `$urlRouter.selectedTab`) and regular (sidebar selection `$urlRouter.selectedTab`) layouts. Deep links work identically in both modes.
+
+On compact screens, Timeline, Dashboard, and Settings use inline navigation titles. Timeline uses its normal content inset without a second top spacer. Titles remain below the system status area, and scrolling stays available for larger text. Regular-width split-view title behavior is unchanged.
 
 Code references:
 - `ios/DoseTap/ContentView.swift` (adaptive root)

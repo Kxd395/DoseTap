@@ -103,6 +103,33 @@ final class DoseTapUITests: XCTestCase {
         captureDashboard("History four-metric row")
     }
 
+    func testCompactLayoutSecondaryHeaders() throws {
+        var headerHeights: [String: CGFloat] = [:]
+        for title in ["Timeline", "Dashboard", "Settings"] {
+            app.buttons[title].tap()
+            let header = app.navigationBars[title]
+            XCTAssertTrue(header.waitForExistence(timeout: 10))
+            headerHeights[title] = header.frame.height
+            XCTAssertLessThan(header.frame.minY, 100, "The header should start just below the status bar")
+            if title != "Settings" {
+                let picker = app.segmentedControls.firstMatch
+                XCTAssertTrue(picker.exists)
+                XCTAssertLessThanOrEqual(picker.frame.minY - header.frame.maxY, 40, "The first control should follow the header without an extra spacer")
+            }
+            captureDashboard("Compact \(title) header")
+        }
+        for (title, height) in headerHeights {
+            XCTAssertLessThanOrEqual(height, 64, "\(title) should use a compact navigation header, not an expanded title region")
+        }
+    }
+
+    func testCompactLayoutSecondaryHeadersLargeText() throws {
+        app.terminate()
+        app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launch()
+        try testCompactLayoutSecondaryHeaders()
+    }
+
     func testCompactLayoutLargeTextKeepsContentReachable() throws {
         app.terminate()
         app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
@@ -683,7 +710,7 @@ final class DoseTapUITests: XCTestCase {
         let remembered = app.staticTexts["Remember last pre-sleep settings"]
         XCTAssertLessThan(bottle.frame.minY, remembered.frame.minY)
         bottle.tap()
-        app.buttons["Cancel"].tap()
+        app.navigationBars["New bottle"].buttons["Cancel"].tap()
         XCTAssertTrue(bottle.waitForExistence(timeout: 5))
         bottle.tap()
         app.buttons["Record bottle start"].tap()
@@ -738,7 +765,14 @@ final class DoseTapUITests: XCTestCase {
         bottle.tap()
         app.buttons["Record bottle start"].tap()
         XCTAssertTrue(app.staticTexts["preSleepLastBottleOpening"].waitForExistence(timeout: 5))
-        app.buttons["Skip for tonight"].tap()
+        // Earlier questionnaire journeys may leave a saved check for this night.
+        // Close its editor without changing that record; new checks can be skipped.
+        let existingCheck = app.navigationBars["Edit Pre-Sleep"]
+        if existingCheck.exists {
+            existingCheck.buttons["Cancel"].tap()
+        } else {
+            app.navigationBars["Pre-Sleep Check"].buttons["Skip for tonight"].tap()
+        }
         XCTAssertTrue(dose.waitForExistence(timeout: 5))
         XCTAssertEqual(dose.label, doseBefore)
 

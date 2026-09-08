@@ -357,7 +357,7 @@ extension SettingsView {
             }
         }
         .navigationTitle("Settings")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(isInSplitView ? .large : .inline)
         .safeAreaInset(edge: .bottom) {
             Color.clear.frame(height: tabBarInsetHeight)
         }
