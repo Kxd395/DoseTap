@@ -1,4 +1,5 @@
 import Foundation
+import DoseCore
 import CryptoKit
 
 /// Handles importing CSV and JSON data from DoseTap iOS exports
@@ -37,18 +38,17 @@ final class Importer {
     }
     
     func parseEventsCSV(_ content: String) throws -> [DoseEvent] {
-        let lines = content.components(separatedBy: .newlines)
+        let lines = try ReportCSV.rows(content)
         guard lines.count > 1 else { return [] }
         
         // Skip header line
-        let dataLines = lines.dropFirst().filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        let dataLines = lines.dropFirst().filter { $0.contains { !$0.isEmpty } }
         var events: [DoseEvent] = []
         
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         
-        for (index, line) in dataLines.enumerated() {
-            let columns = parseCSVLine(line)
+        for (index, columns) in dataLines.enumerated() {
             guard columns.count >= 4 else {
                 print("⚠️ Skipping line \(index + 2): insufficient columns")
                 continue
@@ -94,18 +94,17 @@ final class Importer {
     }
     
     func parseSessionsCSV(_ content: String) throws -> [DoseSession] {
-        let lines = content.components(separatedBy: .newlines)
+        let lines = try ReportCSV.rows(content)
         guard lines.count > 1 else { return [] }
         
         // Skip header line
-        let dataLines = lines.dropFirst().filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        let dataLines = lines.dropFirst().filter { $0.contains { !$0.isEmpty } }
         var sessions: [DoseSession] = []
         
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         
-        for (index, line) in dataLines.enumerated() {
-            let columns = parseCSVLine(line)
+        for (index, columns) in dataLines.enumerated() {
             guard columns.count >= 5 else {
                 print("⚠️ Skipping session line \(index + 2): insufficient columns")
                 continue
@@ -153,18 +152,17 @@ final class Importer {
     }
     
     func parseInventoryCSV(_ content: String) throws -> [InventorySnapshot] {
-        let lines = content.components(separatedBy: .newlines)
+        let lines = try ReportCSV.rows(content)
         guard lines.count > 1 else { return [] }
         
         // Skip header line
-        let dataLines = lines.dropFirst().filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        let dataLines = lines.dropFirst().filter { $0.contains { !$0.isEmpty } }
         var snapshots: [InventorySnapshot] = []
         
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         
-        for (index, line) in dataLines.enumerated() {
-            let columns = parseCSVLine(line)
+        for (index, columns) in dataLines.enumerated() {
             guard columns.count >= 4 else {
                 print("⚠️ Skipping inventory line \(index + 2): insufficient columns")
                 continue

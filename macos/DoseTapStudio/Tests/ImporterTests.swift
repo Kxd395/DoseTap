@@ -1,8 +1,40 @@
 import XCTest
+import DoseCore
 @testable import DoseTapStudio
 
 /// Test suite for data import functionality
 final class ImporterTests: XCTestCase {
+    func testIOSArchiveRoundTrip() async throws {
+        guard let path = ProcessInfo.processInfo.environment["DOSETAP_IOS_EXPORT_FIXTURE"] else {
+            throw XCTSkip("Set DOSETAP_IOS_EXPORT_FIXTURE to the extracted iOS ExportIntegrityTests attachment.")
+        }
+        let folder = URL(fileURLWithPath: path, isDirectory: true)
+        let importer = Importer()
+        let bundle = try XCTUnwrap(try importer.parseInsightsBundle(Data(contentsOf: folder.appendingPathComponent("insights_bundle.json"))))
+        let events = try await importer.loadEvents(from: folder)
+        let records = try await importer.loadSessions(from: folder)
+        let supplements = Dictionary(uniqueKeysWithValues: bundle.sessions.map { ($0.sessionDate, $0) })
+        let nights = InsightSessionBuilder().build(sessions: records, events: events, supplementsBySessionDate: supplements)
+        let night = try XCTUnwrap(nights.first { $0.sessionDate == "2026-06-16" })
+        XCTAssertEqual(night.checkInSubmissions.count, 3)
+        XCTAssertEqual(night.collectedNight?.lastFoodToDose1Minutes, 155)
+        XCTAssertEqual(night.collectedNight?.lastFoodHighFat, true)
+        XCTAssertEqual(night.collectedNight?.dose2WakeMethod, "natural")
+        XCTAssertEqual(night.collectedNight?.sleepiness0To10, 0)
+        XCTAssertNil(night.collectedNight?.estimatedSleepAfterDose2Minutes)
+        let csv = try ReportCSV.rows(InsightReportBuilder().buildSessionCSV(sessions: [night]))
+        XCTAssertEqual(csv[0].count, csv[1].count)
+        XCTAssertEqual(csv[1][try XCTUnwrap(csv[0].firstIndex(of: "sleepiness_0_to_10"))], "0")
+    }
+
+    func testExportedCSVPreservesMultilineNotesAndFormulaText() throws {
+        let notes = "=literal, oil\r\n\"cream\""
+        let csv = "event_type,occurred_at_utc,details,device_time\r\n" + ReportCSV.row(["bathroom", "2026-09-07T02:48:00.000Z", notes, "2026-09-06"]) + "\r\n"
+        let events = try Importer().parseEventsCSV(csv)
+        XCTAssertEqual(events.count, 1)
+        XCTAssertEqual(events.first?.details, notes)
+        XCTAssertThrowsError(try Importer().parseEventsCSV("a,b\nc,\"unfinished"))
+    }
     
     func testParseEventsCSV() throws {
         let csvContent = """

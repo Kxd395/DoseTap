@@ -45,7 +45,8 @@ let package = Package(
                 "DoseRegistrationPolicy.swift",
                 "HistoryDoseChange.swift",
                 "DoseEffectivenessCalculator.swift",
-                "NightOutcome.swift"
+                "NightOutcome.swift",
+                "ReportCSV.swift"
             ]
         ),
         .testTarget(

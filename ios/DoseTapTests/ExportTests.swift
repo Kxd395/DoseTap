@@ -267,7 +267,7 @@ final class ExportIntegrityTests: XCTestCase {
             )
         )
 
-        let settingsView = SettingsView()
+        let settingsView = StudioBundleExporter()
         let bundleData = try settingsView.buildStudioInsightsBundleDataForTesting(
             using: repo,
             sessionDates: [sessionDate]
@@ -331,7 +331,7 @@ final class ExportIntegrityTests: XCTestCase {
             sessionDates: [sessionDate]
         )
 
-        for fileName in ["events.csv", "sessions.csv", "inventory.csv", "insights_bundle.json"] {
+        for fileName in ["events.csv", "sessions.csv", "inventory.csv", "insights_bundle.json", "collected_nights.csv"] {
             XCTAssertTrue(
                 FileManager.default.fileExists(atPath: exportDirectory.appendingPathComponent(fileName).path),
                 "Expected Studio export package to include \(fileName)"
@@ -352,10 +352,32 @@ final class ExportIntegrityTests: XCTestCase {
         let writtenInventoryCSV = try String(contentsOf: exportDirectory.appendingPathComponent("inventory.csv"), encoding: .utf8)
         XCTAssertTrue(writtenInventoryCSV.contains("source=active_sqlite"))
         XCTAssertEqual(writtenInventoryCSV.split(whereSeparator: \.isNewline).count, 2)
+
+        // Scheduled and manual exports use the same local record writer.
+        try settingsView.writeLocalStudioExportBundle(using: repo, to: exportDirectory)
+        let localData = try Data(contentsOf: exportDirectory.appendingPathComponent("insights_bundle.json"))
+        let local = try XCTUnwrap(JSONSerialization.jsonObject(with: localData) as? [String: Any])
+        XCTAssertNil(local["consent"])
+        XCTAssertTrue((local["exportWarnings"] as? [String])?.contains(where: { $0.contains("Local snapshot") }) == true)
+        let flat = try ReportCSV.rows(String(contentsOf: exportDirectory.appendingPathComponent("collected_nights.csv"), encoding: .utf8))
+        XCTAssertEqual(flat.count, 2)
+        XCTAssertEqual(flat[0].count, flat[1].count)
+        XCTAssertEqual(flat[1][try XCTUnwrap(flat[0].firstIndex(of: "sleepiness_0_to_10"))], "0")
+        var cancellationChecks = 0
+        XCTAssertThrowsError(try settingsView.writeScheduledArchive(using: repo, to: exportDirectory, cancelled: {
+            cancellationChecks += 1; return cancellationChecks == 2
+        }))
+        XCTAssertFalse(try FileManager.default.contentsOfDirectory(atPath: exportDirectory.path).contains { $0.hasSuffix(".zip") })
+        let archive = try settingsView.writeScheduledArchive(using: repo, to: exportDirectory)
+        let archiveData = try Data(contentsOf: archive)
+        XCTAssertEqual(Array(archiveData.prefix(2)), [0x50, 0x4b])
+        let attachment = XCTAttachment(data: archiveData, uniformTypeIdentifier: "public.zip-archive")
+        attachment.name = "collected-night-roundtrip.zip"; attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     func test_studioWHOOPExportRangeUsesChronologicalBoundsForDescendingSessions() throws {
-        let settingsView = SettingsView()
+        let settingsView = StudioBundleExporter()
         let descendingDates = ["2026-06-17", "2026-06-16", "2026-02-09"]
         let ascendingDates = descendingDates.sorted()
 
@@ -372,7 +394,7 @@ final class ExportIntegrityTests: XCTestCase {
     }
 
     func test_studioWHOOPSummaryDateUsesSessionRolloverKey() throws {
-        let settingsView = SettingsView()
+        let settingsView = StudioBundleExporter()
         let afterMidnightSleepStart = makeDate("2026-06-17T02:30:00.000Z")
 
         XCTAssertEqual(
@@ -394,7 +416,7 @@ final class ExportIntegrityTests: XCTestCase {
         try FileManager.default.createDirectory(at: exportDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: exportDirectory) }
 
-        try SettingsView().writeStudioExportBundleForTesting(
+        try StudioBundleExporter().writeStudioExportBundleForTesting(
             using: repo,
             to: exportDirectory,
             sessionDates: [sessionDate]

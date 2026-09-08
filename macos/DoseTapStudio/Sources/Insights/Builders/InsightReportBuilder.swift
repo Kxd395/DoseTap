@@ -599,10 +599,7 @@ struct InsightReportBuilder {
     }
 
     private func csvField(_ value: String) -> String {
-        if value.contains(",") || value.contains("\"") || value.contains("\n") {
-            return "\"\(value.replacingOccurrences(of: "\"", with: "\"\""))\""
-        }
-        return value
+        ReportCSV.field(value)
     }
 
     private static let isoFormatter: ISO8601DateFormatter = {

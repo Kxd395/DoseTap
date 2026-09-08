@@ -7,13 +7,15 @@ struct ExportCard: View {
     let sessionKey: String
     @ObservedObject private var sessionRepo = SessionRepository.shared
     @State private var exportSharePayload: ExportSharePayload?
+    @State private var isPreparingExport = false
+    @State private var exportFailed = false
 
     private var doseLog: StoredDoseLog? {
         sessionRepo.fetchDoseLog(forSession: sessionKey)
     }
 
     private var preSleepLog: StoredPreSleepLog? {
-        sessionRepo.fetchMostRecentPreSleepLog(sessionId: sessionKey)
+        sessionRepo.fetchPreSleepLog(forSessionDate: sessionKey)
     }
 
     private var morningCheckIn: StoredMorningCheckIn? {
@@ -46,7 +48,7 @@ struct ExportCard: View {
 
             HStack(spacing: 12) {
                 Button {
-                    exportSharePayload = ExportSharePayload(content: generateExportContent(format: .text))
+                    prepareExport(format: .text)
                 } label: {
                     Label("Share Report", systemImage: "square.and.arrow.up")
                         .frame(maxWidth: .infinity)
@@ -54,12 +56,14 @@ struct ExportCard: View {
                 .buttonStyle(.borderedProminent)
 
                 Button {
-                    exportSharePayload = ExportSharePayload(content: generateExportContent(format: .csv))
+                    prepareExport(format: .csv)
                 } label: {
                     Label("CSV", systemImage: "tablecells")
                 }
                 .buttonStyle(.bordered)
             }
+            .disabled(isPreparingExport)
+            if isPreparingExport { ProgressView("Preparing report…") }
         }
         .padding()
         .background(Color(.systemBackground))
@@ -68,15 +72,25 @@ struct ExportCard: View {
         .sheet(item: $exportSharePayload) { payload in
             ActivityViewController(activityItems: [payload.content])
         }
+        .alert("Report unavailable", isPresented: $exportFailed) {
+            Button("OK", role: .cancel) { }
+        } message: { Text("This night's records need review. No data was changed.") }
     }
 
     enum ExportFormat { case text, csv }
 
-    private func generateExportContent(format: ExportFormat) -> String {
-        // Fail explicitly rather than silently omitting an unreadable diary.
-        guard let report = try? sessionRepo.collectedNightSummary(for: sessionKey) else {
-            return "Report unavailable: this night's records need review. No data was changed."
+    private func prepareExport(format: ExportFormat) {
+        isPreparingExport = true
+        Task { @MainActor in
+            defer { isPreparingExport = false }
+            do {
+                let report = try await StudioBundleExporter().enrichedNightSummary(using: sessionRepo, sessionDate: sessionKey)
+                exportSharePayload = ExportSharePayload(content: generateExportContent(format: format, report: report))
+            } catch { exportFailed = true }
         }
+    }
+
+    private func generateExportContent(format: ExportFormat, report: CollectedNightSummary) -> String {
         switch format {
         case .text:
             return generateTextExport(report: report)
@@ -287,7 +301,7 @@ private struct ExportSharePayload: Identifiable {
         for (field, value) in report.fields {
             appendTextField(&lines, label: humanize(field), value: value ?? "Not recorded / unavailable")
         }
-        lines.append("Sleep after Dose 2 needs measured Apple Health segments; use the enriched Studio bundle for that estimate.")
+        lines.append("Sleep after Dose 2 uses recorded Apple Health segments only. Compare covered minutes with the full interval; unmeasured time is not counted as sleep.")
         return lines.joined(separator: "\n")
     }
 
@@ -477,8 +491,7 @@ private struct ExportSharePayload: Identifiable {
     }
 
     private func csvEscaped(_ value: String) -> String {
-        let escaped = value.replacingOccurrences(of: "\"", with: "\"\"")
-        return "\"\(escaped)\""
+        ReportCSV.field(value)
     }
 
     private func formatStoredTimestamp(_ value: String) -> String {

@@ -302,7 +302,7 @@ extension SettingsView {
             } header: {
                 Label("Data Management", systemImage: "externaldrive.fill")
             } footer: {
-                Text("Export a DoseTap Studio bundle for backup or desktop analysis. All data is stored locally on your device only.")
+                Text("Studio bundles include dose and quick-log events, both questionnaires, the wake/sleepiness diary, medication entries, and inventory. Scheduled ZIPs save local records to Files > DoseTap Exports; iOS decides when they run. Use a manual export for available provider measurements. Exports are not a tested full-app restore.")
             }
 
             Section {

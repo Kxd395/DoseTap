@@ -2,6 +2,15 @@ import XCTest
 @testable import DoseCore
 
 final class NightOutcomeTests: XCTestCase {
+    func testReportCSVPreservesMultilineAndSpreadsheetText() throws {
+        let fields = ["plain", "Oil, cream\r\n\"notes\"", "=SUM(A1:A2)", " +formula", "-3.5", "'literal", "'\u{200B}literal", "\tdata", ""]
+        let encoded = ReportCSV.row(fields)
+        XCTAssertTrue(encoded.contains("'\u{200B}=SUM"))
+        XCTAssertEqual(try ReportCSV.rows(encoded + "\r\n"), [fields])
+        XCTAssertEqual(try ReportCSV.rows("a,b\r\nc,d"), [["a", "b"], ["c", "d"]])
+        XCTAssertThrowsError(try ReportCSV.rows("a,\"unfinished"))
+    }
+
     func testCollectedNightKeepsUnknownZeroAndExactFoodIntervals() throws {
         var report = CollectedNightSummary()
         XCTAssertNil(report.lastFoodHighFat)
