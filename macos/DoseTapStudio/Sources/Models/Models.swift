@@ -159,12 +159,27 @@ struct StudioNightAggregate: Identifiable {
     }
 }
 
+/// Descriptive timing from recorded pairs. Missing observations never enter the denominator.
+struct StudioDoseTimingSummary {
+    let pairCount: Int
+    let inWindowPercent: Double?
+    let averageMinutes: Double?
+
+    init(intervalSeconds: [Double?]) {
+        let valid = intervalSeconds.compactMap { $0 }.filter { MedicationTiming.classify(elapsedSeconds: $0) != .invalid }
+        pairCount = valid.count
+        inWindowPercent = valid.isEmpty ? nil : Double(valid.filter { MedicationTiming.classify(elapsedSeconds: $0) == .inWindow }.count) / Double(valid.count) * 100
+        averageMinutes = valid.isEmpty ? nil : valid.reduce(0) { $0 + $1 / Double(valid.count) / 60 }
+    }
+}
+
 /// Computed analytics for dashboard display
 struct DoseTapAnalytics {
     let totalEvents: Int
     let totalSessions: Int
-    let adherenceRate30d: Double
-    let averageWindow30d: Double
+    let adherenceRate30d: Double?
+    let averageWindow30d: Double?
+    let timingPairCount30d: Int
     let missedDoses30d: Int
     let averageRecovery30d: Double?
     let averageHR30d: Double?
@@ -181,8 +196,9 @@ struct DoseTapAnalytics {
     static let empty = DoseTapAnalytics(
         totalEvents: 0,
         totalSessions: 0,
-        adherenceRate30d: 0,
-        averageWindow30d: 0,
+        adherenceRate30d: nil,
+        averageWindow30d: nil,
+        timingPairCount30d: 0,
         missedDoses30d: 0,
         averageRecovery30d: nil,
         averageHR30d: nil,
@@ -198,20 +214,10 @@ struct DoseTapAnalytics {
     )
 
     var adherenceStatusText: String {
-        switch adherenceRate30d {
-        case 95...100: return "Excellent (>=95%)"
-        case 85..<95: return "Good (85-94%)"
-        case 70..<85: return "Fair (70-84%)"
-        default: return "Needs Attention (<70%)"
-        }
+        timingPairCount30d == 0 ? "No recorded pairs in the last 30 days" : "150–240 min inclusive · n = \(timingPairCount30d) pairs"
     }
 
     var windowStatusText: String {
-        switch averageWindow30d {
-        case 150...180: return "Optimal Window"
-        case 181...210: return "Good Window"
-        case 211...240: return "Late Window"
-        default: return averageWindow30d < 150 ? "Early Window" : "Missed Window"
-        }
+        timingPairCount30d == 0 ? "No recorded pairs in the last 30 days" : "Recorded intervals · n = \(timingPairCount30d) pairs"
     }
 }

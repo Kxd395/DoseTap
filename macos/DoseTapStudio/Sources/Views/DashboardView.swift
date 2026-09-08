@@ -25,15 +25,15 @@ struct DashboardView: View {
                         .gridCellColumns(3)
 
                     MetricCard(
-                        title: "30-Day Adherence",
-                        value: String(format: "%.1f%%", dataStore.analytics.adherenceRate30d),
+                        title: "30-Day In-Window Pairs",
+                        value: dataStore.analytics.adherenceRate30d.map { String(format: "%.1f%%", $0) } ?? "No data",
                         subtitle: dataStore.analytics.adherenceStatusText,
-                        color: getAdherenceColor(dataStore.analytics.adherenceRate30d),
+                        color: .blue,
                         icon: "checkmark.circle.fill"
                     )
                     MetricCard(
-                        title: "Avg Dose Window",
-                        value: String(format: "%.0f min", dataStore.analytics.averageWindow30d),
+                        title: "Avg Recorded Interval",
+                        value: dataStore.analytics.averageWindow30d.map { String(format: "%.0f min", $0) } ?? "No data",
                         subtitle: dataStore.analytics.windowStatusText,
                         color: .blue,
                         icon: "clock.fill"
@@ -142,15 +142,6 @@ struct DashboardView: View {
         .navigationTitle("Dashboard")
     }
     
-    private func getAdherenceColor(_ rate: Double) -> Color {
-        switch rate {
-        case 95...100: return .green
-        case 85..<95: return .blue
-        case 70..<85: return .orange
-        default: return .red
-        }
-    }
-
     private func durationText(_ minutes: Double) -> String {
         let roundedMinutes = Int(minutes.rounded())
         return "\(roundedMinutes / 60)h \(roundedMinutes % 60)m"

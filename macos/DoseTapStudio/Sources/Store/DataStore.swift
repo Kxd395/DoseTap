@@ -130,19 +130,17 @@ final class DataStore: ObservableObject {
         let totalSessions = sessions.count
         
         // Get last 30 days of data
-        let thirtyDaysAgo = Calendar.current.date(byAdding: .day, value: -30, to: Date()) ?? Date.distantPast
+        let now = Date()
+        let thirtyDaysAgo = Calendar.current.date(byAdding: .day, value: -30, to: now) ?? Date.distantPast
         let recentInsightSessions = insightSessions.filter { session in
             guard let startedAt = session.startedAt else { return false }
-            return startedAt >= thirtyDaysAgo
+            return startedAt >= thirtyDaysAgo && startedAt <= now
         }
         
-        // Calculate adherence rate
-        let adherentSessions = recentInsightSessions.filter { ($0.adherenceFlag ?? "") == "ok" || $0.isOnTimeDose2 }
-        let adherenceRate = recentInsightSessions.isEmpty ? 0.0 : (Double(adherentSessions.count) / Double(recentInsightSessions.count)) * 100.0
-        
-        // Calculate average window time
-        let windowTimes = recentInsightSessions.compactMap(\.intervalMinutes)
-        let averageWindow = windowTimes.isEmpty ? 0.0 : Double(windowTimes.reduce(0, +)) / Double(windowTimes.count)
+        let timing = StudioDoseTimingSummary(intervalSeconds: recentInsightSessions.map { session in
+            guard let first = session.dose1Time, let second = session.dose2Time else { return nil }
+            return second.timeIntervalSince(first)
+        })
         
         // Calculate missed doses
         let missedSessions = recentInsightSessions.filter(\.dose2Skipped)
@@ -194,8 +192,9 @@ final class DataStore: ObservableObject {
         return DoseTapAnalytics(
             totalEvents: totalEvents,
             totalSessions: totalSessions,
-            adherenceRate30d: adherenceRate,
-            averageWindow30d: averageWindow,
+            adherenceRate30d: timing.inWindowPercent,
+            averageWindow30d: timing.averageMinutes,
+            timingPairCount30d: timing.pairCount,
             missedDoses30d: missedDoses,
             averageRecovery30d: averageRecovery,
             averageHR30d: averageHR,

@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-07
 SSOT revision: 0.4.19
-Shipping app version observed in the Xcode project: 0.4.19 (build 22)
+Shipping app version observed in the Xcode project: 0.4.19 (build 23)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -587,6 +587,7 @@ Work schedule configuration and dated overrides are stored together in SQLite `w
 - Date ranges include exactly the selected number of civil night keys through the current evening-anchored night; malformed and future keys are excluded. All Time includes all discovered local history. Provider fetch horizons remain explicit (Apple Health up to 120 nights, WHOOP 30 days).
 - Recorded dose events own retrospective timing; never infer Dose 1 from Dose 2 or an extra dose. Pending Dose 2 (before the existing upper timing boundary) is separate from missing outcomes. Recorded outcomes include explicit skips; on-time percentages use valid timestamp pairs only, with exact elapsed seconds and the shared MedicationTiming classification.
 - Missing observations remain missing, never zero or an implicit negative answer. Bathroom analytics count logs; duration is not measured. Pre-sleep completion requires a completed log. Stress-driver frequency counts each driver at most once per night.
+- Studio's 30-day dose-timing cards use valid recorded timestamp pairs only, disclose their usable pair count, and show No data when no pairs exist. Classify each pair from unrounded elapsed seconds, never a legacy adherence flag. The average interval is descriptive; it is not labeled Optimal, Good, or an effectiveness result.
 - Sleep comparisons use one explicitly selected provider without fallback. Show sample counts, source coverage and fetch errors. Descriptive timing groups and associations do not measure medication effectiveness or establish causation; changes in an average are not automatically improvements.
 - Dashboard defaults to All, showing Overview, Trends and Data in one scroll; these groups remain optional filters. The captured metric reference is available in All and Data. Missing WHOOP, prior-period or timing-group inputs show explanatory cards. Empty, loading and partial-provider states remain visible. Existing Typical Week, nightly overrides, medication supply and alarm behavior are unchanged.
 
