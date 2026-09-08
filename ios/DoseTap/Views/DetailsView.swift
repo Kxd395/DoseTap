@@ -138,7 +138,6 @@ struct DetailsView: View {
                         reviewContent
                     }
                     .padding()
-                    .padding(.top, isInSplitView ? 0 : 16)
                     .padding(.bottom, 80)
                 } else {
                     VStack(spacing: 20) {
@@ -152,11 +151,11 @@ struct DetailsView: View {
                         liveContent
                     }
                     .padding()
-                    .padding(.top, isInSplitView ? 0 : 16)
                     .padding(.bottom, 80)
                 }
             }
             .navigationTitle("Timeline")
+            .navigationBarTitleDisplayMode(isInSplitView ? .automatic : .inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if selectedMode == .review, reviewSession != nil {

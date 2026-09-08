@@ -129,6 +129,7 @@ struct DashboardTabView: View {
                 .padding(.bottom, 90)
             }
             .navigationTitle("Dashboard")
+            .navigationBarTitleDisplayMode(isInSplitView ? .automatic : .inline)
             .refreshable {
                 await model.refreshAndWait()
             }

@@ -103,6 +103,33 @@ final class DoseTapUITests: XCTestCase {
         captureDashboard("History four-metric row")
     }
 
+    func testCompactLayoutSecondaryHeaders() throws {
+        var headerHeights: [String: CGFloat] = [:]
+        for title in ["Timeline", "Dashboard", "Settings"] {
+            app.buttons[title].tap()
+            let header = app.navigationBars[title]
+            XCTAssertTrue(header.waitForExistence(timeout: 10))
+            headerHeights[title] = header.frame.height
+            XCTAssertLessThan(header.frame.minY, 100, "The header should start just below the status bar")
+            if title != "Settings" {
+                let picker = app.segmentedControls.firstMatch
+                XCTAssertTrue(picker.exists)
+                XCTAssertLessThanOrEqual(picker.frame.minY - header.frame.maxY, 40, "The first control should follow the header without an extra spacer")
+            }
+            captureDashboard("Compact \(title) header")
+        }
+        for (title, height) in headerHeights {
+            XCTAssertLessThanOrEqual(height, 64, "\(title) should use a compact navigation header, not an expanded title region")
+        }
+    }
+
+    func testCompactLayoutSecondaryHeadersLargeText() throws {
+        app.terminate()
+        app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launch()
+        try testCompactLayoutSecondaryHeaders()
+    }
+
     func testCompactLayoutLargeTextKeepsContentReachable() throws {
         app.terminate()
         app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]

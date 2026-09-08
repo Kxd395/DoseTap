@@ -316,6 +316,8 @@ Compact History insights use one row of four metrics at standard text sizes, wit
 
 Tab selection is synced between compact (TabView `$urlRouter.selectedTab`) and regular (sidebar selection `$urlRouter.selectedTab`) layouts. Deep links work identically in both modes.
 
+On compact screens, Timeline, Dashboard, and Settings use inline navigation titles. Timeline uses its normal content inset without a second top spacer. Titles remain below the system status area, and scrolling stays available for larger text. Regular-width split-view title behavior is unchanged.
+
 Code references:
 - `ios/DoseTap/ContentView.swift` (adaptive root)
 - `ios/DoseTap/Views/AdaptiveLayouts.swift` (environment key, sidebar, helpers)
