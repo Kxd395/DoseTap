@@ -32,6 +32,10 @@ The form therefore records food observations and links to the label. It does not
 
 ## Open acceptance
 
+### Build 22 installation handoff
+
+The initial food commit retained build 21. After the owner reported an indistinguishable installation, the Debug/Release configurations for DoseTap and DoseTapStaging were advanced to 0.4.19 (22). Use `/Volumes/Developer/projects/DoseTap-main/ios/DoseTap.xcodeproj`, scheme DoseTap. Settings reads the bundle version/build rather than a hard-coded number. Opening Xcode is not evidence that the phone has been installed or accepted; those gates remain open.
+
 Signed-device and owner acceptance remain open, including entering a real remembered finish time, testing keyboard/Dynamic Type accessibility, and confirming this fits the nightly routine. Simulator fixtures are not real clinical evidence.
 
 The existing integration HOLD is unchanged: broader UI suite, final security and credential/provider-revocation evidence, protected hosted checks and release-owner acceptance remain separate. No phone installation, push or merge to main. The existing project and UI-scheme reorder diffs remain uncommitted and excluded from this work.
