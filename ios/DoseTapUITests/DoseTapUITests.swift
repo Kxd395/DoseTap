@@ -411,8 +411,9 @@ final class DoseTapUITests: XCTestCase {
         revealDashboardText("vs. Prior Week")
         revealDashboardText("Recorded On-Time %", prefix: true)
         captureDashboard("Build14 parity prior comparison")
-        revealDashboardText("Recent interval change:", prefix: true)
-        captureDashboard("Build14 parity interval change")
+        revealDashboardText("Natural waking vs. alarm waking")
+        revealDashboardText("Within-window pairs")
+        captureDashboard("Wake comparison replaces legacy timing split")
         revealDashboardText("Alcohol: No data", prefix: true)
         revealDashboardText("Exercise Days")
         captureDashboard("Build14 parity lifestyle missing answers")
@@ -444,7 +445,8 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(app.segmentedControls["dashboard-section-picker"].buttons["All"].isSelected)
         captureDashboard("Restored dashboard All overview")
         for title in ["Recorded Dose Timing", "Sleep Outcomes", "WHOOP Recovery & Biometrics",
-                      "Period Comparison", "Interactive Trends", "Timing Groups", "Lifestyle Factors",
+                      "Period Comparison", "Interactive Trends", "Natural waking vs. alarm waking",
+                      "Timing & status · full date range", "Food timing & next-day diary", "Lifestyle Factors",
                       "Mood & Symptoms", "Stress Trends", "Data Coverage", "Integrations",
                       "Recent Nights · up to 14", "Captured Metrics Inventory"] {
             revealDashboardText(title)
@@ -459,8 +461,10 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Recorded Nights"].waitForExistence(timeout: 10))
         revealDashboardText("WHOOP Recovery & Biometrics")
         revealDashboardText("No WHOOP nights in this range. Check the WHOOP connection in Settings, then refresh or choose a wider range.")
-        revealDashboardText("Timing Groups")
-        revealDashboardText("Available after at least 3 nights with both dose timestamps recorded. Provider comparisons also need sleep measurements from the selected source.")
+        revealDashboardText("Natural waking vs. alarm waking")
+        revealDashboardText("Each n counts nights with that measurement, not all recorded pairs. Missing data is not zero.")
+        revealDashboardText("Timing & status · full date range")
+        revealDashboardText("Before: <150 min · Within: 150–240 min inclusive · After: >240 min. Classified using unrounded elapsed time.")
         captureDashboard("Sparse dashboard explains prerequisites")
         app.terminate()
         app.launchArguments += ["--dashboard-empty"]
