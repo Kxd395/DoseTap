@@ -118,7 +118,8 @@ extension EventStorage {
             normalized.caffeineLastAmountMg = nil
             normalized.caffeineDailyTotalMg = nil
             normalized.caffeineSources = nil
-            normalized.stimulants = PreSleepLogAnswers.Stimulants.none
+            // Preserve nil (unanswered) separately from an explicit None answer.
+            // Otherwise the normalized submission invents caffeine.any = false.
         }
 
         let legacyDose1 = normalizedDoseAmount(normalized.plannedDose1Mg)

@@ -822,6 +822,58 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertEqual(responses["pain.overall_intensity"] as? Int, 6)
     }
 
+    func test_preSleepUnansweredSubstancesRemainUnknownAfterSaveAndReload() throws {
+        _ = try repo.savePreSleepLog(answers: DoseTap.PreSleepLogAnswers(), completionState: "complete")
+        repo.reload()
+        let restored = try XCTUnwrap(storage.fetchMostRecentPreSleepLog()?.answers)
+        XCTAssertNil(restored.stimulants)
+        XCTAssertNil(restored.caffeineSources)
+        XCTAssertNil(restored.alcohol)
+        let row = try XCTUnwrap(storage.fetchCheckInSubmissions(checkInType: .preNight).first)
+        let responses = decodeJSONDictionary(row.responsesJson)
+        XCTAssertFalse(responses.keys.contains { $0.hasPrefix("pre.substances.caffeine.") })
+        XCTAssertNil(responses["pre.substances.stimulants_after_2pm"])
+        XCTAssertNil(responses["pre.substances.alcohol.any"])
+    }
+
+    func test_preSleepExplicitNoSubstancesRemainsAnAnswer() throws {
+        var answers = DoseTap.PreSleepLogAnswers()
+        answers.stimulants = PreSleepLogAnswers.Stimulants.none
+        answers.alcohol = PreSleepLogAnswers.AlcoholLevel.none
+        _ = try repo.savePreSleepLog(answers: answers, completionState: "complete")
+        let restored = try XCTUnwrap(storage.fetchMostRecentPreSleepLog()?.answers)
+        XCTAssertEqual(restored.stimulants, PreSleepLogAnswers.Stimulants.none)
+        XCTAssertEqual(restored.alcohol, PreSleepLogAnswers.AlcoholLevel.none)
+        let row = try XCTUnwrap(storage.fetchCheckInSubmissions(checkInType: .preNight).first)
+        let responses = decodeJSONDictionary(row.responsesJson)
+        XCTAssertEqual(responses["pre.substances.caffeine.any"] as? Bool, false)
+        XCTAssertEqual(responses["pre.substances.alcohol.any"] as? Bool, false)
+    }
+
+    func test_preSleepAffirmativeSubstancesDoNotAcquireMissingDetailsInStorage() throws {
+        var answers = DoseTap.PreSleepLogAnswers()
+        answers.caffeineSources = [.coffee]
+        answers.alcohol = .twoThree
+        _ = try repo.savePreSleepLog(answers: answers, completionState: "complete")
+        let restored = try XCTUnwrap(storage.fetchMostRecentPreSleepLog()?.answers)
+        XCTAssertEqual(restored.caffeineSources, [.coffee])
+        XCTAssertEqual(restored.alcohol, .twoThree)
+        XCTAssertNil(restored.caffeineLastIntakeAt)
+        XCTAssertNil(restored.caffeineLastAmountMg)
+        XCTAssertNil(restored.caffeineDailyTotalMg)
+        XCTAssertNil(restored.alcoholLastDrinkAt)
+        XCTAssertNil(restored.alcoholLastAmountDrinks)
+        XCTAssertNil(restored.alcoholDailyTotalDrinks)
+        let row = try XCTUnwrap(storage.fetchCheckInSubmissions(checkInType: .preNight).first)
+        let responses = decodeJSONDictionary(row.responsesJson)
+        XCTAssertEqual(responses["pre.substances.caffeine.any"] as? Bool, true)
+        XCTAssertEqual(responses["pre.substances.alcohol.any"] as? Bool, true)
+        XCTAssertNil(responses["pre.substances.caffeine.last_time_utc"])
+        XCTAssertNil(responses["pre.substances.caffeine.last_amount_mg"])
+        XCTAssertNil(responses["pre.substances.alcohol.last_time_utc"])
+        XCTAssertNil(responses["pre.substances.alcohol.last_amount_drinks"])
+    }
+
     func test_addPreSleepLog_persistsStressDetails_evenAtLowStressLevels() async throws {
         storage.clearAllData()
 
