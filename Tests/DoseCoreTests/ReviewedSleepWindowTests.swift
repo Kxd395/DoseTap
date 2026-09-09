@@ -2,6 +2,19 @@ import XCTest
 @testable import DoseCore
 
 final class ReviewedSleepWindowTests: XCTestCase {
+    func testCollectedWindowRoundTripAndFlatFieldsPreserveMissingness() throws {
+        var summary = CollectedNightSummary()
+        XCTAssertNil(try JSONDecoder().decode(CollectedNightSummary.self, from: Data(#"{"version":1}"#.utf8)).reviewedSleepWindow)
+        XCTAssertTrue(summary.fields.filter { $0.0.hasPrefix("reviewed_window_") }.allSatisfy { $0.1 == nil })
+        summary.reviewedSleepWindow = window()
+        let decoded = try JSONDecoder().decode(CollectedNightSummary.self, from: JSONEncoder().encode(summary))
+        XCTAssertEqual(decoded.reviewedSleepWindow, summary.reviewedSleepWindow)
+        let fields = Dictionary(uniqueKeysWithValues: decoded.fields)
+        XCTAssertEqual(fields["reviewed_window_source"] ?? nil, "user_reviewed")
+        XCTAssertEqual(fields["reviewed_window_entry_timezone"] ?? nil, "America/New_York")
+        XCTAssertNotNil(fields["reviewed_window_start_at_utc"] ?? nil)
+        XCTAssertNil(decoded.estimatedSleepAfterDose2Minutes)
+    }
     private let start = Date(timeIntervalSince1970: 1_800_000_000)
     private func window(start: Date? = nil, end: Date? = nil, sessionID: String = "session-A") -> ReviewedSleepWindow {
         .init(sessionID: sessionID, start: start ?? self.start,

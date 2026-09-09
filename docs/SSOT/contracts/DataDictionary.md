@@ -78,6 +78,8 @@ Symptom rows derived from an editable check-in use `source`, `source_record_id`,
 
 This additive JSON field has no SQLite migration. Existing night-outcome revisions retain prior windows with correction reasons, including removal. Generic submission export includes the JSON and revisions. A window is independent of final awakening, provider samples and measured sleep; unresolved source, overlapping-session and nap conflicts still block future use as a resolved treatment-night range. Older app versions may ignore this new field; downgrade writing is not a supported preservation path.
 
+The collected-night JSON also carries `reviewedSleepWindow`; flat `reviewed_window_*` columns contain version, source, start/end/review UTC timestamps, entry timezone and both offset-seconds values. Missing windows leave these columns empty. Studio retains the nested object on read/write and includes the flat fields in its existing reports; safe reports redact all three timestamps plus entry timezone/offsets. No new field supplies a sleep estimate or replaces final wake.
+
 ## Inventory boundary
 
 `inventory_snapshots` records a point-in-time local estimate or imported inventory state. The legacy column name `next_refill_date` does not grant DoseTap authority to refill, order, verify eligibility, contact a pharmacy, or report shipment state.

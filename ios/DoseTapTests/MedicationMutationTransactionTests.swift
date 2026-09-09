@@ -90,6 +90,12 @@ final class MedicationMutationTransactionTests: XCTestCase {
             entryTimeZone: .current, reviewedAt: entered)
         XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: sessionDate),
             reason: "", recordedAt: entered).isCommitted)
+        XCTAssertFalse(storage.reconcileDoseEvent(eventType: .dose2, timestamp: oldDose1.addingTimeInterval(3 * 3600),
+            sessionDate: sessionDate, sessionId: sessionId, metadata: nil, expectedDose1Time: oldDose1,
+            onlyIfDose2Missing: true, wakeMethod: .natural).isCommitted,
+            "A backdated occurrence without a valid later entry time must not corrupt an already reviewed diary")
+        XCTAssertNil(storage.loadCurrentSessionState().dose2Time)
+        XCTAssertEqual(try storage.nightOutcomeSnapshot(sessionDate: sessionDate).record?.answers.reviewedSleepWindow, diary.reviewedSleepWindow)
         XCTAssertTrue(storage.reconcileDoseEvent(eventType: .dose2, timestamp: oldDose1.addingTimeInterval(3 * 3600),
             sessionDate: sessionDate, sessionId: sessionId, metadata: nil, expectedDose1Time: oldDose1,
             onlyIfDose2Missing: true, wakeMethod: .natural, recordedAt: entered).isCommitted)

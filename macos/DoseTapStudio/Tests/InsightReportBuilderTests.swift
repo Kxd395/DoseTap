@@ -28,6 +28,9 @@ final class InsightReportBuilderTests: XCTestCase {
         var report = CollectedNightSummary()
         report.lastFoodFinishedAt = Date(timeIntervalSince1970: 1000)
         report.lastFoodNotes = "Oil, cream\n\"notes\""
+        report.reviewedSleepWindow = .init(sessionID: "test-night", start: Date(timeIntervalSince1970: 1100),
+            end: Date(timeIntervalSince1970: 1200), entryTimeZone: TimeZone(identifier: "America/New_York")!,
+            reviewedAt: Date(timeIntervalSince1970: 1300))
         report.lastFoodHighFat = false
         report.dose2WakeMethod = "natural"
         report.sleepiness0To10 = 0
@@ -38,9 +41,17 @@ final class InsightReportBuilderTests: XCTestCase {
         XCTAssertTrue(full.contains("sleepiness_0_to_10"))
         XCTAssertTrue(full.contains("Oil, cream"))
         XCTAssertTrue(full.contains("natural"))
+        XCTAssertTrue(full.contains("America/New_York"))
+        XCTAssertEqual(decoded.reviewedSleepWindow, report.reviewedSleepWindow)
         let safe = builder.buildSessionCSV(sessions: [session], redaction: .clinicianSafe)
         XCTAssertFalse(safe.contains("Oil, cream"))
         XCTAssertFalse(safe.contains("1970-01-01T00:16:40Z"))
+        let safeRows = try ReportCSV.rows(safe)
+        for name in ["reviewed_window_start_at_utc", "reviewed_window_end_at_utc", "reviewed_window_reviewed_at_utc",
+                     "reviewed_window_entry_timezone", "reviewed_window_start_offset_seconds", "reviewed_window_end_offset_seconds"] {
+            let column = try XCTUnwrap(safeRows[0].firstIndex(of: name))
+            XCTAssertEqual(safeRows[1][column], "")
+        }
         XCTAssertTrue(builder.buildProviderSummary(sessions: [session]).contains("sleepiness_0_to_10: 0"))
         for mode in InsightRecommendationMode.allCases {
             let package = builder.buildRecommendationPackage(sessions: [session], mode: mode)

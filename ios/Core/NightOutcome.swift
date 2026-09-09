@@ -87,6 +87,7 @@ public struct CollectedNightSummary: Codable, Hashable, Sendable {
     public var sleepAfterDose2IntervalMinutes: Double?
     public var sleepAfterDose2FinalWakeAt: Date?
     public var sleepAfterDose2Source: String?
+    public var reviewedSleepWindow: ReviewedSleepWindow?
     public init() {}
 
     public static func minutes(from start: Date?, to end: Date?) -> Double? {
@@ -127,7 +128,15 @@ public struct CollectedNightSummary: Codable, Hashable, Sendable {
             ("sleep_after_dose2_covered_minutes", sleepAfterDose2CoveredMinutes.map { String($0) }),
             ("sleep_after_dose2_interval_minutes", sleepAfterDose2IntervalMinutes.map { String($0) }),
             ("sleep_after_dose2_final_wake_at_utc", stamp(sleepAfterDose2FinalWakeAt)),
-            ("sleep_after_dose2_source", sleepAfterDose2Source)
+            ("sleep_after_dose2_source", sleepAfterDose2Source),
+            ("reviewed_window_version", reviewedSleepWindow.map { String($0.version) }),
+            ("reviewed_window_source", reviewedSleepWindow?.source),
+            ("reviewed_window_start_at_utc", stamp(reviewedSleepWindow?.start)),
+            ("reviewed_window_end_at_utc", stamp(reviewedSleepWindow?.end)),
+            ("reviewed_window_reviewed_at_utc", stamp(reviewedSleepWindow?.reviewedAt)),
+            ("reviewed_window_entry_timezone", reviewedSleepWindow?.entryTimeZoneID),
+            ("reviewed_window_start_offset_seconds", reviewedSleepWindow.map { String($0.startUTCOffsetSeconds) }),
+            ("reviewed_window_end_offset_seconds", reviewedSleepWindow.map { String($0.endUTCOffsetSeconds) })
         ]
     }
 }

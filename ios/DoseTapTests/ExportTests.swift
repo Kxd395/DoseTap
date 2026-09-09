@@ -232,6 +232,8 @@ final class ExportIntegrityTests: XCTestCase {
         var diary = NightOutcomeDiary()
         diary.wakeMethod = .natural; diary.backupAlarmSet = true; diary.dayType = .dayOff
         diary.finalWakeAt = morningTime; diary.sleepiness = 0; diary.assessedAt = morningTime.addingTimeInterval(21600)
+        diary.reviewedSleepWindow = .init(sessionID: review.history.sessionId, start: preSleepTime, end: morningTime,
+            entryTimeZone: TimeZone(identifier: "America/New_York")!, reviewedAt: diary.assessedAt!)
         XCTAssertTrue(storage.saveNightOutcome(diary, review: review, reason: "", recordedAt: diary.assessedAt!).isCommitted)
         storage.saveMorningCheckIn(
             DoseTap.StoredMorningCheckIn(
@@ -283,6 +285,10 @@ final class ExportIntegrityTests: XCTestCase {
         XCTAssertEqual(collected["lastFoodHighFat"] as? Bool, true)
         XCTAssertEqual(collected["lastFoodToDose1Minutes"] as? Double, 155)
         XCTAssertNil(collected["estimatedSleepAfterDose2Minutes"], "No segments is not zero sleep")
+        let exportedWindow = try XCTUnwrap(collected["reviewedSleepWindow"] as? [String: Any])
+        XCTAssertEqual(exportedWindow["sessionID"] as? String, review.history.sessionId)
+        XCTAssertEqual(exportedWindow["entryTimeZoneID"] as? String, "America/New_York")
+        XCTAssertEqual(exportedWindow["source"] as? String, "user_reviewed")
         let measured = try repo.collectedNightSummary(for: sessionDate, intervals: [
             .init(start: dose2Time, end: morningTime, asleep: true),
             .init(start: dose2Time, end: dose2Time.addingTimeInterval(600), asleep: false)
@@ -311,6 +317,7 @@ final class ExportIntegrityTests: XCTestCase {
         XCTAssertTrue(submissionTypes.contains("pre_night"))
         XCTAssertTrue(submissionTypes.contains("morning"))
         let responsePayloads = submissions.compactMap { $0["responsesJson"] as? String }
+        XCTAssertTrue(responsePayloads.contains { $0.contains("reviewedSleepWindow") })
         XCTAssertTrue(responsePayloads.contains { $0.contains("sleep.quality") })
         XCTAssertTrue(responsePayloads.contains { $0.contains("overall.stress") })
 
@@ -346,6 +353,10 @@ final class ExportIntegrityTests: XCTestCase {
         XCTAssertEqual((writtenSession["checkInSubmissions"] as? [[String: Any]])?.count, 3)
 
         let writtenSessionsCSV = try String(contentsOf: exportDirectory.appendingPathComponent("sessions.csv"), encoding: .utf8)
+        let windowCSV = try String(contentsOf: exportDirectory.appendingPathComponent("collected_nights.csv"), encoding: .utf8)
+        let windowRows = try ReportCSV.rows(windowCSV)
+        let windowColumn = try XCTUnwrap(windowRows[0].firstIndex(of: "reviewed_window_entry_timezone"))
+        XCTAssertEqual(windowRows[1][windowColumn], "America/New_York")
         XCTAssertTrue(writtenSessionsCSV.contains("2026-06-17T01:15:00.000Z"))
         XCTAssertTrue(writtenSessionsCSV.contains("210"), "Sessions CSV should include the 3h30 dose interval")
 
