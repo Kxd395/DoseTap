@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-08
 SSOT revision: 0.4.19
-Shipping app version observed in the Xcode project: 0.4.19 (build 32)
+Shipping app version observed in the Xcode project: 0.4.19 (build 33)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -146,6 +146,11 @@ Naps are implemented as paired sleep events, not a separate table.
 - If a start has no end, History shows "Nap in progress". There is no guard preventing multiple overlapping naps.
 
 ### HealthKit
+
+- Boundary correction, DOSETAP-56: the existing primary-episode summary uses the last observed asleep end for its final-wake estimate, not the end of trailing awake/in-bed observations. It retains a separate observation end and records whether contiguous awake evidence supports that boundary or it is only a last-observed-sleep-end estimate. This remains a primary-episode summary, not a reviewed treatment-night total.
+- Unknown HealthKit sleep categories remain unclassified and retain their raw category value in adapter segments. Valid unspecified-asleep remains sleep. Unknown observations cannot supply asleep/awake duration; in-bed-only and unknown observations do not become awake chart bands. Raw-category preservation is not yet a complete sample/source revision ledger.
+- Equal-priority normalized slices choose the lexically first source display name and then lowest raw category value. This stable tie-break makes reordered identical evidence reproducible; it is not a source-accuracy ranking or full conflict/provenance resolution.
+- Derivation metadata identifies this boundary correction separately from older unversioned reports. Full reviewed-night aggregation, source reconciliation, per-metric missingness and dose-linked markers remain planned in `docs/plans/2026-09-09-sleep-timing-calculation-addendum.md` under DOSETAP-56/57. No medication, alarm or session mutations are introduced.
 
 - HealthKit status lookup must not block repository or UI initialization. Synchronous provider status calls run away from the main actor; until they return, the app preserves its unresolved status and medication screens remain usable.
 

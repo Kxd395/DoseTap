@@ -4,6 +4,7 @@ Date: 2026-09-08
 Status: Planned work; not a claim that new markers are implemented
 Authority: Plane owns live priority and state.
 Related: [Food and Drink roadmap](2026-09-08-food-drink-roadmap.md)
+Calculation contract: [Adopted timing addendum](2026-09-09-sleep-timing-calculation-addendum.md), including bounded delivery and per-metric evidence rules.
 
 ## Owner requirement
 
@@ -68,7 +69,7 @@ Specification and safety-copy review before implementation. Use an explicitly en
 - DOSETAP-45 and DOSETAP-13: dashboard/Studio calculations and export parity; use the same versioned definitions.
 - DOSETAP-47: stable-ID manual edits and retained correction history.
 - DOSETAP-39: full lifecycle/clear-all/restore. A report is not a complete backup.
-- DOSETAP-17: documentation reconciliation; the executable schema declares version 5 while one SSOT paragraph says 4. Do not infer installed database migration state from prose.
+- DOSETAP-17: documentation reconciliation. The stale SSOT version paragraph has been replaced with executable-schema references; continue checking migrations against code, not a historical roadmap version. Do not infer installed database migration state from prose.
 - Multi-medication analytics is deferred until the XYWAV-only constitution and existing broader catalog are reconciled. Integer mg can represent fractional grams exactly; audit precision and per-administration versus nightly-total scope, not merely numeric type.
 - Epworth, cloud photo processing and clinical interpretation require their separate instrument/privacy/product review. No automatic medication, alarm, dose-adjustment or fitness-to-drive claim.
 

@@ -570,7 +570,10 @@ struct StudioBundleExporter {
                 sources: Array(Set(sortedSegments.map(\.source))).sorted(),
                 recordedIntervals: sortedSegments.filter { $0.stage.isAsleep || $0.stage == .awake }.map {
                     .init(start: $0.start, end: $0.end, asleep: $0.stage.isAsleep)
-                }
+                },
+                observationEndUTC: sleepSummary?.observationEnd,
+                finalWakeBasis: sleepSummary?.finalWakeBasis,
+                derivationVersion: sleepSummary?.derivationVersion
             )
         } catch {
             settingsActionsLog.warning("Apple Health export enrichment failed for \(sessionDate, privacy: .private): \(error.localizedDescription, privacy: .public)")
@@ -1666,7 +1669,7 @@ private struct InsightsMedicationSummary: Codable {
     let notes: String?
 }
 
-private struct InsightsAppleHealthSummary: Codable {
+struct InsightsAppleHealthSummary: Codable {
     let totalSleepMinutes: Double
     let ttfwMinutes: Double?
     let wakeCount: Int
@@ -1685,6 +1688,9 @@ private struct InsightsAppleHealthSummary: Codable {
     let restingHeartRate: Double?
     let sources: [String]
     var recordedIntervals: [RecordedSleepInterval]? = nil
+    var observationEndUTC: Date? = nil
+    var finalWakeBasis: String? = nil
+    var derivationVersion: String? = nil
 }
 
 private struct InsightsWHOOPSummary: Codable {

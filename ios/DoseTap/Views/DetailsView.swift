@@ -480,9 +480,10 @@ struct DetailsView: View {
                 do {
                     let segments = try await healthKit.fetchSegmentsForTimeline(from: queryStart, to: queryEnd)
                     let stages = segments
-                        .map { segment in
-                            SleepStageBand(
-                                stage: mapHealthStageToTimeline(segment.stage),
+                        .compactMap { segment -> SleepStageBand? in
+                            guard let stage = mapHealthStageToTimeline(segment.stage) else { return nil }
+                            return SleepStageBand(
+                                stage: stage,
                                 startTime: segment.start,
                                 endTime: segment.end
                             )
@@ -544,8 +545,9 @@ struct DetailsView: View {
         return max(0, overlapEnd.timeIntervalSince(overlapStart))
     }
 
-    private func mapHealthStageToTimeline(_ stage: HealthKitService.SleepStage) -> SleepStage {
-        switch HealthKitService.mapToDisplayStage(stage) {
+    private func mapHealthStageToTimeline(_ stage: HealthKitService.SleepStage) -> SleepStage? {
+        guard let displayStage = HealthKitService.mapToDisplayStage(stage) else { return nil }
+        switch displayStage {
         case .awake:
             return .awake
         case .light, .core:

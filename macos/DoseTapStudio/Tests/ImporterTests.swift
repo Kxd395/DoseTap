@@ -4,6 +4,20 @@ import DoseCore
 
 /// Test suite for data import functionality
 final class ImporterTests: XCTestCase {
+    func testHealthBoundaryMetadataRoundTripsAndOldArchivesRemainReadable() throws {
+        let base = "\"totalSleepMinutes\":300,\"wakeCount\":1,\"sources\":[\"Watch\"]"
+        let metadata = "\"finalWakeUTC\":1000,\"observationEndUTC\":2200,\"finalWakeBasis\":\"observed_sleep_to_awake\",\"derivationVersion\":\"primary_episode_boundary_v2\""
+        let value = try JSONDecoder().decode(InsightHealthKitSummary.self, from: Data("{\(base),\(metadata)}".utf8))
+        XCTAssertEqual(value.observationEndUTC?.timeIntervalSince(value.finalWakeUTC!), 1200)
+        XCTAssertEqual(value.finalWakeBasis, "observed_sleep_to_awake")
+        XCTAssertEqual(value.derivationVersion, "primary_episode_boundary_v2")
+        XCTAssertEqual(try JSONDecoder().decode(InsightHealthKitSummary.self, from: JSONEncoder().encode(value)), value)
+        let legacy = try JSONDecoder().decode(InsightHealthKitSummary.self, from: Data("{\(base)}".utf8))
+        XCTAssertNil(legacy.observationEndUTC)
+        XCTAssertNil(legacy.finalWakeBasis)
+        XCTAssertNil(legacy.derivationVersion)
+    }
+
     func testIOSArchiveRoundTrip() async throws {
         guard let path = ProcessInfo.processInfo.environment["DOSETAP_IOS_EXPORT_FIXTURE"] else {
             throw XCTSkip("Set DOSETAP_IOS_EXPORT_FIXTURE to the extracted iOS ExportIntegrityTests attachment.")

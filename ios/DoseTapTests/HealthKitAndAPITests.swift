@@ -7,6 +7,7 @@
 //
 
 import XCTest
+import HealthKit
 @testable import DoseTap
 import DoseCore
 
@@ -177,6 +178,129 @@ final class HealthKitProviderTests: XCTestCase {
 
         XCTAssertEqual(range.start, start)
         XCTAssertEqual(range.end, start.addingTimeInterval(7 * 60 * 60))
+    }
+
+    func test_finalWakeDoesNotUseTrailingAwakeObservationEnd() throws {
+        let start = Date(timeIntervalSince1970: 1_788_200_000)
+        let sleepEnd = start.addingTimeInterval(300 * 60)
+        let observationEnd = sleepEnd.addingTimeInterval(20 * 60)
+        let summary = try XCTUnwrap(HealthKitService.sleepNightSummary(from: [
+            .init(start: start, end: sleepEnd, stage: .asleepCore, source: "Watch"),
+            .init(start: sleepEnd, end: observationEnd, stage: .awake, source: "Watch")
+        ], nightStart: start))
+        XCTAssertEqual(summary.finalWake, sleepEnd)
+        XCTAssertEqual(summary.totalSleepMinutes, 300)
+        XCTAssertEqual(summary.recordedIntervals.last?.end, observationEnd)
+        XCTAssertEqual(summary.observationEnd, observationEnd)
+        XCTAssertEqual(summary.finalWakeBasis, "observed_sleep_to_awake")
+        XCTAssertEqual(summary.derivationVersion, "primary_episode_boundary_v2")
+    }
+
+    func test_unknownCategoryCannotCreateSleepSummary() {
+        let start = Date(timeIntervalSince1970: 1_788_200_000)
+        let unknown = HealthKitService.SleepStage.from(hkValue: 999)
+        XCTAssertFalse(unknown.isAsleep)
+        XCTAssertNil(HealthKitService.sleepNightSummary(from: [
+            .init(start: start, end: start.addingTimeInterval(3600), stage: unknown, source: "Future source")
+        ], nightStart: start))
+    }
+
+    func test_unspecifiedSleepRemainsAsleep() {
+        XCTAssertTrue(HealthKitService.SleepStage.from(
+            hkValue: HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue).isAsleep)
+    }
+
+    func test_sleepEndWithoutContiguousAwakeIsOnlySleepEndEstimate() throws {
+        let start = Date(timeIntervalSince1970: 1_788_200_000)
+        let end = start.addingTimeInterval(3600)
+        let tails: [[HealthKitService.SleepSegment]] = [[], [
+            .init(start: end.addingTimeInterval(60), end: end.addingTimeInterval(600), stage: .awake, source: "Watch")
+        ], [
+            .init(start: end, end: end.addingTimeInterval(600), stage: .inBed, source: "Phone")
+        ]]
+        for tail in tails {
+            let summary = try XCTUnwrap(HealthKitService.sleepNightSummary(from: [
+                .init(start: start, end: end, stage: .asleepCore, source: "Watch")
+            ] + tail, nightStart: start))
+            XCTAssertEqual(summary.finalWake, end)
+            XCTAssertEqual(summary.finalWakeBasis, "last_observed_sleep_end")
+            XCTAssertEqual(summary.observationEnd, tail.last?.end ?? end)
+        }
+    }
+
+    func test_unknownOverlapPreservesRawCategoryAndExcludesCoverageOnReorder() throws {
+        let start = Date(timeIntervalSince1970: 1_788_200_000)
+        let segments: [HealthKitService.SleepSegment] = [
+            .init(start: start, end: start.addingTimeInterval(3600), stage: .asleep, source: "Watch"),
+            .init(start: start.addingTimeInterval(1200), end: start.addingTimeInterval(1800),
+                  stage: .unknown(999), source: "Future source")
+        ]
+        for inputs in [segments, Array(segments.reversed()), segments + segments] {
+            let normalized = HealthKitService.normalizedSleepSegments(inputs)
+            XCTAssertEqual(normalized.count, 3)
+            XCTAssertEqual(normalized[1].stage, .unknown(999))
+            let summary = try XCTUnwrap(HealthKitService.sleepNightSummary(from: inputs, nightStart: start))
+            XCTAssertEqual(summary.totalSleepMinutes, 50)
+            XCTAssertEqual(summary.recordedIntervals.count, 2)
+        }
+    }
+
+    func test_unclassifiedEvidenceCannotBecomeAwakeChartBands() {
+        XCTAssertNil(HealthKitService.mapToDisplayStage(.unknown(999)))
+        XCTAssertNil(HealthKitService.mapToDisplayStage(.inBed))
+        XCTAssertEqual(HealthKitService.mapToDisplayStage(.awake), .awake)
+        XCTAssertEqual(HealthKitService.mapToDisplayStage(.asleep), .core)
+        XCTAssertEqual(HealthKitService.mapToDisplayStage(.asleepREM), .rem)
+        XCTAssertEqual(HealthKitService.mapToDisplayStage(.asleepDeep), .deep)
+    }
+
+    func test_unknownCategoryAndSourceTiesAreDeterministic() {
+        let start = Date(timeIntervalSince1970: 1_788_200_000)
+        func sample(_ value: Int, _ source: String) -> HealthKitService.SleepSegment {
+            .init(start: start, end: start.addingTimeInterval(600), stage: .unknown(value), source: source)
+        }
+        let inputs = [sample(999, "A"), sample(1000, "A"), sample(998, "B")]
+        for order in [inputs, Array(inputs.reversed()), [inputs[1], inputs[2], inputs[0]], inputs + inputs] {
+            let result = HealthKitService.normalizedSleepSegments(order)
+            XCTAssertEqual(result.count, 1)
+            XCTAssertEqual(result.first?.stage, .unknown(999))
+            XCTAssertEqual(result.first?.source, "A")
+        }
+    }
+
+    func test_primaryBoundaryAcrossDSTUsesAbsoluteInstants() throws {
+        let parser = ISO8601DateFormatter()
+        let start = try XCTUnwrap(parser.date(from: "2026-11-01T00:30:00-04:00"))
+        let end = try XCTUnwrap(parser.date(from: "2026-11-01T02:30:00-05:00"))
+        let summary = try XCTUnwrap(HealthKitService.sleepNightSummary(from: [
+            .init(start: start, end: end, stage: .asleep, source: "Watch"),
+            .init(start: end, end: end.addingTimeInterval(1200), stage: .awake, source: "Watch")
+        ], nightStart: start))
+        XCTAssertEqual(summary.totalSleepMinutes, 180)
+        XCTAssertEqual(summary.finalWake, end)
+        XCTAssertEqual(summary.observationEnd, end.addingTimeInterval(1200))
+    }
+
+    func test_exportRetainsBoundaryEvidenceWithoutChangingFinalWake() throws {
+        let end = Date(timeIntervalSince1970: 1_788_200_000)
+        let export = InsightsAppleHealthSummary(
+            totalSleepMinutes: 300, ttfwMinutes: nil, wakeCount: 1,
+            awakeMinutes: 20, wakeAfterSleepOnsetMinutes: 0, inBedMinutes: nil,
+            coreSleepMinutes: 300, deepSleepMinutes: nil, remSleepMinutes: nil,
+            bedTimeUTC: nil, sleepOnsetUTC: end.addingTimeInterval(-18000), finalWakeUTC: end,
+            averageHeartRate: nil, respiratoryRate: nil, hrvMs: nil, restingHeartRate: nil,
+            sources: ["Watch"], observationEndUTC: end.addingTimeInterval(1200),
+            finalWakeBasis: "observed_sleep_to_awake", derivationVersion: "primary_episode_boundary_v2")
+        let data = try JSONEncoder().encode(export)
+        let decoded = try JSONDecoder().decode(InsightsAppleHealthSummary.self, from: data)
+        XCTAssertEqual(decoded.finalWakeUTC, end)
+        XCTAssertEqual(decoded.observationEndUTC, end.addingTimeInterval(1200))
+        XCTAssertEqual(decoded.finalWakeBasis, export.finalWakeBasis)
+        XCTAssertEqual(decoded.derivationVersion, export.derivationVersion)
+        let legacy = try JSONDecoder().decode(InsightsAppleHealthSummary.self,
+            from: Data("{\"totalSleepMinutes\":300,\"wakeCount\":1,\"sources\":[\"Watch\"]}".utf8))
+        XCTAssertNil(legacy.derivationVersion)
+        XCTAssertNil(legacy.observationEndUTC)
     }
     
     func test_whoopService_disabledWhenNoTokens() {
