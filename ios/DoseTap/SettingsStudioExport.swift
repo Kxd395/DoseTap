@@ -53,6 +53,7 @@ struct StudioBundleExporter {
         consent: InsightsConsentState?
     ) throws -> InsightsBundleExport {
         let sortedSessionDates = sessionDates.sorted(by: >)
+        let windowAssessments = repo.reviewedWindowAssessments(sessionDates: sortedSessionDates)
         let sessions = try sortedSessionDates.map { sessionDate in
             let doseLog = repo.fetchDoseLog(forSession: sessionDate)
             let doseEvents = repo.fetchDoseEvents(forSessionDate: sessionDate)
@@ -122,7 +123,8 @@ struct StudioBundleExporter {
                     precomputedAlarmContext: alarmContext
                 ),
                 collectedNight: try repo.collectedNightSummary(for: sessionDate,
-                    intervals: healthKit?.recordedIntervals ?? [], providerFinalWake: healthKit?.finalWakeUTC),
+                    intervals: healthKit?.recordedIntervals ?? [], providerFinalWake: healthKit?.finalWakeUTC,
+                    windowAssessment: windowAssessments[sessionDate]),
                 healthKit: healthKit,
                 whoop: whoop
             )

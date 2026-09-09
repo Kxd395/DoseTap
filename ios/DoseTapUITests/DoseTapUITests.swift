@@ -419,6 +419,9 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(diary.waitForExistence(timeout: 15)); diary.tap(); reveal(enabled)
         XCTAssertEqual(enabled.value as? String, "1")
         reveal(app.staticTexts["night-window-saved"])
+        let assessment = app.staticTexts["night-window-assessment"]
+        reveal(assessment)
+        XCTAssertEqual(assessment.label, "Saved bounds checked")
         XCTAssertEqual(range.label, reviewedRange)
         captureDashboard("Reviewed night bounds restored after restart")
         toggle(enabled)

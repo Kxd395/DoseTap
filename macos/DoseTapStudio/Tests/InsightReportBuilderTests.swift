@@ -31,6 +31,8 @@ final class InsightReportBuilderTests: XCTestCase {
         report.reviewedSleepWindow = .init(sessionID: "test-night", start: Date(timeIntervalSince1970: 1100),
             end: Date(timeIntervalSince1970: 1200), entryTimeZone: TimeZone(identifier: "America/New_York")!,
             reviewedAt: Date(timeIntervalSince1970: 1300))
+        report.reviewedWindowAssessment = .calculate(window: report.reviewedSleepWindow, sessionID: "test-night",
+            doses: [], otherWindows: [], naps: [], now: Date(timeIntervalSince1970: 1400))
         report.lastFoodHighFat = false
         report.dose2WakeMethod = "natural"
         report.sleepiness0To10 = 0
@@ -43,12 +45,16 @@ final class InsightReportBuilderTests: XCTestCase {
         XCTAssertTrue(full.contains("natural"))
         XCTAssertTrue(full.contains("America/New_York"))
         XCTAssertEqual(decoded.reviewedSleepWindow, report.reviewedSleepWindow)
+        XCTAssertEqual(decoded.reviewedWindowAssessment, report.reviewedWindowAssessment)
+        XCTAssertTrue(full.contains("reviewed_window_assessment_status"))
+        XCTAssertTrue(full.contains("checked"))
         let safe = builder.buildSessionCSV(sessions: [session], redaction: .clinicianSafe)
         XCTAssertFalse(safe.contains("Oil, cream"))
         XCTAssertFalse(safe.contains("1970-01-01T00:16:40Z"))
         let safeRows = try ReportCSV.rows(safe)
         for name in ["reviewed_window_start_at_utc", "reviewed_window_end_at_utc", "reviewed_window_reviewed_at_utc",
-                     "reviewed_window_entry_timezone", "reviewed_window_start_offset_seconds", "reviewed_window_end_offset_seconds"] {
+                     "reviewed_window_entry_timezone", "reviewed_window_start_offset_seconds", "reviewed_window_end_offset_seconds",
+                     "reviewed_window_assessed_at_utc"] {
             let column = try XCTUnwrap(safeRows[0].firstIndex(of: name))
             XCTAssertEqual(safeRows[1][column], "")
         }

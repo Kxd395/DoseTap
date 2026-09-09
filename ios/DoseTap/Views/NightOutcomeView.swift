@@ -8,6 +8,21 @@ extension FollowingDayKind {
     var title: String { self == .dayOff ? "Day off" : rawValue.capitalized }
 }
 
+private extension ReviewedWindowAssessment.Reason {
+    var explanation: String {
+        switch self {
+        case .invalidWindow: return "A saved window's dates or identity need review."
+        case .invalidDoseRecords: return "The dose records have conflicting or invalid timing."
+        case .doseOutsideWindow: return "A recorded dose is outside these bounds."
+        case .overlappingWindow: return "Another reviewed night overlaps this window."
+        case .overlappingNap: return "A recorded nap overlaps this window."
+        case .incompleteNap: return "A nap with a missing start or end could overlap this window."
+        case .ambiguousNap: return "Overlapping or equal-time nap markers need review."
+        case .unreadableEvidence: return "Some records could not be read. No missing time was filled in."
+        }
+    }
+}
+
 /// Local selection only. The enclosing dose confirmation owns the eventual write.
 struct Dose2WakeSelection: View {
     @Binding var selection: Dose2WakeKind
@@ -77,6 +92,7 @@ struct NightOutcomeEditor: View {
     @State private var windowReviewedAt = Date()
     @State private var windowConfirmed = false
     @State private var windowZone = TimeZone.current
+    @State private var windowAssessment: ReviewedWindowAssessment?
     private let repo = SessionRepository.shared
 
     private var windowUnchanged: Bool {
@@ -174,6 +190,7 @@ struct NightOutcomeEditor: View {
                 }
             }
             .onAppear { load() }
+            .onReceive(repo.sessionDidChange) { refreshAssessment() }
             .alert("Answers saved", isPresented: $saved) { Button("OK") { dismiss() } }
             .alert("Answers not saved", isPresented: $showSaveError) { Button("OK", role: .cancel) {} } message: {
                 Text(error ?? "Please review the answers and try again.")
@@ -202,6 +219,16 @@ struct NightOutcomeEditor: View {
                 }
                 if windowUnchanged {
                     Text("Saved reviewed window").accessibilityIdentifier("night-window-saved")
+                    if let assessment = windowAssessment {
+                        Text(assessment.status == .checked ? "Saved bounds checked" : "Saved bounds need review")
+                            .font(.subheadline).accessibilityIdentifier("night-window-assessment")
+                        ForEach(assessment.reasons, id: \.self) { Text($0.explanation).font(.footnote) }
+                        Text("Checks cover local dose, night-window and nap records. They do not confirm measured sleep. Charts and totals are unchanged.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                        Button("Recheck saved bounds") { refreshAssessment() }
+                    } else {
+                        Button("Reload changed saved answers") { load() }
+                    }
                 } else {
                     Toggle("I reviewed both dates and times", isOn: $windowConfirmed)
                         .accessibilityIdentifier("night-window-confirm")
@@ -231,7 +258,15 @@ struct NightOutcomeEditor: View {
             windowEnd = window?.end ?? answers.finalWakeAt ?? windowStart
             windowZone = window.flatMap { TimeZone(identifier: $0.entryTimeZoneID) } ?? .current
             windowReviewedAt = window?.reviewedAt ?? Date(); windowConfirmed = false
+            refreshAssessment()
         } catch { self.error = "This night's answers could not be read. Nothing has changed."; review = nil }
+    }
+    private func refreshAssessment() {
+        guard let current = try? repo.nightOutcomeSnapshot(sessionDate: sessionDate),
+              current.record?.answers.reviewedSleepWindow == answers.reviewedSleepWindow else {
+            windowAssessment = nil; return
+        }
+        windowAssessment = repo.reviewedWindowAssessment(sessionDate: sessionDate)
     }
     private func save() {
         guard let review else { return }

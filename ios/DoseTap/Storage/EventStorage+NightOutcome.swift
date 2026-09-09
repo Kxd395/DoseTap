@@ -4,7 +4,8 @@ import DoseCore
 
 extension SessionRepository {
     func collectedNightSummary(for key: String, intervals: [RecordedSleepInterval] = [],
-                               providerFinalWake: Date? = nil) throws -> CollectedNightSummary {
+                               providerFinalWake: Date? = nil,
+                               windowAssessment: ReviewedWindowAssessment? = nil) throws -> CollectedNightSummary {
         let dose = fetchDoseLog(forSession: key)
         let food = fetchPreSleepLog(forSessionDate: key)?.answers?.lastFood
         let record = try nightOutcomeSnapshot(sessionDate: key).record
@@ -23,6 +24,7 @@ extension SessionRepository {
         result.sleepinessAssessedAt = record?.answers.assessedAt
         result.outcomeRecordedAt = record?.recordedAt
         result.reviewedSleepWindow = record?.answers.reviewedSleepWindow
+        result.reviewedWindowAssessment = windowAssessment ?? reviewedWindowAssessment(sessionDate: key)
         result.estimateSleep(dose2: dose?.dose2Time, finalWake: result.finalWakeAt ?? providerFinalWake, intervals: intervals)
         return result
     }
@@ -46,6 +48,96 @@ struct NightOutcomeSnapshot {
 }
 
 extension EventStorage {
+    /// A read snapshot, never a persisted certificate or a medication transaction.
+    func reviewedWindowAssessment(sessionDate: String, now: Date) -> ReviewedWindowAssessment {
+        reviewedWindowAssessments(sessionDates: [sessionDate], now: now)[sessionDate] ?? .unavailable(now: now)
+    }
+
+    /// Batch-scoped evidence only: shared rows are decoded once, with no cache across exports.
+    func reviewedWindowAssessments(sessionDates: [String], now: Date) -> [String: ReviewedWindowAssessment] {
+        let keys = Set(sessionDates).sorted()
+        guard !keys.isEmpty else { return [:] }
+        let unavailable = Dictionary(uniqueKeysWithValues: keys.map { ($0, ReviewedWindowAssessment.unavailable(now: now)) })
+        guard sqlite3_exec(db, "SAVEPOINT reviewed_window_read", nil, nil, nil) == SQLITE_OK else {
+            return unavailable
+        }
+        var released = false
+        defer { if !released { sqlite3_exec(db, "RELEASE reviewed_window_read", nil, nil, nil) } }
+        var results = unavailable
+        do {
+            var snapshots: [String: NightOutcomeSnapshot] = [:]
+            for key in keys {
+                do { snapshots[key] = try nightOutcomeSnapshot(sessionDate: key) }
+                catch { continue } // This key retains unavailable; other readable nights still get assessed.
+            }
+            for (key, snapshot) in snapshots where snapshot.record?.answers.reviewedSleepWindow == nil {
+                results[key] = .calculate(window: nil, sessionID: snapshot.history.sessionId,
+                    doses: [], otherWindows: [], naps: [], now: now)
+            }
+            var windows: [ReviewedSleepWindow] = [], naps: [ReviewedWindowAssessment.NapMarker] = []
+            if snapshots.values.contains(where: { $0.record?.answers.reviewedSleepWindow != nil }) {
+                let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
+                try readWindowEvidenceRows("SELECT source_record_id, session_id, questionnaire_version, responses_json FROM checkin_submissions WHERE checkin_type = 'night_outcome'") { row in
+                    guard let identity = row(0), row(1) == identity, row(2) == "night_outcome.v1", let raw = row(3) else {
+                        throw MedicationStorageInjectedFailure(code: .precondition, detail: "Night-window evidence needs review.")
+                    }
+                    let record = try decoder.decode(NightOutcomeRecord.self, from: Data(raw.utf8))
+                    guard record.answers.validationError(now: record.recordedAt) == nil else {
+                        throw MedicationStorageInjectedFailure(code: .precondition, detail: "Night-window evidence needs review.")
+                    }
+                    if let window = record.answers.reviewedSleepWindow {
+                        guard window.sessionID == identity else {
+                            throw MedicationStorageInjectedFailure(code: .precondition, detail: "Night-window identity needs review.")
+                        }
+                        windows.append(window)
+                    }
+                }
+                try readWindowEvidenceRows("SELECT id, event_type, timestamp, session_id, session_date FROM sleep_events") { row in
+                    guard let type = row(1) else { return }
+                    let canonical = EventType(type)
+                    guard canonical == .napStart || canonical == .napEnd else { return }
+                    guard let id = row(0), let raw = row(2), let timestamp = AppFormatters.parseISO8601Flexible(raw),
+                          let key = row(4), !key.isEmpty else {
+                        throw MedicationStorageInjectedFailure(code: .precondition, detail: "Nap evidence needs review.")
+                    }
+                    let identity = row(3)
+                    let group = identity.flatMap { !$0.isEmpty && $0 != key ? "id:\($0)" : nil } ?? "date:\(key)"
+                    naps.append(.init(id: id, group: group, timestamp: timestamp, isStart: canonical == .napStart))
+                }
+            }
+            for (key, snapshot) in snapshots {
+                // Normalize only this read projection, using the same aliases as medication history.
+                let doses = snapshot.history.events.map { event in
+                    DoseCore.StoredDoseEvent(id: event.id,
+                        eventType: CanonicalDoseEventType(canonicalizing: event.eventType)?.rawValue ?? event.eventType,
+                        timestamp: event.timestamp, sessionDate: event.sessionDate,
+                        metadata: event.metadata, sessionId: event.sessionId)
+                }
+                results[key] = ReviewedWindowAssessment.calculate(window: snapshot.record?.answers.reviewedSleepWindow,
+                    sessionID: snapshot.history.sessionId, doses: doses, otherWindows: windows, naps: naps, now: now)
+            }
+            guard sqlite3_exec(db, "RELEASE reviewed_window_read", nil, nil, nil) == SQLITE_OK else { return unavailable }
+            released = true
+            return results
+        } catch { return results } // Shared evidence failed: saved windows stay unavailable, absent windows stay missing.
+    }
+
+    private func readWindowEvidenceRows(_ sql: String, consume: ((Int32) -> String?) throws -> Void) throws {
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+            throw MedicationStorageInjectedFailure(code: .statement, detail: "Window evidence could not be read.")
+        }
+        defer { sqlite3_finalize(statement) }
+        var status = sqlite3_step(statement)
+        while status == SQLITE_ROW {
+            try consume { column in sqlite3_column_text(statement, column).map { String(cString: $0) } }
+            status = sqlite3_step(statement)
+        }
+        guard status == SQLITE_DONE else {
+            throw MedicationStorageInjectedFailure(code: .statement, detail: "Window evidence was only partly read.")
+        }
+    }
+
     /// Called only inside a confirmed Dose 2 transaction, after its ledger insert.
     /// A failed answer write rolls back the dose too; selecting a checkbox never writes.
     func recordDose2WakeInCurrentTransaction(_ method: Dose2WakeKind?, sessionId: String,
