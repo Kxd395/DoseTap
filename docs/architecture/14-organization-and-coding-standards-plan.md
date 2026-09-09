@@ -14,7 +14,7 @@ Swift's [API Design Guidelines](https://www.swift.org/documentation/api-design-g
 ## Keep these existing decisions
 
 - One medication action boundary: coordinator, pure policy, repository, transactional SQLite. No view or analytics component writes a second medication history.
-- `ios/Core` remains free of UIKit and SwiftUI. Retain the root `Package.swift` rather than rename its source root for appearance alone.
+- A UI-framework-free core is the target boundary, not a fully achieved baseline. `ios/Core/DoseTapCore.swift` conditionally imports SwiftUI, and `ios/Core/DiagnosticLogger.swift` conditionally imports UIKit and uses `UIDevice` for OS metadata. Reconcile these dependencies under DOSETAP-22 with characterization tests and app-side adapters where appropriate. Conditional imports do not establish platform independence. Retain the root `Package.swift` rather than rename its source root for appearance alone.
 - `DoseTapStaging` remains distinct from the shipping local-first app. Keep non-shipping companion proposals outside shipping target membership.
 - Absolute timestamps, stable session identity, injected clocks, explicit missingness and provenance remain contracts, not formatting preferences.
 - Characterize behavior before extracting it. Update all references and target membership in the same independently buildable change.
@@ -49,7 +49,7 @@ Define one primary owner per CI gate. Current doc lint appears in multiple workf
 
 Under DOSETAP-22, keep `13-component-boundaries.md` as the existing decision and add only verified ownership updates. Provide a concise contributor guide linking existing `tools/dt-*`, SwiftPM, repository checks and release runbooks. The workstation's project standard proposes a common task interface; adapt it to an Apple app only after mapping current commands. No Docker, backend or directory relocation is needed merely for conformity.
 
-Inventory each shipping source and test target before physical moves. Root SwiftPM uses explicit file lists and Xcode has explicit source membership: a file appearing in the filesystem does not prove it compiles or its tests run. Prefer an automated membership check over a hand-maintained source-count document.
+Inventory each shipping source and test target before physical moves. Root SwiftPM uses explicit source lists; the app and UI-test targets use explicit Xcode entries. The unit-test target is different: `DoseTapTests` uses a `PBXFileSystemSynchronizedRootGroup` attached through `fileSystemSynchronizedGroups`, so its files do not need individual project entries. A membership checker must handle both mechanisms, including synchronized-group exceptions if introduced, then verify actual test discovery/execution. Do not flag synchronized unit tests as missing merely because no per-file project entry exists. Prefer this automated inventory over a hand-maintained source-count document.
 
 ### 3. Extract one responsibility at a time
 
