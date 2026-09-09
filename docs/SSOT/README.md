@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-08
 SSOT revision: 0.4.19
-Shipping app version observed in the Xcode project: 0.4.19 (build 31)
+Shipping app version observed in the Xcode project: 0.4.19 (build 32)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -604,6 +604,13 @@ Work schedule configuration and dated overrides are stored together in SQLite `w
 - An explicit skip shows Skipped. Dose 1 without Dose 2 shows Pending through the inclusive upper boundary, then Not recorded. No doses and an orphan Dose 2 are separate states. Contradictory taken/skipped records require review rather than a timing classification.
 - Bathroom logs and disruption logs are counts of saved events, not durations or proof of every awakening. Zero logs means none logged, not zero awake minutes. Review does not estimate WASO from bathroom counts; Apple Health sleep information remains available in the existing timeline and provider cards.
 - The summary describes recorded timing and missing information. It does not suggest moving doses or putting lights-out inside the Dose 2 window. Lights-out to final wake is labeled as logged elapsed time, not measured sleep; reversed or missing markers are unavailable.
+
+### History bathroom-log summary (DOSETAP-65)
+
+- History and the shared review-summary trend card show Bathroom Logs as a total count, not average awake minutes. Match the canonical bathroom event type; other quick logs do not contribute. Existing Apple Health awake intervals and their exports remain unchanged.
+- Show the number of recorded nights with bathroom logs out of all nights included in the card. Nights without bathroom entries remain part of that denominator. Zero entries means none logged, not no awakenings or zero awake duration. An empty history shows No history rather than a measured zero.
+- The card covers up to 14 most recent recorded night keys, not necessarily 14 consecutive calendar nights. Its header says Recorded nights and shows the actual count. Display the bathroom count explanation in compact History as well as detailed review/capture, with full accessible labels.
+- Corrections and deletions refresh the same read-only summary. No migration, source-event rewriting, medication action or alarm change is part of this correction.
 
 ### Dashboard analytics contract (DOSETAP-45)
 

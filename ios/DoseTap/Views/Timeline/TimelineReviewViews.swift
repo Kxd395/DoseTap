@@ -91,7 +91,7 @@ struct TimelineReviewDetailView: View {
 
                     HealthDataCard(sessionKey: session.sessionDate)
 
-                    InsightsSummaryCard(title: "Last 14-Night Trends", showDefinitions: true)
+                    InsightsSummaryCard(title: "Recorded-Night Trends", showDefinitions: true)
 
                     ReviewEventsAndNotesCard(
                         events: reviewEvents,

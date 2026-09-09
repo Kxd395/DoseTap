@@ -2,25 +2,53 @@ import Foundation
 import SwiftUI
 import DoseCore
 
-/// Calculates insights metrics from historical session data
-/// Metrics: on-time %, average interval, natural wake %, WASO, session count
+/// Counts recorded entries, never inferred awakenings or awake minutes.
+struct BathroomLogSummary {
+    let totalLogs: Int
+    let nightsWithLogs: Int
+    let recordedNights: Int
+
+    init(nightEvents: [[StoredSleepEvent]]) {
+        let counts = nightEvents.map { events in
+            events.filter { normalizeStoredEventType($0.eventType) == "bathroom" }.count
+        }
+        totalLogs = counts.reduce(0, +)
+        nightsWithLogs = counts.filter { $0 > 0 }.count
+        recordedNights = counts.count
+    }
+
+    var valueText: String { recordedNights == 0 ? "No history" : "\(totalLogs) logged" }
+    var coverageText: String {
+        recordedNights == 0 ? "No recorded nights in this summary."
+            : "\(nightsWithLogs) of \(recordedNights) recorded nights have bathroom logs."
+    }
+    var explanation: String {
+        "\(coverageText) Logs do not measure awake time; no entry does not mean no awakening."
+    }
+}
+
+/// Calculates descriptive metrics from historical session records.
 @MainActor
 public class InsightsCalculator: ObservableObject {
     
     static let shared = InsightsCalculator()
+    private let repository: SessionRepository
+
+    init(repository: SessionRepository = .shared) {
+        self.repository = repository
+    }
     
     // MARK: - Published Metrics
     @Published var onTimePercentage: Double = 0
     @Published var averageIntervalMinutes: Double = 0
     @Published var naturalWakePercentage: Double = 0
     @Published var wakeMethodSampleCount: Int = 0
-    @Published var averageWASO: TimeInterval = 0  // Wake After Sleep Onset (in minutes)
+    @Published var bathroomLogs = BathroomLogSummary(nightEvents: [])
     @Published var totalSessions: Int = 0
     @Published var completedSessions: Int = 0
     @Published var skippedSessions: Int = 0
     @Published var onTimeSessionCount: Int = 0
     @Published var intervalSampleCount: Int = 0
-    @Published var bathroomWakeSampleCount: Int = 0
     
     // MARK: - Recent Sessions Data
     @Published var recentSessions: [SessionInsight] = []
@@ -36,7 +64,7 @@ public class InsightsCalculator: ObservableObject {
         let isSkipped: Bool
         let snoozeCount: Int
         let eventCount: Int
-        let wasoMinutes: Int  // Estimated WASO from bathroom events
+        let bathroomLogCount: Int
     }
 
     private enum DoseEventKind {
@@ -107,7 +135,18 @@ public class InsightsCalculator: ObservableObject {
     /// Compute all insights from recent session history
     /// - Parameter days: Number of days to analyze (default 14)
     func computeInsights(days: Int = 14) {
-        let sessions = SessionRepository.shared.fetchRecentSessions(days: days)
+        #if DEBUG && targetEnvironment(simulator)
+        if ProcessInfo.processInfo.arguments.contains("--uitesting-bathroom-insights") {
+            // Display-only fixture; never seeds source events or medication records.
+            resetMetrics()
+            totalSessions = 3
+            let event = StoredSleepEvent(id: "insight-fixture", eventType: "Bathroom",
+                timestamp: Date(timeIntervalSince1970: 0), sessionDate: "2026-09-08")
+            bathroomLogs = BathroomLogSummary(nightEvents: [[event, event], [event], []])
+            return
+        }
+        #endif
+        let sessions = days > 0 ? repository.fetchRecentSessions(days: days) : []
         
         guard !sessions.isEmpty else {
             resetMetrics()
@@ -122,17 +161,15 @@ public class InsightsCalculator: ObservableObject {
         var totalInterval: Double = 0
         var intervalsCount = 0
         var wakeMethods: [Dose2WakeKind] = []
-        var totalWASO: TimeInterval = 0
-        var wasoCount = 0
+        var nightEvents: [[StoredSleepEvent]] = []
         
         var insights: [SessionInsight] = []
         
         for session in sessions {
             var intervalMinutes: Int? = nil
             var isOnTime = false
-            var wasoMinutes = 0
-            let doseLog = SessionRepository.shared.fetchDoseLog(forSession: session.sessionDate)
-            let doseEvents = SessionRepository.shared.fetchDoseEvents(forSessionDate: session.sessionDate)
+            let doseLog = repository.fetchDoseLog(forSession: session.sessionDate)
+            let doseEvents = repository.fetchDoseEvents(forSessionDate: session.sessionDate)
             let derivedDose = deriveDoseMetrics(from: doseEvents)
             let resolvedDose1 = session.dose1Time ?? doseLog?.dose1Time ?? derivedDose.dose1Time
             let resolvedDose2 = session.dose2Time ?? doseLog?.dose2Time ?? derivedDose.dose2Time
@@ -154,7 +191,7 @@ public class InsightsCalculator: ObservableObject {
                 
                 completedCount += 1
                 
-                if let diary = try? SessionRepository.shared.nightOutcomeSnapshot(sessionDate: session.sessionDate),
+                if let diary = try? repository.nightOutcomeSnapshot(sessionDate: session.sessionDate),
                    diary.history.events.contains(where: { $0.eventType == "dose2" }) {
                     wakeMethods.append(diary.record?.answers.wakeMethod ?? .unknown)
                 }
@@ -164,16 +201,9 @@ public class InsightsCalculator: ObservableObject {
                 skippedCount += 1
             }
             
-            // Estimate WASO from bathroom events during the session
-            let events = SessionRepository.shared.fetchSleepEvents(forSession: session.sessionDate)
-            let bathroomEvents = events.filter { $0.eventType == "bathroom" || $0.eventType == "Bathroom" }
-            
-            // Assume each bathroom event = ~5 min wake time
-            wasoMinutes = bathroomEvents.count * 5
-            if wasoMinutes > 0 {
-                totalWASO += TimeInterval(wasoMinutes)
-                wasoCount += 1
-            }
+            let events = repository.fetchSleepEvents(forSession: session.sessionDate)
+            nightEvents.append(events)
+            let bathroomCount = BathroomLogSummary(nightEvents: [events]).totalLogs
             
             let insight = SessionInsight(
                 sessionDate: session.sessionDate,
@@ -184,7 +214,7 @@ public class InsightsCalculator: ObservableObject {
                 isSkipped: resolvedDose2Skipped,
                 snoozeCount: resolvedSnoozeCount,
                 eventCount: session.eventCount,
-                wasoMinutes: wasoMinutes
+                bathroomLogCount: bathroomCount
             )
             insights.append(insight)
         }
@@ -194,7 +224,7 @@ public class InsightsCalculator: ObservableObject {
         skippedSessions = skippedCount
         onTimeSessionCount = onTimeSessions
         intervalSampleCount = intervalsCount
-        bathroomWakeSampleCount = wasoCount
+        bathroomLogs = BathroomLogSummary(nightEvents: nightEvents)
         let wakeSummary = WakeMethodSummary(wakeMethods)
         wakeMethodSampleCount = wakeSummary.answeredCount
         naturalWakePercentage = wakeSummary.naturalPercentage ?? 0
@@ -212,12 +242,6 @@ public class InsightsCalculator: ObservableObject {
             averageIntervalMinutes = 0
         }
         
-        if wasoCount > 0 {
-            averageWASO = totalWASO / Double(wasoCount)
-        } else {
-            averageWASO = 0
-        }
-        
         recentSessions = insights
     }
     
@@ -227,13 +251,12 @@ public class InsightsCalculator: ObservableObject {
         averageIntervalMinutes = 0
         naturalWakePercentage = 0
         wakeMethodSampleCount = 0
-        averageWASO = 0
+        bathroomLogs = BathroomLogSummary(nightEvents: [])
         totalSessions = 0
         completedSessions = 0
         skippedSessions = 0
         onTimeSessionCount = 0
         intervalSampleCount = 0
-        bathroomWakeSampleCount = 0
         recentSessions = []
     }
     
@@ -256,11 +279,6 @@ public class InsightsCalculator: ObservableObject {
         return String(format: "%.0f%%", naturalWakePercentage)
     }
     
-    var formattedAverageWASO: String {
-        guard bathroomWakeSampleCount > 0 else { return "No data yet" }
-        return String(format: "%.0f min", averageWASO)
-    }
-
     var onTimeSummary: String {
         guard completedSessions > 0 else {
             return "Needs at least one completed night"
@@ -285,13 +303,6 @@ public class InsightsCalculator: ObservableObject {
         return "\(wakeMethodSampleCount) explicitly answered Dose 2 wakes; unknown answers excluded"
     }
 
-    var bathroomWakeSummary: String {
-        guard bathroomWakeSampleCount > 0 else {
-            return "Estimated from bathroom logs only"
-        }
-        return "Estimated at 5 min per bathroom event"
-    }
-    
     var completionRate: String {
         guard totalSessions > 0 else { return "–" }
         let rate = Double(completedSessions) / Double(totalSessions) * 100
@@ -313,7 +324,7 @@ struct InsightsSummaryCard: View {
                 Text(title)
                     .font(.headline)
                 Spacer()
-                Text("Last \(insights.totalSessions) nights")
+                Text("Recorded nights: \(insights.totalSessions)")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -348,14 +359,18 @@ struct InsightsSummaryCard: View {
                 )
                 
                 InsightMetricView(
-                    title: "Avg Bathroom Wake",
-                    value: insights.formattedAverageWASO,
-                    icon: "moon.zzz.fill",
-                    color: insights.bathroomWakeSampleCount == 0 ? .gray : .purple,
-                    detail: insights.bathroomWakeSummary,
-                    showDetail: showDefinitions
+                    title: "Bathroom Logs",
+                    value: insights.bathroomLogs.valueText,
+                    icon: "list.bullet",
+                    color: insights.bathroomLogs.totalLogs == 0 ? .gray : .purple,
+                    detail: insights.bathroomLogs.explanation,
+                    showDetail: false
                 )
             }
+            Text(insights.bathroomLogs.explanation)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding()
         .background(
@@ -363,6 +378,9 @@ struct InsightsSummaryCard: View {
                 .fill(Color(.systemGray6))
         )
         .onAppear {
+            insights.computeInsights()
+        }
+        .onReceive(SessionRepository.shared.sessionDidChange) { _ in
             insights.computeInsights()
         }
     }
@@ -406,6 +424,7 @@ struct InsightMetricView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title): \(value). \(detail ?? "")")
         .accessibilityIdentifier("insight-\(title)")
     }
 }
