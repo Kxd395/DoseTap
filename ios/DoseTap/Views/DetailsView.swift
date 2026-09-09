@@ -86,6 +86,7 @@ struct DetailsView: View {
     @State private var showReviewShareSheet = false
     @State private var isPreparingReviewShare = false
     @State private var reviewShareErrorMessage: String?
+    @State private var reviewNow = Date()
     
     // Use customized QuickLog buttons from settings
     private var quickLogEventTypes: [(name: String, icon: String, color: Color)] {
@@ -261,7 +262,8 @@ struct DetailsView: View {
 
                 CoachSummaryCard(
                     session: session,
-                    events: reviewEvents
+                    events: reviewEvents,
+                    now: reviewNow
                 )
 
                 MergedNightTimelineCard(
@@ -279,7 +281,7 @@ struct DetailsView: View {
 
                 HealthDataCard(sessionKey: session.sessionDate)
 
-                ReviewKeyMetricsCard(session: session, events: reviewEvents)
+                ReviewKeyMetricsCard(session: session, events: reviewEvents, now: reviewNow)
 
                 ReviewEventsAndNotesCard(
                     events: reviewEvents,
@@ -307,6 +309,8 @@ struct DetailsView: View {
                         .fill(Color(.systemGray6))
                 )
             }
+            .onAppear { reviewNow = Date() }
+            .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { reviewNow = $0 }
         } else {
             VStack(spacing: 12) {
                 Image(systemName: "moon.zzz")
@@ -333,14 +337,15 @@ struct DetailsView: View {
         // Display-only fixture: no medication, event, or provider writes.
         if ProcessInfo.processInfo.arguments.contains("--uitesting-review-metrics") {
             let date = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
-            let first = eveningAnchorDate(for: date)
+            let pendingFixture = ProcessInfo.processInfo.arguments.contains("--uitesting-review-pending")
+            let first = pendingFixture ? Date().addingTimeInterval(-14400 + 20) : eveningAnchorDate(for: date)
             let key = sessionRepo.sessionDateString(for: first)
             reviewEvents = (0..<2).map { index in
                 StoredSleepEvent(id: "review-fixture-\(index)", eventType: "Bathroom",
                     timestamp: first.addingTimeInterval(Double(index + 1) * 3600), sessionDate: key)
             }
             reviewSessions = [.init(sessionDate: key, dose1Time: first,
-                dose2Time: first.addingTimeInterval(14401), sleepEvents: reviewEvents)]
+                dose2Time: pendingFixture ? nil : first.addingTimeInterval(14401), sleepEvents: reviewEvents)]
             selectedReviewSessionKey = key
             reviewNightDate = date
             return

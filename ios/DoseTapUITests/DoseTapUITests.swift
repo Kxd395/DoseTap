@@ -12,6 +12,7 @@ final class DoseTapUITests: XCTestCase {
         app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
         if name.contains("testTimelineReviewMetrics") { app.launchArguments += ["--uitesting-review-metrics", "-setup_completed_v2", "YES"] }
+        if name.contains("testTimelineReviewMetricsPending") { app.launchArguments.append("--uitesting-review-pending") }
         if name.contains("testAutomaticNightMode") { app.launchArguments += ["--uitesting-auto-night-reset", "-setup_completed_v2", "YES"] }
         if name.contains("testCompactLayout") { app.launchArguments += ["--uitesting-layout", "-setup_completed_v2", "YES"] }
         if name.contains("testSupply") || name.contains("testSystemAlarm") || name.contains("testPreSleep") { app.launchArguments += ["-setup_completed_v2", "YES"] }
@@ -25,6 +26,15 @@ final class DoseTapUITests: XCTestCase {
 
     override func tearDownWithError() throws {
         app = nil
+    }
+
+    func testTimelineReviewMetricsPendingUpdatesWithoutInteraction() throws {
+        app.buttons["Timeline"].tap()
+        let review = app.segmentedControls.firstMatch.buttons["Review"]
+        XCTAssertTrue(review.waitForExistence(timeout: 15)); review.tap()
+        XCTAssertTrue(app.staticTexts["Dose timing: Pending. Interval: Pending."].waitForExistence(timeout: 5))
+        // No tap, scroll, repository write or manual refresh crosses this boundary.
+        XCTAssertTrue(app.staticTexts["Dose timing: Not recorded. Interval: Not recorded."].waitForExistence(timeout: 30))
     }
 
     func testTimelineReviewMetricsAndCapture() throws {

@@ -134,7 +134,7 @@ struct ReviewStickyHeaderBar: View {
 struct CoachSummaryCard: View {
     let session: SessionSummary
     let events: [StoredSleepEvent]
-    var now: Date = Date()
+    let now: Date
 
     private var hasAnySessionData: Bool {
         session.dose1Time != nil || session.dose2Time != nil || session.dose2Skipped || !events.isEmpty
@@ -317,7 +317,7 @@ struct ReviewKeyMetricsCard: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let session: SessionSummary
     let events: [StoredSleepEvent]
-    var now: Date = Date()
+    let now: Date
 
     var metrics: TimelineReviewMetrics {
         TimelineReviewMetrics(session: session, events: events, now: now)

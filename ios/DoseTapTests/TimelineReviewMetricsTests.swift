@@ -95,4 +95,13 @@ final class TimelineReviewMetricsTests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
     }
+
+    func testCaptureRejectsTransparentContentButKeepsBlackAndSparseContent() throws {
+        XCTAssertNil(renderTimelineReviewCapture(Color.clear.frame(width: 100, height: 100), scale: 1))
+        XCTAssertNotNil(renderTimelineReviewCapture(Color.black.frame(width: 100, height: 100), scale: 1))
+        XCTAssertNotNil(renderTimelineReviewCapture(
+            Color.clear.frame(width: 100, height: 100).overlay(alignment: .bottomTrailing) {
+                Color.white.frame(width: 1, height: 1)
+            }, scale: 1))
+    }
 }

@@ -17,7 +17,20 @@ func renderTimelineReviewCapture<Content: View>(_ content: Content, scale: CGFlo
             draw(context.cgContext)
         }
     }
+    guard let image, let pixels = image.cgImage, captureHasPaintedPixels(pixels) else { return nil }
     return image
+}
+
+/// Inspect alpha rather than color: a solid black capture is valid, a transparent one is not.
+func captureHasPaintedPixels(_ image: CGImage) -> Bool {
+    var rgba = [UInt8](repeating: 0, count: image.width * image.height * 4)
+    return rgba.withUnsafeMutableBytes { buffer in
+        guard let context = CGContext(data: buffer.baseAddress, width: image.width, height: image.height,
+                                      bitsPerComponent: 8, bytesPerRow: image.width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        return stride(from: 3, to: buffer.count, by: 4).contains { buffer[$0] != 0 }
+    }
 }
 
 /// Read-only labels for Review and capture. Reuses the canonical timing rules;
@@ -86,6 +99,7 @@ struct ReviewSnapshotSleepTimeline {
 }
 
 struct TimelineReviewShareSnapshotView: View {
+    private let generatedAt = Date()
     let session: SessionSummary
     let events: [StoredSleepEvent]
     let nightDate: Date
@@ -98,7 +112,7 @@ struct TimelineReviewShareSnapshotView: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("DoseTap Timeline Review")
                 .font(.headline)
-            Text("Generated \(Date().formatted(date: .abbreviated, time: .shortened))")
+            Text("Generated \(generatedAt.formatted(date: .abbreviated, time: .shortened))")
                 .font(.caption2)
                 .foregroundColor(.secondary)
 
@@ -109,11 +123,11 @@ struct TimelineReviewShareSnapshotView: View {
                 hasMorningCheckIn: hasMorningCheckIn
             )
 
-            CoachSummaryCard(session: session, events: events)
+            CoachSummaryCard(session: session, events: events, now: generatedAt)
 
             DoseTimingCard(sessionKey: session.sessionDate)
             NightScoreCard(sessionKey: session.sessionDate)
-            ReviewKeyMetricsCard(session: session, events: events)
+            ReviewKeyMetricsCard(session: session, events: events, now: generatedAt)
             PreSleepLogCard(sessionKey: session.sessionDate)
             MorningCheckInCard(sessionKey: session.sessionDate)
 

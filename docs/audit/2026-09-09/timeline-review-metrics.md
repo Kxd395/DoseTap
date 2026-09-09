@@ -21,6 +21,12 @@ The adjacent summary now describes the record instead of suggesting dose or ligh
 - Generic iOS Simulator build passed with signing disabled. Existing compiler warnings remain; this is not a warning-free or signed-device build claim.
 - Plane workflow, SSOT, documentation, architecture, dose-write and repository-hygiene guards passed. The version guard reports 0.4.19 (31) for both app targets and configurations. Whitespace checks passed.
 
+## PR review follow-up
+
+Two review comments arrived before merge: Pending could remain stale on an open screen, and a valid-sized bitmap could still be transparent. Both review screens now supply their cards from one updating clock; saved summaries freeze one generation timestamp. Cards require an explicit timestamp so a caller cannot silently use a construction-time default. Capture checks rendered alpha pixels, preserving black or sparsely painted images while rejecting transparent output. The expanded nine-test suite passed, including these pixel cases, in `/tmp/dosetap64-review-fixed.xcresult`.
+
+Both focused UI tests passed in `/tmp/dosetap64-clock-ui.xcresult`: the original capture/Copy path and the new Pending-to-Not-recorded transition without interaction. Repository guards passed again after these changes. An initial alpha-only graphics-context attempt did not compile with this SDK; the tested implementation uses an explicit RGBA buffer and inspects alpha bytes.
+
 ## Preservation and acceptance
 
 Only the four build-number values are staged from `project.pbxproj`. After excluding those intended changes, the original project/scheme diff retains SHA256 `12b4189a22bdd27e51a6185bd5432664d1d686c5e11bb1dc09aa829c4a1f073d`. The scheme changes are not part of this implementation.
