@@ -365,7 +365,7 @@ Code references:
 
 Persistence is local SQLite via `EventStorage`.
 
-The executable schema is `EventStorage.createTables()` in `ios/DoseTap/Storage/EventStorage+Schema.swift`. At the last verification it creates 16 application tables plus the internal `schema_migrations` ledger and writes SQLite `user_version` 4. `docs/DATABASE_SCHEMA.md` and `docs/SSOT/contracts/DataDictionary.md` contain the field-by-field inventory and must move with that source. Do not copy a partial table list into evergreen documentation.
+The executable schema is `EventStorage.createTables()` in `ios/DoseTap/Storage/EventStorage+Schema.swift`, including the SQLite `user_version` and internal `schema_migrations` ledger. `docs/DATABASE_SCHEMA.md` and `docs/SSOT/contracts/DataDictionary.md` contain the field-by-field inventory and must move with that source. Do not duplicate mutable schema versions, table totals, or partial table lists in this overview.
 
 Symptom source identity:
 - `pre_sleep_logs` and `morning_checkins` remain the source rows for questionnaire context.

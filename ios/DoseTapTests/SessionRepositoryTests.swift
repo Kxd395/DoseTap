@@ -465,6 +465,80 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertEqual(stored.notes, "after dinner")
     }
 
+    // Recovered from the retained iOS-fix branch; exercise current SQLite sync paths.
+    private func isolatedSyncFixture() -> (EventStorage, SessionRepository) {
+        let storage = EventStorage.inMemory()
+        let repo = SessionRepository(
+            storage: storage, clock: { [fixedNow] in fixedNow },
+            timeZoneProvider: { TimeZone(identifier: "UTC")! }
+        )
+        return (storage, repo)
+    }
+
+    func test_upsertDoseEventFromSync_preservesIDAndReplacesWithoutDuplicates() throws {
+        let (_, repo) = isolatedSyncFixture()
+        let sessionDate = "2026-01-15"
+        let recordID = "test-synced-dose"
+        for revision in 1...2 {
+            repo.upsertDoseEventFromSync(
+                id: recordID,
+                eventType: "dose1",
+                timestamp: fixedNow.addingTimeInterval(Double(revision)),
+                sessionDate: sessionDate,
+                sessionId: "test-session-identity",
+                metadata: "{\"revision\":\(revision)}"
+            )
+        }
+
+        let records = repo.fetchDoseEvents(forSessionDate: sessionDate)
+        XCTAssertEqual(records.count, 1)
+        let record = try XCTUnwrap(records.first)
+        XCTAssertEqual(record.id, recordID)
+        XCTAssertEqual(record.timestamp, fixedNow.addingTimeInterval(2))
+        XCTAssertEqual(record.metadata, "{\"revision\":2}")
+        XCTAssertTrue(repo.fetchCloudKitTombstones().isEmpty)
+    }
+
+    func test_deleteDoseEventFromSync_isIdempotentAndDoesNotEchoDeletion() {
+        let (_, repo) = isolatedSyncFixture()
+        let sessionDate = "2026-01-15"
+        for recordID in ["test-delete-dose", "test-keep-dose"] {
+            repo.upsertDoseEventFromSync(
+                id: recordID, eventType: "dose2", timestamp: fixedNow,
+                sessionDate: sessionDate, sessionId: "test-session-identity", metadata: nil
+            )
+        }
+        XCTAssertEqual(repo.fetchDoseEvents(forSessionDate: sessionDate).count, 2)
+
+        repo.deleteDoseEventFromSync(id: "test-delete-dose")
+        repo.deleteDoseEventFromSync(id: "test-delete-dose")
+
+        XCTAssertEqual(repo.fetchDoseEvents(forSessionDate: sessionDate).map(\.id), ["test-keep-dose"])
+        XCTAssertTrue(repo.fetchCloudKitTombstones().isEmpty,
+                      "An inbound deletion must not become a new outbound deletion.")
+    }
+
+    func test_deleteMorningCheckInFromSync_clearsSubmissionWithoutEcho() throws {
+        let (storage, repo) = isolatedSyncFixture()
+        let sessionDate = "2026-01-15"
+        let recordID = "test-delete-morning"
+        let session = repo.ensureActiveSession(for: fixedNow, reason: "sync_regression_fixture")
+        let checkIn = DoseTap.StoredMorningCheckIn(
+            id: recordID, sessionId: session.sessionId, timestamp: fixedNow,
+            sessionDate: sessionDate, notes: "Synthetic sync regression fixture"
+        )
+        repo.upsertMorningCheckInFromSync(checkIn)
+        XCTAssertEqual(repo.fetchMorningCheckIn(for: sessionDate)?.id, recordID)
+        XCTAssertEqual(storage.fetchCheckInSubmissions(sessionDate: sessionDate, checkInType: .morning).count, 1)
+
+        repo.deleteMorningCheckInFromSync(id: recordID)
+        repo.deleteMorningCheckInFromSync(id: recordID)
+
+        XCTAssertNil(repo.fetchMorningCheckIn(for: sessionDate))
+        XCTAssertTrue(storage.fetchCheckInSubmissions(sessionDate: sessionDate, checkInType: .morning).isEmpty)
+        XCTAssertTrue(repo.fetchCloudKitTombstones().isEmpty)
+    }
+
     func test_upsertPreSleepLogFromSync_persistsRowAndNormalizedSubmission() async throws {
         let storage = EventStorage.inMemory()
         let repo = SessionRepository(
