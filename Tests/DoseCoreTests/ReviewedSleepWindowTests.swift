@@ -2,6 +2,24 @@ import XCTest
 @testable import DoseCore
 
 final class ReviewedSleepWindowTests: XCTestCase {
+    func testAssessmentValidatesSnoozeDependencyAndNonAdministrationTimes() {
+        let now = start.addingTimeInterval(7200)
+        let first = StoredDoseEvent(id: "d1", eventType: "dose1", timestamp: start, sessionDate: "")
+        func event(_ type: String, _ at: Date) -> StoredDoseEvent {
+            .init(id: "event", eventType: type, timestamp: at, sessionDate: "")
+        }
+        func assess(_ doses: [StoredDoseEvent]) -> ReviewedWindowAssessment {
+            .calculate(window: window(), sessionID: "session-A", doses: doses, otherWindows: [], naps: [], now: now)
+        }
+        XCTAssertEqual(assess([event("snooze", start)]).reasons, [.invalidDoseRecords])
+        for at in [start.addingTimeInterval(-1), now.addingTimeInterval(1), Date(timeIntervalSince1970: .nan)] {
+            XCTAssertEqual(assess([first, event("snooze", at)]).reasons, [.invalidDoseRecords])
+        }
+        XCTAssertEqual(assess([first, event("snooze", start.addingTimeInterval(5400))]).status, .checked)
+        XCTAssertEqual(assess([event("history_correction", now)]).status, .checked)
+        XCTAssertEqual(assess([event("history_correction", now.addingTimeInterval(1))]).reasons, [.invalidDoseRecords])
+        XCTAssertEqual(assess([event("unknown", start)]).reasons, [.invalidDoseRecords])
+    }
     func testAssessmentValidatesSkippedOutcomeWithoutTreatingItAsTaken() {
         let now = start.addingTimeInterval(7200)
         let first = StoredDoseEvent(id: "d1", eventType: "dose1", timestamp: start, sessionDate: "")

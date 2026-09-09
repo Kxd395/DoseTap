@@ -78,19 +78,24 @@ public struct ReviewedWindowAssessment: Codable, Hashable, Sendable {
         let taken = doses.filter { ["dose1", "dose2", "extra_dose"].contains($0.eventType) }
         let first = taken.filter { $0.eventType == "dose1" }, second = taken.filter { $0.eventType == "dose2" }
         let skipped = doses.filter { $0.eventType == "dose2_skipped" }
+        let snoozes = doses.filter { $0.eventType == "snooze" }
         let extras = taken.filter { $0.eventType == "extra_dose" }
-        if doses.contains(where: { !["dose1", "dose2", "extra_dose", "dose2_skipped", "snooze", "history_correction"].contains($0.eventType) }) {
+        if doses.contains(where: {
+            !["dose1", "dose2", "extra_dose", "dose2_skipped", "snooze", "history_correction"].contains($0.eventType) ||
+            !$0.timestamp.timeIntervalSinceReferenceDate.isFinite || $0.timestamp > now
+        }) {
             reasons.insert(.invalidDoseRecords)
         }
         if first.count > 1 || second.count + skipped.count > 1 ||
-            ((!second.isEmpty || !skipped.isEmpty || !extras.isEmpty) && first.count != 1) ||
+            ((!second.isEmpty || !skipped.isEmpty || !extras.isEmpty || !snoozes.isEmpty) && first.count != 1) ||
             (!extras.isEmpty && second.count != 1) { reasons.insert(.invalidDoseRecords) }
-        for dose in taken + skipped {
+        for dose in taken + skipped + snoozes {
             if !dose.timestamp.timeIntervalSinceReferenceDate.isFinite || dose.timestamp > now ||
                 (dose.eventType != "dose1" && first.first.map { dose.timestamp < $0.timestamp } == true) ||
                 (dose.eventType == "extra_dose" && second.first.map { dose.timestamp < $0.timestamp } == true) {
                 reasons.insert(.invalidDoseRecords)
-            } else if dose.eventType != "dose2_skipped" && (dose.timestamp < window.start || dose.timestamp >= window.end) {
+            } else if dose.eventType != "dose2_skipped" && dose.eventType != "snooze" &&
+                        (dose.timestamp < window.start || dose.timestamp >= window.end) {
                 reasons.insert(.doseOutsideWindow)
             }
         }

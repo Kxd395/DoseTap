@@ -82,7 +82,7 @@ final class MedicationMutationTransactionTests: XCTestCase {
             end: oldDose1.addingTimeInterval(6 * 3600), entryTimeZone: .current, reviewedAt: now)
         XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: sessionDate),
             reason: "", recordedAt: now).isCommitted)
-        for alias in ["dose_1_taken", "dose2_late", "dose_2_(late)", "dose_3_taken", "skipped"] {
+        for alias in ["dose_1_taken", "dose2_late", "dose_2_(late)", "dose_3_taken", "skipped", "snooze", "dose2_snoozed"] {
             XCTAssertEqual(sqlite3_exec(storage.db, "UPDATE dose_events SET event_type = '\(alias)'", nil, nil, nil), SQLITE_OK)
             let before = try storage.historySnapshot(sessionDate: sessionDate).events
             let result = storage.reviewedWindowAssessment(sessionDate: sessionDate, now: now)
