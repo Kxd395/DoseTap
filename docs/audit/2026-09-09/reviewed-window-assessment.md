@@ -26,6 +26,12 @@ No dose, alarm, session, stored window or provider record is changed by this ass
 - Plane workflow (10 tests, 64 assertions), SSOT/doc lint, architecture, dose-write, legacy-safety, repository-hygiene, companion-target and version guards passed. All four app configurations and the built bundle report build 37. Diff checks passed.
 - `DoseTapUITests/testReviewedNightWindow()` passed one simulator case (72.7 seconds): cancel/unconfirmed save, confirmed save, restart, visible saved assessment and reason-required removal. `/tmp/dosetap56-assessment-ui.xcresult`. Three exported screenshots were inspected; the saved assessment, explanation and recheck action are readable, and the cleared/draft states do not display a checked saved window. Warning-state layout and signed-phone accessibility remain separate acceptance work. Hosted CI/review and merge evidence belong in the PR and verified Plane workpad after completion.
 
+## PR review follow-up
+
+PR #19 review found two assessment gaps: legacy dose aliases were ignored, and skipped-dose timestamps were not validated. Both reproduced in regression tests before the fixes. The storage projection now uses the existing `CanonicalDoseEventType` contract without changing raw records; unknown types require review. Skipped outcomes receive timestamp and sequence validation, but do not count as administrations outside the window.
+
+After these fixes, UTC and New York core runs each passed 681 XCTest and 43 Swift Testing cases. The simulator rerun passed 125 targeted app tests (`/tmp/dosetap56-assessment-review-fixes.xcresult`), including legacy/orphan/outside-window aliases and unchanged raw ledger assertions. Studio again passed 66 tests with three optional skips. The earlier UI screenshot proof remains applicable to the unchanged view. Final hosted checks and merge are recorded in the PR and Plane workpad.
+
 ## Remaining work
 
 Combine current local-boundary checks with conflict-aware provider evidence and recheck snapshots after asynchronous queries before publishing treatment-night calculations. Durable source revision/deletion reconciliation, permission/read-readiness wording and consistent consumer/report provenance remain open. DOSETAP-57 owns dose-to-sleep, return-to-sleep and completed awakening markers/counts. No installed-phone, signed-device HealthKit, accessibility, historic unexpected Dose 2 resolution, privacy/release or complete backup/restore acceptance is claimed.

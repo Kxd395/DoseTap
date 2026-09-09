@@ -2,6 +2,21 @@ import XCTest
 @testable import DoseCore
 
 final class ReviewedSleepWindowTests: XCTestCase {
+    func testAssessmentValidatesSkippedOutcomeWithoutTreatingItAsTaken() {
+        let now = start.addingTimeInterval(7200)
+        let first = StoredDoseEvent(id: "d1", eventType: "dose1", timestamp: start, sessionDate: "")
+        func assess(_ timestamp: Date) -> ReviewedWindowAssessment {
+            .calculate(window: window(), sessionID: "session-A", doses: [first,
+                .init(id: "skip", eventType: "dose2_skipped", timestamp: timestamp, sessionDate: "")],
+                otherWindows: [], naps: [], now: now)
+        }
+        for timestamp in [start.addingTimeInterval(-1), now.addingTimeInterval(1),
+                          Date(timeIntervalSince1970: .nan)] {
+            XCTAssertEqual(assess(timestamp).reasons, [.invalidDoseRecords])
+        }
+        XCTAssertEqual(assess(start.addingTimeInterval(5400)).status, .checked,
+            "A valid skip after the window is not an administration outside the window")
+    }
     func testAssessmentRechecksDosesAndRetainsMissingWindow() {
         let value = window(), now = start.addingTimeInterval(7200)
         func assess(_ doses: [StoredDoseEvent]) -> ReviewedWindowAssessment {

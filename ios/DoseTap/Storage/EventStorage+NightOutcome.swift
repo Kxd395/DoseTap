@@ -87,8 +87,15 @@ extension EventStorage {
                     naps.append(.init(id: id, group: group, timestamp: timestamp, isStart: canonical == .napStart))
                 }
             }
+            // Normalize only this read projection, using the same aliases as medication history.
+            let doses = snapshot.history.events.map { event in
+                DoseCore.StoredDoseEvent(id: event.id,
+                    eventType: CanonicalDoseEventType(canonicalizing: event.eventType)?.rawValue ?? event.eventType,
+                    timestamp: event.timestamp, sessionDate: event.sessionDate,
+                    metadata: event.metadata, sessionId: event.sessionId)
+            }
             let result = ReviewedWindowAssessment.calculate(window: snapshot.record?.answers.reviewedSleepWindow,
-                sessionID: snapshot.history.sessionId, doses: snapshot.history.events, otherWindows: windows, naps: naps, now: now)
+                sessionID: snapshot.history.sessionId, doses: doses, otherWindows: windows, naps: naps, now: now)
             guard sqlite3_exec(db, "RELEASE reviewed_window_read", nil, nil, nil) == SQLITE_OK else { return .unavailable(now: now) }
             released = true
             return result

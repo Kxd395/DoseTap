@@ -33,6 +33,28 @@ private final class MedicationMutationNotificationCenter: AlarmNotificationCente
 
 @MainActor
 final class MedicationMutationTransactionTests: XCTestCase {
+    func testWindowAssessmentUsesExistingLegacyDoseAliases() throws {
+        let storage = EventStorage.inMemory(); try seedDose1(in: storage)
+        let now = oldDose1.addingTimeInterval(8 * 3600)
+        var diary = NightOutcomeDiary()
+        diary.reviewedSleepWindow = .init(sessionID: sessionId, start: oldDose1,
+            end: oldDose1.addingTimeInterval(6 * 3600), entryTimeZone: .current, reviewedAt: now)
+        XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: sessionDate),
+            reason: "", recordedAt: now).isCommitted)
+        for alias in ["dose_1_taken", "dose2_late", "dose_2_(late)", "dose_3_taken", "skipped"] {
+            XCTAssertEqual(sqlite3_exec(storage.db, "UPDATE dose_events SET event_type = '\(alias)'", nil, nil, nil), SQLITE_OK)
+            let before = try storage.historySnapshot(sessionDate: sessionDate).events
+            let result = storage.reviewedWindowAssessment(sessionDate: sessionDate, now: now)
+            XCTAssertEqual(result.status, alias == "dose_1_taken" ? .checked : .needsReview, alias)
+            if alias != "dose_1_taken" { XCTAssertTrue(result.reasons.contains(.invalidDoseRecords), alias) }
+            XCTAssertEqual(try storage.historySnapshot(sessionDate: sessionDate).events, before)
+        }
+        let early = storage.isoFormatter.string(from: oldDose1.addingTimeInterval(-60))
+        XCTAssertEqual(sqlite3_exec(storage.db,
+            "UPDATE dose_events SET event_type = 'dose_1_taken', timestamp = '\(early)'", nil, nil, nil), SQLITE_OK)
+        XCTAssertEqual(storage.reviewedWindowAssessment(sessionDate: sessionDate, now: now).reasons, [.doseOutsideWindow])
+    }
+
     func testWindowAssessmentRechecksDoseAndStrictNapEvidenceWithoutWrites() throws {
         let storage = EventStorage.inMemory(); try seedDose1(in: storage)
         let now = oldDose1.addingTimeInterval(8 * 3600)
