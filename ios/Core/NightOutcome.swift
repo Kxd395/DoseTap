@@ -34,9 +34,11 @@ public struct NightOutcomeDiary: Codable, Equatable, Sendable {
     public var finalWakeAt: Date?
     public var sleepiness: Int?
     public var assessedAt: Date?
+    public var reviewedSleepWindow: ReviewedSleepWindow?
     public init() {}
 
     public func validationError(now: Date) -> String? {
+        if let error = reviewedSleepWindow?.validationError(now: now) { return error }
         if let sleepiness, !(0...10).contains(sleepiness) { return "Choose a sleepiness rating from 0 to 10." }
         if (sleepiness == nil) != (assessedAt == nil) { return "Save the assessment time with the sleepiness rating." }
         for date in [finalWakeAt, assessedAt].compactMap({ $0 }) {
@@ -53,6 +55,7 @@ public struct NightOutcomeDiary: Codable, Equatable, Sendable {
         || (old.dayType != .unknown && dayType != old.dayType)
         || (old.finalWakeAt != nil && finalWakeAt != old.finalWakeAt)
         || (old.sleepiness != nil && (sleepiness != old.sleepiness || assessedAt != old.assessedAt))
+        || (old.reviewedSleepWindow != nil && reviewedSleepWindow != old.reviewedSleepWindow)
     }
 }
 
@@ -84,6 +87,7 @@ public struct CollectedNightSummary: Codable, Hashable, Sendable {
     public var sleepAfterDose2IntervalMinutes: Double?
     public var sleepAfterDose2FinalWakeAt: Date?
     public var sleepAfterDose2Source: String?
+    public var reviewedSleepWindow: ReviewedSleepWindow?
     public init() {}
 
     public static func minutes(from start: Date?, to end: Date?) -> Double? {
@@ -124,7 +128,15 @@ public struct CollectedNightSummary: Codable, Hashable, Sendable {
             ("sleep_after_dose2_covered_minutes", sleepAfterDose2CoveredMinutes.map { String($0) }),
             ("sleep_after_dose2_interval_minutes", sleepAfterDose2IntervalMinutes.map { String($0) }),
             ("sleep_after_dose2_final_wake_at_utc", stamp(sleepAfterDose2FinalWakeAt)),
-            ("sleep_after_dose2_source", sleepAfterDose2Source)
+            ("sleep_after_dose2_source", sleepAfterDose2Source),
+            ("reviewed_window_version", reviewedSleepWindow.map { String($0.version) }),
+            ("reviewed_window_source", reviewedSleepWindow?.source),
+            ("reviewed_window_start_at_utc", stamp(reviewedSleepWindow?.start)),
+            ("reviewed_window_end_at_utc", stamp(reviewedSleepWindow?.end)),
+            ("reviewed_window_reviewed_at_utc", stamp(reviewedSleepWindow?.reviewedAt)),
+            ("reviewed_window_entry_timezone", reviewedSleepWindow?.entryTimeZoneID),
+            ("reviewed_window_start_offset_seconds", reviewedSleepWindow.map { String($0.startUTCOffsetSeconds) }),
+            ("reviewed_window_end_offset_seconds", reviewedSleepWindow.map { String($0.endUTCOffsetSeconds) })
         ]
     }
 }

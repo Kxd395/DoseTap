@@ -566,6 +566,8 @@ struct InsightReportBuilder {
         report.fields.map { key, value in
             let hidden = (redaction.redactFreeText && key == "last_food_notes")
                 || (redaction.redactExactTimestamps && key.hasSuffix("_utc"))
+                || (redaction.redactExactTimestamps && key.hasPrefix("reviewed_window_")
+                    && (key.contains("timezone") || key.contains("offset")))
             return (key, hidden ? "" : (value ?? ""))
         }
     }

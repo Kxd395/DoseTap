@@ -22,6 +22,7 @@ extension SessionRepository {
         result.sleepiness0To10 = record?.answers.sleepiness
         result.sleepinessAssessedAt = record?.answers.assessedAt
         result.outcomeRecordedAt = record?.recordedAt
+        result.reviewedSleepWindow = record?.answers.reviewedSleepWindow
         result.estimateSleep(dose2: dose?.dose2Time, finalWake: result.finalWakeAt ?? providerFinalWake, intervals: intervals)
         return result
     }
@@ -57,6 +58,9 @@ extension EventStorage {
         }
         var answers = current.record?.answers ?? NightOutcomeDiary()
         answers.wakeMethod = method
+        if let error = answers.validationError(now: recordedAt) {
+            throw MedicationStorageInjectedFailure(code: .precondition, detail: error)
+        }
         var revisions = current.record?.revisions ?? []
         if let previous = current.record, previous.answers != answers {
             revisions.append(.init(answers: previous.answers, recordedAt: previous.recordedAt,
@@ -95,7 +99,8 @@ extension EventStorage {
         }
         let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
         let record = try decoder.decode(NightOutcomeRecord.self, from: Data(raw.utf8))
-        guard record.answers.validationError(now: record.recordedAt) == nil else {
+        guard record.answers.validationError(now: record.recordedAt) == nil,
+              record.answers.reviewedSleepWindow.map({ $0.sessionID == history.sessionId }) ?? true else {
             throw MedicationStorageInjectedFailure(code: .precondition, detail: "Stored night outcomes need review.")
         }
         return .init(history: history, rawJSON: raw, record: record)
@@ -112,6 +117,9 @@ extension EventStorage {
             }
             if let error = answers.validationError(now: recordedAt) {
                 throw MedicationStorageInjectedFailure(code: .precondition, detail: error)
+            }
+            guard answers.reviewedSleepWindow.map({ $0.sessionID == current.history.sessionId }) ?? true else {
+                throw MedicationStorageInjectedFailure(code: .precondition, detail: "This window belongs to another night. Reload before saving.")
             }
             let dose2 = current.history.events.first { $0.eventType == "dose2" }?.timestamp
             let dose1 = current.history.events.first { $0.eventType == "dose1" }?.timestamp

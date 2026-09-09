@@ -21,7 +21,7 @@ final class DoseTapUITests: XCTestCase {
         if name.contains("testSupply") || name.contains("testSystemAlarm") || name.contains("testPreSleep") { app.launchArguments += ["-setup_completed_v2", "YES"] }
         if name.contains("testDashboard") { app.launchArguments += ["--uitesting-dashboard", "-setup_completed_v2", "YES"] }
         if name.contains("testWorkWarning") { app.launchArguments.append("--uitesting-work-warning") }
-        if name.contains("testDose2Confirmation") { app.launchArguments.append("--uitesting-dose2-confirmation") }
+        if name.contains("testDose2Confirmation") || name.contains("testReviewedNightWindow") { app.launchArguments.append("--uitesting-dose2-confirmation") }
         if name.contains("testExpiredSessionLaunch") { app.launchArguments.append("--uitesting-expired-session") }
         if name.contains("testHistoryManual") { app.launchArguments += ["--uitesting-history", "--uitesting-history-reset", "-setup_completed_v2", "YES"] }
         app.launch()
@@ -379,6 +379,59 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(app.segmentedControls["pre-last-food-fat"].buttons["Yes"].isSelected)
         captureDashboard("Last food restored after restart in History")
         app.buttons["Cancel"].tap()
+    }
+
+    func testReviewedNightWindow() throws {
+        app.launchArguments.removeAll { $0 == "--uitesting-dose2-confirmation" }
+        func reveal(_ element: XCUIElement) {
+            for _ in 0..<8 where !element.isHittable { app.swipeUp() }
+            XCTAssertTrue(element.isHittable)
+        }
+        func toggle(_ element: XCUIElement) {
+            reveal(element)
+            element.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
+        }
+        func acknowledge(_ title: String) {
+            XCTAssertTrue(app.alerts[title].waitForExistence(timeout: 5))
+            app.alerts[title].buttons["OK"].tap()
+        }
+        let dose = app.buttons["dose-primary-action"]
+        XCTAssertTrue(dose.waitForExistence(timeout: 15)); reveal(dose); dose.tap()
+        XCTAssertTrue(app.buttons["dose2-confirm-record"].waitForExistence(timeout: 5))
+        app.buttons["dose2-wake-natural"].tap(); app.buttons["dose2-confirm-record"].tap()
+        let diary = app.buttons["night-outcome-open"]
+        XCTAssertTrue(diary.waitForExistence(timeout: 10)); diary.tap()
+        toggle(app.switches["Record final awakening"])
+        app.buttons["night-outcome-save"].tap(); acknowledge("Answers saved")
+        diary.tap()
+        let enabled = app.switches["night-window-enabled"], confirm = app.switches["night-window-confirm"]
+        toggle(enabled)
+        app.buttons["night-outcome-save"].tap(); acknowledge("Answers not saved")
+        app.buttons["Done"].tap(); diary.tap(); reveal(enabled)
+        XCTAssertEqual(enabled.value as? String, "0", "Unconfirmed or cancelled windows must not save")
+        toggle(enabled); toggle(confirm)
+        let range = app.staticTexts["night-window-range"]
+        let reviewedRange = range.label
+        XCTAssertTrue(reviewedRange.contains("UTC:"))
+        captureDashboard("Reviewed night bounds before explicit save")
+        app.buttons["night-outcome-save"].tap(); acknowledge("Answers saved")
+        app.terminate(); app.launch()
+        XCTAssertTrue(diary.waitForExistence(timeout: 15)); diary.tap(); reveal(enabled)
+        XCTAssertEqual(enabled.value as? String, "1")
+        reveal(app.staticTexts["night-window-saved"])
+        XCTAssertEqual(range.label, reviewedRange)
+        captureDashboard("Reviewed night bounds restored after restart")
+        toggle(enabled)
+        app.buttons["night-outcome-save"].tap(); acknowledge("Answers not saved")
+        let reason = app.textFields["night-outcome-reason"]
+        for _ in 0..<8 where !reason.isHittable { app.swipeDown() }
+        XCTAssertTrue(reason.isHittable); reason.tap(); reason.typeText("Remove incorrect night window")
+        app.buttons["night-outcome-save"].tap(); acknowledge("Answers saved")
+        diary.tap(); reveal(enabled)
+        XCTAssertEqual(enabled.value as? String, "0")
+        captureDashboard("Window cleared with retained correction history")
+        app.buttons["Done"].tap()
+        XCTAssertFalse(dose.exists, "Window edits must not remove or create medication records")
     }
 
     func testDose2ConfirmationCancelBackgroundAndExplicitSave() throws {

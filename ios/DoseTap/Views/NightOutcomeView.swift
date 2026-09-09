@@ -71,13 +71,30 @@ struct NightOutcomeEditor: View {
     @State private var error: String?
     @State private var saved = false
     @State private var showSaveError = false
+    @State private var windowEnabled = false
+    @State private var windowStart = Date()
+    @State private var windowEnd = Date()
+    @State private var windowReviewedAt = Date()
+    @State private var windowConfirmed = false
+    @State private var windowZone = TimeZone.current
     private let repo = SessionRepository.shared
 
+    private var windowUnchanged: Bool {
+        guard let old = answers.reviewedSleepWindow else { return false }
+        return windowEnabled && windowStart == old.start && windowEnd == old.end
+    }
+    private var windowDraft: ReviewedSleepWindow? {
+        guard windowEnabled, let review else { return nil }
+        if windowUnchanged { return answers.reviewedSleepWindow }
+        return .init(sessionID: review.history.sessionId, start: windowStart, end: windowEnd,
+                     entryTimeZone: windowZone, reviewedAt: windowReviewedAt)
+    }
     private var draft: NightOutcomeDiary {
         var value = answers
         value.finalWakeAt = hasFinalWake ? finalWake : nil
         value.sleepiness = hasSleepiness ? rating : nil
         value.assessedAt = hasSleepiness ? assessedAt : nil
+        value.reviewedSleepWindow = windowDraft
         return value
     }
     private var needsReason: Bool { review?.record.map { draft.changesAnsweredFields(of: $0.answers) } ?? false }
@@ -128,6 +145,7 @@ struct NightOutcomeEditor: View {
                             .font(.footnote)
                     }
                 }
+                windowSection
                 if let error {
                     Section("Not saved") {
                         Text(error).foregroundStyle(.red)
@@ -139,6 +157,9 @@ struct NightOutcomeEditor: View {
                         ForEach(Array(revisions.enumerated()), id: \.offset) { _, revision in
                             Text("\(revision.recordedAt.formatted()): \(revision.answers.wakeMethod.title), sleepiness \(revision.answers.sleepiness.map(String.init) ?? "not recorded"). \(revision.reason)")
                                 .font(.footnote)
+                            if let window = revision.answers.reviewedSleepWindow {
+                                Text(windowDescription(window)).font(.footnote)
+                            }
                         }
                     }
                 }
@@ -159,6 +180,43 @@ struct NightOutcomeEditor: View {
             }
         }
     }
+    private var windowSection: some View {
+        Section("Night window (optional)") {
+            Toggle("Save a reviewed window", isOn: $windowEnabled)
+                .accessibilityIdentifier("night-window-enabled")
+                .onChange(of: windowEnabled) { _ in windowConfirmed = false }
+            Text("Choose the start and end of the night you want to review. This range is not measured sleep or a final-awakening answer. Existing charts and totals are unchanged for now.")
+                .font(.footnote)
+            if windowEnabled {
+                DatePicker("Window start", selection: $windowStart, in: ...Date())
+                    .accessibilityIdentifier("night-window-start")
+                    .onChange(of: windowStart) { _ in windowConfirmed = false }
+                DatePicker("Window end", selection: $windowEnd, in: ...Date())
+                    .accessibilityIdentifier("night-window-end")
+                    .onChange(of: windowEnd) { _ in windowConfirmed = false }
+                Text("Dates shown in \(windowZone.identifier). Suggested dates must be reviewed before saving.")
+                    .font(.footnote)
+                if let value = windowDraft {
+                    Text(windowDescription(value)).font(.caption).foregroundStyle(.secondary)
+                        .accessibilityIdentifier("night-window-range")
+                }
+                if windowUnchanged {
+                    Text("Saved reviewed window").accessibilityIdentifier("night-window-saved")
+                } else {
+                    Toggle("I reviewed both dates and times", isOn: $windowConfirmed)
+                        .accessibilityIdentifier("night-window-confirm")
+                        .onChange(of: windowConfirmed) { confirmed in
+                            if confirmed { windowReviewedAt = Date() }
+                        }
+                }
+            }
+        }
+        .environment(\.timeZone, windowZone)
+    }
+    private func windowDescription(_ value: ReviewedSleepWindow) -> String {
+        let formatter = ISO8601DateFormatter()
+        return "UTC: \(formatter.string(from: value.start)) to \(formatter.string(from: value.end))"
+    }
     private func load() {
         do {
             let snapshot = try repo.nightOutcomeSnapshot(sessionDate: sessionDate)
@@ -167,10 +225,20 @@ struct NightOutcomeEditor: View {
             hasFinalWake = answers.finalWakeAt != nil; hasSleepiness = answers.sleepiness != nil
             finalWake = answers.finalWakeAt ?? Date(); assessedAt = answers.assessedAt ?? Date()
             rating = answers.sleepiness ?? 5; reason = ""; error = nil
+            let window = answers.reviewedSleepWindow
+            windowEnabled = window != nil
+            windowStart = window?.start ?? snapshot.history.events.first(where: { $0.eventType == "dose1" })?.timestamp ?? Date()
+            windowEnd = window?.end ?? answers.finalWakeAt ?? windowStart
+            windowZone = window.flatMap { TimeZone(identifier: $0.entryTimeZoneID) } ?? .current
+            windowReviewedAt = window?.reviewedAt ?? Date(); windowConfirmed = false
         } catch { self.error = "This night's answers could not be read. Nothing has changed."; review = nil }
     }
     private func save() {
         guard let review else { return }
+        if windowEnabled && !windowUnchanged && !windowConfirmed {
+            error = "Review both window dates and times, then confirm them before saving."
+            showSaveError = true; return
+        }
         let result = repo.saveNightOutcome(draft, review: review, reason: reason)
         if result.isCommitted { error = nil; saved = true }
         else { error = result.failure?.detail ?? "Answers were not saved. Please reload and review."; showSaveError = true }
