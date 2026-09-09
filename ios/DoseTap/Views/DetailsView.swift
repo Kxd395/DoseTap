@@ -329,6 +329,23 @@ struct DetailsView: View {
     }
 
     private func refreshReviewContext() {
+        #if DEBUG && targetEnvironment(simulator)
+        // Display-only fixture: no medication, event, or provider writes.
+        if ProcessInfo.processInfo.arguments.contains("--uitesting-review-metrics") {
+            let date = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+            let first = eveningAnchorDate(for: date)
+            let key = sessionRepo.sessionDateString(for: first)
+            reviewEvents = (0..<2).map { index in
+                StoredSleepEvent(id: "review-fixture-\(index)", eventType: "Bathroom",
+                    timestamp: first.addingTimeInterval(Double(index + 1) * 3600), sessionDate: key)
+            }
+            reviewSessions = [.init(sessionDate: key, dose1Time: first,
+                dose2Time: first.addingTimeInterval(14401), sleepEvents: reviewEvents)]
+            selectedReviewSessionKey = key
+            reviewNightDate = date
+            return
+        }
+        #endif
         let fetchedSessions = sessionRepo.fetchRecentSessions(days: 120)
         var sessionByKey: [String: SessionSummary] = [:]
         for session in fetchedSessions {
@@ -432,12 +449,8 @@ struct DetailsView: View {
             .frame(width: UIScreen.main.bounds.width - 24)
             .padding(.vertical, 8)
             .environment(\.colorScheme, colorScheme)
-            .preferredColorScheme(colorScheme)
 
-            let renderer = ImageRenderer(content: content)
-            renderer.scale = UIScreen.main.scale
-
-            if let image = renderer.uiImage {
+            if let image = renderTimelineReviewCapture(content, scale: UIScreen.main.scale) {
                 reviewShareImage = image
                 showReviewShareSheet = true
             } else {

@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-08
 SSOT revision: 0.4.19
-Shipping app version observed in the Xcode project: 0.4.19 (build 30)
+Shipping app version observed in the Xcode project: 0.4.19 (build 31)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -597,6 +597,13 @@ Resolve the wake date in the saved work schedule timezone from the canonical tre
 Inside the medication window, passing the selected target on a working wake date presents Continue to Record Dose 2, I'm Not Working [exact date], Change Wake Time, and Cancel. Continue revalidates timing and the schedule revision; its acknowledgement is committed in dose metadata. Schedule changes never create a dose. A failed schedule write leaves the previous schedule and warning effective. After the medication window, only the retrospective resolution policy applies.
 
 Work schedule configuration and dated overrides are stored together in SQLite `work_wake_schedule`. Weekly confirmation is an independent reminder and is deferred; its absence never blocks medication recording. Historical acknowledgements retain the schedule revision, timezone, wake instant, target instant and selected mode.
+
+### Timeline Review metrics (DOSETAP-64)
+
+- Review and its capture use the same read-only presentation of actual dose timestamps. MedicationTiming classifies the unrounded elapsed seconds; a displayed duration cannot determine the status. Early, In-window, Late and Invalid pair remain distinct. Capture materializes a standalone bitmap and rejects empty pixel output before opening the preview.
+- An explicit skip shows Skipped. Dose 1 without Dose 2 shows Pending through the inclusive upper boundary, then Not recorded. No doses and an orphan Dose 2 are separate states. Contradictory taken/skipped records require review rather than a timing classification.
+- Bathroom logs and disruption logs are counts of saved events, not durations or proof of every awakening. Zero logs means none logged, not zero awake minutes. Review does not estimate WASO from bathroom counts; Apple Health sleep information remains available in the existing timeline and provider cards.
+- The summary describes recorded timing and missing information. It does not suggest moving doses or putting lights-out inside the Dose 2 window. Lights-out to final wake is labeled as logged elapsed time, not measured sleep; reversed or missing markers are unavailable.
 
 ### Dashboard analytics contract (DOSETAP-45)
 
