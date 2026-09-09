@@ -84,6 +84,8 @@ This additive JSON field has no SQLite migration. Existing night-outcome revisio
 
 The collected-night JSON also carries `reviewedSleepWindow`; flat `reviewed_window_*` columns contain version, source, start/end/review UTC timestamps, entry timezone and both offset-seconds values. Missing windows leave these columns empty. Studio retains the nested object on read/write and includes the flat fields in its existing reports; safe reports redact all three timestamps plus entry timezone/offsets. No new field supplies a sleep estimate or replaces final wake.
 
+The additive `reviewedWindowAssessment` projection has `derivationVersion = reviewed_window_assessment_v1`, `status` (`missing`, `checked`, `needsReview`), ordered reason codes and optional absolute `assessedAt`. Flat fields are `reviewed_window_assessment_version`, `reviewed_window_assessment_status`, `reviewed_window_assessment_reasons` (semicolon-separated codes) and `reviewed_window_assessed_at_utc`. Older bundles omit the object; missing is not retrospectively treated as checked. The current export rechecks local bounds from a read snapshot. A saved report retains its assessment time and is not current after source corrections. Studio's existing timestamp redaction applies. This is not persisted in the nightly answer or a new schema migration.
+
 ## Inventory boundary
 
 `inventory_snapshots` records a point-in-time local estimate or imported inventory state. The legacy column name `next_refill_date` does not grant DoseTap authority to refill, order, verify eligibility, contact a pharmacy, or report shipment state.

@@ -33,6 +33,59 @@ private final class MedicationMutationNotificationCenter: AlarmNotificationCente
 
 @MainActor
 final class MedicationMutationTransactionTests: XCTestCase {
+    func testWindowAssessmentRechecksDoseAndStrictNapEvidenceWithoutWrites() throws {
+        let storage = EventStorage.inMemory(); try seedDose1(in: storage)
+        let now = oldDose1.addingTimeInterval(8 * 3600)
+        var diary = NightOutcomeDiary()
+        diary.reviewedSleepWindow = .init(sessionID: sessionId, start: oldDose1, end: oldDose1.addingTimeInterval(6 * 3600),
+            entryTimeZone: .current, reviewedAt: now)
+        XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: sessionDate),
+            reason: "", recordedAt: now).isCommitted)
+        let original = try storage.nightOutcomeSnapshot(sessionDate: sessionDate)
+        XCTAssertEqual(storage.reviewedWindowAssessment(sessionDate: sessionDate, now: now).status, .checked)
+        let formatter = storage.isoFormatter
+        let early = formatter.string(from: oldDose1.addingTimeInterval(-60))
+        XCTAssertEqual(sqlite3_exec(storage.db, "UPDATE dose_events SET timestamp = '\(early)' WHERE event_type = 'dose1'", nil, nil, nil), SQLITE_OK)
+        XCTAssertTrue(storage.reviewedWindowAssessment(sessionDate: sessionDate, now: now).reasons.contains(.doseOutsideWindow))
+        XCTAssertEqual(sqlite3_exec(storage.db, "UPDATE dose_events SET timestamp = '\(formatter.string(from: oldDose1))' WHERE event_type = 'dose1'", nil, nil, nil), SQLITE_OK)
+        let nap = formatter.string(from: oldDose1.addingTimeInterval(600))
+        XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_events (id,event_type,timestamp,session_date,session_id) VALUES ('test-nap','nap_start','\(nap)','\(sessionDate)','\(sessionId)')", nil, nil, nil), SQLITE_OK)
+        XCTAssertEqual(storage.reviewedWindowAssessment(sessionDate: sessionDate, now: now).reasons, [.incompleteNap])
+        XCTAssertEqual(sqlite3_exec(storage.db, "UPDATE sleep_events SET timestamp = 'unreadable' WHERE id = 'test-nap'", nil, nil, nil), SQLITE_OK)
+        XCTAssertEqual(storage.reviewedWindowAssessment(sessionDate: sessionDate, now: now).reasons, [.unreadableEvidence])
+        XCTAssertEqual(sqlite3_exec(storage.db, "DELETE FROM sleep_events WHERE id = 'test-nap'", nil, nil, nil), SQLITE_OK)
+        XCTAssertEqual(storage.reviewedWindowAssessment(sessionDate: sessionDate, now: now).status, .checked)
+        XCTAssertEqual(try storage.nightOutcomeSnapshot(sessionDate: sessionDate).rawJSON, original.rawJSON)
+        XCTAssertEqual(try storage.nightOutcomeSnapshot(sessionDate: sessionDate).history.events, original.history.events)
+        XCTAssertEqual(storage.loadCurrentSessionState().dose1Time, oldDose1)
+    }
+
+    func testWindowAssessmentFailsClosedForUnavailableAndUnreadableEvidence() throws {
+        let storage = EventStorage.inMemory(); try seedDose1(in: storage)
+        let now = oldDose1.addingTimeInterval(8 * 3600)
+        var diary = NightOutcomeDiary()
+        diary.reviewedSleepWindow = .init(sessionID: sessionId, start: oldDose1, end: oldDose1.addingTimeInterval(6 * 3600),
+            entryTimeZone: .current, reviewedAt: now)
+        XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: sessionDate),
+            reason: "", recordedAt: now).isCommitted)
+        XCTAssertEqual(sqlite3_exec(storage.db, "ALTER TABLE sleep_events RENAME TO unavailable_sleep_events", nil, nil, nil), SQLITE_OK)
+        XCTAssertEqual(storage.reviewedWindowAssessment(sessionDate: sessionDate, now: now).reasons, [.unreadableEvidence])
+        XCTAssertEqual(sqlite3_exec(storage.db, "ALTER TABLE unavailable_sleep_events RENAME TO sleep_events", nil, nil, nil), SQLITE_OK)
+        XCTAssertEqual(storage.reviewedWindowAssessment(sessionDate: sessionDate, now: now).status, .checked)
+        XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO checkin_submissions (id,source_record_id,session_id,session_date,checkin_type,questionnaire_version,user_id,submitted_at_utc,local_offset_minutes,responses_json) SELECT 'broken-other','other','other','2026-09-01',checkin_type,questionnaire_version,user_id,submitted_at_utc,local_offset_minutes,'broken JSON' FROM checkin_submissions LIMIT 1", nil, nil, nil), SQLITE_OK)
+        XCTAssertEqual(storage.reviewedWindowAssessment(sessionDate: sessionDate, now: now).reasons, [.unreadableEvidence])
+        XCTAssertEqual(sqlite3_exec(storage.db, "DELETE FROM checkin_submissions WHERE id = 'broken-other'", nil, nil, nil), SQLITE_OK)
+        var otherDiary = NightOutcomeDiary()
+        otherDiary.reviewedSleepWindow = .init(sessionID: "other", start: oldDose1.addingTimeInterval(3600),
+            end: oldDose1.addingTimeInterval(7 * 3600), entryTimeZone: .current, reviewedAt: now)
+        let other = NightOutcomeRecord(answers: otherDiary, recordedAt: now, revisions: [])
+        let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
+        let responses = try XCTUnwrap(JSONSerialization.jsonObject(with: encoder.encode(other)) as? [String: Any])
+        try storage.upsertCheckInSubmissionOrThrow(sourceRecordId: "other", sessionId: "other", sessionDate: "2026-09-01",
+            checkInType: .nightOutcome, questionnaireVersion: "night_outcome.v1", submittedAt: now, responsesByQuestionID: responses)
+        XCTAssertEqual(storage.reviewedWindowAssessment(sessionDate: sessionDate, now: now).reasons, [.overlappingWindow])
+    }
+
     func testReviewedWindowPersistsCorrectionsAndRejectsStaleOrWrongSessionWithoutDoseWrites() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

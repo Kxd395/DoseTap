@@ -17,6 +17,10 @@ public extension SessionRepository {
         try storage.nightOutcomeSnapshot(sessionDate: sessionDate)
     }
 
+    internal func reviewedWindowAssessment(sessionDate: String) -> ReviewedWindowAssessment {
+        storage.reviewedWindowAssessment(sessionDate: sessionDate, now: clock())
+    }
+
     @discardableResult
     internal func saveNightOutcome(_ answers: NightOutcomeDiary, review: NightOutcomeSnapshot, reason: String) -> MedicationMutationResult {
         let result = storage.saveNightOutcome(answers, review: review, reason: reason, recordedAt: clock())

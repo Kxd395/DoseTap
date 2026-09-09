@@ -88,6 +88,7 @@ public struct CollectedNightSummary: Codable, Hashable, Sendable {
     public var sleepAfterDose2FinalWakeAt: Date?
     public var sleepAfterDose2Source: String?
     public var reviewedSleepWindow: ReviewedSleepWindow?
+    public var reviewedWindowAssessment: ReviewedWindowAssessment?
     public init() {}
 
     public static func minutes(from start: Date?, to end: Date?) -> Double? {
@@ -136,7 +137,11 @@ public struct CollectedNightSummary: Codable, Hashable, Sendable {
             ("reviewed_window_reviewed_at_utc", stamp(reviewedSleepWindow?.reviewedAt)),
             ("reviewed_window_entry_timezone", reviewedSleepWindow?.entryTimeZoneID),
             ("reviewed_window_start_offset_seconds", reviewedSleepWindow.map { String($0.startUTCOffsetSeconds) }),
-            ("reviewed_window_end_offset_seconds", reviewedSleepWindow.map { String($0.endUTCOffsetSeconds) })
+            ("reviewed_window_end_offset_seconds", reviewedSleepWindow.map { String($0.endUTCOffsetSeconds) }),
+            ("reviewed_window_assessment_version", reviewedWindowAssessment?.derivationVersion),
+            ("reviewed_window_assessment_status", reviewedWindowAssessment?.status.rawValue),
+            ("reviewed_window_assessment_reasons", reviewedWindowAssessment.map { $0.reasons.map(\.rawValue).joined(separator: ";") }),
+            ("reviewed_window_assessed_at_utc", stamp(reviewedWindowAssessment?.assessedAt))
         ]
     }
 }

@@ -2,15 +2,61 @@ import XCTest
 @testable import DoseCore
 
 final class ReviewedSleepWindowTests: XCTestCase {
+    func testAssessmentRechecksDosesAndRetainsMissingWindow() {
+        let value = window(), now = start.addingTimeInterval(7200)
+        func assess(_ doses: [StoredDoseEvent]) -> ReviewedWindowAssessment {
+            .calculate(window: value, sessionID: "session-A", doses: doses, otherWindows: [], naps: [], now: now)
+        }
+        let first = StoredDoseEvent(id: "d1", eventType: "dose1", timestamp: start, sessionDate: "")
+        XCTAssertEqual(assess([first]).status, .checked)
+        let outside = StoredDoseEvent(id: "d2", eventType: "dose2", timestamp: value.end, sessionDate: "")
+        XCTAssertTrue(assess([first, outside]).reasons.contains(.doseOutsideWindow))
+        XCTAssertTrue(assess([outside]).reasons.contains(.invalidDoseRecords))
+        XCTAssertEqual(ReviewedWindowAssessment.calculate(window: nil, sessionID: "session-A", doses: [],
+            otherWindows: [], naps: [], now: now).status, .missing)
+        XCTAssertEqual(assess([first]).status, .checked) // Recalculation after correction, not cached failure.
+    }
+    func testAssessmentOverlapsAreHalfOpenAndSessionBound() {
+        let value = window(), now = start.addingTimeInterval(7200)
+        let overlap = window(start: start.addingTimeInterval(1800), end: start.addingTimeInterval(5400), sessionID: "session-B")
+        let touching = window(start: value.end, end: start.addingTimeInterval(5400), sessionID: "session-C")
+        let result = ReviewedWindowAssessment.calculate(window: value, sessionID: "session-A", doses: [],
+            otherWindows: [overlap, touching], naps: [], now: now)
+        XCTAssertEqual(result.reasons, [.overlappingWindow])
+        XCTAssertEqual(ReviewedWindowAssessment.calculate(window: value, sessionID: "wrong", doses: [],
+            otherWindows: [], naps: [], now: now).reasons, [.invalidWindow])
+    }
+    func testAssessmentNapsKeepIncompleteAndAmbiguousEvidence() {
+        typealias Marker = ReviewedWindowAssessment.NapMarker
+        let value = window(), now = start.addingTimeInterval(7200)
+        func marker(_ id: String, _ seconds: Double, _ isStart: Bool, _ group: String = "a") -> Marker {
+            .init(id: id, group: group, timestamp: start.addingTimeInterval(seconds), isStart: isStart)
+        }
+        func assess(_ naps: [Marker]) -> ReviewedWindowAssessment {
+            .calculate(window: value, sessionID: "session-A", doses: [], otherWindows: [], naps: naps, now: now)
+        }
+        XCTAssertEqual(assess([marker("s", -600, true), marker("e", 0, false)]).status, .checked)
+        XCTAssertEqual(assess([marker("s", 600, true), marker("e", 900, false)]).reasons, [.overlappingNap])
+        XCTAssertEqual(assess([marker("s", -600, true)]).reasons, [.incompleteNap])
+        XCTAssertEqual(assess([marker("e", 900, false)]).reasons, [.incompleteNap])
+        let ambiguous = [marker("s", 600, true), marker("s2", 700, true), marker("e", 900, false)]
+        XCTAssertEqual(assess(ambiguous).reasons, [.ambiguousNap])
+        XCTAssertEqual(assess(ambiguous).reasons, assess(ambiguous.reversed()).reasons)
+        XCTAssertEqual(assess([marker("s", 600, true), marker("e", 900, false, "other")]).reasons, [.incompleteNap])
+    }
     func testCollectedWindowRoundTripAndFlatFieldsPreserveMissingness() throws {
         var summary = CollectedNightSummary()
         XCTAssertNil(try JSONDecoder().decode(CollectedNightSummary.self, from: Data(#"{"version":1}"#.utf8)).reviewedSleepWindow)
         XCTAssertTrue(summary.fields.filter { $0.0.hasPrefix("reviewed_window_") }.allSatisfy { $0.1 == nil })
         summary.reviewedSleepWindow = window()
+        summary.reviewedWindowAssessment = .calculate(window: summary.reviewedSleepWindow, sessionID: "session-A",
+            doses: [], otherWindows: [], naps: [], now: start.addingTimeInterval(7200))
         let decoded = try JSONDecoder().decode(CollectedNightSummary.self, from: JSONEncoder().encode(summary))
         XCTAssertEqual(decoded.reviewedSleepWindow, summary.reviewedSleepWindow)
+        XCTAssertEqual(decoded.reviewedWindowAssessment, summary.reviewedWindowAssessment)
         let fields = Dictionary(uniqueKeysWithValues: decoded.fields)
         XCTAssertEqual(fields["reviewed_window_source"] ?? nil, "user_reviewed")
+        XCTAssertEqual(fields["reviewed_window_assessment_status"] ?? nil, "checked")
         XCTAssertEqual(fields["reviewed_window_entry_timezone"] ?? nil, "America/New_York")
         XCTAssertNotNil(fields["reviewed_window_start_at_utc"] ?? nil)
         XCTAssertNil(decoded.estimatedSleepAfterDose2Minutes)
