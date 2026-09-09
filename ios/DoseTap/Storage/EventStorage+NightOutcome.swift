@@ -63,8 +63,17 @@ extension EventStorage {
         }
         var released = false
         defer { if !released { sqlite3_exec(db, "RELEASE reviewed_window_read", nil, nil, nil) } }
+        var results = unavailable
         do {
-            let snapshots = try Dictionary(uniqueKeysWithValues: keys.map { ($0, try nightOutcomeSnapshot(sessionDate: $0)) })
+            var snapshots: [String: NightOutcomeSnapshot] = [:]
+            for key in keys {
+                do { snapshots[key] = try nightOutcomeSnapshot(sessionDate: key) }
+                catch { continue } // This key retains unavailable; other readable nights still get assessed.
+            }
+            for (key, snapshot) in snapshots where snapshot.record?.answers.reviewedSleepWindow == nil {
+                results[key] = .calculate(window: nil, sessionID: snapshot.history.sessionId,
+                    doses: [], otherWindows: [], naps: [], now: now)
+            }
             var windows: [ReviewedSleepWindow] = [], naps: [ReviewedWindowAssessment.NapMarker] = []
             if snapshots.values.contains(where: { $0.record?.answers.reviewedSleepWindow != nil }) {
                 let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
@@ -96,7 +105,7 @@ extension EventStorage {
                     naps.append(.init(id: id, group: group, timestamp: timestamp, isStart: canonical == .napStart))
                 }
             }
-            let results = snapshots.mapValues { snapshot in
+            for (key, snapshot) in snapshots {
                 // Normalize only this read projection, using the same aliases as medication history.
                 let doses = snapshot.history.events.map { event in
                     DoseCore.StoredDoseEvent(id: event.id,
@@ -104,13 +113,13 @@ extension EventStorage {
                         timestamp: event.timestamp, sessionDate: event.sessionDate,
                         metadata: event.metadata, sessionId: event.sessionId)
                 }
-                return ReviewedWindowAssessment.calculate(window: snapshot.record?.answers.reviewedSleepWindow,
+                results[key] = ReviewedWindowAssessment.calculate(window: snapshot.record?.answers.reviewedSleepWindow,
                     sessionID: snapshot.history.sessionId, doses: doses, otherWindows: windows, naps: naps, now: now)
             }
             guard sqlite3_exec(db, "RELEASE reviewed_window_read", nil, nil, nil) == SQLITE_OK else { return unavailable }
             released = true
             return results
-        } catch { return unavailable }
+        } catch { return results } // Shared evidence failed: saved windows stay unavailable, absent windows stay missing.
     }
 
     private func readWindowEvidenceRows(_ sql: String, consume: ((Int32) -> String?) throws -> Void) throws {

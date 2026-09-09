@@ -68,10 +68,20 @@ final class MedicationMutationTransactionTests: XCTestCase {
         let bundle = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         XCTAssertEqual((bundle["sessions"] as? [[String: Any]])?.count, keys.count)
         XCTAssertEqual(reads.pointee, 1, "The actual bundle path must reuse the batch assessment")
+        XCTAssertEqual(sqlite3_exec(storage.db,
+            "INSERT INTO dose_events (id, event_type, timestamp, session_date, session_id) VALUES ('bad-batch-dose', 'dose1', 'not-a-date', '2026-09-01', 'batch-0')",
+            nil, nil, nil), SQLITE_OK)
+        let isolated = storage.reviewedWindowAssessments(sessionDates: keys + ["2026-09-04"], now: now)
+        XCTAssertEqual(isolated[keys[0]]?.reasons, [.unreadableEvidence])
+        XCTAssertEqual(isolated[keys[1]], expected[keys[1]])
+        XCTAssertEqual(isolated[keys[2]], expected[keys[2]])
+        XCTAssertEqual(isolated["2026-09-04"]?.status, .missing)
+        XCTAssertEqual(sqlite3_exec(storage.db, "DELETE FROM dose_events WHERE id = 'bad-batch-dose'", nil, nil, nil), SQLITE_OK)
         XCTAssertEqual(sqlite3_exec(storage.db, "ALTER TABLE sleep_events RENAME TO unavailable_batch_naps", nil, nil, nil), SQLITE_OK)
         XCTAssertTrue(storage.reviewedWindowAssessments(sessionDates: keys, now: now).values.allSatisfy {
             $0.reasons == [.unreadableEvidence]
         }, "A new batch must not reuse stale success after source failure")
+        XCTAssertEqual(storage.reviewedWindowAssessments(sessionDates: keys + ["2026-09-04"], now: now)["2026-09-04"]?.status, .missing)
     }
 
     func testWindowAssessmentUsesExistingLegacyDoseAliases() throws {
