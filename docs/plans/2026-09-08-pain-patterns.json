@@ -1,0 +1,6 @@
+{
+  "title": "Separate pre-sleep pain entries and reusable confirmed pain patterns",
+  "priority": "high",
+  "state": "Todo",
+  "description_html": "<p>Owner request: record back pain and feet symptoms separately with independent intensity and sensations; reuse recurring issues without rebuilding them nightly.</p><p>Implement one area/side per editor save, Add another pain, and explicit remembered patterns in app preferences. Selecting a remembered pattern opens review and does not record tonight until confirmed. Keep notes as user descriptions, not inferred diagnoses. Never automatically carry daily pain observations. Remembered patterns are preferences, not symptom events. Existing per-area source entries and exports remain unchanged.</p><p>Acceptance: two independent entries persist without combining sensations; remembering survives restart; selecting one saved pattern does not add the others; cancelling does not add an observation; forgetting a template does not delete history. Preserve history correction and medication boundaries. Verify simulator, storage round trip, and owner/device acceptance separately. Same-area/side multiple distinct problems remain a separate identity-design question.</p>"
+}

@@ -7,6 +7,48 @@ import os.log
 
 private let settingsManagerLog = Logger(subsystem: "com.dosetap.app", category: "UserSettingsManager")
 
+/// Reusable preferences only. These are never symptom observations until reviewed and saved.
+final class SavedPainPatternStore: ObservableObject {
+    static let shared = SavedPainPatternStore()
+    static let key = "saved_pain_patterns_v1"
+    @Published private(set) var entries: [PreSleepLogAnswers.PainEntry] = []
+    private(set) var loadError: String?
+    private let defaults: UserDefaults
+    enum Failure: Error { case unreadablePreferences, writeFailed }
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        reloadFromPreferences()
+    }
+
+    func reloadFromPreferences() {
+        loadError = nil
+        entries = []
+        if let data = defaults.data(forKey: Self.key) {
+            do { entries = try JSONDecoder().decode([PreSleepLogAnswers.PainEntry].self, from: data) }
+            catch { loadError = "Saved pain patterns could not be read. Your nightly records are unchanged." }
+        }
+    }
+
+    func remember(_ entry: PreSleepLogAnswers.PainEntry) throws {
+        var updated = entries.filter { $0.entryKey != entry.entryKey }
+        updated.append(entry)
+        try persist(updated.sorted { $0.entryKey < $1.entryKey })
+    }
+
+    func forget(_ key: String) throws {
+        try persist(entries.filter { $0.entryKey != key })
+    }
+
+    private func persist(_ updated: [PreSleepLogAnswers.PainEntry]) throws {
+        guard loadError == nil else { throw Failure.unreadablePreferences }
+        let data = try JSONEncoder().encode(updated)
+        defaults.set(data, forKey: Self.key)
+        guard defaults.data(forKey: Self.key) == data else { throw Failure.writeFailed }
+        entries = updated
+    }
+}
+
 // MARK: - Color Hex Extension
 extension Color {
     init?(hex: String) {

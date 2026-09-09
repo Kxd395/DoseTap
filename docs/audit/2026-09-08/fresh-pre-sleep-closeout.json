@@ -1,0 +1,61 @@
+{
+  "issue_identifier": "DOSETAP-51",
+  "summary": "First implementation slice: new-night pre-sleep copying is restricted to room temperature, noise setup and non-medication sleep aids. Daily observations and questionnaire dose-plan values do not carry; Use room setup preserves current answers. No historical records, Apple Health information, medication actions or alarms changed. Candidate 0.4.19 (26); compiled metadata and visible simulator journeys verified. Planning committed separately; added DOSETAP-56..60 in Todo with measurement, markers/counts, daytime, report and activity-spec scope. Full DOSETAP-51 acceptance is not complete: quantity/time bootstrap, unknown-value entry and legacy adapter defaults remain. Existing Xcode ordering/scheme changes preserved.",
+  "changed_files": [
+    "ios/DoseTap/Views/PreSleepLogView.swift",
+    "ios/DoseTapTests/UIStateTests.swift",
+    "ios/DoseTapUITests/DoseTapUITests.swift",
+    "ios/DoseTap.xcodeproj/project.pbxproj (only app build 25 to 26)",
+    "docs/SSOT/README.md",
+    "docs/SSOT/supply-reminder.md",
+    "docs/audit/2026-09-08/fresh-pre-sleep-answers.md",
+    "docs/audit/2026-09-08/fresh-pre-sleep-closeout.json",
+    "docs/PLANNING.md",
+    "docs/plans/2026-09-08-sleep-markers-roadmap.md"
+  ],
+  "validation": [
+    {
+      "command": "New carry-forward regression run before implementation",
+      "result": "passed",
+      "evidence_class": "expected-red proof: 4 tests with 3 assertion failures against old code"
+    },
+    {
+      "command": "DT_SIMULATOR_NAME='iPhone 17 Pro' tools/dt-test all -parallel-testing-enabled NO -only-testing:DoseTapTests/CheckInCarryForwardTests -only-testing:DoseTapTests/SessionRepositoryTests -only-testing:DoseTapTests/MedicationMutationTransactionTests CODE_SIGNING_ALLOWED=NO",
+      "result": "passed",
+      "evidence_class": "local iOS 26.5 simulator, 98 focused app tests"
+    },
+    {
+      "command": "swift build -q && swift test -q",
+      "result": "passed",
+      "evidence_class": "local core automation: 655 XCTest plus 43 Swift Testing checks"
+    },
+    {
+      "command": "DT_SCHEME=DoseTapUITests DT_SIMULATOR_NAME='iPhone 17 Pro' tools/dt-test all -parallel-testing-enabled NO -only-testing:DoseTapUITests/DoseTapUITests/testSupplyBottleIsFirstInPreSleepAndNeverCarriedForward -only-testing:DoseTapUITests/DoseTapUITests/testHistoryManualQuestionnairesCancelSaveEditAndRestart CODE_SIGNING_ALLOWED=NO",
+      "result": "passed",
+      "evidence_class": "build 26, 2 simulator UI journeys; screenshots inspected"
+    },
+    {
+      "command": "bash tools/check_plane_workflow.sh; bash tools/ssot_check.sh; bash tools/check_architecture_boundaries.sh; bash tools/check_dose_state_writes.sh; bash tools/check_legacy_safety_paths.sh; bash tools/doc_lint.sh; git diff --check",
+      "result": "passed",
+      "evidence_class": "local repository guards; Plane 10 tests and 64 assertions"
+    },
+    {
+      "command": "bash tools/check_app_version.sh; compiled app Info.plist version/build readback",
+      "result": "passed",
+      "evidence_class": "app/staging Debug/Release and compiled simulator app 0.4.19 (26)"
+    },
+    {
+      "command": "Independent readback DOSETAP-56..60 descriptions, priorities, criteria and Todo states",
+      "result": "passed",
+      "evidence_class": "live Plane API"
+    }
+  ],
+  "open_gates": [
+    "Substance quantity/time bootstrap, optional unknown-value entry and legacy adapter defaults remain in DOSETAP-51; caffeine unit migration is DOSETAP-52.",
+    "Signed-device and owner acceptance, VoiceOver/largest Dynamic Type, full app/UI regression and existing security/provider/release gates remain open.",
+    "Morning-questionnaire carry-forward remains a separate audit. New sleep/marker/daytime/report features DOSETAP-56..60 are not implemented.",
+    "No phone installation, push, hosted CI or main merge in this slice. Pre-existing project ordering and UI-test scheme edits remain unstaged."
+  ],
+  "acceptance_complete": false,
+  "target_state": "In Progress"
+}

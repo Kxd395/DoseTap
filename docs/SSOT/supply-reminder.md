@@ -26,10 +26,11 @@ bottle-record sheet available in supply settings. Tonight links into this check 
 the bottle immediately and returns to the check; cancelling the sheet writes nothing.
 The last saved opening is displayed with its date and time. This record is independent
 of completing, skipping or cancelling the check and is never carried forward by
-“Use last” or remembered pre-sleep answers. Other pre-sleep answers, including
-free-text notes, carry forward when remembering is enabled or “Use last” is selected;
-time-of-day answers move to the new reference day. Users can edit or clear these
-answers. Recording a bottle is not required to continue.
+"Use room setup" or remembered pre-sleep settings. Under DOSETAP-51, only room
+temperature, noise setup and non-medication sleep aids may carry forward. Daily
+answers, notes and occurrence times start unanswered for a new night; existing
+logs and History edits retain their answers. Recording a bottle is not required
+to continue.
 Optional bottle-start records preserve opened-at and recorded-at times,
 can be deleted if entered accidentally, and never move the reminder or alter dose records.
 Launch, foreground, significant clock changes and timezone changes reconcile the

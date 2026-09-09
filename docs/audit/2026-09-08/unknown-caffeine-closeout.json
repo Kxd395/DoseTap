@@ -1,0 +1,27 @@
+{
+  "issue_identifier": "DOSETAP-51",
+  "summary": "Second slice after 25d8f4e: preserve unanswered caffeine as nil on save instead of inventing None and caffeine.any=false. Explicit negative and affirmative answers remain distinct. Earlier room-setup-only carry-forward repair remains implemented. Candidate 0.4.19 (27). No historical migration, Apple Health, medication or alarm changes. Full issue acceptance remains open.",
+  "changed_files": [
+    "ios/DoseTap/Storage/EventStorage+PreSleep.swift",
+    "ios/DoseTapTests/SessionRepositoryTests.swift",
+    "ios/DoseTap.xcodeproj/project.pbxproj (only build 26 to 27)",
+    "docs/SSOT/README.md",
+    "docs/audit/2026-09-08/unknown-caffeine-save.md",
+    "docs/audit/2026-09-08/unknown-caffeine-closeout.json"
+  ],
+  "validation": [
+    {"command": "Three new substance save regression tests before implementation", "result": "passed", "evidence_class": "expected-red: unanswered case failed three assertions; other two cases passed"},
+    {"command": "tools/dt-test all: SessionRepositoryTests, CheckInCarryForwardTests, MedicationMutationTransactionTests; CODE_SIGNING_ALLOWED=NO", "result": "passed", "evidence_class": "101 iOS 26.5 simulator tests; app compilation included"},
+    {"command": "swift build -q && swift test -q", "result": "passed", "evidence_class": "655 XCTest plus 43 Swift Testing cases"},
+    {"command": "check_plane_workflow.sh, ssot_check.sh, check_architecture_boundaries.sh, check_dose_state_writes.sh, check_legacy_safety_paths.sh, doc_lint.sh, git diff --check", "result": "passed", "evidence_class": "local repository checks; Plane guard 10 tests and 64 assertions"},
+    {"command": "bash tools/check_app_version.sh", "result": "passed", "evidence_class": "app and staging Debug/Release all 0.4.19 (27)"}
+  ],
+  "open_gates": [
+    "DOSETAP-51 still needs form quantity/time bootstrap removal, optional unknown detail entry, and legacy adapter default repairs. Caffeine unit migration remains DOSETAP-52.",
+    "Signed-device, owner, accessibility, full iOS/UI regression and provider/release gates remain open. No phone install, push, hosted CI or main merge in this slice.",
+    "DOSETAP-56..60 sleep markers, measurement, daytime observations, report and activity specification remain planned, not implemented.",
+    "Pre-existing Xcode ordering and UI-test scheme changes were present during testing and remain unstaged. No historical negative answer is automatically reclassified."
+  ],
+  "acceptance_complete": false,
+  "target_state": "In Progress"
+}

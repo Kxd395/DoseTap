@@ -13,7 +13,7 @@ final class DoseTapUITests: XCTestCase {
         app.launchArguments = ["--uitesting"]
         if name.contains("testAutomaticNightMode") { app.launchArguments += ["--uitesting-auto-night-reset", "-setup_completed_v2", "YES"] }
         if name.contains("testCompactLayout") { app.launchArguments += ["--uitesting-layout", "-setup_completed_v2", "YES"] }
-        if name.contains("testSupply") || name.contains("testSystemAlarm") { app.launchArguments += ["-setup_completed_v2", "YES"] }
+        if name.contains("testSupply") || name.contains("testSystemAlarm") || name.contains("testPreSleep") { app.launchArguments += ["-setup_completed_v2", "YES"] }
         if name.contains("testDashboard") { app.launchArguments += ["--uitesting-dashboard", "-setup_completed_v2", "YES"] }
         if name.contains("testWorkWarning") { app.launchArguments.append("--uitesting-work-warning") }
         if name.contains("testDose2Confirmation") { app.launchArguments.append("--uitesting-dose2-confirmation") }
@@ -281,7 +281,7 @@ final class DoseTapUITests: XCTestCase {
         openHistory()
         openQuestionnaire("history-pre-sleep-questionnaire")
         XCTAssertFalse(app.buttons["Skip for tonight"].exists)
-        XCTAssertFalse(app.buttons["Use last"].exists)
+        XCTAssertFalse(app.buttons["Use room setup"].exists)
         app.buttons["Next"].tap(); app.buttons["Next"].tap()
         let foodToggle = app.switches["pre-last-food-toggle"]
         reveal(foodToggle); foodToggle.tap()
@@ -756,7 +756,7 @@ final class DoseTapUITests: XCTestCase {
         let bottle = app.buttons["preSleepStartedNewBottle"]
         XCTAssertTrue(bottle.waitForExistence(timeout: 5))
         XCTAssertTrue(bottle.isHittable, "Bottle opening must be visible without scrolling")
-        let remembered = app.staticTexts["Remember last pre-sleep settings"]
+        let remembered = app.staticTexts["Remember room setup"]
         XCTAssertLessThan(bottle.frame.minY, remembered.frame.minY)
         bottle.tap()
         app.navigationBars["New bottle"].buttons["Cancel"].tap()
@@ -779,7 +779,7 @@ final class DoseTapUITests: XCTestCase {
         proof.name = "Bottle opening first in pre-sleep check"
         proof.lifetime = .keepAlways
         add(proof)
-        app.buttons["Use last"].tap()
+        app.buttons["Use room setup"].tap()
         XCTAssertEqual(saved.label, savedLabel)
         app.buttons["Next"].tap()
         app.buttons["Back"].tap()
@@ -793,6 +793,105 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(saved.waitForExistence(timeout: 5))
         XCTAssertEqual(saved.label, savedLabel)
         XCTAssertTrue(bottle.isHittable, "A new check offers an explicit action, never an auto-selected answer")
+    }
+
+    func testPreSleepCaffeineDistinguishesNoneFromUnanswered() throws {
+        let check = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Pre-sleep")).firstMatch
+        XCTAssertTrue(check.waitForExistence(timeout: 15))
+        for _ in 0..<5 where !check.isHittable { app.swipeUp() }
+        check.tap()
+        app.buttons["Next"].tap()
+        let none = app.buttons["preSleepNoCaffeine"]
+        for _ in 0..<10 where !none.isHittable { app.swipeUp() }
+        XCTAssertTrue(none.isHittable)
+        none.tap()
+        let answer = app.staticTexts["preSleepCaffeineAnswer"]
+        XCTAssertEqual(answer.label, "No caffeine today")
+        let clear = app.buttons["preSleepClearCaffeine"]
+        clear.tap()
+        XCTAssertEqual(answer.label, "Not recorded")
+        XCTAssertFalse(clear.exists)
+        let coffee = app.buttons["Coffee"]
+        for _ in 0..<3 where !coffee.isHittable { app.swipeUp() }
+        coffee.tap()
+        XCTAssertEqual(answer.label, "Coffee")
+        coffee.tap()
+        XCTAssertEqual(answer.label, "Not recorded", "Deselecting the last source is not an explicit No answer")
+        none.tap()
+        app.buttons["Back"].tap()
+        app.buttons["Next"].tap()
+        for _ in 0..<10 where !none.isHittable { app.swipeUp() }
+        XCTAssertEqual(answer.label, "No caffeine today")
+        let proof = XCTAttachment(screenshot: app.screenshot())
+        proof.name = "Explicit caffeine answer"
+        proof.lifetime = .keepAlways
+        add(proof)
+    }
+
+    func testPreSleepIndependentPainPatternsSurviveRestartWithoutAutoLogging() throws {
+        func reveal(_ element: XCUIElement) {
+            for _ in 0..<14 where !element.isHittable { app.swipeUp() }
+            XCTAssertTrue(element.isHittable)
+        }
+        func openCheck() {
+            let check = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Pre-sleep")).firstMatch
+            XCTAssertTrue(check.waitForExistence(timeout: 15))
+            reveal(check); check.tap(); app.buttons["Next"].tap()
+        }
+        func addPain(area: String, sensations: [String]) {
+            let add = app.buttons["add-pain-entry"]
+            reveal(add); add.tap()
+            let location = app.buttons["pain-area-\(area)"]
+            reveal(location); location.tap()
+            let intensity = app.sliders["pain-intensity"]
+            reveal(intensity); intensity.adjust(toNormalizedSliderPosition: 0.2)
+            let aching = app.buttons["pain-sensation-aching"]
+            reveal(aching); aching.tap()
+            for sensation in sensations {
+                let button = app.buttons["pain-sensation-\(sensation)"]
+                reveal(button); button.tap()
+            }
+            app.navigationBars.buttons["Save"].tap()
+            let remember = app.buttons["remember-pain-\(area)|both"]
+            reveal(remember); remember.tap()
+        }
+        openCheck()
+        let mild = app.buttons["Mild"]
+        reveal(mild); mild.tap()
+        addPain(area: "mid_back", sensations: ["throbbing", "tightness"])
+        addPain(area: "ankle_foot", sensations: ["pins_needles", "numbness"])
+        let back = app.descendants(matching: .any).matching(identifier: "night-pain-mid_back|both").firstMatch
+        let feet = app.descendants(matching: .any).matching(identifier: "night-pain-ankle_foot|both").firstMatch
+        XCTAssertTrue(back.label.contains("Throbbing"))
+        XCTAssertFalse(back.label.contains("Numbness"))
+        XCTAssertTrue(feet.label.contains("Numbness"))
+        XCTAssertFalse(feet.label.contains("Throbbing"))
+        app.terminate(); app.launch(); openCheck()
+        XCTAssertFalse(back.exists, "Remembering is not a nightly observation")
+        XCTAssertFalse(feet.exists)
+        let useBack = app.buttons["use-pain-mid_back|both"]
+        reveal(useBack); useBack.tap()
+        app.navigationBars.buttons["Cancel"].tap()
+        XCTAssertFalse(back.exists)
+        useBack.tap(); app.navigationBars.buttons["Save"].tap()
+        XCTAssertTrue(back.exists)
+        XCTAssertFalse(feet.exists, "Selecting one pattern must not add the other")
+        let proof = XCTAttachment(screenshot: app.screenshot())
+        proof.name = "Independent saved pain patterns reviewed for tonight"
+        proof.lifetime = .keepAlways
+        add(proof)
+        useBack.tap()
+        let lowerBack = app.buttons["pain-area-lower_back"]
+        reveal(lowerBack); lowerBack.tap()
+        app.navigationBars.buttons["Save"].tap()
+        XCTAssertTrue(back.exists, "Changing a template's area must preserve the existing nightly back entry")
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "night-pain-lower_back|both").firstMatch.exists)
+        for key in ["mid_back|both", "ankle_foot|both"] {
+            let forget = app.buttons["forget-pain-\(key)"]
+            for _ in 0..<10 where !forget.isHittable { app.swipeDown() }
+            forget.tap()
+        }
+        XCTAssertTrue(back.exists, "Forgetting a template must not remove tonight's reviewed entry")
     }
 
     func testSupplyReceiptReminderAndOptionalBottleSurviveRelaunch() throws {

@@ -56,7 +56,13 @@ Repository agents use `.agents/plane-workflow.yml`, `AGENTS.md`, and `tools/plan
 
 The proposal remains downstream of the data-integrity foundation and its explicit acceptance gates. See `docs/MYWAV_DOSETAP/README.md` and the supply-cycle Plane module.
 
-## Insights work
+## Food and Drink follow-up
+
+The [September 8 roadmap](plans/2026-09-08-food-drink-roadmap.md) defines five planned slices: DOSETAP-51 fresh nightly answers, DOSETAP-52 explicit caffeine units, DOSETAP-53 shared daytime intake history, DOSETAP-54 pre-sleep review, and DOSETAP-55 a one-way Foodnoms/Apple Health prototype. Plane owns their live state and priority. DOSETAP-50 keeps the existing last-food scope; DOSETAP-45 and DOSETAP-13 retain analytics/export ownership. This is planned work, not a claim that imports or AI capture are implemented.
+
+## Insights implementation
+
+The [sleep markers roadmap](plans/2026-09-08-sleep-markers-roadmap.md) preserves Apple Health detail and defines DOSETAP-56 measurement corrections, DOSETAP-57 dose/sleep/wake markers and counts, DOSETAP-58 independent daytime observations, DOSETAP-59 clinician reporting and DOSETAP-60 activity-time specification review. These are planned; DOSETAP-51 is the first implementation slice. New analytics depend on corrected boundaries and explicit missingness.
 
 DoseTap Studio is implemented, but product claims remain limited by import quality, data-source parity, physical Apple Health verification, and whole-lifecycle restore evidence. Current source and validation status are in `docs/INSIGHTS_STATUS.md`.
 
