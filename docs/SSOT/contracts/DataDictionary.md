@@ -10,6 +10,8 @@ This dictionary defines how persisted fields are interpreted. It covers all 17 a
 
 ## Identity and time
 
+Apple Health export boundary metadata (DOSETAP-56): optional `observationEndUTC`, `finalWakeBasis` and `derivationVersion` accompany `finalWakeUTC` in the Studio bundle's HealthKit summary. Version `primary_episode_boundary_v2` estimates final wake at the selected primary episode's last asleep end. Basis `observed_sleep_to_awake` means contiguous awake evidence begins there; `last_observed_sleep_end` means that transition was not observed. Observation end is the latest end of the selected primary episode's observations, not a manually reported out-of-bed time or the whole query's endpoint. Older archives omit these fields; Studio retains them as missing. They do not imply treatment-night aggregation, full source provenance or device acceptance. Existing manual final wake remains independent.
+
 ### Last food in pre-sleep answers (DOSETAP-50)
 
 `lastFood` is an optional JSON object with `finishedAt` (absolute Date), `kind` (optional `meal`, `snack`, `caloricDrink`), `highFat` (optional Boolean), and `notes` (optional, trimmed, at most 500 characters). No object means unrecorded, not no food. Missing fat means Unsure, never false. New-night carry-forward clears this object and legacy `lateMeal`/`lateMealEndedAt`; editing an existing questionnaire retains them.

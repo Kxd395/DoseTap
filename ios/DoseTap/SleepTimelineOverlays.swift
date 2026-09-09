@@ -506,8 +506,8 @@ struct LiveEnhancedTimelineView: View {
             return .rem
         case .asleep:
             return .light
-        case .inBed:
-            return nil // Filter out "in bed" segments
+        case .inBed, .unknown:
+            return nil // Unclassified observations are not sleep/awake bands.
         }
     }
     

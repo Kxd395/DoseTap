@@ -452,6 +452,10 @@ struct InsightMedicationSummary: Codable, Hashable, Sendable, Identifiable {
 }
 
 struct InsightHealthKitSummary: Codable, Hashable, Sendable {
+    // Optional for archives created before the boundary correction.
+    var observationEndUTC: Date? = nil
+    var finalWakeBasis: String? = nil
+    var derivationVersion: String? = nil
     let totalSleepMinutes: Double
     let ttfwMinutes: Double?
     let wakeCount: Int

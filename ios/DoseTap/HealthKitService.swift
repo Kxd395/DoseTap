@@ -56,15 +56,19 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
         let wakeCount: Int      // Number of wake periods (WASO proxy)
         let source: String
         var recordedIntervals: [RecordedSleepInterval] = []
+        var observationEnd: Date? = nil
+        var finalWakeBasis: String? = nil
+        var derivationVersion: String? = nil
     }
     
-    enum SleepStage {
+    enum SleepStage: Equatable {
         case inBed
         case asleep
         case asleepCore
         case asleepDeep
         case asleepREM
         case awake
+        case unknown(Int)
         
         static func from(hkValue: Int) -> SleepStage {
             switch hkValue {
@@ -73,7 +77,8 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
             case HKCategoryValueSleepAnalysis.asleepDeep.rawValue: return .asleepDeep
             case HKCategoryValueSleepAnalysis.asleepREM.rawValue: return .asleepREM
             case HKCategoryValueSleepAnalysis.awake.rawValue: return .awake
-            default: return .asleep
+            case HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue: return .asleep
+            default: return .unknown(hkValue)
             }
         }
         
@@ -496,7 +501,12 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
             }
         }
 
-        let finalWake = sorted.last { $0.stage.isAsleep || $0.stage == .awake }?.end ?? sorted.last?.end
+        // This is still the selected primary episode, not a treatment-night total.
+        // A trailing awake sample ends observation, not sleep.
+        let finalWake = sorted.last { $0.stage.isAsleep }?.end
+        let hasWakeTransition = finalWake.map { end in
+            sorted.contains { $0.stage == .awake && $0.start == end }
+        } ?? false
         let ttfwMinutes = (sleepOnset != nil && firstWake != nil)
             ? firstWake!.timeIntervalSince(sleepOnset!) / 60
             : nil
@@ -516,7 +526,10 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
             source: source,
             recordedIntervals: sorted.filter { $0.stage.isAsleep || $0.stage == .awake }.map {
                 RecordedSleepInterval(start: $0.start, end: $0.end, asleep: $0.stage.isAsleep)
-            }
+            },
+            observationEnd: sorted.map(\.end).max(),
+            finalWakeBasis: hasWakeTransition ? "observed_sleep_to_awake" : "last_observed_sleep_end",
+            derivationVersion: "primary_episode_boundary_v2"
         )
     }
 
@@ -564,6 +577,9 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
             return 3
         case .awake:
             return 4
+        case .unknown:
+            // Unrecognized overlapping evidence must not create classified coverage.
+            return 5
         }
     }
 
@@ -786,10 +802,10 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
     }
     
     /// Convert HealthKit sleep stage to timeline display stage
-    static func mapToDisplayStage(_ hkStage: SleepStage) -> SleepDisplayStage {
+    static func mapToDisplayStage(_ hkStage: SleepStage) -> SleepDisplayStage? {
         switch hkStage {
         case .awake: return .awake
-        case .inBed: return .awake  // In-bed but not asleep shows as awake
+        case .inBed, .unknown: return nil // Neither establishes awake or asleep.
         case .asleep, .asleepCore: return .core
         case .asleepDeep: return .deep
         case .asleepREM: return .rem

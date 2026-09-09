@@ -535,8 +535,8 @@ struct LiveSleepTimelineView: View {
                     from: timeRange.start,
                     to: timeRange.end
                 )
-                let mappedBands = segments.map { segment in
-                    let displayStage = HealthKitService.mapToDisplayStage(segment.stage)
+                let mappedBands = segments.compactMap { segment -> SleepStageBand? in
+                    guard let displayStage = HealthKitService.mapToDisplayStage(segment.stage) else { return nil }
                     return SleepStageBand(
                         stage: mapDisplayStageToSleepStage(displayStage),
                         startTime: segment.start,
