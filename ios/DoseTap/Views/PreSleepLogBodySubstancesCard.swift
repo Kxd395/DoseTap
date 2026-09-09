@@ -200,17 +200,32 @@ struct Card2BodySubstances: View {
                 QuestionSection(title: "Caffeine / stimulants today?", icon: "cup.and.saucer.fill") {
                     VStack(spacing: 12) {
                         HStack(alignment: .top) {
-                            Text("Select every source you had. Leave blank if none.")
+                            Text("Select every source you had, or choose No caffeine today. An unanswered question stays Not recorded.")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                             Spacer()
-                            if answers.hasCaffeineIntake {
-                                Button("Clear") {
+                            if answers.caffeineSourceSummary != nil {
+                                Button("Clear answer") {
                                     clearCaffeineDetails()
                                 }
                                 .font(.caption.weight(.semibold))
+                                .accessibilityIdentifier("preSleepClearCaffeine")
                             }
                         }
+
+                        Text(answers.caffeineSourceSummary == .some(.none)
+                             ? "No caffeine today"
+                             : answers.caffeineSourceDisplayText ?? "Not recorded")
+                            .font(.subheadline)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .accessibilityIdentifier("preSleepCaffeineAnswer")
+
+                        Button("No caffeine today") {
+                            clearCaffeineDetails()
+                            answers.stimulants = PreSleepLogAnswers.Stimulants.none
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityIdentifier("preSleepNoCaffeine")
 
                         MultiSelectGrid(
                             options: PreSleepLogAnswers.caffeineSourceOptions,
@@ -561,7 +576,7 @@ struct Card2BodySubstances: View {
     }
 
     private func clearCaffeineDetails() {
-        answers.stimulants = PreSleepLogAnswers.Stimulants.none
+        answers.stimulants = nil
         answers.caffeineSources = nil
         answers.caffeineLastIntakeAt = nil
         answers.caffeineLastAmountMg = nil

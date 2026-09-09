@@ -13,7 +13,7 @@ final class DoseTapUITests: XCTestCase {
         app.launchArguments = ["--uitesting"]
         if name.contains("testAutomaticNightMode") { app.launchArguments += ["--uitesting-auto-night-reset", "-setup_completed_v2", "YES"] }
         if name.contains("testCompactLayout") { app.launchArguments += ["--uitesting-layout", "-setup_completed_v2", "YES"] }
-        if name.contains("testSupply") || name.contains("testSystemAlarm") { app.launchArguments += ["-setup_completed_v2", "YES"] }
+        if name.contains("testSupply") || name.contains("testSystemAlarm") || name.contains("testPreSleepCaffeine") { app.launchArguments += ["-setup_completed_v2", "YES"] }
         if name.contains("testDashboard") { app.launchArguments += ["--uitesting-dashboard", "-setup_completed_v2", "YES"] }
         if name.contains("testWorkWarning") { app.launchArguments.append("--uitesting-work-warning") }
         if name.contains("testDose2Confirmation") { app.launchArguments.append("--uitesting-dose2-confirmation") }
@@ -793,6 +793,39 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(saved.waitForExistence(timeout: 5))
         XCTAssertEqual(saved.label, savedLabel)
         XCTAssertTrue(bottle.isHittable, "A new check offers an explicit action, never an auto-selected answer")
+    }
+
+    func testPreSleepCaffeineDistinguishesNoneFromUnanswered() throws {
+        let check = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Pre-sleep")).firstMatch
+        XCTAssertTrue(check.waitForExistence(timeout: 15))
+        for _ in 0..<5 where !check.isHittable { app.swipeUp() }
+        check.tap()
+        app.buttons["Next"].tap()
+        let none = app.buttons["preSleepNoCaffeine"]
+        for _ in 0..<10 where !none.isHittable { app.swipeUp() }
+        XCTAssertTrue(none.isHittable)
+        none.tap()
+        let answer = app.staticTexts["preSleepCaffeineAnswer"]
+        XCTAssertEqual(answer.label, "No caffeine today")
+        let clear = app.buttons["preSleepClearCaffeine"]
+        clear.tap()
+        XCTAssertEqual(answer.label, "Not recorded")
+        XCTAssertFalse(clear.exists)
+        let coffee = app.buttons["Coffee"]
+        for _ in 0..<3 where !coffee.isHittable { app.swipeUp() }
+        coffee.tap()
+        XCTAssertEqual(answer.label, "Coffee")
+        coffee.tap()
+        XCTAssertEqual(answer.label, "Not recorded", "Deselecting the last source is not an explicit No answer")
+        none.tap()
+        app.buttons["Back"].tap()
+        app.buttons["Next"].tap()
+        for _ in 0..<10 where !none.isHittable { app.swipeUp() }
+        XCTAssertEqual(answer.label, "No caffeine today")
+        let proof = XCTAttachment(screenshot: app.screenshot())
+        proof.name = "Explicit caffeine answer"
+        proof.lifetime = .keepAlways
+        add(proof)
     }
 
     func testSupplyReceiptReminderAndOptionalBottleSurviveRelaunch() throws {

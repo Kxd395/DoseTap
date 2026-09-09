@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-08
 SSOT revision: 0.4.19
-Shipping app version observed in the Xcode project: 0.4.19 (build 27)
+Shipping app version observed in the Xcode project: 0.4.19 (build 28)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -35,6 +35,7 @@ Notes:
 - This slice removes cross-night answer copying. Substance-entry default quantities/times, optional amount entry, legacy adapters and unit migration remain follow-up work under DOSETAP-51/52; do not describe all consumption defaults as repaired yet.
 - Apple Health data, medication records, alarm behavior and quick logs are unchanged by this repair.
 - Saving an unanswered caffeine question preserves a missing answer in both the source questionnaire and normalized responses. Only an explicit None answer produces `pre.substances.caffeine.any = false`. Existing explicit answers remain unchanged; this repair does not relabel older stored None values as unknown.
+- The caffeine form offers "No caffeine today" as an explicit answer. "Clear answer" and deselecting the last source return it to Not recorded, not None. The current answer is shown in text as well as through source selection.
 
 ### Last food in pre-sleep logging (DOSETAP-50)
 

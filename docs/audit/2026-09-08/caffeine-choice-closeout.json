@@ -1,0 +1,15 @@
+{
+  "issue_identifier": "DOSETAP-51",
+  "summary": "Build 28 adds explicit No caffeine today, Clear answer, and Not recorded states, including deselection of the last source. Includes earlier carry-forward and storage repairs. User added independent recurring pain-entry work, tracked as DOSETAP-61; requested merge is held until that next slice is reviewed.",
+  "changed_files": ["ios/DoseTap/Views/PreSleepLogBodySubstancesCard.swift", "ios/DoseTapUITests/DoseTapUITests.swift", "ios/DoseTap.xcodeproj/project.pbxproj (build only)", "docs/SSOT/README.md", "docs/audit/2026-09-08/caffeine-answer-choice.md", "docs/audit/2026-09-08/caffeine-choice-closeout.json"],
+  "validation": [
+    {"command":"New caffeine UI regression before implementation", "result":"passed", "evidence_class":"Expected red: missing explicit None control"},
+    {"command":"History questionnaire UI, unchanged retry; extended caffeine UI", "result":"passed", "evidence_class":"iPhone 17 Pro iOS 26.5, two tests; prior History failure retained in audit"},
+    {"command":"Supply and room setup UI journey", "result":"passed", "evidence_class":"iOS simulator; new caffeine screenshot inspected"},
+    {"command":"swift build -q && swift test -q", "result":"passed", "evidence_class":"655 XCTest and 43 Swift Testing"},
+    {"command":"Plane, SSOT, architecture, dose-write, legacy, docs, whitespace and app-version checks", "result":"passed", "evidence_class":"Local guards; all app configurations 0.4.19 (28)"}
+  ],
+  "open_gates": ["Automatic substance time/amount fields and legacy adapter defaults remain DOSETAP-51; units remain DOSETAP-52.", "Signed-device, owner, accessibility and full regression acceptance remain open. Main merge and hosted checks pending.", "Pre-existing Xcode project ordering and UI-test scheme edits excluded; present during local testing."],
+  "acceptance_complete":false,
+  "target_state":"In Progress"
+}
