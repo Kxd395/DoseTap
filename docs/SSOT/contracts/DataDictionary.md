@@ -72,6 +72,12 @@ Symptom rows derived from an editable check-in use `source`, `source_record_id`,
 
 `symptom_summaries` is rebuildable. It is not the source of truth for individual symptom facts.
 
+### Reviewed night window (DOSETAP-56)
+
+`night_outcome.v1` may contain optional `answers.reviewedSleepWindow`; absent remains unanswered. Version 1 stores `sessionID`, absolute `start`/`end`, `reviewedAt`, `source = user_reviewed`, `entryTimeZoneID`, and `startUTCOffsetSeconds`/`endUTCOffsetSeconds` calculated in that entry zone. The zone describes date entry/review, not independently observed travel location. Window identity must match the submission's stable session identity. Ordered finite bounds end no later than review time, and review cannot be later than submission time.
+
+This additive JSON field has no SQLite migration. Existing night-outcome revisions retain prior windows with correction reasons, including removal. Generic submission export includes the JSON and revisions. A window is independent of final awakening, provider samples and measured sleep; unresolved source, overlapping-session and nap conflicts still block future use as a resolved treatment-night range. Older app versions may ignore this new field; downgrade writing is not a supported preservation path.
+
 ## Inventory boundary
 
 `inventory_snapshots` records a point-in-time local estimate or imported inventory state. The legacy column name `next_refill_date` does not grant DoseTap authority to refill, order, verify eligibility, contact a pharmacy, or report shipment state.

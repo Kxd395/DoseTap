@@ -47,6 +47,7 @@ let package = Package(
                 "DoseEffectivenessCalculator.swift",
                 "NightOutcome.swift",
                 "SleepIntervalCoverage.swift",
+                "ReviewedSleepWindow.swift",
                 "ReportCSV.swift"
             ]
         ),
@@ -93,7 +94,8 @@ let package = Package(
                 "TimeIntervalMathCharacterizationTests.swift",
                 "DeletedEventSnapshotTests.swift",
                 "NightOutcomeTests.swift",
-                "SleepIntervalCoverageTests.swift"
+                "SleepIntervalCoverageTests.swift",
+                "ReviewedSleepWindowTests.swift"
             ],
             resources: [
                 .copy("Fixtures/CertificatePinning")

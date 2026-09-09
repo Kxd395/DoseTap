@@ -33,6 +33,72 @@ private final class MedicationMutationNotificationCenter: AlarmNotificationCente
 
 @MainActor
 final class MedicationMutationTransactionTests: XCTestCase {
+    func testReviewedWindowPersistsCorrectionsAndRejectsStaleOrWrongSessionWithoutDoseWrites() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let path = directory.appendingPathComponent("window.sqlite").path
+        let reviewedAt = oldDose1.addingTimeInterval(8 * 3600)
+        let window = ReviewedSleepWindow(sessionID: sessionId, start: oldDose1, end: oldDose1.addingTimeInterval(6 * 3600),
+            entryTimeZone: TimeZone(identifier: "America/New_York")!, reviewedAt: reviewedAt)
+        do {
+            let storage = EventStorage(dbPath: path)
+            try seedDose1(in: storage)
+            let original = try storage.nightOutcomeSnapshot(sessionDate: sessionDate)
+            var answers = NightOutcomeDiary(); answers.reviewedSleepWindow = window
+            storage.medicationFaultInjector = { $0 == .commit ? MedicationStorageInjectedFailure(code: .diskFull, detail: "Injected") : nil }
+            XCTAssertFalse(storage.saveNightOutcome(answers, review: original, reason: "", recordedAt: reviewedAt).isCommitted)
+            XCTAssertNil(try storage.nightOutcomeSnapshot(sessionDate: sessionDate).record)
+            storage.medicationFaultInjector = nil
+            XCTAssertTrue(storage.saveNightOutcome(answers, review: original, reason: "", recordedAt: reviewedAt).isCommitted)
+            XCTAssertFalse(storage.saveNightOutcome(answers, review: original, reason: "", recordedAt: reviewedAt).isCommitted)
+            let saved = try storage.nightOutcomeSnapshot(sessionDate: sessionDate)
+            XCTAssertEqual(saved.history.events, original.history.events)
+            XCTAssertNil(saved.record?.answers.finalWakeAt)
+            answers.reviewedSleepWindow = ReviewedSleepWindow(sessionID: "another-night", start: window.start, end: window.end,
+                entryTimeZone: .current, reviewedAt: reviewedAt)
+            XCTAssertFalse(storage.saveNightOutcome(answers, review: saved, reason: "Wrong identity", recordedAt: reviewedAt).isCommitted)
+            XCTAssertEqual(try storage.nightOutcomeSnapshot(sessionDate: sessionDate).record?.answers.reviewedSleepWindow, window)
+        }
+        let storage = EventStorage(dbPath: path)
+        let reopened = try storage.nightOutcomeSnapshot(sessionDate: sessionDate)
+        XCTAssertEqual(reopened.record?.answers.reviewedSleepWindow, window)
+        var answers = try XCTUnwrap(reopened.record?.answers)
+        answers.dayType = .dayOff
+        XCTAssertTrue(storage.saveNightOutcome(answers, review: reopened, reason: "", recordedAt: reviewedAt).isCommitted)
+        let changedDay = try storage.nightOutcomeSnapshot(sessionDate: sessionDate)
+        XCTAssertEqual(changedDay.record?.answers.reviewedSleepWindow, window)
+        answers.reviewedSleepWindow = nil
+        XCTAssertFalse(storage.saveNightOutcome(answers, review: changedDay, reason: "", recordedAt: reviewedAt).isCommitted)
+        XCTAssertTrue(storage.saveNightOutcome(answers, review: changedDay, reason: "Remove incorrect window", recordedAt: reviewedAt).isCommitted)
+        let cleared = try storage.nightOutcomeSnapshot(sessionDate: sessionDate)
+        XCTAssertNil(cleared.record?.answers.reviewedSleepWindow)
+        XCTAssertEqual(cleared.record?.revisions.last?.answers.reviewedSleepWindow, window)
+        XCTAssertEqual(cleared.history.events, reopened.history.events)
+        XCTAssertEqual(storage.loadCurrentSessionState().dose1Time, oldDose1)
+        XCTAssertNil(storage.loadCurrentSessionState().dose2Time)
+        let exported = storage.fetchCheckInSubmissions(sessionDate: sessionDate, checkInType: .nightOutcome)
+        XCTAssertEqual(exported.count, 1)
+        XCTAssertTrue(cleared.rawJSON?.contains("Remove incorrect window") == true)
+    }
+
+    func testRetrospectiveDoseWakeAnswerPreservesReviewedWindow() throws {
+        let storage = EventStorage.inMemory(); try seedDose1(in: storage)
+        let entered = oldDose1.addingTimeInterval(8 * 3600)
+        var diary = NightOutcomeDiary()
+        diary.reviewedSleepWindow = .init(sessionID: sessionId, start: oldDose1, end: oldDose1.addingTimeInterval(6 * 3600),
+            entryTimeZone: .current, reviewedAt: entered)
+        XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: sessionDate),
+            reason: "", recordedAt: entered).isCommitted)
+        XCTAssertTrue(storage.reconcileDoseEvent(eventType: .dose2, timestamp: oldDose1.addingTimeInterval(3 * 3600),
+            sessionDate: sessionDate, sessionId: sessionId, metadata: nil, expectedDose1Time: oldDose1,
+            onlyIfDose2Missing: true, wakeMethod: .natural, recordedAt: entered).isCommitted)
+        let saved = try storage.nightOutcomeSnapshot(sessionDate: sessionDate)
+        XCTAssertEqual(saved.record?.answers.reviewedSleepWindow, diary.reviewedSleepWindow)
+        XCTAssertEqual(saved.record?.answers.wakeMethod, .natural)
+        XCTAssertEqual(saved.record?.revisions.last?.answers.reviewedSleepWindow, diary.reviewedSleepWindow)
+    }
+
     func testConfirmedDoseTwoAndWakeAnswerCommitOrRollBackTogether() throws {
         let storage = EventStorage.inMemory()
         try seedDose1(in: storage)

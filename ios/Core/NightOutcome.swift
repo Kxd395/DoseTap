@@ -34,9 +34,11 @@ public struct NightOutcomeDiary: Codable, Equatable, Sendable {
     public var finalWakeAt: Date?
     public var sleepiness: Int?
     public var assessedAt: Date?
+    public var reviewedSleepWindow: ReviewedSleepWindow?
     public init() {}
 
     public func validationError(now: Date) -> String? {
+        if let error = reviewedSleepWindow?.validationError(now: now) { return error }
         if let sleepiness, !(0...10).contains(sleepiness) { return "Choose a sleepiness rating from 0 to 10." }
         if (sleepiness == nil) != (assessedAt == nil) { return "Save the assessment time with the sleepiness rating." }
         for date in [finalWakeAt, assessedAt].compactMap({ $0 }) {
@@ -53,6 +55,7 @@ public struct NightOutcomeDiary: Codable, Equatable, Sendable {
         || (old.dayType != .unknown && dayType != old.dayType)
         || (old.finalWakeAt != nil && finalWakeAt != old.finalWakeAt)
         || (old.sleepiness != nil && (sleepiness != old.sleepiness || assessedAt != old.assessedAt))
+        || (old.reviewedSleepWindow != nil && reviewedSleepWindow != old.reviewedSleepWindow)
     }
 }
 

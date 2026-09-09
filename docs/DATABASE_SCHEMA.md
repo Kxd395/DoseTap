@@ -164,6 +164,8 @@ Unique constraint: `UNIQUE(source_record_id, checkin_type)`.
 
 `night_outcome` submissions use version `night_outcome.v1` and the stable treatment-night session ID as `source_record_id`. Their JSON contains `answers`, UTC `recordedAt`, and prior-answer `revisions` with correction reasons. Answers include explicit Dose 2 wake method, nullable backup-alarm status, following-day type, optional final-awakening time, and nullable 0–10 sleepiness plus assessment time. This is separate from legacy morning-questionnaire 1–5 sleepiness. No schema migration or medication row is involved; generic submission export retains the versioned JSON.
 
+DOSETAP-56 adds optional `answers.reviewedSleepWindow` with version, stable session identity, reviewed absolute bounds, entry-zone/offset provenance and review time. Existing JSON revisions retain corrected or removed windows; see the data dictionary. The window does not replace final awakening or certify sleep/source coverage. No columns, tables or schema version change.
+
 ## Medication and inventory tables
 
 ### `medication_events`

@@ -95,7 +95,8 @@ extension EventStorage {
         }
         let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
         let record = try decoder.decode(NightOutcomeRecord.self, from: Data(raw.utf8))
-        guard record.answers.validationError(now: record.recordedAt) == nil else {
+        guard record.answers.validationError(now: record.recordedAt) == nil,
+              record.answers.reviewedSleepWindow.map({ $0.sessionID == history.sessionId }) ?? true else {
             throw MedicationStorageInjectedFailure(code: .precondition, detail: "Stored night outcomes need review.")
         }
         return .init(history: history, rawJSON: raw, record: record)
@@ -112,6 +113,9 @@ extension EventStorage {
             }
             if let error = answers.validationError(now: recordedAt) {
                 throw MedicationStorageInjectedFailure(code: .precondition, detail: error)
+            }
+            guard answers.reviewedSleepWindow.map({ $0.sessionID == current.history.sessionId }) ?? true else {
+                throw MedicationStorageInjectedFailure(code: .precondition, detail: "This window belongs to another night. Reload before saving.")
             }
             let dose2 = current.history.events.first { $0.eventType == "dose2" }?.timestamp
             let dose1 = current.history.events.first { $0.eventType == "dose1" }?.timestamp
