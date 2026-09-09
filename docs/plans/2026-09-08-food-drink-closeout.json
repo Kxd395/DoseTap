@@ -1,0 +1,45 @@
+{
+  "issue_identifier": "DOSETAP-50",
+  "summary": "Prior implementation evidence (historical): Added research-backed last-food logging to pre-sleep page 3: finish date/time, optional meal/snack/calorie-containing drink, high-fat/oily Unsure/No/Yes and food notes. Legacy late-meal records preserved without fat inference; food observations never carry into a new night. Atomic normal and History persistence, future/non-finite timestamp and note-length validation, correction provenance, History review, text/CSV and Studio exports. Label guidance is informational with no extra fatty-food wait, dose changes, alarm changes or safe-to-dose claim. Local implementation only; no phone install, push or main merge. Follow-up: bumped DoseTap and DoseTapStaging Debug/Release from build 21 to 22, kept version 0.4.19, verified compiled bundle metadata and opened the authoritative project in Xcode with DoseTap scheme and the owner's phone selected. Owner retains Run/install action. Planning update 2026-09-08: verified current source at eae0f7ad and upstream equality. Created DOSETAP-51 through DOSETAP-55 in Todo after full project duplicate review; recorded dependencies, acceptance, external gates and reporting ownership. Updated DOSETAP-45/13 descriptions without changing their states. Added docs/plans/2026-09-08-food-drink-roadmap.md and planning index. This pass changes only planning, not app behavior or medication data. Prior local-only/no-merge statements above describe earlier runs, not the current fetched main baseline.",
+  "changed_files": [
+    "docs/plans/2026-09-08-food-drink-closeout.json",
+    "docs/plans/2026-09-08-food-drink-roadmap.md",
+    "docs/PLANNING.md"
+  ],
+  "validation": [
+    {
+      "command": "Review current source and existing Plane items; create and read back DOSETAP-51..55; verify exact descriptions/dependencies and unchanged states for DOSETAP-50/45/13",
+      "result": "passed",
+      "evidence_class": "read-only source review and live Plane post-write readback"
+    },
+    {
+      "command": "bash tools/doc_lint.sh",
+      "result": "passed",
+      "evidence_class": "local documentation checks"
+    },
+    {
+      "command": "bash tools/check_plane_workflow.sh",
+      "result": "passed",
+      "evidence_class": "local automation: 10 tests, 64 assertions"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed",
+      "evidence_class": "local whitespace validation"
+    },
+    {
+      "command": "New Food and Drink app implementation and runtime acceptance",
+      "result": "not_run",
+      "evidence_class": "planning only; prior app results retained in audit documentation, not rerun here"
+    }
+  ],
+  "open_gates": [
+    "Signed-device and owner acceptance: enter actual remembered food finish times, confirm readability and nightly workflow, exercise keyboard and Dynamic Type/VoiceOver. Simulator fixtures are not real clinical evidence.",
+    "Existing integration HOLD unchanged: broader UI regression suite, final security review, credential rotation and provider-revocation evidence, protected hosted checks, privacy/legal and release-owner acceptance. No phone install, push or main merge.",
+    "DOSETAP-51..55 are planned, not implemented. Unit migration, daily observation freshness, shared intake, review and importer acceptance remain open.",
+    "Pharmacist review before new medication prompts; actual Foodnoms/HealthKit transfer and privacy/permission review remain unverified.",
+    "Preserved pre-existing Xcode project and UI-test scheme changes; no phone installation or new source merge performed by this planning pass."
+  ],
+  "acceptance_complete": false,
+  "target_state": "In Progress"
+}
