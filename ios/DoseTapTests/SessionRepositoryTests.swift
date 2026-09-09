@@ -850,6 +850,21 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertEqual(responses["pre.substances.alcohol.any"] as? Bool, false)
     }
 
+    func test_preSleepIndependentPainEntriesRoundTrip() throws {
+        var answers = DoseTap.PreSleepLogAnswers()
+        answers.bodyPain = .moderate
+        let back = PreSleepLogAnswers.PainEntry(area: .midBack, side: .both, intensity: 2, sensations: [.throbbing, .tightness])
+        let feet = PreSleepLogAnswers.PainEntry(area: .ankleFoot, side: .both, intensity: 5, sensations: [.pinsNeedles, .numbness])
+        answers.painEntries = [back, feet]
+        _ = try repo.savePreSleepLog(answers: answers, completionState: "complete")
+        repo.reload()
+        let restored = try XCTUnwrap(storage.fetchMostRecentPreSleepLog()?.answers?.painEntries)
+        XCTAssertEqual(Set(restored), Set([back, feet]))
+        let row = try XCTUnwrap(storage.fetchCheckInSubmissions(checkInType: .preNight).first)
+        let entries = try XCTUnwrap(decodeJSONDictionary(row.responsesJson)["pain.entries"] as? [[String: Any]])
+        XCTAssertEqual(entries.count, 2)
+    }
+
     func test_preSleepAffirmativeSubstancesDoNotAcquireMissingDetailsInStorage() throws {
         var answers = DoseTap.PreSleepLogAnswers()
         answers.caffeineSources = [.coffee]

@@ -60,6 +60,7 @@ extension SettingsView {
         }
 
         settings.resetToDefaults()
+        SavedPainPatternStore.shared.reloadFromPreferences()
         sleepPlanStore.resetToDefaults()
         SessionRepository.shared.reload()
 

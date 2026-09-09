@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-08
 SSOT revision: 0.4.19
-Shipping app version observed in the Xcode project: 0.4.19 (build 28)
+Shipping app version observed in the Xcode project: 0.4.19 (build 29)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -36,6 +36,12 @@ Notes:
 - Apple Health data, medication records, alarm behavior and quick logs are unchanged by this repair.
 - Saving an unanswered caffeine question preserves a missing answer in both the source questionnaire and normalized responses. Only an explicit None answer produces `pre.substances.caffeine.any = false`. Existing explicit answers remain unchanged; this repair does not relabel older stored None values as unknown.
 - The caffeine form offers "No caffeine today" as an explicit answer. "Clear answer" and deselecting the last source return it to Not recorded, not None. The current answer is shown in text as well as through source selection.
+
+### Independent and remembered pain entries (DOSETAP-61)
+
+- Each pain-editor save records one area and side with its own intensity, sensations, pattern and notes. Add another pain creates an independent entry; it must not apply one set of sensations to every area.
+- Remember this pain saves a reusable preference, not a nightly symptom observation. Saved pain patterns survive app restart, are independently removable, and open in the editor for review before being added to tonight. Cancelling or merely displaying a saved pattern records nothing. Forgetting a pattern does not delete past questionnaires.
+- Existing area/side identity and questionnaire exports remain unchanged. At most one entry per area/side is supported; distinct problems in exactly the same area/side need a future identity change. Saved preferences are not currently included in the clinical event export or a promised full backup. Confirmed nightly entries use the existing storage/export path.
 
 ### Last food in pre-sleep logging (DOSETAP-50)
 

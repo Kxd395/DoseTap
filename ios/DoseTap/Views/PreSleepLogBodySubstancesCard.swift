@@ -12,6 +12,8 @@ struct Card2BodySubstances: View {
     @State private var showPainEntryEditor = false
     @State private var editingPainEntry: PreSleepLogAnswers.PainEntry?
     @ObservedObject private var sessionRepo = SessionRepository.shared
+    @ObservedObject private var savedPainPatterns = SavedPainPatternStore.shared
+    @State private var painPreferenceError: String?
 
     private var painEntries: [PreSleepLogAnswers.PainEntry] {
         (answers.painEntries ?? []).sorted { $0.entryKey < $1.entryKey }
@@ -143,11 +145,39 @@ struct Card2BodySubstances: View {
                     )
                 }
 
+                if let error = savedPainPatterns.loadError {
+                    Text(error).font(.caption).foregroundColor(.orange)
+                }
+                if !savedPainPatterns.entries.isEmpty {
+                    QuestionSection(title: "Saved pain patterns", icon: "bookmark") {
+                        Text("Choose a pattern to review for tonight. Nothing is logged until you save it.")
+                            .font(.caption).foregroundColor(.secondary)
+                        ForEach(savedPainPatterns.entries) { entry in
+                            HStack {
+                                GranularPainEntryRow(entry: entry)
+                                VStack {
+                                    Button("Use") {
+                                        editingPainEntry = entry
+                                        showPainEntryEditor = true
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .accessibilityIdentifier("use-pain-\(entry.entryKey)")
+                                    Button("Forget") {
+                                        do { try savedPainPatterns.forget(entry.entryKey) }
+                                        catch { painPreferenceError = "Could not remove this saved pattern. Try again." }
+                                    }
+                                    .accessibilityIdentifier("forget-pain-\(entry.entryKey)")
+                                }
+                            }
+                        }
+                    }
+                }
+
                 if let pain = answers.bodyPain, pain != .none {
-                    QuestionSection(title: "Pain detail by area + side", icon: "mappin.and.ellipse") {
+                    QuestionSection(title: "Tonight's separate pain entries", icon: "mappin.and.ellipse") {
                         VStack(spacing: 10) {
                             if painEntries.isEmpty {
-                                Text("Add one entry per area/side. Example: Mid Back (Both) 2/10, Lower Back (Right) 9/10.")
+                                Text("Save one pain, then add another. Each has its own intensity and sensations.")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -156,6 +186,8 @@ struct Card2BodySubstances: View {
                                 ForEach(painEntries, id: \.entryKey) { entry in
                                     HStack(spacing: 10) {
                                         GranularPainEntryRow(entry: entry)
+                                            .accessibilityElement(children: .combine)
+                                            .accessibilityIdentifier("night-pain-\(entry.entryKey)")
                                         Spacer(minLength: 4)
                                         Button {
                                             editingPainEntry = entry
@@ -175,6 +207,11 @@ struct Card2BodySubstances: View {
                                     .padding(10)
                                     .background(Color(.secondarySystemGroupedBackground))
                                     .cornerRadius(10)
+                                    Button(savedPainPatterns.entries.contains(entry) ? "Pain pattern remembered" : "Remember this pain") {
+                                        do { try savedPainPatterns.remember(entry) }
+                                        catch { painPreferenceError = "Could not remember this pain pattern. Your nightly entry is unchanged." }
+                                    }
+                                    .accessibilityIdentifier("remember-pain-\(entry.entryKey)")
                                 }
                             }
 
@@ -184,7 +221,7 @@ struct Card2BodySubstances: View {
                             } label: {
                                 HStack {
                                     Image(systemName: "plus.circle.fill")
-                                    Text("Add Pain Entry")
+                                    Text(painEntries.isEmpty ? "Add Pain Entry" : "Add another pain")
                                 }
                                 .font(.subheadline.weight(.semibold))
                                 .frame(maxWidth: .infinity)
@@ -192,6 +229,7 @@ struct Card2BodySubstances: View {
                                 .background(Color.blue.opacity(0.12))
                                 .cornerRadius(10)
                             }
+                            .accessibilityIdentifier("add-pain-entry")
                         }
                     }
                     .transition(.opacity.combined(with: .move(edge: .top)))
@@ -397,6 +435,12 @@ struct Card2BodySubstances: View {
                 upsertPainEntries(result.entries, replacingEntryKey: result.replacedEntryKey)
             }
         }
+        .alert("Saved pain patterns", isPresented: Binding(
+            get: { painPreferenceError != nil },
+            set: { if !$0 { painPreferenceError = nil } }
+        )) {
+            Button("OK") { painPreferenceError = nil }
+        } message: { Text(painPreferenceError ?? "") }
         .onChange(of: answers.bodyPain) { newValue in
             guard newValue == .some(PreSleepLogAnswers.PainLevel.none) else { return }
             answers.painEntries = nil

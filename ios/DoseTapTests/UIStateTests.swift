@@ -566,6 +566,41 @@ final class PreSleepCardStateTests: XCTestCase {
     }
 }
 
+final class SavedPainPatternTests: XCTestCase {
+    func testIndependentPatternsSurviveRestartAndForgetWithoutChangingCopies() throws {
+        let suite = "pain-pattern-test-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = SavedPainPatternStore(defaults: defaults)
+        let back = PreSleepLogAnswers.PainEntry(area: .midBack, side: .both, intensity: 2, sensations: [.throbbing, .tightness])
+        let feet = PreSleepLogAnswers.PainEntry(area: .ankleFoot, side: .both, intensity: 5, sensations: [.pinsNeedles, .numbness], notes: "Recurring feet symptoms")
+        try store.remember(back)
+        try store.remember(feet)
+        let restarted = SavedPainPatternStore(defaults: defaults)
+        XCTAssertEqual(Set(restarted.entries), Set([back, feet]))
+        var reviewed = back
+        reviewed.intensity = 4
+        XCTAssertEqual(restarted.entries.first { $0.entryKey == back.entryKey }?.intensity, 2)
+        try restarted.forget(back.entryKey)
+        XCTAssertEqual(SavedPainPatternStore(defaults: defaults).entries, [feet])
+        XCTAssertEqual(back.intensity, 2, "Forgetting a preference cannot mutate a saved observation")
+        defaults.removePersistentDomain(forName: suite)
+        restarted.reloadFromPreferences()
+        XCTAssertTrue(restarted.entries.isEmpty, "Cleared preferences must also clear the in-memory pattern list")
+    }
+
+    func testUnreadablePreferencesAreNotOverwritten() throws {
+        let suite = "pain-pattern-test-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(Data("invalid".utf8), forKey: SavedPainPatternStore.key)
+        let store = SavedPainPatternStore(defaults: defaults)
+        XCTAssertNotNil(store.loadError)
+        XCTAssertThrowsError(try store.remember(.init(area: .midBack, side: .both, intensity: 2, sensations: [.tightness])))
+        XCTAssertEqual(defaults.data(forKey: SavedPainPatternStore.key), Data("invalid".utf8))
+    }
+}
+
 final class CheckInCarryForwardTests: XCTestCase {
     func test_preSleepCarryForwardKeepsOnlyReusableRoomSetup() throws {
         var calendar = Calendar(identifier: .gregorian)

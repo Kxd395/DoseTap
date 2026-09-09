@@ -13,7 +13,7 @@ final class DoseTapUITests: XCTestCase {
         app.launchArguments = ["--uitesting"]
         if name.contains("testAutomaticNightMode") { app.launchArguments += ["--uitesting-auto-night-reset", "-setup_completed_v2", "YES"] }
         if name.contains("testCompactLayout") { app.launchArguments += ["--uitesting-layout", "-setup_completed_v2", "YES"] }
-        if name.contains("testSupply") || name.contains("testSystemAlarm") || name.contains("testPreSleepCaffeine") { app.launchArguments += ["-setup_completed_v2", "YES"] }
+        if name.contains("testSupply") || name.contains("testSystemAlarm") || name.contains("testPreSleep") { app.launchArguments += ["-setup_completed_v2", "YES"] }
         if name.contains("testDashboard") { app.launchArguments += ["--uitesting-dashboard", "-setup_completed_v2", "YES"] }
         if name.contains("testWorkWarning") { app.launchArguments.append("--uitesting-work-warning") }
         if name.contains("testDose2Confirmation") { app.launchArguments.append("--uitesting-dose2-confirmation") }
@@ -826,6 +826,66 @@ final class DoseTapUITests: XCTestCase {
         proof.name = "Explicit caffeine answer"
         proof.lifetime = .keepAlways
         add(proof)
+    }
+
+    func testPreSleepIndependentPainPatternsSurviveRestartWithoutAutoLogging() throws {
+        func reveal(_ element: XCUIElement) {
+            for _ in 0..<14 where !element.isHittable { app.swipeUp() }
+            XCTAssertTrue(element.isHittable)
+        }
+        func openCheck() {
+            let check = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Pre-sleep")).firstMatch
+            XCTAssertTrue(check.waitForExistence(timeout: 15))
+            reveal(check); check.tap(); app.buttons["Next"].tap()
+        }
+        func addPain(area: String, sensations: [String]) {
+            let add = app.buttons["add-pain-entry"]
+            reveal(add); add.tap()
+            let location = app.buttons["pain-area-\(area)"]
+            reveal(location); location.tap()
+            let intensity = app.sliders["pain-intensity"]
+            reveal(intensity); intensity.adjust(toNormalizedSliderPosition: 0.2)
+            let aching = app.buttons["pain-sensation-aching"]
+            reveal(aching); aching.tap()
+            for sensation in sensations {
+                let button = app.buttons["pain-sensation-\(sensation)"]
+                reveal(button); button.tap()
+            }
+            app.navigationBars.buttons["Save"].tap()
+            let remember = app.buttons["remember-pain-\(area)|both"]
+            reveal(remember); remember.tap()
+        }
+        openCheck()
+        let mild = app.buttons["Mild"]
+        reveal(mild); mild.tap()
+        addPain(area: "mid_back", sensations: ["throbbing", "tightness"])
+        addPain(area: "ankle_foot", sensations: ["pins_needles", "numbness"])
+        let back = app.descendants(matching: .any).matching(identifier: "night-pain-mid_back|both").firstMatch
+        let feet = app.descendants(matching: .any).matching(identifier: "night-pain-ankle_foot|both").firstMatch
+        XCTAssertTrue(back.label.contains("Throbbing"))
+        XCTAssertFalse(back.label.contains("Numbness"))
+        XCTAssertTrue(feet.label.contains("Numbness"))
+        XCTAssertFalse(feet.label.contains("Throbbing"))
+        app.terminate(); app.launch(); openCheck()
+        XCTAssertFalse(back.exists, "Remembering is not a nightly observation")
+        XCTAssertFalse(feet.exists)
+        let useBack = app.buttons["use-pain-mid_back|both"]
+        reveal(useBack); useBack.tap()
+        app.navigationBars.buttons["Cancel"].tap()
+        XCTAssertFalse(back.exists)
+        useBack.tap(); app.navigationBars.buttons["Save"].tap()
+        XCTAssertTrue(back.exists)
+        XCTAssertFalse(feet.exists, "Selecting one pattern must not add the other")
+        let proof = XCTAttachment(screenshot: app.screenshot())
+        proof.name = "Independent saved pain patterns reviewed for tonight"
+        proof.lifetime = .keepAlways
+        add(proof)
+        for key in ["mid_back|both", "ankle_foot|both"] {
+            let forget = app.buttons["forget-pain-\(key)"]
+            for _ in 0..<10 where !forget.isHittable { app.swipeDown() }
+            forget.tap()
+        }
+        XCTAssertTrue(back.exists, "Forgetting a template must not remove tonight's reviewed entry")
     }
 
     func testSupplyReceiptReminderAndOptionalBottleSurviveRelaunch() throws {

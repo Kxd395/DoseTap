@@ -358,7 +358,9 @@ struct GranularPainEntryEditorView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Areas & Side") {
+                Section("One area and side") {
+                    Text("Save this pain separately. Use Add another pain for a different area or set of sensations.")
+                        .font(.caption).foregroundColor(.secondary)
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                         ForEach(PreSleepLogAnswers.PainArea.allCases, id: \.self) { value in
                             Button {
@@ -375,13 +377,8 @@ struct GranularPainEntryEditorView: View {
                                     .foregroundColor(selectedAreas.contains(value) ? .white : .primary)
                             }
                             .buttonStyle(.plain)
+                            .accessibilityIdentifier("pain-area-\(value.rawValue)")
                         }
-                    }
-
-                    if selectedAreas.count > 1 {
-                        Text("\(selectedAreas.count) areas selected. The same intensity, side, sensations, and notes will be saved for each area.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
                     }
 
                     Picker("Side", selection: $side) {
@@ -397,6 +394,7 @@ struct GranularPainEntryEditorView: View {
                             .font(.headline)
                         Slider(value: $intensity, in: 0...10, step: 1)
                             .tint(.red)
+                            .accessibilityIdentifier("pain-intensity")
                     }
                 }
 
@@ -421,6 +419,7 @@ struct GranularPainEntryEditorView: View {
                                     .foregroundColor(sensations.contains(value) ? .white : .primary)
                             }
                             .buttonStyle(.plain)
+                            .accessibilityIdentifier("pain-sensation-\(value.rawValue)")
                         }
                     }
                 }
@@ -475,13 +474,7 @@ struct GranularPainEntryEditorView: View {
     }
 
     private func toggleArea(_ area: PreSleepLogAnswers.PainArea) {
-        if selectedAreas.contains(area) {
-            if selectedAreas.count > 1 {
-                selectedAreas.remove(area)
-            }
-        } else {
-            selectedAreas.insert(area)
-        }
+        selectedAreas = [area]
     }
 }
 
@@ -509,6 +502,9 @@ struct GranularPainEntryRow: View {
             Text(detailText)
                 .font(.caption)
                 .foregroundColor(.secondary)
+            if let notes = entry.notes, !notes.isEmpty {
+                Text(notes).font(.caption).foregroundColor(.secondary)
+            }
         }
     }
 }
