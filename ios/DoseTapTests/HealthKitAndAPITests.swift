@@ -16,6 +16,66 @@ import DoseCore
 @MainActor
 final class HealthKitProviderTests: XCTestCase {
 
+    func test_boundedCoverageRetainsSplitSleepButExcludesLaterNap() throws {
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        func segment(_ lower: Double, _ upper: Double) -> HealthKitService.SleepSegment {
+            .init(start: start.addingTimeInterval(lower * 60), end: start.addingTimeInterval(upper * 60),
+                  stage: .asleepCore, source: "Watch")
+        }
+        let segments = [segment(-30, 180), segment(285, 430), segment(600, 660)]
+        let result = try XCTUnwrap(HealthKitService.sleepCoverage(
+            from: segments, start: start, end: start.addingTimeInterval(405 * 60)))
+        XCTAssertEqual(result.asleepMinutes, 300)
+        XCTAssertEqual(result.unmeasuredMinutes, 105)
+        XCTAssertEqual(result.status, .partial)
+        // The legacy primary episode remains a distinct, narrower selection.
+        let primary = HealthKitService.primaryNightSegments(from: segments)
+        XCTAssertEqual(primary.count, 1)
+        XCTAssertEqual(primary.first?.end, start.addingTimeInterval(180 * 60))
+    }
+
+    func test_boundedCoverageUnknownAndInBedAreNotMeasuredSleepOrAwake() throws {
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        func segment(_ lower: Double, _ upper: Double, _ stage: HealthKitService.SleepStage) -> HealthKitService.SleepSegment {
+            .init(start: start.addingTimeInterval(lower * 60), end: start.addingTimeInterval(upper * 60),
+                  stage: stage, source: "Watch")
+        }
+        let end = start.addingTimeInterval(60 * 60)
+        let segments = [segment(0, 60, .inBed), segment(0, 40, .asleep),
+                        segment(10, 20, .unknown(99)), segment(30, 40, .awake)]
+        let result = try XCTUnwrap(HealthKitService.sleepCoverage(from: segments, start: start, end: end))
+        XCTAssertEqual(result.asleepMinutes, 20)
+        XCTAssertEqual(result.awakeMinutes, 10)
+        XCTAssertEqual(result.unmeasuredMinutes, 30)
+        XCTAssertEqual(result, HealthKitService.sleepCoverage(from: Array(segments.reversed()) + segments, start: start, end: end))
+        let empty = try XCTUnwrap(HealthKitService.sleepCoverage(from: [], start: start, end: end))
+        XCTAssertEqual(empty.status, .unavailable)
+        XCTAssertNil(empty.asleepMinutes)
+        let awake = try XCTUnwrap(HealthKitService.sleepCoverage(from: [segment(0, 60, .awake)], start: start, end: end))
+        XCTAssertEqual(awake.status, .available)
+        XCTAssertEqual(awake.asleepMinutes, 0)
+    }
+
+    func test_boundedCoverageRejectsInvalidWindowAndNonfiniteSamples() throws {
+        let start = Date(timeIntervalSince1970: 1_800_000_000), end = Date(timeIntervalSince1970: 1_800_003_600)
+        XCTAssertNil(HealthKitService.sleepCoverage(from: [], start: end, end: start))
+        XCTAssertNil(HealthKitService.sleepCoverage(from: [], start: start, end: start))
+        XCTAssertNil(HealthKitService.sleepCoverage(from: [], start: start, end: .init(timeIntervalSince1970: .infinity)))
+        let samples: [HealthKitService.SleepSegment] = [
+            .init(start: .init(timeIntervalSince1970: -.infinity), end: end, stage: .asleep, source: "Watch"),
+            .init(start: start, end: .init(timeIntervalSince1970: .nan), stage: .asleep, source: "Watch")]
+        let result = try XCTUnwrap(HealthKitService.sleepCoverage(from: samples, start: start, end: end))
+        XCTAssertEqual(result.status, .unavailable)
+    }
+
+    func test_boundedQueryIncludesOverlapWithoutChangingLegacyQueryDefault() {
+        let start = Date(timeIntervalSince1970: 1_800_000_000), end = Date(timeIntervalSince1970: 1_800_003_600)
+        let sample = HKCategorySample(type: HKCategoryType(.sleepAnalysis), value: HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue,
+                                      start: start.addingTimeInterval(-600), end: start.addingTimeInterval(600))
+        XCTAssertTrue(HealthKitService.sleepSamplePredicate(from: start, to: end, options: []).evaluate(with: sample))
+        XCTAssertFalse(HealthKitService.sleepSamplePredicate(from: start, to: end).evaluate(with: sample))
+    }
+
     func test_factoryDefaultsToNoOpOnSimulator() async throws {
         let provider = HealthKitProviderFactory.makeDefault()
         XCTAssertTrue(provider is NoOpHealthKitProvider, "Simulator should default to NoOpHealthKitProvider")

@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-08
 SSOT revision: 0.4.19
-Shipping app version observed in the Xcode project: 0.4.19 (build 33)
+Shipping app version observed in the Xcode project: 0.4.19 (build 34)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -147,6 +147,9 @@ Naps are implemented as paired sleep events, not a separate table.
 
 ### HealthKit
 
+- Bounded interval coverage, DOSETAP-56: `SleepIntervalCoverage` measures caller-supplied absolute start/end instants, clipping and unioning all eligible recorded intervals without a largest-cluster filter. It reports sleep, awake, classified coverage and unmeasured time separately. Empty coverage is unavailable with missing sleep/awake totals; fully observed awake time is valid zero sleep. Invalid/non-finite windows are rejected. This utility does not choose or persist a treatment-night window.
+- `HealthKitService.fetchSleepCoverage(from:to:)` is an opt-in bounded query using overlapping samples, including samples that begin before the requested start. The adapter clips before normalization and excludes in-bed and unknown categories from classified coverage. It retains the current conservative overlap policy; it is not a source-reconciliation ledger. Existing primary-episode queries and displays are unchanged. No screen or export calls the new bounded query yet; reviewed session-window storage and consumer integration remain open under DOSETAP-56.
+- The existing post-Dose-2 estimator delegates interval arithmetic to this shared utility while preserving its awake-over-asleep overlap rule, optional result and existing coverage-gap display tolerance. New coverage status itself discloses any positive unmeasured interval. Source conflict resolution must happen before calling this measured-interval utility; it is not an accuracy policy.
 - Boundary correction, DOSETAP-56: the existing primary-episode summary uses the last observed asleep end for its final-wake estimate, not the end of trailing awake/in-bed observations. It retains a separate observation end and records whether contiguous awake evidence supports that boundary or it is only a last-observed-sleep-end estimate. This remains a primary-episode summary, not a reviewed treatment-night total.
 - Unknown HealthKit sleep categories remain unclassified and retain their raw category value in adapter segments. Valid unspecified-asleep remains sleep. Unknown observations cannot supply asleep/awake duration; in-bed-only and unknown observations do not become awake chart bands. Raw-category preservation is not yet a complete sample/source revision ledger.
 - Equal-priority normalized slices choose the lexically first source display name and then lowest raw category value. This stable tie-break makes reordered identical evidence reproducible; it is not a source-accuracy ranking or full conflict/provenance resolution.

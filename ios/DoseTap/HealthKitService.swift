@@ -327,9 +327,13 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
     // MARK: - Sleep Data Queries
     
     /// Fetch sleep segments for a date range
-    private func fetchSleepSegments(from start: Date, to end: Date) async throws -> [SleepSegment] {
+    static func sleepSamplePredicate(from start: Date, to end: Date, options: HKQueryOptions = .strictStartDate) -> NSPredicate {
+        HKQuery.predicateForSamples(withStart: start, end: end, options: options)
+    }
+
+    private func fetchSleepSegments(from start: Date, to end: Date, options: HKQueryOptions = .strictStartDate) async throws -> [SleepSegment] {
         let sleepType = HKCategoryType(.sleepAnalysis)
-        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
+        let predicate = Self.sleepSamplePredicate(from: start, to: end, options: options)
         let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
         
         return try await withCheckedThrowingContinuation { continuation in
@@ -356,6 +360,33 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
             }
             healthStore.execute(query)
         }
+    }
+
+    /// Opt-in coverage for explicit bounds. Does not select or persist a treatment night.
+    /// Empty successful queries mean unavailable observations, not verified read permission.
+    func fetchSleepCoverage(from start: Date, to end: Date) async throws -> SleepIntervalCoverage? {
+        guard SleepIntervalCoverage.calculate(start: start, end: end, intervals: []) != nil else { return nil }
+        let segments = try await fetchSleepSegments(from: start, to: end, options: [])
+        return Self.sleepCoverage(from: segments, start: start, end: end)
+    }
+
+    /// Clip before normalization so outside observations cannot affect the result.
+    /// Unknown/in-bed time remains unclassified under the existing overlap policy.
+    static func sleepCoverage(from segments: [SleepSegment], start: Date, end: Date) -> SleepIntervalCoverage? {
+        guard SleepIntervalCoverage.calculate(start: start, end: end, intervals: []) != nil else { return nil }
+        let clipped = segments.compactMap { segment -> SleepSegment? in
+            guard segment.start.timeIntervalSinceReferenceDate.isFinite,
+                  segment.end.timeIntervalSinceReferenceDate.isFinite,
+                  segment.end > segment.start else { return nil }
+            let lower = max(start, segment.start), upper = min(end, segment.end)
+            guard upper > lower else { return nil }
+            return .init(start: lower, end: upper, stage: segment.stage, source: segment.source)
+        }
+        let measured = normalizedSleepSegments(clipped).compactMap { segment -> RecordedSleepInterval? in
+            guard segment.stage.isAsleep || segment.stage == .awake else { return nil }
+            return .init(start: segment.start, end: segment.end, asleep: segment.stage.isAsleep)
+        }
+        return SleepIntervalCoverage.calculate(start: start, end: end, intervals: measured)
     }
 
     private func fetchQuantitySamples(

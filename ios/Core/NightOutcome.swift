@@ -139,23 +139,10 @@ public struct PostDoseSleepEstimate: Sendable {
     /// and let explicitly recorded awake intervals override overlapping asleep samples.
     /// Missing coverage remains missing; an all-awake recorded interval is a genuine zero.
     public static func calculate(dose2: Date, finalWake: Date, intervals: [RecordedSleepInterval]) -> Self? {
-        let duration = finalWake.timeIntervalSince(dose2)
-        guard duration.isFinite, duration > 0 else { return nil }
-        let clipped = intervals.compactMap { sample -> (Double, Double, Bool)? in
-            let rawStart = sample.start.timeIntervalSince(dose2), rawEnd = sample.end.timeIntervalSince(dose2)
-            guard rawStart.isFinite, rawEnd.isFinite, rawEnd > rawStart else { return nil }
-            let start = max(0, rawStart), end = min(duration, rawEnd)
-            return end > start ? (start, end, sample.asleep) : nil
-        }
-        guard !clipped.isEmpty else { return nil }
-        let boundaries = Set(clipped.flatMap { [$0.0, $0.1] }).sorted()
-        var asleep = 0.0, covered = 0.0
-        for (start, end) in zip(boundaries, boundaries.dropFirst()) {
-            let active = clipped.filter { $0.0 < end && $0.1 > start }
-            if !active.isEmpty { covered += end - start }
-            if active.contains(where: { $0.2 }) && !active.contains(where: { !$0.2 }) { asleep += end - start }
-        }
-        return .init(asleepMinutes: asleep / 60, coveredMinutes: covered / 60, intervalMinutes: duration / 60)
+        guard let coverage = SleepIntervalCoverage.calculate(start: dose2, end: finalWake, intervals: intervals),
+              let asleep = coverage.asleepMinutes else { return nil }
+        return .init(asleepMinutes: asleep, coveredMinutes: coverage.coveredMinutes,
+                     intervalMinutes: coverage.intervalMinutes)
     }
 }
 
