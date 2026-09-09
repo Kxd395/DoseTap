@@ -271,6 +271,10 @@ The first correction separates the last observed sleep end, estimated final awak
 
 Next, complete reviewed treatment-night bounds and source reconciliation under DOSETAP-56. Then implement DOSETAP-57's shared calculator and wire all consumers to it. Do not introduce new questionnaires to obtain information already present in dose records or provider intervals.
 
+**Second slice, bounded coverage:** `SleepIntervalCoverage` now supplies the common clip/union arithmetic, with separate sleep, awake, covered and unmeasured durations. The existing post-Dose-2 estimator delegates to it. An opt-in HealthKit query retains samples crossing an explicit window's edges and all eligible blocks inside it. It is not yet a treatment-night consumer: no screen/export invokes that query, and no reviewed-window record has been added. The legacy primary-episode selector remains separate. See [the bounded-coverage audit](../audit/2026-09-09/bounded-sleep-coverage.md).
+
+The next integration must persist reviewed bounds with session identity, boundary source and original zone; retain conflicting provider evidence; and test revisions, deletion and overlapping-session/nap conflicts. Only then should History, Timeline, Dashboard and exports share treatment-night results. DOSETAP-57 still owns dose-linked onset/return markers and completed awakening counts. Do not present this calculation foundation as delivery of those screens.
+
 ### Treatment-night bounds
 
 A resolved treatment-night calculation must receive an explicit start and end with stable session identity, original timezone and boundary source. Do not use the current clock, an open-session lifetime, or the date grouping key as measured sleep bounds.
