@@ -16,6 +16,44 @@ import DoseCore
 @MainActor
 final class HealthKitProviderTests: XCTestCase {
 
+    func test_boundedEvidenceRetainsSampleProvenanceBeforeClipping() throws {
+        let start = Date(timeIntervalSince1970: 1_800_000_000), end = Date(timeIntervalSince1970: 1_800_003_600)
+        let device = HKDevice(name: "Synthetic watch", manufacturer: "Test", model: "Test model",
+            hardwareVersion: "1", firmwareVersion: "2", softwareVersion: "3", localIdentifier: nil, udiDeviceIdentifier: nil)
+        let sample = HKCategorySample(type: HKCategoryType(.sleepAnalysis), value: HKCategoryValueSleepAnalysis.asleepCore.rawValue,
+            start: start.addingTimeInterval(-600), end: end, device: device, metadata: [HKMetadataKeyTimeZone: "America/New_York"])
+        let segment = HealthKitService.sleepSegment(from: sample, receivedAt: end)
+        let result = try XCTUnwrap(HealthKitService.sleepEvidence(from: [segment], start: start, end: end))
+        let evidence = try XCTUnwrap(result.samples.first)
+        XCTAssertEqual(evidence.sampleID, sample.uuid.uuidString)
+        XCTAssertEqual(evidence.start, start.addingTimeInterval(-600))
+        XCTAssertEqual(evidence.rawCategory, sample.value)
+        XCTAssertEqual(evidence.origin.bundleIdentifier, sample.sourceRevision.source.bundleIdentifier)
+        XCTAssertEqual(evidence.origin.sourceVersion, sample.sourceRevision.version)
+        XCTAssertEqual(evidence.origin.timeZoneID, "America/New_York")
+        XCTAssertEqual(evidence.origin.deviceModel, "Test model")
+        XCTAssertEqual(evidence.origin.deviceSoftwareVersion, "3")
+        XCTAssertEqual(evidence.origin.receivedAt, end)
+        XCTAssertEqual(result.coverage.asleepMinutes, 60)
+        XCTAssertEqual(result.slices.first?.start, start)
+    }
+
+    func test_boundedEvidenceDisclosesConflictWithoutChangingLegacySummary() throws {
+        let start = Date(timeIntervalSince1970: 1_800_000_000), end = Date(timeIntervalSince1970: 1_800_003_600)
+        let segments: [HealthKitService.SleepSegment] = [
+            .init(start: start, end: end, stage: .asleepCore, source: "Watch"),
+            .init(start: start.addingTimeInterval(1200), end: start.addingTimeInterval(1800), stage: .awake, source: "Phone")]
+        let result = try XCTUnwrap(HealthKitService.sleepEvidence(from: segments, start: start, end: end))
+        XCTAssertEqual(result.conflictMinutes, 10)
+        XCTAssertEqual(result.coverage.awakeMinutes, 0)
+        XCTAssertEqual(result.coverage.unmeasuredMinutes, 10)
+        XCTAssertEqual(result.coverage, HealthKitService.sleepCoverage(from: segments, start: start, end: end))
+        XCTAssertNil(result.samples.first?.sampleID) // Legacy/test segments cannot invent provenance.
+        let legacy = try XCTUnwrap(HealthKitService.sleepNightSummary(from: segments, nightStart: start))
+        XCTAssertEqual(legacy.totalSleepMinutes, 50)
+        XCTAssertTrue(legacy.recordedIntervals.contains { !$0.asleep })
+    }
+
     func test_boundedCoverageRetainsSplitSleepButExcludesLaterNap() throws {
         let start = Date(timeIntervalSince1970: 1_800_000_000)
         func segment(_ lower: Double, _ upper: Double) -> HealthKitService.SleepSegment {
@@ -45,8 +83,8 @@ final class HealthKitProviderTests: XCTestCase {
                         segment(10, 20, .unknown(99)), segment(30, 40, .awake)]
         let result = try XCTUnwrap(HealthKitService.sleepCoverage(from: segments, start: start, end: end))
         XCTAssertEqual(result.asleepMinutes, 20)
-        XCTAssertEqual(result.awakeMinutes, 10)
-        XCTAssertEqual(result.unmeasuredMinutes, 30)
+        XCTAssertEqual(result.awakeMinutes, 0)
+        XCTAssertEqual(result.unmeasuredMinutes, 40)
         XCTAssertEqual(result, HealthKitService.sleepCoverage(from: Array(segments.reversed()) + segments, start: start, end: end))
         let empty = try XCTUnwrap(HealthKitService.sleepCoverage(from: [], start: start, end: end))
         XCTAssertEqual(empty.status, .unavailable)

@@ -47,6 +47,7 @@ let package = Package(
                 "DoseEffectivenessCalculator.swift",
                 "NightOutcome.swift",
                 "SleepIntervalCoverage.swift",
+                "SleepEvidenceResolution.swift",
                 "ReviewedSleepWindow.swift",
                 "ReportCSV.swift"
             ]
@@ -95,6 +96,7 @@ let package = Package(
                 "DeletedEventSnapshotTests.swift",
                 "NightOutcomeTests.swift",
                 "SleepIntervalCoverageTests.swift",
+                "SleepEvidenceResolutionTests.swift",
                 "ReviewedSleepWindowTests.swift"
             ],
             resources: [

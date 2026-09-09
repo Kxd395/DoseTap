@@ -100,6 +100,18 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
             case .unknown(let value): return value
             }
         }
+
+        var evidenceStage: SleepEvidenceSample.Stage {
+            switch self {
+            case .inBed: return .inBed
+            case .asleep: return .asleep
+            case .asleepCore: return .core
+            case .asleepDeep: return .deep
+            case .asleepREM: return .rem
+            case .awake: return .awake
+            case .unknown: return .unknown
+            }
+        }
     }
     
     struct SleepSegment {
@@ -107,6 +119,7 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
         let end: Date
         let stage: SleepStage
         let source: String
+        var evidence: SleepEvidenceSample? = nil
     }
 
     struct NightBiometricsSummary {
@@ -348,13 +361,9 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
                     return
                 }
                 
-                let segments = (samples as? [HKCategorySample] ?? []).map { sample in
-                    SleepSegment(
-                        start: sample.startDate,
-                        end: sample.endDate,
-                        stage: SleepStage.from(hkValue: sample.value),
-                        source: sample.sourceRevision.source.name
-                    )
+                let receivedAt = Date()
+                let segments = (samples as? [HKCategorySample] ?? []).map {
+                    Self.sleepSegment(from: $0, receivedAt: receivedAt)
                 }
                 continuation.resume(returning: segments)
             }
@@ -365,28 +374,52 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
     /// Opt-in coverage for explicit bounds. Does not select or persist a treatment night.
     /// Empty successful queries mean unavailable observations, not verified read permission.
     func fetchSleepCoverage(from start: Date, to end: Date) async throws -> SleepIntervalCoverage? {
-        guard SleepIntervalCoverage.calculate(start: start, end: end, intervals: []) != nil else { return nil }
-        let segments = try await fetchSleepSegments(from: start, to: end, options: [])
-        return Self.sleepCoverage(from: segments, start: start, end: end)
+        try await fetchSleepEvidence(from: start, to: end)?.coverage
     }
 
-    /// Clip before normalization so outside observations cannot affect the result.
-    /// Unknown/in-bed time remains unclassified under the existing overlap policy.
-    static func sleepCoverage(from segments: [SleepSegment], start: Date, end: Date) -> SleepIntervalCoverage? {
+    /// Full query snapshot for future reviewed-night consumers. No persistence or HealthKit writes.
+    func fetchSleepEvidence(from start: Date, to end: Date) async throws -> SleepEvidenceResolution? {
         guard SleepIntervalCoverage.calculate(start: start, end: end, intervals: []) != nil else { return nil }
-        let clipped = segments.compactMap { segment -> SleepSegment? in
-            guard segment.start.timeIntervalSinceReferenceDate.isFinite,
-                  segment.end.timeIntervalSinceReferenceDate.isFinite,
-                  segment.end > segment.start else { return nil }
-            let lower = max(start, segment.start), upper = min(end, segment.end)
-            guard upper > lower else { return nil }
-            return .init(start: lower, end: upper, stage: segment.stage, source: segment.source)
+        let segments = try await fetchSleepSegments(from: start, to: end, options: [])
+        return Self.sleepEvidence(from: segments, start: start, end: end)
+    }
+
+    /// Snapshot origin before clipping or legacy stage normalization loses sample boundaries.
+    nonisolated static func sleepSegment(from sample: HKCategorySample, receivedAt: Date) -> SleepSegment {
+        let revision = sample.sourceRevision
+        var origin = SleepEvidenceSample.Origin(sourceName: revision.source.name,
+                                                 bundleIdentifier: revision.source.bundleIdentifier)
+        origin.sourceVersion = revision.version
+        origin.productType = revision.productType
+        let os = revision.operatingSystemVersion
+        origin.operatingSystemVersion = "\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)"
+        origin.deviceName = sample.device?.name
+        origin.deviceManufacturer = sample.device?.manufacturer
+        origin.deviceModel = sample.device?.model
+        origin.deviceHardwareVersion = sample.device?.hardwareVersion
+        origin.deviceFirmwareVersion = sample.device?.firmwareVersion
+        origin.deviceSoftwareVersion = sample.device?.softwareVersion
+        origin.timeZoneID = sample.metadata?[HKMetadataKeyTimeZone] as? String
+        origin.receivedAt = receivedAt
+        let stage = SleepStage.from(hkValue: sample.value)
+        let evidence = SleepEvidenceSample(sampleID: sample.uuid.uuidString, start: sample.startDate,
+            end: sample.endDate, rawCategory: sample.value, stage: stage.evidenceStage, origin: origin)
+        return .init(start: sample.startDate, end: sample.endDate, stage: stage,
+                     source: revision.source.name, evidence: evidence)
+    }
+
+    static func sleepEvidence(from segments: [SleepSegment], start: Date, end: Date) -> SleepEvidenceResolution? {
+        let samples = segments.map { segment in
+            segment.evidence ?? SleepEvidenceSample(sampleID: nil, start: segment.start, end: segment.end,
+                rawCategory: segment.stage.categoryValue, stage: segment.stage.evidenceStage,
+                origin: .init(sourceName: segment.source, bundleIdentifier: nil))
         }
-        let measured = normalizedSleepSegments(clipped).compactMap { segment -> RecordedSleepInterval? in
-            guard segment.stage.isAsleep || segment.stage == .awake else { return nil }
-            return .init(start: segment.start, end: segment.end, asleep: segment.stage.isAsleep)
-        }
-        return SleepIntervalCoverage.calculate(start: start, end: end, intervals: measured)
+        return SleepEvidenceResolution.calculate(start: start, end: end, samples: samples)
+    }
+
+    /// Conflicts remain unmeasured; the richer snapshot retains their reasons and original samples.
+    static func sleepCoverage(from segments: [SleepSegment], start: Date, end: Date) -> SleepIntervalCoverage? {
+        sleepEvidence(from: segments, start: start, end: end)?.coverage
     }
 
     private func fetchQuantitySamples(
