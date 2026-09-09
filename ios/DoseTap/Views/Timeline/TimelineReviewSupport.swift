@@ -144,7 +144,7 @@ struct TimelineReviewShareSnapshotView: View {
                 HealthDataSnapshotCard(snapshot: healthSnapshot)
             }
 
-            InsightsSummaryCard(title: "Last 14-Night Trends", showDefinitions: true)
+            InsightsSummaryCard(title: "Recorded-Night Trends", showDefinitions: true)
             ReviewEventsSnapshotCard(events: events)
             ExportCard(sessionKey: session.sessionDate)
 

@@ -12,6 +12,9 @@ final class DoseTapUITests: XCTestCase {
         app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
         if name.contains("testTimelineReviewMetrics") { app.launchArguments += ["--uitesting-review-metrics", "-setup_completed_v2", "YES"] }
+        if name.contains("testHistoryBathroomInsights") {
+            app.launchArguments += ["--uitesting-bathroom-insights", "--uitesting-review-metrics", "-setup_completed_v2", "YES"]
+        }
         if name.contains("testTimelineReviewMetricsPending") { app.launchArguments.append("--uitesting-review-pending") }
         if name.contains("testAutomaticNightMode") { app.launchArguments += ["--uitesting-auto-night-reset", "-setup_completed_v2", "YES"] }
         if name.contains("testCompactLayout") { app.launchArguments += ["--uitesting-layout", "-setup_completed_v2", "YES"] }
@@ -35,6 +38,25 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Dose timing: Pending. Interval: Pending."].waitForExistence(timeout: 5))
         // No tap, scroll, repository write or manual refresh crosses this boundary.
         XCTAssertTrue(app.staticTexts["Dose timing: Not recorded. Interval: Not recorded."].waitForExistence(timeout: 30))
+    }
+
+    func testHistoryBathroomInsightsCountsAndCapture() throws {
+        app.buttons["History"].tap()
+        let bathroom = app.descendants(matching: .any).matching(identifier: "insight-Bathroom Logs").firstMatch
+        XCTAssertTrue(bathroom.waitForExistence(timeout: 15))
+        XCTAssertTrue(bathroom.label.contains("3 logged"))
+        XCTAssertTrue(bathroom.label.contains("2 of 3 recorded nights"))
+        XCTAssertFalse(app.staticTexts["Avg Bathroom Wake"].exists)
+        captureDashboard("History recorded bathroom counts")
+        app.buttons["Timeline"].tap()
+        let review = app.segmentedControls.firstMatch.buttons["Review"]
+        XCTAssertTrue(review.waitForExistence(timeout: 15)); review.tap()
+        let capture = app.buttons["Share review screenshot"]
+        XCTAssertTrue(capture.waitForExistence(timeout: 10)); capture.tap()
+        XCTAssertTrue(app.navigationBars["Review Capture"].waitForExistence(timeout: 30))
+        app.buttons["Copy"].tap()
+        XCTAssertTrue(app.staticTexts["Copied to clipboard."].waitForExistence(timeout: 5))
+        captureDashboard("Review capture preserves bathroom log summary")
     }
 
     func testTimelineReviewMetricsAndCapture() throws {
@@ -127,7 +149,7 @@ final class DoseTapUITests: XCTestCase {
         app.swipeUp()
         XCTAssertEqual(heading.frame.minY, originalY, accuracy: 2, "A fitting Tonight page must not scroll into empty padding")
         app.buttons["History"].tap()
-        let titles = ["On-Time", "Avg Interval", "Natural Wake", "Avg Bathroom Wake"]
+        let titles = ["On-Time", "Avg Interval", "Natural Wake", "Bathroom Logs"]
         let cells = titles.map { app.descendants(matching: .any).matching(identifier: "insight-\($0)").firstMatch }
         XCTAssertTrue(cells[0].waitForExistence(timeout: 10))
         for cell in cells { XCTAssertEqual(cell.frame.minY, cells[0].frame.minY, accuracy: 2) }
