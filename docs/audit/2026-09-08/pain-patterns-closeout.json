@@ -1,13 +1,13 @@
 {
   "issue_identifier":"DOSETAP-61",
-  "summary":"Build 29: one pain area/side per editor save, independent nightly entries, Add another pain, explicit Remember this pain, and saved Use/Forget patterns. Use opens review, cancel records nothing, and patterns never auto-log a nightly symptom. Existing nightly storage/export retained. User requested push and protected main merge after checks.",
+  "summary":"Build 30: separate pain entries and explicit reusable Use/Forget patterns. PR 11 review caught a valid template replacement-key defect after initial hosted checks passed; fixed by separating template seeding from nightly edit identity. Changing a template area preserves the existing nightly entry. Expanded UI and 105 focused app tests passed. User requested protected main merge after fresh checks.",
   "changed_files":["ios/DoseTap/UserSettingsManager.swift", "ios/DoseTap/SettingsActions.swift", "ios/DoseTap/Views/PreSleepLogComponents.swift", "ios/DoseTap/Views/PreSleepLogBodySubstancesCard.swift", "ios/DoseTapTests/UIStateTests.swift", "ios/DoseTapTests/SessionRepositoryTests.swift", "ios/DoseTapUITests/DoseTapUITests.swift", "ios/DoseTap.xcodeproj/project.pbxproj (build only)", "docs/SSOT/README.md", "docs/plans/2026-09-08-pain-patterns.json", "docs/audit/2026-09-08/pain-patterns.md", "docs/audit/2026-09-08/pain-patterns-closeout.json"],
   "validation":[
     {"command":"SavedPainPatternTests before implementation", "result":"passed", "evidence_class":"Expected red compile failure for absent store"},
-    {"command":"tools/dt-test: SavedPainPatternTests, SessionRepositoryTests, CheckInCarryForwardTests, MedicationMutationTransactionTests", "result":"passed", "evidence_class":"104 focused iOS simulator tests, code signing disabled"},
-    {"command":"testPreSleepIndependentPainPatternsSurviveRestartWithoutAutoLogging", "result":"passed", "evidence_class":"74.136 seconds, iPhone 17 Pro iOS 26.5; screenshot inspected; initial text-row interaction failure fixed with explicit Use button"},
+    {"command":"tools/dt-test: SavedPainPatternTests, SessionRepositoryTests, CheckInCarryForwardTests, MedicationMutationTransactionTests", "result":"passed", "evidence_class":"105 focused iOS simulator tests, code signing disabled"},
+    {"command":"testPreSleepIndependentPainPatternsSurviveRestartWithoutAutoLogging", "result":"passed", "evidence_class":"Expanded identity-preservation journey passed in 70.550 seconds, iPhone 17 Pro iOS 26.5. Earlier screenshot inspected; interaction and identity fixes documented."},
     {"command":"swift build -q && swift test -q", "result":"passed", "evidence_class":"655 XCTest and 43 Swift Testing"},
-    {"command":"Plane, SSOT, architecture, dose-write, legacy-path, docs, whitespace and app-version checks", "result":"passed", "evidence_class":"Local guards; app/staging Debug/Release 0.4.19 (29)"}
+    {"command":"Plane, SSOT, architecture, dose-write, legacy-path, docs, whitespace and app-version checks", "result":"passed", "evidence_class":"Local guards; app/staging Debug/Release 0.4.19 (30)"}
   ],
   "open_gates":["Signed-device, owner and accessibility acceptance remain open; templates are not part of clinical export or a complete backup.", "One entry per area/side remains the identity contract. Multiple distinct problems in one identical area/side are deferred.", "Hosted checks and protected main merge pending. Unrelated project ordering and UI-test scheme edits excluded."],
   "acceptance_complete":false,

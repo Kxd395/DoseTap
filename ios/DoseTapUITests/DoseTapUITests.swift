@@ -880,6 +880,12 @@ final class DoseTapUITests: XCTestCase {
         proof.name = "Independent saved pain patterns reviewed for tonight"
         proof.lifetime = .keepAlways
         add(proof)
+        useBack.tap()
+        let lowerBack = app.buttons["pain-area-lower_back"]
+        reveal(lowerBack); lowerBack.tap()
+        app.navigationBars.buttons["Save"].tap()
+        XCTAssertTrue(back.exists, "Changing a template's area must preserve the existing nightly back entry")
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "night-pain-lower_back|both").firstMatch.exists)
         for key in ["mid_back|both", "ankle_foot|both"] {
             let forget = app.buttons["forget-pain-\(key)"]
             for _ in 0..<10 where !forget.isHittable { app.swipeDown() }

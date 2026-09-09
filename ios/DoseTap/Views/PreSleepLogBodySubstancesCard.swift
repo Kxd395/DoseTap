@@ -11,6 +11,7 @@ struct Card2BodySubstances: View {
     @State private var showMedicationPicker = false
     @State private var showPainEntryEditor = false
     @State private var editingPainEntry: PreSleepLogAnswers.PainEntry?
+    @State private var usingSavedPainPattern = false
     @ObservedObject private var sessionRepo = SessionRepository.shared
     @ObservedObject private var savedPainPatterns = SavedPainPatternStore.shared
     @State private var painPreferenceError: String?
@@ -157,6 +158,7 @@ struct Card2BodySubstances: View {
                                 GranularPainEntryRow(entry: entry)
                                 VStack {
                                     Button("Use") {
+                                        usingSavedPainPattern = true
                                         editingPainEntry = entry
                                         showPainEntryEditor = true
                                     }
@@ -190,6 +192,7 @@ struct Card2BodySubstances: View {
                                             .accessibilityIdentifier("night-pain-\(entry.entryKey)")
                                         Spacer(minLength: 4)
                                         Button {
+                                            usingSavedPainPattern = false
                                             editingPainEntry = entry
                                             showPainEntryEditor = true
                                         } label: {
@@ -216,6 +219,7 @@ struct Card2BodySubstances: View {
                             }
 
                             Button {
+                                usingSavedPainPattern = false
                                 editingPainEntry = nil
                                 showPainEntryEditor = true
                             } label: {
@@ -431,7 +435,7 @@ struct Card2BodySubstances: View {
             MedicationPickerView()
         }
         .sheet(isPresented: $showPainEntryEditor) {
-            GranularPainEntryEditorView(initialEntry: editingPainEntry) { result in
+            GranularPainEntryEditorView(initialEntry: editingPainEntry, replacesInitialEntry: !usingSavedPainPattern) { result in
                 upsertPainEntries(result.entries, replacingEntryKey: result.replacedEntryKey)
             }
         }

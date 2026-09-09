@@ -328,6 +328,8 @@ struct GranularPainEntryEditorView: View {
     }
 
     let initialEntry: PreSleepLogAnswers.PainEntry?
+    let replacesInitialEntry: Bool
+    var replacementEntryKey: String? { replacesInitialEntry ? initialEntry?.entryKey : nil }
     let onSave: (SaveResult) -> Void
 
     @State private var selectedAreas: Set<PreSleepLogAnswers.PainArea>
@@ -339,9 +341,11 @@ struct GranularPainEntryEditorView: View {
 
     init(
         initialEntry: PreSleepLogAnswers.PainEntry? = nil,
+        replacesInitialEntry: Bool = true,
         onSave: @escaping (SaveResult) -> Void
     ) {
         self.initialEntry = initialEntry
+        self.replacesInitialEntry = replacesInitialEntry
         self.onSave = onSave
         _selectedAreas = State(initialValue: initialEntry.map { [$0.area] } ?? [.midBack])
         _side = State(initialValue: initialEntry?.side ?? .both)
@@ -438,7 +442,7 @@ struct GranularPainEntryEditorView: View {
                         .lineLimit(2...4)
                 }
             }
-            .navigationTitle(initialEntry == nil ? "Add Pain Entry" : "Edit Pain Entry")
+            .navigationTitle(initialEntry == nil ? "Add Pain Entry" : (replacesInitialEntry ? "Edit Pain Entry" : "Review Saved Pain"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -462,7 +466,7 @@ struct GranularPainEntryEditorView: View {
                         onSave(
                             SaveResult(
                                 entries: entries,
-                                replacedEntryKey: initialEntry?.entryKey
+                                replacedEntryKey: replacementEntryKey
                             )
                         )
                         dismiss()

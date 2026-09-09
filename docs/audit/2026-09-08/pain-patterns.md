@@ -44,3 +44,19 @@ acceptance remain open. No diagnosis is inferred from sensations or notes.
 
 Pre-existing project ordering and UI-test scheme changes were present during local
 tests but are excluded from the commit. Hosted checks validate committed source.
+
+## Review follow-up: template identity
+
+PR #11's automated review identified a valid replacement-key defect after the
+initial hosted checks passed. Using a remembered pattern seeded the editor with
+the pattern's key as though it were a nightly edit. Changing its area/side could
+therefore remove an existing nightly entry under the original key.
+
+Build 30 separates the seed from replacement authority. Only an explicit nightly
+Edit supplies the old key; Use opens Review Saved Pain without that key. A new
+unit test checks both paths, and the UI journey now adds a changed-area template
+while checking that the original nightly back entry remains. The focused app
+suite passed 105 tests. The merge was held for this repair, not forced past review.
+The expanded UI journey passed in 70.550 seconds; evidence is in
+`/tmp/dosetap-pain-identity-ui.xcresult`. Core checks and all four app build
+configurations also passed for 0.4.19 (30).

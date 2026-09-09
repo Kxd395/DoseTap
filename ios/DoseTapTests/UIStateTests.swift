@@ -567,6 +567,13 @@ final class PreSleepCardStateTests: XCTestCase {
 }
 
 final class SavedPainPatternTests: XCTestCase {
+    func testTemplateSeedDoesNotSupplyNightlyReplacementIdentity() {
+        let back = PreSleepLogAnswers.PainEntry(area: .midBack, side: .both, intensity: 2, sensations: [.tightness])
+        let template = GranularPainEntryEditorView(initialEntry: back, replacesInitialEntry: false) { _ in }
+        let edit = GranularPainEntryEditorView(initialEntry: back) { _ in }
+        XCTAssertNil(template.replacementEntryKey)
+        XCTAssertEqual(edit.replacementEntryKey, back.entryKey)
+    }
     func testIndependentPatternsSurviveRestartAndForgetWithoutChangingCopies() throws {
         let suite = "pain-pattern-test-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
