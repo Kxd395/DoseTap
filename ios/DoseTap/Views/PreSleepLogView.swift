@@ -193,7 +193,7 @@ struct PreSleepLogView: View {
                     Button {
                         loadLastAnswers()
                     } label: {
-                        Text("Use last")
+                        Text("Use room setup")
                             .font(.subheadline)
                     }
                     }
@@ -298,7 +298,7 @@ struct PreSleepLogView: View {
     private func loadLastAnswers() {
         if let lastLog = sessionRepo.fetchMostRecentCompletedPreSleepLog(),
            let lastAnswers = lastLog.answers {
-            answers = lastAnswers.carriedForwardForNewNight(referenceDate: Date())
+            answers = answers.applyingRememberedRoomSetup(from: lastAnswers)
             showMoreDetails = showMoreDetails || Self.shouldExpandOptionalDetails(for: answers)
         }
     }
@@ -368,9 +368,9 @@ struct PreSleepLogView: View {
             Image(systemName: rememberLastSettings ? "checkmark.square.fill" : "square")
                 .foregroundColor(rememberLastSettings ? .green : .secondary)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Remember last pre-sleep settings")
+                Text("Remember room setup")
                     .font(.subheadline)
-                Text("Auto-apply the same pre-sleep setup next time. You can still override anything.")
+                Text("Reuse room temperature, noise setup and sleep aids. Food, drinks and other daily answers start blank.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -386,34 +386,20 @@ struct PreSleepLogView: View {
 }
 
 extension PreSleepLogAnswers {
-    func carriedForwardForNewNight(referenceDate: Date, calendar: Calendar = .current) -> PreSleepLogAnswers {
-        var carried = self
-        carried.caffeineLastIntakeAt = Self.carryTimeOfDay(caffeineLastIntakeAt, to: referenceDate, calendar: calendar)
-        carried.alcoholLastDrinkAt = Self.carryTimeOfDay(alcoholLastDrinkAt, to: referenceDate, calendar: calendar)
-        carried.exerciseLastAt = Self.carryTimeOfDay(exerciseLastAt, to: referenceDate, calendar: calendar)
-        carried.napLastEndAt = Self.carryTimeOfDay(napLastEndAt, to: referenceDate, calendar: calendar)
-        carried.lastFood = nil
-        carried.lateMeal = nil
-        carried.lateMealEndedAt = nil
-        carried.screensLastUsedAt = Self.carryTimeOfDay(screensLastUsedAt, to: referenceDate, calendar: calendar)
-        return carried
+    func carriedForwardForNewNight(referenceDate _: Date, calendar _: Calendar = .current) -> PreSleepLogAnswers {
+        // Allowlist reusable setup. New questionnaire fields are never copied by default.
+        PreSleepLogAnswers().applyingRememberedRoomSetup(from: self)
     }
 
-    private static func carryTimeOfDay(_ source: Date?, to referenceDate: Date, calendar: Calendar) -> Date? {
-        guard let source else { return nil }
-        let dateComponents = calendar.dateComponents([.year, .month, .day], from: referenceDate)
-        let timeComponents = calendar.dateComponents([.hour, .minute, .second, .nanosecond], from: source)
-        var carried = DateComponents()
-        carried.calendar = calendar
-        carried.timeZone = calendar.timeZone
-        carried.year = dateComponents.year
-        carried.month = dateComponents.month
-        carried.day = dateComponents.day
-        carried.hour = timeComponents.hour
-        carried.minute = timeComponents.minute
-        carried.second = timeComponents.second
-        carried.nanosecond = timeComponents.nanosecond
-        return calendar.date(from: carried)
+    func applyingRememberedRoomSetup(from previous: PreSleepLogAnswers) -> PreSleepLogAnswers {
+        var updated = self
+        if updated.roomTemp == nil { updated.roomTemp = previous.roomTemp }
+        if updated.noiseLevel == nil { updated.noiseLevel = previous.noiseLevel }
+        if updated.sleepAids == nil && updated.sleepAidSelections == nil {
+            updated.sleepAids = previous.sleepAids
+            updated.sleepAidSelections = previous.sleepAidSelections
+        }
+        return updated
     }
 }
 

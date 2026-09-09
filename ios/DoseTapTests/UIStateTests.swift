@@ -567,7 +567,7 @@ final class PreSleepCardStateTests: XCTestCase {
 }
 
 final class CheckInCarryForwardTests: XCTestCase {
-    func test_preSleepCarryForwardMovesTimesToReferenceDayAndPreservesAnswers() throws {
+    func test_preSleepCarryForwardKeepsOnlyReusableRoomSetup() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         let sourceDate = try XCTUnwrap(AppFormatters.parseISO8601Flexible("2026-01-10T02:15:00Z"))
@@ -582,6 +582,17 @@ final class CheckInCarryForwardTests: XCTestCase {
         answers.caffeineLastIntakeAt = sourceDate
         answers.caffeineLastAmountMg = 12
         answers.caffeineDailyTotalMg = 24
+        answers.alcohol = .one
+        answers.alcoholLastDrinkAt = sourceDate
+        answers.alcoholLastAmountDrinks = 1
+        answers.alcoholDailyTotalDrinks = 1
+        answers.plannedTotalNightlyMg = 9000
+        answers.plannedDose1Mg = 4500
+        answers.plannedDose2Mg = 4500
+        answers.plannedDoseSplitRatio = [0.5, 0.5]
+        answers.napCount = 2
+        answers.napTotalMinutes = 40
+        answers.napLastEndAt = sourceDate
         answers.exercise = .light
         answers.exerciseLastAt = sourceDate.addingTimeInterval(-3600)
         answers.screensInBed = .briefly
@@ -593,25 +604,56 @@ final class CheckInCarryForwardTests: XCTestCase {
 
         let carried = answers.carriedForwardForNewNight(referenceDate: referenceDate, calendar: calendar)
 
-        XCTAssertEqual(carried.intendedSleepTime, .thirtyMin)
-        XCTAssertEqual(carried.stressLevel, 3)
-        XCTAssertEqual(carried.stressDrivers, [.work, .health])
-        XCTAssertEqual(carried.stimulants, .coffee)
-        XCTAssertEqual(carried.caffeineLastAmountMg, 12)
-        XCTAssertEqual(carried.caffeineDailyTotalMg, 24)
-        XCTAssertEqual(carried.exercise, .light)
         XCTAssertEqual(carried.roomTemp, .cool)
         XCTAssertEqual(carried.noiseLevel, .quiet)
         XCTAssertEqual(carried.sleepAidSelections, [.fan])
-        XCTAssertEqual(carried.stressNotes, answers.stressNotes)
-        XCTAssertEqual(carried.notes, answers.notes)
+        let encoded = try JSONEncoder().encode(carried)
+        let fields = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        XCTAssertEqual(Set(fields.keys), Set(["roomTemp", "noiseLevel", "sleepAidSelections"]))
+        // Carry-forward never mutates the previous night's stored answers.
+        XCTAssertEqual(answers.caffeineLastIntakeAt, sourceDate)
+        XCTAssertEqual(answers.stressNotes, "one-off stress note")
+    }
 
-        let caffeineComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: try XCTUnwrap(carried.caffeineLastIntakeAt))
-        XCTAssertEqual(caffeineComponents.year, 2026)
-        XCTAssertEqual(caffeineComponents.month, 1)
-        XCTAssertEqual(caffeineComponents.day, 15)
-        XCTAssertEqual(caffeineComponents.hour, 2)
-        XCTAssertEqual(caffeineComponents.minute, 15)
+    func test_preSleepNoAlcoholAndNoCaffeineRequireFreshAnswers() throws {
+        var previous = DoseTap.PreSleepLogAnswers()
+        previous.alcohol = DoseTap.PreSleepLogAnswers.AlcoholLevel.none
+        previous.stimulants = DoseTap.PreSleepLogAnswers.Stimulants.none
+        let fresh = previous.carriedForwardForNewNight(referenceDate: Date(timeIntervalSince1970: 0))
+        XCTAssertNil(fresh.alcohol)
+        XCTAssertNil(fresh.stimulants)
+        XCTAssertFalse(fresh.hasCaffeineIntake)
+    }
+
+    func test_existingPreSleepAnswersRoundTripWithoutApplyingNewNightDefaults() throws {
+        var previous = DoseTap.PreSleepLogAnswers()
+        previous.alcohol = .one
+        previous.caffeineLastIntakeAt = Date(timeIntervalSince1970: 100)
+        previous.notes = "Existing night, not a new observation"
+        let encoded = try JSONEncoder().encode(previous)
+        let reopened = try JSONDecoder().decode(DoseTap.PreSleepLogAnswers.self, from: encoded)
+        XCTAssertEqual(reopened.alcohol, .one)
+        XCTAssertEqual(reopened.caffeineLastIntakeAt, previous.caffeineLastIntakeAt)
+        XCTAssertEqual(reopened.notes, previous.notes)
+    }
+
+    func test_applyingRoomSetupDoesNotOverwriteCurrentOrHistoryAnswers() throws {
+        var previous = DoseTap.PreSleepLogAnswers()
+        previous.roomTemp = .cool
+        previous.noiseLevel = .quiet
+        previous.sleepAidSelections = [.fan]
+        previous.stressNotes = "Yesterday"
+        previous.alcohol = .one
+        var current = DoseTap.PreSleepLogAnswers()
+        current.stressNotes = "Today's answer"
+        current.alcohol = DoseTap.PreSleepLogAnswers.AlcoholLevel.none
+        current.sleepAidSelections = [.earplugs]
+        let merged = current.applyingRememberedRoomSetup(from: previous)
+        XCTAssertEqual(merged.roomTemp, .cool)
+        XCTAssertEqual(merged.stressNotes, "Today's answer")
+        XCTAssertEqual(merged.alcohol, DoseTap.PreSleepLogAnswers.AlcoholLevel.none)
+        XCTAssertEqual(merged.sleepAidSelections, [.earplugs])
+        XCTAssertEqual(previous.stressNotes, "Yesterday")
     }
 
     @MainActor

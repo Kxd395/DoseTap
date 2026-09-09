@@ -281,7 +281,7 @@ final class DoseTapUITests: XCTestCase {
         openHistory()
         openQuestionnaire("history-pre-sleep-questionnaire")
         XCTAssertFalse(app.buttons["Skip for tonight"].exists)
-        XCTAssertFalse(app.buttons["Use last"].exists)
+        XCTAssertFalse(app.buttons["Use room setup"].exists)
         app.buttons["Next"].tap(); app.buttons["Next"].tap()
         let foodToggle = app.switches["pre-last-food-toggle"]
         reveal(foodToggle); foodToggle.tap()
@@ -756,7 +756,7 @@ final class DoseTapUITests: XCTestCase {
         let bottle = app.buttons["preSleepStartedNewBottle"]
         XCTAssertTrue(bottle.waitForExistence(timeout: 5))
         XCTAssertTrue(bottle.isHittable, "Bottle opening must be visible without scrolling")
-        let remembered = app.staticTexts["Remember last pre-sleep settings"]
+        let remembered = app.staticTexts["Remember room setup"]
         XCTAssertLessThan(bottle.frame.minY, remembered.frame.minY)
         bottle.tap()
         app.navigationBars["New bottle"].buttons["Cancel"].tap()
@@ -779,7 +779,7 @@ final class DoseTapUITests: XCTestCase {
         proof.name = "Bottle opening first in pre-sleep check"
         proof.lifetime = .keepAlways
         add(proof)
-        app.buttons["Use last"].tap()
+        app.buttons["Use room setup"].tap()
         XCTAssertEqual(saved.label, savedLabel)
         app.buttons["Next"].tap()
         app.buttons["Back"].tap()

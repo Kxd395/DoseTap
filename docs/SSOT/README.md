@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-08
 SSOT revision: 0.4.19
-Shipping app version observed in the Xcode project: 0.4.19 (build 25)
+Shipping app version observed in the Xcode project: 0.4.19 (build 26)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -27,6 +27,13 @@ Notes:
 ---
 
 ## Domain Entities and Invariants
+
+### Fresh pre-sleep answers (DOSETAP-51)
+
+- A new pre-sleep form may remember room temperature, noise setup and non-medication sleep aids only. The existing preference now says "Remember room setup". Intended sleep timing, daily stress/pain/notes, caffeine, alcohol (including None), food, exercise, naps, screen use and questionnaire dose-plan values are not copied from a previous night.
+- "Use room setup" fills only unanswered room-setup fields; it must not erase current answers or replace existing room choices. Opening an existing log or a History correction preserves that log's original answers. No previous stored row is changed by preparing a new form.
+- This slice removes cross-night answer copying. Substance-entry default quantities/times, optional amount entry, legacy adapters and unit migration remain follow-up work under DOSETAP-51/52; do not describe all consumption defaults as repaired yet.
+- Apple Health data, medication records, alarm behavior and quick logs are unchanged by this repair.
 
 ### Last food in pre-sleep logging (DOSETAP-50)
 
