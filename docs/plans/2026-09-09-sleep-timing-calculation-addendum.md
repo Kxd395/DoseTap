@@ -1,9 +1,13 @@
 # DoseTap: sleep timing markers and calculation addendum
 
-Date: 2026-09-09  
-Revision: 1.2, adopted implementation plan  
-Status: Accepted plan for DOSETAP-56/57. Only behavior promoted into SSOT is implemented; phone acceptance remains separate.  
-Related plan: `docs/plans/2026-09-08-sleep-markers-roadmap.md`  
+Date: 2026-09-09
+
+Revision: 1.2, adopted implementation plan
+
+Status: Accepted plan for DOSETAP-56/57. Only behavior promoted into SSOT is implemented; phone acceptance remains separate.
+
+Related plan: `docs/plans/2026-09-08-sleep-markers-roadmap.md`
+
 Location: `docs/plans/2026-09-09-sleep-timing-calculation-addendum.md`
 
 ## 1. Main requirement
@@ -302,4 +306,3 @@ Before consumer integration, define deterministic source selection without claim
 - Existing medication confirmation, cancellation, backgrounding and persistence tests remain independent release gates.
 
 These decisions refine the supplied formulas; they do not turn estimates into medication-effectiveness measures. The original two review files remain unchanged in the preserved checkout.
-

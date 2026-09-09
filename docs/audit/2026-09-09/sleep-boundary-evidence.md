@@ -30,6 +30,8 @@ Targeted command form: `xcodebuild test -project ios/DoseTap.xcodeproj -scheme D
 
 ## Remaining acceptance
 
+PR review follow-up: the initial worktree-only whitespace check did not include the newly copied plan. The review found trailing Markdown spaces and a blank EOF in the committed addition; these were removed and the complete `git diff --check ced7ab13 HEAD` range is now part of closeout. A new test also reproduced input-order dependence between different unknown categories/sources. Equal-priority slices now use a stable source-name then raw-category tie-break, explicitly not a device-accuracy preference. `/tmp/dosetap56-tie-red.xcresult` records the failing case; `/tmp/dosetap56-review-green.xcresult` records 98 passing HealthKit/dashboard/medication tests after correction. Core tests and the generic simulator build were rerun and passed.
+
 DOSETAP-56 remains In Progress. The largest-cluster selector, its existing duration/gap thresholds, raw wake count and primary-episode biometric range are unchanged. Reviewed treatment-night aggregation, overlapping-sample queries/clipping, full raw sample identity/source revisions, conflict selection, read-state wording and complete per-metric missingness remain open. Do not label this slice as completion of those requirements.
 
 DOSETAP-57 remains Todo: shared dose-to-sleep/return calculator, associated awakening episodes/counts, marker detail, same-night Timeline/History/dashboard/export/Studio parity and correction invalidation remain to implement. The synthetic 02:40 / 02:48 / 03:02 example still belongs to that work.

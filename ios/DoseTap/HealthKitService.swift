@@ -88,6 +88,18 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
             default: return false
             }
         }
+
+        var categoryValue: Int {
+            switch self {
+            case .inBed: return HKCategoryValueSleepAnalysis.inBed.rawValue
+            case .asleep: return HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue
+            case .asleepCore: return HKCategoryValueSleepAnalysis.asleepCore.rawValue
+            case .asleepDeep: return HKCategoryValueSleepAnalysis.asleepDeep.rawValue
+            case .asleepREM: return HKCategoryValueSleepAnalysis.asleepREM.rawValue
+            case .awake: return HKCategoryValueSleepAnalysis.awake.rawValue
+            case .unknown(let value): return value
+            }
+        }
     }
     
     struct SleepSegment {
@@ -549,6 +561,13 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
             .filter { $0.overlap > 0 }
             .max { lhs, rhs in
                 if lhs.overlap == rhs.overlap {
+                    if lhs.priority == rhs.priority {
+                        // Stable bookkeeping, not a ranking of device accuracy.
+                        if lhs.segment.source != rhs.segment.source {
+                            return lhs.segment.source > rhs.segment.source
+                        }
+                        return lhs.segment.stage.categoryValue > rhs.segment.stage.categoryValue
+                    }
                     return lhs.priority < rhs.priority
                 }
                 return lhs.overlap < rhs.overlap

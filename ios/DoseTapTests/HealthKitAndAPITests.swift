@@ -254,6 +254,20 @@ final class HealthKitProviderTests: XCTestCase {
         XCTAssertEqual(HealthKitService.mapToDisplayStage(.asleepDeep), .deep)
     }
 
+    func test_unknownCategoryAndSourceTiesAreDeterministic() {
+        let start = Date(timeIntervalSince1970: 1_788_200_000)
+        func sample(_ value: Int, _ source: String) -> HealthKitService.SleepSegment {
+            .init(start: start, end: start.addingTimeInterval(600), stage: .unknown(value), source: source)
+        }
+        let inputs = [sample(999, "A"), sample(1000, "A"), sample(998, "B")]
+        for order in [inputs, Array(inputs.reversed()), [inputs[1], inputs[2], inputs[0]], inputs + inputs] {
+            let result = HealthKitService.normalizedSleepSegments(order)
+            XCTAssertEqual(result.count, 1)
+            XCTAssertEqual(result.first?.stage, .unknown(999))
+            XCTAssertEqual(result.first?.source, "A")
+        }
+    }
+
     func test_primaryBoundaryAcrossDSTUsesAbsoluteInstants() throws {
         let parser = ISO8601DateFormatter()
         let start = try XCTUnwrap(parser.date(from: "2026-11-01T00:30:00-04:00"))
