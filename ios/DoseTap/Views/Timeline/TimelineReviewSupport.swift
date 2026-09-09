@@ -1,6 +1,97 @@
 import SwiftUI
 import DoseCore
 
+/// Materialize the bitmap before the short-lived renderer is released.
+@MainActor
+func renderTimelineReviewCapture<Content: View>(_ content: Content, scale: CGFloat) -> UIImage? {
+    let renderer = ImageRenderer(content: content)
+    renderer.scale = scale
+    var image: UIImage?
+    renderer.render(rasterizationScale: scale) { size, draw in
+        guard size.width.isFinite, size.height.isFinite, size.width > 1, size.height > 1 else { return }
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = scale
+        image = UIGraphicsImageRenderer(size: size, format: format).image { context in
+            context.cgContext.translateBy(x: 0, y: size.height)
+            context.cgContext.scaleBy(x: 1, y: -1)
+            draw(context.cgContext)
+        }
+    }
+    guard let image, let pixels = image.cgImage, captureHasPaintedPixels(pixels) else { return nil }
+    return image
+}
+
+/// Inspect alpha rather than color: a solid black capture is valid, a transparent one is not.
+func captureHasPaintedPixels(_ image: CGImage) -> Bool {
+    var rgba = [UInt8](repeating: 0, count: image.width * image.height * 4)
+    return rgba.withUnsafeMutableBytes { buffer in
+        guard let context = CGContext(data: buffer.baseAddress, width: image.width, height: image.height,
+                                      bitsPerComponent: 8, bytesPerRow: image.width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        return stride(from: 3, to: buffer.count, by: 4).contains { buffer[$0] != 0 }
+    }
+}
+
+/// Read-only labels for Review and capture. Reuses the canonical timing rules;
+/// quick-log counts never stand in for measured awake intervals.
+struct TimelineReviewMetrics {
+    let session: SessionSummary
+    let events: [StoredSleepEvent]
+    let now: Date
+
+    var timing: MedicationTiming? {
+        guard !session.dose2Skipped, let first = session.dose1Time, let second = session.dose2Time else { return nil }
+        return MedicationTiming.classify(dose1: first, dose2: second)
+    }
+
+    var statusText: String {
+        if session.dose2Skipped {
+            return session.dose2Time == nil ? "Skipped" : "Conflicting records"
+        }
+        guard let first = session.dose1Time else {
+            return session.dose2Time == nil ? "No doses" : "Dose 1 missing"
+        }
+        if let timing {
+            switch timing {
+            case .early: return "Early"
+            case .inWindow: return "In-window"
+            case .late: return "Late"
+            case .invalid: return "Invalid pair"
+            }
+        }
+        let elapsed = now.timeIntervalSince(first)
+        guard elapsed.isFinite, elapsed >= 0 else { return "Invalid time" }
+        return MedicationTiming.classify(elapsedSeconds: elapsed) == .late ? "Not recorded" : "Pending"
+    }
+
+    var intervalText: String {
+        guard let timing else { return statusText }
+        guard timing != .invalid, let first = session.dose1Time, let second = session.dose2Time else { return "Unavailable" }
+        return Self.duration(second.timeIntervalSince(first))
+    }
+
+    var bathroomText: String { "\(count(types: ["bathroom"])) logged" }
+    var disruptionText: String { "\(count(types: ["bathroom", "wake_temp", "noise", "pain", "anxiety"])) logged" }
+
+    var loggedRestText: String {
+        guard let start = events.filter({ normalizeStoredEventType($0.eventType) == "lights_out" }).map(\.timestamp).min(),
+              let end = events.filter({ normalizeStoredEventType($0.eventType) == "wake_final" }).map(\.timestamp).max()
+        else { return "Unavailable" }
+        return Self.duration(end.timeIntervalSince(start))
+    }
+
+    private func count(types: Set<String>) -> Int {
+        events.filter { types.contains(normalizeStoredEventType($0.eventType)) }.count
+    }
+
+    private static func duration(_ seconds: TimeInterval) -> String {
+        guard seconds.isFinite, seconds >= 0, seconds / 60 < Double(Int.max) else { return "Unavailable" }
+        let minutes = Int((seconds / 60).rounded(.down))
+        return "\(minutes / 60)h \(minutes % 60)m"
+    }
+}
+
 struct ReviewSnapshotSleepTimeline {
     let stages: [SleepStageBand]
     let start: Date
@@ -8,6 +99,7 @@ struct ReviewSnapshotSleepTimeline {
 }
 
 struct TimelineReviewShareSnapshotView: View {
+    private let generatedAt = Date()
     let session: SessionSummary
     let events: [StoredSleepEvent]
     let nightDate: Date
@@ -20,7 +112,7 @@ struct TimelineReviewShareSnapshotView: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("DoseTap Timeline Review")
                 .font(.headline)
-            Text("Generated \(Date().formatted(date: .abbreviated, time: .shortened))")
+            Text("Generated \(generatedAt.formatted(date: .abbreviated, time: .shortened))")
                 .font(.caption2)
                 .foregroundColor(.secondary)
 
@@ -31,11 +123,11 @@ struct TimelineReviewShareSnapshotView: View {
                 hasMorningCheckIn: hasMorningCheckIn
             )
 
-            CoachSummaryCard(session: session, events: events)
+            CoachSummaryCard(session: session, events: events, now: generatedAt)
 
             DoseTimingCard(sessionKey: session.sessionDate)
             NightScoreCard(sessionKey: session.sessionDate)
-            ReviewKeyMetricsCard(session: session, events: events)
+            ReviewKeyMetricsCard(session: session, events: events, now: generatedAt)
             PreSleepLogCard(sessionKey: session.sessionDate)
             MorningCheckInCard(sessionKey: session.sessionDate)
 

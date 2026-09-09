@@ -134,70 +134,29 @@ struct ReviewStickyHeaderBar: View {
 struct CoachSummaryCard: View {
     let session: SessionSummary
     let events: [StoredSleepEvent]
+    let now: Date
 
     private var hasAnySessionData: Bool {
-        session.dose1Time != nil || session.dose2Time != nil || !events.isEmpty
+        session.dose1Time != nil || session.dose2Time != nil || session.dose2Skipped || !events.isEmpty
     }
 
-    private var doseWindow: (open: Date, close: Date)? {
-        guard let dose1 = session.dose1Time else { return nil }
-        return (dose1.addingTimeInterval(150 * 60), dose1.addingTimeInterval(240 * 60))
-    }
-
-    private var lightsOutTime: Date? {
-        events
-            .filter { normalizeStoredEventType($0.eventType) == "lights_out" }
-            .map(\.timestamp)
-            .min()
+    private var metrics: TimelineReviewMetrics {
+        TimelineReviewMetrics(session: session, events: events, now: now)
     }
 
     private var totalInBedText: String {
-        guard
-            let lightsOut = lightsOutTime,
-            let wake = events
-                .filter({ normalizeStoredEventType($0.eventType) == "wake_final" })
-                .map(\.timestamp)
-                .max()
-        else {
-            if !hasAnySessionData {
-                return "No session data recorded."
-            }
-            return session.intervalMinutes.map { "Dose interval was \(TimeIntervalMath.formatMinutes($0))." }
-                ?? "Session data captured."
-        }
-        let minutes = TimeIntervalMath.minutesBetween(start: lightsOut, end: wake)
-        return "Top outcome: \(TimeIntervalMath.formatMinutes(minutes)) in bed."
+        "Dose timing: \(metrics.statusText). Interval: \(metrics.intervalText)."
     }
 
     private var frictionText: String {
-        let disruptions = events.filter {
-            let normalized = normalizeStoredEventType($0.eventType)
-            return normalized == "bathroom" || normalized == "wake_temp" || normalized == "noise" || normalized == "pain"
-        }
-        if !hasAnySessionData {
-            return "Biggest friction: insufficient data logged."
-        }
-        if disruptions.isEmpty {
-            return "Biggest friction: no major disruptions logged."
-        }
-        return "Biggest friction: \(disruptions.count) overnight disruptions logged."
+        "Disruption logs: \(metrics.disruptionText). Logs do not measure awake duration."
     }
 
     private var actions: [String] {
         var suggestions: [String] = []
 
         if !hasAnySessionData {
-            return ["Log lights out, final wake, and only meaningful overnight disruptions tonight."]
-        }
-
-        if let window = doseWindow, let lightsOut = lightsOutTime {
-            if lightsOut < window.open || lightsOut > window.close {
-                suggestions.append("Aim lights-out inside the window (\(window.open.formatted(date: .omitted, time: .shortened))-\(window.close.formatted(date: .omitted, time: .shortened))).")
-            }
-        }
-
-        if let interval = session.intervalMinutes, !(MedicationTiming.classify(elapsedSeconds: Double(interval) * 60) == .inWindow) {
-            suggestions.append("Move Dose 2 toward the 150-240 minute window after Dose 1.")
+            return ["No manual session data recorded for this night."]
         }
 
         if !buildStoredEventDuplicateGroups(events: events).isEmpty {
@@ -205,7 +164,7 @@ struct CoachSummaryCard: View {
         }
 
         if suggestions.isEmpty {
-            suggestions.append("Keep timing consistent tonight and log only meaningful wake events.")
+            suggestions.append("Use History to review or correct recorded times. Missing logs remain unknown.")
         }
 
         return Array(suggestions.prefix(2))
@@ -213,7 +172,7 @@ struct CoachSummaryCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Coach Summary")
+            Text("Recorded Summary")
                 .font(.headline)
             Text(totalInBedText)
                 .font(.subheadline)
@@ -221,7 +180,7 @@ struct CoachSummaryCard: View {
                 .font(.subheadline)
                 .foregroundColor(.secondary)
             Divider()
-            Text("Tonight's focus")
+            Text("Record review")
                 .font(.subheadline.bold())
             ForEach(actions, id: \.self) { action in
                 HStack(alignment: .top, spacing: 8) {
@@ -355,61 +314,27 @@ struct MergedNightTimelineCard: View {
 }
 
 struct ReviewKeyMetricsCard: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let session: SessionSummary
     let events: [StoredSleepEvent]
+    let now: Date
 
-    private var doseIntervalText: String {
-        guard let minutes = session.intervalMinutes else {
-            if session.dose1Time == nil {
-                return "No doses"
-            }
-            if session.dose2Skipped {
-                return "Skipped"
-            }
-            return "Pending"
-        }
-        let h = minutes / 60
-        let m = minutes % 60
-        return "\(h)h \(m)m"
+    var metrics: TimelineReviewMetrics {
+        TimelineReviewMetrics(session: session, events: events, now: now)
+    }
+
+    private var metricLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: 12))
+            : AnyLayout(HStackLayout(spacing: 12))
     }
 
     private var doseIntervalColor: Color {
-        guard let minutes = session.intervalMinutes else {
-            return session.dose2Skipped ? .orange : .gray
+        switch metrics.timing {
+        case .inWindow: return .blue
+        case .early, .late, .invalid: return .orange
+        case nil: return .secondary
         }
-        if (MedicationTiming.classify(elapsedSeconds: Double(minutes) * 60) == .inWindow) {
-            return .green
-        }
-        return .red
-    }
-
-    private var isOnTime: Bool {
-        guard let minutes = session.intervalMinutes else { return false }
-        return (MedicationTiming.classify(elapsedSeconds: Double(minutes) * 60) == .inWindow)
-    }
-
-    private var bathroomCount: Int {
-        events.filter { normalizeStoredEventType($0.eventType) == "bathroom" }.count
-    }
-
-    private var estimatedWASO: String {
-        let count = bathroomCount
-        guard count > 0 else { return "0 min" }
-        return "\(count * 5) min"
-    }
-
-    private var lightsOutTime: Date? {
-        events
-            .filter { normalizeStoredEventType($0.eventType) == "lights_out" }
-            .map(\.timestamp)
-            .min()
-    }
-
-    private var finalWakeTime: Date? {
-        events
-            .filter { normalizeStoredEventType($0.eventType) == "wake_final" }
-            .map(\.timestamp)
-            .max()
     }
 
     private var wakeToDose1Metric: WakeToDose1Metric? {
@@ -421,22 +346,7 @@ struct ReviewKeyMetricsCard: View {
     }
 
     private var wakeToDose1Text: String {
-        wakeToDose1Metric?.formattedInterval ?? "No wake"
-    }
-
-    private var timeInBedText: String {
-        guard let lightsOutTime, let finalWakeTime else { return "—" }
-        let minutes = TimeIntervalMath.minutesBetween(start: lightsOutTime, end: finalWakeTime)
-        let h = minutes / 60
-        let m = minutes % 60
-        return "\(h)h \(m)m"
-    }
-
-    private var disruptionCount: Int {
-        events.filter {
-            let name = normalizeStoredEventType($0.eventType)
-            return name == "bathroom" || name == "wake_temp" || name == "noise" || name == "pain" || name == "anxiety"
-        }.count
+        wakeToDose1Metric?.formattedInterval ?? "Not logged"
     }
 
     var body: some View {
@@ -445,31 +355,25 @@ struct ReviewKeyMetricsCard: View {
                 Text("Key Metrics")
                     .font(.headline)
                 Spacer()
-                if session.dose1Time != nil {
-                    HStack(spacing: 4) {
-                        Image(systemName: isOnTime ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
-                            .foregroundColor(isOnTime ? .green : .orange)
-                            .font(.caption)
-                        Text(isOnTime ? "On-Time" : "Off-Window")
-                            .font(.caption)
-                            .foregroundColor(isOnTime ? .green : .orange)
-                    }
-                }
+                Text(metrics.statusText)
+                    .font(.caption)
+                    .foregroundColor(doseIntervalColor)
+                    .accessibilityLabel("Dose timing: \(metrics.statusText)")
             }
 
-            HStack(spacing: 12) {
+            metricLayout {
                 ReviewMetricTile(
                     title: "Dose Interval",
-                    value: doseIntervalText,
+                    value: metrics.intervalText,
                     icon: "clock.fill",
                     color: doseIntervalColor
                 )
 
                 ReviewMetricTile(
-                    title: "Time in Bed",
-                    value: timeInBedText,
+                    title: "Lights-out to Wake",
+                    value: metrics.loggedRestText,
                     icon: "bed.double.fill",
-                    color: lightsOutTime != nil && finalWakeTime != nil ? .blue : .gray
+                    color: .blue
                 )
             }
 
@@ -486,21 +390,26 @@ struct ReviewKeyMetricsCard: View {
                     .foregroundColor(wakeToDose1Metric == nil ? .secondary : .primary)
             }
 
-            HStack(spacing: 12) {
+            metricLayout {
                 ReviewMetricTile(
-                    title: "Disruptions",
-                    value: disruptionCount == 0 ? "None" : "\(disruptionCount)",
+                    title: "Disruption Logs",
+                    value: metrics.disruptionText,
                     icon: "exclamationmark.circle.fill",
-                    color: disruptionCount == 0 ? .green : (disruptionCount <= 2 ? .yellow : .orange)
+                    color: .purple
                 )
 
                 ReviewMetricTile(
-                    title: "Est. WASO",
-                    value: estimatedWASO,
-                    icon: "moon.zzz.fill",
-                    color: bathroomCount == 0 ? .green : .purple
+                    title: "Bathroom Logs",
+                    value: metrics.bathroomText,
+                    icon: "list.bullet",
+                    color: .purple
                 )
             }
+
+            Text("Log counts are not awake minutes. Lights-out to wake is logged elapsed time, not measured sleep.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             if session.snoozeCount > 0 {
                 HStack(spacing: 6) {
@@ -535,13 +444,16 @@ private struct ReviewMetricTile: View {
             Text(value)
                 .font(.system(.subheadline, design: .rounded).bold())
                 .multilineTextAlignment(.center)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .fixedSize(horizontal: false, vertical: true)
             Text(title)
                 .font(.caption2)
                 .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 4)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(title): \(value)")
     }
 }

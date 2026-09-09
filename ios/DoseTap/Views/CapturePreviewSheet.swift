@@ -22,6 +22,7 @@ struct CapturePreviewSheet: View {
                         .frame(maxWidth: .infinity)
                         .padding(8)
                 }
+                .clipped()
                 .background(
                     RoundedRectangle(cornerRadius: 16)
                         .fill(Color(.secondarySystemBackground))

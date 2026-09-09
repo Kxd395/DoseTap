@@ -11,6 +11,8 @@ final class DoseTapUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
+        if name.contains("testTimelineReviewMetrics") { app.launchArguments += ["--uitesting-review-metrics", "-setup_completed_v2", "YES"] }
+        if name.contains("testTimelineReviewMetricsPending") { app.launchArguments.append("--uitesting-review-pending") }
         if name.contains("testAutomaticNightMode") { app.launchArguments += ["--uitesting-auto-night-reset", "-setup_completed_v2", "YES"] }
         if name.contains("testCompactLayout") { app.launchArguments += ["--uitesting-layout", "-setup_completed_v2", "YES"] }
         if name.contains("testSupply") || name.contains("testSystemAlarm") || name.contains("testPreSleep") { app.launchArguments += ["-setup_completed_v2", "YES"] }
@@ -24,6 +26,35 @@ final class DoseTapUITests: XCTestCase {
 
     override func tearDownWithError() throws {
         app = nil
+    }
+
+    func testTimelineReviewMetricsPendingUpdatesWithoutInteraction() throws {
+        app.buttons["Timeline"].tap()
+        let review = app.segmentedControls.firstMatch.buttons["Review"]
+        XCTAssertTrue(review.waitForExistence(timeout: 15)); review.tap()
+        XCTAssertTrue(app.staticTexts["Dose timing: Pending. Interval: Pending."].waitForExistence(timeout: 5))
+        // No tap, scroll, repository write or manual refresh crosses this boundary.
+        XCTAssertTrue(app.staticTexts["Dose timing: Not recorded. Interval: Not recorded."].waitForExistence(timeout: 30))
+    }
+
+    func testTimelineReviewMetricsAndCapture() throws {
+        app.buttons["Timeline"].tap()
+        let review = app.segmentedControls.firstMatch.buttons["Review"]
+        XCTAssertTrue(review.waitForExistence(timeout: 15)); review.tap()
+        let bathroom = app.descendants(matching: .any).matching(identifier: "Bathroom Logs: 2 logged").firstMatch
+        for _ in 0..<12 where !bathroom.isHittable { app.swipeUp() }
+        XCTAssertTrue(bathroom.isHittable)
+        XCTAssertTrue(app.staticTexts["Dose timing: Late"].exists)
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "Dose Interval: 4h 0m").firstMatch.exists)
+        XCTAssertFalse(app.staticTexts["Est. WASO"].exists)
+        captureDashboard("Timeline exact late boundary and bathroom log counts")
+        let capture = app.buttons["Share review screenshot"]
+        for _ in 0..<14 where !capture.isHittable { app.swipeDown() }
+        XCTAssertTrue(capture.isHittable); capture.tap()
+        XCTAssertTrue(app.navigationBars["Review Capture"].waitForExistence(timeout: 30))
+        app.buttons["Copy"].tap()
+        XCTAssertTrue(app.staticTexts["Copied to clipboard."].waitForExistence(timeout: 5))
+        captureDashboard("Timeline Review generated capture with shared metrics")
     }
 
     func testAutomaticNightModeRecordsRestartsAndRestoresAtWake() throws {

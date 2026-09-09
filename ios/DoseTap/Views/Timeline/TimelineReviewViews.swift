@@ -15,6 +15,7 @@ struct TimelineReviewDetailView: View {
     @State private var showReviewShareSheet = false
     @State private var isPreparingReviewShare = false
     @State private var reviewShareErrorMessage: String?
+    @State private var reviewNow = Date()
 
     init(core: DoseTapCore, initialSessionKey: String) {
         self.core = core
@@ -67,14 +68,15 @@ struct TimelineReviewDetailView: View {
 
                     CoachSummaryCard(
                         session: session,
-                        events: reviewEvents
+                        events: reviewEvents,
+                        now: reviewNow
                     )
 
                     DoseTimingCard(sessionKey: session.sessionDate)
 
                     NightScoreCard(sessionKey: session.sessionDate)
 
-                    ReviewKeyMetricsCard(session: session, events: reviewEvents)
+                    ReviewKeyMetricsCard(session: session, events: reviewEvents, now: reviewNow)
 
                     PreSleepLogCard(sessionKey: session.sessionDate)
 
@@ -139,6 +141,8 @@ struct TimelineReviewDetailView: View {
             .padding(.bottom, 24)
         }
         .navigationTitle("Full Review")
+        .onAppear { reviewNow = Date() }
+        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { reviewNow = $0 }
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbarBackground(Color(.systemBackground), for: .navigationBar)
