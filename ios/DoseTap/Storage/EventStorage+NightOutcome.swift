@@ -4,7 +4,8 @@ import DoseCore
 
 extension SessionRepository {
     func collectedNightSummary(for key: String, intervals: [RecordedSleepInterval] = [],
-                               providerFinalWake: Date? = nil) throws -> CollectedNightSummary {
+                               providerFinalWake: Date? = nil,
+                               windowAssessment: ReviewedWindowAssessment? = nil) throws -> CollectedNightSummary {
         let dose = fetchDoseLog(forSession: key)
         let food = fetchPreSleepLog(forSessionDate: key)?.answers?.lastFood
         let record = try nightOutcomeSnapshot(sessionDate: key).record
@@ -23,7 +24,7 @@ extension SessionRepository {
         result.sleepinessAssessedAt = record?.answers.assessedAt
         result.outcomeRecordedAt = record?.recordedAt
         result.reviewedSleepWindow = record?.answers.reviewedSleepWindow
-        result.reviewedWindowAssessment = reviewedWindowAssessment(sessionDate: key)
+        result.reviewedWindowAssessment = windowAssessment ?? reviewedWindowAssessment(sessionDate: key)
         result.estimateSleep(dose2: dose?.dose2Time, finalWake: result.finalWakeAt ?? providerFinalWake, intervals: intervals)
         return result
     }
@@ -49,15 +50,23 @@ struct NightOutcomeSnapshot {
 extension EventStorage {
     /// A read snapshot, never a persisted certificate or a medication transaction.
     func reviewedWindowAssessment(sessionDate: String, now: Date) -> ReviewedWindowAssessment {
+        reviewedWindowAssessments(sessionDates: [sessionDate], now: now)[sessionDate] ?? .unavailable(now: now)
+    }
+
+    /// Batch-scoped evidence only: shared rows are decoded once, with no cache across exports.
+    func reviewedWindowAssessments(sessionDates: [String], now: Date) -> [String: ReviewedWindowAssessment] {
+        let keys = Set(sessionDates).sorted()
+        guard !keys.isEmpty else { return [:] }
+        let unavailable = Dictionary(uniqueKeysWithValues: keys.map { ($0, ReviewedWindowAssessment.unavailable(now: now)) })
         guard sqlite3_exec(db, "SAVEPOINT reviewed_window_read", nil, nil, nil) == SQLITE_OK else {
-            return .unavailable(now: now)
+            return unavailable
         }
         var released = false
         defer { if !released { sqlite3_exec(db, "RELEASE reviewed_window_read", nil, nil, nil) } }
         do {
-            let snapshot = try nightOutcomeSnapshot(sessionDate: sessionDate)
+            let snapshots = try Dictionary(uniqueKeysWithValues: keys.map { ($0, try nightOutcomeSnapshot(sessionDate: $0)) })
             var windows: [ReviewedSleepWindow] = [], naps: [ReviewedWindowAssessment.NapMarker] = []
-            if snapshot.record?.answers.reviewedSleepWindow != nil {
+            if snapshots.values.contains(where: { $0.record?.answers.reviewedSleepWindow != nil }) {
                 let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
                 try readWindowEvidenceRows("SELECT source_record_id, session_id, questionnaire_version, responses_json FROM checkin_submissions WHERE checkin_type = 'night_outcome'") { row in
                     guard let identity = row(0), row(1) == identity, row(2) == "night_outcome.v1", let raw = row(3) else {
@@ -87,19 +96,21 @@ extension EventStorage {
                     naps.append(.init(id: id, group: group, timestamp: timestamp, isStart: canonical == .napStart))
                 }
             }
-            // Normalize only this read projection, using the same aliases as medication history.
-            let doses = snapshot.history.events.map { event in
-                DoseCore.StoredDoseEvent(id: event.id,
-                    eventType: CanonicalDoseEventType(canonicalizing: event.eventType)?.rawValue ?? event.eventType,
-                    timestamp: event.timestamp, sessionDate: event.sessionDate,
-                    metadata: event.metadata, sessionId: event.sessionId)
+            let results = snapshots.mapValues { snapshot in
+                // Normalize only this read projection, using the same aliases as medication history.
+                let doses = snapshot.history.events.map { event in
+                    DoseCore.StoredDoseEvent(id: event.id,
+                        eventType: CanonicalDoseEventType(canonicalizing: event.eventType)?.rawValue ?? event.eventType,
+                        timestamp: event.timestamp, sessionDate: event.sessionDate,
+                        metadata: event.metadata, sessionId: event.sessionId)
+                }
+                return ReviewedWindowAssessment.calculate(window: snapshot.record?.answers.reviewedSleepWindow,
+                    sessionID: snapshot.history.sessionId, doses: doses, otherWindows: windows, naps: naps, now: now)
             }
-            let result = ReviewedWindowAssessment.calculate(window: snapshot.record?.answers.reviewedSleepWindow,
-                sessionID: snapshot.history.sessionId, doses: doses, otherWindows: windows, naps: naps, now: now)
-            guard sqlite3_exec(db, "RELEASE reviewed_window_read", nil, nil, nil) == SQLITE_OK else { return .unavailable(now: now) }
+            guard sqlite3_exec(db, "RELEASE reviewed_window_read", nil, nil, nil) == SQLITE_OK else { return unavailable }
             released = true
-            return result
-        } catch { return .unavailable(now: now) }
+            return results
+        } catch { return unavailable }
     }
 
     private func readWindowEvidenceRows(_ sql: String, consume: ((Int32) -> String?) throws -> Void) throws {

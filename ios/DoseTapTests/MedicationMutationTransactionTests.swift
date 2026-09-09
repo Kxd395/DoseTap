@@ -33,6 +33,47 @@ private final class MedicationMutationNotificationCenter: AlarmNotificationCente
 
 @MainActor
 final class MedicationMutationTransactionTests: XCTestCase {
+    func testWindowAssessmentBatchReadsSharedEvidenceOnceAndRechecksNextBatch() throws {
+        let storage = EventStorage.inMemory(), now = oldDose1.addingTimeInterval(8 * 3600)
+        let keys = ["2026-09-01", "2026-09-02", "2026-09-03"]
+        for (index, key) in keys.enumerated() {
+            let id = "batch-\(index)", start = oldDose1.addingTimeInterval(Double(index - 3) * 86400)
+            XCTAssertEqual(sqlite3_exec(storage.db,
+                "INSERT INTO sleep_sessions (session_id, session_date, start_utc) VALUES ('\(id)', '\(key)', '\(storage.isoFormatter.string(from: start))')",
+                nil, nil, nil), SQLITE_OK)
+            var diary = NightOutcomeDiary()
+            diary.reviewedSleepWindow = .init(sessionID: id, start: start, end: start.addingTimeInterval(3600),
+                entryTimeZone: .current, reviewedAt: now)
+            XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: key),
+                reason: "", recordedAt: now).isCommitted)
+        }
+        let expected = Dictionary(uniqueKeysWithValues: keys.map { ($0, storage.reviewedWindowAssessment(sessionDate: $0, now: now)) })
+        let reads = UnsafeMutablePointer<Int>.allocate(capacity: 1)
+        reads.initialize(to: 0)
+        defer { sqlite3_trace_v2(storage.db, 0, nil, nil); reads.deinitialize(count: 1); reads.deallocate() }
+        sqlite3_trace_v2(storage.db, UInt32(SQLITE_TRACE_STMT), { _, context, statement, _ in
+            if let statement, let sql = sqlite3_sql(OpaquePointer(statement)),
+               String(cString: sql) == "SELECT id, event_type, timestamp, session_id, session_date FROM sleep_events" {
+                context?.assumingMemoryBound(to: Int.self).pointee += 1
+            }
+            return SQLITE_OK
+        }, reads)
+        let result = storage.reviewedWindowAssessments(sessionDates: keys, now: now)
+        XCTAssertEqual(result, expected)
+        XCTAssertTrue(result.values.allSatisfy { $0.status == .checked })
+        XCTAssertEqual(reads.pointee, 1, "Shared nap evidence must be prepared once per batch")
+        reads.pointee = 0
+        let repo = SessionRepository(storage: storage, clock: { now })
+        let data = try StudioBundleExporter().buildStudioInsightsBundleDataForTesting(using: repo, sessionDates: keys)
+        let bundle = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual((bundle["sessions"] as? [[String: Any]])?.count, keys.count)
+        XCTAssertEqual(reads.pointee, 1, "The actual bundle path must reuse the batch assessment")
+        XCTAssertEqual(sqlite3_exec(storage.db, "ALTER TABLE sleep_events RENAME TO unavailable_batch_naps", nil, nil, nil), SQLITE_OK)
+        XCTAssertTrue(storage.reviewedWindowAssessments(sessionDates: keys, now: now).values.allSatisfy {
+            $0.reasons == [.unreadableEvidence]
+        }, "A new batch must not reuse stale success after source failure")
+    }
+
     func testWindowAssessmentUsesExistingLegacyDoseAliases() throws {
         let storage = EventStorage.inMemory(); try seedDose1(in: storage)
         let now = oldDose1.addingTimeInterval(8 * 3600)

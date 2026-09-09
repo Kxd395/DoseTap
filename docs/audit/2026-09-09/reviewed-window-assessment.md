@@ -32,6 +32,10 @@ PR #19 review found two assessment gaps: legacy dose aliases were ignored, and s
 
 After these fixes, UTC and New York core runs each passed 681 XCTest and 43 Swift Testing cases. The simulator rerun passed 125 targeted app tests (`/tmp/dosetap56-assessment-review-fixes.xcresult`), including legacy/orphan/outside-window aliases and unchanged raw ledger assertions. Studio again passed 66 tests with three optional skips. The earlier UI screenshot proof remains applicable to the unchanged view. Final hosted checks and merge are recorded in the PR and Plane workpad.
 
+## Export batch follow-up
+
+The next review identified repeated full-history evidence reads during multi-night export. The batch API now decodes shared window and nap evidence once inside one SQLite read snapshot, then passes each result into the collected-night builder. Nothing is cached across exports. A three-night regression verifies single-night parity, one shared nap query in both the batch API and actual Studio bundle export, and a fresh unavailable result after a later source-table failure. The final targeted simulator run passed 126 tests (`/tmp/dosetap56-assessment-batch-final.xcresult`). No core or UI behavior changed in this export follow-up; the corrected core and UI validations above remain applicable. In-memory overlap calculations still compare each selected window with shared evidence; this change removes repeated database reads/decoding, not all history-size-dependent computation.
+
 ## Remaining work
 
 Combine current local-boundary checks with conflict-aware provider evidence and recheck snapshots after asynchronous queries before publishing treatment-night calculations. Durable source revision/deletion reconciliation, permission/read-readiness wording and consistent consumer/report provenance remain open. DOSETAP-57 owns dose-to-sleep, return-to-sleep and completed awakening markers/counts. No installed-phone, signed-device HealthKit, accessibility, historic unexpected Dose 2 resolution, privacy/release or complete backup/restore acceptance is claimed.
