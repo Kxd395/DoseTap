@@ -49,6 +49,7 @@ Apple Health and WHOOP are external read sources. Source labeling and same-night
 | `07-api-and-networking.md` | Current reference | Local-first network boundary and inactive API client surface |
 | `12-safety-sensitive-legacy-retirement.md` | Implemented; owner review pending | Single medication mutation boundary and retired hazards |
 | `13-component-boundaries.md` | Current decision | Responsibility split and migration ratchets |
+| `14-organization-and-coding-standards-plan.md` | Proposed staged work | Naming, target membership, lint/CI ownership and incremental extraction sequence |
 
 ## Current authority and runbooks
 
