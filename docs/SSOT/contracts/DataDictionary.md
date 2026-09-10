@@ -33,6 +33,14 @@ Normalized responses are `pre.food.last.finished_at_utc` (ISO 8601), `pre.food.l
 
 Historical per-event IANA timezone identity is not complete. DOSETAP-37 owns the prospective provenance gap.
 
+## Morning physical-symptom selection (DOSETAP-67/61)
+
+`morning_checkins.has_physical_symptoms` and the legacy normalized key `pain.any` indicate that the physical-symptom section was selected. They are not proof of a localized pain entry. Headache, reflux, stiffness, soreness, restlessness and bathroom urgency may be saved without one. `painEntries` remains the source for separate localized entries; an empty array adds no derived localized symptom event.
+
+For newly saved or explicitly edited answers, `physicalSymptomsJson.hasHeadache = false` omits `headacheSeverity`, `headacheLocation` and `isMigraine`. Normalized `headache.any` retains the explicit false; severity/location keys are absent. No localized entries means `painType` and `painSeverity` are absent, not default aching or a fabricated intensity. Unrelated payload fields remain intact. The current derived burden ignores disabled headache/physical branches; its existing scale is unchanged and is not a clinical score.
+
+This changes optional payload content, not table layout. No migration rewrites existing rows or reinterprets old defaults. An explicit History correction still retains prior answers through the existing provenance path. Raw Studio exports carry the saved payload; legacy archived values are not silently repaired on import.
+
 ## Table inventory
 
 | Table | Record owner and purpose | Canonical identity |

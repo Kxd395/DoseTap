@@ -212,7 +212,7 @@ struct MorningCheckInSymptomTogglesSection: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(spacing: 12) {
-                symptomToggleButton(title: "Physical Pain", icon: "figure.wave", isActive: viewModel.hasPhysicalSymptoms) {
+                symptomToggleButton(title: "Physical Symptoms", icon: "figure.wave", isActive: viewModel.hasPhysicalSymptoms) {
                     withAnimation(.spring(response: 0.3)) {
                         viewModel.hasPhysicalSymptoms.toggle()
                     }
@@ -263,7 +263,7 @@ struct MorningCheckInPhysicalSymptomsSection: View {
             MorningCheckInSectionCard(title: "Pain detail by area + side", icon: "figure.arms.open") {
                 VStack(spacing: 10) {
                     if viewModel.painEntries.isEmpty {
-                        Text("Add entries like Mid Back (Both) 2/10 and Lower Back (Right) 9/10.")
+                        Text("For localized pain, add an entry for each area and side. Other symptoms below can be saved without a pain entry.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)

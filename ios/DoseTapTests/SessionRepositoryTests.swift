@@ -22,6 +22,92 @@ final class TestClock {
 /// These tests verify that delete operations properly broadcast state changes.
 @MainActor
 final class SessionRepositoryTests: XCTestCase {
+    func test_nonLocalizedMorningSymptomsSaveWithoutPainEntries() async throws {
+        for (index, symptom) in ["headache", "reflux", "urgency", "stiffness", "soreness", "restlessness"].enumerated() {
+            let date = String(format: "2026-01-%02d", 8 + index)
+            let model = MorningCheckInViewModel(sessionId: "symptom-\(symptom)", sessionDate: date, loadRememberedSettings: false)
+            storage.closeHistoricalSession(sessionId: model.sessionId, sessionDate: date, end: fixedNow, terminalState: "incomplete_missed_checkin")
+            model.hasPhysicalSymptoms = true
+            switch symptom {
+            case "headache": model.hasHeadache = true
+            case "reflux": model.refluxBurden = .moderate
+            case "urgency": model.bathroomUrgencyBurden = .moderate
+            case "stiffness": model.muscleStiffness = .moderate
+            case "soreness": model.muscleSoreness = .moderate
+            default: model.restlessLegsBurden = .moderate
+            }
+            let saved = await model.submit(using: repo)
+            XCTAssertTrue(saved, symptom)
+            let stored = try XCTUnwrap(repo.fetchMorningCheckIn(for: date))
+            let physical = decodeJSONDictionary(try XCTUnwrap(stored.physicalSymptomsJson))
+            XCTAssertTrue((physical["painEntries"] as? [[String: Any]])?.isEmpty == true)
+            XCTAssertNil(physical["painType"])
+            XCTAssertNil(physical["painSeverity"])
+            let reopened = MorningCheckInViewModel(sessionId: model.sessionId, sessionDate: date, existing: stored)
+            XCTAssertTrue(reopened.hasPhysicalSymptoms)
+            XCTAssertTrue(reopened.painEntries.isEmpty)
+            XCTAssertEqual(reopened.hasHeadache, model.hasHeadache)
+            XCTAssertEqual(reopened.refluxBurden, model.refluxBurden)
+            XCTAssertEqual(reopened.bathroomUrgencyBurden, model.bathroomUrgencyBurden)
+            XCTAssertEqual(reopened.muscleStiffness, model.muscleStiffness)
+            XCTAssertEqual(reopened.muscleSoreness, model.muscleSoreness)
+            XCTAssertEqual(reopened.restlessLegsBurden, model.restlessLegsBurden)
+            XCTAssertTrue(repo.fetchDoseEvents(forSessionDate: date).isEmpty)
+        }
+        XCTAssertTrue(repo.fetchDoseEvents(forSessionDate: "2026-01-14").isEmpty)
+    }
+
+    func test_deselectedHeadacheCannotAffectCurrentPayloadOrBurden() throws {
+        let model = MorningCheckInViewModel(sessionId: "headache-review", sessionDate: "2026-01-14", loadRememberedSettings: false)
+        model.hasPhysicalSymptoms = true
+        model.painEntries = [.init(area: .lowerBack, side: .both, intensity: 2, sensations: [.aching])]
+        model.hasHeadache = true
+        model.headacheSeverity = .migraine
+        model.isMigraine = true
+        XCTAssertEqual(model.derivedPainBurden, .extreme)
+        model.hasHeadache = false
+        XCTAssertEqual(model.derivedPainBurden, .mild)
+        let physical = decodeJSONDictionary(try XCTUnwrap(model.toStoredCheckIn().physicalSymptomsJson))
+        XCTAssertEqual(physical["hasHeadache"] as? Bool, false)
+        for key in ["headacheSeverity", "headacheLocation", "isMigraine"] { XCTAssertNil(physical[key], key) }
+        XCTAssertEqual(physical["painBurden"] as? String, "mild")
+        XCTAssertEqual((physical["painEntries"] as? [[String: Any]])?.first?["intensity"] as? Int, 2)
+        model.hasPhysicalSymptoms = false
+        XCTAssertEqual(model.derivedPainBurden, .none)
+        XCTAssertNil(model.toStoredCheckIn().physicalSymptomsJson)
+    }
+
+    func test_morningEditRemovesInactiveHeadacheDetailsFromSavedAndNormalizedAnswers() throws {
+        let date = "2026-01-14"
+        let model = MorningCheckInViewModel(sessionId: "edit-headache", sessionDate: date, loadRememberedSettings: false)
+        storage.closeHistoricalSession(sessionId: model.sessionId, sessionDate: date, end: fixedNow, terminalState: "incomplete_missed_checkin")
+        model.hasPhysicalSymptoms = true
+        model.hasHeadache = true
+        model.headacheSeverity = .migraine
+        model.isMigraine = true
+        model.refluxBurden = .moderate
+        XCTAssertTrue(repo.saveMorningCheckIn(model.toStoredCheckIn(), sessionDateOverride: date))
+        let original = try XCTUnwrap(repo.fetchMorningCheckIn(for: date))
+        let edit = MorningCheckInViewModel(sessionId: model.sessionId, sessionDate: date, existing: original)
+        edit.hasHeadache = false
+        XCTAssertTrue(repo.saveMorningCheckIn(edit.toStoredCheckIn(), sessionDateOverride: date))
+        let saved = try XCTUnwrap(repo.fetchMorningCheckIn(for: date))
+        let physical = decodeJSONDictionary(try XCTUnwrap(saved.physicalSymptomsJson))
+        XCTAssertNil(physical["isMigraine"])
+        XCTAssertNil(physical["headacheSeverity"])
+        XCTAssertEqual(physical["refluxBurden"] as? String, "moderate")
+        let responses = storage.morningResponsesByQuestionID(saved)
+        XCTAssertEqual(responses["headache.any"] as? Bool, false)
+        XCTAssertNil(responses["headache.severity"])
+        XCTAssertNil(responses["headache.location"])
+        XCTAssertEqual(responses["sleep.reflux_burden"] as? String, "moderate")
+        let bundle = try JSONSerialization.jsonObject(with: StudioBundleExporter().buildStudioInsightsBundleDataForTesting(using: repo, sessionDates: [date])) as? [String: Any]
+        let exported = try XCTUnwrap((bundle?["sessions"] as? [[String: Any]])?.first?["morning"] as? [String: Any])
+        XCTAssertEqual(exported["rawPhysicalSymptomsJson"] as? String, saved.physicalSymptomsJson)
+        XCTAssertEqual(exported["painBurden"] as? String, "none")
+        XCTAssertEqual(decodeJSONDictionary(try XCTUnwrap(original.physicalSymptomsJson))["isMigraine"] as? Bool, true)
+    }
+
     func test_morningDefaultsLeaveBothMissingDosesUnrecorded() async throws {
         let date = "2026-01-14"
         storage.closeHistoricalSession(sessionId: "undosed-night", sessionDate: date,
