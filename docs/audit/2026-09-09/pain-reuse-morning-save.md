@@ -16,6 +16,7 @@ Recurring back and foot pain should be reusable with a nightly intensity adjustm
 - New-form retries retain one questionnaire ID. The form's date and identity do not get reassigned to a newly active session. Successful historical writes notify the UI, and Tonight rechecks its older-night reminder when records change.
 - Incomplete-night selection recognizes legacy date-keyed morning records only when the date is unambiguous among saved sessions. One date-keyed answer cannot hide two distinct saved session identities. Selection is read-only; no historical rows are rewritten.
 - The nonblocking banner says Earlier check-in and names the date whose morning answers were not found. Its accessibility hint distinguishes that morning from tonight's pre-sleep log.
+- PR review caught a questionnaire retry repeating medication reconciliation that had already committed. A new regression reproduced changed dose UUIDs/metadata and overwriting a newer correction. The retained form now records successful reconciliation, retries only questionnaire persistence, and replaces medication controls with a saved-status explanation directing further corrections to History. This does not make the two persistence stages atomic.
 
 ## Validation evidence
 
@@ -24,6 +25,7 @@ Recurring back and foot pain should be reusable with a nightly intensity adjustm
 - An initial UI command found a pre-existing result bundle and did not run; it was retried with a unique path without deleting the old bundle. The first pain UI attempt failed after restart. A diagnostic rerun showed the automated center tap left the native switch off. Screenshot inspection confirmed its position; the test now taps the visible switch control and asserts its value before Save. The production control was not auto-enabled to satisfy the test.
 - The final pain restart UI test passed (1 test, 85.6 seconds; `/tmp/dosetap-pain-reuse-final-ui.xcresult`). Screenshot inspection confirmed separate saved back/foot patterns, tonight's back level at 6/10, and the Update saved pattern action. The test also verifies cancellation, reuse without auto-logging, identity preservation and forgetting a preference without deleting tonight's answer.
 - Standard and largest-text reminder/error renderings were inspected. Largest-text controls wrap substantially; these component captures are not a full-screen accessibility or VoiceOver acceptance pass. Workflow, SSOT, documentation, architecture, dose-write-path, version and whitespace checks passed. Hosted and merge readbacks are recorded in Plane and the PR.
+- Review follow-up: the medication-identity regression failed before the retry guard (`/tmp/dosetap-medication-retry-red.xcresult`). With the guard, all 410 app tests passed (`/tmp/dosetap-medication-retry-green.xcresult`), including repeated failure and successful retry after a newer medication correction. Workflow, SSOT, documentation, architecture and dose-write guards passed again. PR checks must rerun on the follow-up commit before merge.
 
 ## Remaining gates
 

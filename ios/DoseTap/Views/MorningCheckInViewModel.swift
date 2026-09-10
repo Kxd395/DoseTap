@@ -101,6 +101,7 @@ class MorningCheckInViewModel: ObservableObject {
     @Published var showDeepDive: Bool = false
     @Published var isSubmitting: Bool = false
     @Published var submissionErrorMessage: String?
+    @Published private(set) var hasCommittedDoseReconciliation = false
     @Published var showNarcolepsySection: Bool = false
     @Published var showSleepTherapySection: Bool = false
     @Published var showSleepEnvironmentSection: Bool = false
@@ -560,11 +561,14 @@ class MorningCheckInViewModel: ObservableObject {
         defer { isSubmitting = false }
 
         let checkIn = toStoredCheckIn()
-        let reconciliationResult = applyDoseReconciliation(using: repository)
-        guard reconciliationResult.isCommitted else {
-            submissionErrorMessage = reconciliationResult.failure?.userMessage
-                ?? "The dose reconciliation was not saved. Retry before completing the check-in."
-            return false
+        if !hasCommittedDoseReconciliation {
+            let reconciliationResult = applyDoseReconciliation(using: repository)
+            guard reconciliationResult.isCommitted else {
+                submissionErrorMessage = reconciliationResult.failure?.userMessage
+                    ?? "The dose reconciliation was not saved. Retry before completing the check-in."
+                return false
+            }
+            hasCommittedDoseReconciliation = true
         }
 
         guard repository.saveMorningCheckIn(checkIn, sessionDateOverride: sessionDate) else {

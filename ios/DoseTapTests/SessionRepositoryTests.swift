@@ -22,6 +22,36 @@ final class TestClock {
 /// These tests verify that delete operations properly broadcast state changes.
 @MainActor
 final class SessionRepositoryTests: XCTestCase {
+    func test_questionnaireRetryDoesNotRepeatCommittedMedicationCorrections() async throws {
+        repo.setDose1Time(fixedNow.addingTimeInterval(-4 * 3600))
+        let identity = try XCTUnwrap(repo.activeSessionId)
+        let date = try XCTUnwrap(repo.activeSessionDate)
+        let model = MorningCheckInViewModel(sessionId: identity, sessionDate: date, loadRememberedSettings: false)
+        model.loggedDose1Time = nil
+        model.loggedDose2Time = nil
+        model.reconcileDose1Taken = true
+        model.reconcileDose1Time = fixedNow.addingTimeInterval(-4 * 3600)
+        model.dose2Reconciliation = .taken
+        model.reconcileDose2Time = fixedNow.addingTimeInterval(-3600)
+        XCTAssertEqual(sqlite3_exec(storage.db, "CREATE TEMP TRIGGER reject_morning BEFORE INSERT ON checkin_submissions BEGIN SELECT RAISE(ABORT, 'synthetic failure'); END", nil, nil, nil), SQLITE_OK)
+        defer { sqlite3_exec(storage.db, "DROP TRIGGER IF EXISTS reject_morning", nil, nil, nil) }
+        let first = await model.submit(using: repo)
+        XCTAssertFalse(first)
+        XCTAssertTrue(model.hasCommittedDoseReconciliation)
+        let committed = repo.fetchDoseEvents(forSessionDate: date)
+        XCTAssertEqual(committed.filter { $0.eventType == "dose1" || $0.eventType == "dose2" }.count, 2)
+        let second = await model.submit(using: repo)
+        XCTAssertFalse(second)
+        XCTAssertEqual(repo.fetchDoseEvents(forSessionDate: date), committed, "A failed questionnaire retry must preserve medication UUIDs and metadata")
+        XCTAssertTrue(repo.reconcileDose2(sessionDate: date, takenAt: fixedNow.addingTimeInterval(-1800), amountMg: 4500).isCommitted)
+        let newerCorrection = repo.fetchDoseEvents(forSessionDate: date)
+        XCTAssertEqual(sqlite3_exec(storage.db, "DROP TRIGGER reject_morning", nil, nil, nil), SQLITE_OK)
+        let final = await model.submit(using: repo)
+        XCTAssertTrue(final)
+        XCTAssertEqual(repo.fetchDoseEvents(forSessionDate: date), newerCorrection, "Questionnaire-only retry cannot overwrite a newer medication correction")
+        XCTAssertEqual(storage.fetchCheckInSubmissionCount(sessionDate: date, checkInType: .morning), 1)
+    }
+
     func test_morningSubmitReportsFailureAndPreservesDraftForRetry() async throws {
         repo.setDose1Time(fixedNow.addingTimeInterval(-4 * 3600))
         repo.setDose2Time(fixedNow.addingTimeInterval(-3600))

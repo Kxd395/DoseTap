@@ -44,7 +44,13 @@ public struct MorningCheckInView: View {
                 VStack(spacing: 24) {
                     headerSection
                     MorningCheckInQuickModeSection(viewModel: viewModel)
-                    if !viewModel.isHistory { MorningCheckInDoseReconciliationSection(viewModel: viewModel) }
+                    if !viewModel.isHistory {
+                        if viewModel.hasCommittedDoseReconciliation {
+                            Text("Medication review saved. Retrying saves only your morning answers. Use History for further medication corrections.")
+                                .font(.footnote)
+                                .accessibilityIdentifier("morning-medication-review-saved")
+                        } else { MorningCheckInDoseReconciliationSection(viewModel: viewModel) }
+                    }
                     else { Text("Treatment night: \(viewModel.sessionDate). These answers do not add doses or close tonight's session. Use Add / Correct Records for medication changes.").font(.footnote) }
                     MorningCheckInNightContextSection(viewModel: viewModel)
                     MorningCheckInMorningFunctioningSection(viewModel: viewModel)

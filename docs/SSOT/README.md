@@ -398,6 +398,7 @@ Symptom source identity:
 - Structured pain entries in those source rows derive rebuildable `symptom_events` using `source + source_record_id + source_entry_key`.
 - Editing, clearing, syncing, or deleting a source row must replace or clear that row's derived symptom events and rebuild `symptom_summaries`.
 - Pre-sleep and morning source-row writes, normalized `checkin_submissions` writes, and derived symptom replacement or clearing must commit in the same local SQLite transaction. Partial source-only or symptom-only commits are invalid.
+- Once a morning form's medication reconciliation commits, later questionnaire retries must not repeat it or overwrite newer medication corrections. The retained form replaces medication controls with a saved-status explanation; further medication changes use History. Questionnaire answers remain editable for retry.
 
 CloudKit delete tombstones:
 - CloudKit-tracked deletes must enqueue the matching `cloudkit_tombstones` row in the same local SQLite transaction as the local row delete.
