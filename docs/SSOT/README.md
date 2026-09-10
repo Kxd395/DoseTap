@@ -1,9 +1,9 @@
 # DoseTap SSOT (Single Source of Truth)
 
 Status: Current behavior authority
-Last verified: 2026-09-09
+Last verified: 2026-09-10
 SSOT revision: 0.4.19
-Shipping app version observed in the Xcode project: 0.4.19 (build 40)
+Shipping app version observed in the Xcode project: 0.4.19 (build 41)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -131,6 +131,10 @@ Current Quick Log event names (from `UserSettingsManager.allAvailableEvents`):
 - Pain
 
 ### Morning Check-In
+
+- DOSETAP-67/61 symptom-selection repair: Physical Symptoms includes localized pain, headache, stiffness, soreness, reflux, restlessness and bathroom urgency. Opening that section does not require a localized pain entry to complete the questionnaire. The separate pain editor still validates an entry before adding it. Failed questionnaire writes retain the same error/retry behavior.
+- In new or explicitly edited morning answers, deselecting Headache removes its severity, location and migraine-like fields from the saved physical payload and normalized responses. Hidden headache values cannot affect the current derived pain burden; disabling the whole physical section excludes its current payload and burden. Other selected symptoms and localized pain entries remain intact. Opening an editor does not rewrite old rows. Existing History correction provenance is unchanged.
+- With no localized entries, new/edited payloads omit localized pain type and intensity rather than saving the editor's defaults. Legacy `pain.any` remains the physical-section flag, not a measured pain count; existing scales/default-origin limitations are unchanged. These repairs add no clinical scale, medication action or schema migration.
 
 - DOSETAP-67 questionnaire-intent repair: missing Dose 1 starts unselected and Dose 2 starts Leave as-is, including an existing skip. Opening or ordinarily saving a morning form does not add, replace or annotate medication records. Unanswered medication status remains unrecorded, not skipped. Explicitly selected retrospective reconciliation is still supported; separating it into its own reviewed action remains planned. Questionnaire reason answers stay questionnaire data unless included in an explicitly selected new dose/skip action. Existing medication reasons and occurrence times are not overwritten by default questionnaire values.
 

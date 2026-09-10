@@ -279,8 +279,9 @@ class MorningCheckInViewModel: ObservableObject {
     }
 
     var derivedPainBurden: SymptomBurden {
+        guard hasPhysicalSymptoms else { return .none }
         let highestPainIntensity = painEntries.map(\.intensity).max() ?? painSeverity
-        if isMigraine || headacheSeverity == .migraine {
+        if hasHeadache && (isMigraine || headacheSeverity == .migraine) {
             return .extreme
         }
         switch highestPainIntensity {
@@ -325,12 +326,23 @@ class MorningCheckInViewModel: ObservableObject {
 
             dict["painEntries"] = painPayload
             dict["painLocations"] = painLocations.map(\.rawValue)
-            dict["painSeverity"] = painSeverity
-            dict["painType"] = painType.rawValue
+            if painEntries.isEmpty {
+                dict.removeValue(forKey: "painSeverity")
+                dict.removeValue(forKey: "painType")
+            } else {
+                dict["painSeverity"] = painSeverity
+                dict["painType"] = painType.rawValue
+            }
             dict["hasHeadache"] = hasHeadache
-            dict["headacheSeverity"] = headacheSeverity.rawValue
-            dict["headacheLocation"] = headacheLocation.rawValue
-            dict["isMigraine"] = isMigraine
+            if hasHeadache {
+                dict["headacheSeverity"] = headacheSeverity.rawValue
+                dict["headacheLocation"] = headacheLocation.rawValue
+                dict["isMigraine"] = isMigraine
+            } else {
+                for key in ["headacheSeverity", "headacheLocation", "isMigraine"] {
+                    dict.removeValue(forKey: key)
+                }
+            }
             dict["painBurden"] = derivedPainBurden.rawValue
             dict["refluxBurden"] = refluxBurden.rawValue
             dict["restlessLegsBurden"] = restlessLegsBurden.rawValue

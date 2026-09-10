@@ -94,6 +94,12 @@ For each new field, specify: stable field ID, question/choices/scale anchors, ap
 
 ## Acceptance and handoff
 
+### September 10 symptom-repair slice
+
+DOSETAP-67 implements IR-03/05 in build 41: Physical Symptoms no longer requires a separate localized pain entry; disabled headache fields are omitted from newly saved/edited answers and cannot inflate the current burden. Empty localized-pain lists do not save default type/intensity. Existing pain-editor validation and unrelated answers remain intact. The [symptom-repair audit](../audit/2026-09-10-morning-symptom-validation.md) records validation and open gates. Shared recurring morning patterns, broad answer freshness and durable draft/skip states remain separate planned work. This note is delivery evidence, not authority to close DOSETAP-61 or phone acceptance.
+
+### Remaining acceptance
+
 Use the proposal's AT-01 through AT-32 as proposed cases, with the completion clarification above overriding AT-28. Add: submitted-with-blanks stops the exact-night reminder after relaunch; explicit skip does not mutate medication; failed disposition write stays unresolved; same-date distinct sessions cannot share a completion; next-night preference is consumed only by the documented durable action.
 
 Run storage failure/retry, migration round-trip, source-to-screen-to-export checks, offline/interrupted save and large-text/VoiceOver cases for each affected slice. Keep signed-phone, owner, provider and clinical/privacy acceptance open when unobserved. A build number or green CI does not close those gates.

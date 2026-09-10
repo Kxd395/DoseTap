@@ -24,7 +24,7 @@ final class DoseTapUITests: XCTestCase {
         if name.contains("testDose2Confirmation") || name.contains("testReviewedNightWindow") { app.launchArguments.append("--uitesting-dose2-confirmation") }
         if name.contains("testReviewedNightWindow") { app.launchArguments += ["-healthkit_enabled", "NO"] }
         if name.contains("testExpiredSessionLaunch") { app.launchArguments.append("--uitesting-expired-session") }
-        if name.contains("testMorningDefaultDoseIntent") {
+        if name.contains("testMorningDefaultDoseIntent") || name.contains("testMorningPhysicalSymptomsWithoutPain") {
             app.launchArguments += ["--uitesting-expired-session", "-morningCheckIn.rememberSettings", "NO"]
         }
         if name.contains("testHistoryManual") { app.launchArguments += ["--uitesting-history", "--uitesting-history-reset", "-setup_completed_v2", "YES"] }
@@ -1093,6 +1093,30 @@ final class DoseTapUITests: XCTestCase {
         handledProof.name = "Reminder handled without changing dose history"
         handledProof.lifetime = .keepAlways
         add(handledProof)
+    }
+
+    func testMorningPhysicalSymptomsWithoutPain() throws {
+        let finish = app.buttons["Finish"].firstMatch
+        XCTAssertTrue(finish.waitForExistence(timeout: 15)); finish.tap()
+        let physical = app.buttons.matching(NSPredicate(format: "label == %@ OR label == %@", "Physical Symptoms", "Physical Pain")).firstMatch
+        for _ in 0..<15 where !physical.isHittable { app.swipeUp() }
+        XCTAssertTrue(physical.isHittable); physical.tap()
+        let headache = app.switches["Headache"].firstMatch
+        for _ in 0..<8 where !headache.isHittable { app.swipeUp() }
+        XCTAssertTrue(headache.isHittable)
+        headache.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+        captureDashboard("Headache selected without any localized pain entry")
+        let complete = app.buttons["Complete Check-In"]
+        for _ in 0..<20 where !complete.isHittable { app.swipeUp() }
+        XCTAssertTrue(complete.isHittable)
+        XCTAssertTrue(complete.isEnabled, "A headache must not require a fabricated localized pain entry")
+        XCTAssertFalse(app.staticTexts["Add at least one pain entry before submitting."].exists)
+        captureDashboard("Non-localized morning symptom can be saved")
+        complete.tap()
+        let primary = app.buttons["dose-primary-action"]
+        XCTAssertTrue(primary.waitForExistence(timeout: 10))
+        XCTAssertTrue(primary.isHittable)
+        XCTAssertFalse(app.navigationBars["Morning Check-In"].exists)
     }
 
     func testMorningDefaultDoseIntent() throws {

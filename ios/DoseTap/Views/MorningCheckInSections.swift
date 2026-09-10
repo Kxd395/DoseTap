@@ -55,12 +55,6 @@ struct MorningCheckInSubmitSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if viewModel.hasPhysicalSymptoms && viewModel.painEntries.isEmpty {
-                Text("Add at least one pain entry before submitting.")
-                    .font(.caption)
-                    .foregroundColor(.red)
-            }
-
             if let submissionErrorMessage = viewModel.submissionErrorMessage {
                 Label(submissionErrorMessage, systemImage: "externaldrive.badge.exclamationmark")
                     .font(.callout)
@@ -91,7 +85,7 @@ struct MorningCheckInSubmitSection: View {
                 .background(Color.green.gradient)
                 .cornerRadius(16)
             }
-            .disabled(viewModel.isSubmitting || (viewModel.hasPhysicalSymptoms && viewModel.painEntries.isEmpty))
+            .disabled(viewModel.isSubmitting)
         }
         .padding(.top, 8)
     }
