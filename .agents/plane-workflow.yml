@@ -60,6 +60,7 @@ security:
   local_plane_only: true
 
 orchestration:
+  unattended_execution: disabled
   native_plane_adapter_required: true
   unattended_handoff_policy_required: true
   repository_closeout_helper: tools/plane_tracker.rb
@@ -71,3 +72,5 @@ orchestration:
     non-dispatchable handoff for work awaiting human or external gates so an
     active item is not continuously re-run. Unsupported adapters or incomplete
     handoff policy must fail startup rather than fall back to another tracker.
+    The repository before_run hook unconditionally refuses unattended execution.
+    Enabling it requires a reviewed adapter and handoff implementation, not a flag flip.

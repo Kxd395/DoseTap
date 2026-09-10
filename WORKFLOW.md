@@ -27,6 +27,7 @@ hooks:
     fi
   before_run: |
     set -euo pipefail
+    ruby tools/plane_tracker.rb unattended-preflight
     ruby tools/plane_tracker.rb validate-config
   timeout_ms: 60000
 agent:
@@ -80,6 +81,11 @@ This is continuation attempt `#{{ attempt }}`. Resume from the existing workspac
 Do not claim `Backlog`, `Done`, or `Cancelled` work. Never guess a work item from title similarity, and never display the API key.
 
 ## Operating mode
+
+Unattended execution is disabled. The before_run hook exits before any agent starts.
+Manual agents may use the preflight, start, closeout and verify commands directly.
+Do not remove the hook to enable polling. First review and validate the native Plane
+adapter and a non-dispatchable handoff for owner/external gates.
 
 - Work autonomously inside the current issue workspace.
 - Stop only for a real blocker: missing authority, missing auth, missing required external tooling, an unsupported Plane adapter, an ambiguous work item, or a repository state that cannot be preserved safely.

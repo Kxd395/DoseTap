@@ -120,6 +120,55 @@ class PlaneTrackerTest < Minitest::Test
     @tracker = FakePlaneTracker.new
   end
 
+  def test_unattended_preflight_blocks_without_contacting_plane
+    tracker = PlaneTracker.new
+    def tracker.request_json(*)
+      raise "Unattended preflight must not contact Plane"
+    end
+    error = assert_raises(PlaneTrackerError) { tracker.unattended_preflight }
+    assert_match(/disabled/, error.message)
+    assert_match(/adapter.*handoff/, error.message)
+  end
+
+  def test_actual_before_run_hook_exits_before_agent_execution
+    text = File.read(File.join(PlaneTracker::ROOT, "WORKFLOW.md"))
+    workflow = YAML.safe_load(text.split(/^---\s*$\n?/, 3)[1], permitted_classes: [], aliases: false)
+    output, error, result = Open3.capture3("bash", "-c", workflow.fetch("hooks").fetch("before_run"), chdir: PlaneTracker::ROOT)
+    assert_equal 1, result.exitstatus
+    assert_empty output
+    assert_match(/unattended execution is disabled/, JSON.parse(error).fetch("error"))
+  end
+
+  def test_preflight_rejects_missing_and_duplicate_sequence_ids
+    assert_raises(PlaneTrackerError) { @tracker.preflight("DOSETAP-999") }
+    items = @tracker.instance_variable_get(:@fake_items)
+    items << items.first.merge("id" => "duplicate-34")
+    assert_raises(PlaneTrackerError) { @tracker.preflight("DOSETAP-34") }
+  end
+
+  def test_create_rejects_ambiguous_exact_titles
+    items = @tracker.instance_variable_get(:@fake_items)
+    items << items.last.merge("id" => "duplicate-39", "sequence_id" => 40)
+    with_json("title" => "Existing work", "state" => "Todo") do |path|
+      assert_raises(PlaneTrackerError) { @tracker.create(path, apply: true) }
+    end
+    assert_equal 3, items.length
+  end
+
+  def test_verify_rejects_workpad_and_state_drift
+    payload = closeout_payload(open_gates: ["Owner review"], target_state: "In Progress", acceptance_complete: false)
+    with_json(payload) do |path|
+      @tracker.closeout("DOSETAP-34", path, apply: true)
+      comment = @tracker.comments.fetch("item-34").first
+      original = comment.dup
+      comment["comment_html"] = comment.fetch("comment_html").sub("Implemented", "Tampered")
+      assert_raises(PlaneTrackerError) { @tracker.verify("DOSETAP-34", path) }
+      comment.replace(original)
+      @tracker.instance_variable_get(:@fake_items).first["state"] = "state-done"
+      assert_raises(PlaneTrackerError) { @tracker.verify("DOSETAP-34", path) }
+    end
+  end
+
   def test_preflight_uses_exact_identifier
     result = @tracker.preflight("DOSETAP-34")
 

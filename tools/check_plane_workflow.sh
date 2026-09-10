@@ -53,7 +53,9 @@ checks = {
   "fail-closed tracker policy" => plane.dig("completion", "tracker_failure_policy") == "fail_closed",
   "local Plane only" => plane.dig("security", "local_plane_only") == true,
   "idempotent duplicate-title policy" => plane.dig("identity", "duplicate_title_policy") == "return_existing_exact_match",
-  "unattended handoff policy required" => plane.dig("orchestration", "unattended_handoff_policy_required") == true
+  "unattended handoff policy required" => plane.dig("orchestration", "unattended_handoff_policy_required") == true,
+  "unattended execution disabled" => plane.dig("orchestration", "unattended_execution") == "disabled",
+  "unattended execution hook" => workflow.dig("hooks", "before_run") == "set -euo pipefail\nruby tools/plane_tracker.rb unattended-preflight\nruby tools/plane_tracker.rb validate-config\n"
 }
 
 failed = checks.reject { |_name, passed| passed }
