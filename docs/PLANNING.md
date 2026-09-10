@@ -62,6 +62,8 @@ The proposal remains downstream of the data-integrity foundation and its explici
 
 ## Food and Drink follow-up
 
+The [September 10 questionnaire review packet](review/2026-09-10-sleep-questionnaire-review.md), tracked by DOSETAP-68, inventories current pre-sleep/morning choices, independent save boundaries, planned collection and owner-feedback prompts. Its [independent findings](review/2026-09-10-questionnaire-independent-findings.md) identify source/UX issues for scoped follow-up; documentation completion does not close their implementation or device gates.
+
 The [September 8 roadmap](plans/2026-09-08-food-drink-roadmap.md) defines five planned slices: DOSETAP-51 fresh nightly answers, DOSETAP-52 explicit caffeine units, DOSETAP-53 shared daytime intake history, DOSETAP-54 pre-sleep review, and DOSETAP-55 a one-way Foodnoms/Apple Health prototype. Plane owns their live state and priority. DOSETAP-50 keeps the existing last-food scope; DOSETAP-45 and DOSETAP-13 retain analytics/export ownership. This is planned work, not a claim that imports or AI capture are implemented.
 
 ## Insights implementation
