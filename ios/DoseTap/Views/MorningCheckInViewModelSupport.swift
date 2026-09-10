@@ -88,18 +88,18 @@ extension MorningCheckInViewModel {
         loggedDose2Time = doseLog?.dose2Time
         loggedDose2Skipped = doseLog?.dose2Skipped ?? doseEvents.contains(where: { $0.eventType == "dose2_skipped" })
 
-        reconcileDose1Taken = loggedDose1Time == nil
+        // Missing evidence is not consent to create an administration.
+        reconcileDose1Taken = false
         reconcileDose1Time = doseLog?.dose1Time ?? Self.defaultDose1Time(for: sessionDate)
         reconcileDose2Time = doseLog?.dose2Time ?? Self.defaultDose2Time(for: sessionDate, dose1Time: reconcileDose1Time)
         reconcileDose1AmountMg = plannedDose1
         reconcileDose2AmountMg = plannedDose2
-        dose2Reconciliation = loggedDose2Time != nil
-            ? .leaveAsIs
-            : (loggedDose2Skipped ? .skipped : .taken)
+        dose2Reconciliation = .leaveAsIs
     }
 
-    func applyDoseReconciliation(using sessionRepo: SessionRepository = .shared) -> MedicationMutationResult {
-
+    /// Nil means no medication action was selected, not a fabricated commit receipt.
+    func applyDoseReconciliation(using sessionRepo: SessionRepository = .shared) -> MedicationMutationResult? {
+        var lastMutation: MedicationMutationResult?
         if loggedDose1Time == nil, reconcileDose1Taken {
             let result = sessionRepo.reconcileDose1(
                 sessionDate: sessionDate,
@@ -107,6 +107,7 @@ extension MorningCheckInViewModel {
                 amountMg: Self.normalizedDoseAmount(reconcileDose1AmountMg)
             )
             guard result.isCommitted else { return result }
+            lastMutation = result
         }
 
         if loggedDose2Time == nil {
@@ -122,6 +123,7 @@ extension MorningCheckInViewModel {
                     reasonNotes: normalizedDose2ReasonNotes
                 )
                 guard result.isCommitted else { return result }
+                lastMutation = result
             case .skipped:
                 let result = sessionRepo.reconcileDose2Skipped(
                     sessionDate: sessionDate,
@@ -130,15 +132,13 @@ extension MorningCheckInViewModel {
                     reasonNotes: normalizedDose2ReasonNotes
                 )
                 guard result.isCommitted else { return result }
+                lastMutation = result
             }
         }
 
-        return sessionRepo.updateDose2OutcomeAnnotations(
-            sessionDate: sessionDate,
-            takenReason: selectedDose2TakenReasonRawValue,
-            skipReason: selectedDose2SkippedReasonRawValue,
-            reasonNotes: normalizedDose2ReasonNotes
-        )
+        // Morning reasons are questionnaire answers. Existing ledger annotations
+        // are edited through History, never overwritten by form defaults.
+        return lastMutation
     }
 
     static func parseDoseAmount(from events: [DoseCore.StoredDoseEvent], eventType: String) -> Int? {

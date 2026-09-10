@@ -24,6 +24,9 @@ final class DoseTapUITests: XCTestCase {
         if name.contains("testDose2Confirmation") || name.contains("testReviewedNightWindow") { app.launchArguments.append("--uitesting-dose2-confirmation") }
         if name.contains("testReviewedNightWindow") { app.launchArguments += ["-healthkit_enabled", "NO"] }
         if name.contains("testExpiredSessionLaunch") { app.launchArguments.append("--uitesting-expired-session") }
+        if name.contains("testMorningDefaultDoseIntent") {
+            app.launchArguments += ["--uitesting-expired-session", "-morningCheckIn.rememberSettings", "NO"]
+        }
         if name.contains("testHistoryManual") { app.launchArguments += ["--uitesting-history", "--uitesting-history-reset", "-setup_completed_v2", "YES"] }
         app.launch()
     }
@@ -1090,6 +1093,25 @@ final class DoseTapUITests: XCTestCase {
         handledProof.name = "Reminder handled without changing dose history"
         handledProof.lifetime = .keepAlways
         add(handledProof)
+    }
+
+    func testMorningDefaultDoseIntent() throws {
+        let finish = app.buttons["Finish"].firstMatch
+        XCTAssertTrue(finish.waitForExistence(timeout: 15))
+        finish.tap()
+        let unchanged = app.segmentedControls.buttons["Leave as-is"].firstMatch
+        for _ in 0..<8 where !unchanged.isHittable { app.swipeUp() }
+        XCTAssertTrue(unchanged.isHittable)
+        XCTAssertTrue(unchanged.isSelected, "Missing Dose 2 must never default to Taken or Skipped")
+        captureDashboard("Morning missing Dose 2 stays Leave as-is")
+        let complete = app.buttons["Complete Check-In"]
+        for _ in 0..<20 where !complete.isHittable { app.swipeUp() }
+        XCTAssertTrue(complete.isHittable)
+        XCTAssertTrue(complete.isEnabled)
+        complete.tap()
+        XCTAssertTrue(app.buttons["dose-primary-action"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["morning-check-in-storage-error"].exists)
+        captureDashboard("Morning answers saved without selecting a missing dose")
     }
 
     func testExpiredSessionLaunchDoesNotReenterRepository() throws {

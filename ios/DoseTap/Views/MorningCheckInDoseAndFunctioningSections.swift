@@ -135,7 +135,7 @@ struct MorningCheckInDoseReconciliationSection: View {
                         } else {
                             MorningCheckInDoseStatusRow(
                                 title: "No backfill selected",
-                                detail: "Leave this off if Dose 1 was not taken or if you want to keep the session incomplete."
+                                detail: "Leave this off to keep Dose 1 unrecorded. You can still save your morning answers."
                             )
                         }
                     }
@@ -161,7 +161,7 @@ struct MorningCheckInDoseReconciliationSection: View {
                         case .leaveAsIs:
                             MorningCheckInDoseStatusRow(
                                 title: "Leave unchanged",
-                                detail: "Use this if you do not want morning check-in to change Dose 2 for this session."
+                                detail: "Saving your morning answers will leave the Dose 2 record unchanged. Unrecorded does not mean skipped."
                             )
                         case .taken:
                             DatePicker(

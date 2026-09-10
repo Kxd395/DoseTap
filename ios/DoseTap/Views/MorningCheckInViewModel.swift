@@ -563,7 +563,7 @@ class MorningCheckInViewModel: ObservableObject {
         let checkIn = toStoredCheckIn()
         if !hasCommittedDoseReconciliation {
             let reconciliationResult = applyDoseReconciliation(using: repository)
-            guard reconciliationResult.isCommitted else {
+            if let reconciliationResult, !reconciliationResult.isCommitted {
                 submissionErrorMessage = reconciliationResult.failure?.userMessage
                     ?? "The dose reconciliation was not saved. Retry before completing the check-in."
                 return false

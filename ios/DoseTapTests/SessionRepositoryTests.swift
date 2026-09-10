@@ -22,6 +22,70 @@ final class TestClock {
 /// These tests verify that delete operations properly broadcast state changes.
 @MainActor
 final class SessionRepositoryTests: XCTestCase {
+    func test_morningDefaultsLeaveBothMissingDosesUnrecorded() async throws {
+        let date = "2026-01-14"
+        storage.closeHistoricalSession(sessionId: "undosed-night", sessionDate: date,
+            end: fixedNow, terminalState: "incomplete_missed_checkin")
+        let model = MorningCheckInViewModel(sessionId: "undosed-night", sessionDate: date, loadRememberedSettings: false)
+        XCTAssertFalse(model.reconcileDose1Taken)
+        XCTAssertEqual(model.dose2Reconciliation, .leaveAsIs)
+        XCTAssertNil(model.effectiveDose2Status)
+        let saved = await model.submit(using: repo)
+        XCTAssertTrue(saved)
+        XCTAssertTrue(repo.fetchDoseEvents(forSessionDate: date).isEmpty)
+        XCTAssertNotNil(repo.fetchMorningCheckIn(for: date))
+    }
+
+    func test_morningDefaultSavePreservesDose1WithoutInferringDose2() async throws {
+        repo.setDose1Time(fixedNow.addingTimeInterval(-4 * 3600))
+        let identity = try XCTUnwrap(repo.activeSessionId)
+        let date = try XCTUnwrap(repo.activeSessionDate)
+        let before = repo.fetchDoseEvents(forSessionDate: date)
+        let model = MorningCheckInViewModel(sessionId: identity, sessionDate: date, loadRememberedSettings: false)
+        XCTAssertEqual(model.dose2Reconciliation, .leaveAsIs)
+        let saved = await model.submit(using: repo)
+        XCTAssertTrue(saved)
+        XCTAssertEqual(repo.fetchDoseEvents(forSessionDate: date), before)
+    }
+
+    func test_morningDefaultSavePreservesExistingTakenOrSkippedEvidence() async throws {
+        for skipped in [false, true] {
+            storage.clearAllData()
+            repo.reload()
+            repo.setDose1Time(fixedNow.addingTimeInterval(-4 * 3600))
+            let identity = try XCTUnwrap(repo.activeSessionId)
+            let date = try XCTUnwrap(repo.activeSessionDate)
+            let result = skipped
+                ? repo.reconcileDose2Skipped(sessionDate: date, timestamp: fixedNow.addingTimeInterval(-3600), reason: "unsure", reasonNotes: "Original skip evidence")
+                : repo.reconcileDose2(sessionDate: date, takenAt: fixedNow.addingTimeInterval(-3600), amountMg: 4500, reason: "unsure", reasonNotes: "Original taken evidence")
+            XCTAssertTrue(result.isCommitted)
+            let before = repo.fetchDoseEvents(forSessionDate: date)
+            let model = MorningCheckInViewModel(sessionId: identity, sessionDate: date, loadRememberedSettings: false)
+            XCTAssertFalse(model.reconcileDose1Taken)
+            XCTAssertEqual(model.dose2Reconciliation, .leaveAsIs)
+            XCTAssertEqual(model.effectiveDose2Status, skipped ? .skipped : .taken)
+            let saved = await model.submit(using: repo)
+            XCTAssertTrue(saved)
+            XCTAssertEqual(repo.fetchDoseEvents(forSessionDate: date), before, "Saving answers must not replace medication identities, times, amounts or reason metadata")
+        }
+    }
+
+    func test_morningExplicitDoseSelectionStillRecordsActualOccurrence() async throws {
+        repo.setDose1Time(fixedNow.addingTimeInterval(-4 * 3600))
+        let identity = try XCTUnwrap(repo.activeSessionId)
+        let date = try XCTUnwrap(repo.activeSessionDate)
+        let model = MorningCheckInViewModel(sessionId: identity, sessionDate: date, loadRememberedSettings: false)
+        model.dose2Reconciliation = .taken
+        model.reconcileDose2Time = fixedNow.addingTimeInterval(-3600)
+        model.reconcileDose2AmountMg = 4250
+        let saved = await model.submit(using: repo)
+        XCTAssertTrue(saved)
+        let events = repo.fetchDoseEvents(forSessionDate: date).filter { $0.eventType == "dose2" }
+        XCTAssertEqual(events.count, 1)
+        XCTAssertEqual(repo.fetchDoseLog(forSession: date)?.dose2Time, model.reconcileDose2Time)
+        XCTAssertEqual(MorningCheckInViewModel.parseDoseAmount(from: events, eventType: "dose2"), 4250)
+    }
+
     func test_questionnaireRetryDoesNotRepeatCommittedMedicationCorrections() async throws {
         repo.setDose1Time(fixedNow.addingTimeInterval(-4 * 3600))
         let identity = try XCTUnwrap(repo.activeSessionId)
