@@ -36,7 +36,7 @@ The latest audit recommendation is `HOLD`. The current integration decision reco
 | DOSETAP-37 | P1 partial. Current timezone UI exists; per-event historical timezone provenance and physical validation remain open. |
 | DOSETAP-38 | P1 partial. Failure and retry correlation tests exist; signed-device diagnostic evidence remains open. |
 | DOSETAP-39 | P1 partial. CRUD inventory exists; clear-all, sync convergence, and content-equal restore evidence remain open. |
-| DOSETAP-40 | P1 partial. Repository agent preflight/closeout, guarded state changes, and Plane readback are implemented; unattended Symphony polling still needs a compatible Plane adapter. |
+| DOSETAP-40 | Repository preflight/closeout and evidence-content readback are implemented. The workflow before_run hook refuses unattended execution. Future enablement still requires a reviewed native Plane adapter and non-dispatchable handoff; no runner has been enabled. See the September 9 quick-win audit and Plane for closure evidence. |
 | DOSETAP-41 | High, In Progress. Wake-date work warnings and persistent one-day nonworking exceptions are integrated; owner/device review remains separate from local evidence. |
 | DOSETAP-42 | Urgent, In Progress. UUID-scoped medication writes and mixed-authority protections are integrated; historical-data and signed-device acceptance remain open. |
 | DOSETAP-44 | Urgent, In Progress. HealthKit status work no longer blocks the main actor during startup; signed-device grant, denial, stall, and provider observations remain open. |
@@ -49,6 +49,10 @@ Always re-read Plane before changing an issue state. The table above is a docume
 Repository agents use `.agents/plane-workflow.yml`, `AGENTS.md`, and `tools/plane_tracker.rb` for exact-key Plane preflight and closeout. The helper is dry-run by default, uses the current `/work-items/` API, updates one internal workpad comment, guards `Done` behind green validation and no open gates, and verifies state plus workpad content with a post-write readback.
 
 `WORKFLOW.md` now selects Plane rather than the archived Linear project. A Symphony runner must provide a compatible Plane tracker adapter and a non-dispatchable handoff policy for items waiting on human or external gates before polling this workflow. If either is unavailable, startup must fail closed; it must never fall back to Linear, continuously re-run gated work, or treat repository-only progress as a Plane update.
+
+The repository enforces the disabled execution path with `ruby tools/plane_tracker.rb unattended-preflight` in the workflow's `before_run` hook. That command always exits nonzero before any Plane request or agent execution. Manual helper commands remain available. This is not a compatible adapter or permission to start polling: future enablement requires reviewed code and installation evidence, not changing a YAML flag or removing the hook. The helper verifies stable workpad contents as well as the closeout marker and state.
+
+The [September 9 quick-win review](audit/2026-09-09/plane-quick-wins.md) records the live inventory and why external acceptance items were not bulk-closed.
 
 ## Proposed next version
 

@@ -60,6 +60,7 @@ class PlaneTracker
   end
 
   def preflight(identifier)
+    @all_items = nil
     item = find_item(identifier)
     {
       ok: true,
@@ -70,6 +71,11 @@ class PlaneTracker
       updated_at: item["updated_at"],
       url: item_url(identifier)
     }
+  end
+
+  def unattended_preflight
+    raise PlaneTrackerError,
+          "unattended execution is disabled; a reviewed native Plane adapter and non-dispatchable handoff are required"
   end
 
   def start(identifier, apply: false)
@@ -198,6 +204,7 @@ class PlaneTracker
     closeout = validated_closeout(identifier, input_path)
     expected_state = closeout.fetch("target_state")
     expected_closeout = closeout_id(closeout)
+    @all_items = nil
     item = find_item(identifier)
     actual_state = state_name_for(item.fetch("state"))
     comment = workpad_comment(item.fetch("id"))
@@ -209,6 +216,10 @@ class PlaneTracker
     end
     unless actual_state == expected_state
       raise PlaneTrackerError, "state readback mismatch for #{identifier}: expected #{expected_state}, got #{actual_state}"
+    end
+    expected_evidence = workpad_evidence(render_workpad(closeout, expected_closeout))
+    unless workpad_evidence(comment["comment_html"].to_s) == expected_evidence
+      raise PlaneTrackerError, "workpad content readback mismatch for #{identifier}"
     end
 
     {
@@ -223,6 +234,17 @@ class PlaneTracker
   end
 
   private
+
+  # Compare stable evidence, not the generated timestamp or the verifier's Git branch.
+  # Use HTML only: a stale stripped-text field must not hide a changed workpad.
+  def workpad_evidence(html)
+    sections = html.scan(/<h3\b[^>]*>(.*?)<\/h3>(.*?)(?=<h3\b|\z)/mi).to_h
+    normalize = ->(text) { CGI.unescapeHTML(text.to_s.gsub(/<[^>]*>/, " ")).gsub(/\s+/, " ").strip }
+    result = %w[Summary Validation].to_h { |name| [name, normalize.call(sections[name])] }
+    ["Open gates", "Tracker outcome"].each { |name| result[name] = normalize.call(sections[name]) }
+    result["Changed files"] = normalize.call(sections["Repository scope"].to_s[/<ul\b[^>]*>.*?<\/ul>/mi])
+    result
+  end
 
   def validated_closeout(identifier, input_path)
     payload = load_json_file(input_path)
@@ -596,7 +618,7 @@ end
 def plane_tracker_main(arguments)
   command = arguments.shift
   unless command
-    raise PlaneTrackerError, "command required: validate-config, preflight, start, create, closeout, or verify"
+    raise PlaneTrackerError, "command required: validate-config, unattended-preflight, preflight, start, create, closeout, or verify"
   end
   options, parser = parse_options(command, arguments)
   tracker = PlaneTracker.new(config_path: options[:config])
@@ -604,6 +626,8 @@ def plane_tracker_main(arguments)
   result = case command
            when "validate-config"
              { ok: true, config: options[:config], tracker: "plane", api_resource: "work-items" }
+           when "unattended-preflight"
+             tracker.unattended_preflight
            when "preflight"
              raise PlaneTrackerError, parser.to_s unless options[:issue]
              tracker.preflight(options[:issue])
