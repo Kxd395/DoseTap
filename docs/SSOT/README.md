@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-09
 SSOT revision: 0.4.19
-Shipping app version observed in the Xcode project: 0.4.19 (build 39)
+Shipping app version observed in the Xcode project: 0.4.19 (build 40)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -131,6 +131,8 @@ Current Quick Log event names (from `UserSettingsManager.allAvailableEvents`):
 - Pain
 
 ### Morning Check-In
+
+- DOSETAP-67 questionnaire-intent repair: missing Dose 1 starts unselected and Dose 2 starts Leave as-is, including an existing skip. Opening or ordinarily saving a morning form does not add, replace or annotate medication records. Unanswered medication status remains unrecorded, not skipped. Explicitly selected retrospective reconciliation is still supported; separating it into its own reviewed action remains planned. Questionnaire reason answers stay questionnaire data unless included in an explicitly selected new dose/skip action. Existing medication reasons and occurrence times are not overwritten by default questionnaire values.
 
 - Storage: `morning_checkins` table.
 - Save path: `MorningCheckInView` -> `MorningCheckInViewModel.toStoredCheckIn()` -> `SessionRepository.saveMorningCheckIn(...)`.
