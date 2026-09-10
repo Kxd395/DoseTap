@@ -501,6 +501,8 @@ public struct PreSleepLogAnswers: Codable {
     public var stimulants: Stimulants?
     public var caffeineSources: [Stimulants]?
     public var caffeineLastIntakeAt: Date?
+    public var caffeineAmounts: CaffeineAmounts?
+    // Raw legacy values: units are unverified. Never use these as volume or mass.
     public var caffeineLastAmountMg: Int?
     public var caffeineDailyTotalMg: Int?
     public var plannedTotalNightlyMg: Int?

@@ -164,8 +164,11 @@ private struct ExportSharePayload: Identifiable {
                 appendTextField(&lines, label: "Pain Type", value: answers.painType?.displayText)
                 appendTextField(&lines, label: "Caffeine Sources", value: answers.caffeineSourceDisplayText ?? answers.stimulants?.displayText)
                 appendTextField(&lines, label: "Caffeine Last Intake", value: answers.caffeineLastIntakeAt.map(formatTime))
-                appendTextField(&lines, label: "Caffeine Last Amount", value: answers.caffeineLastAmountMg.map { "\($0) oz" })
-                appendTextField(&lines, label: "Caffeine Daily Total", value: answers.caffeineDailyTotalMg.map { "\($0) oz" })
+                appendTextField(&lines, label: "Legacy last caffeine amount (unit unverified)", value: answers.caffeineLastAmountMg.map { String($0) })
+                appendTextField(&lines, label: "Legacy daily caffeine amount (unit unverified)", value: answers.caffeineDailyTotalMg.map { String($0) })
+                for field in answers.caffeineAmounts?.reportFields ?? [] {
+                    appendTextField(&lines, label: field.label, value: field.value)
+                }
                 appendTextField(&lines, label: "Alcohol", value: answers.alcohol?.displayText)
                 appendTextField(&lines, label: "Alcohol Last Drink", value: answers.alcoholLastDrinkAt.map(formatTime))
                 appendTextField(&lines, label: "Alcohol Last Amount", value: answers.alcoholLastAmountDrinks.map(formatDrinks))
@@ -349,8 +352,11 @@ private struct ExportSharePayload: Identifiable {
                 appendCSVRow(&rows, section: "pre_sleep", field: "stimulants_summary", value: answers.stimulants?.displayText)
                 appendCSVRow(&rows, section: "pre_sleep", field: "caffeine_sources", value: answers.caffeineSourceDisplayText)
                 appendCSVRow(&rows, section: "pre_sleep", field: "caffeine_last_intake", value: answers.caffeineLastIntakeAt.map(formatTime))
-                appendCSVRow(&rows, section: "pre_sleep", field: "caffeine_last_amount_oz", value: answers.caffeineLastAmountMg.map { String($0) })
-                appendCSVRow(&rows, section: "pre_sleep", field: "caffeine_daily_total_oz", value: answers.caffeineDailyTotalMg.map { String($0) })
+                appendCSVRow(&rows, section: "pre_sleep", field: "caffeine_legacy_last_amount_unit_unverified", value: answers.caffeineLastAmountMg.map { String($0) })
+                appendCSVRow(&rows, section: "pre_sleep", field: "caffeine_legacy_daily_total_unit_unverified", value: answers.caffeineDailyTotalMg.map { String($0) })
+                for field in answers.caffeineAmounts?.reportFields ?? [] {
+                    appendCSVRow(&rows, section: "pre_sleep", field: "caffeine_amounts_\(field.key)", value: field.value)
+                }
                 appendCSVRow(&rows, section: "pre_sleep", field: "alcohol", value: answers.alcohol?.displayText)
                 appendCSVRow(&rows, section: "pre_sleep", field: "alcohol_last_drink", value: answers.alcoholLastDrinkAt.map(formatTime))
                 appendCSVRow(&rows, section: "pre_sleep", field: "alcohol_last_amount", value: answers.alcoholLastAmountDrinks.map(formatDrinks))

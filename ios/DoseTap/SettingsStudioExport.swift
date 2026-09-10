@@ -156,8 +156,9 @@ struct StudioBundleExporter {
             bodyPain: answers?.bodyPain?.rawValue,
             caffeineSources: answers?.resolvedCaffeineSources.map(\.rawValue) ?? [],
             caffeineLastIntakeAtUTC: answers?.caffeineLastIntakeAt,
-            caffeineLastAmountMg: answers?.caffeineLastAmountMg,
-            caffeineDailyTotalMg: answers?.caffeineDailyTotalMg,
+            caffeineAmounts: answers?.caffeineAmounts,
+            caffeineLegacyLastAmount: answers?.caffeineLastAmountMg,
+            caffeineLegacyDailyTotal: answers?.caffeineDailyTotalMg,
             alcohol: answers?.alcohol?.rawValue,
             alcoholLastDrinkAtUTC: answers?.alcoholLastDrinkAt,
             alcoholLastAmountDrinks: answers?.alcoholLastAmountDrinks,
@@ -1580,8 +1581,9 @@ private struct InsightsPreSleepSummary: Codable {
     let bodyPain: String?
     let caffeineSources: [String]
     let caffeineLastIntakeAtUTC: Date?
-    let caffeineLastAmountMg: Int?
-    let caffeineDailyTotalMg: Int?
+    let caffeineAmounts: CaffeineAmounts?
+    let caffeineLegacyLastAmount: Int?
+    let caffeineLegacyDailyTotal: Int?
     let alcohol: String?
     let alcoholLastDrinkAtUTC: Date?
     let alcoholLastAmountDrinks: Double?

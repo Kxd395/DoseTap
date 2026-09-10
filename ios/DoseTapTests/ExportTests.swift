@@ -219,6 +219,12 @@ final class ExportIntegrityTests: XCTestCase {
             stressLevel: 3, notes: "preserve raw pre-sleep answers")
         foodAnswers.lastFood = .init(finishedAt: preSleepTime.addingTimeInterval(-7200), kind: .meal,
             highFat: true, notes: "Fried food")
+        foodAnswers.stimulants = .coffee
+        var caffeine = CaffeineAmounts()
+        caffeine.lastVolumeUSFlOz = 12.5; caffeine.lastCaffeineMg = 0
+        caffeine.source = .labelReported
+        foodAnswers.caffeineAmounts = caffeine
+        foodAnswers.caffeineLastAmountMg = 95 // Unverified legacy value, not a conversion.
         _ = try storage.savePreSleepLogOrThrow(
             sessionId: sessionDate,
             answers: foodAnswers,
@@ -299,6 +305,8 @@ final class ExportIntegrityTests: XCTestCase {
         let submissions = try XCTUnwrap(exportedSession["checkInSubmissions"] as? [[String: Any]])
 
         XCTAssertTrue((preSleep["rawAnswersJson"] as? String)?.contains("preserve raw pre-sleep answers") == true)
+        XCTAssertEqual((preSleep["caffeineAmounts"] as? [String: Any])?["lastVolumeUSFlOz"] as? Double, 12.5)
+        XCTAssertNil(preSleep["caffeineLastAmountMg"])
         let food = try XCTUnwrap(preSleep["lastFood"] as? [String: Any])
         XCTAssertEqual(food["kind"] as? String, "meal")
         XCTAssertEqual(food["highFat"] as? Bool, true)

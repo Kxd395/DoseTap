@@ -288,37 +288,38 @@ struct Card2BodySubstances: View {
 
                         if answers.hasCaffeineIntake {
                             SubstanceDetailCard(title: caffeineDetailTitle) {
-                                SubstanceTimePickerRow(
-                                    label: "Last intake time",
-                                    value: Binding(
-                                        get: { answers.caffeineLastIntakeAt ?? referenceTime },
-                                        set: { answers.caffeineLastIntakeAt = $0 }
-                                    )
-                                )
-                                SubstanceIntStepperRow(
-                                    label: "Last drink size",
-                                    unit: "oz",
-                                    range: 2...48,
-                                    step: 2,
-                                    value: Binding(
-                                        get: { answers.caffeineLastAmountMg ?? defaultCaffeineAmountOz() },
-                                        set: { answers.caffeineLastAmountMg = $0 }
-                                    )
-                                )
-                                SubstanceIntStepperRow(
-                                    label: "Total today",
-                                    unit: "oz",
-                                    range: max(answers.caffeineLastAmountMg ?? defaultCaffeineAmountOz(), 2)...96,
-                                    step: 4,
-                                    value: Binding(
-                                        get: { answers.caffeineDailyTotalMg ?? max(answers.caffeineLastAmountMg ?? defaultCaffeineAmountOz(), defaultCaffeineAmountOz()) },
-                                        set: { answers.caffeineDailyTotalMg = $0 }
-                                    )
-                                )
-                                Text("Amounts use beverage ounces, not estimated caffeine milligrams.")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                if let record = answers.caffeineAmounts, record.version != 1 {
+                                    Text(record.validationError ?? "Unsupported caffeine amount format")
+                                } else {
+                                    Toggle("Record last intake time", isOn: Binding(
+                                        get: { answers.caffeineLastIntakeAt != nil },
+                                        set: { answers.caffeineLastIntakeAt = $0 ? referenceTime : nil }
+                                    ))
+                                    if answers.caffeineLastIntakeAt != nil {
+                                        SubstanceTimePickerRow(label: "Last intake time", value: Binding(
+                                            get: { answers.caffeineLastIntakeAt ?? referenceTime },
+                                            set: { answers.caffeineLastIntakeAt = $0 }
+                                        ))
+                                    }
+                                    caffeineAmountField("Last beverage (US fl oz)", \.lastVolumeUSFlOz)
+                                    caffeineAmountField("Daily beverages (US fl oz)", \.dailyVolumeUSFlOz)
+                                    caffeineAmountField("Last caffeine (mg)", \.lastCaffeineMg)
+                                    caffeineAmountField("Daily caffeine (mg)", \.dailyCaffeineMg)
+                                    Picker("Amount source", selection: Binding(
+                                        get: { answers.caffeineAmounts?.source ?? .userReported },
+                                        set: { var record = answers.caffeineAmounts ?? CaffeineAmounts(); record.source = $0; answers.caffeineAmounts = record }
+                                    )) {
+                                        ForEach(CaffeineAmounts.Source.allCases, id: \.self) { source in
+                                            Text(source.rawValue.replacingOccurrences(of: "_", with: " ").capitalized).tag(source)
+                                        }
+                                    }
+                                    Text("Leave unknown amounts blank. Source applies to all amounts above. Beverage volume does not determine caffeine milligrams.")
+                                        .font(.caption).foregroundColor(.secondary)
+                                }
+                                if answers.caffeineLastAmountMg != nil || answers.caffeineDailyTotalMg != nil {
+                                    Text("Earlier amounts have unverified units. Original values are preserved in History; enter reviewed amounts above.")
+                                        .font(.caption).foregroundColor(.orange)
+                                }
                             }
                         }
                     }
@@ -457,12 +458,6 @@ struct Card2BodySubstances: View {
             answers.painEntries = nil
             answers.painLocations = nil
             answers.painType = nil
-        }
-        .onChange(of: answers.caffeineLastAmountMg) { _ in
-            normalizeCaffeineDetails()
-        }
-        .onChange(of: answers.caffeineDailyTotalMg) { _ in
-            normalizeCaffeineDetails()
         }
         .onChange(of: answers.alcohol) { newValue in
             if (newValue ?? PreSleepLogAnswers.AlcoholLevel.none) == PreSleepLogAnswers.AlcoholLevel.none {
@@ -631,6 +626,7 @@ struct Card2BodySubstances: View {
     }
 
     private func clearCaffeineDetails() {
+        answers.caffeineAmounts = nil
         answers.stimulants = nil
         answers.caffeineSources = nil
         answers.caffeineLastIntakeAt = nil
@@ -638,14 +634,19 @@ struct Card2BodySubstances: View {
         answers.caffeineDailyTotalMg = nil
     }
 
-    private func defaultCaffeineAmountOz() -> Int {
-        switch answers.caffeineSourceSummary ?? answers.stimulants ?? PreSleepLogAnswers.Stimulants.none {
-        case .none: return 0
-        case .tea: return 8
-        case .soda: return 12
-        case .coffee: return 12
-        case .energyDrink: return 16
-        case .multiple: return 24
+    private func caffeineAmountField(_ label: String, _ keyPath: WritableKeyPath<CaffeineAmounts, Double?>) -> some View {
+        HStack {
+            Text(label)
+            Spacer()
+            TextField("Unknown", value: Binding<Double?>(
+                get: { answers.caffeineAmounts?[keyPath: keyPath] },
+                set: { var record = answers.caffeineAmounts ?? CaffeineAmounts(); record[keyPath: keyPath] = $0; answers.caffeineAmounts = record }
+            ), format: .number)
+            .keyboardType(.decimalPad)
+            .textFieldStyle(.roundedBorder)
+            .frame(width: 110)
+            .accessibilityLabel(label)
+            .accessibilityIdentifier("caffeine-\(label)")
         }
     }
 
@@ -658,21 +659,6 @@ struct Card2BodySubstances: View {
         }
     }
 
-    private func normalizeCaffeineDetails() {
-        guard answers.hasCaffeineIntake else { return }
-        if let amount = answers.caffeineLastAmountMg {
-            answers.caffeineLastAmountMg = max(2, amount)
-        }
-        if let total = answers.caffeineDailyTotalMg {
-            answers.caffeineDailyTotalMg = max(2, total)
-        }
-        if let amount = answers.caffeineLastAmountMg,
-           let total = answers.caffeineDailyTotalMg,
-           total < amount {
-            answers.caffeineDailyTotalMg = amount
-        }
-    }
-
     private func bootstrapCaffeineDetailsIfNeeded() {
         if answers.caffeineSources == nil {
             let resolved = answers.resolvedCaffeineSources
@@ -682,11 +668,6 @@ struct Card2BodySubstances: View {
             }
         }
 
-        guard answers.hasCaffeineIntake else { return }
-        if answers.caffeineLastIntakeAt == nil { answers.caffeineLastIntakeAt = referenceTime }
-        if answers.caffeineLastAmountMg == nil { answers.caffeineLastAmountMg = defaultCaffeineAmountOz() }
-        if answers.caffeineDailyTotalMg == nil { answers.caffeineDailyTotalMg = max(defaultCaffeineAmountOz(), answers.caffeineLastAmountMg ?? 0) }
-        normalizeCaffeineDetails()
     }
 
     private func normalizeAlcoholDetails() {

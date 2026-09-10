@@ -101,22 +101,9 @@ extension EventStorage {
         }
 
         let hasCaffeine = normalized.hasCaffeineIntake
-        if hasCaffeine {
-            if let value = normalized.caffeineLastAmountMg {
-                normalized.caffeineLastAmountMg = max(0, value)
-            }
-            if let value = normalized.caffeineDailyTotalMg {
-                normalized.caffeineDailyTotalMg = max(0, value)
-            }
-            if let last = normalized.caffeineLastAmountMg,
-               let total = normalized.caffeineDailyTotalMg,
-               total < last {
-                normalized.caffeineDailyTotalMg = last
-            }
-        } else {
+        if !hasCaffeine {
             normalized.caffeineLastIntakeAt = nil
-            normalized.caffeineLastAmountMg = nil
-            normalized.caffeineDailyTotalMg = nil
+            normalized.caffeineAmounts = nil
             normalized.caffeineSources = nil
             // Preserve nil (unanswered) separately from an explicit None answer.
             // Otherwise the normalized submission invents caffeine.any = false.
@@ -261,13 +248,14 @@ extension EventStorage {
         if let value = normalized.caffeineSourceSummary?.rawValue { responses["pre.substances.caffeine.source"] = value }
         if let value = normalized.caffeineSources?.map(\.rawValue), !value.isEmpty { responses["pre.substances.caffeine.sources"] = value }
         if let value = normalized.caffeineLastIntakeAt { responses["pre.substances.caffeine.last_time_utc"] = isoFormatter.string(from: value) }
-        if let value = normalized.caffeineLastAmountMg {
-            responses["pre.substances.caffeine.last_amount_mg"] = value
-            responses["pre.substances.caffeine.last_amount_oz"] = value
+        if let amounts = normalized.caffeineAmounts, amounts.validationError == nil,
+           let data = try? JSONEncoder().encode(amounts), let object = try? JSONSerialization.jsonObject(with: data) {
+            responses["pre.substances.caffeine.amounts"] = object
         }
-        if let value = normalized.caffeineDailyTotalMg {
-            responses["pre.substances.caffeine.daily_total_mg"] = value
-            responses["pre.substances.caffeine.daily_total_oz"] = value
+        if let value = normalized.caffeineLastAmountMg { responses["pre.substances.caffeine.legacy.last_amount"] = value }
+        if let value = normalized.caffeineDailyTotalMg { responses["pre.substances.caffeine.legacy.daily_total"] = value }
+        if normalized.caffeineLastAmountMg != nil || normalized.caffeineDailyTotalMg != nil {
+            responses["pre.substances.caffeine.legacy.unit"] = "unverified"
         }
         if let value = normalized.plannedTotalNightlyMg { responses["pre.dose_plan.total_mg"] = value }
         if let value = normalized.plannedDoseSplitRatio, value.count == 2 { responses["pre.dose_plan.split_ratio"] = value }
@@ -280,10 +268,7 @@ extension EventStorage {
         if let dose1 = normalized.plannedDose1Mg, let dose2 = normalized.plannedDose2Mg {
             responses["pre.dose_plan.off_label_single_dose"] = max(dose1, dose2) > 4500
         }
-        if normalized.hasCaffeineIntake {
-            responses["pre.substances.caffeine.amount_unit"] = "oz"
-        }
-        if normalized.stimulants != nil || normalized.caffeineSources != nil || normalized.caffeineLastIntakeAt != nil || normalized.caffeineLastAmountMg != nil || normalized.caffeineDailyTotalMg != nil {
+        if normalized.stimulants != nil || normalized.caffeineSources != nil || normalized.caffeineLastIntakeAt != nil || normalized.caffeineAmounts != nil {
             responses["pre.substances.caffeine.any"] = normalized.hasCaffeineIntake
         }
         if let value = normalized.alcohol?.rawValue { responses["pre.substances.alcohol"] = value }
@@ -540,6 +525,7 @@ extension EventStorage {
 
     public enum PreSleepLogStoreError: Error, LocalizedError {
         case encodeFailed
+        case invalidCaffeineAmounts(String)
         case prepareFailed(String)
         case bindFailed(String)
         case stepFailed(String)
@@ -547,6 +533,7 @@ extension EventStorage {
         public var errorDescription: String? {
             switch self {
             case .encodeFailed: return "Failed to encode pre-sleep answers"
+            case .invalidCaffeineAmounts(let message): return message
             case .prepareFailed(let message): return "Failed to prepare pre-sleep save: \(message)"
             case .bindFailed(let message): return "Failed to bind pre-sleep save: \(message)"
             case .stepFailed(let message): return "Failed to save pre-sleep log: \(message)"
@@ -659,6 +646,7 @@ extension EventStorage {
         existingLog: StoredPreSleepLog? = nil
     ) throws -> StoredPreSleepLog {
         try answers.lastFood?.validate(at: now)
+        if let error = answers.caffeineAmounts?.validationError { throw PreSleepLogStoreError.invalidCaffeineAmounts(error) }
         let normalizedAnswers = normalizedPreSleepAnswers(answers)
 
         guard let data = try? JSONEncoder().encode(normalizedAnswers),

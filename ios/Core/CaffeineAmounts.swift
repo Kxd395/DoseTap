@@ -16,6 +16,20 @@ public struct CaffeineAmounts: Codable, Hashable, Sendable {
 
     public init() {}
 
+    public var reportFields: [(key: String, label: String, value: String)] {
+        if let error = validationError { return [("status", "Caffeine amounts", error)] }
+        var fields = [("version", "Caffeine amount format", String(version)), ("source", "Caffeine amount source", source.rawValue)]
+        for (key, label, value) in [
+            ("last_volume_us_fl_oz", "Last beverage (US fl oz)", lastVolumeUSFlOz),
+            ("daily_volume_us_fl_oz", "Daily beverages (US fl oz)", dailyVolumeUSFlOz),
+            ("last_caffeine_mg", "Last caffeine (mg)", lastCaffeineMg),
+            ("daily_caffeine_mg", "Daily caffeine (mg)", dailyCaffeineMg)
+        ] {
+            if let value { fields.append((key, label, String(value))) }
+        }
+        return fields
+    }
+
     public var validationError: String? {
         guard version == 1 else { return "This caffeine amount format is not supported. Update DoseTap before editing it." }
         let values = [lastVolumeUSFlOz, dailyVolumeUSFlOz, lastCaffeineMg, dailyCaffeineMg].compactMap { $0 }

@@ -939,6 +939,14 @@ final class DoseTapUITests: XCTestCase {
         for _ in 0..<3 where !coffee.isHittable { app.swipeUp() }
         coffee.tap()
         XCTAssertEqual(answer.label, "Coffee")
+        let volume = app.textFields["caffeine-Last beverage (US fl oz)"]
+        for _ in 0..<8 where !volume.isHittable { app.swipeUp() }
+        XCTAssertTrue(volume.isHittable)
+        XCTAssertEqual(volume.value as? String, "Unknown")
+        XCTAssertTrue(app.textFields["caffeine-Last caffeine (mg)"].exists)
+        app.swipeUp()
+        captureDashboard("Caffeine volume and mass are separate and initially unrecorded")
+        for _ in 0..<8 where !coffee.isHittable { app.swipeDown() }
         coffee.tap()
         XCTAssertEqual(answer.label, "Not recorded", "Deselecting the last source is not an explicit No answer")
         none.tap()

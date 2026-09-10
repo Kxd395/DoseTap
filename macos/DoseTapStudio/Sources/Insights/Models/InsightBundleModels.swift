@@ -221,6 +221,10 @@ struct InsightPreSleepSummary: Codable, Hashable, Sendable {
     let caffeineLastIntakeAtUTC: Date?
     let caffeineLastAmountMg: Int?
     let caffeineDailyTotalMg: Int?
+    // Old Mg-named fields are retained only as unverified legacy archive values.
+    var caffeineAmounts: CaffeineAmounts?
+    var caffeineLegacyLastAmount: Int?
+    var caffeineLegacyDailyTotal: Int?
     let alcohol: String?
     let alcoholLastDrinkAtUTC: Date?
     let alcoholLastAmountDrinks: Double?

@@ -41,9 +41,19 @@ For newly saved or explicitly edited answers, `physicalSymptomsJson.hasHeadache 
 
 This changes optional payload content, not table layout. No migration rewrites existing rows or reinterprets old defaults. An explicit History correction still retains prior answers through the existing provenance path. Raw Studio exports carry the saved payload; legacy archived values are not silently repaired on import.
 
-## Table inventory
+## Caffeine amount record v1
+
+`PreSleepLogAnswers.caffeineAmounts` is additive JSON, not a SQLite table migration. It contains required `version: 1` and `source` (`user_reported`, `label_reported`, `estimated`, `unknown`), plus optional `lastVolumeUSFlOz`, `dailyVolumeUSFlOz`, `lastCaffeineMg`, and `dailyCaffeineMg` numbers. Source applies to all values in the record; label-reported means the user's report, not independently verified label data. Amounts are finite/nonnegative; each answered daily total must be at least its corresponding last amount. Missing and explicit zero differ. No volume/mass conversion is defined.
+
+Normalized answers store this object at `pre.substances.caffeine.amounts`. Legacy raw `caffeineLastAmountMg` and `caffeineDailyTotalMg` retain their original numbers without clamping, total substitution or unit inference. Their normalized keys are `pre.substances.caffeine.legacy.last_amount`, `.daily_total`, and `.unit = unverified`; new writes no longer duplicate them under `_mg` and `_oz` aliases. Explicit Clear can remove the current legacy values through the normal correction flow; merely reading or normalizing does not assign their units.
+
+History text/CSV labels legacy values as unverified and uses the versioned record's separate unit-named fields. Manual/scheduled Studio exports share `caffeineAmounts`, `caffeineLegacyLastAmount`, and `caffeineLegacyDailyTotal`. New exports omit misleading old top-level Mg aliases but preserve raw source answers. Studio reads old archives without converting their Mg-named values and flags unverified legacy units. It flags unsupported/invalid amount records; new saves and History corrections reject them. Older Studio versions ignore the additive record and cannot display its new amounts; use the matching Studio source for review. No historical database rewrite or full-backup compatibility claim is made.
+
+## Morning setup preferences
 
 Morning preferences (`morningCheckIn.savedSettings` in UserDefaults) contain only `sleepTherapyDevice`, `sleepEnvironmentRoomTemp`, `sleepEnvironmentNoiseLevel` and `sleepEnvironmentSleepAid`. Legacy daily-answer keys are ignored on preference load and omitted on the next explicit preference save. Prior-check-in fallback uses the same whitelist. No historical source row or normalized response is migrated. These are reusable choices, not a new assertion of therapy use or this morning's conditions; the corresponding sections remain inactive until selected. Fixed rating/Boolean defaults elsewhere in the morning form remain unchanged and are not newly classified as confirmed or unanswered.
+
+## Table inventory
 
 | Table | Record owner and purpose | Canonical identity |
 | --- | --- | --- |
