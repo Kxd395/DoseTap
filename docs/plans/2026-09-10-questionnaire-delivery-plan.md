@@ -100,7 +100,23 @@ DOSETAP-67 implements IR-03/05 in build 41: Physical Symptoms no longer requires
 
 ### Remaining acceptance
 
-Build 42 narrows both morning carry-forward paths and newly saved preferences to room/equipment setup only under DOSETAP-51. Daily outcomes no longer come from the prior check-in; explicit existing-night editing is preserved. This is the cross-night portion of IR-02, not completion of optional-answer/default-origin handling. Fixed morning ratings and Boolean defaults, IR-04 substance/activity default precision and DOSETAP-52 volume/mass semantics remain next steps. See the [morning setup audit](../audit/2026-09-10-morning-setup-freshness.md).
+#### Required morning missingness migration
+
+Inspection after build 42 found that `morning_checkins.sleep_quality`, mental clarity, readiness and core categorical/Boolean answers are non-null columns with defaults. Both app record types also require values. Dashboard reads the scalar fields directly, and `SettingsStudioExport.exportMorningSummary` forwards them to Studio. An unchecked UI flag alone would not make those downstream values unavailable.
+
+Implement this as a coordinated DOSETAP-51 migration, starting with the core morning ratings:
+
+1. Define optional values and per-answer provenance. Distinguish new unanswered, explicit user answer and legacy value with unverified origin. Do not infer whether a historical default was actually chosen.
+2. Update the executable SQLite schema/migration and both `SQLiteStoredMorningCheckIn` / app `StoredMorningCheckIn` types together. Test nullable bind/read, transaction failure and reopening an old database. Preserve source identities, revisions and existing completion receipts.
+3. Update source-to-normalized submissions, History review/correction, raw/flat exports and Studio models/import validation. A missing value stays absent/null; no `?? 3`, zero or false fallback may enter a report. Old archives retain their legacy status; unsupported new formats need a visible compatibility result.
+4. Update Dashboard and Studio aggregation denominators to use answered observations only. Retain check-in completion counts separately. Verify sleep-quality context comparisons, trend calculations and report summaries against mixed old/new/missing fixtures.
+5. Wire initially unanswered controls, explicit clear and save-with-blanks. Confirm same-night retry, old-night edit, restart and exact-night reminder suppression. Then extend the same contract to categorical and Boolean questions.
+
+This is a delivery plan, not a completed migration. The morning form's fixed defaults remain in place in build 43. DOSETAP-52's caffeine-unit correction does not change the morning table.
+
+Build 42 narrows both morning carry-forward paths and newly saved preferences to room/equipment setup only under DOSETAP-51. Daily outcomes no longer come from the prior check-in; explicit existing-night editing is preserved. This is the cross-night portion of IR-02, not completion of optional-answer/default-origin handling. Fixed morning ratings and Boolean defaults and remaining IR-04 substance/activity default precision still need work. See the [morning setup audit](../audit/2026-09-10-morning-setup-freshness.md).
+
+Build 43 implements the bounded DOSETAP-52 volume/mass contract, legacy-unit preservation and matching History/Studio reader-writer changes. Its actual iOS-archive-to-Studio test passes. Signed-phone, owner and accessibility acceptance remain open; see the [caffeine unit audit](../audit/2026-09-10-caffeine-amount-units.md).
 
 Use the proposal's AT-01 through AT-32 as proposed cases, with the completion clarification above overriding AT-28. Add: submitted-with-blanks stops the exact-night reminder after relaunch; explicit skip does not mutate medication; failed disposition write stays unresolved; same-date distinct sessions cannot share a completion; next-night preference is consumed only by the documented durable action.
 

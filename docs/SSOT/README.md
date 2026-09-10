@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-10
 SSOT revision: 0.4.19
-Shipping app version observed in the Xcode project: 0.4.19 (build 42)
+Shipping app version observed in the Xcode project: 0.4.19 (build 43)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -44,6 +44,12 @@ Notes:
 - Using a saved pattern is not editing its matching nightly entry. If its area/side changes during review, the original nightly entry remains; only an explicit nightly Edit action supplies a replacement key.
 - The live pre-sleep pain editor offers an explicit Remember for future nights option before Save. Saved-pattern review puts tonight's intensity first, retaining the saved area, side and sensations for adjustment. Each pattern still requires a review/save action for tonight; daily severity is not silently carried forward as an observation. History and morning editors do not change these preferences.
 - Existing area/side identity and questionnaire exports remain unchanged. At most one entry per area/side is supported; distinct problems in exactly the same area/side need a future identity change. Saved preferences are not currently included in the clinical event export or a promised full backup. Confirmed nightly entries use the existing storage/export path.
+
+### Caffeine amount units (DOSETAP-52)
+
+- New caffeine amounts use a version-1 record with independent optional last/daily beverage volumes in US fluid ounces and caffeine masses in milligrams. One source (user-reported, label-reported, estimated or unknown) applies to the entered amounts; manual entries start as user-reported. No volume-to-caffeine conversion is performed. Missing amounts stay missing; explicit zero and fractional values are retained.
+- Older `caffeineLastAmountMg` / `caffeineDailyTotalMg` fields have ambiguous semantics: prior UI entries used ounces and a legacy adapter fabricated 95. Preserve those raw numbers as legacy amounts with unverified units, not as new volume or mass. New normalized responses and reports must not emit the same number under both units. Old records are not bulk rewritten.
+- Choosing caffeine alone does not invent amount or time. The Boolean legacy adapter records only the supplied yes/no/unknown caffeine answer. Missing details do not block completion. Entered amounts must be finite and nonnegative, with a daily total no smaller than the last amount when both exist. Unsupported record versions cannot be interpreted or saved as version 1. This is diary context, not a dosing or safety decision.
 
 ### Last food in pre-sleep logging (DOSETAP-50)
 

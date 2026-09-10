@@ -217,25 +217,10 @@ struct PreSleepLogView: View {
             showSaveError = true
             return
         }
-        if answers.hasCaffeineIntake &&
-            (answers.caffeineLastIntakeAt == nil || answers.caffeineLastAmountMg == nil || answers.caffeineDailyTotalMg == nil) {
-            saveErrorMessage = "Add stimulant last time, last amount, and daily total."
+        if let error = answers.caffeineAmounts?.validationError {
+            saveErrorMessage = error
             showSaveError = true
             return
-        }
-        if answers.hasCaffeineIntake {
-            let last = answers.caffeineLastAmountMg ?? 0
-            let total = answers.caffeineDailyTotalMg ?? 0
-            if last <= 0 {
-                saveErrorMessage = "Stimulant last amount must be greater than 0 oz."
-                showSaveError = true
-                return
-            }
-            if total < last {
-                saveErrorMessage = "Stimulant daily total must be at least the last amount."
-                showSaveError = true
-                return
-            }
         }
         if (answers.alcohol ?? PreSleepLogAnswers.AlcoholLevel.none) != .none &&
             (answers.alcoholLastDrinkAt == nil || answers.alcoholLastAmountDrinks == nil || answers.alcoholDailyTotalDrinks == nil) {

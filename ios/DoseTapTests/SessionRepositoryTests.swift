@@ -22,6 +22,42 @@ final class TestClock {
 /// These tests verify that delete operations properly broadcast state changes.
 @MainActor
 final class SessionRepositoryTests: XCTestCase {
+    func test_caffeineUnitsRoundTripAndInvalidEditLeavesOriginalIntact() throws {
+        let date = "2026-01-14", identity = "caffeine-units"
+        storage.closeHistoricalSession(sessionId: identity, sessionDate: date, end: fixedNow, terminalState: "incomplete_missed_checkin")
+        var answers = PreSleepLogAnswers(stimulants: .coffee, caffeineLastAmountMg: 95, caffeineDailyTotalMg: 12)
+        var amounts = CaffeineAmounts()
+        amounts.lastVolumeUSFlOz = 12.5
+        amounts.dailyVolumeUSFlOz = 20.25
+        amounts.lastCaffeineMg = 0
+        amounts.dailyCaffeineMg = 95.5
+        amounts.source = .labelReported
+        answers.caffeineAmounts = amounts
+        let saved = try storage.savePreSleepLogOrThrow(sessionId: identity, answers: answers, now: fixedNow)
+        let reopened = try XCTUnwrap(storage.fetchMostRecentPreSleepLog(sessionId: identity)?.answers)
+        XCTAssertEqual(reopened.caffeineAmounts, amounts)
+        XCTAssertEqual(reopened.caffeineLastAmountMg, 95)
+        XCTAssertEqual(reopened.caffeineDailyTotalMg, 12, "Legacy amounts must not be silently changed or assigned units")
+        XCTAssertNil(reopened.caffeineLastIntakeAt)
+        let response = storage.preSleepResponsesByQuestionID(reopened)
+        let normalized = try XCTUnwrap(response["pre.substances.caffeine.amounts"] as? [String: Any])
+        XCTAssertEqual(normalized["lastVolumeUSFlOz"] as? Double, 12.5)
+        XCTAssertEqual(normalized["lastCaffeineMg"] as? Double, 0)
+        XCTAssertEqual(response["pre.substances.caffeine.legacy.unit"] as? String, "unverified")
+        XCTAssertNil(response["pre.substances.caffeine.last_amount_mg"])
+        let bundle = try JSONSerialization.jsonObject(with: StudioBundleExporter().buildStudioInsightsBundleDataForTesting(using: repo, sessionDates: [date])) as? [String: Any]
+        let exported = try XCTUnwrap((bundle?["sessions"] as? [[String: Any]])?.first?["preSleep"] as? [String: Any])
+        XCTAssertEqual((exported["caffeineAmounts"] as? [String: Any])?["dailyCaffeineMg"] as? Double, 95.5)
+        XCTAssertEqual(exported["caffeineLegacyLastAmount"] as? Int, 95)
+        XCTAssertNil(exported["caffeineLastAmountMg"])
+        answers.caffeineAmounts?.dailyVolumeUSFlOz = 1
+        XCTAssertThrowsError(try storage.savePreSleepLogOrThrow(sessionId: identity, answers: answers, now: fixedNow, existingLog: saved))
+        XCTAssertEqual(storage.fetchMostRecentPreSleepLog(sessionId: identity)?.answers?.caffeineAmounts, amounts)
+        answers.caffeineAmounts?.version = 2
+        XCTAssertThrowsError(try storage.savePreSleepLogOrThrow(sessionId: identity, answers: answers, now: fixedNow, existingLog: saved))
+        XCTAssertTrue(repo.fetchDoseEvents(forSessionDate: date).isEmpty)
+    }
+
     func test_nonLocalizedMorningSymptomsSaveWithoutPainEntries() async throws {
         for (index, symptom) in ["headache", "reflux", "urgency", "stiffness", "soreness", "restlessness"].enumerated() {
             let date = String(format: "2026-01-%02d", 8 + index)
@@ -1255,7 +1291,7 @@ final class SessionRepositoryTests: XCTestCase {
         answers.caffeineSources = [.coffee, .soda]
         answers.caffeineLastIntakeAt = caffeineTime
         answers.caffeineLastAmountMg = 16
-        answers.caffeineDailyTotalMg = 12 // intentionally lower; should normalize up
+        answers.caffeineDailyTotalMg = 12 // raw legacy values must remain unchanged
         answers.alcohol = .twoThree
         answers.alcoholLastDrinkAt = alcoholTime
         answers.alcoholLastAmountDrinks = 2.5
@@ -1286,11 +1322,11 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertEqual(responses["pre.substances.stimulants_after_2pm"] as? String, PreSleepLogAnswers.Stimulants.multiple.rawValue)
         XCTAssertEqual(responses["pre.substances.caffeine.sources"] as? [String], [PreSleepLogAnswers.Stimulants.coffee.rawValue, PreSleepLogAnswers.Stimulants.soda.rawValue])
         XCTAssertEqual(responses["pre.substances.caffeine.any"] as? Bool, true)
-        XCTAssertEqual(responses["pre.substances.caffeine.amount_unit"] as? String, "oz")
-        XCTAssertEqual(responses["pre.substances.caffeine.last_amount_mg"] as? Int, 16)
-        XCTAssertEqual(responses["pre.substances.caffeine.daily_total_mg"] as? Int, 16)
-        XCTAssertEqual(responses["pre.substances.caffeine.last_amount_oz"] as? Int, 16)
-        XCTAssertEqual(responses["pre.substances.caffeine.daily_total_oz"] as? Int, 16)
+        XCTAssertEqual(responses["pre.substances.caffeine.legacy.unit"] as? String, "unverified")
+        XCTAssertNil(responses["pre.substances.caffeine.last_amount_mg"])
+        XCTAssertNil(responses["pre.substances.caffeine.daily_total_mg"])
+        XCTAssertNil(responses["pre.substances.caffeine.last_amount_oz"])
+        XCTAssertNil(responses["pre.substances.caffeine.daily_total_oz"])
         XCTAssertNotNil(responses["pre.substances.caffeine.last_time_utc"] as? String)
 
         XCTAssertEqual(responses["pre.substances.alcohol"] as? String, PreSleepLogAnswers.AlcoholLevel.twoThree.rawValue)
@@ -1328,7 +1364,7 @@ final class SessionRepositoryTests: XCTestCase {
         let stored = storage.fetchMostRecentPreSleepLog(sessionId: sessionId)
         XCTAssertEqual(stored?.answers?.stimulants, .multiple)
         XCTAssertEqual(stored?.answers?.caffeineSources ?? [], [.coffee, .soda])
-        XCTAssertEqual(stored?.answers?.caffeineDailyTotalMg, 16)
+        XCTAssertEqual(stored?.answers?.caffeineDailyTotalMg, 12)
         XCTAssertEqual(stored?.answers?.lateMeal, .heavyMeal)
         XCTAssertEqual(stored?.answers?.screensInBed, .hourPlus)
         XCTAssertEqual(stored?.answers?.sleepAids, .multiple)
@@ -1427,7 +1463,8 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertEqual(responses["overall.stress"] as? Int, 3)
         XCTAssertEqual(responses["pre.substances.caffeine.any"] as? Bool, true)
         XCTAssertEqual(responses["pre.substances.alcohol.any"] as? Bool, true)
-        XCTAssertNotNil(responses["pre.substances.caffeine.last_amount_mg"] as? Int)
+        XCTAssertNil(responses["pre.substances.caffeine.last_amount_mg"])
+        XCTAssertNil(responses["pre.substances.caffeine.last_time_utc"])
         XCTAssertNotNil(doubleValue(responses["pre.substances.alcohol.last_amount_drinks"]))
     }
     

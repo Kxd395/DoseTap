@@ -95,6 +95,7 @@ extension EventStorage {
         saveHistoryQuestionnaire(review: review, occurredAt: occurredAt, recordedAt: recordedAt, reason: reason, confirmed: confirmed) { provenance in
             guard review.kind == .preSleep else { throw MedicationStorageInjectedFailure(code: .precondition, detail: "Reopen the pre-sleep questionnaire.") }
             try answers.lastFood?.validate(at: occurredAt)
+            if let error = answers.caffeineAmounts?.validationError { throw PreSleepLogStoreError.invalidCaffeineAmounts(error) }
             let normalized = normalizedPreSleepAnswers(answers)
             let json = String(decoding: try JSONEncoder().encode(normalized), as: UTF8.self)
             let id = review.existingID ?? UUID().uuidString

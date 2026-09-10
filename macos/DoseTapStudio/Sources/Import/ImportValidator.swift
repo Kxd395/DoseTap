@@ -58,6 +58,15 @@ struct ImportValidator {
 
         if let insightBundle {
             globalFlags.append(contentsOf: checkInPayloadFlags(in: insightBundle))
+            for entry in insightBundle.sessions {
+                if let error = entry.preSleep?.caffeineAmounts?.validationError {
+                    append(error, to: entry.sessionDate, in: &flagsByDate)
+                }
+                if let pre = entry.preSleep,
+                   pre.caffeineLastAmountMg != nil || pre.caffeineDailyTotalMg != nil || pre.caffeineLegacyLastAmount != nil || pre.caffeineLegacyDailyTotal != nil {
+                    append("Legacy caffeine amounts have unverified units; do not interpret them as milligrams or beverage volume.", to: entry.sessionDate, in: &flagsByDate)
+                }
+            }
         }
 
         for extraKey in bundleKeys.subtracting(sessionKeys.union(eventKeys)).sorted() {

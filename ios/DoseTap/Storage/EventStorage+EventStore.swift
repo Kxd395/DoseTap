@@ -192,9 +192,6 @@ extension EventStorage: EventStore {
             stimulants: answers.caffeineLast6Hours == true
                 ? .multiple
                 : (answers.caffeineLast6Hours == false ? PreSleepLogAnswers.Stimulants.none : nil),
-            caffeineLastIntakeAt: answers.caffeineLast6Hours == true ? now : nil,
-            caffeineLastAmountMg: answers.caffeineLast6Hours == true ? 95 : nil,
-            caffeineDailyTotalMg: answers.caffeineLast6Hours == true ? 95 : nil,
             alcohol: answers.alcoholLast6Hours == true
                 ? .one
                 : (answers.alcoholLast6Hours == false ? PreSleepLogAnswers.AlcoholLevel.none : nil),

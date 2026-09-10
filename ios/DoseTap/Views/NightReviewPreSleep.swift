@@ -65,10 +65,15 @@ struct PreSleepLogCard: View {
                         PreSleepRow(label: "Caffeine Last Time", value: shortTimeFormatter.string(from: value), icon: "clock", highlight: true)
                     }
                     if let value = answers.caffeineLastAmountMg {
-                        PreSleepRow(label: "Caffeine Last Amount", value: "\(value) oz", icon: "bolt.fill", highlight: true)
+                        PreSleepRow(label: "Legacy last amount", value: "\(value) (unit unverified)", icon: "bolt.fill", highlight: true)
                     }
                     if let value = answers.caffeineDailyTotalMg {
-                        PreSleepRow(label: "Caffeine Daily Total", value: "\(value) oz", icon: "sum", highlight: true)
+                        PreSleepRow(label: "Legacy daily total", value: "\(value) (unit unverified)", icon: "sum", highlight: true)
+                    }
+                    if let amounts = answers.caffeineAmounts {
+                        ForEach(amounts.reportFields, id: \.key) { field in
+                            PreSleepRow(label: field.label, value: field.value, icon: "cup.and.saucer", highlight: true)
+                        }
                     }
                     if let alcohol = answers.alcohol, alcohol != .none {
                         PreSleepRow(label: "Alcohol", value: alcohol.displayText, icon: "wineglass.fill", highlight: true)

@@ -4,6 +4,19 @@ import DoseCore
 
 /// Test suite for data import functionality
 final class ImporterTests: XCTestCase {
+    func testCaffeineAmountContractKeepsUnitsAndLegacyArchivesSeparate() throws {
+        let base = #"{"completionState":"complete","loggedAtUTC":"2026-09-10T20:00:00Z","stressDrivers":[],"caffeineSources":["coffee"],"sleepAids":[]"#
+        let legacy = try JSONDecoder().decode(InsightPreSleepSummary.self, from: Data((base + #", "caffeineLastAmountMg":95}"#).utf8))
+        XCTAssertEqual(legacy.caffeineLastAmountMg, 95)
+        XCTAssertNil(legacy.caffeineAmounts)
+        let current = try JSONDecoder().decode(InsightPreSleepSummary.self, from: Data((base + #", "caffeineLegacyLastAmount":95,"caffeineAmounts":{"version":1,"source":"label_reported","lastVolumeUSFlOz":12.5,"lastCaffeineMg":0}}"#).utf8))
+        XCTAssertNil(current.caffeineLastAmountMg)
+        XCTAssertEqual(current.caffeineLegacyLastAmount, 95)
+        XCTAssertEqual(current.caffeineAmounts?.lastVolumeUSFlOz, 12.5)
+        XCTAssertEqual(current.caffeineAmounts?.lastCaffeineMg, 0)
+        XCTAssertEqual(try JSONDecoder().decode(InsightPreSleepSummary.self, from: JSONEncoder().encode(current)), current)
+    }
+
     func testHealthBoundaryMetadataRoundTripsAndOldArchivesRemainReadable() throws {
         let base = "\"totalSleepMinutes\":300,\"wakeCount\":1,\"sources\":[\"Watch\"]"
         let metadata = "\"finalWakeUTC\":1000,\"observationEndUTC\":2200,\"finalWakeBasis\":\"observed_sleep_to_awake\",\"derivationVersion\":\"primary_episode_boundary_v2\""
@@ -31,6 +44,12 @@ final class ImporterTests: XCTestCase {
         let nights = InsightSessionBuilder().build(sessions: records, events: events, supplementsBySessionDate: supplements)
         let night = try XCTUnwrap(nights.first { $0.sessionDate == "2026-06-16" })
         XCTAssertEqual(night.checkInSubmissions.count, 3)
+        let pre = try XCTUnwrap(bundle.sessions.first { $0.sessionDate == "2026-06-16" }?.preSleep)
+        XCTAssertEqual(pre.caffeineAmounts?.lastVolumeUSFlOz, 12.5)
+        XCTAssertEqual(pre.caffeineAmounts?.lastCaffeineMg, 0)
+        XCTAssertEqual(pre.caffeineAmounts?.source, .labelReported)
+        XCTAssertEqual(pre.caffeineLegacyLastAmount, 95)
+        XCTAssertNil(pre.caffeineLastAmountMg)
         XCTAssertEqual(night.collectedNight?.lastFoodToDose1Minutes, 155)
         XCTAssertEqual(night.collectedNight?.lastFoodHighFat, true)
         XCTAssertEqual(night.collectedNight?.dose2WakeMethod, "natural")
