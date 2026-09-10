@@ -49,7 +49,8 @@ let package = Package(
                 "SleepIntervalCoverage.swift",
                 "SleepEvidenceResolution.swift",
                 "ReviewedSleepWindow.swift",
-                "ReportCSV.swift"
+                "ReportCSV.swift",
+                "CaffeineAmounts.swift"
             ]
         ),
         .testTarget(
@@ -97,7 +98,8 @@ let package = Package(
                 "NightOutcomeTests.swift",
                 "SleepIntervalCoverageTests.swift",
                 "SleepEvidenceResolutionTests.swift",
-                "ReviewedSleepWindowTests.swift"
+                "ReviewedSleepWindowTests.swift",
+                "CaffeineAmountsTests.swift"
             ],
             resources: [
                 .copy("Fixtures/CertificatePinning")
