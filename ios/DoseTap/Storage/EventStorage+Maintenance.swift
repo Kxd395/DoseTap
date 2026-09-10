@@ -495,7 +495,15 @@ extension EventStorage {
         let sql = """
             SELECT ss.session_date
             FROM sleep_sessions ss
-            LEFT JOIN morning_checkins mc ON mc.session_id = ss.session_id
+            LEFT JOIN morning_checkins mc ON mc.session_date = ss.session_date
+                AND (mc.session_id = ss.session_id OR (
+                    mc.session_id = ss.session_date AND NOT EXISTS (
+                        SELECT 1 FROM sleep_sessions other
+                        WHERE other.session_date = ss.session_date
+                        AND other.session_id != ss.session_id
+                        AND other.session_id != ss.session_date
+                    )
+                ))
             WHERE ss.end_utc IS NOT NULL
             AND mc.id IS NULL
             AND ss.session_date != ?

@@ -325,10 +325,12 @@ struct GranularPainEntryEditorView: View {
     struct SaveResult {
         let entries: [PreSleepLogAnswers.PainEntry]
         let replacedEntryKey: String?
+        let rememberForFuture: Bool
     }
 
     let initialEntry: PreSleepLogAnswers.PainEntry?
     let replacesInitialEntry: Bool
+    let allowsRemembering: Bool
     var replacementEntryKey: String? { replacesInitialEntry ? initialEntry?.entryKey : nil }
     let onSave: (SaveResult) -> Void
 
@@ -338,14 +340,17 @@ struct GranularPainEntryEditorView: View {
     @State private var sensations: Set<PreSleepLogAnswers.PainSensation>
     @State private var pattern: PreSleepLogAnswers.PainPattern?
     @State private var notes: String
+    @State private var rememberForFuture = false
 
     init(
         initialEntry: PreSleepLogAnswers.PainEntry? = nil,
         replacesInitialEntry: Bool = true,
+        allowsRemembering: Bool = false,
         onSave: @escaping (SaveResult) -> Void
     ) {
         self.initialEntry = initialEntry
         self.replacesInitialEntry = replacesInitialEntry
+        self.allowsRemembering = allowsRemembering
         self.onSave = onSave
         _selectedAreas = State(initialValue: initialEntry.map { [$0.area] } ?? [.midBack])
         _side = State(initialValue: initialEntry?.side ?? .both)
@@ -362,6 +367,25 @@ struct GranularPainEntryEditorView: View {
     var body: some View {
         NavigationStack {
             Form {
+                if initialEntry != nil && !replacesInitialEntry {
+                    Section("Tonight's pain level") {
+                        if let initialEntry {
+                            Text("\(initialEntry.area.displayText) (\(initialEntry.side.displayText))").font(.headline)
+                            Text(initialEntry.sensations.map(\.displayText).joined(separator: ", ")).font(.subheadline)
+                        }
+                        Text("Your saved location and sensations are ready. Adjust tonight's level, then Save.")
+                            .font(.caption).foregroundColor(.secondary)
+                        intensityControl
+                    }
+                }
+                if allowsRemembering {
+                    Section {
+                        Toggle("Remember for future nights", isOn: $rememberForFuture)
+                            .accessibilityIdentifier("pain-remember-future")
+                        Text("Save this setup so you can reuse it and adjust the level next time. It does not log pain on another night.")
+                            .font(.caption).foregroundColor(.secondary)
+                    }
+                }
                 Section("One area and side") {
                     Text("Save this pain separately. Use Add another pain for a different area or set of sensations.")
                         .font(.caption).foregroundColor(.secondary)
@@ -392,14 +416,8 @@ struct GranularPainEntryEditorView: View {
                     }
                 }
 
-                Section("Intensity") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("\(Int(intensity))/10")
-                            .font(.headline)
-                        Slider(value: $intensity, in: 0...10, step: 1)
-                            .tint(.red)
-                            .accessibilityIdentifier("pain-intensity")
-                    }
+                if initialEntry == nil || replacesInitialEntry {
+                    Section("Intensity") { intensityControl }
                 }
 
                 Section("Sensations") {
@@ -466,7 +484,8 @@ struct GranularPainEntryEditorView: View {
                         onSave(
                             SaveResult(
                                 entries: entries,
-                                replacedEntryKey: replacementEntryKey
+                                replacedEntryKey: replacementEntryKey,
+                                rememberForFuture: allowsRemembering && rememberForFuture
                             )
                         )
                         dismiss()
@@ -474,6 +493,14 @@ struct GranularPainEntryEditorView: View {
                     .disabled(!canSave)
                 }
             }
+        }
+    }
+
+    private var intensityControl: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("\(Int(intensity))/10").font(.headline)
+            Slider(value: $intensity, in: 0...10, step: 1)
+                .tint(.red).accessibilityIdentifier("pain-intensity")
         }
     }
 

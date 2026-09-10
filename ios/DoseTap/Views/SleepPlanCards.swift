@@ -455,13 +455,13 @@ struct IncompleteSessionBanner: View {
     let onDismiss: () -> Void
 
     private var titleText: String {
-        isBlocking ? "Finish previous session" : "Previous check-in"
+        isBlocking ? "Finish previous session" : "Earlier check-in"
     }
 
     private var bodyText: String {
         isBlocking
             ? "\(formattedDate) must be completed before tonight starts"
-            : "\(formattedDate) is incomplete"
+            : "\(formattedDate): morning answers not found"
     }
     
     var body: some View {
@@ -488,6 +488,7 @@ struct IncompleteSessionBanner: View {
             Button("Finish") {
                 onComplete()
             }
+            .accessibilityHint("Review the morning check-in for \(formattedDate), not tonight's pre-sleep log.")
             .font(.caption.bold())
             .foregroundColor(.white)
             .padding(.horizontal, 10)

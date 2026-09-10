@@ -962,6 +962,11 @@ final class DoseTapUITests: XCTestCase {
         func addPain(area: String, sensations: [String]) {
             let add = app.buttons["add-pain-entry"]
             reveal(add); add.tap()
+            let remember = app.switches["pain-remember-future"]
+            XCTAssertTrue(remember.waitForExistence(timeout: 5))
+            remember.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
+            captureDashboard("Remember pain selection before saving")
+            XCTAssertEqual(remember.value as? String, "1")
             let location = app.buttons["pain-area-\(area)"]
             reveal(location); location.tap()
             let intensity = app.sliders["pain-intensity"]
@@ -973,8 +978,6 @@ final class DoseTapUITests: XCTestCase {
                 reveal(button); button.tap()
             }
             app.navigationBars.buttons["Save"].tap()
-            let remember = app.buttons["remember-pain-\(area)|both"]
-            reveal(remember); remember.tap()
         }
         openCheck()
         let mild = app.buttons["Mild"]
@@ -994,8 +997,14 @@ final class DoseTapUITests: XCTestCase {
         reveal(useBack); useBack.tap()
         app.navigationBars.buttons["Cancel"].tap()
         XCTAssertFalse(back.exists)
-        useBack.tap(); app.navigationBars.buttons["Save"].tap()
+        useBack.tap()
+        let tonightIntensity = app.sliders["pain-intensity"]
+        XCTAssertTrue(tonightIntensity.isHittable, "Saved pain should expose tonight's level without scrolling")
+        tonightIntensity.adjust(toNormalizedSliderPosition: 0.6)
+        app.navigationBars.buttons["Save"].tap()
         XCTAssertTrue(back.exists)
+        XCTAssertTrue(back.label.contains("6/10"))
+        XCTAssertEqual(app.buttons["remember-pain-mid_back|both"].label, "Update saved pattern")
         XCTAssertFalse(feet.exists, "Selecting one pattern must not add the other")
         let proof = XCTAttachment(screenshot: app.screenshot())
         proof.name = "Independent saved pain patterns reviewed for tonight"

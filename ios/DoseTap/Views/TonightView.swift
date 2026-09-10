@@ -556,6 +556,9 @@ struct LegacyTonightView: View {
         .onReceive(sessionRepo.sessionDidChange) { _ in
             reloadPreSleepLog()
             reloadMorningCheckIn()
+            if let candidate = sessionRepo.mostRecentIncompleteSession(), !Self.isDismissed(candidate) {
+                incompleteSessionDate = candidate
+            } else { incompleteSessionDate = nil }
         }
         .onChange(of: showMorningCheckIn) { newValue in
             if !newValue {

@@ -43,14 +43,16 @@ public extension SessionRepository {
     }
 
     /// Save morning check-in through unified storage.
-    func saveMorningCheckIn(_ checkIn: SQLiteStoredMorningCheckIn, sessionDateOverride: String? = nil) {
-        let sessionDate = sessionDateOverride ?? activeSessionDate ?? currentSessionKey
-
-        let isHistoricalSession = sessionDateOverride != nil
-            && sessionDateOverride != activeSessionDate
-        let resolvedSessionId = isHistoricalSession
-            ? checkIn.sessionId
-            : (activeSessionId ?? checkIn.sessionId)
+    @discardableResult
+    func saveMorningCheckIn(_ checkIn: SQLiteStoredMorningCheckIn, sessionDateOverride: String? = nil) -> Bool {
+        let sessionDate = sessionDateOverride ?? checkIn.sessionDate
+        guard sessionDate == checkIn.sessionDate else { return false }
+        // A form remains bound to its original identity even if the active session changes.
+        let resolvedSessionId: String
+        if checkIn.sessionId == sessionDate {
+            guard let identity = storage.medicationSessionIdentity(nil, sessionDate: sessionDate) else { return false }
+            resolvedSessionId = identity
+        } else { resolvedSessionId = checkIn.sessionId }
 
         let storedCheckIn = StoredMorningCheckIn(
             id: checkIn.id,
@@ -85,7 +87,7 @@ public extension SessionRepository {
             notes: checkIn.notes
         )
 
-        storage.saveMorningCheckIn(storedCheckIn, forSession: sessionDate)
+        guard storage.saveMorningCheckIn(storedCheckIn, forSession: sessionDate) else { return false }
 
         if resolvedSessionId == activeSessionId {
             completeCheckIn()
@@ -104,5 +106,7 @@ public extension SessionRepository {
         #if canImport(OSLog)
         logger.info("Morning check-in saved for session \(sessionDate)")
         #endif
+        sessionDidChange.send()
+        return true
     }
 }
