@@ -22,6 +22,7 @@ final class DoseTapUITests: XCTestCase {
         if name.contains("testDashboard") { app.launchArguments += ["--uitesting-dashboard", "-setup_completed_v2", "YES"] }
         if name.contains("testWorkWarning") { app.launchArguments.append("--uitesting-work-warning") }
         if name.contains("testDose2Confirmation") || name.contains("testReviewedNightWindow") { app.launchArguments.append("--uitesting-dose2-confirmation") }
+        if name.contains("testReviewedNightWindow") { app.launchArguments += ["-healthkit_enabled", "NO"] }
         if name.contains("testExpiredSessionLaunch") { app.launchArguments.append("--uitesting-expired-session") }
         if name.contains("testHistoryManual") { app.launchArguments += ["--uitesting-history", "--uitesting-history-reset", "-setup_completed_v2", "YES"] }
         app.launch()
@@ -424,7 +425,18 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertEqual(assessment.label, "Saved bounds checked")
         XCTAssertEqual(range.label, reviewedRange)
         captureDashboard("Reviewed night bounds restored after restart")
+        let coverage = app.buttons["night-window-check-coverage"]
+        app.swipeUp() // Move the entire action above the home-indicator/viewport edge before tapping.
+        reveal(coverage); coverage.tap()
+        let coverageStatus = app.staticTexts["night-window-coverage-status"]
+        app.swipeUp()
+        captureDashboard("Coverage check after explicit action")
+        XCTAssertTrue(coverageStatus.waitForExistence(timeout: 5))
+        XCTAssertTrue(coverageStatus.label.contains("disabled"))
+        captureDashboard("Reviewed night Apple Health disabled state")
+        for _ in 0..<8 where !enabled.isHittable { app.swipeDown() }
         toggle(enabled)
+        XCTAssertFalse(coverageStatus.exists, "Changing bounds must clear the earlier provider result")
         app.buttons["night-outcome-save"].tap(); acknowledge("Answers not saved")
         let reason = app.textFields["night-outcome-reason"]
         for _ in 0..<8 where !reason.isHittable { app.swipeDown() }

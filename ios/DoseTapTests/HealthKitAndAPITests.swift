@@ -8,6 +8,7 @@
 
 import XCTest
 import HealthKit
+import SwiftUI
 @testable import DoseTap
 import DoseCore
 
@@ -15,6 +16,20 @@ import DoseCore
 
 @MainActor
 final class HealthKitProviderTests: XCTestCase {
+    func testReviewedNightCoverageSummaryAtStandardAndAccessibleTextSizes() throws {
+        let start = Date(timeIntervalSince1970: 1_800_000_000), end = start.addingTimeInterval(3600)
+        let samples = [SleepEvidenceSample(sampleID: "synthetic", start: start, end: start.addingTimeInterval(2400),
+            rawCategory: 3, stage: .core, origin: .init(sourceName: "Synthetic", bundleIdentifier: nil))]
+        let evidence = try XCTUnwrap(SleepEvidenceResolution.calculate(start: start, end: end, samples: samples))
+        for size in [DynamicTypeSize.large, .accessibility5] {
+            let content = ReviewedNightCoverageView(result: .init(status: .partial, evidence: evidence, checkedAt: end))
+                .padding().frame(width: 350).background(Color.black).environment(\.colorScheme, .dark).dynamicTypeSize(size)
+            let image = try XCTUnwrap(ImageRenderer(content: content).uiImage)
+            XCTAssertGreaterThan(image.size.height, 100)
+            let attachment = XCTAttachment(image: image); attachment.name = "Reviewed coverage \(size)"
+            attachment.lifetime = .keepAlways; add(attachment)
+        }
+    }
 
     func test_boundedEvidenceRetainsSampleProvenanceBeforeClipping() throws {
         let start = Date(timeIntervalSince1970: 1_800_000_000), end = Date(timeIntervalSince1970: 1_800_003_600)

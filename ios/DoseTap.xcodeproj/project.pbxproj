@@ -105,6 +105,7 @@
 		HIS002 /* HistorySessionListViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = HIS102 /* HistorySessionListViews.swift */; };
 		HK001 /* HealthKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = HK002 /* HealthKitService.swift */; };
 		HKP001 /* HealthKitProviding.swift in Sources */ = {isa = PBXBuildFile; fileRef = HKP002 /* HealthKitProviding.swift */; };
+		RNS001 /* ReviewedNightSleepLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = RNS002 /* ReviewedNightSleepLoader.swift */; };
 		MCI001 /* MorningCheckInModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = MCI101 /* MorningCheckInModels.swift */; };
 		MCI002 /* MorningCheckInViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = MCI102 /* MorningCheckInViewModel.swift */; };
 		MCI003 /* MorningCheckInViewModelSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = MCI103 /* MorningCheckInViewModelSupport.swift */; };
@@ -299,6 +300,7 @@
 		HIS102 /* HistorySessionListViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySessionListViews.swift; sourceTree = "<group>"; };
 		HK002 /* HealthKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitService.swift; sourceTree = "<group>"; };
 		HKP002 /* HealthKitProviding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitProviding.swift; sourceTree = "<group>"; };
+		RNS002 /* ReviewedNightSleepLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewedNightSleepLoader.swift; sourceTree = "<group>"; };
 		MCI101 /* MorningCheckInModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckInModels.swift; sourceTree = "<group>"; };
 		MCI102 /* MorningCheckInViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckInViewModel.swift; sourceTree = "<group>"; };
 		MCI103 /* MorningCheckInViewModelSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckInViewModelSupport.swift; sourceTree = "<group>"; };
@@ -579,6 +581,7 @@
 			isa = PBXGroup;
 			children = (
 				HKP002 /* HealthKitProviding.swift */,
+				RNS002 /* ReviewedNightSleepLoader.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -912,6 +915,7 @@
 				SST005 /* SleepStageTimelineCards.swift in Sources */,
 				WP001 /* WeeklyPlanner.swift in Sources */,
 				HKP001 /* HealthKitProviding.swift in Sources */,
+				RNS001 /* ReviewedNightSleepLoader.swift in Sources */,
 				UNDO003 /* UndoSnackbarView.swift in Sources */,
 				UNDO005 /* MedicationSettingsView.swift in Sources */,
 				SUPUIB01 /* SupplySettingsView.swift in Sources */,
@@ -1059,7 +1063,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Cloud.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 37;
+				CURRENT_PROJECT_VERSION = 38;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;
 				ENABLE_PREVIEWS = YES;
@@ -1102,7 +1106,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Cloud.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 37;
+				CURRENT_PROJECT_VERSION = 38;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;
 				ENABLE_PREVIEWS = YES;
@@ -1377,7 +1381,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Local.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 37;
+				CURRENT_PROJECT_VERSION = 38;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;
@@ -1425,7 +1429,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Local.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 37;
+				CURRENT_PROJECT_VERSION = 38;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;

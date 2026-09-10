@@ -75,6 +75,10 @@ struct NightOutcomeButton: View {
 struct NightOutcomeEditor: View {
     let sessionDate: String
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
+    @AppStorage("healthkit_enabled") private var healthKitEnabled = false
+    @State private var coverageRequest: UUID?
+    @State private var coverageResult: ReviewedNightSleepResult?
     @State private var review: NightOutcomeSnapshot?
     @State private var answers = NightOutcomeDiary()
     @State private var finalWake = Date()
@@ -190,7 +194,19 @@ struct NightOutcomeEditor: View {
                 }
             }
             .onAppear { load() }
-            .onReceive(repo.sessionDidChange) { refreshAssessment() }
+            .onReceive(repo.sessionDidChange) { clearCoverage(); refreshAssessment() }
+            .onChange(of: windowStart) { _ in clearCoverage() }
+            .onChange(of: windowEnd) { _ in clearCoverage() }
+            .onChange(of: windowEnabled) { _ in clearCoverage() }
+            .onChange(of: healthKitEnabled) { _ in clearCoverage() }
+            .onChange(of: scenePhase) { if $0 != .active { clearCoverage() } }
+            .onDisappear { clearCoverage() }
+            .task(id: coverageRequest) {
+                guard let request = coverageRequest, windowUnchanged else { return }
+                let result = await repo.reviewedNightSleep(sessionDate: sessionDate)
+                guard !Task.isCancelled, coverageRequest == request, windowUnchanged else { return }
+                coverageResult = result
+            }
             .alert("Answers saved", isPresented: $saved) { Button("OK") { dismiss() } }
             .alert("Answers not saved", isPresented: $showSaveError) { Button("OK", role: .cancel) {} } message: {
                 Text(error ?? "Please review the answers and try again.")
@@ -225,7 +241,14 @@ struct NightOutcomeEditor: View {
                         ForEach(assessment.reasons, id: \.self) { Text($0.explanation).font(.footnote) }
                         Text("Checks cover local dose, night-window and nap records. They do not confirm measured sleep. Charts and totals are unchanged.")
                             .font(.footnote).foregroundStyle(.secondary)
-                        Button("Recheck saved bounds") { refreshAssessment() }
+                        Button("Recheck saved bounds") { clearCoverage(); refreshAssessment() }
+                        if assessment.status == .checked {
+                            Button("Check Apple Health coverage") { coverageResult = nil; coverageRequest = UUID() }
+                                .accessibilityIdentifier("night-window-check-coverage")
+                                .disabled(coverageRequest != nil && coverageResult == nil)
+                            if coverageRequest != nil && coverageResult == nil { ProgressView("Checking coverage...") }
+                            if let result = coverageResult { ReviewedNightCoverageView(result: result) }
+                        }
                     } else {
                         Button("Reload changed saved answers") { load() }
                     }
@@ -245,6 +268,7 @@ struct NightOutcomeEditor: View {
         return "UTC: \(formatter.string(from: value.start)) to \(formatter.string(from: value.end))"
     }
     private func load() {
+        clearCoverage()
         do {
             let snapshot = try repo.nightOutcomeSnapshot(sessionDate: sessionDate)
             guard !snapshot.history.isNew else { error = "Add this night's dose or questionnaire record first."; review = nil; return }
@@ -268,6 +292,7 @@ struct NightOutcomeEditor: View {
         }
         windowAssessment = repo.reviewedWindowAssessment(sessionDate: sessionDate)
     }
+    private func clearCoverage() { coverageRequest = nil; coverageResult = nil }
     private func save() {
         guard let review else { return }
         if windowEnabled && !windowUnchanged && !windowConfirmed {
@@ -277,5 +302,24 @@ struct NightOutcomeEditor: View {
         let result = repo.saveNightOutcome(draft, review: review, reason: reason)
         if result.isCommitted { error = nil; saved = true }
         else { error = result.failure?.detail ?? "Answers were not saved. Please reload and review."; showSaveError = true }
+    }
+}
+
+struct ReviewedNightCoverageView: View {
+    let result: ReviewedNightSleepResult
+    private func minutes(_ value: Double?) -> String { value.map { String(format: "%.1f min", $0) } ?? "Not observed" }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(result.explanation).accessibilityIdentifier("night-window-coverage-status")
+            if let evidence = result.evidence {
+                Text("Estimated sleep: \(minutes(evidence.coverage.asleepMinutes))")
+                Text("Recorded awake: \(minutes(evidence.coverage.awakeMinutes))")
+                Text("Unmeasured: \(minutes(evidence.coverage.unmeasuredMinutes))")
+                if evidence.conflictMinutes > 0 { Text("Conflicting: \(minutes(evidence.conflictMinutes)), included in unmeasured time") }
+                if let checkedAt = result.checkedAt { Text("Checked \(checkedAt.formatted(date: .abbreviated, time: .shortened))") }
+                Text("Apple Health estimates within your reviewed bounds. Check again for later imports or edits. Existing charts and exports are unchanged.")
+                    .foregroundStyle(.secondary)
+            }
+        }.font(.footnote).fixedSize(horizontal: false, vertical: true)
     }
 }
