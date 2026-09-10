@@ -208,33 +208,10 @@ class MorningCheckInViewModel: ObservableObject {
         UserDefaults.standard.set(rememberSettings, forKey: Self.rememberSettingsKey)
         if rememberSettings {
             let settings = SavedCheckInSettings(
-                sleepQuality: Self.normalizedSleepQuality(sleepQuality),
-                feelRested: feelRested.rawValue,
-                grogginess: grogginess.rawValue,
-                sleepInertiaDuration: sleepInertiaDuration.rawValue,
-                dreamRecall: dreamRecall.rawValue,
-                mentalClarity: mentalClarity,
-                mood: mood.rawValue,
-                anxietyLevel: anxietyLevel.rawValue,
-                stressLevel: stressLevel,
-                stressDrivers: PreSleepLogAnswers.sanitizedStressDrivers(stressDrivers).map(\.rawValue),
-                stressProgression: stressProgression?.rawValue,
-                stressNotes: stressNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : stressNotes.trimmingCharacters(in: .whitespacesAndNewlines),
-                readinessForDay: readinessForDay,
-                usedSleepTherapy: usedSleepTherapy,
                 sleepTherapyDevice: sleepTherapyDevice,
-                sleepTherapyCompliance: sleepTherapyCompliance,
-                sleepTherapyNotes: sleepTherapyNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : sleepTherapyNotes.trimmingCharacters(in: .whitespacesAndNewlines),
-                hasSleepEnvironment: hasSleepEnvironment,
                 sleepEnvironmentRoomTemp: sleepEnvironmentRoomTemp.rawValue,
                 sleepEnvironmentNoiseLevel: sleepEnvironmentNoiseLevel.rawValue,
-                sleepEnvironmentSleepAid: sleepEnvironmentSleepAid.rawValue,
-                sleepEnvironmentNotes: sleepEnvironmentNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : sleepEnvironmentNotes.trimmingCharacters(in: .whitespacesAndNewlines),
-                sleepDisorders: sleepDisorders.map(\.rawValue),
-                pharmacogenomicFastMetabolizer: pharmacogenomicFastMetabolizer,
-                pharmacogenomicClinicianReviewed: pharmacogenomicClinicianReviewed,
-                pharmacogenomicNotes: pharmacogenomicNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : pharmacogenomicNotes.trimmingCharacters(in: .whitespacesAndNewlines),
-                coMedicationNotes: coMedicationNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : coMedicationNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+                sleepEnvironmentSleepAid: sleepEnvironmentSleepAid.rawValue
             )
             if let data = try? JSONEncoder().encode(settings) {
                 UserDefaults.standard.set(data, forKey: Self.savedSettingsKey)
@@ -799,139 +776,33 @@ class MorningCheckInViewModel: ObservableObject {
     }
 
     private func applySavedSettings(_ saved: SavedCheckInSettings) {
-        if let sleepQuality = saved.sleepQuality {
-            self.sleepQuality = Self.normalizedSleepQuality(sleepQuality)
+        // Setup is a reusable choice, not evidence of use or an outcome this morning.
+        if let device = saved.sleepTherapyDevice {
+            sleepTherapyDevice = device
         }
-        if let value = saved.feelRested {
-            self.feelRested = RestedLevel(rawValue: value) ?? self.feelRested
+        if let value = saved.sleepEnvironmentRoomTemp,
+           let roomTemp = PreSleepLogAnswers.RoomTemp(rawValue: value) {
+            sleepEnvironmentRoomTemp = roomTemp
         }
-        if let value = saved.grogginess {
-            self.grogginess = GrogginessLevel(rawValue: value) ?? self.grogginess
+        if let value = saved.sleepEnvironmentNoiseLevel,
+           let noiseLevel = PreSleepLogAnswers.NoiseLevel(rawValue: value) {
+            sleepEnvironmentNoiseLevel = noiseLevel
         }
-        if let value = saved.sleepInertiaDuration {
-            self.sleepInertiaDuration = SleepInertiaDuration(rawValue: value) ?? self.sleepInertiaDuration
-        }
-        if let value = saved.dreamRecall {
-            self.dreamRecall = DreamRecallType(rawValue: value) ?? self.dreamRecall
-        }
-        if let mentalClarity = saved.mentalClarity {
-            self.mentalClarity = max(1, min(5, mentalClarity))
-        }
-        if let value = saved.mood {
-            self.mood = MoodLevel(rawValue: value) ?? self.mood
-        }
-        if let value = saved.anxietyLevel {
-            self.anxietyLevel = AnxietyLevel(rawValue: value) ?? self.anxietyLevel
-        }
-        self.stressLevel = saved.stressLevel.map { max(1, min(5, $0)) }
-        if let savedDrivers = saved.stressDrivers {
-            self.stressDrivers = PreSleepLogAnswers.sanitizedStressDrivers(savedDrivers.compactMap(PreSleepLogAnswers.StressDriver.init(rawValue:)))
-        }
-        if let value = saved.stressProgression {
-            self.stressProgression = PreSleepLogAnswers.StressProgression(rawValue: value)
-        } else {
-            self.stressProgression = nil
-        }
-        self.stressNotes = saved.stressNotes ?? ""
-        if let readinessForDay = saved.readinessForDay {
-            self.readinessForDay = max(1, min(5, readinessForDay))
-        }
-        if let usedSleepTherapy = saved.usedSleepTherapy {
-            self.usedSleepTherapy = usedSleepTherapy
-            self.showSleepTherapySection = usedSleepTherapy
-        }
-        if let sleepTherapyDevice = saved.sleepTherapyDevice {
-            self.sleepTherapyDevice = sleepTherapyDevice
-        }
-        if let sleepTherapyCompliance = saved.sleepTherapyCompliance {
-            self.sleepTherapyCompliance = max(0, min(100, sleepTherapyCompliance))
-        }
-        self.sleepTherapyNotes = saved.sleepTherapyNotes ?? ""
-        if let hasSleepEnvironment = saved.hasSleepEnvironment {
-            self.hasSleepEnvironment = hasSleepEnvironment
-            self.showSleepEnvironmentSection = hasSleepEnvironment
-        }
-        if let value = saved.sleepEnvironmentRoomTemp {
-            self.sleepEnvironmentRoomTemp = PreSleepLogAnswers.RoomTemp(rawValue: value) ?? self.sleepEnvironmentRoomTemp
-        }
-        if let value = saved.sleepEnvironmentNoiseLevel {
-            self.sleepEnvironmentNoiseLevel = PreSleepLogAnswers.NoiseLevel(rawValue: value) ?? self.sleepEnvironmentNoiseLevel
-        }
-        if let value = saved.sleepEnvironmentSleepAid {
-            self.sleepEnvironmentSleepAid = PreSleepLogAnswers.SleepAid(rawValue: value) ?? self.sleepEnvironmentSleepAid
-        }
-        self.sleepEnvironmentNotes = saved.sleepEnvironmentNotes ?? ""
-        if let savedSleepDisorders = saved.sleepDisorders {
-            self.sleepDisorders = savedSleepDisorders.compactMap(SleepDisorder.init(rawValue:))
-            self.hasClinicalContext = hasClinicalContext || !self.sleepDisorders.isEmpty
-        }
-        if let value = saved.pharmacogenomicFastMetabolizer {
-            self.pharmacogenomicFastMetabolizer = value
-            self.hasClinicalContext = hasClinicalContext || value
-        }
-        if let value = saved.pharmacogenomicClinicianReviewed {
-            self.pharmacogenomicClinicianReviewed = value
-            self.hasClinicalContext = hasClinicalContext || value
-        }
-        self.pharmacogenomicNotes = saved.pharmacogenomicNotes ?? ""
-        self.coMedicationNotes = saved.coMedicationNotes ?? ""
-        if !self.pharmacogenomicNotes.isEmpty || !self.coMedicationNotes.isEmpty {
-            self.hasClinicalContext = true
+        if let value = saved.sleepEnvironmentSleepAid,
+           let sleepAid = PreSleepLogAnswers.SleepAid(rawValue: value) {
+            sleepEnvironmentSleepAid = sleepAid
         }
     }
 
     private func applyCarryForward(from checkIn: StoredMorningCheckIn) {
-        sleepQuality = Self.normalizedSleepQuality(checkIn.sleepQuality)
-        feelRested = RestedLevel(rawValue: checkIn.feelRested) ?? feelRested
-        grogginess = GrogginessLevel(rawValue: checkIn.grogginess) ?? grogginess
-        sleepInertiaDuration = SleepInertiaDuration(rawValue: checkIn.sleepInertiaDuration) ?? sleepInertiaDuration
-        dreamRecall = DreamRecallType(rawValue: checkIn.dreamRecall) ?? dreamRecall
-        mentalClarity = checkIn.mentalClarity
-        mood = MoodLevel(rawValue: checkIn.mood) ?? mood
-        anxietyLevel = AnxietyLevel(rawValue: checkIn.anxietyLevel) ?? anxietyLevel
-        stressLevel = checkIn.stressLevel
-        readinessForDay = checkIn.readinessForDay
-
-        hasPhysicalSymptoms = checkIn.hasPhysicalSymptoms
-        hasRespiratorySymptoms = checkIn.hasRespiratorySymptoms
-        usedSleepTherapy = checkIn.usedSleepTherapy
-        hasSleepEnvironment = checkIn.hasSleepEnvironment
-        hadSleepParalysis = checkIn.hadSleepParalysis
-        hadHallucinations = checkIn.hadHallucinations
-        hadAutomaticBehavior = checkIn.hadAutomaticBehavior
-        fellOutOfBed = checkIn.fellOutOfBed
-        hadConfusionOnWaking = checkIn.hadConfusionOnWaking
-
-        hydratePhysicalState(from: Self.jsonDictionary(from: checkIn.physicalSymptomsJson))
-        hydrateRespiratoryState(from: Self.jsonDictionary(from: checkIn.respiratorySymptomsJson))
-        hydrateSleepTherapyState(from: Self.jsonDictionary(from: checkIn.sleepTherapyJson))
-        hydrateSleepEnvironmentState(from: Self.jsonDictionary(from: checkIn.sleepEnvironmentJson))
-        hydrateStressState(from: Self.jsonDictionary(from: checkIn.stressContextJson))
-        hydrateTimingContextState(from: Self.carryForwardTimingContext(from: checkIn.timingContextJson))
-
-        if usedSleepTherapy {
-            showSleepTherapySection = true
-        }
-        if hasSleepEnvironment {
-            showSleepEnvironmentSection = true
-        }
-        if hadSleepParalysis || hadHallucinations || hadAutomaticBehavior || fellOutOfBed || hadConfusionOnWaking {
-            showNarcolepsySection = true
-        }
-        notes = ""
-    }
-
-    private static func carryForwardTimingContext(from json: String?) -> [String: Any] {
-        var timing = jsonDictionary(from: json)
-        [
-            "dose2TakenReason",
-            "dose2SkippedReason",
-            "dose2ReasonNotes",
-            "shiftStartAtUTC",
-            "shiftEndAtUTC",
-            "nextRequiredWakeAtUTC"
-        ].forEach { timing.removeValue(forKey: $0) }
-        return timing
+        let therapy = Self.jsonDictionary(from: checkIn.sleepTherapyJson)
+        let room = Self.jsonDictionary(from: checkIn.sleepEnvironmentJson)
+        applySavedSettings(SavedCheckInSettings(
+            sleepTherapyDevice: (therapy["device"] as? String).flatMap(SleepTherapyDevice.init(rawValue:)),
+            sleepEnvironmentRoomTemp: room["roomTemp"] as? String,
+            sleepEnvironmentNoiseLevel: room["noiseLevel"] as? String,
+            sleepEnvironmentSleepAid: room["sleepAids"] as? String
+        ))
     }
 
     private static func jsonDictionary(from json: String?) -> [String: Any] {

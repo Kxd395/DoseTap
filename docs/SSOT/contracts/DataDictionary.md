@@ -43,6 +43,8 @@ This changes optional payload content, not table layout. No migration rewrites e
 
 ## Table inventory
 
+Morning preferences (`morningCheckIn.savedSettings` in UserDefaults) contain only `sleepTherapyDevice`, `sleepEnvironmentRoomTemp`, `sleepEnvironmentNoiseLevel` and `sleepEnvironmentSleepAid`. Legacy daily-answer keys are ignored on preference load and omitted on the next explicit preference save. Prior-check-in fallback uses the same whitelist. No historical source row or normalized response is migrated. These are reusable choices, not a new assertion of therapy use or this morning's conditions; the corresponding sections remain inactive until selected. Fixed rating/Boolean defaults elsewhere in the morning form remain unchanged and are not newly classified as confirmed or unanswered.
+
 | Table | Record owner and purpose | Canonical identity |
 | --- | --- | --- |
 | `sleep_events` | User-recorded sleep-cycle, physical, mental, and environment events | `id` |

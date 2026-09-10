@@ -454,33 +454,11 @@ enum Dose2ReconciliationChoice: String, CaseIterable, Identifiable {
 }
 
 struct SavedCheckInSettings: Codable {
-    var sleepQuality: Double?
-    var feelRested: String?
-    var grogginess: String?
-    var sleepInertiaDuration: String?
-    var dreamRecall: String?
-    var mentalClarity: Int?
-    var mood: String?
-    var anxietyLevel: String?
-    var stressLevel: Int?
-    var stressDrivers: [String]?
-    var stressProgression: String?
-    var stressNotes: String?
-    var readinessForDay: Int?
-    var usedSleepTherapy: Bool?
+    // Legacy JSON's additional daily-answer keys are intentionally not decoded.
     var sleepTherapyDevice: SleepTherapyDevice?
-    var sleepTherapyCompliance: Int?
-    var sleepTherapyNotes: String?
-    var hasSleepEnvironment: Bool?
     var sleepEnvironmentRoomTemp: String?
     var sleepEnvironmentNoiseLevel: String?
     var sleepEnvironmentSleepAid: String?
-    var sleepEnvironmentNotes: String?
-    var sleepDisorders: [String]?
-    var pharmacogenomicFastMetabolizer: Bool?
-    var pharmacogenomicClinicianReviewed: Bool?
-    var pharmacogenomicNotes: String?
-    var coMedicationNotes: String?
 }
 
 extension RestedLevel: DisplayTextProvider { var displayText: String { rawValue } }

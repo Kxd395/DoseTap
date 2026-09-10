@@ -29,9 +29,9 @@ struct MorningCheckInRememberSettingsSection: View {
             Image(systemName: viewModel.rememberSettings ? "checkmark.square.fill" : "square")
                 .foregroundColor(viewModel.rememberSettings ? .green : .secondary)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Remember last wake-up settings")
+                Text("Remember room and equipment setup")
                     .font(.subheadline)
-                Text("Auto-prefill your last morning check-in setup next time.")
+                Text("Reuse room and device choices. Daily answers are not copied.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }

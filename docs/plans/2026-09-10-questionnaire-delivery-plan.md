@@ -100,6 +100,8 @@ DOSETAP-67 implements IR-03/05 in build 41: Physical Symptoms no longer requires
 
 ### Remaining acceptance
 
+Build 42 narrows both morning carry-forward paths and newly saved preferences to room/equipment setup only under DOSETAP-51. Daily outcomes no longer come from the prior check-in; explicit existing-night editing is preserved. This is the cross-night portion of IR-02, not completion of optional-answer/default-origin handling. Fixed morning ratings and Boolean defaults, IR-04 substance/activity default precision and DOSETAP-52 volume/mass semantics remain next steps. See the [morning setup audit](../audit/2026-09-10-morning-setup-freshness.md).
+
 Use the proposal's AT-01 through AT-32 as proposed cases, with the completion clarification above overriding AT-28. Add: submitted-with-blanks stops the exact-night reminder after relaunch; explicit skip does not mutate medication; failed disposition write stays unresolved; same-date distinct sessions cannot share a completion; next-night preference is consumed only by the documented durable action.
 
 Run storage failure/retry, migration round-trip, source-to-screen-to-export checks, offline/interrupted save and large-text/VoiceOver cases for each affected slice. Keep signed-phone, owner, provider and clinical/privacy acceptance open when unobserved. A build number or green CI does not close those gates.

@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-10
 SSOT revision: 0.4.19
-Shipping app version observed in the Xcode project: 0.4.19 (build 41)
+Shipping app version observed in the Xcode project: 0.4.19 (build 42)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -131,6 +131,9 @@ Current Quick Log event names (from `UserSettingsManager.allAvailableEvents`):
 - Pain
 
 ### Morning Check-In
+
+- DOSETAP-51 remembered morning setup: both the saved-settings path and prior-check-in fallback may restore only the therapy device, room temperature, noise setup and sleep aid. They do not restore daily outcomes, symptoms, therapy use/compliance, stress, notes, work context or clinical answers. Room/equipment choices remain inactive until their current-morning section is selected. Remembering setup remains optional; switching it off does not clear this morning's answers.
+- Newly saved morning preferences contain only those four setup fields. Legacy preference payloads are read through the same whitelist without rewriting historical check-ins. Explicit existing-night/History editing still loads that night's answers. The existing fixed rating and Boolean defaults remain a known limitation; removing cross-night copying does not make every untouched control an unanswered observation. Optional-answer/schema work, substance defaults and caffeine unit handling remain separate follow-ups.
 
 - DOSETAP-67/61 symptom-selection repair: Physical Symptoms includes localized pain, headache, stiffness, soreness, reflux, restlessness and bathroom urgency. Opening that section does not require a localized pain entry to complete the questionnaire. The separate pain editor still validates an entry before adding it. Failed questionnaire writes retain the same error/retry behavior.
 - In new or explicitly edited morning answers, deselecting Headache removes its severity, location and migraine-like fields from the saved physical payload and normalized responses. Hidden headache values cannot affect the current derived pain burden; disabling the whole physical section excludes its current payload and burden. Other selected symptoms and localized pain entries remain intact. Opening an editor does not rewrite old rows. Existing History correction provenance is unchanged.
