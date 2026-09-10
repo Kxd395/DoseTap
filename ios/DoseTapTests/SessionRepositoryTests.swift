@@ -22,6 +22,81 @@ final class TestClock {
 /// These tests verify that delete operations properly broadcast state changes.
 @MainActor
 final class SessionRepositoryTests: XCTestCase {
+    func test_morningSubmitReportsFailureAndPreservesDraftForRetry() async throws {
+        repo.setDose1Time(fixedNow.addingTimeInterval(-4 * 3600))
+        repo.setDose2Time(fixedNow.addingTimeInterval(-3600))
+        let identity = try XCTUnwrap(repo.activeSessionId)
+        let date = try XCTUnwrap(repo.activeSessionDate)
+        let model = MorningCheckInViewModel(sessionId: identity, sessionDate: date, loadRememberedSettings: false)
+        model.notes = "Retain these morning answers"
+        let recordID = model.toStoredCheckIn().id
+        XCTAssertEqual(model.toStoredCheckIn().id, recordID, "Retries keep one questionnaire identity")
+        XCTAssertEqual(sqlite3_exec(storage.db, "CREATE TEMP TRIGGER reject_morning BEFORE INSERT ON checkin_submissions BEGIN SELECT RAISE(ABORT, 'synthetic failure'); END", nil, nil, nil), SQLITE_OK)
+        defer { sqlite3_exec(storage.db, "DROP TRIGGER IF EXISTS reject_morning", nil, nil, nil) }
+        let failed = await model.submit(using: repo)
+        XCTAssertFalse(failed)
+        XCTAssertTrue(model.submissionErrorMessage?.contains("not saved") == true)
+        XCTAssertEqual(model.notes, "Retain these morning answers")
+        XCTAssertFalse(model.isSubmitting)
+        XCTAssertEqual(repo.activeSessionId, identity)
+        XCTAssertEqual(sqlite3_exec(storage.db, "DROP TRIGGER reject_morning", nil, nil, nil), SQLITE_OK)
+        let retried = await model.submit(using: repo)
+        XCTAssertTrue(retried)
+        XCTAssertNil(model.submissionErrorMessage)
+        XCTAssertEqual(repo.fetchMorningCheckIn(for: date)?.id, recordID)
+        XCTAssertEqual(storage.fetchCheckInSubmissionCount(sessionDate: date, checkInType: .morning), 1)
+        XCTAssertNil(repo.activeSessionId)
+    }
+
+    func test_morningSaveFailureKeepsSessionOpenAndRetryCommits() throws {
+        repo.setDose1Time(fixedNow.addingTimeInterval(-3600))
+        let identity = try XCTUnwrap(repo.activeSessionId)
+        let date = try XCTUnwrap(repo.activeSessionDate)
+        let model = MorningCheckInViewModel(sessionId: identity, sessionDate: date, loadRememberedSettings: false)
+        let draft = model.toStoredCheckIn()
+        let doses = repo.fetchDoseEvents(forSessionDate: date)
+        XCTAssertEqual(sqlite3_exec(storage.db, "CREATE TEMP TRIGGER reject_morning BEFORE INSERT ON checkin_submissions BEGIN SELECT RAISE(ABORT, 'synthetic failure'); END", nil, nil, nil), SQLITE_OK)
+        XCTAssertFalse(repo.saveMorningCheckIn(draft, sessionDateOverride: date))
+        XCTAssertEqual(repo.activeSessionId, identity)
+        XCTAssertNil(repo.fetchMorningCheckIn(for: date))
+        XCTAssertEqual(repo.fetchDoseEvents(forSessionDate: date), doses)
+        XCTAssertEqual(sqlite3_exec(storage.db, "DROP TRIGGER reject_morning", nil, nil, nil), SQLITE_OK)
+        XCTAssertTrue(repo.saveMorningCheckIn(draft, sessionDateOverride: date))
+        XCTAssertNil(repo.activeSessionId)
+        XCTAssertEqual(repo.fetchMorningCheckIn(for: date)?.id, draft.id)
+        XCTAssertNil(storage.mostRecentIncompleteSession(excluding: "2099-01-01"))
+    }
+
+    func test_legacyMorningCompletionSuppressesOnlyUnambiguousNightReminder() throws {
+        let date = "2026-01-14"
+        storage.closeHistoricalSession(sessionId: "old-night", sessionDate: date, end: fixedNow, terminalState: "incomplete_missed_checkin")
+        let model = MorningCheckInViewModel(sessionId: date, sessionDate: date, loadRememberedSettings: false)
+        let draft = model.toStoredCheckIn()
+        // Historical versions wrote date placeholders rather than the UUID.
+        let local = DoseTap.StoredMorningCheckIn(id: draft.id, sessionId: date, timestamp: fixedNow, sessionDate: date,
+            sleepQuality: 3, feelRested: "moderate", grogginess: "mild", sleepInertiaDuration: "5-15", dreamRecall: "none",
+            hasPhysicalSymptoms: false, physicalSymptomsJson: nil, hasRespiratorySymptoms: false, respiratorySymptomsJson: nil,
+            mentalClarity: 3, mood: "neutral", anxietyLevel: "none", readinessForDay: 3,
+            hadSleepParalysis: false, hadHallucinations: false, hadAutomaticBehavior: false, fellOutOfBed: false,
+            hadConfusionOnWaking: false, usedSleepTherapy: false, sleepTherapyJson: nil,
+            hasSleepEnvironment: false, sleepEnvironmentJson: nil, notes: nil)
+        storage.saveMorningCheckIn(local, forSession: date)
+        XCTAssertNil(storage.mostRecentIncompleteSession(excluding: "2099-01-01"))
+        storage.closeHistoricalSession(sessionId: "another-night", sessionDate: date, end: fixedNow, terminalState: "incomplete_missed_checkin")
+        XCTAssertEqual(storage.mostRecentIncompleteSession(excluding: "2099-01-01"), date)
+    }
+
+    func test_morningSaveDoesNotRetargetAnOlderFormToCurrentIdentity() throws {
+        repo.setDose1Time(fixedNow.addingTimeInterval(-3600))
+        let currentID = try XCTUnwrap(repo.activeSessionId)
+        let date = try XCTUnwrap(repo.activeSessionDate)
+        let model = MorningCheckInViewModel(sessionId: "older-identity", sessionDate: date, loadRememberedSettings: false)
+        XCTAssertTrue(repo.saveMorningCheckIn(model.toStoredCheckIn(), sessionDateOverride: date))
+        XCTAssertEqual(repo.activeSessionId, currentID)
+        XCTAssertNil(storage.fetchMorningCheckIn(sessionKey: currentID))
+        XCTAssertNotNil(storage.fetchMorningCheckIn(sessionKey: "older-identity"))
+    }
+
     func test_lastFood_roundTripMissingnessAndNoCarryForward() throws {
         var answers = try JSONDecoder().decode(DoseTap.PreSleepLogAnswers.self,
             from: Data(#"{"lateMeal":"heavy"}"#.utf8))

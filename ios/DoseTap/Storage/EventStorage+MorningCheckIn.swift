@@ -214,7 +214,8 @@ extension EventStorage {
         }
     }
 
-    public func saveMorningCheckIn(_ checkIn: StoredMorningCheckIn, forSession sessionDate: String? = nil) {
+    @discardableResult
+    public func saveMorningCheckIn(_ checkIn: StoredMorningCheckIn, forSession sessionDate: String? = nil) -> Bool {
         let effectiveSessionDate = sessionDate ?? currentSessionDate()
 
         do {
@@ -232,8 +233,10 @@ extension EventStorage {
                 try replaceMorningCheckInSymptomEventsInCurrentTransaction(checkIn, sessionDate: effectiveSessionDate)
             }
             storageLog.debug("Morning check-in saved: \(checkIn.id)")
+            return true
         } catch {
             storageLog.error("Failed to save morning check-in \(checkIn.id): \(error.localizedDescription)")
+            return false
         }
     }
 

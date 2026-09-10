@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-09
 SSOT revision: 0.4.19
-Shipping app version observed in the Xcode project: 0.4.19 (build 38)
+Shipping app version observed in the Xcode project: 0.4.19 (build 39)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -42,6 +42,7 @@ Notes:
 - Each pain-editor save records one area and side with its own intensity, sensations, pattern and notes. Add another pain creates an independent entry; it must not apply one set of sensations to every area.
 - Remember this pain saves a reusable preference, not a nightly symptom observation. Saved pain patterns survive app restart, are independently removable, and open in the editor for review before being added to tonight. Cancelling or merely displaying a saved pattern records nothing. Forgetting a pattern does not delete past questionnaires.
 - Using a saved pattern is not editing its matching nightly entry. If its area/side changes during review, the original nightly entry remains; only an explicit nightly Edit action supplies a replacement key.
+- The live pre-sleep pain editor offers an explicit Remember for future nights option before Save. Saved-pattern review puts tonight's intensity first, retaining the saved area, side and sensations for adjustment. Each pattern still requires a review/save action for tonight; daily severity is not silently carried forward as an observation. History and morning editors do not change these preferences.
 - Existing area/side identity and questionnaire exports remain unchanged. At most one entry per area/side is supported; distinct problems in exactly the same area/side need a future identity change. Saved preferences are not currently included in the clinical event export or a promised full backup. Confirmed nightly entries use the existing storage/export path.
 
 ### Last food in pre-sleep logging (DOSETAP-50)
@@ -135,6 +136,8 @@ Current Quick Log event names (from `UserSettingsManager.allAvailableEvents`):
 - Save path: `MorningCheckInView` -> `MorningCheckInViewModel.toStoredCheckIn()` -> `SessionRepository.saveMorningCheckIn(...)`.
 - When saved for the active session, check-in closes the session: `SessionRepository.completeCheckIn()` -> `closeActiveSession(...)`.
 - If morning answers derive symptom events, the morning source row, normalized check-in submission row, and derived symptom replacement commit in one SQLite transaction. Failure in any one of those writes rolls back the source row save.
+- Only a confirmed questionnaire commit may dismiss the morning form, save reusable settings, or complete its session. Failure keeps the draft visible with retry guidance; previously committed explicit medication reconciliation is not undone or described as rolled back. The save stays bound to the form's night/identity, never a newly active session.
+- A readable saved check-in suppresses the matching incomplete-night reminder, including legacy date-keyed check-ins when that date identifies only one session. Ambiguous dates do not let one check-in hide another identity. Record-change notifications refresh the reminder without requiring a relaunch. No old rows are rewritten by reminder selection.
 
 ### NapEvent
 

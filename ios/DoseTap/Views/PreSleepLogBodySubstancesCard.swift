@@ -149,15 +149,15 @@ struct Card2BodySubstances: View {
                 if let error = savedPainPatterns.loadError {
                     Text(error).font(.caption).foregroundColor(.orange)
                 }
-                if !savedPainPatterns.entries.isEmpty {
+                if historyReferenceTime == nil, !savedPainPatterns.entries.isEmpty {
                     QuestionSection(title: "Saved pain patterns", icon: "bookmark") {
-                        Text("Choose a pattern to review for tonight. Nothing is logged until you save it.")
+                        Text("Reuse a saved location and its sensations. Adjust tonight's level, then Save. Finish the pre-sleep check to save tonight's answers.")
                             .font(.caption).foregroundColor(.secondary)
                         ForEach(savedPainPatterns.entries) { entry in
                             HStack {
                                 GranularPainEntryRow(entry: entry)
                                 VStack {
-                                    Button("Use") {
+                                    Button("Use tonight") {
                                         usingSavedPainPattern = true
                                         editingPainEntry = entry
                                         showPainEntryEditor = true
@@ -210,11 +210,13 @@ struct Card2BodySubstances: View {
                                     .padding(10)
                                     .background(Color(.secondarySystemGroupedBackground))
                                     .cornerRadius(10)
-                                    Button(savedPainPatterns.entries.contains(entry) ? "Pain pattern remembered" : "Remember this pain") {
+                                    Button(savedPainPatterns.entries.contains(entry) ? "Pain pattern remembered" :
+                                        (savedPainPatterns.entries.contains { $0.entryKey == entry.entryKey } ? "Update saved pattern" : "Remember this pain")) {
                                         do { try savedPainPatterns.remember(entry) }
                                         catch { painPreferenceError = "Could not remember this pain pattern. Your nightly entry is unchanged." }
                                     }
                                     .accessibilityIdentifier("remember-pain-\(entry.entryKey)")
+                                    .disabled(historyReferenceTime != nil)
                                 }
                             }
 
@@ -435,8 +437,13 @@ struct Card2BodySubstances: View {
             MedicationPickerView()
         }
         .sheet(isPresented: $showPainEntryEditor) {
-            GranularPainEntryEditorView(initialEntry: editingPainEntry, replacesInitialEntry: !usingSavedPainPattern) { result in
+            GranularPainEntryEditorView(initialEntry: editingPainEntry, replacesInitialEntry: !usingSavedPainPattern,
+                                       allowsRemembering: historyReferenceTime == nil) { result in
                 upsertPainEntries(result.entries, replacingEntryKey: result.replacedEntryKey)
+                if result.rememberForFuture {
+                    do { for entry in result.entries { try savedPainPatterns.remember(entry) } }
+                    catch { painPreferenceError = "The pain was added to tonight's draft, but could not be remembered. Try Remember this pain again." }
+                }
             }
         }
         .alert("Saved pain patterns", isPresented: Binding(

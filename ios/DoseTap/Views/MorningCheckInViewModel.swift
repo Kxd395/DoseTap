@@ -8,6 +8,7 @@ class MorningCheckInViewModel: ObservableObject {
     let sessionDate: String
     /// When editing, reuse the original check-in ID so INSERT OR REPLACE updates in place.
     let existingCheckInId: String?
+    private let newCheckInId = UUID().uuidString
     var historyReview: ((SQLiteStoredMorningCheckIn) -> Void)?
     var isHistory: Bool { historyReview != nil }
     private let originalPhysicalSymptoms: [String: Any]
@@ -515,7 +516,7 @@ class MorningCheckInViewModel: ObservableObject {
         }
 
         return SQLiteStoredMorningCheckIn(
-            id: existingCheckInId ?? UUID().uuidString,
+            id: existingCheckInId ?? newCheckInId,
             sessionId: sessionId,
             timestamp: Date(),
             sessionDate: sessionDate,
@@ -549,7 +550,7 @@ class MorningCheckInViewModel: ObservableObject {
     }
 
     @discardableResult
-    func submit() async -> Bool {
+    func submit(using repository: SessionRepository = .shared) async -> Bool {
         if let historyReview {
             historyReview(toStoredCheckIn())
             return true // Returns a draft for confirmation; no storage or live-session effects.
@@ -559,15 +560,18 @@ class MorningCheckInViewModel: ObservableObject {
         defer { isSubmitting = false }
 
         let checkIn = toStoredCheckIn()
-        let reconciliationResult = applyDoseReconciliation()
+        let reconciliationResult = applyDoseReconciliation(using: repository)
         guard reconciliationResult.isCommitted else {
             submissionErrorMessage = reconciliationResult.failure?.userMessage
                 ?? "The dose reconciliation was not saved. Retry before completing the check-in."
             return false
         }
 
+        guard repository.saveMorningCheckIn(checkIn, sessionDateOverride: sessionDate) else {
+            submissionErrorMessage = "Your morning answers were not saved. They are still here; try Complete Check-In again. Any dose corrections already saved remain recorded."
+            return false
+        }
         saveSettingsForNextTime()
-        SessionRepository.shared.saveMorningCheckIn(checkIn, sessionDateOverride: sessionDate)
         return true
     }
 

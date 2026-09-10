@@ -10,11 +10,28 @@ import XCTest
 @testable import DoseTap
 import DoseCore
 import UIKit
+import SwiftUI
 
 // MARK: - UI Smoke Tests
 
 @MainActor
 final class UISmokeTests: XCTestCase {
+    func testMorningReminderAndFailedSaveReadableAtLargeText() throws {
+        let model = MorningCheckInViewModel(sessionId: "synthetic-night", sessionDate: "2026-08-30", loadRememberedSettings: false)
+        model.submissionErrorMessage = "Your morning answers were not saved. They are still here; try Complete Check-In again. Any dose corrections already saved remain recorded."
+        for size in [DynamicTypeSize.large, .accessibility5] {
+            let content = VStack(spacing: 16) {
+                IncompleteSessionBanner(sessionDate: "2026-08-30", isBlocking: false, onComplete: {}, onDismiss: {})
+                MorningCheckInSubmitSection(viewModel: model, dismissAction: {}, onComplete: {})
+            }.padding().frame(width: 350).environment(\.dynamicTypeSize, size).environment(\.colorScheme, .dark)
+            let renderer = ImageRenderer(content: content)
+            let rendered = try XCTUnwrap(renderer.uiImage)
+            let attachment = XCTAttachment(image: rendered)
+            attachment.name = "Earlier morning reminder and retained draft error - \(size)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+    }
     
     private var storage: EventStorage!
     private var repo: SessionRepository!

@@ -98,8 +98,7 @@ extension MorningCheckInViewModel {
             : (loggedDose2Skipped ? .skipped : .taken)
     }
 
-    func applyDoseReconciliation() -> MedicationMutationResult {
-        let sessionRepo = SessionRepository.shared
+    func applyDoseReconciliation(using sessionRepo: SessionRepository = .shared) -> MedicationMutationResult {
 
         if loggedDose1Time == nil, reconcileDose1Taken {
             let result = sessionRepo.reconcileDose1(
