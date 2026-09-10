@@ -1111,6 +1111,8 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(complete.isHittable)
         XCTAssertTrue(complete.isEnabled, "A headache must not require a fabricated localized pain entry")
         XCTAssertFalse(app.staticTexts["Add at least one pain entry before submitting."].exists)
+        XCTAssertTrue(app.staticTexts["Remember room and equipment setup"].exists)
+        XCTAssertFalse(app.staticTexts["Remember last wake-up settings"].exists)
         captureDashboard("Non-localized morning symptom can be saved")
         complete.tap()
         let primary = app.buttons["dose-primary-action"]

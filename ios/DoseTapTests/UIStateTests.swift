@@ -716,7 +716,7 @@ final class CheckInCarryForwardTests: XCTestCase {
     }
 
     @MainActor
-    func test_morningCheckInDefaultsToRememberingPriorCheckIn() throws {
+    func test_morningFallbackRemembersSetupWithoutPriorObservations() throws {
         let storage = EventStorage.shared
         storage.clearAllData()
         SessionRepository.shared.reload()
@@ -741,21 +741,21 @@ final class CheckInCarryForwardTests: XCTestCase {
                 grogginess: DoseTap.GrogginessLevel.none.rawValue,
                 sleepInertiaDuration: DoseTap.SleepInertiaDuration.lessThanFive.rawValue,
                 dreamRecall: DoseTap.DreamRecallType.normal.rawValue,
-                hasPhysicalSymptoms: false,
-                physicalSymptomsJson: nil,
-                hasRespiratorySymptoms: false,
-                respiratorySymptomsJson: nil,
+                hasPhysicalSymptoms: true,
+                physicalSymptomsJson: #"{"hasHeadache":true,"isMigraine":true}"#,
+                hasRespiratorySymptoms: true,
+                respiratorySymptomsJson: #"{"feelingFeverish":true}"#,
                 mentalClarity: 4,
                 mood: DoseTap.MoodLevel.good.rawValue,
                 anxietyLevel: DoseTap.AnxietyLevel.none.rawValue,
                 stressLevel: 2,
                 stressContextJson: #"{"drivers":["work"],"notes":"routine"}"#,
                 readinessForDay: 4,
-                hadSleepParalysis: false,
-                hadHallucinations: false,
-                hadAutomaticBehavior: false,
-                fellOutOfBed: false,
-                hadConfusionOnWaking: false,
+                hadSleepParalysis: true,
+                hadHallucinations: true,
+                hadAutomaticBehavior: true,
+                fellOutOfBed: true,
+                hadConfusionOnWaking: true,
                 usedSleepTherapy: true,
                 sleepTherapyJson: #"{"device":"CPAP","compliance":95}"#,
                 hasSleepEnvironment: true,
@@ -769,23 +769,74 @@ final class CheckInCarryForwardTests: XCTestCase {
         let viewModel = MorningCheckInViewModel(sessionId: "new-session", sessionDate: "2026-01-15")
 
         XCTAssertTrue(viewModel.rememberSettings)
-        XCTAssertEqual(viewModel.sleepQuality, 4)
-        XCTAssertEqual(viewModel.feelRested, .well)
-        XCTAssertEqual(viewModel.grogginess, .none)
-        XCTAssertEqual(viewModel.mentalClarity, 4)
-        XCTAssertEqual(viewModel.mood, .good)
-        XCTAssertEqual(viewModel.stressLevel, 2)
-        XCTAssertEqual(viewModel.stressDrivers, [.work])
-        XCTAssertTrue(viewModel.usedSleepTherapy)
+        assertNoPriorMorningObservations(viewModel)
         XCTAssertEqual(viewModel.sleepTherapyDevice, .cpap)
-        XCTAssertTrue(viewModel.hasSleepEnvironment)
         XCTAssertEqual(viewModel.sleepEnvironmentRoomTemp, .cool)
         XCTAssertEqual(viewModel.sleepEnvironmentNoiseLevel, .quiet)
         XCTAssertEqual(viewModel.sleepEnvironmentSleepAid, .fan)
-        XCTAssertEqual(viewModel.nightType, .workNight)
+        XCTAssertEqual(viewModel.nightType, .unsure)
         XCTAssertEqual(viewModel.dose2TakenReason, .unsure)
         XCTAssertTrue(viewModel.dose2ReasonNotes.isEmpty)
         XCTAssertTrue(viewModel.notes.isEmpty)
+        let prior = try XCTUnwrap(repo.fetchMorningCheckIn(for: "2026-01-14"))
+        let edited = MorningCheckInViewModel(sessionId: "prior-session", sessionDate: "2026-01-14", existing: prior)
+        XCTAssertEqual(edited.sleepQuality, 4)
+        XCTAssertTrue(edited.hasHeadache)
+        XCTAssertTrue(edited.hadSleepParalysis)
+        XCTAssertTrue(edited.usedSleepTherapy)
+        XCTAssertEqual(edited.sleepTherapyCompliance, 95)
+        XCTAssertEqual(edited.stressLevel, 2)
+        XCTAssertEqual(edited.notes, "old one-off note")
+    }
+
+    @MainActor
+    func test_legacySavedMorningSettingsWhitelistAndNewPreferencePayload() throws {
+        let defaults = UserDefaults.standard
+        let keys = ["morningCheckIn.rememberSettings", "morningCheckIn.savedSettings"]
+        let previous = keys.map { defaults.object(forKey: $0) }
+        defer { for (key, value) in zip(keys, previous) { defaults.set(value, forKey: key) } }
+        defaults.set(true, forKey: keys[0])
+        let legacy = #"{"sleepQuality":1,"feelRested":"Well Rested","mentalClarity":1,"readinessForDay":1,"stressLevel":5,"stressDrivers":["work"],"stressNotes":"old stress","usedSleepTherapy":true,"sleepTherapyDevice":"CPAP","sleepTherapyCompliance":12,"sleepTherapyNotes":"old therapy","hasSleepEnvironment":true,"sleepEnvironmentRoomTemp":"cool","sleepEnvironmentNoiseLevel":"quiet","sleepEnvironmentSleepAid":"fan","sleepEnvironmentNotes":"old room","pharmacogenomicFastMetabolizer":true,"pharmacogenomicClinicianReviewed":true,"coMedicationNotes":"old medication"}"#.data(using: .utf8)!
+        defaults.set(legacy, forKey: keys[1])
+        let fresh = MorningCheckInViewModel(sessionId: "new", sessionDate: "2026-01-15")
+        assertNoPriorMorningObservations(fresh)
+        XCTAssertEqual(fresh.sleepTherapyDevice, .cpap)
+        XCTAssertEqual(fresh.sleepEnvironmentRoomTemp, .cool)
+        XCTAssertEqual(defaults.data(forKey: keys[1]), legacy, "Opening a form must not rewrite the prior preference payload")
+        fresh.saveSettingsForNextTime()
+        let saved = try XCTUnwrap(defaults.data(forKey: keys[1]))
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: saved) as? [String: Any])
+        XCTAssertEqual(Set(object.keys), Set(["sleepTherapyDevice", "sleepEnvironmentRoomTemp", "sleepEnvironmentNoiseLevel", "sleepEnvironmentSleepAid"]))
+        assertNoPriorMorningObservations(MorningCheckInViewModel(sessionId: "next", sessionDate: "2026-01-16"))
+        fresh.stressLevel = 4
+        fresh.setRememberSettingsEnabled(false)
+        XCTAssertEqual(fresh.stressLevel, 4)
+        XCTAssertNil(defaults.data(forKey: keys[1]))
+        XCTAssertEqual(MorningCheckInViewModel(sessionId: "off", sessionDate: "2026-01-17").sleepTherapyDevice, .none)
+    }
+
+    @MainActor
+    private func assertNoPriorMorningObservations(_ model: MorningCheckInViewModel, file: StaticString = #filePath, line: UInt = #line) {
+        let baseline = MorningCheckInViewModel(sessionId: "baseline", sessionDate: "2026-01-15", loadRememberedSettings: false)
+        let actual = model.toStoredCheckIn()
+        let expected = baseline.toStoredCheckIn()
+        XCTAssertEqual(actual.sleepQuality, expected.sleepQuality, file: file, line: line)
+        XCTAssertEqual(actual.feelRested, expected.feelRested, file: file, line: line)
+        XCTAssertEqual(actual.grogginess, expected.grogginess, file: file, line: line)
+        XCTAssertEqual(actual.sleepInertiaDuration, expected.sleepInertiaDuration, file: file, line: line)
+        XCTAssertEqual(actual.mentalClarity, expected.mentalClarity, file: file, line: line)
+        XCTAssertEqual(actual.mood, expected.mood, file: file, line: line)
+        XCTAssertEqual(actual.dreamRecall, expected.dreamRecall, file: file, line: line)
+        XCTAssertEqual(actual.anxietyLevel, expected.anxietyLevel, file: file, line: line)
+        XCTAssertEqual(actual.readinessForDay, expected.readinessForDay, file: file, line: line)
+        XCTAssertNil(actual.stressLevel, file: file, line: line)
+        XCTAssertFalse(actual.hasPhysicalSymptoms || actual.hasRespiratorySymptoms || actual.usedSleepTherapy || actual.hasSleepEnvironment, file: file, line: line)
+        XCTAssertFalse(actual.hadSleepParalysis || actual.hadHallucinations || actual.hadAutomaticBehavior || actual.fellOutOfBed || actual.hadConfusionOnWaking, file: file, line: line)
+        XCTAssertNil(actual.physicalSymptomsJson, file: file, line: line)
+        XCTAssertNil(actual.sleepTherapyJson, file: file, line: line)
+        XCTAssertNil(actual.sleepEnvironmentJson, file: file, line: line)
+        XCTAssertTrue(model.stressNotes.isEmpty && model.coMedicationNotes.isEmpty && model.sleepTherapyNotes.isEmpty && model.sleepEnvironmentNotes.isEmpty, file: file, line: line)
+        XCTAssertFalse(model.hasClinicalContext, file: file, line: line)
     }
 }
 
