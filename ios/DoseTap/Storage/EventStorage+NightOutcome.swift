@@ -55,15 +55,25 @@ extension EventStorage {
 
     /// Batch-scoped evidence only: shared rows are decoded once, with no cache across exports.
     func reviewedWindowAssessments(sessionDates: [String], now: Date) -> [String: ReviewedWindowAssessment] {
+        reviewedWindowRead(sessionDates: sessionDates, now: now).assessments
+    }
+
+    func reviewedNightSleepInput(sessionDate: String, now: Date) -> ReviewedNightSleepInput? {
+        reviewedWindowRead(sessionDates: [sessionDate], now: now).inputs[sessionDate]
+    }
+
+    private func reviewedWindowRead(sessionDates: [String], now: Date)
+        -> (assessments: [String: ReviewedWindowAssessment], inputs: [String: ReviewedNightSleepInput]) {
         let keys = Set(sessionDates).sorted()
-        guard !keys.isEmpty else { return [:] }
+        guard !keys.isEmpty else { return ([:], [:]) }
         let unavailable = Dictionary(uniqueKeysWithValues: keys.map { ($0, ReviewedWindowAssessment.unavailable(now: now)) })
         guard sqlite3_exec(db, "SAVEPOINT reviewed_window_read", nil, nil, nil) == SQLITE_OK else {
-            return unavailable
+            return (unavailable, [:])
         }
         var released = false
         defer { if !released { sqlite3_exec(db, "RELEASE reviewed_window_read", nil, nil, nil) } }
         var results = unavailable
+        var inputs: [String: ReviewedNightSleepInput] = [:]
         do {
             var snapshots: [String: NightOutcomeSnapshot] = [:]
             for key in keys {
@@ -115,11 +125,13 @@ extension EventStorage {
                 }
                 results[key] = ReviewedWindowAssessment.calculate(window: snapshot.record?.answers.reviewedSleepWindow,
                     sessionID: snapshot.history.sessionId, doses: doses, otherWindows: windows, naps: naps, now: now)
+                inputs[key] = .init(sessionID: snapshot.history.sessionId, window: snapshot.record?.answers.reviewedSleepWindow,
+                    outcomeJSON: snapshot.rawJSON, doses: doses, otherWindows: windows, naps: naps)
             }
-            guard sqlite3_exec(db, "RELEASE reviewed_window_read", nil, nil, nil) == SQLITE_OK else { return unavailable }
+            guard sqlite3_exec(db, "RELEASE reviewed_window_read", nil, nil, nil) == SQLITE_OK else { return (unavailable, [:]) }
             released = true
-            return results
-        } catch { return results } // Shared evidence failed: saved windows stay unavailable, absent windows stay missing.
+            return (results, inputs)
+        } catch { return (results, [:]) } // Incomplete shared reads cannot supply a provider-query snapshot.
     }
 
     private func readWindowEvidenceRows(_ sql: String, consume: ((Int32) -> String?) throws -> Void) throws {

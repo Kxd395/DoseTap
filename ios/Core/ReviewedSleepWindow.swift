@@ -44,7 +44,7 @@ public struct ReviewedWindowAssessment: Codable, Hashable, Sendable {
         case invalidWindow, invalidDoseRecords, doseOutsideWindow, overlappingWindow
         case overlappingNap, incompleteNap, ambiguousNap, unreadableEvidence
     }
-    public struct NapMarker: Sendable {
+    public struct NapMarker: Equatable, Sendable {
         public let id: String
         public let group: String
         public let timestamp: Date

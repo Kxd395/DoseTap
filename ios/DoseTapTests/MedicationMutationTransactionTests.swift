@@ -33,6 +33,144 @@ private final class MedicationMutationNotificationCenter: AlarmNotificationCente
 
 @MainActor
 final class MedicationMutationTransactionTests: XCTestCase {
+    func testReviewedProviderCheckDiscardsLateCallbackAfterTaskCancellation() async throws {
+        let storage = EventStorage.inMemory(); try seedDose1(in: storage)
+        let now = oldDose1.addingTimeInterval(8 * 3600)
+        var diary = NightOutcomeDiary()
+        diary.reviewedSleepWindow = .init(sessionID: sessionId, start: oldDose1,
+            end: oldDose1.addingTimeInterval(3600), entryTimeZone: .current, reviewedAt: now)
+        XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: sessionDate),
+            reason: "", recordedAt: now).isCommitted)
+        let requested = expectation(description: "Provider suspended")
+        var callback: CheckedContinuation<SleepEvidenceResolution?, Never>?
+        let task = Task { @MainActor in
+            await ReviewedNightSleepLoader.load(
+                read: { storage.reviewedNightSleepInput(sessionDate: self.sessionDate, now: now) },
+                clock: { now }, isEnabled: { true }) { _, _ in
+                    await withCheckedContinuation { callback = $0; requested.fulfill() }
+                }
+        }
+        await fulfillment(of: [requested], timeout: 5)
+        task.cancel()
+        callback?.resume(returning: SleepEvidenceResolution.calculate(start: oldDose1,
+            end: oldDose1.addingTimeInterval(3600), samples: []))
+        let result = await task.value
+        XCTAssertEqual(result.status, .cancelled); XCTAssertNil(result.evidence)
+    }
+
+    func testReviewedProviderCheckMissingDisabledEmptyAwakeConflictAndFailures() async throws {
+        let storage = EventStorage.inMemory(); try seedDose1(in: storage)
+        let now = oldDose1.addingTimeInterval(8 * 3600)
+        let read = { storage.reviewedNightSleepInput(sessionDate: self.sessionDate, now: now) }
+        var calls = 0
+        let missing = await ReviewedNightSleepLoader.load(read: read, clock: { now }, isEnabled: { true }) { _, _ in
+            calls += 1; return nil
+        }
+        XCTAssertEqual(missing.status, .missingWindow); XCTAssertEqual(calls, 0)
+        var diary = NightOutcomeDiary()
+        diary.reviewedSleepWindow = .init(sessionID: sessionId, start: oldDose1,
+            end: oldDose1.addingTimeInterval(3600), entryTimeZone: .current, reviewedAt: now)
+        XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: sessionDate),
+            reason: "", recordedAt: now).isCommitted)
+        let disabled = await ReviewedNightSleepLoader.load(read: read, clock: { now }, isEnabled: { false }) { _, _ in
+            calls += 1; return nil
+        }
+        XCTAssertEqual(disabled.status, .disabled); XCTAssertEqual(calls, 0)
+        for scenario in ["empty", "awake", "conflict", "wrongBounds", "error", "disableDuringQuery", "cancel"] {
+            var enabled = true
+            let result = await ReviewedNightSleepLoader.load(read: read, clock: { now }, isEnabled: { enabled }) { start, end in
+                if scenario == "error" { throw NSError(domain: "Synthetic provider", code: 1) }
+                if scenario == "cancel" { throw CancellationError() }
+                if scenario == "disableDuringQuery" { enabled = false }
+                let awake = SleepEvidenceSample(sampleID: "awake", start: start, end: end, rawCategory: 2, stage: .awake,
+                    origin: .init(sourceName: "Synthetic", bundleIdentifier: nil))
+                let sleep = SleepEvidenceSample(sampleID: "sleep", start: start, end: end, rawCategory: 3, stage: .core,
+                    origin: awake.origin)
+                return SleepEvidenceResolution.calculate(start: scenario == "wrongBounds" ? start.addingTimeInterval(1) : start,
+                    end: end, samples: scenario == "awake" ? [awake] : (scenario == "conflict" ? [awake, sleep] : []))
+            }
+            switch scenario {
+            case "empty": XCTAssertEqual(result.status, .unavailable); XCTAssertNil(result.evidence?.coverage.asleepMinutes)
+            case "awake": XCTAssertEqual(result.status, .available); XCTAssertEqual(result.evidence?.coverage.asleepMinutes, 0)
+            case "conflict": XCTAssertEqual(result.status, .conflict); XCTAssertEqual(result.evidence?.conflictMinutes, 60)
+            case "disableDuringQuery": XCTAssertEqual(result.status, .disabled); XCTAssertNil(result.evidence)
+            case "cancel": XCTAssertEqual(result.status, .cancelled); XCTAssertNil(result.evidence)
+            default: XCTAssertEqual(result.status, .failed); XCTAssertNil(result.evidence)
+            }
+        }
+    }
+
+    func testReviewedProviderCheckJoinsBoundsAndEvidenceWithoutWrites() async throws {
+        let storage = EventStorage.inMemory(); try seedDose1(in: storage)
+        let now = oldDose1.addingTimeInterval(8 * 3600)
+        var diary = NightOutcomeDiary()
+        diary.reviewedSleepWindow = .init(sessionID: sessionId, start: oldDose1,
+            end: oldDose1.addingTimeInterval(405 * 60), entryTimeZone: .current, reviewedAt: now)
+        XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: sessionDate),
+            reason: "", recordedAt: now).isCommitted)
+        let before = try storage.nightOutcomeSnapshot(sessionDate: sessionDate)
+        let result = await ReviewedNightSleepLoader.load(
+            read: { storage.reviewedNightSleepInput(sessionDate: self.sessionDate, now: now) },
+            clock: { now }, isEnabled: { true }) { start, end in
+                XCTAssertEqual(start, self.oldDose1)
+                XCTAssertEqual(end, diary.reviewedSleepWindow?.end)
+                let samples = [(0.0, 180.0), (285.0, 405.0)].map { lower, upper in
+                    SleepEvidenceSample(sampleID: "sample-\(lower)", start: start.addingTimeInterval(lower * 60),
+                        end: start.addingTimeInterval(upper * 60), rawCategory: 3, stage: .core,
+                        origin: .init(sourceName: "Synthetic", bundleIdentifier: nil))
+                }
+                return SleepEvidenceResolution.calculate(start: start, end: end, samples: samples)
+            }
+        XCTAssertEqual(result.status, .partial)
+        XCTAssertEqual(result.evidence?.coverage.asleepMinutes, 300)
+        XCTAssertEqual(result.evidence?.coverage.unmeasuredMinutes, 105)
+        XCTAssertEqual(result.window, diary.reviewedSleepWindow)
+        XCTAssertEqual(result.checkedAt, now)
+        let after = try storage.nightOutcomeSnapshot(sessionDate: sessionDate)
+        XCTAssertEqual(after.rawJSON, before.rawJSON); XCTAssertEqual(after.history.events, before.history.events)
+    }
+
+    func testReviewedProviderCheckDiscardsChangedEvidenceAcrossAwait() async throws {
+        for change in ["dose", "window", "nap", "otherWindow", "unreadable"] {
+            let storage = EventStorage.inMemory(); try seedDose1(in: storage)
+            let now = oldDose1.addingTimeInterval(8 * 3600)
+            var diary = NightOutcomeDiary()
+            diary.reviewedSleepWindow = .init(sessionID: sessionId, start: oldDose1,
+                end: oldDose1.addingTimeInterval(6 * 3600), entryTimeZone: .current, reviewedAt: now)
+            XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: sessionDate),
+                reason: "", recordedAt: now).isCommitted)
+            let result = await ReviewedNightSleepLoader.load(
+                read: { storage.reviewedNightSleepInput(sessionDate: self.sessionDate, now: now) },
+                clock: { now }, isEnabled: { true }) { start, end in
+                    await Task.yield()
+                    if change == "window" {
+                        diary.reviewedSleepWindow = .init(sessionID: self.sessionId, start: start,
+                            end: end.addingTimeInterval(60), entryTimeZone: .current, reviewedAt: now)
+                        XCTAssertTrue(storage.saveNightOutcome(diary,
+                            review: try storage.nightOutcomeSnapshot(sessionDate: self.sessionDate),
+                            reason: "Correct bounds", recordedAt: now).isCommitted)
+                    } else if change == "otherWindow" {
+                        XCTAssertEqual(sqlite3_exec(storage.db,
+                            "INSERT INTO sleep_sessions (session_id,session_date,start_utc) VALUES ('another-night','2026-08-30','\(storage.isoFormatter.string(from: start.addingTimeInterval(-86400)))')",
+                            nil, nil, nil), SQLITE_OK)
+                        var other = NightOutcomeDiary()
+                        other.reviewedSleepWindow = .init(sessionID: "another-night", start: start.addingTimeInterval(-86400),
+                            end: end.addingTimeInterval(-86400), entryTimeZone: .current, reviewedAt: now)
+                        XCTAssertTrue(storage.saveNightOutcome(other,
+                            review: try storage.nightOutcomeSnapshot(sessionDate: "2026-08-30"), reason: "", recordedAt: now).isCommitted)
+                    } else {
+                        let time = storage.isoFormatter.string(from: start.addingTimeInterval(60))
+                        let sql = change == "dose" ? "UPDATE dose_events SET timestamp = '\(time)' WHERE event_type = 'dose1'" :
+                            (change == "nap" ? "INSERT INTO sleep_events (id,event_type,timestamp,session_date,session_id) VALUES ('new-nap','nap_start','\(time)','\(self.sessionDate)','\(self.sessionId)')" : "DROP TABLE sleep_events")
+                        XCTAssertEqual(sqlite3_exec(storage.db, sql, nil, nil, nil), SQLITE_OK)
+                    }
+                    return SleepEvidenceResolution.calculate(start: start, end: end, samples: [])
+                }
+            XCTAssertEqual(result.status, change == "unreadable" ? .unreadable : .stale, change)
+            XCTAssertNil(result.evidence, change)
+        }
+    }
+
     func testWindowAssessmentBatchReadsSharedEvidenceOnceAndRechecksNextBatch() throws {
         let storage = EventStorage.inMemory(), now = oldDose1.addingTimeInterval(8 * 3600)
         let keys = ["2026-09-01", "2026-09-02", "2026-09-03"]
