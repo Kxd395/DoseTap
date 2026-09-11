@@ -250,6 +250,14 @@ public extension SessionRepository {
         storage.fetchMostRecentPreSleepLog(sessionId: sessionId)
     }
 
+    /// Use only this session identity's completed plan; never borrow another night's setup.
+    func plannedSleepingSetup(sessionID: String) -> SleepingSetup? {
+        guard let log = storage.fetchMostRecentPreSleepLog(sessionId: sessionID),
+              log.completionState == "complete", let setup = log.answers?.sleepingSetup,
+              setup.version == 1, !setup.isEmpty else { return nil }
+        return setup.normalized
+    }
+
     /// Resolve and fetch the session's canonical pre-sleep log for sync/export flows.
     func fetchPreSleepLog(forSessionDate sessionDate: String) -> StoredPreSleepLog? {
         let resolvedSessionId = fetchSessionId(forSessionDate: sessionDate) ?? sessionDate

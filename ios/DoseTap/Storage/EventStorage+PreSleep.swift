@@ -67,6 +67,8 @@ extension EventStorage {
 
     func normalizedPreSleepAnswers(_ answers: PreSleepLogAnswers) -> PreSleepLogAnswers {
         var normalized = answers
+        normalized.sleepingSetup = answers.sleepingSetup?.normalized
+        if normalized.sleepingSetup?.isEmpty == true { normalized.sleepingSetup = nil }
         let foodNotes = normalized.lastFood?.notes?.trimmingCharacters(in: .whitespacesAndNewlines)
         normalized.lastFood?.notes = foodNotes?.isEmpty == true ? nil : foodNotes
         let trimmedNotes = normalized.notes?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -303,6 +305,11 @@ extension EventStorage {
         if let value = normalized.screensInBed?.rawValue { responses["pre.sleep.screens_in_bed"] = value }
         if let value = normalized.screensLastUsedAt { responses["pre.sleep.screens_in_bed.last_time_utc"] = isoFormatter.string(from: value) }
         if let value = normalized.roomTemp?.rawValue { responses["pre.environment.room_temp"] = value }
+        if let setup = normalized.sleepingSetup,
+           let data = try? JSONEncoder().encode(setup),
+           let object = try? JSONSerialization.jsonObject(with: data) {
+            responses["pre.sleeping_setup.v1"] = object
+        }
         if let value = normalized.noiseLevel?.rawValue { responses["pre.environment.noise_level"] = value }
         if let value = normalized.sleepAidSummary?.rawValue { responses["pre.sleep.aids"] = value }
         if let value = normalized.sleepAidSelections?.map(\.rawValue), !value.isEmpty { responses["pre.sleep.aids_list"] = value }
