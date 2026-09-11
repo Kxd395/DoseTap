@@ -92,6 +92,15 @@ Medication event vocabulary must not be stored in `sleep_events`. Input routes m
 
 `pre_sleep_logs` and `morning_checkins` are editable source records. `checkin_submissions` stores normalized question-ID keyed responses and questionnaire versioning for analysis.
 
+Sleeping setup (DOSETAP-70) adds optional JSON records without new SQL columns:
+
+| Source / normalized key | Version-1 fields | Meaning |
+| --- | --- | --- |
+| `pre_sleep_logs.answers_json.sleepingSetup` / `pre.sleeping_setup.v1` | `version`, optional `arrangement`, `sharedSpace`, `pets`, `location` | Planned context for the selected treatment night; labels are the enum strings in `SleepingSetup.swift`. Shared-space detail applies only to other-person/other arrangements. |
+| `morning_checkins.sleep_environment_json.sleepingContext` / `sleeping_context.v1` | `version`, optional `plan`, `confirmation`, `actual`, `impact`, `factors` | Snapshot of the displayed plan plus explicitly confirmed actual context. Actual context is never a remembered preference; unknown and unanswered do not mean alone/no disruption. Factors apply only to Helped/Disrupted/Both. |
+
+Occurrence, entry time, session/source identity and correction provenance come from the containing questionnaire record. Clearing an answer omits it; old records remain missing. Source JSON and normalized submission exports carry these records, including the existing Studio raw-payload view. No names, exact locations or free-text companion details are collected. These fields are sensitive sleep context even without direct identifiers and are not added to a safety score. Usual sleeping setup is a separate local preference, excluded from clinical event exports and the full-backup claim.
+
 Symptom rows derived from an editable check-in use `source`, `source_record_id`, and `source_entry_key` so a later edit replaces the earlier derived facts instead of appending stale duplicates. Source save, normalized submission, and derived symptom replacement share one transaction where the current repository contract requires it.
 
 `symptom_summaries` is rebuildable. It is not the source of truth for individual symptom facts.
