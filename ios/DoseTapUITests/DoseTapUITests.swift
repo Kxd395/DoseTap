@@ -23,6 +23,11 @@ final class DoseTapUITests: XCTestCase {
         if name.contains("testWorkWarning") { app.launchArguments.append("--uitesting-work-warning") }
         if name.contains("testDose2Confirmation") || name.contains("testReviewedNightWindow") { app.launchArguments.append("--uitesting-dose2-confirmation") }
         if name.contains("testReviewedNightWindow") { app.launchArguments += ["-healthkit_enabled", "NO"] }
+        if name.contains("testReviewedDoseSleepMetrics") { app.launchArguments += ["--uitesting-dose-sleep", "-setup_completed_v2", "YES"] }
+        if name.contains("testReviewedDoseSleepMetricsSubsecond") { app.launchArguments.append("--uitesting-dose-sleep-subsecond") }
+        if name.contains("testReviewedDoseSleepMetricsLargeText") {
+            app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        }
         if name.contains("testExpiredSessionLaunch") { app.launchArguments.append("--uitesting-expired-session") }
         if name.contains("testMorningDefaultDoseIntent") || name.contains("testMorningPhysicalSymptomsWithoutPain") || name.contains("testMorningSleepingLargeText") {
             app.launchArguments += ["--uitesting-expired-session", "-morningCheckIn.rememberSettings", "NO"]
@@ -32,7 +37,7 @@ final class DoseTapUITests: XCTestCase {
     }
 
     override func tearDownWithError() throws {
-        if name.contains("testMorningSavedPainLargeText") || name.contains("testPreSleepRoomSetupLargeText") || name.contains("testMorningSleepingLargeText") {
+        if name.contains("testReviewedDoseSleepMetricsLargeText") || name.contains("testMorningSavedPainLargeText") || name.contains("testPreSleepRoomSetupLargeText") || name.contains("testMorningSleepingLargeText") {
             app.terminate()
             app.launchArguments.removeAll { $0 == "-UIPreferredContentSizeCategoryName" || $0.hasPrefix("UICTContentSizeCategory") }
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
@@ -411,6 +416,41 @@ final class DoseTapUITests: XCTestCase {
         app.buttons["Cancel"].tap()
     }
 
+    func testReviewedDoseSleepMetricsSubsecond() throws {
+        XCTAssertTrue(app.segmentedControls["dose-sleep-fixture-mode"].waitForExistence(timeout: 15))
+        let value = app.staticTexts["dose-sleep-d2-value"]
+        for _ in 0..<12 where !value.isHittable { app.swipeUp() }
+        XCTAssertTrue(value.isHittable)
+        XCTAssertTrue(value.label.contains("<1 sec"))
+        XCTAssertFalse(value.label.contains("0 min 0 sec"))
+        captureDashboard("Positive subsecond return is not zero")
+    }
+
+    func testReviewedDoseSleepMetricsLargeText() throws { try testReviewedDoseSleepMetrics() }
+
+    func testReviewedDoseSleepMetrics() throws {
+        func reveal(_ element: XCUIElement) {
+            for _ in 0..<16 where !element.isHittable { app.swipeUp() }
+            XCTAssertTrue(element.isHittable)
+        }
+        let mode = app.segmentedControls["dose-sleep-fixture-mode"]
+        XCTAssertTrue(mode.waitForExistence(timeout: 15))
+        let d1 = app.staticTexts["dose-sleep-d1-value"], pre = app.staticTexts["dose-sleep-pre-value"]
+        let d2 = app.staticTexts["dose-sleep-d2-value"], whole = app.staticTexts["dose-sleep-whole-value"]
+        for (element, value) in [(d1, "10 min 0 sec"), (pre, "8 min 0 sec"), (d2, "14 min 0 sec"), (whole, "22 min 0 sec")] {
+            reveal(element); XCTAssertTrue(element.label.contains(value))
+            captureDashboard("Reviewed dose sleep available - \(value)")
+        }
+        for state in ["Conflict", "Missing"] {
+            for _ in 0..<18 where !mode.isHittable { app.swipeDown() }
+            XCTAssertTrue(mode.isHittable); mode.buttons[state].tap()
+            reveal(d2)
+            XCTAssertTrue(d2.label.contains(state == "Conflict" ? "Conflict" : "Not available"))
+            XCTAssertFalse(d2.label.contains("14 min"), "A fresh result must replace the previous estimate")
+            captureDashboard("Reviewed dose sleep \(state)")
+        }
+    }
+
     func testReviewedNightWindow() throws {
         app.launchArguments.removeAll { $0 == "--uitesting-dose2-confirmation" }
         func reveal(_ element: XCUIElement) {
@@ -469,7 +509,9 @@ final class DoseTapUITests: XCTestCase {
         app.buttons["night-outcome-save"].tap(); acknowledge("Answers not saved")
         let reason = app.textFields["night-outcome-reason"]
         for _ in 0..<8 where !reason.isHittable { app.swipeDown() }
-        XCTAssertTrue(reason.isHittable); reason.tap(); reason.typeText("Remove incorrect night window")
+        XCTAssertTrue(reason.isHittable)
+        if reason.frame.minY < 150 { app.swipeDown() } // Clear the navigation bar before focusing the text field.
+        reason.tap(); reason.typeText("Remove incorrect night window")
         app.buttons["night-outcome-save"].tap(); acknowledge("Answers saved")
         diary.tap(); reveal(enabled)
         XCTAssertEqual(enabled.value as? String, "0")

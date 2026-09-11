@@ -73,6 +73,7 @@ If the SSOT and the compiled implementation disagree, treat that as a defect. Do
 
 ## Current planning and evidence
 
+- Owner data inventory and proposed work/off dashboard: [2026-09-11 review](review/2026-09-11-dashboard-and-collected-data-review.md)
 - Plane index: `docs/PLANNING.md`
 - Latest full audit: `docs/audit/2026-08-31/`
 - Latest data-integrity delta audit: `docs/audit/2026-09-01/`
