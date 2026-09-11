@@ -68,7 +68,7 @@ final class SystemDoseAlarmTests: XCTestCase {
         let notifications = Notifications(), now = Date()
         notifications.deliveredReadbackAvailable = false
         let alarm = service(Native(), notifications, now: now)
-        let result = await alarm.completeDose2Reminders(sessionId: "night", activeSessionId: "night")
+        let result = await alarm.completeDose2Reminders(sessionId: "night", activeSessionId: { "night" })
         XCTAssertNotNil(result.warning)
     }
     func testMorningCancellationFailurePreservesSavedDoseAndQuestionnaire() async throws {
@@ -124,7 +124,7 @@ final class SystemDoseAlarmTests: XCTestCase {
         _ = await alarm.scheduleDose2Alarm(at: now.addingTimeInterval(100), dose1Time: now)
         notifications.removed = []
         alarm.startRinging()
-        let result = await alarm.completeDose2Reminders(sessionId: "night", activeSessionId: "night")
+        let result = await alarm.completeDose2Reminders(sessionId: "night", activeSessionId: { "night" })
         XCTAssertEqual(result, .cancelled)
         XCTAssertNil(native.target)
         XCTAssertFalse(alarm.isAlarmRinging)
@@ -136,7 +136,7 @@ final class SystemDoseAlarmTests: XCTestCase {
         let alarm = service(native, notifications, now: now)
         _ = await alarm.scheduleDose2Alarm(at: now.addingTimeInterval(100), dose1Time: now)
         notifications.removed = []
-        let result = await alarm.completeDose2Reminders(sessionId: "old", activeSessionId: "current")
+        let result = await alarm.completeDose2Reminders(sessionId: "old", activeSessionId: { "current" })
         XCTAssertEqual(result, .notApplicable)
         XCTAssertNotNil(native.target)
         XCTAssertTrue(notifications.removed.isEmpty)
@@ -148,7 +148,7 @@ final class SystemDoseAlarmTests: XCTestCase {
             let alarm = service(native, now: now)
             _ = await alarm.scheduleDose2Alarm(at: now.addingTimeInterval(100), dose1Time: now)
             native.failsCancel = !ignore; native.ignoresCancel = ignore
-            let result = await alarm.completeDose2Reminders(sessionId: "night", activeSessionId: "night")
+            let result = await alarm.completeDose2Reminders(sessionId: "night", activeSessionId: { "night" })
             XCTAssertNotNil(result.warning)
             XCTAssertNotNil(native.target)
         }
@@ -161,7 +161,7 @@ final class SystemDoseAlarmTests: XCTestCase {
             let id = AlarmService.reminderNotificationIdentifiers[0]
             if delivered { notifications.retainedDelivered = [id] }
             else { notifications.retainedPending = [UNNotificationRequest(identifier: id, content: UNMutableNotificationContent(), trigger: nil)] }
-            let result = await alarm.completeDose2Reminders(sessionId: "night", activeSessionId: "night")
+            let result = await alarm.completeDose2Reminders(sessionId: "night", activeSessionId: { "night" })
             XCTAssertNotNil(result.warning)
         }
     }

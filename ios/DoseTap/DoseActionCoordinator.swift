@@ -531,7 +531,7 @@ final class DoseActionCoordinator: ObservableObject {
         }
         let reminders = await alarmService.completeDose2Reminders(
             sessionId: mutationResult.receipt?.sessionId ?? diagnosticSessionId,
-            activeSessionId: sessionRepo.activeSessionId)
+            activeSessionId: { sessionRepo.activeSessionId })
 
         eventLogger?.logEvent(
             name: "Skip Dose 2", color: .orange,
@@ -599,7 +599,7 @@ final class DoseActionCoordinator: ObservableObject {
 
         let reminders = await alarmService.completeDose2Reminders(
             sessionId: mutationResult.receipt?.sessionId ?? diagnosticSessionId,
-            activeSessionId: sessionRepo.activeSessionId)
+            activeSessionId: { sessionRepo.activeSessionId })
 
         eventLogger?.logEvent(
             name: eventName,

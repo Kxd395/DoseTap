@@ -589,7 +589,7 @@ class MorningCheckInViewModel: ObservableObject {
             if let receipt = reconciliationResult?.receipt,
                repository.dose2Time != nil || repository.dose2Skipped {
                 let result = await alarmService.completeDose2Reminders(
-                    sessionId: receipt.sessionId, activeSessionId: repository.activeSessionId)
+                    sessionId: receipt.sessionId, activeSessionId: { repository.activeSessionId })
                 reminderCancellationWarning = result.warning
             }
         }

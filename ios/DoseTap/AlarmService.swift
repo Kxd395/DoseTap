@@ -840,8 +840,9 @@ public class AlarmService: NSObject, ObservableObject {
 
     /// Called only after a taken/explicit-skip transaction commits. Stable alarm
     /// IDs belong to the active session; historical writes must not touch them.
-    func completeDose2Reminders(sessionId: String, activeSessionId: String?) async -> Dose2ReminderCompletion {
-        guard sessionId == activeSessionId else { return .notApplicable }
+    func completeDose2Reminders(sessionId: String, activeSessionId: () -> String?) async -> Dose2ReminderCompletion {
+        // Read identity in this actor turn, rather than accepting a snapshot captured before await.
+        guard sessionId == activeSessionId() else { return .notApplicable }
         cancelAllAlarms()
         clearDose2AlarmState()
         let systemFailed: Bool

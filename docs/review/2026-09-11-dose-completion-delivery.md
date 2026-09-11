@@ -27,8 +27,8 @@ durable partial save. The form does not claim that drafts survive intentional cl
 ## Validation
 
 Local validation: 710 core XCTest cases plus 43 Swift Testing cases passed;
-241 distinct iOS tests passed across the primary (161) and related (91, including
-overlap) runs. All three final native UI journeys passed. Simulator and signed
+241 focused iOS tests passed together after the final live-session ownership guard
+review. All three final native UI journeys passed. Simulator and signed
 device builds, signature verification, all four app/staging version configurations,
 SSOT/docs checks, Plane workflow (15 tests/80 assertions) and whitespace checks passed.
 Final hosted integration evidence is recorded in the DOSETAP-67 workpad.
