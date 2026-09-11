@@ -104,7 +104,8 @@ public struct MorningCheckInView: View {
             .sheet(isPresented: $showPainEntryEditor) {
                 GranularPainEntryEditorView(initialEntry: editingPainEntry,
                                            replacesInitialEntry: !usingSavedPainPattern,
-                                           isMorningPatternReview: usingSavedPainPattern) { result in
+                                           isMorningPatternReview: usingSavedPainPattern,
+                                           existingMorningEntries: viewModel.painEntries) { result in
                     viewModel.upsertPainEntries(result.entries, replacingEntryKey: result.replacedEntryKey)
                 }
                 // The sheet can be created before its bound entry arrives. Reset the

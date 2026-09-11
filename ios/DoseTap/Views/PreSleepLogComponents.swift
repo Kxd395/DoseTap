@@ -332,6 +332,7 @@ struct GranularPainEntryEditorView: View {
     let replacesInitialEntry: Bool
     let allowsRemembering: Bool
     let isMorningPatternReview: Bool
+    let existingMorningEntries: [PreSleepLogAnswers.PainEntry]
     var replacementEntryKey: String? { replacesInitialEntry ? initialEntry?.entryKey : nil }
     let onSave: (SaveResult) -> Void
 
@@ -349,12 +350,14 @@ struct GranularPainEntryEditorView: View {
         replacesInitialEntry: Bool = true,
         allowsRemembering: Bool = false,
         isMorningPatternReview: Bool = false,
+        existingMorningEntries: [PreSleepLogAnswers.PainEntry] = [],
         onSave: @escaping (SaveResult) -> Void
     ) {
         self.initialEntry = initialEntry
         self.replacesInitialEntry = replacesInitialEntry
         self.allowsRemembering = allowsRemembering
         self.isMorningPatternReview = isMorningPatternReview
+        self.existingMorningEntries = existingMorningEntries
         self.onSave = onSave
         _selectedAreas = State(initialValue: initialEntry.map { [$0.area] } ?? [.midBack])
         _side = State(initialValue: initialEntry?.side ?? .both)
@@ -364,8 +367,16 @@ struct GranularPainEntryEditorView: View {
         _notes = State(initialValue: isMorningPatternReview ? "" : (initialEntry?.notes ?? ""))
     }
 
+    private var hasMorningDestinationCollision: Bool {
+        isMorningPatternReview && existingMorningEntries.contains {
+            selectedAreas.contains($0.area) && $0.side == side
+        }
+    }
+
     private var canSave: Bool {
-        !sensations.isEmpty && !selectedAreas.isEmpty && (!isMorningPatternReview || morningIntensity != nil)
+        !sensations.isEmpty && !selectedAreas.isEmpty
+            && (!isMorningPatternReview || morningIntensity != nil)
+            && !hasMorningDestinationCollision
     }
 
     var body: some View {
@@ -420,6 +431,11 @@ struct GranularPainEntryEditorView: View {
                         ForEach(PreSleepLogAnswers.PainSide.allCases, id: \.self) { value in
                             Text(value.displayText).tag(value)
                         }
+                    }
+                    if hasMorningDestinationCollision {
+                        Text("An entry already exists for this area and side. Cancel and use Edit on that morning entry.")
+                            .foregroundColor(.orange)
+                            .accessibilityIdentifier("pain-entry-conflict")
                     }
                 }
 
@@ -477,6 +493,7 @@ struct GranularPainEntryEditorView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
+                        guard canSave else { return }
                         let normalizedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
                         let entries = selectedAreas
                             .sorted { $0.rawValue < $1.rawValue }

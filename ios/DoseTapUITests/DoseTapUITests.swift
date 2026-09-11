@@ -1282,6 +1282,20 @@ final class DoseTapUITests: XCTestCase {
         for _ in 0..<12 where !useFeet.isHittable { app.swipeDown() }
         XCTAssertFalse(useFeet.isEnabled, "Reusing a pattern cannot overwrite an already confirmed morning entry")
         captureDashboard("One explicitly confirmed morning entry leaves the other pattern unanswered")
+        if !largeText {
+            let useBack = app.buttons["morning-use-pain-mid_back|both"]; reveal(useBack); useBack.tap()
+            reveal(level); level.tap(); app.buttons["7/10"].tap()
+            XCTAssertTrue(save.isEnabled)
+            reveal(footArea); footArea.tap()
+            let conflict = app.staticTexts["pain-entry-conflict"]; reveal(conflict)
+            XCTAssertTrue(conflict.label.contains("use Edit"))
+            XCTAssertFalse(save.isEnabled, "Changing a saved pattern cannot replace a confirmed destination entry")
+            captureDashboard("Saved-pattern destination collision preserves existing morning entry")
+            app.navigationBars.buttons["Cancel"].tap()
+            reveal(feet)
+            XCTAssertTrue(feet.label.contains("0/10")); XCTAssertTrue(feet.label.contains("Numbness"))
+            XCTAssertFalse(back.exists)
+        }
         let complete = app.buttons["Complete Check-In"]; reveal(complete)
         XCTAssertTrue(complete.isEnabled); complete.tap()
         XCTAssertTrue(app.buttons["dose-primary-action"].waitForExistence(timeout: 10))
