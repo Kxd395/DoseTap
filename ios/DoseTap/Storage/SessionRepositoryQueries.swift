@@ -250,6 +250,19 @@ public extension SessionRepository {
         storage.fetchMostRecentPreSleepLog(sessionId: sessionId)
     }
 
+    /// Prefer exact identity; accept a pre-session date placeholder only for one unambiguous session.
+    func plannedSleepingSetup(sessionID: String, sessionDate: String? = nil) -> SleepingSetup? {
+        var candidate = storage.fetchMostRecentPreSleepLog(sessionId: sessionID)
+        if candidate == nil, let sessionDate, sessionDate != sessionID,
+           storage.medicationSessionIdentity(nil, sessionDate: sessionDate) == sessionID {
+            candidate = storage.fetchMostRecentPreSleepLog(sessionId: sessionDate)
+        }
+        guard let log = candidate,
+              log.completionState == "complete", let setup = log.answers?.sleepingSetup,
+              setup.version == 1, !setup.isEmpty else { return nil }
+        return setup.normalized
+    }
+
     /// Resolve and fetch the session's canonical pre-sleep log for sync/export flows.
     func fetchPreSleepLog(forSessionDate sessionDate: String) -> StoredPreSleepLog? {
         let resolvedSessionId = fetchSessionId(forSessionDate: sessionDate) ?? sessionDate

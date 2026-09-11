@@ -3,7 +3,7 @@
 Date: 2026-09-10
 Planning owner: DOSETAP-69. Plane owns live priority and completion.
 Implementation baseline: `5e34032207d8410a99587b98922d024143163aa6`, app 0.4.19 (39).
-Status: Accepted delivery constraints and staged plan, not a claim that the replacement questionnaire ships.
+Status: Accepted delivery constraints and staged plan, not a claim that the whole replacement questionnaire ships. The owner subsequently approved the sleeping-arrangement slice under DOSETAP-70; see below.
 
 ## Decision
 
@@ -14,6 +14,12 @@ Keep Apple Health sleep detail, quick logs, both questionnaires, explicit Dose 2
 The first code slice under DOSETAP-67 removes selected-by-default medication reconciliation and tests unchanged-ledger saves. It is not the full independent medication editor, draft system, recurring-symptom redesign or proof that the owner's reminder bug is resolved on a phone.
 
 ## Clarifications that govern implementation
+
+### Approved sleeping-arrangement slice (DOSETAP-70)
+
+The owner's explicit request supersedes the earlier proposal-only status for companion context, but not for broader clinical questions. Build 44 adds planned sleeping setup directly to pre-sleep page 3, a separate reusable usual setup, and morning confirmation/change plus optional sleep impact and factors. "Use room setup" reveals page 3 and gives feedback instead of silently updating fields off-screen. History editing and existing source/normalized exports preserve these answers.
+
+No names, addresses, relationship details or observer/monitoring questions are collected. Remembered setup is never proof of another person's presence. Morning answers remain fresh, and a saved morning plan snapshot is not silently changed by a later correction to pre-sleep. See the [field guide and validation record](../review/2026-09-10-sleeping-arrangement-delivery.md). Signed-phone, owner-observed, accessibility and privacy acceptance remain separate from automated evidence; Plane DOSETAP-70 owns those gates.
 
 ### Completion and reminders are separate from answer completeness
 

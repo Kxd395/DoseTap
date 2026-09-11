@@ -89,6 +89,7 @@ class MorningCheckInViewModel: ObservableObject {
     @Published var sleepEnvironmentNoiseLevel: PreSleepLogAnswers.NoiseLevel = .quiet
     @Published var sleepEnvironmentSleepAid: PreSleepLogAnswers.SleepAid = .none
     @Published var sleepEnvironmentNotes: String = ""
+    @Published var sleepingContext = MorningSleepingContext()
     @Published var hadSleepParalysis: Bool = false
     @Published var hadHallucinations: Bool = false
     @Published var hadAutomaticBehavior: Bool = false
@@ -124,7 +125,7 @@ class MorningCheckInViewModel: ObservableObject {
         min(5, max(1, (rawValue * 4).rounded() / 4))
     }
 
-    init(sessionId: String, sessionDate: String, loadRememberedSettings: Bool = true) {
+    init(sessionId: String, sessionDate: String, loadRememberedSettings: Bool = true, plannedSetup: SleepingSetup? = nil) {
         self.sessionId = sessionId
         self.sessionDate = sessionDate
         self.existingCheckInId = nil
@@ -134,11 +135,12 @@ class MorningCheckInViewModel: ObservableObject {
         self.originalSleepEnvironment = [:]
         self.originalStressContext = [:]
         self.originalTimingContext = [:]
+        sleepingContext.plan = plannedSetup
         if loadRememberedSettings { loadSavedSettings() }
         configureDoseReconciliationState()
     }
 
-    init(sessionId: String, sessionDate: String, existing: StoredMorningCheckIn) {
+    init(sessionId: String, sessionDate: String, existing: StoredMorningCheckIn, plannedSetup: SleepingSetup? = nil) {
         self.sessionId = sessionId
         self.sessionDate = sessionDate
         self.existingCheckInId = existing.id
@@ -172,6 +174,11 @@ class MorningCheckInViewModel: ObservableObject {
         hydrateRespiratoryState(from: originalRespiratorySymptoms)
         hydrateSleepTherapyState(from: originalSleepTherapy)
         hydrateSleepEnvironmentState(from: originalSleepEnvironment)
+        if let raw = originalSleepEnvironment["sleepingContext"],
+           let data = try? JSONSerialization.data(withJSONObject: raw),
+           let context = try? JSONDecoder().decode(MorningSleepingContext.self, from: data) {
+            sleepingContext = context
+        } else { sleepingContext.plan = plannedSetup }
         hydrateStressState(from: originalStressContext)
         hydrateTimingContextState(from: originalTimingContext)
         if existing.usedSleepTherapy {
@@ -371,8 +378,9 @@ class MorningCheckInViewModel: ObservableObject {
         }
 
         var sleepEnvironmentJson: String? = nil
+        var environment = hasSleepEnvironment ? originalSleepEnvironment : [:]
         if hasSleepEnvironment {
-            var dict = originalSleepEnvironment
+            var dict = environment
             dict["roomTemp"] = sleepEnvironmentRoomTemp.rawValue
             dict["noiseLevel"] = sleepEnvironmentNoiseLevel.rawValue
             dict["sleepAids"] = sleepEnvironmentSleepAid.rawValue
@@ -381,9 +389,16 @@ class MorningCheckInViewModel: ObservableObject {
             } else {
                 dict["notes"] = sleepEnvironmentNotes
             }
-            if let data = try? JSONSerialization.data(withJSONObject: dict) {
-                sleepEnvironmentJson = String(data: data, encoding: .utf8)
-            }
+            environment = dict
+        }
+        environment.removeValue(forKey: "sleepingContext")
+        if !sleepingContext.isEmpty,
+           let data = try? JSONEncoder().encode(sleepingContext.normalized),
+           let object = try? JSONSerialization.jsonObject(with: data) {
+            environment["sleepingContext"] = object
+        }
+        if !environment.isEmpty, let data = try? JSONSerialization.data(withJSONObject: environment) {
+            sleepEnvironmentJson = String(data: data, encoding: .utf8)
         }
 
         let trimmedStressNotes = stressNotes.trimmingCharacters(in: .whitespacesAndNewlines)

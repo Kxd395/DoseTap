@@ -73,10 +73,17 @@ struct Card3ActivityNaps: View {
     @Binding var answers: PreSleepLogAnswers
     @Binding var showMoreDetails: Bool
     var referenceTime: Date? = nil
+    var setupMessage: String? = nil
+    var allowRememberedSetup = true
 
     var body: some View {
+        GeometryReader { geometry in
         ScrollView {
             VStack(spacing: 24) {
+                if let setupMessage {
+                    Text(setupMessage).font(.footnote).accessibilityIdentifier("pre-room-setup-feedback")
+                }
+                PreSleepSleepingSetupSection(answers: $answers, allowRememberedSetup: allowRememberedSetup)
                 QuestionSection(title: "Exercise today?", icon: "figure.run") {
                     VStack(spacing: 10) {
                         OptionGrid(
@@ -259,6 +266,8 @@ struct Card3ActivityNaps: View {
             }
             .padding()
             .animation(.easeInOut(duration: 0.2), value: showMoreDetails)
+            .frame(width: geometry.size.width)
+        }
         }
         .onChange(of: answers.exercise) { newValue in
             if (newValue ?? PreSleepLogAnswers.ExerciseLevel.none) == PreSleepLogAnswers.ExerciseLevel.none {

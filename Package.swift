@@ -49,6 +49,7 @@ let package = Package(
                 "SleepIntervalCoverage.swift",
                 "SleepEvidenceResolution.swift",
                 "ReviewedNightSleepProjection.swift",
+                "SleepingSetup.swift",
                 "ReviewedSleepWindow.swift",
                 "ReportCSV.swift",
                 "CaffeineAmounts.swift"
@@ -100,6 +101,7 @@ let package = Package(
                 "SleepIntervalCoverageTests.swift",
                 "SleepEvidenceResolutionTests.swift",
                 "ReviewedNightSleepProjectionTests.swift",
+                "SleepingSetupTests.swift",
                 "ReviewedSleepWindowTests.swift",
                 "CaffeineAmountsTests.swift"
             ],

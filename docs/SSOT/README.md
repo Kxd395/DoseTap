@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-10
 SSOT revision: 0.4.19
-Shipping app version observed in the Xcode project: 0.4.19 (build 43)
+Shipping app version observed in the Xcode project: 0.4.19 (build 44)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -27,6 +27,15 @@ Notes:
 ---
 
 ## Domain Entities and Invariants
+
+### Planned and actual sleeping setup (DOSETAP-70)
+
+- Pre-sleep page 3 includes optional sleeping arrangement, shared-space detail, pets and usual/away sleep location. The setup is a plan, not proof of another person's presence. Missing, Unsure and Prefer not to answer remain distinct. No names, addresses, relationship details or clinical observer questions are collected.
+- Morning lookup prefers the exact session identity. If no exact pre-sleep row exists, a date-placeholder plan from before session creation may be read only when the supplied treatment date resolves to that one canonical identity. Multiple sessions on a date, a wrong date, or an explicit blank/skipped row must not borrow a fallback plan. This read-only resolution requires no Dose 1 event and does not relink or rewrite questionnaires.
+- A separately saved usual sleeping setup is offered as a visible suggestion, never a confirmed nightly answer. Applying it is explicit and fills only unanswered fields. Saving or forgetting the usual setup does not submit a questionnaire; History edits cannot change that preference. The room-setup toolbar action reveals page 3 and explains whether previous room settings were applied or unavailable.
+- Morning shows only the matching session's completed pre-sleep plan. Same as planned requires an explicit action and stores a snapshot; Change records an independent actual arrangement. Unsure, Prefer not to answer and unanswered remain separate. A later pre-sleep correction cannot silently rewrite a saved morning snapshot. No prior morning presence, impact or factors carry forward.
+- Optional morning impact is No noticeable effect, Helped, Disrupted, Both, Unsure or Not applicable. Noise, movement, schedules/alarms, care, pets, comfort and Other details apply only to Helped/Disrupted/Both; changing the impact clears hidden factors. Arrangement-specific shared-space detail is removed when no longer applicable.
+- Additive version-1 records live in pre-sleep `sleepingSetup` and morning `sleep_environment_json.sleepingContext`, independent of the legacy room-details toggle. Source/normalized questionnaire transactions, History corrections and raw/normalized exports preserve them. Studio's existing raw-questionnaire detail/import path retains them; no new correlation score is introduced. Usual preferences are not a claimed full backup. Existing records stay unanswered; no migration invents prior answers. Medication, alarms, HealthKit and session-completion rules are unchanged.
 
 ### Fresh pre-sleep answers (DOSETAP-51)
 

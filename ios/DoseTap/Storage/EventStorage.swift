@@ -66,8 +66,8 @@ public class EventStorage {
     }
 
     enum CheckInQuestionnaireVersion {
-        static let preNight = "pre_night.v2.2026-02-13"
-        static let morning = "morning.v2.2026-02-13"
+        static let preNight = "pre_night.v3.2026-09-10"
+        static let morning = "morning.v3.2026-09-10"
     }
     static let localUserIdentifierDefaultsKey = "dosetap.local.user_identifier"
     

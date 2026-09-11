@@ -13,9 +13,12 @@ import SwiftUI
 // MARK: - Pre-Sleep Log View (Main Container)
 struct PreSleepLogView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var currentCard = 0
     @State private var answers: PreSleepLogAnswers
     @State private var showMoreDetails = false
+    @State private var roomSetupMessage: String?
+    @State private var roomSetupReveal = 0
     @State private var rememberLastSettings: Bool
     @State private var didApplyRememberedSettings = false
     @State private var showSaveError = false
@@ -100,8 +103,11 @@ struct PreSleepLogView: View {
                     Card3ActivityNaps(
                         answers: $answers,
                         showMoreDetails: $showMoreDetails,
-                        referenceTime: historyReferenceTime
+                        referenceTime: historyReferenceTime,
+                        setupMessage: roomSetupMessage,
+                        allowRememberedSetup: historyNight == nil
                     )
+                    .id(roomSetupReveal)
                     .tag(2)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
@@ -116,11 +122,12 @@ struct PreSleepLogView: View {
                         } label: {
                             HStack {
                                 Image(systemName: "chevron.left")
-                                Text("Back")
+                                if !dynamicTypeSize.isAccessibilitySize { Text("Back") }
                             }
                             .font(.headline)
                             .foregroundColor(.secondary)
                         }
+                        .accessibilityLabel("Back")
                     } else {
                         Spacer()
                     }
@@ -148,7 +155,7 @@ struct PreSleepLogView: View {
                             saveAndComplete()
                         } label: {
                             HStack {
-                                Image(systemName: "checkmark")
+                                if !dynamicTypeSize.isAccessibilitySize { Image(systemName: "checkmark") }
                                 Text(historyNight != nil ? "Review" : (existingLog == nil ? "Done" : "Save"))
                             }
                             .font(.headline)
@@ -191,7 +198,10 @@ struct PreSleepLogView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if historyNight == nil {
                     Button {
-                        loadLastAnswers()
+                        roomSetupMessage = loadLastAnswers()
+                        showMoreDetails = true
+                        roomSetupReveal += 1
+                        currentCard = 2
                     } label: {
                         Text("Use room setup")
                             .font(.subheadline)
@@ -280,12 +290,14 @@ struct PreSleepLogView: View {
         }
     }
     
-    private func loadLastAnswers() {
+    @discardableResult private func loadLastAnswers() -> String {
         if let lastLog = sessionRepo.fetchMostRecentCompletedPreSleepLog(),
            let lastAnswers = lastLog.answers {
             answers = answers.applyingRememberedRoomSetup(from: lastAnswers)
             showMoreDetails = showMoreDetails || Self.shouldExpandOptionalDetails(for: answers)
+            return "Review your sleeping arrangement below. Any previous room settings fill only unanswered fields under Add more details."
         }
+        return "No previous room settings to apply. Choose your sleeping arrangement below."
     }
 
     private func applyRememberedSettingsIfNeeded() {

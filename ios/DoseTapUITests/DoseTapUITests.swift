@@ -24,7 +24,7 @@ final class DoseTapUITests: XCTestCase {
         if name.contains("testDose2Confirmation") || name.contains("testReviewedNightWindow") { app.launchArguments.append("--uitesting-dose2-confirmation") }
         if name.contains("testReviewedNightWindow") { app.launchArguments += ["-healthkit_enabled", "NO"] }
         if name.contains("testExpiredSessionLaunch") { app.launchArguments.append("--uitesting-expired-session") }
-        if name.contains("testMorningDefaultDoseIntent") || name.contains("testMorningPhysicalSymptomsWithoutPain") {
+        if name.contains("testMorningDefaultDoseIntent") || name.contains("testMorningPhysicalSymptomsWithoutPain") || name.contains("testMorningSleepingLargeText") {
             app.launchArguments += ["--uitesting-expired-session", "-morningCheckIn.rememberSettings", "NO"]
         }
         if name.contains("testHistoryManual") { app.launchArguments += ["--uitesting-history", "--uitesting-history-reset", "-setup_completed_v2", "YES"] }
@@ -32,6 +32,12 @@ final class DoseTapUITests: XCTestCase {
     }
 
     override func tearDownWithError() throws {
+        if name.contains("testPreSleepRoomSetupLargeText") || name.contains("testMorningSleepingLargeText") {
+            app.terminate()
+            app.launchArguments.removeAll { $0 == "-UIPreferredContentSizeCategoryName" || $0.hasPrefix("UICTContentSizeCategory") }
+            app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
+            app.launch()
+        }
         app = nil
     }
 
@@ -340,6 +346,11 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Skip for tonight"].exists)
         XCTAssertFalse(app.buttons["Use room setup"].exists)
         app.buttons["Next"].tap(); app.buttons["Next"].tap()
+        app.buttons["pre-sleeping-arrangement"].tap(); app.buttons["Partner in the same bed"].tap()
+        app.buttons["pre-sleeping-pets"].tap(); app.buttons["In the room, off the bed"].tap()
+        app.buttons["pre-sleeping-location"].tap(); app.buttons["Usual bed at home"].tap()
+        XCTAssertFalse(app.buttons["pre-save-usual-sleeping"].exists, "History must not replace a reusable preference")
+        captureDashboard("Pre-sleep page 3 planned sleeping arrangement")
         let foodToggle = app.switches["pre-last-food-toggle"]
         reveal(foodToggle); foodToggle.tap()
         let foodNotes = app.textFields["pre-last-food-notes"].firstMatch
@@ -360,6 +371,14 @@ final class DoseTapUITests: XCTestCase {
         app.buttons["Done"].firstMatch.tap()
         XCTAssertTrue(app.staticTexts["history-no-doses"].exists, "Questionnaires must not infer medication")
         openQuestionnaire("history-morning-questionnaire")
+        let sleepingConfirmation = app.buttons["morning-sleeping-confirmation"]
+        reveal(sleepingConfirmation); sleepingConfirmation.tap(); app.buttons["Same as planned"].tap()
+        XCTAssertTrue(app.staticTexts["morning-sleeping-confirmed"].label.contains("Partner in the same bed"))
+        let sleepingImpact = app.buttons["morning-sleeping-impact"]
+        reveal(sleepingImpact); sleepingImpact.tap(); app.buttons["Disrupted"].tap()
+        let noise = app.switches["Snoring or noise"]
+        reveal(noise); noise.tap()
+        captureDashboard("Morning confirms planned setup and records sleep impact")
         let notes = app.descendants(matching: .any).matching(identifier: "morning-check-in-notes").firstMatch
         reveal(notes); notes.tap(); notes.typeText("Remembered morning")
         let submit = app.buttons["Review History Answers"]
@@ -367,6 +386,12 @@ final class DoseTapUITests: XCTestCase {
         app.terminate(); app.launch(); openHistory()
         XCTAssertTrue(app.staticTexts["history-no-doses"].exists, "Neither questionnaire creates doses after restart")
         openQuestionnaire("history-morning-questionnaire")
+        reveal(sleepingConfirmation)
+        XCTAssertEqual(sleepingConfirmation.value as? String, "Same as planned")
+        XCTAssertTrue(app.staticTexts["morning-sleeping-confirmed"].label.contains("Partner in the same bed"))
+        sleepingConfirmation.tap(); app.buttons["Different / enter actual setup"].tap()
+        let actualArrangement = app.buttons["morning-sleeping-arrangement"]
+        reveal(actualArrangement); actualArrangement.tap(); app.buttons["Alone in the room"].tap()
         reveal(notes)
         XCTAssertEqual(notes.value as? String, "Remembered morning")
         notes.tap(); notes.typeText(". Corrected")
@@ -376,6 +401,7 @@ final class DoseTapUITests: XCTestCase {
         openQuestionnaire("history-pre-sleep-questionnaire")
         XCTAssertTrue(app.navigationBars["Edit Pre-Sleep"].waitForExistence(timeout: 5), "Pre-sleep answers must also survive restart")
         app.buttons["Next"].tap(); app.buttons["Next"].tap()
+        XCTAssertEqual(app.buttons["pre-sleeping-arrangement"].value as? String, "Partner in the same bed", "Morning correction must not change the plan")
         reveal(foodInput)
         XCTAssertEqual(foodInput.value as? String, "Fried chicken and fries")
         let foodKind = app.buttons["pre-last-food-kind"]
@@ -904,8 +930,8 @@ final class DoseTapUITests: XCTestCase {
         proof.lifetime = .keepAlways
         add(proof)
         app.buttons["Use room setup"].tap()
-        XCTAssertEqual(saved.label, savedLabel)
-        app.buttons["Next"].tap()
+        XCTAssertTrue(app.buttons["pre-sleeping-arrangement"].waitForExistence(timeout: 5))
+        app.buttons["Back"].tap()
         app.buttons["Back"].tap()
         XCTAssertEqual(saved.label, savedLabel)
         app.terminate()
@@ -917,6 +943,81 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(saved.waitForExistence(timeout: 5))
         XCTAssertEqual(saved.label, savedLabel)
         XCTAssertTrue(bottle.isHittable, "A new check offers an explicit action, never an auto-selected answer")
+    }
+
+    func testPreSleepRoomSetupLargeText() throws {
+        app.terminate()
+        app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launch()
+        let check = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Pre-sleep")).firstMatch
+        XCTAssertTrue(check.waitForExistence(timeout: 15)); check.tap()
+        app.buttons["Use room setup"].tap()
+        let arrangement = app.buttons["pre-sleeping-arrangement"]
+        for _ in 0..<6 where !arrangement.isHittable { app.swipeUp() }
+        XCTAssertTrue(arrangement.isHittable); arrangement.tap(); app.buttons["Alone in the room"].tap()
+        wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Alone in the room"), object: arrangement)], timeout: 5)
+        captureDashboard("Pre-sleep sleeping arrangement at largest accessibility text")
+        let pets = app.buttons["pre-sleeping-pets"]
+        for _ in 0..<6 where !pets.isHittable { app.swipeUp() }
+        XCTAssertTrue(pets.isHittable); pets.tap(); app.buttons["No pets"].tap()
+        wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "No pets"), object: pets)], timeout: 5)
+        captureDashboard("Pre-sleep pets at largest accessibility text")
+    }
+
+    func testMorningSleepingLargeText() throws {
+        app.terminate()
+        app.launchArguments.removeAll { $0 == "--uitesting-expired-session" }
+        app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Finish"].firstMatch.waitForExistence(timeout: 15)); app.buttons["Finish"].firstMatch.tap()
+        let confirmation = app.buttons["morning-sleeping-confirmation"]
+        for _ in 0..<14 where !confirmation.isHittable { app.swipeUp() }
+        XCTAssertTrue(confirmation.isHittable); confirmation.tap(); app.buttons["Different / enter actual setup"].tap()
+        let actual = app.buttons["morning-sleeping-arrangement"]
+        for _ in 0..<6 where !actual.isHittable { app.swipeUp() }
+        XCTAssertTrue(actual.isHittable); actual.tap(); app.buttons["Alone in the room"].tap()
+        wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Alone in the room"), object: actual)], timeout: 5)
+        captureDashboard("Morning sleeping arrangement at largest accessibility text")
+    }
+
+    func testPreSleepRoomSetupRevealsPageThreeAndSavesUsual() throws {
+        let check = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Pre-sleep")).firstMatch
+        XCTAssertTrue(check.waitForExistence(timeout: 15)); check.tap()
+        app.buttons["Use room setup"].tap()
+        let arrangement = app.buttons["pre-sleeping-arrangement"]
+        XCTAssertTrue(arrangement.waitForExistence(timeout: 5)); XCTAssertTrue(arrangement.isHittable)
+        XCTAssertTrue(app.staticTexts["pre-room-setup-feedback"].exists)
+        arrangement.tap(); app.buttons["Another person or other people"].tap()
+        let shared = app.buttons["pre-sleeping-shared-space"]
+        XCTAssertTrue(shared.waitForExistence(timeout: 5)); shared.tap(); app.buttons["Same room, separate sleeping spaces"].tap()
+        arrangement.tap(); app.buttons["Partner in the same bed"].tap()
+        XCTAssertFalse(shared.exists)
+        app.buttons["pre-sleeping-pets"].tap(); app.buttons["On the bed"].tap()
+        let location = app.buttons["pre-sleeping-location"]
+        for _ in 0..<3 where !location.isHittable { app.swipeUp() }
+        location.tap(); app.buttons["Away from home"].tap()
+        let saveUsual = app.buttons["pre-save-usual-sleeping"]
+        for _ in 0..<4 where !saveUsual.isHittable { app.swipeUp() }
+        saveUsual.tap()
+        XCTAssertTrue(app.staticTexts["pre-sleeping-feedback"].label.contains("Usual setup saved"))
+        captureDashboard("Usual sleeping setup saved separately from tonight")
+        app.buttons["Use room setup"].tap()
+        arrangement.tap(); app.buttons["Alone in the room"].tap()
+        let useUsual = app.buttons["pre-use-usual-sleeping"]
+        for _ in 0..<4 where !useUsual.isHittable { app.swipeUp() }
+        useUsual.tap()
+        app.buttons["Use room setup"].tap()
+        XCTAssertEqual(arrangement.value as? String, "Alone in the room", "Usual setup must preserve an answer already entered")
+        captureDashboard("Use room setup reveals page 3 and preserves this night's answer")
+        let submit = app.buttons["Save"].exists ? app.buttons["Save"] : app.buttons["Done"]
+        submit.tap()
+        XCTAssertTrue(check.waitForExistence(timeout: 5)); check.tap()
+        XCTAssertTrue(app.navigationBars["Edit Pre-Sleep"].waitForExistence(timeout: 5))
+        app.buttons["Next"].tap(); app.buttons["Next"].tap()
+        XCTAssertEqual(arrangement.value as? String, "Alone in the room")
+        XCTAssertEqual(app.buttons["pre-sleeping-pets"].value as? String, "On the bed")
+        captureDashboard("Tonight pre-sleep plan saved and reopened")
+        app.buttons["Cancel"].tap()
     }
 
     func testPreSleepCaffeineDistinguishesNoneFromUnanswered() throws {

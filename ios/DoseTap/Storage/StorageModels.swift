@@ -531,6 +531,7 @@ public struct PreSleepLogAnswers: Codable {
     public var screensInBed: ScreensInBed?
     public var screensLastUsedAt: Date?
     public var roomTemp: RoomTemp?
+    public var sleepingSetup: SleepingSetup?
     public var noiseLevel: NoiseLevel?
     public var sleepAids: SleepAid?
     public var sleepAidSelections: [SleepAid]?

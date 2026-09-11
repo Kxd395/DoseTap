@@ -110,6 +110,9 @@ extension EventStorage {
         if let value = therapy["notes"] as? String, !value.isEmpty { responses["sleep_therapy.notes"] = value }
 
         let environment = jsonDictionary(from: checkIn.sleepEnvironmentJson)
+        if let context = environment["sleepingContext"] as? [String: Any] {
+            responses["sleeping_context.v1"] = context
+        }
         if let value = environment["roomTemp"] as? String { responses["sleep_environment.room_temp"] = value }
         if let value = environment["noiseLevel"] as? String { responses["sleep_environment.noise_level"] = value }
         if let value = environment["sleepAids"] as? String { responses["sleep_environment.sleep_aids"] = value }
