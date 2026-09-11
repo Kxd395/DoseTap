@@ -281,7 +281,9 @@ Next, complete reviewed treatment-night bounds and source reconciliation under D
 
 **Sixth slice, reviewed-night provider check:** Wake & Next Day can query the reviewed window after local validation, then recheck the same local calculation inputs before displaying provider coverage. Changed inputs and late cancelled callbacks cannot publish a result. The optional check preserves unavailable, partial and conflicting observations without changing existing chart/export totals. See [the provider-check audit](../audit/2026-09-09/reviewed-night-provider-check.md).
 
-Next, connect this checked provider result to shared consumer/report projections. Query snapshots retain raw source evidence, but durable provider revision/deletion reconciliation and report provenance still need implementation. Never use a stale saved window or saved assessment after inputs change. DOSETAP-57 still owns dose-linked onset/return markers and completed awakening counts. The optional coverage check does not deliver those markers or revise existing chart totals.
+**Seventh slice, shared projection contract:** The checked loader now produces `ReviewedNightSleepProjection` with reviewed bounds, generation and derivation metadata, coverage, conflicts and coalesced state bands. The serialized value omits raw provider identifiers; the original evidence remains in the loader result. It does not yet enter chart or export pipelines. See [the projection audit](../audit/2026-09-10/reviewed-night-projection.md).
+
+Next, adopt this projection in chart/report consumers with the required redaction and invalidation rules. Query snapshots retain raw source evidence, but durable provider revision/deletion reconciliation and report provenance still need implementation. Never use a stale saved window or saved assessment after inputs change. DOSETAP-57 still owns dose-linked onset/return markers and completed awakening counts. The optional coverage check and projection contract do not deliver those markers or revise existing chart totals.
 
 ### Treatment-night bounds
 

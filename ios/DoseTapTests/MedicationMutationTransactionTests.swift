@@ -56,6 +56,7 @@ final class MedicationMutationTransactionTests: XCTestCase {
             end: oldDose1.addingTimeInterval(3600), samples: []))
         let result = await task.value
         XCTAssertEqual(result.status, .cancelled); XCTAssertNil(result.evidence)
+        XCTAssertNil(result.projection)
     }
 
     func testReviewedProviderCheckMissingDisabledEmptyAwakeConflictAndFailures() async throws {
@@ -97,6 +98,10 @@ final class MedicationMutationTransactionTests: XCTestCase {
             case "cancel": XCTAssertEqual(result.status, .cancelled); XCTAssertNil(result.evidence)
             default: XCTAssertEqual(result.status, .failed); XCTAssertNil(result.evidence)
             }
+            if let evidence = result.evidence {
+                XCTAssertEqual(result.projection?.coverage, evidence.coverage)
+                XCTAssertEqual(result.projection?.conflictMinutes, evidence.conflictMinutes)
+            } else { XCTAssertNil(result.projection) }
         }
     }
 
@@ -126,6 +131,9 @@ final class MedicationMutationTransactionTests: XCTestCase {
         XCTAssertEqual(result.evidence?.coverage.unmeasuredMinutes, 105)
         XCTAssertEqual(result.window, diary.reviewedSleepWindow)
         XCTAssertEqual(result.checkedAt, now)
+        XCTAssertEqual(result.projection?.coverage.asleepMinutes, 300)
+        XCTAssertEqual(result.projection?.bands.map(\.state), [.asleep, .unmeasured, .asleep])
+        XCTAssertEqual(result.projection?.generatedAt, now)
         let after = try storage.nightOutcomeSnapshot(sessionDate: sessionDate)
         XCTAssertEqual(after.rawJSON, before.rawJSON); XCTAssertEqual(after.history.events, before.history.events)
     }
@@ -168,6 +176,7 @@ final class MedicationMutationTransactionTests: XCTestCase {
                 }
             XCTAssertEqual(result.status, change == "unreadable" ? .unreadable : .stale, change)
             XCTAssertNil(result.evidence, change)
+            XCTAssertNil(result.projection, change)
         }
     }
 
