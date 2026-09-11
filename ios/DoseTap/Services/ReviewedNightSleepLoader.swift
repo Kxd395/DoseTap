@@ -22,6 +22,7 @@ struct ReviewedNightSleepResult {
     var assessment: ReviewedWindowAssessment?
     var evidence: SleepEvidenceResolution?
     var checkedAt: Date?
+    var projection: ReviewedNightSleepProjection?
     let derivationVersion = "reviewed_night_provider_check_v1"
 
     var explanation: String {
@@ -63,7 +64,10 @@ enum ReviewedNightSleepLoader {
                 return .init(status: .needsReview, window: window, assessment: currentAssessment)
             }
             guard let evidence, evidence.coverage.start == window.start, evidence.coverage.end == window.end,
-                  evidence.rejectedSampleCount == 0 else { return .init(status: .failed) }
+                  evidence.rejectedSampleCount == 0,
+                  let projection = ReviewedNightSleepProjection.calculate(window: window, evidence: evidence,
+                                                                          generatedAt: checkedAt)
+            else { return .init(status: .failed) }
             let status: ReviewedNightSleepResult.Status
             switch evidence.status {
             case .available: status = .available
@@ -71,7 +75,8 @@ enum ReviewedNightSleepLoader {
             case .unavailable: status = .unavailable
             case .conflict: status = .conflict
             }
-            return .init(status: status, window: window, assessment: currentAssessment, evidence: evidence, checkedAt: checkedAt)
+            return .init(status: status, window: window, assessment: currentAssessment, evidence: evidence,
+                         checkedAt: checkedAt, projection: projection)
         } catch is CancellationError { return .init(status: .cancelled) }
         catch { return .init(status: Task.isCancelled ? .cancelled : .failed) }
     }
