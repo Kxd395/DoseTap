@@ -266,6 +266,9 @@ struct DetailsView: View {
                     now: reviewNow
                 )
 
+                TimelineDoseSleepCard(sessionDate: session.sessionDate, events: reviewEvents)
+                    .id(session.sessionDate)
+
                 MergedNightTimelineCard(
                     session: session,
                     events: reviewEvents,

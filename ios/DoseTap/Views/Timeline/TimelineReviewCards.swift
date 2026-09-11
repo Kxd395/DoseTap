@@ -457,3 +457,140 @@ private struct ReviewMetricTile: View {
         .accessibilityLabel("\(title): \(value)")
     }
 }
+
+
+/// Read-only entry point for the exact night selected in Timeline Review.
+struct TimelineDoseSleepCard: View {
+    let sessionDate: String
+    let events: [StoredSleepEvent]
+    @StateObject private var model = TimelineDoseSleepModel()
+    @ObservedObject private var repo = SessionRepository.shared
+    @Environment(\.scenePhase) private var scenePhase
+    @AppStorage("healthkit_enabled") private var healthEnabled = false
+    @State private var request: UUID?
+    @State private var showWindow = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Dose and sleep timing").font(.headline)
+            Text("Treatment night: \(sessionDate)").font(.subheadline)
+            Text("Match Dose 2 to its Apple Health awakening using your saved, reviewed night window.")
+                .font(.footnote).foregroundStyle(.secondary)
+            Button(model.isLoading ? "Checking Apple Health…" : "Check dose and sleep timing") {
+                model.invalidate()
+                request = UUID()
+            }
+            .disabled(model.isLoading)
+            .accessibilityIdentifier("timeline-dose-sleep-check")
+            if model.isLoading { ProgressView() }
+            if let result = model.result {
+                TimelineDoseSleepResultView(result: result, events: events)
+            }
+            Button("Review night window") { invalidate(); showWindow = true }
+                .accessibilityIdentifier("timeline-dose-sleep-window")
+            Text("Checking does not save answers, record doses or change alarms. These checked results are not included in Capture review summary yet.")
+                .font(.footnote).foregroundStyle(.secondary)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 16).fill(Color(.secondarySystemBackground)))
+        .sheet(isPresented: $showWindow) { NightOutcomeEditor(sessionDate: sessionDate) }
+        .task(id: request) {
+            guard request != nil else { return }
+            await model.refresh(sessionDate: sessionDate) { await repo.reviewedNightSleep(sessionDate: $0) }
+        }
+        .onReceive(repo.sessionDidChange) { _ in invalidate() }
+        .onChange(of: healthEnabled) { _ in invalidate() }
+        .onChange(of: scenePhase) { if $0 != .active { invalidate() } }
+        .onDisappear { invalidate() }
+    }
+
+    private func invalidate() { request = nil; model.invalidate() }
+}
+
+struct TimelineDoseSleepResultView: View {
+    let result: ReviewedNightSleepResult
+    let events: [StoredSleepEvent]
+    @State private var showSources = false
+    @State private var showLogs = false
+    private var episode: TimelineDose2Episode? { TimelineDose2Episode(result: result) }
+    private var samples: [SleepEvidenceSample] {
+        episode?.samples ?? (result.evidence?.samples ?? []).sorted { $0.start < $1.start }
+    }
+    private func time(_ value: Date) -> String {
+        let zone = TimeZone.current.abbreviation(for: value) ?? TimeZone.current.identifier
+        return "\(value.formatted(date: .abbreviated, time: .standard)) (\(zone))"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let episode {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Awakening around Dose 2").font(.headline)
+                        .accessibilityIdentifier("timeline-dose2-episode")
+                    Label("Awake begins: \(time(episode.start))", systemImage: "sun.max")
+                    Label("Dose 2 taken: \(time(episode.dose))", systemImage: "pills")
+                    if let returned = episode.returned {
+                        Label("Sleep resumes: \(time(returned))", systemImage: "moon.zzz")
+                    } else {
+                        Text("Return to sleep is unresolved. See the explanation below.")
+                    }
+                    Text("Apple Health estimates; the dose is your recorded occurrence.")
+                        .font(.footnote)
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.teal.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+                let matching = episode.matchingEvents(events)
+                if !matching.isEmpty {
+                    expansionButton("Logs during this observed interval (\(matching.count))", expanded: $showLogs, id: "timeline-dose-sleep-logs")
+                    if showLogs {
+                        ForEach(matching.sorted { $0.timestamp < $1.timestamp }, id: \.id) { event in
+                            Text("\(EventDisplayName.displayName(for: event.eventType)): \(time(event.timestamp))")
+                        }
+                        Text("Log times are context, not awake-duration measurements or proof of what caused waking. Alarm history is not included here.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            ReviewedNightCoverageView(result: result)
+            if !samples.isEmpty {
+                expansionButton(episode == nil ? "Inspect reviewed Health samples" : "Inspect awakening source samples", expanded: $showSources, id: "timeline-dose-sleep-sources")
+                if showSources {
+                    Text("Original sample bounds, including samples touching the transition. Display timezone: \(TimeZone.current.identifier).")
+                        .font(.footnote).foregroundStyle(.secondary)
+                    ForEach(Array(samples.enumerated()), id: \.offset) { index, sample in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("\(sample.stage.rawValue.capitalized) · \(sample.origin.sourceName)").font(.subheadline.bold())
+                                .accessibilityIdentifier("timeline-sleep-source-\(index)")
+                            Text("\(time(sample.start)) → \(time(sample.end))")
+                            if let device = sample.origin.deviceName ?? sample.origin.deviceModel { Text("Device: \(device)") }
+                            if let bundle = sample.origin.bundleIdentifier { Text("Source app: \(bundle)") }
+                            if let zone = sample.origin.timeZoneID { Text("Source timezone: \(zone)") }
+                            if let version = sample.origin.sourceVersion { Text("Source version: \(version)") }
+                        }
+                        .font(.footnote)
+                        .fixedSize(horizontal: false, vertical: true)
+                        Divider()
+                    }
+                }
+            }
+        }
+    }
+    private func expansionButton(_ title: String, expanded: Binding<Bool>, id: String) -> some View {
+        Button { expanded.wrappedValue.toggle() } label: {
+            HStack {
+                Text(title).multilineTextAlignment(.leading)
+                Spacer()
+                Image(systemName: expanded.wrappedValue ? "chevron.down" : "chevron.right")
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .accessibilityIdentifier(id)
+        .accessibilityValue(expanded.wrappedValue ? "Expanded" : "Collapsed")
+    }
+
+}

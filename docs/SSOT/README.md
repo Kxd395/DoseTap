@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-11
 SSOT revision: 0.4.19
-Shipping app version observed in the Xcode project: 0.4.19 (build 47)
+Shipping app version observed in the Xcode project: 0.4.19 (build 48)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -704,3 +704,5 @@ Dashboard WHOOP sleep totals/stage proportions require all three sleep-stage fie
 ### Read-only dose/sleep durations (DOSETAP-57)
 
 The optional Wake & Next Day Apple Health coverage check derives four durations from the same freshly checked local snapshot and reviewed provider projection: Dose 1 to initial sleep, awakening to Dose 2, Dose 2 to return to sleep, and the whole Dose 2 awakening. The contract is [reviewed dose/sleep metrics](contracts/reviewed-dose-sleep-metrics.md). These estimates do not record medication, infer skipped doses, replace dashboard totals, persist provider history, or supply awakening counts. Signed-device/provider, VoiceOver and release acceptance remain separate.
+
+Timeline Review exposes a read-only dose/sleep check for its selected treatment night. It uses the existing saved reviewed window and repository loader, shows the associated Dose 2 awakening and source samples, and clears results after local changes, a night switch, backgrounding or Health preference changes. It does not replace the legacy stage chart or infer wake causes. See the reviewed-dose-sleep contract.
