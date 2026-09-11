@@ -41,6 +41,8 @@ For newly saved or explicitly edited answers, `physicalSymptomsJson.hasHeadache 
 
 This changes optional payload content, not table layout. No migration rewrites existing rows or reinterprets old defaults. An explicit History correction still retains prior answers through the existing provenance path. Raw Studio exports carry the saved payload; legacy archived values are not silently repaired on import.
 
+Morning saved pain reuse (DOSETAP-61): `saved_pain_patterns_v1` remains a local preference array with existing area/side keys. Use this morning reviews one preference with a fresh, explicitly chosen 0–10 intensity and blank daily notes. Confirmed values use existing `physicalSymptomsJson.painEntries`, normalized `pain.entries` and source-derived symptom records. Zero intensity is an explicit value and may coexist with selected sensations; an unanswered intensity cannot add a reused entry. There is no new field, SQL migration, retrospective rewrite, template export or scale conversion. Editing or deleting a morning observation does not mutate its source preference or pre-sleep answers.
+
 ## Caffeine amount record v1
 
 `PreSleepLogAnswers.caffeineAmounts` is additive JSON, not a SQLite table migration. It contains required `version: 1` and `source` (`user_reported`, `label_reported`, `estimated`, `unknown`), plus optional `lastVolumeUSFlOz`, `dailyVolumeUSFlOz`, `lastCaffeineMg`, and `dailyCaffeineMg` numbers. Source applies to all values in the record; label-reported means the user's report, not independently verified label data. Amounts are finite/nonnegative; each answered daily total must be at least its corresponding last amount. Missing and explicit zero differ. No volume/mass conversion is defined.

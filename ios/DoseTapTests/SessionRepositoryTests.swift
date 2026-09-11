@@ -58,6 +58,67 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertTrue(repo.fetchDoseEvents(forSessionDate: date).isEmpty)
     }
 
+    func test_morningPatternObservationRetriesReopensAndExportsWithoutChangingPreferencesOrBedtime() async throws {
+        let suite = "morning-pattern-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let patterns = SavedPainPatternStore(defaults: defaults)
+        let back = PreSleepLogAnswers.PainEntry(area: .midBack, side: .both, intensity: 7, sensations: [.tightness])
+        let feet = PreSleepLogAnswers.PainEntry(area: .ankleFoot, side: .both, intensity: 5, sensations: [.numbness], notes: "Bedtime note")
+        try patterns.remember(back); try patterns.remember(feet)
+        let preferenceBytes = defaults.data(forKey: SavedPainPatternStore.key)
+        let date = "2026-01-14", identity = "morning-pattern-night"
+        storage.closeHistoricalSession(sessionId: identity, sessionDate: date, end: fixedNow, terminalState: "incomplete_missed_checkin")
+        var bedtime = DoseTap.PreSleepLogAnswers(); bedtime.bodyPain = .moderate; bedtime.painEntries = [back, feet]
+        _ = try storage.savePreSleepLogOrThrow(sessionId: identity, answers: bedtime, now: fixedNow)
+        let savedBedtime = try XCTUnwrap(storage.fetchMostRecentPreSleepLog(sessionId: identity))
+        let model = MorningCheckInViewModel(sessionId: identity, sessionDate: date, loadRememberedSettings: false)
+        XCTAssertTrue(model.painEntries.isEmpty)
+        model.hasPhysicalSymptoms = true
+        var confirmed = feet; confirmed.intensity = 0; confirmed.notes = nil
+        model.upsertPainEntries([confirmed], replacingEntryKey: nil)
+        XCTAssertEqual(model.painEntries, [confirmed])
+        let recordID = model.toStoredCheckIn().id
+        XCTAssertEqual(sqlite3_exec(storage.db, "CREATE TEMP TRIGGER reject_pattern BEFORE INSERT ON checkin_submissions BEGIN SELECT RAISE(ABORT, 'synthetic failure'); END", nil, nil, nil), SQLITE_OK)
+        defer { sqlite3_exec(storage.db, "DROP TRIGGER IF EXISTS reject_pattern", nil, nil, nil) }
+        let failed = await model.submit(using: repo)
+        XCTAssertFalse(failed)
+        XCTAssertEqual(model.painEntries, [confirmed])
+        XCTAssertNotNil(model.submissionErrorMessage)
+        XCTAssertNil(repo.fetchMorningCheckIn(for: date))
+        XCTAssertTrue(storage.fetchSymptomEvents(sessionDate: date).filter { $0.sourceRecordId == recordID }.isEmpty)
+        XCTAssertEqual(sqlite3_exec(storage.db, "DROP TRIGGER reject_pattern", nil, nil, nil), SQLITE_OK)
+        let retried = await model.submit(using: repo)
+        XCTAssertTrue(retried)
+        repo.reload()
+        let stored = try XCTUnwrap(repo.fetchMorningCheckIn(for: date))
+        XCTAssertEqual(stored.id, recordID)
+        let reopened = MorningCheckInViewModel(sessionId: identity, sessionDate: date, existing: stored)
+        XCTAssertEqual(reopened.painEntries, [confirmed])
+        let response = storage.morningResponsesByQuestionID(stored)
+        let normalized = try XCTUnwrap(response["pain.entries"] as? [[String: Any]])
+        XCTAssertEqual(normalized.count, 1)
+        XCTAssertEqual(normalized.first?["intensity"] as? Int, 0)
+        let symptoms = storage.fetchSymptomEvents(sessionDate: date).filter { $0.sourceRecordId == recordID }
+        XCTAssertEqual(symptoms.count, 1)
+        XCTAssertEqual(symptoms.first?.severity0to10, 0)
+        let bundle = try JSONSerialization.jsonObject(with: StudioBundleExporter().buildStudioInsightsBundleDataForTesting(using: repo, sessionDates: [date])) as? [String: Any]
+        let exported = try XCTUnwrap((bundle?["sessions"] as? [[String: Any]])?.first?["morning"] as? [String: Any])
+        XCTAssertEqual(exported["rawPhysicalSymptomsJson"] as? String, stored.physicalSymptomsJson)
+        XCTAssertEqual(storage.fetchCheckInSubmissionCount(sessionDate: date, checkInType: .morning), 1)
+        XCTAssertEqual(storage.fetchMostRecentPreSleepLog(sessionId: identity)?.answers?.painEntries, savedBedtime.answers?.painEntries)
+        XCTAssertEqual(defaults.data(forKey: SavedPainPatternStore.key), preferenceBytes)
+        XCTAssertEqual(Set(SavedPainPatternStore(defaults: defaults).entries), Set([back, feet]))
+        XCTAssertTrue(repo.fetchDoseEvents(forSessionDate: date).isEmpty)
+        reopened.removePainEntry(confirmed.entryKey)
+        XCTAssertTrue(repo.saveMorningCheckIn(reopened.toStoredCheckIn(), sessionDateOverride: date))
+        XCTAssertTrue(storage.fetchSymptomEvents(sessionDate: date).filter { $0.sourceRecordId == recordID }.isEmpty)
+        XCTAssertTrue(MorningCheckInViewModel(sessionId: identity, sessionDate: date,
+            existing: try XCTUnwrap(repo.fetchMorningCheckIn(for: date))).painEntries.isEmpty)
+        XCTAssertEqual(defaults.data(forKey: SavedPainPatternStore.key), preferenceBytes)
+        XCTAssertEqual(storage.fetchMostRecentPreSleepLog(sessionId: identity)?.answers?.painEntries, savedBedtime.answers?.painEntries)
+    }
+
     func test_nonLocalizedMorningSymptomsSaveWithoutPainEntries() async throws {
         for (index, symptom) in ["headache", "reflux", "urgency", "stiffness", "soreness", "restlessness"].enumerated() {
             let date = String(format: "2026-01-%02d", 8 + index)
