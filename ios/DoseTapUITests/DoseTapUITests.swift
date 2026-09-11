@@ -955,10 +955,12 @@ final class DoseTapUITests: XCTestCase {
         let arrangement = app.buttons["pre-sleeping-arrangement"]
         for _ in 0..<6 where !arrangement.isHittable { app.swipeUp() }
         XCTAssertTrue(arrangement.isHittable); arrangement.tap(); app.buttons["Alone in the room"].tap()
+        wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Alone in the room"), object: arrangement)], timeout: 5)
         captureDashboard("Pre-sleep sleeping arrangement at largest accessibility text")
         let pets = app.buttons["pre-sleeping-pets"]
         for _ in 0..<6 where !pets.isHittable { app.swipeUp() }
         XCTAssertTrue(pets.isHittable); pets.tap(); app.buttons["No pets"].tap()
+        wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "No pets"), object: pets)], timeout: 5)
         captureDashboard("Pre-sleep pets at largest accessibility text")
     }
 
@@ -974,6 +976,7 @@ final class DoseTapUITests: XCTestCase {
         let actual = app.buttons["morning-sleeping-arrangement"]
         for _ in 0..<6 where !actual.isHittable { app.swipeUp() }
         XCTAssertTrue(actual.isHittable); actual.tap(); app.buttons["Alone in the room"].tap()
+        wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Alone in the room"), object: actual)], timeout: 5)
         captureDashboard("Morning sleeping arrangement at largest accessibility text")
     }
 

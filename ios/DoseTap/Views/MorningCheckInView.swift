@@ -20,7 +20,7 @@ public struct MorningCheckInView: View {
 
     init(history: HistoryQuestionnaireSnapshot, existing: StoredMorningCheckIn?, referenceTime: Date,
          onReview: @escaping (SQLiteStoredMorningCheckIn) -> Void) {
-        let plan = SessionRepository.shared.plannedSleepingSetup(sessionID: history.history.sessionId)
+        let plan = SessionRepository.shared.plannedSleepingSetup(sessionID: history.history.sessionId, sessionDate: history.history.sessionDate)
         let model = existing.map { MorningCheckInViewModel(sessionId: history.history.sessionId, sessionDate: history.history.sessionDate, existing: $0, plannedSetup: plan) }
             ?? MorningCheckInViewModel(sessionId: history.history.sessionId, sessionDate: history.history.sessionDate, loadRememberedSettings: false, plannedSetup: plan)
         model.historyReview = onReview
@@ -31,13 +31,13 @@ public struct MorningCheckInView: View {
 
     public init(sessionId: String, sessionDate: String, onComplete: @escaping () -> Void = {}) {
         _viewModel = StateObject(wrappedValue: MorningCheckInViewModel(sessionId: sessionId, sessionDate: sessionDate,
-            plannedSetup: SessionRepository.shared.plannedSleepingSetup(sessionID: sessionId)))
+            plannedSetup: SessionRepository.shared.plannedSleepingSetup(sessionID: sessionId, sessionDate: sessionDate)))
         self.onComplete = onComplete
     }
 
     public init(sessionId: String, sessionDate: String, existingCheckIn: StoredMorningCheckIn, onComplete: @escaping () -> Void = {}) {
         _viewModel = StateObject(wrappedValue: MorningCheckInViewModel(sessionId: sessionId, sessionDate: sessionDate, existing: existingCheckIn,
-            plannedSetup: SessionRepository.shared.plannedSleepingSetup(sessionID: sessionId)))
+            plannedSetup: SessionRepository.shared.plannedSleepingSetup(sessionID: sessionId, sessionDate: sessionDate)))
         self.onComplete = onComplete
     }
 

@@ -32,6 +32,8 @@ Every choice starts as Not recorded and can be cleared. No names or addresses ar
 
 Same as planned is available only when this exact session has a nonempty, completed pre-sleep plan. The displayed plan is saved as a snapshot with the morning answer. Without a plan, a person can enter actual setup or leave it unknown. No response is selected automatically. No new medication events, alarm actions, session timing estimates or health permissions are inferred from these answers.
 
+If pre-sleep was saved before a session existed and no Dose 1 was logged, its date-placeholder plan can still be found when the treatment date identifies exactly one session. An explicit blank/skipped plan or an ambiguous date does not use that fallback. The lookup does not rewrite the original records.
+
 ## Persistence and reporting
 
 Pre-sleep source JSON uses `sleepingSetup`; morning environment JSON uses `sleepingContext`, independently of the older room-environment toggle. Normalized question keys are `pre.sleeping_setup.v1` and `sleeping_context.v1`. New submissions have questionnaire version `pre_night.v3.2026-09-10` or `morning.v3.2026-09-10`; existing records are not backfilled. No SQL migration is needed.

@@ -92,4 +92,19 @@ final class SleepingSetupIntegrationTests: XCTestCase {
         try storage.savePreSleepLogOrThrow(sessionId: "skipped", answers: answers, completionState: "skipped")
         XCTAssertNil(repo.plannedSleepingSetup(sessionID: "skipped"))
     }
+
+    func testDatePlaceholderPlanWithoutDoseRequiresUnambiguousSession() throws {
+        let storage = EventStorage.inMemory(); let repo = SessionRepository(storage: storage)
+        var answers = DoseTap.PreSleepLogAnswers(); answers.sleepingSetup = plan
+        try storage.savePreSleepLogOrThrow(sessionId: night, answers: answers)
+        XCTAssertNil(repo.plannedSleepingSetup(sessionID: identity, sessionDate: night))
+        storage.startSession(sessionId: identity, sessionDate: night, start: Date(timeIntervalSince1970: 1788998400))
+        XCTAssertEqual(repo.plannedSleepingSetup(sessionID: identity, sessionDate: night), plan)
+        XCTAssertNil(repo.plannedSleepingSetup(sessionID: identity, sessionDate: "2026-09-08"))
+        try storage.savePreSleepLogOrThrow(sessionId: identity, answers: .init(), completionState: "skipped")
+        XCTAssertNil(repo.plannedSleepingSetup(sessionID: identity, sessionDate: night), "Explicit skipped row wins over a placeholder")
+        storage.startSession(sessionId: "second-same-date", sessionDate: night, start: Date(timeIntervalSince1970: 1789008400))
+        XCTAssertNil(repo.plannedSleepingSetup(sessionID: "second-same-date", sessionDate: night), "Two sessions must not share a guessed plan")
+        XCTAssertTrue(repo.fetchDoseEvents(forSessionDate: night).isEmpty)
+    }
 }

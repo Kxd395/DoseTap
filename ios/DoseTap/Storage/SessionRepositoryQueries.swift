@@ -250,9 +250,14 @@ public extension SessionRepository {
         storage.fetchMostRecentPreSleepLog(sessionId: sessionId)
     }
 
-    /// Use only this session identity's completed plan; never borrow another night's setup.
-    func plannedSleepingSetup(sessionID: String) -> SleepingSetup? {
-        guard let log = storage.fetchMostRecentPreSleepLog(sessionId: sessionID),
+    /// Prefer exact identity; accept a pre-session date placeholder only for one unambiguous session.
+    func plannedSleepingSetup(sessionID: String, sessionDate: String? = nil) -> SleepingSetup? {
+        var candidate = storage.fetchMostRecentPreSleepLog(sessionId: sessionID)
+        if candidate == nil, let sessionDate, sessionDate != sessionID,
+           storage.medicationSessionIdentity(nil, sessionDate: sessionDate) == sessionID {
+            candidate = storage.fetchMostRecentPreSleepLog(sessionId: sessionDate)
+        }
+        guard let log = candidate,
               log.completionState == "complete", let setup = log.answers?.sleepingSetup,
               setup.version == 1, !setup.isEmpty else { return nil }
         return setup.normalized

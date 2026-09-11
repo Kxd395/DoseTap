@@ -13,6 +13,7 @@ import SwiftUI
 // MARK: - Pre-Sleep Log View (Main Container)
 struct PreSleepLogView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var currentCard = 0
     @State private var answers: PreSleepLogAnswers
     @State private var showMoreDetails = false
@@ -121,11 +122,12 @@ struct PreSleepLogView: View {
                         } label: {
                             HStack {
                                 Image(systemName: "chevron.left")
-                                Text("Back")
+                                if !dynamicTypeSize.isAccessibilitySize { Text("Back") }
                             }
                             .font(.headline)
                             .foregroundColor(.secondary)
                         }
+                        .accessibilityLabel("Back")
                     } else {
                         Spacer()
                     }
@@ -153,7 +155,7 @@ struct PreSleepLogView: View {
                             saveAndComplete()
                         } label: {
                             HStack {
-                                Image(systemName: "checkmark")
+                                if !dynamicTypeSize.isAccessibilitySize { Image(systemName: "checkmark") }
                                 Text(historyNight != nil ? "Review" : (existingLog == nil ? "Done" : "Save"))
                             }
                             .font(.headline)
