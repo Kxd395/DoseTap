@@ -152,14 +152,14 @@ Source: [storage record](../../ios/DoseTap/Storage/StorageRecordModels.swift), [
 | Group | Collected fields |
 | --- | --- |
 | Envelope | ID, session ID/date, timestamp, questionnaire version, normalized submission/source association |
-| Sleep / waking | Sleep quality, felt rested, grogginess, sleep-inertia duration, dream recall |
-| Cognitive / emotional | Mental clarity, mood, anxiety, optional stress level/drivers/progression/notes, readiness |
+| Sleep / waking | Sleep quality 1–5 in quarter-point steps; rested Not at all/Slightly/Moderately/Well/Very well; grogginess None/Mild/Moderate/Severe/Can't function; sleep inertia <5/5–15/15–30/30–60/>60 minutes; dream recall None/Vague/Normal/Vivid/Nightmares/Disturbing |
+| Cognitive / emotional | Mental clarity and readiness each 1–5; mood Very low/Low/Neutral/Good/Great; anxiety None/Mild/Moderate/High/Severe; optional stress 1–5, drivers/progression/notes |
 | Physical section | Section-presence flag; independent pain entries; legacy pain location/severity/type; derived burden; headache flag/severity/location/migraine; reflux, restless legs, bathroom urgency, stiffness, soreness, notes |
 | Respiratory section | Section-presence flag; congestion, throat condition, cough type, sinus pressure, feverish feeling, sickness level, notes |
 | Other experiences | Sleep paralysis, hallucinations, automatic behavior, fell out of bed, confusion on waking |
 | Sleep therapy | Used-therapy flag, device, self-reported compliance percentage, notes; not imported CPAP telemetry |
 | Environment | Section-presence flag, room temperature, noise, sleep aids, notes, independent planned/actual sleeping-context record |
-| Timing context | Night type, first night off after work block, wake type, next-day demand, legacy Dose 2 wake method, back-to-sleep duration category, taken/skipped reasons, reason notes |
+| Timing context | Night type, first night off after work block, wake type, next-day demand, legacy Dose 2 wake method, back-to-sleep <15/15–30/30–60/>60 minutes/Never/Unsure, taken/skipped reasons, reason notes |
 | Optional work/safety context | Wake requirement, commute minutes, driving-confidence self-report, daytime sleepiness, cataplexy burden, optional shift start/end UTC and next required wake UTC |
 | Optional clinical context | Sleep disorders and notes, co-medication notes, reported pharmacogenomic fast-metabolizer flag, clinician-reviewed flag and notes |
 | General notes | Free text |

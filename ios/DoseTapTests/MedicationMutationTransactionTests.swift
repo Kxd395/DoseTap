@@ -33,6 +33,36 @@ private final class MedicationMutationNotificationCenter: AlarmNotificationCente
 
 @MainActor
 final class MedicationMutationTransactionTests: XCTestCase {
+    func testDoseSleepDisplayPreservesPositiveSubsecondDelay() {
+        XCTAssertEqual(ReviewedDoseSleepMetricsView.durationText(0), "0 min 0 sec")
+        XCTAssertEqual(ReviewedDoseSleepMetricsView.durationText(0.25), "<1 sec")
+        XCTAssertEqual(ReviewedDoseSleepMetricsView.durationText(840), "14 min 0 sec")
+    }
+
+    func testDoseSleepMetricsUseCheckedSnapshotAndDoNotWrite() async throws {
+        let storage = EventStorage.inMemory(); try seedDose1(in: storage)
+        let now = oldDose1.addingTimeInterval(8 * 3600)
+        var diary = NightOutcomeDiary()
+        diary.reviewedSleepWindow = .init(sessionID: sessionId, start: oldDose1,
+            end: oldDose1.addingTimeInterval(4 * 3600), entryTimeZone: .current, reviewedAt: now)
+        XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: sessionDate),
+            reason: "", recordedAt: now).isCommitted)
+        let before = storage.reviewedNightSleepInput(sessionDate: sessionDate, now: now)
+        let result = await ReviewedNightSleepLoader.load(
+            read: { storage.reviewedNightSleepInput(sessionDate: self.sessionDate, now: now) },
+            clock: { now }, isEnabled: { true }) { start, end in
+                let onset = start.addingTimeInterval(600)
+                let origin = SleepEvidenceSample.Origin(sourceName: "Synthetic", bundleIdentifier: nil)
+                return SleepEvidenceResolution.calculate(start: start, end: end, samples: [
+                    .init(sampleID: "awake", start: start, end: onset, rawCategory: 2, stage: .awake, origin: origin),
+                    .init(sampleID: "sleep", start: onset, end: end, rawCategory: 1, stage: .asleep, origin: origin)])
+            }
+        XCTAssertEqual(result.doseSleepMetrics?.dose1ToSleep.seconds, 600)
+        XCTAssertEqual(result.doseSleepMetrics?.dose2ToSleep.reason, .missingDose)
+        XCTAssertEqual(result.doseSleepMetrics?.generatedAt, now)
+        XCTAssertEqual(before, storage.reviewedNightSleepInput(sessionDate: sessionDate, now: now))
+    }
+
     func testReviewedProviderCheckDiscardsLateCallbackAfterTaskCancellation() async throws {
         let storage = EventStorage.inMemory(); try seedDose1(in: storage)
         let now = oldDose1.addingTimeInterval(8 * 3600)
@@ -56,7 +86,7 @@ final class MedicationMutationTransactionTests: XCTestCase {
             end: oldDose1.addingTimeInterval(3600), samples: []))
         let result = await task.value
         XCTAssertEqual(result.status, .cancelled); XCTAssertNil(result.evidence)
-        XCTAssertNil(result.projection)
+        XCTAssertNil(result.projection); XCTAssertNil(result.doseSleepMetrics)
     }
 
     func testReviewedProviderCheckMissingDisabledEmptyAwakeConflictAndFailures() async throws {
@@ -99,9 +129,10 @@ final class MedicationMutationTransactionTests: XCTestCase {
             default: XCTAssertEqual(result.status, .failed); XCTAssertNil(result.evidence)
             }
             if let evidence = result.evidence {
+                XCTAssertNotNil(result.doseSleepMetrics)
                 XCTAssertEqual(result.projection?.coverage, evidence.coverage)
                 XCTAssertEqual(result.projection?.conflictMinutes, evidence.conflictMinutes)
-            } else { XCTAssertNil(result.projection) }
+            } else { XCTAssertNil(result.projection); XCTAssertNil(result.doseSleepMetrics) }
         }
     }
 
@@ -176,7 +207,7 @@ final class MedicationMutationTransactionTests: XCTestCase {
                 }
             XCTAssertEqual(result.status, change == "unreadable" ? .unreadable : .stale, change)
             XCTAssertNil(result.evidence, change)
-            XCTAssertNil(result.projection, change)
+            XCTAssertNil(result.projection, change); XCTAssertNil(result.doseSleepMetrics, change)
         }
     }
 

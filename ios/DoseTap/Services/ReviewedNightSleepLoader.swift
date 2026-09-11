@@ -23,6 +23,7 @@ struct ReviewedNightSleepResult {
     var evidence: SleepEvidenceResolution?
     var checkedAt: Date?
     var projection: ReviewedNightSleepProjection?
+    var doseSleepMetrics: ReviewedDoseSleepMetrics?
     let derivationVersion = "reviewed_night_provider_check_v1"
 
     var explanation: String {
@@ -76,7 +77,8 @@ enum ReviewedNightSleepLoader {
             case .conflict: status = .conflict
             }
             return .init(status: status, window: window, assessment: currentAssessment, evidence: evidence,
-                         checkedAt: checkedAt, projection: projection)
+                         checkedAt: checkedAt, projection: projection,
+                         doseSleepMetrics: .calculate(projection: projection, doses: current.doses))
         } catch is CancellationError { return .init(status: .cancelled) }
         catch { return .init(status: Task.isCancelled ? .cancelled : .failed) }
     }

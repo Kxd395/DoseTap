@@ -126,19 +126,24 @@ final class ReviewedDoseSleepMetricsTests: XCTestCase {
                            (9600, 10920, .awake), (10920, 14400, .asleep)]
         XCTAssertEqual(try result(missingWake).dose2ToSleep.reason, .boundaryGap)
     }
-    func testElapsedAcrossDSTUsesAbsoluteTimes() throws {
+    func testElapsedAcrossDSTAndMidnightUsesAbsoluteTimes() throws {
         let format = ISO8601DateFormatter()
-        let start = try XCTUnwrap(format.date(from: "2026-11-01T01:30:00-04:00"))
-        let end = try XCTUnwrap(format.date(from: "2026-11-01T01:30:00-05:00"))
-        let windowEnd = end.addingTimeInterval(3600), now = end.addingTimeInterval(7200)
-        let window = ReviewedSleepWindow(sessionID: "dst", start: start, end: windowEnd,
-            entryTimeZone: TimeZone(identifier: "America/New_York")!, reviewedAt: now)
-        let origin = SleepEvidenceSample.Origin(sourceName: "Synthetic", bundleIdentifier: nil)
-        let samples = [SleepEvidenceSample(sampleID: "awake", start: start, end: end, rawCategory: 2, stage: .awake, origin: origin),
-                       SleepEvidenceSample(sampleID: "sleep", start: end, end: windowEnd, rawCategory: 1, stage: .asleep, origin: origin)]
-        let evidence = try XCTUnwrap(SleepEvidenceResolution.calculate(start: start, end: windowEnd, samples: samples))
-        let p = try XCTUnwrap(ReviewedNightSleepProjection.calculate(window: window, evidence: evidence, generatedAt: now))
-        let dose = StoredDoseEvent(id: "dst-dose", eventType: "dose1", timestamp: start, sessionDate: "2026-11-01", sessionId: "dst")
-        XCTAssertEqual(ReviewedDoseSleepMetrics.calculate(projection: p, doses: [dose]).dose1ToSleep.seconds, 3600)
+        for (from, to, seconds) in [
+            ("2026-11-01T01:30:00-04:00", "2026-11-01T01:30:00-05:00", 3600.0),
+            ("2026-03-08T01:30:00-05:00", "2026-03-08T03:30:00-04:00", 3600.0),
+            ("2026-09-10T23:55:00-04:00", "2026-09-11T00:05:00-04:00", 600.0)
+        ] {
+            let start = try XCTUnwrap(format.date(from: from)), end = try XCTUnwrap(format.date(from: to))
+            let windowEnd = end.addingTimeInterval(3600), now = end.addingTimeInterval(7200)
+            let window = ReviewedSleepWindow(sessionID: "dst", start: start, end: windowEnd,
+                entryTimeZone: TimeZone(identifier: "America/New_York")!, reviewedAt: now)
+            let origin = SleepEvidenceSample.Origin(sourceName: "Synthetic", bundleIdentifier: nil)
+            let samples = [SleepEvidenceSample(sampleID: "awake", start: start, end: end, rawCategory: 2, stage: .awake, origin: origin),
+                           SleepEvidenceSample(sampleID: "sleep", start: end, end: windowEnd, rawCategory: 1, stage: .asleep, origin: origin)]
+            let evidence = try XCTUnwrap(SleepEvidenceResolution.calculate(start: start, end: windowEnd, samples: samples))
+            let p = try XCTUnwrap(ReviewedNightSleepProjection.calculate(window: window, evidence: evidence, generatedAt: now))
+            let dose = StoredDoseEvent(id: "dst-dose", eventType: "dose1", timestamp: start, sessionDate: "synthetic", sessionId: "dst")
+            XCTAssertEqual(ReviewedDoseSleepMetrics.calculate(projection: p, doses: [dose]).dose1ToSleep.seconds, seconds)
+        }
     }
 }

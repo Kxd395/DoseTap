@@ -175,6 +175,11 @@ struct DoseTapApp: App {
                         .applyNightModeFilter(themeManager.currentTheme)
                 }
             }
+            #if DEBUG && targetEnvironment(simulator)
+            .sheet(isPresented: .constant(ProcessInfo.processInfo.arguments.contains("--uitesting-dose-sleep"))) {
+                ReviewedDoseSleepFixtureView()
+            }
+            #endif
             .onAppear {
                 ReleaseArtifactSmokeMarker.recordIfRequested()
                 Task { await SupplyReminderService.shared.reconcile() }

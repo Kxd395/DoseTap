@@ -317,9 +317,108 @@ struct ReviewedNightCoverageView: View {
                 Text("Unmeasured: \(minutes(evidence.coverage.unmeasuredMinutes))")
                 if evidence.conflictMinutes > 0 { Text("Conflicting: \(minutes(evidence.conflictMinutes)), included in unmeasured time") }
                 if let checkedAt = result.checkedAt { Text("Checked \(checkedAt.formatted(date: .abbreviated, time: .shortened))") }
+                if let metrics = result.doseSleepMetrics { ReviewedDoseSleepMetricsView(metrics: metrics) }
                 Text("Apple Health estimates within your reviewed bounds. Check again for later imports or edits. Existing charts and exports are unchanged.")
                     .foregroundStyle(.secondary)
             }
         }.font(.footnote).fixedSize(horizontal: false, vertical: true)
     }
 }
+
+
+struct ReviewedDoseSleepMetricsView: View {
+    let metrics: ReviewedDoseSleepMetrics
+    private func reason(_ value: ReviewedDoseSleepMetrics.Reason?) -> String {
+        switch value {
+        case .missingDose: return "Dose not recorded. Missing does not mean skipped."
+        case .invalidDoseRecords: return "Dose records need review."
+        case .invalidProjection: return "The sleep timeline needs another coverage check."
+        case .alreadyAsleep: return "Sleep was observed before or across this dose; a new onset cannot be assumed."
+        case .boundaryGap: return "Unmeasured time prevents resolving this boundary."
+        case .conflictingEvidence: return "Apple Health observations disagree at a required boundary."
+        case .missingInitialOnset: return "An initial awake-to-asleep transition was not observed."
+        case .missingAwakening: return "An awakening for Dose 2 was not observed."
+        case .missingReturn: return "A return to sleep was not observed."
+        case nil: return "No resolved estimate."
+        }
+    }
+    private func endpoint(_ value: Date) -> String {
+        let zone = TimeZone.current.abbreviation(for: value) ?? TimeZone.current.identifier
+        return "\(value.formatted(date: .abbreviated, time: .standard)) (\(zone))"
+    }
+    static func durationText(_ seconds: Double) -> String {
+        if seconds > 0 && seconds < 1 { return "<1 sec" }
+        let wholeSeconds = Int(seconds.rounded())
+        return "\(wholeSeconds / 60) min \(wholeSeconds % 60) sec"
+    }
+    private func row(_ title: String, _ value: ReviewedDoseSleepMetrics.Metric, _ id: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            if let seconds = value.seconds, let start = value.start, let end = value.end {
+                Text("\(title): \(Self.durationText(seconds))")
+                    .accessibilityIdentifier("dose-sleep-\(id)-value")
+                Text("\(endpoint(start)) → \(endpoint(end))")
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("\(title): \(value.status == .conflict ? "Conflict" : "Not available")")
+                    .accessibilityIdentifier("dose-sleep-\(id)-value")
+                Text(reason(value.reason)).foregroundStyle(.secondary)
+            }
+        }.fixedSize(horizontal: false, vertical: true)
+    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Dose and sleep timing").font(.headline)
+            Text("Estimates from recorded doses and observed Apple Health transitions. Dose time is not sleep onset.")
+            Text("Times shown in \(TimeZone.current.identifier).")
+            row("Dose 1 to initial sleep", metrics.dose1ToSleep, "d1")
+            row("Awakening to Dose 2", metrics.awakeningToDose2, "pre")
+            row("Dose 2 to return to sleep", metrics.dose2ToSleep, "d2")
+            row("Whole Dose 2 awakening", metrics.dose2Awakening, "whole")
+            Text("Unmeasured gaps and conflicting observations are never treated as zero delay. These values do not change your dose records.")
+                .foregroundStyle(.secondary)
+        }.padding(.vertical, 8)
+    }
+}
+
+#if DEBUG && targetEnvironment(simulator)
+/// Native UI proof uses synthetic values only, with no Health queries or repository writes.
+struct ReviewedDoseSleepFixtureView: View {
+    @State private var mode = "Available"
+    private var result: ReviewedNightSleepResult {
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        func date(_ seconds: Double) -> Date { start.addingTimeInterval(seconds) }
+        let window = ReviewedSleepWindow(sessionID: "ui-synthetic", start: start, end: date(14400),
+            entryTimeZone: TimeZone(secondsFromGMT: 0)!, reviewedAt: date(15000))
+        var bands: [(Double, Double, SleepEvidenceSample.Stage)] =
+            [(0, 600, .awake), (600, 9600, .asleep), (9600, 10920, .awake), (10920, 14400, .asleep)]
+        if mode == "Conflict" { bands.append((10000, 10600, .asleep)) }
+        if mode == "Missing" { bands = [] }
+        let samples = bands.enumerated().map { index, band in
+            SleepEvidenceSample(sampleID: "ui-\(index)", start: date(band.0), end: date(band.1), rawCategory: 99,
+                stage: band.2, origin: .init(sourceName: "Synthetic", bundleIdentifier: nil))
+        }
+        guard let evidence = SleepEvidenceResolution.calculate(start: start, end: window.end, samples: samples),
+              let projection = ReviewedNightSleepProjection.calculate(window: window, evidence: evidence, generatedAt: date(15000))
+        else { return .init(status: .failed) }
+        let dose2 = ProcessInfo.processInfo.arguments.contains("--uitesting-dose-sleep-subsecond") ? 10919.75 : 10080.0
+        let doses = [("dose1", 0.0), ("dose2", dose2)].map { type, seconds in
+            DoseCore.StoredDoseEvent(id: type, eventType: type, timestamp: date(seconds), sessionDate: "synthetic", sessionId: window.sessionID)
+        }
+        return .init(status: mode == "Available" ? .available : (mode == "Conflict" ? .conflict : .unavailable),
+            window: window, evidence: evidence, checkedAt: date(15000), projection: projection,
+            doseSleepMetrics: .calculate(projection: projection, doses: doses))
+    }
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Synthetic evidence only") {
+                    Picker("Evidence", selection: $mode) {
+                        ForEach(["Available", "Conflict", "Missing"], id: \.self) { Text($0) }
+                    }.pickerStyle(.segmented).accessibilityIdentifier("dose-sleep-fixture-mode")
+                }
+                Section { ReviewedNightCoverageView(result: result) }
+            }.navigationTitle("Dose sleep UI check")
+        }
+    }
+}
+#endif
