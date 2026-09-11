@@ -148,7 +148,7 @@ struct TimelineDose2Episode {
 
 extension TimelineDose2Episode {
     func matchingEvents(_ events: [StoredSleepEvent]) -> [StoredSleepEvent] {
-        events.filter { $0.timestamp >= start && $0.timestamp <= observedEnd }
+        events.filter { $0.timestamp >= start && $0.timestamp < observedEnd }
             .sorted { $0.timestamp < $1.timestamp }
     }
 }

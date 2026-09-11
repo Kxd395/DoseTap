@@ -85,10 +85,11 @@ final class MedicationMutationTransactionTests: XCTestCase {
         let partial = try XCTUnwrap(TimelineDose2Episode(result: result(returnObserved: false)))
         XCTAssertNil(partial.returned)
         XCTAssertEqual(partial.observedEnd, base.addingTimeInterval(1920))
-        let logs = [("bathroom", 1200.0), ("noise", 2100.0)].map { kind, seconds in
+        let logs = [("bathroom", 1200.0), ("water", 1920.0), ("noise", 2100.0)].map { kind, seconds in
             DoseTap.StoredSleepEvent(id: kind, eventType: kind, timestamp: base.addingTimeInterval(seconds), sessionDate: "synthetic")
         }
         XCTAssertEqual(partial.matchingEvents(logs).map(\.id), ["bathroom"])
+        XCTAssertEqual(episode.matchingEvents(logs).map(\.id), ["bathroom"], "The return-to-sleep boundary is outside the awake interval")
 
         XCTAssertEqual(partial.dose, episode.dose)
         XCTAssertNil(TimelineDose2Episode(result: .init(status: .unavailable)))

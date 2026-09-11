@@ -16,7 +16,8 @@ A matched Dose 2 awakening displays awake start, recorded dose time, and observe
 return. The four existing duration rows retain missing/conflict explanations.
 Quick logs during the observed awake portion remain timed context, including when
 the return is unresolved. They do not establish duration or wake cause. Alarm
-history is not included or implied complete.
+history is not included or implied complete. Matching logs use a half-open interval:
+a log exactly at the observed end belongs to the following interval, not this awakening.
 
 Expandable source details retain original sample bounds on both sides of the
 transition, category, source app and available device/timezone/version metadata.
