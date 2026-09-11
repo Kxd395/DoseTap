@@ -14,6 +14,7 @@ public struct MorningCheckInView: View {
     @StateObject private var viewModel: MorningCheckInViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var showPainEntryEditor = false
+    @State private var usingSavedPainPattern = false
     @State private var editingPainEntry: PreSleepLogAnswers.PainEntry?
 
     let onComplete: () -> Void
@@ -66,7 +67,8 @@ public struct MorningCheckInView: View {
                         MorningCheckInPhysicalSymptomsSection(
                             viewModel: viewModel,
                             showPainEntryEditor: $showPainEntryEditor,
-                            editingPainEntry: $editingPainEntry
+                            editingPainEntry: $editingPainEntry,
+                            usingSavedPainPattern: $usingSavedPainPattern
                         )
                     }
                     if viewModel.hasRespiratorySymptoms {
@@ -100,9 +102,14 @@ public struct MorningCheckInView: View {
                 }
             }
             .sheet(isPresented: $showPainEntryEditor) {
-                GranularPainEntryEditorView(initialEntry: editingPainEntry) { result in
+                GranularPainEntryEditorView(initialEntry: editingPainEntry,
+                                           replacesInitialEntry: !usingSavedPainPattern,
+                                           isMorningPatternReview: usingSavedPainPattern) { result in
                     viewModel.upsertPainEntries(result.entries, replacingEntryKey: result.replacedEntryKey)
                 }
+                // The sheet can be created before its bound entry arrives. Reset the
+                // editor state when the entry or review mode changes.
+                .id("\(editingPainEntry?.entryKey ?? "new")-\(usingSavedPainPattern)")
             }
         }
     }

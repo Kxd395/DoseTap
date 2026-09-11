@@ -331,6 +331,7 @@ struct GranularPainEntryEditorView: View {
     let initialEntry: PreSleepLogAnswers.PainEntry?
     let replacesInitialEntry: Bool
     let allowsRemembering: Bool
+    let isMorningPatternReview: Bool
     var replacementEntryKey: String? { replacesInitialEntry ? initialEntry?.entryKey : nil }
     let onSave: (SaveResult) -> Void
 
@@ -341,39 +342,44 @@ struct GranularPainEntryEditorView: View {
     @State private var pattern: PreSleepLogAnswers.PainPattern?
     @State private var notes: String
     @State private var rememberForFuture = false
+    @State private var morningIntensity: Int?
 
     init(
         initialEntry: PreSleepLogAnswers.PainEntry? = nil,
         replacesInitialEntry: Bool = true,
         allowsRemembering: Bool = false,
+        isMorningPatternReview: Bool = false,
         onSave: @escaping (SaveResult) -> Void
     ) {
         self.initialEntry = initialEntry
         self.replacesInitialEntry = replacesInitialEntry
         self.allowsRemembering = allowsRemembering
+        self.isMorningPatternReview = isMorningPatternReview
         self.onSave = onSave
         _selectedAreas = State(initialValue: initialEntry.map { [$0.area] } ?? [.midBack])
         _side = State(initialValue: initialEntry?.side ?? .both)
         _intensity = State(initialValue: Double(initialEntry?.intensity ?? 5))
         _sensations = State(initialValue: Set(initialEntry?.sensations ?? [.aching]))
         _pattern = State(initialValue: initialEntry?.pattern)
-        _notes = State(initialValue: initialEntry?.notes ?? "")
+        _notes = State(initialValue: isMorningPatternReview ? "" : (initialEntry?.notes ?? ""))
     }
 
     private var canSave: Bool {
-        !sensations.isEmpty && !selectedAreas.isEmpty
+        !sensations.isEmpty && !selectedAreas.isEmpty && (!isMorningPatternReview || morningIntensity != nil)
     }
 
     var body: some View {
         NavigationStack {
             Form {
                 if initialEntry != nil && !replacesInitialEntry {
-                    Section("Tonight's pain level") {
+                    Section(isMorningPatternReview ? "This morning's pain level" : "Tonight's pain level") {
                         if let initialEntry {
                             Text("\(initialEntry.area.displayText) (\(initialEntry.side.displayText))").font(.headline)
                             Text(initialEntry.sensations.map(\.displayText).joined(separator: ", ")).font(.subheadline)
                         }
-                        Text("Your saved location and sensations are ready. Adjust tonight's level, then Save.")
+                        Text(isMorningPatternReview
+                             ? "Review the saved details and choose your level for this morning. Save adds this entry to the draft; Complete Check-In saves your morning answers."
+                             : "Your saved location and sensations are ready. Adjust tonight's level, then Save.")
                             .font(.caption).foregroundColor(.secondary)
                         intensityControl
                     }
@@ -406,6 +412,7 @@ struct GranularPainEntryEditorView: View {
                             }
                             .buttonStyle(.plain)
                             .accessibilityIdentifier("pain-area-\(value.rawValue)")
+                            .accessibilityAddTraits(selectedAreas.contains(value) ? .isSelected : [])
                         }
                     }
 
@@ -442,6 +449,7 @@ struct GranularPainEntryEditorView: View {
                             }
                             .buttonStyle(.plain)
                             .accessibilityIdentifier("pain-sensation-\(value.rawValue)")
+                            .accessibilityAddTraits(sensations.contains(value) ? .isSelected : [])
                         }
                     }
                 }
@@ -458,9 +466,10 @@ struct GranularPainEntryEditorView: View {
                 Section("Notes (optional)") {
                     TextField("Add detail", text: $notes, axis: .vertical)
                         .lineLimit(2...4)
+                        .accessibilityIdentifier("pain-entry-notes")
                 }
             }
-            .navigationTitle(initialEntry == nil ? "Add Pain Entry" : (replacesInitialEntry ? "Edit Pain Entry" : "Review Saved Pain"))
+            .navigationTitle(isMorningPatternReview ? "Morning Pain" : (initialEntry == nil ? "Add Pain Entry" : (replacesInitialEntry ? "Edit Pain Entry" : "Review Saved Pain")))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -475,7 +484,7 @@ struct GranularPainEntryEditorView: View {
                                 PreSleepLogAnswers.PainEntry(
                                     area: area,
                                     side: side,
-                                    intensity: Int(intensity),
+                                    intensity: morningIntensity ?? Int(intensity),
                                     sensations: Array(sensations).sorted { $0.rawValue < $1.rawValue },
                                     pattern: pattern,
                                     notes: normalizedNotes.isEmpty ? nil : notes
@@ -498,9 +507,21 @@ struct GranularPainEntryEditorView: View {
 
     private var intensityControl: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("\(Int(intensity))/10").font(.headline)
-            Slider(value: $intensity, in: 0...10, step: 1)
-                .tint(.red).accessibilityIdentifier("pain-intensity")
+            if isMorningPatternReview {
+                Picker("Morning intensity", selection: $morningIntensity) {
+                    Text("Not recorded").tag(Optional<Int>.none)
+                    ForEach(0...10, id: \.self) { level in
+                        Text("\(level)/10").tag(Optional(level))
+                    }
+                }
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("pain-morning-intensity")
+                .accessibilityValue(morningIntensity.map { "\($0)/10" } ?? "Not recorded")
+            } else {
+                Text("\(Int(intensity))/10").font(.headline)
+                Slider(value: $intensity, in: 0...10, step: 1)
+                    .tint(.red).accessibilityIdentifier("pain-intensity")
+            }
         }
     }
 

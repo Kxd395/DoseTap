@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-10
 SSOT revision: 0.4.19
-Shipping app version observed in the Xcode project: 0.4.19 (build 44)
+Shipping app version observed in the Xcode project: 0.4.19 (build 45)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -52,6 +52,8 @@ Notes:
 - Remember this pain saves a reusable preference, not a nightly symptom observation. Saved pain patterns survive app restart, are independently removable, and open in the editor for review before being added to tonight. Cancelling or merely displaying a saved pattern records nothing. Forgetting a pattern does not delete past questionnaires.
 - Using a saved pattern is not editing its matching nightly entry. If its area/side changes during review, the original nightly entry remains; only an explicit nightly Edit action supplies a replacement key.
 - The live pre-sleep pain editor offers an explicit Remember for future nights option before Save. Saved-pattern review puts tonight's intensity first, retaining the saved area, side and sensations for adjustment. Each pattern still requires a review/save action for tonight; daily severity is not silently carried forward as an observation. History and morning editors do not change these preferences.
+- Live morning Physical Symptoms offers the same saved pain preferences through Use this morning. Each selection opens a review with morning intensity initially Not recorded; choose 0–10 explicitly before adding it to the draft. Saved intensity and notes are not copied into the morning observation. Location, side, sensations and optional pattern are visible for review. Cancel adds nothing; selecting one pattern does not add others. Complete Check-In persists confirmed entries through the existing atomic source/normalized/symptom transaction and retains answers on failure.
+- Morning saved-pattern cards omit historical intensity. An already-added area/side directs the user to Edit instead of reapplying that preference. Morning and History never write, forget or update saved patterns; History does not offer current preferences. Existing morning entries still reopen with their recorded intensity and notes. This is explicit reuse of the existing library, not the planned UUID identity, automatic recurring prompts or presence/absence redesign.
 - Existing area/side identity and questionnaire exports remain unchanged. At most one entry per area/side is supported; distinct problems in exactly the same area/side need a future identity change. Saved preferences are not currently included in the clinical event export or a promised full backup. Confirmed nightly entries use the existing storage/export path.
 
 ### Caffeine amount units (DOSETAP-52)

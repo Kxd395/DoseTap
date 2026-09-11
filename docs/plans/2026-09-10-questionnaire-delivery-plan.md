@@ -62,7 +62,7 @@ Use the existing dose ledger, shared wake diary, intake history and schedule own
 
 Keep Natural and Alarm as the prominent mutually exclusive Dose 2 choices; additional options belong under More. Backup alarm remains independent. Add another-person wake only through a versioned cross-screen/export contract, not a local-only enum change.
 
-Companion/pet and planned-versus-actual sleep-location fields are optional proposals, not established owner requirements. Confirm their usefulness and privacy defaults before adding them. No observer is not a negative breathing observation.
+The owner-approved companion/pet and planned-versus-actual sleep-location fields shipped in build 44 under DOSETAP-70, as described above. Broader observer and clinical questions remain proposals requiring separate scope and privacy review. No observer is not a negative breathing observation.
 
 Broader medication management conflicts with the current XYWAV-only shipping scope. It requires an explicit product/constitution decision. Expanded clinical-response questions require reviewed wording and response handling before release. This plan does not approve clinical messages, introduce diagnoses, calculate alcohol clearance or provide driving clearance.
 
@@ -79,7 +79,7 @@ Do not reopen DOSETAP-68: it delivered the review packet. DOSETAP-69 owns this s
 | 5 | Shared recurring patterns, IR-08, nonpainful sensory observations | DOSETAP-61 | Bedtime/morning reuse; UUID migration; same-area coexistence; absent tonight preserves pattern |
 | 6 | Dose/sleep/wake markers and independently timed daytime observations | DOSETAP-56/57/58 | Preserve provider stages, source/conflicts/counts; no invented onset; no overwritten repeated observations |
 | 7 | Intake review and activity-time readout | DOSETAP-53/54/60 | Later snack invalidates prior review; fresh alcohol status; approved independent activity messaging |
-| 8 | Optional companion context, broader clinical additions | Product decision under this plan before new exact item | Demonstrated need, privacy, model ownership and clinical scope agreed first |
+| 8 | Companion context delivered in DOSETAP-70/build 44; broader clinical additions remain proposed | DOSETAP-70 acceptance; separate product decision for broader additions | Companion phone/privacy/accessibility gates remain open; agree clinical scope before more collection |
 
 Export/history/accessibility are part of each slice, not deferred until the end. DOSETAP-13/45/59 retain export, analytics and clinician-report ownership. The Foodnoms prototype remains separate under DOSETAP-55; no photo/AI subsystem is required for these repairs.
 
@@ -103,6 +103,12 @@ For each new field, specify: stable field ID, question/choices/scale anchors, ap
 ### September 10 symptom-repair slice
 
 DOSETAP-67 implements IR-03/05 in build 41: Physical Symptoms no longer requires a separate localized pain entry; disabled headache fields are omitted from newly saved/edited answers and cannot inflate the current burden. Empty localized-pain lists do not save default type/intensity. Existing pain-editor validation and unrelated answers remain intact. The [symptom-repair audit](../audit/2026-09-10-morning-symptom-validation.md) records validation and open gates. Shared recurring morning patterns, broad answer freshness and durable draft/skip states remain separate planned work. This note is delivery evidence, not authority to close DOSETAP-61 or phone acceptance.
+
+### Morning saved-pattern reuse, build 45
+
+DOSETAP-61 addresses the bounded IR-08 access gap using the existing saved pain library. Live morning Physical Symptoms offers Use this morning for one pattern at a time. Review starts with intensity Not recorded and blank daily notes; an explicit 0–10 answer is required before adding it to the questionnaire draft. Cancel adds nothing. Already-added area/side entries use the normal Edit action; morning and History never update the preference. Existing source/normalized/symptom and export paths retain confirmed entries.
+
+This does not deliver the broader UUID identity, same-area coexistence, automatic prompts, present/absent/unsure observation states, phase/scope settings or nonpainful-symptom redesign above. The existing 0–10 pain field can retain explicit zero alongside sensations. Phone, VoiceOver and privacy/release acceptance remain open. See [the delivery record](../review/2026-09-10-morning-pain-reuse-delivery.md).
 
 ### Remaining acceptance
 

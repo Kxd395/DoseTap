@@ -18,7 +18,7 @@ final class DoseTapUITests: XCTestCase {
         if name.contains("testTimelineReviewMetricsPending") { app.launchArguments.append("--uitesting-review-pending") }
         if name.contains("testAutomaticNightMode") { app.launchArguments += ["--uitesting-auto-night-reset", "-setup_completed_v2", "YES"] }
         if name.contains("testCompactLayout") { app.launchArguments += ["--uitesting-layout", "-setup_completed_v2", "YES"] }
-        if name.contains("testSupply") || name.contains("testSystemAlarm") || name.contains("testPreSleep") { app.launchArguments += ["-setup_completed_v2", "YES"] }
+        if name.contains("testSupply") || name.contains("testSystemAlarm") || name.contains("testPreSleep") || name.contains("testMorningSavedPain") { app.launchArguments += ["-setup_completed_v2", "YES"] }
         if name.contains("testDashboard") { app.launchArguments += ["--uitesting-dashboard", "-setup_completed_v2", "YES"] }
         if name.contains("testWorkWarning") { app.launchArguments.append("--uitesting-work-warning") }
         if name.contains("testDose2Confirmation") || name.contains("testReviewedNightWindow") { app.launchArguments.append("--uitesting-dose2-confirmation") }
@@ -32,7 +32,7 @@ final class DoseTapUITests: XCTestCase {
     }
 
     override func tearDownWithError() throws {
-        if name.contains("testPreSleepRoomSetupLargeText") || name.contains("testMorningSleepingLargeText") {
+        if name.contains("testMorningSavedPainLargeText") || name.contains("testPreSleepRoomSetupLargeText") || name.contains("testMorningSleepingLargeText") {
             app.terminate()
             app.launchArguments.removeAll { $0 == "-UIPreferredContentSizeCategoryName" || $0.hasPrefix("UICTContentSizeCategory") }
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
@@ -1202,6 +1202,90 @@ final class DoseTapUITests: XCTestCase {
         handledProof.name = "Reminder handled without changing dose history"
         handledProof.lifetime = .keepAlways
         add(handledProof)
+    }
+
+    func testMorningSavedPainPatternsRequireFreshIntensity() throws {
+        try morningSavedPainJourney(largeText: false)
+    }
+
+    func testMorningSavedPainLargeText() throws {
+        try morningSavedPainJourney(largeText: true)
+    }
+
+    private func morningSavedPainJourney(largeText: Bool) throws {
+        func reveal(_ element: XCUIElement) {
+            for _ in 0..<(largeText ? 70 : 22) {
+                if element.isHittable { break }
+                app.swipeUp()
+            }
+            XCTAssertTrue(element.isHittable)
+        }
+        let check = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Pre-sleep")).firstMatch
+        XCTAssertTrue(check.waitForExistence(timeout: 15)); reveal(check); check.tap()
+        app.buttons["Next"].tap()
+        let mild = app.buttons["Mild"]; reveal(mild); mild.tap()
+        for (area, sensation) in [("mid_back", "tightness"), ("ankle_foot", "numbness")] {
+            let add = app.buttons["add-pain-entry"]; reveal(add); add.tap()
+            let remember = app.switches["pain-remember-future"]
+            XCTAssertTrue(remember.waitForExistence(timeout: 5))
+            remember.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
+            XCTAssertEqual(remember.value as? String, "1")
+            let location = app.buttons["pain-area-\(area)"]; reveal(location); location.tap()
+            let intensity = app.sliders["pain-intensity"]; reveal(intensity)
+            intensity.adjust(toNormalizedSliderPosition: 0.7)
+            let selected = app.buttons["pain-sensation-\(sensation)"]; reveal(selected); selected.tap()
+            let note = app.descendants(matching: .any).matching(identifier: "pain-entry-notes").firstMatch
+            reveal(note); note.tap(); note.typeText("Bedtime note")
+            app.navigationBars.buttons["Save"].tap()
+        }
+        app.terminate()
+        app.launchArguments += ["--uitesting-expired-session", "-morningCheckIn.rememberSettings", "NO"]
+        if largeText { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
+        app.launch()
+        let finish = app.buttons["Finish"].firstMatch
+        XCTAssertTrue(finish.waitForExistence(timeout: 15)); finish.tap()
+        let physical = app.buttons["Physical Symptoms"].firstMatch; reveal(physical); physical.tap()
+        let useFeet = app.buttons["morning-use-pain-ankle_foot|both"]
+        reveal(useFeet)
+        let feet = app.descendants(matching: .any).matching(identifier: "morning-pain-ankle_foot|both").firstMatch
+        let back = app.descendants(matching: .any).matching(identifier: "morning-pain-mid_back|both").firstMatch
+        XCTAssertFalse(feet.exists); XCTAssertFalse(back.exists)
+        captureDashboard("Saved morning patterns are unconfirmed suggestions")
+        useFeet.tap()
+        let save = app.navigationBars.buttons["Save"]
+        XCTAssertFalse(save.isEnabled, "Remembered intensity cannot confirm a morning answer")
+        let level = app.buttons["pain-morning-intensity"]
+        reveal(level)
+        XCTAssertEqual(level.value as? String, "Not recorded")
+        XCTAssertFalse(app.switches["pain-remember-future"].exists)
+        captureDashboard("Morning intensity starts unanswered at review")
+        let footArea = app.buttons["pain-area-ankle_foot"]; reveal(footArea)
+        XCTAssertTrue(footArea.isSelected, "First review must initialize from the saved foot entry")
+        let numbness = app.buttons["pain-sensation-numbness"]; reveal(numbness)
+        XCTAssertTrue(numbness.isSelected, "First review must retain the saved sensations")
+        if largeText {
+            app.navigationBars.buttons["Cancel"].tap()
+            XCTAssertFalse(feet.exists)
+            useFeet.tap()
+            reveal(level)
+        } else {
+            for _ in 0..<30 where !level.isHittable { app.swipeDown() }
+        }
+        XCTAssertTrue(level.isHittable); level.tap(); app.buttons["0/10"].tap()
+        XCTAssertEqual(level.value as? String, "0/10")
+        let morningNote = app.descendants(matching: .any).matching(identifier: "pain-entry-notes").firstMatch; reveal(morningNote)
+        XCTAssertTrue(["", "Add detail"].contains(morningNote.value as? String ?? "missing"), "A saved bedtime note must not become a new morning note")
+        XCTAssertTrue(save.isEnabled); save.tap()
+        reveal(feet)
+        XCTAssertTrue(feet.label.contains("0/10")); XCTAssertTrue(feet.label.contains("Numbness"))
+        XCTAssertFalse(back.exists, "Selecting the foot pattern cannot add back pain")
+        for _ in 0..<12 where !useFeet.isHittable { app.swipeDown() }
+        XCTAssertFalse(useFeet.isEnabled, "Reusing a pattern cannot overwrite an already confirmed morning entry")
+        captureDashboard("One explicitly confirmed morning entry leaves the other pattern unanswered")
+        let complete = app.buttons["Complete Check-In"]; reveal(complete)
+        XCTAssertTrue(complete.isEnabled); complete.tap()
+        XCTAssertTrue(app.buttons["dose-primary-action"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.navigationBars["Morning Check-In"].exists)
     }
 
     func testMorningPhysicalSymptomsWithoutPain() throws {

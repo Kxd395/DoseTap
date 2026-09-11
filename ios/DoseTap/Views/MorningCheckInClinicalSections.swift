@@ -253,12 +253,50 @@ struct MorningCheckInPhysicalSymptomsSection: View {
     @ObservedObject var viewModel: MorningCheckInViewModel
     @Binding var showPainEntryEditor: Bool
     @Binding var editingPainEntry: PreSleepLogAnswers.PainEntry?
+    @Binding var usingSavedPainPattern: Bool
+    @ObservedObject private var savedPainPatterns = SavedPainPatternStore.shared
 
     var body: some View {
         VStack(spacing: 16) {
             Text("Physical Symptoms")
                 .font(.headline)
                 .frame(maxWidth: .infinity, alignment: .leading)
+
+            if !viewModel.isHistory {
+                if let error = savedPainPatterns.loadError {
+                    Text(error).font(.caption).foregroundColor(.orange)
+                }
+                if !savedPainPatterns.entries.isEmpty {
+                    MorningCheckInSectionCard(title: "Saved pain patterns", icon: "bookmark") {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Saved details are suggestions. Choose only what applies this morning, then record a fresh level. Your saved patterns stay unchanged.")
+                                .font(.caption).foregroundColor(.secondary)
+                            ForEach(savedPainPatterns.entries) { entry in
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("\(entry.area.displayText) (\(entry.side.displayText))")
+                                        .font(.subheadline.weight(.semibold))
+                                    Text(entry.sensations.map(\.displayText).joined(separator: ", "))
+                                        .font(.subheadline)
+                                    let alreadyAdded = viewModel.painEntries.contains { $0.entryKey == entry.entryKey }
+                                    Button("Use this morning") {
+                                        usingSavedPainPattern = true
+                                        editingPainEntry = entry
+                                        showPainEntryEditor = true
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .disabled(alreadyAdded)
+                                    .accessibilityIdentifier("morning-use-pain-\(entry.entryKey)")
+                                    .accessibilityLabel("Use this morning: \(entry.area.displayText), \(entry.side.displayText)")
+                                    if alreadyAdded {
+                                        Text("Already added. Use Edit below to change this morning's entry.")
+                                            .font(.caption).foregroundColor(.secondary)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
             MorningCheckInSectionCard(title: "Pain detail by area + side", icon: "figure.arms.open") {
                 VStack(spacing: 10) {
@@ -271,9 +309,12 @@ struct MorningCheckInPhysicalSymptomsSection: View {
                         ForEach(viewModel.painEntries, id: \.entryKey) { entry in
                             HStack(spacing: 10) {
                                 GranularPainEntryRow(entry: entry)
+                                    .accessibilityElement(children: .combine)
+                                    .accessibilityIdentifier("morning-pain-\(entry.entryKey)")
                                 Spacer(minLength: 4)
 
                                 Button {
+                                    usingSavedPainPattern = false
                                     editingPainEntry = entry
                                     showPainEntryEditor = true
                                 } label: {
@@ -281,6 +322,7 @@ struct MorningCheckInPhysicalSymptomsSection: View {
                                         .foregroundColor(.blue)
                                 }
                                 .buttonStyle(.plain)
+                                .accessibilityLabel("Edit \(entry.area.displayText), \(entry.side.displayText)")
 
                                 Button(role: .destructive) {
                                     viewModel.removePainEntry(entry.entryKey)
@@ -288,6 +330,7 @@ struct MorningCheckInPhysicalSymptomsSection: View {
                                     Image(systemName: "trash")
                                 }
                                 .buttonStyle(.plain)
+                                .accessibilityLabel("Remove \(entry.area.displayText), \(entry.side.displayText)")
                             }
                             .padding(10)
                             .background(Color(.tertiarySystemGroupedBackground))
@@ -296,6 +339,7 @@ struct MorningCheckInPhysicalSymptomsSection: View {
                     }
 
                     Button {
+                        usingSavedPainPattern = false
                         editingPainEntry = nil
                         showPainEntryEditor = true
                     } label: {
