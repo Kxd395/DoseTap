@@ -94,6 +94,8 @@ Medication event vocabulary must not be stored in `sleep_events`. Input routes m
 
 Sleeping setup (DOSETAP-70) adds optional JSON records without new SQL columns:
 
+New submissions use `pre_night.v3.2026-09-10` and `morning.v3.2026-09-10`. Existing stored submissions retain their previous questionnaire version until explicitly edited and resubmitted.
+
 | Source / normalized key | Version-1 fields | Meaning |
 | --- | --- | --- |
 | `pre_sleep_logs.answers_json.sleepingSetup` / `pre.sleeping_setup.v1` | `version`, optional `arrangement`, `sharedSpace`, `pets`, `location` | Planned context for the selected treatment night; labels are the enum strings in `SleepingSetup.swift`. Shared-space detail applies only to other-person/other arrangements. |

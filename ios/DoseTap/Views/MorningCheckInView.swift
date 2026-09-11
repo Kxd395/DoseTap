@@ -20,8 +20,9 @@ public struct MorningCheckInView: View {
 
     init(history: HistoryQuestionnaireSnapshot, existing: StoredMorningCheckIn?, referenceTime: Date,
          onReview: @escaping (SQLiteStoredMorningCheckIn) -> Void) {
-        let model = existing.map { MorningCheckInViewModel(sessionId: history.history.sessionId, sessionDate: history.history.sessionDate, existing: $0) }
-            ?? MorningCheckInViewModel(sessionId: history.history.sessionId, sessionDate: history.history.sessionDate, loadRememberedSettings: false)
+        let plan = SessionRepository.shared.plannedSleepingSetup(sessionID: history.history.sessionId)
+        let model = existing.map { MorningCheckInViewModel(sessionId: history.history.sessionId, sessionDate: history.history.sessionDate, existing: $0, plannedSetup: plan) }
+            ?? MorningCheckInViewModel(sessionId: history.history.sessionId, sessionDate: history.history.sessionDate, loadRememberedSettings: false, plannedSetup: plan)
         model.historyReview = onReview
         if existing == nil { model.shiftStartAt = referenceTime; model.shiftEndAt = referenceTime; model.nextRequiredWakeAt = referenceTime }
         _viewModel = StateObject(wrappedValue: model)
@@ -29,21 +30,25 @@ public struct MorningCheckInView: View {
     }
 
     public init(sessionId: String, sessionDate: String, onComplete: @escaping () -> Void = {}) {
-        _viewModel = StateObject(wrappedValue: MorningCheckInViewModel(sessionId: sessionId, sessionDate: sessionDate))
+        _viewModel = StateObject(wrappedValue: MorningCheckInViewModel(sessionId: sessionId, sessionDate: sessionDate,
+            plannedSetup: SessionRepository.shared.plannedSleepingSetup(sessionID: sessionId)))
         self.onComplete = onComplete
     }
 
     public init(sessionId: String, sessionDate: String, existingCheckIn: StoredMorningCheckIn, onComplete: @escaping () -> Void = {}) {
-        _viewModel = StateObject(wrappedValue: MorningCheckInViewModel(sessionId: sessionId, sessionDate: sessionDate, existing: existingCheckIn))
+        _viewModel = StateObject(wrappedValue: MorningCheckInViewModel(sessionId: sessionId, sessionDate: sessionDate, existing: existingCheckIn,
+            plannedSetup: SessionRepository.shared.plannedSleepingSetup(sessionID: sessionId)))
         self.onComplete = onComplete
     }
 
     public var body: some View {
         NavigationStack {
+            GeometryReader { geometry in
             ScrollView {
                 VStack(spacing: 24) {
                     headerSection
                     MorningCheckInQuickModeSection(viewModel: viewModel)
+                    MorningSleepingSetupSection(viewModel: viewModel)
                     if !viewModel.isHistory {
                         if viewModel.hasCommittedDoseReconciliation {
                             Text("Medication choices will not be reapplied. Retrying saves only your morning answers. Use History for further medication corrections.")
@@ -79,6 +84,8 @@ public struct MorningCheckInView: View {
                     )
                 }
                 .padding()
+                .frame(width: geometry.size.width)
+            }
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Morning Check-In")

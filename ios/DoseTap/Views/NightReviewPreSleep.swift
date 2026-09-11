@@ -38,6 +38,9 @@ struct PreSleepLogCard: View {
 
             if let answers = preSleepLog?.answers, preSleepLog?.completionState != "skipped" {
                 VStack(spacing: 8) {
+                    if let setup = answers.sleepingSetup, !setup.isEmpty {
+                        PreSleepRow(label: "Planned sleeping setup", value: setup.summary, icon: "bed.double.fill")
+                    }
                     if let stress = answers.stressLevel {
                         PreSleepRow(label: "Stress Level", value: "\(formatStressLevel(stress)) (\(stress)/5)", icon: "brain.head.profile")
                     }

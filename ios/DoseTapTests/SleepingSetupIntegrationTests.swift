@@ -1,9 +1,36 @@
 import XCTest
 import DoseCore
+import SQLite3
 @testable import DoseTap
 
 @MainActor
 final class SleepingSetupIntegrationTests: XCTestCase {
+    func testUsualSetupPreferenceRoundTripWithoutCreatingNightAnswers() throws {
+        let domain = "SleepingSetupTests-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: domain))
+        defer { defaults.removePersistentDomain(forName: domain) }
+        XCTAssertNil(UsualSleepingSetupStore.load(from: defaults))
+        XCTAssertTrue(UsualSleepingSetupStore.save(plan, to: defaults))
+        XCTAssertEqual(UsualSleepingSetupStore.load(from: defaults), plan)
+        XCTAssertNil(DoseTap.PreSleepLogAnswers().sleepingSetup)
+        XCTAssertNil(MorningCheckInViewModel(sessionId: "fresh", sessionDate: night, loadRememberedSettings: false).sleepingContext.actual)
+    }
+    func testMorningWriteFailureRetainsAnswersForRetry() async throws {
+        let storage = EventStorage.inMemory(); let repo = SessionRepository(storage: storage)
+        let model = MorningCheckInViewModel(sessionId: identity, sessionDate: night, loadRememberedSettings: false, plannedSetup: plan)
+        model.sleepingContext.selectConfirmation(.same); model.sleepingContext.impact = .helped
+        XCTAssertEqual(sqlite3_exec(storage.db, "CREATE TEMP TRIGGER reject_setup BEFORE INSERT ON checkin_submissions BEGIN SELECT RAISE(ABORT, 'synthetic failure'); END", nil, nil, nil), SQLITE_OK)
+        let failed = await model.submit(using: repo)
+        XCTAssertFalse(failed); XCTAssertNotNil(model.submissionErrorMessage)
+        XCTAssertEqual(model.sleepingContext.actual, plan)
+        XCTAssertNil(storage.fetchStoredMorningCheckIn(sessionKey: identity))
+        XCTAssertEqual(sqlite3_exec(storage.db, "DROP TRIGGER reject_setup", nil, nil, nil), SQLITE_OK)
+        let retried = await model.submit(using: repo)
+        XCTAssertTrue(retried)
+        let saved = try XCTUnwrap(storage.fetchStoredMorningCheckIn(sessionKey: identity))
+        let reopened = MorningCheckInViewModel(sessionId: identity, sessionDate: night, existing: saved, plannedSetup: SleepingSetup())
+        XCTAssertEqual(reopened.sleepingContext.plan, plan, "Saved plan snapshot wins over later pre-sleep corrections")
+    }
     private let night = "2026-09-09"
     private let identity = "synthetic-sleeping-setup-night"
     private var plan: SleepingSetup {

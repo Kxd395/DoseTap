@@ -37,7 +37,7 @@ public struct SleepingSetup: Codable, Equatable, Sendable {
         return result
     }
     public var summary: String {
-        [arrangement?.rawValue, normalized.sharedSpace?.rawValue, pets?.rawValue, location?.rawValue]
+        [arrangement?.rawValue, normalized.sharedSpace?.rawValue, pets.map { "Pets: " + $0.rawValue }, location?.rawValue]
             .compactMap { $0 }.joined(separator: " · ")
     }
     public func applyingMissing(from saved: Self) -> Self {

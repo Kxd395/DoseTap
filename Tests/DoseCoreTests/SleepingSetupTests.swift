@@ -2,6 +2,10 @@ import XCTest
 @testable import DoseCore
 
 final class SleepingSetupTests: XCTestCase {
+    func testSummaryIdentifiesPetsSeparatelyFromPeople() {
+        var setup = SleepingSetup(); setup.arrangement = .partnerSameBed; setup.pets = .offBed
+        XCTAssertEqual(setup.summary, "Partner in the same bed · Pets: In the room, off the bed")
+    }
     func testMissingAndExplicitUnknownRemainDistinct() throws {
         XCTAssertTrue(SleepingSetup().isEmpty)
         var setup = SleepingSetup()

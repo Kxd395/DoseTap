@@ -123,6 +123,7 @@
 		PSL003 /* PreSleepLogTimingStressCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = PSL004 /* PreSleepLogTimingStressCard.swift */; };
 		PSL005 /* PreSleepLogBodySubstancesCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = PSL006 /* PreSleepLogBodySubstancesCard.swift */; };
 		PSL007 /* PreSleepLogActivityNapsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = PSL008 /* PreSleepLogActivityNapsCard.swift */; };
+		SSU001 /* SleepingSetupViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = SSU002 /* SleepingSetupViews.swift */; };
 		SET001 /* SettingsSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = SET101 /* SettingsSections.swift */; };
 		SET002 /* SettingsActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = SET102 /* SettingsActions.swift */; };
 		SET003 /* SettingsStudioExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = SET103 /* SettingsStudioExport.swift */; };
@@ -318,6 +319,7 @@
 		PSL004 /* PreSleepLogTimingStressCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreSleepLogTimingStressCard.swift; sourceTree = "<group>"; };
 		PSL006 /* PreSleepLogBodySubstancesCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreSleepLogBodySubstancesCard.swift; sourceTree = "<group>"; };
 		PSL008 /* PreSleepLogActivityNapsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreSleepLogActivityNapsCard.swift; sourceTree = "<group>"; };
+		SSU002 /* SleepingSetupViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepingSetupViews.swift; sourceTree = "<group>"; };
 		SET101 /* SettingsSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSections.swift; sourceTree = "<group>"; };
 		SET102 /* SettingsActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsActions.swift; sourceTree = "<group>"; };
 		SET103 /* SettingsStudioExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStudioExport.swift; sourceTree = "<group>"; };
@@ -647,6 +649,7 @@
 				PSL004 /* PreSleepLogTimingStressCard.swift */,
 				PSL006 /* PreSleepLogBodySubstancesCard.swift */,
 				PSL008 /* PreSleepLogActivityNapsCard.swift */,
+				SSU002 /* SleepingSetupViews.swift */,
 				UNDO004 /* UndoSnackbarView.swift */,
 				UNDO006 /* MedicationSettingsView.swift */,
 				SUPUIF01 /* SupplySettingsView.swift */,
@@ -974,6 +977,7 @@
 				PSL003 /* PreSleepLogTimingStressCard.swift in Sources */,
 				PSL005 /* PreSleepLogBodySubstancesCard.swift in Sources */,
 				PSL007 /* PreSleepLogActivityNapsCard.swift in Sources */,
+				SSU001 /* SleepingSetupViews.swift in Sources */,
 				ACTB001 /* ActivityViewController.swift in Sources */,
 				CAPB001 /* CapturePreviewSheet.swift in Sources */,
 				01FF500944CC4F14A6E163C4 /* FullApp/DoseModels.swift in Sources */,
@@ -1063,7 +1067,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Cloud.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 43;
+				CURRENT_PROJECT_VERSION = 44;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;
 				ENABLE_PREVIEWS = YES;
@@ -1106,7 +1110,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Cloud.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 43;
+				CURRENT_PROJECT_VERSION = 44;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;
 				ENABLE_PREVIEWS = YES;
@@ -1381,7 +1385,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Local.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 43;
+				CURRENT_PROJECT_VERSION = 44;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;
@@ -1429,7 +1433,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Local.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 43;
+				CURRENT_PROJECT_VERSION = 44;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;

@@ -1,4 +1,5 @@
 import SwiftUI
+import DoseCore
 
 // MARK: - Morning Check-in Card
 struct MorningCheckInCard: View {
@@ -7,6 +8,14 @@ struct MorningCheckInCard: View {
 
     private var checkIn: StoredMorningCheckIn? {
         sessionRepo.fetchMorningCheckIn(for: sessionKey)
+    }
+
+    private var sleepingContext: MorningSleepingContext? {
+        guard let json = checkIn?.sleepEnvironmentJson, let data = json.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let raw = object["sleepingContext"], let payload = try? JSONSerialization.data(withJSONObject: raw)
+        else { return nil }
+        return try? JSONDecoder().decode(MorningSleepingContext.self, from: payload)
     }
 
     private func formatStressLevel(_ level: Int) -> String {
@@ -44,6 +53,12 @@ struct MorningCheckInCard: View {
 
             if let ci = checkIn {
                 VStack(spacing: 8) {
+                    if let context = sleepingContext {
+                        if let answer = context.confirmation { MorningRow(label: "Sleeping setup", value: answer.rawValue, icon: "bed.double.fill") }
+                        if let actual = context.actual, !actual.isEmpty { MorningRow(label: "Actual setup", value: actual.summary, icon: "bed.double") }
+                        if let impact = context.impact { MorningRow(label: "Sharing affected sleep", value: impact.rawValue, icon: "moon.fill") }
+                        if let factors = context.factors, !factors.isEmpty { MorningRow(label: "Sleep factors", value: factors.map(\.rawValue).joined(separator: ", "), icon: "list.bullet") }
+                    }
                     MorningRow(label: "Sleep Quality", value: "\(AppFormatters.compactRating(ci.sleepQuality))/5 ⭐", icon: "star.fill")
                     MorningRow(label: "Feel Rested", value: ci.feelRested, icon: "battery.100.bolt")
                     MorningRow(label: "Grogginess", value: ci.grogginess, icon: "cloud.fog.fill")
