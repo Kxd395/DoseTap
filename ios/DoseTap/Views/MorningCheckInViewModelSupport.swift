@@ -120,7 +120,7 @@ extension MorningCheckInViewModel {
                     takenAt: reconcileDose2Time,
                     amountMg: Self.normalizedDoseAmount(reconcileDose2AmountMg),
                     reason: selectedDose2TakenReasonRawValue,
-                    reasonNotes: normalizedDose2ReasonNotes
+                    reasonNotes: selectedDose2ReasonNotes
                 )
                 guard result.isCommitted else { return result }
                 lastMutation = result
@@ -129,7 +129,7 @@ extension MorningCheckInViewModel {
                     sessionDate: sessionDate,
                     timestamp: reconcileDose2Time,
                     reason: selectedDose2SkippedReasonRawValue,
-                    reasonNotes: normalizedDose2ReasonNotes
+                    reasonNotes: selectedDose2ReasonNotes
                 )
                 guard result.isCommitted else { return result }
                 lastMutation = result
@@ -198,6 +198,10 @@ extension MorningCheckInViewModel {
 
     var selectedDose2TakenReasonRawValue: String? {
         showsDose2TakenReason ? dose2TakenReason?.rawValue : nil
+    }
+
+    var selectedDose2ReasonNotes: String? {
+        showsDose2TakenReason || showsDose2SkippedReason ? normalizedDose2ReasonNotes : nil
     }
 
     var selectedDose2SkippedReasonRawValue: String? {

@@ -73,7 +73,7 @@ final class DoseActionResultPresentationTests: XCTestCase {
 
         XCTAssertNil(presentation.confirmation)
         XCTAssertEqual(presentation.feedback?.kind, .warning)
-        XCTAssertEqual(presentation.feedback?.title, "Dose logged; alarm needs attention")
+        XCTAssertEqual(presentation.feedback?.title, "Record saved; alarm needs attention")
         XCTAssertEqual(
             presentation.feedback?.message,
             "Dose 1 was logged. Retry the alarm."

@@ -35,7 +35,7 @@ enum Dose2ReminderCompletion: Equatable {
 
     var warning: String? {
         self == .unverified
-            ? "The dose record is saved, but its reminder cancellation could not be verified. Check DoseTap's alarm status in Settings. Do not log the dose again."
+            ? "Reminder cancellation could not be verified. Check DoseTap's alarm status in Settings."
             : nil
     }
 }

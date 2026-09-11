@@ -84,7 +84,9 @@ Common `dose_events.event_type` values include `dose1`, `dose2`, `extra_dose`, `
 
 Morning `timing_context_json.dose2TakenReason` is optional. From build 47, a new
 unanswered reason is omitted; explicit `unsure` remains a recorded answer. Existing
-legacy `unsure` values are preserved without claiming they were explicitly chosen.
+legacy `unsure` values are not bulk rewritten or claimed explicitly chosen. A new
+live submission omits reason/notes hidden by a corrected in-window time or changed
+outcome; History editing preserves existing annotations.
 The exception prompt depends on actual early/late interval classification, not the
 reminder target. This change adds no dose-outcome state, timestamp precision or SQL
 migration; unknown-time outcomes and consistent recording provenance remain open.

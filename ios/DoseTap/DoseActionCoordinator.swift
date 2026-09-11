@@ -542,7 +542,7 @@ final class DoseActionCoordinator: ObservableObject {
         playHaptic(.action)
 
         coordinatorLog.info("Dose 2 skipped via coordinator from \(surface.rawValue, privacy: .public)")
-        if let warning = reminders.warning { return .attentionRequired(message: warning) }
+        if let warning = reminders.warning { return .attentionRequired(message: "Dose 2 skipped (not taken). \(warning)") }
         return .success(message: reminders == .cancelled ? "Dose 2 skipped. Dose reminders cancelled." : "Dose 2 skipped.")
     }
 
@@ -614,7 +614,7 @@ final class DoseActionCoordinator: ObservableObject {
         playConfirmationSound()
 
         coordinatorLog.info("\(eventName, privacy: .public) logged via coordinator")
-        if let warning = reminders.warning { return .attentionRequired(message: warning) }
+        if let warning = reminders.warning { return .attentionRequired(message: "\(eventName) recorded. \(warning) Do not log the dose again.") }
         return .success(message: reminders == .cancelled ? "\(eventName) recorded. Dose reminders cancelled." : "\(eventName) recorded.")
     }
 
@@ -809,7 +809,7 @@ struct DoseActionResultPresentation: Equatable {
         case .attentionRequired(let message):
             feedback = DoseActionFeedback(
                 kind: .warning,
-                title: "Dose logged; alarm needs attention",
+                title: "Record saved; alarm needs attention",
                 message: message,
                 systemImageName: "exclamationmark.triangle.fill"
             )

@@ -64,6 +64,24 @@ final class SystemDoseAlarmTests: XCTestCase {
         func removeDeliveredNotifications(withIdentifiers identifiers: [String]) { removed += identifiers }
     }
     private var domains: [String] = []
+    func testSkipCancellationWarningExplicitlySaysNotTaken() async throws {
+        struct Clock: DateProviding { let date: Date; func now() -> Date { date } }
+        let native = Native(), first = Date(timeIntervalSince1970: 1_800_000_000)
+        let now = first.addingTimeInterval(170 * 60), storage = EventStorage.inMemory()
+        let alarm = service(native, now: now)
+        let repo = SessionRepository(storage: storage, notificationScheduler: FakeNotificationScheduler(), clock: { now }, timeZoneProvider: { TimeZone(secondsFromGMT: 0)! })
+        XCTAssertTrue(repo.setDose1Time(first).isCommitted)
+        let core = DoseTapCore(); core.setSessionRepository(repo)
+        let coordinator = DoseActionCoordinator(core: core, alarmService: alarm, dateProvider: Clock(date: now), sessionRepo: repo)
+        _ = await alarm.scheduleDose2Alarm(at: now.addingTimeInterval(900), dose1Time: first)
+        native.failsCancel = true
+        let result = await coordinator.skipDose()
+        guard case .attentionRequired(let message) = result else { return XCTFail("Expected saved skip with alarm warning") }
+        XCTAssertTrue(repo.dose2Skipped)
+        XCTAssertNil(repo.dose2Time)
+        XCTAssertTrue(message.contains("skipped (not taken)"))
+        XCTAssertEqual(DoseActionResultPresentation(result: result).feedback?.title, "Record saved; alarm needs attention")
+    }
     func testUnavailableDeliveredReadbackCannotClaimCancellation() async {
         let notifications = Notifications(), now = Date()
         notifications.deliveredReadbackAvailable = false

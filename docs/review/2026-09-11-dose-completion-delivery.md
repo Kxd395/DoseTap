@@ -11,6 +11,9 @@ classifying its interval. It now uses shared `MedicationTiming` on actual dose
 timestamps. A synthetic 170-minute pair shows its interval and an in-window label,
 without exception questions. The early/late reason is optional and starts absent;
 explicit Unsure is retained. Existing stored reasons are not bulk rewritten.
+Automated PR review identified two additional fixes: skip-related alarm warnings
+explicitly say skipped (not taken), and new live submissions omit stale reason/notes
+after an interval/status correction hides those inputs. Both have regression tests.
 
 The coordinator already attempted cancellation after saving a dose. It now shares
 verified cleanup with morning reconciliation, including when the subsequent
@@ -27,8 +30,8 @@ durable partial save. The form does not claim that drafts survive intentional cl
 ## Validation
 
 Local validation: 710 core XCTest cases plus 43 Swift Testing cases passed;
-241 focused iOS tests passed together after the final live-session ownership guard
-review. All three final native UI journeys passed. Simulator and signed
+438 tests in the complete iOS target passed after the automated-review fixes.
+All three native UI journeys passed. Simulator and signed
 device builds, signature verification, all four app/staging version configurations,
 SSOT/docs checks, Plane workflow (15 tests/80 assertions) and whitespace checks passed.
 Final hosted integration evidence is recorded in the DOSETAP-67 workpad.
