@@ -39,6 +39,9 @@ public extension SessionRepository {
         let id = UUID().uuidString
         let date = storage.sessionDateString(for: start)
         _ = storage.saveDose1(timestamp: start, sessionId: id, sessionDateOverride: date, sessionStart: start)
+        if ProcessInfo.processInfo.arguments.contains("--uitesting-in-window-dose") {
+            _ = storage.saveDose2(timestamp: start.addingTimeInterval(170 * 60), sessionId: id, sessionDateOverride: date)
+        }
     }
 
     func prepareWorkWarningUITestSession(working: Bool = true) {

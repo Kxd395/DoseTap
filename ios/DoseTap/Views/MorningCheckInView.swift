@@ -94,7 +94,7 @@ public struct MorningCheckInView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(viewModel.isHistory ? "Cancel" : "Skip") {
+                    Button(viewModel.isHistory ? "Cancel" : "Close check-in") {
                         dismiss()
                         onComplete()
                     }

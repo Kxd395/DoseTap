@@ -1,5 +1,7 @@
 import XCTest
 import UserNotifications
+import DoseCore
+import SQLite3
 @testable import DoseTap
 
 @MainActor
@@ -10,13 +12,14 @@ final class SystemDoseAlarmTests: XCTestCase {
         var drops = false
         var failNext = false
         var failsCancel = false
+        var ignoresCancel = false
         var onSchedule: (() -> Void)?
         var authorizationDescription: String { "Test authorization" }
         func requestAuthorization() async throws { if denied { throw SystemDoseAlarmError.permission } }
         func deadline() throws -> Date? { target }
         func cancel() throws {
             if failsCancel { throw SystemDoseAlarmError.verification }
-            target = nil
+            if !ignoresCancel { target = nil }
         }
         func schedule(at date: Date) async throws {
             if failNext { failNext = false; throw SystemDoseAlarmError.verification }
@@ -47,16 +50,139 @@ final class SystemDoseAlarmTests: XCTestCase {
     }
     final class Notifications: AlarmNotificationCenterClient {
         var removed: [String] = []
+        var retainedPending: [UNNotificationRequest] = []
+        var retainedDelivered: [String] = []
+        var deliveredReadbackAvailable = true
         func setDelegate(_ delegate: (any UNUserNotificationCenterDelegate)?) {}
         func setNotificationCategories(_ categories: Set<UNNotificationCategory>) {}
         func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool { false }
         func authorizationStatus() async -> UNAuthorizationStatus { .denied }
-        func pendingRequests() async -> [UNNotificationRequest] { [] }
+        func pendingRequests() async -> [UNNotificationRequest] { retainedPending }
+        func deliveredIdentifiers() async -> [String]? { deliveredReadbackAvailable ? retainedDelivered : nil }
         func add(_ request: UNNotificationRequest) async throws { XCTFail("Wake must use system alarms") }
         func removePendingRequests(withIdentifiers identifiers: [String]) { removed += identifiers }
         func removeDeliveredNotifications(withIdentifiers identifiers: [String]) { removed += identifiers }
     }
     private var domains: [String] = []
+    func testSkipCancellationWarningExplicitlySaysNotTaken() async throws {
+        struct Clock: DateProviding { let date: Date; func now() -> Date { date } }
+        let native = Native(), first = Date(timeIntervalSince1970: 1_800_000_000)
+        let now = first.addingTimeInterval(170 * 60), storage = EventStorage.inMemory()
+        let alarm = service(native, now: now)
+        let repo = SessionRepository(storage: storage, notificationScheduler: FakeNotificationScheduler(), clock: { now }, timeZoneProvider: { TimeZone(secondsFromGMT: 0)! })
+        XCTAssertTrue(repo.setDose1Time(first).isCommitted)
+        let core = DoseTapCore(); core.setSessionRepository(repo)
+        let coordinator = DoseActionCoordinator(core: core, alarmService: alarm, dateProvider: Clock(date: now), sessionRepo: repo)
+        _ = await alarm.scheduleDose2Alarm(at: now.addingTimeInterval(900), dose1Time: first)
+        native.failsCancel = true
+        let result = await coordinator.skipDose()
+        guard case .attentionRequired(let message) = result else { return XCTFail("Expected saved skip with alarm warning") }
+        XCTAssertTrue(repo.dose2Skipped)
+        XCTAssertNil(repo.dose2Time)
+        XCTAssertTrue(message.contains("skipped (not taken)"))
+        XCTAssertEqual(DoseActionResultPresentation(result: result).feedback?.title, "Record saved; alarm needs attention")
+    }
+    func testUnavailableDeliveredReadbackCannotClaimCancellation() async {
+        let notifications = Notifications(), now = Date()
+        notifications.deliveredReadbackAvailable = false
+        let alarm = service(Native(), notifications, now: now)
+        let result = await alarm.completeDose2Reminders(sessionId: "night", activeSessionId: { "night" })
+        XCTAssertNotNil(result.warning)
+    }
+    func testMorningCancellationFailurePreservesSavedDoseAndQuestionnaire() async throws {
+        let native = Native(), first = Date(timeIntervalSince1970: 1_800_000_000)
+        let now = first.addingTimeInterval(170 * 60)
+        let alarm = service(native, now: now)
+        let storage = EventStorage.inMemory()
+        let repo = SessionRepository(storage: storage, notificationScheduler: FakeNotificationScheduler(), clock: { now }, timeZoneProvider: { TimeZone(secondsFromGMT: 0)! })
+        XCTAssertTrue(repo.setDose1Time(first).isCommitted)
+        let id = try XCTUnwrap(repo.activeSessionId), date = try XCTUnwrap(repo.activeSessionDate)
+        let model = MorningCheckInViewModel(sessionId: id, sessionDate: date, loadRememberedSettings: false)
+        model.loggedDose1Time = first; model.loggedDose2Time = nil
+        model.dose2Reconciliation = .taken; model.reconcileDose2Time = now
+        _ = await alarm.scheduleDose2Alarm(at: now.addingTimeInterval(900), dose1Time: first)
+        native.failsCancel = true
+        let saved = await model.submit(using: repo, alarmService: alarm)
+        XCTAssertTrue(saved)
+        XCTAssertNotNil(model.reminderCancellationWarning)
+        XCTAssertNotNil(repo.fetchMorningCheckIn(for: date))
+        XCTAssertEqual(repo.fetchDoseEvents(forSessionDate: date).filter { $0.eventType == "dose2" }.map(\.timestamp), [now])
+    }
+    func testMorningDoseCommitCancelsBeforeQuestionnaireFailureAndRetryDoesNotRepeatDose() async throws {
+        let native = Native(), notifications = Notifications()
+        let first = Date(timeIntervalSince1970: 1_800_000_000)
+        let now = first.addingTimeInterval(170 * 60)
+        let alarm = service(native, notifications, now: now)
+        let storage = EventStorage.inMemory()
+        let repo = SessionRepository(storage: storage, notificationScheduler: FakeNotificationScheduler(),
+            clock: { now }, timeZoneProvider: { TimeZone(secondsFromGMT: 0)! })
+        XCTAssertTrue(repo.setDose1Time(first).isCommitted)
+        let id = try XCTUnwrap(repo.activeSessionId), date = try XCTUnwrap(repo.activeSessionDate)
+        let model = MorningCheckInViewModel(sessionId: id, sessionDate: date, loadRememberedSettings: false)
+        model.loggedDose1Time = first; model.loggedDose2Time = nil
+        model.dose2Reconciliation = .taken; model.reconcileDose2Time = now
+        _ = await alarm.scheduleDose2Alarm(at: now.addingTimeInterval(15 * 60), dose1Time: first)
+        XCTAssertEqual(sqlite3_exec(storage.db, "CREATE TEMP TRIGGER reject_morning BEFORE INSERT ON checkin_submissions BEGIN SELECT RAISE(ABORT, 'synthetic failure'); END", nil, nil, nil), SQLITE_OK)
+        let failed = await model.submit(using: repo, alarmService: alarm)
+        XCTAssertFalse(failed)
+        XCTAssertEqual(repo.dose2Time, now)
+        XCTAssertNil(native.target)
+        XCTAssertNil(model.reminderCancellationWarning)
+        XCTAssertNotNil(model.submissionErrorMessage)
+        XCTAssertTrue(model.hasCommittedDoseReconciliation)
+        XCTAssertEqual(sqlite3_exec(storage.db, "DROP TRIGGER reject_morning", nil, nil, nil), SQLITE_OK)
+        model.reconcileDose2Time = now.addingTimeInterval(600)
+        let saved = await model.submit(using: repo, alarmService: alarm)
+        XCTAssertTrue(saved)
+        XCTAssertEqual(repo.fetchDoseEvents(forSessionDate: date).filter { $0.eventType == "dose2" }.map(\.timestamp), [now])
+    }
+    func testCompletedDoseCancelsOnlyOwnedRolesAndStopsRinging() async {
+        let native = Native(), notifications = Notifications(), now = Date()
+        let alarm = service(native, notifications, now: now)
+        _ = await alarm.scheduleDose2Alarm(at: now.addingTimeInterval(100), dose1Time: now)
+        notifications.removed = []
+        alarm.startRinging()
+        let result = await alarm.completeDose2Reminders(sessionId: "night", activeSessionId: { "night" })
+        XCTAssertEqual(result, .cancelled)
+        XCTAssertNil(native.target)
+        XCTAssertFalse(alarm.isAlarmRinging)
+        XCTAssertEqual(Set(notifications.removed), Set(AlarmService.wakeNotificationIdentifiers + AlarmService.reminderNotificationIdentifiers))
+    }
+
+    func testHistoricalCompletionCannotCancelCurrentAlarm() async {
+        let native = Native(), notifications = Notifications(), now = Date()
+        let alarm = service(native, notifications, now: now)
+        _ = await alarm.scheduleDose2Alarm(at: now.addingTimeInterval(100), dose1Time: now)
+        notifications.removed = []
+        let result = await alarm.completeDose2Reminders(sessionId: "old", activeSessionId: { "current" })
+        XCTAssertEqual(result, .notApplicable)
+        XCTAssertNotNil(native.target)
+        XCTAssertTrue(notifications.removed.isEmpty)
+    }
+
+    func testCompletionReportsFailedOrIgnoredSystemCancellation() async {
+        for ignore in [false, true] {
+            let native = Native(), now = Date()
+            let alarm = service(native, now: now)
+            _ = await alarm.scheduleDose2Alarm(at: now.addingTimeInterval(100), dose1Time: now)
+            native.failsCancel = !ignore; native.ignoresCancel = ignore
+            let result = await alarm.completeDose2Reminders(sessionId: "night", activeSessionId: { "night" })
+            XCTAssertNotNil(result.warning)
+            XCTAssertNotNil(native.target)
+        }
+    }
+
+    func testCompletionDoesNotClaimRemainingNotificationsWereRemoved() async {
+        for delivered in [false, true] {
+            let native = Native(), notifications = Notifications(), now = Date()
+            let alarm = service(native, notifications, now: now)
+            let id = AlarmService.reminderNotificationIdentifiers[0]
+            if delivered { notifications.retainedDelivered = [id] }
+            else { notifications.retainedPending = [UNNotificationRequest(identifier: id, content: UNMutableNotificationContent(), trigger: nil)] }
+            let result = await alarm.completeDose2Reminders(sessionId: "night", activeSessionId: { "night" })
+            XCTAssertNotNil(result.warning)
+        }
+    }
     override func tearDown() async throws {
         for domain in domains { UserDefaults.standard.removePersistentDomain(forName: domain) }
     }

@@ -16,6 +16,47 @@ import SwiftUI
 
 @MainActor
 final class UISmokeTests: XCTestCase {
+    func testCorrectedInWindowTimeOmitsHiddenReasonAndNotes() throws {
+        let model = MorningCheckInViewModel(sessionId: "synthetic", sessionDate: "2026-09-10", loadRememberedSettings: false)
+        let first = Date(timeIntervalSince1970: 1_800_000_000)
+        model.loggedDose1Time = first; model.loggedDose2Time = nil
+        model.dose2Reconciliation = .taken
+        model.reconcileDose2Time = first.addingTimeInterval(250 * 60)
+        model.dose2TakenReason = .unsure; model.dose2ReasonNotes = "Draft timing explanation"
+        XCTAssertNotNil(model.selectedDose2ReasonNotes)
+        model.reconcileDose2Time = first.addingTimeInterval(170 * 60)
+        model.nightType = .workNight
+        XCTAssertFalse(model.showsDose2TakenReason)
+        XCTAssertNil(model.selectedDose2TakenReasonRawValue)
+        XCTAssertNil(model.selectedDose2ReasonNotes)
+        let json = try XCTUnwrap(model.toStoredCheckIn().timingContextJson?.data(using: .utf8))
+        let context = try XCTUnwrap(JSONSerialization.jsonObject(with: json) as? [String: Any])
+        XCTAssertNil(context["dose2TakenReason"])
+        XCTAssertNil(context["dose2ReasonNotes"])
+    }
+    func testMorningExceptionUsesActualIntervalAndReasonStartsUnanswered() throws {
+        let model = MorningCheckInViewModel(sessionId: "synthetic", sessionDate: "2026-09-10", loadRememberedSettings: false)
+        let first = Date(timeIntervalSince1970: 1_800_000_000)
+        model.loggedDose1Time = first
+        XCTAssertNil(model.dose2TakenReason)
+        model.nightType = .workNight
+        let unanswered = try XCTUnwrap(model.toStoredCheckIn().timingContextJson?.data(using: .utf8))
+        XCTAssertNil((try JSONSerialization.jsonObject(with: unanswered) as? [String: Any])?["dose2TakenReason"])
+        for (minutes, expected) in [(149.0, true), (150, false), (170, false), (240, false), (240.01, true)] {
+            model.loggedDose2Time = first.addingTimeInterval(minutes * 60)
+            XCTAssertEqual(model.showsDose2TakenReason, expected)
+        }
+        model.loggedDose2Time = nil
+        model.dose2Reconciliation = .taken
+        model.reconcileDose2Time = first.addingTimeInterval(170 * 60)
+        XCTAssertFalse(model.showsDose2TakenReason)
+        model.reconcileDose2Time = first.addingTimeInterval(250 * 60)
+        XCTAssertTrue(model.showsDose2TakenReason)
+        model.dose2TakenReason = .unsure
+        XCTAssertEqual(model.selectedDose2TakenReasonRawValue, "unsure")
+        let explicit = try XCTUnwrap(model.toStoredCheckIn().timingContextJson?.data(using: .utf8))
+        XCTAssertEqual((try JSONSerialization.jsonObject(with: explicit) as? [String: Any])?["dose2TakenReason"] as? String, "unsure")
+    }
     func testMorningReminderAndFailedSaveReadableAtLargeText() throws {
         let model = MorningCheckInViewModel(sessionId: "synthetic-night", sessionDate: "2026-08-30", loadRememberedSettings: false)
         model.submissionErrorMessage = "Your morning answers were not saved. They are still here; try Complete Check-In again. Any dose corrections already saved remain recorded."
@@ -775,7 +816,7 @@ final class CheckInCarryForwardTests: XCTestCase {
         XCTAssertEqual(viewModel.sleepEnvironmentNoiseLevel, .quiet)
         XCTAssertEqual(viewModel.sleepEnvironmentSleepAid, .fan)
         XCTAssertEqual(viewModel.nightType, .unsure)
-        XCTAssertEqual(viewModel.dose2TakenReason, .unsure)
+        XCTAssertNil(viewModel.dose2TakenReason)
         XCTAssertTrue(viewModel.dose2ReasonNotes.isEmpty)
         XCTAssertTrue(viewModel.notes.isEmpty)
         let prior = try XCTUnwrap(repo.fetchMorningCheckIn(for: "2026-01-14"))

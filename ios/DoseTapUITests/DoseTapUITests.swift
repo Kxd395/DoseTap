@@ -11,6 +11,10 @@ final class DoseTapUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
+        if name.contains("testMorningRecordedDoseInWindow") {
+            app.launchArguments += ["--uitesting-expired-session", "--uitesting-in-window-dose", "-morningCheckIn.rememberSettings", "NO"]
+            if name.contains("LargeText") { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
+        }
         if name.contains("testTimelineReviewMetrics") { app.launchArguments += ["--uitesting-review-metrics", "-setup_completed_v2", "YES"] }
         if name.contains("testHistoryBathroomInsights") {
             app.launchArguments += ["--uitesting-bathroom-insights", "--uitesting-review-metrics", "-setup_completed_v2", "YES"]
@@ -37,6 +41,11 @@ final class DoseTapUITests: XCTestCase {
     }
 
     override func tearDownWithError() throws {
+        if name.contains("testMorningRecordedDoseInWindowLargeText") {
+            app.terminate()
+            app.launchArguments = ["--uitesting", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
+            app.launch()
+        }
         if name.contains("testReviewedDoseSleepMetricsLargeText") || name.contains("testMorningSavedPainLargeText") || name.contains("testPreSleepRoomSetupLargeText") || name.contains("testMorningSleepingLargeText") {
             app.terminate()
             app.launchArguments.removeAll { $0 == "-UIPreferredContentSizeCategoryName" || $0.hasPrefix("UICTContentSizeCategory") }
@@ -1387,6 +1396,31 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(app.buttons["dose-primary-action"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.staticTexts["morning-check-in-storage-error"].exists)
         captureDashboard("Morning answers saved without selecting a missing dose")
+    }
+
+    func testMorningRecordedDoseInWindow() throws { verifyRecordedMorningDose() }
+    func testMorningRecordedDoseInWindowLargeText() throws { verifyRecordedMorningDose() }
+
+    private func verifyRecordedMorningDose() {
+        let finish = app.buttons["Finish"].firstMatch
+        XCTAssertTrue(finish.waitForExistence(timeout: 15)); finish.tap()
+        let interval = app.staticTexts["morning-dose2-in-window"]
+        for _ in 0..<12 where !interval.isHittable { app.swipeUp() }
+        XCTAssertTrue(interval.isHittable)
+        XCTAssertTrue(interval.label.contains("2h 50m"))
+        XCTAssertFalse(app.staticTexts["What affected Dose 2 timing? (optional)"].exists)
+        XCTAssertTrue(app.buttons["Close check-in"].exists)
+        for _ in 0..<4 where interval.frame.maxY > app.frame.maxY - 50 {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8))
+                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)))
+        }
+        XCTAssertLessThan(interval.frame.maxY, app.frame.maxY - 30, "Capture the entire interval, including its window label")
+        captureDashboard("Recorded in-window Dose 2 has interval and no exception question")
+        let complete = app.buttons["Complete Check-In"]
+        for _ in 0..<25 where !complete.isHittable { app.swipeUp() }
+        XCTAssertTrue(complete.isHittable); complete.tap()
+        XCTAssertTrue(app.buttons["dose-primary-action"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["morning-check-in-storage-error"].exists)
     }
 
     func testExpiredSessionLaunchDoesNotReenterRepository() throws {
