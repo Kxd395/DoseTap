@@ -5,6 +5,10 @@ records verified morning timing/cancellation repairs under DOSETAP-67. Dashboard
 cohorts, denominators, work transitions and the remaining data-model changes below
 are still planned work; the alarm repair does not mark them implemented.
 
+The [build-48 Timeline awakening inspection](2026-09-11-timeline-awakening-delivery.md)
+adds selected-night reviewed dose/sleep results and source inspection to Timeline.
+It does not implement the work/off averages or change legacy chart normalization.
+
 Date: 2026-09-11. Inventory baseline: `e98c5a7744d62993ad1a9f8d0bd6cb20bb6f28d1`, app **0.4.19 (45)**.
 Plane: **DOSETAP-45** owns this dashboard audit/plan; **DOSETAP-57** owns the next bounded sleep-marker implementation. This is a source audit and proposal, not proof of phone, provider, accessibility, privacy or release acceptance. No personal Health records or questionnaire answers were inspected for this inventory.
 

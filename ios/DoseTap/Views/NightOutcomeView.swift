@@ -416,7 +416,11 @@ struct ReviewedDoseSleepFixtureView: View {
                         ForEach(["Available", "Conflict", "Missing"], id: \.self) { Text($0) }
                     }.pickerStyle(.segmented).accessibilityIdentifier("dose-sleep-fixture-mode")
                 }
-                Section { ReviewedNightCoverageView(result: result) }
+                Section {
+                    TimelineDoseSleepResultView(result: result, events: [
+                        .init(id: "synthetic-bathroom", eventType: "bathroom", timestamp: Date(timeIntervalSince1970: 1_800_010_100), sessionDate: "synthetic")
+                    ])
+                }
             }.navigationTitle("Dose sleep UI check")
         }
     }

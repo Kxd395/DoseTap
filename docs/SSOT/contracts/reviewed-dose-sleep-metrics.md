@@ -30,3 +30,11 @@ Show all four rows under the optional reviewed Apple Health coverage check, with
 ## Required evidence
 
 Core tests cover 8 minutes awake before Dose 2 + 14 after = 22 total; exact and ±1-second boundaries; missing/skipped doses; conflicting/duplicate/reversed dose records; stage splits and reordered samples; already-asleep coverage; missing initial onset; missing return; known-zero versus missing; partial coverage and local boundary gaps/conflicts; corrected dose/provider deletion refresh; absolute time across midnight/DST. Loader integration verifies the same snapshot supplies doses and provider bands and that stale/failed results have no metrics. Native simulator evidence exercises available and unavailable rows; physical/provider, owner-observed and accessibility acceptance remain open unless separately recorded.
+
+## Timeline selected-night inspection (build 48)
+
+Timeline Review offers Check dose and sleep timing and Review night window. The check is read-only and uses the same repository loader as Wake & Next Day. Missing or invalid saved bounds require review; the chart range is never silently saved as a reviewed window. The existing stage chart remains separate and unchanged.
+
+A resolved awakening displays observed awake start, recorded Dose 2, and observed return (or an explicit missing return). Existing four metric rows retain their strict missingness/conflict semantics. Matching quick logs are timed context only, not interval boundaries or inferred causes. Original Health samples touching the episode boundaries are inspectable with stage, original timestamps, source app and available device metadata. When no episode resolves, inspect the reviewed window's samples without claiming a match. No alarm-event history is invented or implied complete.
+
+Clearing or refreshing immediately removes the old result. Night switches, local repository changes, Health preference changes, disappearance and backgrounding invalidate pending requests. A late response cannot replace another night's result. Results are not included in the existing capture/share path, persisted, or exported by this slice. Provider edits require another check; query time is visible. No initial-onset rule, HRV model, legacy normalization, dose record, alarm, questionnaire or preference is changed.

@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 import DoseCore
 
 /// Exact local inputs from one SQLite read snapshot. Never persisted or exported.
@@ -90,5 +91,64 @@ extension SessionRepository {
             read: { self.storage.reviewedNightSleepInput(sessionDate: sessionDate, now: self.clock()) },
             clock: clock, isEnabled: { UserSettingsManager.shared.healthKitEnabled },
             query: { try await HealthKitService.shared.fetchSleepEvidence(from: $0, to: $1) })
+    }
+}
+
+/// Selected-night UI state. Late provider responses cannot restore invalidated evidence.
+@MainActor
+final class TimelineDoseSleepModel: ObservableObject {
+    @Published private(set) var result: ReviewedNightSleepResult?
+    @Published private(set) var isLoading = false
+    private var generation = 0
+
+    func invalidate() {
+        generation += 1
+        result = nil
+        isLoading = false
+    }
+
+    func refresh(sessionDate: String, query: (String) async -> ReviewedNightSleepResult) async {
+        guard !Task.isCancelled else { return }
+        invalidate()
+        let request = generation
+        isLoading = true
+        let next = await query(sessionDate)
+        guard generation == request else { return }
+        guard !Task.isCancelled else { invalidate(); return }
+        result = next
+        isLoading = false
+    }
+}
+
+/// A display association from the existing calculator, never a second timing algorithm.
+struct TimelineDose2Episode {
+    let start: Date
+    let dose: Date
+    let returned: Date?
+    let observedEnd: Date
+    let samples: [SleepEvidenceSample]
+
+    init?(result: ReviewedNightSleepResult) {
+        guard let metrics = result.doseSleepMetrics,
+              let start = metrics.awakeningToDose2.start,
+              let dose = metrics.awakeningToDose2.end else { return nil }
+        self.start = start
+        self.dose = dose
+        returned = metrics.dose2ToSleep.end
+        observedEnd = metrics.dose2ToSleep.end ?? result.projection?.bands.first {
+            $0.state == .awake && $0.start == start && $0.end >= dose
+        }?.end ?? dose
+        // Include the samples on both sides of exact transitions so boundaries are reviewable.
+        let intervalEnd = observedEnd
+        samples = (result.evidence?.samples ?? []).filter {
+            $0.end >= start && $0.start <= intervalEnd
+        }.sorted { $0.start < $1.start }
+    }
+}
+
+extension TimelineDose2Episode {
+    func matchingEvents(_ events: [StoredSleepEvent]) -> [StoredSleepEvent] {
+        events.filter { $0.timestamp >= start && $0.timestamp <= observedEnd }
+            .sorted { $0.timestamp < $1.timestamp }
     }
 }

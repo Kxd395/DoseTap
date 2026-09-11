@@ -87,6 +87,11 @@ final class DoseTapUITests: XCTestCase {
         app.buttons["Timeline"].tap()
         let review = app.segmentedControls.firstMatch.buttons["Review"]
         XCTAssertTrue(review.waitForExistence(timeout: 15)); review.tap()
+        let check = app.buttons["timeline-dose-sleep-check"]
+        for _ in 0..<8 where !check.isHittable { app.swipeUp() }
+        XCTAssertTrue(check.isHittable); check.tap()
+        XCTAssertTrue(app.staticTexts["Save a reviewed night window before checking Apple Health coverage."].waitForExistence(timeout: 10))
+        captureDashboard("Timeline timing check requires reviewed bounds")
         let bathroom = app.descendants(matching: .any).matching(identifier: "Bathroom Logs: 2 logged").firstMatch
         for _ in 0..<12 where !bathroom.isHittable { app.swipeUp() }
         XCTAssertTrue(bathroom.isHittable)
@@ -423,6 +428,30 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(app.segmentedControls["pre-last-food-fat"].buttons["Yes"].isSelected)
         captureDashboard("Last food restored after restart in History")
         app.buttons["Cancel"].tap()
+    }
+
+    func testReviewedDoseSleepMetricsLargeTextSourceInspection() throws { try testReviewedDoseSleepMetricsSourceInspection() }
+
+    func testReviewedDoseSleepMetricsSourceInspection() throws {
+        let heading = app.staticTexts["timeline-dose2-episode"]
+        XCTAssertTrue(heading.waitForExistence(timeout: 15))
+        captureDashboard("Dose 2 matched awakening endpoints")
+        let logs = app.buttons["timeline-dose-sleep-logs"]
+        for _ in 0..<8 where !logs.isHittable { app.swipeUp() }
+        XCTAssertTrue(logs.isHittable); logs.tap()
+        XCTAssertEqual(logs.value as? String, "Expanded")
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH %@", "Bathroom:")).firstMatch.isHittable)
+
+        let sources = app.buttons["timeline-dose-sleep-sources"]
+        for _ in 0..<16 where !sources.isHittable { app.swipeUp() }
+        XCTAssertTrue(sources.isHittable); captureDashboard("Source disclosure before opening"); sources.tap()
+        XCTAssertEqual(sources.value as? String, "Expanded")
+        captureDashboard("Source disclosure opened")
+        let source = app.descendants(matching: .any).matching(identifier: "timeline-sleep-source-0").firstMatch
+        for _ in 0..<6 where !source.isHittable { app.swipeUp() }
+        XCTAssertTrue(source.isHittable)
+        XCTAssertTrue(source.label.contains("Synthetic"))
+        captureDashboard("Dose 2 original Health sample source")
     }
 
     func testReviewedDoseSleepMetricsSubsecond() throws {

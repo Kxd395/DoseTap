@@ -33,6 +33,67 @@ private final class MedicationMutationNotificationCenter: AlarmNotificationCente
 
 @MainActor
 final class MedicationMutationTransactionTests: XCTestCase {
+    func testTimelineSleepCheckDiscardsLateNightResponseAndClearsOldResult() async {
+        let model = TimelineDoseSleepModel()
+        await model.refresh(sessionDate: "first") { _ in .init(status: .available) }
+        XCTAssertNotNil(model.result)
+        let cancelled = Task { await model.refresh(sessionDate: "cancelled") { _ in .init(status: .failed) } }
+        cancelled.cancel()
+        await cancelled.value
+        XCTAssertEqual(model.result?.status, .available, "An already cancelled view task must not clear a newer result")
+        var continuation: CheckedContinuation<ReviewedNightSleepResult, Never>?
+        let old = Task { await model.refresh(sessionDate: "first") { _ in
+            await withCheckedContinuation { continuation = $0 }
+        } }
+        while continuation == nil { await Task.yield() }
+        XCTAssertNil(model.result, "A refresh must remove prior success immediately")
+        XCTAssertTrue(model.isLoading)
+        model.invalidate()
+        await model.refresh(sessionDate: "second") { _ in .init(status: .missingWindow) }
+        continuation?.resume(returning: .init(status: .available))
+        await old.value
+        XCTAssertEqual(model.result?.status, .missingWindow)
+        model.invalidate()
+        XCTAssertNil(model.result)
+        XCTAssertFalse(model.isLoading)
+    }
+
+    func testTimelineDose2EpisodeKeepsBoundarySourcesAndUnknownReturn() throws {
+        let base = Date(timeIntervalSince1970: 1_800_000_000)
+        func result(returnObserved: Bool) throws -> ReviewedNightSleepResult {
+            let window = ReviewedSleepWindow(sessionID: "episode", start: base, end: base.addingTimeInterval(2400),
+                entryTimeZone: TimeZone(secondsFromGMT: 0)!, reviewedAt: base.addingTimeInterval(3000))
+            var samples = [SleepEvidenceSample(sampleID: "before", start: base, end: base.addingTimeInterval(600),
+                rawCategory: 1, stage: .asleep, origin: .init(sourceName: "Watch", bundleIdentifier: nil)),
+                SleepEvidenceSample(sampleID: "awake", start: base.addingTimeInterval(600), end: base.addingTimeInterval(1920),
+                    rawCategory: 2, stage: .awake, origin: .init(sourceName: "Watch", bundleIdentifier: nil))]
+            if returnObserved { samples.append(.init(sampleID: "return", start: base.addingTimeInterval(1920), end: window.end,
+                rawCategory: 1, stage: .asleep, origin: .init(sourceName: "Watch", bundleIdentifier: nil))) }
+            let evidence = try XCTUnwrap(SleepEvidenceResolution.calculate(start: window.start, end: window.end, samples: samples))
+            let projection = try XCTUnwrap(ReviewedNightSleepProjection.calculate(window: window, evidence: evidence, generatedAt: window.reviewedAt))
+            let doses = [("dose1", 0.0), ("dose2", 1080.0)].map { kind, offset in
+                DoseCore.StoredDoseEvent(id: kind, eventType: kind, timestamp: base.addingTimeInterval(offset), sessionDate: "synthetic", sessionId: "episode")
+            }
+            return .init(status: .partial, window: window, evidence: evidence, projection: projection,
+                doseSleepMetrics: .calculate(projection: projection, doses: doses))
+        }
+        let complete = try result(returnObserved: true)
+        let episode = try XCTUnwrap(TimelineDose2Episode(result: complete))
+        XCTAssertEqual(episode.dose.timeIntervalSince(episode.start), 480)
+        XCTAssertEqual(try XCTUnwrap(episode.returned).timeIntervalSince(episode.dose), 840)
+        XCTAssertEqual(episode.samples.map(\.sampleID), ["before", "awake", "return"])
+        let partial = try XCTUnwrap(TimelineDose2Episode(result: result(returnObserved: false)))
+        XCTAssertNil(partial.returned)
+        XCTAssertEqual(partial.observedEnd, base.addingTimeInterval(1920))
+        let logs = [("bathroom", 1200.0), ("noise", 2100.0)].map { kind, seconds in
+            DoseTap.StoredSleepEvent(id: kind, eventType: kind, timestamp: base.addingTimeInterval(seconds), sessionDate: "synthetic")
+        }
+        XCTAssertEqual(partial.matchingEvents(logs).map(\.id), ["bathroom"])
+
+        XCTAssertEqual(partial.dose, episode.dose)
+        XCTAssertNil(TimelineDose2Episode(result: .init(status: .unavailable)))
+    }
+
     func testDoseSleepDisplayPreservesPositiveSubsecondDelay() {
         XCTAssertEqual(ReviewedDoseSleepMetricsView.durationText(0), "0 min 0 sec")
         XCTAssertEqual(ReviewedDoseSleepMetricsView.durationText(0.25), "<1 sec")
