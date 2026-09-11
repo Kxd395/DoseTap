@@ -20,8 +20,24 @@ protocol AlarmNotificationCenterClient: AnyObject {
     func authorizationStatus() async -> UNAuthorizationStatus
     func add(_ request: UNNotificationRequest) async throws
     func pendingRequests() async -> [UNNotificationRequest]
+    func deliveredIdentifiers() async -> [String]?
     func removePendingRequests(withIdentifiers identifiers: [String])
     func removeDeliveredNotifications(withIdentifiers identifiers: [String])
+}
+
+extension AlarmNotificationCenterClient {
+    // Clients without delivered-notification readback cannot attest cancellation.
+    func deliveredIdentifiers() async -> [String]? { nil }
+}
+
+enum Dose2ReminderCompletion: Equatable {
+    case cancelled, notApplicable, unverified
+
+    var warning: String? {
+        self == .unverified
+            ? "The dose record is saved, but its reminder cancellation could not be verified. Check DoseTap's alarm status in Settings. Do not log the dose again."
+            : nil
+    }
 }
 
 @MainActor
@@ -66,6 +82,14 @@ final class SystemAlarmNotificationCenterClient: AlarmNotificationCenterClient {
 
     func removePendingRequests(withIdentifiers identifiers: [String]) {
         center.removePendingNotificationRequests(withIdentifiers: identifiers)
+    }
+
+    func deliveredIdentifiers() async -> [String]? {
+        await withCheckedContinuation { continuation in
+            center.getDeliveredNotifications { notifications in
+                continuation.resume(returning: notifications.map { $0.request.identifier })
+            }
+        }
     }
 
     func removeDeliveredNotifications(withIdentifiers identifiers: [String]) {
@@ -813,6 +837,33 @@ public class AlarmService: NSObject, ObservableObject {
     }
     
     // MARK: - Cancel
+
+    /// Called only after a taken/explicit-skip transaction commits. Stable alarm
+    /// IDs belong to the active session; historical writes must not touch them.
+    func completeDose2Reminders(sessionId: String, activeSessionId: String?) async -> Dose2ReminderCompletion {
+        guard sessionId == activeSessionId else { return .notApplicable }
+        cancelAllAlarms()
+        clearDose2AlarmState()
+        let systemFailed: Bool
+        do {
+            let remainingAlarm = try systemWakeAlarm?.deadline()
+            systemFailed = lastSystemAlarmCancellationError != nil || remainingAlarm != nil
+            if remainingAlarm != nil, lastSystemAlarmCancellationError == nil {
+                lastSystemAlarmCancellationError = "Could not verify cancellation of the Dose 2 system alarm."
+                lastSchedulingError = lastSystemAlarmCancellationError
+            }
+        }
+        catch { return .unverified }
+        let owned = Set(Self.wakeNotificationIdentifiers + Self.reminderNotificationIdentifiers)
+        let pending = await notificationClient.pendingRequests()
+        let delivered = await notificationClient.deliveredIdentifiers()
+        // Readback may race a new session. Never perform further cancellation
+        // after suspension, and never remove identifiers outside the owned set.
+        guard !systemFailed, let delivered,
+              !pending.contains(where: { owned.contains($0.identifier) }),
+              owned.isDisjoint(with: delivered) else { return .unverified }
+        return .cancelled
+    }
     
     /// Cancel all scheduled alarms
     public func cancelAllAlarms() {

@@ -116,5 +116,8 @@ final class SystemDoseAlarmClient: SystemDoseAlarmScheduling {
         if try manager.alarms.contains(where: { $0.id == id }) {
             try manager.cancel(id: id)
         }
+        guard try !manager.alarms.contains(where: { $0.id == id }) else {
+            throw SystemDoseAlarmError.verification
+        }
     }
 }

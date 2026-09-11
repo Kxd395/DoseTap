@@ -108,8 +108,8 @@ struct MorningCheckInDoseReconciliationSection: View {
                 VStack(alignment: .leading, spacing: 12) {
                     if let loggedDose1Time = viewModel.loggedDose1Time {
                         MorningCheckInDoseStatusRow(
-                            title: "Logged overnight",
-                            detail: "Dose 1 was already recorded at \(AppFormatters.shortTime.string(from: loggedDose1Time))."
+                            title: "Dose 1 recorded",
+                            detail: "Taken at \(AppFormatters.shortTime.string(from: loggedDose1Time))."
                         )
                     } else {
                         Toggle("I took Dose 1 but missed the tap", isOn: $viewModel.reconcileDose1Taken)
@@ -146,9 +146,13 @@ struct MorningCheckInDoseReconciliationSection: View {
                 VStack(alignment: .leading, spacing: 12) {
                     if let loggedDose2Time = viewModel.loggedDose2Time {
                         MorningCheckInDoseStatusRow(
-                            title: "Logged overnight",
-                            detail: "Dose 2 was already recorded at \(AppFormatters.shortTime.string(from: loggedDose2Time))."
+                            title: "Dose 2 recorded",
+                            detail: "Taken at \(AppFormatters.shortTime.string(from: loggedDose2Time))."
                         )
+                        if let interval = viewModel.recordedDoseIntervalText {
+                            Text(interval).font(.subheadline)
+                                .accessibilityIdentifier("morning-dose2-in-window")
+                        }
                     } else {
                         Picker("Dose 2 status", selection: $viewModel.dose2Reconciliation) {
                             ForEach(Dose2ReconciliationChoice.allCases) { choice in
@@ -192,11 +196,13 @@ struct MorningCheckInDoseReconciliationSection: View {
 
                     if viewModel.showsDose2TakenReason {
                         Divider()
-                        Text("Why was Dose 2 early, late, or unusual?")
+                        Text("What affected Dose 2 timing? (optional)")
                             .font(.subheadline.weight(.semibold))
+                        Text("Check that the dose time is when you took it, not when you entered the record. Use History to correct an existing dose time.")
+                            .font(.caption).foregroundStyle(.secondary)
                         OptionGrid(
                             options: Dose2TakenReason.allCases,
-                            selection: morningCheckInOptionalBinding(viewModel, \.dose2TakenReason)
+                            selection: $viewModel.dose2TakenReason
                         )
                     }
 
@@ -220,7 +226,9 @@ struct MorningCheckInDoseReconciliationSection: View {
                         .textFieldStyle(.roundedBorder)
                     }
 
-                    Text("Approximate times are fine here. Use this when you forgot to tap the dose button overnight.")
+                    Text(viewModel.loggedDose1Time != nil && viewModel.loggedDose2Time != nil
+                         ? "Use History to edit an existing dose record."
+                         : "Approximate times are fine here. Use this when you forgot to record a dose you took.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }

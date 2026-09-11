@@ -529,8 +529,9 @@ final class DoseActionCoordinator: ObservableObject {
         guard mutationResult.isCommitted else {
             return retryResult(mutationResult, action: "Dose 2 skip")
         }
-        alarmService.cancelAllAlarms()
-        alarmService.clearDose2AlarmState()
+        let reminders = await alarmService.completeDose2Reminders(
+            sessionId: mutationResult.receipt?.sessionId ?? diagnosticSessionId,
+            activeSessionId: sessionRepo.activeSessionId)
 
         eventLogger?.logEvent(
             name: "Skip Dose 2", color: .orange,
@@ -541,7 +542,8 @@ final class DoseActionCoordinator: ObservableObject {
         playHaptic(.action)
 
         coordinatorLog.info("Dose 2 skipped via coordinator from \(surface.rawValue, privacy: .public)")
-        return .success(message: "✓ Dose 2 skipped")
+        if let warning = reminders.warning { return .attentionRequired(message: warning) }
+        return .success(message: reminders == .cancelled ? "Dose 2 skipped. Dose reminders cancelled." : "Dose 2 skipped.")
     }
 
     // MARK: - Private Helpers
@@ -595,8 +597,9 @@ final class DoseActionCoordinator: ObservableObject {
             return retryResult(mutationResult, action: eventName)
         }
 
-        alarmService.cancelAllAlarms()
-        alarmService.clearDose2AlarmState()
+        let reminders = await alarmService.completeDose2Reminders(
+            sessionId: mutationResult.receipt?.sessionId ?? diagnosticSessionId,
+            activeSessionId: sessionRepo.activeSessionId)
 
         eventLogger?.logEvent(
             name: eventName,
@@ -611,7 +614,8 @@ final class DoseActionCoordinator: ObservableObject {
         playConfirmationSound()
 
         coordinatorLog.info("\(eventName, privacy: .public) logged via coordinator")
-        return .success(message: "✓ \(eventName) logged")
+        if let warning = reminders.warning { return .attentionRequired(message: warning) }
+        return .success(message: reminders == .cancelled ? "\(eventName) recorded. Dose reminders cancelled." : "\(eventName) recorded.")
     }
 
     private func performExtraDose(

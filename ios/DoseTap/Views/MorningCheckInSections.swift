@@ -52,6 +52,7 @@ struct MorningCheckInSubmitSection: View {
     @ObservedObject var viewModel: MorningCheckInViewModel
     let dismissAction: () -> Void
     let onComplete: () -> Void
+    @State private var showReminderWarning = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -61,12 +62,20 @@ struct MorningCheckInSubmitSection: View {
                     .foregroundColor(.red)
                     .accessibilityIdentifier("morning-check-in-storage-error")
             }
+            if let warning = viewModel.reminderCancellationWarning {
+                Label(warning, systemImage: "bell.badge")
+                    .font(.callout).foregroundStyle(.orange)
+            }
 
             Button {
                 Task {
                     if await viewModel.submit() {
-                        dismissAction()
-                        onComplete()
+                        if viewModel.reminderCancellationWarning != nil {
+                            showReminderWarning = true
+                        } else {
+                            dismissAction()
+                            onComplete()
+                        }
                     }
                 }
             } label: {
@@ -88,6 +97,11 @@ struct MorningCheckInSubmitSection: View {
             .disabled(viewModel.isSubmitting)
         }
         .padding(.top, 8)
+        .alert("Check-in saved; check dose reminder", isPresented: $showReminderWarning) {
+            Button("Close") { dismissAction(); onComplete() }
+        } message: {
+            Text(viewModel.reminderCancellationWarning ?? "Check DoseTap's alarm status in Settings.")
+        }
     }
 }
 

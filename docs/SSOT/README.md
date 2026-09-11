@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-11
 SSOT revision: 0.4.19
-Shipping app version observed in the Xcode project: 0.4.19 (build 46)
+Shipping app version observed in the Xcode project: 0.4.19 (build 47)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -27,6 +27,13 @@ Notes:
 ---
 
 ## Domain Entities and Invariants
+
+### Dose completion and morning timing clarification (DOSETAP-67)
+
+- A committed active-session Dose 2 taken/explicit-skip action cancels only the app-owned Dose 2 wake, follow-up and window reminder identifiers. Morning reconciliation performs the same cleanup before attempting the questionnaire write; a questionnaire failure never undoes that dose or reapplies it on retry. Historical-session completion cannot cancel the current session's reminders.
+- Cancellation success requires system-alarm absence and pending/delivered notification readback. An unverified cancellation preserves the medication record and gives separate alarm-status guidance. Alarm open/stop never records a dose. Verification is local API evidence, not signed-phone acceptance.
+- The morning exception question is shown only for early/late actual dose intervals, using shared unrounded timing classification; an alarm target is not a dosing-window boundary. In-window records show their interval without reconfirmation. Unanswered taken-reason values remain absent; explicitly selected Unsure remains an answer. Existing records are not rewritten.
+- Closing the morning form does not save a partial questionnaire. The control says Close check-in; a durable partial-draft/skip workflow remains separate work. General legacy context defaults, unknown-time dose outcomes, per-session window snapshots and dashboard/schedule cleanup remain open.
 
 ### Planned and actual sleeping setup (DOSETAP-70)
 

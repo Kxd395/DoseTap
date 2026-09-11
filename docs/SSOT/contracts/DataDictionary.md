@@ -82,6 +82,13 @@ Morning preferences (`morningCheckIn.savedSettings` in UserDefaults) contain onl
 
 Common `dose_events.event_type` values include `dose1`, `dose2`, `extra_dose`, `dose2_skipped`, and `snooze`. Metadata may carry registration surface, early/late/extra classification, action correlation, or snooze count. A metadata field is meaningful only when the writing contract defines it; consumers must tolerate missing legacy keys.
 
+Morning `timing_context_json.dose2TakenReason` is optional. From build 47, a new
+unanswered reason is omitted; explicit `unsure` remains a recorded answer. Existing
+legacy `unsure` values are preserved without claiming they were explicitly chosen.
+The exception prompt depends on actual early/late interval classification, not the
+reminder target. This change adds no dose-outcome state, timestamp precision or SQL
+migration; unknown-time outcomes and consistent recording provenance remain open.
+
 `medication_events` is a separate general medication log. It does not replace `dose_events` or drive the Dose 1/Dose 2 state machine.
 
 ## Sleep events

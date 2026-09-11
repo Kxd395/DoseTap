@@ -120,7 +120,7 @@ final class DoseActionCoordinatorClockTests: XCTestCase {
         let windowOpen = dose1Time.addingTimeInterval(150 * 60)
         let allowedResult = await requestAndConfirmDose2()
 
-        XCTAssertEqual(allowedResult, .success(message: "✓ Dose 2 logged"))
+        XCTAssertEqual(allowedResult, .success(message: "Dose 2 recorded. Dose reminders cancelled."))
         XCTAssertEqual(repository.dose2Time, windowOpen)
         XCTAssertEqual(dateProvider.readCount, 3, "Request and confirmation each use one fresh clock snapshot")
     }
@@ -147,7 +147,7 @@ final class DoseActionCoordinatorClockTests: XCTestCase {
         // The existing warning + three-second hold has already collected
         // explicit consent; it must not end in an unhandled new prompt.
         let confirmed = await coordinator.takeDose2(override: .earlyConfirmed)
-        XCTAssertEqual(confirmed, .success(message: "✓ Dose 2 (Early) logged"))
+        XCTAssertEqual(confirmed, .success(message: "Dose 2 (Early) recorded. Dose reminders cancelled."))
         XCTAssertNotNil(repository.dose2Time)
     }
 
@@ -159,7 +159,7 @@ final class DoseActionCoordinatorClockTests: XCTestCase {
         core.setSessionRepository(otherRepository)
         dateProvider.advance(by: 30)
         let result = await requestAndConfirmDose2()
-        XCTAssertEqual(result, .success(message: "✓ Dose 2 logged"))
+        XCTAssertEqual(result, .success(message: "Dose 2 recorded. Dose reminders cancelled."))
         XCTAssertNotNil(repository.dose2Time)
         XCTAssertEqual(storage.fetchDoseEvents(sessionId: repository.activeSessionId, sessionDate: repository.activeSessionDate!).filter { $0.eventType == "dose2" }.count, 1)
     }
@@ -180,7 +180,7 @@ final class DoseActionCoordinatorClockTests: XCTestCase {
         XCTAssertEqual(try repository.workWakeSchedule().workingWeekdays, persisted.workingWeekdays)
         XCTAssertEqual(try repository.workWakeSchedule().exceptions[warning.wakeDate]?.isWorking, false)
         let recorded = await requestAndConfirmDose2()
-        XCTAssertEqual(recorded, .success(message: "✓ Dose 2 logged"))
+        XCTAssertEqual(recorded, .success(message: "Dose 2 recorded. Dose reminders cancelled."))
     }
 
     func testContinueCommitsAcknowledgementWithDoseAndRejectsStaleSchedule() async throws {
@@ -197,7 +197,7 @@ final class DoseActionCoordinatorClockTests: XCTestCase {
         guard case .needsConfirm(.workWake(let current)) = await coordinator.takeDose2(acknowledgedWorkWarning: old) else { return XCTFail("Stale acknowledgement must be rejected") }
         XCTAssertNil(repository.dose2Time)
         let result = await requestAndConfirmDose2(acknowledgedWorkWarning: current)
-        XCTAssertEqual(result, .success(message: "✓ Dose 2 logged"))
+        XCTAssertEqual(result, .success(message: "Dose 2 recorded. Dose reminders cancelled."))
         let event = try XCTUnwrap(storage.fetchDoseEvents(sessionId: repository.activeSessionId, sessionDate: repository.activeSessionDate!).first { $0.eventType == "dose2" })
         let metadata = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(try XCTUnwrap(event.metadata).utf8)) as? [String: Any])
         XCTAssertNotNil(metadata["work_warning_acknowledgement"])
@@ -286,7 +286,7 @@ final class DoseActionCoordinatorClockTests: XCTestCase {
             surface: .sessionDetail
         )
 
-        XCTAssertEqual(confirmed, .success(message: "✓ Dose 2 (Late, Recorded Later) logged"))
+        XCTAssertEqual(confirmed, .success(message: "Dose 2 (Late, Recorded Later) recorded. Dose reminders cancelled."))
         XCTAssertEqual(repository.dose2Time, occurrenceTime)
         XCTAssertFalse(repository.dose2Skipped)
         XCTAssertEqual(
@@ -338,7 +338,7 @@ final class DoseActionCoordinatorClockTests: XCTestCase {
         XCTAssertNil(repository.dose2Time)
         dateProvider.advance(by: 60)
         let result = await coordinator.confirmDose2(confirmation)
-        XCTAssertEqual(result, .success(message: "✓ Dose 2 logged"))
+        XCTAssertEqual(result, .success(message: "Dose 2 recorded. Dose reminders cancelled."))
         XCTAssertEqual(repository.dose2Time, dose1Time.addingTimeInterval(151 * 60))
     }
 
@@ -346,7 +346,7 @@ final class DoseActionCoordinatorClockTests: XCTestCase {
         XCTAssertTrue(repository.setDose1Time(dose1Time.addingTimeInterval(0.000123)).isCommitted)
         dateProvider.advance(by: 60)
         let result = await requestAndConfirmDose2()
-        XCTAssertEqual(result, .success(message: "✓ Dose 2 logged"))
+        XCTAssertEqual(result, .success(message: "Dose 2 recorded. Dose reminders cancelled."))
         XCTAssertNotNil(repository.dose2Time, "Real Date values must survive millisecond storage precision without false stale-session rejection")
     }
 
@@ -408,7 +408,7 @@ final class DoseActionCoordinatorClockTests: XCTestCase {
             return XCTFail("Expected confirmation")
         }
         let result = await coordinator.confirmDose2(confirmation)
-        XCTAssertEqual(result, .success(message: "✓ Dose 2 logged"))
+        XCTAssertEqual(result, .success(message: "Dose 2 recorded. Dose reminders cancelled."))
         XCTAssertTrue(repository.clearDose2().isCommitted)
         guard case .blocked = await coordinator.confirmDose2(confirmation) else {
             return XCTFail("Consumed confirmation must never restore an undone dose")

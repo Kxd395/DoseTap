@@ -13,6 +13,8 @@ import DoseCore
 
 @MainActor
 private final class InMemoryAlarmNotificationCenter: AlarmNotificationCenterClient {
+    // This fake never delivers requests; expose that known empty store explicitly.
+    func deliveredIdentifiers() async -> [String]? { [] }
     private var requestsByIdentifier: [String: UNNotificationRequest] = [:]
 
     func setDelegate(_ delegate: (any UNUserNotificationCenterDelegate)?) {}

@@ -7,6 +7,24 @@ This document is normative for DoseTap medication alarms and Dose 2 safety remin
 
 ## Safety Model
 
+### Committed Dose 2 completion (DOSETAP-67, build 47)
+
+The coordinator and morning reconciliation share `completeDose2Reminders` after
+a dose/explicit-skip transaction commits. A nonmatching historical session cannot
+cancel the active session's stable identifiers. Completion invalidates in-flight
+scheduling, stops the in-app sound and vibration, and removes the two Dose 2 groups
+below from pending and delivered notifications. It does not remove supply, test,
+other-app or unrelated notification identifiers.
+
+Success requires system-alarm absence plus pending/delivered readback. A failure or
+unavailable readback produces a separate warning without rolling back medication.
+Morning reconciliation attempts cleanup before the questionnaire write. Its retry
+does not reapply committed medication choices. A saved questionnaire with an alarm
+warning remains visibly acknowledged before dismissal; a questionnaire write
+failure retains both the draft and any separate alarm warning. No automatic retry
+may cancel a future session's alarm. Locked-phone ringing/cancellation, VoiceOver
+and owner-observed save/reopen remain independent acceptance gates.
+
 ### System wake alarms on iOS 26+
 
 The Dose 2 wake role uses a fixed-date AlarmKit alarm on iOS 26 and later,

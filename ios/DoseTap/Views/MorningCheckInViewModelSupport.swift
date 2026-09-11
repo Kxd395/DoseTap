@@ -197,7 +197,7 @@ extension MorningCheckInViewModel {
     }
 
     var selectedDose2TakenReasonRawValue: String? {
-        showsDose2TakenReason && dose2TakenReason != .unsure ? dose2TakenReason.rawValue : nil
+        showsDose2TakenReason ? dose2TakenReason?.rawValue : nil
     }
 
     var selectedDose2SkippedReasonRawValue: String? {

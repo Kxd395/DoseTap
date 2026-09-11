@@ -35,7 +35,8 @@ class MorningCheckInViewModel: ObservableObject {
     @Published var nextDayDemand: NextDayDemand = .unsure
     @Published var dose2WakeMethod: Dose2WakeMethod = .unsure
     @Published var backToSleepDuration: BackToSleepDuration = .unsure
-    @Published var dose2TakenReason: Dose2TakenReason = .unsure
+    @Published var dose2TakenReason: Dose2TakenReason?
+    @Published var reminderCancellationWarning: String?
     @Published var dose2SkippedReason: Dose2SkippedReason = .unsure
     @Published var dose2ReasonNotes: String = ""
     @Published var hasWorkSafetyContext: Bool = false
@@ -255,7 +256,19 @@ class MorningCheckInViewModel: ObservableObject {
     }
 
     var showsDose2TakenReason: Bool {
-        effectiveDose2Status == .taken
+        dose2Timing == .early || dose2Timing == .late
+    }
+
+    var dose2Timing: MedicationTiming? {
+        guard effectiveDose2Status == .taken,
+              let first = loggedDose1Time ?? (reconcileDose1Taken ? reconcileDose1Time : nil) else { return nil }
+        return MedicationTiming.classify(dose1: first, dose2: loggedDose2Time ?? reconcileDose2Time)
+    }
+
+    var recordedDoseIntervalText: String? {
+        guard let first = loggedDose1Time, let second = loggedDose2Time, dose2Timing == .inWindow else { return nil }
+        let minutes = Int(second.timeIntervalSince(first) / 60)
+        return "Interval: \(minutes / 60)h \(minutes % 60)m · Within the app's dosing window"
     }
 
     var showsDose2SkippedReason: Bool {
@@ -434,7 +447,7 @@ class MorningCheckInViewModel: ObservableObject {
             || nextDayDemand != .unsure
             || dose2WakeMethod != .unsure
             || backToSleepDuration != .unsure
-            || dose2TakenReason != .unsure
+            || dose2TakenReason != nil
             || dose2SkippedReason != .unsure
             || hasWorkSafetyContext
             || hasClinicalContext
@@ -446,7 +459,7 @@ class MorningCheckInViewModel: ObservableObject {
             dict["nextDayDemand"] = nextDayDemand.rawValue
             dict["dose2WakeMethod"] = dose2WakeMethod.rawValue
             dict["backToSleepDuration"] = backToSleepDuration.rawValue
-            dict["dose2TakenReason"] = dose2TakenReason.rawValue
+            dict["dose2TakenReason"] = dose2TakenReason?.rawValue
             dict["dose2SkippedReason"] = dose2SkippedReason.rawValue
             dict["hasWorkSafetyContext"] = hasWorkSafetyContext
             dict["hasClinicalContext"] = hasClinicalContext
@@ -555,7 +568,7 @@ class MorningCheckInViewModel: ObservableObject {
     }
 
     @discardableResult
-    func submit(using repository: SessionRepository = .shared) async -> Bool {
+    func submit(using repository: SessionRepository = .shared, alarmService: AlarmService = .shared) async -> Bool {
         if let historyReview {
             historyReview(toStoredCheckIn())
             return true // Returns a draft for confirmation; no storage or live-session effects.
@@ -573,6 +586,12 @@ class MorningCheckInViewModel: ObservableObject {
                 return false
             }
             hasCommittedDoseReconciliation = true
+            if let receipt = reconciliationResult?.receipt,
+               repository.dose2Time != nil || repository.dose2Skipped {
+                let result = await alarmService.completeDose2Reminders(
+                    sessionId: receipt.sessionId, activeSessionId: repository.activeSessionId)
+                reminderCancellationWarning = result.warning
+            }
         }
 
         guard repository.saveMorningCheckIn(checkIn, sessionDateOverride: sessionDate) else {
