@@ -31,6 +31,17 @@ public extension SessionRepository {
     }
 
     #if DEBUG && targetEnvironment(simulator)
+    func prepareDurableLogUITest(medication: Bool) {
+        clearTonight()
+        var inserts = 0
+        storage.medicationFaultInjector = { point in
+            guard point == .insert else { return nil }
+            inserts += 1
+            guard inserts == (medication ? 2 : 1) else { return nil }
+            return MedicationStorageInjectedFailure(code: .diskFull, sqliteCode: 13, detail: "Synthetic one-time write failure")
+        }
+    }
+
     func prepareDose1ReviewWriteFailureUITest() {
         var failed = false
         storage.medicationFaultInjector = { point in

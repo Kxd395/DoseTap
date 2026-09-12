@@ -102,6 +102,9 @@ struct DoseTapApp: App {
                 working: !ProcessInfo.processInfo.arguments.contains("--uitesting-dose2-confirmation")
             )
         }
+        if ProcessInfo.processInfo.arguments.contains("--uitesting-durable-log") {
+            SessionRepository.shared.prepareDurableLogUITest(medication: ProcessInfo.processInfo.arguments.contains("--uitesting-medication-save"))
+        }
         #endif
 
 
@@ -184,6 +187,9 @@ struct DoseTapApp: App {
                 }
             }
             #if DEBUG && targetEnvironment(simulator)
+            .sheet(isPresented: .constant(ProcessInfo.processInfo.arguments.contains("--uitesting-medication-save"))) {
+                MedicationPickerView()
+            }
             .sheet(isPresented: .constant(ProcessInfo.processInfo.arguments.contains("--uitesting-dose-sleep"))) {
                 ReviewedDoseSleepFixtureView()
             }

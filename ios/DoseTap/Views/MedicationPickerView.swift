@@ -252,6 +252,8 @@ struct MedicationPickerView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             

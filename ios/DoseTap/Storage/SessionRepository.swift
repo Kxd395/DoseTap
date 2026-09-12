@@ -1052,6 +1052,15 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             awaitingRolloverMessage = "Wake logged — complete check-in to close session"
         }
         sleepEventSaveError = nil
+        Task {
+            if session.isNew {
+                await DiagnosticLogger.shared.ensureSessionMetadata(sessionId: session.sessionId)
+                await DiagnosticLogger.shared.logSessionStarted(sessionId: session.sessionId)
+            }
+            await DiagnosticLogger.shared.logSleepEventLogged(sessionId: session.sessionId,
+                eventType: normalizeStoredEventType(eventType), eventId: id)
+            if finalWake { await DiagnosticLogger.shared.log(.checkinStarted, sessionId: session.sessionId) }
+        }
         sessionDidChange.send()
         scheduleRolloverTimer()
         return true

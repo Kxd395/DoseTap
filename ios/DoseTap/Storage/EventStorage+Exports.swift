@@ -140,7 +140,7 @@ extension EventStorage {
     /// Upsert a medication event by primary key. Used by local logging and sync import.
     @discardableResult
     public func upsertMedicationEvent(_ entry: StoredMedicationEntry) -> Bool {
-        guard databaseInitializationFailure == nil, db != nil else { return false }
+        guard databaseInitializationFailure == nil, db != nil, injectedMedicationFailure(at: .insert) == nil else { return false }
         let sql = """
         INSERT OR REPLACE INTO medication_events (id, session_id, session_date, medication_id, dose_mg, dose_unit, formulation, taken_at_utc, local_offset_minutes, notes, confirmed_duplicate)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)

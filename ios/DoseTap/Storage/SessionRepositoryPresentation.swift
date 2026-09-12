@@ -89,15 +89,6 @@ extension SessionRepository {
         guard insertSleepEvent(id: eventId, eventType: normalizedType, timestamp: timestamp, colorHex: nil, notes: notes) else { return false }
         let session = (sessionId: currentSessionIdString(), sessionDate: currentSessionDateString())
 
-        // Diagnostic logging (Tier 2: Session Context)
-        Task {
-            await DiagnosticLogger.shared.logSleepEventLogged(
-                sessionId: session.sessionId,
-                eventType: normalizedType,
-                eventId: eventId
-            )
-        }
-
         #if canImport(OSLog)
         logger.info("Sleep event '\(normalizedType)' logged for session \(session.sessionDate)")
         #endif

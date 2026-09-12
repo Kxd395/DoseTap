@@ -1,6 +1,6 @@
 # Collection, event-store and Settings export audit
 
-Status: Audit findings; identified defects are not repaired by this document.
+Status: Audit findings at build 50; this document itself repairs no behavior. The subsequent [build-51 delivery](../../review/2026-09-12-durable-log-delivery.md) addresses DC-01 create/write feedback. Other findings and full CRUD/acceptance gates remain open.
 Date: 2026-09-12, America/New_York.
 Baseline: shipping `main` / `origin/main` `253cd3ed65041a2385c54398414c0f7192f5181c`, app **0.4.19 (50)**.
 Scope: source trace, synthetic SQLite/export probes, existing app/core/Studio tests, architecture checks and a field inventory. No owner database, live HealthKit records, WHOOP account, or phone export was inspected.

@@ -63,7 +63,7 @@ class EventLogger: ObservableObject {
                 }
                 guard logger.sessionRepo.insertSleepEvent(id: id.uuidString, eventType: eventTypeOverride ?? key,
                     timestamp: now, colorHex: color.toHex(), notes: notes, expectedSessionId: identity) else {
-                    logger.saveError = "\(name) not saved. Retry to keep the original time, or discard this unsaved entry."
+                    logger.saveError = "\(name) not saved. Retry keeps the original time."
                     return false
                 }
             }
@@ -307,12 +307,12 @@ struct QuickLogSaveStatus: View {
     var body: some View {
         if let message = eventLogger.saveError ?? repository.sleepEventSaveError {
             VStack(alignment: .leading, spacing: 8) {
-                Text(message).accessibilityIdentifier("quick-log-save-error")
+                Text(message).font(.callout).accessibilityIdentifier("quick-log-save-error")
                 HStack {
                     if eventLogger.saveError != nil {
                         Button("Retry entry") { eventLogger.retryFailedEvent() }
                     }
-                    Button(eventLogger.saveError == nil ? "Dismiss" : "Discard unsaved entry", role: .cancel) { eventLogger.discardFailedEvent() }
+                    Button(eventLogger.saveError == nil ? "Dismiss" : "Discard entry", role: .cancel) { eventLogger.discardFailedEvent() }
                 }
             }.padding().frame(maxWidth: .infinity, alignment: .leading).background(.regularMaterial)
         }
