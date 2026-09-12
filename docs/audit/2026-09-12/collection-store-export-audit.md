@@ -7,6 +7,8 @@ Scope: source trace, synthetic SQLite/export probes, existing app/core/Studio te
 
 ## Answer to the owner's questions
 
+Later tools/source review: [DC-12 validator repair and Plane review](../../review/2026-09-12-plane-closeout-review.md) addresses the local-only consent mismatch without an app build change. It also corrects one DC-05 claim below: current export segments already pass through primary-episode selection, so a primary-total versus full-query-reduction mismatch is not established. Biometric-only invented sleep zeros, provider error/missingness loss and the separate reviewed-window boundary remain open. The table and original failed run below retain the build-50 audit record.
+
 | Question | Finding |
 | --- | --- |
 | Are we collecting the fields we need? | Core doses, quick logs, three questionnaire families, planned/actual sleeping context and pain observations have collection paths. Important missingness/provenance and independent daytime/work-transition requirements remain incomplete. A model property is not proof of a visible input or active confirmation. |

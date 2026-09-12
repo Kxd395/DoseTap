@@ -88,4 +88,112 @@ if bash tools/audit_studio_export.sh "$TMP_DIR/DoseTapStudioExport_Escape.zip" >
   exit 1
 fi
 
+python3 - "$TMP_DIR" "$ROOT/tools/audit_studio_export.sh" <<'PY'
+import copy
+import csv
+import json
+import shutil
+import subprocess
+import sys
+import zipfile
+from pathlib import Path
+
+root, auditor = Path(sys.argv[1]), sys.argv[2]
+base_dir = root / "DoseTapStudioExport_Test"
+base = json.loads((base_dir / "insights_bundle.json").read_text())
+marker = "Local snapshot only; provider enrichment was not fetched."
+local = copy.deepcopy(base)
+local.pop("consent")
+local["exportWarnings"] = [marker]
+local["sessions"][0]["sourceAvailability"] = {"healthKit": False, "whoop": False}
+cases = []
+
+def case(name, expected, mutate=lambda value: None, *, seed=local, csv_value=None):
+    value = copy.deepcopy(seed)
+    mutate(value)
+    cases.append((name, expected, value, csv_value))
+
+case("local", 0)
+case("ordinary-consent", 0, seed=base)
+case("local-note", 0, lambda b: b["sessions"][0].update(notes="WHOOP and Apple Health were discussed"))
+case("local-unknown-schema", 1, lambda b: b.update(schemaVersion=999))
+case("local-missing-sessions", 2, lambda b: b.pop("sessions"))
+case("local-malformed-sessions", 2, lambda b: b.update(sessions={}))
+case("missing-marker", 1, lambda b: b.pop("exportWarnings"))
+case("marker-substring", 1, lambda b: b.update(exportWarnings=[marker + " maybe"]))
+case("marker-string", 1, lambda b: b.update(exportWarnings=marker))
+case("marker-array-type", 1, lambda b: b.update(exportWarnings=[marker, {}]))
+for value in [None, [], {}, "false", 0, True]:
+    case(f"invalid-consent-{len(cases)}", 1, lambda b, v=value: b.update(consent=v))
+for key in ["appleHealthEnabled", "appleHealthAuthorized", "whoopEnabled", "whoopConnected"]:
+    case(f"missing-{key}", 1, lambda b, k=key: b["consent"].pop(k), seed=base)
+    case(f"string-{key}", 1, lambda b, k=key: b["consent"].update({k: "false"}), seed=base)
+case("numeric-consent", 1, lambda b: b["consent"].update(appleHealthEnabled=1), seed=base)
+for key in ["sourceAvailability", "metricProvenance", "collectedNight"]:
+    case(f"malformed-{key}", 1, lambda b, k=key: b["sessions"][0].update({k: []}))
+case("malformed-provenance-value", 1, lambda b: b["sessions"][0].update(metricProvenance={"total_sleep_minutes": ["healthkit"]}))
+for provider in ["healthKit", "whoop"]:
+    case(f"local-{provider}-payload", 1, lambda b, p=provider: b["sessions"][0].update({p: {}}))
+    for value in [True, "false", 0, None]:
+        case(f"local-{provider}-flag-{len(cases)}", 1,
+             lambda b, p=provider, v=value: b["sessions"][0]["sourceAvailability"].update({p: v}))
+    case(f"local-{provider}-provenance", 1,
+         lambda b, p=provider: b["sessions"][0].update(metricProvenance={"total_sleep_minutes": p.lower()}))
+    def enriched(b, p=provider):
+        b["sessions"][0][p] = {"totalSleepMinutes": 1}
+        keys = ["appleHealthEnabled", "appleHealthAuthorized"] if p == "healthKit" else ["whoopEnabled", "whoopConnected"]
+        b["consent"].update({key: True for key in keys})
+    case(f"enriched-{provider}", 0, enriched, seed=base)
+    case(f"enriched-{provider}-local-marker", 1, lambda b, fn=enriched: (fn(b), b.update(exportWarnings=[marker])), seed=base)
+    case(f"enriched-{provider}-missing-consent", 1,
+         lambda b, p=provider: (b.pop("consent"), b["sessions"][0].update({p: {}})), seed=base)
+for key, value in [("sleepAfterDose2Source", "apple_health_recorded_segments"), ("estimatedSleepAfterDose2Minutes", 0),
+                   ("sleepAfterDose2CoveredMinutes", 0), ("sleepAfterDose2IntervalMinutes", 0),
+                   ("sleepAfterDose2FinalWakeAt", "2026-06-17T10:00:00Z")]:
+    case(f"local-collected-{key}", 1, lambda b, k=key, v=value: b["sessions"][0].update(collectedNight={k: v}))
+for column in ["whoop_recovery", "avg_hr", "sleep_efficiency"]:
+    case(f"local-csv-{column}", 1, csv_value=("sessions.csv", column, "0"))
+for column in ["estimated_sleep_after_dose2_minutes", "sleep_after_dose2_covered_minutes",
+               "sleep_after_dose2_interval_minutes", "sleep_after_dose2_final_wake_at_utc", "sleep_after_dose2_source"]:
+    case(f"local-csv-{column}", 1, csv_value=("collected_nights.csv", column, "0"))
+case("local-missing-metadata", 1, lambda b: b.pop("appVersion"))
+case("local-missing-raw", 1, lambda b: (b["sessions"][0]["morning"].pop("rawPhysicalSymptomsJson"),
+     b["sessions"][0]["checkInSubmissions"][-1].update(responsesJson='{"pain.any":true}')))
+
+failures = []
+for name, expected, value, csv_value in cases:
+    folder = root / name
+    folder.mkdir()
+    for path in base_dir.glob("*.csv"):
+        shutil.copyfile(path, folder / path.name)
+    (folder / "insights_bundle.json").write_text(json.dumps(value))
+    if csv_value:
+        path = folder / csv_value[0]
+        rows, fields = [{}], [csv_value[1]]
+        if path.exists():
+            with path.open(newline="") as handle:
+                reader = csv.DictReader(handle)
+                rows, fields = list(reader), reader.fieldnames
+        rows[0][csv_value[1]] = csv_value[2]
+        with path.open("w", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=fields)
+            writer.writeheader(); writer.writerows(rows)
+    inputs = [folder]
+    if name == "local":
+        archive = folder.with_suffix(".zip")
+        with zipfile.ZipFile(archive, "w") as output:
+            for path in folder.iterdir():
+                output.write(path, f"local/{path.name}")
+        inputs.append(archive)
+    for path in inputs:
+        result = subprocess.run(["bash", auditor, "--strict", str(path)], capture_output=True, text=True)
+        if result.returncode != expected:
+            failures.append(f"{name}: expected {expected}, got {result.returncode}")
+        if name == "local" and "Provider consent: not captured" not in result.stdout:
+            failures.append("local: missing consent was presented as known state")
+if failures:
+    raise SystemExit("FAIL: " + "; ".join(failures))
+print(f"Local-only consent checks passed: {len(cases)} cases plus ZIP input")
+PY
+
 echo "Studio export audit guard passed"

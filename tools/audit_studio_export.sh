@@ -178,9 +178,12 @@ except json.JSONDecodeError as exc:
     print(f"FAIL: insights_bundle.json is invalid JSON: {exc}")
     sys.exit(2)
 
-sessions_json = bundle.get("sessions") or []
-if not isinstance(sessions_json, list):
-    print("FAIL: insights_bundle.json sessions is not an array")
+if not isinstance(bundle, dict):
+    print("FAIL: insights_bundle.json is not an object")
+    sys.exit(2)
+sessions_json = bundle.get("sessions")
+if not isinstance(sessions_json, list) or any(not isinstance(s, dict) for s in sessions_json):
+    print("FAIL: insights_bundle.json sessions is not an array of objects")
     sys.exit(2)
 
 unique_json_dates = {
@@ -218,17 +221,29 @@ local_offset = bundle.get("localOffsetMinutes")
 if local_offset is None or isinstance(local_offset, bool) or not isinstance(local_offset, int):
     issue("P2", "Missing or invalid export metadata: localOffsetMinutes should be an integer")
 
+local_marker = "Local snapshot only; provider enrichment was not fetched."
+warnings = bundle.get("exportWarnings")
+local_only = (schema_version == 2 and isinstance(warnings, list) and all(isinstance(w, str) for w in warnings)
+              and local_marker in warnings)
 consent_value = bundle.get("consent")
 if isinstance(consent_value, dict):
     consent = consent_value
+    for field in ["appleHealthEnabled", "appleHealthAuthorized", "whoopEnabled", "whoopConnected"]:
+        if not isinstance(consent.get(field), bool):
+            issue("P1", f"Missing or invalid consent metadata: {field} must be a boolean")
 else:
     consent = {}
-    issue("P1", "Missing or invalid export metadata: consent must be an object")
+    if "consent" in bundle or not local_only:
+        issue("P1", "Missing or invalid export metadata: consent must be an object unless explicitly local-only")
 
-whoop_enabled = bool(consent.get("whoopEnabled"))
-whoop_connected = bool(consent.get("whoopConnected"))
-health_enabled = bool(consent.get("appleHealthEnabled"))
-health_authorized = bool(consent.get("appleHealthAuthorized"))
+def consent_flag(field):
+    value = consent.get(field)
+    return value if isinstance(value, bool) else None
+
+whoop_enabled = consent_flag("whoopEnabled")
+whoop_connected = consent_flag("whoopConnected")
+health_enabled = consent_flag("appleHealthEnabled")
+health_authorized = consent_flag("appleHealthAuthorized")
 
 health_sessions = 0
 whoop_sessions = 0
@@ -257,7 +272,30 @@ morning_expected_raw_sessions = {field: set() for field in raw_morning_fields}
 
 for session in sessions_json:
     session_date = str(session.get("sessionDate") or "missing")
-    source = session.get("sourceAvailability") or {}
+    source = session.get("sourceAvailability", {})
+    if not isinstance(source, dict):
+        issue("P1", "Invalid sourceAvailability: expected an object")
+        source = {}
+    if local_only:
+        # Inspect named provider evidence only; notes and questionnaire text are not claims.
+        provider_evidence = any(session.get(p) is not None for p in ["healthKit", "whoop"])
+        for provider in ["healthKit", "whoop"]:
+            if provider in source and source[provider] is not False:
+                provider_evidence = True
+        provenance = session.get("metricProvenance", {})
+        collected = session.get("collectedNight", {})
+        if not isinstance(provenance, dict) or not isinstance(collected, dict):
+            issue("P1", "Local-only export has invalid provider-evidence containers")
+        else:
+            if any(not isinstance(v, str) for v in provenance.values()):
+                issue("P1", "Local-only export has invalid metric provenance values")
+            provider_evidence |= any(isinstance(v, str) and v.lower() in {"healthkit", "whoop"}
+                                     for v in provenance.values())
+            provider_evidence |= any(collected.get(k) is not None for k in [
+                "estimatedSleepAfterDose2Minutes", "sleepAfterDose2CoveredMinutes",
+                "sleepAfterDose2IntervalMinutes", "sleepAfterDose2FinalWakeAt", "sleepAfterDose2Source"])
+        if provider_evidence:
+            issue("P1", "Local-only declaration conflicts with provider data or availability/provenance claims")
 
     if session.get("healthKit") is not None or source.get("healthKit") is True:
         health_sessions += 1
@@ -298,6 +336,17 @@ for session in sessions_json:
 
     for reason in session.get("exportExclusionReasons") or []:
         exclusion_reasons[str(reason)] += 1
+
+if local_only:
+    if any(not is_blank(row.get(key)) for row in sessions_csv
+           for key in ["whoop_recovery", "avg_hr", "sleep_efficiency"]):
+        issue("P1", "Local-only declaration conflicts with provider values in sessions.csv")
+    if (export_dir / "collected_nights.csv").is_file():
+        collected_rows, _ = read_csv_rows("collected_nights.csv")
+        if any(not is_blank(row.get(key)) for row in collected_rows for key in [
+            "estimated_sleep_after_dose2_minutes", "sleep_after_dose2_covered_minutes",
+            "sleep_after_dose2_interval_minutes", "sleep_after_dose2_final_wake_at_utc", "sleep_after_dose2_source"]):
+            issue("P1", "Local-only declaration conflicts with provider values in collected_nights.csv")
 
 if len(sessions_csv) != len(sessions_json):
     issue(
@@ -369,8 +418,11 @@ print(f"- appVersion: {bundle.get('appVersion', 'missing')}")
 print(f"- exportedAtUTC: {bundle.get('exportedAtUTC', 'missing')}")
 print(f"- timeZoneIdentifier: {bundle.get('timeZoneIdentifier', 'missing')}")
 print(f"- localOffsetMinutes: {bundle.get('localOffsetMinutes', 'missing')}")
-print(f"- Apple Health enabled/authorized: {health_enabled}/{health_authorized}")
-print(f"- WHOOP enabled/connected: {whoop_enabled}/{whoop_connected}")
+if local_only and "consent" not in bundle:
+    print("- Provider consent: not captured (declared local-only export)")
+else:
+    print(f"- Apple Health enabled/authorized: {health_enabled}/{health_authorized}")
+    print(f"- WHOOP enabled/connected: {whoop_enabled}/{whoop_connected}")
 
 print("")
 print("Counts")
