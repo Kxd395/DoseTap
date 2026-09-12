@@ -1,0 +1,209 @@
+{
+  "source": "Schema-only PRAGMA readback from the disposable iOS app test database after the build-50 audit-probe run; no row data queried.",
+  "baseline_commit": "253cd3ed65041a2385c54398414c0f7192f5181c",
+  "sqlite_user_version": 5,
+  "tables": {
+    "body_map_points": [
+      "id",
+      "location_id",
+      "map_id",
+      "normalized_x",
+      "normalized_y",
+      "zoom_level",
+      "body_view"
+    ],
+    "checkin_submissions": [
+      "id",
+      "source_record_id",
+      "session_id",
+      "session_date",
+      "checkin_type",
+      "questionnaire_version",
+      "user_id",
+      "submitted_at_utc",
+      "local_offset_minutes",
+      "responses_json",
+      "created_at"
+    ],
+    "cloudkit_tombstones": [
+      "key",
+      "record_type",
+      "record_name",
+      "created_at"
+    ],
+    "current_session": [
+      "id",
+      "dose1_time",
+      "dose2_time",
+      "snooze_count",
+      "dose2_skipped",
+      "session_date",
+      "session_id",
+      "session_start_utc",
+      "session_end_utc",
+      "updated_at",
+      "terminal_state"
+    ],
+    "dose_events": [
+      "id",
+      "event_type",
+      "timestamp",
+      "session_date",
+      "session_id",
+      "metadata",
+      "created_at",
+      "is_hazard"
+    ],
+    "inventory_snapshots": [
+      "id",
+      "as_of_utc",
+      "medication_name",
+      "bottles_remaining",
+      "doses_remaining",
+      "estimated_days_left",
+      "next_refill_date",
+      "notes",
+      "created_at"
+    ],
+    "medication_events": [
+      "id",
+      "session_id",
+      "session_date",
+      "medication_id",
+      "dose_mg",
+      "dose_unit",
+      "formulation",
+      "taken_at_utc",
+      "local_offset_minutes",
+      "notes",
+      "confirmed_duplicate",
+      "created_at"
+    ],
+    "morning_checkins": [
+      "id",
+      "session_id",
+      "timestamp",
+      "session_date",
+      "sleep_quality",
+      "feel_rested",
+      "grogginess",
+      "sleep_inertia_duration",
+      "dream_recall",
+      "has_physical_symptoms",
+      "physical_symptoms_json",
+      "has_respiratory_symptoms",
+      "respiratory_symptoms_json",
+      "mental_clarity",
+      "mood",
+      "anxiety_level",
+      "stress_level",
+      "stress_context_json",
+      "readiness_for_day",
+      "had_sleep_paralysis",
+      "had_hallucinations",
+      "had_automatic_behavior",
+      "fell_out_of_bed",
+      "had_confusion_on_waking",
+      "used_sleep_therapy",
+      "sleep_therapy_json",
+      "timing_context_json",
+      "notes",
+      "created_at",
+      "has_sleep_environment",
+      "sleep_environment_json"
+    ],
+    "pre_sleep_logs": [
+      "id",
+      "session_id",
+      "created_at_utc",
+      "local_offset_minutes",
+      "completion_state",
+      "answers_json",
+      "created_at"
+    ],
+    "schema_migrations": [
+      "id",
+      "applied_at"
+    ],
+    "sleep_events": [
+      "id",
+      "event_type",
+      "timestamp",
+      "session_date",
+      "session_id",
+      "color_hex",
+      "notes",
+      "created_at"
+    ],
+    "sleep_sessions": [
+      "session_id",
+      "session_date",
+      "start_utc",
+      "end_utc",
+      "terminal_state",
+      "created_at",
+      "updated_at"
+    ],
+    "supply_state": [
+      "id",
+      "payload"
+    ],
+    "symptom_command_log": [
+      "idempotency_key",
+      "command_type",
+      "source",
+      "source_record_id",
+      "source_entry_key",
+      "session_id",
+      "session_date",
+      "status",
+      "created_event_id",
+      "error_code",
+      "created_at",
+      "completed_at"
+    ],
+    "symptom_events": [
+      "id",
+      "session_id",
+      "session_date",
+      "phase",
+      "source",
+      "source_record_id",
+      "source_entry_key",
+      "kind",
+      "noticed_at",
+      "severity_0_10",
+      "sleep_disruption",
+      "still_present",
+      "functional_impact",
+      "note",
+      "schema_version",
+      "app_version",
+      "created_at"
+    ],
+    "symptom_locations": [
+      "id",
+      "event_id",
+      "body_side",
+      "body_region_id",
+      "anatomy_layer",
+      "precision",
+      "confidence"
+    ],
+    "symptom_summaries": [
+      "session_date",
+      "session_id",
+      "symptom_count",
+      "highest_severity",
+      "sleep_disruption_count",
+      "still_present_count",
+      "summary_hash",
+      "rebuilt_at"
+    ],
+    "work_wake_schedule": [
+      "id",
+      "payload",
+      "updated_at"
+    ]
+  }
+}
