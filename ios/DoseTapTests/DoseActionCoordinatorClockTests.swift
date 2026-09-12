@@ -57,6 +57,7 @@ final class DoseActionCoordinatorClockTests: XCTestCase {
     private var dateProvider: MutableDateProvider!
     private var coordinator: DoseActionCoordinator!
     private var previousSoundEnabled = true
+    private var previousNotificationsEnabled = true
     private var previousSchedule: (prep: Int, wake: Int, cutoff: Int)!
 
     override func setUp() async throws {
@@ -87,6 +88,10 @@ final class DoseActionCoordinatorClockTests: XCTestCase {
             sessionRepo: repository
         )
 
+        // These tests exercise dose persistence and clocks, not system permission UI.
+        // Alarm scheduling/failures use injected clients in AlarmSchedulingTests.
+        previousNotificationsEnabled = settings.notificationsEnabled
+        settings.notificationsEnabled = false
         previousSoundEnabled = UserSettingsManager.shared.soundEnabled
         UserSettingsManager.shared.soundEnabled = false
         AlarmService.shared.cancelAllAlarms()
@@ -95,6 +100,7 @@ final class DoseActionCoordinatorClockTests: XCTestCase {
 
     override func tearDown() async throws {
         UserSettingsManager.shared.soundEnabled = previousSoundEnabled
+        UserSettingsManager.shared.notificationsEnabled = previousNotificationsEnabled
         AlarmService.shared.cancelAllAlarms()
         AlarmService.shared.clearDose2AlarmState()
         repository?.clearTonight()
@@ -498,6 +504,16 @@ final class DoseActionCoordinatorClockTests: XCTestCase {
         repository.reload()
         XCTAssertEqual(repository.dose1Time, atPrep)
         XCTAssertNotNil(repository.activeSessionId)
+    }
+
+    func testDose1EarlierOccurrencePastCheckInCutoffRequiresHistory() throws {
+        repository.clearTonight()
+        let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-09-12T14:00:00Z"))
+        let earlier = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-09-11T21:00:00Z"))
+        repository = SessionRepository(storage: storage, notificationScheduler: FakeNotificationScheduler(),
+            clock: { now }, timeZoneProvider: { TimeZone(secondsFromGMT: 0)! })
+        XCTAssertFalse(repository.dose1OccurrenceIsInCurrentNight(earlier), "Same date key must not bypass the missed-check-in cutoff")
+        XCTAssertTrue(repository.dose1OccurrenceIsInCurrentNight(now))
     }
 
     func testDose1EarlierOccurrencePreservesRecordedTimeAndRejectsInvalidInput() async throws {

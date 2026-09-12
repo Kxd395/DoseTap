@@ -33,7 +33,7 @@ provider data, questionnaires and quick logs retain their ownership boundaries.
 Local validation on 2026-09-11:
 
 - `swift build -q` and `swift test -q`: 710 XCTest plus 43 Swift Testing cases passed.
-- Full `DoseTap` Xcode suite: 451 tests passed. This includes write-failure rollback,
+- Full `DoseTap` Xcode suite: 452 tests passed. This includes write-failure rollback,
   occurrence/recording separation, all five command surfaces, deep-link review,
   duplicate/stale consent and alarm-only retry after notification permission recovery.
 - Six distinct native journeys passed: Dose 1 cancel/background/restart, usual
@@ -67,11 +67,18 @@ authorization-race test failed before the repair and passes afterward for both
 groups. Alarm changes retain a verified new wake target when only window reminders
 fail, while keeping reminder retry available.
 
-The earlier-occurrence validator also checks the configured prep boundary before
+The earlier-occurrence validator also checks the configured prep and missed-check-in boundaries before
 writing. An occurrence that would immediately trigger prep rollover stays unsaved
 and editable, with guidance to record it in History. The boundary regression failed
 before this correction; an occurrence exactly at prep remains active after reload.
-The existing treatment-date and automatic rollover rules are unchanged.
+A second regression reproduces the same risk after the missed-check-in cutoff and
+verifies that it also requires History before writing. The existing treatment-date
+and automatic rollover rules are unchanged.
+
+Hosted simulator evidence exposed a permission-dependent clock-test fixture: it
+used the real alarm service on a fresh simulator. Clock tests now explicitly disable
+and restore notification settings; injected-client alarm suites continue to test
+authorization and scheduling failures.
 
 PR #35 and the DOSETAP-71 workpad retain exact integration/hosted-check readbacks.
 Signed-phone install, locking/ringing/retry, owner acceptance, VoiceOver/full
