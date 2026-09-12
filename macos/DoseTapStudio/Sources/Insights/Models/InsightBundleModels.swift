@@ -446,6 +446,13 @@ struct InsightMorningSummary: Codable, Hashable, Sendable {
 }
 
 struct InsightMedicationSummary: Codable, Hashable, Sendable, Identifiable {
+    // Absent in older bundles; preserve stored provenance independently of display dates.
+    var sessionId: String? = nil
+    var sessionDate: String? = nil
+    var localOffsetMinutes: Int? = nil
+    var confirmedDuplicate: Bool? = nil
+    var createdAtStoredUTC: String? = nil
+    var takenAtStoredUTC: String? = nil
     let id: String
     let medicationId: String
     let doseMg: Int

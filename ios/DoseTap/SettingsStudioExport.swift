@@ -65,7 +65,7 @@ struct StudioBundleExporter {
             let normalizedEvents = exportNormalizedEvents(from: rawEvents)
             let preSleep = preSleepLog.map(exportPreSleepSummary(from:))
             let morning = morningCheckIn.map(exportMorningSummary(from:))
-            let medications = repo.listMedicationEntries(for: sessionDate).map(exportMedicationSummary(from:))
+            let medications = try repo.medicationExportRecords(for: sessionDate)
             let checkInSubmissions = repo.fetchCheckInSubmissions(for: sessionDate)
                 .map(exportCheckInSubmission(from:))
             let healthKit = enrichmentBySessionDate[sessionDate]?.healthKit
@@ -132,7 +132,7 @@ struct StudioBundleExporter {
 
         return InsightsBundleExport(
             schemaVersion: 2,
-            exportVersion: "2.3",
+            exportVersion: "2.4",
             appVersion: bundleVersionString(),
             exportedAtUTC: Date(),
             timeZoneIdentifier: TimeZone.current.identifier,
@@ -233,26 +233,6 @@ struct StudioBundleExporter {
         )
     }
 
-    private func exportMedicationSummary(from entry: DoseCore.MedicationEntry) -> InsightsMedicationSummary {
-        let formulation = MedicationConfig.type(for: entry.medicationId).map { type in
-            switch type.formulation {
-            case .immediateRelease: return "ir"
-            case .extendedRelease: return "xr"
-            case .liquid: return "liquid"
-            }
-        } ?? "ir"
-
-        return InsightsMedicationSummary(
-            id: entry.id,
-            medicationId: entry.medicationId,
-            doseMg: entry.doseMg,
-            doseUnit: "mg",
-            formulation: formulation,
-            takenAtUTC: entry.takenAtUTC,
-            notes: entry.notes
-        )
-    }
-
     private func exportCheckInSubmission(from submission: StoredCheckInSubmission) -> InsightsCheckInSubmissionSummary {
         InsightsCheckInSubmissionSummary(
             id: submission.id,
@@ -269,7 +249,7 @@ struct StudioBundleExporter {
 
     @MainActor
     func writeStudioExportBundle(using repo: SessionRepository, to directory: URL) async throws {
-        let sessionDates = repo.getAllSessions().sorted()
+        let sessionDates = try repo.sessionDatesForExport().sorted()
         let consentState = await exportConsentState()
         let enrichmentBySessionDate = await collectStudioExportEnrichment(using: repo, sessionDates: sessionDates)
 
@@ -284,7 +264,7 @@ struct StudioBundleExporter {
 
     @MainActor
     func writeLocalStudioExportBundle(using repo: SessionRepository, to directory: URL) throws {
-        try writeStudioExportBundle(using: repo, to: directory, sessionDates: repo.getAllSessions().sorted(), enrichmentBySessionDate: [:], consent: nil)
+        try writeStudioExportBundle(using: repo, to: directory, sessionDates: repo.sessionDatesForExport().sorted(), enrichmentBySessionDate: [:], consent: nil)
     }
 
     func enrichedNightSummary(using repo: SessionRepository, sessionDate: String) async throws -> CollectedNightSummary {
@@ -351,8 +331,8 @@ struct StudioBundleExporter {
         )
     }
 
-    func buildStudioInventoryCSVForTesting(using repo: SessionRepository) -> String {
-        buildStudioInventoryCSV(using: repo)
+    func buildStudioInventoryCSVForTesting(using repo: SessionRepository) throws -> String {
+        try buildStudioInventoryCSV(using: repo)
     }
 
     func studioWHOOPExportQueryRangeForTesting(sessionDates: [String]) -> (start: Date, end: Date)? {
@@ -667,41 +647,15 @@ struct StudioBundleExporter {
         )
     }
 
-    private func buildStudioInventoryCSV(using repo: SessionRepository) -> String {
-        var rows = ["as_of_utc,bottles_remaining,doses_remaining,estimated_days_left,next_refill_date,notes"]
-
-        let activeRows = repo.listInventorySnapshots(limit: 500)
-            .map(studioInventoryCSVRow)
-        if !activeRows.isEmpty {
-            rows.append(contentsOf: activeRows)
-            return rows.joined(separator: "\n") + "\n"
+    private func buildStudioInventoryCSV(using repo: SessionRepository) throws -> String {
+        let header = "as_of_utc,bottles_remaining,doses_remaining,estimated_days_left,next_refill_date,notes,id,medication_name,created_at_stored_utc,source"
+        let rows = try repo.inventoryExportRecords().map { row in
+            [row.asOfStoredUTC, String(row.bottlesRemaining), String(row.dosesRemaining),
+             row.estimatedDaysLeft.map(String.init) ?? "", row.nextRefillStoredUTC ?? "",
+             row.notes ?? "", row.id, row.medicationName, row.createdAtStoredUTC ?? "", "active_sqlite"]
+                .map(csvField).joined(separator: ",")
         }
-
-        return rows.joined(separator: "\n") + "\n"
-    }
-
-    private func studioInventoryCSVRow(from snapshot: StoredInventorySnapshot) -> String {
-        [
-            AppFormatters.iso8601Fractional.string(from: snapshot.asOfUTC),
-            String(snapshot.bottlesRemaining),
-            String(snapshot.dosesRemaining),
-            snapshot.estimatedDaysLeft.map(String.init) ?? "",
-            snapshot.nextRefillDate.map { AppFormatters.iso8601Fractional.string(from: $0) } ?? "",
-            inventoryNotes(snapshot.notes, source: "active_sqlite")
-        ]
-        .map(csvField)
-        .joined(separator: ",")
-    }
-
-    private func inventoryNotes(_ notes: String?, source: String) -> String {
-        let trimmed = notes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !trimmed.isEmpty else {
-            return "source=\(source)"
-        }
-        guard !trimmed.contains("source=") else {
-            return trimmed
-        }
-        return "\(trimmed); source=\(source)"
+        return ([header] + rows).joined(separator: "\n") + "\n"
     }
 
     private func exportSessionContext(
@@ -1510,7 +1464,7 @@ struct StudioBundleExporter {
     }
 }
 
-private struct InsightsBundleExport: Codable {
+private struct InsightsBundleExport: Encodable {
     let schemaVersion: Int
     let exportVersion: String?
     let appVersion: String?
@@ -1550,7 +1504,7 @@ private struct InsightsConsentState: Codable {
     let whoopConnected: Bool
 }
 
-private struct InsightsBundleSession: Codable {
+private struct InsightsBundleSession: Encodable {
     let sessionDate: String
     let dose1TimeUTC: Date?
     let dose2TimeUTC: Date?
@@ -1562,7 +1516,7 @@ private struct InsightsBundleSession: Codable {
     let exportExclusionReasons: [String]?
     let preSleep: InsightsPreSleepSummary?
     let morning: InsightsMorningSummary?
-    let medications: [InsightsMedicationSummary]
+    let medications: [StoredMedicationExportRecord]
     let checkInSubmissions: [InsightsCheckInSubmissionSummary]
     let context: InsightsSessionContext?
     let collectedNight: CollectedNightSummary
@@ -1661,16 +1615,6 @@ private struct InsightsCheckInSubmissionSummary: Codable {
     let submittedAtUTC: Date
     let localOffsetMinutes: Int
     let responsesJson: String
-}
-
-private struct InsightsMedicationSummary: Codable {
-    let id: String
-    let medicationId: String
-    let doseMg: Int
-    let doseUnit: String
-    let formulation: String
-    let takenAtUTC: Date
-    let notes: String?
 }
 
 struct InsightsAppleHealthSummary: Codable {

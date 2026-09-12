@@ -3,6 +3,83 @@ import SQLite3
 
 @MainActor
 extension EventStorage {
+    /// Export reads have no row cap and never turn a failed/partial read into success.
+    private func readExportRows<T>(_ sql: String, binding: String? = nil,
+                                   decode: (OpaquePointer) throws -> T) throws -> [T] {
+        guard databaseInitializationFailure == nil, let db else { throw ExportReadError.unreadable }
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK, let stmt else {
+            throw ExportReadError.unreadable
+        }
+        defer { sqlite3_finalize(stmt) }
+        if let binding, sqlite3_bind_text(stmt, 1, binding, -1, SQLITE_TRANSIENT) != SQLITE_OK {
+            throw ExportReadError.unreadable
+        }
+        var rows: [T] = []
+        var status = sqlite3_step(stmt)
+        while status == SQLITE_ROW {
+            rows.append(try decode(stmt))
+            status = sqlite3_step(stmt)
+        }
+        guard status == SQLITE_DONE else { throw ExportReadError.unreadable }
+        return rows
+    }
+
+    func medicationExportRecords(sessionDate: String) throws -> [StoredMedicationExportRecord] {
+        try readExportRows("""
+        SELECT id, session_id, session_date, medication_id, dose_mg, dose_unit, formulation,
+               taken_at_utc, local_offset_minutes, notes, confirmed_duplicate, created_at
+        FROM medication_events WHERE session_date = ? ORDER BY taken_at_utc DESC, id
+        """, binding: sessionDate) { stmt in
+            func text(_ index: Int32) -> String? {
+                sqlite3_column_text(stmt, index).map { String(cString: $0) }
+            }
+            guard let id = text(0), let date = text(2), let medication = text(3),
+                  let unit = text(5), let formulation = text(6), let occurrence = text(7),
+                  let taken = Self.parseExportDate(occurrence),
+                  sqlite3_column_type(stmt, 4) == SQLITE_INTEGER,
+                  sqlite3_column_type(stmt, 8) == SQLITE_INTEGER else { throw ExportReadError.unreadable }
+            let duplicateType = sqlite3_column_type(stmt, 10)
+            let duplicateValue = sqlite3_column_int64(stmt, 10)
+            guard duplicateType == SQLITE_NULL || (duplicateType == SQLITE_INTEGER && [0, 1].contains(duplicateValue)) else {
+                throw ExportReadError.unreadable
+            }
+            return StoredMedicationExportRecord(id: id, sessionId: text(1), sessionDate: date,
+                medicationId: medication, doseMg: Int(sqlite3_column_int64(stmt, 4)), doseUnit: unit,
+                formulation: formulation, takenAtUTC: taken, notes: text(9),
+                localOffsetMinutes: Int(sqlite3_column_int64(stmt, 8)),
+                confirmedDuplicate: duplicateType == SQLITE_NULL ? nil : duplicateValue == 1,
+                takenAtStoredUTC: occurrence, createdAtStoredUTC: text(11))
+        }
+    }
+
+    func inventoryExportRecords() throws -> [StoredInventoryExportRecord] {
+        try readExportRows("""
+        SELECT id, as_of_utc, medication_name, bottles_remaining, doses_remaining,
+               estimated_days_left, next_refill_date, notes, created_at
+        FROM inventory_snapshots ORDER BY as_of_utc DESC, id
+        """) { stmt in
+            func text(_ index: Int32) -> String? {
+                sqlite3_column_text(stmt, index).map { String(cString: $0) }
+            }
+            guard let id = text(0), let occurrence = text(1), Self.parseExportDate(occurrence) != nil,
+                  let name = text(2), sqlite3_column_type(stmt, 3) == SQLITE_INTEGER,
+                  sqlite3_column_type(stmt, 4) == SQLITE_INTEGER,
+                  [SQLITE_INTEGER, SQLITE_NULL].contains(sqlite3_column_type(stmt, 5)) else {
+                throw ExportReadError.unreadable
+            }
+            if let refill = text(6), Self.parseExportDate(refill) == nil { throw ExportReadError.unreadable }
+            return StoredInventoryExportRecord(id: id, asOfStoredUTC: occurrence, medicationName: name,
+                bottlesRemaining: Int(sqlite3_column_int64(stmt, 3)), dosesRemaining: Int(sqlite3_column_int64(stmt, 4)),
+                estimatedDaysLeft: sqlite3_column_type(stmt, 5) == SQLITE_NULL ? nil : Int(sqlite3_column_int64(stmt, 5)),
+                nextRefillStoredUTC: text(6), notes: text(7), createdAtStoredUTC: text(8))
+        }
+    }
+
+    private static func parseExportDate(_ value: String) -> Date? {
+        AppFormatters.iso8601Fractional.date(from: value) ?? ISO8601DateFormatter().date(from: value)
+    }
+
     // MARK: - Additional Utility Methods
     
     /// Fetch all sleep events with optional limit (internal - use protocol method externally)
@@ -486,6 +563,39 @@ extension EventStorage {
         
         return csv
     }
+}
+
+enum ExportReadError: Error, LocalizedError {
+    case unreadable
+    var errorDescription: String? { "Export could not read all required stored records. No archive was published. Please retry." }
+}
+
+struct StoredMedicationExportRecord: Encodable {
+    let id: String
+    let sessionId: String?
+    let sessionDate: String
+    let medicationId: String
+    let doseMg: Int
+    let doseUnit: String
+    let formulation: String
+    let takenAtUTC: Date
+    let notes: String?
+    let localOffsetMinutes: Int
+    let confirmedDuplicate: Bool?
+    let takenAtStoredUTC: String
+    let createdAtStoredUTC: String?
+}
+
+struct StoredInventoryExportRecord {
+    let id: String
+    let asOfStoredUTC: String
+    let medicationName: String
+    let bottlesRemaining: Int
+    let dosesRemaining: Int
+    let estimatedDaysLeft: Int?
+    let nextRefillStoredUTC: String?
+    let notes: String?
+    let createdAtStoredUTC: String?
 }
 
 

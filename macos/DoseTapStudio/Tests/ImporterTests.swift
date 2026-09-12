@@ -4,6 +4,70 @@ import DoseCore
 
 /// Test suite for data import functionality
 final class ImporterTests: XCTestCase {
+    func testMedicationStoredMetadataRoundTripsAndLegacyRemainsMissing() throws {
+        let base = #"{"id":"med-row","medicationId":"test-med","doseMg":25,"doseUnit":"custom-unit","formulation":"custom-form","takenAtUTC":"2026-09-12T02:00:00Z","notes":"recorded later"}"#
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let legacy = try decoder.decode(InsightMedicationSummary.self, from: Data(base.utf8))
+        XCTAssertNil(legacy.sessionId)
+        XCTAssertNil(legacy.sessionDate)
+        XCTAssertNil(legacy.localOffsetMinutes)
+        XCTAssertNil(legacy.confirmedDuplicate)
+        XCTAssertNil(legacy.createdAtStoredUTC)
+        XCTAssertNil(legacy.takenAtStoredUTC)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(base.utf8)) as? [String: Any])
+        object.merge(["sessionId": "session-stored", "sessionDate": "2026-09-11", "localOffsetMinutes": -240,
+                      "confirmedDuplicate": false, "createdAtStoredUTC": "2026-09-12T08:15:00.125Z",
+                      "takenAtStoredUTC": "2026-09-12T02:00:00Z"]) { _, new in new }
+        let value = try decoder.decode(InsightMedicationSummary.self, from: JSONSerialization.data(withJSONObject: object))
+        let restored = try decoder.decode(InsightMedicationSummary.self, from: encoder.encode(value))
+        XCTAssertEqual(restored, value)
+        XCTAssertEqual(restored.sessionId, "session-stored")
+        XCTAssertEqual(restored.sessionDate, "2026-09-11")
+        XCTAssertEqual(restored.localOffsetMinutes, -240)
+        XCTAssertEqual(restored.confirmedDuplicate, false)
+        XCTAssertEqual(restored.createdAtStoredUTC, "2026-09-12T08:15:00.125Z")
+        XCTAssertEqual(restored.takenAtStoredUTC, "2026-09-12T02:00:00Z")
+        XCTAssertEqual(restored.doseUnit, "custom-unit")
+        XCTAssertEqual(restored.formulation, "custom-form")
+        let supplement = InsightSessionSupplement(sessionDate: "2026-09-11", preSleep: nil, morning: nil, medications: [restored])
+        let nights = InsightSessionBuilder().build(sessions: [], events: [], supplementsBySessionDate: ["2026-09-11": supplement])
+        XCTAssertEqual(nights.count, 1)
+        XCTAssertEqual(nights.first?.medications.first, restored)
+        let builder = InsightReportBuilder()
+        let safeReports = [builder.buildSessionCSV(sessions: nights, redaction: .clinicianSafe),
+                           builder.buildProviderSummary(sessions: nights, redaction: .clinicianSafe)]
+            + InsightRecommendationMode.allCases.map { builder.buildRecommendationPackage(sessions: nights, mode: $0, redaction: .clinicianSafe) }
+        for report in safeReports {
+            XCTAssertFalse(report.contains("session-stored"))
+            XCTAssertFalse(report.contains("2026-09-12T08:15:00.125Z"))
+            XCTAssertFalse(report.contains("2026-09-12T02:00:00Z"))
+        }
+    }
+
+    func testInventoryStoredMetadataUsesHeadersAndPreservesQuotedText() throws {
+        let notes = "=literal, first line\r\n\"second line\""
+        let header = "as_of_utc,bottles_remaining,doses_remaining,estimated_days_left,next_refill_date,notes,source,created_at_stored_utc,medication_name,id"
+        let row = ["2026-09-12T08:00:00Z", "2", "28", "14", "2026-09-26T08:00:00.125Z", notes,
+                   "active_sqlite", "2026-09-12T09:00:00.250Z", "test, \"med\"", "inventory-row"]
+        let value = try XCTUnwrap(Importer().parseInventoryCSV(header + "\r\n" + ReportCSV.row(row)).first)
+        XCTAssertEqual(value.sourceRecordId, "inventory-row")
+        XCTAssertEqual(value.medicationName, "test, \"med\"")
+        XCTAssertEqual(value.createdAtStoredUTC, "2026-09-12T09:00:00.250Z")
+        XCTAssertEqual(value.source, "active_sqlite")
+        XCTAssertEqual(value.notes, notes)
+        XCTAssertNotNil(value.nextRefillDate)
+        let restored = try JSONDecoder().decode(InventorySnapshot.self, from: JSONEncoder().encode(value))
+        XCTAssertEqual(restored.sourceRecordId, value.sourceRecordId)
+        XCTAssertEqual(restored.createdAtStoredUTC, value.createdAtStoredUTC)
+        XCTAssertEqual(restored.medicationName, value.medicationName)
+        XCTAssertEqual(restored.source, value.source)
+        XCTAssertEqual(restored.notes, notes)
+        XCTAssertNotEqual(restored.id, value.id) // Runtime identity remains independent of source identity.
+    }
+
     func testCaffeineAmountContractKeepsUnitsAndLegacyArchivesSeparate() throws {
         let base = #"{"completionState":"complete","loggedAtUTC":"2026-09-10T20:00:00Z","stressDrivers":[],"caffeineSources":["coffee"],"sleepAids":[]"#
         let legacy = try JSONDecoder().decode(InsightPreSleepSummary.self, from: Data((base + #", "caffeineLastAmountMg":95}"#).utf8))
@@ -141,6 +205,10 @@ final class ImporterTests: XCTestCase {
         XCTAssertEqual(inventory[0].notes, "Good supply")
         XCTAssertEqual(inventory[1].bottlesRemaining, 3)
         XCTAssertNil(inventory[1].notes)
+        XCTAssertNil(inventory[0].sourceRecordId)
+        XCTAssertNil(inventory[0].medicationName)
+        XCTAssertNil(inventory[0].createdAtStoredUTC)
+        XCTAssertNil(inventory[0].source)
     }
     
     func testCSVLineParsingWithQuotes() {

@@ -15,6 +15,12 @@ extension EventStorage {
 
     /// Discover session dates from every table that can currently anchor session-scoped data.
     func discoveredSessionDates(limit: Int? = nil) -> [String] {
+        (try? readSessionDates(limit: limit)) ?? []
+    }
+
+    /// Export must distinguish no history from an unreadable discovery query.
+    func readSessionDates(limit: Int? = nil) throws -> [String] {
+        guard databaseInitializationFailure == nil, db != nil else { throw ExportReadError.unreadable }
         var dates: [String] = []
         var sql = """
         SELECT DISTINCT session_date FROM current_session
@@ -40,18 +46,20 @@ extension EventStorage {
         }
 
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return dates }
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { throw ExportReadError.unreadable }
         defer { sqlite3_finalize(stmt) }
 
         if let limit {
-            sqlite3_bind_int(stmt, 1, Int32(limit))
+            guard sqlite3_bind_int(stmt, 1, Int32(limit)) == SQLITE_OK else { throw ExportReadError.unreadable }
         }
 
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            if let cString = sqlite3_column_text(stmt, 0) {
-                dates.append(String(cString: cString))
-            }
+        var status = sqlite3_step(stmt)
+        while status == SQLITE_ROW {
+            guard let cString = sqlite3_column_text(stmt, 0) else { throw ExportReadError.unreadable }
+            dates.append(String(cString: cString))
+            status = sqlite3_step(stmt)
         }
+        guard status == SQLITE_DONE else { throw ExportReadError.unreadable }
 
         return dates
     }

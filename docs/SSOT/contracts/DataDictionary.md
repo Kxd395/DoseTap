@@ -132,6 +132,22 @@ The additive `reviewedWindowAssessment` projection has `derivationVersion = revi
 
 ## Inventory boundary
 
+Studio export 2.4 appends `id`, `medication_name`, `created_at_stored_utc` and
+`source` to the existing six inventory CSV columns. Source is `active_sqlite`;
+notes are the stored text, without appended source commentary. Every snapshot
+is included without the former 500-row cap. CSV empty cells still cannot prove
+NULL versus empty text; this remains a report, not a restorable database image.
+
+The medication JSON preserves stored `doseUnit` and `formulation` and adds
+`sessionId`, `sessionDate`, `localOffsetMinutes`, `confirmedDuplicate`,
+`takenAtStoredUTC` and `createdAtStoredUTC`. The latter two retain the exact
+SQLite text, including fractional precision and legacy creation formatting;
+`takenAtUTC` remains the compatible parsed occurrence. Creation is not dose
+administration. Nullable creation/confirmation remain absent, not today's time
+or an invented negative. Old archives lack these additive fields. No source
+rows are rewritten. SQLite/row-decoding failure in either new export projection
+prevents archive publication; broader snapshot/read-error coverage is separate.
+
 `inventory_snapshots` records a point-in-time local estimate or imported inventory state. The legacy column name `next_refill_date` does not grant DoseTap authority to refill, order, verify eligibility, contact a pharmacy, or report shipment state.
 
 The proposed supply-cycle feature is a local reminder to order before medication runs out. It remains proposed under `docs/MYWAV_DOSETAP/` until implemented and accepted.

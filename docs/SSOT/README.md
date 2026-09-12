@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-12
 SSOT revision: 0.4.19
-Shipping app version observed in the Xcode project: 0.4.19 (build 51)
+Shipping app version observed in the Xcode project: 0.4.19 (build 52)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -451,6 +451,15 @@ Quick-log success, list insertion, cooldown and haptics follow a committed SQLit
 General medication entries report storage failure separately from duplicate review. The picker retains unsaved entries and explicit duplicate consent, removes only committed entries from a partially saved batch, and dismisses only when every entry commits. Retrying a failed batch must not replay its saved prefix. These entries do not change Dose 1/2 state or alarms. Deletion/edit failure handling, export preservation and staging sync acceptance remain separate work.
 
 ## Storage and Persistence Truth
+
+Studio export 2.4 (DOSETAP-13) preserves stored general-medication units,
+formulation, session identity, offset, duplicate confirmation and original
+occurrence/creation timestamp text. Current medication configuration must not
+reconstruct historical facts. Inventory export reads every stored snapshot with
+its ID and medication name; its notes remain unchanged and source is a separate
+column. These two export reads reject unreadable rows/SQLite failures instead of
+publishing a partial result. They do not certify other export reads or a complete
+database backup. Older Studio bundles retain missing provenance as missing.
 
 Persistence is local SQLite via `EventStorage`.
 

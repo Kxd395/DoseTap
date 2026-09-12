@@ -9,6 +9,107 @@
 import XCTest
 @testable import DoseTap
 import DoseCore
+import SQLite3
+
+@MainActor
+final class ExportRecordFidelityTests: XCTestCase {
+    private func fixture() -> (EventStorage, SessionRepository) {
+        let storage = EventStorage.inMemory()
+        return (storage, SessionRepository(storage: storage))
+    }
+
+    private func execute(_ sql: String, in storage: EventStorage) {
+        XCTAssertEqual(sqlite3_exec(storage.db, sql, nil, nil, nil), SQLITE_OK)
+    }
+
+    func testInventoryExportsEveryStoredIdentityAndUnchangedNotes() throws {
+        let (storage, repo) = fixture()
+        execute("""
+        WITH RECURSIVE seq(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM seq WHERE x<501)
+        INSERT INTO inventory_snapshots(id,as_of_utc,medication_name,bottles_remaining,doses_remaining,notes)
+        SELECT 'inventory-'||x,'2026-09-11T23:00:00.123Z','archived medication',1,x,'exact note' FROM seq;
+        """, in: storage)
+        let csv = try StudioBundleExporter().buildStudioInventoryCSVForTesting(using: repo)
+        let rows = try ReportCSV.rows(csv)
+        let header = try XCTUnwrap(rows.first)
+        let idIndex = try XCTUnwrap(header.firstIndex(of: "id"))
+        let nameIndex = try XCTUnwrap(header.firstIndex(of: "medication_name"))
+        XCTAssertEqual(rows.count, 502)
+        XCTAssertEqual(Set(rows.dropFirst().map { $0[idIndex] }), Set((1...501).map { "inventory-\($0)" }))
+        XCTAssertTrue(rows.dropFirst().allSatisfy { $0[nameIndex] == "archived medication" && $0[5] == "exact note" })
+    }
+
+    func testMedicationExportPreservesStoredFactsAndNullableProvenance() throws {
+        let (storage, repo) = fixture()
+        execute("""
+        INSERT INTO medication_events(id,session_id,session_date,medication_id,dose_mg,dose_unit,formulation,taken_at_utc,local_offset_minutes,confirmed_duplicate,created_at,notes)
+        VALUES('original','stable-session','2026-09-11','unknown-med',1,'mL','liquid','2026-09-11T23:00:00.123Z',-240,1,'2026-09-12 07:50:00','saved notes'),
+        ('legacy',NULL,'2026-09-11','legacy-med',2,'custom-unit','unknown-form','2026-09-11T23:05:00Z',0,NULL,NULL,NULL);
+        """, in: storage)
+        let data = try StudioBundleExporter().buildStudioInsightsBundleDataForTesting(using: repo, sessionDates: ["2026-09-11"])
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let session = try XCTUnwrap((json["sessions"] as? [[String: Any]])?.first)
+        let rows = try XCTUnwrap(session["medications"] as? [[String: Any]])
+        let row = try XCTUnwrap(rows.first { $0["id"] as? String == "original" })
+        XCTAssertEqual(row["doseUnit"] as? String, "mL")
+        XCTAssertEqual(row["formulation"] as? String, "liquid")
+        XCTAssertEqual(row["sessionId"] as? String, "stable-session")
+        XCTAssertEqual(row["sessionDate"] as? String, "2026-09-11")
+        XCTAssertEqual(row["localOffsetMinutes"] as? Int, -240)
+        XCTAssertEqual(row["confirmedDuplicate"] as? Bool, true)
+        XCTAssertEqual(row["createdAtStoredUTC"] as? String, "2026-09-12 07:50:00")
+        XCTAssertEqual(row["takenAtStoredUTC"] as? String, "2026-09-11T23:00:00.123Z")
+        let legacy = try XCTUnwrap(rows.first { $0["id"] as? String == "legacy" })
+        XCTAssertEqual(legacy["doseUnit"] as? String, "custom-unit")
+        XCTAssertNil(legacy["createdAtStoredUTC"])
+        XCTAssertNil(legacy["confirmedDuplicate"])
+        XCTAssertNil(legacy["sessionId"])
+    }
+
+    func testUnreadableInventoryOrMedicationAbortsExport() throws {
+        let (storage, repo) = fixture()
+        execute("INSERT INTO inventory_snapshots(id,as_of_utc,medication_name) VALUES('bad','invalid-date','med');", in: storage)
+        XCTAssertThrowsError(try StudioBundleExporter().buildStudioInventoryCSVForTesting(using: repo))
+        execute("DELETE FROM inventory_snapshots; DROP TABLE inventory_snapshots;", in: storage)
+        XCTAssertThrowsError(try StudioBundleExporter().buildStudioInventoryCSVForTesting(using: repo))
+        execute("INSERT INTO medication_events(id,session_date,medication_id,dose_mg,taken_at_utc) VALUES('bad','2026-09-11','med',1,'invalid-date');", in: storage)
+        XCTAssertThrowsError(try StudioBundleExporter().buildStudioInsightsBundleDataForTesting(using: repo, sessionDates: ["2026-09-11"]))
+    }
+
+    func testScheduledWriterRejectsFailedDiscoveryAndPartialMedicationRead() throws {
+        let (storage, repo) = fixture()
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        execute("INSERT INTO medication_events(id,session_date,medication_id,dose_mg,taken_at_utc) VALUES('good','2026-09-11','med',1,'2026-09-11T23:00:00Z'),('bad','2026-09-11','med',1,'0000-invalid');", in: storage)
+        XCTAssertThrowsError(try StudioBundleExporter().writeScheduledArchive(using: repo, to: folder))
+        execute("DROP TABLE medication_events;", in: storage)
+        XCTAssertThrowsError(try StudioBundleExporter().writeScheduledArchive(using: repo, to: folder))
+        XCTAssertFalse(try FileManager.default.contentsOfDirectory(atPath: folder.path).contains { $0.hasSuffix(".zip") })
+    }
+
+    func testMedicationOnlySessionReachesActualArchiveWithStoredFields() throws {
+        let (storage, repo) = fixture()
+        execute("INSERT INTO medication_events(id,session_date,medication_id,dose_mg,dose_unit,formulation,taken_at_utc,created_at) VALUES('med-only','2026-09-11','unknown-med',1,'mL','liquid','2026-09-11T23:00:00.123Z',NULL);", in: storage)
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let writer = StudioBundleExporter()
+        try writer.writeLocalStudioExportBundle(using: repo, to: folder)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: folder.appendingPathComponent("insights_bundle.json"))) as? [String: Any])
+        let session = try XCTUnwrap((json["sessions"] as? [[String: Any]])?.first)
+        let row = try XCTUnwrap((session["medications"] as? [[String: Any]])?.first)
+        XCTAssertEqual(row["id"] as? String, "med-only")
+        XCTAssertEqual(row["doseUnit"] as? String, "mL")
+        XCTAssertEqual(row["formulation"] as? String, "liquid")
+        XCTAssertEqual(row["takenAtStoredUTC"] as? String, "2026-09-11T23:00:00.123Z")
+        XCTAssertNil(row["createdAtStoredUTC"])
+        let archive = try writer.writeScheduledArchive(using: repo, to: folder)
+        let attachment = XCTAttachment(data: try Data(contentsOf: archive), uniformTypeIdentifier: "public.zip-archive")
+        attachment.name = "stored-medication-roundtrip.zip"; attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+}
 
 // MARK: - Export Integrity Tests
 
@@ -329,11 +430,11 @@ final class ExportIntegrityTests: XCTestCase {
         XCTAssertTrue(responsePayloads.contains { $0.contains("sleep.quality") })
         XCTAssertTrue(responsePayloads.contains { $0.contains("overall.stress") })
 
-        let inventoryCSV = settingsView.buildStudioInventoryCSVForTesting(using: repo)
+        let inventoryCSV = try settingsView.buildStudioInventoryCSVForTesting(using: repo)
         let inventoryRows = inventoryCSV.split(whereSeparator: \.isNewline)
         XCTAssertEqual(inventoryRows.count, 2, "Inventory CSV should include one header and one active snapshot row")
         XCTAssertTrue(inventoryCSV.contains("28"))
-        XCTAssertTrue(inventoryCSV.contains("source=active_sqlite"))
+        XCTAssertTrue(inventoryCSV.contains("active_sqlite"))
 
         let exportDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("DoseTapStudioExportTest-\(UUID().uuidString)", isDirectory: true)
@@ -369,7 +470,7 @@ final class ExportIntegrityTests: XCTestCase {
         XCTAssertTrue(writtenSessionsCSV.contains("210"), "Sessions CSV should include the 3h30 dose interval")
 
         let writtenInventoryCSV = try String(contentsOf: exportDirectory.appendingPathComponent("inventory.csv"), encoding: .utf8)
-        XCTAssertTrue(writtenInventoryCSV.contains("source=active_sqlite"))
+        XCTAssertTrue(writtenInventoryCSV.contains("active_sqlite"))
         XCTAssertEqual(writtenInventoryCSV.split(whereSeparator: \.isNewline).count, 2)
 
         // Scheduled and manual exports use the same local record writer.
