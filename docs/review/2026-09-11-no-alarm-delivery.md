@@ -7,7 +7,8 @@ Baseline: main 78e4e74, PR #35, build 49
 The sixth reminder pill is No alarm, following 3h 45m. Ordinary text places it
 beside the last interval; accessibility text retains the existing one-column
 layout. Selecting the pill or cancelling the sheet records no medication.
-Confirmation explicitly says No alarm. A successful dose save precedes cancelling
+Confirmation explicitly says No alarm. Immediate Dose 1 sound/haptic feedback
+remains independent of the later reminder choice. A successful dose save precedes cancelling
 and verifying this session's app-controlled Dose 2 wake and window reminders.
 The morning wake and unrelated notifications are outside that cancellation set.
 

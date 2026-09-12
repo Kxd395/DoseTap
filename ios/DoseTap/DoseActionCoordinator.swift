@@ -286,6 +286,11 @@ final class DoseActionCoordinator: ObservableObject {
         // Undo
         undoState?.register(.takeDose1(at: decisionTime))
 
+        // Confirm the saved medication independently of the reminder choice.
+        playHaptic(.dose)
+        playConfirmationSound()
+        coordinatorLog.info("Dose 1 logged via coordinator from \(surface.rawValue, privacy: .public)")
+
         // Schedule alarms
         let selectedTarget = targetMinutes ?? UserSettingsManager.shared.targetIntervalMinutes
         let target = UserSettingsManager.shared.validTargetOptions.contains(selectedTarget) ? selectedTarget : 165
@@ -310,9 +315,6 @@ final class DoseActionCoordinator: ObservableObject {
             return .attentionRequired(message: "Dose 1 was logged. The session changed during reminder setup; review tonight.")
         }
 
-        playHaptic(.dose)
-        playConfirmationSound()
-        coordinatorLog.info("Dose 1 logged via coordinator from \(surface.rawValue, privacy: .public)")
         let schedulingFailures = [wakeResult, reminderResult].compactMap(\.failure)
         if !schedulingFailures.isEmpty {
             let messages = Array(Set(schedulingFailures.map(\.userMessage))).sorted()
