@@ -245,6 +245,42 @@ whoop_connected = consent_flag("whoopConnected")
 health_enabled = consent_flag("appleHealthEnabled")
 health_authorized = consent_flag("appleHealthAuthorized")
 
+whoop_fetch = bundle.get("whoopEnrichment")
+whoop_fetch_valid = False
+if "whoopEnrichment" in bundle:
+    try:
+        if not isinstance(whoop_fetch, dict):
+            raise ValueError("expected an object")
+        count_phases = {"sleepRecordCount": "sleepStatus", "eligibleNightCount": "sleepStatus", "recoveryRecordCount": "recoveryStatus"}
+        query_keys = ["queryStartUTC", "queryEndUTC"]
+        known_keys = {"version", "sleepStatus", "recoveryStatus", "notAttemptedReason", *count_phases, *query_keys}
+        if set(whoop_fetch) - known_keys or type(whoop_fetch.get("version")) is not int or whoop_fetch["version"] != 1:
+            raise ValueError("unknown fields or version")
+        phases = [whoop_fetch.get(key) for key in ["sleepStatus", "recoveryStatus"]]
+        if any(phase not in ("not_attempted", "completed", "failed") for phase in phases):
+            raise ValueError("unknown or missing fetch status")
+        attempted = any(phase != "not_attempted" for phase in phases)
+        if phases[0] != "completed" and phases[1] != "not_attempted":
+            raise ValueError("recovery requires completed sleep retrieval")
+        for key, phase in count_phases.items():
+            if key in whoop_fetch and (type(whoop_fetch[key]) is not int or whoop_fetch[key] < 0 or whoop_fetch[phase] != "completed"):
+                raise ValueError(f"{key} requires a nonnegative integer and completed retrieval")
+        if "eligibleNightCount" in whoop_fetch and "sleepRecordCount" in whoop_fetch and whoop_fetch["eligibleNightCount"] > whoop_fetch["sleepRecordCount"]:
+            raise ValueError("eligible nights exceed returned sleep records")
+        if attempted or any(key in whoop_fetch for key in query_keys):
+            bounds = [datetime.fromisoformat(whoop_fetch[key].replace("Z", "+00:00"))
+                      if isinstance(whoop_fetch.get(key), str) else None for key in query_keys]
+            if not attempted or any(bound is None or bound.utcoffset() is None or bound.utcoffset().total_seconds() != 0 for bound in bounds) or bounds[0] >= bounds[1]:
+                raise ValueError("attempted retrieval requires ordered UTC query bounds")
+        if "notAttemptedReason" in whoop_fetch:
+            if attempted or whoop_fetch["notAttemptedReason"] not in ("feature_disabled", "preference_disabled", "disconnected", "no_sessions", "invalid_range"):
+                raise ValueError("invalid not-attempted reason")
+        if local_only and (attempted or any(key in whoop_fetch for key in [*count_phases, *query_keys])):
+            raise ValueError("local-only declaration conflicts with WHOOP query evidence")
+        whoop_fetch_valid = True
+    except (TypeError, ValueError):
+        issue("P1", "Invalid whoopEnrichment metadata or conflicting local-only declaration")
+
 health_sessions = 0
 whoop_sessions = 0
 pre_sleep_sessions = 0
@@ -354,9 +390,13 @@ if len(sessions_csv) != len(sessions_json):
         f"Session count mismatch: sessions.csv has {len(sessions_csv)} rows, insights bundle has {len(sessions_json)} sessions",
     )
 
+if whoop_sessions > 0 and whoop_fetch_valid and (whoop_fetch["sleepStatus"] != "completed" or whoop_fetch.get("eligibleNightCount") == 0):
+    issue("P1", "WHOOP summaries conflict with fetch status or zero eligible nights")
 if whoop_enabled or whoop_connected:
     if whoop_sessions == 0:
-        issue("P0", "WHOOP is enabled or connected but no WHOOP session summaries are present")
+        explained_absence = whoop_fetch_valid and (whoop_fetch["sleepStatus"] != "completed" or whoop_fetch.get("eligibleNightCount") == 0)
+        issue("P2" if explained_absence else "P0", "WHOOP is enabled or connected but no WHOOP session summaries are present"
+              + ("; validated fetch metadata explains the absence" if explained_absence else ""))
 
 if len(inventory) == 0:
     issue("P2", "inventory.csv is header-only; save a Medication Supply snapshot before expecting inventory rows")
