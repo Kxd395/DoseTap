@@ -33,7 +33,7 @@ provider data, questionnaires and quick logs retain their ownership boundaries.
 Local validation on 2026-09-11:
 
 - `swift build -q` and `swift test -q`: 710 XCTest plus 43 Swift Testing cases passed.
-- Full `DoseTap` Xcode suite: 446 tests passed. This includes write-failure rollback,
+- Full `DoseTap` Xcode suite: 447 tests passed. This includes write-failure rollback,
   occurrence/recording separation, all five command surfaces, deep-link review,
   duplicate/stale consent and alarm-only retry after notification permission recovery.
 - Six distinct native journeys passed: Dose 1 cancel/background/restart, usual
@@ -54,6 +54,11 @@ have separate labels. Hosted storage enforcement caught the initial test-fixture
 placement; injection now belongs to SessionRepository. Fixed-time transaction tests
 set and restore their schedule, and the Dose 2 native review selects its exact
 treatment date across the 18:00 boundary. Product rollover behavior is unchanged.
+
+The final review also verifies reminder-only failure/recovery while the wake alarm
+remains scheduled, retains the originating surface on write retry, and uses the
+confirmed session target for work advisories after reload and in History. Later
+snoozes/alarm-only changes do not rewrite the confirmed treatment target.
 
 PR #35 and the DOSETAP-71 workpad retain exact integration/hosted-check readbacks.
 Signed-phone install, locking/ringing/retry, owner acceptance, VoiceOver/full
