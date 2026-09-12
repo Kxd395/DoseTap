@@ -446,7 +446,7 @@ Code references:
 
 ## Durable quick logs and general medication entry (DOSETAP-3/39)
 
-Quick-log success, list insertion, cooldown and haptics follow a committed SQLite write. A new active session and its first quick log commit together; failed writes leave both absent. Final wake and its finalizing state also commit together. Failed manual entries retain their fields, while a failed quick tap retains its occurrence for an explicit same-session retry. Siri, deep links and Flic report failure instead of success. Medication names remain outside the quick-log route.
+Quick-log success, list insertion, cooldown and haptics follow a committed SQLite write. A new active session and its first quick log commit together; failed writes leave both absent. Final wake and its finalizing state also commit together. Failed manual entries retain their fields, while a failed quick tap retains its occurrence for an explicit same-session retry. If that session changes, retry is cleared, the unsaved occurrence stays visible for History review, and new quick logs remain usable. Alternate final-wake logs share the finalizing transaction. Siri, deep links and Flic report failure instead of success. Medication names remain outside the quick-log route.
 
 General medication entries report storage failure separately from duplicate review. The picker retains unsaved entries and explicit duplicate consent, removes only committed entries from a partially saved batch, and dismisses only when every entry commits. Retrying a failed batch must not replay its saved prefix. These entries do not change Dose 1/2 state or alarms. Deletion/edit failure handling, export preservation and staging sync acceptance remain separate work.
 

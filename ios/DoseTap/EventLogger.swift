@@ -16,6 +16,7 @@ class EventLogger: ObservableObject {
     
     @Published var saveError: String?
     private var retryWrite: (() -> Void)?
+    var canRetryFailedEvent: Bool { retryWrite != nil }
     private let sessionRepo: SessionRepository
     private let clock: () -> Date
     private var sessionChangeCancellable: AnyCancellable?
@@ -55,17 +56,20 @@ class EventLogger: ObservableObject {
         let now = clock(), key = Self.canonicalEventType(name)
         if let end = cooldowns[key], now < end { return false }
         let id = UUID(), identity = sessionRepo.currentSessionIdString()
+        func failed(_ logger: EventLogger) -> Bool {
+            if logger.sessionRepo.currentSessionIdString() != identity {
+                logger.retryWrite = nil
+                logger.saveError = "Session changed. \(name) at \(now.formatted(date: .abbreviated, time: .shortened)) was not saved. Review it in History."
+            } else {
+                logger.saveError = "\(name) not saved. Retry keeps the original time."
+            }
+            return false
+        }
         func commit(_ logger: EventLogger) -> Bool {
             if persist {
-                guard logger.sessionRepo.currentSessionIdString() == identity else {
-                    logger.saveError = "The session changed. Discard this unsaved entry and review its time in History."
-                    return false
-                }
+                guard logger.sessionRepo.currentSessionIdString() == identity else { return failed(logger) }
                 guard logger.sessionRepo.insertSleepEvent(id: id.uuidString, eventType: eventTypeOverride ?? key,
-                    timestamp: now, colorHex: color.toHex(), notes: notes, expectedSessionId: identity) else {
-                    logger.saveError = "\(name) not saved. Retry keeps the original time."
-                    return false
-                }
+                    timestamp: now, colorHex: color.toHex(), notes: notes, expectedSessionId: identity) else { return failed(logger) }
             }
             logger.events.insert(LoggedEvent(id: id, name: name, time: now, color: color), at: 0)
             logger.cooldowns[key] = logger.clock().addingTimeInterval(cooldownSeconds)
@@ -74,7 +78,9 @@ class EventLogger: ObservableObject {
             return true
         }
         if commit(self) { return true }
-        retryWrite = { [weak self] in guard let self else { return }; _ = commit(self) }
+        if sessionRepo.currentSessionIdString() == identity {
+            retryWrite = { [weak self] in guard let self else { return }; _ = commit(self) }
+        }
         return false
     }
 
@@ -309,10 +315,10 @@ struct QuickLogSaveStatus: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text(message).font(.callout).accessibilityIdentifier("quick-log-save-error")
                 HStack {
-                    if eventLogger.saveError != nil {
+                    if eventLogger.canRetryFailedEvent {
                         Button("Retry entry") { eventLogger.retryFailedEvent() }
                     }
-                    Button(eventLogger.saveError == nil ? "Dismiss" : "Discard entry", role: .cancel) { eventLogger.discardFailedEvent() }
+                    Button(eventLogger.canRetryFailedEvent ? "Discard entry" : "Dismiss", role: .cancel) { eventLogger.discardFailedEvent() }
                 }
             }.padding().frame(maxWidth: .infinity, alignment: .leading).background(.regularMaterial)
         }

@@ -58,7 +58,7 @@ final class SessionRepositoryTests: XCTestCase {
         events.retryFailedEvent()
         XCTAssertTrue(store.fetchSleepEvents(forSession: "2026-09-11").isEmpty)
         XCTAssertNotNil(events.saveError)
-        events.discardFailedEvent()
+        XCTAssertFalse(events.canRetryFailedEvent)
         XCTAssertTrue(events.logEvent(name: "Bathroom", color: .blue, cooldownSeconds: 60))
     }
 
@@ -72,6 +72,23 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertTrue(store.getAllSessionDates().isEmpty)
         sqlite3_commit_hook(store.db, nil, nil)
         XCTAssertTrue(repository.logSleepEvent(eventType: "bathroom", timestamp: now))
+    }
+
+    func test_alternateWakeLogCommitsFinalizingStateAndRollsBackOnFailure() {
+        let store = EventStorage.inMemory()
+        let now = ISO8601DateFormatter().date(from: "2026-09-11T23:00:00Z")!
+        let repository = SessionRepository(storage: store, clock: { now }, timeZoneProvider: { TimeZone(secondsFromGMT: 0)! })
+        XCTAssertEqual(sqlite3_exec(store.db, "CREATE TRIGGER reject_wake BEFORE UPDATE OF terminal_state ON sleep_sessions BEGIN SELECT RAISE(ABORT,'test'); END", nil, nil, nil), SQLITE_OK)
+        XCTAssertFalse(repository.logSleepEvent(eventType: "wake_final", timestamp: now, source: "siri"))
+        XCTAssertNil(repository.wakeFinalTime)
+        XCTAssertNil(repository.activeSessionId)
+        XCTAssertTrue(store.getAllSessionDates().isEmpty)
+        XCTAssertEqual(sqlite3_exec(store.db, "DROP TRIGGER reject_wake", nil, nil, nil), SQLITE_OK)
+        XCTAssertTrue(repository.logSleepEvent(eventType: "wake_final", timestamp: now, source: "flic"))
+        XCTAssertEqual(repository.wakeFinalTime, now)
+        XCTAssertEqual(repository.currentContext.phase, .finalizing)
+        XCTAssertEqual(store.fetchSleepEvents(forSession: "2026-09-11").count, 1)
+        XCTAssertTrue(repository.fetchDoseEvents(forSessionDate: "2026-09-11").isEmpty)
     }
 
     func test_finalWakeProjectionFailureRollsBackEventAndPreservesDose() {

@@ -1030,6 +1030,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     func saveQuickLog(id: String, eventType: String, timestamp: Date, colorHex: String?, notes: String?, finalWake: Bool = false, expectedSessionId: String? = nil) -> Bool {
         evaluateSessionBoundaries(reason: "quick_log_preflight")
         let session = medicationSessionCandidate(for: timestamp)
+        let marksFinalWake = finalWake || normalizeStoredEventType(eventType) == "wake_final"
         do {
             guard expectedSessionId == nil || expectedSessionId == currentSessionIdString() else { throw EventStorage.LocalEventWriteError.notCommitted }
             guard timestamp.timeIntervalSince1970.isFinite, CanonicalDoseEventType(canonicalizing: eventType) == nil else {
@@ -1037,7 +1038,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             }
             try storage.saveQuickSleepEvent(id: id, eventType: normalizeStoredEventType(eventType), timestamp: timestamp,
                 sessionId: session.sessionId, sessionDate: session.sessionDate, isNew: session.isNew,
-                colorHex: colorHex, notes: notes, finalWake: finalWake)
+                colorHex: colorHex, notes: notes, finalWake: marksFinalWake)
         } catch {
             sleepEventSaveError = "Event not saved. Your existing records are unchanged. Try again."
             return false
@@ -1047,7 +1048,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         activeSessionStart = session.sessionStart
         activeSessionEnd = nil
         currentSessionKey = session.sessionDate
-        if finalWake {
+        if marksFinalWake {
             wakeFinalTime = timestamp
             awaitingRolloverMessage = "Wake logged — complete check-in to close session"
         }
@@ -1059,7 +1060,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             }
             await DiagnosticLogger.shared.logSleepEventLogged(sessionId: session.sessionId,
                 eventType: normalizeStoredEventType(eventType), eventId: id)
-            if finalWake { await DiagnosticLogger.shared.log(.checkinStarted, sessionId: session.sessionId) }
+            if marksFinalWake { await DiagnosticLogger.shared.log(.checkinStarted, sessionId: session.sessionId) }
         }
         sessionDidChange.send()
         scheduleRolloverTimer()
