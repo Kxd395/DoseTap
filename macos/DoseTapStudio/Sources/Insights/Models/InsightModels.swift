@@ -255,8 +255,9 @@ struct InsightSession: Identifiable, Hashable, Sendable {
     }
 
     var restorativeSleepMinutes: Double? {
-        if let healthKitDeep = healthKit?.deepSleepMinutes, let healthKitREM = healthKit?.remSleepMinutes {
-            return healthKitDeep + healthKitREM
+        if let healthKit {
+            guard let deep = healthKit.deepSleepMinutes, let rem = healthKit.remSleepMinutes else { return nil }
+            return deep + rem
         }
         if let whoop {
             return Double(whoop.deepMinutes + whoop.remMinutes)
@@ -270,8 +271,8 @@ struct InsightSession: Identifiable, Hashable, Sendable {
     }
 
     var coreOrLightSleepMinutes: Double? {
-        if let coreSleepMinutes = healthKit?.coreSleepMinutes {
-            return coreSleepMinutes
+        if let healthKit {
+            return healthKit.coreSleepMinutes
         }
         if let whoop {
             return Double(whoop.lightMinutes)
@@ -281,8 +282,8 @@ struct InsightSession: Identifiable, Hashable, Sendable {
 
     var deepSleepRatio: Double? {
         guard let totalSleepMinutes, totalSleepMinutes > 0 else { return nil }
-        if let deepSleepMinutes = healthKit?.deepSleepMinutes {
-            return deepSleepMinutes / totalSleepMinutes
+        if let healthKit {
+            return healthKit.deepSleepMinutes.map { $0 / totalSleepMinutes }
         }
         if let whoop {
             return Double(whoop.deepMinutes) / totalSleepMinutes
@@ -292,8 +293,8 @@ struct InsightSession: Identifiable, Hashable, Sendable {
 
     var remSleepRatio: Double? {
         guard let totalSleepMinutes, totalSleepMinutes > 0 else { return nil }
-        if let remSleepMinutes = healthKit?.remSleepMinutes {
-            return remSleepMinutes / totalSleepMinutes
+        if let healthKit {
+            return healthKit.remSleepMinutes.map { $0 / totalSleepMinutes }
         }
         if let whoop {
             return Double(whoop.remMinutes) / totalSleepMinutes
@@ -755,14 +756,16 @@ struct InsightSession: Identifiable, Hashable, Sendable {
         )
 
         if let healthKit {
-            addFact(
-                key: "wake_count",
-                title: "Wake count",
-                category: .appleHealth,
-                numericValue: Double(healthKit.wakeCount),
-                displayValue: "\(healthKit.wakeCount)",
-                fallbackSource: "healthkit"
-            )
+            if let wakeCount = healthKit.wakeCount {
+                addFact(
+                    key: "wake_count",
+                    title: "Wake count",
+                    category: .appleHealth,
+                    numericValue: Double(wakeCount),
+                    displayValue: "\(wakeCount)",
+                    fallbackSource: "healthkit"
+                )
+            }
 
             if let awakeMinutes = healthKit.awakeMinutes {
                 addFact(

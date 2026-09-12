@@ -290,18 +290,18 @@ struct InsightReportBuilder {
             let wakeDisruptionCount = session.wakeDisruptionCount.map(String.init) ?? ""
             let healthKitAwakeMinutes = session.healthKit?.awakeMinutes.map { String(format: "%.1f", $0) }
             let whoopAwakeMinutes = session.whoop.map { String($0.awakeMinutes) }
-            let awakeMinutes = healthKitAwakeMinutes ?? whoopAwakeMinutes ?? ""
+            let awakeMinutes = (session.healthKit != nil ? healthKitAwakeMinutes : whoopAwakeMinutes) ?? ""
             let wasoMinutes = session.healthKit?.wakeAfterSleepOnsetMinutes.map { String(format: "%.1f", $0) } ?? ""
             let healthKitInBedMinutes = session.healthKit?.inBedMinutes.map { String(format: "%.1f", $0) }
             let whoopInBedMinutes = session.whoop?.inBedMinutes.map(String.init)
-            let inBedMinutes = healthKitInBedMinutes ?? whoopInBedMinutes ?? ""
+            let inBedMinutes = (session.healthKit != nil ? healthKitInBedMinutes : whoopInBedMinutes) ?? ""
             let coreSleepMinutes = session.healthKit?.coreSleepMinutes.map { String(format: "%.1f", $0) } ?? ""
             let healthKitDeepSleepMinutes = session.healthKit?.deepSleepMinutes.map { String(format: "%.1f", $0) }
             let whoopDeepSleepMinutes = session.whoop.map { String($0.deepMinutes) }
-            let deepSleepMinutes = healthKitDeepSleepMinutes ?? whoopDeepSleepMinutes ?? ""
+            let deepSleepMinutes = (session.healthKit != nil ? healthKitDeepSleepMinutes : whoopDeepSleepMinutes) ?? ""
             let healthKitRemSleepMinutes = session.healthKit?.remSleepMinutes.map { String(format: "%.1f", $0) }
             let whoopRemSleepMinutes = session.whoop.map { String($0.remMinutes) }
-            let remSleepMinutes = healthKitRemSleepMinutes ?? whoopRemSleepMinutes ?? ""
+            let remSleepMinutes = (session.healthKit != nil ? healthKitRemSleepMinutes : whoopRemSleepMinutes) ?? ""
             let lightSleepMinutes = session.whoop.map { String($0.lightMinutes) } ?? ""
             let spo2Percentage = session.whoop?.spo2Percentage.flatMap { value in
                 String(format: "%.1f", value)
