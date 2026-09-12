@@ -1,4 +1,5 @@
 import XCTest
+import SwiftUI
 import SQLite3
 @testable import DoseTap
 import Combine
@@ -22,6 +23,106 @@ final class TestClock {
 /// These tests verify that delete operations properly broadcast state changes.
 @MainActor
 final class SessionRepositoryTests: XCTestCase {
+    func test_quickLogFailureRollsBackNewSessionAndRetryPersistsExactlyOnce() throws {
+        let store = EventStorage.inMemory()
+        let now = ISO8601DateFormatter().date(from: "2026-09-11T23:00:00Z")!
+        let repository = SessionRepository(storage: store, clock: { now }, timeZoneProvider: { TimeZone(secondsFromGMT: 0)! })
+        let events = EventLogger(sessionRepo: repository, clock: { now })
+        XCTAssertEqual(sqlite3_exec(store.db, "CREATE TRIGGER reject_log BEFORE INSERT ON sleep_events BEGIN SELECT RAISE(ABORT,'test'); END", nil, nil, nil), SQLITE_OK)
+        XCTAssertFalse(events.logEvent(name: "Bathroom", color: .blue, cooldownSeconds: 60))
+        XCTAssertTrue(events.events.isEmpty)
+        XCTAssertTrue(events.cooldowns.isEmpty)
+        XCTAssertNil(repository.activeSessionId)
+        XCTAssertNil(store.loadCurrentSessionState().sessionId)
+        XCTAssertTrue(store.getAllSessionDates().isEmpty)
+        XCTAssertNotNil(events.saveError)
+        XCTAssertEqual(sqlite3_exec(store.db, "DROP TRIGGER reject_log", nil, nil, nil), SQLITE_OK)
+        events.retryFailedEvent()
+        XCTAssertNil(events.saveError)
+        XCTAssertEqual(events.events.count, 1)
+        XCTAssertEqual(events.events.first?.time, now)
+        XCTAssertEqual(store.fetchSleepEvents(forSession: "2026-09-11").count, 1)
+        XCTAssertFalse(events.logEvent(name: "Bathroom", color: .blue, cooldownSeconds: 60))
+        XCTAssertEqual(store.fetchSleepEvents(forSession: "2026-09-11").count, 1)
+    }
+
+    func test_failedQuickLogCannotRetryIntoAnotherActiveSession() {
+        let store = EventStorage.inMemory()
+        let now = ISO8601DateFormatter().date(from: "2026-09-11T23:00:00Z")!
+        let repository = SessionRepository(storage: store, clock: { now }, timeZoneProvider: { TimeZone(secondsFromGMT: 0)! })
+        let events = EventLogger(sessionRepo: repository, clock: { now })
+        XCTAssertEqual(sqlite3_exec(store.db, "CREATE TRIGGER reject_log BEFORE INSERT ON sleep_events BEGIN SELECT RAISE(ABORT,'test'); END", nil, nil, nil), SQLITE_OK)
+        XCTAssertFalse(events.logEvent(name: "Bathroom", color: .blue, cooldownSeconds: 60))
+        XCTAssertEqual(sqlite3_exec(store.db, "DROP TRIGGER reject_log", nil, nil, nil), SQLITE_OK)
+        XCTAssertTrue(repository.setDose1Time(now).isCommitted)
+        events.retryFailedEvent()
+        XCTAssertTrue(store.fetchSleepEvents(forSession: "2026-09-11").isEmpty)
+        XCTAssertNotNil(events.saveError)
+        XCTAssertFalse(events.canRetryFailedEvent)
+        XCTAssertTrue(events.logEvent(name: "Bathroom", color: .blue, cooldownSeconds: 60))
+    }
+
+    func test_quickLogCommitRejectionLeavesNoEventOrSession() {
+        let store = EventStorage.inMemory()
+        let now = ISO8601DateFormatter().date(from: "2026-09-11T23:00:00Z")!
+        let repository = SessionRepository(storage: store, clock: { now }, timeZoneProvider: { TimeZone(secondsFromGMT: 0)! })
+        sqlite3_commit_hook(store.db, { _ in 1 }, nil)
+        XCTAssertFalse(repository.logSleepEvent(eventType: "bathroom", timestamp: now))
+        XCTAssertNil(repository.activeSessionId)
+        XCTAssertTrue(store.getAllSessionDates().isEmpty)
+        sqlite3_commit_hook(store.db, nil, nil)
+        XCTAssertTrue(repository.logSleepEvent(eventType: "bathroom", timestamp: now))
+    }
+
+    func test_alternateWakeLogCommitsFinalizingStateAndRollsBackOnFailure() {
+        let store = EventStorage.inMemory()
+        let now = ISO8601DateFormatter().date(from: "2026-09-11T23:00:00Z")!
+        let repository = SessionRepository(storage: store, clock: { now }, timeZoneProvider: { TimeZone(secondsFromGMT: 0)! })
+        XCTAssertEqual(sqlite3_exec(store.db, "CREATE TRIGGER reject_wake BEFORE UPDATE OF terminal_state ON sleep_sessions BEGIN SELECT RAISE(ABORT,'test'); END", nil, nil, nil), SQLITE_OK)
+        XCTAssertFalse(repository.logSleepEvent(eventType: "wake_final", timestamp: now, source: "siri"))
+        XCTAssertNil(repository.wakeFinalTime)
+        XCTAssertNil(repository.activeSessionId)
+        XCTAssertTrue(store.getAllSessionDates().isEmpty)
+        XCTAssertEqual(sqlite3_exec(store.db, "DROP TRIGGER reject_wake", nil, nil, nil), SQLITE_OK)
+        XCTAssertTrue(repository.logSleepEvent(eventType: "wake_final", timestamp: now, source: "flic"))
+        XCTAssertEqual(repository.wakeFinalTime, now)
+        XCTAssertEqual(repository.currentContext.phase, .finalizing)
+        XCTAssertEqual(store.fetchSleepEvents(forSession: "2026-09-11").count, 1)
+        XCTAssertTrue(repository.fetchDoseEvents(forSessionDate: "2026-09-11").isEmpty)
+    }
+
+    func test_finalWakeProjectionFailureRollsBackEventAndPreservesDose() {
+        let store = EventStorage.inMemory()
+        let now = ISO8601DateFormatter().date(from: "2026-09-11T23:00:00Z")!
+        let repository = SessionRepository(storage: store, clock: { now }, timeZoneProvider: { TimeZone(secondsFromGMT: 0)! })
+        XCTAssertTrue(repository.setDose1Time(now).isCommitted)
+        XCTAssertEqual(sqlite3_exec(store.db, "CREATE TRIGGER reject_wake BEFORE UPDATE OF terminal_state ON sleep_sessions BEGIN SELECT RAISE(ABORT,'test'); END", nil, nil, nil), SQLITE_OK)
+        XCTAssertFalse(repository.setWakeFinalTime(now))
+        XCTAssertNil(repository.wakeFinalTime)
+        XCTAssertEqual(repository.dose1Time, now)
+        XCTAssertTrue(store.fetchSleepEvents(forSession: "2026-09-11").isEmpty)
+        XCTAssertEqual(sqlite3_exec(store.db, "DROP TRIGGER reject_wake", nil, nil, nil), SQLITE_OK)
+        XCTAssertTrue(repository.setWakeFinalTime(now))
+        XCTAssertEqual(store.fetchSleepEvents(forSession: "2026-09-11").count, 1)
+        XCTAssertEqual(repository.wakeFinalTime, now)
+    }
+
+    func test_generalMedicationWriteFailureThrowsAndConfirmedDuplicateSurvivesRetry() throws {
+        let store = EventStorage.inMemory()
+        let now = ISO8601DateFormatter().date(from: "2026-09-11T23:00:00Z")!
+        let repository = SessionRepository(storage: store, clock: { now }, timeZoneProvider: { TimeZone(secondsFromGMT: 0)! })
+        _ = try repository.logMedicationEntry(medicationId: "adderall_ir", doseMg: 10, takenAt: now)
+        XCTAssertEqual(sqlite3_exec(store.db, "CREATE TRIGGER reject_med BEFORE INSERT ON medication_events BEGIN SELECT RAISE(ABORT,'test'); END", nil, nil, nil), SQLITE_OK)
+        XCTAssertThrowsError(try repository.logMedicationEntry(medicationId: "adderall_ir", doseMg: 10, takenAt: now, confirmedDuplicate: true))
+        XCTAssertEqual(repository.listMedicationEntries(for: "2026-09-11").count, 1)
+        XCTAssertEqual(sqlite3_exec(store.db, "DROP TRIGGER reject_med", nil, nil, nil), SQLITE_OK)
+        XCTAssertTrue(try repository.logMedicationEntry(medicationId: "adderall_ir", doseMg: 10, takenAt: now).isDuplicate)
+        XCTAssertFalse(try repository.logMedicationEntry(medicationId: "adderall_ir", doseMg: 10, takenAt: now, confirmedDuplicate: true).isDuplicate)
+        XCTAssertEqual(repository.listMedicationEntries(for: "2026-09-11").count, 2)
+        XCTAssertTrue(repository.listMedicationEntries(for: "2026-09-11").contains { $0.confirmedDuplicate })
+        XCTAssertNil(repository.dose1Time)
+    }
+
     func test_caffeineUnitsRoundTripAndInvalidEditLeavesOriginalIntact() throws {
         let date = "2026-01-14", identity = "caffeine-units"
         storage.closeHistoricalSession(sessionId: identity, sessionDate: date, end: fixedNow, terminalState: "incomplete_missed_checkin")
@@ -803,7 +904,7 @@ final class SessionRepositoryTests: XCTestCase {
             timeZoneProvider: { eastern }
         )
 
-        _ = repo.logMedicationEntry(
+        _ = try repo.logMedicationEntry(
             medicationId: "adderall_xr",
             doseMg: 15,
             takenAt: takenAt,

@@ -1024,36 +1024,55 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     
     // MARK: - Session Finalization (Wake Up & Check-In)
     
-    /// Record when user pressed "Wake Up & End Session"
-    /// This puts the session into "finalizing" state
-    public func setWakeFinalTime(_ time: Date) {
-        let session = ensureActiveSession(for: time, reason: "wake_final")
-        wakeFinalTime = time
-        activeSessionDate = session.sessionDate
-        
-        // Persist as sleep event for the correct session key
-        storage.insertSleepEvent(
-            id: UUID().uuidString,
-            eventType: "wake_final",
-            timestamp: time,
-            sessionDate: session.sessionDate,
-            sessionId: session.sessionId,
-            colorHex: nil,
-            notes: nil
-        )
-        storage.updateTerminalState(sessionDate: session.sessionDate, sessionId: session.sessionId, state: "finalizing_wake")
-        
-        // Diagnostic logging: Check-in flow started (Tier 2)
-        Task {
-            await DiagnosticLogger.shared.log(.checkinStarted, sessionId: session.sessionId)
-        }
+    @Published public var sleepEventSaveError: String?
 
-        awaitingRolloverMessage = "Wake logged — complete check-in to close session"
+    @discardableResult
+    func saveQuickLog(id: String, eventType: String, timestamp: Date, colorHex: String?, notes: String?, finalWake: Bool = false, expectedSessionId: String? = nil) -> Bool {
+        evaluateSessionBoundaries(reason: "quick_log_preflight")
+        let session = medicationSessionCandidate(for: timestamp)
+        let marksFinalWake = finalWake || normalizeStoredEventType(eventType) == "wake_final"
+        do {
+            guard expectedSessionId == nil || expectedSessionId == currentSessionIdString() else { throw EventStorage.LocalEventWriteError.notCommitted }
+            guard timestamp.timeIntervalSince1970.isFinite, CanonicalDoseEventType(canonicalizing: eventType) == nil else {
+                throw EventStorage.LocalEventWriteError.notCommitted
+            }
+            try storage.saveQuickSleepEvent(id: id, eventType: normalizeStoredEventType(eventType), timestamp: timestamp,
+                sessionId: session.sessionId, sessionDate: session.sessionDate, isNew: session.isNew,
+                colorHex: colorHex, notes: notes, finalWake: marksFinalWake)
+        } catch {
+            sleepEventSaveError = "Event not saved. Your existing records are unchanged. Try again."
+            return false
+        }
+        activeSessionId = session.sessionId
+        activeSessionDate = session.sessionDate
+        activeSessionStart = session.sessionStart
+        activeSessionEnd = nil
+        currentSessionKey = session.sessionDate
+        if marksFinalWake {
+            wakeFinalTime = timestamp
+            awaitingRolloverMessage = "Wake logged — complete check-in to close session"
+        }
+        sleepEventSaveError = nil
+        Task {
+            if session.isNew {
+                await DiagnosticLogger.shared.ensureSessionMetadata(sessionId: session.sessionId)
+                await DiagnosticLogger.shared.logSessionStarted(sessionId: session.sessionId)
+            }
+            await DiagnosticLogger.shared.logSleepEventLogged(sessionId: session.sessionId,
+                eventType: normalizeStoredEventType(eventType), eventId: id)
+            if marksFinalWake { await DiagnosticLogger.shared.log(.checkinStarted, sessionId: session.sessionId) }
+        }
         sessionDidChange.send()
-        
-        repoLogger.info("SessionRepo: Wake Final logged at \(time)")
+        scheduleRolloverTimer()
+        return true
     }
-    
+
+    /// Final wake and finalizing state must both commit before opening check-in.
+    @discardableResult
+    public func setWakeFinalTime(_ time: Date) -> Bool {
+        saveQuickLog(id: UUID().uuidString, eventType: "wake_final", timestamp: time, colorHex: nil, notes: nil, finalWake: true)
+    }
+
     /// Mark morning check-in as completed
     /// This transitions session from "finalizing" to "completed"
     public func completeCheckIn() {

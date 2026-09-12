@@ -1,9 +1,9 @@
 # DoseTap SSOT (Single Source of Truth)
 
 Status: Current behavior authority
-Last verified: 2026-09-11
+Last verified: 2026-09-12
 SSOT revision: 0.4.19
-Shipping app version observed in the Xcode project: 0.4.19 (build 50)
+Shipping app version observed in the Xcode project: 0.4.19 (build 51)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -443,6 +443,12 @@ Code references:
 - Timezone changes: `SessionRepository` listens for time change notifications and reloads state via `updateSessionKeyIfNeeded(reason:)`.
 
 ---
+
+## Durable quick logs and general medication entry (DOSETAP-3/39)
+
+Quick-log success, list insertion, cooldown and haptics follow a committed SQLite write. A new active session and its first quick log commit together; failed writes leave both absent. Final wake and its finalizing state also commit together. Failed manual entries retain their fields, while a failed quick tap retains its occurrence for an explicit same-session retry. If that session changes, retry is cleared, the unsaved occurrence stays visible for History review, and new quick logs remain usable. Alternate final-wake logs share the finalizing transaction. Siri, deep links and Flic report failure instead of success. Medication names remain outside the quick-log route.
+
+General medication entries report storage failure separately from duplicate review. The picker retains unsaved entries and explicit duplicate consent, removes only committed entries from a partially saved batch, and dismisses only when every entry commits. Retrying a failed batch must not replay its saved prefix. These entries do not change Dose 1/2 state or alarms. Deletion/edit failure handling, export preservation and staging sync acceptance remain separate work.
 
 ## Storage and Persistence Truth
 

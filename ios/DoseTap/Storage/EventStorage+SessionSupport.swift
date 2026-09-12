@@ -102,6 +102,7 @@ extension EventStorage {
     }
 
     /// Insert a sleep event for a specific session date (used by tests/importers).
+    @discardableResult
     public func insertSleepEvent(
         id: String = UUID().uuidString,
         eventType: String,
@@ -110,7 +111,7 @@ extension EventStorage {
         sessionId: String? = nil,
         colorHex: String? = nil,
         notes: String? = nil
-    ) {
+    ) -> Bool {
         let sql = """
         INSERT OR REPLACE INTO sleep_events (id, event_type, timestamp, session_date, session_id, color_hex, notes)
         VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -119,7 +120,7 @@ extension EventStorage {
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
             storageLog.error("Failed to prepare insert statement")
-            return
+            return false
         }
         defer { sqlite3_finalize(stmt) }
 
@@ -145,7 +146,39 @@ extension EventStorage {
             sqlite3_bind_null(stmt, 7)
         }
 
-        sqlite3_step(stmt)
+        return sqlite3_step(stmt) == SQLITE_DONE && sqlite3_changes(db) == 1
+    }
+
+    enum LocalEventWriteError: Error { case notCommitted }
+
+    /// Session creation, occurrence and final-wake state share one commit.
+    func saveQuickSleepEvent(id: String, eventType: String, timestamp: Date, sessionId: String,
+                            sessionDate: String, isNew: Bool, colorHex: String?, notes: String?, finalWake: Bool) throws {
+        guard databaseInitializationFailure == nil, db != nil else { throw LocalEventWriteError.notCommitted }
+        try withSQLiteTransaction {
+            if isNew {
+                try executeMedicationStatement("INSERT OR REPLACE INTO current_session (id, session_id, session_date, session_start_utc, snooze_count, dose2_skipped) VALUES (1, ?, ?, ?, 0, 0)", at: .insert) { stmt in
+                    sqlite3_bind_text(stmt, 1, sessionId, -1, SQLITE_TRANSIENT)
+                    sqlite3_bind_text(stmt, 2, sessionDate, -1, SQLITE_TRANSIENT)
+                    sqlite3_bind_text(stmt, 3, isoFormatter.string(from: timestamp), -1, SQLITE_TRANSIENT)
+                }
+                try executeMedicationStatement("INSERT INTO sleep_sessions (session_id, session_date, start_utc) VALUES (?, ?, ?)", at: .insert) { stmt in
+                    sqlite3_bind_text(stmt, 1, sessionId, -1, SQLITE_TRANSIENT)
+                    sqlite3_bind_text(stmt, 2, sessionDate, -1, SQLITE_TRANSIENT)
+                    sqlite3_bind_text(stmt, 3, isoFormatter.string(from: timestamp), -1, SQLITE_TRANSIENT)
+                }
+            }
+            guard insertSleepEvent(id: id, eventType: eventType, timestamp: timestamp, sessionDate: sessionDate,
+                                   sessionId: sessionId, colorHex: colorHex, notes: notes) else { throw LocalEventWriteError.notCommitted }
+            if finalWake {
+                try executeMedicationStatement("UPDATE current_session SET terminal_state = 'finalizing_wake' WHERE id = 1 AND session_id = ?", at: .update, requireChanges: true) { stmt in
+                    sqlite3_bind_text(stmt, 1, sessionId, -1, SQLITE_TRANSIENT)
+                }
+                try executeMedicationStatement("UPDATE sleep_sessions SET terminal_state = 'finalizing_wake' WHERE session_id = ?", at: .update, requireChanges: true) { stmt in
+                    sqlite3_bind_text(stmt, 1, sessionId, -1, SQLITE_TRANSIENT)
+                }
+            }
+        }
     }
 
     /// Insert a dose event for a specific session date (used by tests/importers).

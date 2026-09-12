@@ -308,6 +308,7 @@ struct WakeUpButton: View {
     }
     
     private func logWakeAndShowCheckIn() {
+        guard sessionRepo.setWakeFinalTime(Date()) else { return }
         // Log the Wake Up event for UI cooldown only (sessionRepo handles persistence)
         eventLogger.logEvent(
             name: "Wake Up",
@@ -316,8 +317,6 @@ struct WakeUpButton: View {
             persist: false
         )
 
-        // Persist wake event + mark session finalizing
-        sessionRepo.setWakeFinalTime(Date())
         
         // Show check-in immediately (slight delay to let confirmation dismiss)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {

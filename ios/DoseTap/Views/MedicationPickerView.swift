@@ -17,6 +17,7 @@ struct PendingMedicationEntry: Identifiable, Equatable {
     let doseMg: Int
     let takenAt: Date
     let notes: String?
+    var confirmedDuplicate = false
 }
 
 // MARK: - Medication Picker View (Main Container)
@@ -39,6 +40,8 @@ struct MedicationPickerView: View {
     @State private var pendingEntryToConfirm: PendingMedicationEntry?
     @State private var showSuccessToast = false
     @State private var isLogging = false
+    @State private var saveError: String?
+    @State private var savedCount = 0
     @State private var expandedCategory: MedicationCategory? = nil
     
     let onComplete: (() -> Void)?
@@ -51,6 +54,7 @@ struct MedicationPickerView: View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 20) {
+                    if let saveError { Text(saveError).foregroundColor(.red).accessibilityIdentifier("medication-save-error") }
                     // Pending entries list (what you've added)
                     if !pendingEntries.isEmpty {
                         pendingEntriesSection
@@ -61,6 +65,7 @@ struct MedicationPickerView: View {
                 }
                 .padding()
             }
+            .disabled(isLogging)
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Log Medication")
             .navigationBarTitleDisplayMode(.inline)
@@ -84,8 +89,9 @@ struct MedicationPickerView: View {
                     pendingEntryToConfirm = nil
                 }
                 Button("Add Anyway", role: .destructive) {
-                    if let entry = pendingEntryToConfirm {
-                        pendingEntries.append(entry)
+                    if var entry = pendingEntryToConfirm {
+                        entry.confirmedDuplicate = true
+                        if let index = pendingEntries.firstIndex(where: { $0.id == entry.id }) { pendingEntries[index] = entry } else { pendingEntries.append(entry) }
                         resetCurrentEntry()
                     }
                     pendingEntryToConfirm = nil
@@ -104,7 +110,7 @@ struct MedicationPickerView: View {
             }
             .overlay {
                 if showSuccessToast {
-                    SuccessToast(message: "\(pendingEntries.count) medication\(pendingEntries.count == 1 ? "" : "s") logged")
+                    SuccessToast(message: "\(savedCount) medication\(savedCount == 1 ? "" : "s") logged")
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
             }
@@ -246,6 +252,8 @@ struct MedicationPickerView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             
@@ -364,17 +372,28 @@ struct MedicationPickerView: View {
         guard !pendingEntries.isEmpty else { return }
         
         isLogging = true
-        
+        saveError = nil
         for entry in pendingEntries {
-            _ = repository.logMedicationEntry(
-                medicationId: entry.medication.id,
-                doseMg: entry.doseMg,
-                takenAt: entry.takenAt,
-                notes: entry.notes,
-                confirmedDuplicate: false  // Already confirmed during add
-            )
+            do {
+                let result = try repository.logMedicationEntry(medicationId: entry.medication.id, doseMg: entry.doseMg,
+                    takenAt: entry.takenAt, notes: entry.notes, confirmedDuplicate: entry.confirmedDuplicate)
+                guard !result.isDuplicate else {
+                    saveError = "This medication was recorded since you added it. Review the duplicate before saving. Earlier saved entries will not be repeated."
+                    duplicateResult = result
+                    pendingEntryToConfirm = entry
+                    showDuplicateAlert = true
+                    isLogging = false
+                    return
+                }
+                pendingEntries.removeAll { $0.id == entry.id }
+                savedCount += 1
+            } catch {
+                saveError = "\(savedCount) saved; \(pendingEntries.count) not saved. Your remaining entries are kept. Tap Save to retry."
+                isLogging = false
+                return
+            }
         }
-        
+
         // Success - show toast and dismiss
         withAnimation {
             showSuccessToast = true

@@ -91,6 +91,8 @@ The exception prompt depends on actual early/late interval classification, not t
 reminder target. This change adds no dose-outcome state, timestamp precision or SQL
 migration; unknown-time outcomes and consistent recording provenance remain open.
 
+Build 51 checks quick-log commit results, commits first-event session creation and explicit final-wake projections with their occurrence, and preserves failed in-process drafts for explicit retry. General-medication duplicate confirmation reaches `confirmed_duplicate`; a rejected write does not publish success. This changes no columns or historical values.
+
 `medication_events` is a separate general medication log. It does not replace `dose_events` or drive the Dose 1/Dose 2 state machine.
 
 ## Sleep events

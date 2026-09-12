@@ -31,6 +31,17 @@ public extension SessionRepository {
     }
 
     #if DEBUG && targetEnvironment(simulator)
+    func prepareDurableLogUITest(medication: Bool) {
+        clearTonight()
+        var inserts = 0
+        storage.medicationFaultInjector = { point in
+            guard point == .insert else { return nil }
+            inserts += 1
+            guard inserts == (medication ? 2 : 1) else { return nil }
+            return MedicationStorageInjectedFailure(code: .diskFull, sqliteCode: 13, detail: "Synthetic one-time write failure")
+        }
+    }
+
     func prepareDose1ReviewWriteFailureUITest() {
         var failed = false
         storage.medicationFaultInjector = { point in
@@ -155,7 +166,7 @@ public extension SessionRepository {
         takenAt: Date,
         notes: String? = nil,
         confirmedDuplicate: Bool = false
-    ) -> DuplicateGuardResult {
+    ) throws -> DuplicateGuardResult {
         let sessionDate = computeSessionDate(for: takenAt)
 
         if !confirmedDuplicate {
@@ -186,7 +197,7 @@ public extension SessionRepository {
             confirmedDuplicate: confirmedDuplicate
         )
 
-        storage.insertMedicationEvent(entry)
+        guard storage.insertMedicationEvent(entry) else { throw EventStorage.LocalEventWriteError.notCommitted }
         sessionDidChange.send()
 
         #if canImport(OSLog)

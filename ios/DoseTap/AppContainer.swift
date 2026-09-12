@@ -156,8 +156,11 @@ final class AppContainer: ObservableObject {
                     }
 
                 case .deleteEvent(let snapshot):
-                    eventLogger.restoreDeletedEvent(snapshot)
-                    appContainerLog.info("Undid delete of event \(snapshot.displayName, privacy: .private)")
+                    if eventLogger.restoreDeletedEvent(snapshot) {
+                        appContainerLog.info("Undid delete of event \(snapshot.displayName, privacy: .private)")
+                    } else {
+                        appContainerLog.error("Event restoration was not committed")
+                    }
                 }
             }
         }

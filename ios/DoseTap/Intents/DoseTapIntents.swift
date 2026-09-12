@@ -72,7 +72,9 @@ struct LogSleepEventIntent: AppIntent {
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let repo = SessionRepository.shared
-        repo.logSleepEvent(eventType: eventType.rawValue)
+        guard repo.logSleepEvent(eventType: eventType.rawValue) else {
+            return .result(dialog: "Event not saved. Try again in DoseTap.")
+        }
         intentLog.info("Siri logged event: \(eventType.rawValue, privacy: .public)")
         return .result(dialog: "Logged \(eventType.rawValue) event.")
     }

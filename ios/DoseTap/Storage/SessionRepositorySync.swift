@@ -32,19 +32,10 @@ public extension SessionRepository {
         setDose2Time(timestamp, isEarly: isEarly, isExtraDose: isExtraDose, reason: reason, reasonNotes: reasonNotes)
     }
 
-    /// Insert sleep event for event logging and import flows.
-    func insertSleepEvent(id: String, eventType: String, timestamp: Date, colorHex: String?, notes: String? = nil) {
-        let session = ensureActiveSession(for: timestamp, reason: "sleep_event_insert")
-        let normalizedType = normalizeStoredEventType(eventType)
-        storage.insertSleepEvent(
-            id: id,
-            eventType: normalizedType,
-            timestamp: timestamp,
-            sessionDate: session.sessionDate,
-            sessionId: session.sessionId,
-            colorHex: colorHex,
-            notes: notes
-        )
+    /// Publish a quick log only after its session and event commit.
+    @discardableResult
+    func insertSleepEvent(id: String, eventType: String, timestamp: Date, colorHex: String?, notes: String? = nil, expectedSessionId: String? = nil) -> Bool {
+        saveQuickLog(id: id, eventType: eventType, timestamp: timestamp, colorHex: colorHex, notes: notes, expectedSessionId: expectedSessionId)
     }
 
     /// Upsert sleep event imported from sync with explicit session identity.

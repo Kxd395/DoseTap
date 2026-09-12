@@ -11,6 +11,11 @@ final class DoseTapUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
+        if name.contains("testDurableLog") {
+            app.launchArguments += ["--uitesting-auto-night-reset", "--uitesting-durable-log", "-setup_completed_v2", "YES", "-quicklog_buttons_json", ""]
+            if name.contains("Medication") { app.launchArguments.append("--uitesting-medication-save") }
+            if name.contains("LargeText") { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
+        }
         if name.contains("testDose1Review") {
             app.launchArguments += ["--uitesting-auto-night-reset", "--uitesting-dose1-review-reset", "-setup_completed_v2", "YES"]
             if name.contains("LargeText") { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
@@ -67,6 +72,48 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Dose timing: Pending. Interval: Pending."].waitForExistence(timeout: 5))
         // No tap, scroll, repository write or manual refresh crosses this boundary.
         XCTAssertTrue(app.staticTexts["Dose timing: Not recorded. Interval: Not recorded."].waitForExistence(timeout: 30))
+    }
+
+    func testDurableLogQuickFailureRetryLargeText() {
+        let bathroom = app.buttons["Bathroom event button"]
+        XCTAssertTrue(bathroom.waitForExistence(timeout: 15))
+        for _ in 0..<8 where !bathroom.isHittable { app.swipeUp() }
+        bathroom.tap()
+        let error = app.staticTexts["quick-log-save-error"]
+        XCTAssertTrue(error.waitForExistence(timeout: 5))
+        XCTAssertTrue(error.label.contains("Bathroom not saved"))
+        XCTAssertTrue(bathroom.isEnabled, "Failure must not start cooldown")
+        captureDashboard("Quick log rejected with original occurrence retained")
+        let retry = app.buttons["Retry entry"]
+        XCTAssertTrue(retry.isHittable); retry.tap()
+        XCTAssertFalse(error.exists)
+        XCTAssertFalse(bathroom.isEnabled, "Successful retry starts cooldown")
+        captureDashboard("Quick log retry committed with cooldown")
+    }
+
+    func testDurableLogMedicationBatchFailureAndConfirmedDuplicateRetry() {
+        XCTAssertTrue(app.navigationBars["Log Medication"].waitForExistence(timeout: 15))
+        app.buttons["Stimulant"].tap()
+        let medication = app.buttons["Adderall"]
+        XCTAssertTrue(medication.waitForExistence(timeout: 5)); medication.tap()
+        app.buttons["Add"].tap()
+        XCTAssertTrue(app.staticTexts["To Be Logged"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Adderall"].waitForExistence(timeout: 5))
+        app.buttons["Adderall"].tap()
+        app.buttons["Add"].tap()
+        XCTAssertTrue(app.alerts["Duplicate Entry?"].waitForExistence(timeout: 5))
+        app.alerts.buttons["Add Anyway"].tap()
+        app.navigationBars.buttons["Save"].tap()
+        let error = app.staticTexts["medication-save-error"]
+        XCTAssertTrue(error.waitForExistence(timeout: 5))
+        for _ in 0..<8 where !error.isHittable { app.swipeDown() }
+        XCTAssertTrue(error.label.contains("1 saved; 1 not saved"))
+        captureDashboard("Medication batch retains only failed entry and duplicate consent")
+        app.navigationBars.buttons["Save"].tap()
+        XCTAssertTrue(app.staticTexts["2 medications logged"].waitForExistence(timeout: 5))
+        XCTAssertFalse(error.exists)
+        XCTAssertFalse(app.alerts["Duplicate Entry?"].exists)
+        captureDashboard("Medication retry completes without replaying saved prefix")
     }
 
     func testHistoryBathroomInsightsCountsAndCapture() throws {
