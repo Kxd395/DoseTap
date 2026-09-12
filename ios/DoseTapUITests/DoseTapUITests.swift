@@ -580,6 +580,56 @@ final class DoseTapUITests: XCTestCase {
         app.buttons["dose1-close-review"].tap()
     }
 
+    private func revealDose1Choice(_ element: XCUIElement) {
+        for _ in 0..<28 {
+            let footer = app.buttons["dose1-confirm-record"]
+            let bottom = footer.exists ? footer.frame.minY : app.frame.maxY - 70
+            if element.exists && element.isHittable && element.frame.midY < bottom - 15 && element.frame.midY > 140 { return }
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.60))
+                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.42)))
+        }
+        XCTFail("Reminder choice should be visible above the confirmation footer")
+    }
+
+    func testDose1ReviewLargeTextNoAlarm() throws { try testDose1ReviewNoAlarm() }
+
+    func testDose1ReviewNoAlarm() throws {
+        app.launchArguments.removeAll { $0 == "--uitesting-auto-night-reset" || $0 == "--uitesting-dose1-review-reset" }
+        let primary = app.buttons["dose-primary-action"]
+        XCTAssertTrue(primary.waitForExistence(timeout: 15)); revealDose1Choice(primary); primary.tap()
+        let noAlarm = app.buttons["dose1-no-alarm"]
+        XCTAssertTrue(app.buttons["dose1-confirm-record"].waitForExistence(timeout: 8))
+        revealDose1Choice(noAlarm); noAlarm.tap()
+        XCTAssertEqual(noAlarm.value as? String, "Selected")
+        XCTAssertEqual(app.buttons["dose1-interval-225"].value as? String, "Not selected")
+        captureDashboard("No alarm pill beside final interval")
+        app.buttons["dose1-close-review"].tap()
+        XCTAssertTrue(primary.label.contains("Dose 1"), "Selecting No alarm must not record a dose")
+        primary.tap(); XCTAssertTrue(app.buttons["dose1-confirm-record"].waitForExistence(timeout: 8))
+        revealDose1Choice(noAlarm); XCTAssertEqual(noAlarm.value as? String, "Not selected")
+        noAlarm.tap()
+        let remember = app.switches["dose1-remember-interval"]
+        revealDose1Choice(remember)
+        remember.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
+        XCTAssertEqual(remember.value as? String, "1", "Save as usual must be explicitly enabled")
+        captureDashboard("No alarm with usual preference enabled")
+        app.buttons["dose1-confirm-record"].tap()
+        XCTAssertTrue(app.staticTexts["dose1-no-alarm-result"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["dose1-retry-alarm"].exists, "Verified intentional off is not an alarm failure")
+        captureDashboard("Dose 1 saved with No alarm")
+        app.buttons["dose1-close-review"].tap()
+        app.terminate(); app.launch()
+        XCTAssertTrue(primary.waitForExistence(timeout: 15))
+        XCTAssertFalse(primary.label.contains("Dose 1"))
+        XCTAssertTrue(app.staticTexts["tonight-no-alarm"].exists)
+        app.terminate(); app.launchArguments.append("--uitesting-layout"); app.launch()
+        XCTAssertTrue(primary.waitForExistence(timeout: 15)); revealDose1Choice(primary); primary.tap()
+        XCTAssertTrue(app.buttons["dose1-confirm-record"].waitForExistence(timeout: 8))
+        revealDose1Choice(noAlarm)
+        XCTAssertEqual(noAlarm.value as? String, "Selected", "Explicit usual No alarm survives restart")
+        app.buttons["dose1-close-review"].tap()
+    }
+
     func testDose1ReviewLargeTextCancelAndRestart() throws { try testDose1ReviewCancelAndRestart() }
 
     func testDose1ReviewCancelAndRestart() throws {

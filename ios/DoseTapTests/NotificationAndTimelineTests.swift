@@ -133,6 +133,7 @@ final class AlarmSchedulingTests: XCTestCase {
         var silentlyDroppedIdentifiers: Set<String> = []
         var onAdd: ((UNNotificationRequest) -> Void)?
         var onAuthorization: (() async -> Void)?
+        var ignoresRemoval = false
         private(set) var removedIdentifiers: [String] = []
         private(set) var categories: Set<UNNotificationCategory> = []
 
@@ -177,12 +178,14 @@ final class AlarmSchedulingTests: XCTestCase {
 
         func removePendingRequests(withIdentifiers identifiers: [String]) {
             removedIdentifiers.append(contentsOf: identifiers)
+            guard !ignoresRemoval else { return }
             for identifier in identifiers {
                 requestsByIdentifier.removeValue(forKey: identifier)
             }
         }
 
         func removeDeliveredNotifications(withIdentifiers identifiers: [String]) {}
+        func deliveredIdentifiers() async -> [String]? { [] }
 
         func removePending(identifier: String) {
             requestsByIdentifier.removeValue(forKey: identifier)
@@ -313,6 +316,90 @@ final class AlarmSchedulingTests: XCTestCase {
         client.failingIdentifiers = []
         guard case .success = await coordinator.retryDose1Alarm(sessionId: session, dose1: environment.now, targetMinutes: 195) else { return XCTFail("Window reminder retry should recover") }
         XCTAssertTrue(service.reminderScheduled)
+    }
+
+    func test_noAlarmChoiceSavesDoseWithoutAuthorizationAndSurvivesReconciliation() async throws {
+        let client = FakeNotificationCenter()
+        client.authorization = .denied
+        let environment = makeEnvironment()
+        let defaults = makeDefaults()
+        let service = makeService(client: client, environment: environment, defaults: defaults)
+        let storage = EventStorage.inMemory()
+        let repo = SessionRepository(storage: storage, notificationScheduler: FakeNotificationScheduler(),
+            clock: { environment.now }, timeZoneProvider: { environment.timeZone })
+        let core = DoseTapCore(); core.setSessionRepository(repo)
+        let coordinator = DoseActionCoordinator(core: core, alarmService: service,
+            dateProvider: FixedDateProvider(date: environment.now), sessionRepo: repo)
+        let previous = UserSettingsManager.shared.dose2ReminderEnabled
+        defer { UserSettingsManager.shared.dose2ReminderEnabled = previous }
+        let previousInterval = UserSettingsManager.shared.targetIntervalMinutes
+        storage.medicationFaultInjector = { $0 == .insert ? MedicationStorageInjectedFailure(code: .diskFull, sqliteCode: 13, detail: "Injected") : nil }
+        let failedToken = try XCTUnwrap(coordinator.prepareDose1Review())
+        guard case .retryRequired = await coordinator.confirmDose1(failedToken, targetMinutes: 195, reminderEnabled: false, remember: true) else { return XCTFail("Injected write failure") }
+        XCTAssertEqual(UserSettingsManager.shared.dose2ReminderEnabled, previous)
+        XCTAssertEqual(UserSettingsManager.shared.targetIntervalMinutes, previousInterval)
+        XCTAssertNil(repo.dose1Time)
+        storage.medicationFaultInjector = nil
+        let token = try XCTUnwrap(coordinator.prepareDose1Review())
+        guard case .success = await coordinator.confirmDose1(token, targetMinutes: 195, reminderEnabled: false, remember: true) else {
+            return XCTFail("No alarm must not require notification permission")
+        }
+        let session = try XCTUnwrap(repo.activeSessionId)
+        XCTAssertFalse(UserSettingsManager.shared.dose2ReminderEnabled)
+        XCTAssertTrue(service.dose2RemindersDisabled(sessionId: session))
+        XCTAssertNil(service.targetWakeTime)
+        let restored = makeService(client: client, environment: environment, defaults: defaults)
+        XCTAssertTrue(restored.dose2RemindersDisabled(sessionId: session))
+        _ = await restored.scheduleDose2Reminders(dose1Time: environment.now)
+        XCTAssertTrue(client.requestsByIdentifier.isEmpty)
+        _ = await service.reconcilePendingRequests(reason: .manualRetry, dose1Time: environment.now, forceReschedule: true)
+        XCTAssertTrue(client.requestsByIdentifier.isEmpty)
+        let events = storage.fetchDoseEvents(sessionId: session, sessionDate: try XCTUnwrap(repo.activeSessionDate))
+        XCTAssertEqual(events.filter { $0.eventType == "dose1" }.count, 1)
+        let metadata = try XCTUnwrap(events.first { $0.eventType == "dose1" }?.metadata)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(metadata.utf8)) as? [String: Any])
+        XCTAssertEqual(object["dose2_reminder_enabled"] as? Bool, false)
+        XCTAssertNil(object["reminder_interval_minutes"], "No alarm is not a zero or invented interval")
+        client.authorization = .authorized
+        guard case .success = await coordinator.retryDose1Alarm(sessionId: session, dose1: environment.now, targetMinutes: 225) else { return XCTFail("Explicit enable") }
+        XCTAssertFalse(service.dose2RemindersDisabled(sessionId: session))
+        XCTAssertTrue(service.alarmScheduled)
+        guard case .success = await coordinator.retryDose1Alarm(sessionId: session, dose1: environment.now, targetMinutes: 225, reminderEnabled: false) else { return XCTFail("Explicit disable") }
+        XCTAssertTrue(client.requestsByIdentifier.isEmpty)
+        XCTAssertFalse(service.alarmScheduled)
+        XCTAssertEqual(storage.fetchDoseEvents(sessionId: session, sessionDate: repo.activeSessionDate!).count, events.count)
+    }
+
+    func test_noAlarmWinsAuthorizationRaceAndPreservesUnrelatedNotifications() async {
+        let client = FakeNotificationCenter(), environment = makeEnvironment()
+        let service = makeService(client: client, environment: environment)
+        client.requestsByIdentifier["morning-wake"] = UNNotificationRequest(identifier: "morning-wake",
+            content: UNMutableNotificationContent(), trigger: nil)
+        client.onAuthorization = {
+            let result = await service.disableDose2Reminders(sessionId: "night", activeSessionId: { "night" })
+            XCTAssertEqual(result, .cancelled)
+        }
+        let result = await service.scheduleDose2Alarm(at: environment.now.addingTimeInterval(195 * 60), dose1Time: environment.now)
+        XCTAssertEqual(result.failure?.code, .cancelled)
+        _ = await service.scheduleDose2Reminders(dose1Time: environment.now)
+        XCTAssertEqual(Set(client.requestsByIdentifier.keys), ["morning-wake"])
+        XCTAssertNil(service.targetWakeTime)
+    }
+
+    func test_noAlarmFailedCancellationRemainsVisibleAndReconciliationRetriesIt() async {
+        let client = FakeNotificationCenter(), environment = makeEnvironment()
+        let service = makeService(client: client, environment: environment)
+        _ = await service.scheduleDose2Alarm(at: environment.now.addingTimeInterval(195 * 60), dose1Time: environment.now)
+        client.ignoresRemoval = true
+        let result = await service.disableDose2Reminders(sessionId: "night", activeSessionId: { "night" })
+        XCTAssertEqual(result, .unverified)
+        XCTAssertNotNil(service.lastSchedulingError)
+        XCTAssertFalse(client.requestsByIdentifier.isEmpty)
+        client.ignoresRemoval = false
+        _ = await service.reconcilePendingRequests(reason: .manualRetry, dose1Time: environment.now)
+        XCTAssertTrue(client.requestsByIdentifier.isEmpty)
+        XCTAssertNil(service.lastSchedulingError)
+        XCTAssertTrue(service.dose2RemindersDisabled(sessionId: "night"))
     }
 
     func test_partialAddFailureRollsBackWholeWakeGroup() async throws {

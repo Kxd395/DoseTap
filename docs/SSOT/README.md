@@ -3,9 +3,21 @@
 Status: Current behavior authority
 Last verified: 2026-09-11
 SSOT revision: 0.4.19
-Shipping app version observed in the Xcode project: 0.4.19 (build 49)
+Shipping app version observed in the Xcode project: 0.4.19 (build 50)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
+
+## No alarm reminder choice
+
+Dose 1 reminder choice: the existing interval pills are followed by **No alarm**.
+This is an explicit tonight-only opt-out from the active session's Dose 2 wake,
+snooze/follow-up and window reminders. Selecting it alone records nothing; dose
+confirmation saves medication first, then verifies cancellation. Failed writes
+retain the choice and leave preferences/reminders untouched. Cancellation failure
+keeps the dose and exposes retry. A separately saved usual choice may be No alarm;
+global notifications and medication timing windows do not change. Restart and
+History correction must not automatically recreate opted-out reminders. Explicit
+alarm changes may re-enable them for the still-active dose.
 
 ## Canonical References
 

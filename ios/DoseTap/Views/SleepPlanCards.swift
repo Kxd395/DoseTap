@@ -389,6 +389,23 @@ struct AlarmIndicatorView: View {
     
     var body: some View {
         if let d1 = dose1Time {
+            if let session = sessionRepo.activeSessionId, alarmService.dose2RemindersDisabled(sessionId: session) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label("No alarm selected for this session", systemImage: "bell.slash")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .accessibilityIdentifier("tonight-no-alarm")
+                    if let error = alarmService.lastSchedulingError {
+                        Text(error).font(.caption).foregroundStyle(.red)
+                        Button(isRetryingAlarm ? "Retrying…" : "Retry turning off reminders") {
+                            isRetryingAlarm = true
+                            Task {
+                                _ = await alarmService.disableDose2Reminders(sessionId: session, activeSessionId: { sessionRepo.activeSessionId })
+                                isRetryingAlarm = false
+                            }
+                        }.disabled(isRetryingAlarm)
+                    }
+                }
+            } else {
             // Use AlarmService's target time if available (accounts for snoozes)
             // Otherwise fall back to calculated time
             let alarmTime = alarmService.targetWakeTime ?? d1.addingTimeInterval(Double(sessionRepo.activeDoseTargetMinutes) * 60)
@@ -438,6 +455,7 @@ struct AlarmIndicatorView: View {
                     : Color.red.opacity(0.08)
             )
             .cornerRadius(8)
+            }
         }
     }
     

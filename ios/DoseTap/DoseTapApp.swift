@@ -55,6 +55,7 @@ struct DoseTapApp: App {
         #if DEBUG && targetEnvironment(simulator)
         if ProcessInfo.processInfo.arguments.contains("--uitesting-dose1-review-reset") {
             UserSettingsManager.shared.targetIntervalMinutes = 165
+            UserSettingsManager.shared.dose2ReminderEnabled = true
             UserSettingsManager.shared.notificationsEnabled = false
         }
         if ProcessInfo.processInfo.arguments.contains("--uitesting-dose1-review-failure") {

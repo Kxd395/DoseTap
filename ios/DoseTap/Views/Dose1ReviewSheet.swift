@@ -11,6 +11,8 @@ struct Dose1ReviewSheet: View {
     @State private var takenNow = true
     @State private var earlierTime = Date()
     @State private var interval = UserSettingsManager.shared.targetIntervalMinutes
+    @State private var noAlarm = !UserSettingsManager.shared.dose2ReminderEnabled
+    @State private var appliedNoAlarm = false
     @State private var remember = false
     @State private var busy = false
     @State private var attemptedTime: Date?
@@ -54,26 +56,42 @@ struct Dose1ReviewSheet: View {
                         LazyVGrid(columns: dynamicTypeSize.isAccessibilitySize
                             ? [GridItem(.flexible())] : [GridItem(.adaptive(minimum: 125))]) {
                             ForEach(settings.validTargetOptions, id: \.self) { value in
-                                Button { interval = value } label: {
+                                Button { interval = value; noAlarm = false } label: {
                                     HStack {
                                         Text(duration(value))
-                                        if interval == value { Image(systemName: "checkmark.circle.fill") }
+                                        if !noAlarm && interval == value { Image(systemName: "checkmark.circle.fill") }
                                     }.frame(maxWidth: .infinity, minHeight: 44)
                                 }
                                 .buttonStyle(.bordered)
-                                .tint(interval == value ? .accentColor : .secondary)
-                                .foregroundStyle(interval == value ? Color.accentColor : Color.primary)
+                                .tint(!noAlarm && interval == value ? .accentColor : .secondary)
+                                .foregroundStyle(!noAlarm && interval == value ? Color.accentColor : Color.primary)
                                 .accessibilityIdentifier("dose1-interval-\(value)")
-                                .accessibilityValue(interval == value ? "Selected" : "Not selected")
+                                .accessibilityValue(!noAlarm && interval == value ? "Selected" : "Not selected")
                             }
+                            Button { noAlarm = true } label: {
+                                HStack {
+                                    Text("No alarm")
+                                    if noAlarm { Image(systemName: "checkmark.circle.fill") }
+                                }.frame(maxWidth: .infinity, minHeight: 44)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(noAlarm ? .accentColor : .secondary)
+                            .foregroundStyle(noAlarm ? Color.accentColor : Color.primary)
+                            .accessibilityIdentifier("dose1-no-alarm")
+                            .accessibilityValue(noAlarm ? "Selected" : "Not selected")
                         }.disabled(!committed && attemptedTime != nil)
+                        if noAlarm {
+                            Text("No Dose 2 alarm or reminders for this session.")
+                                .accessibilityIdentifier("dose1-no-alarm-preview")
+                        } else {
                         TimelineView(.periodic(from: .now, by: 1)) { _ in
                             let occurrence = savedDose ?? attemptedTime ?? (takenNow ? coordinator.dateProvider.now() : earlierTime)
                             Text("Dose 2 alarm: \(clock(occurrence.addingTimeInterval(Double(interval) * 60)))")
                                 .accessibilityIdentifier("dose1-alarm-preview")
                         }
+                        }
                         if !committed {
-                            Toggle("Use as my usual reminder interval", isOn: $remember)
+                            Toggle("Use as my usual reminder choice", isOn: $remember)
                                 .accessibilityIdentifier("dose1-remember-interval")
                                 .disabled(attemptedTime != nil)
                             Text("Otherwise this choice is for tonight only. The reminder target does not change your dosing window.")
@@ -86,7 +104,10 @@ struct Dose1ReviewSheet: View {
                         Text("Dose 1 taken at \(clock(attemptedTime))")
                             .accessibilityIdentifier("dose1-saved-result")
                         if let recordedAt { Text("Recorded at \(clock(recordedAt))") }
-                        if alarmVerified {
+                        if appliedNoAlarm {
+                            Text(alarmSetupNeedsRetry ? "No alarm selected · Cancellation not verified" : "No Dose 2 alarm or reminders for this session.")
+                                .accessibilityIdentifier("dose1-no-alarm-result")
+                        } else if alarmVerified {
                             Text("Dose 2 alarm set for \(clock(coordinator.alarmService.targetWakeTime ?? attemptedTime))")
                                 .accessibilityIdentifier("dose1-alarm-result")
                         } else {
@@ -94,12 +115,12 @@ struct Dose1ReviewSheet: View {
                                 .accessibilityIdentifier("dose1-unverified-target")
                         }
                         if savedSession != nil, savedDose != nil {
-                            if changingAlarm || !alarmVerified || alarmSetupNeedsRetry {
-                                Button(changingAlarm ? "Update Dose 2 alarm" : "Retry alarm setup", action: updateAlarm)
+                            if changingAlarm || (!appliedNoAlarm && !alarmVerified) || alarmSetupNeedsRetry {
+                                Button(changingAlarm ? "Update reminder choice" : (appliedNoAlarm ? "Retry turning off reminders" : "Retry alarm setup"), action: updateAlarm)
                                     .accessibilityIdentifier("dose1-retry-alarm")
                             }
                             Button(changingAlarm ? "Keep current alarm" : "Change alarm") {
-                                if changingAlarm { interval = appliedInterval }
+                                if changingAlarm { interval = appliedInterval; noAlarm = appliedNoAlarm }
                                 changingAlarm.toggle()
                             }
                                 .accessibilityIdentifier("dose1-change-alarm")
@@ -124,7 +145,7 @@ struct Dose1ReviewSheet: View {
                     VStack(spacing: 8) {
                     if let message { Text(message).font(.footnote).accessibilityIdentifier("dose1-review-message") }
                     Button(action: save) {
-                        Text(retrySave ? "Retry saving Dose 1" : "Confirm Dose 1 taken & set alarm")
+                        Text(retrySave ? "Retry saving Dose 1" : (noAlarm ? "Confirm Dose 1 taken · No alarm" : "Confirm Dose 1 taken & set alarm"))
                             .multilineTextAlignment(.center).frame(maxWidth: .infinity, minHeight: 44)
                     }
                     .buttonStyle(.borderedProminent)
@@ -170,12 +191,13 @@ struct Dose1ReviewSheet: View {
         if attemptedTime == nil { attemptedTime = occurrence }
         busy = true
         Task {
-            let result = await coordinator.confirmDose1(token, occurrence: attemptedTime, targetMinutes: interval, remember: remember)
+            let result = await coordinator.confirmDose1(token, occurrence: attemptedTime, targetMinutes: interval, reminderEnabled: !noAlarm, remember: remember)
             busy = false
             switch result {
             case .success, .attentionRequired:
                 committed = true
                 appliedInterval = interval
+                appliedNoAlarm = noAlarm
                 if let receipt = coordinator.savedDose1Review, receipt.reviewId == token.id {
                     savedDose = receipt.occurrence
                     recordedAt = receipt.recordedAt
@@ -183,7 +205,7 @@ struct Dose1ReviewSheet: View {
                 }
                 alarmVerified = savedSession == coordinator.sessionRepo?.activeSessionId
                     && coordinator.sessionRepo?.dose2Time == nil && coordinator.alarmService.alarmScheduled
-                message = alarmVerified ? "Dose saved. Review the alarm result above." : "Dose 1 is saved. The Dose 2 alarm is not verified."
+                message = noAlarm ? "Dose 1 is saved. No Dose 2 alarm or reminders for this session." : alarmVerified ? "Dose saved. Review the alarm result above." : "Dose 1 is saved. The Dose 2 alarm is not verified."
                 if case .attentionRequired(let detail) = result { message = detail; alarmSetupNeedsRetry = true }
                 onCommitted(result)
             case .retryRequired(let detail): retrySave = true; message = detail
@@ -197,16 +219,19 @@ struct Dose1ReviewSheet: View {
         guard !busy, scenePhase == .active, let savedSession, let savedDose else { return }
         busy = true
         Task {
-            let result = await coordinator.retryDose1Alarm(sessionId: savedSession, dose1: savedDose, targetMinutes: interval)
+            let result = await coordinator.retryDose1Alarm(sessionId: savedSession, dose1: savedDose, targetMinutes: interval, reminderEnabled: !noAlarm)
             busy = false
             alarmVerified = coordinator.alarmService.alarmScheduled
             if alarmVerified, let actualTarget = coordinator.alarmService.targetWakeTime,
                abs(actualTarget.timeIntervalSince(savedDose) - Double(interval) * 60) < 1 {
                 appliedInterval = interval
+                appliedNoAlarm = false
             }
             switch result {
-            case .success(let detail): message = detail; appliedInterval = interval; changingAlarm = false; alarmSetupNeedsRetry = false
-            case .attentionRequired(let detail), .retryRequired(let detail): message = detail; alarmSetupNeedsRetry = true
+            case .success(let detail): message = detail; appliedNoAlarm = noAlarm; appliedInterval = interval; changingAlarm = false; alarmSetupNeedsRetry = false
+            case .attentionRequired(let detail), .retryRequired(let detail):
+                message = detail; alarmSetupNeedsRetry = true
+                if noAlarm || !alarmVerified { appliedNoAlarm = noAlarm; appliedInterval = interval }
             case .blocked(let detail): message = detail; alarmVerified = false
             case .needsConfirm: message = "Review tonight before changing the alarm."
             }

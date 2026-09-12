@@ -161,3 +161,13 @@ surface), and `reminder_interval_minutes` in existing `dose_events.metadata`.
 The event timestamp remains the reported occurrence. These additive keys do not
 backfill old events or change SQL schema. The alarm service's existing absolute
 deadline reconstruction is separate from the usual target preference.
+
+### Dose 1 No alarm preference (build 50)
+
+Dose 1 metadata includes `dose2_reminder_enabled` (Boolean). False records an
+explicit No alarm choice and omits `reminder_interval_minutes`; it is not zero
+latency or a skipped medication outcome. Older metadata remains unchanged.
+The local `dose2_reminder_enabled` usual preference defaults true and changes only
+after successful dose persistence when explicitly requested. Alarm-only opt-out
+is retained by session UUID in local alarm preferences to prevent History from
+recreating reminders; it does not rewrite the original medication metadata.

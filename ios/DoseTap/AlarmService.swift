@@ -418,6 +418,7 @@ public class AlarmService: NSObject, ObservableObject {
     /// - Parameter dose1Time: Time Dose 1 was taken
     @discardableResult
     public func scheduleDose2Reminders(dose1Time: Date) async -> AlarmScheduleResult {
+        guard defaults.string(forKey: Self.noAlarmSessionKey) == nil else { return .notNeeded(reason: "No alarm selected") }
         // Stable identifiers require serialized ownership through cancellation cleanup.
         guard !reminderScheduleInFlight else { return .failed(cancelledFailure()) }
         reminderScheduleInFlight = true
@@ -507,6 +508,7 @@ public class AlarmService: NSObject, ObservableObject {
     ///   - dose1Time: Time of Dose 1 (for window calculations)
     @discardableResult
     public func scheduleDose2Alarm(at time: Date, dose1Time: Date) async -> AlarmScheduleResult {
+        guard defaults.string(forKey: Self.noAlarmSessionKey) == nil else { return .notNeeded(reason: "No alarm selected") }
         // AlarmKit uses one stable app-owned identifier. Do not allow two
         // reentrant scheduling transactions to race across suspension points:
         // stale cleanup from the older transaction could otherwise remove the
@@ -848,9 +850,34 @@ public class AlarmService: NSObject, ObservableObject {
     
     // MARK: - Cancel
 
+    private static let noAlarmSessionKey = "alarmService_no_alarm_session_v1"
+
+    func dose2RemindersDisabled(sessionId: String) -> Bool {
+        defaults.string(forKey: Self.noAlarmSessionKey) == sessionId
+    }
+
+    func allowDose2Reminders() {
+        defaults.removeObject(forKey: Self.noAlarmSessionKey)
+    }
+
+    /// Explicit reminder preference; this never changes a medication outcome.
+    func disableDose2Reminders(sessionId: String, activeSessionId: () -> String?) async -> Dose2ReminderCompletion {
+        guard sessionId == activeSessionId() else { return .notApplicable }
+        defaults.set(sessionId, forKey: Self.noAlarmSessionKey)
+        let result = await cancelAndVerifyDose2Reminders(sessionId: sessionId, activeSessionId: activeSessionId)
+        if result == .unverified, sessionId == activeSessionId(), dose2RemindersDisabled(sessionId: sessionId) {
+            lastSchedulingError = "No alarm selected, but reminder cancellation could not be verified."
+        }
+        return result
+    }
+
     /// Called only after a taken/explicit-skip transaction commits. Stable alarm
     /// IDs belong to the active session; historical writes must not touch them.
     func completeDose2Reminders(sessionId: String, activeSessionId: () -> String?) async -> Dose2ReminderCompletion {
+        await cancelAndVerifyDose2Reminders(sessionId: sessionId, activeSessionId: activeSessionId)
+    }
+
+    private func cancelAndVerifyDose2Reminders(sessionId: String, activeSessionId: () -> String?) async -> Dose2ReminderCompletion {
         // Read identity in this actor turn, rather than accepting a snapshot captured before await.
         guard sessionId == activeSessionId() else { return .notApplicable }
         cancelAllAlarms()
@@ -1363,6 +1390,24 @@ public class AlarmService: NSObject, ObservableObject {
         dose1Time fallbackDose1Time: Date? = nil,
         forceReschedule: Bool = false
     ) async -> AlarmReconciliationReport {
+        if let session = defaults.string(forKey: Self.noAlarmSessionKey) {
+            let cancellation = await cancelAndVerifyDose2Reminders(sessionId: session,
+                activeSessionId: { self.defaults.string(forKey: Self.noAlarmSessionKey) })
+            let result: AlarmScheduleResult
+            if cancellation == .cancelled {
+                result = .notNeeded(reason: "No alarm selected")
+            } else {
+                result = .failed(AlarmSchedulingFailure(code: .verificationFailed, failedIdentifier: nil,
+                    detail: "No alarm selected, but reminder cancellation could not be verified", previousScheduleRestored: false))
+            }
+            if defaults.string(forKey: Self.noAlarmSessionKey) == session {
+                record(result: result, for: .wake)
+                record(result: result, for: .reminders)
+            }
+            return AlarmReconciliationReport(reason: reason, detectedMissingIdentifiers: [], repairedIdentifiers: [],
+                wakeResult: result, reminderResult: result)
+        }
+
         let now = nowProvider()
         let timeZone = timeZoneProvider()
 
