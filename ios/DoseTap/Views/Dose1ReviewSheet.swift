@@ -17,6 +17,7 @@ struct Dose1ReviewSheet: View {
     @State private var retrySave = false
     @State private var committed = false
     @State private var savedDose: Date?
+    @State private var recordedAt: Date?
     @State private var savedSession: String?
     @State private var message: String?
     @State private var alarmVerified = false
@@ -81,8 +82,9 @@ struct Dose1ReviewSheet: View {
                 }
                 if committed, let attemptedTime {
                     Section("Recorded") {
-                        Text("Dose 1 recorded at \(clock(attemptedTime))")
+                        Text("Dose 1 taken at \(clock(attemptedTime))")
                             .accessibilityIdentifier("dose1-saved-result")
+                        if let recordedAt { Text("Recorded at \(clock(recordedAt))") }
                         if alarmVerified {
                             Text("Dose 2 alarm set for \(clock(coordinator.alarmService.targetWakeTime ?? attemptedTime))")
                                 .accessibilityIdentifier("dose1-alarm-result")
@@ -167,6 +169,7 @@ struct Dose1ReviewSheet: View {
                 appliedInterval = interval
                 if let receipt = coordinator.savedDose1Review, receipt.reviewId == token.id {
                     savedDose = receipt.occurrence
+                    recordedAt = receipt.recordedAt
                     savedSession = receipt.sessionId
                 }
                 alarmVerified = savedSession == coordinator.sessionRepo?.activeSessionId

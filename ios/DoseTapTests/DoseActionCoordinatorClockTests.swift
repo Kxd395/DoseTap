@@ -469,6 +469,8 @@ final class DoseActionCoordinatorClockTests: XCTestCase {
         let metadata = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(try XCTUnwrap(event.metadata).utf8)) as? [String: Any])
         XCTAssertEqual(metadata["reminder_interval_minutes"] as? Int, 195)
         XCTAssertNotNil(metadata["recorded_at_utc"])
+        XCTAssertEqual(coordinator.savedDose1Review?.recordedAt, dateProvider.now())
+        XCTAssertEqual(coordinator.savedDose1Review?.occurrence, dose1Time)
         XCTAssertEqual(event.timestamp, dose1Time)
     }
 

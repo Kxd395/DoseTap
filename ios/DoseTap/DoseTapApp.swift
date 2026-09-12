@@ -58,12 +58,7 @@ struct DoseTapApp: App {
             UserSettingsManager.shared.notificationsEnabled = false
         }
         if ProcessInfo.processInfo.arguments.contains("--uitesting-dose1-review-failure") {
-            var failed = false
-            EventStorage.shared.medicationFaultInjector = { point in
-                guard point == .insert, !failed else { return nil }
-                failed = true
-                return MedicationStorageInjectedFailure(code: .diskFull, sqliteCode: 13, detail: "Synthetic one-time write failure")
-            }
+            SessionRepository.shared.prepareDose1ReviewWriteFailureUITest()
         }
         if ProcessInfo.processInfo.arguments.contains("--uitesting-auto-night-reset") {
             let repository = SessionRepository.shared

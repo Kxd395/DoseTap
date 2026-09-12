@@ -31,6 +31,15 @@ public extension SessionRepository {
     }
 
     #if DEBUG && targetEnvironment(simulator)
+    func prepareDose1ReviewWriteFailureUITest() {
+        var failed = false
+        storage.medicationFaultInjector = { point in
+            guard point == .insert, !failed else { return nil }
+            failed = true
+            return MedicationStorageInjectedFailure(code: .diskFull, sqliteCode: 13, detail: "Synthetic one-time write failure")
+        }
+    }
+
     /// Persist a prior-night fixture before the singleton is initialized, so
     /// process-level UI tests cover synchronous startup rollover.
     static func prepareExpiredSessionUITestFixture() {

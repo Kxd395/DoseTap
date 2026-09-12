@@ -41,7 +41,7 @@ final class DoseActionCoordinator: ObservableObject {
     private var pendingDose1Review: Dose1Review?
     private var dose1ReviewGeneration = 0
     private var dose1ReviewInFlight = false
-    private(set) var savedDose1Review: (reviewId: UUID, sessionId: String, occurrence: Date)?
+    private(set) var savedDose1Review: (reviewId: UUID, sessionId: String, occurrence: Date, recordedAt: Date)?
 
     struct Dose1Review: Equatable, Identifiable {
         let id = UUID()
@@ -234,7 +234,7 @@ final class DoseActionCoordinator: ObservableObject {
         }
         let mutationResult = sessionRepo.setDose1Time(decisionTime, metadata: metadata)
         if mutationResult.isCommitted, let review, let sessionId = sessionRepo.activeSessionId {
-            savedDose1Review = (review.id, sessionId, decisionTime)
+            savedDose1Review = (review.id, sessionId, decisionTime, recordedAt ?? decisionTime)
         }
         await logDoseMutationResult(
             mutationResult,
