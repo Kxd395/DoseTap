@@ -56,12 +56,26 @@ enum EventType: String, Codable, CaseIterable {
 /// Header: event_type,occurred_at_utc,details,device_time
 struct DoseEvent: Codable, Identifiable {
     let id = UUID()
+    var sourceRecordId: String? = nil
+    var sourceTable: String? = nil
+    var sessionId: String? = nil
+    var sessionDate: String? = nil
+    var timestampStoredUTC: String? = nil
+    var createdAtStoredUTC: String? = nil
+    var colorHex: String? = nil
     let eventType: EventType
     let occurredAtUTC: Date
     let details: String?
     let deviceTime: String?
     
     enum CodingKeys: String, CodingKey {
+        case sourceRecordId = "id"
+        case sourceTable = "source_table"
+        case sessionId = "session_id"
+        case sessionDate = "session_date"
+        case timestampStoredUTC = "timestamp_stored_utc"
+        case createdAtStoredUTC = "created_at_stored_utc"
+        case colorHex = "color_hex"
         case eventType = "event_type"
         case occurredAtUTC = "occurred_at_utc"
         case details = "details"

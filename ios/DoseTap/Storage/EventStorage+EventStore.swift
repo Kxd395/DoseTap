@@ -110,7 +110,7 @@ extension EventStorage: EventStore {
                 let sessionDate = String(cString: sessionPtr)
                 let metadata = sqlite3_column_text(stmt, 4).map { String(cString: $0) }
                 
-                if let timestamp = isoFormatter.date(from: timestampStr) {
+                if let timestamp = isoFormatter.date(from: timestampStr) ?? ISO8601DateFormatter().date(from: timestampStr) {
                     events.append(DoseCore.StoredDoseEvent(
                         id: id,
                         eventType: eventType,
@@ -122,7 +122,7 @@ extension EventStorage: EventStore {
                 }
             }
         }
-        return events
+        return events.sorted { $0.timestamp < $1.timestamp }
     }
     
     public func fetchDoseEvents(sessionKey: String) -> [DoseCore.StoredDoseEvent] {

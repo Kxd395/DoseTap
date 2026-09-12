@@ -55,13 +55,14 @@ struct StudioBundleExporter {
         let sortedSessionDates = sessionDates.sorted(by: >)
         let windowAssessments = repo.reviewedWindowAssessments(sessionDates: sortedSessionDates)
         let sessions = try sortedSessionDates.map { sessionDate in
+            let storedEvents = try repo.eventExportRecords(sessionDate: sessionDate)
             let doseLog = repo.fetchDoseLog(forSession: sessionDate)
             let doseEvents = repo.fetchDoseEvents(forSessionDate: sessionDate)
             let sleepEvents = repo.fetchSleepEvents(for: sessionDate)
             let preSleepLog = repo.fetchPreSleepLog(forSessionDate: sessionDate)
             let morningCheckIn = repo.fetchMorningCheckIn(for: sessionDate)
             let sessionId = repo.fetchSessionId(forSessionDate: sessionDate) ?? sessionDate
-            let rawEvents = exportRawEvents(doseEvents: doseEvents, sleepEvents: sleepEvents, sessionDate: sessionDate)
+            let rawEvents = exportRawEvents(storedEvents)
             let normalizedEvents = exportNormalizedEvents(from: rawEvents)
             let preSleep = preSleepLog.map(exportPreSleepSummary(from:))
             let morning = morningCheckIn.map(exportMorningSummary(from:))
@@ -132,7 +133,7 @@ struct StudioBundleExporter {
 
         return InsightsBundleExport(
             schemaVersion: 2,
-            exportVersion: "2.4",
+            exportVersion: "2.5",
             appVersion: bundleVersionString(),
             exportedAtUTC: Date(),
             timeZoneIdentifier: TimeZone.current.identifier,
@@ -382,28 +383,15 @@ struct StudioBundleExporter {
         )
     }
 
-    private func buildStudioEventsCSV(using repo: SessionRepository, sessionDates: [String]) -> String {
-        var rows = ["event_type,occurred_at_utc,details,device_time"]
+    private func buildStudioEventsCSV(using repo: SessionRepository, sessionDates: [String]) throws -> String {
+        var rows = ["event_type,occurred_at_utc,details,device_time,id,source_table,session_id,session_date,timestamp_stored_utc,created_at_stored_utc,color_hex"]
         for sessionDate in sessionDates {
-            let doseEvents = repo.fetchDoseEvents(forSessionDate: sessionDate)
-                .map { event in
-                    studioCSVRow(
-                        eventType: normalizedBundleEventType(event.eventType),
-                        timestamp: event.timestamp,
-                        details: event.metadata,
-                        deviceTime: sessionDate
-                    )
-                }
-            let sleepEvents = repo.fetchSleepEvents(for: sessionDate)
-                .map { event in
-                    studioCSVRow(
-                        eventType: normalizedBundleEventType(event.eventType),
-                        timestamp: event.timestamp,
-                        details: event.notes,
-                        deviceTime: sessionDate
-                    )
-                }
-            rows.append(contentsOf: (doseEvents + sleepEvents).sorted())
+            for event in try repo.eventExportRecords(sessionDate: sessionDate) {
+                rows.append([normalizedBundleEventType(event.eventType), AppFormatters.iso8601Fractional.string(from: event.timestampUTC),
+                    event.details ?? "", event.sessionDate, event.id, event.sourceTable,
+                    event.sessionId ?? "", event.sessionDate, event.timestampStoredUTC,
+                    event.createdAtStoredUTC ?? "", event.colorHex ?? ""].map(csvField).joined(separator: ","))
+            }
         }
         return rows.joined(separator: "\n") + "\n"
     }
@@ -1100,49 +1088,27 @@ struct StudioBundleExporter {
         return scheduledWakeInfo(for: AppFormatters.sessionDate.string(from: adjacent))
     }
 
-    private func exportRawEvents(
-        doseEvents: [DoseCore.StoredDoseEvent],
-        sleepEvents: [StoredSleepEvent],
-        sessionDate: String
-    ) -> [InsightsBundleEvent] {
-        let rawDoseEvents = doseEvents.map { event in
-            let metadata = jsonDictionary(from: event.metadata)
-            return InsightsBundleEvent(
-                kind: "dose",
-                eventType: event.eventType,
-                occurredAtUTC: event.timestamp,
-                details: event.metadata,
-                source: stringValue(from: metadata["source"]) ?? "manual",
-                deviceTime: sessionDate
-            )
-        }
-
-        let rawSleepEvents = sleepEvents.map { event in
+    private func exportRawEvents(_ records: [StoredEventExportRecord]) -> [InsightsBundleEvent] {
+        records.map { event in
             InsightsBundleEvent(
-                kind: "sleep",
+                kind: event.sourceTable == "dose_events" ? "dose" : "sleep",
                 eventType: event.eventType,
-                occurredAtUTC: event.timestamp,
-                details: event.notes,
-                source: "manual",
-                deviceTime: sessionDate
+                occurredAtUTC: event.timestampUTC,
+                details: event.details,
+                source: event.sourceTable == "dose_events" ? jsonDictionary(from: event.details)["source"] as? String : nil,
+                deviceTime: event.sessionDate,
+                id: event.id, sourceTable: event.sourceTable, sessionId: event.sessionId,
+                sessionDate: event.sessionDate, timestampStoredUTC: event.timestampStoredUTC,
+                createdAtStoredUTC: event.createdAtStoredUTC, colorHex: event.colorHex
             )
-        }
-
-        return (rawDoseEvents + rawSleepEvents).sorted { lhs, rhs in
-            lhs.occurredAtUTC < rhs.occurredAtUTC
-        }
+        }.sorted { $0.occurredAtUTC < $1.occurredAtUTC }
     }
 
     private func exportNormalizedEvents(from rawEvents: [InsightsBundleEvent]) -> [InsightsBundleEvent] {
         rawEvents.map { event in
-            InsightsBundleEvent(
-                kind: event.kind,
-                eventType: normalizedBundleEventType(event.eventType),
-                occurredAtUTC: event.occurredAtUTC,
-                details: event.details,
-                source: normalizedOptionalString(event.source),
-                deviceTime: event.deviceTime
-            )
+            var normalized = event
+            normalized.eventType = normalizedBundleEventType(event.eventType)
+            return normalized
         }
     }
 
@@ -1418,17 +1384,6 @@ struct StudioBundleExporter {
         }
     }
 
-    private func studioCSVRow(eventType: String, timestamp: Date, details: String?, deviceTime: String?) -> String {
-        [
-            eventType,
-            AppFormatters.iso8601Fractional.string(from: timestamp),
-            details ?? "",
-            deviceTime ?? ""
-        ]
-        .map(csvField)
-        .joined(separator: ",")
-    }
-
     private func csvField(_ value: String) -> String {
         ReportCSV.field(value)
     }
@@ -1478,11 +1433,18 @@ private struct InsightsBundleExport: Encodable {
 
 private struct InsightsBundleEvent: Codable {
     let kind: String
-    let eventType: String
+    var eventType: String
     let occurredAtUTC: Date
     let details: String?
     let source: String?
     let deviceTime: String?
+    let id: String
+    let sourceTable: String
+    let sessionId: String?
+    let sessionDate: String
+    let timestampStoredUTC: String
+    let createdAtStoredUTC: String?
+    let colorHex: String?
 }
 
 private struct InsightsSourceAvailability: Codable {

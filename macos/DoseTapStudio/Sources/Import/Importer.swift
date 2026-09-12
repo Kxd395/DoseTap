@@ -40,6 +40,7 @@ final class Importer {
     func parseEventsCSV(_ content: String) throws -> [DoseEvent] {
         let lines = try ReportCSV.rows(content)
         guard lines.count > 1 else { return [] }
+        let header = lines[0]
         
         // Skip header line
         let dataLines = lines.dropFirst().filter { $0.contains { !$0.isEmpty } }
@@ -47,6 +48,7 @@ final class Importer {
         
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let wholeSecondsFormatter = ISO8601DateFormatter()
         
         for (index, columns) in dataLines.enumerated() {
             guard columns.count >= 4 else {
@@ -59,12 +61,24 @@ final class Importer {
                 continue
             }
 
-            guard let occurredAt = formatter.date(from: columns[1]) else {
+            guard let occurredAt = formatter.date(from: columns[1]) ?? wholeSecondsFormatter.date(from: columns[1]) else {
                 print("⚠️ Skipping line \(index + 2): invalid timestamp '\(columns[1])'")
                 continue
             }
 
+            func optionalField(_ name: String) -> String? {
+                guard let position = header.firstIndex(of: name), position < columns.count,
+                      !columns[position].isEmpty else { return nil }
+                return columns[position]
+            }
             let event = DoseEvent(
+                sourceRecordId: optionalField("id"),
+                sourceTable: optionalField("source_table"),
+                sessionId: optionalField("session_id"),
+                sessionDate: optionalField("session_date"),
+                timestampStoredUTC: optionalField("timestamp_stored_utc"),
+                createdAtStoredUTC: optionalField("created_at_stored_utc"),
+                colorHex: optionalField("color_hex"),
                 eventType: eventType,
                 occurredAtUTC: occurredAt,
                 details: columns[2].isEmpty ? nil : columns[2],

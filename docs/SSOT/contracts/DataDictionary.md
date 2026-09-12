@@ -130,6 +130,29 @@ The collected-night JSON also carries `reviewedSleepWindow`; flat `reviewed_wind
 
 The additive `reviewedWindowAssessment` projection has `derivationVersion = reviewed_window_assessment_v1`, `status` (`missing`, `checked`, `needsReview`), ordered reason codes and optional absolute `assessedAt`. Flat fields are `reviewed_window_assessment_version`, `reviewed_window_assessment_status`, `reviewed_window_assessment_reasons` (semicolon-separated codes) and `reviewed_window_assessed_at_utc`. Older bundles omit the object; missing is not retrospectively treated as checked. The current export rechecks local bounds from a read snapshot. A saved report retains its assessment time and is not current after source corrections. Studio's existing timestamp redaction applies. This is not persisted in the nightly answer or a new schema migration.
 
+## Dose/sleep event export provenance (DOSETAP-13)
+
+Studio export 2.5 retains schema version 2 and adds `id`, `sourceTable`, nullable
+`sessionId`, `sessionDate`, `timestampStoredUTC`, nullable `createdAtStoredUTC`
+and nullable `colorHex` to both raw and normalized event JSON. Table plus ID is
+row identity; a date may contain multiple session identities. Original event
+strings remain in raw JSON; normalization changes vocabulary only. `details`
+retains dose metadata or sleep-event notes unchanged; absent source text stays
+absent instead of becoming an invented source annotation.
+
+`occurredAtUTC` is the parsed occurrence; `timestampStoredUTC` retains its exact
+SQLite text. `createdAtStoredUTC` retains row creation text, not administration
+or proven recording time. Explicit `recorded_at_utc` remains separate inside dose
+metadata when present. `deviceTime` remains the legacy date alias, not device time.
+The CSV keeps `event_type,occurred_at_utc,details,device_time` first, then appends
+`id,source_table,session_id,session_date,timestamp_stored_utc,created_at_stored_utc,color_hex`.
+CSV empty cells cannot distinguish NULL from empty text. Older bundles lack the
+additive provenance. Studio's typed CSV importer still excludes unknown event
+strings; the JSON archive retains them. Shared dose reads accept whole-second or
+fractional absolute ISO times and order them by instant, so existing rows are not
+ignored by History/state checks. Malformed-time and identity guards remain.
+No source rows or SQL schema are changed.
+
 ## Inventory boundary
 
 Studio export 2.4 appends `id`, `medication_name`, `created_at_stored_utc` and

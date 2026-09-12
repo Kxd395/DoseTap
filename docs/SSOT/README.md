@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-12
 SSOT revision: 0.4.19
-Shipping app version observed in the Xcode project: 0.4.19 (build 52)
+Shipping app version observed in the Xcode project: 0.4.19 (build 53)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -460,6 +460,19 @@ its ID and medication name; its notes remain unchanged and source is a separate
 column. These two export reads reject unreadable rows/SQLite failures instead of
 publishing a partial result. They do not certify other export reads or a complete
 database backup. Older Studio bundles retain missing provenance as missing.
+
+Successful Studio exports from 2.5 (DOSETAP-13) preserve every dose/sleep event
+for each stored treatment date in raw JSON, normalized JSON and events CSV, including its table,
+row ID, nullable session ID, original occurrence text, nullable creation text,
+color and unchanged metadata/notes. Normalization changes only event vocabulary.
+Missing source metadata stays missing. Creation is not proof of recording time;
+explicit `recorded_at_utc` remains in dose metadata when supplied. The legacy
+`deviceTime` / `device_time` date alias remains for compatibility; `sessionDate`
+/ `session_date` is the explicit grouping key. Checked reads reject unreadable
+occurrences and query errors. Per-date summaries and whole-export snapshot
+consistency remain separate acceptance work; this is not a full backup. Dose ledger
+reads accept absolute ISO occurrences with or without fractional seconds and sort
+by the parsed instant; existing History identity and complete-read guards remain.
 
 Persistence is local SQLite via `EventStorage`.
 

@@ -42,6 +42,11 @@ public extension SessionRepository {
         activeSessionId ?? activeSessionDate ?? currentSessionKey
     }
 
+    /// Checked original dose and sleep ledger rows for the export's date group.
+    internal func eventExportRecords(sessionDate: String) throws -> [StoredEventExportRecord] {
+        try storage.eventExportRecords(sessionDate: sessionDate)
+    }
+
     /// Raw medication rows for sync/export code paths that need storage metadata.
     internal func medicationExportRecords(for sessionDate: String) throws -> [StoredMedicationExportRecord] {
         try storage.medicationExportRecords(sessionDate: sessionDate)

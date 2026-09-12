@@ -4,6 +4,62 @@ import DoseCore
 
 /// Test suite for data import functionality
 final class ImporterTests: XCTestCase {
+    func testEventJSONProvenancePreservesUnknownTypesAndLegacyMissingness() throws {
+        let base = #"{"kind":"sleep","eventType":"custom_unknown","occurredAtUTC":"2026-09-12T02:00:00Z","details":null,"source":null}"#
+        let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
+        let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
+        let legacy = try decoder.decode(InsightBundleEvent.self, from: Data(base.utf8))
+        XCTAssertNil(legacy.id); XCTAssertNil(legacy.sourceTable); XCTAssertNil(legacy.sessionId)
+        XCTAssertNil(legacy.sessionDate); XCTAssertNil(legacy.timestampStoredUTC)
+        XCTAssertNil(legacy.createdAtStoredUTC); XCTAssertNil(legacy.colorHex)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(base.utf8)) as? [String: Any])
+        object.merge(["id": "stable-event", "sourceTable": "sleep_events", "sessionId": "private-session",
+                      "sessionDate": "2026-09-11", "timestampStoredUTC": "2026-09-12T02:00:00.123Z",
+                      "createdAtStoredUTC": "2026-09-12 08:00:00", "colorHex": "#ABCDEF"]) { _, new in new }
+        let event = try decoder.decode(InsightBundleEvent.self, from: JSONSerialization.data(withJSONObject: object))
+        XCTAssertEqual(try decoder.decode(InsightBundleEvent.self, from: encoder.encode(event)), event)
+        XCTAssertEqual(event.eventType, "custom_unknown"); XCTAssertEqual(event.id, "stable-event")
+        XCTAssertEqual(event.sourceTable, "sleep_events"); XCTAssertEqual(event.sessionId, "private-session")
+        XCTAssertEqual(event.timestampStoredUTC, "2026-09-12T02:00:00.123Z")
+        XCTAssertEqual(event.createdAtStoredUTC, "2026-09-12 08:00:00"); XCTAssertEqual(event.colorHex, "#ABCDEF")
+        XCTAssertNil(event.details); XCTAssertNil(event.source)
+        let supplement = InsightSessionSupplement(sessionDate: "2026-09-11", rawEvents: [event], normalizedEvents: [event], preSleep: nil, morning: nil, medications: [])
+        let nights = InsightSessionBuilder().build(sessions: [], events: [], supplementsBySessionDate: ["2026-09-11": supplement])
+        XCTAssertEqual(nights.first?.rawEvents, [event])
+        XCTAssertNil(nights.first?.dose1Time); XCTAssertNil(nights.first?.dose2Time)
+        let builder = InsightReportBuilder()
+        let reports = [builder.buildSessionCSV(sessions: nights, redaction: .clinicianSafe),
+                       builder.buildProviderSummary(sessions: nights, redaction: .clinicianSafe)]
+            + InsightRecommendationMode.allCases.map { builder.buildRecommendationPackage(sessions: nights, mode: $0, redaction: .clinicianSafe) }
+        for report in reports {
+            for privateValue in ["stable-event", "private-session", "2026-09-12T02:00:00.123Z", "2026-09-12 08:00:00"] {
+                XCTAssertFalse(report.contains(privateValue))
+            }
+        }
+    }
+
+    func testEventCSVProvenanceUsesHeadersAndPreservesText() throws {
+        let header = "event_type,occurred_at_utc,details,device_time,color_hex,id,source_table,session_id,session_date,timestamp_stored_utc,created_at_stored_utc"
+        let notes = "=literal, \"note\"\r\nnext line"
+        let first = ["dose1", "2026-09-12T02:00:00Z", notes, "2026-09-11", "#123456", "event-1", "dose_events", "session-1", "2026-09-11", "2026-09-12T02:00:00Z", "2026-09-12 08:00:00"]
+        let second = ["bathroom", "2026-09-12T03:00:00.125Z", "", "2026-09-11", "", "event-2", "sleep_events", "", "2026-09-11", "2026-09-12T03:00:00.125Z", ""]
+        let events = try Importer().parseEventsCSV(([header] + [first, second].map(ReportCSV.row)).joined(separator: "\r\n"))
+        XCTAssertEqual(events.count, 2)
+        let event = try XCTUnwrap(events.first)
+        XCTAssertEqual(event.eventType, .dose1_taken); XCTAssertEqual(event.sourceRecordId, "event-1")
+        XCTAssertEqual(event.sourceTable, "dose_events"); XCTAssertEqual(event.sessionId, "session-1")
+        XCTAssertEqual(event.sessionDate, "2026-09-11"); XCTAssertEqual(event.colorHex, "#123456")
+        XCTAssertEqual(event.timestampStoredUTC, "2026-09-12T02:00:00Z")
+        XCTAssertEqual(event.createdAtStoredUTC, "2026-09-12 08:00:00"); XCTAssertEqual(event.details, notes)
+        XCTAssertNil(events.last?.details); XCTAssertNil(events.last?.sessionId); XCTAssertNil(events.last?.createdAtStoredUTC)
+        let restored = try JSONDecoder().decode(DoseEvent.self, from: JSONEncoder().encode(event))
+        XCTAssertEqual(restored.sourceRecordId, event.sourceRecordId); XCTAssertNotEqual(restored.id, event.id)
+        let legacy = try XCTUnwrap(Importer().parseEventsCSV("event_type,occurred_at_utc,details,device_time\nbathroom,2026-09-12T03:00:00Z,,2026-09-11").first)
+        XCTAssertNil(legacy.sourceRecordId); XCTAssertNil(legacy.sourceTable); XCTAssertNil(legacy.sessionId)
+        XCTAssertNil(legacy.sessionDate); XCTAssertNil(legacy.timestampStoredUTC)
+        XCTAssertNil(legacy.createdAtStoredUTC); XCTAssertNil(legacy.colorHex)
+    }
+
     func testMedicationStoredMetadataRoundTripsAndLegacyRemainsMissing() throws {
         let base = #"{"id":"med-row","medicationId":"test-med","doseMg":25,"doseUnit":"custom-unit","formulation":"custom-form","takenAtUTC":"2026-09-12T02:00:00Z","notes":"recorded later"}"#
         let decoder = JSONDecoder()
@@ -133,6 +189,25 @@ final class ImporterTests: XCTestCase {
             XCTAssertEqual(medication.takenAtStoredUTC, "2026-09-11T23:00:00.123Z")
             XCTAssertNil(medication.createdAtStoredUTC)
             XCTAssertNil(medication.sessionId)
+        }
+        if let eventPath = ProcessInfo.processInfo.environment["DOSETAP_IOS_EVENT_EXPORT_FIXTURE"] {
+            let eventFolder = URL(fileURLWithPath: eventPath)
+            let eventBundle = try importer.parseInsightsBundle(Data(contentsOf: eventFolder.appendingPathComponent("insights_bundle.json")))
+            let session = try XCTUnwrap(eventBundle.sessions.first { $0.sessionDate == "2026-09-11" })
+            let keys = session.rawEvents.map { "\($0.sourceTable ?? "")/\($0.id ?? "")" }
+            XCTAssertEqual(Set(keys), ["dose_events/shared-id", "dose_events/second-session", "sleep_events/shared-id"])
+            XCTAssertEqual(session.normalizedEvents.map { "\($0.sourceTable ?? "")/\($0.id ?? "")" }, keys)
+            let dose = try XCTUnwrap(session.rawEvents.first { $0.sourceTable == "dose_events" && $0.id == "shared-id" })
+            XCTAssertEqual(dose.timestampStoredUTC, "2026-09-11T23:00:00.123Z"); XCTAssertEqual(dose.createdAtStoredUTC, "2026-09-12 07:50:01")
+            XCTAssertEqual(dose.sessionId, "session-a")
+            let correction = try XCTUnwrap(session.rawEvents.first { $0.id == "second-session" })
+            XCTAssertEqual(correction.timestampStoredUTC, "2026-09-12T01:00:00Z"); XCTAssertEqual(correction.details, "unparsed legacy metadata")
+            let sleep = try XCTUnwrap(session.rawEvents.first { $0.sourceTable == "sleep_events" })
+            XCTAssertEqual(sleep.eventType, "Future Sleep Event"); XCTAssertEqual(sleep.colorHex, "#ABCDEF")
+            XCTAssertNil(sleep.sessionId); XCTAssertNil(sleep.createdAtStoredUTC)
+            let typedEvents = try await importer.loadEvents(from: eventFolder)
+            XCTAssertEqual(typedEvents.count, 1) // Unsupported types remain in raw JSON, outside typed analytics.
+            XCTAssertEqual(typedEvents.first?.sourceRecordId, dose.id)
         }
     }
 
