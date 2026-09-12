@@ -83,7 +83,7 @@ final class DoseActionCoordinator: ObservableObject {
             && repo.currentSessionKey == review.sessionDate && repo.dose1Time == nil
     }
 
-    func confirmDose1(_ review: Dose1Review, occurrence: Date? = nil, targetMinutes: Int,
+    func confirmDose1(_ review: Dose1Review, occurrence: Date? = nil, targetMinutes: Int, reminderEnabled: Bool = true,
                       remember: Bool = false) async -> ActionResult {
         guard pendingDose1Review == review, dose1ReviewMatches(review) else {
             return .blocked(reason: "This Dose 1 review expired. Cancel and review the current night again.")
@@ -99,14 +99,16 @@ final class DoseActionCoordinator: ObservableObject {
             return .blocked(reason: "Choose a time in the current session, no later than now, and an available reminder interval. Use History for a time before the prep or missed-check-in boundary.")
         }
         return await commitDose1(surface: review.surface, occurrence: taken, recordedAt: now,
-            targetMinutes: targetMinutes, remember: remember, review: review)
+            targetMinutes: targetMinutes, reminderEnabled: reminderEnabled, remember: remember, review: review)
     }
 
-    func retryDose1Alarm(sessionId: String, dose1: Date, targetMinutes: Int) async -> ActionResult {
+    func retryDose1Alarm(sessionId: String, dose1: Date, targetMinutes: Int, reminderEnabled: Bool = true) async -> ActionResult {
         guard UserSettingsManager.shared.validTargetOptions.contains(targetMinutes),
               dose1AlarmStillApplies(sessionId: sessionId, dose1: dose1) else {
             return .blocked(reason: "The dose or session changed. Review tonight before changing its alarm.")
         }
+        if !reminderEnabled { return await disableDose1Reminders(sessionId: sessionId, dose1: dose1) }
+        alarmService.allowDose2Reminders()
         let wake = await alarmService.scheduleDose2Alarm(at: dose1.addingTimeInterval(Double(targetMinutes) * 60), dose1Time: dose1)
         guard dose1AlarmStillApplies(sessionId: sessionId, dose1: dose1) else {
             return .blocked(reason: "The dose or session changed during alarm setup.")
@@ -119,6 +121,16 @@ final class DoseActionCoordinator: ObservableObject {
         if !failures.isEmpty { return .attentionRequired(message: failures.map(\.userMessage).joined(separator: " ")) }
         guard alarmService.alarmScheduled else { return .attentionRequired(message: "Dose 1 is recorded. The Dose 2 alarm is not enabled or no future alarm is scheduled.") }
         return .success(message: "Dose 2 alarm scheduled. Dose 1 was not changed.")
+    }
+
+    private func disableDose1Reminders(sessionId: String, dose1: Date) async -> ActionResult {
+        let result = await alarmService.disableDose2Reminders(sessionId: sessionId, activeSessionId: { self.sessionRepo?.activeSessionId })
+        guard dose1AlarmStillApplies(sessionId: sessionId, dose1: dose1),
+              alarmService.dose2RemindersDisabled(sessionId: sessionId) else {
+            return .attentionRequired(message: "Dose 1 is saved. The session or reminder choice changed; review its status.")
+        }
+        if result == .cancelled { return .success(message: "Dose 1 is saved. No Dose 2 alarm or reminders for this session.") }
+        return .attentionRequired(message: "Dose 1 is saved. No alarm was selected, but cancellation could not be verified. Retry turning off reminders.")
     }
 
     private func dose1AlarmStillApplies(sessionId: String, dose1: Date) -> Bool {
@@ -198,7 +210,7 @@ final class DoseActionCoordinator: ObservableObject {
     }
 
     private func commitDose1(surface: RegistrationSurface, occurrence: Date? = nil, recordedAt: Date? = nil,
-                             targetMinutes: Int? = nil, remember: Bool = false, review: Dose1Review? = nil) async -> ActionResult {
+                             targetMinutes: Int? = nil, reminderEnabled: Bool = true, remember: Bool = false, review: Dose1Review? = nil) async -> ActionResult {
         let sig = DoseSignpost.begin(.takeDose1)
         defer { DoseSignpost.end(.takeDose1, sig) }
 
@@ -235,8 +247,9 @@ final class DoseActionCoordinator: ObservableObject {
         if let recordedAt, let targetMinutes {
             let formatter = ISO8601DateFormatter()
             formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            let values: [String: Any] = ["source": surface.rawValue,
-                "recorded_at_utc": formatter.string(from: recordedAt), "reminder_interval_minutes": targetMinutes]
+            var values: [String: Any] = ["source": surface.rawValue,
+                "recorded_at_utc": formatter.string(from: recordedAt), "dose2_reminder_enabled": reminderEnabled]
+            if reminderEnabled { values["reminder_interval_minutes"] = targetMinutes }
             guard let data = try? JSONSerialization.data(withJSONObject: values, options: .sortedKeys) else {
                 return .blocked(reason: "Dose details could not be prepared. Review and retry.")
             }
@@ -273,10 +286,20 @@ final class DoseActionCoordinator: ObservableObject {
         // Undo
         undoState?.register(.takeDose1(at: decisionTime))
 
+        // Confirm the saved medication independently of the reminder choice.
+        playHaptic(.dose)
+        playConfirmationSound()
+        coordinatorLog.info("Dose 1 logged via coordinator from \(surface.rawValue, privacy: .public)")
+
         // Schedule alarms
         let selectedTarget = targetMinutes ?? UserSettingsManager.shared.targetIntervalMinutes
         let target = UserSettingsManager.shared.validTargetOptions.contains(selectedTarget) ? selectedTarget : 165
-        if remember { UserSettingsManager.shared.targetIntervalMinutes = target }
+        if remember {
+            UserSettingsManager.shared.dose2ReminderEnabled = reminderEnabled
+            if reminderEnabled { UserSettingsManager.shared.targetIntervalMinutes = target }
+        }
+        if !reminderEnabled { return await disableDose1Reminders(sessionId: committedSession, dose1: decisionTime) }
+        alarmService.allowDose2Reminders()
         let wakeTime = decisionTime.addingTimeInterval(Double(target) * 60)
         let wakeResult = await alarmService.scheduleDose2Alarm(
             at: wakeTime,
@@ -292,9 +315,6 @@ final class DoseActionCoordinator: ObservableObject {
             return .attentionRequired(message: "Dose 1 was logged. The session changed during reminder setup; review tonight.")
         }
 
-        playHaptic(.dose)
-        playConfirmationSound()
-        coordinatorLog.info("Dose 1 logged via coordinator from \(surface.rawValue, privacy: .public)")
         let schedulingFailures = [wakeResult, reminderResult].compactMap(\.failure)
         if !schedulingFailures.isEmpty {
             let messages = Array(Set(schedulingFailures.map(\.userMessage))).sorted()
@@ -326,6 +346,10 @@ final class DoseActionCoordinator: ObservableObject {
             if let error = alarmService.lastSchedulingError { return .attentionRequired(message: "History saved. \(error)") }
             return .success(message: "History record saved")
         }
+        if alarmService.dose2RemindersDisabled(sessionId: review.sessionId) {
+            return await disableDose1Reminders(sessionId: review.sessionId, dose1: first)
+        }
+        alarmService.allowDose2Reminders()
         let target = first.addingTimeInterval(Double(repo.activeDoseTargetMinutes) * 60)
         var failures: [String] = []
         if target > dateProvider.now() {

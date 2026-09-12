@@ -114,6 +114,7 @@ class UserSettingsManager: ObservableObject {
     
     // MARK: - Dose Timing (XYWAV Specific)
     // Per SSOT: Window 150-240 min, valid targets: 165, 180, 195, 210, 225
+    @AppStorage("dose2_reminder_enabled") var dose2ReminderEnabled: Bool = true
     @AppStorage("target_interval_minutes") var targetIntervalMinutes: Int = 165
     @AppStorage("snooze_duration_minutes") var snoozeDurationMinutes: Int = 10
     @AppStorage("max_snoozes") var maxSnoozes: Int = 3
@@ -663,6 +664,7 @@ extension UserSettingsManager {
         
         // Dose timing
         targetIntervalMinutes = 165
+        dose2ReminderEnabled = true
         snoozeDurationMinutes = 10
         maxSnoozes = 3
 
