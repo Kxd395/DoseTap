@@ -10,6 +10,20 @@ This dictionary defines how persisted fields are interpreted. It covers all 17 a
 
 ## Identity and time
 
+Local Studio archive metadata (DOSETAP-13 / DC-12): the local/scheduled writer
+omits `consent` because it does not capture provider consent or fetch enrichment.
+Its `exportWarnings` string array includes the exact element
+`Local snapshot only; provider enrichment was not fetched.` The strict validator
+accepts this omission only for known schema version 2 with a sessions array and
+without contradictory structured provider evidence. Unknown layouts cannot use
+the exception because their provider fields have not been validated.
+Explicit `null` or another malformed consent value is invalid. Manual/provider
+archives require a consent object with five boolean provider-state fields. Missing
+local consent remains **not captured**; it does not establish false authorization
+or disabled provider settings. Required export metadata and raw-questionnaire
+coverage apply in both modes. This is a validator correction for the existing
+archive format, not an app/schema change.
+
 Bounded Apple Health evidence (DOSETAP-56): `SleepEvidenceSample` is an in-memory query snapshot, not a SQLite table or an added export. It retains optional `sampleID`, original `start`/`end`, `rawCategory`, adapter stage and `origin` (source name/bundle/version/product/OS; optional device description/version fields; provider timezone; query `receivedAt`). Device hardware identifiers and arbitrary HealthKit metadata are not copied. Missing fields stay nil. Provider timezone describes the sample's supplied metadata, not an inferred sleep location. The optional Codable model supports round-trip tests but does not itself establish a persistence or public-report contract.
 
 `SleepEvidenceResolution` version `sleep_evidence_consensus_v1` returns the original observations plus clipped slices, supporting sample IDs, conflict minutes, rejected-invalid-sample count and `SleepIntervalCoverage`. Conflict time is included in unmeasured time, not added again to elapsed time. A conflict result can still contain measured nonconflicting portions; it is not a complete-night total. The coverage-only projection omits conflict reasons, so new reporting consumers must use the richer result. Current exports remain unchanged until privacy and consumer integration are implemented.

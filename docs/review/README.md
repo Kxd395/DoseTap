@@ -19,6 +19,9 @@ Files here record dated reviews, design decisions, migration analysis, and regre
 
 ## Delivery records
 
+- [September 12 Plane closeout and validator review](2026-09-12-plane-closeout-review.md): DC-12 local-export validation, exact acceptance boundaries and next provider repair; app remains build 53.
+- [Final retained legacy-patch disposition](2026-09-12-legacy-patch-disposition.md): DOSETAP-63 source comparison and protected Xcode policy; preserves the legacy checkout and branches.
+
 Each record identifies its version, bounded changes, validation and remaining gates. Integration and automated checks do not close phone, VoiceOver, provider, privacy or release acceptance.
 
 | Build | Record | Scope |
