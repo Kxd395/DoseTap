@@ -384,14 +384,14 @@ struct PreSleepCard: View {
 struct AlarmIndicatorView: View {
     let dose1Time: Date?
     @ObservedObject private var alarmService = AlarmService.shared
-    @AppStorage("target_interval_minutes") private var targetIntervalMinutes: Int = 165
+    @ObservedObject private var sessionRepo = SessionRepository.shared
     @State private var isRetryingAlarm = false
     
     var body: some View {
         if let d1 = dose1Time {
             // Use AlarmService's target time if available (accounts for snoozes)
             // Otherwise fall back to calculated time
-            let alarmTime = alarmService.targetWakeTime ?? d1.addingTimeInterval(Double(targetIntervalMinutes) * 60)
+            let alarmTime = alarmService.targetWakeTime ?? d1.addingTimeInterval(Double(sessionRepo.activeDoseTargetMinutes) * 60)
             let snoozeCount = alarmService.snoozeCount
             
             HStack(alignment: .top, spacing: 6) {

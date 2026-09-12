@@ -21,6 +21,7 @@ struct Dose1ReviewSheet: View {
     @State private var savedSession: String?
     @State private var message: String?
     @State private var alarmVerified = false
+    @State private var alarmSetupNeedsRetry = false
     @State private var changingAlarm = false
     @State private var appliedInterval = UserSettingsManager.shared.targetIntervalMinutes
 
@@ -93,7 +94,7 @@ struct Dose1ReviewSheet: View {
                                 .accessibilityIdentifier("dose1-unverified-target")
                         }
                         if savedSession != nil, savedDose != nil {
-                            if changingAlarm || !alarmVerified {
+                            if changingAlarm || !alarmVerified || alarmSetupNeedsRetry {
                                 Button(changingAlarm ? "Update Dose 2 alarm" : "Retry alarm setup", action: updateAlarm)
                                     .accessibilityIdentifier("dose1-retry-alarm")
                             }
@@ -161,7 +162,7 @@ struct Dose1ReviewSheet: View {
         }
         let token: DoseActionCoordinator.Dose1Review
         if retrySave {
-            guard let fresh = coordinator.prepareDose1Review() else {
+            guard let fresh = coordinator.prepareDose1ReviewForRetry(review) else {
                 message = "The session changed. Cancel and review tonight again."; return
             }
             token = fresh
@@ -183,7 +184,7 @@ struct Dose1ReviewSheet: View {
                 alarmVerified = savedSession == coordinator.sessionRepo?.activeSessionId
                     && coordinator.sessionRepo?.dose2Time == nil && coordinator.alarmService.alarmScheduled
                 message = alarmVerified ? "Dose saved. Review the alarm result above." : "Dose 1 is saved. The Dose 2 alarm is not verified."
-                if case .attentionRequired(let detail) = result { message = detail }
+                if case .attentionRequired(let detail) = result { message = detail; alarmSetupNeedsRetry = true }
                 onCommitted(result)
             case .retryRequired(let detail): retrySave = true; message = detail
             case .blocked(let detail): retrySave = false; message = detail
@@ -200,8 +201,8 @@ struct Dose1ReviewSheet: View {
             busy = false
             alarmVerified = coordinator.alarmService.alarmScheduled
             switch result {
-            case .success(let detail): message = detail; appliedInterval = interval; changingAlarm = false
-            case .attentionRequired(let detail), .retryRequired(let detail): message = detail
+            case .success(let detail): message = detail; appliedInterval = interval; changingAlarm = false; alarmSetupNeedsRetry = false
+            case .attentionRequired(let detail), .retryRequired(let detail): message = detail; alarmSetupNeedsRetry = true
             case .blocked(let detail): message = detail; alarmVerified = false
             case .needsConfirm: message = "Review tonight before changing the alarm."
             }

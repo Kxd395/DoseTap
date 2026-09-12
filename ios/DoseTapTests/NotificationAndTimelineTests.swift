@@ -282,6 +282,14 @@ final class AlarmSchedulingTests: XCTestCase {
         XCTAssertEqual(service.targetWakeTime, environment.now.addingTimeInterval(195 * 60))
         let events = storage.fetchDoseEvents(sessionId: session, sessionDate: try XCTUnwrap(repository.activeSessionDate))
         XCTAssertEqual(events.filter { $0.eventType == "dose1" }.count, 1, "Alarm retry must not repeat medication persistence")
+        client.failingIdentifiers = [AlarmService.NotificationID.secondDose]
+        let partial = await coordinator.retryDose1Alarm(sessionId: session, dose1: environment.now, targetMinutes: 195)
+        guard case .attentionRequired = partial else { return XCTFail("Reminder-only failure must still require retry") }
+        XCTAssertTrue(service.alarmScheduled, "A verified wake alarm can coexist with failed window reminders")
+        XCTAssertFalse(service.reminderScheduled)
+        client.failingIdentifiers = []
+        guard case .success = await coordinator.retryDose1Alarm(sessionId: session, dose1: environment.now, targetMinutes: 195) else { return XCTFail("Window reminder retry should recover") }
+        XCTAssertTrue(service.reminderScheduled)
     }
 
     func test_partialAddFailureRollsBackWholeWakeGroup() async throws {

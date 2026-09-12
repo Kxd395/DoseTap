@@ -69,6 +69,13 @@ final class DoseActionCoordinator: ObservableObject {
         }
     }
 
+    func prepareDose1ReviewForRetry(_ original: Dose1Review) -> Dose1Review? {
+        guard let repo = sessionRepo else { return nil }
+        repo.refreshForTimeChange()
+        guard repo.activeSessionId == original.sessionId, repo.currentSessionKey == original.sessionDate else { return nil }
+        return prepareDose1Review(surface: original.surface)
+    }
+
     private func dose1ReviewMatches(_ review: Dose1Review) -> Bool {
         guard let repo = sessionRepo else { return false }
         repo.refreshForTimeChange()
@@ -313,7 +320,7 @@ final class DoseActionCoordinator: ObservableObject {
             if let error = alarmService.lastSchedulingError { return .attentionRequired(message: "History saved. \(error)") }
             return .success(message: "History record saved")
         }
-        let target = first.addingTimeInterval(Double(UserSettingsManager.shared.targetIntervalMinutes) * 60)
+        let target = first.addingTimeInterval(Double(repo.activeDoseTargetMinutes) * 60)
         var failures: [String] = []
         if target > dateProvider.now() {
             let wake = await alarmService.scheduleDose2Alarm(at: target, dose1Time: first)
@@ -408,7 +415,7 @@ final class DoseActionCoordinator: ObservableObject {
             if input.dose2Time == nil, let first = input.dose1Time, let repo = sessionRepo,
                let identity = repo.activeSessionId, let sessionDate = repo.activeSessionDate {
                 do {
-                    workWarning = try repo.workWakeSchedule().warning(sessionId: identity, sessionDate: sessionDate, dose1: first, now: decisionTime, doseTargetMinutes: UserSettingsManager.shared.targetIntervalMinutes)
+                    workWarning = try repo.workWakeSchedule().warning(sessionId: identity, sessionDate: sessionDate, dose1: first, now: decisionTime, doseTargetMinutes: repo.activeDoseTargetMinutes)
                 } catch {
                     return .retryRequired(message: "Your work schedule could not be read. Review it in Weekly Schedule and retry.")
                 }
@@ -503,7 +510,7 @@ final class DoseActionCoordinator: ObservableObject {
             var workWarning: WorkWakeWarning?
             if let repo = sessionRepo, let identity = repo.activeSessionId, let sessionDate = repo.activeSessionDate {
                 do {
-                    workWarning = try repo.workWakeSchedule().warning(sessionId: identity, sessionDate: sessionDate, dose1: dose1Time, now: occurrenceTime, doseTargetMinutes: UserSettingsManager.shared.targetIntervalMinutes, retrospective: true)
+                    workWarning = try repo.workWakeSchedule().warning(sessionId: identity, sessionDate: sessionDate, dose1: dose1Time, now: occurrenceTime, doseTargetMinutes: repo.activeDoseTargetMinutes, retrospective: true)
                 } catch {
                     return .retryRequired(message: "Your work schedule could not be read. Review it in Weekly Schedule and retry.")
                 }
