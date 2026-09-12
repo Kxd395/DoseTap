@@ -12,9 +12,9 @@ DoseTap is a local-first iOS app that helps patients manage two-dose nighttime m
 
 ## Data Retention
 
-- All data is stored locally in SQLite.
-- Deleting the app deletes the sandbox and all data.
-- Manual CSV export is available in Settings.
+- Clinical records are stored locally in SQLite. Preferences, diagnostic files and Keychain credentials have separate owners; Apple Health and WHOOP records remain provider-owned.
+- Deleting the app removes its sandbox; it does not delete external provider records or establish that Keychain credentials were removed.
+- Settings offers reporting exports, including CSV. These are not a complete app backup; see the [collection and export inventory](docs/audit/2026-09-12/README.md).
 - Shipping builds are local-first. CloudKit sync is limited to the `DoseTapStaging` validation target and is not active in the shipping `DoseTap` target.
 
 ## HealthKit

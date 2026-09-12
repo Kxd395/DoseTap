@@ -111,6 +111,13 @@ struct InsightMetricFact: Identifiable, Hashable, Sendable {
 }
 
 struct InsightBundleEvent: Codable, Hashable, Sendable {
+    var id: String? = nil
+    var sourceTable: String? = nil
+    var sessionId: String? = nil
+    var sessionDate: String? = nil
+    var timestampStoredUTC: String? = nil
+    var createdAtStoredUTC: String? = nil
+    var colorHex: String? = nil
     let kind: String
     let eventType: String
     let occurredAtUTC: Date

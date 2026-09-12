@@ -32,3 +32,4 @@ Each record identifies its version, bounded changes, validation and remaining ga
 | 50 | [No alarm](2026-09-11-no-alarm-delivery.md) | Session-scoped reminder opt-out |
 | 51 | [Durable logging](2026-09-12-durable-log-delivery.md) | Quick/general-medication save failures, retained drafts and retry |
 | 52 | [Export fidelity](2026-09-12-export-fidelity-delivery.md) | Stored inventory/medication preservation, checked reads and tracker reconciliation |
+| 53 | [Event export provenance](2026-09-12-event-export-provenance-delivery.md) | Original dose/sleep row identity, timestamp text, metadata and color |

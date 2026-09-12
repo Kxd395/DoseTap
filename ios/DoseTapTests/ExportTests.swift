@@ -22,6 +22,101 @@ final class ExportRecordFidelityTests: XCTestCase {
         XCTAssertEqual(sqlite3_exec(storage.db, sql, nil, nil, nil), SQLITE_OK)
     }
 
+    func testEventIdentityAndProvenanceReachEveryArchiveRepresentation() throws {
+        let (storage, repo) = fixture()
+        execute("""
+        INSERT INTO dose_events(id,session_id,event_type,timestamp,session_date,metadata,created_at)
+        VALUES('shared-id','session-a','dose1','2026-09-11T23:00:00.123Z','2026-09-11','{"recorded_at_utc":"2026-09-12T07:50:00Z","source":"history","previous":"kept"}','2026-09-12 07:50:01'),
+        ('second-session','session-a','history_correction','2026-09-12T01:00:00Z','2026-09-11','unparsed legacy metadata',NULL);
+        INSERT INTO sleep_events(id,session_id,event_type,timestamp,session_date,color_hex,notes,created_at)
+        VALUES('shared-id',NULL,'Future Sleep Event','2026-09-12T01:02:00Z','2026-09-11','#ABCDEF','comma, "quote"
+        new line',NULL);
+        """, in: storage)
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let writer = StudioBundleExporter()
+        try writer.writeLocalStudioExportBundle(using: repo, to: folder)
+        let data = try Data(contentsOf: folder.appendingPathComponent("insights_bundle.json"))
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let session = try XCTUnwrap((json["sessions"] as? [[String: Any]])?.first)
+        let raw = try XCTUnwrap(session["rawEvents"] as? [[String: Any]])
+        let normalized = try XCTUnwrap(session["normalizedEvents"] as? [[String: Any]])
+        XCTAssertEqual(raw.count, 3)
+        XCTAssertEqual(normalized.count, 3)
+        for rows in [raw, normalized] {
+            let dose = try XCTUnwrap(rows.first { $0["sourceTable"] as? String == "dose_events" && $0["id"] as? String == "shared-id" })
+            XCTAssertEqual(dose["sessionId"] as? String, "session-a")
+            XCTAssertEqual(dose["timestampStoredUTC"] as? String, "2026-09-11T23:00:00.123Z")
+            XCTAssertEqual(dose["createdAtStoredUTC"] as? String, "2026-09-12 07:50:01")
+            XCTAssertTrue((dose["details"] as? String)?.contains("2026-09-12T07:50:00Z") == true)
+            let other = try XCTUnwrap(rows.first { $0["id"] as? String == "second-session" })
+            XCTAssertEqual(other["sessionId"] as? String, "session-a")
+            XCTAssertEqual(other["details"] as? String, "unparsed legacy metadata")
+            XCTAssertNil(other["source"])
+            let sleep = try XCTUnwrap(rows.first { $0["sourceTable"] as? String == "sleep_events" })
+            XCTAssertEqual(sleep["id"] as? String, "shared-id")
+            XCTAssertEqual(sleep["colorHex"] as? String, "#ABCDEF")
+            XCTAssertEqual(sleep["sessionDate"] as? String, "2026-09-11")
+            XCTAssertNil(sleep["sessionId"]); XCTAssertNil(sleep["createdAtStoredUTC"]); XCTAssertNil(sleep["source"])
+        }
+        XCTAssertEqual(raw.first { $0["sourceTable"] as? String == "sleep_events" }?["eventType"] as? String, "Future Sleep Event")
+        let csv = try ReportCSV.rows(String(contentsOf: folder.appendingPathComponent("events.csv"), encoding: .utf8))
+        XCTAssertEqual(Array(try XCTUnwrap(csv.first).prefix(4)), ["event_type", "occurred_at_utc", "details", "device_time"])
+        XCTAssertEqual(csv.count, 4)
+        for event in raw {
+            let headers = try XCTUnwrap(csv.first)
+            let id = try XCTUnwrap(headers.firstIndex(of: "id")), table = try XCTUnwrap(headers.firstIndex(of: "source_table"))
+            let row = try XCTUnwrap(csv.dropFirst().first { $0[id] == event["id"] as? String && $0[table] == event["sourceTable"] as? String })
+            XCTAssertNotNil(AppFormatters.iso8601Fractional.date(from: row[1]), "Legacy CSV occurrence keeps fractional format")
+            for (column, key) in [("session_id", "sessionId"), ("session_date", "sessionDate"), ("timestamp_stored_utc", "timestampStoredUTC"), ("created_at_stored_utc", "createdAtStoredUTC"), ("color_hex", "colorHex"), ("details", "details")] {
+                XCTAssertEqual(row[try XCTUnwrap(headers.firstIndex(of: column))], event[key] as? String ?? "")
+            }
+        }
+        let archive = try writer.writeScheduledArchive(using: repo, to: folder)
+        let attachment = XCTAttachment(data: try Data(contentsOf: archive), uniformTypeIdentifier: "public.zip-archive")
+        attachment.name = "stored-events-roundtrip.zip"; attachment.lifetime = .keepAlways; add(attachment)
+    }
+
+    func testEventReaderPreservesDifferentSessionsWithoutAssigningLegacyRows() throws {
+        let (storage, repo) = fixture()
+        execute("""
+        INSERT INTO dose_events(id,session_id,event_type,timestamp,session_date)
+        VALUES('one','session-a','dose1','2026-09-11T23:00:00Z','2026-09-11'),
+        ('two','session-b','dose1','2026-09-11T23:00:00Z','2026-09-11'),
+        ('legacy',NULL,'snooze','2026-09-11T23:00:00Z','2026-09-11');
+        """, in: storage)
+        let events = try repo.eventExportRecords(sessionDate: "2026-09-11")
+        XCTAssertEqual(Set(events.map(\.id)), ["one", "two", "legacy"])
+        XCTAssertEqual(Set(events.compactMap(\.sessionId)), ["session-a", "session-b"])
+        XCTAssertNil(events.first { $0.id == "legacy" }?.sessionId)
+    }
+
+    func testLegacyWholeSecondDoseReadPreservesChronologyAndHistoryGuard() throws {
+        let (storage, _) = fixture()
+        execute("""
+        INSERT INTO dose_events(id,session_id,event_type,timestamp,session_date)
+        VALUES('fractional','same','snooze','2026-09-11T23:00:00.123Z','2026-09-11'),
+        ('whole','same','dose1','2026-09-11T23:00:00Z','2026-09-11');
+        """, in: storage)
+        XCTAssertEqual(storage.fetchDoseEvents(sessionId: "same", sessionDate: "2026-09-11").map(\.id), ["whole", "fractional"])
+        XCTAssertEqual(try storage.historySnapshot(sessionDate: "2026-09-11").events.count, 2)
+        execute("UPDATE dose_events SET timestamp = 'invalid' WHERE id = 'whole';", in: storage)
+        XCTAssertThrowsError(try storage.historySnapshot(sessionDate: "2026-09-11"))
+    }
+
+    func testMalformedEventReadDoesNotPublishPartialArchive() throws {
+        for table in ["dose_events", "sleep_events"] {
+            let (storage, repo) = fixture()
+            execute("INSERT INTO \(table)(id,event_type,timestamp,session_date) VALUES('valid','brief_wake','2026-09-11T23:00:00Z','2026-09-11'),('invalid','brief_wake','zz-invalid','2026-09-11');", in: storage)
+            let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: folder) }
+            XCTAssertThrowsError(try StudioBundleExporter().writeScheduledArchive(using: repo, to: folder))
+            XCTAssertFalse(try FileManager.default.contentsOfDirectory(atPath: folder.path).contains { $0.hasSuffix(".zip") })
+        }
+    }
+
     func testInventoryExportsEveryStoredIdentityAndUnchangedNotes() throws {
         let (storage, repo) = fixture()
         execute("""

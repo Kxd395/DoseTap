@@ -12,6 +12,7 @@ This packet answers what DoseTap collects, where it stores each record, and whic
 3. [Stored field inventory](stored-field-inventory.md): exact SQLite columns, questionnaire properties and versioned payload names. A field in a model does not prove a visible input or an actively confirmed answer.
 4. [Build 51 durable-log delivery](../../review/2026-09-12-durable-log-delivery.md): follow-up to DC-01's create/write feedback path. Other CRUD operations, process-termination recovery and the export findings remain separate.
 5. [Build 52 export fidelity](../../review/2026-09-12-export-fidelity-delivery.md): DC-02/03 inventory/medication preservation, read-failure handling, Studio compatibility and exact Plane gate reconciliation.
+6. [Build 53 event provenance](../../review/2026-09-12-event-export-provenance-delivery.md): DC-04 dose/sleep row identity, stored timestamps and metadata preservation; typed CSV unknown-event inclusion and full-backup acceptance remain separate.
 
 ## Evidence and authority
 

@@ -25,6 +25,40 @@ extension EventStorage {
         return rows
     }
 
+    /// Read each original ledger row, including different identities sharing a date.
+    func eventExportRecords(sessionDate: String) throws -> [StoredEventExportRecord] {
+        try readExportRows("""
+        SELECT 'dose_events' AS source_table, id, session_id, session_date, event_type,
+               timestamp, created_at, metadata AS details, NULL AS color_hex
+        FROM dose_events WHERE session_date = ?1
+        UNION ALL
+        SELECT 'sleep_events', id, session_id, session_date, event_type,
+               timestamp, created_at, notes, color_hex
+        FROM sleep_events WHERE session_date = ?1
+        ORDER BY source_table, timestamp, id
+        """, binding: sessionDate) { stmt in
+            func text(_ index: Int32) throws -> String? {
+                if sqlite3_column_type(stmt, index) == SQLITE_NULL { return nil }
+                guard sqlite3_column_type(stmt, index) == SQLITE_TEXT,
+                      let pointer = sqlite3_column_text(stmt, index),
+                      let value = String(bytes: UnsafeBufferPointer(start: pointer,
+                        count: Int(sqlite3_column_bytes(stmt, index))), encoding: .utf8) else {
+                    throw ExportReadError.unreadable
+                }
+                return value
+            }
+            guard let source = try text(0), let id = try text(1), let date = try text(3),
+                  let type = try text(4), let occurrence = try text(5),
+                  let timestamp = Self.parseExportDate(occurrence) else {
+                throw ExportReadError.unreadable
+            }
+            return StoredEventExportRecord(sourceTable: source, id: id,
+                sessionId: try text(2), sessionDate: date, eventType: type,
+                timestampUTC: timestamp, timestampStoredUTC: occurrence,
+                createdAtStoredUTC: try text(6), details: try text(7), colorHex: try text(8))
+        }
+    }
+
     func medicationExportRecords(sessionDate: String) throws -> [StoredMedicationExportRecord] {
         try readExportRows("""
         SELECT id, session_id, session_date, medication_id, dose_mg, dose_unit, formulation,
@@ -568,6 +602,19 @@ extension EventStorage {
 enum ExportReadError: Error, LocalizedError {
     case unreadable
     var errorDescription: String? { "Export could not read all required stored records. No archive was published. Please retry." }
+}
+
+struct StoredEventExportRecord: Encodable {
+    let sourceTable: String
+    let id: String
+    let sessionId: String?
+    let sessionDate: String
+    let eventType: String
+    let timestampUTC: Date
+    let timestampStoredUTC: String
+    let createdAtStoredUTC: String?
+    let details: String?
+    let colorHex: String?
 }
 
 struct StoredMedicationExportRecord: Encodable {
