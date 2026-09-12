@@ -57,6 +57,7 @@ final class DoseActionCoordinatorClockTests: XCTestCase {
     private var dateProvider: MutableDateProvider!
     private var coordinator: DoseActionCoordinator!
     private var previousSoundEnabled = true
+    private var previousNotificationsEnabled = true
     private var previousSchedule: (prep: Int, wake: Int, cutoff: Int)!
 
     override func setUp() async throws {
@@ -87,6 +88,10 @@ final class DoseActionCoordinatorClockTests: XCTestCase {
             sessionRepo: repository
         )
 
+        // These tests exercise dose persistence and clocks, not system permission UI.
+        // Alarm scheduling/failures use injected clients in AlarmSchedulingTests.
+        previousNotificationsEnabled = settings.notificationsEnabled
+        settings.notificationsEnabled = false
         previousSoundEnabled = UserSettingsManager.shared.soundEnabled
         UserSettingsManager.shared.soundEnabled = false
         AlarmService.shared.cancelAllAlarms()
@@ -95,6 +100,7 @@ final class DoseActionCoordinatorClockTests: XCTestCase {
 
     override func tearDown() async throws {
         UserSettingsManager.shared.soundEnabled = previousSoundEnabled
+        UserSettingsManager.shared.notificationsEnabled = previousNotificationsEnabled
         AlarmService.shared.cancelAllAlarms()
         AlarmService.shared.clearDose2AlarmState()
         repository?.clearTonight()
@@ -414,6 +420,148 @@ final class DoseActionCoordinatorClockTests: XCTestCase {
             return XCTFail("Consumed confirmation must never restore an undone dose")
         }
         XCTAssertNil(repository.dose2Time)
+    }
+
+    func testDose1EntrySurfacesRequireReviewBeforeWriting() async {
+        repository.clearTonight()
+        for surface: RegistrationSurface in [.tonightButton, .sessionDetail, .deepLink, .flic, .notificationAction] {
+            guard case .needsConfirm(.dose1Record) = await coordinator.takeDose1(surface: surface) else { return XCTFail("Expected review for \(surface)") }
+            XCTAssertNil(repository.dose1Time)
+        }
+    }
+
+    func testDose1ReviewCancellationAndStaleSessionWriteNothing() async throws {
+        repository.clearTonight()
+        let token = try XCTUnwrap(coordinator.prepareDose1Review())
+        XCTAssertNil(repository.dose1Time)
+        coordinator.cancelDose1Review()
+        guard case .blocked = await coordinator.confirmDose1(token, targetMinutes: 180) else { return XCTFail("Cancelled review") }
+        let next = try XCTUnwrap(coordinator.prepareDose1Review())
+        repository.setDose1Time(dateProvider.now())
+        guard case .blocked = await coordinator.confirmDose1(next, targetMinutes: 180) else { return XCTFail("Stale review") }
+    }
+
+    func testDose1ReviewUsesConfirmationClockAndKeepsUsualPreference() async throws {
+        repository.clearTonight()
+        let settings = UserSettingsManager.shared, previous = UserSettingsManager.shared.targetIntervalMinutes
+        defer { settings.targetIntervalMinutes = previous }
+        settings.targetIntervalMinutes = 165
+        let token = try XCTUnwrap(coordinator.prepareDose1Review())
+        dateProvider.advance(by: 60)
+        let confirmed = dateProvider.now()
+        _ = await coordinator.confirmDose1(token, targetMinutes: 210)
+        XCTAssertEqual(repository.dose1Time, confirmed)
+        XCTAssertEqual(settings.targetIntervalMinutes, 165)
+        XCTAssertEqual(coordinator.alarmService.targetWakeTime, confirmed.addingTimeInterval(210 * 60))
+        guard case .blocked = await coordinator.confirmDose1(token, targetMinutes: 210) else { return XCTFail("Single use") }
+        let events = storage.fetchDoseEvents(sessionId: repository.activeSessionId, sessionDate: repository.activeSessionDate!)
+        XCTAssertEqual(events.filter { $0.eventType == "dose1" }.count, 1)
+    }
+
+    func testDose1TonightTargetSurvivesReloadAndControlsWorkAdvisory() async throws {
+        let settings = UserSettingsManager.shared, previous = UserSettingsManager.shared.targetIntervalMinutes
+        defer { settings.targetIntervalMinutes = previous }
+        dateProvider.advance(by: 31 * 60)
+        for (usual, tonight, expectsWarning) in [(165, 225, false), (225, 165, true)] {
+            repository.clearTonight()
+            settings.targetIntervalMinutes = usual
+            _ = await coordinator.confirmDose1(try XCTUnwrap(coordinator.prepareDose1Review()), occurrence: dose1Time, targetMinutes: tonight)
+            repository.reload()
+            var plan = WorkWakeSchedule(timeZoneIdentifier: "UTC", workingWeekdays: Set(1...7), target: .doseTarget)
+            plan.revision = try repository.workWakeSchedule().revision
+            XCTAssertTrue(repository.saveWorkWakeSchedule(plan).isCommitted)
+            XCTAssertEqual(repository.activeDoseTargetMinutes, tonight)
+            let result = await coordinator.takeDose2()
+            if expectsWarning {
+                guard case .needsConfirm(.workWake) = result else { return XCTFail("Tonight's earlier target requires its advisory: \(result)") }
+            } else {
+                guard case .needsConfirm(.dose2Record) = result else { return XCTFail("The later tonight target must not inherit the usual deadline: \(result)") }
+            }
+            XCTAssertEqual(settings.targetIntervalMinutes, usual)
+        }
+    }
+
+    func testDose1EarlierThanPrepIsRejectedBeforeWriteAndBoundaryRemainsActive() async throws {
+        repository.clearTonight()
+        let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-09-11T21:00:00Z"))
+        let settings = UserSettingsManager.shared
+        settings.prepTimeMinutes = 20 * 60
+        repository = SessionRepository(storage: storage, notificationScheduler: FakeNotificationScheduler(),
+            clock: { now }, timeZoneProvider: { TimeZone(secondsFromGMT: 0)! })
+        core.setSessionRepository(repository)
+        dateProvider = MutableDateProvider(now)
+        coordinator = DoseActionCoordinator(core: core, alarmService: .shared, dateProvider: dateProvider, sessionRepo: repository)
+        let token = try XCTUnwrap(coordinator.prepareDose1Review())
+        let beforePrep = now.addingTimeInterval(-2 * 3600)
+        guard case .blocked = await coordinator.confirmDose1(token, occurrence: beforePrep, targetMinutes: 180) else {
+            return XCTFail("A time that immediately rolls over must require History before writing")
+        }
+        XCTAssertNil(repository.dose1Time)
+        XCTAssertTrue(storage.fetchDoseEvents(sessionId: nil, sessionDate: "2026-09-11").isEmpty)
+        let corrected = try XCTUnwrap(coordinator.prepareDose1Review())
+        let atPrep = now.addingTimeInterval(-3600)
+        _ = await coordinator.confirmDose1(corrected, occurrence: atPrep, targetMinutes: 180)
+        repository.reload()
+        XCTAssertEqual(repository.dose1Time, atPrep)
+        XCTAssertNotNil(repository.activeSessionId)
+    }
+
+    func testDose1EarlierOccurrencePastCheckInCutoffRequiresHistory() throws {
+        repository.clearTonight()
+        let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-09-12T14:00:00Z"))
+        let earlier = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-09-11T21:00:00Z"))
+        repository = SessionRepository(storage: storage, notificationScheduler: FakeNotificationScheduler(),
+            clock: { now }, timeZoneProvider: { TimeZone(secondsFromGMT: 0)! })
+        XCTAssertFalse(repository.dose1OccurrenceIsInCurrentNight(earlier), "Same date key must not bypass the missed-check-in cutoff")
+        XCTAssertTrue(repository.dose1OccurrenceIsInCurrentNight(now))
+    }
+
+    func testDose1EarlierOccurrencePreservesRecordedTimeAndRejectsInvalidInput() async throws {
+        repository.clearTonight()
+        for (time, target) in [(dateProvider.now().addingTimeInterval(1), 180), (dose1Time.addingTimeInterval(-86400), 180), (dose1Time, 151)] {
+            let token = try XCTUnwrap(coordinator.prepareDose1Review())
+            guard case .blocked = await coordinator.confirmDose1(token, occurrence: time, targetMinutes: target) else { return XCTFail("Invalid review") }
+            XCTAssertNil(repository.dose1Time)
+        }
+        let settings = UserSettingsManager.shared, previous = UserSettingsManager.shared.targetIntervalMinutes
+        defer { settings.targetIntervalMinutes = previous }
+        let token = try XCTUnwrap(coordinator.prepareDose1Review())
+        _ = await coordinator.confirmDose1(token, occurrence: dose1Time, targetMinutes: 195, remember: true)
+        XCTAssertEqual(repository.dose1Time, dose1Time)
+        XCTAssertEqual(settings.targetIntervalMinutes, 195)
+        let event = try XCTUnwrap(storage.fetchDoseEvents(sessionId: repository.activeSessionId, sessionDate: repository.activeSessionDate!).first { $0.eventType == "dose1" })
+        let metadata = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(try XCTUnwrap(event.metadata).utf8)) as? [String: Any])
+        XCTAssertEqual(metadata["reminder_interval_minutes"] as? Int, 195)
+        XCTAssertNotNil(metadata["recorded_at_utc"])
+        XCTAssertEqual(coordinator.savedDose1Review?.recordedAt, dateProvider.now())
+        XCTAssertEqual(coordinator.savedDose1Review?.occurrence, dose1Time)
+        XCTAssertEqual(event.timestamp, dose1Time)
+    }
+
+    func testDose1FailedWriteLeavesPreferenceAndDoseUntouchedThenRetriesSameOccurrence() async throws {
+        repository.clearTonight()
+        let settings = UserSettingsManager.shared, previous = UserSettingsManager.shared.targetIntervalMinutes
+        defer { settings.targetIntervalMinutes = previous }
+        settings.targetIntervalMinutes = 165
+        let token = try XCTUnwrap(coordinator.prepareDose1Review(surface: .deepLink))
+        storage.medicationFaultInjector = { $0 == .insert ? MedicationStorageInjectedFailure(code: .diskFull, sqliteCode: 13, detail: "Injected") : nil }
+        guard case .retryRequired = await coordinator.confirmDose1(token, occurrence: dose1Time, targetMinutes: 225, remember: true) else { return XCTFail("Expected save failure") }
+        XCTAssertNil(repository.dose1Time)
+        XCTAssertEqual(settings.targetIntervalMinutes, 165)
+        storage.medicationFaultInjector = nil
+        let retry = try XCTUnwrap(coordinator.prepareDose1ReviewForRetry(token))
+        _ = await coordinator.confirmDose1(retry, occurrence: dose1Time, targetMinutes: 225, remember: true)
+        XCTAssertEqual(repository.dose1Time, dose1Time)
+        XCTAssertEqual(settings.targetIntervalMinutes, 225)
+        let session = try XCTUnwrap(repository.activeSessionId)
+        let dose = try XCTUnwrap(storage.fetchDoseEvents(sessionId: session, sessionDate: repository.activeSessionDate!).first { $0.eventType == "dose1" })
+        let metadata = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(try XCTUnwrap(dose.metadata).utf8)) as? [String: Any])
+        XCTAssertEqual(metadata["source"] as? String, RegistrationSurface.deepLink.rawValue)
+        let count = storage.fetchDoseEvents(sessionId: session, sessionDate: repository.activeSessionDate!).count
+        _ = await coordinator.retryDose1Alarm(sessionId: session, dose1: dose1Time, targetMinutes: 225)
+        XCTAssertEqual(storage.fetchDoseEvents(sessionId: session, sessionDate: repository.activeSessionDate!).count, count)
+        repository.setDose2Time(dateProvider.now(), isEarly: false, isExtraDose: false)
+        guard case .blocked = await coordinator.retryDose1Alarm(sessionId: session, dose1: dose1Time, targetMinutes: 225) else { return XCTFail("Completed dose must block alarm retry") }
     }
 
     private func requestAndConfirmDose2(acknowledgedWorkWarning: WorkWakeWarning? = nil) async -> DoseActionCoordinator.ActionResult {

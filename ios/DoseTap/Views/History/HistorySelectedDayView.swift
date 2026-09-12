@@ -279,7 +279,7 @@ struct SelectedDayView: View {
                     repository: sessionRepo,
                     recordOccurrence: { occurrence, reason, notes, acknowledgement, wakeMethod in
                         do {
-                            let warning = try sessionRepo.workWakeSchedule().warning(sessionId: identity, sessionDate: sessionDateString, dose1: dose.dose1Time, now: occurrence, doseTargetMinutes: UserSettingsManager.shared.targetIntervalMinutes, retrospective: true)
+                            let warning = try sessionRepo.workWakeSchedule().warning(sessionId: identity, sessionDate: sessionDateString, dose1: dose.dose1Time, now: occurrence, doseTargetMinutes: sessionRepo.confirmedDoseTargetMinutes(in: doseEvents), retrospective: true)
                             if let warning, warning != acknowledgement { return .needsConfirm(.workWake(warning)) }
                         } catch {
                             return .retryRequired(message: "Your work schedule could not be read. Review it in Weekly Schedule and retry.")

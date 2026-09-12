@@ -53,6 +53,13 @@ struct DoseTapApp: App {
         #endif
         Self.migrateSetupStateIfNeeded()
         #if DEBUG && targetEnvironment(simulator)
+        if ProcessInfo.processInfo.arguments.contains("--uitesting-dose1-review-reset") {
+            UserSettingsManager.shared.targetIntervalMinutes = 165
+            UserSettingsManager.shared.notificationsEnabled = false
+        }
+        if ProcessInfo.processInfo.arguments.contains("--uitesting-dose1-review-failure") {
+            SessionRepository.shared.prepareDose1ReviewWriteFailureUITest()
+        }
         if ProcessInfo.processInfo.arguments.contains("--uitesting-auto-night-reset") {
             let repository = SessionRepository.shared
             repository.clearTonight()
@@ -245,6 +252,8 @@ struct DoseTapApp: App {
             }
             
         case .background:
+            if container.sessionRepository.dose1Time == nil { urlRouter.dose1Review = nil }
+            container.doseCoordinator.cancelDose1Review()
             container.doseCoordinator.cancelDose2Confirmation()
             backgroundedAt = Date()
             Task {
@@ -253,6 +262,8 @@ struct DoseTapApp: App {
             AlarmService.shared.stopRinging(acknowledge: false)
 
         case .inactive:
+            if container.sessionRepository.dose1Time == nil { urlRouter.dose1Review = nil }
+            container.doseCoordinator.cancelDose1Review()
             container.doseCoordinator.cancelDose2Confirmation()
             // Transitional state, don't log
             break

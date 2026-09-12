@@ -303,6 +303,19 @@ final class URLRouterTests: XCTestCase {
         XCTAssertEqual(router.lastAction, .takeDose1, "Should set lastAction to .takeDose1")
     }
 
+    func test_dose1_deepLinkPublishesReviewWithoutRecording() async throws {
+        XCTAssertTrue(router.handle(URL(string: "dosetap://dose1")!))
+        await router.waitForPendingActions()
+        XCTAssertEqual(router.selectedTab, .tonight)
+        let review = try XCTUnwrap(router.dose1Review)
+        XCTAssertNil(SessionRepository.shared.dose1Time)
+        coordinator.cancelDose1Review(review)
+        guard case .blocked = await coordinator.confirmDose1(review, targetMinutes: 165) else {
+            return XCTFail("Dismissed deep-link review cannot record medication")
+        }
+        XCTAssertNil(SessionRepository.shared.dose1Time)
+    }
+
     func test_dose1_deepLink_doesNotPersistSleepEventDose() async {
         let url = URL(string: "dosetap://dose1")!
         let handled = router.handle(url)

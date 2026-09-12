@@ -364,6 +364,8 @@ final class FlicButtonService: ObservableObject {
 
     private func confirmationMessage(_ type: DoseActionCoordinator.ConfirmationType) -> String {
         switch type {
+        case .dose1Record:
+            return "Dose 1 is not recorded - review Dose 1 and its reminder in the app"
         case .dose2Record:
             return "Dose 2 is not recorded - review and confirm in the app"
         case .workWake:

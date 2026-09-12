@@ -121,6 +121,7 @@ public class URLRouter: ObservableObject {
     // MARK: - Published State
     @Published var selectedTab: AppTab = .tonight
     @Published var showingSupplyReminder = false
+    @Published var dose1Review: DoseActionCoordinator.Dose1Review?
     @Published var lastAction: URLAction?
     @Published var showActionFeedback: Bool = false
     @Published var feedbackMessage: String = ""
@@ -385,6 +386,13 @@ public class URLRouter: ObservableObject {
             showFeedback(reason)
         case .needsConfirm(let type):
             switch type {
+            case .dose1Record(let review):
+                guard applicationStateProvider() == .active, protectedDataProvider() else {
+                    coordinator?.cancelDose1Review(review)
+                    return
+                }
+                selectedTab = .tonight
+                dose1Review = review
             case .dose2Record:
                 selectedTab = .tonight
                 showFeedback("Dose 2 is not recorded. Review and confirm Record Dose 2 in the app.")

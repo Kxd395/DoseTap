@@ -158,6 +158,23 @@ public extension SessionRepository {
         return loadDoseEvents(sessionId: activeSessionId, sessionDate: sessionDate)
     }
 
+    /// The confirmed treatment target is distinct from a later snoozed alarm.
+    var activeDoseTargetMinutes: Int {
+        confirmedDoseTargetMinutes(in: fetchDoseEventsForActiveSession())
+    }
+
+    func confirmedDoseTargetMinutes(in events: [DoseCore.StoredDoseEvent]) -> Int {
+        let settings = UserSettingsManager.shared
+        let first = events.filter {
+            CanonicalDoseEventType(canonicalizing: $0.eventType) == .dose1
+        }
+        guard first.count == 1, let metadata = first[0].metadata,
+              let object = try? JSONSerialization.jsonObject(with: Data(metadata.utf8)) as? [String: Any],
+              let minutes = object["reminder_interval_minutes"] as? Int,
+              settings.validTargetOptions.contains(minutes) else { return settings.targetIntervalMinutes }
+        return minutes
+    }
+
     /// Fetch dose events for a specific session date (ordered by timestamp asc).
     func fetchDoseEvents(forSessionDate sessionDate: String) -> [DoseCore.StoredDoseEvent] {
         loadDoseEvents(sessionId: fetchSessionId(forSessionDate: sessionDate), sessionDate: sessionDate)

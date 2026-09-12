@@ -38,6 +38,95 @@ final class DoseActionCoordinator: ObservableObject {
     var sessionRepo: SessionRepository?
     var hapticObserver: ((FeedbackIntensity) -> Void)?
     private var pendingDose2Confirmation: Dose2Confirmation?
+    private var pendingDose1Review: Dose1Review?
+    private var dose1ReviewGeneration = 0
+    private var dose1ReviewInFlight = false
+    private(set) var savedDose1Review: (reviewId: UUID, sessionId: String, occurrence: Date, recordedAt: Date)?
+
+    struct Dose1Review: Equatable, Identifiable {
+        let id = UUID()
+        fileprivate let sessionId: String?
+        fileprivate let sessionDate: String
+        fileprivate let generation: Int
+        fileprivate let surface: RegistrationSurface
+    }
+
+    func prepareDose1Review(surface: RegistrationSurface = .tonightButton) -> Dose1Review? {
+        guard !dose1ReviewInFlight, let repo = sessionRepo else { return nil }
+        repo.refreshForTimeChange()
+        guard repo.dose1Time == nil else { return nil }
+        dose1ReviewGeneration += 1
+        let review = Dose1Review(sessionId: repo.activeSessionId, sessionDate: repo.currentSessionKey,
+            generation: dose1ReviewGeneration, surface: surface)
+        pendingDose1Review = review
+        return review
+    }
+
+    func cancelDose1Review(_ review: Dose1Review? = nil) {
+        if review == nil || pendingDose1Review == review {
+            pendingDose1Review = nil
+            dose1ReviewGeneration += 1
+        }
+    }
+
+    func prepareDose1ReviewForRetry(_ original: Dose1Review) -> Dose1Review? {
+        guard let repo = sessionRepo else { return nil }
+        repo.refreshForTimeChange()
+        guard repo.activeSessionId == original.sessionId, repo.currentSessionKey == original.sessionDate else { return nil }
+        return prepareDose1Review(surface: original.surface)
+    }
+
+    private func dose1ReviewMatches(_ review: Dose1Review) -> Bool {
+        guard let repo = sessionRepo else { return false }
+        repo.refreshForTimeChange()
+        return review.generation == dose1ReviewGeneration && repo.activeSessionId == review.sessionId
+            && repo.currentSessionKey == review.sessionDate && repo.dose1Time == nil
+    }
+
+    func confirmDose1(_ review: Dose1Review, occurrence: Date? = nil, targetMinutes: Int,
+                      remember: Bool = false) async -> ActionResult {
+        guard pendingDose1Review == review, dose1ReviewMatches(review) else {
+            return .blocked(reason: "This Dose 1 review expired. Cancel and review the current night again.")
+        }
+        pendingDose1Review = nil
+        dose1ReviewInFlight = true
+        defer { dose1ReviewInFlight = false }
+        let now = dateProvider.now()
+        let taken = occurrence ?? now
+        guard UserSettingsManager.shared.validTargetOptions.contains(targetMinutes),
+              taken.timeIntervalSince1970.isFinite, taken <= now,
+              sessionRepo?.dose1OccurrenceIsInCurrentNight(taken) == true else {
+            return .blocked(reason: "Choose a time in the current session, no later than now, and an available reminder interval. Use History for a time before the prep or missed-check-in boundary.")
+        }
+        return await commitDose1(surface: review.surface, occurrence: taken, recordedAt: now,
+            targetMinutes: targetMinutes, remember: remember, review: review)
+    }
+
+    func retryDose1Alarm(sessionId: String, dose1: Date, targetMinutes: Int) async -> ActionResult {
+        guard UserSettingsManager.shared.validTargetOptions.contains(targetMinutes),
+              dose1AlarmStillApplies(sessionId: sessionId, dose1: dose1) else {
+            return .blocked(reason: "The dose or session changed. Review tonight before changing its alarm.")
+        }
+        let wake = await alarmService.scheduleDose2Alarm(at: dose1.addingTimeInterval(Double(targetMinutes) * 60), dose1Time: dose1)
+        guard dose1AlarmStillApplies(sessionId: sessionId, dose1: dose1) else {
+            return .blocked(reason: "The dose or session changed during alarm setup.")
+        }
+        let reminders = await alarmService.scheduleDose2Reminders(dose1Time: dose1)
+        guard dose1AlarmStillApplies(sessionId: sessionId, dose1: dose1) else {
+            return .blocked(reason: "The dose or session changed during alarm setup.")
+        }
+        let failures = [wake, reminders].compactMap(\.failure)
+        if !failures.isEmpty { return .attentionRequired(message: failures.map(\.userMessage).joined(separator: " ")) }
+        guard alarmService.alarmScheduled else { return .attentionRequired(message: "Dose 1 is recorded. The Dose 2 alarm is not enabled or no future alarm is scheduled.") }
+        return .success(message: "Dose 2 alarm scheduled. Dose 1 was not changed.")
+    }
+
+    private func dose1AlarmStillApplies(sessionId: String, dose1: Date) -> Bool {
+        guard let repo = sessionRepo else { return false }
+        repo.refreshForTimeChange()
+        return repo.activeSessionId == sessionId && repo.dose1Time.map { abs($0.timeIntervalSince(dose1)) < 0.001 } == true
+            && repo.dose2Time == nil && !repo.dose2Skipped && !repo.checkInCompleted
+    }
 
     // MARK: - Result Types
 
@@ -50,6 +139,7 @@ final class DoseActionCoordinator: ObservableObject {
     }
 
     enum ConfirmationType: Equatable {
+        case dose1Record(Dose1Review)
         case dose2Record(Dose2Confirmation)
         /// Window not open yet - tell user how many minutes remain
         case workWake(WorkWakeWarning)
@@ -101,6 +191,14 @@ final class DoseActionCoordinator: ObservableObject {
     // MARK: - Take Dose 1
 
     func takeDose1(surface: RegistrationSurface = .tonightButton) async -> ActionResult {
+        guard let review = prepareDose1Review(surface: surface) else {
+            return .blocked(reason: "Dose 1 cannot be started here. Review the current session.")
+        }
+        return .needsConfirm(.dose1Record(review))
+    }
+
+    private func commitDose1(surface: RegistrationSurface, occurrence: Date? = nil, recordedAt: Date? = nil,
+                             targetMinutes: Int? = nil, remember: Bool = false, review: Dose1Review? = nil) async -> ActionResult {
         let sig = DoseSignpost.begin(.takeDose1)
         defer { DoseSignpost.end(.takeDose1, sig) }
 
@@ -108,7 +206,7 @@ final class DoseActionCoordinator: ObservableObject {
             return .blocked(reason: "Session store unavailable")
         }
 
-        let decisionTime = dateProvider.now()
+        let decisionTime = occurrence ?? dateProvider.now()
         switch DoseRegistrationPolicy.evaluateDose1(
             input: registrationInput(surface: surface, at: decisionTime),
             at: decisionTime
@@ -130,7 +228,24 @@ final class DoseActionCoordinator: ObservableObject {
             action: "dose1",
             surface: surface.rawValue
         )
-        let mutationResult = sessionRepo.setDose1Time(decisionTime)
+        if let review, !dose1ReviewMatches(review) {
+            return .blocked(reason: "The session changed. Review Dose 1 again before saving.")
+        }
+        var metadata: String?
+        if let recordedAt, let targetMinutes {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            let values: [String: Any] = ["source": surface.rawValue,
+                "recorded_at_utc": formatter.string(from: recordedAt), "reminder_interval_minutes": targetMinutes]
+            guard let data = try? JSONSerialization.data(withJSONObject: values, options: .sortedKeys) else {
+                return .blocked(reason: "Dose details could not be prepared. Review and retry.")
+            }
+            metadata = String(decoding: data, as: UTF8.self)
+        }
+        let mutationResult = sessionRepo.setDose1Time(decisionTime, metadata: metadata)
+        if mutationResult.isCommitted, let review, let sessionId = sessionRepo.activeSessionId {
+            savedDose1Review = (review.id, sessionId, decisionTime, recordedAt ?? decisionTime)
+        }
         await logDoseMutationResult(
             mutationResult,
             sessionId: diagnosticSessionId,
@@ -145,6 +260,10 @@ final class DoseActionCoordinator: ObservableObject {
             )
         }
 
+        guard let committedSession = mutationResult.receipt?.sessionId,
+              dose1AlarmStillApplies(sessionId: committedSession, dose1: decisionTime) else {
+            return .attentionRequired(message: "Dose 1 was logged. The session changed before alarm setup; review tonight.")
+        }
         // Event log
         eventLogger?.logEvent(
             name: "Dose 1", color: .green,
@@ -155,16 +274,23 @@ final class DoseActionCoordinator: ObservableObject {
         undoState?.register(.takeDose1(at: decisionTime))
 
         // Schedule alarms
-        let targetMinutes = UserSettingsManager.shared.targetIntervalMinutes
-        let target = targetMinutes > 0 ? targetMinutes : 165
+        let selectedTarget = targetMinutes ?? UserSettingsManager.shared.targetIntervalMinutes
+        let target = UserSettingsManager.shared.validTargetOptions.contains(selectedTarget) ? selectedTarget : 165
+        if remember { UserSettingsManager.shared.targetIntervalMinutes = target }
         let wakeTime = decisionTime.addingTimeInterval(Double(target) * 60)
         let wakeResult = await alarmService.scheduleDose2Alarm(
             at: wakeTime,
             dose1Time: decisionTime
         )
+        guard dose1AlarmStillApplies(sessionId: committedSession, dose1: decisionTime) else {
+            return .attentionRequired(message: "Dose 1 was logged. The session changed during alarm setup; review tonight.")
+        }
         let reminderResult = await alarmService.scheduleDose2Reminders(
             dose1Time: decisionTime
         )
+        guard dose1AlarmStillApplies(sessionId: committedSession, dose1: decisionTime) else {
+            return .attentionRequired(message: "Dose 1 was logged. The session changed during reminder setup; review tonight.")
+        }
 
         playHaptic(.dose)
         playConfirmationSound()
@@ -200,7 +326,7 @@ final class DoseActionCoordinator: ObservableObject {
             if let error = alarmService.lastSchedulingError { return .attentionRequired(message: "History saved. \(error)") }
             return .success(message: "History record saved")
         }
-        let target = first.addingTimeInterval(Double(UserSettingsManager.shared.targetIntervalMinutes) * 60)
+        let target = first.addingTimeInterval(Double(repo.activeDoseTargetMinutes) * 60)
         var failures: [String] = []
         if target > dateProvider.now() {
             let wake = await alarmService.scheduleDose2Alarm(at: target, dose1Time: first)
@@ -295,7 +421,7 @@ final class DoseActionCoordinator: ObservableObject {
             if input.dose2Time == nil, let first = input.dose1Time, let repo = sessionRepo,
                let identity = repo.activeSessionId, let sessionDate = repo.activeSessionDate {
                 do {
-                    workWarning = try repo.workWakeSchedule().warning(sessionId: identity, sessionDate: sessionDate, dose1: first, now: decisionTime, doseTargetMinutes: UserSettingsManager.shared.targetIntervalMinutes)
+                    workWarning = try repo.workWakeSchedule().warning(sessionId: identity, sessionDate: sessionDate, dose1: first, now: decisionTime, doseTargetMinutes: repo.activeDoseTargetMinutes)
                 } catch {
                     return .retryRequired(message: "Your work schedule could not be read. Review it in Weekly Schedule and retry.")
                 }
@@ -390,7 +516,7 @@ final class DoseActionCoordinator: ObservableObject {
             var workWarning: WorkWakeWarning?
             if let repo = sessionRepo, let identity = repo.activeSessionId, let sessionDate = repo.activeSessionDate {
                 do {
-                    workWarning = try repo.workWakeSchedule().warning(sessionId: identity, sessionDate: sessionDate, dose1: dose1Time, now: occurrenceTime, doseTargetMinutes: UserSettingsManager.shared.targetIntervalMinutes, retrospective: true)
+                    workWarning = try repo.workWakeSchedule().warning(sessionId: identity, sessionDate: sessionDate, dose1: dose1Time, now: occurrenceTime, doseTargetMinutes: repo.activeDoseTargetMinutes, retrospective: true)
                 } catch {
                     return .retryRequired(message: "Your work schedule could not be read. Review it in Weekly Schedule and retry.")
                 }

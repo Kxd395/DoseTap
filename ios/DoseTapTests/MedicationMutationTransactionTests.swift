@@ -33,6 +33,24 @@ private final class MedicationMutationNotificationCenter: AlarmNotificationCente
 
 @MainActor
 final class MedicationMutationTransactionTests: XCTestCase {
+    private var previousNightSettings: (prep: Int, wake: Int)?
+
+    override func setUp() async throws {
+        let settings = UserSettingsManager.shared
+        previousNightSettings = (settings.prepTimeMinutes, settings.wakeTimeMinutes)
+        // These fixed-UTC transaction fixtures must not inherit a preceding
+        // native journey's wall-clock bedtime and roll over mid-assertion.
+        settings.prepTimeMinutes = 18 * 60
+        settings.wakeTimeMinutes = 7 * 60
+    }
+
+    override func tearDown() async throws {
+        if let previousNightSettings {
+            UserSettingsManager.shared.prepTimeMinutes = previousNightSettings.prep
+            UserSettingsManager.shared.wakeTimeMinutes = previousNightSettings.wake
+        }
+    }
+
     func testTimelineSleepCheckDiscardsLateNightResponseAndClearsOldResult() async {
         let model = TimelineDoseSleepModel()
         await model.refresh(sessionDate: "first") { _ in .init(status: .available) }
@@ -1114,7 +1132,7 @@ final class MedicationMutationTransactionTests: XCTestCase {
         var hapticCount = 0
         coordinator.hapticObserver = { _ in hapticCount += 1 }
 
-        let result = await coordinator.takeDose1()
+        let result = await coordinator.confirmDose1(try XCTUnwrap(coordinator.prepareDose1Review()), targetMinutes: 165)
 
         XCTAssertEqual(
             result,
@@ -1133,7 +1151,7 @@ final class MedicationMutationTransactionTests: XCTestCase {
         XCTAssertEqual(actionEntries.last?.mutationFailureCode, "disk_full")
 
         storage.medicationFaultInjector = nil
-        let retryResult = await coordinator.takeDose1()
+        let retryResult = await coordinator.confirmDose1(try XCTUnwrap(coordinator.prepareDose1Review()), targetMinutes: 165)
         XCTAssertEqual(
             retryResult,
             .attentionRequired(

@@ -1,11 +1,17 @@
 # DoseTap SSOT Navigation
 
 Status: Current SSOT index
-Last verified: 2026-09-08
+Last verified: 2026-09-11
 
 This file is a pointer map for the SSOT. The canonical spec lives in `docs/SSOT/README.md`.
 
 On iPhone, Tonight places the Pre-Sleep Check entry immediately before the primary dose action, including its logged/edit state. Preparation precedes taking a dose; quick logs and statistics follow the nightly actions. Optional bottle recording is the first item inside Pre-Sleep Check, with no duplicate standalone bottle button on Tonight. All five tabs share a native toolbar with theme at the leading edge and current-page capture at the trailing edge. Timeline exposes capture in both Live and Review, even without records. Its separate review-summary capture stays within Review content. Global floating controls must not cover screen content or back navigation. The work-warning sheet separates its dated schedule summary, explicit recording action, and date-only adjustments.
+
+Take Dose 1 presents a native review sheet with occurrence, reminder presets and
+an exact alarm preview. Confirmation stays in the bottom safe area while content
+scrolls. The saved result separates medication from alarm verification and permits
+alarm-only retry/change. An active/unlocked Dose 1 deep link opens this review;
+Flic directs the user to review in the app. Neither external action records a dose.
 
 ## Quick Links
 

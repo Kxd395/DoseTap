@@ -206,6 +206,7 @@ public class AlarmService: NSObject, ObservableObject {
     private var scheduleGenerations: [NotificationGroup: UInt64] = [:]
     private var failuresByGroup: [NotificationGroup: AlarmSchedulingFailure] = [:]
     private var wakeScheduleInFlight = false
+    private var reminderScheduleInFlight = false
 
     private static let persistedScheduleKey = "alarmService_schedule_v1"
     private static let legacyTargetWakeTimeKey = "alarmService_targetWakeTime"
@@ -417,6 +418,11 @@ public class AlarmService: NSObject, ObservableObject {
     /// - Parameter dose1Time: Time Dose 1 was taken
     @discardableResult
     public func scheduleDose2Reminders(dose1Time: Date) async -> AlarmScheduleResult {
+        // Stable identifiers require serialized ownership through cancellation cleanup.
+        guard !reminderScheduleInFlight else { return .failed(cancelledFailure()) }
+        reminderScheduleInFlight = true
+        defer { reminderScheduleInFlight = false }
+        let generation = beginScheduling(for: .reminders)
         let now = nowProvider()
         let timeZone = timeZoneProvider()
         let requests = makeReminderRequests(
@@ -429,9 +435,11 @@ public class AlarmService: NSObject, ObservableObject {
 
         let result = await performScheduleTransaction(
             group: .reminders,
+            generation: generation,
             requests: requests,
             absoluteDeadline: nil
         )
+        guard isCurrent(generation, for: .reminders) else { return .failed(cancelledFailure()) }
 
         switch result {
         case .scheduled(let receipt):
@@ -515,6 +523,7 @@ public class AlarmService: NSObject, ObservableObject {
         }
         wakeScheduleInFlight = true
         defer { wakeScheduleInFlight = false }
+        let generation = beginScheduling(for: .wake)
 
         // Keep action titles in sync with current user snooze settings.
         registerNotificationCategories()
@@ -562,9 +571,11 @@ public class AlarmService: NSObject, ObservableObject {
         )
         let result = await performScheduleTransaction(
             group: .wake,
+            generation: generation,
             requests: requests,
             absoluteDeadline: time
         )
+        guard isCurrent(generation, for: .wake) else { return .failed(cancelledFailure()) }
 
         switch result {
         case .scheduled(let receipt):
@@ -645,8 +656,7 @@ public class AlarmService: NSObject, ObservableObject {
         }
     }
 
-    private func performSystemWakeTransaction(client: any SystemDoseAlarmScheduling, at date: Date) async -> AlarmScheduleResult {
-        let generation = beginScheduling(for: .wake)
+    private func performSystemWakeTransaction(client: any SystemDoseAlarmScheduling, at date: Date, generation: UInt64) async -> AlarmScheduleResult {
         var prior: Date?
         do {
             try await client.requestAuthorization()
@@ -1082,27 +1092,27 @@ public class AlarmService: NSObject, ObservableObject {
 
     private func performScheduleTransaction(
         group: NotificationGroup,
+        generation: UInt64,
         requests: [UNNotificationRequest],
         absoluteDeadline: Date?
     ) async -> AlarmScheduleResult {
         let allGroupIdentifiers = identifiers(for: group)
         guard configurationProvider().notificationsEnabled else {
-            invalidateScheduling(for: group)
             if group == .wake, let failure = cancelSystemWakeAlarm() { return .failed(failure) }
             notificationClient.removePendingRequests(withIdentifiers: allGroupIdentifiers)
             return .notNeeded(reason: "Notifications disabled")
         }
 
         if group == .wake, let systemWakeAlarm, let absoluteDeadline {
-            return await performSystemWakeTransaction(client: systemWakeAlarm, at: absoluteDeadline)
+            return await performSystemWakeTransaction(client: systemWakeAlarm, at: absoluteDeadline, generation: generation)
         }
 
         let authorization = await notificationClient.authorizationStatus()
+        guard isCurrent(generation, for: group) else { return .failed(cancelledFailure()) }
         switch authorization {
         case .authorized, .provisional, .ephemeral:
             break
         case .denied:
-            invalidateScheduling(for: group)
             notificationClient.removePendingRequests(withIdentifiers: allGroupIdentifiers)
             return .failed(AlarmSchedulingFailure(
                 code: .authorizationDenied,
@@ -1111,7 +1121,6 @@ public class AlarmService: NSObject, ObservableObject {
                 previousScheduleRestored: false
             ))
         case .notDetermined:
-            invalidateScheduling(for: group)
             notificationClient.removePendingRequests(withIdentifiers: allGroupIdentifiers)
             return .failed(AlarmSchedulingFailure(
                 code: .authorizationRequired,
@@ -1120,7 +1129,6 @@ public class AlarmService: NSObject, ObservableObject {
                 previousScheduleRestored: false
             ))
         @unknown default:
-            invalidateScheduling(for: group)
             notificationClient.removePendingRequests(withIdentifiers: allGroupIdentifiers)
             return .failed(AlarmSchedulingFailure(
                 code: .authorizationDenied,
@@ -1130,7 +1138,6 @@ public class AlarmService: NSObject, ObservableObject {
             ))
         }
 
-        let generation = beginScheduling(for: group)
         let priorRequests = await notificationClient.pendingRequests()
             .filter { allGroupIdentifiers.contains($0.identifier) }
         guard isCurrent(generation, for: group) else {
@@ -1152,7 +1159,7 @@ public class AlarmService: NSObject, ObservableObject {
                     notificationClient.removePendingRequests(withIdentifiers: allGroupIdentifiers)
                     return .failed(cancelledFailure())
                 }
-                let restored = await rollback(group: group, to: priorRequests)
+                let restored = await rollback(group: group, generation: generation, to: priorRequests)
                 await logSchedulingError(
                     identifier: request.identifier,
                     detail: error.localizedDescription
@@ -1195,7 +1202,7 @@ public class AlarmService: NSObject, ObservableObject {
         }.sorted()
 
         guard missing.isEmpty, unexpected.isEmpty, mismatched.isEmpty else {
-            let restored = await rollback(group: group, to: priorRequests)
+            let restored = await rollback(group: group, generation: generation, to: priorRequests)
             let detail = "missing=\(missing.joined(separator: ",")); unexpected=\(unexpected.joined(separator: ",")); mismatched=\(mismatched.joined(separator: ","))"
             await logSchedulingError(identifier: nil, detail: detail)
             return .failed(AlarmSchedulingFailure(
@@ -1218,6 +1225,7 @@ public class AlarmService: NSObject, ObservableObject {
 
     private func rollback(
         group: NotificationGroup,
+        generation: UInt64,
         to priorRequests: [UNNotificationRequest]
     ) async -> Bool {
         let allIdentifiers = identifiers(for: group)
@@ -1225,6 +1233,10 @@ public class AlarmService: NSObject, ObservableObject {
         do {
             for request in priorRequests {
                 try await notificationClient.add(request)
+                guard isCurrent(generation, for: group) else {
+                    notificationClient.removePendingRequests(withIdentifiers: allIdentifiers)
+                    return false
+                }
             }
         } catch {
             alarmLog.error("Notification rollback failed: \(error.localizedDescription, privacy: .public)")
@@ -1233,6 +1245,10 @@ public class AlarmService: NSObject, ObservableObject {
         }
         let restored = await notificationClient.pendingRequests()
             .filter { allIdentifiers.contains($0.identifier) }
+        guard isCurrent(generation, for: group) else {
+            notificationClient.removePendingRequests(withIdentifiers: allIdentifiers)
+            return false
+        }
         let restoredByIdentifier = Dictionary(
             uniqueKeysWithValues: restored.map { ($0.identifier, $0) }
         )

@@ -569,10 +569,16 @@ final class AlarmAndSetupRegressionTests: XCTestCase {
         XCTAssertEqual(alarm.snoozeCount, 0)
     }
 
-    func test_flicTakeDose_usesCoordinatorUndoPath() async {
+    func test_flicTakeDose_requiresReviewBeforeCoordinatorUndoPath() async throws {
         let result = await FlicButtonService.shared.handleGesture(.singlePress)
 
-        XCTAssertTrue(result.success, "Flic single press should record Dose 1 through the configured coordinator.")
+        XCTAssertFalse(result.success, "Flic must direct Dose 1 to explicit in-app review.")
+        XCTAssertTrue(try XCTUnwrap(result.message).contains("review Dose 1"))
+        XCTAssertNil(repo.dose1Time)
+        let beforeConfirmation = await FlicButtonService.shared.handleGesture(.longHold)
+        XCTAssertFalse(beforeConfirmation.success, "Opening review must not register medication undo.")
+        let review = try XCTUnwrap(coordinator.prepareDose1Review())
+        _ = await coordinator.confirmDose1(review, targetMinutes: 165)
         XCTAssertNotNil(repo.dose1Time)
 
         try? await Task.sleep(nanoseconds: 50_000_000)
