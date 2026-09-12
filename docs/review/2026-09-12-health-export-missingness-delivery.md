@@ -1,6 +1,6 @@
 # Apple Health export missingness
 
-Date: 2026-09-12. Status: implementation, local validation and independent review passed; integration pending.
+Date: 2026-09-12. Status: merged in PR #42; local validation, independent review and all three post-merge workflows passed. Phone/provider acceptance remains open.
 Baseline: `3577d9f256c09ed43a3f92865dd8704f21e8572b`, app **0.4.19 (53)**.
 Signed candidate: **0.4.19 (54)**, verified across both app targets and Debug/Release configurations. Studio export **2.6**, schema **2**.
 Tracking: DOSETAP-13 and DOSETAP-56; related lifecycle audit DOSETAP-39. None is Done.
@@ -44,10 +44,10 @@ performed; the archive contains synthetic records. Native evidence covers the
 changed missing-value presentation, not full layout or accessibility acceptance.
 
 Studio compatibility/contract commit: `8eb2bc1`; app repair commit: `0058aa7`.
-[PR #42](https://github.com/Kxd395/DoseTap/pull/42) contains the reviewed change.
-Hosted checks and main integration are pending in this committed snapshot; their
-exact final readback is recorded in the PR and Plane closeout. Build 54 is a
-validated signed candidate, not an accepted phone or release build.
+[PR #42](https://github.com/Kxd395/DoseTap/pull/42) merged at
+`352d874a053a0e5617593b2f967d1914529d69c0`. CI, Documentation CI and Swift CI
+post-merge runs passed, verified on September 12. Build 54 remains a validated
+signed candidate for phone acceptance; integration does not establish release acceptance.
 
 ## Remaining acceptance
 
@@ -62,4 +62,4 @@ Preserve these gates on their existing Plane owners:
 - DOSETAP-39's separate migration dependency-ID coverage and live generic event-list/count reproduction questions, related to DOSETAP-42/45, are unchanged.
 - VoiceOver/full accessibility, privacy/security, prior credential-review gates, release performance and owner/release acceptance. Medication/alarm reliability and the historical unexpected-dose investigation retain their separate owners.
 
-The next acceptance step after validated integration is an owner-authorized real-record Health export comparison. Synthetic fixtures cannot establish phone/provider correctness or close DOSETAP-13/56/39.
+The next acceptance step is an owner-authorized real-record Health export comparison. Synthetic fixtures cannot establish phone/provider correctness or close DOSETAP-13/56/39.

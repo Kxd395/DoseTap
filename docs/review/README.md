@@ -36,4 +36,5 @@ Each record identifies its version, bounded changes, validation and remaining ga
 | 51 | [Durable logging](2026-09-12-durable-log-delivery.md) | Quick/general-medication save failures, retained drafts and retry |
 | 52 | [Export fidelity](2026-09-12-export-fidelity-delivery.md) | Stored inventory/medication preservation, checked reads and tracker reconciliation |
 | 53 | [Event export provenance](2026-09-12-event-export-provenance-delivery.md) | Original dose/sleep row identity, timestamp text, metadata and color |
-| 54 candidate | [Apple Health export missingness](2026-09-12-health-export-missingness-delivery.md) | DC-05 partial correction: absent sleep summaries retain biometrics without invented zeros |
+| 54 | [Apple Health export missingness](2026-09-12-health-export-missingness-delivery.md) | DC-05 partial correction: absent sleep summaries retain biometrics without invented zeros |
+| 55 candidate | [WHOOP export request status](2026-09-12-whoop-export-status-delivery.md) | DC-05 continuation: independent fetch results, request counts and cancellation; local validation passed, provider acceptance open |
