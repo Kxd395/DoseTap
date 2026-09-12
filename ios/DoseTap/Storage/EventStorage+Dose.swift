@@ -694,7 +694,8 @@ extension EventStorage {
         timestamp: Date,
         sessionId: String? = nil,
         sessionDateOverride: String? = nil,
-        sessionStart: Date? = nil
+        sessionStart: Date? = nil,
+        metadata: String? = nil
     ) -> MedicationMutationResult {
         let sessionDate = sessionDateOverride ?? sessionDateString(for: timestamp)
         let resolvedSessionId = sessionId ?? sessionDate
@@ -736,7 +737,7 @@ extension EventStorage {
             try executeMedicationStatement(
                 """
                 INSERT INTO dose_events (id, event_type, timestamp, session_date, session_id, metadata)
-                VALUES (?, ?, ?, ?, ?, NULL)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 at: .insert
             ) { statement in
@@ -745,6 +746,7 @@ extension EventStorage {
                 sqlite3_bind_text(statement, 3, timestampString, -1, SQLITE_TRANSIENT)
                 sqlite3_bind_text(statement, 4, sessionDate, -1, SQLITE_TRANSIENT)
                 sqlite3_bind_text(statement, 5, resolvedSessionId, -1, SQLITE_TRANSIENT)
+                if let metadata { sqlite3_bind_text(statement, 6, metadata, -1, SQLITE_TRANSIENT) } else { sqlite3_bind_null(statement, 6) }
             }
 
             try executeMedicationStatement(

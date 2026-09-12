@@ -268,7 +268,7 @@ final class AlarmSchedulingTests: XCTestCase {
         guard case .attentionRequired(let message) = result else {
             return XCTFail("Dose 1 should commit while the alarm failure remains visible")
         }
-        XCTAssertEqual(repository.dose1Time, environment.now)
+        XCTAssertEqual(try XCTUnwrap(repository.dose1Time).timeIntervalSince(environment.now), 0, accuracy: 0.001)
         XCTAssertTrue(message.contains("Dose 1 was logged"))
         XCTAssertTrue(message.contains("Notification permission is denied"))
         XCTAssertFalse(service.alarmScheduled)

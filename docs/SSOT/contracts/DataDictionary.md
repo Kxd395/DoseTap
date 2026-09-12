@@ -153,3 +153,11 @@ A replacement event retains `correction.previous_events`, an array of the replac
 ## Local supply state (schema version 5)
 
 `supply_state` contains one row (`id INTEGER PRIMARY KEY CHECK (id = 1)`, `payload TEXT NOT NULL`). The versioned SupplyBackup JSON owns optional reminder source and correction history, plus independent bottle-start IDs, opened-at and recorded-at timestamps. Reminder dates preserve Gregorian year/month/day and local hour/minute, mode, lead days, current-device-wall-clock policy, entry timezone, enabled and handled state. Received-date mode adds 21 calendar days. No quantity is inferred from bottle starts. A single upsert commits the complete supply document; load/validation/write errors are surfaced. Reminder-only deletion preserves bottle starts and all medication data. Supply export/restore includes both reminder and bottle records; Clear All Data clears the row. The additive table does not rewrite existing medication records.
+
+### Dose 1 reminder review metadata (DOSETAP-71)
+
+New confirmed Dose 1 reviews retain `recorded_at_utc`, `source` (registration
+surface), and `reminder_interval_minutes` in existing `dose_events.metadata`.
+The event timestamp remains the reported occurrence. These additive keys do not
+backfill old events or change SQL schema. The alarm service's existing absolute
+deadline reconstruction is separate from the usual target preference.

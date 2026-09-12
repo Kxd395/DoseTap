@@ -28,6 +28,14 @@ Notes:
 
 ## Domain Entities and Invariants
 
+### Dose 1 reminder review (DOSETAP-71)
+
+- Dose 1 review separates the reported occurrence from its recording time and tonight's Dose 2 reminder interval. The reviewed interval uses the existing 165/180/195/210/225-minute choices; it does not change the medication window. Opening, cancelling, or selecting a preset writes nothing.
+- A review challenge is single-use, bound to the current session identity and treatment date, and invalidated on backgrounding. Confirmation rechecks the session and existing dose before writing. Now is captured at confirmation; earlier occurrences must be finite, nonfuture and in the current treatment night. Other historical nights use History.
+- The dose commits before alarm scheduling. New review metadata retains recorded-at time, source surface, and selected reminder interval. An optional usual-interval update occurs only after the dose commit; a tonight-only choice leaves the existing preference untouched. Existing records and schemas are unchanged.
+- Alarm scheduling uses the reported Dose 1 occurrence plus the selected interval, not capture time. A past reminder target does not reject a reported taken dose; show the saved dose and scheduling error. Retry is alarm-only, bound to the still-active dose/session, and cannot record medication or revive a completed session's reminders.
+- In-app review will show the exact target, retain a failed write's confirmed occurrence for retry, and distinguish verified alarm scheduling from saved medication. Native UI and signed-phone delivery are separate validation gates.
+
 ### Dose completion and morning timing clarification (DOSETAP-67)
 
 - A committed active-session Dose 2 taken/explicit-skip action cancels only the app-owned Dose 2 wake, follow-up and window reminder identifiers. Morning reconciliation performs the same cleanup before attempting the questionnaire write; a questionnaire failure never undoes that dose or reapplies it on retry. Historical-session completion cannot cancel the current session's reminders.

@@ -615,16 +615,21 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         repoLogger.info("SessionRepo: Cancelled pending notifications for deleted session")
     }
     
+    func dose1OccurrenceIsInCurrentNight(_ time: Date) -> Bool {
+        sessionKey(for: time, timeZone: timeZoneProvider(), rolloverHour: rolloverHour) == currentSessionKey
+    }
+
     /// Record dose 1 time
     @discardableResult
-    public func setDose1Time(_ time: Date) -> MedicationMutationResult {
+    public func setDose1Time(_ time: Date, metadata: String? = nil) -> MedicationMutationResult {
         evaluateSessionBoundaries(reason: "set_dose1_preflight")
         let session = medicationSessionCandidate(for: time)
         let result = recordMedicationMutation(storage.saveDose1(
             timestamp: time,
             sessionId: session.sessionId,
             sessionDateOverride: session.sessionDate,
-            sessionStart: session.sessionStart
+            sessionStart: session.sessionStart,
+            metadata: metadata
         ))
         guard result.isCommitted else {
             return result
