@@ -1,7 +1,7 @@
 # DoseTap planning index
 
 Status: Current tracking index
-Last verified: 2026-09-07
+Last verified: 2026-09-12 (navigation; dated status snapshots below retain their original scope)
 Tracker: Plane, Dark Water Drones workspace
 
 Plane owns issue status, priority, assignment, and completion. This file is a repository map so a reader can find the active work without treating an old Markdown checklist as the tracker.
@@ -12,7 +12,20 @@ Plane owns issue status, priority, assignment, and completion. This file is a re
 - [Data Integrity and Dashboard Alignment module](http://plane.localhost:3301/dark-water-drones/projects/f2300d5b-01c5-4b0d-b930-34a954db2f2e/modules/0b6ed408-3432-453b-a030-c8193cf40ebd)
 - [Supply-Cycle Reminder and Dose Safeguards module](http://plane.localhost:3301/dark-water-drones/projects/f2300d5b-01c5-4b0d-b930-34a954db2f2e/modules/d919c1d5-6b84-4405-8f3f-f25f0ad1a22c)
 
-## Release-critical work
+## Current delivery and data-review navigation
+
+| Area | Evidence and next scope | Plane owner |
+| --- | --- | --- |
+| Collection, storage and export audit | [Reading guide and field inventory](audit/2026-09-12/README.md); findings are pinned to build 50 and must be read with subsequent deliveries. | DOSETAP-39; export findings DOSETAP-13 |
+| Durable quick/general-medication logs | [Build 51 delivery](review/2026-09-12-durable-log-delivery.md): commit-before-success and explicit retry; broader CRUD, restart and physical acceptance remain separate. | DOSETAP-3 / DOSETAP-39 |
+| Work/off sleep averages and owner data review | [Inventory and dashboard plan](review/2026-09-11-dashboard-and-collected-data-review.md): following-workday groups, transitions and explicit denominators are proposed. | DOSETAP-45 |
+| Dose/sleep and awakening inspection | [Build 46 metrics](review/2026-09-11-dose-sleep-metrics-delivery.md) and [build 48 Timeline inspection](review/2026-09-11-timeline-awakening-delivery.md); wider consumer adoption, counts and real-provider acceptance remain separate. | DOSETAP-57 |
+
+These links identify bounded delivery evidence, not current issue states or release approval. Re-read each exact Plane item before starting or closing work.
+
+## Earlier release-critical snapshot
+
+The following table preserves the September 7 documentation snapshot with later linked notes. It is not a live backlog or an exhaustive list of subsequent deliveries; use the navigation above and Plane for current decisions.
 
 The latest audit recommendation is `HOLD`. The current integration decision record is `docs/audit/2026-09-05/integration-readiness.md`; the preceding full data-integrity findings remain in `docs/audit/2026-09-01/findings.md`.
 
@@ -62,7 +75,7 @@ The proposal remains downstream of the data-integrity foundation and its explici
 
 ## Food and Drink follow-up
 
-The [questionnaire delivery plan](plans/2026-09-10-questionnaire-delivery-plan.md), DOSETAP-69, qualifies the supplied revision and maps delivery to existing items. It prioritizes medication defaults and save reliability before additional questions. Durable draft/skip semantics, shared recurring symptoms and optional companion context remain planned, not completed by the first DOSETAP-67 repair.
+The [questionnaire delivery plan](plans/2026-09-10-questionnaire-delivery-plan.md), DOSETAP-69, qualifies the supplied revision and maps delivery to existing items. It prioritizes medication defaults and save reliability before additional questions. Durable draft/skip semantics and broader recurring-symptom identity remain separate work. The later [sleeping-arrangement delivery](review/2026-09-10-sleeping-arrangement-delivery.md), DOSETAP-70, supersedes earlier proposed wording for its implemented planned/actual setup scope; its phone, accessibility and privacy/release gates remain separate.
 
 The [September 10 questionnaire review packet](review/2026-09-10-sleep-questionnaire-review.md), tracked by DOSETAP-68, inventories current pre-sleep/morning choices, independent save boundaries, planned collection and owner-feedback prompts. Its [independent findings](review/2026-09-10-questionnaire-independent-findings.md) identify source/UX issues for scoped follow-up; documentation completion does not close their implementation or device gates.
 
@@ -70,7 +83,7 @@ The [September 8 roadmap](plans/2026-09-08-food-drink-roadmap.md) defines five p
 
 ## Insights implementation
 
-The [sleep markers roadmap](plans/2026-09-08-sleep-markers-roadmap.md) preserves Apple Health detail and defines DOSETAP-56 measurement corrections, DOSETAP-57 dose/sleep/wake markers and counts, DOSETAP-58 independent daytime observations, DOSETAP-59 clinician reporting and DOSETAP-60 activity-time specification review. These are planned; DOSETAP-51 is the first implementation slice. New analytics depend on corrected boundaries and explicit missingness.
+The [sleep markers roadmap](plans/2026-09-08-sleep-markers-roadmap.md) preserves Apple Health detail and defines DOSETAP-56 measurement corrections, DOSETAP-57 dose/sleep/wake markers and counts, DOSETAP-58 independent daytime observations, DOSETAP-59 clinician reporting and DOSETAP-60 activity-time specification review. The roadmap is a dated plan. DOSETAP-56 has a measurement foundation, and the linked DOSETAP-57 deliveries above add read-only dose/sleep and awakening inspection. They do not complete awakening counts, work/off averages, independent daytime observations or provider/phone acceptance. New analytics depend on corrected boundaries and explicit missingness.
 
 DoseTap Studio is implemented, but product claims remain limited by import quality, data-source parity, physical Apple Health verification, and whole-lifecycle restore evidence. Current source and validation status are in `docs/INSIGHTS_STATUS.md`.
 
