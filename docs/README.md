@@ -73,6 +73,7 @@ If the SSOT and the compiled implementation disagree, treat that as a defect. Do
 
 ## Current planning and evidence
 
+- Collection, storage and Settings export: [2026-09-12 audit](audit/2026-09-12/collection-store-export-audit.md) and [stored field inventory](audit/2026-09-12/stored-field-inventory.md)
 - Owner data inventory and proposed work/off dashboard: [2026-09-11 review](review/2026-09-11-dashboard-and-collected-data-review.md)
 - Plane index: `docs/PLANNING.md`
 - Latest full audit: `docs/audit/2026-08-31/`
