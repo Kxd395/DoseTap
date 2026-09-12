@@ -122,6 +122,18 @@ final class ImporterTests: XCTestCase {
         let csv = try ReportCSV.rows(InsightReportBuilder().buildSessionCSV(sessions: [night]))
         XCTAssertEqual(csv[0].count, csv[1].count)
         XCTAssertEqual(csv[1][try XCTUnwrap(csv[0].firstIndex(of: "sleepiness_0_to_10"))], "0")
+        if let medicationPath = ProcessInfo.processInfo.environment["DOSETAP_IOS_MEDICATION_EXPORT_FIXTURE"] {
+            let medicationURL = URL(fileURLWithPath: medicationPath).appendingPathComponent("insights_bundle.json")
+            let medicationBundle = try importer.parseInsightsBundle(Data(contentsOf: medicationURL))
+            let medication = try XCTUnwrap(medicationBundle.sessions.first { $0.sessionDate == "2026-09-11" }?
+                .medications.first { $0.id == "med-only" })
+            XCTAssertEqual(medication.id, "med-only")
+            XCTAssertEqual(medication.doseUnit, "mL")
+            XCTAssertEqual(medication.formulation, "liquid")
+            XCTAssertEqual(medication.takenAtStoredUTC, "2026-09-11T23:00:00.123Z")
+            XCTAssertNil(medication.createdAtStoredUTC)
+            XCTAssertNil(medication.sessionId)
+        }
     }
 
     func testExportedCSVPreservesMultilineNotesAndFormulaText() throws {

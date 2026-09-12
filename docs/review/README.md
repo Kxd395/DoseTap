@@ -31,3 +31,4 @@ Each record identifies its version, bounded changes, validation and remaining ga
 | 49 | [Dose 1 reminder review](2026-09-11-dose1-reminder-review-delivery.md) | Explicit dose confirmation and tonight's reminder choice |
 | 50 | [No alarm](2026-09-11-no-alarm-delivery.md) | Session-scoped reminder opt-out |
 | 51 | [Durable logging](2026-09-12-durable-log-delivery.md) | Quick/general-medication save failures, retained drafts and retry |
+| 52 | [Export fidelity](2026-09-12-export-fidelity-delivery.md) | Stored inventory/medication preservation, checked reads and tracker reconciliation |

@@ -18,6 +18,7 @@ Plane owns issue status, priority, assignment, and completion. This file is a re
 | --- | --- | --- |
 | Collection, storage and export audit | [Reading guide and field inventory](audit/2026-09-12/README.md); findings are pinned to build 50 and must be read with subsequent deliveries. | DOSETAP-39; export findings DOSETAP-13 |
 | Durable quick/general-medication logs | [Build 51 delivery](review/2026-09-12-durable-log-delivery.md): commit-before-success and explicit retry; broader CRUD, restart and physical acceptance remain separate. | DOSETAP-3 / DOSETAP-39 |
+| Stored-record export fidelity | [Build 52 delivery](review/2026-09-12-export-fidelity-delivery.md): uncapped inventory and stored medication metadata, checked discovery/reads; complete archive/restore acceptance remains separate. | DOSETAP-13 |
 | Work/off sleep averages and owner data review | [Inventory and dashboard plan](review/2026-09-11-dashboard-and-collected-data-review.md): following-workday groups, transitions and explicit denominators are proposed. | DOSETAP-45 |
 | Dose/sleep and awakening inspection | [Build 46 metrics](review/2026-09-11-dose-sleep-metrics-delivery.md) and [build 48 Timeline inspection](review/2026-09-11-timeline-awakening-delivery.md); wider consumer adoption, counts and real-provider acceptance remain separate. | DOSETAP-57 |
 
