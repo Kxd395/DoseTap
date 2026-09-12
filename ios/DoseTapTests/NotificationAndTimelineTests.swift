@@ -132,6 +132,7 @@ final class AlarmSchedulingTests: XCTestCase {
         var remainingFailureCounts: [String: Int] = [:]
         var silentlyDroppedIdentifiers: Set<String> = []
         var onAdd: ((UNNotificationRequest) -> Void)?
+        var onAuthorization: (() async -> Void)?
         private(set) var removedIdentifiers: [String] = []
         private(set) var categories: Set<UNNotificationCategory> = []
 
@@ -148,7 +149,10 @@ final class AlarmSchedulingTests: XCTestCase {
         }
 
         func authorizationStatus() async -> UNAuthorizationStatus {
-            authorization
+            let callback = onAuthorization
+            onAuthorization = nil
+            await callback?()
+            return authorization
         }
 
         func add(_ request: UNNotificationRequest) async throws {
@@ -240,6 +244,25 @@ final class AlarmSchedulingTests: XCTestCase {
         XCTAssertEqual(service.targetWakeTime, target, "The absolute intent must remain available for an explicit retry")
         XCTAssertNotNil(service.lastSchedulingError)
         XCTAssertTrue(client.requestsByIdentifier.isEmpty)
+    }
+
+    func test_cancellationDuringAuthorizationCannotRecreateEitherReminderGroup() async {
+        for wake in [true, false] {
+            let client = FakeNotificationCenter(), environment = makeEnvironment()
+            let service = makeService(client: client, environment: environment)
+            client.onAuthorization = {
+                service.cancelAllAlarms()
+                service.clearDose2AlarmState()
+            }
+            let result = wake
+                ? await service.scheduleDose2Alarm(at: environment.now.addingTimeInterval(195 * 60), dose1Time: environment.now)
+                : await service.scheduleDose2Reminders(dose1Time: environment.now)
+            XCTAssertEqual(result.failure?.code, .cancelled)
+            XCTAssertTrue(client.requestsByIdentifier.isEmpty, "Completion during authorization must not recreate either group")
+            XCTAssertFalse(service.alarmScheduled)
+            XCTAssertFalse(service.reminderScheduled)
+            XCTAssertNil(service.targetWakeTime, "Cancelled intent must not be restored after the await")
+        }
     }
 
     func test_doseOneCommitSurfacesAlarmFailureAsAttentionRequired() async throws {
@@ -397,6 +420,48 @@ final class AlarmSchedulingTests: XCTestCase {
         XCTAssertEqual(result.failure?.failedIdentifier, AlarmService.NotificationID.dose2PreAlarm)
         XCTAssertFalse(service.alarmScheduled)
         XCTAssertTrue(client.requestsByIdentifier.isEmpty)
+    }
+
+    func test_cancellationDuringRollbackCannotRestoreCompletedAlarm() async throws {
+        let client = FakeNotificationCenter()
+        let environment = makeEnvironment()
+        let service = makeService(client: client, environment: environment)
+        let target = environment.now.addingTimeInterval(165 * 60)
+        _ = await service.scheduleDose2Alarm(at: target, dose1Time: environment.now)
+        client.remainingFailureCounts[AlarmService.NotificationID.dose2PreAlarm] = 1
+        var failureStarted = false
+        client.onAdd = { request in
+            if failureStarted {
+                client.onAdd = nil
+                service.cancelAllAlarms()
+                service.clearDose2AlarmState()
+            } else if request.identifier == AlarmService.NotificationID.dose2PreAlarm {
+                failureStarted = true
+            }
+        }
+        let result = await service.scheduleDose2Alarm(at: target.addingTimeInterval(600), dose1Time: environment.now)
+        XCTAssertEqual(result.failure?.code, .cancelled)
+        XCTAssertTrue(client.requestsByIdentifier.isEmpty)
+        XCTAssertFalse(service.alarmScheduled)
+        XCTAssertNil(service.targetWakeTime)
+    }
+
+    func test_reminderUpdatesSerializeUntilCancelledTransactionReturns() async {
+        let client = FakeNotificationCenter()
+        let environment = makeEnvironment()
+        let service = makeService(client: client, environment: environment)
+        client.onAuthorization = {
+            service.cancelAllAlarms()
+            service.clearDose2AlarmState()
+            let overlapping = await service.scheduleDose2Reminders(dose1Time: environment.now)
+            XCTAssertEqual(overlapping.failure?.code, .cancelled)
+        }
+        let cancelled = await service.scheduleDose2Reminders(dose1Time: environment.now)
+        XCTAssertEqual(cancelled.failure?.code, .cancelled)
+        XCTAssertTrue(client.requestsByIdentifier.isEmpty)
+        let next = await service.scheduleDose2Reminders(dose1Time: environment.now)
+        XCTAssertNil(next.failure)
+        XCTAssertTrue(service.reminderScheduled)
     }
 
     func test_cancelDuringAddInvalidatesSchedulingGeneration() async throws {

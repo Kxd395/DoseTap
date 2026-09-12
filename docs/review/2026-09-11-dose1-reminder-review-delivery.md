@@ -33,7 +33,7 @@ provider data, questionnaires and quick logs retain their ownership boundaries.
 Local validation on 2026-09-11:
 
 - `swift build -q` and `swift test -q`: 710 XCTest plus 43 Swift Testing cases passed.
-- Full `DoseTap` Xcode suite: 447 tests passed. This includes write-failure rollback,
+- Full `DoseTap` Xcode suite: 450 tests passed. This includes write-failure rollback,
   occurrence/recording separation, all five command surfaces, deep-link review,
   duplicate/stale consent and alarm-only retry after notification permission recovery.
 - Six distinct native journeys passed: Dose 1 cancel/background/restart, usual
@@ -59,6 +59,13 @@ The final review also verifies reminder-only failure/recovery while the wake ala
 remains scheduled, retains the originating surface on write retry, and uses the
 confirmed session target for work advisories after reload and in History. Later
 snoozes/alarm-only changes do not rewrite the confirmed treatment target.
+
+Cancellation now owns a generation before authorization can suspend. Cancelled
+wake/reminder transactions cannot recreate requests or restore cleared metadata;
+rollback and overlapping reminder updates have regression coverage. The original
+authorization-race test failed before the repair and passes afterward for both
+groups. Alarm changes retain a verified new wake target when only window reminders
+fail, while keeping reminder retry available.
 
 PR #35 and the DOSETAP-71 workpad retain exact integration/hosted-check readbacks.
 Signed-phone install, locking/ringing/retry, owner acceptance, VoiceOver/full

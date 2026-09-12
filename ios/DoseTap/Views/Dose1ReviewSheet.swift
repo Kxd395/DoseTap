@@ -200,6 +200,10 @@ struct Dose1ReviewSheet: View {
             let result = await coordinator.retryDose1Alarm(sessionId: savedSession, dose1: savedDose, targetMinutes: interval)
             busy = false
             alarmVerified = coordinator.alarmService.alarmScheduled
+            if alarmVerified, let actualTarget = coordinator.alarmService.targetWakeTime,
+               abs(actualTarget.timeIntervalSince(savedDose) - Double(interval) * 60) < 1 {
+                appliedInterval = interval
+            }
             switch result {
             case .success(let detail): message = detail; appliedInterval = interval; changingAlarm = false; alarmSetupNeedsRetry = false
             case .attentionRequired(let detail), .retryRequired(let detail): message = detail; alarmSetupNeedsRetry = true

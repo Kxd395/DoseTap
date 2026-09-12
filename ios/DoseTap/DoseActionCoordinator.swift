@@ -112,6 +112,9 @@ final class DoseActionCoordinator: ObservableObject {
             return .blocked(reason: "The dose or session changed during alarm setup.")
         }
         let reminders = await alarmService.scheduleDose2Reminders(dose1Time: dose1)
+        guard dose1AlarmStillApplies(sessionId: sessionId, dose1: dose1) else {
+            return .blocked(reason: "The dose or session changed during alarm setup.")
+        }
         let failures = [wake, reminders].compactMap(\.failure)
         if !failures.isEmpty { return .attentionRequired(message: failures.map(\.userMessage).joined(separator: " ")) }
         guard alarmService.alarmScheduled else { return .attentionRequired(message: "Dose 1 is recorded. The Dose 2 alarm is not enabled or no future alarm is scheduled.") }
@@ -285,6 +288,9 @@ final class DoseActionCoordinator: ObservableObject {
         let reminderResult = await alarmService.scheduleDose2Reminders(
             dose1Time: decisionTime
         )
+        guard dose1AlarmStillApplies(sessionId: committedSession, dose1: decisionTime) else {
+            return .attentionRequired(message: "Dose 1 was logged. The session changed during reminder setup; review tonight.")
+        }
 
         playHaptic(.dose)
         playConfirmationSound()
