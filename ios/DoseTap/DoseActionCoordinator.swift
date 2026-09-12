@@ -41,6 +41,7 @@ final class DoseActionCoordinator: ObservableObject {
     private var pendingDose1Review: Dose1Review?
     private var dose1ReviewGeneration = 0
     private var dose1ReviewInFlight = false
+    private(set) var savedDose1Review: (reviewId: UUID, sessionId: String, occurrence: Date)?
 
     struct Dose1Review: Equatable, Identifiable {
         let id = UUID()
@@ -128,6 +129,7 @@ final class DoseActionCoordinator: ObservableObject {
     }
 
     enum ConfirmationType: Equatable {
+        case dose1Record(Dose1Review)
         case dose2Record(Dose2Confirmation)
         /// Window not open yet - tell user how many minutes remain
         case workWake(WorkWakeWarning)
@@ -179,7 +181,10 @@ final class DoseActionCoordinator: ObservableObject {
     // MARK: - Take Dose 1
 
     func takeDose1(surface: RegistrationSurface = .tonightButton) async -> ActionResult {
-        await commitDose1(surface: surface)
+        guard let review = prepareDose1Review(surface: surface) else {
+            return .blocked(reason: "Dose 1 cannot be started here. Review the current session.")
+        }
+        return .needsConfirm(.dose1Record(review))
     }
 
     private func commitDose1(surface: RegistrationSurface, occurrence: Date? = nil, recordedAt: Date? = nil,
@@ -228,6 +233,9 @@ final class DoseActionCoordinator: ObservableObject {
             metadata = String(decoding: data, as: UTF8.self)
         }
         let mutationResult = sessionRepo.setDose1Time(decisionTime, metadata: metadata)
+        if mutationResult.isCommitted, let review, let sessionId = sessionRepo.activeSessionId {
+            savedDose1Review = (review.id, sessionId, decisionTime)
+        }
         await logDoseMutationResult(
             mutationResult,
             sessionId: diagnosticSessionId,
@@ -242,7 +250,7 @@ final class DoseActionCoordinator: ObservableObject {
             )
         }
 
-        guard let committedSession = sessionRepo.activeSessionId,
+        guard let committedSession = mutationResult.receipt?.sessionId,
               dose1AlarmStillApplies(sessionId: committedSession, dose1: decisionTime) else {
             return .attentionRequired(message: "Dose 1 was logged. The session changed before alarm setup; review tonight.")
         }

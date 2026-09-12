@@ -11,6 +11,11 @@ final class DoseTapUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
+        if name.contains("testDose1Review") {
+            app.launchArguments += ["--uitesting-auto-night-reset", "--uitesting-dose1-review-reset", "-setup_completed_v2", "YES"]
+            if name.contains("LargeText") { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
+            if name.contains("Failure") { app.launchArguments.append("--uitesting-dose1-review-failure") }
+        }
         if name.contains("testMorningRecordedDoseInWindow") {
             app.launchArguments += ["--uitesting-expired-session", "--uitesting-in-window-dose", "-morningCheckIn.rememberSettings", "NO"]
             if name.contains("LargeText") { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
@@ -41,7 +46,7 @@ final class DoseTapUITests: XCTestCase {
     }
 
     override func tearDownWithError() throws {
-        if name.contains("testMorningRecordedDoseInWindowLargeText") {
+        if name.contains("testDose1ReviewLargeText") || name.contains("testMorningRecordedDoseInWindowLargeText") {
             app.terminate()
             app.launchArguments = ["--uitesting", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
             app.launch()
@@ -114,7 +119,7 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertEqual(theme.value as? String, "Dark")
         let dose1 = app.buttons["dose-primary-action"]
         XCTAssertTrue(dose1.waitForExistence(timeout: 10))
-        dose1.tap()
+        dose1.tap(); confirmDose1ReviewIfPresent()
         captureDashboard("Dose 1 action before automatic appearance assertion")
         let night = NSPredicate(format: "value == %@", "Automatic Night Mode")
         expectation(for: night, evaluatedWith: theme)
@@ -140,7 +145,7 @@ final class DoseTapUITests: XCTestCase {
 
     func testAutomaticNightModeManualOverrideSurvivesRestart() throws {
         let dose1 = app.buttons["dose-primary-action"]
-        XCTAssertTrue(dose1.waitForExistence(timeout: 15)); dose1.tap()
+        XCTAssertTrue(dose1.waitForExistence(timeout: 15)); dose1.tap(); confirmDose1ReviewIfPresent()
         let theme = app.buttons["Theme quick switch"]
         expectation(for: NSPredicate(format: "value == %@", "Automatic Night Mode"), evaluatedWith: theme)
         waitForExpectations(timeout: 10)
@@ -558,7 +563,88 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertFalse(dose.exists, "Window edits must not remove or create medication records")
     }
 
+    private func revealDose1(_ element: XCUIElement) {
+        for _ in 0..<20 {
+            if element.exists && element.isHittable { return }
+            app.swipeUp()
+        }
+        XCTAssertTrue(element.exists && element.isHittable)
+    }
+
+    private func confirmDose1ReviewIfPresent() {
+        let confirm = app.buttons["dose1-confirm-record"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 8)); revealDose1(confirm); confirm.tap()
+        XCTAssertTrue(app.staticTexts["dose1-saved-result"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["dose1-saved-result"].isHittable, "The saved result should begin at the top")
+        captureDashboard("Dose 1 confirmed result before closing review")
+        app.buttons["dose1-close-review"].tap()
+    }
+
+    func testDose1ReviewLargeTextCancelAndRestart() throws { try testDose1ReviewCancelAndRestart() }
+
+    func testDose1ReviewCancelAndRestart() throws {
+        app.launchArguments.removeAll { $0 == "--uitesting-auto-night-reset" || $0 == "--uitesting-dose1-review-reset" }
+        let primary = app.buttons["dose-primary-action"]
+        XCTAssertTrue(primary.waitForExistence(timeout: 15)); revealDose1(primary); primary.tap()
+        let interval = app.buttons["dose1-interval-180"]
+        XCTAssertTrue(app.buttons["dose1-confirm-record"].waitForExistence(timeout: 8)); revealDose1(interval); revealDose1(interval); interval.tap()
+        XCTAssertEqual(interval.value as? String, "Selected")
+        captureDashboard("Dose 1 reminder choice before confirmation")
+        app.buttons["dose1-close-review"].tap()
+        XCTAssertTrue(primary.label.contains("Dose 1"))
+        primary.tap()
+        XCTAssertTrue(app.buttons["dose1-confirm-record"].waitForExistence(timeout: 8)); revealDose1(app.buttons["dose1-interval-165"])
+        XCTAssertEqual(app.buttons["dose1-interval-165"].value as? String, "Selected", "Cancelled choice must not change the preference")
+        XCUIDevice.shared.press(.home); app.activate()
+        XCTAssertTrue(primary.waitForExistence(timeout: 8))
+        XCTAssertFalse(app.buttons["dose1-confirm-record"].exists)
+        primary.tap(); XCTAssertTrue(app.buttons["dose1-confirm-record"].waitForExistence(timeout: 8)); revealDose1(interval); revealDose1(interval); interval.tap()
+        confirmDose1ReviewIfPresent()
+        app.terminate(); app.launch()
+        XCTAssertTrue(primary.waitForExistence(timeout: 15))
+        XCTAssertFalse(primary.label.contains("Dose 1"), "Saved Dose 1 survives restart")
+        captureDashboard("Dose 1 and alarm status after restart")
+        app.terminate(); app.launchArguments.append("--uitesting-layout"); app.launch()
+        XCTAssertTrue(primary.waitForExistence(timeout: 15)); revealDose1(primary); primary.tap()
+        XCTAssertTrue(app.buttons["dose1-confirm-record"].waitForExistence(timeout: 8)); revealDose1(app.buttons["dose1-interval-165"])
+        XCTAssertEqual(app.buttons["dose1-interval-165"].value as? String, "Selected", "Tonight-only interval must not change usual preference")
+        app.buttons["dose1-close-review"].tap()
+    }
+
+    func testDose1ReviewFailureRetryAndRemember() throws {
+        let primary = app.buttons["dose-primary-action"]
+        XCTAssertTrue(primary.waitForExistence(timeout: 15)); revealDose1(primary); primary.tap()
+        let interval = app.buttons["dose1-interval-195"]
+        XCTAssertTrue(app.buttons["dose1-confirm-record"].waitForExistence(timeout: 8)); revealDose1(interval); interval.tap()
+        let remember = app.switches["dose1-remember-interval"]
+        revealDose1(remember); remember.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
+        XCTAssertEqual(remember.value as? String, "1")
+        let confirm = app.buttons["dose1-confirm-record"]
+        revealDose1(confirm); confirm.tap()
+        XCTAssertTrue(app.staticTexts["dose1-review-message"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["dose1-saved-result"].exists)
+        XCTAssertEqual(confirm.label, "Retry saving Dose 1")
+        captureDashboard("Failed Dose 1 save retains occurrence for retry")
+        revealDose1(confirm); confirm.tap()
+        XCTAssertTrue(app.staticTexts["dose1-saved-result"].waitForExistence(timeout: 10))
+        captureDashboard("Dose 1 saved with separate alarm status")
+        let retry = app.buttons["dose1-retry-alarm"]
+        revealDose1(retry); retry.tap()
+        XCTAssertTrue(app.staticTexts["dose1-saved-result"].exists)
+        app.buttons["dose1-close-review"].tap()
+        app.terminate()
+        app.launchArguments.removeAll { $0.hasPrefix("--uitesting-dose1-review") || $0 == "--uitesting-auto-night-reset" }
+        app.launchArguments.append("--uitesting-layout"); app.launch()
+        XCTAssertTrue(primary.waitForExistence(timeout: 15)); revealDose1(primary); primary.tap()
+        XCTAssertTrue(app.buttons["dose1-confirm-record"].waitForExistence(timeout: 8)); revealDose1(interval)
+        XCTAssertEqual(interval.value as? String, "Selected", "Explicit usual preference survives restart")
+        app.buttons["dose1-close-review"].tap()
+    }
+
     func testDose2ConfirmationCancelBackgroundAndExplicitSave() throws {
+        // The seeded dose is three hours ago and can precede the 18:00
+        // treatment-date boundary. Review that exact session after relaunch.
+        app.launchArguments.append("--uitesting-history-active-session")
         // Seed only once. Relaunch below must read the committed database.
         app.launchArguments.removeAll { $0 == "--uitesting-dose2-confirmation" }
         let action = app.buttons["dose-primary-action"]
@@ -1457,6 +1543,11 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 5))
         app.terminate()
         app.launchArguments = ["--uitesting"]
+        if name.contains("testDose1Review") {
+            app.launchArguments += ["--uitesting-auto-night-reset", "--uitesting-dose1-review-reset", "-setup_completed_v2", "YES"]
+            if name.contains("LargeText") { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
+            if name.contains("Failure") { app.launchArguments.append("--uitesting-dose1-review-failure") }
+        }
         app.launch()
         XCTAssertTrue(app.buttons["dose-primary-action"].waitForExistence(timeout: 15))
     }

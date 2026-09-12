@@ -53,6 +53,18 @@ struct DoseTapApp: App {
         #endif
         Self.migrateSetupStateIfNeeded()
         #if DEBUG && targetEnvironment(simulator)
+        if ProcessInfo.processInfo.arguments.contains("--uitesting-dose1-review-reset") {
+            UserSettingsManager.shared.targetIntervalMinutes = 165
+            UserSettingsManager.shared.notificationsEnabled = false
+        }
+        if ProcessInfo.processInfo.arguments.contains("--uitesting-dose1-review-failure") {
+            var failed = false
+            EventStorage.shared.medicationFaultInjector = { point in
+                guard point == .insert, !failed else { return nil }
+                failed = true
+                return MedicationStorageInjectedFailure(code: .diskFull, sqliteCode: 13, detail: "Synthetic one-time write failure")
+            }
+        }
         if ProcessInfo.processInfo.arguments.contains("--uitesting-auto-night-reset") {
             let repository = SessionRepository.shared
             repository.clearTonight()
@@ -245,6 +257,7 @@ struct DoseTapApp: App {
             }
             
         case .background:
+            container.doseCoordinator.cancelDose1Review()
             container.doseCoordinator.cancelDose2Confirmation()
             backgroundedAt = Date()
             Task {
@@ -253,6 +266,7 @@ struct DoseTapApp: App {
             AlarmService.shared.stopRinging(acknowledge: false)
 
         case .inactive:
+            container.doseCoordinator.cancelDose1Review()
             container.doseCoordinator.cancelDose2Confirmation()
             // Transitional state, don't log
             break

@@ -416,6 +416,14 @@ final class DoseActionCoordinatorClockTests: XCTestCase {
         XCTAssertNil(repository.dose2Time)
     }
 
+    func testDose1EntrySurfacesRequireReviewBeforeWriting() async {
+        repository.clearTonight()
+        for surface: RegistrationSurface in [.tonightButton, .sessionDetail, .deepLink, .flic, .notificationAction] {
+            guard case .needsConfirm(.dose1Record) = await coordinator.takeDose1(surface: surface) else { return XCTFail("Expected review for \(surface)") }
+            XCTAssertNil(repository.dose1Time)
+        }
+    }
+
     func testDose1ReviewCancellationAndStaleSessionWriteNothing() async throws {
         repository.clearTonight()
         let token = try XCTUnwrap(coordinator.prepareDose1Review())

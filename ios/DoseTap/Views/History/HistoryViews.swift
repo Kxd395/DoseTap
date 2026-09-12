@@ -54,6 +54,10 @@ struct HistoryView: View {
 
     private static var initialDate: Date {
         #if DEBUG && targetEnvironment(simulator)
+        if ProcessInfo.processInfo.arguments.contains("--uitesting-history-active-session"),
+           let date = SessionRepository.shared.activeSessionDate.flatMap(AppFormatters.sessionDate.date(from:)) {
+            return date
+        }
         if ProcessInfo.processInfo.arguments.contains("--uitesting-history") {
             return AppFormatters.sessionDate.date(from: "2020-01-14")!
         }

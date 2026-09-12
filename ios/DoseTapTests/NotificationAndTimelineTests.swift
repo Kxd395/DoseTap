@@ -263,7 +263,7 @@ final class AlarmSchedulingTests: XCTestCase {
             sessionRepo: repository
         )
 
-        let result = await coordinator.takeDose1(surface: .tonightButton)
+        let result = await coordinator.confirmDose1(try XCTUnwrap(coordinator.prepareDose1Review()), targetMinutes: 195)
 
         guard case .attentionRequired(let message) = result else {
             return XCTFail("Dose 1 should commit while the alarm failure remains visible")
@@ -273,6 +273,15 @@ final class AlarmSchedulingTests: XCTestCase {
         XCTAssertTrue(message.contains("Notification permission is denied"))
         XCTAssertFalse(service.alarmScheduled)
         XCTAssertFalse(service.reminderScheduled)
+        client.authorization = .authorized
+        let session = try XCTUnwrap(repository.activeSessionId)
+        let retry = await coordinator.retryDose1Alarm(sessionId: session, dose1: environment.now, targetMinutes: 195)
+        guard case .success = retry else { return XCTFail("Alarm-only retry should succeed after permission is restored: \(retry)") }
+        XCTAssertTrue(service.alarmScheduled)
+        XCTAssertTrue(service.reminderScheduled)
+        XCTAssertEqual(service.targetWakeTime, environment.now.addingTimeInterval(195 * 60))
+        let events = storage.fetchDoseEvents(sessionId: session, sessionDate: try XCTUnwrap(repository.activeSessionDate))
+        XCTAssertEqual(events.filter { $0.eventType == "dose1" }.count, 1, "Alarm retry must not repeat medication persistence")
     }
 
     func test_partialAddFailureRollsBackWholeWakeGroup() async throws {

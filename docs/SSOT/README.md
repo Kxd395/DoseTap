@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-11
 SSOT revision: 0.4.19
-Shipping app version observed in the Xcode project: 0.4.19 (build 48)
+Shipping app version observed in the Xcode project: 0.4.19 (build 49)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -34,7 +34,7 @@ Notes:
 - A review challenge is single-use, bound to the current session identity and treatment date, and invalidated on backgrounding. Confirmation rechecks the session and existing dose before writing. Now is captured at confirmation; earlier occurrences must be finite, nonfuture and in the current treatment night. Other historical nights use History.
 - The dose commits before alarm scheduling. New review metadata retains recorded-at time, source surface, and selected reminder interval. An optional usual-interval update occurs only after the dose commit; a tonight-only choice leaves the existing preference untouched. Existing records and schemas are unchanged.
 - Alarm scheduling uses the reported Dose 1 occurrence plus the selected interval, not capture time. A past reminder target does not reject a reported taken dose; show the saved dose and scheduling error. Retry is alarm-only, bound to the still-active dose/session, and cannot record medication or revive a completed session's reminders.
-- In-app review will show the exact target, retain a failed write's confirmed occurrence for retry, and distinguish verified alarm scheduling from saved medication. Native UI and signed-phone delivery are separate validation gates.
+- In-app review shows the exact target, retain a failed write's confirmed occurrence for retry, and distinguish verified alarm scheduling from saved medication. External Dose 1 actions route to in-app review without writing medication. Native UI and signed-phone delivery are separate validation gates.
 
 ### Dose completion and morning timing clarification (DOSETAP-67)
 
@@ -597,7 +597,7 @@ Required outcomes:
 
 | Action | Required committed state | Notification outcome | Confirmation boundary |
 | --- | --- | --- | --- |
-| Take Dose 1 | Dose 1 event and active-session projection agree | Schedule the absolute wake alarm and window reminders; surface any scheduling failure after preserving the committed Dose 1 | Policy must allow the first dose |
+| Take Dose 1 | Dose 1 event and active-session projection agree | Schedule the absolute wake alarm and window reminders; surface any scheduling failure after preserving the committed Dose 1 | Policy must allow the first dose; explicit reviewed occurrence and reminder confirmation required |
 | Take Dose 2 | Dose 2 event and active-session projection agree | Cancel the applicable wake and window notifications after commit | Early, late, after-skip, and extra-dose paths require the matching explicit confirmation |
 | Skip Dose 2 | Durable skip outcome for the active session | Cancel the applicable wake and window notifications after commit | Block before the window opens |
 | Extra dose | New event with index 3 or greater; do not replace Dose 2 | Do not alter Dose 2 projection | Require explicit extra-dose confirmation |

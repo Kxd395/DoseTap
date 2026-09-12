@@ -1114,7 +1114,7 @@ final class MedicationMutationTransactionTests: XCTestCase {
         var hapticCount = 0
         coordinator.hapticObserver = { _ in hapticCount += 1 }
 
-        let result = await coordinator.takeDose1()
+        let result = await coordinator.confirmDose1(try XCTUnwrap(coordinator.prepareDose1Review()), targetMinutes: 165)
 
         XCTAssertEqual(
             result,
@@ -1133,7 +1133,7 @@ final class MedicationMutationTransactionTests: XCTestCase {
         XCTAssertEqual(actionEntries.last?.mutationFailureCode, "disk_full")
 
         storage.medicationFaultInjector = nil
-        let retryResult = await coordinator.takeDose1()
+        let retryResult = await coordinator.confirmDose1(try XCTUnwrap(coordinator.prepareDose1Review()), targetMinutes: 165)
         XCTAssertEqual(
             retryResult,
             .attentionRequired(
