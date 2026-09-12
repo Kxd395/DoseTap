@@ -54,7 +54,6 @@ extension SettingsView {
 struct StudioBundleExporter {
     private var settings: UserSettingsManager { .shared }
 
-    @MainActor
     private func buildInsightsBundle(
         using repo: SessionRepository,
         sessionDates: [String],
@@ -261,7 +260,6 @@ struct StudioBundleExporter {
         )
     }
 
-    @MainActor
     func writeStudioExportBundle(using repo: SessionRepository, to directory: URL) async throws {
         try Task.checkCancellation()
         let sessionDates = try repo.sessionDatesForExport().sorted()
@@ -278,7 +276,6 @@ struct StudioBundleExporter {
         )
     }
 
-    @MainActor
     func writeLocalStudioExportBundle(using repo: SessionRepository, to directory: URL) throws {
         try writeStudioExportBundle(using: repo, to: directory, sessionDates: repo.sessionDatesForExport().sorted(), enrichmentBySessionDate: [:], consent: nil)
     }
@@ -288,7 +285,6 @@ struct StudioBundleExporter {
         return try repo.collectedNightSummary(for: sessionDate, intervals: health?.recordedIntervals ?? [], providerFinalWake: health?.finalWakeUTC)
     }
 
-    @MainActor
     private func writeStudioExportBundle(
         using repo: SessionRepository,
         to directory: URL,
@@ -325,7 +321,6 @@ struct StudioBundleExporter {
     }
 
     #if DEBUG
-    @MainActor
     func buildStudioInsightsBundleDataForTesting(
         using repo: SessionRepository,
         sessionDates: [String]
@@ -361,7 +356,6 @@ struct StudioBundleExporter {
         studioWHOOPSessionDate(using: repo, summaryDate: summaryDate)
     }
 
-    @MainActor
     func writeStudioExportBundleForTesting(
         using repo: SessionRepository,
         to directory: URL,
@@ -397,7 +391,6 @@ struct StudioBundleExporter {
     }
     #endif
 
-    @MainActor
     private func exportConsentState() async -> InsightsConsentState {
         let healthKit = HealthKitService.shared
         if healthKit.isAvailable {
@@ -427,7 +420,6 @@ struct StudioBundleExporter {
         return rows.joined(separator: "\n") + "\n"
     }
 
-    @MainActor
     private func buildStudioSessionsCSV(
         using repo: SessionRepository,
         sessionDates: [String],
@@ -468,7 +460,6 @@ struct StudioBundleExporter {
         return rows.joined(separator: "\n") + "\n"
     }
 
-    @MainActor
     private func collectStudioExportEnrichment(
         using repo: SessionRepository,
         sessionDates: [String]
@@ -561,7 +552,6 @@ struct StudioBundleExporter {
         )
     }
 
-    @MainActor
     private func fetchAppleHealthSummaryForExport(sessionDate: String) async throws -> InsightsAppleHealthSummary? {
         try Task.checkCancellation()
         let healthKit = HealthKitService.shared
@@ -594,7 +584,6 @@ struct StudioBundleExporter {
         }
     }
 
-    @MainActor
     private func fetchWHOOPSummariesForExport(
         using repo: SessionRepository,
         sessionDates: [String],
