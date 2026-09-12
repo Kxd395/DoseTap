@@ -1,0 +1,69 @@
+// Audit-only characterization probes for build 50, not desired-behavior tests.
+// Append to ios/DoseTapTests/ExportTests.swift in an isolated checkout, run
+// -only-testing:DoseTapTests/CollectionStoreExportAuditProbes, then remove it.
+// Assertions deliberately reproduce gaps; passing does not mean they are fixed.
+import SQLite3
+
+@MainActor
+final class CollectionStoreExportAuditProbes: XCTestCase {
+    private func fixture() -> (EventStorage, SessionRepository) {
+        let storage = EventStorage.inMemory()
+        let now = ISO8601DateFormatter().date(from: "2026-09-11T23:00:00Z")!
+        let repo = SessionRepository(storage: storage, clock: { now }, timeZoneProvider: { TimeZone(secondsFromGMT: 0)! })
+        return (storage, repo)
+    }
+    private func execute(_ sql: String, in storage: EventStorage) throws {
+        XCTAssertEqual(sqlite3_exec(storage.db, sql, nil, nil, nil), SQLITE_OK)
+    }
+    func test_inventoryExportTruncates501RowsTo500() throws {
+        let (storage, repo) = fixture()
+        try execute("""
+        WITH RECURSIVE seq(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM seq WHERE x<501)
+        INSERT INTO inventory_snapshots(id,as_of_utc,medication_name,bottles_remaining,doses_remaining)
+        SELECT 'inventory-'||x,'2026-09-11T23:00:00.000Z','audit-medication',1,x FROM seq;
+        """, in: storage)
+        XCTAssertEqual(repo.listInventorySnapshots(limit: 1000).count, 501)
+        let csv = StudioBundleExporter().buildStudioInventoryCSVForTesting(using: repo)
+        XCTAssertEqual(csv.split(whereSeparator: \.isNewline).count - 1, 500)
+        XCTAssertFalse(csv.contains("audit-medication"))
+    }
+    func test_exportDropsEventIdentityAndReconstructsMedicationFields() throws {
+        let (storage, repo) = fixture()
+        try execute("""
+        INSERT INTO sleep_events(id,event_type,timestamp,session_date,session_id,color_hex,notes)
+        VALUES('audit-event-id','bathroom','2026-09-11T23:00:00.000Z','2026-09-11','audit-session-id','#ABCDEF','comma, quote " and newline');
+        INSERT INTO medication_events(id,session_id,session_date,medication_id,dose_mg,dose_unit,formulation,taken_at_utc,local_offset_minutes,confirmed_duplicate)
+        VALUES('audit-med-id','audit-session-id','2026-09-11','audit-unknown-med',1,'mL','liquid','2026-09-11T23:00:00.000Z',-240,1);
+        """, in: storage)
+        let stored = try XCTUnwrap(storage.fetchMedicationEvents(sessionDate: "2026-09-11").first)
+        XCTAssertEqual(stored.doseUnit, "mL")
+        XCTAssertEqual(stored.formulation, "liquid")
+        let data = try StudioBundleExporter().buildStudioInsightsBundleDataForTesting(using: repo, sessionDates: ["2026-09-11"])
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let session = try XCTUnwrap((json["sessions"] as? [[String: Any]])?.first)
+        let event = try XCTUnwrap((session["rawEvents"] as? [[String: Any]])?.first)
+        XCTAssertEqual(event["details"] as? String, "comma, quote \" and newline")
+        XCTAssertNil(event["id"])
+        XCTAssertNil(event["sessionId"])
+        XCTAssertNil(event["colorHex"])
+        let medication = try XCTUnwrap((session["medications"] as? [[String: Any]])?.first)
+        XCTAssertEqual(medication["doseUnit"] as? String, "mg")
+        XCTAssertEqual(medication["formulation"] as? String, "ir")
+        XCTAssertNil(medication["localOffsetMinutes"])
+        XCTAssertNil(medication["confirmedDuplicate"])
+        XCTAssertNil(medication["createdAt"])
+    }
+    func test_quickLogAndGeneralMedicationCannotReturnWriteFailure() throws {
+        let (storage, repo) = fixture()
+        try execute("""
+        CREATE TRIGGER audit_fail_sleep BEFORE INSERT ON sleep_events BEGIN SELECT RAISE(ABORT,'audit failed write'); END;
+        CREATE TRIGGER audit_fail_med BEFORE INSERT ON medication_events BEGIN SELECT RAISE(ABORT,'audit failed write'); END;
+        """, in: storage)
+        let now = ISO8601DateFormatter().date(from: "2026-09-11T23:00:00Z")!
+        repo.logSleepEvent(eventType: "bathroom", timestamp: now, notes: "audit-only")
+        XCTAssertTrue(storage.fetchSleepEvents(forSession: "2026-09-11").isEmpty)
+        let result = repo.logMedicationEntry(medicationId: "audit-med", doseMg: 1, takenAt: now, confirmedDuplicate: true)
+        XCTAssertFalse(result.isDuplicate)
+        XCTAssertTrue(storage.fetchMedicationEvents(sessionDate: "2026-09-11").isEmpty)
+    }
+}
