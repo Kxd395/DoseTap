@@ -15,6 +15,8 @@ This packet answers what DoseTap collects, where it stores each record, and whic
 6. [Build 53 event provenance](../../review/2026-09-12-event-export-provenance-delivery.md): DC-04 dose/sleep row identity, stored timestamps and metadata preservation; typed CSV unknown-event inclusion and full-backup acceptance remain separate.
 7. [Local archive validator and Plane review](../../review/2026-09-12-plane-closeout-review.md): DC-12 consent omission repair, corrected DC-05 source interpretation and remaining acceptance. Tools/docs only; app stays build 53.
 
+8. [Build 54 candidate: Health export missingness](../../review/2026-09-12-health-export-missingness-delivery.md): partial DC-05 repair for absent primary-sleep summaries and matching Studio missingness; provider-query error details, upstream evidence coverage and acceptance remain separate.
+
 ## Evidence and authority
 
 - [Effective schema](evidence/effective-schema.json) records initialized table metadata; it contains no clinical rows.

@@ -12,6 +12,130 @@ import DoseCore
 import SQLite3
 
 @MainActor
+final class AppleHealthExportMissingnessTests: XCTestCase {
+    private let nightStart = ISO8601DateFormatter().date(from: "2026-09-11T22:00:00Z")!
+    private var biometrics: HealthKitService.NightBiometricsSummary {
+        .init(averageHeartRate: 64, respiratoryRate: 14, hrvMs: 37, restingHeartRate: 56)
+    }
+    private var noBiometrics: HealthKitService.NightBiometricsSummary {
+        .init(averageHeartRate: nil, respiratoryRate: nil, hrvMs: nil, restingHeartRate: nil)
+    }
+    private let sleepFields = ["totalSleepMinutes", "ttfwMinutes", "wakeCount", "awakeMinutes",
+        "wakeAfterSleepOnsetMinutes", "inBedMinutes", "coreSleepMinutes", "deepSleepMinutes",
+        "remSleepMinutes", "bedTimeUTC", "sleepOnsetUTC", "finalWakeUTC", "observationEndUTC",
+        "finalWakeBasis", "derivationVersion"]
+
+    private func json(_ summary: InsightsAppleHealthSummary) throws -> [String: Any] {
+        let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
+        return try XCTUnwrap(JSONSerialization.jsonObject(with: encoder.encode(summary)) as? [String: Any])
+    }
+
+    func testBiometricsWithoutSegmentsPreserveMeasurementsAndMissingSleep() throws {
+        let summary = try XCTUnwrap(StudioBundleExporter.appleHealthSummaryForExport(
+            segments: [], biometrics: biometrics, nightStart: nightStart))
+        let object = try json(summary)
+        for field in sleepFields { XCTAssertNil(object[field], "No sleep observations cannot establish \(field)") }
+        XCTAssertEqual(summary.averageHeartRate, 64); XCTAssertEqual(summary.respiratoryRate, 14)
+        XCTAssertEqual(summary.hrvMs, 37); XCTAssertEqual(summary.restingHeartRate, 56)
+        XCTAssertEqual(summary.recordedIntervals, [])
+        XCTAssertEqual(summary.sources, [])
+    }
+
+    func testNoProviderObservationsProduceNoSummary() {
+        XCTAssertNil(StudioBundleExporter.appleHealthSummaryForExport(
+            segments: [], biometrics: noBiometrics, nightStart: nightStart))
+    }
+
+    func testContinuousRecordedSleepRetainsExistingZeroAwakeValues() throws {
+        let end = nightStart.addingTimeInterval(3600)
+        let summary = try XCTUnwrap(StudioBundleExporter.appleHealthSummaryForExport(
+            segments: [.init(start: nightStart, end: end, stage: .asleepCore, source: "Synthetic Watch")],
+            biometrics: noBiometrics, nightStart: nightStart))
+        XCTAssertEqual(summary.totalSleepMinutes, 60)
+        XCTAssertEqual(summary.coreSleepMinutes, 60)
+        XCTAssertEqual(summary.wakeCount, 0)
+        XCTAssertEqual(summary.awakeMinutes, 0)
+        XCTAssertEqual(summary.wakeAfterSleepOnsetMinutes, 0)
+        XCTAssertEqual(summary.sleepOnsetUTC, nightStart); XCTAssertEqual(summary.finalWakeUTC, end)
+        XCTAssertEqual(summary.recordedIntervals, [.init(start: nightStart, end: end, asleep: true)])
+    }
+
+    func testAwakeOnlyEvidenceDoesNotInventSleepOnsetOrWakeCount() throws {
+        let end = nightStart.addingTimeInterval(600)
+        let summary = try XCTUnwrap(StudioBundleExporter.appleHealthSummaryForExport(
+            segments: [.init(start: nightStart, end: end, stage: .awake, source: "Synthetic Watch")],
+            biometrics: noBiometrics, nightStart: nightStart))
+        let object = try json(summary)
+        for field in sleepFields { XCTAssertNil(object[field], "Awake-only samples do not supply a sleep summary") }
+        XCTAssertEqual(summary.recordedIntervals, [.init(start: nightStart, end: end, asleep: false)])
+        XCTAssertEqual(summary.sources, ["Synthetic Watch"])
+    }
+
+    func testBelowThresholdAndInBedEvidenceKeepMissingSummary() throws {
+        // Exercises received-input preservation; the live query may filter these out earlier.
+        for stage in [HealthKitService.SleepStage.asleepCore, .inBed] {
+            let end = nightStart.addingTimeInterval(600)
+            let summary = try XCTUnwrap(StudioBundleExporter.appleHealthSummaryForExport(
+                segments: [.init(start: nightStart, end: end, stage: stage, source: "Synthetic Watch")],
+                biometrics: noBiometrics, nightStart: nightStart))
+            let object = try json(summary)
+            for field in sleepFields where field != "bedTimeUTC" { XCTAssertNil(object[field]) }
+            XCTAssertEqual(summary.bedTimeUTC, stage == .inBed ? nightStart : nil)
+            XCTAssertEqual(summary.recordedIntervals, stage == .inBed ? [] : [.init(start: nightStart, end: end, asleep: true)])
+        }
+    }
+
+    func testBiometricOnlyEvidenceReachesProductionArchiveWithoutSleepClaims() throws {
+        let storage = EventStorage.inMemory()
+        let repo = SessionRepository(storage: storage)
+        XCTAssertEqual(sqlite3_exec(storage.db, """
+        INSERT INTO dose_events(id,session_id,event_type,timestamp,session_date)
+        VALUES('health-d1','health-session','dose1','2026-09-11T22:00:00.000Z','2026-09-11'),
+        ('health-d2','health-session','dose2','2026-09-12T01:00:00.000Z','2026-09-11');
+        INSERT INTO sleep_events(id,session_id,event_type,timestamp,session_date)
+        VALUES('health-bathroom','health-session','bathroom','2026-09-11T23:00:00.000Z','2026-09-11');
+        """, nil, nil, nil), SQLITE_OK)
+        let summary = try XCTUnwrap(StudioBundleExporter.appleHealthSummaryForExport(
+            segments: [], biometrics: biometrics, nightStart: nightStart))
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("HealthExport-\(UUID().uuidString)")
+        let archive = folder.appendingPathExtension("zip")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder); try? FileManager.default.removeItem(at: archive) }
+        let writer = StudioBundleExporter()
+        try writer.writeStudioExportBundleForTesting(using: repo, to: folder, sessionDates: ["2026-09-11"],
+            healthKitBySessionDate: ["2026-09-11": summary])
+        let bundle = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: folder.appendingPathComponent("insights_bundle.json"))) as? [String: Any])
+        let session = try XCTUnwrap((bundle["sessions"] as? [[String: Any]])?.first)
+        let health = try XCTUnwrap(session["healthKit"] as? [String: Any])
+        for field in sleepFields { XCTAssertNil(health[field], "Archive must preserve missing \(field)") }
+        XCTAssertEqual(health["averageHeartRate"] as? Double, 64)
+        XCTAssertEqual(health["respiratoryRate"] as? Double, 14)
+        XCTAssertEqual(health["hrvMs"] as? Double, 37)
+        XCTAssertEqual(health["restingHeartRate"] as? Double, 56)
+        XCTAssertEqual((session["sourceAvailability"] as? [String: Any])?["healthKit"] as? Bool, true)
+        let provenance = try XCTUnwrap(session["metricProvenance"] as? [String: String])
+        for key in ["total_sleep_minutes", "ttfw_minutes", "wake_count", "awake_minutes", "wake_after_sleep_onset_minutes",
+                    "in_bed_minutes", "core_sleep_minutes", "deep_sleep_minutes", "rem_sleep_minutes", "wake_disruption_count"] {
+            XCTAssertNil(provenance[key], "No sleep observation supports provenance for \(key)")
+        }
+        for key in ["average_heart_rate", "respiratory_rate", "hrv_ms", "resting_heart_rate"] {
+            XCTAssertEqual(provenance[key], "healthkit")
+        }
+        let rows = try ReportCSV.rows(String(contentsOf: folder.appendingPathComponent("sessions.csv"), encoding: .utf8))
+        XCTAssertEqual(rows.count, 2)
+        XCTAssertEqual(rows[1][try XCTUnwrap(rows[0].firstIndex(of: "avg_hr"))], "64")
+        XCTAssertEqual(rows[1][try XCTUnwrap(rows[0].firstIndex(of: "sleep_efficiency"))], "")
+        let collected = try ReportCSV.rows(String(contentsOf: folder.appendingPathComponent("collected_nights.csv"), encoding: .utf8))
+        for key in ["estimated_sleep_after_dose2_minutes", "sleep_after_dose2_source"] {
+            XCTAssertEqual(collected[1][try XCTUnwrap(collected[0].firstIndex(of: key))], "")
+        }
+        XCTAssertEqual(try writer.archiveExportDirectory(folder), archive)
+        let attachment = XCTAttachment(data: try Data(contentsOf: archive), uniformTypeIdentifier: "public.zip-archive")
+        attachment.name = "apple-health-biometrics-only-roundtrip.zip"; attachment.lifetime = .keepAlways; add(attachment)
+    }
+}
+
+@MainActor
 final class ExportRecordFidelityTests: XCTestCase {
     private func fixture() -> (EventStorage, SessionRepository) {
         let storage = EventStorage.inMemory()

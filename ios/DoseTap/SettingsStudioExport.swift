@@ -133,7 +133,7 @@ struct StudioBundleExporter {
 
         return InsightsBundleExport(
             schemaVersion: 2,
-            exportVersion: "2.5",
+            exportVersion: "2.6",
             appVersion: bundleVersionString(),
             exportedAtUTC: Date(),
             timeZoneIdentifier: TimeZone.current.identifier,
@@ -348,17 +348,18 @@ struct StudioBundleExporter {
     func writeStudioExportBundleForTesting(
         using repo: SessionRepository,
         to directory: URL,
-        sessionDates: [String]
+        sessionDates: [String],
+        healthKitBySessionDate: [String: InsightsAppleHealthSummary] = [:]
     ) throws {
         try writeStudioExportBundle(
             using: repo,
             to: directory,
             sessionDates: sessionDates,
-            enrichmentBySessionDate: [:],
+            enrichmentBySessionDate: healthKitBySessionDate.mapValues { StudioExportSessionContext(healthKit: $0, whoop: nil) },
             consent: InsightsConsentState(
-                appleHealthEnabled: false,
-                appleHealthAvailable: false,
-                appleHealthAuthorized: false,
+                appleHealthEnabled: !healthKitBySessionDate.isEmpty,
+                appleHealthAvailable: !healthKitBySessionDate.isEmpty,
+                appleHealthAuthorized: !healthKitBySessionDate.isEmpty,
                 whoopEnabled: false,
                 whoopConnected: false
             )
@@ -461,6 +462,77 @@ struct StudioBundleExporter {
         return enrichmentBySessionDate
     }
 
+    static func appleHealthSummaryForExport(
+        segments: [HealthKitService.SleepSegment],
+        biometrics: HealthKitService.NightBiometricsSummary,
+        nightStart: Date
+    ) -> InsightsAppleHealthSummary? {
+        let sortedSegments = segments.sorted { $0.start < $1.start }
+
+        guard !sortedSegments.isEmpty || biometrics.hasAnyMetric else {
+            return nil
+        }
+
+        let sleepSummary = HealthKitService.sleepNightSummary(from: sortedSegments, nightStart: nightStart)
+        let bedTime = sleepSummary?.bedTime ?? sortedSegments.first(where: { $0.stage == .inBed })?.start
+        let sleepOnset = sleepSummary?.sleepOnset
+        let finalWake = sleepSummary?.finalWake
+        let totalSleepMinutes = sleepSummary?.totalSleepMinutes
+        let awakeSegments = sortedSegments.filter { $0.stage == .awake }
+        let wakeCount = sleepSummary?.wakeCount
+        let awakeMinutes = awakeSegments.reduce(0.0) { $0 + $1.end.timeIntervalSince($1.start) / 60 }
+        let inBedMinutes = sortedSegments
+            .filter { $0.stage == .inBed }
+            .reduce(0.0) { $0 + $1.end.timeIntervalSince($1.start) / 60 }
+        let coreSleepMinutes = sortedSegments
+            .filter { $0.stage == .asleepCore || $0.stage == .asleep }
+            .reduce(0.0) { $0 + $1.end.timeIntervalSince($1.start) / 60 }
+        let deepSleepMinutes = sortedSegments
+            .filter { $0.stage == .asleepDeep }
+            .reduce(0.0) { $0 + $1.end.timeIntervalSince($1.start) / 60 }
+        let remSleepMinutes = sortedSegments
+            .filter { $0.stage == .asleepREM }
+            .reduce(0.0) { $0 + $1.end.timeIntervalSince($1.start) / 60 }
+
+        let ttfwMinutes = sleepSummary?.ttfwMinutes
+        let wasoMinutes = sortedSegments.reduce(0.0) { partial, segment in
+            guard segment.stage == .awake,
+                  let sleepOnset,
+                  let finalWake,
+                  segment.start >= sleepOnset,
+                  segment.end <= finalWake else {
+                return partial
+            }
+            return partial + segment.end.timeIntervalSince(segment.start) / 60
+        }
+
+        return InsightsAppleHealthSummary(
+            totalSleepMinutes: totalSleepMinutes,
+            ttfwMinutes: ttfwMinutes,
+            wakeCount: wakeCount,
+            awakeMinutes: sleepSummary == nil ? nil : awakeMinutes,
+            wakeAfterSleepOnsetMinutes: sleepSummary == nil ? nil : wasoMinutes,
+            inBedMinutes: sleepSummary == nil ? nil : inBedMinutes,
+            coreSleepMinutes: sleepSummary == nil ? nil : coreSleepMinutes,
+            deepSleepMinutes: sleepSummary == nil ? nil : deepSleepMinutes,
+            remSleepMinutes: sleepSummary == nil ? nil : remSleepMinutes,
+            bedTimeUTC: bedTime,
+            sleepOnsetUTC: sleepOnset,
+            finalWakeUTC: finalWake,
+            averageHeartRate: biometrics.averageHeartRate,
+            respiratoryRate: biometrics.respiratoryRate,
+            hrvMs: biometrics.hrvMs,
+            restingHeartRate: biometrics.restingHeartRate,
+            sources: Array(Set(sortedSegments.map(\.source))).sorted(),
+            recordedIntervals: sortedSegments.filter { $0.stage.isAsleep || $0.stage == .awake }.map {
+                .init(start: $0.start, end: $0.end, asleep: $0.stage.isAsleep)
+            },
+            observationEndUTC: sleepSummary?.observationEnd,
+            finalWakeBasis: sleepSummary?.finalWakeBasis,
+            derivationVersion: sleepSummary?.derivationVersion
+        )
+    }
+
     @MainActor
     private func fetchAppleHealthSummaryForExport(sessionDate: String) async -> InsightsAppleHealthSummary? {
         let healthKit = HealthKitService.shared
@@ -481,71 +553,8 @@ struct StudioBundleExporter {
                 to: queryRange.end,
                 matching: segments
             )
-            let sortedSegments = segments.sorted { $0.start < $1.start }
-
-            guard !sortedSegments.isEmpty || biometrics.hasAnyMetric else {
-                return nil
-            }
-
-            let nightStart = AppFormatters.sessionDate.date(from: sessionDate) ?? queryRange.start
-            let sleepSummary = HealthKitService.sleepNightSummary(from: sortedSegments, nightStart: nightStart)
-            let bedTime = sleepSummary?.bedTime ?? sortedSegments.first(where: { $0.stage == .inBed })?.start
-            let sleepOnset = sleepSummary?.sleepOnset
-            let finalWake = sleepSummary?.finalWake
-            let totalSleepMinutes = sleepSummary?.totalSleepMinutes ?? 0
-            let awakeSegments = sortedSegments.filter { $0.stage == .awake }
-            let wakeCount = sleepSummary?.wakeCount ?? 0
-            let awakeMinutes = awakeSegments.reduce(0.0) { $0 + $1.end.timeIntervalSince($1.start) / 60 }
-            let inBedMinutes = sortedSegments
-                .filter { $0.stage == .inBed }
-                .reduce(0.0) { $0 + $1.end.timeIntervalSince($1.start) / 60 }
-            let coreSleepMinutes = sortedSegments
-                .filter { $0.stage == .asleepCore || $0.stage == .asleep }
-                .reduce(0.0) { $0 + $1.end.timeIntervalSince($1.start) / 60 }
-            let deepSleepMinutes = sortedSegments
-                .filter { $0.stage == .asleepDeep }
-                .reduce(0.0) { $0 + $1.end.timeIntervalSince($1.start) / 60 }
-            let remSleepMinutes = sortedSegments
-                .filter { $0.stage == .asleepREM }
-                .reduce(0.0) { $0 + $1.end.timeIntervalSince($1.start) / 60 }
-
-            let ttfwMinutes = sleepSummary?.ttfwMinutes
-            let wasoMinutes = sortedSegments.reduce(0.0) { partial, segment in
-                guard segment.stage == .awake,
-                      let sleepOnset,
-                      let finalWake,
-                      segment.start >= sleepOnset,
-                      segment.end <= finalWake else {
-                    return partial
-                }
-                return partial + segment.end.timeIntervalSince(segment.start) / 60
-            }
-
-            return InsightsAppleHealthSummary(
-                totalSleepMinutes: totalSleepMinutes,
-                ttfwMinutes: ttfwMinutes,
-                wakeCount: wakeCount,
-                awakeMinutes: awakeMinutes,
-                wakeAfterSleepOnsetMinutes: wasoMinutes,
-                inBedMinutes: inBedMinutes,
-                coreSleepMinutes: coreSleepMinutes,
-                deepSleepMinutes: deepSleepMinutes,
-                remSleepMinutes: remSleepMinutes,
-                bedTimeUTC: bedTime,
-                sleepOnsetUTC: sleepOnset,
-                finalWakeUTC: finalWake,
-                averageHeartRate: biometrics.averageHeartRate,
-                respiratoryRate: biometrics.respiratoryRate,
-                hrvMs: biometrics.hrvMs,
-                restingHeartRate: biometrics.restingHeartRate,
-                sources: Array(Set(sortedSegments.map(\.source))).sorted(),
-                recordedIntervals: sortedSegments.filter { $0.stage.isAsleep || $0.stage == .awake }.map {
-                    .init(start: $0.start, end: $0.end, asleep: $0.stage.isAsleep)
-                },
-                observationEndUTC: sleepSummary?.observationEnd,
-                finalWakeBasis: sleepSummary?.finalWakeBasis,
-                derivationVersion: sleepSummary?.derivationVersion
-            )
+            return Self.appleHealthSummaryForExport(segments: segments, biometrics: biometrics,
+                nightStart: AppFormatters.sessionDate.date(from: sessionDate) ?? queryRange.start)
         } catch {
             settingsActionsLog.warning("Apple Health export enrichment failed for \(sessionDate, privacy: .private): \(error.localizedDescription, privacy: .public)")
             return nil
@@ -1191,15 +1200,15 @@ struct StudioBundleExporter {
         }
 
         if let healthKit {
-            provenance["total_sleep_minutes"] = "healthkit"
-            provenance["ttfw_minutes"] = "healthkit"
-            provenance["wake_count"] = "healthkit"
-            provenance["awake_minutes"] = "healthkit"
-            provenance["wake_after_sleep_onset_minutes"] = "healthkit"
-            provenance["in_bed_minutes"] = "healthkit"
-            provenance["core_sleep_minutes"] = "healthkit"
-            provenance["deep_sleep_minutes"] = "healthkit"
-            provenance["rem_sleep_minutes"] = "healthkit"
+            if healthKit.totalSleepMinutes != nil { provenance["total_sleep_minutes"] = "healthkit" }
+            if healthKit.ttfwMinutes != nil { provenance["ttfw_minutes"] = "healthkit" }
+            if healthKit.wakeCount != nil { provenance["wake_count"] = "healthkit" }
+            if healthKit.awakeMinutes != nil { provenance["awake_minutes"] = "healthkit" }
+            if healthKit.wakeAfterSleepOnsetMinutes != nil { provenance["wake_after_sleep_onset_minutes"] = "healthkit" }
+            if healthKit.inBedMinutes != nil { provenance["in_bed_minutes"] = "healthkit" }
+            if healthKit.coreSleepMinutes != nil { provenance["core_sleep_minutes"] = "healthkit" }
+            if healthKit.deepSleepMinutes != nil { provenance["deep_sleep_minutes"] = "healthkit" }
+            if healthKit.remSleepMinutes != nil { provenance["rem_sleep_minutes"] = "healthkit" }
             if healthKit.averageHeartRate != nil { provenance["average_heart_rate"] = "healthkit" }
         } else if !sleepEvents.isEmpty {
             provenance["total_sleep_minutes"] = "derived"
@@ -1229,7 +1238,7 @@ struct StudioBundleExporter {
             if whoop.spo2Percentage != nil { provenance["spo2_percentage"] = "whoop" }
             if whoop.skinTempCelsius != nil { provenance["skin_temp_celsius"] = "whoop" }
         } else if let healthKit {
-            provenance["wake_disruption_count"] = "healthkit"
+            if healthKit.wakeCount != nil { provenance["wake_disruption_count"] = "healthkit" }
             if healthKit.hrvMs != nil { provenance["hrv_ms"] = "healthkit" }
             if healthKit.respiratoryRate != nil { provenance["respiratory_rate"] = "healthkit" }
             if healthKit.restingHeartRate != nil { provenance["resting_heart_rate"] = "healthkit" }
@@ -1580,9 +1589,9 @@ private struct InsightsCheckInSubmissionSummary: Codable {
 }
 
 struct InsightsAppleHealthSummary: Codable {
-    let totalSleepMinutes: Double
+    let totalSleepMinutes: Double?
     let ttfwMinutes: Double?
-    let wakeCount: Int
+    let wakeCount: Int?
     let awakeMinutes: Double?
     let wakeAfterSleepOnsetMinutes: Double?
     let inBedMinutes: Double?
