@@ -452,6 +452,22 @@ General medication entries report storage failure separately from duplicate revi
 
 ## Storage and Persistence Truth
 
+Studio export 2.7 (DOSETAP-13, bounded DC-05) adds optional request-scoped
+`whoopEnrichment` metadata for manual exports: independent sleep/recovery
+statuses (`not_attempted`, `completed`, `failed`), optional returned-record
+counts, eligible-night count and attempted UTC query bounds. Completed retrieval
+with zero records is different from failure; counts describe the provider query,
+not exported nights or measurement denominators. Recovery failure retains usable
+sleep. Cancellation aborts export instead of becoming failed/partial enrichment.
+Fixed warnings explain missing/failed fetches without raw server errors. Disabled,
+disconnected, empty-session and invalid-range guards record not-attempted reasons.
+Older and local/scheduled archives may omit the metadata; absence stays not captured.
+The local snapshot warning still says enrichment was not fetched. Studio retains
+new and unknown status strings and original archive bytes; existing warning views
+show fixed messages. Fetch status does not alter source selection, sleep episode
+filtering, clinical records, consent or analytics. WHOOP same-date selection and
+live provider/phone acceptance remain open.
+
 Studio export 2.6 (DOSETAP-13/56, bounded DC-05) retains Apple Health biometrics
 when no eligible primary sleep summary exists, while omitting sleep, stage,
 awake, WASO, in-bed and awakening-count numeric summaries. Missing sleep is not
