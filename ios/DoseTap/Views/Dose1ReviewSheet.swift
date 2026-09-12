@@ -88,6 +88,9 @@ struct Dose1ReviewSheet: View {
                         if alarmVerified {
                             Text("Dose 2 alarm set for \(clock(coordinator.alarmService.targetWakeTime ?? attemptedTime))")
                                 .accessibilityIdentifier("dose1-alarm-result")
+                        } else {
+                            Text("Selected Dose 2 target: \(clock(attemptedTime.addingTimeInterval(Double(appliedInterval) * 60))) · Alarm not verified")
+                                .accessibilityIdentifier("dose1-unverified-target")
                         }
                         if savedSession != nil, savedDose != nil {
                             if changingAlarm || !alarmVerified {
@@ -151,6 +154,11 @@ struct Dose1ReviewSheet: View {
 
     private func save() {
         guard !busy, !committed, scenePhase == .active else { return }
+        let occurrence = attemptedTime ?? (takenNow ? coordinator.dateProvider.now() : earlierTime)
+        guard coordinator.sessionRepo?.dose1OccurrenceIsInCurrentNight(occurrence) == true else {
+            message = "Choose a taken time in this treatment night. Use History for another night."
+            return
+        }
         let token: DoseActionCoordinator.Dose1Review
         if retrySave {
             guard let fresh = coordinator.prepareDose1Review() else {
@@ -158,7 +166,7 @@ struct Dose1ReviewSheet: View {
             }
             token = fresh
         } else { token = review }
-        if attemptedTime == nil { attemptedTime = takenNow ? coordinator.dateProvider.now() : earlierTime }
+        if attemptedTime == nil { attemptedTime = occurrence }
         busy = true
         Task {
             let result = await coordinator.confirmDose1(token, occurrence: attemptedTime, targetMinutes: interval, remember: remember)

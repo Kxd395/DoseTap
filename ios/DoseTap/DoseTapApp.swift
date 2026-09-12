@@ -252,6 +252,7 @@ struct DoseTapApp: App {
             }
             
         case .background:
+            if container.sessionRepository.dose1Time == nil { urlRouter.dose1Review = nil }
             container.doseCoordinator.cancelDose1Review()
             container.doseCoordinator.cancelDose2Confirmation()
             backgroundedAt = Date()
@@ -261,6 +262,7 @@ struct DoseTapApp: App {
             AlarmService.shared.stopRinging(acknowledge: false)
 
         case .inactive:
+            if container.sessionRepository.dose1Time == nil { urlRouter.dose1Review = nil }
             container.doseCoordinator.cancelDose1Review()
             container.doseCoordinator.cancelDose2Confirmation()
             // Transitional state, don't log

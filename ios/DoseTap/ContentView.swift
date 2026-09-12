@@ -76,6 +76,9 @@ struct ContentView: View {
                     }
             }
         }
+        .sheet(item: $urlRouter.dose1Review) { review in
+            Dose1ReviewSheet(review: review, coordinator: doseCoordinator) { _ in refreshNightAppearance() }
+        }
         .alert("Unable to Share Screen", isPresented: Binding(
             get: { pageShareErrorMessage != nil },
             set: { if !$0 { pageShareErrorMessage = nil } }

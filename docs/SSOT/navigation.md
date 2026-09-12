@@ -10,7 +10,8 @@ On iPhone, Tonight places the Pre-Sleep Check entry immediately before the prima
 Take Dose 1 presents a native review sheet with occurrence, reminder presets and
 an exact alarm preview. Confirmation stays in the bottom safe area while content
 scrolls. The saved result separates medication from alarm verification and permits
-alarm-only retry/change. External Dose 1 actions direct to this in-app review.
+alarm-only retry/change. An active/unlocked Dose 1 deep link opens this review;
+Flic directs the user to review in the app. Neither external action records a dose.
 
 ## Quick Links
 
