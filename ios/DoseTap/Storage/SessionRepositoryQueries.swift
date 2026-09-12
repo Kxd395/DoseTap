@@ -43,6 +43,19 @@ public extension SessionRepository {
     }
 
     /// Raw medication rows for sync/export code paths that need storage metadata.
+    internal func medicationExportRecords(for sessionDate: String) throws -> [StoredMedicationExportRecord] {
+        try storage.medicationExportRecords(sessionDate: sessionDate)
+    }
+
+    internal func inventoryExportRecords() throws -> [StoredInventoryExportRecord] {
+        try storage.inventoryExportRecords()
+    }
+
+    internal func sessionDatesForExport() throws -> [String] {
+        try storage.readSessionDates()
+    }
+
+    /// Compatibility rows for existing sync and UI consumers.
     func fetchStoredMedicationEntries(for sessionDate: String) -> [StoredMedicationEntry] {
         storage.fetchMedicationEvents(sessionDate: sessionDate)
     }

@@ -154,6 +154,7 @@ final class Importer {
     func parseInventoryCSV(_ content: String) throws -> [InventorySnapshot] {
         let lines = try ReportCSV.rows(content)
         guard lines.count > 1 else { return [] }
+        let header = lines[0]
         
         // Skip header line
         let dataLines = lines.dropFirst().filter { $0.contains { !$0.isEmpty } }
@@ -161,6 +162,10 @@ final class Importer {
         
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let wholeSecondsFormatter = ISO8601DateFormatter()
+        func timestamp(_ raw: String) -> Date? {
+            formatter.date(from: raw) ?? wholeSecondsFormatter.date(from: raw)
+        }
         
         for (index, columns) in dataLines.enumerated() {
             guard columns.count >= 4 else {
@@ -168,17 +173,26 @@ final class Importer {
                 continue
             }
 
-            guard let asOf = formatter.date(from: columns[0]) else {
+            guard let asOf = timestamp(columns[0]) else {
                 print("⚠️ Skipping inventory line \(index + 2): invalid timestamp '\(columns[0])'")
                 continue
             }
 
+            func optionalField(_ name: String) -> String? {
+                guard let position = header.firstIndex(of: name), position < columns.count,
+                      !columns[position].isEmpty else { return nil }
+                return columns[position]
+            }
             let snapshot = InventorySnapshot(
+                sourceRecordId: optionalField("id"),
+                medicationName: optionalField("medication_name"),
+                createdAtStoredUTC: optionalField("created_at_stored_utc"),
+                source: optionalField("source"),
                 asOfUTC: asOf,
                 bottlesRemaining: Int(columns[1]) ?? 0,
                 dosesRemaining: Int(columns[2]) ?? 0,
                 estimatedDaysLeft: columns[3].isEmpty ? nil : Int(columns[3]),
-                nextRefillDate: columns.count > 4 && !columns[4].isEmpty ? formatter.date(from: columns[4]) : nil,
+                nextRefillDate: columns.count > 4 && !columns[4].isEmpty ? timestamp(columns[4]) : nil,
                 notes: columns.count > 5 && !columns[5].isEmpty ? columns[5] : nil
             )
 

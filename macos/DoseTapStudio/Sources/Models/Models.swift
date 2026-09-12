@@ -97,9 +97,13 @@ struct DoseSession: Codable, Identifiable {
 }
 
 /// Inventory snapshot model matching inventory.csv schema
-/// Header: as_of_utc,bottles_remaining,doses_remaining,estimated_days_left,next_refill_date,notes
+/// The legacy six CSV columns are followed by optional stored identity/provenance.
 struct InventorySnapshot: Codable, Identifiable {
     let id = UUID()
+    var sourceRecordId: String? = nil
+    var medicationName: String? = nil
+    var createdAtStoredUTC: String? = nil
+    var source: String? = nil
     let asOfUTC: Date
     let bottlesRemaining: Int
     let dosesRemaining: Int
@@ -108,6 +112,10 @@ struct InventorySnapshot: Codable, Identifiable {
     let notes: String?
     
     enum CodingKeys: String, CodingKey {
+        case sourceRecordId = "id"
+        case medicationName = "medication_name"
+        case createdAtStoredUTC = "created_at_stored_utc"
+        case source
         case asOfUTC = "as_of_utc"
         case bottlesRemaining = "bottles_remaining"
         case dosesRemaining = "doses_remaining"

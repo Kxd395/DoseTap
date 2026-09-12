@@ -1,7 +1,7 @@
 # DoseTap documentation index
 
 Status: Current documentation governance
-Last verified: 2026-09-02
+Last verified: 2026-09-12
 
 This file classifies the complete `docs/` tree. A directory status applies to every descendant unless a file has a more specific status notice. A dated report remains valid evidence for the date it records, but it is not evidence of current behavior.
 
@@ -63,6 +63,7 @@ If the SSOT and the compiled implementation disagree, treat that as a defect. Do
 | `SSOT/` | Current authority | Current behavior contracts. Contract-specific exceptions are listed in `SSOT/contracts/README.md`. |
 | `architecture/` | Current reference | Maintained decision records and boundary maps only. Old inventories were archived. |
 | `MYWAV_DOSETAP/` | Planned or proposed | Possible vNext product and partner package. Nothing in this folder is shipping merely because it is in the repository. |
+| `plans/` | Planned or proposed | Dated delivery scopes and dependencies; consult the later delivery record and Plane before treating a proposal as current work. |
 | `audit/` | Point-in-time evidence | Dated audit output. The latest audit recommendation remains a release input until its Plane gates close. |
 | `review/` | Point-in-time evidence | Dated reviews and design decisions. A review becomes current authority only when promoted into SSOT or code. |
 | `handoff/` | Planned or proposed | Dated rebuild package and ADR proposal. Not the current implementation plan. |
@@ -73,11 +74,13 @@ If the SSOT and the compiled implementation disagree, treat that as a defect. Do
 
 ## Current planning and evidence
 
-- Collection, storage and Settings export: [2026-09-12 audit](audit/2026-09-12/collection-store-export-audit.md) and [stored field inventory](audit/2026-09-12/stored-field-inventory.md)
+- Collection, storage and Settings export: [September 12 audit reading guide](audit/2026-09-12/README.md), [findings](audit/2026-09-12/collection-store-export-audit.md) and [stored field inventory](audit/2026-09-12/stored-field-inventory.md)
 - Owner data inventory and proposed work/off dashboard: [2026-09-11 review](review/2026-09-11-dashboard-and-collected-data-review.md)
+- Recent bounded changes and remaining acceptance gates: [delivery index](review/README.md#delivery-records), including [build 51 durable logging](review/2026-09-12-durable-log-delivery.md)
+- Current data definitions: [DataDictionary](SSOT/contracts/DataDictionary.md); dated inventories describe their named baseline only.
 - Plane index: `docs/PLANNING.md`
-- Latest full audit: `docs/audit/2026-08-31/`
-- Latest data-integrity delta audit: `docs/audit/2026-09-01/`
+- Broad audit baseline: `docs/audit/2026-08-31/`
+- Earlier data-integrity delta audit: `docs/audit/2026-09-01/`
 - Whole-project CRUD matrix: `docs/audit/2026-09-01/crud-matrix.md`
 - Proposed vNext package: `docs/MYWAV_DOSETAP/README.md`
 
