@@ -12,6 +12,163 @@ import DoseCore
 import SQLite3
 
 @MainActor
+final class WHOOPExportStatusTests: XCTestCase {
+    private var storage: EventStorage!
+    private var repo: SessionRepository!
+    private var folder: URL!
+    private let sentinel = "synthetic-provider-error-must-not-export"
+    override func setUp() async throws {
+        storage = EventStorage.inMemory()
+        repo = SessionRepository(storage: storage, timeZoneProvider: { TimeZone(identifier: "America/New_York")! })
+        XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO dose_events(id,session_id,event_type,timestamp,session_date) VALUES('whoop-d1','whoop-session','dose1','2026-09-11T23:00:00Z','2026-09-11');", nil, nil, nil), SQLITE_OK)
+        folder = FileManager.default.temporaryDirectory.appendingPathComponent("WHOOPExport-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    }
+    override func tearDown() async throws {
+        try? FileManager.default.removeItem(at: folder)
+        try? FileManager.default.removeItem(at: folder.appendingPathExtension("zip"))
+        repo = nil; storage = nil
+    }
+    private func sleeps() throws -> [WHOOPSleep] {
+        let data = Data(#"[{"id":"night","start":"2026-09-11T23:00:00Z","end":"2026-09-12T00:00:00Z","nap":false,"score_state":"SCORED","score":{"stage_summary":{"total_light_sleep_time_milli":3600000}}},{"id":"nap","start":"2026-09-12T10:00:00Z","end":"2026-09-12T11:00:00Z","nap":true,"score_state":"SCORED","score":{"stage_summary":{"total_light_sleep_time_milli":3600000}}}]"#.utf8)
+        return try WHOOPService.makeAPIDecoder().decode([WHOOPSleep].self, from: data)
+    }
+    private func result(_ records: [WHOOPSleep] = [], failingRecovery: Bool = false) async throws -> WHOOPNightFetchResult {
+        try await WHOOPService.loadNightSummaryResult(sleep: { records }, recovery: {
+            if failingRecovery { throw NSError(domain: self.sentinel, code: 1) }; return []
+        })
+    }
+    private func bundle() throws -> [String: Any] {
+        let data = try Data(contentsOf: folder.appendingPathComponent("insights_bundle.json"))
+        XCTAssertFalse(String(decoding: data, as: UTF8.self).contains(sentinel))
+        return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    }
+    private func metadata(_ bundle: [String: Any]) throws -> [String: Any] {
+        let status = try XCTUnwrap(bundle["whoopEnrichment"] as? [String: Any])
+        XCTAssertEqual(status["version"] as? Int, 1)
+        return status
+    }
+    func testPartialRecoveryPreservesSleepAndFetchEvidenceInProductionArchive() async throws {
+        let response = try await result(sleeps(), failingRecovery: true)
+        var queried: (Date, Date)?
+        let writer = StudioBundleExporter()
+        try await writer.writeWHOOPExportBundleForTesting(using: repo, to: folder, sessionDates: ["2026-09-11"]) {
+            queried = ($0, $1); return response
+        }
+        let object = try bundle(), status = try metadata(object)
+        XCTAssertEqual(status["sleepStatus"] as? String, "completed"); XCTAssertEqual(status["recoveryStatus"] as? String, "failed")
+        XCTAssertEqual(status["sleepRecordCount"] as? Int, 2); XCTAssertEqual(status["eligibleNightCount"] as? Int, 1)
+        XCTAssertNil(status["recoveryRecordCount"]); XCTAssertNil(status["notAttemptedReason"])
+        XCTAssertEqual(ISO8601DateFormatter().date(from: try XCTUnwrap(status["queryStartUTC"] as? String)), queried?.0)
+        XCTAssertEqual(ISO8601DateFormatter().date(from: try XCTUnwrap(status["queryEndUTC"] as? String)), queried?.1)
+        let session = try XCTUnwrap((object["sessions"] as? [[String: Any]])?.first)
+        let whoop = try XCTUnwrap(session["whoop"] as? [String: Any])
+        XCTAssertEqual(whoop["sleepId"] as? String, "night"); XCTAssertEqual(whoop["totalSleepMinutes"] as? Int, 60)
+        XCTAssertNil(whoop["recoveryScore"])
+        XCTAssertTrue((object["exportWarnings"] as? [String])?.contains("WHOOP sleep was fetched, but recovery could not be fetched; available sleep data is retained.") == true)
+        let rows = try ReportCSV.rows(String(contentsOf: folder.appendingPathComponent("sessions.csv"), encoding: .utf8))
+        XCTAssertEqual(rows[1][try XCTUnwrap(rows[0].firstIndex(of: "whoop_recovery"))], "")
+        let archive = try writer.archiveExportDirectory(folder)
+        let attachment = XCTAttachment(data: try Data(contentsOf: archive), uniformTypeIdentifier: "public.zip-archive")
+        attachment.name = "whoop-partial-recovery-roundtrip.zip"; attachment.lifetime = .keepAlways; add(attachment)
+    }
+    func testCompletedEmptySleepFailureAndEmptyRecoveryRemainDistinct() async throws {
+        for scenario in 0...2 {
+            let response = try await result(scenario == 2 ? sleeps() : [])
+            try await StudioBundleExporter().writeWHOOPExportBundleForTesting(using: repo, to: folder, sessionDates: ["2026-09-11"]) { _, _ in
+                if scenario == 1 { throw NSError(domain: self.sentinel, code: 2) }; return response
+            }
+            let object = try bundle(), status = try metadata(object)
+            XCTAssertEqual(status["sleepStatus"] as? String, scenario == 1 ? "failed" : "completed")
+            XCTAssertEqual(status["recoveryStatus"] as? String, scenario == 1 ? "not_attempted" : "completed")
+            if scenario == 1 {
+                for key in ["sleepRecordCount", "eligibleNightCount", "recoveryRecordCount"] { XCTAssertNil(status[key]) }
+            } else {
+                XCTAssertEqual(status["sleepRecordCount"] as? Int, scenario == 2 ? 2 : 0)
+                XCTAssertEqual(status["eligibleNightCount"] as? Int, scenario == 2 ? 1 : 0)
+                XCTAssertEqual(status["recoveryRecordCount"] as? Int, 0)
+            }
+            XCTAssertNotNil(status["queryStartUTC"]); XCTAssertNotNil(status["queryEndUTC"])
+            if scenario < 2 {
+                let warning = scenario == 0 ? "WHOOP sleep query completed with no records." : "WHOOP sleep could not be fetched; WHOOP enrichment is unavailable."
+                XCTAssertTrue((object["exportWarnings"] as? [String])?.contains(warning) == true)
+                XCTAssertNil((object["sessions"] as? [[String: Any]])?.first?["whoop"])
+            }
+        }
+    }
+    func testReturnedNapOnlyRecordsRetainCountsWithoutInventingEligibleSleep() async throws {
+        let response = try await result(sleeps().filter { $0.nap == true })
+        try await StudioBundleExporter().writeWHOOPExportBundleForTesting(using: repo, to: folder, sessionDates: ["2026-09-11"]) { _, _ in response }
+        let object = try bundle(), status = try metadata(object)
+        XCTAssertEqual(status["sleepStatus"] as? String, "completed"); XCTAssertEqual(status["recoveryStatus"] as? String, "completed")
+        XCTAssertEqual(status["sleepRecordCount"] as? Int, 1); XCTAssertEqual(status["eligibleNightCount"] as? Int, 0)
+        XCTAssertEqual(status["recoveryRecordCount"] as? Int, 0)
+        XCTAssertNotNil(status["queryStartUTC"]); XCTAssertNotNil(status["queryEndUTC"])
+        XCTAssertTrue((object["exportWarnings"] as? [String])?.contains("WHOOP sleep records were fetched, but none met the existing sleep-summary criteria.") == true)
+        XCTAssertNil((object["sessions"] as? [[String: Any]])?.first?["whoop"])
+    }
+    func testDisabledDisconnectedAndUnqueryableExportsDoNotAttemptFetch() async throws {
+        let response = try await result()
+        for reason in ["invalid_range", "feature_disabled", "preference_disabled", "disconnected", "no_sessions"] {
+            var calls = 0
+            let dates = reason == "no_sessions" ? [] : [reason == "invalid_range" ? "invalid-date" : "2026-09-11"]
+            // Invalid treatment dates cannot produce a valid archive; repository validation stays authoritative.
+            do {
+                try await StudioBundleExporter().writeWHOOPExportBundleForTesting(using: repo, to: folder, sessionDates: dates,
+                    featureEnabled: reason != "feature_disabled", preferenceEnabled: reason != "preference_disabled", connected: reason != "disconnected") { _, _ in calls += 1; return response }
+                XCTAssertNotEqual(reason, "invalid_range", "Invalid treatment night must reject export")
+            } catch {
+                XCTAssertEqual(error as? MedicationStorageInjectedFailure, .init(code: .precondition, detail: "Choose a valid treatment night."))
+                XCTAssertEqual(reason, "invalid_range"); XCTAssertEqual(calls, 0); XCTAssertFalse(FileManager.default.fileExists(atPath: folder.appendingPathComponent("insights_bundle.json").path))
+                continue
+            }
+            let status = try metadata(bundle())
+            XCTAssertEqual(calls, 0); XCTAssertEqual(status["notAttemptedReason"] as? String, reason)
+            for key in ["sleepStatus", "recoveryStatus"] { XCTAssertEqual(status[key] as? String, "not_attempted") }
+            for key in ["sleepRecordCount", "recoveryRecordCount", "eligibleNightCount", "queryStartUTC", "queryEndUTC"] { XCTAssertNil(status[key]) }
+        }
+    }
+    func testCancellationSignalsAndCancelledTasksNeverWriteAnArchive() async throws {
+        let response = try await result()
+        for scenario in 0...3 {
+            var calls = 0
+            let task = Task { @MainActor in
+                if scenario == 2 { withUnsafeCurrentTask { $0?.cancel() } }
+                try await StudioBundleExporter().writeWHOOPExportBundleForTesting(using: self.repo, to: self.folder, sessionDates: ["2026-09-11"]) { _, _ in
+                    calls += 1
+                    if scenario == 0 { throw CancellationError() }
+                    if scenario == 1 { throw URLError(.cancelled) }
+                    if scenario == 3 { withUnsafeCurrentTask { $0?.cancel() } }
+                    return response
+                }
+            }
+            do { try await task.value; XCTFail("Cancellation must abort export") }
+            catch { XCTAssertTrue(error is CancellationError) }
+            XCTAssertEqual(calls, scenario == 2 ? 0 : 1)
+            XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: folder.path).isEmpty)
+        }
+    }
+    func testCancelledArchivePreservesSourceFolderAndCreatesNoZIP() async throws {
+        let marker = folder.appendingPathComponent("preserved.txt"), data = Data("synthetic source".utf8)
+        try data.write(to: marker)
+        let task = Task { @MainActor in
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try StudioBundleExporter().archiveExportDirectory(self.folder)
+        }
+        do { _ = try await task.value; XCTFail("Cancelled archive must reject") }
+        catch { XCTAssertTrue(error is CancellationError) }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: folder.appendingPathExtension("zip").path))
+        XCTAssertEqual(try Data(contentsOf: marker), data)
+    }
+    func testLocalSnapshotDoesNotInventFetchStatus() throws {
+        try StudioBundleExporter().writeLocalStudioExportBundle(using: repo, to: folder)
+        let object = try bundle()
+        XCTAssertNil(object["whoopEnrichment"])
+        XCTAssertTrue((object["exportWarnings"] as? [String])?.contains("Local snapshot only; provider enrichment was not fetched.") == true)
+    }
+}
+
+@MainActor
 final class AppleHealthExportMissingnessTests: XCTestCase {
     private let nightStart = ISO8601DateFormatter().date(from: "2026-09-11T22:00:00Z")!
     private var biometrics: HealthKitService.NightBiometricsSummary {
