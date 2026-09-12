@@ -164,6 +164,7 @@ public class EventStorage {
     // MARK: - Sleep Event Operations
     
     /// Insert a sleep event
+    @discardableResult
     public func insertSleepEvent(
         id: String,
         eventType: String,
@@ -172,9 +173,9 @@ public class EventStorage {
         notes: String? = nil,
         sessionId: String? = nil,
         sessionDate: String? = nil
-    ) {
+    ) -> Bool {
         let resolvedSessionDate = sessionDate ?? currentSessionDate()
-        insertSleepEvent(
+        let saved = insertSleepEvent(
             id: id,
             eventType: eventType,
             timestamp: timestamp,
@@ -183,10 +184,12 @@ public class EventStorage {
             colorHex: colorHex,
             notes: notes
         )
+        guard saved else { return false }
         #if DEBUG
         let timestampStr = isoFormatter.string(from: timestamp)
         storageLog.debug("Sleep event saved: \(eventType, privacy: .public) at \(timestampStr, privacy: .public)")
         #endif
+        return true
     }
     
     /// Fetch sleep events for current session (tonight)

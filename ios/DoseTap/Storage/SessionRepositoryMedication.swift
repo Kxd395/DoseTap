@@ -155,7 +155,7 @@ public extension SessionRepository {
         takenAt: Date,
         notes: String? = nil,
         confirmedDuplicate: Bool = false
-    ) -> DuplicateGuardResult {
+    ) throws -> DuplicateGuardResult {
         let sessionDate = computeSessionDate(for: takenAt)
 
         if !confirmedDuplicate {
@@ -186,7 +186,7 @@ public extension SessionRepository {
             confirmedDuplicate: confirmedDuplicate
         )
 
-        storage.insertMedicationEvent(entry)
+        guard storage.insertMedicationEvent(entry) else { throw EventStorage.LocalEventWriteError.notCommitted }
         sessionDidChange.send()
 
         #if canImport(OSLog)

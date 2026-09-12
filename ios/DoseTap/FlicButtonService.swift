@@ -245,7 +245,11 @@ final class FlicButtonService: ObservableObject {
     /// Handle event logging
     private func handleLogEvent(_ eventType: String, gesture: FlicGesture) -> FlicActionResult {
         // Log via SessionRepository
-        sessionRepository.logSleepEvent(eventType: eventType, notes: nil)
+        guard sessionRepository.logSleepEvent(eventType: eventType, notes: nil) else {
+            provideHapticFeedback(.error)
+            return FlicActionResult(gesture: gesture, action: FlicAction(rawValue: "log_\(eventType)") ?? .none,
+                success: false, message: "Event not saved. Try again in DoseTap.", canUndo: false)
+        }
         provideHapticFeedback(.success)
 
         return FlicActionResult(

@@ -132,12 +132,15 @@ extension EventStorage {
     // MARK: - Medication Event Operations
     
     /// Insert a medication event (Adderall, etc.)
-    public func insertMedicationEvent(_ entry: StoredMedicationEntry) {
+    @discardableResult
+    public func insertMedicationEvent(_ entry: StoredMedicationEntry) -> Bool {
         upsertMedicationEvent(entry)
     }
 
     /// Upsert a medication event by primary key. Used by local logging and sync import.
-    public func upsertMedicationEvent(_ entry: StoredMedicationEntry) {
+    @discardableResult
+    public func upsertMedicationEvent(_ entry: StoredMedicationEntry) -> Bool {
+        guard databaseInitializationFailure == nil, db != nil else { return false }
         let sql = """
         INSERT OR REPLACE INTO medication_events (id, session_id, session_date, medication_id, dose_mg, dose_unit, formulation, taken_at_utc, local_offset_minutes, notes, confirmed_duplicate)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -146,7 +149,7 @@ extension EventStorage {
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
             storageLog.error("Failed to prepare medication event insert")
-            return
+            return false
         }
         defer { sqlite3_finalize(stmt) }
         
@@ -176,8 +179,10 @@ extension EventStorage {
         
         if sqlite3_step(stmt) != SQLITE_DONE {
             storageLog.error("Failed to upsert medication event: \(String(cString: sqlite3_errmsg(self.db)))")
+            return false
         } else {
             storageLog.debug("Medication event upserted: \(entry.medicationId) \(entry.doseMg)\(entry.doseUnit)")
+            return sqlite3_changes(db) == 1
         }
     }
     

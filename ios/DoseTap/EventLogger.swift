@@ -14,15 +14,20 @@ class EventLogger: ObservableObject {
     @Published var events: [LoggedEvent] = []
     @Published var cooldowns: [String: Date] = [:]
     
-    private let sessionRepo = SessionRepository.shared
+    @Published var saveError: String?
+    private var retryWrite: (() -> Void)?
+    private let sessionRepo: SessionRepository
+    private let clock: () -> Date
     private var sessionChangeCancellable: AnyCancellable?
     
-    private init() {
+    init(sessionRepo: SessionRepository = .shared, clock: @escaping () -> Date = Date.init) {
+        self.sessionRepo = sessionRepo
+        self.clock = clock
         // Load persisted events from SQLite on startup
         loadEventsFromStorage()
         
         // Refresh events when session changes (rollover/delete)
-        sessionChangeCancellable = SessionRepository.shared.sessionDidChange
+        sessionChangeCancellable = sessionRepo.sessionDidChange
             .receive(on: DispatchQueue.main)
             .sink { [weak self] in
                 self?.loadEventsFromStorage()
@@ -43,49 +48,42 @@ class EventLogger: ObservableObject {
         appLogger.debug("Loaded \(self.events.count) events from SQLite")
     }
     
-    func logEvent(
-        name: String,
-        color: Color,
-        cooldownSeconds: TimeInterval,
-        persist: Bool = true,
-        notes: String? = nil,
-        eventTypeOverride: String? = nil
-    ) {
-        let now = Date()
-        let cooldownKey = Self.canonicalEventType(name)
-        let persistedEventType = eventTypeOverride ?? cooldownKey
-        
-        // Check cooldown
-        if let end = cooldowns[cooldownKey], now < end {
-            return // Still in cooldown
+    @discardableResult
+    func logEvent(name: String, color: Color, cooldownSeconds: TimeInterval, persist: Bool = true,
+                  notes: String? = nil, eventTypeOverride: String? = nil) -> Bool {
+        if persist && retryWrite != nil { return false }
+        let now = clock(), key = Self.canonicalEventType(name)
+        if let end = cooldowns[key], now < end { return false }
+        let id = UUID(), identity = sessionRepo.currentSessionIdString()
+        func commit(_ logger: EventLogger) -> Bool {
+            if persist {
+                guard logger.sessionRepo.currentSessionIdString() == identity else {
+                    logger.saveError = "The session changed. Discard this unsaved entry and review its time in History."
+                    return false
+                }
+                guard logger.sessionRepo.insertSleepEvent(id: id.uuidString, eventType: eventTypeOverride ?? key,
+                    timestamp: now, colorHex: color.toHex(), notes: notes, expectedSessionId: identity) else {
+                    logger.saveError = "\(name) not saved. Retry to keep the original time, or discard this unsaved entry."
+                    return false
+                }
+            }
+            logger.events.insert(LoggedEvent(id: id, name: name, time: now, color: color), at: 0)
+            logger.cooldowns[key] = logger.clock().addingTimeInterval(cooldownSeconds)
+            if persist { logger.saveError = nil; logger.retryWrite = nil }
+            Haptics.action.play()
+            return true
         }
-        
-        // Create and add event
-        let eventId = UUID()
-        let event = LoggedEvent(id: eventId, name: name, time: now, color: color)
-        events.insert(event, at: 0)
-        
-        // Set cooldown
-        cooldowns[cooldownKey] = now.addingTimeInterval(cooldownSeconds)
-        
-        if persist {
-            // Persist to SQLite via SessionRepository
-            sessionRepo.insertSleepEvent(
-                id: eventId.uuidString,
-                eventType: persistedEventType,
-                timestamp: now,
-                colorHex: color.toHex(),
-                notes: notes
-            )
-        }
-        
-        // Haptic feedback
-        Haptics.action.play()
+        if commit(self) { return true }
+        retryWrite = { [weak self] in guard let self else { return }; _ = commit(self) }
+        return false
     }
-    
+
+    func retryFailedEvent() { retryWrite?() }
+    func discardFailedEvent() { retryWrite = nil; saveError = nil; sessionRepo.sleepEventSaveError = nil }
+
     func isOnCooldown(_ name: String) -> Bool {
         guard let end = cooldowns[Self.canonicalEventType(name)] else { return false }
-        return Date() < end
+        return clock() < end
     }
     
     func cooldownEnd(for name: String) -> Date? {
@@ -149,40 +147,44 @@ class EventLogger: ObservableObject {
 
     /// Restore a previously deleted event from a snapshot. No-op if an event
     /// with the same id already exists.
-    func restoreDeletedEvent(_ snapshot: DeletedEventSnapshot) {
-        guard let uuid = UUID(uuidString: snapshot.id) else { return }
-        if events.contains(where: { $0.id == uuid }) { return }
+    @discardableResult
+    func restoreDeletedEvent(_ snapshot: DeletedEventSnapshot) -> Bool {
+        guard let uuid = UUID(uuidString: snapshot.id) else { return false }
+        if events.contains(where: { $0.id == uuid }) { return true }
 
-        sessionRepo.insertSleepEvent(
+        guard sessionRepo.insertSleepEvent(
             id: snapshot.id,
             eventType: snapshot.eventType,
             timestamp: snapshot.timestamp,
             colorHex: snapshot.colorHex,
             notes: snapshot.notes
-        )
+        ) else { return false }
 
         let color = snapshot.colorHex.flatMap { Color(hex: $0) } ?? .gray
         let restored = LoggedEvent(id: uuid, name: snapshot.displayName, time: snapshot.timestamp, color: color)
         events.insert(restored, at: 0)
         events.sort { $0.time > $1.time }
+        return true
     }
 
     /// Manually log an event at a specific date+time (for retroactive entry)
-    func logManualEvent(eventType: String, color: Color, timestamp: Date) {
+    @discardableResult
+    func logManualEvent(eventType: String, color: Color, timestamp: Date) -> Bool {
         let eventId = UUID()
         let displayName = EventType(eventType).displayName
         let event = LoggedEvent(id: eventId, name: displayName, time: timestamp, color: color)
-        events.insert(event, at: 0)
 
-        sessionRepo.insertSleepEvent(
+        guard sessionRepo.insertSleepEvent(
             id: eventId.uuidString,
             eventType: eventType,
             timestamp: timestamp,
             colorHex: color.toHex(),
             notes: "manual"
-        )
+        ) else { return false }
+        events.insert(event, at: 0)
 
         Haptics.action.play()
+        return true
     }
 
     /// Update the time for an existing event
@@ -296,5 +298,23 @@ enum EventDisplayName {
             return eventType.replacingOccurrences(of: "_", with: " ").capitalized
         }
         return parsed.displayName
+    }
+}
+
+struct QuickLogSaveStatus: View {
+    @ObservedObject var eventLogger: EventLogger
+    @ObservedObject var repository: SessionRepository
+    var body: some View {
+        if let message = eventLogger.saveError ?? repository.sleepEventSaveError {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(message).accessibilityIdentifier("quick-log-save-error")
+                HStack {
+                    if eventLogger.saveError != nil {
+                        Button("Retry entry") { eventLogger.retryFailedEvent() }
+                    }
+                    Button(eventLogger.saveError == nil ? "Dismiss" : "Discard unsaved entry", role: .cancel) { eventLogger.discardFailedEvent() }
+                }
+            }.padding().frame(maxWidth: .infinity, alignment: .leading).background(.regularMaterial)
+        }
     }
 }

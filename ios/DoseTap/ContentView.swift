@@ -37,6 +37,7 @@ struct ContentView: View {
                 compactBody
             }
         }
+        .safeAreaInset(edge: .top) { QuickLogSaveStatus(eventLogger: eventLogger, repository: sessionRepo) }
         .environment(\.pageCapture, PageCaptureAction(isPreparing: isPreparingPageShare, perform: shareCurrentPage))
         .preferredColorScheme(themeManager.currentTheme == .night ? .dark : (themeManager.currentTheme.colorScheme ?? settings.colorScheme))
         .accentColor(themeManager.currentTheme.accentColor)

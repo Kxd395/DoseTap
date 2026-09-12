@@ -77,25 +77,17 @@ extension SessionRepository {
     ///   - timestamp: When the event occurred
     ///   - notes: Optional notes
     ///   - source: Event source (default "manual")
+    @discardableResult
     public func logSleepEvent(
         eventType: String,
         timestamp: Date = Date(),
         notes: String? = nil,
         source: String = "manual"
-    ) {
-        let session = ensureActiveSession(for: timestamp, reason: "sleep_event")
+    ) -> Bool {
         let eventId = UUID().uuidString
         let normalizedType = normalizeStoredEventType(eventType)
-
-        storage.insertSleepEvent(
-            id: eventId,
-            eventType: normalizedType,
-            timestamp: timestamp,
-            sessionDate: session.sessionDate,
-            sessionId: session.sessionId,
-            colorHex: nil,
-            notes: notes
-        )
+        guard insertSleepEvent(id: eventId, eventType: normalizedType, timestamp: timestamp, colorHex: nil, notes: notes) else { return false }
+        let session = (sessionId: currentSessionIdString(), sessionDate: currentSessionDateString())
 
         // Diagnostic logging (Tier 2: Session Context)
         Task {
@@ -110,7 +102,7 @@ extension SessionRepository {
         logger.info("Sleep event '\(normalizedType)' logged for session \(session.sessionDate)")
         #endif
 
-        sessionDidChange.send()
+        return true
     }
 
     /// Delete a sleep event by ID

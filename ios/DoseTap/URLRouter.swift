@@ -320,7 +320,7 @@ public class URLRouter: ObservableObject {
         // Wake events must flow through SessionRepository to transition to finalizing state.
         if mapped.canonicalType == "wake_final" {
             let timestamp = Date()
-            SessionRepository.shared.setWakeFinalTime(timestamp)
+            guard SessionRepository.shared.setWakeFinalTime(timestamp) else { showFeedback("Wake not saved. Try again."); return false }
             eventLogger.logEvent(
                 name: mapped.displayName,
                 color: mapped.color,
@@ -332,7 +332,7 @@ public class URLRouter: ObservableObject {
             return true
         }
         
-        eventLogger.logEvent(
+        let saved = eventLogger.logEvent(
             name: mapped.displayName,
             color: mapped.color,
             cooldownSeconds: cooldown,
@@ -340,9 +340,8 @@ public class URLRouter: ObservableObject {
             notes: sanitizedNotes,
             eventTypeOverride: mapped.canonicalType
         )
-        showFeedback("✓ \(mapped.displayName) logged")
-        
-        return true
+        showFeedback(saved ? "✓ \(mapped.displayName) logged" : "Event not saved. Review the retry message.")
+        return saved
     }
     
     private func handleNavigate(tab: AppTab) -> Bool {

@@ -683,7 +683,8 @@ struct ManualEventLogView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var settings = UserSettingsManager.shared
 
-    let onSave: (String, Color, Date) -> Void  // (eventType, color, timestamp)
+    let onSave: (String, Color, Date) -> Bool  // (eventType, color, timestamp)
+    @State private var saveFailed = false
 
     @State private var selectedType: EventType?
     @State private var selectedTime = Date()
@@ -697,6 +698,7 @@ struct ManualEventLogView: View {
     var body: some View {
         NavigationView {
             Form {
+                if saveFailed { Text("Event not saved. Your selections are kept. Tap Add to retry.").foregroundColor(.red) }
                 Section("Event Type") {
                     ForEach(availableTypes, id: \.canonicalString) { type in
                         Button {
@@ -753,8 +755,7 @@ struct ManualEventLogView: View {
                 Button("Cancel", role: .cancel) { }
                 Button("Add") {
                     guard let type = selectedType else { return }
-                    onSave(type.canonicalString, type.displayColor, selectedTime)
-                    dismiss()
+                    if onSave(type.canonicalString, type.displayColor, selectedTime) { dismiss() } else { saveFailed = true }
                 }
             } message: {
                 if let type = selectedType {

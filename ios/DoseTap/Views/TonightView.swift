@@ -742,7 +742,7 @@ struct TonightEventsSheet: View {
     let onDelete: (UUID) -> Void
     let onEditTime: ((UUID, Date) -> Void)?
     let onEditNotes: ((UUID, String?) -> Void)?
-    let onAddEvent: ((String, Color, Date) -> Void)?
+    let onAddEvent: ((String, Color, Date) -> Bool)?
     let storedEventLookup: ((UUID) -> StoredSleepEvent?)?
     @Environment(\.dismiss) private var dismiss
     @State private var editingEvent: StoredSleepEvent?
@@ -753,7 +753,7 @@ struct TonightEventsSheet: View {
         onDelete: @escaping (UUID) -> Void,
         onEditTime: ((UUID, Date) -> Void)? = nil,
         onEditNotes: ((UUID, String?) -> Void)? = nil,
-        onAddEvent: ((String, Color, Date) -> Void)? = nil,
+        onAddEvent: ((String, Color, Date) -> Bool)? = nil,
         storedEventLookup: ((UUID) -> StoredSleepEvent?)? = nil
     ) {
         self.events = events
@@ -866,7 +866,7 @@ struct TonightEventsSheet: View {
             }
             .sheet(isPresented: $showAddEvent) {
                 ManualEventLogView { eventType, color, timestamp in
-                    onAddEvent?(eventType, color, timestamp)
+                    onAddEvent?(eventType, color, timestamp) ?? false
                 }
             }
         }
