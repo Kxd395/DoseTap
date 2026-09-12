@@ -474,9 +474,9 @@ struct InsightHealthKitSummary: Codable, Hashable, Sendable {
     var observationEndUTC: Date? = nil
     var finalWakeBasis: String? = nil
     var derivationVersion: String? = nil
-    let totalSleepMinutes: Double
+    let totalSleepMinutes: Double?
     let ttfwMinutes: Double?
-    let wakeCount: Int
+    let wakeCount: Int?
     let awakeMinutes: Double?
     let wakeAfterSleepOnsetMinutes: Double?
     let inBedMinutes: Double?
@@ -493,9 +493,9 @@ struct InsightHealthKitSummary: Codable, Hashable, Sendable {
     let sources: [String]
 
     init(
-        totalSleepMinutes: Double,
+        totalSleepMinutes: Double?,
         ttfwMinutes: Double?,
-        wakeCount: Int,
+        wakeCount: Int?,
         awakeMinutes: Double? = nil,
         wakeAfterSleepOnsetMinutes: Double? = nil,
         inBedMinutes: Double? = nil,

@@ -452,6 +452,20 @@ General medication entries report storage failure separately from duplicate revi
 
 ## Storage and Persistence Truth
 
+Studio export 2.6 (DOSETAP-13/56, bounded DC-05) retains Apple Health biometrics
+when no eligible primary sleep summary exists, while omitting sleep, stage,
+awake, WASO, in-bed and awakening-count numeric summaries. Missing sleep is not
+zero. Received intervals, source labels and independently observed bedtime remain
+separate evidence; this does not widen the existing provider query/episode filter.
+Usable primary episodes retain existing measured zero values. Sleep-metric
+provenance is emitted only for present measurements. Matching Studio reads absent
+total/count values as missing, excludes them from facts/denominators and displays
+its unavailable placeholder. Existing Health-object precedence also applies to
+sleep stages/report columns: missing Health sleep is not silently filled from
+WHOOP. WHOOP's own fields remain available. Older numeric archives are unchanged;
+older Studio decoders require an update for newly omitted fields. No SQL migration,
+provider-policy change or whole-backup/phone acceptance is implied.
+
 Studio export 2.4 (DOSETAP-13) preserves stored general-medication units,
 formulation, session identity, offset, duplicate confirmation and original
 occurrence/creation timestamp text. Current medication configuration must not

@@ -237,7 +237,7 @@ struct NightDetailView: View {
                     supplementalCard(title: "Apple Health") {
                         detailRow("Total sleep", durationText(minutes: healthKit.totalSleepMinutes))
                         detailRow("Time to first wake", minutesText(healthKit.ttfwMinutes))
-                        detailRow("Wake count", "\(healthKit.wakeCount)")
+                        detailRow("Wake count", healthKit.wakeCount.map(String.init) ?? "—")
                         detailRow("Awake minutes", minutesText(healthKit.awakeMinutes))
                         detailRow("WASO", minutesText(healthKit.wakeAfterSleepOnsetMinutes))
                         detailRow("In bed", minutesText(healthKit.inBedMinutes))
@@ -464,7 +464,8 @@ struct NightDetailView: View {
         rawValue ?? fallbackLabel ?? "—"
     }
 
-    private func durationText(minutes: Double) -> String {
+    private func durationText(minutes: Double?) -> String {
+        guard let minutes else { return "—" }
         let roundedMinutes = Int(minutes.rounded())
         let hours = roundedMinutes / 60
         let remainder = roundedMinutes % 60

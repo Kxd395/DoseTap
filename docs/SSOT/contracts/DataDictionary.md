@@ -10,6 +10,18 @@ This dictionary defines how persisted fields are interpreted. It covers all 17 a
 
 ## Identity and time
 
+Apple Health summary missingness (Studio export 2.6, schema 2; DOSETAP-13/56):
+`healthKit.totalSleepMinutes` and `wakeCount` are optional. A biometrics-only
+Health object does not establish sleep coverage. Without an eligible primary
+sleep summary, its sleep/stage/awake/WASO/in-bed numeric fields are absent rather
+than zero; received intervals/source names and independent bedtime evidence are
+retained. Present primary-episode zero values stay numeric. Matching Studio
+preserves missing facts and denominators, including mixed Health/WHOOP archives
+under the existing Health-object preference. Raw WHOOP values remain separate.
+Old numeric archives, including historical zeros, are not reinterpreted. Older
+Studio versions with required total/count fields cannot decode new omissions.
+This is an export/import correction; local SQLite and query selection are unchanged.
+
 Local Studio archive metadata (DOSETAP-13 / DC-12): the local/scheduled writer
 omits `consent` because it does not capture provider consent or fetch enrichment.
 Its `exportWarnings` string array includes the exact element
