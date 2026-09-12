@@ -43,8 +43,10 @@ Xcode: 26.6 (17F113). No phone installation or live Health provider fetch was
 performed; the archive contains synthetic records. Native evidence covers the
 changed missing-value presentation, not full layout or accessibility acceptance.
 
-Studio compatibility/contract commit: `8eb2bc1`. Final app commit, PR, hosted
-checks and main integration will be recorded after readback. Build 54 is a
+Studio compatibility/contract commit: `8eb2bc1`; app repair commit: `0058aa7`.
+[PR #42](https://github.com/Kxd395/DoseTap/pull/42) contains the reviewed change.
+Hosted checks and main integration are pending in this committed snapshot; their
+exact final readback is recorded in the PR and Plane closeout. Build 54 is a
 validated signed candidate, not an accepted phone or release build.
 
 ## Remaining acceptance
