@@ -96,7 +96,7 @@ final class DoseActionCoordinator: ObservableObject {
         guard UserSettingsManager.shared.validTargetOptions.contains(targetMinutes),
               taken.timeIntervalSince1970.isFinite, taken <= now,
               sessionRepo?.dose1OccurrenceIsInCurrentNight(taken) == true else {
-            return .blocked(reason: "Choose a recorded time in this treatment night, no later than now, and an available reminder interval. Use History for another night.")
+            return .blocked(reason: "Choose a time in the current treatment night after its prep boundary, no later than now, and an available reminder interval. Use History to record an earlier dose.")
         }
         return await commitDose1(surface: review.surface, occurrence: taken, recordedAt: now,
             targetMinutes: targetMinutes, remember: remember, review: review)

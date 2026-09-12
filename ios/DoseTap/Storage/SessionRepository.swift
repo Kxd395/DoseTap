@@ -616,7 +616,12 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     }
     
     func dose1OccurrenceIsInCurrentNight(_ time: Date) -> Bool {
-        sessionKey(for: time, timeZone: timeZoneProvider(), rolloverHour: rolloverHour) == currentSessionKey
+        guard sessionKey(for: time, timeZone: timeZoneProvider(), rolloverHour: rolloverHour) == currentSessionKey else { return false }
+        // An earlier occurrence must survive the same prep boundary used by
+        // evaluateSessionBoundaries; otherwise saving immediately archives it.
+        let now = clock()
+        let prep = prepTime(for: now)
+        return !(now >= prep && time < prep)
     }
 
     /// Record dose 1 time

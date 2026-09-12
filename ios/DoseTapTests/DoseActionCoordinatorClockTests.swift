@@ -475,6 +475,31 @@ final class DoseActionCoordinatorClockTests: XCTestCase {
         }
     }
 
+    func testDose1EarlierThanPrepIsRejectedBeforeWriteAndBoundaryRemainsActive() async throws {
+        repository.clearTonight()
+        let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-09-11T21:00:00Z"))
+        let settings = UserSettingsManager.shared
+        settings.prepTimeMinutes = 20 * 60
+        repository = SessionRepository(storage: storage, notificationScheduler: FakeNotificationScheduler(),
+            clock: { now }, timeZoneProvider: { TimeZone(secondsFromGMT: 0)! })
+        core.setSessionRepository(repository)
+        dateProvider = MutableDateProvider(now)
+        coordinator = DoseActionCoordinator(core: core, alarmService: .shared, dateProvider: dateProvider, sessionRepo: repository)
+        let token = try XCTUnwrap(coordinator.prepareDose1Review())
+        let beforePrep = now.addingTimeInterval(-2 * 3600)
+        guard case .blocked = await coordinator.confirmDose1(token, occurrence: beforePrep, targetMinutes: 180) else {
+            return XCTFail("A time that immediately rolls over must require History before writing")
+        }
+        XCTAssertNil(repository.dose1Time)
+        XCTAssertTrue(storage.fetchDoseEvents(sessionId: nil, sessionDate: "2026-09-11").isEmpty)
+        let corrected = try XCTUnwrap(coordinator.prepareDose1Review())
+        let atPrep = now.addingTimeInterval(-3600)
+        _ = await coordinator.confirmDose1(corrected, occurrence: atPrep, targetMinutes: 180)
+        repository.reload()
+        XCTAssertEqual(repository.dose1Time, atPrep)
+        XCTAssertNotNil(repository.activeSessionId)
+    }
+
     func testDose1EarlierOccurrencePreservesRecordedTimeAndRejectsInvalidInput() async throws {
         repository.clearTonight()
         for (time, target) in [(dateProvider.now().addingTimeInterval(1), 180), (dose1Time.addingTimeInterval(-86400), 180), (dose1Time, 151)] {

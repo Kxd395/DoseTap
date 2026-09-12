@@ -157,7 +157,7 @@ struct Dose1ReviewSheet: View {
         guard !busy, !committed, scenePhase == .active else { return }
         let occurrence = attemptedTime ?? (takenNow ? coordinator.dateProvider.now() : earlierTime)
         guard coordinator.sessionRepo?.dose1OccurrenceIsInCurrentNight(occurrence) == true else {
-            message = "Choose a taken time in this treatment night. Use History for another night."
+            message = "Choose a time in the current treatment night, after its prep boundary. Use History to record an earlier dose."
             return
         }
         let token: DoseActionCoordinator.Dose1Review
