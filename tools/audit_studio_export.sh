@@ -228,7 +228,7 @@ local_only = (schema_version == 2 and isinstance(warnings, list) and all(isinsta
 consent_value = bundle.get("consent")
 if isinstance(consent_value, dict):
     consent = consent_value
-    for field in ["appleHealthEnabled", "appleHealthAuthorized", "whoopEnabled", "whoopConnected"]:
+    for field in ["appleHealthEnabled", "appleHealthAvailable", "appleHealthAuthorized", "whoopEnabled", "whoopConnected"]:
         if not isinstance(consent.get(field), bool):
             issue("P1", f"Missing or invalid consent metadata: {field} must be a boolean")
 else:

@@ -18,7 +18,7 @@ accepts this omission only for known schema version 2 with a sessions array and
 without contradictory structured provider evidence. Unknown layouts cannot use
 the exception because their provider fields have not been validated.
 Explicit `null` or another malformed consent value is invalid. Manual/provider
-archives require a consent object with four boolean provider-state fields. Missing
+archives require a consent object with five boolean provider-state fields. Missing
 local consent remains **not captured**; it does not establish false authorization
 or disabled provider settings. Required export metadata and raw-questionnaire
 coverage apply in both modes. This is a validator correction for the existing

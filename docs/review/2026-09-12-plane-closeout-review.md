@@ -63,11 +63,14 @@ query policy, WHOOP selection and full source provenance need separate coverage.
 
 - The actual build-50 synthetic ZIP changed from strict failure (consent only)
   to no audit issues. All three questionnaire families and six morning raw
-  payloads remained present. The harness passed 62 positive/adversarial cases
+  payloads remained present. The harness passed 64 positive/adversarial cases
   plus a local ZIP, retaining its earlier raw-payload and ZIP traversal guards.
 - Independent review reproduced and then verified fixes for unknown-schema and
   absent-sessions bypasses. Final validator review is clear. Existing P2 warning
   policy for missing offsets is unchanged; this is not a complete schema validator.
+- Hosted review also identified the required fifth consent field,
+  appleHealthAvailable. Missing/non-Boolean regressions reproduced its acceptance
+  before the fix; all five fields now match the iOS and Studio consent models.
 - `swift build -q` and `swift test -q` passed: 710 XCTest and 43 Swift Testing
   cases. Documentation/SSOT, legacy safety/dose-write, shell syntax and Plane
   workflow checks (15 tests / 80 assertions) passed, as did whitespace and 52

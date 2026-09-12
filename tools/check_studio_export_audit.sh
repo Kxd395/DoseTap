@@ -37,19 +37,19 @@ cp "$EXPORT_DIR"/*.csv "$OPTIONAL_FALSE_DIR"/
 cp "$EXPORT_DIR"/*.csv "$MISSING_REQUIRED_RAW_DIR"/
 
 cat > "$EXPORT_DIR/insights_bundle.json" <<'JSON'
-{"schemaVersion":2,"exportVersion":"2.2","appVersion":"0.4.12 (14)","exportedAtUTC":"2026-06-17T10:00:00Z","timeZoneIdentifier":"America/New_York","localOffsetMinutes":-240,"consent":{"appleHealthEnabled":false,"appleHealthAuthorized":false,"whoopEnabled":false,"whoopConnected":false},"sessions":[{"sessionDate":"2026-06-16","preSleep":{"rawAnswersJson":"{}"},"morning":{"sleepQuality":4.25,"rawPhysicalSymptomsJson":"{}","rawRespiratorySymptomsJson":"{}","rawSleepTherapyJson":"{}","rawSleepEnvironmentJson":"{}","rawStressContextJson":"{}","rawTimingContextJson":"{}"},"checkInSubmissions":[{"checkInType":"pre_night"},{"checkInType":"morning"}],"sourceAvailability":{}}]}
+{"schemaVersion":2,"exportVersion":"2.2","appVersion":"0.4.12 (14)","exportedAtUTC":"2026-06-17T10:00:00Z","timeZoneIdentifier":"America/New_York","localOffsetMinutes":-240,"consent":{"appleHealthEnabled":false,"appleHealthAvailable":false,"appleHealthAuthorized":false,"whoopEnabled":false,"whoopConnected":false},"sessions":[{"sessionDate":"2026-06-16","preSleep":{"rawAnswersJson":"{}"},"morning":{"sleepQuality":4.25,"rawPhysicalSymptomsJson":"{}","rawRespiratorySymptomsJson":"{}","rawSleepTherapyJson":"{}","rawSleepEnvironmentJson":"{}","rawStressContextJson":"{}","rawTimingContextJson":"{}"},"checkInSubmissions":[{"checkInType":"pre_night"},{"checkInType":"morning"}],"sourceAvailability":{}}]}
 JSON
 
 cat > "$MISSING_METADATA_DIR/insights_bundle.json" <<'JSON'
-{"schemaVersion":2,"exportVersion":"2.2","exportedAtUTC":"2026-06-17T10:00:00Z","consent":{"appleHealthEnabled":false,"appleHealthAuthorized":false,"whoopEnabled":false,"whoopConnected":false},"sessions":[{"sessionDate":"2026-06-16","preSleep":{"rawAnswersJson":"{}"},"morning":{"sleepQuality":4.25,"rawPhysicalSymptomsJson":"{}","rawRespiratorySymptomsJson":"{}","rawSleepTherapyJson":"{}","rawSleepEnvironmentJson":"{}","rawStressContextJson":"{}","rawTimingContextJson":"{}"},"checkInSubmissions":[{"checkInType":"pre_night"},{"checkInType":"morning"}],"sourceAvailability":{}}]}
+{"schemaVersion":2,"exportVersion":"2.2","exportedAtUTC":"2026-06-17T10:00:00Z","consent":{"appleHealthEnabled":false,"appleHealthAvailable":false,"appleHealthAuthorized":false,"whoopEnabled":false,"whoopConnected":false},"sessions":[{"sessionDate":"2026-06-16","preSleep":{"rawAnswersJson":"{}"},"morning":{"sleepQuality":4.25,"rawPhysicalSymptomsJson":"{}","rawRespiratorySymptomsJson":"{}","rawSleepTherapyJson":"{}","rawSleepEnvironmentJson":"{}","rawStressContextJson":"{}","rawTimingContextJson":"{}"},"checkInSubmissions":[{"checkInType":"pre_night"},{"checkInType":"morning"}],"sourceAvailability":{}}]}
 JSON
 
 cat > "$OPTIONAL_FALSE_DIR/insights_bundle.json" <<'JSON'
-{"schemaVersion":2,"exportVersion":"2.2","appVersion":"0.4.12 (14)","exportedAtUTC":"2026-06-17T10:00:00Z","timeZoneIdentifier":"America/New_York","localOffsetMinutes":-240,"consent":{"appleHealthEnabled":false,"appleHealthAuthorized":false,"whoopEnabled":false,"whoopConnected":false},"sessions":[{"sessionDate":"2026-06-16","morning":{"sleepQuality":3},"checkInSubmissions":[{"checkInType":"morning","responsesJson":"{\"respiratory.any\":false,\"sleep_therapy.used\":false,\"sleep.quality\":3}"}],"sourceAvailability":{}}]}
+{"schemaVersion":2,"exportVersion":"2.2","appVersion":"0.4.12 (14)","exportedAtUTC":"2026-06-17T10:00:00Z","timeZoneIdentifier":"America/New_York","localOffsetMinutes":-240,"consent":{"appleHealthEnabled":false,"appleHealthAvailable":false,"appleHealthAuthorized":false,"whoopEnabled":false,"whoopConnected":false},"sessions":[{"sessionDate":"2026-06-16","morning":{"sleepQuality":3},"checkInSubmissions":[{"checkInType":"morning","responsesJson":"{\"respiratory.any\":false,\"sleep_therapy.used\":false,\"sleep.quality\":3}"}],"sourceAvailability":{}}]}
 JSON
 
 cat > "$MISSING_REQUIRED_RAW_DIR/insights_bundle.json" <<'JSON'
-{"schemaVersion":2,"exportVersion":"2.2","appVersion":"0.4.12 (14)","exportedAtUTC":"2026-06-17T10:00:00Z","timeZoneIdentifier":"America/New_York","localOffsetMinutes":-240,"consent":{"appleHealthEnabled":false,"appleHealthAuthorized":false,"whoopEnabled":false,"whoopConnected":false},"sessions":[{"sessionDate":"2026-06-16","morning":{"sleepQuality":3,"rawPhysicalSymptomsJson":"{}"},"checkInSubmissions":[{"checkInType":"morning","responsesJson":"{\"pain.any\":true}"}],"sourceAvailability":{}},{"sessionDate":"2026-06-17","morning":{"sleepQuality":3},"checkInSubmissions":[{"checkInType":"morning","responsesJson":"{\"pain.any\":true}"}],"sourceAvailability":{}}]}
+{"schemaVersion":2,"exportVersion":"2.2","appVersion":"0.4.12 (14)","exportedAtUTC":"2026-06-17T10:00:00Z","timeZoneIdentifier":"America/New_York","localOffsetMinutes":-240,"consent":{"appleHealthEnabled":false,"appleHealthAvailable":false,"appleHealthAuthorized":false,"whoopEnabled":false,"whoopConnected":false},"sessions":[{"sessionDate":"2026-06-16","morning":{"sleepQuality":3,"rawPhysicalSymptomsJson":"{}"},"checkInSubmissions":[{"checkInType":"morning","responsesJson":"{\"pain.any\":true}"}],"sourceAvailability":{}},{"sessionDate":"2026-06-17","morning":{"sleepQuality":3},"checkInSubmissions":[{"checkInType":"morning","responsesJson":"{\"pain.any\":true}"}],"sourceAvailability":{}}]}
 JSON
 
 python3 - "$TMP_DIR" <<'PY'
@@ -125,7 +125,7 @@ case("marker-string", 1, lambda b: b.update(exportWarnings=marker))
 case("marker-array-type", 1, lambda b: b.update(exportWarnings=[marker, {}]))
 for value in [None, [], {}, "false", 0, True]:
     case(f"invalid-consent-{len(cases)}", 1, lambda b, v=value: b.update(consent=v))
-for key in ["appleHealthEnabled", "appleHealthAuthorized", "whoopEnabled", "whoopConnected"]:
+for key in ["appleHealthEnabled", "appleHealthAvailable", "appleHealthAuthorized", "whoopEnabled", "whoopConnected"]:
     case(f"missing-{key}", 1, lambda b, k=key: b["consent"].pop(k), seed=base)
     case(f"string-{key}", 1, lambda b, k=key: b["consent"].update({k: "false"}), seed=base)
 case("numeric-consent", 1, lambda b: b["consent"].update(appleHealthEnabled=1), seed=base)
