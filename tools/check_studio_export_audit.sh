@@ -138,6 +138,19 @@ whoop_failed.update(sleepStatus="failed", recoveryStatus="not_attempted")
 case("whoop-sleep-failed", 0, lambda b: b.update(whoopEnrichment=whoop_failed), seed=whoop_manual)
 case("whoop-local-sleep-failed", 1, lambda b: b.update(whoopEnrichment=whoop_failed))
 case("whoop-eligible-missing-summary", 1, lambda b: b.update(whoopEnrichment={**whoop_query, "sleepRecordCount": 1, "eligibleNightCount": 1}), seed=whoop_manual)
+for label in ["false", "missing-flags", "missing-consent"]:
+    unexported = copy.deepcopy(base)
+    if label == "missing-flags":
+        for key in ["whoopEnabled", "whoopConnected"]:
+            unexported["consent"].pop(key)
+    elif label == "missing-consent":
+        unexported.pop("consent")
+    case(f"whoop-unexported-eligible-{label}", 1,
+         lambda b: b.update(whoopEnrichment={**whoop_query, "sleepRecordCount": 1, "eligibleNightCount": 1}), seed=unexported)
+case("whoop-zero-eligible-disabled", 0, lambda b: b.update(whoopEnrichment=whoop_query), seed=base)
+case("whoop-unknown-eligible-disabled", 0,
+     lambda b: b.update(whoopEnrichment={k: v for k, v in whoop_query.items() if k != "eligibleNightCount"}), seed=base)
+case("whoop-no-fetch-metadata-enabled", 1, seed=whoop_manual)
 case("whoop-eligible-summary", 0, lambda b: (b.update(whoopEnrichment={**whoop_query, "sleepRecordCount": 1, "eligibleNightCount": 1}),
      b["sessions"][0].update(whoop={"totalSleepMinutes": 100})), seed=whoop_manual)
 for label, metadata in [("eligible-over-returned", {**whoop_query, "eligibleNightCount": 1}),
@@ -224,6 +237,8 @@ for name, expected, value, csv_value in cases:
         result = subprocess.run(["bash", auditor, "--strict", str(path)], capture_output=True, text=True)
         if result.returncode != expected:
             failures.append(f"{name}: expected {expected}, got {result.returncode}")
+        if name.startswith("whoop-unexported-eligible-") and "WHOOP fetch reports eligible nights but no WHOOP session summaries" not in result.stdout:
+            failures.append(f"{name}: missing consent-independent eligible-night contradiction")
         if name == "local" and "Provider consent: not captured" not in result.stdout:
             failures.append("local: missing consent was presented as known state")
 if failures:

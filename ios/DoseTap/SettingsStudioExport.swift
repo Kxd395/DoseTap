@@ -149,7 +149,7 @@ struct StudioBundleExporter {
             localOffsetMinutes: TimeZone.current.secondsFromGMT(for: Date()) / 60,
             consent: consent,
             exportWarnings: buildBundleExportWarnings(sessions: sessions)
-                + (whoopEnrichment?.warnings ?? [])
+                + (whoopEnrichment?.warnings(hasExportedSleep: sessions.contains { $0.whoop != nil }) ?? [])
                 + (consent == nil ? ["Local snapshot only; provider enrichment was not fetched."] : []),
             whoopEnrichment: whoopEnrichment,
             sessions: sessions
@@ -1487,13 +1487,14 @@ private struct InsightsWHOOPEnrichment: Encodable {
     var eligibleNightCount: Int?
     var notAttemptedReason: String?
 
-    var warnings: [String] {
+    func warnings(hasExportedSleep: Bool) -> [String] {
         var messages: [String] = []
         if sleepStatus == "failed" {
             messages.append("WHOOP sleep could not be fetched; WHOOP enrichment is unavailable.")
         }
         if recoveryStatus == "failed" {
-            messages.append("WHOOP sleep was fetched, but recovery could not be fetched; available sleep data is retained.")
+            messages.append(hasExportedSleep ? "WHOOP sleep was fetched, but recovery could not be fetched; available sleep data is retained." :
+                "WHOOP recovery could not be fetched; no WHOOP sleep summary is included in this export.")
         }
         if sleepStatus == "completed" && sleepRecordCount == 0 {
             messages.append("WHOOP sleep query completed with no records.")

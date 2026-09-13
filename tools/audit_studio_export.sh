@@ -392,6 +392,8 @@ if len(sessions_csv) != len(sessions_json):
 
 if whoop_sessions > 0 and whoop_fetch_valid and (whoop_fetch["sleepStatus"] != "completed" or whoop_fetch.get("eligibleNightCount") == 0):
     issue("P1", "WHOOP summaries conflict with fetch status or zero eligible nights")
+if whoop_sessions == 0 and whoop_fetch_valid and whoop_fetch.get("eligibleNightCount", 0) > 0:
+    issue("P0", "WHOOP fetch reports eligible nights but no WHOOP session summaries are present")
 if whoop_enabled or whoop_connected:
     if whoop_sessions == 0:
         explained_absence = whoop_fetch_valid and (whoop_fetch["sleepStatus"] != "completed" or whoop_fetch.get("eligibleNightCount") == 0)

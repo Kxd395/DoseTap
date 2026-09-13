@@ -24,17 +24,19 @@ There is no SQL migration, historical rewrite, medication/alarm action, consent 
 | Evidence | Result |
 | --- | --- |
 | Request regression | Existing behavior reproduced failures; 14 focused service tests then passed, including partial recovery, counts, overlapping requests and cancellation |
-| Production writer | Missing status and swallowed cancellation reproduced; final seven writer tests passed in the full iOS suite. Invalid treatment dates still reject before a valid archive can be produced |
+| Production writer | Missing status and swallowed cancellation reproduced; final nine writer tests passed in the full iOS suite. Invalid treatment dates still reject before a valid archive can be produced |
 | Core | 710 XCTest plus 43 Swift Testing cases passed |
-| iOS integration | 489 tests passed, zero failures/skips; unsigned iPhone 17 Pro simulator build, iOS 26.5 |
+| iOS integration | 491 tests passed, zero failures/skips; unsigned iPhone 17 Pro simulator build, iOS 26.5 |
 | Studio | 80 tests executed with all five retained iOS archive fixtures, two optional native-preview skips, zero failures |
-| Strict archive checks | 130 generated cases plus ZIP passed; actual partial-recovery folder and ZIP passed with expected empty-inventory advisory |
+| Strict archive checks | 136 generated cases plus ZIP passed; actual partial-recovery folder and ZIP passed with expected empty-inventory advisory |
 | Native Studio | Imported the generated archive, verified source build 55/export 2.7, retained WHOOP sleep, missing recovery and the fixed warning in the existing Export view |
 | Source review | Independent service/export, Studio and validator review; cancellation publication gap corrected and reviewed clear |
 
 The model extraction keeps `InsightBundleModels.swift` below its architecture ceiling without changing the DTO. Final CI also caught the exporter ceiling after cancellation hardening; removing redundant method annotations preserves its enclosing `@MainActor` isolation and restores the guard without raising its limit. All seven writer regressions, the signed build and codesign verification passed again after that cleanup. Repository guards cover SSOT, documentation, Plane workflow (15 tests/80 assertions), dose writes, legacy safety, architecture, repository hygiene, tab ownership, companion targets and whitespace. They do not establish whole-project reader consistency.
 
-Local evidence is under `.build/audits/2026-09-12-whoop-export-status/`: `ios-full-summary.json`, `ios-full.log`, service red/green logs, `studio-all-fixtures.log`, strict folder/ZIP logs, `app-version.log`, and native `native-studio-warning.png`/`.txt`. The final iOS result bundle is `/tmp/dosetap-whoop-full.xcresult`; fixture location is recorded in `/tmp/dosetap-whoop-export-fixture-path.txt`. Temporary evidence may expire; this record and the exact Plane workpads are durable evidence summaries.
+Local evidence is under `.build/audits/2026-09-12-whoop-export-status/`: `ios-reviewed-full-summary.json`, `ios-reviewed-full.log`, review red/final writer logs, service red/green logs, `studio-all-fixtures.log`, strict folder/ZIP logs, `app-version.log`, and native `native-studio-warning.png`/`.txt`. The final iOS result bundle is `/tmp/dosetap-whoop-full.xcresult`; fixture location is recorded in `/tmp/dosetap-whoop-export-fixture-path.txt`. Temporary evidence may expire; this record and the exact Plane workpads are durable evidence summaries.
+
+PR review also identified two edge cases: recovery warnings must only claim retained WHOOP sleep when an exported session contains it, and a positive eligible count without exported WHOOP summaries must fail strict validation even when consent flags are false or absent. Both have regression coverage, including empty/filtered results and an eligible intervening night outside the exported session population. Sleep selection is unchanged. The fallback explicitly names WHOOP so it does not deny Apple Health sleep in the same archive. All nine writer tests passed after the final wording qualification.
 
 Signed generic iOS build and deep/strict codesign verification passed. The retained candidate is `/tmp/dosetap-whoop-export-signed-build/Build/Products/Debug-iphoneos/DoseTap.app`; `signed-artifact.json` records identity and executable SHA-256. This run did not install it on a phone.
 

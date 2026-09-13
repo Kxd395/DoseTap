@@ -27,7 +27,9 @@ warnings identify the no-fetch mode. Strict archive validation rejects malformed
 fetch metadata and local-only declarations combined with attempted WHOOP fetches
 or returned-query evidence. Validated failed/not-attempted fetches or completed
 fetches with zero eligible nights explain absent WHOOP summaries as advisory;
-positive eligible counts without exported summaries remain a strict audit failure.
+positive eligible counts without exported summaries remain a strict audit failure,
+independent of consent flags. Recovery warnings claim retained sleep only when
+the exported sessions actually include a WHOOP summary.
 SQLite and existing numeric data are unchanged.
 
 Apple Health summary missingness (Studio export 2.6, schema 2; DOSETAP-13/56):

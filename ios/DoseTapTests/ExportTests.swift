@@ -107,6 +107,30 @@ final class WHOOPExportStatusTests: XCTestCase {
         XCTAssertTrue((object["exportWarnings"] as? [String])?.contains("WHOOP sleep records were fetched, but none met the existing sleep-summary criteria.") == true)
         XCTAssertNil((object["sessions"] as? [[String: Any]])?.first?["whoop"])
     }
+    func testRecoveryFailureWithoutEligibleSleepDoesNotClaimRetention() async throws {
+        for records in [[], try sleeps().filter { $0.nap == true }] {
+            let response = try await result(records, failingRecovery: true)
+            try await StudioBundleExporter().writeWHOOPExportBundleForTesting(using: repo, to: folder, sessionDates: ["2026-09-11"]) { _, _ in response }
+            let object = try bundle(), status = try metadata(object)
+            XCTAssertEqual(status["eligibleNightCount"] as? Int, 0)
+            XCTAssertEqual(status["recoveryStatus"] as? String, "failed")
+            let warnings = try XCTUnwrap(object["exportWarnings"] as? [String])
+            XCTAssertTrue(warnings.contains("WHOOP recovery could not be fetched; no WHOOP sleep summary is included in this export."))
+            XCTAssertFalse(warnings.contains { $0.contains("available sleep data is retained") })
+            XCTAssertTrue(warnings.contains(records.isEmpty ? "WHOOP sleep query completed with no records." : "WHOOP sleep records were fetched, but none met the existing sleep-summary criteria."))
+            XCTAssertNil((object["sessions"] as? [[String: Any]])?.first?["whoop"])
+        }
+    }
+    func testRecoveryWarningDoesNotClaimRetentionForUnexportedInterveningNight() async throws {
+        let response = try await result(sleeps(), failingRecovery: true)
+        try await StudioBundleExporter().writeWHOOPExportBundleForTesting(using: repo, to: folder, sessionDates: ["2026-09-10", "2026-09-12"]) { _, _ in response }
+        let object = try bundle(), status = try metadata(object)
+        XCTAssertEqual(status["eligibleNightCount"] as? Int, 1)
+        XCTAssertTrue(try XCTUnwrap(object["sessions"] as? [[String: Any]]).allSatisfy { $0["whoop"] == nil })
+        let warnings = try XCTUnwrap(object["exportWarnings"] as? [String])
+        XCTAssertTrue(warnings.contains("WHOOP recovery could not be fetched; no WHOOP sleep summary is included in this export."))
+        XCTAssertFalse(warnings.contains { $0.contains("available sleep data is retained") })
+    }
     func testDisabledDisconnectedAndUnqueryableExportsDoNotAttemptFetch() async throws {
         let response = try await result()
         for reason in ["invalid_range", "feature_disabled", "preference_disabled", "disconnected", "no_sessions"] {
