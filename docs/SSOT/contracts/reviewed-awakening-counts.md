@@ -8,7 +8,9 @@ This refines the accepted [sleep measurement addendum](../../plans/2026-09-09-sl
 
 ## Inputs and source ownership
 
-Use the current `ReviewedNightSleepProjection` from the existing checked repository loader, together with the canonical dose snapshot from that same check. Preserve stable session identity, reviewed absolute bounds, generation time, projection/evidence/count derivation versions and original evidence. A calendar date, open-session lifetime, planned wake time or chart extent cannot supply reviewed bounds.
+Use the current `ReviewedNightSleepProjection` from the existing checked repository loader, together with the canonical dose snapshot from that same check. For the manual/provider comparison below, the future checked result must also expose the optional `NightOutcomeDiary.finalWakeAt` and its existing outcome submission/revision provenance, decoded from the same matching `outcomeJSON` snapshot already rechecked by the loader. Preserve missing values/provenance as absent; do not query another night or read a separate current preference. The current `ReviewedNightSleepResult` does not expose this manual-wake input, so extending that typed result is an explicit implementation prerequisite, not existing behavior. Any change to the source outcome invalidates the count/comparison just as it invalidates the existing provider check.
+
+Preserve stable session identity, reviewed absolute bounds, generation time, projection/evidence/count derivation versions and original evidence. A calendar date, open-session lifetime, planned wake time or chart extent cannot supply reviewed bounds.
 
 The first implementation consumes Apple Health consensus bands only. WHOOP disturbance totals, questionnaire awakening buckets, brief-wake/bathroom logs, alarm delivery and dose taps cannot supply sleep transitions. Apple Health may contain samples from several source apps; retain the checked snapshot's source detail. Do not add source-app counts together or choose a source merely because it produces fewer awakenings. WHOOP aggregates remain separate unless a future reviewed interval contract establishes compatible boundaries.
 
@@ -106,7 +108,7 @@ These are acceptance specifications, **not tests run by this documentation slice
 
 ## Delivery sequence and open gates
 
-1. Implement the pure versioned calculator and failing-first core fixtures for the rules above. Reuse the existing projection and dose validation; do not replace the working duration calculator.
+1. Implement the pure versioned calculator and failing-first core fixtures for the rules above. Extend the checked loader result with the same-snapshot optional manual final wake and available outcome provenance; test missing values, edits/removal, wrong identities and stale callbacks. Reuse the existing projection and dose validation; do not replace the working duration calculator.
 2. Wire the existing loader and one reviewed UI surface with native normal/large-text evidence, followed by VoiceOver and owner-night/provider comparison. Inspect exact endpoints and raw source evidence on the same night.
 3. Adopt the shared result in remaining charts, History, dashboard and Settings/Studio with explicit legacy labels, writer/import parity and privacy review. Keep cross-consumer acceptance open until all intended surfaces agree.
 
