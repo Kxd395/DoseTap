@@ -6,6 +6,13 @@ Revision: 1.2, adopted implementation plan
 
 Status: Accepted plan for DOSETAP-56/57. Only behavior promoted into SSOT is implemented; phone acceptance remains separate.
 
+September 12 navigation update: the historical status matrix below predates
+the delivered [build-46 durations](../review/2026-09-11-dose-sleep-metrics-delivery.md)
+and [build-48 Timeline inspection](../review/2026-09-11-timeline-awakening-delivery.md).
+DOSETAP-57 is now In Progress. The [awakening-count contract](../SSOT/contracts/reviewed-awakening-counts.md)
+refines the remaining count rules; it does not deliver a new count or close
+provider, owner or release acceptance. Preserve this earlier review as dated evidence.
+
 Related plan: `docs/plans/2026-09-08-sleep-markers-roadmap.md`
 
 Location: `docs/plans/2026-09-09-sleep-timing-calculation-addendum.md`

@@ -2,6 +2,8 @@
 
 DOSETAP-57 bounded consumer of the DOSETAP-56 reviewed-night projection. Derivation: `reviewed_dose_sleep_v1`. The [measurement addendum](../../plans/2026-09-09-sleep-timing-calculation-addendum.md) remains the broader design contract.
 
+The separate [awakening-count implementation contract](reviewed-awakening-counts.md) defines the next slice. Its counts and consumer migration are not implemented by the duration/inspection behavior documented here.
+
 ## Inputs and ownership
 
 Use canonical explicit dose events and the fresh, locally revalidated `ReviewedNightSleepProjection` from the repository loader. Preserve the reviewed window, its stable session identity, generation time, projection/evidence versions and original evidence alongside results. No medication, questionnaire, provider or preference writes occur. Local changes, disabled Health access, cancellation, failed reads, changed bounds and stale asynchronous results invalidate the entire displayed result using the existing loader/view lifecycle. Refresh queries can remove prior observations; no cached successful metric survives an unsuccessful refresh.

@@ -44,6 +44,15 @@ Old numeric archives, including historical zeros, are not reinterpreted. Older
 Studio versions with required total/count fields cannot decode new omissions.
 This is an export/import correction; local SQLite and query selection are unchanged.
 
+Awakening-count meanings remain distinct. Current `healthKit.wakeCount` counts
+selected primary-episode awake segments after sleep has appeared; an adjacent
+return to sleep is not required. WHOOP disturbance count is a provider aggregate.
+Bathroom/brief-wake counts are saved logs. None is the forthcoming versioned
+[reviewed wake-and-return episode count](reviewed-awakening-counts.md).
+Old numeric archives retain their original meanings; the planned result has no
+SQLite or export field in build 55. The [consumer audit](../../review/2026-09-12-awakening-count-review.md)
+identifies the existing writers/readers and the required additive adoption.
+
 Local Studio archive metadata (DOSETAP-13 / DC-12): the local/scheduled writer
 omits `consent` because it does not capture provider consent or fetch enrichment.
 Its `exportWarnings` string array includes the exact element

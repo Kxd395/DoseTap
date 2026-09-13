@@ -16,6 +16,7 @@ Files here record dated reviews, design decisions, migration analysis, and regre
 
 - [Collected-data inventory and work/off dashboard plan](2026-09-11-dashboard-and-collected-data-review.md): human-facing provider, questionnaire, dosing and quick-log fields; planned means, transition groups and missingness rules. This is a build-45 source inventory with later delivery links, not a claim that the proposed dashboard ships.
 - [Collection/store/export audit reading guide](../audit/2026-09-12/README.md): pair the owner inventory with exact stored fields, export coverage and known discrepancies.
+- [Awakening-count source review and implementation plan](2026-09-12-awakening-count-review.md): existing count meanings, completed-episode contract, consumer migration and test cases; documentation only, no new app build.
 
 ## Delivery records
 
@@ -37,4 +38,4 @@ Each record identifies its version, bounded changes, validation and remaining ga
 | 52 | [Export fidelity](2026-09-12-export-fidelity-delivery.md) | Stored inventory/medication preservation, checked reads and tracker reconciliation |
 | 53 | [Event export provenance](2026-09-12-event-export-provenance-delivery.md) | Original dose/sleep row identity, timestamp text, metadata and color |
 | 54 | [Apple Health export missingness](2026-09-12-health-export-missingness-delivery.md) | DC-05 partial correction: absent sleep summaries retain biometrics without invented zeros |
-| 55 candidate | [WHOOP export request status](2026-09-12-whoop-export-status-delivery.md) | DC-05 continuation: independent fetch results, request counts and cancellation; local validation passed, provider acceptance open |
+| 55 | [WHOOP export request status](2026-09-12-whoop-export-status-delivery.md) | Merged PR #43: independent fetch results, request counts and cancellation; local/hosted validation passed, provider acceptance open |
