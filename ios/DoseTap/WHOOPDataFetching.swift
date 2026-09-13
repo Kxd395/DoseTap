@@ -1,5 +1,17 @@
 import Foundation
 
+enum WHOOPRecoveryFetchStatus: String {
+    case completed, failed
+}
+
+/// Evidence for one request; counts precede scored-sleep and nap filtering.
+struct WHOOPNightFetchResult {
+    let summaries: [WHOOPNightSummary]
+    let sleepRecordCount: Int
+    let recoveryRecordCount: Int?
+    let recoveryStatus: WHOOPRecoveryFetchStatus
+}
+
 /// WHOOP Sleep and Recovery Data Fetching
 /// Extends WHOOPService with methods to fetch sleep, recovery, and cycle data
 ///
@@ -81,17 +93,42 @@ extension WHOOPService {
 
     /// Fetch scored WHOOP nights and merge in recovery metrics when available.
     func fetchNightSummaries(from startDate: Date, to endDate: Date) async throws -> [WHOOPNightSummary] {
-        let sleeps = try await fetchSleepData(from: startDate, to: endDate)
+        let result = try await fetchNightSummaryResult(from: startDate, to: endDate)
+        lastError = result.recoveryStatus == .failed
+            ? "WHOOP sleep loaded, but recovery metrics could not refresh. Try Refresh again." : nil
+        return result.summaries
+    }
 
+    func fetchNightSummaryResult(from startDate: Date, to endDate: Date) async throws -> WHOOPNightFetchResult {
+        try await Self.loadNightSummaryResult(
+            sleep: { try await self.fetchSleepData(from: startDate, to: endDate) },
+            recovery: { try await self.fetchRecoveryData(from: startDate, to: endDate) })
+    }
+
+    static func loadNightSummaryResult(
+        sleep: () async throws -> [WHOOPSleep],
+        recovery: () async throws -> [WHOOPRecovery]
+    ) async throws -> WHOOPNightFetchResult {
+        try checkFetchCancellation()
+        let sleeps: [WHOOPSleep]
+        do { sleeps = try await sleep() }
+        catch { try checkFetchCancellation(error); throw error }
+        try checkFetchCancellation()
         do {
-            let recoveries = try await fetchRecoveryData(from: startDate, to: endDate)
-            lastError = nil
-            return Self.makeNightSummaries(sleeps: sleeps, recoveries: recoveries)
+            let recoveries = try await recovery()
+            try checkFetchCancellation()
+            return WHOOPNightFetchResult(summaries: makeNightSummaries(sleeps: sleeps, recoveries: recoveries),
+                sleepRecordCount: sleeps.count, recoveryRecordCount: recoveries.count, recoveryStatus: .completed)
         } catch {
-            if Task.isCancelled { throw error }
-            lastError = "WHOOP sleep loaded, but recovery metrics could not refresh. Try Refresh again."
-            // Recovery enrichment is additive. Keep the scored sleep payloads even if recovery fails.
-            return Self.makeNightSummaries(sleeps: sleeps, recoveries: [])
+            try checkFetchCancellation(error)
+            return WHOOPNightFetchResult(summaries: makeNightSummaries(sleeps: sleeps, recoveries: []),
+                sleepRecordCount: sleeps.count, recoveryRecordCount: nil, recoveryStatus: .failed)
+        }
+    }
+
+    static func checkFetchCancellation(_ error: Error? = nil) throws {
+        if Task.isCancelled || error is CancellationError || (error as? URLError)?.code == .cancelled {
+            throw CancellationError()
         }
     }
 

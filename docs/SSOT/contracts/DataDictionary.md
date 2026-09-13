@@ -10,6 +10,28 @@ This dictionary defines how persisted fields are interpreted. It covers all 17 a
 
 ## Identity and time
 
+WHOOP fetch evidence (Studio export 2.7/schema 2; DOSETAP-13): optional root
+`whoopEnrichment` contains `version: 1`, `sleepStatus`, `recoveryStatus`, optional
+`queryStartUTC`/`queryEndUTC`, `sleepRecordCount`, `recoveryRecordCount`,
+`eligibleNightCount`, and `notAttemptedReason`. Status values are `not_attempted`,
+`completed`, or `failed`; consumers retain future strings without treating them
+as success. Completed counts can be zero; failed/not-attempted counts are absent.
+Eligible count follows the existing scored non-nap filter and precedes per-date
+export selection. These are request counts, not measurement denominators or proof
+of permissions, complete provider coverage, or per-night availability. Reasons:
+`feature_disabled`, `preference_disabled`, `disconnected`, `no_sessions`,
+`invalid_range`. Successful sleep with failed recovery retains sleep data and
+has absent recovery count. Sleep failure leaves recovery not attempted. Cancellation
+produces no successful export. Old/local archives omit this field; existing local
+warnings identify the no-fetch mode. Strict archive validation rejects malformed
+fetch metadata and local-only declarations combined with attempted WHOOP fetches
+or returned-query evidence. Validated failed/not-attempted fetches or completed
+fetches with zero eligible nights explain absent WHOOP summaries as advisory;
+positive eligible counts without exported summaries remain a strict audit failure,
+independent of consent flags. Recovery warnings claim retained sleep only when
+the exported sessions actually include a WHOOP summary.
+SQLite and existing numeric data are unchanged.
+
 Apple Health summary missingness (Studio export 2.6, schema 2; DOSETAP-13/56):
 `healthKit.totalSleepMinutes` and `wakeCount` are optional. A biometrics-only
 Health object does not establish sleep coverage. Without an eligible primary

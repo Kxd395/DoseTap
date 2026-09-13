@@ -22,16 +22,25 @@ extension SettingsView {
         let timestamp = DateFormatter.exportDateFormatter.string(from: Date())
         let exportDirectory = tempDirectory.appendingPathComponent("DoseTapStudioExport_\(timestamp)_\(UUID().uuidString)", isDirectory: true)
         let exporter = StudioBundleExporter()
-        defer { try? FileManager.default.removeItem(at: exportDirectory) }
+        var unpublishedArchive: URL?
+        defer {
+            try? FileManager.default.removeItem(at: exportDirectory)
+            if let unpublishedArchive { try? FileManager.default.removeItem(at: unpublishedArchive) }
+        }
 
         do {
             try FileManager.default.createDirectory(at: exportDirectory, withIntermediateDirectories: true)
             try await exporter.writeStudioExportBundle(using: repo, to: exportDirectory)
             let archiveURL = try exporter.archiveExportDirectory(exportDirectory)
+            unpublishedArchive = archiveURL
+            try Task.checkCancellation()
 
             exportItems = [archiveURL]
             showingExportSheet = true
+            unpublishedArchive = nil
             settingsActionsLog.info("Studio export created: \(archiveURL.lastPathComponent, privacy: .private)")
+        } catch is CancellationError {
+            return
         } catch {
             settingsActionsLog.error("Failed to create export file: \(error.localizedDescription, privacy: .public)")
             exportErrorMessage = error.localizedDescription
@@ -45,12 +54,12 @@ extension SettingsView {
 struct StudioBundleExporter {
     private var settings: UserSettingsManager { .shared }
 
-    @MainActor
     private func buildInsightsBundle(
         using repo: SessionRepository,
         sessionDates: [String],
         enrichmentBySessionDate: [String: StudioExportSessionContext],
-        consent: InsightsConsentState?
+        consent: InsightsConsentState?,
+        whoopEnrichment: InsightsWHOOPEnrichment? = nil
     ) throws -> InsightsBundleExport {
         let sortedSessionDates = sessionDates.sorted(by: >)
         let windowAssessments = repo.reviewedWindowAssessments(sessionDates: sortedSessionDates)
@@ -133,13 +142,16 @@ struct StudioBundleExporter {
 
         return InsightsBundleExport(
             schemaVersion: 2,
-            exportVersion: "2.6",
+            exportVersion: "2.7",
             appVersion: bundleVersionString(),
             exportedAtUTC: Date(),
             timeZoneIdentifier: TimeZone.current.identifier,
             localOffsetMinutes: TimeZone.current.secondsFromGMT(for: Date()) / 60,
             consent: consent,
-            exportWarnings: buildBundleExportWarnings(sessions: sessions) + (consent == nil ? ["Local snapshot only; provider enrichment was not fetched."] : []),
+            exportWarnings: buildBundleExportWarnings(sessions: sessions)
+                + (whoopEnrichment?.warnings(hasExportedSleep: sessions.contains { $0.whoop != nil }) ?? [])
+                + (consent == nil ? ["Local snapshot only; provider enrichment was not fetched."] : []),
+            whoopEnrichment: whoopEnrichment,
             sessions: sessions
         )
     }
@@ -248,40 +260,40 @@ struct StudioBundleExporter {
         )
     }
 
-    @MainActor
     func writeStudioExportBundle(using repo: SessionRepository, to directory: URL) async throws {
+        try Task.checkCancellation()
         let sessionDates = try repo.sessionDatesForExport().sorted()
         let consentState = await exportConsentState()
-        let enrichmentBySessionDate = await collectStudioExportEnrichment(using: repo, sessionDates: sessionDates)
+        let enrichment = try await collectStudioExportEnrichment(using: repo, sessionDates: sessionDates)
 
         try writeStudioExportBundle(
             using: repo,
             to: directory,
             sessionDates: sessionDates,
-            enrichmentBySessionDate: enrichmentBySessionDate,
-            consent: consentState
+            enrichmentBySessionDate: enrichment.sessions,
+            consent: consentState,
+            whoopEnrichment: enrichment.whoop
         )
     }
 
-    @MainActor
     func writeLocalStudioExportBundle(using repo: SessionRepository, to directory: URL) throws {
         try writeStudioExportBundle(using: repo, to: directory, sessionDates: repo.sessionDatesForExport().sorted(), enrichmentBySessionDate: [:], consent: nil)
     }
 
     func enrichedNightSummary(using repo: SessionRepository, sessionDate: String) async throws -> CollectedNightSummary {
-        let health = await fetchAppleHealthSummaryForExport(sessionDate: sessionDate)
+        let health = try await fetchAppleHealthSummaryForExport(sessionDate: sessionDate)
         return try repo.collectedNightSummary(for: sessionDate, intervals: health?.recordedIntervals ?? [], providerFinalWake: health?.finalWakeUTC)
     }
 
-    @MainActor
     private func writeStudioExportBundle(
         using repo: SessionRepository,
         to directory: URL,
         sessionDates: [String],
         enrichmentBySessionDate: [String: StudioExportSessionContext],
-        consent: InsightsConsentState?
+        consent: InsightsConsentState?,
+        whoopEnrichment: InsightsWHOOPEnrichment? = nil
     ) throws {
-
+        try Task.checkCancellation()
         try buildStudioEventsCSV(using: repo, sessionDates: sessionDates)
             .write(to: directory.appendingPathComponent("events.csv"), atomically: true, encoding: .utf8)
         try buildStudioSessionsCSV(
@@ -300,7 +312,8 @@ struct StudioBundleExporter {
                 using: repo,
                 sessionDates: sessionDates,
                 enrichmentBySessionDate: enrichmentBySessionDate,
-                consent: consent
+                consent: consent,
+                whoopEnrichment: whoopEnrichment
             )
         try writeCollectedNightCSV(bundle.sessions.map { ($0.sessionDate, $0.collectedNight) }, to: directory)
         try encoder.encode(bundle)
@@ -308,7 +321,6 @@ struct StudioBundleExporter {
     }
 
     #if DEBUG
-    @MainActor
     func buildStudioInsightsBundleDataForTesting(
         using repo: SessionRepository,
         sessionDates: [String]
@@ -344,7 +356,6 @@ struct StudioBundleExporter {
         studioWHOOPSessionDate(using: repo, summaryDate: summaryDate)
     }
 
-    @MainActor
     func writeStudioExportBundleForTesting(
         using repo: SessionRepository,
         to directory: URL,
@@ -365,9 +376,21 @@ struct StudioBundleExporter {
             )
         )
     }
+    func writeWHOOPExportBundleForTesting(
+        using repo: SessionRepository, to directory: URL, sessionDates: [String],
+        featureEnabled: Bool = true, preferenceEnabled: Bool = true, connected: Bool = true,
+        load: @escaping @MainActor (Date, Date) async throws -> WHOOPNightFetchResult
+    ) async throws {
+        let enrichment = try await fetchWHOOPSummariesForExport(using: repo, sessionDates: sessionDates,
+            featureEnabled: featureEnabled, preferenceEnabled: preferenceEnabled, connected: connected, load: load)
+        try writeStudioExportBundle(using: repo, to: directory, sessionDates: sessionDates,
+            enrichmentBySessionDate: enrichment.summaries.mapValues { StudioExportSessionContext(healthKit: nil, whoop: $0) },
+            consent: InsightsConsentState(appleHealthEnabled: false, appleHealthAvailable: false,
+                appleHealthAuthorized: false, whoopEnabled: featureEnabled && preferenceEnabled, whoopConnected: connected),
+            whoopEnrichment: enrichment.status)
+    }
     #endif
 
-    @MainActor
     private func exportConsentState() async -> InsightsConsentState {
         let healthKit = HealthKitService.shared
         if healthKit.isAvailable {
@@ -397,7 +420,6 @@ struct StudioBundleExporter {
         return rows.joined(separator: "\n") + "\n"
     }
 
-    @MainActor
     private func buildStudioSessionsCSV(
         using repo: SessionRepository,
         sessionDates: [String],
@@ -438,19 +460,16 @@ struct StudioBundleExporter {
         return rows.joined(separator: "\n") + "\n"
     }
 
-    @MainActor
     private func collectStudioExportEnrichment(
         using repo: SessionRepository,
         sessionDates: [String]
-    ) async -> [String: StudioExportSessionContext] {
-        guard !sessionDates.isEmpty else { return [:] }
-
-        let whoopBySessionDate = await fetchWHOOPSummariesForExport(using: repo, sessionDates: sessionDates)
+    ) async throws -> (sessions: [String: StudioExportSessionContext], whoop: InsightsWHOOPEnrichment) {
+        let enrichment = try await fetchWHOOPSummariesForExport(using: repo, sessionDates: sessionDates)
         var enrichmentBySessionDate: [String: StudioExportSessionContext] = [:]
 
         for sessionDate in sessionDates {
-            let healthKit = await fetchAppleHealthSummaryForExport(sessionDate: sessionDate)
-            let whoop = whoopBySessionDate[sessionDate]
+            let healthKit = try await fetchAppleHealthSummaryForExport(sessionDate: sessionDate)
+            let whoop = enrichment.summaries[sessionDate]
 
             guard healthKit != nil || whoop != nil else { continue }
             enrichmentBySessionDate[sessionDate] = StudioExportSessionContext(
@@ -459,7 +478,7 @@ struct StudioBundleExporter {
             )
         }
 
-        return enrichmentBySessionDate
+        return (enrichmentBySessionDate, enrichment.status)
     }
 
     static func appleHealthSummaryForExport(
@@ -533,14 +552,15 @@ struct StudioBundleExporter {
         )
     }
 
-    @MainActor
-    private func fetchAppleHealthSummaryForExport(sessionDate: String) async -> InsightsAppleHealthSummary? {
+    private func fetchAppleHealthSummaryForExport(sessionDate: String) async throws -> InsightsAppleHealthSummary? {
+        try Task.checkCancellation()
         let healthKit = HealthKitService.shared
         guard settings.healthKitEnabled, healthKit.isAvailable else {
             return nil
         }
 
         await healthKit.syncAuthorizationState()
+        try Task.checkCancellation()
         guard healthKit.isAuthorized,
               let queryRange = studioQueryRange(for: sessionDate) else {
             return nil
@@ -548,47 +568,65 @@ struct StudioBundleExporter {
 
         do {
             let segments = try await healthKit.fetchSegmentsForTimeline(from: queryRange.start, to: queryRange.end)
+            try Task.checkCancellation()
             let biometrics = try await healthKit.fetchNightBiometrics(
                 from: queryRange.start,
                 to: queryRange.end,
                 matching: segments
             )
+            try Task.checkCancellation()
             return Self.appleHealthSummaryForExport(segments: segments, biometrics: biometrics,
                 nightStart: AppFormatters.sessionDate.date(from: sessionDate) ?? queryRange.start)
         } catch {
+            try WHOOPService.checkFetchCancellation(error)
             settingsActionsLog.warning("Apple Health export enrichment failed for \(sessionDate, privacy: .private): \(error.localizedDescription, privacy: .public)")
             return nil
         }
     }
 
-    @MainActor
     private func fetchWHOOPSummariesForExport(
         using repo: SessionRepository,
-        sessionDates: [String]
-    ) async -> [String: InsightsWHOOPSummary] {
+        sessionDates: [String],
+        featureEnabled: Bool? = nil,
+        preferenceEnabled: Bool? = nil,
+        connected: Bool? = nil,
+        load: (@MainActor (Date, Date) async throws -> WHOOPNightFetchResult)? = nil
+    ) async throws -> (summaries: [String: InsightsWHOOPSummary], status: InsightsWHOOPEnrichment) {
+        try WHOOPService.checkFetchCancellation()
         let whoop = WHOOPService.shared
-        guard WHOOPService.isEnabled,
-              settings.whoopEnabled,
-              whoop.isConnected,
-              let queryRange = studioWHOOPExportQueryRange(for: sessionDates) else {
-            return [:]
+        let reason: String?
+        if !(featureEnabled ?? WHOOPService.isEnabled) { reason = "feature_disabled" }
+        else if !(preferenceEnabled ?? settings.whoopEnabled) { reason = "preference_disabled" }
+        else if !(connected ?? whoop.isConnected) { reason = "disconnected" }
+        else if sessionDates.isEmpty { reason = "no_sessions" }
+        else { reason = nil }
+        if let reason { return ([:], .init(notAttemptedReason: reason)) }
+        guard let queryRange = studioWHOOPExportQueryRange(for: sessionDates) else {
+            return ([:], .init(notAttemptedReason: "invalid_range"))
         }
 
+        var status = InsightsWHOOPEnrichment(sleepStatus: "failed",
+            queryStartUTC: queryRange.start, queryEndUTC: queryRange.end)
         do {
-            let summaries = try await whoop.fetchNightSummaries(from: queryRange.start, to: queryRange.end)
+            let result: WHOOPNightFetchResult
+            if let load { result = try await load(queryRange.start, queryRange.end) }
+            else { result = try await whoop.fetchNightSummaryResult(from: queryRange.start, to: queryRange.end) }
+            try WHOOPService.checkFetchCancellation()
+            status.sleepStatus = "completed"
+            status.recoveryStatus = result.recoveryStatus.rawValue
+            status.sleepRecordCount = result.sleepRecordCount
+            status.recoveryRecordCount = result.recoveryRecordCount
+            status.eligibleNightCount = result.summaries.count
             var mapped: [String: InsightsWHOOPSummary] = [:]
-
-            for summary in summaries {
+            for summary in result.summaries {
                 let key = studioWHOOPSessionDate(using: repo, summaryDate: summary.date)
-                if mapped[key] == nil {
-                    mapped[key] = exportWHOOPSummary(from: summary)
-                }
+                if mapped[key] == nil { mapped[key] = exportWHOOPSummary(from: summary) }
             }
-
-            return mapped
+            return (mapped, status)
         } catch {
-            settingsActionsLog.warning("WHOOP export enrichment failed: \(error.localizedDescription, privacy: .public)")
-            return [:]
+            try WHOOPService.checkFetchCancellation(error)
+            settingsActionsLog.warning("WHOOP sleep could not be fetched for export.")
+            return ([:], status)
         }
     }
 
@@ -1406,13 +1444,21 @@ struct StudioBundleExporter {
     }
 
     func archiveExportDirectory(_ directory: URL) throws -> URL {
+        try Task.checkCancellation()
         let archiveURL = directory.deletingLastPathComponent().appendingPathComponent("\(directory.lastPathComponent).zip")
 
+        var createdArchive = false
+        var keepArchive = false
+        defer {
+            if createdArchive && !keepArchive { try? FileManager.default.removeItem(at: archiveURL) }
+        }
         var coordinatorError: NSError?
         var copyError: Error?
         NSFileCoordinator().coordinate(readingItemAt: directory, options: .forUploading, error: &coordinatorError) { zipURL in
             do {
+                try Task.checkCancellation()
                 try FileManager.default.copyItem(at: zipURL, to: archiveURL)
+                createdArchive = true
             } catch {
                 copyError = error
             }
@@ -1424,7 +1470,46 @@ struct StudioBundleExporter {
         if let copyError {
             throw copyError
         }
+        try Task.checkCancellation()
+        keepArchive = true
         return archiveURL
+    }
+}
+
+private struct InsightsWHOOPEnrichment: Encodable {
+    let version = 1
+    var sleepStatus = "not_attempted"
+    var recoveryStatus = "not_attempted"
+    var queryStartUTC: Date?
+    var queryEndUTC: Date?
+    var sleepRecordCount: Int?
+    var recoveryRecordCount: Int?
+    var eligibleNightCount: Int?
+    var notAttemptedReason: String?
+
+    func warnings(hasExportedSleep: Bool) -> [String] {
+        var messages: [String] = []
+        if sleepStatus == "failed" {
+            messages.append("WHOOP sleep could not be fetched; WHOOP enrichment is unavailable.")
+        }
+        if recoveryStatus == "failed" {
+            messages.append(hasExportedSleep ? "WHOOP sleep was fetched, but recovery could not be fetched; available sleep data is retained." :
+                "WHOOP recovery could not be fetched; no WHOOP sleep summary is included in this export.")
+        }
+        if sleepStatus == "completed" && sleepRecordCount == 0 {
+            messages.append("WHOOP sleep query completed with no records.")
+        } else if sleepStatus == "completed" && eligibleNightCount == 0 {
+            messages.append("WHOOP sleep records were fetched, but none met the existing sleep-summary criteria.")
+        }
+        switch notAttemptedReason {
+        case "feature_disabled": messages.append("WHOOP enrichment was not attempted because the integration is disabled.")
+        case "preference_disabled": messages.append("WHOOP enrichment was not attempted because the WHOOP preference is off.")
+        case "disconnected": messages.append("WHOOP enrichment was not attempted because the account is disconnected.")
+        case "no_sessions": messages.append("WHOOP enrichment was not attempted because there are no sessions to export.")
+        case "invalid_range": messages.append("WHOOP enrichment was not attempted because no valid query range was available.")
+        default: break
+        }
+        return messages
     }
 }
 
@@ -1437,6 +1522,7 @@ private struct InsightsBundleExport: Encodable {
     let localOffsetMinutes: Int?
     let consent: InsightsConsentState?
     let exportWarnings: [String]
+    let whoopEnrichment: InsightsWHOOPEnrichment?
     let sessions: [InsightsBundleSession]
 }
 

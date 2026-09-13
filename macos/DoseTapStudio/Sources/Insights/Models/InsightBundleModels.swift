@@ -41,6 +41,7 @@ struct InsightBundle: Codable, Hashable, Sendable {
     let localOffsetMinutes: Int?
     let consent: InsightConsentState?
     let exportWarnings: [String]?
+    let whoopEnrichment: InsightWHOOPEnrichment?
     var importMetadata: InsightBundleImportMetadata?
     let sessions: [InsightSessionSupplement]
 
@@ -53,6 +54,7 @@ struct InsightBundle: Codable, Hashable, Sendable {
         localOffsetMinutes: Int? = nil,
         consent: InsightConsentState? = nil,
         exportWarnings: [String]? = nil,
+        whoopEnrichment: InsightWHOOPEnrichment? = nil,
         importMetadata: InsightBundleImportMetadata? = nil,
         sessions: [InsightSessionSupplement]
     ) {
@@ -64,6 +66,7 @@ struct InsightBundle: Codable, Hashable, Sendable {
         self.localOffsetMinutes = localOffsetMinutes
         self.consent = consent
         self.exportWarnings = exportWarnings
+        self.whoopEnrichment = whoopEnrichment
         self.importMetadata = importMetadata
         self.sessions = sessions
     }

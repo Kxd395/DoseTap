@@ -4,6 +4,118 @@ import XCTest
 @MainActor
 final class WHOOPDecodingTests: XCTestCase {
 
+    func testNightFetchPreservesSleepAfterRecoveryFailure() async throws {
+        let sleeps = try nightFetchSleepRecords()
+        let result = try await WHOOPService.loadNightSummaryResult(
+            sleep: { sleeps }, recovery: { throw URLError(.timedOut) })
+        XCTAssertEqual(result.sleepRecordCount, 2)
+        XCTAssertEqual(result.recoveryStatus, .failed)
+        XCTAssertNil(result.recoveryRecordCount)
+        XCTAssertEqual(result.summaries.map(\.sleepId), ["night"])
+        XCTAssertEqual(result.summaries.first?.totalSleepMinutes, 60)
+        XCTAssertNil(result.summaries.first?.recoveryScore)
+    }
+
+    func testNightFetchCompletedCountsIncludeReturnedRecordsBeforeFiltering() async throws {
+        let sleeps = try nightFetchSleepRecords()
+        let recoveries = try WHOOPService.makeAPIDecoder().decode([WHOOPRecovery].self, from: Data(
+            #"[{"cycle_id":"cycle","sleep_id":"night","score":{"recovery_score":72}}]"#.utf8))
+        let result = try await WHOOPService.loadNightSummaryResult(sleep: { sleeps }, recovery: { recoveries })
+        XCTAssertEqual(result.sleepRecordCount, 2)
+        XCTAssertEqual(result.recoveryRecordCount, 1)
+        XCTAssertEqual(result.recoveryStatus, .completed)
+        XCTAssertEqual(result.summaries.count, 1)
+        XCTAssertEqual(result.summaries.first?.recoveryScore, 72)
+        let empty = try await WHOOPService.loadNightSummaryResult(sleep: { [] }, recovery: { [] })
+        XCTAssertEqual(empty.sleepRecordCount, 0)
+        XCTAssertEqual(empty.recoveryRecordCount, 0)
+        XCTAssertEqual(empty.recoveryStatus, .completed)
+        XCTAssertTrue(empty.summaries.isEmpty)
+    }
+
+    func testNightFetchSleepFailureDoesNotFetchRecovery() async {
+        var recoveryCalled = false
+        do {
+            _ = try await WHOOPService.loadNightSummaryResult(
+                sleep: { throw URLError(.timedOut) }, recovery: { recoveryCalled = true; return [] })
+            XCTFail("Sleep failure must propagate")
+        } catch { XCTAssertEqual((error as? URLError)?.code, .timedOut) }
+        XCTAssertFalse(recoveryCalled)
+    }
+
+    func testNightFetchCancellationSignalsNeverBecomePartialSuccess() async {
+        let signals: [Error] = [CancellationError(), URLError(.cancelled)]
+        for duringRecovery in [false, true] {
+            for signal in signals {
+                do {
+                    _ = try await WHOOPService.loadNightSummaryResult(
+                        sleep: { if !duringRecovery { throw signal }; return [] },
+                        recovery: { throw signal })
+                    XCTFail("Cancellation must propagate")
+                } catch {
+                    XCTAssertTrue(error is CancellationError || (error as? URLError)?.code == .cancelled)
+                }
+            }
+        }
+    }
+
+    func testNightFetchRejectsCancellationBeforeAndAfterNonthrowingLoaders() async {
+        for cancellationPoint in 0...2 {
+            var sleepCalls = 0
+            var recoveryCalls = 0
+            let task = Task { @MainActor in
+                if cancellationPoint == 0 { withUnsafeCurrentTask { $0?.cancel() } }
+                return try await WHOOPService.loadNightSummaryResult(sleep: {
+                    sleepCalls += 1
+                    if cancellationPoint == 1 { withUnsafeCurrentTask { $0?.cancel() } }
+                    return []
+                }, recovery: {
+                    recoveryCalls += 1
+                    if cancellationPoint == 2 { withUnsafeCurrentTask { $0?.cancel() } }
+                    return []
+                })
+            }
+            do { _ = try await task.value; XCTFail("Cancelled result must not publish") }
+            catch { XCTAssertTrue(error is CancellationError) }
+            XCTAssertEqual(sleepCalls, cancellationPoint == 0 ? 0 : 1)
+            XCTAssertEqual(recoveryCalls, cancellationPoint == 2 ? 1 : 0)
+        }
+    }
+
+    func testOverlappingNightFetchesKeepTheirOwnRecoveryStatus() async throws {
+        let sleeps = try nightFetchSleepRecords()
+        let suspended = expectation(description: "First recovery pending")
+        var resumeRecovery: CheckedContinuation<[WHOOPRecovery], Error>?
+        let first = Task { @MainActor in
+            try await WHOOPService.loadNightSummaryResult(sleep: { sleeps }, recovery: {
+                try await withCheckedThrowingContinuation {
+                    resumeRecovery = $0
+                    suspended.fulfill()
+                }
+            })
+        }
+        await fulfillment(of: [suspended], timeout: 2)
+        let second = try await WHOOPService.loadNightSummaryResult(sleep: { [] }, recovery: { [] })
+        resumeRecovery?.resume(throwing: URLError(.timedOut))
+        let partial = try await first.value
+        XCTAssertEqual(second.recoveryStatus, .completed)
+        XCTAssertEqual(second.recoveryRecordCount, 0)
+        XCTAssertTrue(second.summaries.isEmpty)
+        XCTAssertEqual(partial.recoveryStatus, .failed)
+        XCTAssertNil(partial.recoveryRecordCount)
+        XCTAssertEqual(partial.summaries.map(\.sleepId), ["night"])
+    }
+
+    private func nightFetchSleepRecords() throws -> [WHOOPSleep] {
+        let json = """
+        [
+          {"id":"night","start":"2026-09-10T23:00:00Z","end":"2026-09-11T00:00:00Z","nap":false,"score_state":"SCORED","score":{"stage_summary":{"total_light_sleep_time_milli":3600000}}},
+          {"id":"nap","start":"2026-09-11T10:00:00Z","end":"2026-09-11T11:00:00Z","nap":true,"score_state":"SCORED","score":{"stage_summary":{"total_light_sleep_time_milli":3600000}}}
+        ]
+        """
+        return try WHOOPService.makeAPIDecoder().decode([WHOOPSleep].self, from: Data(json.utf8))
+    }
+
     func test_whoopOAuthStateIsEightURLSafeCharacters() {
         for _ in 0..<20 {
             let state = WHOOPService.generateOAuthState()

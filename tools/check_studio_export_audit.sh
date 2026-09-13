@@ -115,6 +115,54 @@ def case(name, expected, mutate=lambda value: None, *, seed=local, csv_value=Non
 
 case("local", 0)
 case("ordinary-consent", 0, seed=base)
+whoop_query = dict(version=1, sleepStatus="completed", recoveryStatus="completed", sleepRecordCount=0,
+                   recoveryRecordCount=0, eligibleNightCount=0, queryStartUTC="2026-06-16T18:00:00Z", queryEndUTC="2026-06-17T18:00:00Z")
+whoop_manual = copy.deepcopy(base)
+whoop_manual["consent"].update(whoopEnabled=True, whoopConnected=True)
+whoop_idle = dict(version=1, sleepStatus="not_attempted", recoveryStatus="not_attempted", notAttemptedReason="disconnected")
+for label, metadata, expected, seed in [("query", whoop_query, 0, whoop_manual), ("local-query", whoop_query, 1, local),
+        ("idle", whoop_idle, 0, base), ("local-idle", whoop_idle, 0, local),
+        ("recovery-failed", {k: ("failed" if k == "recoveryStatus" else v) for k, v in whoop_query.items() if k != "recoveryRecordCount"}, 0, whoop_manual)]:
+    case(f"whoop-{label}", expected, lambda b, m=metadata: b.update(whoopEnrichment=m), seed=seed)
+for key, values in [("version", [None, True, 2]), ("sleepStatus", [None, "", "future", [], "failed"]),
+        ("recoveryStatus", [None, "", "future", "failed"]), ("sleepRecordCount", [None, True, -1, "0"]),
+        ("recoveryRecordCount", [None, True, -1]), ("eligibleNightCount", [None, True, -1]),
+        ("queryStartUTC", [None, "", "2026-06-16", "2026-06-18T18:00:00Z"]), ("queryEndUTC", [None, ""]),
+        ("notAttemptedReason", [None, "", "future", "disconnected"]), ("futureField", [0])]:
+    for value in values:
+        case(f"whoop-invalid-{key}-{len(cases)}", 1, lambda b, k=key, v=value: b.update(whoopEnrichment={**whoop_query, k: v}), seed=base)
+for value in [None, [], {}, ""]:
+    case(f"whoop-invalid-object-{len(cases)}", 1, lambda b, v=value: b.update(whoopEnrichment=v), seed=base)
+whoop_failed = {k: v for k, v in whoop_query.items() if not k.endswith("Count")}
+whoop_failed.update(sleepStatus="failed", recoveryStatus="not_attempted")
+case("whoop-sleep-failed", 0, lambda b: b.update(whoopEnrichment=whoop_failed), seed=whoop_manual)
+case("whoop-local-sleep-failed", 1, lambda b: b.update(whoopEnrichment=whoop_failed))
+case("whoop-eligible-missing-summary", 1, lambda b: b.update(whoopEnrichment={**whoop_query, "sleepRecordCount": 1, "eligibleNightCount": 1}), seed=whoop_manual)
+for label in ["false", "missing-flags", "missing-consent"]:
+    unexported = copy.deepcopy(base)
+    if label == "missing-flags":
+        for key in ["whoopEnabled", "whoopConnected"]:
+            unexported["consent"].pop(key)
+    elif label == "missing-consent":
+        unexported.pop("consent")
+    case(f"whoop-unexported-eligible-{label}", 1,
+         lambda b: b.update(whoopEnrichment={**whoop_query, "sleepRecordCount": 1, "eligibleNightCount": 1}), seed=unexported)
+case("whoop-zero-eligible-disabled", 0, lambda b: b.update(whoopEnrichment=whoop_query), seed=base)
+case("whoop-unknown-eligible-disabled", 0,
+     lambda b: b.update(whoopEnrichment={k: v for k, v in whoop_query.items() if k != "eligibleNightCount"}), seed=base)
+case("whoop-no-fetch-metadata-enabled", 1, seed=whoop_manual)
+case("whoop-eligible-summary", 0, lambda b: (b.update(whoopEnrichment={**whoop_query, "sleepRecordCount": 1, "eligibleNightCount": 1}),
+     b["sessions"][0].update(whoop={"totalSleepMinutes": 100})), seed=whoop_manual)
+for label, metadata in [("eligible-over-returned", {**whoop_query, "eligibleNightCount": 1}),
+        ("summary-after-failure", whoop_failed), ("summary-without-fetch", whoop_idle), ("summary-with-zero-eligible", whoop_query)]:
+    case(f"whoop-contradiction-{label}", 1, lambda b, m=metadata: (b.update(whoopEnrichment=m),
+         b["sessions"][0].update(whoop={"totalSleepMinutes": 100})), seed=whoop_manual)
+for key in ["version", "sleepStatus", "recoveryStatus", "queryStartUTC", "queryEndUTC", "eligibleNightCount"]:
+    case(f"whoop-missing-{key}", 1, lambda b, k=key: b.update(whoopEnrichment={n: v for n, v in whoop_query.items() if n != k}), seed=whoop_manual)
+for key, value in [("sleepRecordCount", 0), ("recoveryRecordCount", 0), ("eligibleNightCount", 0), ("queryStartUTC", ""), ("notAttemptedReason", "")]:
+    case(f"whoop-idle-invalid-{key}", 1, lambda b, k=key, v=value: b.update(whoopEnrichment={**whoop_idle, k: v}))
+for reason in ["feature_disabled", "preference_disabled", "disconnected", "no_sessions", "invalid_range"]:
+    case(f"whoop-idle-{reason}", 0, lambda b, r=reason: b.update(whoopEnrichment={**whoop_idle, "notAttemptedReason": r}), seed=whoop_manual)
 case("local-note", 0, lambda b: b["sessions"][0].update(notes="WHOOP and Apple Health were discussed"))
 case("local-unknown-schema", 1, lambda b: b.update(schemaVersion=999))
 case("local-missing-sessions", 2, lambda b: b.pop("sessions"))
@@ -189,6 +237,8 @@ for name, expected, value, csv_value in cases:
         result = subprocess.run(["bash", auditor, "--strict", str(path)], capture_output=True, text=True)
         if result.returncode != expected:
             failures.append(f"{name}: expected {expected}, got {result.returncode}")
+        if name.startswith("whoop-unexported-eligible-") and "WHOOP fetch reports eligible nights but no WHOOP session summaries" not in result.stdout:
+            failures.append(f"{name}: missing consent-independent eligible-night contradiction")
         if name == "local" and "Provider consent: not captured" not in result.stdout:
             failures.append("local: missing consent was presented as known state")
 if failures:
