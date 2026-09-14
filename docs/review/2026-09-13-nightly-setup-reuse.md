@@ -45,7 +45,7 @@ PR [#45](https://github.com/Kxd395/DoseTap/pull/45) merged the implementation as
 
 Signed generic iOS Debug build and deep/strict codesign verification passed from the merged implementation in an isolated checkout. The paired iPhone 15 Pro Max reported build 55 before installation; installation succeeded, and an independent app query verified `com.dosetap.ios` version **0.4.19 (56)** afterward. The signed artifact is `/tmp/dosetap-build56-signed/Build/Products/Debug-iphoneos/DoseTap.app`; local build and executable-identity evidence is under `.build/audits/2026-09-14-build56-delivery` in the delivery worktree. Temporary artifacts may expire; this record and Plane retain the delivery outcome.
 
-No questionnaire or medication records were created or changed by the verification, and no owner data was inspected. The existing local provider configuration matches the template; this delivery does not establish live WHOOP/OAuth or HealthKit data acceptance. Signed installation and passed CI do not close owner save/reopen, VoiceOver, privacy or release gates. Unrelated project/scheme changes and icon drafts remain preserved.
+Verification used installation metadata only; no questionnaire or medication actions were performed, and no owner data was inspected. The existing local provider configuration matches the template; this delivery does not establish live WHOOP/OAuth or HealthKit data acceptance. Signed installation and passed CI do not close owner save/reopen, VoiceOver, privacy or release gates. Unrelated project/scheme changes and icon drafts remain preserved.
 
 ### Owner check on build 56
 
@@ -53,7 +53,7 @@ Record the treatment-night label shown in the app and the version/build before c
 
 1. In a new live pre-sleep check-in, select room temperature/noise/sleep aids and enable **Remember room setup**. On page 3, choose people/bed arrangement, pets and location, then enable **Use usual setup every night**.
 2. Complete the check-in and reopen that exact night. Confirm the saved fields match. Close/reopen the app and check again.
-3. At the next treatment night, open a new pre-sleep check-in. Confirm the saved room and sleeping setup appear. Change only that night's sleeping arrangement without choosing **Save as usual setup**; the usual sleeping preference should remain unchanged.
+3. At the next treatment night, open a new pre-sleep check-in. Confirm the saved room and sleeping setup appear. Change only that night's sleeping arrangement without choosing **Save as usual setup**. Tap **Done** to complete the pre-sleep check-in, confirm it saved successfully, and reopen that exact night to verify the changed plan before proceeding to morning. The usual sleeping preference should remain unchanged.
 4. In the matching morning check-in, review the displayed plan and explicitly choose same or different actual setup. Save and reopen that same morning record. Confirm the planned snapshot, actual answer and usual preference remain distinct.
 5. If reuse is unwanted, turn off the sleeping-setup checkbox. A subsequent new draft should remain unanswered for that group; historical answers and the saved usual preference should remain intact. **Forget usual setup** removes the preference separately.
 
