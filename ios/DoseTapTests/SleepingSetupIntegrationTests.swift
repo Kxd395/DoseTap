@@ -5,6 +5,60 @@ import SQLite3
 
 @MainActor
 final class SleepingSetupIntegrationTests: XCTestCase {
+    func testAutomaticSetupRequiresOptInAndPreservesExistingAnswers() throws {
+        let domain = "AutomaticSetup-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: domain))
+        defer { defaults.removePersistentDomain(forName: domain) }
+        XCTAssertTrue(UsualSleepingSetupStore.save(plan, to: defaults))
+        XCTAssertNil(UsualSleepingSetupStore.preparing(.init(), isNew: true, from: defaults).sleepingSetup)
+        XCTAssertTrue(UsualSleepingSetupStore.setAutomatic(true, setup: plan, defaults: defaults))
+        let reopenedDefaults = try XCTUnwrap(UserDefaults(suiteName: domain))
+        XCTAssertEqual(UsualSleepingSetupStore.preparing(.init(), isNew: true, from: reopenedDefaults).sleepingSetup, plan)
+        XCTAssertNil(UsualSleepingSetupStore.preparing(.init(), isNew: false, from: defaults).sleepingSetup)
+        var tonight = DoseTap.PreSleepLogAnswers(); tonight.sleepingSetup = SleepingSetup()
+        tonight.sleepingSetup?.arrangement = .alone
+        let filled = UsualSleepingSetupStore.preparing(tonight, isNew: true, from: defaults)
+        XCTAssertEqual(filled.sleepingSetup?.arrangement, .alone)
+        XCTAssertEqual(filled.sleepingSetup?.pets, plan.pets)
+        XCTAssertEqual(UsualSleepingSetupStore.load(from: defaults), plan)
+        XCTAssertTrue(UsualSleepingSetupStore.setAutomatic(false, setup: .init(), defaults: defaults))
+        XCTAssertNil(UsualSleepingSetupStore.preparing(.init(), isNew: true, from: defaults).sleepingSetup)
+        XCTAssertEqual(UsualSleepingSetupStore.load(from: defaults), plan)
+        XCTAssertFalse(UsualSleepingSetupStore.setAutomatic(true, setup: .init(), defaults: defaults))
+        var unsupported = plan; unsupported.version = 2
+        XCTAssertFalse(UsualSleepingSetupStore.setAutomatic(true, setup: unsupported, defaults: defaults))
+        XCTAssertEqual(UsualSleepingSetupStore.load(from: defaults), plan)
+        XCTAssertTrue(UsualSleepingSetupStore.setAutomatic(true, setup: plan, defaults: defaults))
+        UsualSleepingSetupStore.forget(from: defaults)
+        XCTAssertFalse(UsualSleepingSetupStore.automaticallyUsesSetup(from: defaults))
+        XCTAssertNil(UsualSleepingSetupStore.load(from: defaults))
+    }
+
+    func testRoomPreferenceSurvivesBlankNightAndExcludesDailyAnswers() throws {
+        let domain = "RoomSetup-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: domain))
+        defer { defaults.removePersistentDomain(forName: domain) }
+        var answers = DoseTap.PreSleepLogAnswers()
+        answers.roomTemp = .cool; answers.noiseLevel = .quiet
+        answers.sleepAidSelections = [.fan, .eyeMask]; answers.sleepingSetup = plan
+        answers.notes = "Daily observation"
+        UsualRoomSetupStore.remember(answers, defaults: defaults)
+        UsualRoomSetupStore.remember(.init(), defaults: defaults)
+        let saved = try XCTUnwrap(UsualRoomSetupStore.load(from: defaults))
+        XCTAssertEqual(saved.roomTemp, .cool); XCTAssertEqual(saved.noiseLevel, .quiet)
+        XCTAssertEqual(saved.sleepAidSelections, [.fan, .eyeMask])
+        XCTAssertNil(saved.sleepingSetup); XCTAssertNil(saved.notes)
+        var tonight = DoseTap.PreSleepLogAnswers(); tonight.roomTemp = .warm
+        XCTAssertEqual(tonight.applyingRememberedRoomSetup(from: saved).roomTemp, .warm)
+        answers.roomTemp = .warm; answers.noiseLevel = nil; answers.sleepAidSelections = nil
+        UsualRoomSetupStore.remember(answers, defaults: defaults)
+        let updated = try XCTUnwrap(UsualRoomSetupStore.load(from: defaults))
+        XCTAssertEqual(updated.roomTemp, .warm); XCTAssertEqual(updated.noiseLevel, .quiet)
+        let data = try XCTUnwrap(defaults.data(forKey: UsualRoomSetupStore.key))
+        let keys = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any]).keys
+        XCTAssertTrue(Set(keys).isSubset(of: ["roomTemp", "noiseLevel", "sleepAids", "sleepAidSelections"]))
+    }
+
     func testUsualSetupPreferenceRoundTripWithoutCreatingNightAnswers() throws {
         let domain = "SleepingSetupTests-" + UUID().uuidString
         let defaults = try XCTUnwrap(UserDefaults(suiteName: domain))

@@ -11,6 +11,10 @@ final class DoseTapUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
+        if name.contains("testPreSleepAutomaticSetup") {
+            app.launchArguments += ["--uitesting-auto-night-reset", "-setup_completed_v2", "YES"]
+            if name.contains("LargeText") { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
+        }
         if name.contains("testDurableLog") {
             app.launchArguments += ["--uitesting-auto-night-reset", "--uitesting-durable-log", "-setup_completed_v2", "YES", "-quicklog_buttons_json", ""]
             if name.contains("Medication") { app.launchArguments.append("--uitesting-medication-save") }
@@ -56,7 +60,7 @@ final class DoseTapUITests: XCTestCase {
             app.launchArguments = ["--uitesting", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
             app.launch()
         }
-        if name.contains("testReviewedDoseSleepMetricsLargeText") || name.contains("testMorningSavedPainLargeText") || name.contains("testPreSleepRoomSetupLargeText") || name.contains("testMorningSleepingLargeText") {
+        if name.contains("testPreSleepAutomaticSetupLargeText") || name.contains("testReviewedDoseSleepMetricsLargeText") || name.contains("testMorningSavedPainLargeText") || name.contains("testPreSleepRoomSetupLargeText") || name.contains("testMorningSleepingLargeText") {
             app.terminate()
             app.launchArguments.removeAll { $0 == "-UIPreferredContentSizeCategoryName" || $0.hasPrefix("UICTContentSizeCategory") }
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
@@ -1225,6 +1229,49 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(pets.isHittable); pets.tap(); app.buttons["No pets"].tap()
         wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "No pets"), object: pets)], timeout: 5)
         captureDashboard("Pre-sleep pets at largest accessibility text")
+    }
+
+    func testPreSleepAutomaticSetup() throws { try exerciseAutomaticSetup() }
+    func testPreSleepAutomaticSetupLargeText() throws { try exerciseAutomaticSetup() }
+
+    private func exerciseAutomaticSetup() throws {
+        func reveal(_ element: XCUIElement) {
+            for _ in 0..<14 where !element.isHittable { app.swipeUp() }
+            XCTAssertTrue(element.isHittable)
+        }
+        func openSetup() {
+            let check = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Pre-sleep")).firstMatch
+            XCTAssertTrue(check.waitForExistence(timeout: 15)); reveal(check); check.tap()
+            app.buttons["Use room setup"].tap()
+        }
+        openSetup()
+        let arrangement = app.buttons["pre-sleeping-arrangement"]
+        reveal(arrangement); arrangement.tap(); app.buttons["Alone in the room"].tap()
+        let pets = app.buttons["pre-sleeping-pets"]
+        reveal(pets); pets.tap(); app.buttons["On the bed"].tap()
+        let location = app.buttons["pre-sleeping-location"]
+        reveal(location); location.tap(); app.buttons["Usual bed at home"].tap()
+        let automatic = app.buttons["pre-auto-usual-sleeping"]
+        reveal(automatic)
+        if automatic.value as? String == "On" { automatic.tap() }
+        automatic.tap(); XCTAssertEqual(automatic.value as? String, "On")
+        captureDashboard("Automatic sleeping setup enabled")
+        app.terminate(); app.launch()
+        openSetup()
+        reveal(arrangement)
+        XCTAssertEqual(arrangement.value as? String, "Alone in the room")
+        XCTAssertEqual(pets.value as? String, "On the bed")
+        XCTAssertEqual(location.value as? String, "Usual bed at home")
+        arrangement.tap(); app.buttons["Partner in the same bed"].tap()
+        reveal(automatic); XCTAssertEqual(automatic.value as? String, "On")
+        captureDashboard("New draft reuses setup; tonight remains editable")
+        // This launch creates another unsaved draft; preferences must retain Alone.
+        app.terminate(); app.launch(); openSetup(); reveal(arrangement)
+        XCTAssertEqual(arrangement.value as? String, "Alone in the room")
+        reveal(automatic); automatic.tap(); XCTAssertEqual(automatic.value as? String, "Off")
+        app.terminate(); app.launch(); openSetup(); reveal(arrangement)
+        XCTAssertEqual(arrangement.value as? String, "Not recorded")
+        captureDashboard("Automatic reuse off leaves new draft unanswered")
     }
 
     func testMorningSleepingLargeText() throws {

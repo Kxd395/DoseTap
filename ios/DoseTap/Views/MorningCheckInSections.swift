@@ -25,26 +25,26 @@ struct MorningCheckInRememberSettingsSection: View {
     @ObservedObject var viewModel: MorningCheckInViewModel
 
     var body: some View {
-        HStack {
-            Image(systemName: viewModel.rememberSettings ? "checkmark.square.fill" : "square")
-                .foregroundColor(viewModel.rememberSettings ? .green : .secondary)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Remember room and equipment setup")
-                    .font(.subheadline)
-                Text("Reuse room and device choices. Daily answers are not copied.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+        Button { withAnimation { viewModel.setRememberSettingsEnabled(!viewModel.rememberSettings) } } label: {
+            HStack {
+                Image(systemName: viewModel.rememberSettings ? "checkmark.square.fill" : "square")
+                    .foregroundColor(viewModel.rememberSettings ? .green : .secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Remember room and equipment setup")
+                        .font(.subheadline)
+                    Text("Save room temperature, noise, sleep aid and therapy-device choices when this check-in saves. Symptoms, severity, sleep results and actual sleeping arrangement need a fresh answer.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
             }
-            Spacer()
+            .padding()
+            .background(Color(.secondarySystemGroupedBackground))
+            .cornerRadius(12)
         }
-        .padding()
-        .background(Color(.secondarySystemGroupedBackground))
-        .cornerRadius(12)
-        .onTapGesture {
-            withAnimation {
-                viewModel.setRememberSettingsEnabled(!viewModel.rememberSettings)
-            }
-        }
+        .buttonStyle(.plain).accessibilityIdentifier("morning-remember-setup")
+        .accessibilityValue(viewModel.rememberSettings ? "On" : "Off")
+        .accessibilityAddTraits(viewModel.rememberSettings ? .isSelected : [])
     }
 }
 

@@ -53,15 +53,63 @@ struct SleepingSetupFields: View {
 
 enum UsualSleepingSetupStore {
     static let key = "preSleepLog.usualSleepingSetup.v1"
+    static let automaticKey = "preSleepLog.automaticallyUseUsualSleepingSetup"
+    static func automaticallyUsesSetup(from defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: automaticKey) && load(from: defaults) != nil
+    }
+    static func setAutomatic(_ enabled: Bool, setup: SleepingSetup, defaults: UserDefaults = .standard) -> Bool {
+        if enabled && !save(setup, to: defaults) { return false }
+        defaults.set(enabled, forKey: automaticKey)
+        return defaults.bool(forKey: automaticKey) == enabled
+    }
+    static func forget(from defaults: UserDefaults = .standard) {
+        defaults.removeObject(forKey: key)
+        defaults.removeObject(forKey: automaticKey)
+    }
+    static func preparing(_ answers: PreSleepLogAnswers, isNew: Bool, from defaults: UserDefaults = .standard) -> PreSleepLogAnswers {
+        guard isNew, automaticallyUsesSetup(from: defaults), let usual = load(from: defaults) else { return answers }
+        var result = answers
+        result.sleepingSetup = (answers.sleepingSetup ?? SleepingSetup()).applyingMissing(from: usual)
+        return result
+    }
     static func load(from defaults: UserDefaults = .standard) -> SleepingSetup? {
         guard let data = defaults.data(forKey: key), let setup = try? JSONDecoder().decode(SleepingSetup.self, from: data),
               setup.version == 1, !setup.isEmpty else { return nil }
         return setup.normalized
     }
     @discardableResult static func save(_ setup: SleepingSetup, to defaults: UserDefaults = .standard) -> Bool {
-        guard !setup.isEmpty, let data = try? JSONEncoder().encode(setup.normalized) else { return false }
+        guard setup.version == 1, !setup.normalized.isEmpty,
+              let data = try? JSONEncoder().encode(setup.normalized) else { return false }
         defaults.set(data, forKey: key)
         return load(from: defaults) == setup.normalized
+    }
+}
+
+/// Only reusable room choices belong here; no prior nightly answers are serialized.
+enum UsualRoomSetupStore {
+    static let key = "preSleepLog.usualRoomSetup.v1"
+    private struct Room: Codable {
+        var roomTemp: PreSleepLogAnswers.RoomTemp?
+        var noiseLevel: PreSleepLogAnswers.NoiseLevel?
+        var sleepAids: PreSleepLogAnswers.SleepAid?
+        var sleepAidSelections: [PreSleepLogAnswers.SleepAid]?
+        var answers: PreSleepLogAnswers {
+            var result = PreSleepLogAnswers()
+            result.roomTemp = roomTemp; result.noiseLevel = noiseLevel
+            result.sleepAids = sleepAids; result.sleepAidSelections = sleepAidSelections
+            return result
+        }
+    }
+    static func load(from defaults: UserDefaults = .standard) -> PreSleepLogAnswers? {
+        guard let data = defaults.data(forKey: key), let room = try? JSONDecoder().decode(Room.self, from: data) else { return nil }
+        return room.answers
+    }
+    static func remember(_ answers: PreSleepLogAnswers, defaults: UserDefaults = .standard) {
+        let merged = answers.applyingRememberedRoomSetup(from: load(from: defaults) ?? .init())
+        let room = Room(roomTemp: merged.roomTemp, noiseLevel: merged.noiseLevel,
+                        sleepAids: merged.sleepAids, sleepAidSelections: merged.sleepAidSelections)
+        guard let data = try? JSONEncoder().encode(room) else { return }
+        defaults.set(data, forKey: key)
     }
 }
 
@@ -69,6 +117,7 @@ struct PreSleepSleepingSetupSection: View {
     @Binding var answers: PreSleepLogAnswers
     var allowRememberedSetup = true
     @State private var usual: SleepingSetup?
+    @State private var automatic = false
     @State private var feedback: String?
     private var setup: Binding<SleepingSetup> {
         Binding(get: { answers.sleepingSetup ?? SleepingSetup() }, set: {
@@ -82,6 +131,23 @@ struct PreSleepSleepingSetupSection: View {
                     .font(.footnote).foregroundStyle(.secondary)
                 SleepingSetupFields(setup: setup, prefix: "pre-sleeping")
                 if allowRememberedSetup {
+                    Button {
+                        let candidate = setup.wrappedValue.isEmpty ? usual ?? SleepingSetup() : setup.wrappedValue
+                        if UsualSleepingSetupStore.setAutomatic(!automatic, setup: candidate) {
+                            automatic.toggle(); usual = UsualSleepingSetupStore.load()
+                            if automatic { setup.wrappedValue = setup.wrappedValue.applyingMissing(from: candidate) }
+                            feedback = automatic ? "Usual setup saved. New pre-sleep check-ins will start with these choices. Review each night's plan before saving." : "Automatic reuse is off. Your saved setup and past nights are unchanged."
+                        } else { feedback = "Could not save the usual setup. Your answers are still here; try again." }
+                    } label: {
+                        Label("Use usual setup every night", systemImage: automatic ? "checkmark.square.fill" : "square")
+                            .multilineTextAlignment(.leading).frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    }
+                    .buttonStyle(.plain).foregroundStyle(.tint)
+                    .disabled(!automatic && setup.wrappedValue.isEmpty && usual == nil)
+                    .accessibilityIdentifier("pre-auto-usual-sleeping").accessibilityValue(automatic ? "On" : "Off")
+                    .accessibilityAddTraits(automatic ? .isSelected : [])
+                    Text("Includes people, pets and bed/location. Change tonight's answers freely; use Save as usual setup to update future nights. Morning still asks what actually happened.")
+                        .font(.footnote).foregroundStyle(.secondary)
                     if let usual {
                         Text("Usual setup: \(usual.summary)").font(.footnote)
                         Button("Use usual sleeping setup") {
@@ -98,14 +164,16 @@ struct PreSleepSleepingSetupSection: View {
                     .disabled(setup.wrappedValue.isEmpty).accessibilityIdentifier("pre-save-usual-sleeping")
                     if usual != nil {
                         Button("Forget usual setup", role: .destructive) {
-                            UserDefaults.standard.removeObject(forKey: UsualSleepingSetupStore.key)
+                            UsualSleepingSetupStore.forget(); automatic = false
                             usual = nil; feedback = "Usual setup forgotten. This night's answers and past records are unchanged."
                         }
                     }
                     if let feedback { Text(feedback).font(.footnote).accessibilityIdentifier("pre-sleeping-feedback") }
                 }
             }
-        }.onAppear { if allowRememberedSetup { usual = UsualSleepingSetupStore.load() } }
+        }.onAppear { if allowRememberedSetup {
+            usual = UsualSleepingSetupStore.load(); automatic = UsualSleepingSetupStore.automaticallyUsesSetup()
+        } }
     }
 }
 
