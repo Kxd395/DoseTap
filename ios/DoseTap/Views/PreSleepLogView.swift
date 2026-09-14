@@ -51,7 +51,8 @@ struct PreSleepLogView: View {
         self.historyReferenceTime = historyReferenceTime
         self.onComplete = onComplete
         self.onSkip = onSkip
-        let initialAnswers = existingLog?.answers ?? PreSleepLogAnswers()
+        let initialAnswers = UsualSleepingSetupStore.preparing(existingLog?.answers ?? PreSleepLogAnswers(),
+            isNew: existingLog == nil && historyNight == nil)
         _answers = State(initialValue: initialAnswers)
         _showMoreDetails = State(initialValue: Self.shouldExpandOptionalDetails(for: initialAnswers))
         _rememberLastSettings = State(initialValue: Self.rememberLastSettingsDefault())
@@ -283,6 +284,7 @@ struct PreSleepLogView: View {
             try answers.lastFood?.validate(at: historyReferenceTime ?? Date())
             if historyNight == nil { UserDefaults.standard.set(rememberLastSettings, forKey: Self.rememberLastSettingsKey) }
             try onComplete(answers)
+            if historyNight == nil && rememberLastSettings { UsualRoomSetupStore.remember(answers) }
             dismiss()
         } catch {
             saveErrorMessage = error.localizedDescription
@@ -291,11 +293,10 @@ struct PreSleepLogView: View {
     }
     
     @discardableResult private func loadLastAnswers() -> String {
-        if let lastLog = sessionRepo.fetchMostRecentCompletedPreSleepLog(),
-           let lastAnswers = lastLog.answers {
+        if let lastAnswers = UsualRoomSetupStore.load() ?? sessionRepo.fetchMostRecentCompletedPreSleepLog()?.answers {
             answers = answers.applyingRememberedRoomSetup(from: lastAnswers)
             showMoreDetails = showMoreDetails || Self.shouldExpandOptionalDetails(for: answers)
-            return "Review your sleeping arrangement below. Any previous room settings fill only unanswered fields under Add more details."
+            return "Saved room settings fill only unanswered fields under Add more details. The sleeping-setup checkbox below controls reuse of people, pets and bed/location."
         }
         return "No previous room settings to apply. Choose your sleeping arrangement below."
     }
@@ -361,24 +362,26 @@ struct PreSleepLogView: View {
     }
 
     private var rememberLastSettingsSection: some View {
-        HStack {
-            Image(systemName: rememberLastSettings ? "checkmark.square.fill" : "square")
-                .foregroundColor(rememberLastSettings ? .green : .secondary)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Remember room setup")
-                    .font(.subheadline)
-                Text("Reuse room temperature, noise setup and sleep aids. Food, drinks and other daily answers start blank.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+        Button { toggleRememberLastSettings() } label: {
+            HStack {
+                Image(systemName: rememberLastSettings ? "checkmark.square.fill" : "square")
+                    .foregroundColor(rememberLastSettings ? .green : .secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Remember room setup")
+                        .font(.subheadline)
+                    Text("Save room temperature, noise and sleep aids after completing this check-in; reuse them in new drafts. Bed, people and pets have their own checkbox on page 3. Daily answers stay fresh.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
             }
-            Spacer()
+            .padding()
+            .background(Color(.secondarySystemGroupedBackground))
+            .cornerRadius(12)
         }
-        .padding()
-        .background(Color(.secondarySystemGroupedBackground))
-        .cornerRadius(12)
-        .onTapGesture {
-            toggleRememberLastSettings()
-        }
+        .buttonStyle(.plain).accessibilityIdentifier("pre-remember-room")
+        .accessibilityValue(rememberLastSettings ? "On" : "Off")
+        .accessibilityAddTraits(rememberLastSettings ? .isSelected : [])
     }
 }
 

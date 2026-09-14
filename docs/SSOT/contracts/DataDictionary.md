@@ -110,6 +110,19 @@ History text/CSV labels legacy values as unverified and uses the versioned recor
 
 ## Morning setup preferences
 
+Build 56 adds local `preSleepLog.automaticallyUseUsualSleepingSetup` (default false)
+alongside the existing `preSleepLog.usualSleepingSetup.v1` preference. Explicit
+enable saves the selected setup and prepares only new live pre-sleep drafts;
+existing/History answers are not filled. Forget removes both preference keys.
+It does not submit a questionnaire or confirm the morning's actual arrangement.
+Local `preSleepLog.usualRoomSetup.v1` stores only optional room temperature,
+noise, sleep-aid choice and sleep-aid selections after a successful live save
+with Remember room setup enabled. Blank fields retain the previous preference;
+explicit new choices update it. The existing preference flag controls automatic
+room reuse. Source/normalized questionnaires export the confirmed draft through
+their existing fields. These preferences/flags are not part of Settings clinical
+exports or a promised full backup. There is no SQL migration or old-row rewrite.
+
 Morning preferences (`morningCheckIn.savedSettings` in UserDefaults) contain only `sleepTherapyDevice`, `sleepEnvironmentRoomTemp`, `sleepEnvironmentNoiseLevel` and `sleepEnvironmentSleepAid`. Legacy daily-answer keys are ignored on preference load and omitted on the next explicit preference save. Prior-check-in fallback uses the same whitelist. No historical source row or normalized response is migrated. These are reusable choices, not a new assertion of therapy use or this morning's conditions; the corresponding sections remain inactive until selected. Fixed rating/Boolean defaults elsewhere in the morning form remain unchanged and are not newly classified as confirmed or unanswered.
 
 ## Table inventory

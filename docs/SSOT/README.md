@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-12
 SSOT revision: 0.4.19
-Shipping app version observed in the Xcode project: 0.4.19 (build 55)
+Shipping app version observed in the Xcode project: 0.4.19 (build 56)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -58,6 +58,9 @@ Notes:
 - Closing the morning form does not save a partial questionnaire. The control says Close check-in; a durable partial-draft/skip workflow remains separate work. General legacy context defaults, unknown-time dose outcomes, per-session window snapshots and dashboard/schedule cleanup remain open.
 
 ### Planned and actual sleeping setup (DOSETAP-70)
+
+- Build 56 adds an explicit Use usual setup every night checkbox. Enabling it saves the displayed usual bed/people/pet/location setup and opts in to fill-only preparation of future new pre-sleep drafts. Existing logs and History are never auto-filled; disabling or forgetting stops future reuse without erasing history. Save as usual setup updates the preference independently of questionnaire submission. Draft preparation is a plan, not a submitted observation or an automatic morning Same as planned answer.
+- Remember room setup now retains a separate room-only preference after a successful live pre-sleep save. A later blank room section cannot erase those saved choices. Room temperature, noise and non-medication sleep aids remain the allowlist. Current-night values take precedence; History and failed questionnaire writes cannot update the preference. Morning's existing room/equipment preference remains separate, with an accessible checkbox and explicit scope. Daily observations and consumption never automatically carry forward.
 
 - Pre-sleep page 3 includes optional sleeping arrangement, shared-space detail, pets and usual/away sleep location. The setup is a plan, not proof of another person's presence. Missing, Unsure and Prefer not to answer remain distinct. No names, addresses, relationship details or clinical observer questions are collected.
 - Morning lookup prefers the exact session identity. If no exact pre-sleep row exists, a date-placeholder plan from before session creation may be read only when the supplied treatment date resolves to that one canonical identity. Multiple sessions on a date, a wrong date, or an explicit blank/skipped row must not borrow a fallback plan. This read-only resolution requires no Dose 1 event and does not relink or rewrite questionnaires.
