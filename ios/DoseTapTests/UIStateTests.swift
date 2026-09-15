@@ -637,8 +637,8 @@ final class SavedPainPatternTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         let store = SavedPainPatternStore(defaults: defaults)
-        let back = PreSleepLogAnswers.PainEntry(area: .midBack, side: .both, intensity: 2, sensations: [.throbbing, .tightness])
-        let feet = PreSleepLogAnswers.PainEntry(area: .ankleFoot, side: .both, intensity: 5, sensations: [.pinsNeedles, .numbness], notes: "Recurring feet symptoms")
+        let back = PreSleepLogAnswers.PainEntry(area: .midBack, side: .both, intensity: 2, sensations: [.throbbing, .tightness], pattern: .constant)
+        let feet = PreSleepLogAnswers.PainEntry(area: .ankleFoot, side: .both, intensity: 5, sensations: [.pinsNeedles, .numbness], pattern: .intermittent, notes: "Recurring feet symptoms")
         try store.remember(back)
         try store.remember(feet)
         let restarted = SavedPainPatternStore(defaults: defaults)

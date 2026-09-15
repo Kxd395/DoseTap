@@ -60,7 +60,7 @@ final class DoseTapUITests: XCTestCase {
             app.launchArguments = ["--uitesting", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
             app.launch()
         }
-        if name.contains("testPreSleepAutomaticSetupLargeText") || name.contains("testReviewedDoseSleepMetricsLargeText") || name.contains("testMorningSavedPainLargeText") || name.contains("testPreSleepRoomSetupLargeText") || name.contains("testMorningSleepingLargeText") {
+        if name.contains("testPreSleepPainPatternsLargeText") || name.contains("testPreSleepAutomaticSetupLargeText") || name.contains("testReviewedDoseSleepMetricsLargeText") || name.contains("testMorningSavedPainLargeText") || name.contains("testPreSleepRoomSetupLargeText") || name.contains("testMorningSleepingLargeText") {
             app.terminate()
             app.launchArguments.removeAll { $0 == "-UIPreferredContentSizeCategoryName" || $0.hasPrefix("UICTContentSizeCategory") }
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
@@ -1372,9 +1372,19 @@ final class DoseTapUITests: XCTestCase {
     }
 
     func testPreSleepIndependentPainPatternsSurviveRestartWithoutAutoLogging() throws {
+        try preSleepPainJourney(largeText: false)
+    }
+
+    func testPreSleepPainPatternsLargeText() throws { try preSleepPainJourney(largeText: true) }
+
+    private func preSleepPainJourney(largeText: Bool) throws {
         func reveal(_ element: XCUIElement) {
-            for _ in 0..<14 where !element.isHittable { app.swipeUp() }
-            XCTAssertTrue(element.isHittable)
+            for _ in 0..<(largeText ? 24 : 14) where !element.isHittable { app.swipeUp() }
+            if !element.isHittable {
+                captureDashboard("Unreachable pain control: " + element.identifier)
+                let tree = XCTAttachment(string: app.debugDescription); tree.lifetime = .keepAlways; self.add(tree)
+            }
+            XCTAssertTrue(element.isHittable, "Could not reveal " + element.identifier)
         }
         func openCheck() {
             let check = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Pre-sleep")).firstMatch
@@ -1399,6 +1409,10 @@ final class DoseTapUITests: XCTestCase {
                 let button = app.buttons["pain-sensation-\(sensation)"]
                 reveal(button); button.tap()
             }
+            let savedPattern = app.descendants(matching: .any).matching(identifier: "pain-pattern").firstMatch
+            reveal(savedPattern); savedPattern.tap(); app.buttons["Comes and goes"].tap()
+            let note = app.descendants(matching: .any).matching(identifier: "pain-entry-notes").firstMatch
+            reveal(note); note.tap(); note.typeText("Saved " + area)
             app.navigationBars.buttons["Save"].tap()
         }
         openCheck()
@@ -1412,10 +1426,32 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertFalse(back.label.contains("Numbness"))
         XCTAssertTrue(feet.label.contains("Numbness"))
         XCTAssertFalse(feet.label.contains("Throbbing"))
-        app.terminate(); app.launch(); openCheck()
+        app.terminate()
+        if largeText { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
+        app.launch(); openCheck()
         XCTAssertFalse(back.exists, "Remembering is not a nightly observation")
         XCTAssertFalse(feet.exists)
+        let useFeetFirst = app.buttons["use-pain-ankle_foot|both"]
+        reveal(useFeetFirst); useFeetFirst.tap()
+        XCTAssertTrue(app.navigationBars["Review Saved Pain"].waitForExistence(timeout: 5))
+        let selectedFeet = app.buttons["pain-area-ankle_foot"]
+        reveal(selectedFeet)
+        XCTAssertTrue(selectedFeet.isSelected, "The first presentation must load the selected saved foot pattern")
+        let numbness = app.buttons["pain-sensation-numbness"]
+        reveal(numbness)
+        XCTAssertTrue(numbness.isSelected, "Saved sensations must load on the first presentation")
+        XCTAssertFalse(app.buttons["pain-sensation-aching"].isSelected)
+        captureDashboard("First saved foot presentation restores location and sensations")
+        let restoredPattern = app.descendants(matching: .any).matching(identifier: "pain-pattern").firstMatch; reveal(restoredPattern)
+        XCTAssertEqual(restoredPattern.value as? String, "Comes and goes")
+        let restoredNote = app.descendants(matching: .any).matching(identifier: "pain-entry-notes").firstMatch
+        reveal(restoredNote)
+        XCTAssertEqual(restoredNote.value as? String, "Saved ankle_foot")
+        captureDashboard("First saved foot presentation restores pattern and notes")
+        app.navigationBars.buttons["Cancel"].tap()
+        if largeText { return }
         let useBack = app.buttons["use-pain-mid_back|both"]
+        for _ in 0..<14 where !useBack.isHittable { app.swipeDown() }
         reveal(useBack); useBack.tap()
         app.navigationBars.buttons["Cancel"].tap()
         XCTAssertFalse(back.exists)
@@ -1444,6 +1480,13 @@ final class DoseTapUITests: XCTestCase {
             forget.tap()
         }
         XCTAssertTrue(back.exists, "Forgetting a template must not remove tonight's reviewed entry")
+        let add = app.buttons["add-pain-entry"]; reveal(add); add.tap()
+        XCTAssertTrue(app.navigationBars["Add Pain Entry"].waitForExistence(timeout: 5))
+        let freshPattern = app.descendants(matching: .any).matching(identifier: "pain-pattern").firstMatch; reveal(freshPattern)
+        XCTAssertEqual(freshPattern.value as? String, "Not set", "Add Pain must not retain a previously reviewed pattern")
+        let freshNote = app.descendants(matching: .any).matching(identifier: "pain-entry-notes").firstMatch
+        reveal(freshNote); XCTAssertEqual(freshNote.value as? String, "")
+        app.navigationBars.buttons["Cancel"].tap()
     }
 
     func testSupplyReceiptReminderAndOptionalBottleSurviveRelaunch() throws {
