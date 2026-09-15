@@ -510,6 +510,55 @@ final class EventStorageIntegrationTests: XCTestCase {
         XCTAssertEqual(scalarInt("SELECT COUNT(*) FROM symptom_command_log WHERE source = 'pre_sleep' AND source_record_id = 'pre-log-1'"), 0)
     }
 
+    func test_preSleepZeroIntensityEntry_reopensNormalizesAndExportsWithoutLosingDetails() throws {
+        let now = makeDate("2026-09-14T23:00:00.000Z")
+        let timeZone = TimeZone(secondsFromGMT: 0)!
+        let repo = SessionRepository(storage: storage, clock: { now }, timeZoneProvider: { timeZone })
+        let entry = PreSleepLogAnswers.PainEntry(
+            area: .ankleFoot, side: .both, intensity: 0,
+            sensations: [.numbness, .pinsNeedles], pattern: .intermittent,
+            notes: "Synthetic sensation without pain intensity."
+        )
+        let answers = PreSleepLogAnswers(bodyPain: PreSleepLogAnswers.PainLevel.none, painEntries: [entry])
+        let saved = try repo.savePreSleepLog(answers: answers, completionState: "complete")
+        let identity = try XCTUnwrap(saved.sessionId)
+        let sessionDate = "2026-09-14"
+
+        let reopenedRepo = SessionRepository(storage: storage, clock: { now }, timeZoneProvider: { timeZone })
+        let reopened = try XCTUnwrap(reopenedRepo.fetchMostRecentPreSleepLog(sessionId: identity))
+        XCTAssertEqual(reopened.id, saved.id)
+        XCTAssertEqual(reopened.answers?.bodyPain, PreSleepLogAnswers.PainLevel.none)
+        XCTAssertEqual(reopened.answers?.painEntries, [entry])
+
+        let submission = try XCTUnwrap(storage.fetchCheckInSubmissions(sessionDate: sessionDate, checkInType: .preNight).first)
+        let responses = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(submission.responsesJson.utf8)) as? [String: Any])
+        let normalized = try XCTUnwrap(responses["pain.entries"] as? [[String: Any]])
+        XCTAssertEqual(normalized.count, 1)
+        XCTAssertEqual(normalized.first?["entry_key"] as? String, entry.entryKey)
+        XCTAssertEqual(normalized.first?["intensity"] as? Int, 0)
+        XCTAssertEqual(Set(normalized.first?["sensations"] as? [String] ?? []), Set(entry.sensations.map(\.rawValue)))
+        XCTAssertEqual(normalized.first?["pattern"] as? String, entry.pattern?.rawValue)
+        XCTAssertEqual(normalized.first?["notes"] as? String, entry.notes)
+        XCTAssertEqual(responses["pain.overall_intensity"] as? Int, 0)
+
+        let symptoms = storage.fetchSymptomEvents(sessionDate: sessionDate)
+        XCTAssertEqual(symptoms.count, 1)
+        let symptom = try XCTUnwrap(symptoms.first)
+        XCTAssertEqual(symptom.sourceRecordId, saved.id)
+        XCTAssertEqual(symptom.sourceEntryKey, entry.entryKey)
+        XCTAssertEqual(symptom.severity0to10, 0)
+        XCTAssertEqual(symptom.functionalImpact, entry.pattern?.rawValue)
+        XCTAssertEqual(symptom.note, entry.notes)
+
+        let bundleData = try StudioBundleExporter().buildStudioInsightsBundleDataForTesting(using: reopenedRepo, sessionDates: [sessionDate])
+        let bundle = try XCTUnwrap(JSONSerialization.jsonObject(with: bundleData) as? [String: Any])
+        let exported = try XCTUnwrap((bundle["sessions"] as? [[String: Any]])?.first?["preSleep"] as? [String: Any])
+        let rawAnswers = try XCTUnwrap(exported["rawAnswersJson"] as? String)
+        let exportedAnswers = try JSONDecoder().decode(DoseTap.PreSleepLogAnswers.self, from: Data(rawAnswers.utf8))
+        XCTAssertEqual(exportedAnswers.painEntries, [entry])
+        XCTAssertTrue(reopenedRepo.fetchDoseEvents(forSessionDate: sessionDate).isEmpty)
+    }
+
     func test_preSleepPainEntries_replaceDerivedSymptomEventsOnEdit() throws {
         let sessionDate = "2026-02-22"
         let firstAnswers = PreSleepLogAnswers(

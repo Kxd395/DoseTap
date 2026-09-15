@@ -90,6 +90,10 @@ Normalized responses are `pre.food.last.finished_at_utc` (ISO 8601), `pre.food.l
 
 Historical per-event IANA timezone identity is not complete. DOSETAP-37 owns the prospective provenance gap.
 
+## Pre-sleep zero-intensity entries (DOSETAP-61)
+
+An explicitly saved `painEntries` item can have `intensity: 0` with recorded sensations, optional pattern and notes. `bodyPain: "none"` may be its legacy overall-level projection; that value alone must not erase the structured entry. The existing normalized `pain.any = true` indicates that detailed entries were recorded, not that intensity is positive. `pain.overall_intensity` and each entry retain numeric zero, with source-derived `symptom_events` and reporting exports preserving the same observation. Choosing None explicitly clears the current draft's entries; completing that correction uses the existing source/normalized/symptom transaction. Remembered preferences are independent. No schema change or automatic historical rewrite is performed.
+
 ## Morning physical-symptom selection (DOSETAP-67/61)
 
 `morning_checkins.has_physical_symptoms` and the legacy normalized key `pain.any` indicate that the physical-symptom section was selected. They are not proof of a localized pain entry. Headache, reflux, stiffness, soreness, restlessness and bathroom urgency may be saved without one. `painEntries` remains the source for separate localized entries; an empty array adds no derived localized symptom event.
