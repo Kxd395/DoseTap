@@ -23,6 +23,19 @@ struct Card2BodySubstances: View {
         (answers.painEntries ?? []).sorted { $0.entryKey < $1.entryKey }
     }
 
+    private var bodyPainSelection: Binding<PreSleepLogAnswers.PainLevel?> {
+        Binding(get: { answers.bodyPain }, set: { value in
+            answers.bodyPain = value
+            // Only this explicit selector action clears entries. A saved 0/10
+            // entry also projects to None, but remains a recorded observation.
+            if value == .some(.none) {
+                answers.painEntries = nil
+                answers.painLocations = nil
+                answers.painType = nil
+            }
+        })
+    }
+
     private var medicationEntries: [MedicationEntry] {
         sessionRepo.listMedicationEntries(for: medicationSessionKey)
             .sorted { $0.takenAtUTC > $1.takenAtUTC }
@@ -145,7 +158,7 @@ struct Card2BodySubstances: View {
                 QuestionSection(title: "Body pain right now?", icon: "figure.arms.open") {
                     OptionGrid(
                         options: PreSleepLogAnswers.PainLevel.allCases,
-                        selection: $answers.bodyPain
+                        selection: bodyPainSelection
                     )
                 }
 
@@ -176,9 +189,13 @@ struct Card2BodySubstances: View {
                     }
                 }
 
-                if let pain = answers.bodyPain, pain != .none {
+                if !painEntries.isEmpty || answers.bodyPain.map({ $0 != .none }) == true {
                     QuestionSection(title: "Tonight's separate pain entries", icon: "mappin.and.ellipse") {
                         VStack(spacing: 10) {
+                            if !painEntries.isEmpty, painEntries.allSatisfy({ $0.intensity == 0 }) {
+                                Text("0/10 entries remain recorded. Choosing None above clears tonight's entries and keeps saved patterns.")
+                                    .font(.caption).foregroundColor(.secondary)
+                            }
                             if painEntries.isEmpty {
                                 Text("Save one pain, then add another. Each has its own intensity and sensations.")
                                     .font(.caption)
@@ -199,6 +216,8 @@ struct Card2BodySubstances: View {
                                                 .foregroundColor(.blue)
                                         }
                                         .buttonStyle(.plain)
+                                        .accessibilityLabel("Edit \(entry.area.displayText), \(entry.side.displayText)")
+                                        .accessibilityIdentifier("edit-pain-\(entry.entryKey)")
                                         Button(role: .destructive) {
                                             removePainEntry(entry)
                                         } label: {
@@ -451,12 +470,6 @@ struct Card2BodySubstances: View {
         )) {
             Button("OK") { painPreferenceError = nil }
         } message: { Text(painPreferenceError ?? "") }
-        .onChange(of: answers.bodyPain) { newValue in
-            guard newValue == .some(PreSleepLogAnswers.PainLevel.none) else { return }
-            answers.painEntries = nil
-            answers.painLocations = nil
-            answers.painType = nil
-        }
         .onChange(of: answers.alcohol) { newValue in
             if (newValue ?? PreSleepLogAnswers.AlcoholLevel.none) == PreSleepLogAnswers.AlcoholLevel.none {
                 answers.alcoholLastDrinkAt = nil

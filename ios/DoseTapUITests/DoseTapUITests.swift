@@ -1371,6 +1371,56 @@ final class DoseTapUITests: XCTestCase {
         add(proof)
     }
 
+    func testPreSleepZeroPainEntrySurvivesSaveEditAndReopen() throws {
+        func reveal(_ element: XCUIElement) {
+            for _ in 0..<14 where !element.isHittable { app.swipeUp() }
+            XCTAssertTrue(element.isHittable)
+        }
+        let check = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Pre-sleep")).firstMatch
+        XCTAssertTrue(check.waitForExistence(timeout: 15)); reveal(check); check.tap()
+        app.buttons["Next"].tap(); app.buttons["Mild"].tap()
+        let addPain = app.buttons["add-pain-entry"]; reveal(addPain); addPain.tap()
+        let remember = app.switches["pain-remember-future"]
+        XCTAssertTrue(remember.waitForExistence(timeout: 5))
+        remember.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
+        let foot = app.buttons["pain-area-ankle_foot"]; reveal(foot); foot.tap()
+        let intensity = app.sliders["pain-intensity"]; reveal(intensity)
+        intensity.adjust(toNormalizedSliderPosition: 0)
+        let aching = app.buttons["pain-sensation-aching"]; reveal(aching); aching.tap()
+        let numbness = app.buttons["pain-sensation-numbness"]; reveal(numbness); numbness.tap()
+        app.navigationBars.buttons["Save"].tap()
+        let entry = app.descendants(matching: .any).matching(identifier: "night-pain-ankle_foot|both").firstMatch
+        XCTAssertTrue(entry.waitForExistence(timeout: 5), "Saving zero must retain the confirmed entry")
+        XCTAssertTrue(entry.label.contains("0/10")); XCTAssertTrue(entry.label.contains("Numbness"))
+        captureDashboard("Zero-level foot entry remains in tonight's draft")
+        let edit = app.buttons["edit-pain-ankle_foot|both"]
+        for level in [0.3, 0.0] {
+            reveal(edit); edit.tap(); reveal(intensity)
+            intensity.adjust(toNormalizedSliderPosition: level)
+            app.navigationBars.buttons["Save"].tap()
+            XCTAssertTrue(entry.waitForExistence(timeout: 5))
+        }
+        XCTAssertTrue(entry.label.contains("0/10"))
+        app.buttons["Next"].tap()
+        (app.buttons["Save"].exists ? app.buttons["Save"] : app.buttons["Done"]).tap()
+        XCTAssertTrue(check.waitForExistence(timeout: 5)); reveal(check); check.tap()
+        XCTAssertTrue(app.navigationBars["Edit Pre-Sleep"].waitForExistence(timeout: 5))
+        app.buttons["Next"].tap()
+        XCTAssertTrue(entry.waitForExistence(timeout: 5)); XCTAssertTrue(entry.label.contains("0/10"))
+        XCTAssertTrue(entry.label.contains("Numbness"))
+        captureDashboard("Zero-level entry survives completed check-in and reopen")
+        let none = app.buttons["None"].firstMatch
+        for _ in 0..<14 where !none.isHittable { app.swipeDown() }
+        none.tap()
+        XCTAssertFalse(entry.exists, "An explicit None tap still clears tonight's entries")
+        XCTAssertTrue(app.buttons["use-pain-ankle_foot|both"].exists, "Clearing tonight must preserve the saved preference")
+        app.buttons["Next"].tap(); app.buttons["Save"].tap()
+        XCTAssertTrue(check.waitForExistence(timeout: 5)); reveal(check); check.tap(); app.buttons["Next"].tap()
+        XCTAssertFalse(entry.exists)
+        XCTAssertTrue(app.buttons["use-pain-ankle_foot|both"].exists)
+        app.buttons["Cancel"].tap()
+    }
+
     func testPreSleepIndependentPainPatternsSurviveRestartWithoutAutoLogging() throws {
         try preSleepPainJourney(largeText: false)
     }

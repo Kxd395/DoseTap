@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-12
 SSOT revision: 0.4.19
-Shipping app version observed in the Xcode project: 0.4.19 (build 57)
+App version in this branch: 0.4.19 (build 58 candidate; last integrated and installed build: 57)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -81,6 +81,7 @@ Notes:
 ### Independent and remembered pain entries (DOSETAP-61)
 
 - Every pre-sleep pain-editor presentation carries one immutable request containing its entry and add/edit/reuse mode. Opening a saved pattern initializes all controls from that pattern on the first presentation; switching patterns or opening a new entry cannot retain another editor's state. Opening/cancelling records nothing and does not update saved preferences.
+- An explicitly saved pre-sleep entry at 0/10 retains its area, side, sensations, pattern and notes and stays visible/editable. The calculated overall level may be None; that calculation never deletes entries. Only an explicit None selection clears the current draft's pain entries and legacy detail fields; it does not change remembered preferences. Zero is a recorded value, not an unanswered or missing observation. No historical rows are rewritten.
 - Each pain-editor save records one area and side with its own intensity, sensations, pattern and notes. Add another pain creates an independent entry; it must not apply one set of sensations to every area.
 - Remember this pain saves a reusable preference, not a nightly symptom observation. Saved pain patterns survive app restart, are independently removable, and open in the editor for review before being added to tonight. Cancelling or merely displaying a saved pattern records nothing. Forgetting a pattern does not delete past questionnaires.
 - Using a saved pattern is not editing its matching nightly entry. If its area/side changes during review, the original nightly entry remains; only an explicit nightly Edit action supplies a replacement key.
