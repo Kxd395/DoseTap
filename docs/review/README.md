@@ -40,3 +40,4 @@ Each record identifies its version, bounded changes, validation and remaining ga
 | 54 | [Apple Health export missingness](2026-09-12-health-export-missingness-delivery.md) | DC-05 partial correction: absent sleep summaries retain biometrics without invented zeros |
 | 55 | [WHOOP export request status](2026-09-12-whoop-export-status-delivery.md) | Merged PR #43: independent fetch results, request counts and cancellation; local/hosted validation passed, provider acceptance open |
 | 56 installed; owner acceptance open | [Nightly setup reuse](2026-09-13-nightly-setup-reuse.md) | Opt-in automatic planned sleeping setup, durable room preferences and explicit morning reuse scope |
+| 57 candidate | [Pre-sleep pain editor loading repair](2026-09-14-pre-sleep-pain-editor.md) | First saved-pattern opening loads the selected entry and mode together; owner acceptance open |

@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-12
 SSOT revision: 0.4.19
-Shipping app version observed in the Xcode project: 0.4.19 (build 56)
+Shipping app version observed in the Xcode project: 0.4.19 (build 57)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -80,6 +80,7 @@ Notes:
 
 ### Independent and remembered pain entries (DOSETAP-61)
 
+- Every pre-sleep pain-editor presentation carries one immutable request containing its entry and add/edit/reuse mode. Opening a saved pattern initializes all controls from that pattern on the first presentation; switching patterns or opening a new entry cannot retain another editor's state. Opening/cancelling records nothing and does not update saved preferences.
 - Each pain-editor save records one area and side with its own intensity, sensations, pattern and notes. Add another pain creates an independent entry; it must not apply one set of sensations to every area.
 - Remember this pain saves a reusable preference, not a nightly symptom observation. Saved pain patterns survive app restart, are independently removable, and open in the editor for review before being added to tonight. Cancelling or merely displaying a saved pattern records nothing. Forgetting a pattern does not delete past questionnaires.
 - Using a saved pattern is not editing its matching nightly entry. If its area/side changes during review, the original nightly entry remains; only an explicit nightly Edit action supplies a replacement key.

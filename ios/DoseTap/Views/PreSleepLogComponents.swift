@@ -477,6 +477,8 @@ struct GranularPainEntryEditorView: View {
                             Text(value.displayText).tag(Optional(value))
                         }
                     }
+                    .accessibilityIdentifier("pain-pattern")
+                    .accessibilityValue(pattern?.displayText ?? "Not set")
                 }
 
                 Section("Notes (optional)") {

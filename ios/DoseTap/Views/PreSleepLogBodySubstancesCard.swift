@@ -9,9 +9,12 @@ struct Card2BodySubstances: View {
     var historyReferenceTime: Date? = nil
     private var referenceTime: Date { historyReferenceTime ?? Date() }
     @State private var showMedicationPicker = false
-    @State private var showPainEntryEditor = false
-    @State private var editingPainEntry: PreSleepLogAnswers.PainEntry?
-    @State private var usingSavedPainPattern = false
+    private struct PainEditorRequest: Identifiable {
+        let id = UUID()
+        let entry: PreSleepLogAnswers.PainEntry?
+        let usesSavedPattern: Bool
+    }
+    @State private var painEditor: PainEditorRequest?
     @ObservedObject private var sessionRepo = SessionRepository.shared
     @ObservedObject private var savedPainPatterns = SavedPainPatternStore.shared
     @State private var painPreferenceError: String?
@@ -158,9 +161,7 @@ struct Card2BodySubstances: View {
                                 GranularPainEntryRow(entry: entry)
                                 VStack {
                                     Button("Use tonight") {
-                                        usingSavedPainPattern = true
-                                        editingPainEntry = entry
-                                        showPainEntryEditor = true
+                                        painEditor = PainEditorRequest(entry: entry, usesSavedPattern: true)
                                     }
                                     .buttonStyle(.bordered)
                                     .accessibilityIdentifier("use-pain-\(entry.entryKey)")
@@ -192,9 +193,7 @@ struct Card2BodySubstances: View {
                                             .accessibilityIdentifier("night-pain-\(entry.entryKey)")
                                         Spacer(minLength: 4)
                                         Button {
-                                            usingSavedPainPattern = false
-                                            editingPainEntry = entry
-                                            showPainEntryEditor = true
+                                            painEditor = PainEditorRequest(entry: entry, usesSavedPattern: false)
                                         } label: {
                                             Image(systemName: "pencil")
                                                 .foregroundColor(.blue)
@@ -221,9 +220,7 @@ struct Card2BodySubstances: View {
                             }
 
                             Button {
-                                usingSavedPainPattern = false
-                                editingPainEntry = nil
-                                showPainEntryEditor = true
+                                painEditor = PainEditorRequest(entry: nil, usesSavedPattern: false)
                             } label: {
                                 HStack {
                                     Image(systemName: "plus.circle.fill")
@@ -437,8 +434,8 @@ struct Card2BodySubstances: View {
         .sheet(isPresented: $showMedicationPicker) {
             MedicationPickerView()
         }
-        .sheet(isPresented: $showPainEntryEditor) {
-            GranularPainEntryEditorView(initialEntry: editingPainEntry, replacesInitialEntry: !usingSavedPainPattern,
+        .sheet(item: $painEditor) { request in
+            GranularPainEntryEditorView(initialEntry: request.entry, replacesInitialEntry: !request.usesSavedPattern,
                                        allowsRemembering: historyReferenceTime == nil) { result in
                 upsertPainEntries(result.entries, replacingEntryKey: result.replacedEntryKey)
                 if result.rememberForFuture {
@@ -446,6 +443,7 @@ struct Card2BodySubstances: View {
                     catch { painPreferenceError = "The pain was added to tonight's draft, but could not be remembered. Try Remember this pain again." }
                 }
             }
+            .id(request.id)
         }
         .alert("Saved pain patterns", isPresented: Binding(
             get: { painPreferenceError != nil },
