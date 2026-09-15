@@ -2,7 +2,7 @@
 
 Date: 2026-09-13
 Scope: DOSETAP-70; preserve DOSETAP-51 fresh-observation boundaries
-Candidate: 0.4.19 (56)
+Build: 0.4.19 (56); signed-phone installation verified September 14, owner acceptance open
 
 ## Report and source findings
 
@@ -38,3 +38,23 @@ The two new local keys are documented in the [data dictionary](../SSOT/contracts
 Validation passed: 710 XCTest plus 43 Swift Testing core cases; all 493 iOS tests, including preference, questionnaire persistence and source/export coverage; three native UI journeys for automatic setup at normal/largest text and the existing morning arrangement at largest text. After shortening the checkbox label, both automatic-setup journeys passed again, with native screenshots inspected. Tests cover opt-in/off, reconstructed preferences, fill-only behavior, existing drafts, forgetting, room preservation, exclusion of daily fields, restart/new-draft reuse and one-night corrections. The first UI attempt failed before interaction because the simulator runner was busy; the ready-device retry passed. App version checks passed for DoseTap and DoseTapStaging Debug/Release. SSOT, documentation, Plane, architecture, dose-write, repository hygiene and whitespace checks passed. Exact integration and remaining acceptance evidence belong to the DOSETAP-70 workpad and PR.
 
 Signed-phone exact-night reuse/save/reopen, VoiceOver/full accessibility and sensitive-data privacy/release acceptance remain open until separately observed. A merged build or simulator pass does not close them. The previous sleeping-arrangement delivery and its owner gates remain in [the build-44 record](2026-09-10-sleeping-arrangement-delivery.md).
+
+## September 14 delivery follow-up
+
+PR [#45](https://github.com/Kxd395/DoseTap/pull/45) merged the implementation as `b137c0a249161157cfc2bfb465a6147810ee6367`. Fresh September 14 readback confirms all three post-merge workflows passed: Documentation CI `34804141714`, Swift CI `34804141707`, and CI `34804141703`. This closes the previously pending hosted-check gate only.
+
+Signed generic iOS Debug build and deep/strict codesign verification passed from the merged implementation in an isolated checkout. The paired iPhone 15 Pro Max reported build 55 before installation; installation succeeded, and an independent app query verified `com.dosetap.ios` version **0.4.19 (56)** afterward. The signed artifact is `/tmp/dosetap-build56-signed/Build/Products/Debug-iphoneos/DoseTap.app`; local build and executable-identity evidence is under `.build/audits/2026-09-14-build56-delivery` in the delivery worktree. Temporary artifacts may expire; this record and Plane retain the delivery outcome.
+
+Verification used installation metadata only; no questionnaire or medication actions were performed, and no owner data was inspected. The existing local provider configuration matches the template; this delivery does not establish live WHOOP/OAuth or HealthKit data acceptance. Signed installation and passed CI do not close owner save/reopen, VoiceOver, privacy or release gates. Unrelated project/scheme changes and icon drafts remain preserved.
+
+### Owner check on build 56
+
+Record the treatment-night label shown in the app and the version/build before checking:
+
+1. In a new live pre-sleep check-in, select room temperature/noise/sleep aids and enable **Remember room setup**. On page 3, choose people/bed arrangement, pets and location, then enable **Use usual setup every night**.
+2. Complete the check-in and reopen that exact night. Confirm the saved fields match. Close/reopen the app and check again.
+3. At the next treatment night, open a new pre-sleep check-in. Confirm the saved room and sleeping setup appear. Change only that night's sleeping arrangement without choosing **Save as usual setup**. Tap **Done** to complete the pre-sleep check-in, confirm it saved successfully, and reopen that exact night to verify the changed plan before proceeding to morning. The usual sleeping preference should remain unchanged.
+4. In the matching morning check-in, review the displayed plan and explicitly choose same or different actual setup. Save and reopen that same morning record. Confirm the planned snapshot, actual answer and usual preference remain distinct.
+5. If reuse is unwanted, turn off the sleeping-setup checkbox. A subsequent new draft should remain unanswered for that group; historical answers and the saved usual preference should remain intact. **Forget usual setup** removes the preference separately.
+
+Report any exact save message and the night/build, rather than substituting a simulator pass for owner acceptance. This is a check of ordinary owner-entered records; no synthetic medication or symptom entries are needed. Stable setup reuse does not confirm today's symptoms, intake, medication or actual sleep outcomes. Broader recurring-pattern and unanswered-state work remains tracked by DOSETAP-61/51.
