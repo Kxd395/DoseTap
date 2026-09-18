@@ -85,6 +85,7 @@
 		SUPB01 /* EventStorage+Supply.swift in Sources */ = {isa = PBXBuildFile; fileRef = SUPF01 /* EventStorage+Supply.swift */; };
 		ESB002 /* EventStorage+Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF002 /* EventStorage+Session.swift */; };
 		ESB003 /* EventStorage+Exports.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF003 /* EventStorage+Exports.swift */; };
+		ESB045 /* EventStorage+ExportSources.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF045 /* EventStorage+ExportSources.swift */; };
 		ESB004 /* EventStorage+EventStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF004 /* EventStorage+EventStore.swift */; };
 		ESB005 /* StorageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF005 /* StorageModels.swift */; };
 		ESB006 /* EventStorage+Dose.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF006 /* EventStorage+Dose.swift */; };
@@ -283,6 +284,7 @@
 		SUPF01 /* EventStorage+Supply.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+Supply.swift"; sourceTree = "<group>"; };
 		ESF002 /* EventStorage+Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+Session.swift"; sourceTree = "<group>"; };
 		ESF003 /* EventStorage+Exports.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+Exports.swift"; sourceTree = "<group>"; };
+		ESF045 /* EventStorage+ExportSources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+ExportSources.swift"; sourceTree = "<group>"; };
 		ESF004 /* EventStorage+EventStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+EventStore.swift"; sourceTree = "<group>"; };
 		ESF005 /* StorageModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageModels.swift; sourceTree = "<group>"; };
 		ESF006 /* EventStorage+Dose.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+Dose.swift"; sourceTree = "<group>"; };
@@ -598,6 +600,7 @@
 				SUPF01 /* EventStorage+Supply.swift */,
 				ESF002 /* EventStorage+Session.swift */,
 				ESF003 /* EventStorage+Exports.swift */,
+				ESF045 /* EventStorage+ExportSources.swift */,
 				ESF004 /* EventStorage+EventStore.swift */,
 				ESF005 /* StorageModels.swift */,
 				ESF009 /* StorageRecordModels.swift */,
@@ -949,6 +952,7 @@
 				SUPB01 /* EventStorage+Supply.swift in Sources */,
 				ESB002 /* EventStorage+Session.swift in Sources */,
 				ESB003 /* EventStorage+Exports.swift in Sources */,
+				ESB045 /* EventStorage+ExportSources.swift in Sources */,
 				ESB004 /* EventStorage+EventStore.swift in Sources */,
 				ESB005 /* StorageModels.swift in Sources */,
 				ESB009 /* StorageRecordModels.swift in Sources */,

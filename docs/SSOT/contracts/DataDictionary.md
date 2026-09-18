@@ -10,6 +10,28 @@ This dictionary defines how persisted fields are interpreted. It covers all 17 a
 
 ## Identity and time
 
+Studio export 2.8/schema 2 adds a per-date `identityResolution` object:
+`version: 1`, `status: resolved | raw_only`, `sessionIds` (distinct original
+nonplaceholder IDs), and stable `reasons`. Reasons include
+`multiple_session_identities`, `multiple_source_questionnaires`, and
+`session_identity_spans_dates`. A `raw_only` date has no selected dose timestamps,
+pre-sleep/morning/context/collected-night summary or derived CSV row. It remains
+in JSON exactly once, with all original events, medication rows and source records.
+Matching Studio retains the original archive while excluding these dates from
+analytic sessions. Legacy archives without the marker retain their old decoding.
+
+`rawSourceRecords` contains `sourceTable` and `columns` for `sleep_sessions`,
+`current_session`, `pre_sleep_logs`, `morning_checkins`, and `checkin_submissions`.
+Each column retains its SQLite `type` (`null`, `text`, `integer`, `real`, `blob`)
+and corresponding `text`, `integer`, `real`, or `blobBase64` value. Original JSON,
+unknown keys/types/versions, IDs, capture timestamps, offsets and completion states
+are preserved without decoding/re-encoding them. Null differs from empty text.
+Pre-sleep associations use stored session identity or normalized source-record
+links, never capture time as a substitute treatment date. Provider data remains
+date-scoped evidence; it cannot authorize a combined dose-linked metric for a
+conflicting group. This is read-only archival handling, not identity reconciliation
+or a tested full-app restore. Genuine SQLite/read failures publish no archive.
+
 WHOOP fetch evidence (Studio export 2.7/schema 2; DOSETAP-13): optional root
 `whoopEnrichment` contains `version: 1`, `sleepStatus`, `recoveryStatus`, optional
 `queryStartUTC`/`queryEndUTC`, `sleepRecordCount`, `recoveryRecordCount`,

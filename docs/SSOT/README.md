@@ -458,6 +458,18 @@ General medication entries report storage failure separately from duplicate revi
 
 ## Storage and Persistence Truth
 
+Studio export 2.8 (DOSETAP-13 / DC-07) preserves conflicting date groups as raw
+records instead of requiring an editable single-session identity. A checked,
+read-only source inspection emits `identityResolution` and original typed
+`rawSourceRecords` for session metadata and questionnaires. Multiple identities,
+identities spanning dates, or multiple source questionnaires with no authoritative
+selection produce `raw_only`: all ledger/source rows remain, but selected dose
+times, questionnaire/context summaries, collected-night calculations and derived
+CSV rows are withheld. Matching Studio excludes these dates from derived analysis
+and reports the preserved/excluded count. Source availability is independent of
+summary availability. Actual read failures still abort export. Export never repairs,
+relinks or deletes records; existing editing and medication guards are unchanged.
+
 Manual export failures identify the failed step and, when available, the treatment date and stored-record error detail. Free-space advice is shown only for a reported disk-full error; identity conflicts and read failures are not described as insufficient space. A failed export publishes no archive, changes no clinical records, and retains the existing retry action. The error type name is not evidence that failure injection was enabled.
 
 Studio export 2.7 (DOSETAP-13, bounded DC-05) adds optional request-scoped
