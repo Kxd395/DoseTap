@@ -6,6 +6,9 @@ struct SettingsView: View {
     @State var showingResetConfirmation = false
     @State var showingExportSuccess = false
     @State var exportArchive: StudioExportArchive?
+    @State var isExporting = false
+    @State var exportStatus = ""
+    @State var requestedExportFormat: SettingsExportFormat = .studioBundle
     @State var showingExportError = false
     @State var exportErrorMessage = ""
     @State var showingNotificationPermissionAlert = false

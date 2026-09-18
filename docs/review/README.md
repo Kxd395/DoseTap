@@ -1,7 +1,7 @@
 # DoseTap review records
 
 Status: Point-in-time review and decision evidence
-Last updated: 2026-09-12
+Last updated: 2026-09-17 (Excel delivery navigation)
 
 Files here record dated reviews, design decisions, migration analysis, and regression runs. They do not override current SSOT, code, or Plane. Promote a lasting rule into SSOT or a maintained architecture decision and link back to its review record.
 
@@ -14,6 +14,7 @@ Files here record dated reviews, design decisions, migration analysis, and regre
 
 ## Owner data and dashboard review
 
+- [Excel workbook design](../plans/2026-09-17-excel-workbook-export.md): owner-approved sheet order, sortable tables, source mapping and review/ingestion workflow. The [current contract](../SSOT/contracts/ExcelWorkbook.md) owns implementation semantics; native Excel, phone and release acceptance remain separate.
 - [Collected-data inventory and work/off dashboard plan](2026-09-11-dashboard-and-collected-data-review.md): human-facing provider, questionnaire, dosing and quick-log fields; planned means, transition groups and missingness rules. This is a build-45 source inventory with later delivery links, not a claim that the proposed dashboard ships.
 - [Collection/store/export audit reading guide](../audit/2026-09-12/README.md): pair the owner inventory with exact stored fields, export coverage and known discrepancies.
 - [Awakening-count source review and implementation plan](2026-09-12-awakening-count-review.md): existing count meanings, completed-episode contract, consumer migration and test cases; documentation only, no new app build.
@@ -27,6 +28,7 @@ Each record identifies its version, bounded changes, validation and remaining ga
 
 | Build | Record | Scope |
 | --- | --- | --- |
+| 62 installed; owner acceptance open | [Styled Excel workbook](2026-09-17-excel-workbook-delivery.md) | Fifteen sortable/filterable sheets, fixed summaries, source evidence and local native Excel validation; phone acceptance remains separate |
 | 44 | [Sleeping arrangements](2026-09-10-sleeping-arrangement-delivery.md) | Planned/actual setup and separate reusable preferences |
 | 45 | [Morning pain reuse](2026-09-10-morning-pain-reuse-delivery.md) | One saved pattern reviewed with a fresh morning level |
 | 46 | [Dose/sleep metrics](2026-09-11-dose-sleep-metrics-delivery.md) | Read-only intervals with unresolved/conflicting evidence |

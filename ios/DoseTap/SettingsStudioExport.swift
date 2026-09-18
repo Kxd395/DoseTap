@@ -9,46 +9,11 @@ import UIKit
 private let settingsActionsLog = Logger(subsystem: "com.dosetap.app", category: "SettingsView")
 
 extension SettingsView {
-    func exportData() {
-        Task { @MainActor in
-            await exportDataAsync()
-        }
-    }
-
     @MainActor
-    private func exportDataAsync() async {
-        let repo = SessionRepository.shared
-        let tempDirectory = FileManager.default.temporaryDirectory
-        let timestamp = DateFormatter.exportDateFormatter.string(from: Date())
-        let exportDirectory = tempDirectory.appendingPathComponent("DoseTapStudioExport_\(timestamp)_\(UUID().uuidString)", isDirectory: true)
-        let exporter = StudioBundleExporter()
-        var unpublishedArchive: URL?
-        var exportStep = "Preparing the export folder"
-        defer {
-            try? FileManager.default.removeItem(at: exportDirectory)
-            if let unpublishedArchive { try? FileManager.default.removeItem(at: unpublishedArchive) }
-        }
-
-        do {
-            try FileManager.default.createDirectory(at: exportDirectory, withIntermediateDirectories: true)
-            exportStep = "Reading records and preparing the bundle"
-            try await exporter.writeStudioExportBundle(using: repo, to: exportDirectory)
-            exportStep = "Creating the ZIP archive"
-            let archiveURL = try exporter.archiveExportDirectory(exportDirectory)
-            unpublishedArchive = archiveURL
-            try Task.checkCancellation()
-
-            exportArchive = StudioExportArchive(url: archiveURL)
-            unpublishedArchive = nil
-            settingsActionsLog.info("Studio export created: \(archiveURL.lastPathComponent, privacy: .private)")
-        } catch is CancellationError {
-            return
-        } catch {
-            settingsActionsLog.error("Failed to create export file: \(error.localizedDescription, privacy: .private)")
-            exportErrorMessage = StudioExportFailureMessage.make(error, step: exportStep)
-            showingExportError = true
-        }
+    func exportData() {
+        exportData(format: .studioBundle)
     }
+
 
 }
 

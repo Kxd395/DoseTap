@@ -8,6 +8,13 @@ Exact column mirror: `docs/DATABASE_SCHEMA.md`
 
 This dictionary defines how persisted fields are interpreted. It covers all 17 application tables plus the internal migration ledger. It does not redefine SQL types or migrations from the executable schema.
 
+Excel workbook schema 1 (DOSETAP-13, build 62) is a read-only reporting projection
+of finalized Studio JSON and inventory CSV, with no new SQLite fields or writes.
+It retains typed sortable values, unknown source fields, source hashes and record
+associations across 15 sheets. See the [Excel workbook contract](ExcelWorkbook.md)
+for table grains, missingness, fixed-summary definitions and unavailable fields.
+The Studio export remains 2.8/schema 3; Excel edits do not import into the app.
+
 ## Identity and time
 
 Studio export 2.8/schema 3 uses root `dateGroups` instead of `sessions` and adds a per-date `identityResolution` object:

@@ -53,7 +53,16 @@ let package = Package(
                 "SleepingSetup.swift",
                 "ReviewedSleepWindow.swift",
                 "ReportCSV.swift",
-                "CaffeineAmounts.swift"
+                "CaffeineAmounts.swift",
+                "ExcelWorkbook.swift",
+                "ExcelWorkbookWriter.swift",
+                "ExcelWorkbookZIP.swift",
+                "StudioWorkbookProjection.swift",
+                "StudioWorkbookSourceCatalog.swift",
+                "StudioWorkbookDetails.swift",
+                "StudioWorkbookSummaries.swift",
+                "StudioWorkbookNightReview.swift",
+                "StudioWorkbookSourceFields.swift"
             ]
         ),
         .testTarget(
@@ -61,6 +70,8 @@ let package = Package(
             dependencies: ["DoseCore"],
             path: "Tests/DoseCoreTests",
             sources: [
+                "ExcelWorkbookWriterTests.swift",
+                "StudioWorkbookProjectionTests.swift",
                 "DoseWindowStateTests.swift",
                 "APIErrorsTests.swift",
                 "APIClientTests.swift",

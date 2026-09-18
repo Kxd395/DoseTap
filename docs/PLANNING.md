@@ -85,6 +85,8 @@ The [September 8 roadmap](plans/2026-09-08-food-drink-roadmap.md) defines five p
 
 ## Insights implementation
 
+The [Excel workbook plan](plans/2026-09-17-excel-workbook-export.md) is approved for implementation under DOSETAP-13. It adds a styled, sortable human review format alongside the existing Studio source bundle. The [workbook contract](SSOT/contracts/ExcelWorkbook.md) defines source identities, missingness, fixed summaries and export publication boundaries. New clinical collection and provider-query expansion remain separate work.
+
 The [sleep markers roadmap](plans/2026-09-08-sleep-markers-roadmap.md) preserves Apple Health detail and defines DOSETAP-56 measurement corrections, DOSETAP-57 dose/sleep/wake markers and counts, DOSETAP-58 independent daytime observations, DOSETAP-59 clinician reporting and DOSETAP-60 activity-time specification review. The roadmap is a dated plan. DOSETAP-56 has a measurement foundation, and the linked DOSETAP-57 deliveries above add read-only dose/sleep and awakening inspection. They do not complete awakening counts, work/off averages, independent daytime observations or provider/phone acceptance. New analytics depend on corrected boundaries and explicit missingness.
 
 DoseTap Studio is implemented, but product claims remain limited by import quality, data-source parity, physical Apple Health verification, and whole-lifecycle restore evidence. Current source and validation status are in `docs/INSIGHTS_STATUS.md`.
