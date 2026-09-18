@@ -293,8 +293,6 @@ extension SettingsView {
                     Label("Manage History", systemImage: "clock.arrow.circlepath")
                 }
 
-                Divider()
-
                 Button(role: .destructive) {
                     showingResetConfirmation = true
                 } label: {
@@ -383,12 +381,10 @@ extension SettingsView {
             Button("Try Again") { exportData() }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Could not export your data: \(exportErrorMessage). Check available storage and try again.")
+            Text(exportErrorMessage)
         }
-        .sheet(isPresented: $showingExportSheet) {
-            if !exportItems.isEmpty {
-                ActivityViewController(activityItems: exportItems)
-            }
+        .sheet(item: $exportArchive) { archive in
+            ActivityViewController(activityItems: [archive.url])
         }
         .onChange(of: settings.notificationsEnabled) { enabled in
             guard enabled else { return }

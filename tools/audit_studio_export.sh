@@ -30,7 +30,9 @@ import sys
 import tempfile
 import zipfile
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timedelta
+import base64
+import math
 from pathlib import Path
 
 export_input = Path(sys.argv[1])
@@ -157,7 +159,8 @@ def expected_morning_raw_fields(payload):
         expected.add("rawStressContextJson")
 
     timing_prefixes = ("night.", "wake.", "dose2.", "day_demand.")
-    if any(key.startswith(timing_prefixes) and truthy(value) for key, value in payload.items()):
+    if any(key != "wake.bathroom_urgency_burden" and key.startswith(timing_prefixes)
+           and truthy(value) for key, value in payload.items()):
         expected.add("rawTimingContextJson")
 
     return expected
@@ -181,9 +184,17 @@ except json.JSONDecodeError as exc:
 if not isinstance(bundle, dict):
     print("FAIL: insights_bundle.json is not an object")
     sys.exit(2)
-sessions_json = bundle.get("sessions")
+schema_version = bundle.get("schemaVersion")
+if type(schema_version) is not int or schema_version not in [1, 2, 3]:
+    print("FAIL: unsupported or invalid bundle schema")
+    sys.exit(1)
+session_key, forbidden_key = ("dateGroups", "sessions") if schema_version == 3 else ("sessions", "dateGroups")
+if forbidden_key in bundle:
+    print("FAIL: contradictory bundle session layout")
+    sys.exit(1)
+sessions_json = bundle.get(session_key)
 if not isinstance(sessions_json, list) or any(not isinstance(s, dict) for s in sessions_json):
-    print("FAIL: insights_bundle.json sessions is not an array of objects")
+    print(f"FAIL: insights_bundle.json {session_key} is not an array of objects")
     sys.exit(2)
 
 unique_json_dates = {
@@ -192,9 +203,82 @@ unique_json_dates = {
     if session.get("sessionDate")
 }
 
-schema_version = bundle.get("schemaVersion")
-if isinstance(schema_version, bool) or not isinstance(schema_version, int) or schema_version <= 0:
-    issue("P1", "Missing or invalid export metadata: schemaVersion must be a positive integer")
+raw_only_dates = set()
+source_tables = {"pre_sleep_logs", "morning_checkins", "checkin_submissions", "sleep_sessions", "current_session"}
+for session in sessions_json:
+    resolution = session.get("identityResolution")
+    if "identityResolution" not in session:
+        if schema_version == 3:
+            issue("P1", "Schema 3 date groups require identity resolution")
+        continue
+    valid = (isinstance(resolution, dict) and type(resolution.get("version")) is int and resolution["version"] == 1
+             and resolution.get("status") in ["resolved", "raw_only"]
+             and all(isinstance(resolution.get(k), list) and all(isinstance(v, str) and v for v in resolution[k])
+                     for k in ["sessionIds", "reasons"]))
+    if not valid:
+        issue("P1", "Invalid session identity resolution")
+        continue
+    if resolution["status"] != "raw_only":
+        continue
+    key = session.get("sessionDate")
+    if not isinstance(key, str):
+        issue("P1", "Raw-only date is missing its treatment date")
+        continue
+    raw_only_dates.add(key)
+    if not resolution["reasons"]:
+        issue("P1", "Raw-only date is missing its identity reason")
+    if any(session.get(k) is not None for k in ["dose1TimeUTC", "dose2TimeUTC", "preSleep", "morning", "context", "collectedNight"]) or session.get("checkInSubmissions"):
+        issue("P1", "Raw-only date contains derived or selected session values")
+    records = session.get("rawSourceRecords")
+    if not isinstance(records, list):
+        issue("P1", "Raw-only date is missing source records")
+        continue
+    for record in records:
+        valid = isinstance(record, dict) and isinstance(record.get("sourceTable"), str) and record["sourceTable"] in source_tables and isinstance(record.get("columns"), dict)
+        for value in record.get("columns", {}).values() if valid else []:
+            if not isinstance(value, dict):
+                valid = False
+                break
+            kind = value.get("type")
+            if not isinstance(kind, str):
+                valid = False
+                break
+            field = {"text": "text", "integer": "integer", "real": "real", "blob": "blobBase64"}.get(kind)
+            expected = {"type"} | ({field} if field else set())
+            valid &= kind in {"null", "text", "integer", "real", "blob"} and set(value) == expected
+            payload = value.get(field)
+            if kind in {"text", "blob"}: valid &= isinstance(payload, str)
+            if kind == "integer": valid &= type(payload) is int and -(2 ** 63) <= payload < 2 ** 63
+            if kind == "real": valid &= type(payload) in {int, float} and math.isfinite(payload)
+            if kind == "blob" and isinstance(payload, str):
+                try: base64.b64decode(payload, validate=True)
+                except ValueError: valid = False
+        if not valid:
+            issue("P1", "Invalid raw source record or typed column value")
+
+def csv_session_date(row):
+    if row.get("session_date"):
+        return row["session_date"]
+    raw = row.get("started_utc", "")
+    try:
+        started = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        for event in events:
+            if event.get("event_type") not in {"dose1", "dose1_taken"}:
+                continue
+            occurred = datetime.fromisoformat(event["occurred_at_utc"].replace("Z", "+00:00"))
+            if occurred == started:
+                return event.get("session_date") or event.get("device_time")
+        return (started - timedelta(hours=18)).date().isoformat()
+    except (ValueError, KeyError):
+        return None
+
+if any(csv_session_date(row) in raw_only_dates for row in sessions_csv):
+    issue("P1", "Raw-only date has a derived sessions.csv row")
+if (export_dir / "collected_nights.csv").is_file():
+    if any(row.get("session_date") in raw_only_dates for row in read_csv_rows("collected_nights.csv")[0]):
+        issue("P1", "Raw-only date has a derived collected_nights.csv row")
+if raw_only_dates:
+    issue("P2", f"{len(raw_only_dates)} date(s) preserved as raw records and excluded from derived analysis")
 
 missing_metadata = [
     field for field in [
@@ -223,7 +307,7 @@ if local_offset is None or isinstance(local_offset, bool) or not isinstance(loca
 
 local_marker = "Local snapshot only; provider enrichment was not fetched."
 warnings = bundle.get("exportWarnings")
-local_only = (schema_version == 2 and isinstance(warnings, list) and all(isinstance(w, str) for w in warnings)
+local_only = (schema_version in [2, 3] and isinstance(warnings, list) and all(isinstance(w, str) for w in warnings)
               and local_marker in warnings)
 consent_value = bundle.get("consent")
 if isinstance(consent_value, dict):
@@ -320,6 +404,8 @@ for session in sessions_json:
                 provider_evidence = True
         provenance = session.get("metricProvenance", {})
         collected = session.get("collectedNight", {})
+        if session_date in raw_only_dates and collected is None:
+            collected = {}
         if not isinstance(provenance, dict) or not isinstance(collected, dict):
             issue("P1", "Local-only export has invalid provider-evidence containers")
         else:
@@ -384,7 +470,7 @@ if local_only:
             "sleep_after_dose2_interval_minutes", "sleep_after_dose2_final_wake_at_utc", "sleep_after_dose2_source"]):
             issue("P1", "Local-only declaration conflicts with provider values in collected_nights.csv")
 
-if len(sessions_csv) != len(sessions_json):
+if len(sessions_csv) != len(sessions_json) - len(raw_only_dates):
     issue(
         "P2",
         f"Session count mismatch: sessions.csv has {len(sessions_csv)} rows, insights bundle has {len(sessions_json)} sessions",

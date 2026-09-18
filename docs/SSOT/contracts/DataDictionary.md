@@ -10,6 +10,31 @@ This dictionary defines how persisted fields are interpreted. It covers all 17 a
 
 ## Identity and time
 
+Studio export 2.8/schema 3 uses root `dateGroups` instead of `sessions` and adds a per-date `identityResolution` object:
+`version: 1`, `status: resolved | raw_only`, `sessionIds` (distinct original
+nonplaceholder IDs), and stable `reasons`. Reasons include
+`multiple_session_identities`, `multiple_source_questionnaires`, and
+`session_identity_spans_dates`. A `raw_only` date has no selected dose timestamps,
+pre-sleep/morning/context/collected-night summary or derived CSV row. It remains
+in JSON exactly once, with all original events, medication rows and source records.
+Matching Studio retains the original archive while excluding these dates from
+analytic sessions. Matching Studio still decodes legacy schema 1/2 `sessions`;
+older Studio rejects schema 3 because its required `sessions` key is absent.
+Unknown versions and conflicting root keys are rejected. This boundary applies
+to intact Studio archives, not standalone source CSV interpretation.
+
+`rawSourceRecords` contains `sourceTable` and `columns` for `sleep_sessions`,
+`current_session`, `pre_sleep_logs`, `morning_checkins`, and `checkin_submissions`.
+Each column retains its SQLite `type` (`null`, `text`, `integer`, `real`, `blob`)
+and corresponding `text`, `integer`, `real`, or `blobBase64` value. Original JSON,
+unknown keys/types/versions, IDs, capture timestamps, offsets and completion states
+are preserved without decoding/re-encoding them. Null differs from empty text.
+Pre-sleep associations use stored session identity or normalized source-record
+links, never capture time as a substitute treatment date. Provider data remains
+date-scoped evidence; it cannot authorize a combined dose-linked metric for a
+conflicting group. This is read-only archival handling, not identity reconciliation
+or a tested full-app restore. Genuine SQLite/read failures publish no archive.
+
 WHOOP fetch evidence (Studio export 2.7/schema 2; DOSETAP-13): optional root
 `whoopEnrichment` contains `version: 1`, `sleepStatus`, `recoveryStatus`, optional
 `queryStartUTC`/`queryEndUTC`, `sleepRecordCount`, `recoveryRecordCount`,
@@ -57,7 +82,8 @@ Local Studio archive metadata (DOSETAP-13 / DC-12): the local/scheduled writer
 omits `consent` because it does not capture provider consent or fetch enrichment.
 Its `exportWarnings` string array includes the exact element
 `Local snapshot only; provider enrichment was not fetched.` The strict validator
-accepts this omission only for known schema version 2 with a sessions array and
+accepts this omission only for known schema version 2 with a sessions array or
+schema version 3 with a dateGroups array, and
 without contradictory structured provider evidence. Unknown layouts cannot use
 the exception because their provider fields have not been validated.
 Explicit `null` or another malformed consent value is invalid. Manual/provider

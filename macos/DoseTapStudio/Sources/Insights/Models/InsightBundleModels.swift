@@ -161,6 +161,8 @@ struct InsightConsentState: Codable, Hashable, Sendable {
 }
 
 struct InsightSessionSupplement: Codable, Hashable, Sendable {
+    let identityResolution: InsightIdentityResolution?
+    let rawSourceRecords: [InsightRawSourceRecord]?
     let collectedNight: CollectedNightSummary?
     let sessionDate: String
     let dose1TimeUTC: Date?
@@ -181,6 +183,8 @@ struct InsightSessionSupplement: Codable, Hashable, Sendable {
 
     init(
         sessionDate: String,
+        identityResolution: InsightIdentityResolution? = nil,
+        rawSourceRecords: [InsightRawSourceRecord]? = nil,
         dose1TimeUTC: Date? = nil,
         dose2TimeUTC: Date? = nil,
         rawEvents: [InsightBundleEvent] = [],
@@ -199,6 +203,8 @@ struct InsightSessionSupplement: Codable, Hashable, Sendable {
         whoop: InsightWHOOPSummary? = nil
     ) {
         self.sessionDate = sessionDate
+        self.identityResolution = identityResolution
+        self.rawSourceRecords = rawSourceRecords
         self.dose1TimeUTC = dose1TimeUTC
         self.dose2TimeUTC = dose2TimeUTC
         self.rawEvents = rawEvents
@@ -215,6 +221,10 @@ struct InsightSessionSupplement: Codable, Hashable, Sendable {
         self.collectedNight = collectedNight
         self.healthKit = healthKit
         self.whoop = whoop
+    }
+
+    var excludesDerivedAnalytics: Bool {
+        identityResolution.map { !$0.permitsDerivedSummary } ?? false
     }
 }
 

@@ -2,6 +2,19 @@ import XCTest
 @testable import DoseTapStudio
 
 final class ImportValidatorTests: XCTestCase {
+    func testBathroomUrgencyRequiresPhysicalPayloadWithoutInventingTimingPayload() {
+        let submission = InsightCheckInSubmission(id: "m", sourceRecordId: "m", sessionId: "s",
+            sessionDate: "2030-04-05", checkInType: "morning", questionnaireVersion: "v3",
+            submittedAtUTC: testDate, localOffsetMinutes: 0,
+            responsesJson: #"{"wake.bathroom_urgency_burden":2}"#)
+        let night = InsightSessionSupplement(sessionDate: "2030-04-05", preSleep: nil,
+            morning: makeMorning(rawPhysicalSymptomsJson: #"{"bathroomUrgencyBurden":2}"#),
+            medications: [], checkInSubmissions: [submission])
+        let bundle = InsightBundle(schemaVersion: 2, exportedAtUTC: testDate, sessions: [night])
+        let report = ImportValidator().validate(sessions: [], events: [], insightBundle: bundle)
+        XCTAssertFalse(report.globalFlags.contains { $0.hasPrefix("Morning raw payload") })
+    }
+
     func testValidatorFlagsImpossibleIntervalsAndDuplicates() {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]

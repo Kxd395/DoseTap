@@ -43,6 +43,11 @@ public extension SessionRepository {
     }
 
     /// Checked original dose and sleep ledger rows for the export's date group.
+    internal func exportSourceSnapshot(sessionDate: String) throws -> ExportSourceSnapshot {
+        try storage.exportSourceSnapshot(sessionDate: sessionDate)
+    }
+
+    /// Checked original dose and sleep ledger rows for the export's date group.
     internal func eventExportRecords(sessionDate: String) throws -> [StoredEventExportRecord] {
         try storage.eventExportRecords(sessionDate: sessionDate)
     }

@@ -114,6 +114,9 @@ def case(name, expected, mutate=lambda value: None, *, seed=local, csv_value=Non
     cases.append((name, expected, value, csv_value))
 
 case("local", 0)
+case("bathroom-physical-only", 0, lambda b: b["sessions"][0].update(
+    morning={"sleepQuality":3,"rawPhysicalSymptomsJson":'{"bathroomUrgencyBurden":2}'},
+    checkInSubmissions=[{"checkInType":"morning","responsesJson":'{"wake.bathroom_urgency_burden":2}'}]))
 case("ordinary-consent", 0, seed=base)
 whoop_query = dict(version=1, sleepStatus="completed", recoveryStatus="completed", sleepRecordCount=0,
                    recoveryRecordCount=0, eligibleNightCount=0, queryStartUTC="2026-06-16T18:00:00Z", queryEndUTC="2026-06-17T18:00:00Z")
@@ -208,12 +211,44 @@ case("local-missing-metadata", 1, lambda b: b.pop("appVersion"))
 case("local-missing-raw", 1, lambda b: (b["sessions"][0]["morning"].pop("rawPhysicalSymptomsJson"),
      b["sessions"][0]["checkInSubmissions"][-1].update(responsesJson='{"pain.any":true}')))
 
+raw_only = copy.deepcopy(local)
+raw_only["exportVersion"] = "2.8"
+raw_only["schemaVersion"] = 3
+raw_only.pop("sessions")
+raw_only["dateGroups"] = [{"sessionDate": "2030-04-05", "identityResolution": {
+    "version": 1, "status": "raw_only", "sessionIds": ["fixture-a", "fixture-b"], "reasons": ["multiple_session_identities"]},
+    "rawSourceRecords": [{"sourceTable": "pre_sleep_logs", "columns": {
+        "id": {"type": "text", "text": "fixture-row"}, "answers_json": {"type": "text", "text": "{}"},
+        "missing": {"type": "null"}, "count": {"type": "integer", "integer": 9223372036854775807}}}],
+    "sourceAvailability": {"healthKit": False, "whoop": False}, "checkInSubmissions": []}]
+case("identity-raw-only", 0, seed=raw_only)
+case("identity-raw-only-null-summary", 0, lambda b: b["dateGroups"][0].update(collectedNight=None), seed=raw_only)
+for key in ["dose1TimeUTC", "dose2TimeUTC", "preSleep", "morning", "context", "collectedNight"]:
+    case(f"identity-leaked-{key}", 1, lambda b, k=key: b["dateGroups"][0].update({k: {}}), seed=raw_only)
+case("identity-leaked-submissions", 1, lambda b: b["dateGroups"][0].update(checkInSubmissions=[{}]), seed=raw_only)
+case("identity-leaked-sessions-csv", 1, seed=raw_only, csv_value=("sessions.csv", "started_utc", "2030-04-06T02:00:00Z"))
+case("identity-leaked-collected-csv", 1, seed=raw_only, csv_value=("collected_nights.csv", "session_date", "2030-04-05"))
+case("identity-missing-source", 1, lambda b: b["dateGroups"][0].pop("rawSourceRecords"), seed=raw_only)
+for value in [{"type": "integer", "integer": True}, {"type": "null", "text": "invented"},
+              {"type": "blob", "blobBase64": "not base64"}, {"type": []}]:
+    case(f"identity-invalid-column-{len(cases)}", 1,
+         lambda b, v=value: b["dateGroups"][0]["rawSourceRecords"][0]["columns"].update(count=v), seed=raw_only)
+case("identity-invalid-status", 1, lambda b: b["dateGroups"][0]["identityResolution"].update(status=[]), seed=raw_only)
+case("identity-missing-resolution", 1, lambda b: b["dateGroups"][0].pop("identityResolution"), seed=raw_only)
+case("identity-both-layouts", 1, lambda b: b.update(sessions=[]), seed=raw_only)
+case("identity-schema-three-legacy-layout", 1, lambda b: b.update(sessions=b.pop("dateGroups")), seed=raw_only)
+case("identity-schema-two-new-layout", 1, lambda b: b.update(schemaVersion=2), seed=raw_only)
+case("identity-schema-three-missing-groups", 2, lambda b: b.pop("dateGroups"), seed=raw_only)
+
 failures = []
 for name, expected, value, csv_value in cases:
     folder = root / name
     folder.mkdir()
     for path in base_dir.glob("*.csv"):
         shutil.copyfile(path, folder / path.name)
+    if name.startswith("identity-"):
+        path = folder / "sessions.csv"
+        path.write_text(path.read_text().splitlines()[0] + "\n")
     (folder / "insights_bundle.json").write_text(json.dumps(value))
     if csv_value:
         path = folder / csv_value[0]
@@ -222,6 +257,8 @@ for name, expected, value, csv_value in cases:
             with path.open(newline="") as handle:
                 reader = csv.DictReader(handle)
                 rows, fields = list(reader), reader.fieldnames
+        if not rows:
+            rows = [{}]
         rows[0][csv_value[1]] = csv_value[2]
         with path.open("w", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=fields)
