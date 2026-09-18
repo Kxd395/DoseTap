@@ -2,7 +2,7 @@
 
 Date: 2026-09-17
 Tracking: DOSETAP-13 (export), existing DC-07 session-identity gap
-Current repair candidate: 0.4.19 (60); build 59 is the prior diagnostic candidate. Build 58 remains a separate pain-entry draft.
+Current repair candidate: 0.4.19 (61), installed and metadata-verified on the owner's phone. The owner successfully exported build 60 to Files and supplied the extracted archive for validation. Build 61 also fixes first-presentation share-sheet state. Build 59 was the prior diagnostic candidate; build 58 remains a separate pain-entry draft.
 
 ## Owner report and read-only evidence
 
@@ -10,7 +10,7 @@ The owner supplied a Settings export alert showing `DoseTap.MedicationStorageInj
 
 Owner-authorized USB inspection confirmed installed DoseTap 0.4.19 (57). Only the DoseTap SQLite database and its WAL/SHM companions were copied into a private temporary directory. Queries used SQLite read-only/query-only mode. No app restart, install, record correction, delete or phone write was performed. This is a copied database snapshot, not a guarantee about subsequent phone writes. The local copy passed SQLite integrity_check and uses schema 5. Structural inspection found treatment dates with multiple stable session identities. No personal record payloads, session identifiers or affected dates are reproduced here or in Plane.
 
-The misleading error type is used for real database/read/precondition failures as well as synthetic injection. Its name is not evidence that test injection is enabled. `collectedNightSummary` invokes `nightOutcomeSnapshot`, which invokes the strict editing `historySnapshot`. That rejects a treatment date containing multiple stable identities. The full bundle writer invokes this path for each date. Raw event export can retain those original identities, but the derived summary currently prevents the full archive from being published. This connects a concrete condition in the local copy to a source failure path; no successful owner export is claimed.
+The misleading error type is used for real database/read/precondition failures as well as synthetic injection. Its name is not evidence that test injection is enabled. `collectedNightSummary` invokes `nightOutcomeSnapshot`, which invokes the strict editing `historySnapshot`. That rejects a treatment date containing multiple stable identities. The prior full bundle writer invoked this path for each date. Raw event export could retain those original identities, but the derived summary prevented the full archive from being published. This connected a concrete condition in the local copy to a source failure path. The later repair and successful owner export are recorded below.
 
 ## Build 59: diagnostic correction
 
@@ -33,7 +33,7 @@ Fresh targeted validation: 20 export tests passed, zero failures/skips, in `/tmp
 
 The owner explicitly requested build59 installation after reviewing the diagnosis. Signed device build and deep/strict signature verification passed for app source `3d561d0b02c0f802a50e09e158e9d6bb726a9df3`. Installation over the existing app succeeded, and an independent device-app query confirmed `com.dosetap.ios` version0.4.19/build59. Database and WAL files remain present. No uninstall, data clearing or clinical-record correction was performed; file presence is not content-equal restore proof.
 
-PR49 remains a draft and main remains build57. The branch project is `DoseTap-export-alert/ios/DoseTap.xcodeproj`; the main project still showing57 is expected. Owner export retry, native alert/layout acceptance, session-conflict repair, accessibility/privacy and release acceptance remain open. Installation metadata does not close those gates.
+At the build 59 installation checkpoint, PR49 was a draft and main remained build57. The branch project is `DoseTap-export-alert/ios/DoseTap.xcodeproj`; the protected main checkout still showing57 was expected. Owner export retry, native alert/layout acceptance, session-conflict repair, accessibility/privacy and release acceptance were still open. The later evidence below supersedes that installation checkpoint; installation metadata alone does not close acceptance gates.
 
 
 ## Build 60: preserve conflicting records without selecting a session
@@ -81,8 +81,43 @@ Validation evidence so far:
   documentation/SSOT and whitespace checks passed. Source review found the old
   consumer hazard; the schema-3 boundary resolved that finding.
 
-The structured DOSETAP-13 workpad records final Studio/archive validation, signed
-installation, commit/PR state and readback. Owner export through the actual share sheet,
-provider-enriched phone parity, accessibility, privacy/release acceptance and tested
-backup/restore remain separate gates. Identity reconciliation remains review work;
-a successful archive does not prove the underlying conflicting nights are resolved.
+## Owner export and build 61 share-sheet validation
+
+The owner confirmed that Settings → Export Studio Bundle completed on build 60,
+saved the ZIP to Files, and supplied its extracted folder. The archive identifies
+0.4.19 (60), export 2.8/schema 3. All required files are present and the strict audit
+passed with no P0/P1 findings. Informational coverage gaps remain; exported provider
+objects do not establish complete usable sleep coverage or permissions. Personal
+payloads, affected dates, record identifiers and the owner's local path remain private.
+
+Matching Studio retained the original bundle bytes exactly, all raw/normalized events
+and typed source rows, and excluded every raw-only group from analytical sessions.
+The actual archive also demonstrated the existing legacy CSV vocabulary gap: some
+quick-log types are absent from Studio's typed event list. An initial all-CSV-rows
+parity test failed for that reason, with no timestamp or required-column parsing
+failure. Source JSON retention passed. This is a consumer-display limitation, not
+proof that every Studio view or downstream report covers the complete archive.
+
+Native simulator interaction reproduced a separate blank first share sheet caused
+by independently published presentation and file-list state. Build 61 presents the
+sheet from one completed, identifiable archive item. No archive contents or storage
+rules changed. Independent source review found no blocker.
+
+On build 61, native interaction verified the first populated share sheet, dismissal,
+repeat export, and Save to Files. The ZIP saved in the simulator's Files storage passed
+strict validation. This fixture has no clinical records and is separate from the
+owner's successful build 60 export. The empty Settings Form row is absent. These
+observations are not a VoiceOver, largest-text or iPad acceptance run.
+
+The unsigned simulator and signed device builds passed. Deep/strict signature
+verification and all four DoseTap/DoseTapStaging Debug/Release configurations confirm
+0.4.19 (61). Installation over the existing phone app succeeded; an independent device
+app query confirmed bundle `com.dosetap.ios`, version 0.4.19, build 61. No uninstall,
+data clearing or clinical-record correction was performed. Owner-observed export of
+build 61 itself remains separate from build 60 acceptance.
+
+The structured DOSETAP-13 workpad records final validation, commit/PR/main state and
+readback. Identity reconciliation remains review work; a successful archive does not
+resolve the underlying conflicting nights. Complete live-provider coverage, background
+scheduling/expiration, accessibility, privacy/release acceptance and tested full backup/
+restore remain open. The supplied reporting archive is not a tested app restore.

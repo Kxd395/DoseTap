@@ -38,8 +38,7 @@ extension SettingsView {
             unpublishedArchive = archiveURL
             try Task.checkCancellation()
 
-            exportItems = [archiveURL]
-            showingExportSheet = true
+            exportArchive = StudioExportArchive(url: archiveURL)
             unpublishedArchive = nil
             settingsActionsLog.info("Studio export created: \(archiveURL.lastPathComponent, privacy: .private)")
         } catch is CancellationError {

@@ -383,10 +383,8 @@ extension SettingsView {
         } message: {
             Text(exportErrorMessage)
         }
-        .sheet(isPresented: $showingExportSheet) {
-            if !exportItems.isEmpty {
-                ActivityViewController(activityItems: exportItems)
-            }
+        .sheet(item: $exportArchive) { archive in
+            ActivityViewController(activityItems: [archive.url])
         }
         .onChange(of: settings.notificationsEnabled) { enabled in
             guard enabled else { return }

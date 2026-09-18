@@ -476,6 +476,8 @@ or unknown root layouts. Updating only a numeric version would not protect old
 consumers. Standalone source CSVs do not carry this safety contract.
 
 Manual export failures identify the failed step and, when available, the treatment date and stored-record error detail. Free-space advice is shown only for a reported disk-full error; identity conflicts and read failures are not described as insufficient space. A failed export publishes no archive, changes no clinical records, and retains the existing retry action. The error type name is not evidence that failure injection was enabled.
+The share sheet is presented by the completed archive item itself, so the first
+export cannot present an empty sheet while waiting for separate file-list state.
 
 Studio export 2.7 (DOSETAP-13, bounded DC-05) adds optional request-scoped
 `whoopEnrichment` metadata for manual exports: independent sleep/recovery
