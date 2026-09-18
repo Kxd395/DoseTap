@@ -36,6 +36,8 @@ struct InsightSessionBuilder {
         supplement: InsightSessionSupplement?,
         validationFlags: [String]
     ) -> InsightSession? {
+        // Date-grouped source rows remain imported, but cannot establish one session's facts.
+        guard supplement?.excludesDerivedAnalytics != true else { return nil }
         let sortedEvents = events.sorted { $0.occurredAtUTC < $1.occurredAtUTC }
         let mappedEvents = sortedEvents.map {
             InsightEvent(

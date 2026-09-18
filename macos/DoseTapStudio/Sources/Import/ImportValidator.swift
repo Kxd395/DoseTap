@@ -35,14 +35,18 @@ struct ImportValidator {
         let sessionKeys = Set(sessions.map { StudioSessionDateIdentity.key(for: $0, events: events) })
         let eventKeys = Set(groupedEvents.keys)
         let bundleKeys = Set(insightBundle?.sessions.map(\.sessionDate) ?? [])
+        let rawOnlyDates = Set(insightBundle?.sessions.filter(\.excludesDerivedAnalytics).map(\.sessionDate) ?? [])
 
         var globalFlags: [String] = []
         var flagsByDate: [String: Set<String>] = [:]
 
-        if let insightBundle, insightBundle.sessions.count != sessions.count {
+        if let insightBundle, insightBundle.sessions.count - rawOnlyDates.count != sessions.count {
             globalFlags.append(
                 "Session count mismatch: sessions.csv has \(sessions.count), insights bundle has \(insightBundle.sessions.count)"
             )
+        }
+        if !rawOnlyDates.isEmpty {
+            globalFlags.append("\(rawOnlyDates.count) date(s) preserved as raw records and excluded from derived analysis because session identity is unresolved.")
         }
 
         if let exportWarnings = insightBundle?.exportWarnings {
@@ -59,6 +63,20 @@ struct ImportValidator {
         if let insightBundle {
             globalFlags.append(contentsOf: checkInPayloadFlags(in: insightBundle))
             for entry in insightBundle.sessions {
+                if let resolution = entry.identityResolution {
+                    if resolution.version != 1 || !["resolved", "raw_only"].contains(resolution.status) {
+                        append("Unsupported session identity resolution; derived analysis excluded", to: entry.sessionDate, in: &flagsByDate)
+                    }
+                    if entry.excludesDerivedAnalytics {
+                        append("Raw records preserved; derived analysis excluded: \(resolution.reasons.joined(separator: ", "))", to: entry.sessionDate, in: &flagsByDate)
+                        if entry.rawSourceRecords == nil {
+                            append("Raw-only date is missing source records", to: entry.sessionDate, in: &flagsByDate)
+                        }
+                        if entry.dose1TimeUTC != nil || entry.dose2TimeUTC != nil || entry.preSleep != nil || entry.morning != nil || entry.context != nil || entry.collectedNight != nil || !(entry.checkInSubmissions?.isEmpty ?? true) {
+                            append("Raw-only date contains derived or selected session values", to: entry.sessionDate, in: &flagsByDate)
+                        }
+                    }
+                }
                 if let error = entry.preSleep?.caffeineAmounts?.validationError {
                     append(error, to: entry.sessionDate, in: &flagsByDate)
                 }
@@ -69,12 +87,16 @@ struct ImportValidator {
             }
         }
 
-        for extraKey in bundleKeys.subtracting(sessionKeys.union(eventKeys)).sorted() {
+        for extraKey in bundleKeys.subtracting(sessionKeys.union(eventKeys).union(rawOnlyDates)).sorted() {
             append("Supplement exists without base session", to: extraKey, in: &flagsByDate)
         }
 
         for session in sessions {
             let key = StudioSessionDateIdentity.key(for: session, events: events)
+            if rawOnlyDates.contains(key) {
+                append("Raw-only date has a derived sessions.csv row", to: key, in: &flagsByDate)
+                continue
+            }
             let sessionEvents: [DoseEvent] = (groupedEvents[key] ?? []).sorted { lhs, rhs in
                 lhs.occurredAtUTC < rhs.occurredAtUTC
             }

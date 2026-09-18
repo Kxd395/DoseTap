@@ -160,7 +160,31 @@ struct InsightConsentState: Codable, Hashable, Sendable {
     let whoopConnected: Bool
 }
 
+struct InsightIdentityResolution: Codable, Hashable, Sendable {
+    let version: Int
+    let status: String
+    let sessionIds: [String]
+    let reasons: [String]
+
+    var permitsDerivedSummary: Bool { version == 1 && status == "resolved" }
+}
+
+struct InsightRawSourceRecord: Codable, Hashable, Sendable {
+    let sourceTable: String
+    let columns: [String: InsightRawSourceValue]
+}
+
+struct InsightRawSourceValue: Codable, Hashable, Sendable {
+    let type: String
+    let text: String?
+    let integer: Int64?
+    let real: Double?
+    let blobBase64: String?
+}
+
 struct InsightSessionSupplement: Codable, Hashable, Sendable {
+    let identityResolution: InsightIdentityResolution?
+    let rawSourceRecords: [InsightRawSourceRecord]?
     let collectedNight: CollectedNightSummary?
     let sessionDate: String
     let dose1TimeUTC: Date?
@@ -181,6 +205,8 @@ struct InsightSessionSupplement: Codable, Hashable, Sendable {
 
     init(
         sessionDate: String,
+        identityResolution: InsightIdentityResolution? = nil,
+        rawSourceRecords: [InsightRawSourceRecord]? = nil,
         dose1TimeUTC: Date? = nil,
         dose2TimeUTC: Date? = nil,
         rawEvents: [InsightBundleEvent] = [],
@@ -199,6 +225,8 @@ struct InsightSessionSupplement: Codable, Hashable, Sendable {
         whoop: InsightWHOOPSummary? = nil
     ) {
         self.sessionDate = sessionDate
+        self.identityResolution = identityResolution
+        self.rawSourceRecords = rawSourceRecords
         self.dose1TimeUTC = dose1TimeUTC
         self.dose2TimeUTC = dose2TimeUTC
         self.rawEvents = rawEvents
@@ -215,6 +243,10 @@ struct InsightSessionSupplement: Codable, Hashable, Sendable {
         self.collectedNight = collectedNight
         self.healthKit = healthKit
         self.whoop = whoop
+    }
+
+    var excludesDerivedAnalytics: Bool {
+        identityResolution.map { !$0.permitsDerivedSummary } ?? false
     }
 }
 
