@@ -93,7 +93,11 @@ extension EventStorage {
         var reasons: [String] = []
         let allIds = Set(ids + records.compactMap { $0.columns["session_id"]?.text }.filter { $0 != sessionDate })
         if allIds.count > 1 { reasons.append("multiple_session_identities") }
-        if evidence.contains(where: { $0.columns["session_date"]?.text != sessionDate }) {
+        let associatedDates = try allIds.flatMap { id in
+            try readExportSourceRows(table: "identity_evidence",
+                sql: "SELECT DISTINCT session_date FROM (\(Self.exportIdentitiesSQL)) WHERE session_id = ?1", sessionDate: id)
+        }
+        if associatedDates.contains(where: { $0.columns["session_date"]?.text != sessionDate }) {
             reasons.append("session_identity_spans_dates")
         }
         let duplicatedSource = ["pre_sleep_logs", "morning_checkins"].contains { table in

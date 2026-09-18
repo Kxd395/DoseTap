@@ -10,7 +10,7 @@ This dictionary defines how persisted fields are interpreted. It covers all 17 a
 
 ## Identity and time
 
-Studio export 2.8/schema 2 adds a per-date `identityResolution` object:
+Studio export 2.8/schema 3 uses root `dateGroups` instead of `sessions` and adds a per-date `identityResolution` object:
 `version: 1`, `status: resolved | raw_only`, `sessionIds` (distinct original
 nonplaceholder IDs), and stable `reasons`. Reasons include
 `multiple_session_identities`, `multiple_source_questionnaires`, and
@@ -18,7 +18,10 @@ nonplaceholder IDs), and stable `reasons`. Reasons include
 pre-sleep/morning/context/collected-night summary or derived CSV row. It remains
 in JSON exactly once, with all original events, medication rows and source records.
 Matching Studio retains the original archive while excluding these dates from
-analytic sessions. Legacy archives without the marker retain their old decoding.
+analytic sessions. Matching Studio still decodes legacy schema 1/2 `sessions`;
+older Studio rejects schema 3 because its required `sessions` key is absent.
+Unknown versions and conflicting root keys are rejected. This boundary applies
+to intact Studio archives, not standalone source CSV interpretation.
 
 `rawSourceRecords` contains `sourceTable` and `columns` for `sleep_sessions`,
 `current_session`, `pre_sleep_logs`, `morning_checkins`, and `checkin_submissions`.
@@ -79,7 +82,8 @@ Local Studio archive metadata (DOSETAP-13 / DC-12): the local/scheduled writer
 omits `consent` because it does not capture provider consent or fetch enrichment.
 Its `exportWarnings` string array includes the exact element
 `Local snapshot only; provider enrichment was not fetched.` The strict validator
-accepts this omission only for known schema version 2 with a sessions array and
+accepts this omission only for known schema version 2 with a sessions array or
+schema version 3 with a dateGroups array, and
 without contradictory structured provider evidence. Unknown layouts cannot use
 the exception because their provider fields have not been validated.
 Explicit `null` or another malformed consent value is invalid. Manual/provider

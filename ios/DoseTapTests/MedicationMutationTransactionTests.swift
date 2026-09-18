@@ -324,7 +324,7 @@ final class MedicationMutationTransactionTests: XCTestCase {
         let repo = SessionRepository(storage: storage, clock: { now })
         let data = try StudioBundleExporter().buildStudioInsightsBundleDataForTesting(using: repo, sessionDates: keys)
         let bundle = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
-        XCTAssertEqual((bundle["sessions"] as? [[String: Any]])?.count, keys.count)
+        XCTAssertEqual((bundle["dateGroups"] as? [[String: Any]])?.count, keys.count)
         XCTAssertEqual(reads.pointee, 1, "The actual bundle path must reuse the batch assessment")
         XCTAssertEqual(sqlite3_exec(storage.db,
             "INSERT INTO dose_events (id, event_type, timestamp, session_date, session_id) VALUES ('bad-batch-dose', 'dose1', 'not-a-date', '2026-09-01', 'batch-0')",

@@ -61,7 +61,7 @@ final class WHOOPExportStatusTests: XCTestCase {
         XCTAssertNil(status["recoveryRecordCount"]); XCTAssertNil(status["notAttemptedReason"])
         XCTAssertEqual(ISO8601DateFormatter().date(from: try XCTUnwrap(status["queryStartUTC"] as? String)), queried?.0)
         XCTAssertEqual(ISO8601DateFormatter().date(from: try XCTUnwrap(status["queryEndUTC"] as? String)), queried?.1)
-        let session = try XCTUnwrap((object["sessions"] as? [[String: Any]])?.first)
+        let session = try XCTUnwrap((object["dateGroups"] as? [[String: Any]])?.first)
         let whoop = try XCTUnwrap(session["whoop"] as? [String: Any])
         XCTAssertEqual(whoop["sleepId"] as? String, "night"); XCTAssertEqual(whoop["totalSleepMinutes"] as? Int, 60)
         XCTAssertNil(whoop["recoveryScore"])
@@ -92,7 +92,7 @@ final class WHOOPExportStatusTests: XCTestCase {
             if scenario < 2 {
                 let warning = scenario == 0 ? "WHOOP sleep query completed with no records." : "WHOOP sleep could not be fetched; WHOOP enrichment is unavailable."
                 XCTAssertTrue((object["exportWarnings"] as? [String])?.contains(warning) == true)
-                XCTAssertNil((object["sessions"] as? [[String: Any]])?.first?["whoop"])
+                XCTAssertNil((object["dateGroups"] as? [[String: Any]])?.first?["whoop"])
             }
         }
     }
@@ -105,7 +105,7 @@ final class WHOOPExportStatusTests: XCTestCase {
         XCTAssertEqual(status["recoveryRecordCount"] as? Int, 0)
         XCTAssertNotNil(status["queryStartUTC"]); XCTAssertNotNil(status["queryEndUTC"])
         XCTAssertTrue((object["exportWarnings"] as? [String])?.contains("WHOOP sleep records were fetched, but none met the existing sleep-summary criteria.") == true)
-        XCTAssertNil((object["sessions"] as? [[String: Any]])?.first?["whoop"])
+        XCTAssertNil((object["dateGroups"] as? [[String: Any]])?.first?["whoop"])
     }
     func testRecoveryFailureWithoutEligibleSleepDoesNotClaimRetention() async throws {
         for records in [[], try sleeps().filter { $0.nap == true }] {
@@ -118,7 +118,7 @@ final class WHOOPExportStatusTests: XCTestCase {
             XCTAssertTrue(warnings.contains("WHOOP recovery could not be fetched; no WHOOP sleep summary is included in this export."))
             XCTAssertFalse(warnings.contains { $0.contains("available sleep data is retained") })
             XCTAssertTrue(warnings.contains(records.isEmpty ? "WHOOP sleep query completed with no records." : "WHOOP sleep records were fetched, but none met the existing sleep-summary criteria."))
-            XCTAssertNil((object["sessions"] as? [[String: Any]])?.first?["whoop"])
+            XCTAssertNil((object["dateGroups"] as? [[String: Any]])?.first?["whoop"])
         }
     }
     func testRecoveryWarningDoesNotClaimRetentionForUnexportedInterveningNight() async throws {
@@ -126,7 +126,7 @@ final class WHOOPExportStatusTests: XCTestCase {
         try await StudioBundleExporter().writeWHOOPExportBundleForTesting(using: repo, to: folder, sessionDates: ["2026-09-10", "2026-09-12"]) { _, _ in response }
         let object = try bundle(), status = try metadata(object)
         XCTAssertEqual(status["eligibleNightCount"] as? Int, 1)
-        XCTAssertTrue(try XCTUnwrap(object["sessions"] as? [[String: Any]]).allSatisfy { $0["whoop"] == nil })
+        XCTAssertTrue(try XCTUnwrap(object["dateGroups"] as? [[String: Any]]).allSatisfy { $0["whoop"] == nil })
         let warnings = try XCTUnwrap(object["exportWarnings"] as? [String])
         XCTAssertTrue(warnings.contains("WHOOP recovery could not be fetched; no WHOOP sleep summary is included in this export."))
         XCTAssertFalse(warnings.contains { $0.contains("available sleep data is retained") })
@@ -286,7 +286,7 @@ final class AppleHealthExportMissingnessTests: XCTestCase {
         try writer.writeStudioExportBundleForTesting(using: repo, to: folder, sessionDates: ["2026-09-11"],
             healthKitBySessionDate: ["2026-09-11": summary])
         let bundle = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: folder.appendingPathComponent("insights_bundle.json"))) as? [String: Any])
-        let session = try XCTUnwrap((bundle["sessions"] as? [[String: Any]])?.first)
+        let session = try XCTUnwrap((bundle["dateGroups"] as? [[String: Any]])?.first)
         let health = try XCTUnwrap(session["healthKit"] as? [String: Any])
         for field in sleepFields { XCTAssertNil(health[field], "Archive must preserve missing \(field)") }
         XCTAssertEqual(health["averageHeartRate"] as? Double, 64)
@@ -327,28 +327,66 @@ final class ExportRecordFidelityTests: XCTestCase {
         XCTAssertEqual(sqlite3_exec(storage.db, sql, nil, nil, nil), SQLITE_OK)
     }
 
-    func testConflictingSessionExportReportsNightWithoutChangingRecords() throws {
+    func testConflictingSessionsExportAllSourcesWithoutCombinedSummariesOrRecordChanges() throws {
         let (storage, repo) = fixture()
         execute("""
         INSERT INTO dose_events(id,session_id,event_type,timestamp,session_date)
-        VALUES('one','session-a','dose1','2026-09-11T23:00:00Z','2026-09-11'),
-        ('two','session-b','dose1','2026-09-11T23:01:00Z','2026-09-11');
+        VALUES('one','session-a','dose1','2030-04-05T23:00:00Z','2030-04-05'),
+        ('two','session-b','dose2','2030-04-06T02:00:00Z','2030-04-05'),
+        ('legacy',NULL,'snooze','2030-04-06T01:59:00Z','2030-04-05'),
+        ('placeholder','2030-04-05','snooze','2030-04-06T01:58:00Z','2030-04-05'),
+        ('control','clean','dose1','2030-04-06T23:00:00Z','2030-04-06');
+        INSERT INTO pre_sleep_logs(id,session_id,created_at_utc,local_offset_minutes,answers_json)
+        VALUES('pre-a','session-a','2030-04-05T22:00:00Z',-240,'{"future": [1, 2]}'),
+        ('pre-b','session-b','2030-04-05T22:05:00Z',-240,'{"notes":"distinct"}');
+        INSERT INTO morning_checkins(id,session_id,session_date,timestamp,physical_symptoms_json)
+        VALUES('morning-a','session-a','2030-04-05','2030-04-06T12:00:00Z','{"future":true}'),
+        ('morning-b','session-b','2030-04-05','2030-04-06T12:01:00Z','{"future":false}');
+        INSERT INTO checkin_submissions(id,source_record_id,session_id,session_date,checkin_type,
+            questionnaire_version,user_id,submitted_at_utc,local_offset_minutes,responses_json)
+        VALUES('future','pre-a','session-a','2030-04-05','future-type','future-version','local',
+            'original capture string',-240,'{"unknown":"retained"}');
         """, in: storage)
+        let before = try repo.exportSourceSnapshot(sessionDate: "2030-04-05").records
+        let ledgerEncoder = JSONEncoder(); ledgerEncoder.outputFormatting = .sortedKeys
+        let beforeEvents = try ledgerEncoder.encode(repo.eventExportRecords(sessionDate: "2030-04-05"))
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
-        XCTAssertThrowsError(try StudioBundleExporter().writeScheduledArchive(using: repo, to: folder)) { error in
-            let failure = error as? StudioExportFailure
-            XCTAssertEqual(failure?.step, "Reading the night summary for 2026-09-11")
-            XCTAssertEqual((failure?.underlying as? MedicationStorageInjectedFailure)?.code, .precondition)
-            let message = StudioExportFailureMessage.make(error, step: "Export")
-            XCTAssertTrue(message.contains("2026-09-11"))
-            XCTAssertTrue(message.contains("conflicting session identities"))
-            XCTAssertFalse(message.contains("Check device storage"))
-            XCTAssertFalse(message.contains("MedicationStorageInjectedFailure"))
+        let writer = StudioBundleExporter()
+        try writer.writeLocalStudioExportBundle(using: repo, to: folder)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: folder.appendingPathComponent("insights_bundle.json"))) as? [String: Any])
+        let dates = try XCTUnwrap(object["dateGroups"] as? [[String: Any]])
+        let night = try XCTUnwrap(dates.first { $0["sessionDate"] as? String == "2030-04-05" })
+        let identity = try XCTUnwrap(night["identityResolution"] as? [String: Any])
+        XCTAssertEqual(identity["status"] as? String, "raw_only")
+        XCTAssertEqual(identity["sessionIds"] as? [String], ["session-a", "session-b"])
+        for key in ["dose1TimeUTC", "dose2TimeUTC", "preSleep", "morning", "context", "collectedNight"] { XCTAssertNil(night[key], key) }
+        XCTAssertEqual((night["checkInSubmissions"] as? [Any])?.count, 0)
+        XCTAssertEqual((night["rawEvents"] as? [Any])?.count, 4)
+        XCTAssertEqual((night["normalizedEvents"] as? [Any])?.count, 4)
+        let sources = try XCTUnwrap(night["rawSourceRecords"] as? [[String: Any]])
+        XCTAssertEqual(sources.count, before.count)
+        for record in before {
+            let stored = try XCTUnwrap(sources.first { row in
+                guard let columns = row["columns"] as? [String: [String: Any]] else { return false }
+                return row["sourceTable"] as? String == record.sourceTable && columns["id"]?["text"] as? String == record.columns["id"]?.text
+            })
+            let original = try JSONSerialization.jsonObject(with: JSONEncoder().encode(record)) as? NSDictionary
+            XCTAssertEqual(stored as NSDictionary, original)
         }
-        XCTAssertEqual(Set(try repo.eventExportRecords(sessionDate: "2026-09-11").map(\.id)), ["one", "two"])
-        XCTAssertFalse(try FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil).contains { $0.pathExtension == "zip" })
+        let clean = try XCTUnwrap(dates.first { $0["sessionDate"] as? String == "2030-04-06" })
+        XCTAssertNotNil(clean["dose1TimeUTC"]); XCTAssertNotNil(clean["collectedNight"])
+        for name in ["sessions.csv", "collected_nights.csv"] {
+            let rows = try ReportCSV.rows(String(contentsOf: folder.appendingPathComponent(name), encoding: .utf8))
+            XCTAssertEqual(rows.count, 2, "Only the clean date contributes a derived row")
+        }
+        let archive = try writer.writeScheduledArchive(using: repo, to: folder)
+        let attachment = XCTAttachment(data: try Data(contentsOf: archive), uniformTypeIdentifier: "public.zip-archive")
+        attachment.name = "raw-only-identity-roundtrip.zip"; attachment.lifetime = .keepAlways; add(attachment)
+        XCTAssertEqual(before, try repo.exportSourceSnapshot(sessionDate: "2030-04-05").records)
+        XCTAssertEqual(beforeEvents, try ledgerEncoder.encode(repo.eventExportRecords(sessionDate: "2030-04-05")))
+        XCTAssertThrowsError(try storage.historySnapshot(sessionDate: "2030-04-05"), "Editing guard stays closed")
     }
 
     func testExportFailureGuidanceDistinguishesSpaceFromRecordAndUnknownErrors() {
@@ -383,7 +421,7 @@ final class ExportRecordFidelityTests: XCTestCase {
         try writer.writeLocalStudioExportBundle(using: repo, to: folder)
         let data = try Data(contentsOf: folder.appendingPathComponent("insights_bundle.json"))
         let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
-        let session = try XCTUnwrap((json["sessions"] as? [[String: Any]])?.first)
+        let session = try XCTUnwrap((json["dateGroups"] as? [[String: Any]])?.first)
         let raw = try XCTUnwrap(session["rawEvents"] as? [[String: Any]])
         let normalized = try XCTUnwrap(session["normalizedEvents"] as? [[String: Any]])
         XCTAssertEqual(raw.count, 3)
@@ -487,7 +525,7 @@ final class ExportRecordFidelityTests: XCTestCase {
         """, in: storage)
         let data = try StudioBundleExporter().buildStudioInsightsBundleDataForTesting(using: repo, sessionDates: ["2026-09-11"])
         let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
-        let session = try XCTUnwrap((json["sessions"] as? [[String: Any]])?.first)
+        let session = try XCTUnwrap((json["dateGroups"] as? [[String: Any]])?.first)
         let rows = try XCTUnwrap(session["medications"] as? [[String: Any]])
         let row = try XCTUnwrap(rows.first { $0["id"] as? String == "original" })
         XCTAssertEqual(row["doseUnit"] as? String, "mL")
@@ -536,7 +574,7 @@ final class ExportRecordFidelityTests: XCTestCase {
         let writer = StudioBundleExporter()
         try writer.writeLocalStudioExportBundle(using: repo, to: folder)
         let json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: folder.appendingPathComponent("insights_bundle.json"))) as? [String: Any])
-        let session = try XCTUnwrap((json["sessions"] as? [[String: Any]])?.first)
+        let session = try XCTUnwrap((json["dateGroups"] as? [[String: Any]])?.first)
         let row = try XCTUnwrap((session["medications"] as? [[String: Any]])?.first)
         XCTAssertEqual(row["id"] as? String, "med-only")
         XCTAssertEqual(row["doseUnit"] as? String, "mL")
@@ -821,7 +859,7 @@ final class ExportIntegrityTests: XCTestCase {
             sessionDates: [sessionDate]
         )
         let bundle = try XCTUnwrap(JSONSerialization.jsonObject(with: bundleData) as? [String: Any])
-        let sessions = try XCTUnwrap(bundle["sessions"] as? [[String: Any]])
+        let sessions = try XCTUnwrap(bundle["dateGroups"] as? [[String: Any]])
         let exportedSession = try XCTUnwrap(sessions.first)
         let preSleep = try XCTUnwrap(exportedSession["preSleep"] as? [String: Any])
         let collected = try XCTUnwrap(exportedSession["collectedNight"] as? [String: Any])
@@ -895,7 +933,7 @@ final class ExportIntegrityTests: XCTestCase {
 
         let writtenBundleData = try Data(contentsOf: exportDirectory.appendingPathComponent("insights_bundle.json"))
         let writtenBundle = try XCTUnwrap(JSONSerialization.jsonObject(with: writtenBundleData) as? [String: Any])
-        let writtenSessions = try XCTUnwrap(writtenBundle["sessions"] as? [[String: Any]])
+        let writtenSessions = try XCTUnwrap(writtenBundle["dateGroups"] as? [[String: Any]])
         let writtenSession = try XCTUnwrap(writtenSessions.first)
         XCTAssertEqual(writtenSession["sessionDate"] as? String, sessionDate)
         XCTAssertEqual((writtenSession["checkInSubmissions"] as? [[String: Any]])?.count, 3)

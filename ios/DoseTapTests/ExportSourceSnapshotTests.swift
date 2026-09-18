@@ -52,4 +52,19 @@ final class ExportSourceSnapshotTests: XCTestCase {
         execute("DROP TABLE morning_checkins", storage)
         XCTAssertThrowsError(try storage.exportSourceSnapshot(sessionDate: "2026-09-11"))
     }
+
+    func testLinkedPreSleepIdentityIsCheckedAgainstOtherDates() throws {
+        let storage = EventStorage.inMemory()
+        execute("""
+        INSERT INTO sleep_sessions(session_id,session_date,start_utc) VALUES('a','2030-04-06','2030-04-06T23:00:00Z');
+        INSERT INTO pre_sleep_logs(id,session_id,created_at_utc,local_offset_minutes) VALUES('p','a','original',0);
+        INSERT INTO checkin_submissions(id,source_record_id,session_id,session_date,checkin_type,
+            questionnaire_version,user_id,submitted_at_utc,local_offset_minutes,responses_json)
+        VALUES('submission','p',NULL,'2030-04-05','pre_night','v1','local','original',0,'{}');
+        """, storage)
+        let snapshot = try storage.exportSourceSnapshot(sessionDate: "2030-04-05")
+        XCTAssertTrue(snapshot.identityResolution.isRawOnly)
+        XCTAssertEqual(snapshot.identityResolution.reasons, ["session_identity_spans_dates"])
+        XCTAssertEqual(snapshot.records.first { $0.sourceTable == "pre_sleep_logs" }?.columns["session_id"]?.text, "a")
+    }
 }

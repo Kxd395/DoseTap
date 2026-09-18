@@ -159,7 +159,8 @@ def expected_morning_raw_fields(payload):
         expected.add("rawStressContextJson")
 
     timing_prefixes = ("night.", "wake.", "dose2.", "day_demand.")
-    if any(key.startswith(timing_prefixes) and truthy(value) for key, value in payload.items()):
+    if any(key != "wake.bathroom_urgency_burden" and key.startswith(timing_prefixes)
+           and truthy(value) for key, value in payload.items()):
         expected.add("rawTimingContextJson")
 
     return expected
@@ -183,9 +184,17 @@ except json.JSONDecodeError as exc:
 if not isinstance(bundle, dict):
     print("FAIL: insights_bundle.json is not an object")
     sys.exit(2)
-sessions_json = bundle.get("sessions")
+schema_version = bundle.get("schemaVersion")
+if type(schema_version) is not int or schema_version not in [1, 2, 3]:
+    print("FAIL: unsupported or invalid bundle schema")
+    sys.exit(1)
+session_key, forbidden_key = ("dateGroups", "sessions") if schema_version == 3 else ("sessions", "dateGroups")
+if forbidden_key in bundle:
+    print("FAIL: contradictory bundle session layout")
+    sys.exit(1)
+sessions_json = bundle.get(session_key)
 if not isinstance(sessions_json, list) or any(not isinstance(s, dict) for s in sessions_json):
-    print("FAIL: insights_bundle.json sessions is not an array of objects")
+    print(f"FAIL: insights_bundle.json {session_key} is not an array of objects")
     sys.exit(2)
 
 unique_json_dates = {
@@ -199,6 +208,8 @@ source_tables = {"pre_sleep_logs", "morning_checkins", "checkin_submissions", "s
 for session in sessions_json:
     resolution = session.get("identityResolution")
     if "identityResolution" not in session:
+        if schema_version == 3:
+            issue("P1", "Schema 3 date groups require identity resolution")
         continue
     valid = (isinstance(resolution, dict) and type(resolution.get("version")) is int and resolution["version"] == 1
              and resolution.get("status") in ["resolved", "raw_only"]
@@ -269,10 +280,6 @@ if (export_dir / "collected_nights.csv").is_file():
 if raw_only_dates:
     issue("P2", f"{len(raw_only_dates)} date(s) preserved as raw records and excluded from derived analysis")
 
-schema_version = bundle.get("schemaVersion")
-if isinstance(schema_version, bool) or not isinstance(schema_version, int) or schema_version <= 0:
-    issue("P1", "Missing or invalid export metadata: schemaVersion must be a positive integer")
-
 missing_metadata = [
     field for field in [
         "exportVersion",
@@ -300,7 +307,7 @@ if local_offset is None or isinstance(local_offset, bool) or not isinstance(loca
 
 local_marker = "Local snapshot only; provider enrichment was not fetched."
 warnings = bundle.get("exportWarnings")
-local_only = (schema_version == 2 and isinstance(warnings, list) and all(isinstance(w, str) for w in warnings)
+local_only = (schema_version in [2, 3] and isinstance(warnings, list) and all(isinstance(w, str) for w in warnings)
               and local_marker in warnings)
 consent_value = bundle.get("consent")
 if isinstance(consent_value, dict):

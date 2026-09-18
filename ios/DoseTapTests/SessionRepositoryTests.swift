@@ -147,7 +147,7 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertEqual(response["pre.substances.caffeine.legacy.unit"] as? String, "unverified")
         XCTAssertNil(response["pre.substances.caffeine.last_amount_mg"])
         let bundle = try JSONSerialization.jsonObject(with: StudioBundleExporter().buildStudioInsightsBundleDataForTesting(using: repo, sessionDates: [date])) as? [String: Any]
-        let exported = try XCTUnwrap((bundle?["sessions"] as? [[String: Any]])?.first?["preSleep"] as? [String: Any])
+        let exported = try XCTUnwrap((bundle?["dateGroups"] as? [[String: Any]])?.first?["preSleep"] as? [String: Any])
         XCTAssertEqual((exported["caffeineAmounts"] as? [String: Any])?["dailyCaffeineMg"] as? Double, 95.5)
         XCTAssertEqual(exported["caffeineLegacyLastAmount"] as? Int, 95)
         XCTAssertNil(exported["caffeineLastAmountMg"])
@@ -204,7 +204,7 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertEqual(symptoms.count, 1)
         XCTAssertEqual(symptoms.first?.severity0to10, 0)
         let bundle = try JSONSerialization.jsonObject(with: StudioBundleExporter().buildStudioInsightsBundleDataForTesting(using: repo, sessionDates: [date])) as? [String: Any]
-        let exported = try XCTUnwrap((bundle?["sessions"] as? [[String: Any]])?.first?["morning"] as? [String: Any])
+        let exported = try XCTUnwrap((bundle?["dateGroups"] as? [[String: Any]])?.first?["morning"] as? [String: Any])
         XCTAssertEqual(exported["rawPhysicalSymptomsJson"] as? String, stored.physicalSymptomsJson)
         XCTAssertEqual(storage.fetchCheckInSubmissionCount(sessionDate: date, checkInType: .morning), 1)
         XCTAssertEqual(storage.fetchMostRecentPreSleepLog(sessionId: identity)?.answers?.painEntries, savedBedtime.answers?.painEntries)
@@ -300,7 +300,7 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertNil(responses["headache.location"])
         XCTAssertEqual(responses["sleep.reflux_burden"] as? String, "moderate")
         let bundle = try JSONSerialization.jsonObject(with: StudioBundleExporter().buildStudioInsightsBundleDataForTesting(using: repo, sessionDates: [date])) as? [String: Any]
-        let exported = try XCTUnwrap((bundle?["sessions"] as? [[String: Any]])?.first?["morning"] as? [String: Any])
+        let exported = try XCTUnwrap((bundle?["dateGroups"] as? [[String: Any]])?.first?["morning"] as? [String: Any])
         XCTAssertEqual(exported["rawPhysicalSymptomsJson"] as? String, saved.physicalSymptomsJson)
         XCTAssertEqual(exported["painBurden"] as? String, "none")
         XCTAssertEqual(decodeJSONDictionary(try XCTUnwrap(original.physicalSymptomsJson))["isMigraine"] as? Bool, true)

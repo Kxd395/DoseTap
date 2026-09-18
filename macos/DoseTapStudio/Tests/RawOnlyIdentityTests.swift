@@ -2,8 +2,48 @@ import XCTest
 @testable import DoseTapStudio
 
 final class RawOnlyIdentityTests: XCTestCase {
+    private struct LegacyRequiredLayout: Decodable { let sessions: [InsightSessionSupplement] }
     private let date = "2030-04-05"
-    private let json = #"{"schemaVersion":2,"exportVersion":"2.8","exportedAtUTC":"2026-09-17T12:00:00Z","sessions":[{"sessionDate":"2030-04-05","identityResolution":{"version":1,"status":"raw_only","sessionIds":["a","b"],"reasons":["multiple_session_identities"]},"rawSourceRecords":[{"sourceTable":"pre_sleep_logs","columns":{"session_id":{"type":"text","text":"a"},"answers_json":{"type":"text","text":"{\"notes\":\"original\"}"},"empty":{"type":"null"},"count":{"type":"integer","integer":9223372036854775807},"fraction":{"type":"real","real":1.25},"bytes":{"type":"blob","blobBase64":"AP8="}}}],"rawEvents":[],"normalizedEvents":[],"medications":[],"checkInSubmissions":[]}] }"#
+    private let json = #"{"schemaVersion":3,"exportVersion":"2.8","exportedAtUTC":"2026-09-17T12:00:00Z","dateGroups":[{"sessionDate":"2030-04-05","identityResolution":{"version":1,"status":"raw_only","sessionIds":["a","b"],"reasons":["multiple_session_identities"]},"rawSourceRecords":[{"sourceTable":"pre_sleep_logs","columns":{"session_id":{"type":"text","text":"a"},"answers_json":{"type":"text","text":"{\"notes\":\"original\"}"},"empty":{"type":"null"},"count":{"type":"integer","integer":9223372036854775807},"fraction":{"type":"real","real":1.25},"bytes":{"type":"blob","blobBase64":"AP8="}}}],"rawEvents":[],"normalizedEvents":[],"medications":[],"checkInSubmissions":[]}] }"#
+
+    func testSchemaThreeRequiresDateGroupsAndBlocksLegacyLayoutDecoders() throws {
+        let importer = Importer(), data = Data(json.utf8)
+        XCTAssertThrowsError(try JSONDecoder().decode(LegacyRequiredLayout.self, from: data))
+        let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoder.encode(importer.parseInsightsBundle(data))) as? [String: Any])
+        XCTAssertNil(object["sessions"]); XCTAssertNotNil(object["dateGroups"])
+        for invalid in [json.replacingOccurrences(of: #""schemaVersion":3"#, with: #""schemaVersion":999"#),
+                        json.replacingOccurrences(of: "dateGroups", with: "sessions"),
+                        json.replacingOccurrences(of: #""dateGroups":"#, with: #""sessions":[],"dateGroups":"#),
+                        json.replacingOccurrences(of: "identityResolution", with: "missingIdentity")] {
+            XCTAssertThrowsError(try importer.parseInsightsBundle(Data(invalid.utf8)))
+        }
+        for version in [1, 2] {
+            let legacy = json.replacingOccurrences(of: #""schemaVersion":3"#, with: "\"schemaVersion\":\(version)").replacingOccurrences(of: "dateGroups", with: "sessions")
+            let restored = try importer.parseInsightsBundle(Data(legacy.utf8))
+            let encoded = try XCTUnwrap(JSONSerialization.jsonObject(with: encoder.encode(restored)) as? [String: Any])
+            XCTAssertEqual(restored.schemaVersion, version)
+            XCTAssertNotNil(encoded["sessions"]); XCTAssertNil(encoded["dateGroups"])
+        }
+    }
+
+    func testIOSRawOnlyArchiveRoundTrip() async throws {
+        guard let path = ProcessInfo.processInfo.environment["DOSETAP_IOS_RAW_ONLY_FIXTURE"] else {
+            throw XCTSkip("Set DOSETAP_IOS_RAW_ONLY_FIXTURE to the extracted synthetic iOS archive.")
+        }
+        let importer = Importer(), folder = URL(fileURLWithPath: path, isDirectory: true)
+        let data = try XCTUnwrap(importer.loadInsightsBundleData(from: folder))
+        let bundle = try importer.parseInsightsBundle(data)
+        let raw = try XCTUnwrap(bundle.sessions.first { $0.sessionDate == date })
+        XCTAssertEqual(bundle.schemaVersion, 3); XCTAssertEqual(raw.identityResolution?.status, "raw_only")
+        XCTAssertEqual(raw.rawEvents.count, 4); XCTAssertEqual(raw.rawSourceRecords?.count, 5)
+        let events = try await importer.loadEvents(from: folder)
+        let sessions = try await importer.loadSessions(from: folder)
+        let groups = Dictionary(uniqueKeysWithValues: bundle.sessions.map { ($0.sessionDate, $0) })
+        let nights = InsightSessionBuilder().build(sessions: sessions, events: events, supplementsBySessionDate: groups)
+        XCTAssertEqual(nights.map(\.sessionDate), ["2030-04-06"])
+        XCTAssertThrowsError(try JSONDecoder().decode(LegacyRequiredLayout.self, from: data))
+    }
 
     func testRawOnlyIdentityRoundTripsAndCannotPairSeparateSessions() throws {
         let importer = Importer()

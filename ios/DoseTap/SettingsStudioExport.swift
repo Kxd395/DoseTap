@@ -67,54 +67,57 @@ struct StudioBundleExporter {
         let sortedSessionDates = sessionDates.sorted(by: >)
         let windowAssessments = repo.reviewedWindowAssessments(sessionDates: sortedSessionDates)
         let sessions = try sortedSessionDates.map { sessionDate in
+            let sources = try repo.exportSourceSnapshot(sessionDate: sessionDate)
+            let rawOnly = sources.identityResolution.isRawOnly
             let storedEvents = try repo.eventExportRecords(sessionDate: sessionDate)
-            let doseLog = repo.fetchDoseLog(forSession: sessionDate)
-            let doseEvents = repo.fetchDoseEvents(forSessionDate: sessionDate)
-            let sleepEvents = repo.fetchSleepEvents(for: sessionDate)
-            let preSleepLog = repo.fetchPreSleepLog(forSessionDate: sessionDate)
-            let morningCheckIn = repo.fetchMorningCheckIn(for: sessionDate)
-            let sessionId = repo.fetchSessionId(forSessionDate: sessionDate) ?? sessionDate
+            let doseLog = rawOnly ? nil : repo.fetchDoseLog(forSession: sessionDate)
+            let doseEvents = rawOnly ? [] : repo.fetchDoseEvents(forSessionDate: sessionDate)
+            let sleepEvents = rawOnly ? [] : repo.fetchSleepEvents(for: sessionDate)
+            let preSleepLog = rawOnly ? nil : repo.fetchPreSleepLog(forSessionDate: sessionDate)
+            let morningCheckIn = rawOnly ? nil : repo.fetchMorningCheckIn(for: sessionDate)
+            let sessionId = rawOnly ? sessionDate : (repo.fetchSessionId(forSessionDate: sessionDate) ?? sessionDate)
             let rawEvents = exportRawEvents(storedEvents)
             let normalizedEvents = exportNormalizedEvents(from: rawEvents)
             let preSleep = preSleepLog.map(exportPreSleepSummary(from:))
             let morning = morningCheckIn.map(exportMorningSummary(from:))
             let medications = try repo.medicationExportRecords(for: sessionDate)
-            let checkInSubmissions = repo.fetchCheckInSubmissions(for: sessionDate)
+            let checkInSubmissions = rawOnly ? [] : repo.fetchCheckInSubmissions(for: sessionDate)
                 .map(exportCheckInSubmission(from:))
             let healthKit = enrichmentBySessionDate[sessionDate]?.healthKit
             let whoop = enrichmentBySessionDate[sessionDate]?.whoop
-            let alarmContext = exportAlarmContext(forSessionId: sessionId)
-            let exportExclusionReasons = buildSessionExportExclusionReasons(
+            let alarmContext = rawOnly ? nil : exportAlarmContext(forSessionId: sessionId)
+            let exportExclusionReasons = rawOnly ? sources.identityResolution.reasons : buildSessionExportExclusionReasons(
                 doseLog: doseLog,
                 doseEvents: doseEvents,
                 sleepEvents: sleepEvents,
                 morningCheckIn: morningCheckIn
             )
-            let collectedNight: CollectedNightSummary
+            let collectedNight: CollectedNightSummary?
             do {
-                collectedNight = try repo.collectedNightSummary(for: sessionDate,
+                collectedNight = rawOnly ? nil : try repo.collectedNightSummary(for: sessionDate,
                     intervals: healthKit?.recordedIntervals ?? [], providerFinalWake: healthKit?.finalWakeUTC,
                     windowAssessment: windowAssessments[sessionDate])
             } catch {
                 throw StudioExportFailure(step: "Reading the night summary for \(sessionDate)", underlying: error)
             }
             return InsightsBundleSession(
+                identityResolution: sources.identityResolution, rawSourceRecords: sources.records,
                 sessionDate: sessionDate,
                 dose1TimeUTC: doseLog?.dose1Time,
                 dose2TimeUTC: doseLog?.dose2Time,
                 rawEvents: rawEvents,
                 normalizedEvents: normalizedEvents,
                 sourceAvailability: InsightsSourceAvailability(
-                    doseEvents: !doseEvents.isEmpty,
-                    sleepEvents: !sleepEvents.isEmpty,
-                    preSleep: preSleep != nil,
-                    morningCheckIn: morning != nil,
+                    doseEvents: storedEvents.contains { $0.sourceTable == "dose_events" },
+                    sleepEvents: storedEvents.contains { $0.sourceTable == "sleep_events" },
+                    preSleep: sources.records.contains { $0.sourceTable == "pre_sleep_logs" },
+                    morningCheckIn: sources.records.contains { $0.sourceTable == "morning_checkins" },
                     medications: !medications.isEmpty,
                     healthKit: healthKit != nil,
                     whoop: whoop != nil,
                     alarmDiagnostics: alarmContext != nil
                 ),
-                metricProvenance: buildMetricProvenance(
+                metricProvenance: rawOnly ? [:] : buildMetricProvenance(
                     doseLog: doseLog,
                     doseEvents: doseEvents,
                     sleepEvents: sleepEvents,
@@ -123,7 +126,7 @@ struct StudioBundleExporter {
                     healthKit: healthKit,
                     whoop: whoop
                 ),
-                dataQualityFlags: buildSessionDataQualityFlags(
+                dataQualityFlags: rawOnly ? sources.identityResolution.reasons : buildSessionDataQualityFlags(
                     doseLog: doseLog,
                     doseEvents: doseEvents,
                     sleepEvents: sleepEvents
@@ -133,7 +136,7 @@ struct StudioBundleExporter {
                 morning: morning,
                 medications: medications,
                 checkInSubmissions: checkInSubmissions,
-                context: exportSessionContext(
+                context: rawOnly ? nil : exportSessionContext(
                     sessionDate: sessionDate,
                     sessionId: sessionId,
                     doseLog: doseLog,
@@ -150,8 +153,8 @@ struct StudioBundleExporter {
         }
 
         return InsightsBundleExport(
-            schemaVersion: 2,
-            exportVersion: "2.7",
+            schemaVersion: 3,
+            exportVersion: "2.8",
             appVersion: bundleVersionString(),
             exportedAtUTC: Date(),
             timeZoneIdentifier: TimeZone.current.identifier,
@@ -305,12 +308,6 @@ struct StudioBundleExporter {
         try Task.checkCancellation()
         try buildStudioEventsCSV(using: repo, sessionDates: sessionDates)
             .write(to: directory.appendingPathComponent("events.csv"), atomically: true, encoding: .utf8)
-        try buildStudioSessionsCSV(
-            using: repo,
-            sessionDates: sessionDates,
-            enrichmentBySessionDate: enrichmentBySessionDate
-        )
-            .write(to: directory.appendingPathComponent("sessions.csv"), atomically: true, encoding: .utf8)
         try buildStudioInventoryCSV(using: repo)
             .write(to: directory.appendingPathComponent("inventory.csv"), atomically: true, encoding: .utf8)
 
@@ -324,7 +321,13 @@ struct StudioBundleExporter {
                 consent: consent,
                 whoopEnrichment: whoopEnrichment
             )
-        try writeCollectedNightCSV(bundle.sessions.map { ($0.sessionDate, $0.collectedNight) }, to: directory)
+        try buildStudioSessionsCSV(
+            using: repo,
+            sessionDates: bundle.sessions.filter { !$0.identityResolution.isRawOnly }.map(\.sessionDate),
+            enrichmentBySessionDate: enrichmentBySessionDate
+        )
+            .write(to: directory.appendingPathComponent("sessions.csv"), atomically: true, encoding: .utf8)
+        try writeCollectedNightCSV(bundle.sessions.compactMap { session in session.collectedNight.map { (session.sessionDate, $0) } }, to: directory)
         try encoder.encode(bundle)
             .write(to: directory.appendingPathComponent("insights_bundle.json"), options: .atomic)
     }
@@ -1387,6 +1390,8 @@ struct StudioBundleExporter {
         }
 
         var warnings: [String] = []
+        let rawOnlyCount = sessions.filter { $0.identityResolution.isRawOnly }.count
+        if rawOnlyCount > 0 { warnings.append("\(rawOnlyCount) date(s) preserved as raw records; combined summaries are unavailable pending identity review.") }
         let flaggedSessions = sessions.filter { !$0.dataQualityFlags.isEmpty }
         let missingProvenance = sessions.filter { ($0.metricProvenance ?? [:]).isEmpty }
         let missingWearables = sessions.filter { $0.healthKit == nil && $0.whoop == nil }
@@ -1486,6 +1491,11 @@ struct StudioBundleExporter {
 }
 
 private struct InsightsBundleExport: Encodable {
+    enum CodingKeys: String, CodingKey {
+        case schemaVersion, exportVersion, appVersion, exportedAtUTC, timeZoneIdentifier, localOffsetMinutes
+        case consent, exportWarnings, whoopEnrichment
+        case sessions = "dateGroups"
+    }
     let schemaVersion: Int
     let exportVersion: String?
     let appVersion: String?
@@ -1534,6 +1544,8 @@ private struct InsightsConsentState: Codable {
 }
 
 private struct InsightsBundleSession: Encodable {
+    let identityResolution: ExportIdentityResolution
+    let rawSourceRecords: [StoredExportSourceRecord]
     let sessionDate: String
     let dose1TimeUTC: Date?
     let dose2TimeUTC: Date?
@@ -1548,7 +1560,7 @@ private struct InsightsBundleSession: Encodable {
     let medications: [StoredMedicationExportRecord]
     let checkInSubmissions: [InsightsCheckInSubmissionSummary]
     let context: InsightsSessionContext?
-    let collectedNight: CollectedNightSummary
+    let collectedNight: CollectedNightSummary?
     let healthKit: InsightsAppleHealthSummary?
     let whoop: InsightsWHOOPSummary?
 }

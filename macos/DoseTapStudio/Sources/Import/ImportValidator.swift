@@ -297,7 +297,8 @@ struct ImportValidator {
         }
 
         if payload.contains(where: { key, value in
-            ["night.", "wake.", "dose2.", "day_demand."].contains { key.hasPrefix($0) }
+            key != "wake.bathroom_urgency_burden"
+                && ["night.", "wake.", "dose2.", "day_demand."].contains { key.hasPrefix($0) }
                 && isTruthy(value)
         }) {
             expected.insert("rawTimingContextJson")

@@ -160,28 +160,6 @@ struct InsightConsentState: Codable, Hashable, Sendable {
     let whoopConnected: Bool
 }
 
-struct InsightIdentityResolution: Codable, Hashable, Sendable {
-    let version: Int
-    let status: String
-    let sessionIds: [String]
-    let reasons: [String]
-
-    var permitsDerivedSummary: Bool { version == 1 && status == "resolved" }
-}
-
-struct InsightRawSourceRecord: Codable, Hashable, Sendable {
-    let sourceTable: String
-    let columns: [String: InsightRawSourceValue]
-}
-
-struct InsightRawSourceValue: Codable, Hashable, Sendable {
-    let type: String
-    let text: String?
-    let integer: Int64?
-    let real: Double?
-    let blobBase64: String?
-}
-
 struct InsightSessionSupplement: Codable, Hashable, Sendable {
     let identityResolution: InsightIdentityResolution?
     let rawSourceRecords: [InsightRawSourceRecord]?
