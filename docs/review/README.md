@@ -41,3 +41,5 @@ Each record identifies its version, bounded changes, validation and remaining ga
 | 55 | [WHOOP export request status](2026-09-12-whoop-export-status-delivery.md) | Merged PR #43: independent fetch results, request counts and cancellation; local/hosted validation passed, provider acceptance open |
 | 56 installed; owner acceptance open | [Nightly setup reuse](2026-09-13-nightly-setup-reuse.md) | Opt-in automatic planned sleeping setup, durable room preferences and explicit morning reuse scope |
 | 57 candidate | [Pre-sleep pain editor loading repair](2026-09-14-pre-sleep-pain-editor.md) | First saved-pattern opening loads the selected entry and mode together; owner acceptance open |
+
+| 59 candidate | [Settings export failure diagnosis](2026-09-17-export-failure-diagnosis.md) | USB read-only structural finding; truthful errors and empty-row removal; original export blockage remains open |

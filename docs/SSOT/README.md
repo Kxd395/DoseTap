@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-12
 SSOT revision: 0.4.19
-Shipping app version observed in the Xcode project: 0.4.19 (build 57)
+Shipping app version observed in the Xcode project: 0.4.19 (build 59 candidate; last integrated build 57)
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -457,6 +457,8 @@ Quick-log success, list insertion, cooldown and haptics follow a committed SQLit
 General medication entries report storage failure separately from duplicate review. The picker retains unsaved entries and explicit duplicate consent, removes only committed entries from a partially saved batch, and dismisses only when every entry commits. Retrying a failed batch must not replay its saved prefix. These entries do not change Dose 1/2 state or alarms. Deletion/edit failure handling, export preservation and staging sync acceptance remain separate work.
 
 ## Storage and Persistence Truth
+
+Manual export failures identify the failed step and, when available, the treatment date and stored-record error detail. Free-space advice is shown only for a reported disk-full error; identity conflicts and read failures are not described as insufficient space. A failed export publishes no archive, changes no clinical records, and retains the existing retry action. The error type name is not evidence that failure injection was enabled.
 
 Studio export 2.7 (DOSETAP-13, bounded DC-05) adds optional request-scoped
 `whoopEnrichment` metadata for manual exports: independent sleep/recovery

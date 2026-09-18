@@ -23,6 +23,7 @@ extension SettingsView {
         let exportDirectory = tempDirectory.appendingPathComponent("DoseTapStudioExport_\(timestamp)_\(UUID().uuidString)", isDirectory: true)
         let exporter = StudioBundleExporter()
         var unpublishedArchive: URL?
+        var exportStep = "Preparing the export folder"
         defer {
             try? FileManager.default.removeItem(at: exportDirectory)
             if let unpublishedArchive { try? FileManager.default.removeItem(at: unpublishedArchive) }
@@ -30,7 +31,9 @@ extension SettingsView {
 
         do {
             try FileManager.default.createDirectory(at: exportDirectory, withIntermediateDirectories: true)
+            exportStep = "Reading records and preparing the bundle"
             try await exporter.writeStudioExportBundle(using: repo, to: exportDirectory)
+            exportStep = "Creating the ZIP archive"
             let archiveURL = try exporter.archiveExportDirectory(exportDirectory)
             unpublishedArchive = archiveURL
             try Task.checkCancellation()
@@ -42,8 +45,8 @@ extension SettingsView {
         } catch is CancellationError {
             return
         } catch {
-            settingsActionsLog.error("Failed to create export file: \(error.localizedDescription, privacy: .public)")
-            exportErrorMessage = error.localizedDescription
+            settingsActionsLog.error("Failed to create export file: \(error.localizedDescription, privacy: .private)")
+            exportErrorMessage = StudioExportFailureMessage.make(error, step: exportStep)
             showingExportError = true
         }
     }
@@ -87,6 +90,14 @@ struct StudioBundleExporter {
                 sleepEvents: sleepEvents,
                 morningCheckIn: morningCheckIn
             )
+            let collectedNight: CollectedNightSummary
+            do {
+                collectedNight = try repo.collectedNightSummary(for: sessionDate,
+                    intervals: healthKit?.recordedIntervals ?? [], providerFinalWake: healthKit?.finalWakeUTC,
+                    windowAssessment: windowAssessments[sessionDate])
+            } catch {
+                throw StudioExportFailure(step: "Reading the night summary for \(sessionDate)", underlying: error)
+            }
             return InsightsBundleSession(
                 sessionDate: sessionDate,
                 dose1TimeUTC: doseLog?.dose1Time,
@@ -132,9 +143,7 @@ struct StudioBundleExporter {
                     sleepEvents: sleepEvents,
                     precomputedAlarmContext: alarmContext
                 ),
-                collectedNight: try repo.collectedNightSummary(for: sessionDate,
-                    intervals: healthKit?.recordedIntervals ?? [], providerFinalWake: healthKit?.finalWakeUTC,
-                    windowAssessment: windowAssessments[sessionDate]),
+                collectedNight: collectedNight,
                 healthKit: healthKit,
                 whoop: whoop
             )
@@ -1473,43 +1482,6 @@ struct StudioBundleExporter {
         try Task.checkCancellation()
         keepArchive = true
         return archiveURL
-    }
-}
-
-private struct InsightsWHOOPEnrichment: Encodable {
-    let version = 1
-    var sleepStatus = "not_attempted"
-    var recoveryStatus = "not_attempted"
-    var queryStartUTC: Date?
-    var queryEndUTC: Date?
-    var sleepRecordCount: Int?
-    var recoveryRecordCount: Int?
-    var eligibleNightCount: Int?
-    var notAttemptedReason: String?
-
-    func warnings(hasExportedSleep: Bool) -> [String] {
-        var messages: [String] = []
-        if sleepStatus == "failed" {
-            messages.append("WHOOP sleep could not be fetched; WHOOP enrichment is unavailable.")
-        }
-        if recoveryStatus == "failed" {
-            messages.append(hasExportedSleep ? "WHOOP sleep was fetched, but recovery could not be fetched; available sleep data is retained." :
-                "WHOOP recovery could not be fetched; no WHOOP sleep summary is included in this export.")
-        }
-        if sleepStatus == "completed" && sleepRecordCount == 0 {
-            messages.append("WHOOP sleep query completed with no records.")
-        } else if sleepStatus == "completed" && eligibleNightCount == 0 {
-            messages.append("WHOOP sleep records were fetched, but none met the existing sleep-summary criteria.")
-        }
-        switch notAttemptedReason {
-        case "feature_disabled": messages.append("WHOOP enrichment was not attempted because the integration is disabled.")
-        case "preference_disabled": messages.append("WHOOP enrichment was not attempted because the WHOOP preference is off.")
-        case "disconnected": messages.append("WHOOP enrichment was not attempted because the account is disconnected.")
-        case "no_sessions": messages.append("WHOOP enrichment was not attempted because there are no sessions to export.")
-        case "invalid_range": messages.append("WHOOP enrichment was not attempted because no valid query range was available.")
-        default: break
-        }
-        return messages
     }
 }
 

@@ -142,7 +142,7 @@ final class WHOOPExportStatusTests: XCTestCase {
                     featureEnabled: reason != "feature_disabled", preferenceEnabled: reason != "preference_disabled", connected: reason != "disconnected") { _, _ in calls += 1; return response }
                 XCTAssertNotEqual(reason, "invalid_range", "Invalid treatment night must reject export")
             } catch {
-                XCTAssertEqual(error as? MedicationStorageInjectedFailure, .init(code: .precondition, detail: "Choose a valid treatment night."))
+                XCTAssertEqual((error as? StudioExportFailure)?.underlying as? MedicationStorageInjectedFailure, .init(code: .precondition, detail: "Choose a valid treatment night."))
                 XCTAssertEqual(reason, "invalid_range"); XCTAssertEqual(calls, 0); XCTAssertFalse(FileManager.default.fileExists(atPath: folder.appendingPathComponent("insights_bundle.json").path))
                 continue
             }
@@ -325,6 +325,45 @@ final class ExportRecordFidelityTests: XCTestCase {
 
     private func execute(_ sql: String, in storage: EventStorage) {
         XCTAssertEqual(sqlite3_exec(storage.db, sql, nil, nil, nil), SQLITE_OK)
+    }
+
+    func testConflictingSessionExportReportsNightWithoutChangingRecords() throws {
+        let (storage, repo) = fixture()
+        execute("""
+        INSERT INTO dose_events(id,session_id,event_type,timestamp,session_date)
+        VALUES('one','session-a','dose1','2026-09-11T23:00:00Z','2026-09-11'),
+        ('two','session-b','dose1','2026-09-11T23:01:00Z','2026-09-11');
+        """, in: storage)
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        XCTAssertThrowsError(try StudioBundleExporter().writeScheduledArchive(using: repo, to: folder)) { error in
+            let failure = error as? StudioExportFailure
+            XCTAssertEqual(failure?.step, "Reading the night summary for 2026-09-11")
+            XCTAssertEqual((failure?.underlying as? MedicationStorageInjectedFailure)?.code, .precondition)
+            let message = StudioExportFailureMessage.make(error, step: "Export")
+            XCTAssertTrue(message.contains("2026-09-11"))
+            XCTAssertTrue(message.contains("conflicting session identities"))
+            XCTAssertFalse(message.contains("Check device storage"))
+            XCTAssertFalse(message.contains("MedicationStorageInjectedFailure"))
+        }
+        XCTAssertEqual(Set(try repo.eventExportRecords(sessionDate: "2026-09-11").map(\.id)), ["one", "two"])
+        XCTAssertFalse(try FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil).contains { $0.pathExtension == "zip" })
+    }
+
+    func testExportFailureGuidanceDistinguishesSpaceFromRecordAndUnknownErrors() {
+        let recordFailure = MedicationStorageInjectedFailure(code: .statement, detail: "Night outcomes could not be read.")
+        XCTAssertTrue(StudioExportFailureMessage.make(recordFailure, step: "Reading records").contains("Night outcomes could not be read."))
+        XCTAssertFalse(StudioExportFailureMessage.make(recordFailure, step: "Reading records").contains("Check device storage"))
+        for error: Error in [MedicationStorageInjectedFailure(code: .diskFull, detail: "Write failed."),
+                            NSError(domain: NSCocoaErrorDomain, code: NSFileWriteOutOfSpaceError)] {
+            XCTAssertTrue(StudioExportFailureMessage.make(error, step: "Creating ZIP").contains("Check device storage"))
+        }
+        let privateError = NSError(domain: "Synthetic", code: 1, userInfo: [NSLocalizedDescriptionKey: "private payload"])
+        let unknown = StudioExportFailureMessage.make(privateError, step: "Creating ZIP")
+        XCTAssertFalse(unknown.contains("private payload"))
+        XCTAssertFalse(unknown.contains("Check device storage"))
+        XCTAssertTrue(unknown.contains("No archive was shared"))
     }
 
     func testEventIdentityAndProvenanceReachEveryArchiveRepresentation() throws {
