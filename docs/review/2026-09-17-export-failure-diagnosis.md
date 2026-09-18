@@ -2,7 +2,7 @@
 
 Date: 2026-09-17
 Tracking: DOSETAP-13 (export), existing DC-07 session-identity gap
-Candidate: 0.4.19 (59), based on main build 57; build 58 is a separate draft
+Installed candidate: 0.4.19 (59), based on main build 57; build 58 is a separate draft
 
 ## Owner report and read-only evidence
 
@@ -28,3 +28,9 @@ Synthetic regression creates two session identities on one treatment date, check
 The next export repair must separate source-record export from edit eligibility: preserve every original session and questionnaire identity, explicitly identify ambiguous derived summaries, and prove archive/Studio fidelity for same-date multiple sessions before changing behavior. This is the existing DC-07 scope, not permission to silently choose a session, discard records, or infer outcomes. Owner export retry on a validated installed build, native alert/layout interaction, accessibility, privacy and release acceptance remain open.
 
 Fresh targeted validation: 20 export tests passed, zero failures/skips, in `/tmp/dosetap-export-alert-tests.xcresult`. This includes the two-identity archive reproduction and message guidance regression. Core validation passed 710 XCTest plus 43 Swift Testing cases. Plane guard passed 15 tests/80 assertions; SSOT/documentation guards and all four build59 configurations passed. Independent source review found no blocking issue.
+
+## Owner-requested phone installation
+
+The owner explicitly requested build59 installation after reviewing the diagnosis. Signed device build and deep/strict signature verification passed for app source `3d561d0b02c0f802a50e09e158e9d6bb726a9df3`. Installation over the existing app succeeded, and an independent device-app query confirmed `com.dosetap.ios` version0.4.19/build59. Database and WAL files remain present. No uninstall, data clearing or clinical-record correction was performed; file presence is not content-equal restore proof.
+
+PR49 remains a draft and main remains build57. The branch project is `DoseTap-export-alert/ios/DoseTap.xcodeproj`; the main project still showing57 is expected. Owner export retry, native alert/layout acceptance, session-conflict repair, accessibility/privacy and release acceptance remain open. Installation metadata does not close those gates.
