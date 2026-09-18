@@ -247,9 +247,24 @@ extension SettingsView {
 
             Section {
                 Button {
+                    exportData(format: .excelWorkbook)
+                } label: {
+                    Label("Export Excel Workbook", systemImage: "tablecells")
+                }
+                .disabled(isExporting)
+                .accessibilityIdentifier("settings.exportExcel")
+
+                Button {
                     exportData()
                 } label: {
                     Label("Export Studio Bundle", systemImage: "square.and.arrow.up")
+                }
+                .disabled(isExporting)
+                .accessibilityIdentifier("settings.exportStudio")
+
+                if isExporting {
+                    ProgressView(exportStatus)
+                        .accessibilityIdentifier("settings.exportProgress")
                 }
 
                 Toggle(isOn: Binding(
@@ -301,7 +316,7 @@ extension SettingsView {
             } header: {
                 Label("Data Management", systemImage: "externaldrive.fill")
             } footer: {
-                Text("Studio bundles include dose and quick-log events, both questionnaires, the wake/sleepiness diary, medication entries, and inventory. Scheduled ZIPs save local records to Files > DoseTap Exports; iOS decides when they run. Use a manual export for available provider measurements. Exports are not a tested full-app restore.")
+                Text("Excel workbooks include styled sheets with sortable columns and filters for reviewing your nights and recorded details. Studio bundles retain the original CSV and JSON records for software import. Scheduled ZIPs save local records to Files > DoseTap Exports; iOS decides when they run. Use a manual export for available provider measurements. Exports are not a tested full-app restore.")
             }
 
             Section {
@@ -378,7 +393,7 @@ extension SettingsView {
             Text("Your data has been exported to the Files app.")
         }
         .alert("Export Failed", isPresented: $showingExportError) {
-            Button("Try Again") { exportData() }
+            Button("Try Again") { exportData(format: requestedExportFormat) }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text(exportErrorMessage)

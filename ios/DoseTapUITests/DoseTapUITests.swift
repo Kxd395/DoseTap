@@ -11,6 +11,9 @@ final class DoseTapUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
+        if name.contains("testExcelWorkbookExport") {
+            app.launchArguments += ["-setup_completed_v2", "YES", "-healthkit_enabled", "NO", "-whoop_enabled", "NO"]
+        }
         if name.contains("testPreSleepAutomaticSetup") {
             app.launchArguments += ["--uitesting-auto-night-reset", "-setup_completed_v2", "YES"]
             if name.contains("LargeText") { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
@@ -67,6 +70,27 @@ final class DoseTapUITests: XCTestCase {
             app.launch()
         }
         app = nil
+    }
+
+    func testExcelWorkbookExportPresentsCompletedShareSheet() {
+        let settings = app.buttons["Settings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 15))
+        settings.tap()
+        let export = app.buttons["settings.exportExcel"]
+        for _ in 0..<14 where !export.isHittable { app.swipeUp() }
+        XCTAssertTrue(export.isHittable)
+        captureDashboard("Excel and Studio export choices")
+        export.tap()
+        let save = app.cells["Save to Files"]
+        XCTAssertTrue(save.waitForExistence(timeout: 45), "Completed workbook should open the native share sheet")
+        XCTAssertFalse(app.alerts["Export Failed"].exists)
+        captureDashboard("Completed Excel workbook ready to save")
+        app.buttons["header.closeButton"].tap()
+        XCTAssertTrue(export.waitForExistence(timeout: 5))
+        XCTAssertTrue(export.isEnabled)
+        export.tap()
+        XCTAssertTrue(save.waitForExistence(timeout: 45), "A second export should publish another completed workbook")
+        captureDashboard("Second completed Excel workbook ready to save")
     }
 
     func testTimelineReviewMetricsPendingUpdatesWithoutInteraction() throws {

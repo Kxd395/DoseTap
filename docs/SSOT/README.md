@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-17
 SSOT revision: 0.4.19
-App version defined in this revision's Xcode project: 0.4.19 (61)
+App version defined in this revision's Xcode project: 0.4.19 (62)
 Integration and acceptance evidence: [export delivery record](../review/2026-09-17-export-failure-diagnosis.md) and the DOSETAP-13 Plane workpad. The project version alone does not establish acceptance.
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
@@ -458,6 +458,13 @@ Quick-log success, list insertion, cooldown and haptics follow a committed SQLit
 General medication entries report storage failure separately from duplicate review. The picker retains unsaved entries and explicit duplicate consent, removes only committed entries from a partially saved batch, and dismisses only when every entry commits. Retrying a failed batch must not replay its saved prefix. These entries do not change Dose 1/2 state or alarms. Deletion/edit failure handling, export preservation and staging sync acceptance remain separate work.
 
 ## Storage and Persistence Truth
+
+Build 62 adds **Export Excel Workbook** in Settings. The styled, sortable XLSX
+uses the finalized Studio export snapshot, preserving original-source identities,
+missingness and unresolved-date exclusions. Excel table filters apply to their
+own sheets; Overview has fixed reporting periods. Original Studio ZIP export
+remains available. See the [Excel workbook contract](contracts/ExcelWorkbook.md).
+Implementation and phone/Excel/accessibility acceptance are separate evidence.
 
 Studio export 2.8/schema 3 (DOSETAP-13 / DC-07) preserves conflicting date groups as raw
 records instead of requiring an editable single-session identity. A checked,

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		EXCEL_BF01 /* SettingsExcelExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = EXCEL_FR01 /* SettingsExcelExport.swift */; };
 		01FF500944CC4F14A6E163C4 /* FullApp/DoseModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 418F7D12D4A2473F800C75ED /* FullApp/DoseModels.swift */; };
 		05D399B5B86749ACB9CD89BF /* FullApp/KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BD7AD6DA76F4E548669A489 /* FullApp/KeychainHelper.swift */; };
 		07D79FDC36E045FCB5590A15 /* TonightView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E03D9DEC5D04B32AACF98BA /* TonightView.swift */; };
@@ -180,6 +181,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		EXCEL_FR01 /* SettingsExcelExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsExcelExport.swift; sourceTree = "<group>"; };
 		0C7B30C64C784164BA6C294F /* WeeklyInsightsCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeeklyInsightsCard.swift; sourceTree = "<group>"; };
 		15C51DD55054436BA1B68CD7 /* SupportBundleExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportBundleExport.swift; sourceTree = "<group>"; };
 		1BD7AD6DA76F4E548669A489 /* FullApp/KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullApp/KeychainHelper.swift; sourceTree = "<group>"; };
@@ -473,6 +475,7 @@
 				SET101 /* SettingsSections.swift */,
 				SET102 /* SettingsActions.swift */,
 				SET103 /* SettingsStudioExport.swift */,
+				EXCEL_FR01 /* SettingsExcelExport.swift */,
 				SVS_FR01 /* HealthKitSettingsView.swift */,
 				SVS_FR02 /* AboutView.swift */,
 				SVS_FR03 /* EventCooldownSettingsView.swift */,
@@ -939,6 +942,7 @@
 				SET001 /* SettingsSections.swift in Sources */,
 				SET002 /* SettingsActions.swift in Sources */,
 				SET003 /* SettingsStudioExport.swift in Sources */,
+				EXCEL_BF01 /* SettingsExcelExport.swift in Sources */,
 				SVS_BF01 /* HealthKitSettingsView.swift in Sources */,
 				SVS_BF02 /* AboutView.swift in Sources */,
 				SVS_BF03 /* EventCooldownSettingsView.swift in Sources */,
@@ -1075,7 +1079,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Cloud.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 61;
+				CURRENT_PROJECT_VERSION = 62;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;
 				ENABLE_PREVIEWS = YES;
@@ -1118,7 +1122,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Cloud.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 61;
+				CURRENT_PROJECT_VERSION = 62;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;
 				ENABLE_PREVIEWS = YES;
@@ -1393,7 +1397,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Local.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 61;
+				CURRENT_PROJECT_VERSION = 62;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;
@@ -1441,7 +1445,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Local.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 61;
+				CURRENT_PROJECT_VERSION = 62;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;
