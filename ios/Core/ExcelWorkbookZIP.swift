@@ -12,10 +12,19 @@ enum ExcelWorkbookZIP {
     }
 
     static func archive(parts: [String: Data]) throws -> Data {
-        guard parts.count <= Int(UInt16.max) else { throw WorkbookXML.failure("There are too many workbook parts for this archive format.") }
-        var result = Data(); var central = Data()
-        for name in parts.keys.sorted() {
-            let nameData = Data(name.utf8); let body = parts[name]!
+        try archive { emit in
+            for name in parts.keys.sorted() { try emit(name, parts[name]!) }
+        }
+    }
+
+    /// The producer emits synchronously. Each body is compressed before requesting
+    /// another part, and no partial archive escapes if generation throws.
+    static func archive(producingParts produce: (_ emit: (String, Data) throws -> Void) throws -> Void) throws -> Data {
+        var result = Data(); var central = Data(); var names = Set<String>()
+        try produce { name, body in
+            guard names.count < Int(UInt16.max) else { throw WorkbookXML.failure("There are too many workbook parts for this archive format.") }
+            guard names.insert(name).inserted else { throw WorkbookXML.failure("Workbook archive part names must be unique.") }
+            let nameData = Data(name.utf8)
             guard nameData.count <= Int(UInt16.max), body.count <= Int(UInt32.max), result.count <= Int(UInt32.max) else {
                 throw WorkbookXML.failure("The workbook is too large for this archive format; export a smaller range.")
             }
@@ -41,7 +50,7 @@ enum ExcelWorkbookZIP {
         let centralOffset = UInt32(result.count)
         result.append(central)
         result.le(UInt32(0x06054b50)); result.le(UInt16(0)); result.le(UInt16(0))
-        result.le(UInt16(parts.count)); result.le(UInt16(parts.count)); result.le(UInt32(central.count)); result.le(centralOffset)
+        result.le(UInt16(names.count)); result.le(UInt16(names.count)); result.le(UInt32(central.count)); result.le(centralOffset)
         result.le(UInt16(0))
         return result
     }

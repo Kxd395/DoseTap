@@ -5,6 +5,13 @@ Plane: DOSETAP-13, In Progress
 App: 0.4.19 (62)
 Status: Validated implementation installed on the owner's phone; integration is tracked by the feature PR and Plane workpad. This is not release acceptance.
 
+September 18 follow-up: PR #50 merged as `9f9ff0c`; Documentation CI, Swift CI
+and general CI passed on that main commit. The owner confirmed that build 62
+Settings → Export Excel Workbook saves to Files and opens successfully. Plane
+DOSETAP-13 recorded that specific acceptance with verified readback. Sorting,
+later reopening, viewer identity and measured phone performance were not part of
+that report. See the [build 63 packaging follow-up](2026-09-22-excel-memory-delivery.md).
+
 ## What changed
 
 Settings → Data Management adds **Export Excel Workbook**. It creates one dated XLSX from the same finalized JSON and inventory CSV used by the Studio export. **Export Studio Bundle** and scheduled ZIP exports remain available. The workbook has no database writes, medication actions, new provider queries of its own, macros, executable formulas, external links or automatic refresh.
@@ -49,7 +56,9 @@ Detailed temporary evidence is in the isolated build/test result bundles (`/tmp/
 
 ## Remaining acceptance
 
-- Owner-observed export → Save to Files → open/reopen and sorting on the installed build, including the full current history and acceptable phone memory/time.
+- Build 62 export → Save to Files → open is accepted. Phone sorting/filtering,
+  later save/reopen preservation, full-history scope and measured phone memory/time
+  remain separate checks.
 - Export retry after a real source/provider failure and Files destination behavior on the signed phone.
 - VoiceOver, large text, iPad and secondary workbook viewers. Native Excel for Mac validation does not prove Numbers, mobile Excel or every Excel version.
 - Provider grant/deny/no-data/parity, scheduled export, source completeness, source consistency under concurrent writes and all pre-existing DOSETAP-13 gates.
