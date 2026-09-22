@@ -43,6 +43,68 @@ final class ExcelWorkbookWriterTests: XCTestCase {
         XCTAssertTrue(xml.contains("<col min=\"2\" max=\"2\" width=\"18\""))
     }
 
+    func testEmittedCellsDeclareOpaqueContrastingColors() throws {
+        let values: [WorkbookCell] = [.text("=literal"), .number(0), .blank,
+            .date(Date(timeIntervalSince1970: 0)), .durationMinutes(360),
+            .link(label: "Open", target: "Rows!A4")]
+        let rows = WorkbookSheet(name: "Rows", columns: ["Text", "Zero", "Missing", "UTC", "Sleep", "Link"],
+            rows: [values, values], note: "Missing is not zero.", tableName: "ReadableRows")
+        let empty = WorkbookSheet(name: "Empty", columns: ["ID"], rows: [], tableName: "EmptyRows")
+        let parts = try ExcelWorkbookWriter.parts(sheets: [rows, empty])
+        let styles = try xmlRoot(parts, "xl/styles.xml")
+        let xfs = try XCTUnwrap(styles.elements(forName: "cellXfs").first).elements(forName: "xf")
+        let fills = try XCTUnwrap(styles.elements(forName: "fills").first).elements(forName: "fill")
+        let fonts = try XCTUnwrap(styles.elements(forName: "fonts").first).elements(forName: "font")
+        // Keep implicit Normal distinct from body styles. Excel coalesced the
+        // body into style zero when these matched, then lost its visible fill on sort.
+        XCTAssertEqual(try integerAttribute(xfs[0], "fillId"), 0)
+        XCTAssertEqual(fills[0].elements(forName: "patternFill").first?
+            .attribute(forName: "patternType")?.stringValue, "none")
+        for index in 1...2 {
+            let sheet = try xmlRoot(parts, "xl/worksheets/sheet\(index).xml")
+            let data = try XCTUnwrap(sheet.elements(forName: "sheetData").first)
+            for row in data.elements(forName: "row") {
+                for cell in row.elements(forName: "c") {
+                    let styleIndex = try integerAttribute(cell, "s")
+                    XCTAssertGreaterThan(styleIndex, 0, "Emitted cells must retain explicit formatting")
+                    let style = xfs[styleIndex]
+                    let foreground = try color(fonts[try integerAttribute(style, "fontId")], child: "color")
+                    let background = try solidFill(fills[try integerAttribute(style, "fillId")])
+                    XCTAssertGreaterThanOrEqual(contrast(foreground, background), 4.5,
+                        "\(cell.attribute(forName: "r")?.stringValue ?? "cell") must declare contrasting text and background")
+                }
+            }
+        }
+        let emptySheet = try xmlRoot(parts, "xl/worksheets/sheet2.xml")
+        let placeholder = try XCTUnwrap(emptySheet.elements(forName: "sheetData").first?
+            .elements(forName: "row").last?.elements(forName: "c").first)
+        XCTAssertTrue(placeholder.elements(forName: "v").isEmpty)
+        XCTAssertTrue(placeholder.elements(forName: "is").isEmpty)
+    }
+
+    func testTableBaseAndBothBandsDeclareOpaqueContrastingColors() throws {
+        let styles = try xmlRoot(ExcelWorkbookWriter.parts(sheets: [sample()]), "xl/styles.xml")
+        let table = try XCTUnwrap(styles.elements(forName: "tableStyles").first?.elements(forName: "tableStyle").first)
+        let base = try XCTUnwrap(table.elements(forName: "tableStyleElement").first {
+            $0.attribute(forName: "type")?.stringValue == "wholeTable"
+        })
+        let dxfs = try XCTUnwrap(styles.elements(forName: "dxfs").first).elements(forName: "dxf")
+        let dxf = dxfs[try integerAttribute(base, "dxfId")]
+        let background = try solidFill(XCTUnwrap(dxf.elements(forName: "fill").first))
+        let foreground = try color(XCTUnwrap(dxf.elements(forName: "font").first), child: "color")
+        XCTAssertGreaterThanOrEqual(contrast(foreground, background), 4.5)
+        for band in ["firstRowStripe", "secondRowStripe"] {
+            let element = try XCTUnwrap(table.elements(forName: "tableStyleElement").first {
+                $0.attribute(forName: "type")?.stringValue == band
+            })
+            let bandStyle = dxfs[try integerAttribute(element, "dxfId")]
+            let bandBackground = try solidFill(XCTUnwrap(bandStyle.elements(forName: "fill").first))
+            let bandForeground = try bandStyle.elements(forName: "font").first
+                .map { try color($0, child: "color") } ?? foreground
+            XCTAssertGreaterThanOrEqual(contrast(bandForeground, bandBackground), 4.5)
+        }
+    }
+
     func testUserStringsNeverBecomeFormulaAndLiteralEscapesSurvive() throws {
         let cells: [WorkbookCell] = [.text("=HYPERLINK(\"https://example.test\")"), .text("+1"),
             .text("@SUM(A1)"), .text("_x0041_ & < > \" '\r\n")]
@@ -313,6 +375,36 @@ final class ExcelWorkbookWriterTests: XCTestCase {
     private func sample() -> WorkbookSheet {
         WorkbookSheet(name: "Events", columns: ["ID", "Value", "Missing", "UTC", "Duration", "Notes"],
             rows: [[.text("00123"), .number(0), .blank, .date(Date(timeIntervalSince1970: 0)), .durationMinutes(360), .text("literal")]], tableName: "ReviewEvents")
+    }
+    private func xmlRoot(_ parts: [String: Data], _ name: String) throws -> XMLElement {
+        try XCTUnwrap(XMLDocument(data: XCTUnwrap(parts[name])).rootElement())
+    }
+    private func integerAttribute(_ element: XMLElement, _ name: String) throws -> Int {
+        try XCTUnwrap(Int(XCTUnwrap(element.attribute(forName: name)?.stringValue)))
+    }
+    private func color(_ element: XMLElement, child: String) throws -> UInt32 {
+        let value = try XCTUnwrap(element.elements(forName: child).first?.attribute(forName: "rgb")?.stringValue)
+        XCTAssertEqual(value.count, 8)
+        let argb = try XCTUnwrap(UInt32(value, radix: 16))
+        XCTAssertEqual(argb >> 24, 255, "The color must be opaque")
+        return argb
+    }
+    private func solidFill(_ fill: XMLElement) throws -> UInt32 {
+        let pattern = try XCTUnwrap(fill.elements(forName: "patternFill").first)
+        XCTAssertEqual(pattern.attribute(forName: "patternType")?.stringValue, "solid",
+            "No Fill can expose dark text to the viewer's dark background after sorting")
+        return try color(pattern, child: "fgColor")
+    }
+    private func contrast(_ first: UInt32, _ second: UInt32) -> Double {
+        func luminance(_ argb: UInt32) -> Double {
+            let channels = [16, 8, 0].map { shift -> Double in
+                let channel = Double((argb >> shift) & 255) / 255
+                return channel <= 0.04045 ? channel / 12.92 : pow((channel + 0.055) / 1.055, 2.4)
+            }
+            return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722
+        }
+        let a = luminance(first), b = luminance(second)
+        return (max(a, b) + 0.05) / (min(a, b) + 0.05)
     }
     private func single(_ cell: WorkbookCell, name: String = "Sheet", tableName: String = "SingleData") -> WorkbookSheet {
         WorkbookSheet(name: name, columns: ["Value"], rows: [[cell]], tableName: tableName)

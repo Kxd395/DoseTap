@@ -1,6 +1,6 @@
 # Excel review workbook
 
-Status: Current implementation contract for DOSETAP-13. Build 62 adds the workbook; build 63 reduces packaging memory.
+Status: Current implementation contract for DOSETAP-13. Build 62 adds the workbook; build 63 reduces packaging memory; build 64 repairs row contrast.
 
 Settings adds **Export Excel Workbook** beside the existing Studio bundle export.
 The export is a local, styled XLSX reporting snapshot built from the finalized
@@ -16,6 +16,17 @@ column sorting/filtering, frozen headers, restrained navy/teal styling and typed
 numbers/dates/durations. An empty table has one physically blank compatibility row
 and an explicit **0 records** note; it contains no invented observation. Notes,
 identifiers and unknown values are literal text, never executable formulas.
+
+Build 64 gives every emitted cell an explicit nonzero style with an opaque
+background, including notes, links, blank placeholders and both body-row
+variants. Dark text uses pale blue-gray or pale aqua; the table's base style
+and both row bands also supply explicit backgrounds. The implicit Normal style
+stays unfilled and distinct from the body formats, so native Excel does not
+coalesce the body format into default style zero. Sorting must not expose
+dark text against an unfilled background. The existing direct
+row fills travel with their records, so they may no longer alternate after a
+sort. This contrast repair does not promise position-based rebanding. Values,
+numeric formats, table ranges, links and workbook schema remain unchanged.
 
 Original source records are keyed by table and ID; repeated representations are
 not extra observations. Cross-date associations remain explicit and unresolved

@@ -467,6 +467,10 @@ remains available. See the [Excel workbook contract](contracts/ExcelWorkbook.md)
 Build 63 reduces intermediate XML packaging memory without changing workbook
 contents or schema. Implementation and phone/Excel/accessibility acceptance are
 separate evidence.
+Build 64 repairs workbook contrast with explicit light backgrounds for dark-text
+cells, notes, blank placeholders and table bands. Body formats remain distinct
+from the implicit Normal style. Existing row colors can travel with sorted
+records; source values and schema are unchanged.
 
 Studio export 2.8/schema 3 (DOSETAP-13 / DC-07) preserves conflicting date groups as raw
 records instead of requiring an editable single-session identity. A checked,
