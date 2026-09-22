@@ -1,6 +1,6 @@
 # Excel review workbook
 
-Status: Implementation contract for DOSETAP-13, build 62 candidate.
+Status: Current implementation contract for DOSETAP-13. Build 62 adds the workbook; build 63 reduces packaging memory.
 
 Settings adds **Export Excel Workbook** beside the existing Studio bundle export.
 The export is a local, styled XLSX reporting snapshot built from the finalized
@@ -72,3 +72,11 @@ no formulas, macros, remote links or refresh connections. The finalized Studio
 JSON/CSV contract remains unchanged (export 2.8/schema 3). Scheduled export still
 produces the existing ZIP. Workbook creation reuses the finalized archive; it
 does not claim a new transaction across the exporter's existing source reads.
+
+Build 63 packages one generated XML part at a time. The production encoder does
+not retain every uncompressed sheet together. Decompressed XML, tables, styles,
+record values and workbook schema stay unchanged; ZIP entry order may change.
+All parts must succeed before an XLSX is returned for atomic publication. A late
+part failure returns no archive. This reduces intermediate allocations, not the
+memory required by the source snapshot, projected rows, largest part or final
+compressed archive. Large-history phone performance remains a separate gate.

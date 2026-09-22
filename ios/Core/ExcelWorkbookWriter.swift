@@ -3,18 +3,32 @@ import Foundation
 /// A local-only SpreadsheetML writer. All records are typed values; there is no formula API.
 public enum ExcelWorkbookWriter {
     public static func encode(sheets: [WorkbookSheet]) throws -> Data {
-        try ExcelWorkbookZIP.archive(parts: parts(sheets: sheets))
+        try ExcelWorkbookZIP.archive { emit in
+            try forEachPart(sheets: sheets, emit: emit)
+        }
     }
 
+    /// Collecting adapter for inspection/tests. Production encoding consumes one part at a time.
     public static func parts(sheets: [WorkbookSheet]) throws -> [String: Data] {
-        try WorkbookXML.validate(sheets)
         var output: [String: Data] = [:]
-        func put(_ path: String, _ xml: String) { output[path] = Data((WorkbookXML.declaration + xml).utf8) }
+        try forEachPart(sheets: sheets) { output[$0] = $1 }
+        return output
+    }
+
+    private static func forEachPart(sheets: [WorkbookSheet], emit: (String, Data) throws -> Void) throws {
+        try WorkbookXML.validate(sheets)
+        func put(_ path: String, _ xml: String) throws {
+            var data = Data()
+            data.reserveCapacity(WorkbookXML.declaration.utf8.count + xml.utf8.count)
+            data.append(contentsOf: WorkbookXML.declaration.utf8)
+            data.append(contentsOf: xml.utf8)
+            try emit(path, data)
+        }
         let relationships = WorkbookXML.relationships
-        put("_rels/.rels", relations([
+        try put("_rels/.rels", relations([
             ("rIdWorkbook", "officeDocument", "xl/workbook.xml"),
             ("rIdApp", "extended-properties", "docProps/app.xml")]))
-        put("docProps/app.xml", "<Properties xmlns=\"http://schemas.openxmlformats.org/officeDocument/2006/extended-properties\"><Application>DoseTap</Application></Properties>")
+        try put("docProps/app.xml", "<Properties xmlns=\"http://schemas.openxmlformats.org/officeDocument/2006/extended-properties\"><Application>DoseTap</Application></Properties>")
         var sheetTags = ""; var workbookRelations: [(String, String, String)] = []
         var overrides = [("/xl/workbook.xml", "sheet.main"), ("/xl/styles.xml", "styles")]
         for (index, sheet) in sheets.enumerated() {
@@ -23,21 +37,21 @@ public enum ExcelWorkbookWriter {
             workbookRelations.append(("rId\(id)", "worksheet", "worksheets/sheet\(id).xml"))
             overrides.append(("/xl/worksheets/sheet\(id).xml", "worksheet"))
             overrides.append(("/xl/tables/table\(id).xml", "table"))
-            put("xl/worksheets/sheet\(id).xml", try worksheet(sheet, sheets: sheets))
-            put("xl/tables/table\(id).xml", try table(sheet, id: id))
+            try put("xl/worksheets/sheet\(id).xml", try worksheet(sheet, sheets: sheets))
+            try put("xl/tables/table\(id).xml", try table(sheet, id: id))
             var sheetRelations = [("rIdTable", "table", "../tables/table\(id).xml")]
             if let chart = sheet.chart {
                 sheetRelations.append(("rIdDrawing", "drawing", "../drawings/drawing\(id).xml"))
-                put("xl/charts/chart\(id).xml", try chartXML(chart))
-                put("xl/drawings/drawing\(id).xml", drawing(id: id, row: sheet.rows.count + 7))
-                put("xl/drawings/_rels/drawing\(id).xml.rels", relations([("rIdChart", "chart", "../charts/chart\(id).xml")]))
+                try put("xl/charts/chart\(id).xml", try chartXML(chart))
+                try put("xl/drawings/drawing\(id).xml", drawing(id: id, row: sheet.rows.count + 7))
+                try put("xl/drawings/_rels/drawing\(id).xml.rels", relations([("rIdChart", "chart", "../charts/chart\(id).xml")]))
             }
-            put("xl/worksheets/_rels/sheet\(id).xml.rels", relations(sheetRelations))
+            try put("xl/worksheets/_rels/sheet\(id).xml.rels", relations(sheetRelations))
         }
         workbookRelations.append(("rIdStyles", "styles", "styles.xml"))
-        put("xl/_rels/workbook.xml.rels", relations(workbookRelations))
-        put("xl/workbook.xml", "<workbook xmlns=\"\(WorkbookXML.main)\" xmlns:r=\"\(relationships)\"><workbookPr date1904=\"0\"/><bookViews><workbookView activeTab=\"0\"/></bookViews><sheets>\(sheetTags)</sheets></workbook>")
-        put("xl/styles.xml", styles)
+        try put("xl/_rels/workbook.xml.rels", relations(workbookRelations))
+        try put("xl/workbook.xml", "<workbook xmlns=\"\(WorkbookXML.main)\" xmlns:r=\"\(relationships)\"><workbookPr date1904=\"0\"/><bookViews><workbookView activeTab=\"0\"/></bookViews><sheets>\(sheetTags)</sheets></workbook>")
+        try put("xl/styles.xml", styles)
         var types = "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/>"
         for (path, type) in overrides { types += "<Override PartName=\"\(path)\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.\(type)+xml\"/>" }
         types += "<Override PartName=\"/docProps/app.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.extended-properties+xml\"/>"
@@ -46,8 +60,7 @@ public enum ExcelWorkbookWriter {
             types += "<Override PartName=\"/xl/charts/chart\(id).xml\" ContentType=\"application/vnd.openxmlformats-officedocument.drawingml.chart+xml\"/>"
             types += "<Override PartName=\"/xl/drawings/drawing\(id).xml\" ContentType=\"application/vnd.openxmlformats-officedocument.drawing+xml\"/>"
         }
-        put("[Content_Types].xml", types + "</Types>")
-        return output
+        try put("[Content_Types].xml", types + "</Types>")
     }
 
     private static func relations(_ items: [(String, String, String)]) -> String {
@@ -108,7 +121,8 @@ public enum ExcelWorkbookWriter {
         if !hyperlinks.isEmpty { xml += "<hyperlinks>\(hyperlinks)</hyperlinks>" }
         xml += "<pageMargins left=\"0.3\" right=\"0.3\" top=\"0.4\" bottom=\"0.4\" header=\"0.2\" footer=\"0.2\"/>"
         if sheet.chart != nil { xml += "<drawing r:id=\"rIdDrawing\"/>" }
-        return xml + "<tableParts count=\"1\"><tablePart r:id=\"rIdTable\"/></tableParts></worksheet>"
+        xml += "<tableParts count=\"1\"><tablePart r:id=\"rIdTable\"/></tableParts></worksheet>"
+        return xml
     }
 
     private static func inline(_ value: String, reference: String, style: Int) throws -> String {

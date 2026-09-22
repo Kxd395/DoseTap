@@ -211,6 +211,87 @@ final class ExcelWorkbookWriterTests: XCTestCase {
         }
     }
 
+    func testIncrementalArchivePropagatesLateFailureAndRetryStartsFresh() throws {
+        enum FixtureError: Error { case unavailable }
+        var unpublished: Data?
+        XCTAssertThrowsError(unpublished = try ExcelWorkbookZIP.archive(producingParts: { emit in
+            try emit("first.xml", Data("saved prefix".utf8))
+            throw FixtureError.unavailable
+        })) { XCTAssertTrue($0 is FixtureError) }
+        XCTAssertNil(unpublished)
+        let retry = try ExcelWorkbookZIP.archive(producingParts: { emit in
+            try emit("retry.xml", Data("complete".utf8))
+        })
+        XCTAssertEqual(retry, try ExcelWorkbookZIP.archive(parts: ["retry.xml": Data("complete".utf8)]))
+    }
+
+    func testLateSheetValueFailureCannotReturnAPartialWorkbook() {
+        var unpublished: Data?
+        XCTAssertThrowsError(unpublished = try ExcelWorkbookWriter.encode(sheets: [sample(),
+            single(.number(.infinity), name: "Late failure", tableName: "InvalidData")]))
+        XCTAssertNil(unpublished)
+    }
+
+    func testIncrementalArchiveEnforcesPartCountAndNameLengthLimits() {
+        XCTAssertThrowsError(try ExcelWorkbookZIP.archive(producingParts: { emit in
+            for index in 0...Int(UInt16.max) { try emit("part-\(index)", Data()) }
+        }))
+        XCTAssertThrowsError(try ExcelWorkbookZIP.archive(producingParts: { emit in
+            try emit(String(repeating: "x", count: Int(UInt16.max) + 1), Data())
+        }))
+    }
+
+    func testIncrementalArchiveRejectsDuplicateNamesRatherThanReplacingEvidence() {
+        XCTAssertThrowsError(try ExcelWorkbookZIP.archive(producingParts: { emit in
+            try emit("same.xml", Data("first".utf8))
+            try emit("same.xml", Data("second".utf8))
+        }))
+    }
+
+    func testMultipleSheetArchivePreservesEveryPartAndCentralDirectoryReference() throws {
+        let chart = WorkbookChart(title: "Coverage", categories: ["One", "Two"], values: [0, nil])
+        let sheets = [sample(), WorkbookSheet(name: "Empty", columns: ["ID"], rows: [],
+            tableName: "EmptyData", chart: chart)] + (3...12).map { index in
+            WorkbookSheet(name: "Sheet \(index)", columns: ["ID", "UTC", "Notes", "Open"],
+                rows: [[.text("001"), .date(Date(timeIntervalSince1970: 0)),
+                    .text("=1+1 & 👣 _x0041_\r\n"), .link(label: "Events", target: "Events!A4")]],
+                tableName: "SheetData\(index)")
+        }
+        let expected = try ExcelWorkbookWriter.parts(sheets: sheets)
+        let archive = try ExcelWorkbookWriter.encode(sheets: sheets)
+        XCTAssertEqual(archive, try ExcelWorkbookWriter.encode(sheets: sheets))
+        let end = archive.count - 22
+        let centralStart = Int(read32(archive, end + 16))
+        XCTAssertEqual(read16(archive, end + 8), UInt16(expected.count))
+        XCTAssertEqual(read16(archive, end + 10), UInt16(expected.count))
+        XCTAssertEqual(Int(read32(archive, end + 12)), end - centralStart)
+        var cursor = centralStart
+        var found: [String: Data] = [:]
+        while cursor < end {
+            XCTAssertEqual(read32(archive, cursor), 0x02014b50)
+            let nameCount = Int(read16(archive, cursor + 28))
+            let name = String(decoding: archive[(cursor + 46)..<(cursor + 46 + nameCount)], as: UTF8.self)
+            let local = Int(read32(archive, cursor + 42))
+            XCTAssertEqual(read32(archive, local), 0x04034b50, name)
+            XCTAssertEqual(read16(archive, local + 26), UInt16(nameCount), name)
+            XCTAssertEqual(String(decoding: archive[(local + 30)..<(local + 30 + nameCount)], as: UTF8.self), name)
+            let method = read16(archive, cursor + 10)
+            let size = Int(read32(archive, cursor + 20))
+            let rawSize = Int(read32(archive, cursor + 24))
+            XCTAssertEqual(read16(archive, local + 8), method, name)
+            XCTAssertEqual(read32(archive, local + 18), UInt32(size), name)
+            XCTAssertEqual(read32(archive, local + 22), UInt32(rawSize), name)
+            let start = local + 30 + nameCount + Int(read16(archive, local + 28))
+            let payload = decodeZIPPayload(archive.subdata(in: start..<(start + size)), method: method, size: rawSize)
+            XCTAssertEqual(crc32(payload), read32(archive, cursor + 16), name)
+            XCTAssertEqual(read32(archive, local + 14), read32(archive, cursor + 16), name)
+            XCTAssertNil(found.updateValue(payload, forKey: name), name)
+            cursor += 46 + nameCount + Int(read16(archive, cursor + 30)) + Int(read16(archive, cursor + 32))
+        }
+        XCTAssertEqual(cursor, end)
+        XCTAssertEqual(found, expected)
+    }
+
     private func decodeZIPPayload(_ data: Data, method: UInt16, size: Int) -> Data {
         if method == 0 { return data }
         #if canImport(Compression)

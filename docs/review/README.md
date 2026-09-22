@@ -1,7 +1,7 @@
 # DoseTap review records
 
 Status: Point-in-time review and decision evidence
-Last updated: 2026-09-17 (Excel delivery navigation)
+Last updated: 2026-09-22 (Excel acceptance and packaging memory)
 
 Files here record dated reviews, design decisions, migration analysis, and regression runs. They do not override current SSOT, code, or Plane. Promote a lasting rule into SSOT or a maintained architecture decision and link back to its review record.
 
@@ -28,7 +28,8 @@ Each record identifies its version, bounded changes, validation and remaining ga
 
 | Build | Record | Scope |
 | --- | --- | --- |
-| 62 installed; owner acceptance open | [Styled Excel workbook](2026-09-17-excel-workbook-delivery.md) | Fifteen sortable/filterable sheets, fixed summaries, source evidence and local native Excel validation; phone acceptance remains separate |
+| 63 | [Excel packaging memory](2026-09-22-excel-memory-delivery.md) | One generated XML part at a time; measured memory reduction with identical decompressed workbook contents; phone/release gates remain separate |
+| 62; phone save/open accepted | [Styled Excel workbook](2026-09-17-excel-workbook-delivery.md) | Fifteen sortable/filterable sheets, fixed summaries and source evidence; phone sorting/reopen and broader acceptance remain open |
 | 44 | [Sleeping arrangements](2026-09-10-sleeping-arrangement-delivery.md) | Planned/actual setup and separate reusable preferences |
 | 45 | [Morning pain reuse](2026-09-10-morning-pain-reuse-delivery.md) | One saved pattern reviewed with a fresh morning level |
 | 46 | [Dose/sleep metrics](2026-09-11-dose-sleep-metrics-delivery.md) | Read-only intervals with unresolved/conflicting evidence |
