@@ -77,7 +77,18 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(settings.waitForExistence(timeout: 15))
         settings.tap()
         let export = app.buttons["settings.exportExcel"]
-        for _ in 0..<14 where !export.isHittable { app.swipeUp() }
+        // Querying hittability as this row enters the list's bottom edge can
+        // raise an XCTest activation-point error. Reveal it before probing.
+        let visibleInterior = app.frame.insetBy(dx: 0, dy: app.frame.height * 0.2)
+        for _ in 0..<14 {
+            if export.exists && visibleInterior.contains(export.frame) { break }
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.65))
+                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4)))
+        }
+        guard export.exists && visibleInterior.contains(export.frame) else {
+            XCTFail("Excel export must be visible inside the Settings list")
+            return
+        }
         XCTAssertTrue(export.isHittable)
         captureDashboard("Excel and Studio export choices")
         export.tap()

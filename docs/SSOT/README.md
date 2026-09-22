@@ -3,8 +3,8 @@
 Status: Current behavior authority
 Last verified: 2026-09-22
 SSOT revision: 0.4.19
-App version defined in this revision's Xcode project: 0.4.19 (63)
-Integration and acceptance evidence: [export delivery record](../review/2026-09-17-export-failure-diagnosis.md) and the DOSETAP-13 Plane workpad. The project version alone does not establish acceptance.
+App version defined in this revision's Xcode project: 0.4.19 (64)
+Integration and acceptance evidence: [Excel contrast delivery](../review/2026-09-22-excel-contrast-delivery.md), [export delivery record](../review/2026-09-17-export-failure-diagnosis.md) and the DOSETAP-13 Plane workpad. The project version alone does not establish acceptance.
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -467,6 +467,10 @@ remains available. See the [Excel workbook contract](contracts/ExcelWorkbook.md)
 Build 63 reduces intermediate XML packaging memory without changing workbook
 contents or schema. Implementation and phone/Excel/accessibility acceptance are
 separate evidence.
+Build 64 repairs workbook contrast with explicit light backgrounds for dark-text
+cells, notes, blank placeholders and table bands. Body formats remain distinct
+from the implicit Normal style. Existing row colors can travel with sorted
+records; source values and schema are unchanged.
 
 Studio export 2.8/schema 3 (DOSETAP-13 / DC-07) preserves conflicting date groups as raw
 records instead of requiring an editable single-session identity. A checked,

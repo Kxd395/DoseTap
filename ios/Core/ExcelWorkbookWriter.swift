@@ -161,17 +161,21 @@ public enum ExcelWorkbookWriter {
         func xf(_ font: Int, _ fill: Int, _ format: Int = 0) -> String {
             "<xf numFmtId=\"\(format)\" fontId=\"\(font)\" fillId=\"\(fill)\" borderId=\"0\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyNumberFormat=\"1\" applyAlignment=\"1\">\(alignment)</xf>"
         }
-        var cellStyles = xf(0, 0) + xf(1, 2) + xf(2, 0) + xf(3, 3)
-        for fill in [0, 4] { cellStyles += xf(0, fill) + xf(0, fill, 166) + xf(0, fill, 164) + xf(0, fill, 165) + xf(4, fill) }
+        // Direct cell fills move with sorted rows. Keep dark text on an opaque light
+        // surface even where Excel's current table stripe or appearance changes.
+        // Leave implicit Normal unfilled and distinct from every emitted body style:
+        // Excel can coalesce matching formats into style zero during save/sort.
+        var cellStyles = xf(0, 0) + xf(1, 2) + xf(2, 5) + xf(3, 3)
+        for fill in [5, 4] { cellStyles += xf(0, fill) + xf(0, fill, 166) + xf(0, fill, 164) + xf(0, fill, 165) + xf(4, fill) }
         return """
         <styleSheet xmlns="\(WorkbookXML.main)">
         <numFmts count="3"><numFmt numFmtId="164" formatCode="yyyy-mm-dd hh:mm:ss&quot; UTC&quot;"/><numFmt numFmtId="165" formatCode="[h]&quot;h &quot;mm&quot;m&quot;"/><numFmt numFmtId="166" formatCode="General"/></numFmts>
         <fonts count="5"><font>\(font)<color rgb="FF173344"/></font><font><b/><sz val="18"/><name val="Arial"/><color rgb="FFFFFFFF"/></font><font>\(font)<color rgb="FF536774"/></font><font><b/>\(font)<color rgb="FFFFFFFF"/></font><font><u/>\(font)<color rgb="FF006E76"/></font></fonts>
-        <fills count="5"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF173344"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FF0D7479"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFEAF5F4"/><bgColor indexed="64"/></patternFill></fill></fills>
+        <fills count="6"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF173344"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FF0D7479"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFEAF5F4"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF5F8FA"/><bgColor rgb="FFF5F8FA"/></patternFill></fill></fills>
         <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
         <cellXfs count="14">\(cellStyles)</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
-        <dxfs count="3"><dxf><font><color rgb="FF173344"/></font></dxf><dxf><font><b/><color rgb="FFFFFFFF"/></font><fill><patternFill patternType="solid"><fgColor rgb="FF0D7479"/><bgColor indexed="64"/></patternFill></fill></dxf><dxf><fill><patternFill patternType="solid"><fgColor rgb="FFEAF5F4"/><bgColor indexed="64"/></patternFill></fill></dxf></dxfs>
-        <tableStyles count="1" defaultTableStyle="DoseTapTable" defaultPivotStyle="PivotStyleLight16"><tableStyle name="DoseTapTable" pivot="0" count="3"><tableStyleElement type="wholeTable" dxfId="0"/><tableStyleElement type="headerRow" dxfId="1"/><tableStyleElement type="secondRowStripe" size="1" dxfId="2"/></tableStyle></tableStyles>
+        <dxfs count="3"><dxf><font><color rgb="FF173344"/></font><fill><patternFill patternType="solid"><fgColor rgb="FFF5F8FA"/><bgColor rgb="FFF5F8FA"/></patternFill></fill></dxf><dxf><font><b/><color rgb="FFFFFFFF"/></font><fill><patternFill patternType="solid"><fgColor rgb="FF0D7479"/><bgColor indexed="64"/></patternFill></fill></dxf><dxf><fill><patternFill patternType="solid"><fgColor rgb="FFEAF5F4"/><bgColor indexed="64"/></patternFill></fill></dxf></dxfs>
+        <tableStyles count="1" defaultTableStyle="DoseTapTable" defaultPivotStyle="PivotStyleLight16"><tableStyle name="DoseTapTable" pivot="0" count="4"><tableStyleElement type="wholeTable" dxfId="0"/><tableStyleElement type="headerRow" dxfId="1"/><tableStyleElement type="firstRowStripe" size="1" dxfId="0"/><tableStyleElement type="secondRowStripe" size="1" dxfId="2"/></tableStyle></tableStyles>
         </styleSheet>
         """
     }
