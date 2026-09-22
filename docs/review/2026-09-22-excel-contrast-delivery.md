@@ -77,11 +77,33 @@ PR checks and final integration are recorded in the same Plane workpad when
 verified. Personal workbooks, screenshots and source records remain outside the
 repository and tracker.
 
+## Actual build-64 export follow-up
+
+The owner subsequently supplied a fresh workbook. Its own metadata confirms
+0.4.19 (64), Studio export 2.8 and workbook schema 1. ZIP/XML, all 15 sheets and
+tables, typed cells, complete table ranges, internal relationships and hyperlinks
+passed independent structural checks. Its styles match the final production
+candidate byte for byte.
+
+Native Mac Excel repeated the workflow on a separate copy of this actual export:
+date ascending sort; included-summary filter; save, close and reopen; clear
+filter; numeric sleep-duration descending sort; save, close and reopen again.
+Both row backgrounds remained readable. The saved filter retained 206 of 213
+nights. Independent readback compared 1,967,749 cells across all 15 sheets:
+text/types matched exactly, numeric differences were within floating-point
+serialization precision, and all 213 Nights identities and table definitions
+were preserved. The final duration sort retained 201 numeric values followed
+by 12 blanks; all filters were cleared and no rows remained hidden.
+The supplied original remains hash-identical; the checked copy stays private
+in Downloads. This evidence verifies the exported artifact and desktop workflow,
+without inferring complete source-store coverage or a named phone viewer.
+
 ## Acceptance boundaries
 
-This is desktop Excel and local automated evidence. It does not establish fresh
-phone Files export, mobile Excel/Numbers sorting and reopen behavior, full
+The fresh phone-generated artifact, desktop Excel workflow and local automated
+checks are verified at their stated layers. The exact phone Files save steps,
+named mobile Excel/Numbers sorting and reopen behavior, full
 accessibility, provider completeness, memory bounds, backup/restore, privacy or
-release acceptance. DOSETAP-13 remains In Progress with its existing gates.
+release acceptance remain open. DOSETAP-13 remains In Progress with its existing gates.
 Build-62 owner Files/open acceptance and the actual supplied build-63 artifact
 remain valid evidence for those specific versions and workflows.
