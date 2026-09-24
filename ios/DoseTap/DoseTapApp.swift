@@ -106,7 +106,7 @@ struct DoseTapApp: App {
             SessionRepository.shared.prepareDurableLogUITest(medication: ProcessInfo.processInfo.arguments.contains("--uitesting-medication-save"))
         }
         if ProcessInfo.processInfo.arguments.contains("--uitesting-quick-log-waiting") {
-            _ = SessionRepository.shared.setDose1Time(Date().addingTimeInterval(-60))
+            SessionRepository.shared.prepareQuickLogWaitingUITestSession()
         }
         #endif
 

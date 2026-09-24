@@ -63,6 +63,10 @@ is restricted to DEBUG simulator builds.
   whitespace checks passed. USB update without uninstall/reset succeeded, and
   independent installed-app metadata confirmed 0.4.19 (65). This is installation
   evidence; real-night owner recurrence acceptance remains open.
+- Initial hosted CI caught a simulator fixture calling a dose write outside the
+  repository boundary. The fixture now uses a DEBUG simulator-only repository
+  helper; the dose-write guard, affected before-Dose-2 native journey and signed
+  build passed again. The production phone path is unchanged by this correction.
 - Independent source review found no blocking issue and retained the exact-cause
   caveat. Personal phone records were not used as test fixtures.
 

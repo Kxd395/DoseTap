@@ -31,6 +31,10 @@ public extension SessionRepository {
     }
 
     #if DEBUG && targetEnvironment(simulator)
+    func prepareQuickLogWaitingUITestSession() {
+        _ = setDose1Time(clock().addingTimeInterval(-60))
+    }
+
     func prepareDurableLogUITest(medication: Bool) {
         clearTonight()
         var inserts = 0
