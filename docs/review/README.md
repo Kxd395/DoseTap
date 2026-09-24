@@ -14,6 +14,8 @@ Files here record dated reviews, design decisions, migration analysis, and regre
 
 ## Owner data and dashboard review
 
+- [Next app improvements after build 65](2026-09-24-next-app-improvements.md): native Night Mode readability findings, the next bounded UI slice, and work/off and daytime-observation sequencing. Review only; proposed work remains under existing Plane items.
+
 - [Excel workbook design](../plans/2026-09-17-excel-workbook-export.md): owner-approved sheet order, sortable tables, source mapping and review/ingestion workflow. The [current contract](../SSOT/contracts/ExcelWorkbook.md) owns implementation semantics; native Excel, phone and release acceptance remain separate.
 - [Collected-data inventory and work/off dashboard plan](2026-09-11-dashboard-and-collected-data-review.md): human-facing provider, questionnaire, dosing and quick-log fields; planned means, transition groups and missingness rules. This is a build-45 source inventory with later delivery links, not a claim that the proposed dashboard ships.
 - [Collection/store/export audit reading guide](../audit/2026-09-12/README.md): pair the owner inventory with exact stored fields, export coverage and known discrepancies.
