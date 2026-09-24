@@ -9,7 +9,27 @@ clinical records, preferences, dose outcomes or alarms. The existing Studio ZIP
 remains available and retains original source evidence. Neither format is a tested
 full-app restore.
 
-The workbook contains Overview, Nights, Night Review, Events, Pre-sleep, Morning,
+When Apple Health is disabled in DoseTap, export does not await a HealthKit
+authorization refresh. Local record export remains independent of that disabled
+provider; enabling Apple Health retains the existing permission/enrichment path.
+
+Build 66 adds Dose Summary and Medication Log immediately after Overview. These
+are read-only views of existing finalized source records. Dose Summary uses one
+exported date group, excludes ambiguous identities, and reconciles selected dose
+timestamps against canonical taken/skipped rows before calculating intervals.
+A known source time remains usable without a summary timestamp; contradictory
+source/summary times or taken/skip evidence make timing unavailable. All workbook
+dose summaries share this result. Medication Log retains one source record and
+payload variant per row, separates administrations from skip/correction/other
+events, and exposes explicit amount, recording metadata, reason and reminder
+choice without filling historical gaps. Recording delay uses explicit metadata
+only, never SQL row creation. Correction-bearing records expose correction time
+separately and do not claim initial recording delay. Removal evidence prevents
+stale summary-only timestamps from resurrecting a removed administration. Local display uses the export timezone and includes
+the UTC offset; UTC instants remain typed. Missing historical windows and reviewed
+sleep latency stay unavailable. No medication/schema writes or archive changes.
+
+The workbook contains Overview, Dose Summary, Medication Log, Nights, Night Review, Events, Pre-sleep, Morning,
 Pain, Daytime, Sleep Measures, Sleep Intervals, Medications, Inventory, Source
 Fields, Review Issues and Field Guide. Record sheets use named Excel tables with
 column sorting/filtering, frozen headers, restrained navy/teal styling and typed
@@ -36,7 +56,8 @@ null, empty text, zero, explicitly unsure, skipped and missing are distinct.
 Source values exceeding a cell limit are split with numbered parts, never silently
 truncated. Fields outside this archive are identified as unavailable.
 
-Workbook schema 1 includes the SHA-256 of the supplied JSON bytes and UTF-8
+Workbook schema 2 adds the two medication views and shared dose reconciliation;
+existing source table names and payloads are preserved. Schema 1 introduced the SHA-256 of the supplied JSON bytes and UTF-8
 inventory CSV, stable named-table grains, and original source keys. Source Fields
 keeps every date-group association beside each original source record; it does
 not add a separate association table. Snapshot-local field references identify

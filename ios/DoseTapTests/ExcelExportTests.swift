@@ -9,8 +9,9 @@ final class ExcelExportTests: XCTestCase {
         let storage = EventStorage.inMemory()
         let repo = SessionRepository(storage: storage)
         XCTAssertEqual(sqlite3_exec(storage.db, """
-        INSERT INTO dose_events(id,session_id,event_type,timestamp,session_date)
-        VALUES('excel-dose','excel-session','dose1','2030-04-05T23:00:00Z','2030-04-05');
+        INSERT INTO dose_events(id,session_id,event_type,timestamp,session_date,metadata)
+        VALUES('excel-dose','excel-session','dose1','2030-04-05T23:00:00Z','2030-04-05','{"amount_mg":4500,"dose2_reminder_enabled":false}'),
+        ('excel-dose2','excel-session','dose2','2030-04-06T01:50:00Z','2030-04-05','{"recorded_at_utc":"2030-04-06T07:00:00Z","entry_mode":"retrospective","reason":"forgot_to_tap"}');
         INSERT INTO sleep_events(id,session_id,event_type,timestamp,session_date,notes)
         VALUES('excel-event','excel-session','future_quick_log','2030-04-06T01:00:00Z','2030-04-05','=1+1');
         """, nil, nil, nil), SQLITE_OK)
@@ -32,7 +33,15 @@ final class ExcelExportTests: XCTestCase {
         XCTAssertEqual(try encoder.encode(storage.eventExportRecords(sessionDate: "2030-04-05")), beforeData)
         let sheets = try StudioWorkbookProjection.sheets(bundleData: original,
             inventoryCSV: String(contentsOf: folder.appendingPathComponent("inventory.csv"), encoding: .utf8))
-        XCTAssertEqual(sheets.count, 15)
+        XCTAssertEqual(sheets.count, 17)
+        let summary = try XCTUnwrap(sheets.first { $0.name == "Dose Summary" })
+        XCTAssertEqual(summary.rows.count, 1)
+        XCTAssertEqual(summary.rows[0][try XCTUnwrap(summary.columns.firstIndex(of: "Dose interval"))], .durationMinutes(170))
+        XCTAssertEqual(summary.rows[0][try XCTUnwrap(summary.columns.firstIndex(of: "Dose 1 amount"))], .number(4500))
+        XCTAssertEqual(summary.rows[0][try XCTUnwrap(summary.columns.firstIndex(of: "Dose 2 reminder"))], .text("No alarm"))
+        let log = try XCTUnwrap(sheets.first { $0.name == "Medication Log" })
+        XCTAssertEqual(log.rows.count, 2)
+        XCTAssertEqual(log.rows[1][try XCTUnwrap(log.columns.firstIndex(of: "Recording delay"))], .durationMinutes(310))
         let attachment = XCTAttachment(data: data, uniformTypeIdentifier: "org.openxmlformats.spreadsheetml.sheet")
         attachment.name = "DoseTap-synthetic-review.xlsx"
         attachment.lifetime = .keepAlways

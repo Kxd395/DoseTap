@@ -18,7 +18,7 @@ public enum StudioWorkbookProjectionError: Error, LocalizedError {
 public enum StudioWorkbookProjection {
     public static func sheets(bundleData: Data, inventoryCSV: String) throws -> [WorkbookSheet] {
         let data = try StudioWorkbookData(bundleData: bundleData, inventoryCSV: inventoryCSV)
-        return [data.overviewSheet(), data.nightsSheet(), data.nightReviewSheet(), data.eventsSheet(),
+        return [data.overviewSheet(), data.doseSummarySheet(), data.medicationLogSheet(), data.nightsSheet(), data.nightReviewSheet(), data.eventsSheet(),
                 data.questionnaireSheet(morning: false), data.questionnaireSheet(morning: true),
                 data.painSheet(), data.daytimeSheet(), data.sleepMeasuresSheet(), data.sleepIntervalsSheet(),
                 data.medicationsSheet(), data.inventorySheet(), data.sourceFieldsSheet(),

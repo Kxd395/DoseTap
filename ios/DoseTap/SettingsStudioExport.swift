@@ -369,7 +369,7 @@ struct StudioBundleExporter {
 
     private func exportConsentState() async -> InsightsConsentState {
         let healthKit = HealthKitService.shared
-        if healthKit.isAvailable {
+        if settings.healthKitEnabled && healthKit.isAvailable {
             await healthKit.syncAuthorizationState()
         }
 

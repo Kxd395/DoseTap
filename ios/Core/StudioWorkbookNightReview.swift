@@ -14,8 +14,9 @@ extension StudioWorkbookData {
             }
             let rawStatus = group.eligible ? "Supplied source timestamp" : "Identity unresolved; combined values excluded"
             for number in [1, 2] {
-                add("Dose records", "Dose \(number) outcome", .text(doseOutcome(group, number: number)), start: doseTime(group, number: number),
-                    status: rawStatus, source: group.key + "/dose\(number)TimeUTC")
+                let dose = reviewedDose(group, number: number)
+                add("Dose records", "Dose \(number) outcome", .text(dose.outcome), start: dose.time,
+                    status: dose.evidence, source: dose.record?.key ?? group.key + "/dose\(number)TimeUTC")
             }
             add("Dose records", "Dose 1 to Dose 2 interval", SW.duration(doseInterval(group)), unit: "Elapsed duration",
                 start: doseTime(group, number: 1), end: doseTime(group, number: 2),

@@ -58,6 +58,7 @@ let package = Package(
                 "ExcelWorkbookWriter.swift",
                 "ExcelWorkbookZIP.swift",
                 "StudioWorkbookProjection.swift",
+                "StudioWorkbookMedication.swift",
                 "StudioWorkbookSourceCatalog.swift",
                 "StudioWorkbookDetails.swift",
                 "StudioWorkbookSummaries.swift",
@@ -72,6 +73,7 @@ let package = Package(
             sources: [
                 "ExcelWorkbookWriterTests.swift",
                 "StudioWorkbookProjectionTests.swift",
+                "StudioWorkbookMedicationTests.swift",
                 "DoseWindowStateTests.swift",
                 "APIErrorsTests.swift",
                 "APIClientTests.swift",

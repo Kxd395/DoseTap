@@ -2,9 +2,9 @@ import XCTest
 @testable import DoseCore
 
 final class StudioWorkbookProjectionTests: XCTestCase {
-    func testFifteenNamedSheetsEmptySourcesAndNoInventedObservations() throws {
+    func testSeventeenNamedSheetsEmptySourcesAndNoInventedObservations() throws {
         let result = try project([])
-        XCTAssertEqual(result.map(\.name), ["Overview", "Nights", "Night Review", "Events", "Pre-sleep",
+        XCTAssertEqual(result.map(\.name), ["Overview", "Dose Summary", "Medication Log", "Nights", "Night Review", "Events", "Pre-sleep",
             "Morning", "Pain", "Daytime", "Sleep Measures", "Sleep Intervals", "Medications", "Inventory",
             "Source Fields", "Review Issues", "Field Guide"])
         for name in ["Nights", "Events", "Pre-sleep", "Morning", "Pain", "Daytime", "Sleep Measures",
