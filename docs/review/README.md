@@ -1,7 +1,7 @@
 # DoseTap review records
 
 Status: Point-in-time review and decision evidence
-Last updated: 2026-09-24 (quick-log availability and cooldown feedback)
+Last updated: 2026-09-24 (medication export review and quick-log availability)
 
 Files here record dated reviews, design decisions, migration analysis, and regression runs. They do not override current SSOT, code, or Plane. Promote a lasting rule into SSOT or a maintained architecture decision and link back to its review record.
 
@@ -13,6 +13,8 @@ Files here record dated reviews, design decisions, migration analysis, and regre
 - [Independent questionnaire findings](2026-09-10-questionnaire-independent-findings.md): separate source/UX review with proposed fixes and acceptance cases; not phone reproduction or clinical approval.
 
 ## Owner data and dashboard review
+
+- [Medication storage and export review](2026-09-24-medication-export-review.md): source-to-workbook audit, medication navigation and timing gaps, and proposed Dose Summary/Medication Log sheets under DOSETAP-73. Review only; source records and workbook remain unchanged.
 
 - [Next app improvements after build 65](2026-09-24-next-app-improvements.md): native Night Mode readability findings, the next bounded UI slice, and work/off and daytime-observation sequencing. Review only; proposed work remains under existing Plane items.
 
