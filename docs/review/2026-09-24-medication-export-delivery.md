@@ -22,6 +22,7 @@ The native export journey initially stalled at “Reading records and available 
 - iOS: **6 Excel/source-snapshot integration tests**, no failures; fixture confirms explicit retrospective recording delay while dose interval uses occurrence time, and verifies source bundle/database records remain unchanged.
 - Native simulator: `testExcelWorkbookExportPresentsCompletedShareSheet` passed after the disabled-provider guard, including two completed share sheets. An initial combined invocation incorrectly selected a UI target outside the DoseTap scheme; integration and UI were rerun under their correct schemes.
 - Native Microsoft Excel: production-writer synthetic workbook opened without repair, both new sheets visually inspected, numeric interval sorted and explicit-skip outcome filtered (1 of 6 groups). Save/close/reopen succeeded. Independent XML readback preserved all 6 summary row payloads and 18 medication row payloads after Excel save. This is desktop fixture evidence, not owner phone acceptance.
+- Signed build 66 was installed as an update on the paired owner phone and independently read back as 0.4.19 (66). The owner returned a new phone-generated workbook; read-only inspection verified 17 sheets, interval arithmetic/Nights parity, and complete canonical-dose source-key coverage in Medication Log. Export-file generation is evidenced; phone viewer name and owner readability/sort acceptance were not supplied.
 - Unsigned simulator and signed device builds passed. All four app/staging Debug/Release configurations report 0.4.19 (66). Strict signature verification passed.
 - Swift build, SSOT, documentation, architecture, dose-write, legacy safety, companion-target, repository hygiene, Plane workflow and whitespace guards passed.
 - The newly supplied owner workbook was inspected read-only: populated intervals reconcile with exported absolute timestamps. It remains the prior 15-sheet format. Private files, counts and source values remain outside Git/Plane.
@@ -30,7 +31,7 @@ Temporary local evidence: `/tmp/dosetap-medication66-final-core.log`, `/tmp/dose
 
 ## Remaining acceptance and next slice
 
-- Owner export from build 66, save/open, and medication-view usability in the actual phone viewer; separate accessibility, privacy and release acceptance.
+- Owner save/open and medication-view usability in the actual phone viewer; separate accessibility, privacy and release acceptance.
 - Prospective amount, medication identity, time precision, recording provenance and historical-window capture across all administration/correction paths require their own reviewed contract. This projection does not backfill absent evidence.
 - Reviewed dose/sleep metric parity, live-provider completeness and transaction-wide export consistency remain separate work.
 - Continue DOSETAP-73 In Progress. A merged implementation or successful signed installation does not close these gates.
