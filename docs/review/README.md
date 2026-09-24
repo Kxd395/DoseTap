@@ -1,7 +1,7 @@
 # DoseTap review records
 
 Status: Point-in-time review and decision evidence
-Last updated: 2026-09-22 (Excel sorting contrast and packaging memory)
+Last updated: 2026-09-24 (quick-log availability and cooldown feedback)
 
 Files here record dated reviews, design decisions, migration analysis, and regression runs. They do not override current SSOT, code, or Plane. Promote a lasting rule into SSOT or a maintained architecture decision and link back to its review record.
 
@@ -13,6 +13,8 @@ Files here record dated reviews, design decisions, migration analysis, and regre
 - [Independent questionnaire findings](2026-09-10-questionnaire-independent-findings.md): separate source/UX review with proposed fixes and acceptance cases; not phone reproduction or clinical approval.
 
 ## Owner data and dashboard review
+
+- [Next app improvements after build 65](2026-09-24-next-app-improvements.md): native Night Mode readability findings, the next bounded UI slice, and work/off and daytime-observation sequencing. Review only; proposed work remains under existing Plane items.
 
 - [Excel workbook design](../plans/2026-09-17-excel-workbook-export.md): owner-approved sheet order, sortable tables, source mapping and review/ingestion workflow. The [current contract](../SSOT/contracts/ExcelWorkbook.md) owns implementation semantics; native Excel, phone and release acceptance remain separate.
 - [Collected-data inventory and work/off dashboard plan](2026-09-11-dashboard-and-collected-data-review.md): human-facing provider, questionnaire, dosing and quick-log fields; planned means, transition groups and missingness rules. This is a build-45 source inventory with later delivery links, not a claim that the proposed dashboard ships.
@@ -28,6 +30,7 @@ Each record identifies its version, bounded changes, validation and remaining ga
 
 | Build | Record | Scope |
 | --- | --- | --- |
+| 65 | [Quick-log availability](2026-09-24-quick-log-availability.md) | Shared clock-driven cooldowns, visible waits and larger tap targets; exact owner lockout cause remains unconfirmed |
 | 64 | [Excel row contrast](2026-09-22-excel-contrast-delivery.md) | Explicit body fills distinct from Normal; native date/duration sorting, filtering and save/reopen readability; phone and broader gates remain separate |
 | 63 | [Excel packaging memory](2026-09-22-excel-memory-delivery.md) | One generated XML part at a time; measured memory reduction with identical decompressed workbook contents; phone/release gates remain separate |
 | 62; phone save/open accepted | [Styled Excel workbook](2026-09-17-excel-workbook-delivery.md) | Fifteen sortable/filterable sheets, fixed summaries and source evidence; phone sorting/reopen and broader acceptance remain open |

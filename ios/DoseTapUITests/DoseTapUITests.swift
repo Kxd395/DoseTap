@@ -11,6 +11,10 @@ final class DoseTapUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
+        if name.contains("testQuickLogAvailability") {
+            app.launchArguments += ["--uitesting-auto-night-reset", "-setup_completed_v2", "YES", "-quicklog_buttons_json", "", "-cooldown_bathroom", "10", "-cooldown_water", "10", "-healthkit_enabled", "NO", "-whoop_enabled", "NO"]
+            if name.contains("BeforeDose2") { app.launchArguments.append("--uitesting-quick-log-waiting") }
+        }
         if name.contains("testExcelWorkbookExport") {
             app.launchArguments += ["-setup_completed_v2", "YES", "-healthkit_enabled", "NO", "-whoop_enabled", "NO"]
         }
@@ -128,6 +132,49 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertFalse(error.exists)
         XCTAssertFalse(bathroom.isEnabled, "Successful retry starts cooldown")
         captureDashboard("Quick log retry committed with cooldown")
+    }
+
+    func testQuickLogAvailabilityBeforeDose1() {
+        verifyQuickLogAvailability()
+    }
+
+    func testQuickLogAvailabilityBeforeDose2() {
+        verifyQuickLogAvailability()
+    }
+
+    private func verifyQuickLogAvailability() {
+        let bathroom = app.buttons["Bathroom event button"]
+        XCTAssertTrue(bathroom.waitForExistence(timeout: 15))
+        for _ in 0..<8 where !bathroom.isHittable { app.swipeUp() }
+        XCTAssertTrue(bathroom.isEnabled)
+        bathroom.tap()
+        XCTAssertFalse(bathroom.isEnabled)
+        XCTAssertTrue((bathroom.value as? String)?.hasPrefix("Wait ") == true, "Explain the independent duplicate-log cooldown")
+        let water = app.buttons["Water event button"]
+        XCTAssertTrue(water.isEnabled, "Bathroom cooldown must not disable another event")
+        water.tap()
+        captureDashboard("Quick log cooldown before the dosing window")
+        XCUIDevice.shared.press(.home)
+        let resumedAt = Date().addingTimeInterval(11)
+        let elapsed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in Date() >= resumedAt }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [elapsed], timeout: 14), .completed)
+        app.activate()
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in bathroom.isEnabled }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 5), .completed)
+        XCTAssertEqual(bathroom.value as? String, "Ready")
+        bathroom.tap()
+        XCTAssertFalse(app.staticTexts["quick-log-save-error"].exists)
+        app.buttons["Timeline"].tap()
+        app.segmentedControls.firstMatch.buttons["Live"].tap()
+        for _ in 0..<8 where !bathroom.isHittable { app.swipeUp() }
+        XCTAssertTrue(bathroom.exists)
+        let readyInTimeline = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in bathroom.isEnabled }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [readyInTimeline], timeout: 15), .completed)
+        bathroom.tap()
+        XCTAssertFalse(bathroom.isEnabled)
+        XCTAssertTrue((bathroom.value as? String)?.hasPrefix("Wait ") == true)
+        XCTAssertFalse(app.staticTexts["quick-log-save-error"].exists)
+        captureDashboard("Timeline Live quick log has its own visible wait")
     }
 
     func testDurableLogMedicationBatchFailureAndConfirmedDuplicateRetry() {

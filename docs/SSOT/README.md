@@ -1,10 +1,10 @@
 # DoseTap SSOT (Single Source of Truth)
 
 Status: Current behavior authority
-Last verified: 2026-09-22
+Last verified: 2026-09-24
 SSOT revision: 0.4.19
-App version defined in this revision's Xcode project: 0.4.19 (64)
-Integration and acceptance evidence: [Excel contrast delivery](../review/2026-09-22-excel-contrast-delivery.md), [export delivery record](../review/2026-09-17-export-failure-diagnosis.md) and the DOSETAP-13 Plane workpad. The project version alone does not establish acceptance.
+App version defined in this revision's Xcode project: 0.4.19 (65)
+Integration and acceptance evidence: [Quick-log availability](../review/2026-09-24-quick-log-availability.md), [Excel contrast delivery](../review/2026-09-22-excel-contrast-delivery.md), [export delivery record](../review/2026-09-17-export-failure-diagnosis.md) and the DOSETAP-72 and DOSETAP-13 Plane workpads. The project version alone does not establish acceptance.
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -452,6 +452,15 @@ Code references:
 ---
 
 ## Durable quick logs and general medication entry (DOSETAP-3/39)
+
+Quick Log availability is independent of the Dose 2 dosing window. A saved event
+starts only that event type's configured duplicate-tap cooldown. Both Tonight
+and Timeline Live show the remaining wait in text and accessibility value, and
+refresh eligibility from the current clock, including after foreground return.
+The cooldown does not create a dose or change medication eligibility. An
+unresolved save failure retains its separate retry/discard guidance. The owner
+report of intermittent untappable controls is tracked under DOSETAP-72;
+simulator verification does not establish its exact phone cause.
 
 Quick-log success, list insertion, cooldown and haptics follow a committed SQLite write. A new active session and its first quick log commit together; failed writes leave both absent. Final wake and its finalizing state also commit together. Failed manual entries retain their fields, while a failed quick tap retains its occurrence for an explicit same-session retry. If that session changes, retry is cleared, the unsaved occurrence stays visible for History review, and new quick logs remain usable. Alternate final-wake logs share the finalizing transaction. Siri, deep links and Flic report failure instead of success. Medication names remain outside the quick-log route.
 
