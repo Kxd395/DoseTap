@@ -1,7 +1,7 @@
 # DoseTap review records
 
 Status: Point-in-time review and decision evidence
-Last updated: 2026-09-22 (Excel sorting contrast and packaging memory)
+Last updated: 2026-09-24 (quick-log availability and cooldown feedback)
 
 Files here record dated reviews, design decisions, migration analysis, and regression runs. They do not override current SSOT, code, or Plane. Promote a lasting rule into SSOT or a maintained architecture decision and link back to its review record.
 
@@ -28,6 +28,7 @@ Each record identifies its version, bounded changes, validation and remaining ga
 
 | Build | Record | Scope |
 | --- | --- | --- |
+| 65 | [Quick-log availability](2026-09-24-quick-log-availability.md) | Shared clock-driven cooldowns, visible waits and larger tap targets; exact owner lockout cause remains unconfirmed |
 | 64 | [Excel row contrast](2026-09-22-excel-contrast-delivery.md) | Explicit body fills distinct from Normal; native date/duration sorting, filtering and save/reopen readability; phone and broader gates remain separate |
 | 63 | [Excel packaging memory](2026-09-22-excel-memory-delivery.md) | One generated XML part at a time; measured memory reduction with identical decompressed workbook contents; phone/release gates remain separate |
 | 62; phone save/open accepted | [Styled Excel workbook](2026-09-17-excel-workbook-delivery.md) | Fifteen sortable/filterable sheets, fixed summaries and source evidence; phone sorting/reopen and broader acceptance remain open |

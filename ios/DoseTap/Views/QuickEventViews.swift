@@ -147,22 +147,8 @@ struct CompactQuickButton: View {
     let lastLogTime: Date?
     let onTap: () -> Void
     
-    @State private var progress: CGFloat = 1.0
-    let timer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
-    
-    private var isOnCooldown: Bool {
-        guard let end = cooldownEnd else { return false }
-        return Date() < end
-    }
-    
-    /// P3-4: Relative "time since" badge text
-    private var timeSinceBadge: String? {
-        guard !isOnCooldown else { return nil }
-        return EventLogger.relativeBadge(since: lastLogTime)
-    }
-    
     var body: some View {
-        Button(action: onTap) {
+        QuickLogCooldownButton(name: name, cooldownEnd: cooldownEnd, cooldownDuration: cooldownSeconds, onTap: onTap) { isOnCooldown, progress, waitLabel in
             VStack(spacing: 2) {
                 ZStack {
                     Circle()
@@ -189,10 +175,10 @@ struct CompactQuickButton: View {
                     .minimumScaleFactor(0.7)
 
                 // P3-4: "time since" badge
-                if let badge = timeSinceBadge {
+                if let badge = waitLabel ?? EventLogger.relativeBadge(since: lastLogTime) {
                     Text(badge)
                         .font(.system(size: 8, weight: .medium))
-                        .foregroundColor(color.opacity(0.7))
+                        .foregroundColor(waitLabel == nil ? color.opacity(0.7) : .primary)
                         .lineLimit(1)
                 } else {
                     // Invisible spacer to maintain consistent layout
@@ -201,25 +187,37 @@ struct CompactQuickButton: View {
                 }
             }
         }
-        .disabled(isOnCooldown)
         .frame(maxWidth: .infinity)
-        // Accessibility
-        .accessibilityLabel("\(name) event button")
-        .accessibilityHint(isOnCooldown ? "Button on cooldown. Wait to log again." : "Double tap to log \(name) event")
-        .accessibilityAddTraits(isOnCooldown ? .isButton : [.isButton])
-        .onReceive(timer) { _ in
-            updateProgress()
-        }
     }
-    
-    private func updateProgress() {
-        guard let end = cooldownEnd else { progress = 1.0; return }
-        let now = Date()
-        if now >= end {
-            progress = 1.0
-        } else {
-            let remaining = end.timeIntervalSince(now)
-            progress = 1.0 - CGFloat(remaining / cooldownSeconds)
+}
+
+/// One clock drives both the duplicate-tap wait and the button's enabled state.
+/// No medication window or alarm state participates in quick-log eligibility.
+struct QuickLogCooldownButton<Label: View>: View {
+    let name: String
+    let cooldownEnd: Date?
+    let cooldownDuration: TimeInterval
+    let onTap: () -> Void
+    let label: (Bool, CGFloat, String?) -> Label
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            let remaining = max(0, cooldownEnd?.timeIntervalSince(context.date) ?? 0)
+            let isOnCooldown = remaining > 0
+            let progress = cooldownDuration > 0
+                ? CGFloat(max(0, min(1, 1 - remaining / cooldownDuration))) : 1
+            let waitLabel = isOnCooldown ? "Wait \(Int(ceil(remaining)))s" : nil
+            Button(action: onTap) {
+                label(isOnCooldown, progress, waitLabel)
+                    .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
+            }
+            .disabled(isOnCooldown)
+            .accessibilityLabel("\(name) event button")
+            .accessibilityValue(waitLabel ?? "Ready")
+            .accessibilityHint(isOnCooldown
+                ? "Recently logged. Available again after this wait."
+                : "Double tap to log \(name) event")
         }
     }
 }

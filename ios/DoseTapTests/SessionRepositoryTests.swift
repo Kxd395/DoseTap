@@ -23,6 +23,30 @@ final class TestClock {
 /// These tests verify that delete operations properly broadcast state changes.
 @MainActor
 final class SessionRepositoryTests: XCTestCase {
+    func test_quickLogsBeforeDose1AndBeforeDose2WindowKeepMedicationSeparate() {
+        let store = EventStorage.inMemory()
+        var now = ISO8601DateFormatter().date(from: "2026-09-24T23:00:00Z")!
+        let repository = SessionRepository(storage: store, clock: { now }, timeZoneProvider: { TimeZone(secondsFromGMT: 0)! })
+        let events = EventLogger(sessionRepo: repository, clock: { now })
+        XCTAssertTrue(events.logEvent(name: "Bathroom", color: .blue, cooldownSeconds: 30))
+        XCTAssertNil(repository.dose1Time)
+        XCTAssertTrue(repository.fetchDoseEvents(forSessionDate: "2026-09-24").isEmpty)
+        XCTAssertFalse(events.logEvent(name: "Bathroom", color: .blue, cooldownSeconds: 30))
+        XCTAssertTrue(events.logEvent(name: "Water", color: .blue, cooldownSeconds: 30))
+        now = now.addingTimeInterval(30)
+        XCTAssertFalse(events.isOnCooldown("Bathroom"))
+        XCTAssertTrue(events.logEvent(name: "Bathroom", color: .blue, cooldownSeconds: 30))
+        let dose1 = now
+        XCTAssertTrue(repository.setDose1Time(dose1).isCommitted)
+        now = dose1.addingTimeInterval(149 * 60)
+        XCTAssertTrue(events.logEvent(name: "Bathroom", color: .blue, cooldownSeconds: 30))
+        XCTAssertTrue(events.logEvent(name: "Water", color: .blue, cooldownSeconds: 30))
+        XCTAssertEqual(repository.dose1Time, dose1)
+        XCTAssertNil(repository.dose2Time)
+        XCTAssertEqual(repository.fetchDoseEvents(forSessionDate: "2026-09-24").map(\.eventType), ["dose1"])
+        XCTAssertEqual(store.fetchSleepEvents(forSession: "2026-09-24").count, 5)
+    }
+
     func test_quickLogFailureRollsBackNewSessionAndRetryPersistsExactlyOnce() throws {
         let store = EventStorage.inMemory()
         let now = ISO8601DateFormatter().date(from: "2026-09-11T23:00:00Z")!

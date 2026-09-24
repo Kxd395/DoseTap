@@ -153,21 +153,8 @@ struct EventGridButton: View {
     let lastLogTime: Date?
     let onTap: () -> Void
 
-    @State private var progress: CGFloat = 1.0
-    let timer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
-
-    private var isOnCooldown: Bool {
-        guard let end = cooldownEnd else { return false }
-        return Date() < end
-    }
-
-    private var timeSinceBadge: String? {
-        guard !isOnCooldown else { return nil }
-        return EventLogger.relativeBadge(since: lastLogTime)
-    }
-
     var body: some View {
-        Button(action: onTap) {
+        QuickLogCooldownButton(name: name, cooldownEnd: cooldownEnd, cooldownDuration: cooldownDuration, onTap: onTap) { isOnCooldown, progress, waitLabel in
             VStack(spacing: 6) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 12)
@@ -192,22 +179,16 @@ struct EventGridButton: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
 
-                if let badge = timeSinceBadge {
+                if let badge = waitLabel ?? EventLogger.relativeBadge(since: lastLogTime) {
                     Text(badge)
                         .font(.system(size: 9, weight: .medium))
-                        .foregroundColor(color.opacity(0.7))
+                        .foregroundColor(waitLabel == nil ? color.opacity(0.7) : .primary)
                         .lineLimit(1)
                 } else {
                     Text(" ")
                         .font(.system(size: 9))
                 }
             }
-        }
-        .disabled(isOnCooldown)
-        .onReceive(timer) { _ in
-            guard let end = cooldownEnd else { progress = 1.0; return }
-            let remaining = end.timeIntervalSince(Date())
-            progress = remaining <= 0 ? 1.0 : 1.0 - CGFloat(remaining / cooldownDuration)
         }
     }
 }
