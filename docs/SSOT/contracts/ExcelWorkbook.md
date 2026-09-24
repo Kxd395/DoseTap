@@ -9,6 +9,10 @@ clinical records, preferences, dose outcomes or alarms. The existing Studio ZIP
 remains available and retains original source evidence. Neither format is a tested
 full-app restore.
 
+When Apple Health is disabled in DoseTap, export does not await a HealthKit
+authorization refresh. Local record export remains independent of that disabled
+provider; enabling Apple Health retains the existing permission/enrichment path.
+
 Build 66 adds Dose Summary and Medication Log immediately after Overview. These
 are read-only views of existing finalized source records. Dose Summary uses one
 exported date group, excludes ambiguous identities, and reconciles selected dose
