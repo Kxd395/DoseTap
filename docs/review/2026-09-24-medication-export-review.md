@@ -82,7 +82,7 @@ Overview, with fixed headers even when empty:
 
 | Sheet | Row grain | First visible columns |
 | --- | --- | --- |
-| Dose Summary | One resolved treatment session; unresolved groups remain visibly excluded | Treatment date, Dose 1 outcome/time, Dose 2 outcome/time, interval, timing status, review reason |
+| Dose Summary | One exported treatment-date group with an unambiguous session identity; unresolved groups remain visibly excluded | Treatment date, Dose 1 outcome/time, Dose 2 outcome/time, interval, timing status, review reason |
 | Medication Log | One canonical administration/outcome or separately logged medication record | Treatment date, medicine as recorded, dose label, outcome, amount, unit, occurred local date/time, recorded local date/time |
 
 Dose Summary detail columns: Dose 1/2 amount and unit when recorded, timing basis,
