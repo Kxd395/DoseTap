@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-24
 SSOT revision: 0.4.19
-App version defined in this revision's Xcode project: 0.4.19 (65)
+App version defined in this revision's Xcode project: 0.4.19 (66)
 Integration and acceptance evidence: [Quick-log availability](../review/2026-09-24-quick-log-availability.md), [Excel contrast delivery](../review/2026-09-22-excel-contrast-delivery.md), [export delivery record](../review/2026-09-17-export-failure-diagnosis.md) and the DOSETAP-72 and DOSETAP-13 Plane workpads. The project version alone does not establish acceptance.
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
@@ -467,6 +467,10 @@ Quick-log success, list insertion, cooldown and haptics follow a committed SQLit
 General medication entries report storage failure separately from duplicate review. The picker retains unsaved entries and explicit duplicate consent, removes only committed entries from a partially saved batch, and dismisses only when every entry commits. Retrying a failed batch must not replay its saved prefix. These entries do not change Dose 1/2 state or alarms. Deletion/edit failure handling, export preservation and staging sync acceptance remain separate work.
 
 ## Storage and Persistence Truth
+
+Build 66 adds a readable Dose Summary and Medication Log, with shared source/summary
+dose reconciliation and explicit missing timing metadata. No historical dose
+amounts or medication windows are inferred.
 
 Build 62 adds **Export Excel Workbook** in Settings. The styled, sortable XLSX
 uses the finalized Studio export snapshot, preserving original-source identities,

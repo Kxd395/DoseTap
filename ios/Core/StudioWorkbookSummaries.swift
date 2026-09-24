@@ -1,7 +1,7 @@
 import Foundation
 
 extension StudioWorkbookData {
-    static var sheetNames: [String] { ["Overview", "Nights", "Night Review", "Events", "Pre-sleep", "Morning", "Pain", "Daytime",
+    static var sheetNames: [String] { ["Overview", "Dose Summary", "Medication Log", "Nights", "Night Review", "Events", "Pre-sleep", "Morning", "Pain", "Daytime",
         "Sleep Measures", "Sleep Intervals", "Medications", "Inventory", "Source Fields", "Review Issues", "Field Guide"] }
 
     func overviewSheet() -> WorkbookSheet {
@@ -61,7 +61,7 @@ extension StudioWorkbookData {
         let exported = SW.string(root["exportedAtUTC"]) ?? "Not supplied"
         let affected = Set(issues.flatMap { $0.group.components(separatedBy: "; ") }).intersection(Set(groups.map(\.key)))
         let missingCount = allReviewIssues.count - issues.count
-        let note = "Fixed snapshot: \(exported). App \(app); Studio export \(version); workbook schema 1. \(timezoneNote) "
+        let note = "Fixed snapshot: \(exported). App \(app); Studio export \(version); workbook schema 2. \(timezoneNote) "
             + "\(affected.count) date groups with record-review flags; \(issues.count) record-review issues; \(missingCount) unavailable-provider measurements listed separately. Filters change only their own table. "
             + "Windows end on the latest exported treatment date, including excluded groups. Means use supplied nonnegative measurements, with zero retained. "
             + "Confirmed following-day answers and exported recurring-wake schedule estimates remain separate; schedules are not historical attendance. "
@@ -73,19 +73,10 @@ extension StudioWorkbookData {
         records.filter { $0.groupKeys.contains(group.key) && (table == nil || $0.table == table!) }
     }
     func doseOutcome(_ group: SWGroup, number: Int) -> String {
-        guard group.eligible else { return "Needs record review" }
-        let relevant = groupRecords(group, table: "dose_events")
-        let taken = relevant.filter { ["dose\(number)", "dose\(number)_taken"].contains(eventType($0) ?? "") }
-        let skipped = number == 2 ? relevant.filter { ["dose2_skipped", "skip"].contains(eventType($0) ?? "") } : []
-        if taken.count > 1 || skipped.count > 1 || (!taken.isEmpty && !skipped.isEmpty) { return "Conflicting dose records" }
-        if !skipped.isEmpty { return "Explicitly skipped" }
-        if timestamps.parse(group.original["dose\(number)TimeUTC"]) != nil { return "Taken — recorded time available" }
-        if !taken.isEmpty { return "Taken — time unavailable" }
-        return "Outcome not recorded; regimen state unavailable"
+        reviewedDose(group, number: number).outcome
     }
     func doseTime(_ group: SWGroup, number: Int) -> Date? {
-        guard group.eligible, !doseOutcome(group, number: number).contains("Conflicting") else { return nil }
-        return timestamps.parse(group.original["dose\(number)TimeUTC"])
+        reviewedDose(group, number: number).time
     }
     func doseInterval(_ group: SWGroup) -> Double? {
         guard let first = doseTime(group, number: 1), let second = doseTime(group, number: 2), second >= first else { return nil }
