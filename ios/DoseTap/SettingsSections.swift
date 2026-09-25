@@ -118,7 +118,7 @@ extension SettingsView {
                     SleepPlanDetailView()
                 } label: {
                     HStack {
-                        Label("Typical Week Schedule", systemImage: "calendar.badge.clock")
+                        Label("Weekly Schedule", systemImage: "calendar.badge.clock")
                         Spacer()
                         Text("Configure")
                             .foregroundColor(.secondary)

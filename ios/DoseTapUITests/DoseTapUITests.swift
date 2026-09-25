@@ -48,6 +48,11 @@ final class DoseTapUITests: XCTestCase {
         if name.contains("testCompactLayout") { app.launchArguments += ["--uitesting-layout", "-setup_completed_v2", "YES"] }
         if name.contains("testSupply") || name.contains("testSystemAlarm") || name.contains("testPreSleep") || name.contains("testMorningSavedPain") { app.launchArguments += ["-setup_completed_v2", "YES"] }
         if name.contains("testDashboard") { app.launchArguments += ["--uitesting-dashboard", "-setup_completed_v2", "YES"] }
+        if name.contains("testWeeklySchedule") {
+            app.launchArguments += ["-setup_completed_v2", "YES", "-healthkit_enabled", "NO", "-whoop_enabled", "NO"]
+            app.launchArguments += ["-UIPreferredContentSizeCategoryName", name.contains("LargeText") ? "UICTContentSizeCategoryAccessibilityXXXL" : "UICTContentSizeCategoryL"]
+        }
+        if name.contains("testWorkWarningTargetSelector") { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"] }
         if name.contains("testWorkWarning") { app.launchArguments.append("--uitesting-work-warning") }
         if name.contains("testDose2Confirmation") || name.contains("testReviewedNightWindow") { app.launchArguments.append("--uitesting-dose2-confirmation") }
         if name.contains("testReviewedNightWindow") { app.launchArguments += ["-healthkit_enabled", "NO"] }
@@ -1187,24 +1192,90 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(action.label.contains("Dose 2"), "Saving a wake exception must not record the dose")
     }
 
+    func testWeeklyScheduleSaveReopen() { weeklyScheduleJourney() }
+    func testWeeklyScheduleLargeText() { weeklyScheduleJourney() }
+    private func weeklyScheduleJourney() {
+        func reveal(_ control: XCUIElement, down: Bool = false) {
+            for _ in 0..<35 {
+                let top = app.navigationBars.firstMatch.frame.maxY
+                let bottom = app.buttons["weekly-save"].exists ? app.buttons["weekly-save"].frame.minY - 60 : app.frame.maxY - 110
+                if control.exists && control.isHittable && control.frame.minY > top && control.frame.maxY < bottom { return }
+                let goDown = control.exists ? control.frame.midY < top : down
+                let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: goDown ? 0.4 : 0.6))
+                let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: goDown ? 0.6 : 0.4))
+                start.press(forDuration: 0.1, thenDragTo: end)
+            }
+            XCTFail("Schedule control not reachable: \(control)")
+        }
+        func open() {
+            let settings = app.buttons["Settings"].firstMatch
+            XCTAssertTrue(settings.waitForExistence(timeout: 10)); settings.tap()
+            let link = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Weekly Schedule")).firstMatch
+            reveal(link); link.tap()
+        }
+        func set(_ id: String, _ on: Bool, down: Bool = false) {
+            let control = app.switches[id]; reveal(control, down: down)
+            if (control.value as? String == "1") != on { control.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap() }
+            XCTAssertEqual(control.value as? String, on ? "1" : "0")
+        }
+        open()
+        set("weekly-work-known", false); set("weekly-work-known", true)
+        let legacy = app.switches["weekly-review-legacy"]
+        if legacy.exists { set("weekly-review-legacy", true) }
+        captureDashboard("Weekly schedule header and legacy review")
+        set("weekly-required-2", false)
+        set("weekly-work-3", true)
+        set("weekly-work-5", true)
+        captureDashboard("Weekly schedule independent work and wake controls")
+        let save = app.buttons["weekly-save"]
+        XCTAssertTrue(save.isEnabled); XCTAssertTrue(save.isHittable); save.tap()
+        XCTAssertTrue(app.alerts["Schedule saved"].waitForExistence(timeout: 5)); app.alerts.buttons["OK"].tap()
+        app.terminate(); app.launch(); open()
+        let monday = app.switches["weekly-required-2"]; reveal(monday)
+        XCTAssertEqual(monday.value as? String, "0")
+        XCTAssertTrue(app.staticTexts["No required wake time"].exists)
+        let tuesday = app.switches["weekly-work-3"]; reveal(tuesday)
+        XCTAssertEqual(tuesday.value as? String, "1")
+        let wednesday = app.switches["weekly-work-4"]; reveal(wednesday)
+        XCTAssertEqual(wednesday.value as? String, "0")
+        let thursday = app.switches["weekly-work-5"]; reveal(thursday)
+        XCTAssertEqual(thursday.value as? String, "1")
+        captureDashboard("Weekly schedule after restart")
+        // An unsaved edit must not leak into next opening.
+        thursday.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap(); app.terminate(); app.launch(); open()
+        reveal(thursday); XCTAssertEqual(thursday.value as? String, "1")
+        XCTAssertFalse(app.staticTexts["Quick Weekly Setup"].exists)
+    }
+
     func testWorkWarningTargetSelectorSavesAllThreeChoices() throws {
         XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 15))
         app.buttons["Settings"].tap()
-        let schedule = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Typical Week Schedule")).firstMatch
+        let schedule = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Weekly Schedule")).firstMatch
         for _ in 0..<6 where !schedule.isHittable { app.swipeUp() }
         XCTAssertTrue(schedule.isHittable)
         schedule.tap()
+        let legacy = app.switches["weekly-review-legacy"]
+        if legacy.exists {
+            for _ in 0..<5 where !legacy.isHittable { app.swipeUp() }
+            if legacy.value as? String != "1" {
+                legacy.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+            }
+            XCTAssertEqual(legacy.value as? String, "1")
+        }
         let picker = app.buttons["work-warning-target"]
         for title in ["Fixed work-night cutoff", "Wake time minus my buffer", "Existing Dose 2 target"] {
-            for _ in 0..<5 where !picker.isHittable { app.swipeDown() }
+            for _ in 0..<16 where !picker.isHittable { app.swipeUp() }
             XCTAssertTrue(picker.isHittable)
             picker.tap()
             app.buttons[title].tap()
-            let save = app.buttons["Save Work Warning Schedule"]
+            let save = app.buttons["weekly-save"]
             for _ in 0..<5 where !save.isHittable { app.swipeUp() }
             XCTAssertTrue(save.isHittable)
+            XCTAssertTrue(save.isEnabled)
             save.tap()
-            XCTAssertTrue(app.staticTexts["Work warning schedule saved. No medication record changed."].exists)
+            captureDashboard("Weekly save result")
+            XCTAssertTrue(app.alerts["Schedule saved"].waitForExistence(timeout: 5))
+            app.alerts.buttons["OK"].tap()
         }
     }
 
