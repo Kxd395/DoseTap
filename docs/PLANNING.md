@@ -94,3 +94,10 @@ DoseTap Studio is implemented, but product claims remain limited by import quali
 ## Archived planning material
 
 Completed and superseded plans are retained under `docs/archive/planning/`. They are useful for rationale and history but do not own current priority or completion state.
+
+## Daytime treatment diary
+
+The owner-authorized [2026-09-25 delivery plan](plans/2026-09-25-daytime-treatment-roadmap.md)
+maps medication capture/presets to DOSETAP-74, independent sleepiness/day review,
+nap/rest and the separate ESS authorization gate to DOSETAP-58, and full-period
+physician reporting to DOSETAP-59. Planned slices are not delivered behavior.

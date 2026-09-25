@@ -380,6 +380,12 @@ extension EventStorage {
         }
     }
 
+    /// A date group is not a night relationship for independent medications.
+    /// Use the same predicate for local removal and outbound tombstones.
+    private func sessionDeletionPredicate(table: String) -> String {
+        "session_date = ?" + (table == "medication_events" ? " AND session_id IS NOT NULL" : "")
+    }
+
     private func deleteRowsForSessionOrThrow(table: String, sessionDate: String) throws {
         let allowedTables = Set([
             "sleep_events", "dose_events", "sleep_sessions", "morning_checkins",
@@ -390,7 +396,7 @@ extension EventStorage {
             throw StorageDeleteError.prepareFailed("delete from \(table)", "Unsupported table")
         }
 
-        let sql = "DELETE FROM \(table) WHERE session_date = ?"
+        let sql = "DELETE FROM \(table) WHERE \(sessionDeletionPredicate(table: table))"
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
             throw StorageDeleteError.prepareFailed("delete from \(table)", String(cString: sqlite3_errmsg(db)))
@@ -421,7 +427,7 @@ extension EventStorage {
         let allowedTables = Set(["sleep_events", "dose_events", "morning_checkins", "medication_events"])
         guard allowedTables.contains(table) else { return [] }
 
-        let sql = "SELECT id FROM \(table) WHERE session_date = ?"
+        let sql = "SELECT id FROM \(table) WHERE \(sessionDeletionPredicate(table: table))"
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
         defer { sqlite3_finalize(stmt) }

@@ -678,12 +678,11 @@ extension EventStorage {
     
     // MARK: - Session ID Backfill Migration
     
-    /// Backfill NULL session_id values using canonical SessionKey from timestamps.
+    /// Backfill legacy sleep/dose identities. Independent medication session IDs remain NULL.
     /// This is idempotent - safe to run multiple times.
     /// Fixes the "I logged it and it vanished" bug class by ensuring all rows have session_id.
     public func backfillNullSessionIds() {
         backfillPreSleepLogSessionIds()
-        backfillMedicationEventSessionIds()
         backfillDoseEventSessionIds()
         backfillSleepEventSessionIds()
         backfillCurrentSessionIdIfNeeded()
@@ -735,51 +734,6 @@ extension EventStorage {
         }
     }
     
-    /// Backfill medication_events.session_id from taken_at_utc
-    private func backfillMedicationEventSessionIds() {
-        let selectSQL = "SELECT id, taken_at_utc, local_offset_minutes FROM medication_events WHERE session_id IS NULL"
-        var selectStmt: OpaquePointer?
-        
-        guard sqlite3_prepare_v2(db, selectSQL, -1, &selectStmt, nil) == SQLITE_OK else { return }
-        defer { sqlite3_finalize(selectStmt) }
-        
-        var rowsToUpdate: [(id: String, sessionKey: String)] = []
-        
-        while sqlite3_step(selectStmt) == SQLITE_ROW {
-            guard let idPtr = sqlite3_column_text(selectStmt, 0),
-                  let timestampPtr = sqlite3_column_text(selectStmt, 1) else { continue }
-            
-            let id = String(cString: idPtr)
-            let timestampStr = String(cString: timestampPtr)
-            let offsetMinutes = Int(sqlite3_column_int(selectStmt, 2))
-            
-            // Parse ISO8601 timestamp and compute session key
-            if let date = parseISO8601(timestampStr) {
-                let tz = TimeZone(secondsFromGMT: offsetMinutes * 60) ?? TimeZone.current
-                let key = sessionKey(for: date, timeZone: tz, rolloverHour: 18)
-                rowsToUpdate.append((id: id, sessionKey: key))
-            }
-        }
-        
-        // Update rows
-        let updateSQL = "UPDATE medication_events SET session_id = ? WHERE id = ?"
-        var updateStmt: OpaquePointer?
-        
-        guard sqlite3_prepare_v2(db, updateSQL, -1, &updateStmt, nil) == SQLITE_OK else { return }
-        defer { sqlite3_finalize(updateStmt) }
-        
-        for row in rowsToUpdate {
-            sqlite3_reset(updateStmt)
-            sqlite3_bind_text(updateStmt, 1, row.sessionKey, -1, SQLITE_TRANSIENT)
-            sqlite3_bind_text(updateStmt, 2, row.id, -1, SQLITE_TRANSIENT)
-            sqlite3_step(updateStmt)
-        }
-        
-        if !rowsToUpdate.isEmpty {
-            storageLog.debug("EventStorage: Backfilled \(rowsToUpdate.count) medication_events with session_id")
-        }
-    }
-
     /// Backfill dose_events.session_id from session_date
     private func backfillDoseEventSessionIds() {
         let selectSQL = "SELECT id, session_date FROM dose_events WHERE session_id IS NULL"
