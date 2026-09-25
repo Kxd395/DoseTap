@@ -90,8 +90,8 @@ Settings offers Saved medication presets separately from legacy picker settings.
 Create/revise requires explicit label, ingredient, release profile, oral-solid
 components, prescribed instructions, scheduled/as-needed choice and reviewed
 effective dates. New categorical choices and amounts start unanswered. Decimal
-input uses the displayed locale separator, accepts complete positive decimal
-strings only, and rejects unsupported precision rather than rounding.
+input normalizes Unicode decimal digits, uses the displayed locale separator,
+accepts complete positive decimal strings only, and rejects unsupported precision rather than rounding.
 
 An unchecked review acknowledgement covers the displayed label and dates. Save
 creates only an immutable preset revision, never an administration, dose, alarm,

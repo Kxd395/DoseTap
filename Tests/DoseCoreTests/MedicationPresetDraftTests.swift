@@ -14,6 +14,17 @@ final class MedicationPresetDraftTests: XCTestCase {
         XCTAssertEqual(try MedicationPresetDraft.amount("1.12345678901234567890123456789", separator: "."), Decimal(string: "1.12345678901234567890123456789"))
         XCTAssertThrowsError(try MedicationPresetDraft.amount("0." + String(repeating: "0", count: 130) + "1", separator: "."))
     }
+    func testLocalizedDecimalDigitsRemainExactAndOtherNumeralsAreRejected() throws {
+        XCTAssertEqual(try MedicationPresetDraft.amount("١٫١٢٥", separator: "٫"), Decimal(string: "1.125"))
+        XCTAssertEqual(try MedicationPresetDraft.amount("۲", separator: "٫"), Decimal(2))
+        XCTAssertEqual(try MedicationPresetDraft.amount("１２.５", separator: "."), Decimal(string: "12.5"))
+        for text in ["²", "Ⅳ", "½", "١٬٢٥٠", "١٫٢٥mg", "٠", "-٢"] {
+            XCTAssertThrowsError(try MedicationPresetDraft.amount(text, separator: "٫"), text)
+        }
+        XCTAssertThrowsError(try MedicationPresetDraft.amount(String(repeating: "١", count: 39), separator: "٫"))
+        var d = validDraft(); d.components[0].strength = "١٫١٢٥"; d.components[0].count = "۲"
+        XCTAssertEqual(try d.revision(recordedAt: now, separator: "٫", reviewed: true).totalMilligrams, Decimal(string: "2.25"))
+    }
     func validDraft() -> MedicationPresetDraft {
         var d = MedicationPresetDraft(effectiveFrom: now)
         d.labelName = "Synthetic label"; d.ingredient = "Synthetic ingredient"

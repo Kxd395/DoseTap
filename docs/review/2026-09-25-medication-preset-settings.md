@@ -24,10 +24,10 @@ separate exported copies. No individual purge or administration Undo is implied.
 ## Validation and evidence
 
 Core draft tests cover exact decimals, locale separators, invalid/partial/lossy
-values, unanswered choices, review requirements, effective dates and equal-time
+values, localized decimal digits, unanswered choices, review requirements, effective dates and equal-time
 revision ordering. Repository-backed setup tests cover rollback/retry, stable IDs,
 fresh review after editing, no-write preview, competing revisions and active-night isolation.
-Core: 784 XCTest plus 43 Swift Testing passed. Full native app suite: 523 tests
+Core: 785 XCTest plus 43 Swift Testing passed. Full native app suite: 523 tests
 passed with zero failures. Independent final code review found no remaining blocker.
 
 Native journeys exercise create/save/restart/revise/history at normal and largest

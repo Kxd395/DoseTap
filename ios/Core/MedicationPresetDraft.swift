@@ -56,7 +56,13 @@ public struct MedicationPresetDraft: Equatable {
             effectiveFrom: effectiveFrom, effectiveUntil: effectiveUntil, recordedAt: recordedAt)
     }
     public static func amount(_ input: String, separator: String) throws -> Decimal {
-        let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = input.trimmingCharacters(in: .whitespacesAndNewlines).unicodeScalars.map { scalar in
+            if scalar.properties.generalCategory == .decimalNumber,
+               let digit = scalar.properties.numericValue {
+                return String(Int(digit))
+            }
+            return String(scalar)
+        }.joined()
         guard !separator.isEmpty else { throw MedicationPresetDraftError.invalidDecimal }
         let pattern = "^[0-9]+(?:" + NSRegularExpression.escapedPattern(for: separator) + "[0-9]+)?$"
         guard text.range(of: pattern, options: .regularExpression) != nil else { throw MedicationPresetDraftError.invalidDecimal }
