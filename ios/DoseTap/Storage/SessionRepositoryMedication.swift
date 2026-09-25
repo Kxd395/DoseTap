@@ -170,7 +170,7 @@ public extension SessionRepository {
         takenAt: Date,
         notes: String? = nil,
         confirmedDuplicate: Bool = false,
-        reviewedDuplicateIDs: Set<String> = []
+        reviewedDuplicateTokens: Set<Data> = []
     ) throws -> DuplicateGuardResult {
         let recordedAt = clock()
         guard !entryID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -184,24 +184,16 @@ public extension SessionRepository {
             formulation: persistedMedicationFormulation(for: medicationId),
             localOffsetMinutes: timeZoneProvider().secondsFromGMT(for: takenAt) / 60,
             notes: notes, confirmedDuplicate: confirmedDuplicate, createdAt: recordedAt)
-        let result = try storage.commitMedicationCapture(entry, reviewedDuplicateIDs: reviewedDuplicateIDs)
+        let result = try storage.commitMedicationCapture(entry, reviewedDuplicateTokens: reviewedDuplicateTokens)
         if !result.isDuplicate { sessionDidChange.send() }
         return result
     }
 
-    func medicationDuplicateIDs(medicationId: String, takenAt: Date) throws -> Set<String> {
+    internal func medicationDuplicateReview(medicationId: String, takenAt: Date) throws -> MedicationCaptureReview {
         guard MedicationConfig.type(for: medicationId) != nil, takenAt.timeIntervalSince1970.isFinite else {
             throw EventStorage.MedicationCaptureError.invalid
         }
-        return Set(try storage.medicationCaptureDuplicates(medicationId: medicationId, takenAt: takenAt).map(\.id))
-    }
-
-    func medicationDuplicateEntries(medicationId: String, takenAt: Date) throws -> [MedicationEntry] {
-        try storage.medicationCaptureDuplicates(medicationId: medicationId, takenAt: takenAt).map {
-            MedicationEntry(id: $0.id, sessionId: $0.sessionId, sessionDate: $0.sessionDate,
-                medicationId: $0.medicationId, doseMg: $0.doseMg, takenAtUTC: $0.takenAtUTC,
-                notes: $0.notes, confirmedDuplicate: $0.confirmedDuplicate, createdAt: $0.createdAt)
-        }
+        return try storage.medicationCaptureReview(medicationId: medicationId, takenAt: takenAt)
     }
 
     /// Check if a medication entry would be a duplicate.

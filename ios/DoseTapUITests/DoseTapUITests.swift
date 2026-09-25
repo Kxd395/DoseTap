@@ -11,6 +11,9 @@ final class DoseTapUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
+        if name.contains("testMedicationQuickLog") {
+            app.launchArguments += ["--uitesting-auto-night-reset", "-setup_completed_v2", "YES", "-healthkit_enabled", "NO", "-whoop_enabled", "NO"]
+        }
         if name.contains("testQuickLogAvailability") {
             app.launchArguments += ["--uitesting-auto-night-reset", "-setup_completed_v2", "YES", "-quicklog_buttons_json", "", "-cooldown_bathroom", "10", "-cooldown_water", "10", "-healthkit_enabled", "NO", "-whoop_enabled", "NO"]
             if name.contains("BeforeDose2") { app.launchArguments.append("--uitesting-quick-log-waiting") }
@@ -177,26 +180,54 @@ final class DoseTapUITests: XCTestCase {
         captureDashboard("Timeline Live quick log has its own visible wait")
     }
 
+    func testMedicationQuickLogRequiresExplicitAmountAndTime() {
+        let entry = app.buttons["tonight-log-medication"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 10)); entry.tap()
+        XCTAssertTrue(app.navigationBars["Log Medication"].waitForExistence(timeout: 10))
+        app.buttons["Stimulant"].tap(); app.buttons["Adderall"].tap()
+        XCTAssertFalse(app.buttons["Add"].isEnabled)
+        app.buttons["10 mg"].tap()
+        XCTAssertFalse(app.buttons["Add"].isEnabled)
+        app.buttons["medication-time-now"].tap(); app.buttons["Add"].tap()
+        XCTAssertTrue(app.staticTexts["medication-pending-occurrence"].waitForExistence(timeout: 5))
+        let editorClosed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: app.buttons["Add"])
+        XCTAssertEqual(XCTWaiter.wait(for: [editorClosed], timeout: 5), .completed)
+        captureDashboard("Medication review has explicit amount and occurrence")
+        app.navigationBars.buttons["Save"].tap()
+        if app.alerts["Duplicate Entry?"].waitForExistence(timeout: 2) {
+            app.alerts.buttons["Add Anyway"].tap(); app.navigationBars.buttons["Save"].tap()
+        }
+        XCTAssertTrue(app.staticTexts["medication-saved-count"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["medication-saved-count"].label, "Saved this visit: 1")
+        captureDashboard("Independent medication saved receipt")
+        app.navigationBars.buttons["Done"].tap()
+        XCTAssertTrue(entry.waitForExistence(timeout: 5))
+    }
+
     func testDurableLogMedicationBatchFailureAndConfirmedDuplicateRetry() {
         XCTAssertTrue(app.navigationBars["Log Medication"].waitForExistence(timeout: 15))
         app.buttons["Stimulant"].tap()
-        let medication = app.buttons["Adderall"]
-        XCTAssertTrue(medication.waitForExistence(timeout: 5)); medication.tap()
-        app.buttons["Add"].tap()
-        XCTAssertTrue(app.staticTexts["To Be Logged"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Adderall"].waitForExistence(timeout: 5))
-        app.buttons["Adderall"].tap()
-        app.buttons["Add"].tap()
-        XCTAssertTrue(app.alerts["Duplicate Entry?"].waitForExistence(timeout: 5))
-        app.alerts.buttons["Add Anyway"].tap()
+        for index in 0..<2 {
+            app.buttons["Adderall"].tap()
+            app.buttons["10 mg"].tap(); app.buttons["medication-time-now"].tap()
+            app.buttons["Add"].tap()
+            let duplicateAppeared = app.alerts["Duplicate Entry?"].waitForExistence(timeout: index == 1 ? 5 : 1)
+            if index == 1 { XCTAssertTrue(duplicateAppeared) }
+            if duplicateAppeared { app.alerts.buttons["Add Anyway"].tap() }
+        }
         app.navigationBars.buttons["Save"].tap()
+        // The first commit changes the actual duplicate set; consent is reviewed again.
+        XCTAssertTrue(app.alerts["Duplicate Entry?"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.alerts.staticTexts.containing(NSPredicate(format: "label CONTAINS '10 mg'")).firstMatch.exists)
+        app.alerts.buttons["Add Anyway"].tap(); app.navigationBars.buttons["Save"].tap()
         let error = app.staticTexts["medication-save-error"]
         XCTAssertTrue(error.waitForExistence(timeout: 5))
-        for _ in 0..<8 where !error.isHittable { app.swipeDown() }
         XCTAssertTrue(error.label.contains("1 saved; 1 not saved"))
         captureDashboard("Medication batch retains only failed entry and duplicate consent")
         app.navigationBars.buttons["Save"].tap()
-        XCTAssertTrue(app.staticTexts["2 medications logged"].waitForExistence(timeout: 5))
+        let receipt = app.staticTexts["medication-saved-count"]
+        let savedBoth = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", "Saved this visit: 2"), object: receipt)
+        XCTAssertEqual(XCTWaiter.wait(for: [savedBoth], timeout: 5), .completed)
         XCTAssertFalse(error.exists)
         XCTAssertFalse(app.alerts["Duplicate Entry?"].exists)
         captureDashboard("Medication retry completes without replaying saved prefix")

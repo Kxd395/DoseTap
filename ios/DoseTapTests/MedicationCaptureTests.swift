@@ -48,12 +48,12 @@ final class MedicationCaptureTests: XCTestCase {
             medicationId: "adderall_ir", doseMg: 10, takenAtUTC: prior, createdAt: prior)
         XCTAssertTrue(storage.insertMedicationEvent(seed))
         XCTAssertTrue(try repo.logMedicationEntry(entryID: "second", medicationId: "adderall_ir", doseMg: 10, takenAt: now).isDuplicate)
-        let reviewed = try repo.medicationDuplicateIDs(medicationId: "adderall_ir", takenAt: now)
-        XCTAssertEqual(reviewed, ["prior"])
+        let reviewed = try repo.medicationDuplicateReview(medicationId: "adderall_ir", takenAt: now).tokens
+        XCTAssertEqual(reviewed.count, 1)
         XCTAssertFalse(try repo.logMedicationEntry(entryID: "second", medicationId: "adderall_ir", doseMg: 10, takenAt: now,
-            confirmedDuplicate: true, reviewedDuplicateIDs: reviewed).isDuplicate)
+            confirmedDuplicate: true, reviewedDuplicateTokens: reviewed).isDuplicate)
         XCTAssertTrue(try repo.logMedicationEntry(entryID: "third", medicationId: "adderall_ir", doseMg: 10, takenAt: now,
-            confirmedDuplicate: true, reviewedDuplicateIDs: reviewed).isDuplicate)
+            confirmedDuplicate: true, reviewedDuplicateTokens: reviewed).isDuplicate)
         XCTAssertEqual(try storage.medicationCaptureRows(column: "medication_id", value: "adderall_ir").count, 2)
         XCTAssertEqual(try storage.medicationCaptureRows(column: "id", value: "prior").first?.sessionId, "legacy")
     }
@@ -65,7 +65,32 @@ final class MedicationCaptureTests: XCTestCase {
         storage.medicationFaultInjector = nil
         XCTAssertFalse(try repo.logMedicationEntry(entryID: "retry", medicationId: "modafinil", doseMg: 100, takenAt: now).isDuplicate)
         XCTAssertEqual(sqlite3_exec(storage.db, "UPDATE medication_events SET taken_at_utc = 'bad'", nil, nil, nil), SQLITE_OK)
-        XCTAssertThrowsError(try repo.medicationDuplicateIDs(medicationId: "modafinil", takenAt: now))
+        XCTAssertThrowsError(try repo.medicationDuplicateReview(medicationId: "modafinil", takenAt: now).tokens)
         XCTAssertThrowsError(try repo.logMedicationEntry(entryID: "new", medicationId: "modafinil", doseMg: 100, takenAt: now))
     }
+    func testCommitFailureRollsBackAndChangedDuplicateContentNeedsReview() throws {
+        let storage = EventStorage(dbPath: ":memory:"), repo = repository(storage)
+        storage.medicationFaultInjector = { point in point == .commit ? MedicationStorageInjectedFailure(code: .diskFull, detail: "Test") : nil }
+        XCTAssertThrowsError(try repo.logMedicationEntry(entryID: "original", medicationId: "modafinil", doseMg: 100, takenAt: now))
+        XCTAssertTrue(try storage.medicationCaptureRows(column: "id", value: "original").isEmpty)
+        storage.medicationFaultInjector = nil
+        _ = try repo.logMedicationEntry(entryID: "original", medicationId: "modafinil", doseMg: 100, takenAt: now)
+        let review = try repo.medicationDuplicateReview(medicationId: "modafinil", takenAt: now)
+        XCTAssertEqual(review.entries.first?.doseMg, 100)
+        XCTAssertEqual(sqlite3_exec(storage.db, "UPDATE medication_events SET dose_mg = 200 WHERE id = 'original'", nil, nil, nil), SQLITE_OK)
+        XCTAssertTrue(try repo.logMedicationEntry(entryID: "additional", medicationId: "modafinil", doseMg: 100, takenAt: now,
+            confirmedDuplicate: true, reviewedDuplicateTokens: review.tokens).isDuplicate)
+        XCTAssertTrue(try storage.medicationCaptureRows(column: "id", value: "additional").isEmpty)
+    }
+    func testIndependentCaptureLeavesActiveNightUntouched() throws {
+        let storage = EventStorage(dbPath: ":memory:"), repo = repository(storage)
+        XCTAssertTrue(repo.setDose1Time(now.addingTimeInterval(-3600)).isCommitted)
+        let first = repo.dose1Time, identity = repo.activeSessionId
+        _ = try repo.logMedicationEntry(entryID: "daytime", medicationId: "adderall_xr", doseMg: 20, takenAt: now)
+        XCTAssertEqual(repo.dose1Time, first)
+        XCTAssertEqual(repo.activeSessionId, identity)
+        XCTAssertNil(repo.dose2Time)
+        XCTAssertNil(try storage.medicationCaptureRows(column: "id", value: "daytime").first?.sessionId)
+    }
+
 }

@@ -2,6 +2,11 @@ import Foundation
 import SQLite3
 import DoseCore
 
+struct MedicationCaptureReview {
+    let entries: [MedicationEntry]
+    let tokens: Set<Data>
+}
+
 @MainActor
 extension EventStorage {
     enum MedicationCaptureError: Error, LocalizedError {
@@ -61,8 +66,19 @@ extension EventStorage {
         }
     }
 
+    func medicationCaptureReview(medicationId: String, takenAt: Date) throws -> MedicationCaptureReview {
+        let rows = try medicationCaptureDuplicates(medicationId: medicationId, takenAt: takenAt)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return try MedicationCaptureReview(entries: rows.map {
+            MedicationEntry(id: $0.id, sessionId: $0.sessionId, sessionDate: $0.sessionDate,
+                medicationId: $0.medicationId, doseMg: $0.doseMg, takenAtUTC: $0.takenAtUTC,
+                notes: $0.notes, confirmedDuplicate: $0.confirmedDuplicate, createdAt: $0.createdAt)
+        }, tokens: Set(rows.map { try encoder.encode($0) }))
+    }
+
     /// One transaction protects command identity, duplicate review and the insert. Never replaces a row.
-    func commitMedicationCapture(_ entry: StoredMedicationEntry, reviewedDuplicateIDs: Set<String>) throws -> DuplicateGuardResult {
+    func commitMedicationCapture(_ entry: StoredMedicationEntry, reviewedDuplicateTokens: Set<Data>) throws -> DuplicateGuardResult {
         guard databaseInitializationFailure == nil, let db,
               sqlite3_exec(db, "BEGIN IMMEDIATE", nil, nil, nil) == SQLITE_OK else { throw MedicationCaptureError.notCommitted }
         var committed = false
@@ -74,14 +90,12 @@ extension EventStorage {
                   existing.notes == entry.notes, existing.sessionId == nil else { throw MedicationCaptureError.conflict }
             return .notDuplicate
         }
-        let duplicates = try medicationCaptureDuplicates(medicationId: entry.medicationId, takenAt: entry.takenAtUTC)
-        if let first = duplicates.first,
-           !entry.confirmedDuplicate || reviewedDuplicateIDs != Set(duplicates.map(\.id)) {
-            return DuplicateGuardResult(isDuplicate: true, existingEntry: MedicationEntry(id: first.id,
-                sessionId: first.sessionId, sessionDate: first.sessionDate, medicationId: first.medicationId,
-                doseMg: first.doseMg, takenAtUTC: first.takenAtUTC, notes: first.notes,
-                confirmedDuplicate: first.confirmedDuplicate, createdAt: first.createdAt),
-                minutesDelta: Int(abs(first.takenAtUTC.timeIntervalSince(entry.takenAtUTC)) / 60))
+        let review = try medicationCaptureReview(medicationId: entry.medicationId, takenAt: entry.takenAtUTC)
+        if (!review.entries.isEmpty && !entry.confirmedDuplicate) ||
+            (entry.confirmedDuplicate && reviewedDuplicateTokens != review.tokens) {
+            let first = review.entries.first
+            return DuplicateGuardResult(isDuplicate: true, existingEntry: first,
+                minutesDelta: first.map { Int(abs($0.takenAtUTC.timeIntervalSince(entry.takenAtUTC)) / 60) } ?? 0)
         }
         guard injectedMedicationFailure(at: .insert) == nil else { throw MedicationCaptureError.notCommitted }
         let sql = """
@@ -104,6 +118,7 @@ extension EventStorage {
         guard sqlite3_bind_int(statement, 10, entry.confirmedDuplicate ? 1 : 0) == SQLITE_OK else { throw MedicationCaptureError.notCommitted }
         try bind(11, isoFormatter.string(from: entry.createdAt))
         guard sqlite3_step(statement) == SQLITE_DONE, sqlite3_changes(db) == 1,
+              injectedMedicationFailure(at: .commit) == nil,
               sqlite3_exec(db, "COMMIT", nil, nil, nil) == SQLITE_OK else { throw MedicationCaptureError.notCommitted }
         committed = true
         return .notDuplicate

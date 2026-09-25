@@ -1,9 +1,9 @@
 # DoseTap SSOT (Single Source of Truth)
 
 Status: Current behavior authority
-Last verified: 2026-09-24
+Last verified: 2026-09-25
 SSOT revision: 0.4.19
-App version defined in this revision's Xcode project: 0.4.19 (67)
+App version defined in this revision's Xcode project: 0.4.19 (68)
 Integration and acceptance evidence: [Quick-log availability](../review/2026-09-24-quick-log-availability.md), [Excel contrast delivery](../review/2026-09-22-excel-contrast-delivery.md), [export delivery record](../review/2026-09-17-export-failure-diagnosis.md) and the DOSETAP-72 and DOSETAP-13 Plane workpads. The project version alone does not establish acceptance.
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
@@ -455,7 +455,7 @@ Code references:
 
 The first capture slice adds a direct Medications entry point on Tonight,
 independent of its nighttime review/dose state. It records a reported amount and
-occurrence through the existing medication ledger. Medication selection starts
+occurrence through the existing medication ledger. Medication selection honors the configured medication list and starts
 with no amount or time mode selected; Now captures the instant when added to the
 review list, Earlier requires an explicitly reviewed date/time. Save confirms the
 visible list. Opening, selecting and cancelling do not record administration.
@@ -464,7 +464,8 @@ New general-medication writes do not attach themselves to an active night.
 `session_date` remains a grouping key; nullable `session_id` remains absent across
 restart. Existing historical links are preserved, not repaired. Stable draft IDs
 make identical retries idempotent; an ID reused for changed content is rejected.
-Duplicate review compares absolute occurrences across date boundaries, separate
+Duplicate review compares absolute occurrences and complete reviewed row snapshots
+across date boundaries, separate
 from retry idempotency. Invalid/future times, unknown medication IDs and nonpositive
 or unrepresentable amounts are rejected before writing. Failed reads/writes do
 not become success. Routine diagnostics omit medication identity and amount.

@@ -1,7 +1,7 @@
 # DoseTap review records
 
 Status: Point-in-time review and decision evidence
-Last updated: 2026-09-24 (medication export delivery and quick-log availability)
+Last updated: 2026-09-25 (independent medication capture and daytime roadmap)
 
 Files here record dated reviews, design decisions, migration analysis, and regression runs. They do not override current SSOT, code, or Plane. Promote a lasting rule into SSOT or a maintained architecture decision and link back to its review record.
 
@@ -35,6 +35,7 @@ Each record identifies its version, bounded changes, validation and remaining ga
 
 | Build | Record | Scope |
 | --- | --- | --- |
+| 68 candidate; phone acceptance open | [Independent medication capture](2026-09-25-independent-medication-capture.md) | Direct entry, explicit amount/time, durable independent identity and reviewed retry; prescription presets and daytime diary remain follow-on slices |
 | 67 | [Export timing review](2026-09-24-export-timing-review.md) | Nonpositive spacing review, historical-target missingness and shared export/import eligibility |
 | 66 | [Medication export](2026-09-24-medication-export-delivery.md) | Sortable dose summary and medication log; explicit timing evidence and conflicts |
 | 65 | [Quick-log availability](2026-09-24-quick-log-availability.md) | Shared clock-driven cooldowns, visible waits and larger tap targets; exact owner lockout cause remains unconfirmed |

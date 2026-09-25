@@ -322,3 +322,21 @@ The local `dose2_reminder_enabled` usual preference defaults true and changes on
 after successful dose persistence when explicitly requested. Alarm-only opt-out
 is retained by session UUID in local alarm preferences to prevent History from
 recreating reminders; it does not rewrite the original medication metadata.
+
+### Independent general-medication capture (DOSETAP-74, build 68)
+
+New manual captures retain `session_id = NULL`; startup no longer backfills a
+night identity into general medication rows. Existing non-null links remain as
+stored. The 18:00 `session_date` remains a reporting group, not an inferred night
+relationship. `taken_at_utc` is the explicitly reviewed occurrence; `created_at`
+is supplied by this capture path's recording clock. Older creation timestamps
+retain their original meaning. The persisted unit/formulation are unchanged.
+
+A pending entry's stable ID is also its retry key. Identical replay returns the
+saved record; changed content under that ID cannot replace it. Duplicate review
+uses absolute time across date groups and compares the complete displayed-source
+snapshot at commit. These in-memory consent tokens are not exported or logged.
+No new SQL column, preset revision, outcome enum, named timezone, precision or
+correction history is added in this slice. Existing raw medication JSON and
+Medication Log exports retain the occurrence, creation time and absent session
+link; they do not infer a prescription or convert these records into Dose 1/2.
