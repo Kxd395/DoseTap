@@ -162,53 +162,46 @@ public extension SessionRepository {
         return result
     }
 
-    /// Log a medication entry for the session date derived from its timestamp.
-    /// Returns the DuplicateGuardResult for UI to handle.
+    /// Independent reported administration. Stable entry IDs make failed-write retries idempotent.
     func logMedicationEntry(
+        entryID: String = UUID().uuidString,
         medicationId: String,
         doseMg: Int,
         takenAt: Date,
         notes: String? = nil,
-        confirmedDuplicate: Bool = false
+        confirmedDuplicate: Bool = false,
+        reviewedDuplicateIDs: Set<String> = []
     ) throws -> DuplicateGuardResult {
-        let sessionDate = computeSessionDate(for: takenAt)
+        let recordedAt = clock()
+        guard !entryID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              MedicationConfig.type(for: medicationId) != nil,
+              doseMg > 0, doseMg <= Int(Int32.max),
+              takenAt.timeIntervalSince1970.isFinite, recordedAt.timeIntervalSince1970.isFinite,
+              takenAt <= recordedAt else { throw EventStorage.MedicationCaptureError.invalid }
+        let entry = StoredMedicationEntry(id: entryID, sessionId: nil,
+            sessionDate: computeSessionDate(for: takenAt), medicationId: medicationId,
+            doseMg: doseMg, takenAtUTC: takenAt, doseUnit: "mg",
+            formulation: persistedMedicationFormulation(for: medicationId),
+            localOffsetMinutes: timeZoneProvider().secondsFromGMT(for: takenAt) / 60,
+            notes: notes, confirmedDuplicate: confirmedDuplicate, createdAt: recordedAt)
+        let result = try storage.commitMedicationCapture(entry, reviewedDuplicateIDs: reviewedDuplicateIDs)
+        if !result.isDuplicate { sessionDidChange.send() }
+        return result
+    }
 
-        if !confirmedDuplicate {
-            let guardResult = checkDuplicateGuard(
-                medicationId: medicationId,
-                takenAt: takenAt,
-                sessionDate: sessionDate
-            )
-            if guardResult.isDuplicate {
-                return guardResult
-            }
+    func medicationDuplicateIDs(medicationId: String, takenAt: Date) throws -> Set<String> {
+        guard MedicationConfig.type(for: medicationId) != nil, takenAt.timeIntervalSince1970.isFinite else {
+            throw EventStorage.MedicationCaptureError.invalid
         }
+        return Set(try storage.medicationCaptureDuplicates(medicationId: medicationId, takenAt: takenAt).map(\.id))
+    }
 
-        let sessionId: String? = sessionDate == activeSessionDate ? activeSessionId : nil
-        let localOffsetMinutes = timeZoneProvider().secondsFromGMT(for: takenAt) / 60
-        let formulation = persistedMedicationFormulation(for: medicationId)
-
-        let entry = StoredMedicationEntry(
-            sessionId: sessionId,
-            sessionDate: sessionDate,
-            medicationId: medicationId,
-            doseMg: doseMg,
-            takenAtUTC: takenAt,
-            doseUnit: "mg",
-            formulation: formulation,
-            localOffsetMinutes: localOffsetMinutes,
-            notes: notes,
-            confirmedDuplicate: confirmedDuplicate
-        )
-
-        guard storage.insertMedicationEvent(entry) else { throw EventStorage.LocalEventWriteError.notCommitted }
-        sessionDidChange.send()
-
-        #if canImport(OSLog)
-        logger.debug("Logged medication \(medicationId, privacy: .public) \(doseMg)mg")
-        #endif
-
-        return .notDuplicate
+    func medicationDuplicateEntries(medicationId: String, takenAt: Date) throws -> [MedicationEntry] {
+        try storage.medicationCaptureDuplicates(medicationId: medicationId, takenAt: takenAt).map {
+            MedicationEntry(id: $0.id, sessionId: $0.sessionId, sessionDate: $0.sessionDate,
+                medicationId: $0.medicationId, doseMg: $0.doseMg, takenAtUTC: $0.takenAtUTC,
+                notes: $0.notes, confirmedDuplicate: $0.confirmedDuplicate, createdAt: $0.createdAt)
+        }
     }
 
     /// Check if a medication entry would be a duplicate.
