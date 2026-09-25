@@ -59,6 +59,7 @@ let package = Package(
                 "ExcelWorkbookZIP.swift",
                 "StudioWorkbookProjection.swift",
                 "StudioWorkbookMedication.swift",
+                "StudioDoseTimingExport.swift",
                 "StudioWorkbookSourceCatalog.swift",
                 "StudioWorkbookDetails.swift",
                 "StudioWorkbookSummaries.swift",

@@ -468,6 +468,16 @@ General medication entries report storage failure separately from duplicate revi
 
 ## Storage and Persistence Truth
 
+Build 67 (DOSETAP-73) adds reporting-only dose timing review. Zero/reversed
+occurrence intervals remain in source evidence but are excluded from ordinary
+spacing fields, with `nonpositive_dose_interval` shown in Review Issues and JSON.
+Eligibility is specific to dose spacing; unrelated sleep summaries remain usable.
+Studio export 2.9/schema 4 derives sessions.csv and doseTimingReview from the same
+finalized JSON source selection as Excel. Historical target/window values remain
+unavailable; current settings never fill them. Schema 4 requires updated Studio:
+older readers reject it instead of replacing a blank target with 165 minutes.
+No SQLite, medication, alarm or historical-record writes occur.
+
 Build 66 adds a readable Dose Summary and Medication Log, with shared source/summary
 dose reconciliation and explicit missing timing metadata. No historical dose
 amounts or medication windows are inferred.

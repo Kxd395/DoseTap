@@ -20,7 +20,7 @@ extension StudioWorkbookData {
             }
             add("Dose records", "Dose 1 to Dose 2 interval", SW.duration(doseInterval(group)), unit: "Elapsed duration",
                 start: doseTime(group, number: 1), end: doseTime(group, number: 2),
-                status: "Occurrence-time difference only. Historical medication window is not exported; no early/late reclassification.", source: group.key)
+                status: doseIntervalReason(group) + "; occurrence-time difference only; historical medication window unavailable", source: group.key)
             for (field, label) in [("sleepOnsetUTC", "Apple Health supplied sleep onset"), ("finalWakeUTC", "Apple Health supplied final wake")] {
                 add("Sleep timestamps", label, group.eligible ? timestampCell(group.health[field]) : .blank,
                     status: group.eligible ? (group.health[field] == nil ? "Not exported" : "Provider estimate; see supplied basis and derivation") : rawStatus,

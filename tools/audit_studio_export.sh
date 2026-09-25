@@ -185,10 +185,10 @@ if not isinstance(bundle, dict):
     print("FAIL: insights_bundle.json is not an object")
     sys.exit(2)
 schema_version = bundle.get("schemaVersion")
-if type(schema_version) is not int or schema_version not in [1, 2, 3]:
+if type(schema_version) is not int or schema_version not in [1, 2, 3, 4]:
     print("FAIL: unsupported or invalid bundle schema")
     sys.exit(1)
-session_key, forbidden_key = ("dateGroups", "sessions") if schema_version == 3 else ("sessions", "dateGroups")
+session_key, forbidden_key = ("dateGroups", "sessions") if schema_version >= 3 else ("sessions", "dateGroups")
 if forbidden_key in bundle:
     print("FAIL: contradictory bundle session layout")
     sys.exit(1)
@@ -208,7 +208,7 @@ source_tables = {"pre_sleep_logs", "morning_checkins", "checkin_submissions", "s
 for session in sessions_json:
     resolution = session.get("identityResolution")
     if "identityResolution" not in session:
-        if schema_version == 3:
+        if schema_version >= 3:
             issue("P1", "Schema 3 date groups require identity resolution")
         continue
     valid = (isinstance(resolution, dict) and type(resolution.get("version")) is int and resolution["version"] == 1
@@ -307,7 +307,7 @@ if local_offset is None or isinstance(local_offset, bool) or not isinstance(loca
 
 local_marker = "Local snapshot only; provider enrichment was not fetched."
 warnings = bundle.get("exportWarnings")
-local_only = (schema_version in [2, 3] and isinstance(warnings, list) and all(isinstance(w, str) for w in warnings)
+local_only = (schema_version in [2, 3, 4] and isinstance(warnings, list) and all(isinstance(w, str) for w in warnings)
               and local_marker in warnings)
 consent_value = bundle.get("consent")
 if isinstance(consent_value, dict):

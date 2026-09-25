@@ -4,6 +4,14 @@ import DoseCore
 
 /// Test suite for data import functionality
 final class ImporterTests: XCTestCase {
+    func testReviewedCSVPreservesUnavailableTargetAndTreatmentIdentity() throws {
+        let csv = "started_utc,ended_utc,window_target_min,window_actual_min,adherence_flag,whoop_recovery,avg_hr,sleep_efficiency,notes,session_date,session_id\n2026-01-02T23:00:00.000Z,,,,explicitly_skipped,,,,,2026-01-01,stable-session\n"
+        let row = try XCTUnwrap(Importer().parseSessionsCSV(csv).first)
+        XCTAssertNil(row.windowTargetMin)
+        XCTAssertEqual(row.sourceSessionID, "stable-session")
+        XCTAssertEqual(StudioSessionDateIdentity.key(for: row, events: []), "2026-01-01")
+    }
+
     func testEventJSONProvenancePreservesUnknownTypesAndLegacyMissingness() throws {
         let base = #"{"kind":"sleep","eventType":"custom_unknown","occurredAtUTC":"2026-09-12T02:00:00Z","details":null,"source":null}"#
         let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601

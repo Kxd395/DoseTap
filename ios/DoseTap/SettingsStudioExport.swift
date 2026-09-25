@@ -285,14 +285,10 @@ struct StudioBundleExporter {
                 consent: consent,
                 whoopEnrichment: whoopEnrichment
             )
-        try buildStudioSessionsCSV(
-            using: repo,
-            sessionDates: bundle.sessions.filter { !$0.identityResolution.isRawOnly }.map(\.sessionDate),
-            enrichmentBySessionDate: enrichmentBySessionDate
-        )
-            .write(to: directory.appendingPathComponent("sessions.csv"), atomically: true, encoding: .utf8)
+        let reviewed = try StudioDoseTimingExport.prepare(bundleData: encoder.encode(bundle))
+        try reviewed.sessionsCSV.write(to: directory.appendingPathComponent("sessions.csv"), atomically: true, encoding: .utf8)
         try writeCollectedNightCSV(bundle.sessions.compactMap { session in session.collectedNight.map { (session.sessionDate, $0) } }, to: directory)
-        try encoder.encode(bundle)
+        try reviewed.bundleData
             .write(to: directory.appendingPathComponent("insights_bundle.json"), options: .atomic)
     }
 
@@ -304,7 +300,7 @@ struct StudioBundleExporter {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
-        return try encoder.encode(
+        return try StudioDoseTimingExport.prepare(bundleData: encoder.encode(
             try buildInsightsBundle(
                 using: repo,
                 sessionDates: sessionDates,
@@ -317,7 +313,7 @@ struct StudioBundleExporter {
                     whoopConnected: false
                 )
             )
-        )
+        )).bundleData
     }
 
     func buildStudioInventoryCSVForTesting(using repo: SessionRepository) throws -> String {
@@ -392,46 +388,6 @@ struct StudioBundleExporter {
                     event.sessionId ?? "", event.sessionDate, event.timestampStoredUTC,
                     event.createdAtStoredUTC ?? "", event.colorHex ?? ""].map(csvField).joined(separator: ","))
             }
-        }
-        return rows.joined(separator: "\n") + "\n"
-    }
-
-    private func buildStudioSessionsCSV(
-        using repo: SessionRepository,
-        sessionDates: [String],
-        enrichmentBySessionDate: [String: StudioExportSessionContext]
-    ) -> String {
-        var rows = ["started_utc,ended_utc,window_target_min,window_actual_min,adherence_flag,whoop_recovery,avg_hr,sleep_efficiency,notes"]
-        for sessionDate in sessionDates {
-            guard let doseLog = repo.fetchDoseLog(forSession: sessionDate) else { continue }
-            let enrichment = enrichmentBySessionDate[sessionDate]
-            let startedUTC = doseLog.dose1Time
-            let endedUTC = doseLog.dose2Time
-            let adherenceFlag: String
-            if doseLog.dose2Skipped {
-                adherenceFlag = "missed"
-            } else if let second = doseLog.dose2Time {
-                switch MedicationTiming.classify(dose1: doseLog.dose1Time, dose2: second) {
-                case .early: adherenceFlag = "early"
-                case .late: adherenceFlag = "late"
-                case .inWindow: adherenceFlag = "ok"
-                case .invalid: adherenceFlag = "invalid"
-                }
-            } else {
-                adherenceFlag = "missing"
-            }
-            let row = [
-                AppFormatters.iso8601Fractional.string(from: startedUTC),
-                endedUTC.map(AppFormatters.iso8601Fractional.string(from:)) ?? "",
-                String(settings.targetIntervalMinutes),
-                doseLog.intervalMinutes.map(String.init) ?? "",
-                adherenceFlag,
-                numericCSVField(enrichment?.whoop?.recoveryScore.map { Double(Int($0.rounded())) }),
-                numericCSVField(enrichment?.healthKit?.averageHeartRate),
-                numericCSVField(enrichment?.whoop?.sleepEfficiency),
-                ""
-            ].map(csvField).joined(separator: ",")
-            rows.append(row)
         }
         return rows.joined(separator: "\n") + "\n"
     }

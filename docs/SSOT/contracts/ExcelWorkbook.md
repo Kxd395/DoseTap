@@ -101,7 +101,7 @@ accessibility, privacy and release acceptance remain separate gates.
 
 The XLSX is compressed locally with standard ZIP DEFLATE when available. It has
 no formulas, macros, remote links or refresh connections. The finalized Studio
-JSON/CSV contract remains unchanged (export 2.8/schema 3). Scheduled export still
+Build 66 retained export 2.8/schema 3. Build 67 advances the contract as described below. Scheduled export still
 produces the existing ZIP. Workbook creation reuses the finalized archive; it
 does not claim a new transaction across the exporter's existing source reads.
 
@@ -112,3 +112,32 @@ All parts must succeed before an XLSX is returned for atomic publication. A late
 part failure returns no archive. This reduces intermediate allocations, not the
 memory required by the source snapshot, projected rows, largest part or final
 compressed archive. Large-history phone performance remains a separate gate.
+
+## Build 67 timing review and Studio CSV
+
+Workbook schema 3 adds Dose interval eligibility to Dose Summary and Nights,
+and an interval-specific Review Issues reason. Nonpositive selected differences
+are preserved in source timestamps and JSON rawIntervalSeconds, but ordinary
+Dose interval cells remain blank pending review. Positive subsecond spacing
+remains eligible before display rounding. Identity conflicts, missing timestamps
+and explicit skips retain separate reasons; sleep eligibility is independent.
+
+Studio export 2.9/schema 4 retains dateGroups and original records. Each group
+adds doseTimingReview version 1: status (available, missing, needs_review), reason,
+optional rawIntervalSeconds, and intervalSeconds only when eligible. Source
+selection is shared with workbook reconciliation; original values are not repaired.
+
+sessions.csv retains its first nine column positions. started_utc and ended_utc
+are legacy names for selected Dose 1/2 occurrences. window_target_min is blank
+because no historical plan target is established. window_actual_min retains
+legacy whole-minute presentation only for eligible pairs. adherence_flag now
+uses taken, explicitly_skipped, missing or needs_review, never a current-window
+classification. Appended fields: session_date, session_id, actual_interval_seconds,
+interval_status, interval_review_reason, historical_window_status,
+dose2_reminder_enabled, reminder_interval_minutes. Historical window is unavailable;
+reminder fields require explicit Dose 1 metadata. Rows require resolved identity
+and a usable Dose 1 occurrence; other source records remain in JSON/events.csv.
+Updated Studio preserves blank targets as nil and uses the exported treatment
+date for joins. Schema 1–3 remain readable; older Studio rejects schema 4. This
+is a reporting compatibility change, not a database migration or a full-export
+transaction guarantee. Scheduled and manual archives share the same writer.

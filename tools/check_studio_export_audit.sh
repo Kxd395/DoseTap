@@ -113,6 +113,12 @@ def case(name, expected, mutate=lambda value: None, *, seed=local, csv_value=Non
     mutate(value)
     cases.append((name, expected, value, csv_value))
 
+schema4 = copy.deepcopy(local)
+schema4.update(schemaVersion=4, exportVersion="2.9", dateGroups=schema4.pop("sessions"))
+for group in schema4["dateGroups"]:
+    group["identityResolution"] = dict(version=1, status="resolved", sessionIds=["fixture-session"], reasons=[])
+case("schema4", 0, seed=schema4)
+case("schema4-invalid-layout", 1, lambda b: b.update(sessions=[]), seed=schema4)
 case("local", 0)
 case("bathroom-physical-only", 0, lambda b: b["sessions"][0].update(
     morning={"sleepQuality":3,"rawPhysicalSymptomsJson":'{"bathroomUrgencyBurden":2}'},

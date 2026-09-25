@@ -15,11 +15,11 @@ struct StudioWorkbookData {
 
     init(bundleData: Data, inventoryCSV: String) throws {
         guard let root = try JSONSerialization.jsonObject(with: bundleData) as? SWObject,
-              let version = root["schemaVersion"] as? Int, [1, 2, 3].contains(version) else {
+              let version = root["schemaVersion"] as? Int, [1, 2, 3, 4].contains(version) else {
             throw StudioWorkbookProjectionError.unsupportedBundle
         }
-        let groupRoot = version == 3 ? "dateGroups" : "sessions"
-        guard root[version == 3 ? "sessions" : "dateGroups"] == nil,
+        let groupRoot = version >= 3 ? "dateGroups" : "sessions"
+        guard root[version >= 3 ? "sessions" : "dateGroups"] == nil,
               let input = root[groupRoot] as? [SWObject] else { throw StudioWorkbookProjectionError.unsupportedBundle }
         self.root = root; self.groupRoot = groupRoot; self.inventoryCSV = inventoryCSV
         sourceSHA256 = ["insights_bundle.json": SW.sha256(bundleData), "inventory.csv (UTF-8 input)": SW.sha256(Data(inventoryCSV.utf8))]
@@ -34,7 +34,7 @@ struct StudioWorkbookData {
         var recordIndexes: [String: [Int]] = [:], canonicalPayloads: [String] = []
         for (index, item) in input.enumerated() {
             let identity = SW.object(item["identityResolution"])
-            guard version != 3 || (!identity.isEmpty && identity["sessionIds"] is [String] && identity["reasons"] is [String])
+            guard version < 3 || (!identity.isEmpty && identity["sessionIds"] is [String] && identity["reasons"] is [String])
             else { throw StudioWorkbookProjectionError.unsupportedBundle }
             let date = SW.string(item["sessionDate"]) ?? "Date unavailable"
             var reasons = identity["reasons"] as? [String] ?? []

@@ -1,4 +1,5 @@
 import XCTest
+import DoseCore
 @testable import DoseTapStudio
 
 final class RawOnlyIdentityTests: XCTestCase {
@@ -27,6 +28,34 @@ final class RawOnlyIdentityTests: XCTestCase {
         }
     }
 
+    func testSchemaFourUsesIdentityLayoutAndKeepsUnavailableTarget() throws {
+        let value = json.replacingOccurrences(of: "\"schemaVersion\":3", with: "\"schemaVersion\":4").replacingOccurrences(of: "\"rawEvents\":[]", with: #""doseTimingReview":{"version":1,"status":"needs_review","reason":"identity_unresolved"},"rawEvents":[]"#)
+        let importer = Importer()
+        XCTAssertEqual(try importer.parseInsightsBundle(Data(value.utf8)).schemaVersion, 4)
+        XCTAssertThrowsError(try importer.parseInsightsBundle(Data(value.replacingOccurrences(of: "dateGroups", with: "sessions").utf8)))
+        XCTAssertThrowsError(try importer.parseInsightsBundle(Data(value.replacingOccurrences(of: "identityResolution", with: "missingIdentity").utf8)))
+    }
+
+    func testReviewedConflictCannotReenterStudioSpacingAnalytics() throws {
+        let events: [[String: Any]] = [("a", "dose1", "2030-04-06T02:00:00Z"), ("b", "dose2", "2030-04-06T05:00:00Z"), ("c", "dose2", "2030-04-06T06:00:00Z")].map {
+            ["id": $0.0, "kind": "dose", "sourceTable": "dose_events", "eventType": $0.1, "occurredAtUTC": $0.2]
+        }
+        let group: [String: Any] = ["sessionDate": date, "identityResolution": ["version": 1, "status": "resolved", "sessionIds": ["s"], "reasons": []], "rawEvents": events, "normalizedEvents": [], "medications": []]
+        let original = try JSONSerialization.data(withJSONObject: ["schemaVersion": 3, "exportedAtUTC": "2030-04-06T10:00:00Z", "dateGroups": [group]])
+        let exported = try StudioDoseTimingExport.prepare(bundleData: original)
+        let importer = Importer(), bundle = try importer.parseInsightsBundle(exported.bundleData)
+        let raw = try importer.parseEventsCSV("event_type,occurred_at_utc,details,device_time\ndose1,2030-04-06T02:00:00.000Z,,\(date)\ndose2,2030-04-06T05:00:00.000Z,,\(date)\ndose2,2030-04-06T06:00:00.000Z,,\(date)\n")
+        let nights = InsightSessionBuilder().build(sessions: try importer.parseSessionsCSV(exported.sessionsCSV), events: raw, supplementsBySessionDate: [date: try XCTUnwrap(bundle.sessions.first)])
+        let night = try XCTUnwrap(nights.first)
+        XCTAssertEqual(night.events.count, 3)
+        XCTAssertEqual(night.doseTimingReview?.reason, "conflicting_dose_records")
+        XCTAssertFalse(night.isOnTimeDose2)
+        XCTAssertFalse(night.isLateDose2)
+        XCTAssertNil(night.intervalMinutes)
+        XCTAssertNil(night.anchoredIntervalMinutes)
+        XCTAssertEqual(StudioDoseTimingSummary(intervalSeconds: nights.map(\.recordedIntervalSeconds)).pairCount, 0)
+    }
+
     func testIOSRawOnlyArchiveRoundTrip() async throws {
         guard let path = ProcessInfo.processInfo.environment["DOSETAP_IOS_RAW_ONLY_FIXTURE"] else {
             throw XCTSkip("Set DOSETAP_IOS_RAW_ONLY_FIXTURE to the extracted synthetic iOS archive.")
@@ -35,7 +64,7 @@ final class RawOnlyIdentityTests: XCTestCase {
         let data = try XCTUnwrap(importer.loadInsightsBundleData(from: folder))
         let bundle = try importer.parseInsightsBundle(data)
         let raw = try XCTUnwrap(bundle.sessions.first { $0.sessionDate == date })
-        XCTAssertEqual(bundle.schemaVersion, 3); XCTAssertEqual(raw.identityResolution?.status, "raw_only")
+        XCTAssertTrue([3, 4].contains(bundle.schemaVersion)); XCTAssertEqual(raw.identityResolution?.status, "raw_only")
         XCTAssertEqual(raw.rawEvents.count, 4); XCTAssertEqual(raw.rawSourceRecords?.count, 5)
         let events = try await importer.loadEvents(from: folder)
         let sessions = try await importer.loadSessions(from: folder)

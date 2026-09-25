@@ -70,7 +70,7 @@ extension StudioWorkbookData {
             "Dose 2 reminder", "Reminder interval", "Dose 1 recording (local)", "Dose 2 recording (local)",
             "Dose 2 recording delay", "Dose 2 reason", "Dose 2 notes", "Extra dose records", "Dose 1 evidence", "Dose 2 evidence",
             "Local display timezone", "Dose 1 (UTC)", "Dose 2 (UTC)", "Dose interval (minutes)",
-            "Date group", "Identity status", "Dose 1 source", "Dose 2 source", "Review medication records"]
+            "Date group", "Identity status", "Dose 1 source", "Dose 2 source", "Review medication records", "Dose interval eligibility"]
         let rows = groups.map { group -> [WorkbookCell] in
             let first = reviewedDose(group, number: 1), second = reviewedDose(group, number: 2)
             let m1 = first.record.map(medicationMetadata) ?? [:], m2 = second.record.map(medicationMetadata) ?? [:]
@@ -80,7 +80,7 @@ extension StudioWorkbookData {
             let timing: String
             if !group.eligible { timing = "Identity unresolved; interval unavailable" }
             else if first.outcome.contains("Conflicting") || second.outcome.contains("Conflicting") { timing = "Conflicting records; interval unavailable" }
-            else if let d1 = first.time, let d2 = second.time, d2 < d1 { timing = "Dose 2 precedes Dose 1; interval unavailable" }
+            else if let d1 = first.time, let d2 = second.time, d2 <= d1 { timing = "Dose 2 time is at or before Dose 1; review required" }
             else if interval == nil { timing = "Two usable taken times required; interval unavailable" }
             else { timing = "Historical window unavailable; not reclassified" }
             let extra = groupRecords(group, table: "dose_events").filter { eventType($0) == "extra_dose" && !isRemovedDose($0) }.count
@@ -92,7 +92,7 @@ extension StudioWorkbookData {
                 SW.text(SW.string(m2["reason"])), SW.text(SW.string(m2["reason_notes"])), group.eligible ? .number(Double(extra)) : .blank,
                 .text(first.evidence), .text(second.evidence), .text(timezone.identifier), first.time.map(WorkbookCell.date) ?? .blank,
                 second.time.map(WorkbookCell.date) ?? .blank, SW.numeric(interval), .text(group.key), .text(group.identity),
-                SW.text(first.record?.key), SW.text(second.record?.key), .link(label: "Open Medication Log; filter treatment date", target: "'Medication Log'!A4")]
+                SW.text(first.record?.key), SW.text(second.record?.key), .link(label: "Open Medication Log; filter treatment date", target: "'Medication Log'!A4"), .text(doseIntervalReason(group))]
         }
         return SW.table("Dose Summary", columns, rows,
             note: "One exported treatment-date group. Interval uses reconciled occurrence times, never alarm or recording times. Blank values remain unavailable, not zero. Reminder target is separate from the medication window. Local times use the export timezone, not a verified historical location. \(timezoneNote)")

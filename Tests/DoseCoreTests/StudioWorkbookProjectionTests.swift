@@ -91,7 +91,7 @@ final class StudioWorkbookProjectionTests: XCTestCase {
         let issues = sheet("Review Issues", result)
         XCTAssertTrue(issues.rows.contains { value($0, "Category", issues) == .text("Conflicting source variants") })
         let nights = sheet("Nights", result)
-        XCTAssertTrue(nights.rows.allSatisfy { value($0, "Included in summaries", nights) == .text("No") })
+        XCTAssertTrue(nights.rows.allSatisfy { value($0, "Identity permits summaries", nights) == .text("No") })
     }
 
     func testEveryUnknownFieldRetainedAndLongStringsSplitWithoutTruncation() throws {
@@ -160,7 +160,7 @@ final class StudioWorkbookProjectionTests: XCTestCase {
         item["identityResolution"] = ["version": 1, "status": "resolved",
                                       "sessionIds": ["session-a", "session-b"], "reasons": []]
         let nights = sheet("Nights", try project([item]))
-        XCTAssertEqual(value(nights.rows[0], "Included in summaries", nights), .text("No"))
+        XCTAssertEqual(value(nights.rows[0], "Identity permits summaries", nights), .text("No"))
         XCTAssertEqual(value(nights.rows[0], "Apple Health sleep", nights), .blank)
     }
 
@@ -178,7 +178,7 @@ final class StudioWorkbookProjectionTests: XCTestCase {
         second["identityResolution"] = identity
         let nights = sheet("Nights", try project([first, second]))
         XCTAssertEqual(nights.rows.count, 2)
-        XCTAssertTrue(nights.rows.allSatisfy { value($0, "Included in summaries", nights) == .text("No") })
+        XCTAssertTrue(nights.rows.allSatisfy { value($0, "Identity permits summaries", nights) == .text("No") })
         XCTAssertTrue(nights.rows.allSatisfy { value($0, "Apple Health sleep", nights) == .blank })
     }
 
