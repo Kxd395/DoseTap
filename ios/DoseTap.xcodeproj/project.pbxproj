@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		DC74B001 /* EventStorage+MedicationCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC74F001 /* EventStorage+MedicationCapture.swift */; };
+		DC74B002 /* EventStorage+MedicationPresets.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC74F002 /* EventStorage+MedicationPresets.swift */; };
 		EXCEL_BF01 /* SettingsExcelExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = EXCEL_FR01 /* SettingsExcelExport.swift */; };
 		01FF500944CC4F14A6E163C4 /* FullApp/DoseModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 418F7D12D4A2473F800C75ED /* FullApp/DoseModels.swift */; };
 		05D399B5B86749ACB9CD89BF /* FullApp/KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BD7AD6DA76F4E548669A489 /* FullApp/KeychainHelper.swift */; };
@@ -183,6 +184,7 @@
 
 /* Begin PBXFileReference section */
 		DC74F001 /* EventStorage+MedicationCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+MedicationCapture.swift"; sourceTree = "<group>"; };
+		DC74F002 /* EventStorage+MedicationPresets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+MedicationPresets.swift"; sourceTree = "<group>"; };
 		EXCEL_FR01 /* SettingsExcelExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsExcelExport.swift; sourceTree = "<group>"; };
 		0C7B30C64C784164BA6C294F /* WeeklyInsightsCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeeklyInsightsCard.swift; sourceTree = "<group>"; };
 		15C51DD55054436BA1B68CD7 /* SupportBundleExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportBundleExport.swift; sourceTree = "<group>"; };
@@ -606,6 +608,7 @@
 				ESF002 /* EventStorage+Session.swift */,
 				ESF003 /* EventStorage+Exports.swift */,
 				DC74F001 /* EventStorage+MedicationCapture.swift */,
+				DC74F002 /* EventStorage+MedicationPresets.swift */,
 				ESF045 /* EventStorage+ExportSources.swift */,
 				ESF004 /* EventStorage+EventStore.swift */,
 				ESF005 /* StorageModels.swift */,
@@ -960,6 +963,7 @@
 				ESB002 /* EventStorage+Session.swift in Sources */,
 				ESB003 /* EventStorage+Exports.swift in Sources */,
 				DC74B001 /* EventStorage+MedicationCapture.swift in Sources */,
+				DC74B002 /* EventStorage+MedicationPresets.swift in Sources */,
 				ESB045 /* EventStorage+ExportSources.swift in Sources */,
 				ESB004 /* EventStorage+EventStore.swift in Sources */,
 				ESB005 /* StorageModels.swift in Sources */,

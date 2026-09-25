@@ -177,6 +177,8 @@ Morning preferences (`morningCheckIn.savedSettings` in UserDefaults) contain onl
 | `morning_checkins` | Source morning assessment payload | `id`, linked to `session_id` |
 | `checkin_submissions` | Normalized, questionnaire-versioned responses | `id`; unique source record plus check-in type |
 | `medication_events` | Other local medication log entries | `id` |
+| `medication_preset_revisions` | Immutable patient-entered oral-solid label revisions | revision `id`; `preset_id` groups revisions |
+| `confirmed_medication_administrations` | Independent confirmed actual snapshots | administration `id`; `revision_id` references preset |
 | `inventory_snapshots` | Point-in-time inventory data used by export and Studio | `id` |
 | `symptom_events` | Durable non-diagnostic symptom facts | `id` |
 | `symptom_locations` | Structured body location for a symptom event | `id`, parent `event_id` |
@@ -325,10 +327,11 @@ recreating reminders; it does not rewrite the original medication metadata.
 
 ### Independent general-medication capture (DOSETAP-74, build 68)
 
-The separate [preset foundation](MedicationPresets.md) defines future immutable
-label revisions and explicitly confirmed actual snapshots in DoseCore. These
-types have no current SQLite or Settings-export mapping; they are not a new
-source of stored clinical records and do not backfill the ledger described below.
+The separate [preset contract](MedicationPresets.md) defines immutable label
+revisions and explicitly confirmed actual snapshots. Its two independent tables
+retain canonical JSON text and checked indexes, without backfilling this legacy
+ledger. Bundle schema5 carries its exact strings in medicationPresetLedger, even
+with no dateGroups. Legacy medication_events retain the contract below.
 
 New manual captures retain `session_id = NULL`; startup no longer backfills a
 night identity into general medication rows. Existing non-null links remain as
