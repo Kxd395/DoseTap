@@ -70,8 +70,8 @@ struct PreSleepLogView: View {
                 TabView(selection: $currentCard) {
                     // Card 1: Timing + Stress
                     Card1TimingStress(answers: $answers) {
-                        if historyNight == nil, let plan = planSummary {
-                            PlanInlineHint(plan: plan)
+                        if historyNight == nil && !sleepPlanStore.scheduleLoadFailed {
+                            if let plan = planSummary { PlanInlineHint(plan: plan) }
                             SleepPlanOverrideCard(
                                 overrideEnabled: $overrideEnabled,
                                 overrideWake: $overrideWake,
@@ -81,11 +81,8 @@ struct PreSleepLogView: View {
                                 onClear: {
                                     sleepPlanStore.setTonightOverride(sessionKey: planSessionKey, wakeBy: nil)
                                 },
-                                baselineWake: SleepPlanCalculator.wakeByDateTime(
-                                    forActiveSessionKey: planSessionKey,
-                                    schedule: sleepPlanStore.schedule, tz: .current
-                                )
-                            )
+                                baselineWake: sleepPlanStore.scheduledWakeByDate(for: planSessionKey)
+                            ).environment(\.timeZone, sleepPlanStore.scheduleTimeZone ?? .current)
                         }
                         if historyNight == nil { rememberLastSettingsSection }
                         else { Text("Treatment night: \(historyNight ?? "") · Review remembered answers. This does not change tonight's plan.").font(.footnote) }
@@ -331,11 +328,11 @@ struct PreSleepLogView: View {
     private func syncWakeOverride() {
         let saved = sleepPlanStore.overrideForSession(planSessionKey)
         overrideEnabled = saved != nil
-        overrideWake = saved ?? sleepPlanStore.wakeByDate(for: planSessionKey)
+        overrideWake = saved ?? sleepPlanStore.wakeEditorDate(for: planSessionKey) ?? Date()
     }
 
     private var planSummary: (wakeBy: Date, inBed: Date, windDown: Date, expectedSleep: Double)? {
-        let plan = sleepPlanStore.plan(for: planSessionKey, now: Date(), tz: TimeZone.current)
+        guard let plan = sleepPlanStore.plan(for: planSessionKey, now: Date(), tz: TimeZone.current) else { return nil }
         return (plan.wakeBy, plan.recommendedInBed, plan.windDown, plan.expectedSleepMinutes)
     }
 

@@ -37,6 +37,7 @@ Each record identifies its version, bounded changes, validation and remaining ga
 
 | Build | Record | Scope |
 | --- | --- | --- |
+| 71 candidate; acceptance open | [Weekly schedule repair](2026-09-25-weekly-schedule.md) | One saved draft, shared wake times, explicit missing deadlines and retained exceptions |
 | 69 candidate; acceptance open | [Medication preset ledger and export](2026-09-25-medication-preset-ledger.md) | Independent durable revisions and administrations, lossless Studio/Excel export; preset controls remain follow-on |
 | Core foundation; build 68 unchanged | [Medication preset foundation](2026-09-25-medication-preset-foundation.md) | Immutable label revisions and explicit actual snapshots; persistence, UI and export wiring remain follow-on work |
 | 68 candidate; phone acceptance open | [Independent medication capture](2026-09-25-independent-medication-capture.md) | Direct entry, explicit amount/time, durable independent identity and reviewed retry; prescription presets and daytime diary remain follow-on slices |

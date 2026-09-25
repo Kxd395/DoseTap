@@ -45,7 +45,7 @@ struct SleepScheduleStepView: View {
                     SleepPlanDetailView()
                 } label: {
                     HStack {
-                        Label("Set Weekly Workday Pattern", systemImage: "calendar.badge.clock")
+                        Label("Set Weekly Schedule", systemImage: "calendar.badge.clock")
                         Spacer()
                         Text("Optional")
                             .font(.caption)

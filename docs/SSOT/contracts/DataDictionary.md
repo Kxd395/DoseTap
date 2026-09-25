@@ -366,3 +366,24 @@ time use the existing immutable schema; prior revisions remain unchanged. New
 categorical choices and amounts start unanswered. Form drafts/review toggles are
 transient, not stored observations. No administration, dose, inventory, reminder or
 night record is created. Existing schema-5 and workbook exports retain revisions.
+
+### Unified weekly planner (build 71)
+
+After an explicit Weekly Schedule save, `work_wake_schedule.payload.weeklySchedule`
+contains seven validated `TypicalWeekEntry` records (weekdayIndex, wakeByHour,
+wakeByMinute, enabled). Disabled means no required wake time. The containing
+work/wake revision and timezone apply to this schedule; the transaction retains
+workingWeekdays, warning settings and dated exceptions. An absent weeklySchedule
+is a legacy document: planner preferences remain readable until reviewed and saved.
+No automatic migration or inference from enabled flags to work status occurs.
+The old sleepPlan.schedule.v1 preference is retained but ceases to be authoritative
+after consolidation. Current clinical exports do not promise a restorable schedule
+backup. Dated warning exceptions and one-night planner overrides retain their
+existing distinct scopes; neither rewrites the recurring week.
+
+A deliberate one-night override exports its effective UTC time and matching local
+clock minutes even when the recurring day is disabled. `scheduleDayType` is
+`one_night_override`, not an inferred work/off classification. These remain
+current preference projections, not proven historical obligations. Studio treats
+this value as unknown for schedule grouping unless independent recorded context
+provides a classification.

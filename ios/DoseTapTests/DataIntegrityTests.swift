@@ -7,6 +7,7 @@
 //
 
 import XCTest
+import Combine
 @testable import DoseTap
 import DoseCore
 
@@ -36,7 +37,7 @@ final class SleepPlanStoreTemplateTests: XCTestCase {
         let encoder = JSONEncoder()
         encoder.outputFormatting = .sortedKeys
         let scheduleBefore = try encoder.encode(store.schedule)
-        let usualWake = store.wakeByDate(for: key, tz: zone)
+        let usualWake = try XCTUnwrap(store.wakeByDate(for: key, tz: zone))
         let nextWake = store.wakeByDate(for: nextKey, tz: zone)
         let changedWake = usualWake.addingTimeInterval(3600)
         store.setTonightOverride(sessionKey: key, wakeBy: changedWake)
@@ -47,6 +48,92 @@ final class SleepPlanStoreTemplateTests: XCTestCase {
         XCTAssertEqual(restored.overrideForSession(key), changedWake)
         restored.setTonightOverride(sessionKey: key, wakeBy: nil)
         XCTAssertEqual(restored.wakeByDate(for: key, tz: zone), usualWake)
+    }
+
+    func testDisabledDayEditorUsesNextWakeDateWithoutCreatingDeadlineAndExportHonorsOverride() throws {
+        store.updateEntry(weekday: 6, wakeTime: makeTime(hour: 7, minute: 0), enabled: false)
+        let zone = TimeZone(identifier: "America/New_York")!
+        let key = "2026-09-24"
+        let suggestion = try XCTUnwrap(store.wakeEditorDate(for: key, tz: zone))
+        XCTAssertEqual(suggestion, ISO8601DateFormatter().date(from: "2026-09-25T11:00:00Z"))
+        XCTAssertNil(store.wakeByDate(for: key, tz: zone))
+        XCTAssertNil(store.wakeExportContext(for: key, tz: zone))
+        store.setTonightOverride(sessionKey: key, wakeBy: suggestion.addingTimeInterval(3600))
+        let context = try XCTUnwrap(store.wakeExportContext(for: key, tz: zone))
+        XCTAssertEqual(context.wakeDate, suggestion.addingTimeInterval(3600))
+        XCTAssertEqual(context.minutesAfterMidnight, 480)
+        XCTAssertEqual(context.dayType, "one_night_override")
+        store.updateEntry(weekday: 6, wakeTime: makeTime(hour: 5, minute: 0), enabled: true)
+        XCTAssertEqual(store.wakeExportContext(for: key, tz: zone)?.minutesAfterMidnight, 480)
+    }
+
+    func testTimezoneOnlyCanonicalChangePublishesAndChangesDeadline() throws {
+        let storage = EventStorage.inMemory()
+        let repository = SessionRepository(storage: storage, notificationScheduler: FakeNotificationScheduler())
+        var plan = try repository.workWakeSchedule()
+        plan.timeZoneIdentifier = "UTC"; plan.weeklySchedule = TypicalWeekSchedule()
+        XCTAssertTrue(repository.saveWorkWakeSchedule(plan).isCommitted)
+        let projection = SleepPlanStore(userDefaults: defaults, repository: repository)
+        let first = projection.wakeByDate(for: "2026-09-24")
+        var publications = 0
+        let subscription = projection.objectWillChange.sink { publications += 1 }
+        plan = try repository.workWakeSchedule(); plan.timeZoneIdentifier = "America/New_York"
+        XCTAssertTrue(repository.saveWorkWakeSchedule(plan).isCommitted)
+        XCTAssertGreaterThan(publications, 0)
+        XCTAssertEqual(projection.wakeByDate(for: "2026-09-24")?.timeIntervalSince(first!), 4 * 3600)
+        subscription.cancel()
+    }
+
+    func testCanonicalWeeklySaveReopensAndOverridesLegacyPreferencesWithoutChangingMedication() throws {
+        let storage = EventStorage.inMemory()
+        let repository = SessionRepository(storage: storage, notificationScheduler: FakeNotificationScheduler())
+        let canonical = SleepPlanStore(userDefaults: defaults, repository: repository)
+        var plan = try repository.workWakeSchedule()
+        plan.timeZoneIdentifier = "America/New_York"
+        plan.workingWeekdays = [3, 5, 7]
+        plan.weeklySchedule = TypicalWeekSchedule(entries: (1...7).map {
+            TypicalWeekEntry(weekdayIndex: $0, wakeByHour: 5, wakeByMinute: 45, enabled: $0 != 6)
+        })
+        plan.exceptions["2026-09-26"] = WorkWakeException(isWorking: false, wakeMinutes: nil)
+        XCTAssertTrue(repository.saveWorkWakeSchedule(plan).isCommitted)
+        XCTAssertEqual(canonical.schedule, plan.weeklySchedule)
+        let reopened = SleepPlanStore(userDefaults: defaults, repository: repository)
+        XCTAssertEqual(reopened.schedule, plan.weeklySchedule)
+        XCTAssertEqual(try repository.workWakeSchedule().workingWeekdays, [3, 5, 7])
+        XCTAssertNil(reopened.wakeByDate(for: "2026-09-24"))
+        XCTAssertNil(reopened.plan(for: "2026-09-24"))
+        XCTAssertEqual(reopened.wakeByDate(for: "2026-09-25", tz: TimeZone(secondsFromGMT: 0)!),
+                       ISO8601DateFormatter().date(from: "2026-09-26T09:45:00Z"))
+        let override = Date(timeIntervalSince1970: 1_800_000_000)
+        reopened.setTonightOverride(sessionKey: "2026-09-24", wakeBy: override)
+        XCTAssertEqual(reopened.wakeByDate(for: "2026-09-24"), override)
+        reopened.setTonightOverride(sessionKey: "2026-09-24", wakeBy: nil)
+        XCTAssertNil(reopened.wakeByDate(for: "2026-09-24"))
+        XCTAssertTrue(storage.fetchDoseEvents(sessionId: nil, sessionDate: "2026-09-24").isEmpty)
+        XCTAssertEqual(try repository.workWakeSchedule().exceptions, plan.exceptions)
+    }
+
+    func testFailedUnifiedSaveKeepsAllPreviousScheduleFieldsAndProjection() throws {
+        let storage = EventStorage.inMemory()
+        let repository = SessionRepository(storage: storage, notificationScheduler: FakeNotificationScheduler())
+        let canonical = SleepPlanStore(userDefaults: defaults, repository: repository)
+        var first = try repository.workWakeSchedule()
+        first.weeklySchedule = TypicalWeekSchedule()
+        first.workingWeekdays = [3, 5]
+        XCTAssertTrue(repository.saveWorkWakeSchedule(first).isCommitted)
+        let saved = try repository.workWakeSchedule()
+        var draft = saved
+        draft.weeklySchedule?.entries[0].enabled = false
+        draft.workingWeekdays = [7]
+        storage.medicationFaultInjector = { $0 == .commit ? MedicationStorageInjectedFailure(code: .io, detail: "synthetic failure") : nil }
+        XCTAssertFalse(repository.saveWorkWakeSchedule(draft).isCommitted)
+        XCTAssertEqual(try repository.workWakeSchedule(), saved)
+        XCTAssertEqual(canonical.schedule, saved.weeklySchedule)
+        storage.medicationFaultInjector = nil
+        XCTAssertTrue(repository.saveWorkWakeSchedule(draft).isCommitted)
+        XCTAssertEqual(canonical.schedule, draft.weeklySchedule)
+        XCTAssertFalse(repository.saveWorkWakeSchedule(saved).isCommitted)
+        XCTAssertEqual(canonical.schedule, draft.weeklySchedule)
     }
 
     func test_applyWorkWeekTemplate_assignsWorkdaysAndOffdays() async {

@@ -189,7 +189,7 @@ struct SleepPlanOverrideCard: View {
     @Binding var overrideWake: Date
     let onUpdate: (Date) -> Void
     let onClear: () -> Void
-    let baselineWake: Date
+    let baselineWake: Date?
     
     private var timeFormatter: DateFormatter { AppFormatters.shortTime }
     
@@ -225,18 +225,20 @@ struct SleepPlanOverrideCard: View {
                 }
                 
                 Button(role: .destructive) {
-                    overrideWake = baselineWake
+                    if let baselineWake { overrideWake = baselineWake }
                     overrideEnabled = false
                     onClear()
                 } label: {
-                    Label("Reset to schedule (\(timeFormatter.string(from: baselineWake)))", systemImage: "arrow.uturn.backward")
+                    Label("Reset to weekly schedule", systemImage: "arrow.uturn.backward")
                 }
                 .font(.caption)
                 .accessibilityIdentifier("resetPreSleepWakeTime")
-            } else {
-                Text("Uses your Typical Week wake time (\(timeFormatter.string(from: baselineWake)))")
+            } else if let baselineWake {
+                Text("Uses your weekly wake time (\(timeFormatter.string(from: baselineWake)))")
                     .font(.caption)
                     .foregroundColor(.secondary)
+            } else {
+                Text("No required wake time. Enable a one-night time only if you need one.").font(.caption)
             }
         }
         .padding()

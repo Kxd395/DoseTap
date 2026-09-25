@@ -255,11 +255,11 @@ struct LegacyTonightView: View {
                 HStack {
                     Label("Wake by", systemImage: "bed.double.fill")
                     Spacer()
-                    Text(sleepPlanStore.plan(
-                        for: sessionRepo.preSleepDisplaySessionKey(for: Date()),
-                        now: Date(), tz: .current
-                    ).wakeBy, style: .time)
-                    .accessibilityIdentifier("tonightWakeTime")
+                    if let wake = sleepPlanStore.wakeByDate(for: sessionRepo.preSleepDisplaySessionKey(for: Date())) {
+                        Text(wake, style: .time).accessibilityIdentifier("tonightWakeTime")
+                    } else {
+                        Text(sleepPlanStore.scheduleLoadFailed ? "Schedule unavailable" : "No required wake time").accessibilityIdentifier("tonightWakeTime")
+                    }
                 }
                 .font(.subheadline.weight(.semibold))
                 .padding(.horizontal)

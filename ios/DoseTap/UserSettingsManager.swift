@@ -461,7 +461,7 @@ struct QuickLogButtonConfig: Codable, Identifiable, Equatable {
 // MARK: - Sleep Plan Store (Typical Week)
 @MainActor
 final class SleepPlanStore: ObservableObject {
-    static let shared = SleepPlanStore()
+    static let shared = SleepPlanStore(repository: .shared)
     
     @Published private(set) var schedule: TypicalWeekSchedule
     @Published private(set) var settings: SleepPlanSettings
@@ -470,20 +470,29 @@ final class SleepPlanStore: ObservableObject {
     }
     
     private let defaults: UserDefaults
+    private let repository: SessionRepository?
+    private var repositoryObserver: AnyCancellable?
+    @Published private(set) var scheduleTimeZone: TimeZone?
+    @Published private(set) var scheduleLoadFailed = false
     private let scheduleKey = "sleepPlan.schedule.v1"
     private let settingsKey = "sleepPlan.settings.v1"
     private let overridesKey = "sleepPlan.tonightOverrides.v1"
     private var defaultsObserver: AnyCancellable?
     
-    init(userDefaults: UserDefaults = .standard) {
+    init(userDefaults: UserDefaults = .standard, repository: SessionRepository? = nil) {
         self.defaults = userDefaults
+        self.repository = repository
         self.schedule = Self.loadSchedule(defaults: userDefaults)
         self.settings = Self.loadSettings(defaults: userDefaults)
         if let data = userDefaults.data(forKey: overridesKey),
            let saved = try? JSONDecoder().decode([String: Date].self, from: data) {
             self.tonightOverrides = saved
         }
+        reloadFromDefaultsIfNeeded()
         observeDefaultsChanges()
+        repositoryObserver = repository?.sessionDidChange.sink { [weak self] in
+            self?.reloadFromDefaultsIfNeeded()
+        }
     }
 
     private func persistOverrides() {
@@ -509,6 +518,15 @@ final class SleepPlanStore: ObservableObject {
     }
     
     private func persistSchedule() {
+        if let repository {
+            do {
+                var plan = try repository.workWakeSchedule()
+                if plan.weeklySchedule == nil && plan.workingWeekdays == nil { plan.timeZoneIdentifier = TimeZone.current.identifier }
+                plan.weeklySchedule = schedule
+                if !repository.saveWorkWakeSchedule(plan).isCommitted { reloadFromDefaultsIfNeeded() }
+            } catch { reloadFromDefaultsIfNeeded() }
+            return
+        }
         if let data = try? JSONEncoder().encode(schedule) {
             defaults.set(data, forKey: scheduleKey)
         }
@@ -532,7 +550,22 @@ final class SleepPlanStore: ObservableObject {
     }
 
     private func reloadFromDefaultsIfNeeded() {
-        let latestSchedule = Self.loadSchedule(defaults: defaults)
+        let latestSchedule: TypicalWeekSchedule
+        if let repository {
+            do {
+                let plan = try repository.workWakeSchedule()
+                latestSchedule = plan.weeklySchedule ?? Self.loadSchedule(defaults: defaults)
+                let newZone = plan.weeklySchedule == nil ? nil : TimeZone(identifier: plan.timeZoneIdentifier)
+                if scheduleTimeZone != newZone { scheduleTimeZone = newZone }
+                if scheduleLoadFailed { scheduleLoadFailed = false }
+            } catch {
+                if !scheduleLoadFailed { scheduleLoadFailed = true }
+                // A failed canonical read must not revive obsolete preference deadlines.
+                latestSchedule = TypicalWeekSchedule(entries: (1...7).map {
+                    TypicalWeekEntry(weekdayIndex: $0, wakeByHour: 0, wakeByMinute: 0, enabled: false)
+                })
+            }
+        } else { latestSchedule = Self.loadSchedule(defaults: defaults) }
         let latestSettings = Self.loadSettings(defaults: defaults)
 
         if latestSchedule != schedule {
@@ -625,15 +658,39 @@ final class SleepPlanStore: ObservableObject {
         tonightOverrides = tonightOverrides.filter { $0.key == currentSessionKey }
     }
     
-    func wakeByDate(for sessionKey: String, tz: TimeZone = .current) -> Date {
+    func wakeByDate(for sessionKey: String, tz: TimeZone = .current) -> Date? {
         if let override = tonightOverrides[sessionKey] {
             return override
         }
-        return SleepPlanCalculator.wakeByDateTime(forActiveSessionKey: sessionKey, schedule: schedule, tz: tz)
+        return scheduledWakeByDate(for: sessionKey, tz: tz)
     }
     
-    func plan(for sessionKey: String, now: Date = Date(), tz: TimeZone = .current) -> (wakeBy: Date, recommendedInBed: Date, windDown: Date, expectedSleepMinutes: Double) {
-        let wake = wakeByDate(for: sessionKey, tz: tz)
+    func scheduledWakeByDate(for sessionKey: String, tz: TimeZone = .current) -> Date? {
+        SleepPlanCalculator.wakeByDateTime(forActiveSessionKey: sessionKey, schedule: schedule, tz: scheduleTimeZone ?? tz)
+    }
+
+    /// An editable suggestion only; never a deadline until explicitly enabled.
+    func wakeEditorDate(for sessionKey: String, tz: TimeZone = .current) -> Date? {
+        var editable = schedule
+        editable.entries = editable.entries.map { var entry = $0; entry.enabled = true; return entry }
+        return SleepPlanCalculator.wakeByDateTime(forActiveSessionKey: sessionKey, schedule: editable, tz: scheduleTimeZone ?? tz)
+    }
+
+    func wakeExportContext(for sessionKey: String, tz: TimeZone = .current) -> (wakeDate: Date, minutesAfterMidnight: Int, dayType: String)? {
+        guard let wake = wakeByDate(for: sessionKey, tz: tz) else { return nil }
+        var calendar = Calendar(identifier: .gregorian); calendar.timeZone = scheduleTimeZone ?? tz
+        let minutes = calendar.component(.hour, from: wake) * 60 + calendar.component(.minute, from: wake)
+        if overrideForSession(sessionKey) != nil { return (wake, minutes, "one_night_override") }
+        let times = Set(schedule.entries.filter(\.enabled).map { $0.wakeByHour * 60 + $0.wakeByMinute }).sorted()
+        let type: String
+        if times.count >= 2, let first = times.first, let last = times.last {
+            type = minutes <= Int((Double(first + last) / 2).rounded()) ? "worklike" : "offlike"
+        } else { type = "uniform" }
+        return (wake, minutes, type)
+    }
+
+    func plan(for sessionKey: String, now: Date = Date(), tz: TimeZone = .current) -> (wakeBy: Date, recommendedInBed: Date, windDown: Date, expectedSleepMinutes: Double)? {
+        guard let wake = wakeByDate(for: sessionKey, tz: tz) else { return nil }
         let inBed = SleepPlanCalculator.recommendedInBedTime(wakeBy: wake, settings: settings)
         let wind = SleepPlanCalculator.windDownStart(recommendedInBed: inBed, settings: settings)
         let expected = SleepPlanCalculator.expectedSleepIfInBedNow(now: now, wakeBy: wake, settings: settings)
