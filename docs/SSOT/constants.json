@@ -4,7 +4,12 @@
   "title": "DoseTap SSOT Constants",
   "description": "Checked contract snapshot for constants that are manually mirrored in code. This file is not a runtime generator.",
   "version": "1.0.0",
-  "lastUpdated": "2026-09-04",
+  "lastUpdated": "2026-09-25",
+  "medicationPresetContract": {
+    "schemaVersion": 1,
+    "maximumAbsoluteUTCOffsetSeconds": 64800,
+    "description": "Oral-solid preset/actual value-model version and inclusive retained-offset bounds. Representation checks only; not clinical dose limits or a runtime generator."
+  },
   
   "doseWindow": {
     "description": "Core dose timing window constraints (non-negotiable medical safety)",

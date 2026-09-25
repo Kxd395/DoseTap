@@ -146,6 +146,13 @@ final class MedicationPresetTests: XCTestCase {
             precision: .exact, zone: "UTC", offset: 0))
         XCTAssertThrowsError(try administration(preset, time: recorded, precision: .exact, zone: "Invalid/Zone", offset: 0))
         XCTAssertThrowsError(try administration(preset, time: recorded, precision: .exact, zone: "UTC", offset: 999999))
+        for offset in [-64800, 64800] {
+            XCTAssertEqual(try administration(preset, time: recorded, precision: .exact,
+                zone: "UTC", offset: offset).utcOffsetSeconds, offset)
+        }
+        for offset in [-64801, 64801] {
+            XCTAssertThrowsError(try administration(preset, time: recorded, precision: .exact, zone: "UTC", offset: offset))
+        }
         XCTAssertThrowsError(try administration(preset, time: recorded, precision: .exact, zone: "UTC"))
     }
 
