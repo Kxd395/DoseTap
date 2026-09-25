@@ -118,6 +118,33 @@ schema4.update(schemaVersion=4, exportVersion="2.9", dateGroups=schema4.pop("ses
 for group in schema4["dateGroups"]:
     group["identityResolution"] = dict(version=1, status="resolved", sessionIds=["fixture-session"], reasons=[])
     group["doseTimingReview"] = dict(version=1, status="available", reason="available", derivationVersion="recorded_dose_spacing_v1", rawIntervalSeconds=12600, intervalSeconds=12600)
+schema5 = copy.deepcopy(schema4)
+schema5.update(schemaVersion=5, exportVersion="3.0", dateGroups=[], medicationPresetLedger=dict(schemaVersion=1, presetRevisions=[], administrations=[]))
+case("schema5-empty", 0, seed=schema5)
+case("schema5-missing-ledger", 1, lambda b: b.pop("medicationPresetLedger"), seed=schema5)
+case("schema5-malformed-payload", 1, lambda b: b["medicationPresetLedger"].update(presetRevisions=["{}"]), seed=schema5)
+case("schema5-wrong-version", 1, lambda b: b["medicationPresetLedger"].update(schemaVersion=True), seed=schema5)
+preset = dict(schemaVersion=1, presetID="00000000-0000-0000-0000-000000000001", revisionID="00000000-0000-0000-0000-000000000002",
+    labelName="Synthetic", ingredient="Synthetic ingredient", releaseProfile="extendedRelease", source="patientEnteredLabel",
+    schedule="scheduled", instructions="Entered label", effectiveFrom=800000000, recordedAt=800000000,
+    components=[dict(id="00000000-0000-0000-0000-000000000003", form="tablet", strengthMilligrams=1.25, unitCount=0.5)])
+actual = dict(schemaVersion=1, id="00000000-0000-0000-0000-000000000004", preset=preset, actualComponents=preset["components"],
+    outcome="taken", precision="unknown", confirmedAt=800000001, recordedAt=800000002, source="userConfirmedPreset")
+independent = copy.deepcopy(schema5)
+independent["medicationPresetLedger"].update(presetRevisions=[json.dumps(preset)], administrations=[json.dumps(actual)])
+case("schema5-independent-unknown-time", 0, seed=independent)
+for key, value in [("occurredAt", 800000000), ("recordedAt", 799999999), ("outcome", "unsure")]:
+    def change(b, key=key, value=value):
+        r = json.loads(b["medicationPresetLedger"]["administrations"][0]); r[key] = value
+        b["medicationPresetLedger"]["administrations"] = [json.dumps(r)]
+    case("schema5-invalid-"+key, 1, change, seed=independent)
+def invalid_amount(b):
+    r = json.loads(b["medicationPresetLedger"]["administrations"][0]); r["actualComponents"][0]["unitCount"] = 0
+    b["medicationPresetLedger"]["administrations"] = [json.dumps(r)]
+case("schema5-invalid-amount", 1, invalid_amount, seed=independent)
+case("schema5-orphan", 1, lambda b: b["medicationPresetLedger"].update(presetRevisions=[]), seed=independent)
+case("schema5-duplicate", 1, lambda b: b["medicationPresetLedger"]["presetRevisions"].append(b["medicationPresetLedger"]["presetRevisions"][0]), seed=independent)
+
 case("schema4", 0, seed=schema4)
 case("schema4-invalid-layout", 1, lambda b: b.update(sessions=[]), seed=schema4)
 case("schema4-nonpositive", 0, lambda b: b["dateGroups"][0].update(doseTimingReview=dict(version=1, status="needs_review", reason="nonpositive_dose_interval", derivationVersion="recorded_dose_spacing_v1", rawIntervalSeconds=0)), seed=schema4)
@@ -272,7 +299,7 @@ for name, expected, value, csv_value in cases:
         path = folder / "sessions.csv"
         path.write_text(path.read_text().splitlines()[0] + "\n")
     (folder / "insights_bundle.json").write_text(json.dumps(value))
-    if name.startswith("schema4") and name != "schema4-legacy-csv":
+    if name.startswith(("schema4", "schema5")) and name != "schema4-legacy-csv":
         path = folder / "sessions.csv"
         with path.open(newline="") as handle:
             reader = csv.DictReader(handle); rows, fields = list(reader), reader.fieldnames
@@ -282,7 +309,7 @@ for name, expected, value, csv_value in cases:
             rows[0].update(ended_utc=rows[0]["started_utc"], window_actual_min="", adherence_flag="needs_review", actual_interval_seconds="", interval_status="needs_review", interval_review_reason="nonpositive_dose_interval")
         if name.startswith("schema4-skip-"):
             rows[0].update(ended_utc="2026-06-17T04:45:00Z" if name == "schema4-skip-with-end" else "", window_actual_min="", adherence_flag="explicitly_skipped", actual_interval_seconds="", interval_status="missing", interval_review_reason="dose2_explicitly_skipped")
-        if name == "schema4-no-dose1":
+        if name == "schema4-no-dose1" or name.startswith("schema5"):
             rows = []
         with path.open("w", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=fields); writer.writeheader(); writer.writerows(rows)

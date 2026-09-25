@@ -117,8 +117,8 @@ struct StudioBundleExporter {
         }
 
         return InsightsBundleExport(
-            schemaVersion: 3,
-            exportVersion: "2.8",
+            schemaVersion: 5,
+            exportVersion: "3.0",
             appVersion: bundleVersionString(),
             exportedAtUTC: Date(),
             timeZoneIdentifier: TimeZone.current.identifier,
@@ -128,6 +128,7 @@ struct StudioBundleExporter {
                 + (whoopEnrichment?.warnings(hasExportedSleep: sessions.contains { $0.whoop != nil }) ?? [])
                 + (consent == nil ? ["Local snapshot only; provider enrichment was not fetched."] : []),
             whoopEnrichment: whoopEnrichment,
+            medicationPresetLedger: try repo.medicationPresetExportSnapshot(),
             sessions: sessions
         )
     }
@@ -1413,7 +1414,7 @@ struct StudioBundleExporter {
 private struct InsightsBundleExport: Encodable {
     enum CodingKeys: String, CodingKey {
         case schemaVersion, exportVersion, appVersion, exportedAtUTC, timeZoneIdentifier, localOffsetMinutes
-        case consent, exportWarnings, whoopEnrichment
+        case consent, exportWarnings, whoopEnrichment, medicationPresetLedger
         case sessions = "dateGroups"
     }
     let schemaVersion: Int
@@ -1425,6 +1426,7 @@ private struct InsightsBundleExport: Encodable {
     let consent: InsightsConsentState?
     let exportWarnings: [String]
     let whoopEnrichment: InsightsWHOOPEnrichment?
+    let medicationPresetLedger: MedicationPresetExportSnapshot
     let sessions: [InsightsBundleSession]
 }
 

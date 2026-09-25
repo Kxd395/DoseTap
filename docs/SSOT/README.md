@@ -459,8 +459,10 @@ separate from tablet/capsule form, preserves multi-strength components and uses
 checked decimal milligram arithmetic. A prescribed preset is not an
 administration. The corresponding confirmed snapshot requires separately supplied
 actual components and occurrence evidence; unknown occurrence remains absent.
-This foundation has no storage, UI, export-adapter or medication-action caller
-yet. Build 68's manual logging behavior and SQL schema remain unchanged. See the
+The independent ledger stores immutable revisions and confirmed snapshots without
+night links, and schema5 exports carry exact payload strings outside date groups.
+Preset UI, duplicate review and audited corrections remain follow-on work. The
+existing manual medication and nighttime dose paths remain unchanged. See the
 [preset contract](contracts/MedicationPresets.md) for scope and remaining wiring.
 
 The first capture slice adds a direct Medications entry point on Tonight,

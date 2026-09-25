@@ -2,6 +2,7 @@ import Foundation
 
 struct StudioWorkbookData {
     let root: SWObject
+    let medicationPresetLedger: MedicationPresetExportSnapshot?
     let groupRoot: String
     let timezone: TimeZone
     let timezoneNote: String
@@ -15,8 +16,15 @@ struct StudioWorkbookData {
 
     init(bundleData: Data, inventoryCSV: String) throws {
         guard let root = try JSONSerialization.jsonObject(with: bundleData) as? SWObject,
-              let version = root["schemaVersion"] as? Int, [1, 2, 3, 4].contains(version) else {
+              let version = root["schemaVersion"] as? Int, [1, 2, 3, 4, 5].contains(version) else {
             throw StudioWorkbookProjectionError.unsupportedBundle
+        }
+        if version == 5 {
+            struct Envelope: Decodable { let medicationPresetLedger: MedicationPresetExportSnapshot }
+            medicationPresetLedger = try JSONDecoder().decode(Envelope.self, from: bundleData).medicationPresetLedger
+        } else {
+            guard root["medicationPresetLedger"] == nil else { throw StudioWorkbookProjectionError.unsupportedBundle }
+            medicationPresetLedger = nil
         }
         let groupRoot = version >= 3 ? "dateGroups" : "sessions"
         guard root[version >= 3 ? "sessions" : "dateGroups"] == nil,

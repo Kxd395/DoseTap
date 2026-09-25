@@ -168,7 +168,24 @@ DOSETAP-56 adds optional `answers.reviewedSleepWindow` with version, stable sess
 
 ## Medication and inventory tables
 
-### `medication_events`
+### Independent prescription preset ledger (DOSETAP-74)
+
+Additive tables, created without rewriting existing rows or changing `user_version=5`:
+
+- `medication_preset_revisions`: `id TEXT PRIMARY KEY`, `preset_id TEXT NOT NULL`,
+  `predecessor_id TEXT`, `recorded_at_utc TEXT NOT NULL`, `payload TEXT NOT NULL`.
+- `confirmed_medication_administrations`: `id TEXT PRIMARY KEY`,
+  `revision_id TEXT NOT NULL REFERENCES medication_preset_revisions(id)`,
+  `recorded_at_utc TEXT NOT NULL`, `occurred_at_utc TEXT`, `payload TEXT NOT NULL`.
+
+Indexes cover preset_id and administration recording time. Strict reads verify
+every indexed value against validated canonical payloads. Payload dates use
+Foundation Codable reference-epoch seconds; indexed dates are ISO8601 UTC.
+Clear All removes administrations before presets. Night deletion and legacy
+age pruning do not select these tables. No CloudKit staging sync is provided for
+this ledger in this slice. See [the full contract](SSOT/contracts/MedicationPresets.md).
+
+### Legacy `medication_events` columns
 
 | Column | SQLite declaration |
 | --- | --- |

@@ -6,7 +6,7 @@ SQLite user_version: 5
 DDL source: `ios/DoseTap/Storage/EventStorage+Schema.swift`
 Exact column mirror: `docs/DATABASE_SCHEMA.md`
 
-This dictionary defines how persisted fields are interpreted. It covers all 17 application tables plus the internal migration ledger. It does not redefine SQL types or migrations from the executable schema.
+This dictionary defines how persisted fields are interpreted. It covers all 19 application tables plus the internal migration ledger. It does not redefine SQL types or migrations from the executable schema.
 
 Excel workbook schema 3 (DOSETAP-73, build 67; schema 1 began in build 62) is a read-only reporting projection
 of finalized Studio JSON and inventory CSV, with no new SQLite fields or writes.
@@ -21,6 +21,12 @@ treatment-date/session identifiers and review fields; explicit skip is not missi
 Matching Studio preserves an absent target as nil; older schema-limited readers
 reject schema 4. Legacy archives remain readable. See the workbook contract for
 the exact field order. Excel edits do not import into the app.
+
+Build 69 adds Studio schema 5/export 3.0 and workbook schema 4: required independent
+medication preset/admin payloads and two dedicated sheets (19 total). Original
+Decimal text and unknown occurrence survive storage, export and Studio import.
+Legacy archives retain their existing sheet layout. See the workbook and
+[medication preset contract](MedicationPresets.md) for the exact boundaries.
 
 ## Identity and time
 
@@ -177,6 +183,8 @@ Morning preferences (`morningCheckIn.savedSettings` in UserDefaults) contain onl
 | `morning_checkins` | Source morning assessment payload | `id`, linked to `session_id` |
 | `checkin_submissions` | Normalized, questionnaire-versioned responses | `id`; unique source record plus check-in type |
 | `medication_events` | Other local medication log entries | `id` |
+| `medication_preset_revisions` | Immutable patient-entered oral-solid label revisions | revision `id`; `preset_id` groups revisions |
+| `confirmed_medication_administrations` | Independent confirmed actual snapshots | administration `id`; `revision_id` references preset |
 | `inventory_snapshots` | Point-in-time inventory data used by export and Studio | `id` |
 | `symptom_events` | Durable non-diagnostic symptom facts | `id` |
 | `symptom_locations` | Structured body location for a symptom event | `id`, parent `event_id` |
@@ -325,10 +333,11 @@ recreating reminders; it does not rewrite the original medication metadata.
 
 ### Independent general-medication capture (DOSETAP-74, build 68)
 
-The separate [preset foundation](MedicationPresets.md) defines future immutable
-label revisions and explicitly confirmed actual snapshots in DoseCore. These
-types have no current SQLite or Settings-export mapping; they are not a new
-source of stored clinical records and do not backfill the ledger described below.
+The separate [preset contract](MedicationPresets.md) defines immutable label
+revisions and explicitly confirmed actual snapshots. Its two independent tables
+retain canonical JSON text and checked indexes, without backfilling this legacy
+ledger. Bundle schema5 carries its exact strings in medicationPresetLedger, even
+with no dateGroups. Legacy medication_events retain the contract below.
 
 New manual captures retain `session_id = NULL`; startup no longer backfills a
 night identity into general medication rows. Existing non-null links remain as

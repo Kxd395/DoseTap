@@ -146,3 +146,32 @@ Strict schema-4 archive validation requires versioned timing reviews and the new
 CSV columns, checks per-date eligibility/value parity and rejects current-target
 substitution or missing eligible pairs. CSV omission of a date without a selected
 Dose 1 is valid; raw-only evidence remains in JSON.
+
+## Build 69 independent medication ledger
+
+Studio export 3.0/schema 5 requires a top-level `medicationPresetLedger` snapshot,
+independent of dateGroups. Workbook schema 4 adds **Medication Presets** and
+**Confirmed Medications** after the existing first three sheets (19 total).
+Schemas 1–4 still produce the existing 17-sheet schema-3 projection.
+
+Medication Presets has one immutable patient-entered label revision per row.
+Confirmed Medications has one explicitly confirmed administration per row,
+including unknown occurrence times. Both show component strengths and unit counts.
+Exact Decimal amounts are text to preserve precision; their filters/sorts are
+lexical, not numeric comparisons. Known timestamps are typed sortable dates.
+Unknown occurrence is blank. A known timestamp outside Excel's supported range
+is explicitly marked and remains exact in Source Fields. Recorded-offset local
+time is separate from UTC and retains the captured timezone and offset.
+
+Full original Codable JSON strings remain in Source Fields, split if necessary,
+without a lossy parsed-number copy. Payload dates use seconds since 2001-01-01 UTC.
+An empty ledger creates empty tables with 0-record notes, never inferred amounts
+or administrations. These rows are not merged into legacy Medication Log,
+Medications or Dose 1/2 spacing summaries and require no treatment-night identity.
+
+Both manual and scheduled ZIP writers preserve the ledger even with zero nights.
+Updated Studio imports and re-exports it; its existing session-based clinical
+reports do not yet analyze these independent records. Older schema-limited
+consumers reject schema 5. Missing/malformed ledgers fail publication. The shell
+archive audit checks structure/identity; exact Decimal arithmetic validation is
+owned by the Swift model and typed consumers, not duplicated by that script.

@@ -61,6 +61,17 @@ extension EventStorage {
     func createTables() -> Bool {
         guard db != nil else { return false }
         let createSQL = """
+        CREATE TABLE IF NOT EXISTS medication_preset_revisions (
+            id TEXT PRIMARY KEY, preset_id TEXT NOT NULL, predecessor_id TEXT,
+            recorded_at_utc TEXT NOT NULL, payload TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_preset_revision_owner ON medication_preset_revisions(preset_id);
+        CREATE TABLE IF NOT EXISTS confirmed_medication_administrations (
+            id TEXT PRIMARY KEY, revision_id TEXT NOT NULL REFERENCES medication_preset_revisions(id),
+            recorded_at_utc TEXT NOT NULL, occurred_at_utc TEXT, payload TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_confirmed_medication_recorded ON confirmed_medication_administrations(recorded_at_utc);
+
         CREATE TABLE IF NOT EXISTS supply_state (
             id INTEGER PRIMARY KEY CHECK (id = 1),
             payload TEXT NOT NULL

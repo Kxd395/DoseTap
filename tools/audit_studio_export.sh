@@ -185,7 +185,7 @@ if not isinstance(bundle, dict):
     print("FAIL: insights_bundle.json is not an object")
     sys.exit(2)
 schema_version = bundle.get("schemaVersion")
-if type(schema_version) is not int or schema_version not in [1, 2, 3, 4]:
+if type(schema_version) is not int or schema_version not in [1, 2, 3, 4, 5]:
     print("FAIL: unsupported or invalid bundle schema")
     sys.exit(1)
 session_key, forbidden_key = ("dateGroups", "sessions") if schema_version >= 3 else ("sessions", "dateGroups")
@@ -197,13 +197,83 @@ if not isinstance(sessions_json, list) or any(not isinstance(s, dict) for s in s
     print(f"FAIL: insights_bundle.json {session_key} is not an array of objects")
     sys.exit(2)
 
-if schema_version == 4:
+# Payload strings retain exact decimal JSON. This structural audit never rewrites them.
+if schema_version == 5:
+    from decimal import Decimal
+    from uuid import UUID
+    ledger = bundle.get("medicationPresetLedger")
+    try:
+        assert isinstance(ledger, dict) and type(ledger.get("schemaVersion")) is int and ledger["schemaVersion"] == 1
+        def records(key):
+            assert isinstance(ledger.get(key), list) and all(isinstance(s, str) for s in ledger[key])
+            result = [json.loads(s, parse_float=Decimal, parse_constant=lambda _: None) for s in ledger[key]]
+            assert all(isinstance(r, dict) and type(r.get("schemaVersion")) is int and r["schemaVersion"] == 1 for r in result)
+            return result
+        presets, administrations = records("presetRevisions"), records("administrations")
+        def identifier(value):
+            assert isinstance(value, str)
+            return str(UUID(value))
+        def finite(value):
+            return type(value) in (int, Decimal) and Decimal(value).is_finite()
+        def components(values):
+            assert isinstance(values, list) and values
+            seen = set()
+            for value in values:
+                assert isinstance(value, dict)
+                key = identifier(value.get("id")); assert key not in seen; seen.add(key)
+                assert value.get("form") in ("tablet", "capsule")
+                assert all(finite(value.get(k)) and value[k] > 0 for k in ("strengthMilligrams", "unitCount"))
+        by_id, roots, parents = {}, set(), set()
+        for record in presets:
+            key = identifier(record.get("revisionID")); assert key not in by_id; by_id[key] = record
+            identifier(record.get("presetID"))
+            assert all(isinstance(record.get(k), str) and record[k].strip() for k in ("labelName", "ingredient", "instructions"))
+            assert record.get("releaseProfile") in ("immediateRelease", "extendedRelease", "other", "unknown")
+            assert record.get("releaseProfile") != "other" or (isinstance(record.get("releaseDetails"), str) and record["releaseDetails"].strip())
+            assert record.get("schedule") in ("scheduled", "asNeeded") and record.get("source") == "patientEnteredLabel"
+            assert finite(record.get("effectiveFrom")) and finite(record.get("recordedAt"))
+            assert record.get("effectiveUntil") is None or (finite(record["effectiveUntil"]) and record["effectiveUntil"] > record["effectiveFrom"])
+            components(record.get("components"))
+        for key, record in by_id.items():
+            previous = record.get("supersedesRevisionID")
+            if previous is None:
+                root = identifier(record["presetID"]); assert root not in roots; roots.add(root)
+            else:
+                parent = identifier(previous); assert parent in by_id and parent not in parents; parents.add(parent)
+                assert identifier(by_id[parent]["presetID"]) == identifier(record["presetID"])
+                assert by_id[parent]["recordedAt"] <= record["recordedAt"]
+                seen, cursor = {key}, parent
+                while cursor is not None:
+                    assert cursor not in seen; seen.add(cursor)
+                    candidate = by_id[cursor].get("supersedesRevisionID")
+                    cursor = identifier(candidate) if candidate is not None else None
+        seen = set()
+        for record in administrations:
+            key = identifier(record.get("id")); assert key not in seen; seen.add(key)
+            preset = record.get("preset"); assert isinstance(preset, dict)
+            assert by_id[identifier(preset.get("revisionID"))] == preset
+            assert record.get("outcome") == "taken" and record.get("source") == "userConfirmedPreset"
+            components(record.get("actualComponents"))
+            assert finite(record.get("confirmedAt")) and finite(record.get("recordedAt")) and record["confirmedAt"] <= record["recordedAt"]
+            if record.get("precision") == "unknown":
+                assert all(record.get(k) is None for k in ("occurredAt", "timeZoneIdentifier", "utcOffsetSeconds"))
+            else:
+                assert record.get("precision") in ("exact", "approximate")
+                assert finite(record.get("occurredAt")) and record["occurredAt"] <= record["confirmedAt"]
+                assert isinstance(record.get("timeZoneIdentifier"), str) and record["timeZoneIdentifier"].strip()
+                assert type(record.get("utcOffsetSeconds")) is int and -64800 <= record["utcOffsetSeconds"] <= 64800
+    except (AssertionError, ValueError, TypeError, KeyError):
+        issue("P1", "Schema 5 medication ledger is missing, malformed, or has inconsistent record identities")
+elif "medicationPresetLedger" in bundle:
+    issue("P1", "Medication preset ledger requires schema 5")
+
+if schema_version >= 4:
     required_columns = "started_utc,ended_utc,window_target_min,window_actual_min,adherence_flag,whoop_recovery,avg_hr,sleep_efficiency,notes,session_date,session_id,actual_interval_seconds,interval_status,interval_review_reason,historical_window_status,dose2_reminder_enabled,reminder_interval_minutes".split(",")
     if session_columns[:len(required_columns)] != required_columns:
-        issue("P1", "Schema 4 requires reviewed sessions.csv columns in contract order")
+        issue("P1", "Schema 4/5 requires reviewed sessions.csv columns in contract order")
     groups_by_date = {g.get("sessionDate"): g for g in sessions_json if isinstance(g.get("sessionDate"), str)}
     if len(groups_by_date) != len(sessions_json):
-        issue("P1", "Schema 4 requires unique treatment dates")
+        issue("P1", "Schema 4/5 requires unique treatment dates")
     reasons = {"available": "available", "missing_dose_time": "missing", "dose2_explicitly_skipped": "missing",
                "identity_unresolved": "needs_review", "conflicting_dose_records": "needs_review", "nonpositive_dose_interval": "needs_review"}
     def finite_number(value):
@@ -384,7 +454,7 @@ if local_offset is None or isinstance(local_offset, bool) or not isinstance(loca
 
 local_marker = "Local snapshot only; provider enrichment was not fetched."
 warnings = bundle.get("exportWarnings")
-local_only = (schema_version in [2, 3, 4] and isinstance(warnings, list) and all(isinstance(w, str) for w in warnings)
+local_only = (schema_version in [2, 3, 4, 5] and isinstance(warnings, list) and all(isinstance(w, str) for w in warnings)
               and local_marker in warnings)
 consent_value = bundle.get("consent")
 if isinstance(consent_value, dict):

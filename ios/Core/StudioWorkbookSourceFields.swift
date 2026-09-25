@@ -52,9 +52,15 @@ extension StudioWorkbookData {
             } else { append(SW.canonical(value), kind: "unrecognized", status: "Original representation retained") }
         }
         var metadata = root; metadata.removeValue(forKey: groupRoot)
+        let ledger = metadata.removeValue(forKey: "medicationPresetLedger")
+        if let ledger {
+            flatten(ledger, path: "/medicationPresetLedger", record: "independent medication ledger", table: "medicationPresetLedger",
+                    representation: "Canonical JSON; exact Decimal amounts; dates use seconds since 2001-01-01 UTC",
+                    dates: "", associations: "", identity: "Independent of treatment dates", parseStrings: false)
+        }
         flatten(metadata, path: "", record: "bundle metadata", table: "bundle", representation: "Original export metadata",
                 dates: "", associations: "", identity: "Not applicable")
-        flatten(["workbookSchema": 1, "sourceSHA256": sourceSHA256, "tableGrains": Self.tableGrains], path: "/workbook",
+        flatten(["workbookSchema": workbookSchema, "sourceSHA256": sourceSHA256, "tableGrains": tableGrains], path: "/workbook",
                 record: "workbook mapping manifest", table: "workbook_manifest", representation: "Workbook metadata; not a clinical observation",
                 dates: "", associations: "", identity: "Not applicable")
         for group in groups {
@@ -134,7 +140,7 @@ extension StudioWorkbookData {
                 .text("Absent, explicit null, empty text, zero and explicit answers remain distinct in Source Fields."), .text("Present in this export"), .blank, .blank])
         }
         let contracts: [(String, String, String)] = [
-            ("Workbook schema", "3", "Reporting snapshot from one finalized Studio archive; not a tested full-app restore. Table filters do not change fixed Overview summaries."),
+            ("Workbook schema", String(workbookSchema), "Reporting snapshot from one finalized Studio archive; not a tested full-app restore. Table filters do not change fixed Overview summaries."),
             ("Mean and median sleep", "Overview", "Finite nonnegative supplied totalSleepMinutes; zero is retained. One eligible date group per provider. Fixed 7/14/30/all ranges end on the latest exported treatment date."),
             ("Identity eligibility", "Nights / Included in summaries", "Resolved identity version 1, unique valid treatment date, no conflicting source variants or cross-date original associations. Unsupported/legacy identity is excluded."),
             ("Confirmed work context", "collectedNight/followingDayType", "Only recorded workday and dayOff answers define confirmed populations. Unknown/unsure/unanswered are not converted into either group."),
@@ -154,14 +160,15 @@ extension StudioWorkbookData {
         ]
         rows += contracts.map { topic, path, meaning in [.text("Definitions and limits"), .text(topic), .text(path), .text("Contract"), .blank,
             SW.text(meaning), .text("Unavailable is never zero"), .text(path.contains("Unavailable") || path == "Not exported" ? "Not available" : "Defined above"), .blank, .blank] }
-        rows += Self.tableGrains.keys.sorted().map { name in [.text("Table mapping"), .text(name), .text("DoseTap" + name.filter { $0.isLetter || $0.isNumber }),
-            .text("Named Excel table"), .blank, SW.text(Self.tableGrains[name]), .text("Empty sources contain zero observations"), .text("Workbook schema 3"), .blank, .blank] }
+        rows += tableGrains.keys.sorted().map { name in [.text("Table mapping"), .text(name), .text("DoseTap" + name.filter { $0.isLetter || $0.isNumber }),
+            .text("Named Excel table"), .blank, SW.text(tableGrains[name]), .text("Empty sources contain zero observations"), .text("Workbook schema \(workbookSchema)"), .blank, .blank] }
         rows += sourceSHA256.keys.sorted().map { source in [.text("Source integrity"), .text(source), .text("SHA-256 of exact supplied source bytes"),
             .text("Digest"), .blank, SW.text(sourceSHA256[source]), .text("No live data refresh"), .text("Snapshot metadata"), .blank, .blank] }
         return SW.table("Field Guide", columns, rows, note: "Observed field inventory and metric definitions. Owner review/notes are workbook-only comments. Unknown future fields remain visible; their meaning is not guessed. Full source paths are retained in Source Fields even when a long label is previewed here.")
     }
 
-    static var tableGrains: [String: String] { [
+    var tableGrains: [String: String] {
+        var result = [
         "Overview": "One fixed period/provider/population summary; measurements are not new observations.",
         "Dose Summary": "One exported date group; reconciled dose outcomes and occurrence intervals, unresolved groups excluded.",
         "Medication Log": "One canonical dose or general-medication source identity/payload variant; audit events are not administrations.",
@@ -179,5 +186,11 @@ extension StudioWorkbookData {
         "Source Fields": "One source field part. Source record + Date groups supplies associations; Field reference groups numbered parts.",
         "Review Issues": "One issue or unavailable measurement; multiple issues may affect one date.",
         "Field Guide": "One observed field, definition, named table mapping or source-integrity entry."
-    ] }
+    ]
+        if medicationPresetLedger != nil {
+            result["Medication Presets"] = "One immutable patient-entered preset revision; not a taken event."
+            result["Confirmed Medications"] = "One confirmed administration snapshot; no implied treatment date, including unknown occurrence times."
+        }
+        return result
+    }
 }
