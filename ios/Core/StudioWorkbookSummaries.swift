@@ -1,7 +1,7 @@
 import Foundation
 
 extension StudioWorkbookData {
-    static var sheetNames: [String] { ["Overview", "Dose Summary", "Medication Log", "Nights", "Night Review", "Events", "Pre-sleep", "Morning", "Pain", "Daytime",
+    var sheetNames: [String] { ["Overview", "Dose Summary", "Medication Log"] + (medicationPresetLedger == nil ? [] : ["Medication Presets", "Confirmed Medications"]) + ["Nights", "Night Review", "Events", "Pre-sleep", "Morning", "Pain", "Daytime",
         "Sleep Measures", "Sleep Intervals", "Medications", "Inventory", "Source Fields", "Review Issues", "Field Guide"] }
 
     func overviewSheet() -> WorkbookSheet {
@@ -33,8 +33,8 @@ extension StudioWorkbookData {
                     let values = eligible.compactMap { SW.nonnegative(SW.object($0.original[providerKey])["totalSleepMinutes"]) }.sorted()
                     let mean = values.isEmpty ? nil : values.reduce(0, +) / Double(values.count)
                     let median: Double? = values.isEmpty ? nil : (values[(values.count - 1) / 2] + values[values.count / 2]) / 2
-                    let navigation: WorkbookCell = rows.count < Self.sheetNames.count
-                        ? .link(label: Self.sheetNames[rows.count], target: "'\(Self.sheetNames[rows.count])'!A4") : .blank
+                    let navigation: WorkbookCell = rows.count < sheetNames.count
+                        ? .link(label: sheetNames[rows.count], target: "'\(sheetNames[rows.count])'!A4") : .blank
                     rows.append([.text(period), .text(provider), .text(population), SW.duration(mean), SW.duration(median), .number(Double(values.count)),
                         start.map(WorkbookCell.date) ?? .blank, end.map(WorkbookCell.date) ?? .blank,
                         .number(Double(matching.count)), .number(Double(eligible.count)),
@@ -62,10 +62,11 @@ extension StudioWorkbookData {
         let recordIssues = allReviewIssues.filter { $0.category != "Unavailable measurement" }
         let affected = Set(recordIssues.flatMap { $0.group.components(separatedBy: "; ") }).intersection(Set(groups.map(\.key)))
         let missingCount = allReviewIssues.count - recordIssues.count
-        let note = "Fixed snapshot: \(exported). App \(app); Studio export \(version); workbook schema 3. \(timezoneNote) "
+        let note = "Fixed snapshot: \(exported). App \(app); Studio export \(version); workbook schema \(workbookSchema). \(timezoneNote) "
             + "\(affected.count) date groups with record-review flags; \(recordIssues.count) record-review issues; \(missingCount) unavailable-provider measurements listed separately. Filters change only their own table. "
             + "Windows end on the latest exported treatment date, including excluded groups. Means use supplied nonnegative measurements, with zero retained. "
             + "Confirmed following-day answers and exported recurring-wake schedule estimates remain separate; schedules are not historical attendance. "
+            + (medicationPresetLedger.map { "Independent ledger: \($0.presetRevisions.count) preset revisions, \($0.administrations.count) confirmed administrations; excluded from night statistics. " } ?? "")
             + "This workbook is a reporting snapshot. Full source evidence remains in the separate Studio bundle; editing Excel never updates the phone."
         return SW.table("Overview", columns, rows, note: note, chart: chart)
     }
