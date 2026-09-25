@@ -34,8 +34,8 @@ public class InsightsCalculator: ObservableObject {
     static let shared = InsightsCalculator()
     private let repository: SessionRepository
 
-    init(repository: SessionRepository = .shared) {
-        self.repository = repository
+    init(repository: SessionRepository? = nil) {
+        self.repository = repository ?? .shared
     }
     
     // MARK: - Published Metrics

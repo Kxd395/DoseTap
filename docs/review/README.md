@@ -5,6 +5,8 @@ Last updated: 2026-09-25 (independent medication capture and daytime roadmap)
 
 Files here record dated reviews, design decisions, migration analysis, and regression runs. They do not override current SSOT, code, or Plane. Promote a lasting rule into SSOT or a maintained architecture decision and link back to its review record.
 
+- [Xcode compiler diagnostic cleanup](2026-09-25-xcode-diagnostics.md): explicit imports, main-actor default dependencies and current certificate-chain API; recommended-settings policy reviewed separately.
+
 ## Questionnaire feedback packet
 
 - [Questionnaire delivery plan](../plans/2026-09-10-questionnaire-delivery-plan.md): scope decisions, save/reminder semantics, data owners and staged implementation under DOSETAP-69. Qualifies the [supplied revision](2026-09-10-dosetap-questionnaire-revision.md); proposals are not shipped behavior.

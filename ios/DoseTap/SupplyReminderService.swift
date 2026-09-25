@@ -5,7 +5,7 @@ import DoseCore
 
 @MainActor
 final class SupplyReminderService: ObservableObject {
-    static let requestID = "dosetap_supply_order_reminder"
+    nonisolated static let requestID = "dosetap_supply_order_reminder"
     static let shared = SupplyReminderService(repository: .shared, client: SystemAlarmNotificationCenterClient())
 
     @Published private(set) var backup: SupplyBackup?
