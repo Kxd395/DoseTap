@@ -453,6 +453,16 @@ Code references:
 
 ## Independent medication entry (DOSETAP-74)
 
+Preset foundation: `MedicationPresetRevision` is a validated, immutable DoseCore
+contract for patient-entered oral-solid label details. It keeps release profile
+separate from tablet/capsule form, preserves multi-strength components and uses
+checked decimal milligram arithmetic. A prescribed preset is not an
+administration. The corresponding confirmed snapshot requires separately supplied
+actual components and occurrence evidence; unknown occurrence remains absent.
+This foundation has no storage, UI, export-adapter or medication-action caller
+yet. Build 68's manual logging behavior and SQL schema remain unchanged. See the
+[preset contract](contracts/MedicationPresets.md) for scope and remaining wiring.
+
 The first capture slice adds a direct Medications entry point on Tonight,
 independent of its nighttime review/dose state. It records a reported amount and
 occurrence through the existing medication ledger. Medication selection honors the configured medication list and starts

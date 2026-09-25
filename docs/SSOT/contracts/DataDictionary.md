@@ -325,6 +325,11 @@ recreating reminders; it does not rewrite the original medication metadata.
 
 ### Independent general-medication capture (DOSETAP-74, build 68)
 
+The separate [preset foundation](MedicationPresets.md) defines future immutable
+label revisions and explicitly confirmed actual snapshots in DoseCore. These
+types have no current SQLite or Settings-export mapping; they are not a new
+source of stored clinical records and do not backfill the ledger described below.
+
 New manual captures retain `session_id = NULL`; startup no longer backfills a
 night identity into general medication rows. Existing non-null links remain as
 stored. The 18:00 `session_date` remains a reporting group, not an inferred night
