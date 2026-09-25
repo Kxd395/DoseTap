@@ -64,7 +64,7 @@ final class RawOnlyIdentityTests: XCTestCase {
         let data = try XCTUnwrap(importer.loadInsightsBundleData(from: folder))
         let bundle = try importer.parseInsightsBundle(data)
         let raw = try XCTUnwrap(bundle.sessions.first { $0.sessionDate == date })
-        XCTAssertTrue([3, 4].contains(bundle.schemaVersion)); XCTAssertEqual(raw.identityResolution?.status, "raw_only")
+        XCTAssertTrue([3, 4, 5].contains(bundle.schemaVersion)); XCTAssertEqual(raw.identityResolution?.status, "raw_only")
         XCTAssertEqual(raw.rawEvents.count, 4); XCTAssertEqual(raw.rawSourceRecords?.count, 5)
         let events = try await importer.loadEvents(from: folder)
         let sessions = try await importer.loadSessions(from: folder)

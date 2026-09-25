@@ -46,19 +46,22 @@ No CloudKit staging sync or preset save/log UI is introduced in B2.
   retain a 29-place decimal, survive database reopen, reject same-ID changed
   actuals, roll back injected failures, and preserve truly old ledger records
   through night-history cleanup.
-- Studio: 91 tests, 4 skipped, 0 failures. Typed import/re-export retains snapshots.
+- Studio: 91 tests, 3 skipped, 0 failures with the synthetic native schema-5
+  raw-only archive supplied. Typed import/re-export retains snapshots; conflicted
+  dates stay out of combined analytics.
 - Archive audit: 201 cases plus ZIP passed. This is structural/identity evidence;
   Swift's checked Decimal arithmetic is not duplicated by the Python audit.
 - Native desktop Excel: a synthetic app-export workbook opened with 19 sheets.
   Both new sheets were visually inspected. Sorting Recorded (UTC) oldest first
   moved complete administration rows, retaining exact amount text, unknown versus
-  approximate timing and IDs. The sorted disposable copy saved successfully.
+  approximate timing and IDs. The sorted disposable copy saved and reopened with its row order and exact
+  values preserved.
   This does not establish phone viewer or large-history performance acceptance.
 - Independent read-only reviews found no remaining storage/export blocker. Review
   gaps in administration conflict and historical-retention fixtures were fixed.
 
 Local evidence logs: /tmp/dosetap-b2-final-core.log,
-/tmp/dosetap-b2-native-final.log, /tmp/dosetap-ledger-studio.log,
+/tmp/dosetap-b2-native-final.log, /tmp/dosetap-b2-studio-fixture.log,
 /tmp/dosetap-ledger-audit.log. Native workbook originated in the retained
 ExcelExportTests attachment. Temporary artifacts may expire; this record is durable.
 Final guard, PR/main integration and exact Plane readback are recorded in the
