@@ -172,7 +172,7 @@ def read_csv_rows(name):
         return list(reader), reader.fieldnames or []
 
 events, _ = read_csv_rows("events.csv")
-sessions_csv, _ = read_csv_rows("sessions.csv")
+sessions_csv, session_columns = read_csv_rows("sessions.csv")
 inventory, _ = read_csv_rows("inventory.csv")
 
 try:
@@ -185,10 +185,10 @@ if not isinstance(bundle, dict):
     print("FAIL: insights_bundle.json is not an object")
     sys.exit(2)
 schema_version = bundle.get("schemaVersion")
-if type(schema_version) is not int or schema_version not in [1, 2, 3]:
+if type(schema_version) is not int or schema_version not in [1, 2, 3, 4]:
     print("FAIL: unsupported or invalid bundle schema")
     sys.exit(1)
-session_key, forbidden_key = ("dateGroups", "sessions") if schema_version == 3 else ("sessions", "dateGroups")
+session_key, forbidden_key = ("dateGroups", "sessions") if schema_version >= 3 else ("sessions", "dateGroups")
 if forbidden_key in bundle:
     print("FAIL: contradictory bundle session layout")
     sys.exit(1)
@@ -196,6 +196,83 @@ sessions_json = bundle.get(session_key)
 if not isinstance(sessions_json, list) or any(not isinstance(s, dict) for s in sessions_json):
     print(f"FAIL: insights_bundle.json {session_key} is not an array of objects")
     sys.exit(2)
+
+if schema_version == 4:
+    required_columns = "started_utc,ended_utc,window_target_min,window_actual_min,adherence_flag,whoop_recovery,avg_hr,sleep_efficiency,notes,session_date,session_id,actual_interval_seconds,interval_status,interval_review_reason,historical_window_status,dose2_reminder_enabled,reminder_interval_minutes".split(",")
+    if session_columns[:len(required_columns)] != required_columns:
+        issue("P1", "Schema 4 requires reviewed sessions.csv columns in contract order")
+    groups_by_date = {g.get("sessionDate"): g for g in sessions_json if isinstance(g.get("sessionDate"), str)}
+    if len(groups_by_date) != len(sessions_json):
+        issue("P1", "Schema 4 requires unique treatment dates")
+    reasons = {"available": "available", "missing_dose_time": "missing", "dose2_explicitly_skipped": "missing",
+               "identity_unresolved": "needs_review", "conflicting_dose_records": "needs_review", "nonpositive_dose_interval": "needs_review"}
+    def finite_number(value):
+        return type(value) in (int, float) and math.isfinite(value)
+    def csv_number(value):
+        try:
+            result = float(value)
+            return result if math.isfinite(result) else None
+        except (TypeError, ValueError):
+            return None
+    valid_reviews = {}
+    for day, group in groups_by_date.items():
+        review = group.get("doseTimingReview")
+        valid = (isinstance(review, dict) and type(review.get("version")) is int and review["version"] == 1
+                 and isinstance(review.get("reason"), str) and review["reason"] in reasons
+                 and review.get("status") == reasons[review["reason"]]
+                 and review.get("derivationVersion") == "recorded_dose_spacing_v1")
+        if valid:
+            raw, eligible = review.get("rawIntervalSeconds"), review.get("intervalSeconds")
+            valid = ("rawIntervalSeconds" not in review or finite_number(raw))
+            if review["reason"] == "available":
+                valid = valid and finite_number(eligible) and eligible > 0 and raw == eligible
+            else:
+                valid = valid and "intervalSeconds" not in review
+            if review["reason"] == "nonpositive_dose_interval":
+                valid = valid and finite_number(raw) and raw <= 0
+            elif review["reason"] != "available":
+                valid = valid and "rawIntervalSeconds" not in review
+        if not valid:
+            issue("P1", "Invalid or missing schema 4 dose timing review")
+        else:
+            valid_reviews[day] = review
+    seen_dates = set()
+    for row in sessions_csv:
+        day = row.get("session_date")
+        group, review = groups_by_date.get(day), valid_reviews.get(day)
+        if not group or not review or day in seen_dates:
+            issue("P1", "Schema 4 CSV date is missing, duplicate or lacks a valid review")
+            continue
+        seen_dates.add(day)
+        identity = group.get("identityResolution")
+        if not isinstance(identity, dict) or not isinstance(identity.get("sessionIds"), list) or any(not isinstance(v, str) for v in identity["sessionIds"]):
+            issue("P1", "Schema 4 CSV has malformed identity evidence")
+            continue
+        expected_outcome = "needs_review" if review["status"] == "needs_review" else "taken" if review["reason"] == "available" else "explicitly_skipped" if review["reason"] == "dose2_explicitly_skipped" else "missing"
+        valid = (identity.get("status") == "resolved" and row.get("session_id") == "; ".join(identity.get("sessionIds", []))
+                 and row.get("window_target_min") == "" and row.get("historical_window_status") == "unavailable"
+                 and row.get("interval_status") == review["status"] and row.get("interval_review_reason") == review["reason"]
+                 and row.get("adherence_flag") == expected_outcome)
+        try:
+            start = datetime.fromisoformat(row.get("started_utc", "").replace("Z", "+00:00"))
+            valid = valid and start.utcoffset() is not None
+            if "rawIntervalSeconds" in review:
+                end = datetime.fromisoformat(row.get("ended_utc", "").replace("Z", "+00:00"))
+                valid = valid and abs((end-start).total_seconds() - review["rawIntervalSeconds"]) < 0.001
+            else:
+                valid = valid and row.get("ended_utc") == ""
+        except (ValueError, TypeError):
+            valid = False
+        if review["status"] == "available":
+            valid = valid and csv_number(row.get("actual_interval_seconds")) == review["intervalSeconds"] and row.get("window_actual_min") == str(int(review["intervalSeconds"] / 60))
+        else:
+            valid = valid and row.get("actual_interval_seconds") == "" and row.get("window_actual_min") == ""
+        reminder = row.get("dose2_reminder_enabled")
+        valid = valid and reminder in ["", "true", "false"] and (reminder == "true" or row.get("reminder_interval_minutes") == "")
+        if not valid:
+            issue("P1", "Schema 4 CSV timing, identity, reminder or historical-window contract mismatch")
+    if any(r["reason"] in ["available", "nonpositive_dose_interval"] and day not in seen_dates for day, r in valid_reviews.items()):
+        issue("P1", "Schema 4 CSV omits a reviewed timestamp pair")
 
 unique_json_dates = {
     session.get("sessionDate")
@@ -208,7 +285,7 @@ source_tables = {"pre_sleep_logs", "morning_checkins", "checkin_submissions", "s
 for session in sessions_json:
     resolution = session.get("identityResolution")
     if "identityResolution" not in session:
-        if schema_version == 3:
+        if schema_version >= 3:
             issue("P1", "Schema 3 date groups require identity resolution")
         continue
     valid = (isinstance(resolution, dict) and type(resolution.get("version")) is int and resolution["version"] == 1
@@ -307,7 +384,7 @@ if local_offset is None or isinstance(local_offset, bool) or not isinstance(loca
 
 local_marker = "Local snapshot only; provider enrichment was not fetched."
 warnings = bundle.get("exportWarnings")
-local_only = (schema_version in [2, 3] and isinstance(warnings, list) and all(isinstance(w, str) for w in warnings)
+local_only = (schema_version in [2, 3, 4] and isinstance(warnings, list) and all(isinstance(w, str) for w in warnings)
               and local_marker in warnings)
 consent_value = bundle.get("consent")
 if isinstance(consent_value, dict):
@@ -470,7 +547,7 @@ if local_only:
             "sleep_after_dose2_interval_minutes", "sleep_after_dose2_final_wake_at_utc", "sleep_after_dose2_source"]):
             issue("P1", "Local-only declaration conflicts with provider values in collected_nights.csv")
 
-if len(sessions_csv) != len(sessions_json) - len(raw_only_dates):
+if schema_version < 4 and len(sessions_csv) != len(sessions_json) - len(raw_only_dates):
     issue(
         "P2",
         f"Session count mismatch: sessions.csv has {len(sessions_csv)} rows, insights bundle has {len(sessions_json)} sessions",

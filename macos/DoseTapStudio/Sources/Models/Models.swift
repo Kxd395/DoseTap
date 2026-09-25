@@ -89,7 +89,9 @@ struct DoseSession: Codable, Identifiable {
     let id = UUID()
     let startedUTC: Date
     let endedUTC: Date?
-    let windowTargetMin: Int
+    var sourceSessionDate: String? = nil
+    var sourceSessionID: String? = nil
+    let windowTargetMin: Int?
     let windowActualMin: Int?
     let adherenceFlag: String?
     let whoopRecovery: Int?
@@ -100,6 +102,8 @@ struct DoseSession: Codable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case startedUTC = "started_utc"
         case endedUTC = "ended_utc"
+        case sourceSessionDate = "session_date"
+        case sourceSessionID = "session_id"
         case windowTargetMin = "window_target_min"
         case windowActualMin = "window_actual_min"
         case adherenceFlag = "adherence_flag"
@@ -157,7 +161,7 @@ struct StudioNightAggregate: Identifiable {
     let hrvMs: Double?
 
     var onTimeFlag: Bool? {
-        guard let dose1, let dose2 else { return nil }
+        guard intervalMinutes != nil, let dose1, let dose2, dose2 > dose1 else { return nil }
         return MedicationTiming.classify(dose1: dose1, dose2: dose2) == .inWindow
     }
 
@@ -188,7 +192,7 @@ struct StudioDoseTimingSummary {
     let averageMinutes: Double?
 
     init(intervalSeconds: [Double?]) {
-        let valid = intervalSeconds.compactMap { $0 }.filter { MedicationTiming.classify(elapsedSeconds: $0) != .invalid }
+        let valid = intervalSeconds.compactMap { $0 }.filter { $0 > 0 && MedicationTiming.classify(elapsedSeconds: $0) != .invalid }
         pairCount = valid.count
         inWindowPercent = valid.isEmpty ? nil : Double(valid.filter { MedicationTiming.classify(elapsedSeconds: $0) == .inWindow }.count) / Double(valid.count) * 100
         averageMinutes = valid.isEmpty ? nil : valid.reduce(0) { $0 + $1 / Double(valid.count) / 60 }

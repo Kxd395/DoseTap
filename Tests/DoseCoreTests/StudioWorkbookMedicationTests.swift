@@ -91,6 +91,72 @@ final class StudioWorkbookMedicationTests: XCTestCase {
         XCTAssertEqual(cell(sheets, "Nights", "Dose interval"), .blank)
     }
 
+    func testNonpositiveIntervalsAreReviewedWithoutExcludingSleepOrRewritingEvents() throws {
+        for second in ["2026-01-01T23:00:00Z", "2026-01-01T22:59:00Z"] {
+            var g = group([event("d1", "dose1", "2026-01-01T23:00:00Z"), event("d2", "dose2", second)])
+            g["healthKit"] = ["totalSleepMinutes": 300]
+            let sheets = try project([g])
+            XCTAssertEqual(cell(sheets, "Dose Summary", "Dose interval"), .blank)
+            XCTAssertEqual(cell(sheets, "Dose Summary", "Dose interval eligibility"), .text("nonpositive_dose_interval"))
+            XCTAssertEqual(cell(sheets, "Nights", "Apple Health sleep"), .durationMinutes(300))
+            let issues = try XCTUnwrap(sheets.first { $0.name == "Review Issues" })
+            XCTAssertTrue(issues.rows.contains { $0.contains(.text("nonpositive_dose_interval")) })
+            let log = try XCTUnwrap(sheets.first { $0.name == "Medication Log" })
+            XCTAssertEqual(log.rows.count, 2)
+            let overview = try XCTUnwrap(sheets.first { $0.name == "Overview" })
+            XCTAssertTrue(overview.note.contains("1 date groups with record-review flags; 1 record-review issues; 1 unavailable-provider measurements"))
+        }
+    }
+
+    func testPositiveSubsecondIntervalRemainsEligible() throws {
+        let sheets = try project([group([event("d1", "dose1", "2026-01-01T23:00:00Z"), event("d2", "dose2", "2026-01-01T23:00:00.500Z")])])
+        XCTAssertEqual(cell(sheets, "Dose Summary", "Dose interval eligibility"), .text("available"))
+        XCTAssertEqual(cell(sheets, "Dose Summary", "Dose interval"), .durationMinutes(0.5 / 60))
+    }
+
+    func testFinalizedCSVAndJSONShareReviewAndPreserveSources() throws {
+        let first = event("d1", "dose1", "2026-01-01T23:00:00Z", ["dose2_reminder_enabled": true, "reminder_interval_minutes": 180])
+        for second in ["2026-01-01T23:00:00Z", "2026-01-02T02:00:00.500Z"] {
+            let g = group([first, event("d2", "dose2", second)])
+            let original = try JSONSerialization.data(withJSONObject: ["schemaVersion": 3, "dateGroups": [g]])
+            let result = try StudioDoseTimingExport.prepare(bundleData: original)
+            let root = try XCTUnwrap(JSONSerialization.jsonObject(with: result.bundleData) as? [String: Any])
+            XCTAssertEqual(root["schemaVersion"] as? Int, 4)
+            let emitted = try XCTUnwrap((root["dateGroups"] as? [[String: Any]])?.first)
+            XCTAssertEqual(try JSONSerialization.data(withJSONObject: emitted["rawEvents"]!, options: .sortedKeys),
+                           try JSONSerialization.data(withJSONObject: g["rawEvents"]!, options: .sortedKeys))
+            let csv = try ReportCSV.rows(result.sessionsCSV)
+            XCTAssertEqual(csv[1][2], "") // no current/historical target invented
+            XCTAssertEqual(csv[1][9], "2026-01-01")
+            XCTAssertEqual(csv[1][10], "session")
+            XCTAssertEqual(csv[1][15], "true")
+            XCTAssertEqual(csv[1][16], "180.0")
+            let review = try XCTUnwrap(emitted["doseTimingReview"] as? [String: Any])
+            let zero = second == "2026-01-01T23:00:00Z"
+            XCTAssertEqual(csv[1][12], zero ? "needs_review" : "available")
+            XCTAssertEqual(review["status"] as? String, csv[1][12])
+            XCTAssertEqual(review["rawIntervalSeconds"] as? Double, zero ? 0 : 10800.5)
+            XCTAssertEqual(csv[1][11], zero ? "" : "10800.5")
+            let sheets = try StudioWorkbookProjection.sheets(bundleData: result.bundleData, inventoryCSV: "")
+            XCTAssertEqual(cell(sheets, "Dose Summary", "Dose interval eligibility"), .text(csv[1][13]))
+        }
+    }
+
+    func testCSVSkipIsExplicitAndRawOnlyGroupIsRetainedOnlyInJSON() throws {
+        let events = [event("first", "dose1", "2026-01-01T23:00:00Z"), event("skip", "dose2_skipped", "2026-01-02T03:00:00Z")]
+        var raw = group([]); raw["sessionDate"] = "2026-01-02"
+        raw["identityResolution"] = ["version": 1, "status": "raw_only", "sessionIds": ["x", "y"], "reasons": ["multiple_session_identities"]]
+        let result = try StudioDoseTimingExport.prepare(bundleData: JSONSerialization.data(withJSONObject: ["schemaVersion": 3, "dateGroups": [group(events), raw]]))
+        let csv = try ReportCSV.rows(result.sessionsCSV)
+        XCTAssertEqual(csv.count, 2)
+        guard csv.count == 2 else { return }
+        XCTAssertEqual(csv[1][4], "explicitly_skipped")
+        XCTAssertEqual(csv[1][11], "")
+        XCTAssertEqual(csv[1][13], "dose2_explicitly_skipped")
+        let root = try XCTUnwrap(JSONSerialization.jsonObject(with: result.bundleData) as? [String: Any])
+        XCTAssertEqual((root["dateGroups"] as? [[String: Any]])?.count, 2)
+    }
+
     private func event(_ id: String, _ kind: String, _ time: String?, _ metadata: [String: Any] = [:]) -> [String: Any] {
         var e: [String: Any] = ["id": id, "sourceTable": "dose_events", "eventType": kind, "details": String(data: try! JSONSerialization.data(withJSONObject: metadata), encoding: .utf8)!]
         if let time { e["occurredAtUTC"] = time }; return e

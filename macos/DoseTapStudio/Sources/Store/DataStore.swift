@@ -137,10 +137,8 @@ final class DataStore: ObservableObject {
             return startedAt >= thirtyDaysAgo && startedAt <= now
         }
         
-        let timing = StudioDoseTimingSummary(intervalSeconds: recentInsightSessions.map { session in
-            guard let first = session.dose1Time, let second = session.dose2Time else { return nil }
-            return second.timeIntervalSince(first)
-        })
+        let timing = StudioDoseTimingSummary(intervalSeconds: recentInsightSessions.map(\.recordedIntervalSeconds))
+
         
         // Calculate missed doses
         let missedSessions = recentInsightSessions.filter(\.dose2Skipped)

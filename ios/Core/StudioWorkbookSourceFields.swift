@@ -134,7 +134,7 @@ extension StudioWorkbookData {
                 .text("Absent, explicit null, empty text, zero and explicit answers remain distinct in Source Fields."), .text("Present in this export"), .blank, .blank])
         }
         let contracts: [(String, String, String)] = [
-            ("Workbook schema", "2", "Reporting snapshot from one finalized Studio archive; not a tested full-app restore. Table filters do not change fixed Overview summaries."),
+            ("Workbook schema", "3", "Reporting snapshot from one finalized Studio archive; not a tested full-app restore. Table filters do not change fixed Overview summaries."),
             ("Mean and median sleep", "Overview", "Finite nonnegative supplied totalSleepMinutes; zero is retained. One eligible date group per provider. Fixed 7/14/30/all ranges end on the latest exported treatment date."),
             ("Identity eligibility", "Nights / Included in summaries", "Resolved identity version 1, unique valid treatment date, no conflicting source variants or cross-date original associations. Unsupported/legacy identity is excluded."),
             ("Confirmed work context", "collectedNight/followingDayType", "Only recorded workday and dayOff answers define confirmed populations. Unknown/unsure/unanswered are not converted into either group."),
@@ -155,7 +155,7 @@ extension StudioWorkbookData {
         rows += contracts.map { topic, path, meaning in [.text("Definitions and limits"), .text(topic), .text(path), .text("Contract"), .blank,
             SW.text(meaning), .text("Unavailable is never zero"), .text(path.contains("Unavailable") || path == "Not exported" ? "Not available" : "Defined above"), .blank, .blank] }
         rows += Self.tableGrains.keys.sorted().map { name in [.text("Table mapping"), .text(name), .text("DoseTap" + name.filter { $0.isLetter || $0.isNumber }),
-            .text("Named Excel table"), .blank, SW.text(Self.tableGrains[name]), .text("Empty sources contain zero observations"), .text("Workbook schema 2"), .blank, .blank] }
+            .text("Named Excel table"), .blank, SW.text(Self.tableGrains[name]), .text("Empty sources contain zero observations"), .text("Workbook schema 3"), .blank, .blank] }
         rows += sourceSHA256.keys.sorted().map { source in [.text("Source integrity"), .text(source), .text("SHA-256 of exact supplied source bytes"),
             .text("Digest"), .blank, SW.text(sourceSHA256[source]), .text("No live data refresh"), .text("Snapshot metadata"), .blank, .blank] }
         return SW.table("Field Guide", columns, rows, note: "Observed field inventory and metric definitions. Owner review/notes are workbook-only comments. Unknown future fields remain visible; their meaning is not guessed. Full source paths are retained in Source Fields even when a long label is previewed here.")

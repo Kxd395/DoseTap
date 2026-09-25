@@ -59,10 +59,11 @@ extension StudioWorkbookData {
         }
         let app = SW.string(root["appVersion"]) ?? "Not supplied", version = SW.string(root["exportVersion"]) ?? "Not supplied"
         let exported = SW.string(root["exportedAtUTC"]) ?? "Not supplied"
-        let affected = Set(issues.flatMap { $0.group.components(separatedBy: "; ") }).intersection(Set(groups.map(\.key)))
-        let missingCount = allReviewIssues.count - issues.count
-        let note = "Fixed snapshot: \(exported). App \(app); Studio export \(version); workbook schema 2. \(timezoneNote) "
-            + "\(affected.count) date groups with record-review flags; \(issues.count) record-review issues; \(missingCount) unavailable-provider measurements listed separately. Filters change only their own table. "
+        let recordIssues = allReviewIssues.filter { $0.category != "Unavailable measurement" }
+        let affected = Set(recordIssues.flatMap { $0.group.components(separatedBy: "; ") }).intersection(Set(groups.map(\.key)))
+        let missingCount = allReviewIssues.count - recordIssues.count
+        let note = "Fixed snapshot: \(exported). App \(app); Studio export \(version); workbook schema 3. \(timezoneNote) "
+            + "\(affected.count) date groups with record-review flags; \(recordIssues.count) record-review issues; \(missingCount) unavailable-provider measurements listed separately. Filters change only their own table. "
             + "Windows end on the latest exported treatment date, including excluded groups. Means use supplied nonnegative measurements, with zero retained. "
             + "Confirmed following-day answers and exported recurring-wake schedule estimates remain separate; schedules are not historical attendance. "
             + "This workbook is a reporting snapshot. Full source evidence remains in the separate Studio bundle; editing Excel never updates the phone."
@@ -79,15 +80,15 @@ extension StudioWorkbookData {
         reviewedDose(group, number: number).time
     }
     func doseInterval(_ group: SWGroup) -> Double? {
-        guard let first = doseTime(group, number: 1), let second = doseTime(group, number: 2), second >= first else { return nil }
+        guard let first = doseTime(group, number: 1), let second = doseTime(group, number: 2), second > first else { return nil }
         return second.timeIntervalSince(first) / 60
     }
     func nightsSheet() -> WorkbookSheet {
-        let columns = ["Treatment date", "Date group", "Identity status", "Included in summaries", "Review reasons", "Session IDs",
+        let columns = ["Treatment date", "Date group", "Identity status", "Identity permits summaries", "Review reasons", "Session IDs",
             "Dose 1 outcome", "Dose 1 (UTC)", "Dose 1 (local)", "Dose 2 outcome", "Dose 2 (UTC)", "Dose 2 (local)",
             "Dose interval", "Dose interval (minutes)", "Dose window classification", "Apple Health sleep", "WHOOP sleep",
             "Following day (recorded)", "Schedule estimate", "Recorded night type", "First night off (recorded)",
-            "Pre-sleep records", "Morning records", "Event records", "Sleepiness (0–10)", "Sleepiness assessment (UTC)", "Review this date"]
+            "Pre-sleep records", "Morning records", "Event records", "Sleepiness (0–10)", "Sleepiness assessment (UTC)", "Review this date", "Dose interval eligibility"]
         let rows = groups.map { group -> [WorkbookCell] in
             let d1 = doseTime(group, number: 1), d2 = doseTime(group, number: 2), interval = doseInterval(group)
             let identity = SW.object(group.original["identityResolution"])
@@ -107,7 +108,7 @@ extension StudioWorkbookData {
                 .number(Double(groupRecords(group, table: "morning_checkins").count)), .number(Double(eventCount)),
                 group.eligible ? sourceCell(group.collected["sleepiness0To10"]) : .blank,
                 group.eligible ? timestampCell(group.collected["sleepinessAssessedAt"]) : .blank,
-                .link(label: "Open Night Review; filter this date/group", target: "'Night Review'!A4")]
+                .link(label: "Open Night Review; filter this date/group", target: "'Night Review'!A4"), .text(doseIntervalReason(group))]
         }
         return SW.table("Nights", columns, rows, note: "One exported treatment-date group. Unresolved groups remain visible, with combined values excluded. Source records stay in detail sheets. Links open the sheet header; filter by Treatment date and Date group so sorting cannot change record identity. Coverage counts describe records, never whether a dose was taken. \(timezoneNote)")
     }
@@ -122,6 +123,10 @@ extension StudioWorkbookData {
     }
     var allReviewIssues: [SWIssue] {
         var result = issues
+        for group in groups where doseIntervalReason(group) == "nonpositive_dose_interval" {
+            result.append(SWIssue(group: group.key, date: group.date, category: "Dose timing review",
+                reason: "nonpositive_dose_interval", source: group.key + "/doseTimingReview"))
+        }
         for group in groups {
             for (key, provider) in [("healthKit", "Apple Health"), ("whoop", "WHOOP")] where SW.nonnegative(SW.object(group.original[key])["totalSleepMinutes"]) == nil {
                 result.append(SWIssue(group: group.key, date: group.date, category: "Unavailable measurement",

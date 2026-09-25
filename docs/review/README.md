@@ -14,6 +14,8 @@ Files here record dated reviews, design decisions, migration analysis, and regre
 
 ## Owner data and dashboard review
 
+- [Export timing review, build 67](2026-09-24-export-timing-review.md): reviewed interval eligibility, shared CSV/JSON source selection, historical-target missingness and Studio consumer safeguards.
+
 - [Medication export delivery, build 66](2026-09-24-medication-export-delivery.md): Dose Summary, Medication Log, shared timing reconciliation, native Excel evidence and remaining acceptance gates.
 - [Medication storage and export review](2026-09-24-medication-export-review.md): source-to-workbook audit, medication navigation and timing gaps, and proposed Dose Summary/Medication Log sheets under DOSETAP-73. Review only; source records and workbook remain unchanged.
 
@@ -33,6 +35,7 @@ Each record identifies its version, bounded changes, validation and remaining ga
 
 | Build | Record | Scope |
 | --- | --- | --- |
+| 67 | [Export timing review](2026-09-24-export-timing-review.md) | Nonpositive spacing review, historical-target missingness and shared export/import eligibility |
 | 66 | [Medication export](2026-09-24-medication-export-delivery.md) | Sortable dose summary and medication log; explicit timing evidence and conflicts |
 | 65 | [Quick-log availability](2026-09-24-quick-log-availability.md) | Shared clock-driven cooldowns, visible waits and larger tap targets; exact owner lockout cause remains unconfirmed |
 | 64 | [Excel row contrast](2026-09-22-excel-contrast-delivery.md) | Explicit body fills distinct from Normal; native date/duration sorting, filtering and save/reopen readability; phone and broader gates remain separate |

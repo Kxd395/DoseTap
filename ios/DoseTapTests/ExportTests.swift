@@ -304,7 +304,7 @@ final class AppleHealthExportMissingnessTests: XCTestCase {
         }
         let rows = try ReportCSV.rows(String(contentsOf: folder.appendingPathComponent("sessions.csv"), encoding: .utf8))
         XCTAssertEqual(rows.count, 2)
-        XCTAssertEqual(rows[1][try XCTUnwrap(rows[0].firstIndex(of: "avg_hr"))], "64")
+        XCTAssertEqual(Double(rows[1][try XCTUnwrap(rows[0].firstIndex(of: "avg_hr"))]), 64)
         XCTAssertEqual(rows[1][try XCTUnwrap(rows[0].firstIndex(of: "sleep_efficiency"))], "")
         let collected = try ReportCSV.rows(String(contentsOf: folder.appendingPathComponent("collected_nights.csv"), encoding: .utf8))
         for key in ["estimated_sleep_after_dose2_minutes", "sleep_after_dose2_source"] {

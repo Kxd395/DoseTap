@@ -55,7 +55,7 @@ struct InsightSessionBuilder {
         let dose2Time = mappedEvents.first(where: { $0.kind == .dose2 })?.timestamp
             ?? session?.endedUTC
             ?? supplement?.dose2TimeUTC
-        let dose2Skipped = mappedEvents.contains(where: { $0.kind == .dose2Skipped }) || session?.adherenceFlag == "missed"
+        let dose2Skipped = mappedEvents.contains(where: { $0.kind == .dose2Skipped }) || ["missed", "explicitly_skipped"].contains(session?.adherenceFlag ?? "")
         let snoozeCount = mappedEvents.filter { $0.kind == .snooze }.count
         let startedAt = session?.startedUTC ?? mappedEvents.first?.timestamp
         let endedAt = session?.endedUTC ?? mappedEvents.last?.timestamp
@@ -67,7 +67,7 @@ struct InsightSessionBuilder {
             return nil
         }
 
-        return InsightSession(
+        var result = InsightSession(
             id: key,
             sessionDate: key,
             startedAt: startedAt,
@@ -96,8 +96,10 @@ struct InsightSessionBuilder {
             metricProvenance: supplement?.metricProvenance ?? [:],
             dataQualityFlags: supplement?.dataQualityFlags ?? [],
             exportExclusionReasons: supplement?.exportExclusionReasons ?? [],
-            validationFlags: validationFlags
+            validationFlags: validationFlags + (supplement?.doseTimingReview.map { $0.status == "needs_review" ? ["Dose timing review: " + $0.reason] : [] } ?? [])
         )
+        result.doseTimingReview = supplement?.doseTimingReview
+        return result
     }
 
 }

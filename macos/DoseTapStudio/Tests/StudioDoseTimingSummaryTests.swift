@@ -20,10 +20,10 @@ final class StudioDoseTimingSummaryTests: XCTestCase {
         XCTAssertEqual(summary.averageMinutes!, 195, accuracy: 0.000001)
     }
 
-    func testObservedZeroIsDistinctFromMissing() {
-        let summary = StudioDoseTimingSummary(intervalSeconds: [0, nil])
+    func testNonpositivePairsRequireReview() {
+        let summary = StudioDoseTimingSummary(intervalSeconds: [nil, 0, -60, 10800])
         XCTAssertEqual(summary.pairCount, 1)
-        XCTAssertEqual(summary.inWindowPercent, 0)
-        XCTAssertEqual(summary.averageMinutes, 0)
+        XCTAssertEqual(summary.inWindowPercent, 100)
+        XCTAssertEqual(summary.averageMinutes, 180)
     }
 }

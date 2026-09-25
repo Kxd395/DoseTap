@@ -161,6 +161,7 @@ struct InsightConsentState: Codable, Hashable, Sendable {
 }
 
 struct InsightSessionSupplement: Codable, Hashable, Sendable {
+    var doseTimingReview: InsightDoseTimingReview? = nil
     let identityResolution: InsightIdentityResolution?
     let rawSourceRecords: [InsightRawSourceRecord]?
     let collectedNight: CollectedNightSummary?

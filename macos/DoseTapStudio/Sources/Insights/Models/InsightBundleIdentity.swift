@@ -1,5 +1,20 @@
 import Foundation
 
+struct InsightDoseTimingReview: Codable, Hashable, Sendable {
+    let version: Int
+    let status: String
+    let reason: String
+    let derivationVersion: String?
+    let rawIntervalSeconds: Double?
+    let intervalSeconds: Double?
+    var eligibleSeconds: Double? {
+        guard version == 1, status == "available", reason == "available",
+              let intervalSeconds, intervalSeconds.isFinite, intervalSeconds > 0 else { return nil }
+        return intervalSeconds
+    }
+}
+
+
 struct InsightIdentityResolution: Codable, Hashable, Sendable {
     let version: Int
     let status: String
@@ -31,7 +46,7 @@ extension InsightBundle {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         schemaVersion = try c.decode(Int.self, forKey: .schemaVersion)
-        guard [1, 2, 3].contains(schemaVersion), !c.contains(schemaVersion == 3 ? .sessions : .dateGroups) else {
+        guard [1, 2, 3, 4].contains(schemaVersion), !c.contains(schemaVersion >= 3 ? .sessions : .dateGroups) else {
             throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unsupported bundle schema or contradictory session layout"))
         }
         exportVersion = try c.decodeIfPresent(String.self, forKey: .exportVersion)
@@ -43,14 +58,17 @@ extension InsightBundle {
         exportWarnings = try c.decodeIfPresent([String].self, forKey: .exportWarnings)
         whoopEnrichment = try c.decodeIfPresent(InsightWHOOPEnrichment.self, forKey: .whoopEnrichment)
         importMetadata = try c.decodeIfPresent(InsightBundleImportMetadata.self, forKey: .importMetadata)
-        sessions = try c.decode([InsightSessionSupplement].self, forKey: schemaVersion == 3 ? .dateGroups : .sessions)
-        guard schemaVersion != 3 || sessions.allSatisfy({ $0.identityResolution != nil }) else {
+        sessions = try c.decode([InsightSessionSupplement].self, forKey: schemaVersion >= 3 ? .dateGroups : .sessions)
+        guard schemaVersion < 4 || sessions.allSatisfy({ $0.doseTimingReview != nil }) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Schema 4 requires dose timing review"))
+        }
+        guard schemaVersion < 3 || sessions.allSatisfy({ $0.identityResolution != nil }) else {
             throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Schema 3 date groups require identity resolution"))
         }
     }
 
     func encode(to encoder: Encoder) throws {
-        guard [1, 2, 3].contains(schemaVersion), schemaVersion != 3 || sessions.allSatisfy({ $0.identityResolution != nil }) else {
+        guard [1, 2, 3, 4].contains(schemaVersion), schemaVersion < 3 || sessions.allSatisfy({ $0.identityResolution != nil }) else {
             throw EncodingError.invalidValue(self, .init(codingPath: encoder.codingPath, debugDescription: "Unsupported bundle schema or missing identity resolution"))
         }
         var c = encoder.container(keyedBy: CodingKeys.self)
@@ -64,6 +82,6 @@ extension InsightBundle {
         try c.encodeIfPresent(exportWarnings, forKey: .exportWarnings)
         try c.encodeIfPresent(whoopEnrichment, forKey: .whoopEnrichment)
         try c.encodeIfPresent(importMetadata, forKey: .importMetadata)
-        try c.encode(sessions, forKey: schemaVersion == 3 ? .dateGroups : .sessions)
+        try c.encode(sessions, forKey: schemaVersion >= 3 ? .dateGroups : .sessions)
     }
 }

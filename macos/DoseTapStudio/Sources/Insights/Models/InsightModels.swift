@@ -90,6 +90,7 @@ struct InsightNightClassification: Hashable, Sendable {
 }
 
 struct InsightSession: Identifiable, Hashable, Sendable {
+    var doseTimingReview: InsightDoseTimingReview? = nil
     let id: String
     let sessionDate: String
     let startedAt: Date?
@@ -182,13 +183,18 @@ struct InsightSession: Identifiable, Hashable, Sendable {
         self.validationFlags = validationFlags
     }
 
+    var recordedIntervalSeconds: Double? {
+        if let doseTimingReview { return doseTimingReview.eligibleSeconds }
+        guard !dose2Skipped, let first = dose1Time, let second = dose2Time, second > first else { return nil }
+        return second.timeIntervalSince(first)
+    }
+
     var intervalMinutes: Int? {
-        guard let dose1Time, let dose2Time else { return nil }
-        let delta = Int(dose2Time.timeIntervalSince(dose1Time) / 60)
-        return delta >= 0 ? delta : nil
+        recordedIntervalSeconds.map { Int($0 / 60) }
     }
 
     var anchoredIntervalMinutes: Int? {
+        if doseTimingReview != nil && recordedIntervalSeconds == nil { return nil }
         if let intervalMinutes {
             return Self.clampAnchoredInterval(intervalMinutes)
         }
@@ -413,13 +419,13 @@ struct InsightSession: Identifiable, Hashable, Sendable {
     }
 
     var isLateDose2: Bool {
-        guard let dose1Time, let dose2Time else { return false }
-        return MedicationTiming.classify(dose1: dose1Time, dose2: dose2Time) == .late
+        guard let seconds = recordedIntervalSeconds else { return false }
+        return MedicationTiming.classify(elapsedSeconds: seconds) == .late
     }
 
     var isOnTimeDose2: Bool {
-        guard let dose1Time, let dose2Time else { return false }
-        return MedicationTiming.classify(dose1: dose1Time, dose2: dose2Time) == .inWindow
+        guard let seconds = recordedIntervalSeconds else { return false }
+        return MedicationTiming.classify(elapsedSeconds: seconds) == .inWindow
     }
 
     var isMissingOutcome: Bool {
