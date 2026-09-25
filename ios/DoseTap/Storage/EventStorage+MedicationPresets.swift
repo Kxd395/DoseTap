@@ -93,6 +93,14 @@ extension EventStorage {
                 guard old == payload else { throw MedicationPresetLedgerError.conflict }
                 return false
             }
+            let revisions = try snapshot.presetRevisions.map(MedicationPresetExportSnapshot.decodePreset)
+            if let predecessor = value.supersedesRevisionID {
+                guard revisions.contains(where: { $0.revisionID == predecessor && $0.presetID == value.presetID }),
+                      !revisions.contains(where: { $0.supersedesRevisionID == predecessor })
+                else { throw MedicationPresetLedgerError.conflict }
+            } else if revisions.contains(where: { $0.presetID == value.presetID }) {
+                throw MedicationPresetLedgerError.conflict
+            }
             _ = try MedicationPresetExportSnapshot(presetRevisions: snapshot.presetRevisions + [payload], administrations: snapshot.administrations)
             try insertPresetRow("INSERT INTO medication_preset_revisions (id, preset_id, predecessor_id, recorded_at_utc, payload) VALUES (?, ?, ?, ?, ?)",
                 values: [value.revisionID.uuidString, value.presetID.uuidString, value.supersedesRevisionID?.uuidString,

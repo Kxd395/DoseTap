@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-25
 SSOT revision: 0.4.19
-App version defined in this revision's Xcode project: 0.4.19 (68)
+App version defined in this revision's Xcode project: 0.4.19 (70)
 Integration and acceptance evidence: [Quick-log availability](../review/2026-09-24-quick-log-availability.md), [Excel contrast delivery](../review/2026-09-22-excel-contrast-delivery.md), [export delivery record](../review/2026-09-17-export-failure-diagnosis.md) and the DOSETAP-72 and DOSETAP-13 Plane workpads. The project version alone does not establish acceptance.
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
@@ -887,3 +887,10 @@ Dashboard WHOOP sleep totals/stage proportions require all three sleep-stage fie
 The optional Wake & Next Day Apple Health coverage check derives four durations from the same freshly checked local snapshot and reviewed provider projection: Dose 1 to initial sleep, awakening to Dose 2, Dose 2 to return to sleep, and the whole Dose 2 awakening. The contract is [reviewed dose/sleep metrics](contracts/reviewed-dose-sleep-metrics.md). These estimates do not record medication, infer skipped doses, replace dashboard totals, persist provider history, or supply awakening counts. Signed-device/provider, VoiceOver and release acceptance remain separate.
 
 Timeline Review exposes a read-only dose/sleep check for its selected treatment night. It uses the existing saved reviewed window and repository loader, shows the associated Dose 2 awakening and source samples, and clears results after local changes, a night switch, backgrounding or Health preference changes. It does not replace the legacy stage chart or infer wake causes. See the reviewed-dose-sleep contract.
+
+### Saved medication setup (DOSETAP-74, build 70)
+
+Settings → Saved medication presets creates and revises patient-entered oral-solid
+label information, with explicit review, immutable history and checked retry.
+It never records medication as taken. Retention is displayed before entry.
+See [MedicationPresets](contracts/MedicationPresets.md) for its full contract.

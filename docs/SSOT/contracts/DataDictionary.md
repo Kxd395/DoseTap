@@ -357,3 +357,12 @@ No new SQL column, preset revision, outcome enum, named timezone, precision or
 correction history is added in this slice. Existing raw medication JSON and
 Medication Log exports retain the occurrence, creation time and absent session
 link; they do not infer a prescription or convert these records into Dose 1/2.
+
+### Saved medication setup (build 70)
+
+Settings preset creation/revision writes only `medication_preset_revisions` through
+SessionRepository. The full reviewed label, components, effective dates and recording
+time use the existing immutable schema; prior revisions remain unchanged. New
+categorical choices and amounts start unanswered. Form drafts/review toggles are
+transient, not stored observations. No administration, dose, inventory, reminder or
+night record is created. Existing schema-5 and workbook exports retain revisions.
