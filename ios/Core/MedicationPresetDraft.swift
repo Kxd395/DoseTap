@@ -3,8 +3,8 @@ import Foundation
 public enum MedicationPresetDraftError: Error { case missingChoice, reviewRequired, invalidDecimal }
 
 /// Transient label entry; never an administration or a persisted draft.
-public struct MedicationPresetDraft {
-    public struct Component: Identifiable {
+public struct MedicationPresetDraft: Equatable {
+    public struct Component: Identifiable, Equatable {
         public var id: UUID = UUID()
         public var form: MedicationSolidForm?
         public var strength = ""

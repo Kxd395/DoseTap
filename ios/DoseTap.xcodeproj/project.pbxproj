@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D074B301 /* MedicationPresetSetupModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D074F301 /* MedicationPresetSetupModel.swift */; };
 		DC74B001 /* EventStorage+MedicationCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC74F001 /* EventStorage+MedicationCapture.swift */; };
 		DC74B002 /* EventStorage+MedicationPresets.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC74F002 /* EventStorage+MedicationPresets.swift */; };
 		EXCEL_BF01 /* SettingsExcelExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = EXCEL_FR01 /* SettingsExcelExport.swift */; };
@@ -183,6 +184,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		D074F301 /* MedicationPresetSetupModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationPresetSetupModel.swift; sourceTree = "<group>"; };
 		DC74F001 /* EventStorage+MedicationCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+MedicationCapture.swift"; sourceTree = "<group>"; };
 		DC74F002 /* EventStorage+MedicationPresets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+MedicationPresets.swift"; sourceTree = "<group>"; };
 		EXCEL_FR01 /* SettingsExcelExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsExcelExport.swift; sourceTree = "<group>"; };
@@ -666,6 +668,7 @@
 				SSU002 /* SleepingSetupViews.swift */,
 				UNDO004 /* UndoSnackbarView.swift */,
 				UNDO006 /* MedicationSettingsView.swift */,
+				D074F301 /* MedicationPresetSetupModel.swift */,
 				SUPUIF01 /* SupplySettingsView.swift */,
 				SYSUIF01 /* SystemAlarmSettingsView.swift */,
 				D1UIF01 /* Dose1ReviewSheet.swift */,
@@ -936,6 +939,7 @@
 				RNS001 /* ReviewedNightSleepLoader.swift in Sources */,
 				UNDO003 /* UndoSnackbarView.swift in Sources */,
 				UNDO005 /* MedicationSettingsView.swift in Sources */,
+				D074B301 /* MedicationPresetSetupModel.swift in Sources */,
 				SUPUIB01 /* SupplySettingsView.swift in Sources */,
 				SYSUIB01 /* SystemAlarmSettingsView.swift in Sources */,
 				D1UIB01 /* Dose1ReviewSheet.swift in Sources */,
