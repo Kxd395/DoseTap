@@ -43,6 +43,7 @@ struct InsightBundle: Codable, Hashable, Sendable {
     let exportWarnings: [String]?
     let whoopEnrichment: InsightWHOOPEnrichment?
     var importMetadata: InsightBundleImportMetadata?
+    let medicationPresetLedger: MedicationPresetExportSnapshot?
     let sessions: [InsightSessionSupplement]
 
     init(
@@ -56,6 +57,7 @@ struct InsightBundle: Codable, Hashable, Sendable {
         exportWarnings: [String]? = nil,
         whoopEnrichment: InsightWHOOPEnrichment? = nil,
         importMetadata: InsightBundleImportMetadata? = nil,
+        medicationPresetLedger: MedicationPresetExportSnapshot? = nil,
         sessions: [InsightSessionSupplement]
     ) {
         self.schemaVersion = schemaVersion
@@ -68,6 +70,7 @@ struct InsightBundle: Codable, Hashable, Sendable {
         self.exportWarnings = exportWarnings
         self.whoopEnrichment = whoopEnrichment
         self.importMetadata = importMetadata
+        self.medicationPresetLedger = medicationPresetLedger
         self.sessions = sessions
     }
 }

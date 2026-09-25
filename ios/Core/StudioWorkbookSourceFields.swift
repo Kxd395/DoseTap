@@ -52,6 +52,12 @@ extension StudioWorkbookData {
             } else { append(SW.canonical(value), kind: "unrecognized", status: "Original representation retained") }
         }
         var metadata = root; metadata.removeValue(forKey: groupRoot)
+        let ledger = metadata.removeValue(forKey: "medicationPresetLedger")
+        if let ledger {
+            flatten(ledger, path: "/medicationPresetLedger", record: "independent medication ledger", table: "medicationPresetLedger",
+                    representation: "Canonical JSON; exact Decimal amounts; dates use seconds since 2001-01-01 UTC",
+                    dates: "", associations: "", identity: "Independent of treatment dates", parseStrings: false)
+        }
         flatten(metadata, path: "", record: "bundle metadata", table: "bundle", representation: "Original export metadata",
                 dates: "", associations: "", identity: "Not applicable")
         flatten(["workbookSchema": 1, "sourceSHA256": sourceSHA256, "tableGrains": Self.tableGrains], path: "/workbook",

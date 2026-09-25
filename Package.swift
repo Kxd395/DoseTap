@@ -77,6 +77,7 @@ let package = Package(
                 "ExcelWorkbookWriterTests.swift",
                 "StudioWorkbookProjectionTests.swift",
                 "StudioWorkbookMedicationTests.swift",
+                "StudioMedicationLedgerFormatTests.swift",
                 "DoseWindowStateTests.swift",
                 "APIErrorsTests.swift",
                 "APIClientTests.swift",
