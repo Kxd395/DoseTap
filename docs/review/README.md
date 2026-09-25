@@ -28,6 +28,8 @@ Files here record dated reviews, design decisions, migration analysis, and regre
 
 ## Delivery records
 
+- [Saved medication preset Settings](2026-09-25-medication-preset-settings.md): build70 B3a create/revise/history, explicit setup review and retention; no administration capture.
+
 - [September 12 Plane closeout and validator review](2026-09-12-plane-closeout-review.md): DC-12 local-export validation, exact acceptance boundaries and next provider repair; app remains build 53.
 - [Final retained legacy-patch disposition](2026-09-12-legacy-patch-disposition.md): DOSETAP-63 source comparison and protected Xcode policy; preserves the legacy checkout and branches.
 

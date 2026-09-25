@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D074B303 /* MedicationPresetSettingsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D074F303 /* MedicationPresetSettingsUITests.swift */; };
+		D074B302 /* MedicationPresetSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D074F302 /* MedicationPresetSettingsView.swift */; };
 		D074B301 /* MedicationPresetSetupModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D074F301 /* MedicationPresetSetupModel.swift */; };
 		DC74B001 /* EventStorage+MedicationCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC74F001 /* EventStorage+MedicationCapture.swift */; };
 		DC74B002 /* EventStorage+MedicationPresets.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC74F002 /* EventStorage+MedicationPresets.swift */; };
@@ -184,6 +186,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		D074F303 /* MedicationPresetSettingsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationPresetSettingsUITests.swift; sourceTree = "<group>"; };
+		D074F302 /* MedicationPresetSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationPresetSettingsView.swift; sourceTree = "<group>"; };
 		D074F301 /* MedicationPresetSetupModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationPresetSetupModel.swift; sourceTree = "<group>"; };
 		DC74F001 /* EventStorage+MedicationCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+MedicationCapture.swift"; sourceTree = "<group>"; };
 		DC74F002 /* EventStorage+MedicationPresets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+MedicationPresets.swift"; sourceTree = "<group>"; };
@@ -668,6 +672,7 @@
 				SSU002 /* SleepingSetupViews.swift */,
 				UNDO004 /* UndoSnackbarView.swift */,
 				UNDO006 /* MedicationSettingsView.swift */,
+				D074F302 /* MedicationPresetSettingsView.swift */,
 				D074F301 /* MedicationPresetSetupModel.swift */,
 				SUPUIF01 /* SupplySettingsView.swift */,
 				SYSUIF01 /* SystemAlarmSettingsView.swift */,
@@ -704,6 +709,7 @@
 			isa = PBXGroup;
 			children = (
 				UI_F01 /* DoseTapUITests.swift */,
+				D074F303 /* MedicationPresetSettingsUITests.swift */,
 				UI_F02 /* DoseTapUITestsLaunchTests.swift */,
 			);
 			path = DoseTapUITests;
@@ -939,6 +945,7 @@
 				RNS001 /* ReviewedNightSleepLoader.swift in Sources */,
 				UNDO003 /* UndoSnackbarView.swift in Sources */,
 				UNDO005 /* MedicationSettingsView.swift in Sources */,
+				D074B302 /* MedicationPresetSettingsView.swift in Sources */,
 				D074B301 /* MedicationPresetSetupModel.swift in Sources */,
 				SUPUIB01 /* SupplySettingsView.swift in Sources */,
 				SYSUIB01 /* SystemAlarmSettingsView.swift in Sources */,
@@ -1064,6 +1071,7 @@
 			files = (
 				80D996632F5CFA280092DB29 /* Formatters.swift in Sources */,
 				UI_B01 /* DoseTapUITests.swift in Sources */,
+				D074B303 /* MedicationPresetSettingsUITests.swift in Sources */,
 				UI_B02 /* DoseTapUITestsLaunchTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1091,7 +1099,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Cloud.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 69;
+				CURRENT_PROJECT_VERSION = 70;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;
 				ENABLE_PREVIEWS = YES;
@@ -1134,7 +1142,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Cloud.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 69;
+				CURRENT_PROJECT_VERSION = 70;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;
 				ENABLE_PREVIEWS = YES;
@@ -1409,7 +1417,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Local.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 69;
+				CURRENT_PROJECT_VERSION = 70;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;
@@ -1457,7 +1465,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Local.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 69;
+				CURRENT_PROJECT_VERSION = 70;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;

@@ -188,6 +188,12 @@ extension SettingsView {
 
             Section {
                 NavigationLink {
+                    MedicationPresetSettingsView()
+                } label: {
+                    Label("Saved medication presets", systemImage: "list.bullet.clipboard")
+                }
+                .accessibilityIdentifier("settings-medication-presets")
+                NavigationLink {
                     MedicationSettingsView()
                 } label: {
                     HStack {
@@ -205,7 +211,7 @@ extension SettingsView {
             } header: {
                 Label("Medications", systemImage: "cross.case.fill")
             } footer: {
-                Text("Configure which medications you take and default doses.")
+                Text("Save prescription-label presets or configure the existing medication picker. Setup does not record medication as taken.")
             }
 
             Section {

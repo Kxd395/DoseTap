@@ -1,8 +1,8 @@
 # Medication preset foundation
 
 Date: 2026-09-25
-Plane: DOSETAP-74, slices B1/B2
-Status: Core contract with independent local ledger/export integration; preset UI remains follow-on work
+Plane: DOSETAP-74, slices B1/B2/B3a
+Status: Core contract, independent ledger/export and reviewed Settings preset setup
 
 `MedicationPresetRevision` records immutable patient-entered label information,
 never clinician verification or proof of administration. Version 1 supports
@@ -76,10 +76,10 @@ unknown occurrence stays blank. These records do not enter nighttime dose metric
 Clear All Data removes administrations before presets. Night deletion/reset and
 legacy age-based pruning preserve this ledger; its retention policy must be
 exposed before user-facing preset capture. No existing records are backfilled.
-The app still has no preset save/log controls; UI duplicate review, audited
-corrections/reversals and named groups remain subsequent work.
+Settings save/revise controls are defined below. Administration duplicate review,
+audited corrections/reversals and named groups remain subsequent work.
 
-Next: reviewed Settings/quick-log controls and ledger retention/correction UI.
+Next: reviewed administration quick-log controls and audited correction/reversal UI.
 Keep phone, accessibility,
 privacy and release acceptance separate. Non-taken/uncertain outcomes, liquids,
 named groups and audited reversals remain follow-on work.
