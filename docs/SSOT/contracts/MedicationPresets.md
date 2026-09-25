@@ -83,3 +83,30 @@ Next: reviewed Settings/quick-log controls and ledger retention/correction UI.
 Keep phone, accessibility,
 privacy and release acceptance separate. Non-taken/uncertain outcomes, liquids,
 named groups and audited reversals remain follow-on work.
+
+## Saved medication setup (B3a)
+
+Settings offers Saved medication presets separately from legacy picker settings.
+Create/revise requires explicit label, ingredient, release profile, oral-solid
+components, prescribed instructions, scheduled/as-needed choice and reviewed
+effective dates. New categorical choices and amounts start unanswered. Decimal
+input uses the displayed locale separator, accepts complete positive decimal
+strings only, and rejects unsupported precision rather than rounding.
+
+An unchecked review acknowledgement covers the displayed label and dates. Save
+creates only an immutable preset revision, never an administration, dose, alarm,
+inventory entry or session. The chain leaf is the editable latest saved revision;
+effective dates are displayed as context, not prescribing advice. Older revisions
+remain viewable. Equal recording timestamps do not determine revision order.
+
+The first save attempt freezes IDs, contents and recording time. A failed write
+retains that command for Retry; Return to editing discards the pending command
+and requires fresh review. Read failures hide stale lists and disable creation.
+Concurrent revision changes fail rather than overwrite; reopen the latest revision
+to resolve them. Cancelling an editor records nothing. Drafts are in-memory only.
+
+Before entry, explain that revisions remain locally until Clear All Data or app
+removal; night deletion and age cleanup do not remove them. Exported copies are
+separate and are not automatically erased. No individual purge or administration
+quick-log action is offered here. Audited administration corrections/reversals
+and their capture controls remain B3 follow-on work.
