@@ -1,5 +1,20 @@
 import Foundation
 
+struct InsightDoseTimingReview: Codable, Hashable, Sendable {
+    let version: Int
+    let status: String
+    let reason: String
+    let derivationVersion: String?
+    let rawIntervalSeconds: Double?
+    let intervalSeconds: Double?
+    var eligibleSeconds: Double? {
+        guard version == 1, status == "available", reason == "available",
+              let intervalSeconds, intervalSeconds.isFinite, intervalSeconds > 0 else { return nil }
+        return intervalSeconds
+    }
+}
+
+
 struct InsightIdentityResolution: Codable, Hashable, Sendable {
     let version: Int
     let status: String
