@@ -31,6 +31,7 @@ let package = Package(
                 "DataRedactor.swift",
                 "MedicationConfig.swift",
                 "MedicationPreset.swift",
+                "MedicationPresetExportSnapshot.swift",
                 "SessionKey.swift",
                 "SleepPlan.swift",
                 "EventStore.swift",

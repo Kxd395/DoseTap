@@ -199,4 +199,33 @@ final class MedicationPresetTests: XCTestCase {
         XCTAssertThrowsError(try JSONDecoder().decode(ConfirmedMedicationAdministration.self,
             from: mutateJSON(actual) { $0["timeZoneIdentifier"] = "  " }))
     }
+
+    func testIndependentExportSnapshotPreservesPayloadWithoutNights() throws {
+        let preset = try revision(components: [component(Decimal(string: "1.12345678901234567890123456789")!)])
+        let actual = try administration(preset)
+        let snapshot = try MedicationPresetExportSnapshot(presetRevisions: [MedicationPresetExportSnapshot.encode(preset)],
+            administrations: [MedicationPresetExportSnapshot.encode(actual)])
+        let copy = try JSONDecoder().decode(MedicationPresetExportSnapshot.self, from: JSONEncoder().encode(snapshot))
+        XCTAssertEqual(copy, snapshot)
+        XCTAssertTrue(copy.presetRevisions[0].contains("1.12345678901234567890123456789"))
+        XCTAssertNil(try MedicationPresetExportSnapshot.decodeAdministration(copy.administrations[0]).occurredAt)
+    }
+
+    func testExportSnapshotRejectsMissingRevisionAndDuplicateIDs() throws {
+        let preset = try revision(), actual = try administration(preset)
+        let p = try MedicationPresetExportSnapshot.encode(preset), a = try MedicationPresetExportSnapshot.encode(actual)
+        XCTAssertThrowsError(try MedicationPresetExportSnapshot(presetRevisions: [], administrations: [a]))
+        XCTAssertThrowsError(try MedicationPresetExportSnapshot(presetRevisions: [p, p], administrations: []))
+        XCTAssertThrowsError(try MedicationPresetExportSnapshot(presetRevisions: [p], administrations: [a, a]))
+        XCTAssertThrowsError(try MedicationPresetExportSnapshot(presetRevisions: ["bad"], administrations: []))
+        let snapshot = try MedicationPresetExportSnapshot(presetRevisions: [], administrations: [])
+        XCTAssertThrowsError(try JSONDecoder().decode(MedicationPresetExportSnapshot.self,
+            from: mutateJSON(snapshot) { $0["schemaVersion"] = 99 }))
+    }
+
+    func testExportSnapshotRejectsUnresolvedPredecessor() throws {
+        let orphan = try revision(predecessor: UUID())
+        XCTAssertThrowsError(try MedicationPresetExportSnapshot(
+            presetRevisions: [MedicationPresetExportSnapshot.encode(orphan)], administrations: []))
+    }
 }
