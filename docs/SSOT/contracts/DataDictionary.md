@@ -6,7 +6,7 @@ SQLite user_version: 5
 DDL source: `ios/DoseTap/Storage/EventStorage+Schema.swift`
 Exact column mirror: `docs/DATABASE_SCHEMA.md`
 
-This dictionary defines how persisted fields are interpreted. It covers all 17 application tables plus the internal migration ledger. It does not redefine SQL types or migrations from the executable schema.
+This dictionary defines how persisted fields are interpreted. It covers all 19 application tables plus the internal migration ledger. It does not redefine SQL types or migrations from the executable schema.
 
 Excel workbook schema 3 (DOSETAP-73, build 67; schema 1 began in build 62) is a read-only reporting projection
 of finalized Studio JSON and inventory CSV, with no new SQLite fields or writes.
@@ -21,6 +21,12 @@ treatment-date/session identifiers and review fields; explicit skip is not missi
 Matching Studio preserves an absent target as nil; older schema-limited readers
 reject schema 4. Legacy archives remain readable. See the workbook contract for
 the exact field order. Excel edits do not import into the app.
+
+Build 69 adds Studio schema 5/export 3.0 and workbook schema 4: required independent
+medication preset/admin payloads and two dedicated sheets (19 total). Original
+Decimal text and unknown occurrence survive storage, export and Studio import.
+Legacy archives retain their existing sheet layout. See the workbook and
+[medication preset contract](MedicationPresets.md) for the exact boundaries.
 
 ## Identity and time
 

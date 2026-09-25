@@ -75,13 +75,6 @@ struct InsightBundle: Codable, Hashable, Sendable {
     }
 }
 
-struct InsightBundleImportMetadata: Codable, Hashable, Sendable {
-    let fileName: String
-    let byteCount: Int
-    let sha256Hex: String
-    let importedAtUTC: Date
-}
-
 enum InsightMetricFactCategory: String, Codable, Hashable, Sendable, CaseIterable {
     case dosing
     case morning

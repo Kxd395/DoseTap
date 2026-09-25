@@ -5,7 +5,7 @@ import DoseCore
 
 @MainActor
 final class MedicationPresetStorageTests: XCTestCase {
-    let now = Date(timeIntervalSince1970: 1_800_000_000)
+    let now = Date(timeIntervalSince1970: 1_600_000_000)
     func preset(previous: MedicationPresetRevision? = nil, name: String = "Synthetic label") throws -> MedicationPresetRevision {
         try MedicationPresetRevision(presetID: previous?.presetID ?? UUID(), revisionID: UUID(),
             supersedesRevisionID: previous?.revisionID, labelName: name, ingredient: "Synthetic ingredient",
@@ -62,6 +62,19 @@ final class MedicationPresetStorageTests: XCTestCase {
         XCTAssertThrowsError(try repository.saveConfirmedMedicationAdministration(actual(conflicting)))
         XCTAssertTrue(try repository.medicationPresetExportSnapshot().administrations.isEmpty)
     }
+    func testChangedAdministrationUnderSameIDCannotReplaceOriginal() throws {
+        let repository = repo(EventStorage(dbPath: ":memory:")), p = try preset()
+        try repository.saveMedicationPresetRevision(p)
+        let original = try actual(p)
+        try repository.saveConfirmedMedicationAdministration(original)
+        let before = try repository.medicationPresetExportSnapshot()
+        let changed = try ConfirmedMedicationAdministration(id: original.id, preset: p,
+            actualComponents: [MedicationPresetComponent(id: UUID(), form: .tablet, strengthMilligrams: 2, unitCount: 1)],
+            occurredAt: now, precision: .exact, timeZoneIdentifier: "UTC", utcOffsetSeconds: 0,
+            confirmedAt: now, recordedAt: now)
+        XCTAssertThrowsError(try repository.saveConfirmedMedicationAdministration(changed))
+        XCTAssertEqual(try repository.medicationPresetExportSnapshot(), before)
+    }
     func testInsertAndCommitFailureRollBackAndRetry() throws {
         for point: MedicationStorageFaultPoint in [.insert, .commit] {
             let storage = EventStorage(dbPath: ":memory:"), repository = repo(storage), p = try preset()
@@ -101,6 +114,7 @@ final class MedicationPresetStorageTests: XCTestCase {
         XCTAssertNil(repository.dose2Time)
         let before = try repository.medicationPresetExportSnapshot()
         repository.clearTonight()
+        XCTAssertLessThan(now, Date().addingTimeInterval(-86_400))
         storage.clearOldData(olderThanDays: 1)
         XCTAssertEqual(try repository.medicationPresetExportSnapshot(), before)
         storage.clearAllData()

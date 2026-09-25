@@ -1,6 +1,13 @@
 import Foundation
 import DoseCore
 
+struct InsightBundleImportMetadata: Codable, Hashable, Sendable {
+    let fileName: String
+    let byteCount: Int
+    let sha256Hex: String
+    let importedAtUTC: Date
+}
+
 struct InsightDoseTimingReview: Codable, Hashable, Sendable {
     let version: Int
     let status: String

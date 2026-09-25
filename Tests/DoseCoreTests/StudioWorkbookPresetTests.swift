@@ -62,6 +62,23 @@ final class StudioWorkbookPresetTests: XCTestCase {
         XCTAssertEqual(try StudioWorkbookProjection.sheets(bundleData: legacy, inventoryCSV: "").count, 17)
     }
 
+    func testKnownTimeOutsideExcelRangeIsNotPresentedAsUnknown() throws {
+        let source = try ledger()
+        let preset = try MedicationPresetExportSnapshot.decodePreset(source.presetRevisions[0])
+        let actual = try ConfirmedMedicationAdministration(id: UUID(), preset: preset, actualComponents: preset.components,
+            occurredAt: Date(timeIntervalSince1970: -2_240_611_200), precision: .exact,
+            timeZoneIdentifier: "UTC", utcOffsetSeconds: 0, confirmedAt: preset.recordedAt, recordedAt: preset.recordedAt)
+        let snapshot = try MedicationPresetExportSnapshot(presetRevisions: source.presetRevisions,
+            administrations: [MedicationPresetExportSnapshot.encode(actual)])
+        let sheets = try StudioWorkbookProjection.sheets(bundleData: bundle(snapshot), inventoryCSV: "")
+        let sheet = try XCTUnwrap(sheets.first { $0.name == "Confirmed Medications" })
+        for column in ["Occurred (UTC)", "Occurred (recorded offset)"] {
+            XCTAssertEqual(sheet.rows[0][try XCTUnwrap(sheet.columns.firstIndex(of: column))],
+                .text("Outside Excel date range; see Source Fields"))
+        }
+        XCTAssertEqual(sheet.rows[0][1], .text("Extended release (XR)"))
+    }
+
     func testMissingMalformedAndMisversionedLedgerFailClosed() throws {
         for json in [#"{"schemaVersion":5,"dateGroups":[]}"#,
                      #"{"schemaVersion":5,"dateGroups":[],"medicationPresetLedger":null}"#,

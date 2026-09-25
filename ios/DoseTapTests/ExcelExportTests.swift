@@ -22,7 +22,7 @@ final class ExcelExportTests: XCTestCase {
         let input = folder.appendingPathComponent("insights_bundle.json")
         let original = try Data(contentsOf: input)
         let root = try XCTUnwrap(JSONSerialization.jsonObject(with: original) as? [String: Any])
-        XCTAssertEqual(root["schemaVersion"] as? Int, 4)
+        XCTAssertEqual(root["schemaVersion"] as? Int, 5)
         let csv = try ReportCSV.rows(String(contentsOf: folder.appendingPathComponent("sessions.csv"), encoding: .utf8))
         XCTAssertEqual(csv.count, 2)
         XCTAssertEqual(csv[1][2], "")
@@ -42,7 +42,7 @@ final class ExcelExportTests: XCTestCase {
         XCTAssertEqual(try encoder.encode(storage.eventExportRecords(sessionDate: "2030-04-05")), beforeData)
         let sheets = try StudioWorkbookProjection.sheets(bundleData: original,
             inventoryCSV: String(contentsOf: folder.appendingPathComponent("inventory.csv"), encoding: .utf8))
-        XCTAssertEqual(sheets.count, 17)
+        XCTAssertEqual(sheets.count, 19)
         let summary = try XCTUnwrap(sheets.first { $0.name == "Dose Summary" })
         XCTAssertEqual(summary.rows.count, 1)
         XCTAssertEqual(summary.rows[0][try XCTUnwrap(summary.columns.firstIndex(of: "Dose interval"))], .durationMinutes(170))
@@ -55,6 +55,46 @@ final class ExcelExportTests: XCTestCase {
         attachment.name = "DoseTap-synthetic-review.xlsx"
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    func testIndependentLedgerExportsWithoutNightsThroughBothWriters() throws {
+        let repository = SessionRepository(storage: EventStorage.inMemory())
+        let now = Date(timeIntervalSince1970: 1_600_000_000)
+        let part = try MedicationPresetComponent(id: UUID(), form: .capsule,
+            strengthMilligrams: Decimal(string: "1.12345678901234567890123456789")!, unitCount: 1)
+        let preset = try MedicationPresetRevision(presetID: UUID(), revisionID: UUID(), supersedesRevisionID: nil,
+            labelName: "Synthetic XR", ingredient: "Synthetic ingredient", releaseProfile: .extendedRelease,
+            components: [part], instructions: "Synthetic label", schedule: .scheduled,
+            effectiveFrom: now, effectiveUntil: nil, recordedAt: now)
+        try repository.saveMedicationPresetRevision(preset)
+        for known in [false, true] {
+            let actual = try ConfirmedMedicationAdministration(id: UUID(), preset: preset, actualComponents: [part],
+                occurredAt: known ? now : nil, precision: known ? .approximate : .unknown,
+                timeZoneIdentifier: known ? "America/New_York" : nil, utcOffsetSeconds: known ? -14400 : nil,
+                confirmedAt: now, recordedAt: now.addingTimeInterval(known ? 60 : 0))
+            try repository.saveConfirmedMedicationAdministration(actual)
+        }
+        let before = try repository.medicationPresetExportSnapshot()
+        XCTAssertTrue(try repository.sessionDatesForExport().isEmpty)
+        for local in [false, true] {
+            let folder = FileManager.default.temporaryDirectory.appendingPathComponent("independent-export-\(UUID())")
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: folder) }
+            if local { try StudioBundleExporter().writeLocalStudioExportBundle(using: repository, to: folder) }
+            else { try StudioBundleExporter().writeStudioExportBundleForTesting(using: repository, to: folder, sessionDates: []) }
+            let data = try Data(contentsOf: folder.appendingPathComponent("insights_bundle.json"))
+            struct Envelope: Decodable { let medicationPresetLedger: MedicationPresetExportSnapshot }
+            XCTAssertEqual(try JSONDecoder().decode(Envelope.self, from: data).medicationPresetLedger, before)
+            let root = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            XCTAssertEqual((root["dateGroups"] as? [Any])?.count, 0)
+            let destination = folder.appendingPathComponent("independent.xlsx")
+            try ExcelWorkbookFileExporter.write(from: folder, to: destination)
+            let attachment = XCTAttachment(data: try Data(contentsOf: destination), uniformTypeIdentifier: "org.openxmlformats.spreadsheetml.sheet")
+            attachment.name = "DoseTap-synthetic-independent-medications.xlsx"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+        XCTAssertEqual(try repository.medicationPresetExportSnapshot(), before)
     }
 
     func testInvalidInputCannotPublishWorkbook() throws {

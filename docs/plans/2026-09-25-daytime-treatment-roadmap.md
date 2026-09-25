@@ -1,7 +1,7 @@
 # Daytime medication, sleepiness and physician review delivery plan
 
 Date: 2026-09-25
-Status: Slice A merged in build 68; B1 core preset contract under validation. Preset persistence/UI and daytime observations remain follow-on work.
+Status: Slice A and B1 merged; B2 durable ledger/export implemented in build 69 candidate. Preset controls and daytime observations remain follow-on work.
 Authority: Plane owns work status. SSOT defines implemented behavior.
 
 ## Source and review
@@ -12,7 +12,7 @@ remains source history. Neither attachment establishes existing implementation,
 clinical verification, a prescription or questionnaire permission. This plan
 records the reviewed requirements without copying private patient examples.
 
-Current implementation baseline: main `0d1c84d` / app 0.4.19 (68), PR57.
+Current integration baseline: main `61a2801` / app 0.4.19 (68), PR58. B2 candidate is 0.4.19 (69).
 All three post-merge workflows passed on fresh September 25 readback. Existing
 dirty main/legacy worktrees remain preserved. Work uses isolated checkouts.
 
@@ -42,8 +42,9 @@ The diary, nap and export-grain limitations remain.
 | Slice | Owner | Result and boundary |
 | --- | --- | --- |
 | A: independent manual medication capture | DOSETAP-74 | Direct Medications entry, explicit amount and Now/Earlier review, stable retry ID, cross-date duplicate review, durable NULL night link and truthful errors. Existing whole-mg catalog only; no preset or Undo claim. |
-| B1: preset core contract | DOSETAP-74 | Validated immutable oral-solid revisions, checked decimal components and explicit actual snapshots. No persistence/UI/export caller yet; app build unchanged. |
-| B2 onward: saved prescription presets | DOSETAP-74 | Durable revisions/snapshots and export parity, reviewed Settings/quick-log controls, last-log receipts, checked reversal/edit, then optional named groups. |
+| B1: preset core contract | DOSETAP-74 | Validated immutable oral-solid revisions, checked decimal components and explicit actual snapshots. Core contract merged in PR58; app build unchanged for B1. |
+| B2: durable preset ledger and exports | DOSETAP-74 | Independent immutable SQLite revisions/admin snapshots, schema-5 source/Studio parity and two workbook sheets; no preset capture UI yet. |
+| B3 onward: saved prescription controls | DOSETAP-74 | Reviewed Settings/quick-log controls, visible retention policy, last-log receipts, checked reversal/edit, then optional named groups. |
 | C: Sleepiness now | DOSETAP-58 | Independent timed observations with new ID per save, optional night references, no defaults and no required wake/night record. |
 | D: day review and naps/rest | DOSETAP-58 | Separate waking-day completeness and functional-impact review, linked nap/rest episodes and durable independent timers. |
 | E: periodic ESS | DOSETAP-58, separate licensing gate | Authorized instrument/version/presentation only; original recall period and complete-response scoring. No copied questionnaire ships in A–D. |

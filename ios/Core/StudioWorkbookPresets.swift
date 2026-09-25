@@ -9,19 +9,30 @@ extension StudioWorkbookData {
         func components(_ values: [MedicationPresetComponent]) -> WorkbookCell {
             SW.text(values.map { "\(NSDecimalNumber(decimal: $0.strengthMilligrams).stringValue) mg/\($0.form.rawValue) × \(NSDecimalNumber(decimal: $0.unitCount).stringValue)" }.joined(separator: "; "))
         }
-        func date(_ value: Date?) -> WorkbookCell { value.flatMap(SW.validDate).map(WorkbookCell.date) ?? .blank }
+        func date(_ value: Date?) -> WorkbookCell {
+            guard let value else { return .blank }
+            return SW.validDate(value).map(WorkbookCell.date) ?? .text("Outside Excel date range; see Source Fields")
+        }
+        func release(_ preset: MedicationPresetRevision) -> WorkbookCell {
+            switch preset.releaseProfile {
+            case .immediateRelease: return .text("Immediate release (IR)")
+            case .extendedRelease: return .text("Extended release (XR)")
+            case .unknown: return .text("Unknown")
+            case .other: return SW.text(preset.releaseDetails)
+            }
+        }
         let presets = try ledger.presetRevisions.map(MedicationPresetExportSnapshot.decodePreset)
         let administrations = try ledger.administrations.map(MedicationPresetExportSnapshot.decodeAdministration)
         let presetRows = try presets.sorted { $0.recordedAt > $1.recordedAt }.map { preset -> [WorkbookCell] in
-            [SW.text(preset.labelName), .text(preset.releaseProfile.rawValue), amount(try preset.totalMilligrams),
+            [SW.text(preset.labelName), release(preset), amount(try preset.totalMilligrams),
              components(preset.components), SW.text(preset.instructions), .text(preset.schedule.rawValue),
              date(preset.effectiveFrom), date(preset.effectiveUntil), date(preset.recordedAt), SW.text(preset.ingredient),
              .text(preset.presetID.uuidString), .text(preset.revisionID.uuidString), SW.text(preset.supersedesRevisionID?.uuidString)]
         }
         let actualRows = try administrations.sorted { $0.recordedAt > $1.recordedAt }.map { actual -> [WorkbookCell] in
             let local = actual.utcOffsetSeconds.flatMap(TimeZone.init(secondsFromGMT:))
-                .map { SW.local(actual.occurredAt, timezone: $0) } ?? .blank
-            return [SW.text(actual.preset.labelName), .text(actual.preset.releaseProfile.rawValue), amount(try actual.totalMilligrams),
+                .map { actual.occurredAt.flatMap(SW.validDate) == nil ? date(actual.occurredAt) : SW.local(actual.occurredAt, timezone: $0) } ?? .blank
+            return [SW.text(actual.preset.labelName), release(actual.preset), amount(try actual.totalMilligrams),
                     components(actual.actualComponents), .text(actual.precision.rawValue), date(actual.occurredAt), local,
                     SW.text(actual.timeZoneIdentifier), actual.utcOffsetSeconds.map { .number(Double($0)) } ?? .blank,
                     date(actual.confirmedAt), date(actual.recordedAt), .text(actual.id.uuidString),

@@ -1,7 +1,7 @@
 # Medication preset foundation
 
 Date: 2026-09-25
-Plane: DOSETAP-74, slice B1
+Plane: DOSETAP-74, slices B1/B2
 Status: Core contract with independent local ledger/export integration; preset UI remains follow-on work
 
 `MedicationPresetRevision` records immutable patient-entered label information,
@@ -17,9 +17,8 @@ A revision has stable preset/revision UUIDs, an optional predecessor revision,
 label name, single ingredient identity, release profile, components, prescribed
 instructions and scheduled/as-needed designation, effective start/optional
 exclusive end, and recording timestamp. Source is patient-entered label. All
-fields are immutable. A new revision cannot change an older value. Durable
-uniqueness, predecessor matching, current-revision selection and concurrency
-checks belong to the future repository transaction, not this value model.
+fields are immutable. A new revision cannot change an older value. The value model validates local invariants. The repository transaction enforces
+ledger-wide uniqueness, predecessor matching and concurrency as described below.
 
 Components are scoped to this one ingredient/release profile; each stores its own
 physical form, strength and quantity. Totals use checked Decimal multiplication
