@@ -42,6 +42,8 @@ final class MedicationPresetTests: XCTestCase {
         let tiny = Decimal.leastNonzeroMagnitude
         XCTAssertThrowsError(try component(tiny, count: tiny))
         XCTAssertThrowsError(try revision(components: [component(huge), component(1)]))
+        let precise = try XCTUnwrap(Decimal(string: "1.12345678901234567890123456789012345678"))
+        XCTAssertThrowsError(try component(precise, count: precise))
     }
 
     func testDecodedInvalidPresetCannotBypassValidation() throws {
@@ -91,5 +93,87 @@ final class MedicationPresetTests: XCTestCase {
             supersedesRevisionID: nil, labelName: "Label", ingredient: "Ingredient", releaseProfile: .unknown,
             components: [component()], instructions: "Instructions", schedule: .scheduled,
             effectiveFrom: recorded, effectiveUntil: nil, recordedAt: Date(timeIntervalSince1970: .infinity)))
+    }
+
+    func administration(_ preset: MedicationPresetRevision, time: Date? = nil,
+                        precision: MedicationOccurrencePrecision = .unknown,
+                        zone: String? = nil, offset: Int? = nil) throws -> ConfirmedMedicationAdministration {
+        try ConfirmedMedicationAdministration(id: UUID(), preset: preset,
+            actualComponents: [component(5, count: Decimal(string: "0.5")!)], occurredAt: time,
+            precision: precision, timeZoneIdentifier: zone, utcOffsetSeconds: offset,
+            confirmedAt: recorded, recordedAt: recorded.addingTimeInterval(30))
+    }
+
+    func testActualSnapshotDoesNotInferAmountFromPlanOrChangeWithRevision() throws {
+        let preset = try revision()
+        let actual = try administration(preset)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let before = try encoder.encode(actual)
+        let newPreset = try MedicationPresetRevision(presetID: preset.presetID, revisionID: UUID(),
+            supersedesRevisionID: preset.revisionID, labelName: "Changed label", ingredient: preset.ingredient,
+            releaseProfile: .immediateRelease, components: [component(20)], instructions: "Changed instructions",
+            schedule: .asNeeded, effectiveFrom: recorded, effectiveUntil: nil, recordedAt: recorded)
+        XCTAssertEqual(newPreset.supersedesRevisionID, preset.revisionID)
+        XCTAssertEqual(try actual.totalMilligrams, Decimal(string: "2.5"))
+        XCTAssertEqual(try actual.preset.totalMilligrams, 10)
+        XCTAssertEqual(actual.preset.releaseProfile, .extendedRelease)
+        XCTAssertEqual(try encoder.encode(actual), before)
+        XCTAssertEqual(try JSONDecoder().decode(ConfirmedMedicationAdministration.self, from: before), actual)
+        XCTAssertEqual(actual.outcome, .taken)
+        XCTAssertEqual(actual.source, .userConfirmedPreset)
+    }
+
+    func testUnknownOccurrenceHasNoInventedTimeOrZone() throws {
+        let actual = try administration(revision())
+        XCTAssertNil(actual.occurredAt)
+        XCTAssertNil(actual.timeZoneIdentifier)
+        XCTAssertNil(actual.utcOffsetSeconds)
+        XCTAssertEqual(actual.precision, .unknown)
+        XCTAssertNotEqual(actual.confirmedAt, actual.recordedAt)
+        XCTAssertThrowsError(try administration(revision(), time: recorded))
+        XCTAssertThrowsError(try administration(revision(), zone: "UTC", offset: 0))
+        XCTAssertThrowsError(try administration(revision(), precision: .exact))
+    }
+
+    func testKnownOccurrencesValidateWithoutConflatingApproximateAndExact() throws {
+        let preset = try revision()
+        let approximate = try administration(preset, time: recorded.addingTimeInterval(-300),
+            precision: .approximate, zone: "UTC", offset: 0)
+        XCTAssertEqual(try JSONDecoder().decode(ConfirmedMedicationAdministration.self,
+            from: JSONEncoder().encode(approximate)), approximate)
+        XCTAssertThrowsError(try administration(preset, time: recorded.addingTimeInterval(1),
+            precision: .exact, zone: "UTC", offset: 0))
+        XCTAssertThrowsError(try administration(preset, time: recorded, precision: .exact, zone: "Invalid/Zone", offset: 0))
+        XCTAssertThrowsError(try administration(preset, time: recorded, precision: .exact, zone: "UTC", offset: 999999))
+        XCTAssertThrowsError(try administration(preset, time: recorded, precision: .exact, zone: "UTC"))
+    }
+
+    func testRepeatedDSTHourRetainsAbsoluteOccurrenceAndOriginalOffset() throws {
+        let preset = try revision()
+        let iso = ISO8601DateFormatter()
+        let first = try XCTUnwrap(iso.date(from: "2025-11-02T05:30:00Z"))
+        let second = try XCTUnwrap(iso.date(from: "2025-11-02T06:30:00Z"))
+        let a = try administration(preset, time: first, precision: .exact, zone: "America/New_York", offset: -14400)
+        let b = try administration(preset, time: second, precision: .exact, zone: "America/New_York", offset: -18000)
+        let copy = try JSONDecoder().decode(ConfirmedMedicationAdministration.self, from: JSONEncoder().encode(b))
+        XCTAssertEqual(copy, b)
+        XCTAssertEqual(try XCTUnwrap(b.occurredAt).timeIntervalSince(XCTUnwrap(a.occurredAt)), 3600)
+        XCTAssertEqual(a.utcOffsetSeconds, -14400)
+        XCTAssertEqual(copy.utcOffsetSeconds, -18000)
+    }
+
+    func testDecodedActualRejectsIncompleteAndUnsupportedRecords() throws {
+        let actual = try administration(revision())
+        let changes: [(inout [String: Any]) -> Void] = [
+            { $0["schemaVersion"] = 2 }, { $0["actualComponents"] = [] },
+            { $0["outcome"] = "not_recorded" }, { $0["source"] = "automatic" },
+            { $0["recordedAt"] = 0 }, { $0["precision"] = "exact" },
+            { $0["occurredAt"] = 0 }
+        ]
+        for change in changes {
+            XCTAssertThrowsError(try JSONDecoder().decode(ConfirmedMedicationAdministration.self,
+                from: mutateJSON(actual, change)))
+        }
     }
 }

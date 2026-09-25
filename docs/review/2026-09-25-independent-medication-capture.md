@@ -79,6 +79,10 @@ under /tmp/dosetap68-*; this record and the Plane workpad are durable evidence.
 
 ## Open acceptance and next work
 
+September 25 follow-up: PR57 merged to `0d1c84d`. Fresh exact-SHA readback confirms
+post-merge CI 36158809045, Swift CI 36158808885 and Documentation CI 36158808879
+all passed. The Plane workpad was updated and independently verified.
+
 Build 68 has not been installed or accepted on the owner's phone by this record.
 Signed-device save/reopen/export, VoiceOver/largest-text review and privacy/release
 acceptance remain open. The existing build 67 acceptance is not transferable.

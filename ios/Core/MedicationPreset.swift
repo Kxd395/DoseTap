@@ -107,7 +107,7 @@ public struct MedicationPresetRevision: Codable, Equatable, Sendable {
         for component in components {
             var amount = try component.totalMilligrams, result = Decimal()
             guard NSDecimalAdd(&result, &total, &amount, .plain) == .noError,
-                  result.isFinite else { throw MedicationPresetError.inexactArithmetic }
+                  result.isFinite, result > total, result >= amount else { throw MedicationPresetError.inexactArithmetic }
             total = result
         }
         return total
@@ -149,6 +149,88 @@ public struct MedicationPresetRevision: Codable, Equatable, Sendable {
         effectiveUntil = try c.decodeIfPresent(Date.self, forKey: .effectiveUntil)
         recordedAt = try c.decode(Date.self, forKey: .recordedAt)
         source = try c.decode(MedicationPresetSource.self, forKey: .source)
+        try validate()
+    }
+}
+
+public enum MedicationOccurrencePrecision: String, Codable, Sendable { case exact, approximate, unknown }
+public enum ConfirmedMedicationOutcome: String, Codable, Sendable { case taken }
+public enum MedicationAdministrationSource: String, Codable, Sendable { case userConfirmedPreset }
+
+/// A reported taken event. Constructing a preset never creates this value.
+/// Actual components must be supplied explicitly, even when they match the plan.
+public struct ConfirmedMedicationAdministration: Codable, Equatable, Sendable {
+    public let schemaVersion: Int
+    public let id: UUID
+    public let preset: MedicationPresetRevision
+    public let actualComponents: [MedicationPresetComponent]
+    public let outcome: ConfirmedMedicationOutcome
+    public let occurredAt: Date?
+    public let precision: MedicationOccurrencePrecision
+    public let timeZoneIdentifier: String?
+    public let utcOffsetSeconds: Int?
+    public let confirmedAt: Date
+    public let recordedAt: Date
+    public let source: MedicationAdministrationSource
+
+    public init(id: UUID, preset: MedicationPresetRevision, actualComponents: [MedicationPresetComponent],
+                occurredAt: Date?, precision: MedicationOccurrencePrecision,
+                timeZoneIdentifier: String?, utcOffsetSeconds: Int?, confirmedAt: Date, recordedAt: Date) throws {
+        schemaVersion = 1
+        self.id = id
+        self.preset = preset
+        self.actualComponents = actualComponents
+        outcome = .taken
+        self.occurredAt = occurredAt
+        self.precision = precision
+        self.timeZoneIdentifier = timeZoneIdentifier
+        self.utcOffsetSeconds = utcOffsetSeconds
+        self.confirmedAt = confirmedAt
+        self.recordedAt = recordedAt
+        source = .userConfirmedPreset
+        try validate()
+    }
+
+    public var totalMilligrams: Decimal { get throws { try MedicationPresetRevision.total(actualComponents) } }
+
+    private func validate() throws {
+        guard schemaVersion == 1 else { throw MedicationPresetError.unsupportedVersion }
+        _ = try MedicationPresetRevision.total(actualComponents)
+        guard confirmedAt.timeIntervalSince1970.isFinite, recordedAt.timeIntervalSince1970.isFinite,
+              confirmedAt <= recordedAt else { throw MedicationPresetError.invalidTime }
+        if precision == .unknown {
+            guard occurredAt == nil, timeZoneIdentifier == nil, utcOffsetSeconds == nil else {
+                throw MedicationPresetError.invalidTime
+            }
+        } else {
+            guard let occurredAt, occurredAt.timeIntervalSince1970.isFinite, occurredAt <= confirmedAt,
+                  let timeZoneIdentifier, TimeZone(identifier: timeZoneIdentifier) != nil,
+                  let utcOffsetSeconds, (-64800...64800).contains(utcOffsetSeconds) else {
+                throw MedicationPresetError.invalidTime
+            }
+            // The offset is historical evidence; do not recalculate it from today's timezone database.
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion, id, preset, actualComponents, outcome, occurredAt, precision
+        case timeZoneIdentifier, utcOffsetSeconds, confirmedAt, recordedAt, source
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try c.decode(Int.self, forKey: .schemaVersion)
+        id = try c.decode(UUID.self, forKey: .id)
+        preset = try c.decode(MedicationPresetRevision.self, forKey: .preset)
+        actualComponents = try c.decode([MedicationPresetComponent].self, forKey: .actualComponents)
+        outcome = try c.decode(ConfirmedMedicationOutcome.self, forKey: .outcome)
+        occurredAt = try c.decodeIfPresent(Date.self, forKey: .occurredAt)
+        precision = try c.decode(MedicationOccurrencePrecision.self, forKey: .precision)
+        timeZoneIdentifier = try c.decodeIfPresent(String.self, forKey: .timeZoneIdentifier)
+        utcOffsetSeconds = try c.decodeIfPresent(Int.self, forKey: .utcOffsetSeconds)
+        confirmedAt = try c.decode(Date.self, forKey: .confirmedAt)
+        recordedAt = try c.decode(Date.self, forKey: .recordedAt)
+        source = try c.decode(MedicationAdministrationSource.self, forKey: .source)
         try validate()
     }
 }

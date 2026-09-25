@@ -9,7 +9,9 @@ never clinician verification or proof of administration. Version 1 supports
 oral-solid components only: decimal milligrams per tablet/capsule and decimal
 unit counts. Liquid concentrations, other mass units and combination ingredients
 need an explicit later contract; no implicit conversion or catalog default exists.
-Release profile is independent of physical form. Unknown release remains unknown.
+Release profile is independent of physical form. Unknown release remains unknown;
+Other requires a nonblank entered description. Each component has a UUID, and
+duplicate component IDs in one list are rejected.
 
 A revision has stable preset/revision UUIDs, an optional predecessor revision,
 label name, single ingredient identity, release profile, components, prescribed
@@ -34,6 +36,9 @@ cannot establish precise window classification. Occurrence cannot be future to
 confirmation, and recording cannot precede confirmation. No clock/default amount
 is supplied by the model. A retrospective report may reference a now-inactive
 revision; effective dates are context, not a reason to reject reported history.
+Offsets are retained as supplied evidence (bounded to plus/minus 18 hours), not
+recomputed from a later timezone database. These model checks do not establish
+that a UI obtained consent or that a caller supplied the correct offset.
 
 Both direct construction and JSON decoding validate the same invariants and
 reject unsupported schema versions. JSON round trips preserve full snapshots.
