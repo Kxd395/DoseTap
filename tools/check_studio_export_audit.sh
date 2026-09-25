@@ -117,8 +117,24 @@ schema4 = copy.deepcopy(local)
 schema4.update(schemaVersion=4, exportVersion="2.9", dateGroups=schema4.pop("sessions"))
 for group in schema4["dateGroups"]:
     group["identityResolution"] = dict(version=1, status="resolved", sessionIds=["fixture-session"], reasons=[])
+    group["doseTimingReview"] = dict(version=1, status="available", reason="available", derivationVersion="recorded_dose_spacing_v1", rawIntervalSeconds=12600, intervalSeconds=12600)
 case("schema4", 0, seed=schema4)
 case("schema4-invalid-layout", 1, lambda b: b.update(sessions=[]), seed=schema4)
+case("schema4-nonpositive", 0, lambda b: b["dateGroups"][0].update(doseTimingReview=dict(version=1, status="needs_review", reason="nonpositive_dose_interval", derivationVersion="recorded_dose_spacing_v1", rawIntervalSeconds=0)), seed=schema4)
+case("schema4-no-dose1", 0, lambda b: b["dateGroups"][0].update(doseTimingReview=dict(version=1, status="missing", reason="missing_dose_time", derivationVersion="recorded_dose_spacing_v1")), seed=schema4)
+for label, expected in [("valid", 0), ("with-end", 1), ("with-raw-pair", 1)]:
+    def skipped(b, label=label):
+        b["dateGroups"][0]["doseTimingReview"] = dict(version=1, status="missing", reason="dose2_explicitly_skipped", derivationVersion="recorded_dose_spacing_v1")
+        if label == "with-raw-pair": b["dateGroups"][0]["doseTimingReview"]["rawIntervalSeconds"] = 12600
+    case("schema4-skip-"+label, expected, skipped, seed=schema4)
+case("schema4-malformed-identity", 1, lambda b: b["dateGroups"][0].update(identityResolution=[]), seed=schema4)
+case("schema4-malformed-ids", 1, lambda b: b["dateGroups"][0]["identityResolution"].update(sessionIds=[None]), seed=schema4)
+case("schema4-missing-review", 1, lambda b: b["dateGroups"][0].pop("doseTimingReview"), seed=schema4)
+case("schema4-legacy-csv", 1, seed=schema4)
+for field, value in [("version", True), ("version", 2), ("status", "missing"), ("reason", "future"), ("reason", []), ("derivationVersion", "future"), ("intervalSeconds", 0), ("intervalSeconds", True), ("rawIntervalSeconds", -1)]:
+    case(f"schema4-review-{field}-{len(cases)}", 1, lambda b, k=field, v=value: b["dateGroups"][0]["doseTimingReview"].update({k:v}), seed=schema4)
+for column, value in [("window_target_min", "225"), ("adherence_flag", "ok"), ("actual_interval_seconds", "0"), ("window_actual_min", "211"), ("session_id", "wrong"), ("session_date", "wrong"), ("interval_status", "missing"), ("interval_review_reason", "missing_dose_time"), ("historical_window_status", "known"), ("ended_utc", "2026-06-17T05:45:00Z"), ("dose2_reminder_enabled", "maybe")]:
+    case(f"schema4-csv-{column}", 1, seed=schema4, csv_value=("sessions.csv", column, value))
 case("local", 0)
 case("bathroom-physical-only", 0, lambda b: b["sessions"][0].update(
     morning={"sleepQuality":3,"rawPhysicalSymptomsJson":'{"bathroomUrgencyBurden":2}'},
@@ -256,6 +272,20 @@ for name, expected, value, csv_value in cases:
         path = folder / "sessions.csv"
         path.write_text(path.read_text().splitlines()[0] + "\n")
     (folder / "insights_bundle.json").write_text(json.dumps(value))
+    if name.startswith("schema4") and name != "schema4-legacy-csv":
+        path = folder / "sessions.csv"
+        with path.open(newline="") as handle:
+            reader = csv.DictReader(handle); rows, fields = list(reader), reader.fieldnames
+        fields += "session_date,session_id,actual_interval_seconds,interval_status,interval_review_reason,historical_window_status,dose2_reminder_enabled,reminder_interval_minutes".split(",")
+        rows[0].update(window_target_min="", adherence_flag="taken", session_date="2026-06-16", session_id="fixture-session", actual_interval_seconds="12600", interval_status="available", interval_review_reason="available", historical_window_status="unavailable", dose2_reminder_enabled="", reminder_interval_minutes="")
+        if name == "schema4-nonpositive":
+            rows[0].update(ended_utc=rows[0]["started_utc"], window_actual_min="", adherence_flag="needs_review", actual_interval_seconds="", interval_status="needs_review", interval_review_reason="nonpositive_dose_interval")
+        if name.startswith("schema4-skip-"):
+            rows[0].update(ended_utc="2026-06-17T04:45:00Z" if name == "schema4-skip-with-end" else "", window_actual_min="", adherence_flag="explicitly_skipped", actual_interval_seconds="", interval_status="missing", interval_review_reason="dose2_explicitly_skipped")
+        if name == "schema4-no-dose1":
+            rows = []
+        with path.open("w", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=fields); writer.writeheader(); writer.writerows(rows)
     if csv_value:
         path = folder / csv_value[0]
         rows, fields = [{}], [csv_value[1]]

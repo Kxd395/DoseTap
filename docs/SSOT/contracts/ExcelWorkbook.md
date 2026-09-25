@@ -141,3 +141,8 @@ Updated Studio preserves blank targets as nil and uses the exported treatment
 date for joins. Schema 1–3 remain readable; older Studio rejects schema 4. This
 is a reporting compatibility change, not a database migration or a full-export
 transaction guarantee. Scheduled and manual archives share the same writer.
+
+Strict schema-4 archive validation requires versioned timing reviews and the new
+CSV columns, checks per-date eligibility/value parity and rejects current-target
+substitution or missing eligible pairs. CSV omission of a date without a selected
+Dose 1 is valid; raw-only evidence remains in JSON.

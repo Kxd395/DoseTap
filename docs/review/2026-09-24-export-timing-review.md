@@ -17,8 +17,10 @@ DOSETAP-73 remains In Progress. This bounded follow-up to build 66 addresses ind
 - Six native iOS export/source-snapshot tests passed, including JSON/CSV identity and interval parity, unchanged SQLite records, finalized archive preservation and generated XLSX. Another 42 native provider/fidelity/integrity/round-trip tests passed serially. A legacy CSV assertion now compares the numeric heart-rate value instead of requiring integer-shaped text; the first full CI run found that sole assertion failure among 502 app tests.
 - Native Settings → Excel export share-sheet journey passed (one UI test).
 - Unsigned simulator build and signed device build passed. App version checks passed for all four app/staging configurations.
-- Studio archive guard: 161 cases plus ZIP input passed. SSOT, documentation, Plane workflow and whitespace checks passed.
+- Studio archive guard: 190 cases plus ZIP input passed, including required schema-4 review fields and CSV parity. SSOT, documentation, Plane workflow and whitespace checks passed.
 - Independent source review found three consumer/counting gaps; regressions and corrections addressed them. Final read-only review found no remaining blocker in ordinary spacing eligibility.
+
+Returned build-67 owner workbook and Studio bundle passed 13 read-only structure/timing parity checks and strict archive validation. Original source occurrences for flagged timing remained unchanged. The detailed private verification stays outside Git and Plane. This proves artifact contents, not phone viewer readability.
 
 ## Remaining gates and next work
 
