@@ -37,11 +37,15 @@ confirmation, and recording cannot precede confirmation. No clock/default amount
 is supplied by the model. A retrospective report may reference a now-inactive
 revision; effective dates are context, not a reason to reject reported history.
 Offsets are retained as supplied evidence (bounded to plus/minus 18 hours), not
-recomputed from a later timezone database. These model checks do not establish
+recomputed from a later timezone database. New captures require a recognized
+timezone identifier. Historical decoding retains a nonblank identifier even when
+the receiving OS does not recognize it; absolute occurrence and offset remain
+usable evidence. These model checks do not establish
 that a UI obtained consent or that a caller supplied the correct offset.
 
-Both direct construction and JSON decoding validate the same invariants and
-reject unsupported schema versions. JSON round trips preserve full snapshots.
+Both direct construction and JSON decoding validate record invariants and reject
+unsupported schema versions; only new capture depends on current timezone-name
+recognition. JSON round trips preserve full snapshots.
 Serialization here is a domain contract, not a claim about the existing Settings
 export. No existing medication row is converted or backfilled. No session,
 reminder, inventory, prescription suggestion or clinical score is affected.

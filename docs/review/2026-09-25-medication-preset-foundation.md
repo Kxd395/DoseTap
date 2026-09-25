@@ -38,13 +38,17 @@ success with an incorrect positive result after exponent underflow. Exact invers
 verification now rejects that case in addition to checking arithmetic status.
 The fixture uses representational limits, not a clinical dose limit.
 
-Local validation: 770 XCTest and 43 Swift Testing cases passed, including 10
+Local validation: 771 XCTest and 43 Swift Testing cases passed, including 11
 preset/snapshot regression tests. The unsigned generic simulator build passed.
 SSOT, documentation, architecture, version and Plane workflow checks passed;
 Plane helper coverage was 15 tests / 80 assertions. All four app/staging
 configurations remain 0.4.19 (68). Independent source review found no blocking
 finding; its optional multiplication-precision fixture and positive-sum guard
-were added. Hosted checks and integration references are recorded in the
+were added. Hosted review then found that historical decoding depended on the
+receiving OS recognizing the original timezone name. A failing regression
+reproduced it; the fix validates zone recognition only for new capture, preserving
+nonblank historical identifiers, UTC occurrence and offsets on decoding. Full
+core tests and the simulator build passed again. Hosted checks and integration references are recorded in the
 DOSETAP-74 workpad. No native UI, phone, accessibility or export acceptance is
 claimed from value-model tests.
 

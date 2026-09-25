@@ -189,6 +189,9 @@ public struct ConfirmedMedicationAdministration: Codable, Equatable, Sendable {
         self.recordedAt = recordedAt
         source = .userConfirmedPreset
         try validate()
+        if let timeZoneIdentifier, TimeZone(identifier: timeZoneIdentifier) == nil {
+            throw MedicationPresetError.invalidTime
+        }
     }
 
     public var totalMilligrams: Decimal { get throws { try MedicationPresetRevision.total(actualComponents) } }
@@ -204,11 +207,12 @@ public struct ConfirmedMedicationAdministration: Codable, Equatable, Sendable {
             }
         } else {
             guard let occurredAt, occurredAt.timeIntervalSince1970.isFinite, occurredAt <= confirmedAt,
-                  let timeZoneIdentifier, TimeZone(identifier: timeZoneIdentifier) != nil,
+                  let timeZoneIdentifier, !timeZoneIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                   let utcOffsetSeconds, (-64800...64800).contains(utcOffsetSeconds) else {
                 throw MedicationPresetError.invalidTime
             }
-            // The offset is historical evidence; do not recalculate it from today's timezone database.
+            // Historical identifiers and offsets outlive this OS's timezone database.
+            // The public capture initializer checks recognition; decoding preserves the evidence.
         }
     }
 

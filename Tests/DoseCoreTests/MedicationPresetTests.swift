@@ -176,4 +176,20 @@ final class MedicationPresetTests: XCTestCase {
                 from: mutateJSON(actual, change)))
         }
     }
+
+    func testHistoricalDecodePreservesZonesUnknownToReceivingPlatform() throws {
+        let actual = try administration(revision(), time: recorded, precision: .exact, zone: "UTC", offset: 0)
+        let unfamiliar = "Future/Previously_Valid_Zone"
+        XCTAssertThrowsError(try administration(actual.preset, time: recorded, precision: .exact,
+            zone: unfamiliar, offset: 0))
+        let data = try mutateJSON(actual) { $0["timeZoneIdentifier"] = unfamiliar }
+        let restored = try JSONDecoder().decode(ConfirmedMedicationAdministration.self, from: data)
+        XCTAssertEqual(restored.timeZoneIdentifier, unfamiliar)
+        XCTAssertEqual(restored.occurredAt, actual.occurredAt)
+        XCTAssertEqual(restored.utcOffsetSeconds, 0)
+        XCTAssertEqual(try JSONDecoder().decode(ConfirmedMedicationAdministration.self,
+            from: JSONEncoder().encode(restored)), restored)
+        XCTAssertThrowsError(try JSONDecoder().decode(ConfirmedMedicationAdministration.self,
+            from: mutateJSON(actual) { $0["timeZoneIdentifier"] = "  " }))
+    }
 }
