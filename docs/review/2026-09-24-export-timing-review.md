@@ -14,7 +14,7 @@ DOSETAP-73 remains In Progress. This bounded follow-up to build 66 addresses ind
 
 - Core build and 760 XCTest plus 43 Swift Testing cases passed.
 - Studio: 89 tests, four fixture-dependent skips, no failures. Export/import conflict fixture retains all events and excludes the pair from average, anchored, on-time and late spacing paths.
-- Six native iOS export/source-snapshot tests passed, including JSON/CSV identity and interval parity, unchanged SQLite records, finalized archive preservation and generated XLSX.
+- Six native iOS export/source-snapshot tests passed, including JSON/CSV identity and interval parity, unchanged SQLite records, finalized archive preservation and generated XLSX. Another 42 native provider/fidelity/integrity/round-trip tests passed serially. A legacy CSV assertion now compares the numeric heart-rate value instead of requiring integer-shaped text; the first full CI run found that sole assertion failure among 502 app tests.
 - Native Settings → Excel export share-sheet journey passed (one UI test).
 - Unsigned simulator build and signed device build passed. App version checks passed for all four app/staging configurations.
 - Studio archive guard: 161 cases plus ZIP input passed. SSOT, documentation, Plane workflow and whitespace checks passed.
