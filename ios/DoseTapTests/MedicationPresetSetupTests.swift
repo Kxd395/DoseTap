@@ -53,4 +53,41 @@ final class MedicationPresetSetupTests: XCTestCase {
         fill(model); XCTAssertNotNil(model.preview)
         XCTAssertEqual(writes, 0)
     }
+    func testStaleEditorRetainsDraftAndDirectsToLatestRevision() throws {
+        let repository = SessionRepository(storage: EventStorage(dbPath: ":memory:"), clock: { self.now })
+        let create = MedicationPresetSetupModel(previous: nil, separator: ".", clock: { self.now }, persist: repository.saveMedicationPresetRevision)
+        fill(create); create.save()
+        let original = try XCTUnwrap(create.pending)
+        let stale = MedicationPresetSetupModel(previous: original, separator: ".", clock: { self.now }, persist: repository.saveMedicationPresetRevision)
+        let newer = MedicationPresetSetupModel(previous: original, separator: ".", clock: { self.now }, persist: repository.saveMedicationPresetRevision)
+        newer.draft.labelName = "Newer label"; newer.reviewed = true; newer.save()
+        stale.draft.labelName = "Stale draft"; stale.reviewed = true; stale.save()
+        XCTAssertFalse(stale.saved); XCTAssertNotNil(stale.pending)
+        XCTAssertEqual(stale.draft.labelName, "Stale draft")
+        XCTAssertTrue(stale.error?.contains("reopen the latest") == true)
+        let snapshot = try repository.medicationPresetExportSnapshot()
+        XCTAssertEqual(snapshot.presetRevisions.count, 2)
+        XCTAssertTrue(snapshot.administrations.isEmpty)
+        let latest = MedicationPresetDraft.latest(in: try snapshot.presetRevisions.map(MedicationPresetExportSnapshot.decodePreset))
+        XCTAssertEqual(latest.first?.labelName, "Newer label")
+    }
+
+    func testPresetSetupLeavesActiveDoseSessionUnchanged() throws {
+        let storage = EventStorage(dbPath: ":memory:")
+        let repository = SessionRepository(storage: storage, clock: { self.now })
+        XCTAssertTrue(repository.setDose1Time(now.addingTimeInterval(-3600)).isCommitted)
+        let session = repository.activeSessionId, dose = repository.dose1Time
+        let create = MedicationPresetSetupModel(previous: nil, separator: ".", clock: { self.now }, persist: repository.saveMedicationPresetRevision)
+        fill(create); create.save()
+        let original = try XCTUnwrap(create.pending)
+        let revise = MedicationPresetSetupModel(previous: original, separator: ".", clock: { self.now }, persist: repository.saveMedicationPresetRevision)
+        revise.draft.instructions = "Revised label instructions"; revise.reviewed = true; revise.save()
+        XCTAssertTrue(revise.saved)
+        XCTAssertEqual(repository.activeSessionId, session); XCTAssertEqual(repository.dose1Time, dose)
+        XCTAssertNil(repository.dose2Time)
+        let snapshot = try repository.medicationPresetExportSnapshot()
+        XCTAssertEqual(snapshot.presetRevisions.count, 2); XCTAssertTrue(snapshot.administrations.isEmpty)
+        XCTAssertEqual(try MedicationPresetExportSnapshot.decodePreset(snapshot.presetRevisions.first { try MedicationPresetExportSnapshot.decodePreset($0).revisionID == original.revisionID }!), original)
+    }
+
 }
