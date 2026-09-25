@@ -67,15 +67,19 @@ final class MedicationPresetSettingsUITests: XCTestCase {
         let revise = app.buttons["preset-revise-\(label)"]; reveal(revise); revise.tap()
         let field = app.textFields["preset-label"]
         XCTAssertTrue(field.waitForExistence(timeout: 3)); field.tap(); field.typeText(" revised")
+        // At large text the long field scrolls horizontally and the tap can place the caret mid-label.
+        let editedLabel = field.value as? String ?? ""
+        XCTAssertNotEqual(editedLabel, label)
+        XCTAssertEqual(editedLabel.replacingOccurrences(of: " revised", with: ""), label)
         let done = app.buttons["preset-keyboard-done"]; if done.exists { done.tap() }
         reveal(review); review.tap(); XCTAssertEqual(review.value as? String, "Reviewed"); reveal(save); save.tap()
         XCTAssertTrue(receipt.waitForExistence(timeout: 5))
         app.buttons["preset-receipt-dismiss"].tap()
         app.terminate(); app.launch(); openPresets()
-        let newName = app.staticTexts[label + " revised"].firstMatch; reveal(newName)
+        let newName = app.staticTexts[editedLabel].firstMatch; reveal(newName)
         screenshot("Revised preset preserves prior history")
         XCTAssertTrue(newName.exists)
-        let history = app.buttons["preset-history-\(label) revised"]; reveal(history); history.tap()
+        let history = app.buttons["preset-history-\(editedLabel)"]; reveal(history); history.tap()
         let original = app.staticTexts[label].firstMatch; reveal(original)
         XCTAssertTrue(original.exists)
         screenshot("Original label remains in revision history")
