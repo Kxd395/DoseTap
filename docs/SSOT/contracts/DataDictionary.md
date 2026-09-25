@@ -380,3 +380,10 @@ The old sleepPlan.schedule.v1 preference is retained but ceases to be authoritat
 after consolidation. Current clinical exports do not promise a restorable schedule
 backup. Dated warning exceptions and one-night planner overrides retain their
 existing distinct scopes; neither rewrites the recurring week.
+
+A deliberate one-night override exports its effective UTC time and matching local
+clock minutes even when the recurring day is disabled. `scheduleDayType` is
+`one_night_override`, not an inferred work/off classification. These remain
+current preference projections, not proven historical obligations. Studio treats
+this value as unknown for schedule grouping unless independent recorded context
+provides a classification.

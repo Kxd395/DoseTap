@@ -7,6 +7,7 @@
 //
 
 import XCTest
+import Combine
 @testable import DoseTap
 import DoseCore
 
@@ -47,6 +48,40 @@ final class SleepPlanStoreTemplateTests: XCTestCase {
         XCTAssertEqual(restored.overrideForSession(key), changedWake)
         restored.setTonightOverride(sessionKey: key, wakeBy: nil)
         XCTAssertEqual(restored.wakeByDate(for: key, tz: zone), usualWake)
+    }
+
+    func testDisabledDayEditorUsesNextWakeDateWithoutCreatingDeadlineAndExportHonorsOverride() throws {
+        store.updateEntry(weekday: 6, wakeTime: makeTime(hour: 7, minute: 0), enabled: false)
+        let zone = TimeZone(identifier: "America/New_York")!
+        let key = "2026-09-24"
+        let suggestion = try XCTUnwrap(store.wakeEditorDate(for: key, tz: zone))
+        XCTAssertEqual(suggestion, ISO8601DateFormatter().date(from: "2026-09-25T11:00:00Z"))
+        XCTAssertNil(store.wakeByDate(for: key, tz: zone))
+        XCTAssertNil(store.wakeExportContext(for: key, tz: zone))
+        store.setTonightOverride(sessionKey: key, wakeBy: suggestion.addingTimeInterval(3600))
+        let context = try XCTUnwrap(store.wakeExportContext(for: key, tz: zone))
+        XCTAssertEqual(context.wakeDate, suggestion.addingTimeInterval(3600))
+        XCTAssertEqual(context.minutesAfterMidnight, 480)
+        XCTAssertEqual(context.dayType, "one_night_override")
+        store.updateEntry(weekday: 6, wakeTime: makeTime(hour: 5, minute: 0), enabled: true)
+        XCTAssertEqual(store.wakeExportContext(for: key, tz: zone)?.minutesAfterMidnight, 480)
+    }
+
+    func testTimezoneOnlyCanonicalChangePublishesAndChangesDeadline() throws {
+        let storage = EventStorage.inMemory()
+        let repository = SessionRepository(storage: storage, notificationScheduler: FakeNotificationScheduler())
+        var plan = try repository.workWakeSchedule()
+        plan.timeZoneIdentifier = "UTC"; plan.weeklySchedule = TypicalWeekSchedule()
+        XCTAssertTrue(repository.saveWorkWakeSchedule(plan).isCommitted)
+        let projection = SleepPlanStore(userDefaults: defaults, repository: repository)
+        let first = projection.wakeByDate(for: "2026-09-24")
+        var publications = 0
+        let subscription = projection.objectWillChange.sink { publications += 1 }
+        plan = try repository.workWakeSchedule(); plan.timeZoneIdentifier = "America/New_York"
+        XCTAssertTrue(repository.saveWorkWakeSchedule(plan).isCommitted)
+        XCTAssertGreaterThan(publications, 0)
+        XCTAssertEqual(projection.wakeByDate(for: "2026-09-24")?.timeIntervalSince(first!), 4 * 3600)
+        subscription.cancel()
     }
 
     func testCanonicalWeeklySaveReopensAndOverridesLegacyPreferencesWithoutChangingMedication() throws {

@@ -472,7 +472,8 @@ final class SleepPlanStore: ObservableObject {
     private let defaults: UserDefaults
     private let repository: SessionRepository?
     private var repositoryObserver: AnyCancellable?
-    private var scheduleTimeZone: TimeZone?
+    @Published private(set) var scheduleTimeZone: TimeZone?
+    @Published private(set) var scheduleLoadFailed = false
     private let scheduleKey = "sleepPlan.schedule.v1"
     private let settingsKey = "sleepPlan.settings.v1"
     private let overridesKey = "sleepPlan.tonightOverrides.v1"
@@ -520,6 +521,7 @@ final class SleepPlanStore: ObservableObject {
         if let repository {
             do {
                 var plan = try repository.workWakeSchedule()
+                if plan.weeklySchedule == nil && plan.workingWeekdays == nil { plan.timeZoneIdentifier = TimeZone.current.identifier }
                 plan.weeklySchedule = schedule
                 if !repository.saveWorkWakeSchedule(plan).isCommitted { reloadFromDefaultsIfNeeded() }
             } catch { reloadFromDefaultsIfNeeded() }
@@ -553,8 +555,11 @@ final class SleepPlanStore: ObservableObject {
             do {
                 let plan = try repository.workWakeSchedule()
                 latestSchedule = plan.weeklySchedule ?? Self.loadSchedule(defaults: defaults)
-                scheduleTimeZone = plan.weeklySchedule == nil ? nil : TimeZone(identifier: plan.timeZoneIdentifier)
+                let newZone = plan.weeklySchedule == nil ? nil : TimeZone(identifier: plan.timeZoneIdentifier)
+                if scheduleTimeZone != newZone { scheduleTimeZone = newZone }
+                if scheduleLoadFailed { scheduleLoadFailed = false }
             } catch {
+                if !scheduleLoadFailed { scheduleLoadFailed = true }
                 // A failed canonical read must not revive obsolete preference deadlines.
                 latestSchedule = TypicalWeekSchedule(entries: (1...7).map {
                     TypicalWeekEntry(weekdayIndex: $0, wakeByHour: 0, wakeByMinute: 0, enabled: false)
@@ -662,6 +667,26 @@ final class SleepPlanStore: ObservableObject {
     
     func scheduledWakeByDate(for sessionKey: String, tz: TimeZone = .current) -> Date? {
         SleepPlanCalculator.wakeByDateTime(forActiveSessionKey: sessionKey, schedule: schedule, tz: scheduleTimeZone ?? tz)
+    }
+
+    /// An editable suggestion only; never a deadline until explicitly enabled.
+    func wakeEditorDate(for sessionKey: String, tz: TimeZone = .current) -> Date? {
+        var editable = schedule
+        editable.entries = editable.entries.map { var entry = $0; entry.enabled = true; return entry }
+        return SleepPlanCalculator.wakeByDateTime(forActiveSessionKey: sessionKey, schedule: editable, tz: scheduleTimeZone ?? tz)
+    }
+
+    func wakeExportContext(for sessionKey: String, tz: TimeZone = .current) -> (wakeDate: Date, minutesAfterMidnight: Int, dayType: String)? {
+        guard let wake = wakeByDate(for: sessionKey, tz: tz) else { return nil }
+        var calendar = Calendar(identifier: .gregorian); calendar.timeZone = scheduleTimeZone ?? tz
+        let minutes = calendar.component(.hour, from: wake) * 60 + calendar.component(.minute, from: wake)
+        if overrideForSession(sessionKey) != nil { return (wake, minutes, "one_night_override") }
+        let times = Set(schedule.entries.filter(\.enabled).map { $0.wakeByHour * 60 + $0.wakeByMinute }).sorted()
+        let type: String
+        if times.count >= 2, let first = times.first, let last = times.last {
+            type = minutes <= Int((Double(first + last) / 2).rounded()) ? "worklike" : "offlike"
+        } else { type = "uniform" }
+        return (wake, minutes, type)
     }
 
     func plan(for sessionKey: String, now: Date = Date(), tz: TimeZone = .current) -> (wakeBy: Date, recommendedInBed: Date, windDown: Date, expectedSleepMinutes: Double)? {

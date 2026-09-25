@@ -70,7 +70,7 @@ struct PreSleepLogView: View {
                 TabView(selection: $currentCard) {
                     // Card 1: Timing + Stress
                     Card1TimingStress(answers: $answers) {
-                        if historyNight == nil {
+                        if historyNight == nil && !sleepPlanStore.scheduleLoadFailed {
                             if let plan = planSummary { PlanInlineHint(plan: plan) }
                             SleepPlanOverrideCard(
                                 overrideEnabled: $overrideEnabled,
@@ -82,7 +82,7 @@ struct PreSleepLogView: View {
                                     sleepPlanStore.setTonightOverride(sessionKey: planSessionKey, wakeBy: nil)
                                 },
                                 baselineWake: sleepPlanStore.scheduledWakeByDate(for: planSessionKey)
-                            )
+                            ).environment(\.timeZone, sleepPlanStore.scheduleTimeZone ?? .current)
                         }
                         if historyNight == nil { rememberLastSettingsSection }
                         else { Text("Treatment night: \(historyNight ?? "") · Review remembered answers. This does not change tonight's plan.").font(.footnote) }
@@ -328,7 +328,7 @@ struct PreSleepLogView: View {
     private func syncWakeOverride() {
         let saved = sleepPlanStore.overrideForSession(planSessionKey)
         overrideEnabled = saved != nil
-        overrideWake = saved ?? sleepPlanStore.wakeByDate(for: planSessionKey) ?? Date()
+        overrideWake = saved ?? sleepPlanStore.wakeEditorDate(for: planSessionKey) ?? Date()
     }
 
     private var planSummary: (wakeBy: Date, inBed: Date, windDown: Date, expectedSleep: Double)? {

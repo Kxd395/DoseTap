@@ -1221,7 +1221,7 @@ final class DoseTapUITests: XCTestCase {
         open()
         set("weekly-work-known", false); set("weekly-work-known", true)
         let legacy = app.switches["weekly-review-legacy"]
-        if legacy.exists { set("weekly-review-legacy", true) }
+        if !app.buttons["weekly-save"].isEnabled { set("weekly-review-legacy", true) }
         captureDashboard("Weekly schedule header and legacy review")
         set("weekly-required-2", false)
         set("weekly-work-3", true)
@@ -1255,8 +1255,8 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(schedule.isHittable)
         schedule.tap()
         let legacy = app.switches["weekly-review-legacy"]
-        if legacy.exists {
-            for _ in 0..<5 where !legacy.isHittable { app.swipeUp() }
+        if !app.buttons["weekly-save"].isEnabled {
+            for _ in 0..<10 where !legacy.exists || !legacy.isHittable { app.swipeUp() }
             if legacy.value as? String != "1" {
                 legacy.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
             }

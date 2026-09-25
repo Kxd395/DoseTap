@@ -1039,25 +1039,7 @@ struct StudioBundleExporter {
     }
 
     private func scheduledWakeInfo(for sessionDate: String) -> (wakeDate: Date, minutesAfterMidnight: Int, dayType: String)? {
-        let store = SleepPlanStore.shared
-        guard let wakeDate = store.wakeByDate(for: sessionDate, tz: .current) else { return nil }
-        let entry = store.schedule.entry(for: nextMorningWeekdayIndex(for: sessionDate))
-        guard entry.enabled else {
-            return nil
-        }
-
-        let enabledEntries = store.schedule.entries.filter(\.enabled)
-        let wakeMinutes = entry.wakeByHour * 60 + entry.wakeByMinute
-        let uniqueWakeMinutes = Array(Set(enabledEntries.map { $0.wakeByHour * 60 + $0.wakeByMinute })).sorted()
-        let dayType: String
-        if uniqueWakeMinutes.count >= 2, let earliest = uniqueWakeMinutes.first, let latest = uniqueWakeMinutes.last {
-            let threshold = Int((Double(earliest + latest) / 2.0).rounded())
-            dayType = wakeMinutes <= threshold ? "worklike" : "offlike"
-        } else {
-            dayType = "uniform"
-        }
-
-        return (wakeDate, wakeMinutes, dayType)
+        SleepPlanStore.shared.wakeExportContext(for: sessionDate)
     }
 
     private func adjacentScheduledWakeInfo(for sessionDate: String, dayOffset: Int) -> (wakeDate: Date, minutesAfterMidnight: Int, dayType: String)? {

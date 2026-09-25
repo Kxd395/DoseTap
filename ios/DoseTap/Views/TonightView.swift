@@ -258,7 +258,7 @@ struct LegacyTonightView: View {
                     if let wake = sleepPlanStore.wakeByDate(for: sessionRepo.preSleepDisplaySessionKey(for: Date())) {
                         Text(wake, style: .time).accessibilityIdentifier("tonightWakeTime")
                     } else {
-                        Text("No required wake time").accessibilityIdentifier("tonightWakeTime")
+                        Text(sleepPlanStore.scheduleLoadFailed ? "Schedule unavailable" : "No required wake time").accessibilityIdentifier("tonightWakeTime")
                     }
                 }
                 .font(.subheadline.weight(.semibold))

@@ -105,7 +105,7 @@ struct SleepPlanDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 4) {
-                Text("Changes apply only after saving.").font(.caption)
+                Text(legacyWarning != nil && !reviewedLegacy ? "Review existing settings before saving." : "Changes apply only after saving.").font(.caption)
                 Button("Save Schedule", action: save).buttonStyle(.borderedProminent)
                     .disabled(!loaded || (legacyWarning != nil && !reviewedLegacy))
                     .accessibilityIdentifier("weekly-save")
@@ -124,7 +124,7 @@ struct SleepPlanDetailView: View {
     }
     private func dayName(_ day: Int) -> String { Calendar.current.weekdaySymbols[day - 1] }
     private func time(_ minutes: Int) -> Date {
-        calendar.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: Date()) ?? Date()
+        calendar.date(from: DateComponents(year: 2020, month: 1, day: 15, hour: minutes / 60, minute: minutes % 60)) ?? Date()
     }
     private func load() {
         do {
