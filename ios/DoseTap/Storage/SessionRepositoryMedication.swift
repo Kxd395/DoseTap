@@ -89,10 +89,10 @@ public extension SessionRepository {
     }
     #endif
 
-    public func workWakeSchedule() throws -> WorkWakeSchedule { try storage.loadWorkWakeSchedule() }
+    func workWakeSchedule() throws -> WorkWakeSchedule { try storage.loadWorkWakeSchedule() }
 
     @discardableResult
-    public func saveWorkWakeSchedule(_ value: WorkWakeSchedule) -> MedicationMutationResult {
+    func saveWorkWakeSchedule(_ value: WorkWakeSchedule) -> MedicationMutationResult {
         var revised = value
         revised.revision = UUID()
         let result = storage.saveWorkWakeSchedule(revised, expectedRevision: value.revision)
@@ -101,7 +101,7 @@ public extension SessionRepository {
     }
 
     @discardableResult
-    public func changeWorkWakeDate(_ warning: WorkWakeWarning, isWorking: Bool, wakeMinutes: Int? = nil) -> MedicationMutationResult {
+    func changeWorkWakeDate(_ warning: WorkWakeWarning, isWorking: Bool, wakeMinutes: Int? = nil) -> MedicationMutationResult {
         do {
             var plan = try workWakeSchedule()
             guard plan.revision == warning.revision else {
@@ -117,7 +117,7 @@ public extension SessionRepository {
     /// Resolve one explicitly selected historical session without reopening it.
     /// Does not schedule/cancel alarms; live-session actions use the coordinator.
     @discardableResult
-    public func recordHistoricalDose2Occurrence(
+    func recordHistoricalDose2Occurrence(
         sessionId: String,
         sessionDate: String,
         occurrenceTime: Date,

@@ -367,7 +367,10 @@ public actor DiagnosticLogger {
     
     private static var osVersion: String {
         #if canImport(UIKit)
-        return UIDevice.current.systemVersion
+        let version = ProcessInfo.processInfo.operatingSystemVersion
+        let components = [version.majorVersion, version.minorVersion]
+            + (version.patchVersion == 0 ? [] : [version.patchVersion])
+        return components.map(String.init).joined(separator: ".")
         #else
         return ProcessInfo.processInfo.operatingSystemVersionString
         #endif
