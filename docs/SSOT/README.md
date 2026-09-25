@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-25
 SSOT revision: 0.4.19
-App version defined in this revision's Xcode project: 0.4.19 (70)
+App version defined in this revision's Xcode project: 0.4.19 (71)
 Integration and acceptance evidence: [Quick-log availability](../review/2026-09-24-quick-log-availability.md), [Excel contrast delivery](../review/2026-09-22-excel-contrast-delivery.md), [export delivery record](../review/2026-09-17-export-failure-diagnosis.md) and the DOSETAP-72 and DOSETAP-13 Plane workpads. The project version alone does not establish acceptance.
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
@@ -40,6 +40,26 @@ Notes:
 ---
 
 ## Domain Entities and Invariants
+
+### Weekly wake schedule (DOSETAP-41, build 71)
+
+- Weekly Schedule edits one seven-day draft. Each day means the date of waking,
+  with an optional required wake time and separately confirmed work status.
+  Fill selected days is a draft shortcut; it never assumes Monday/Wednesday/Friday.
+  Only Save Schedule commits the draft. Leaving without saving changes no settings.
+- On explicit save, the existing SQLite work/wake document also owns the weekly
+  planner times. Work advisories use those times and retain dated exceptions.
+  Existing preference-based planner times are shown for review before this first
+  save; no enabled-day flag is inferred to mean working. Legacy warning/planner
+  differences require acknowledgment. Opening alone performs no migration.
+- Disabled wake requirements produce no wake deadline or bedtime calculation,
+  including in Tonight and export. A deliberately set one-night planner override
+  still takes precedence for that planner night; it does not change work status.
+  Missing/invalid dates stay unresolved. Wake-date and DST resolution use the
+  saved schedule timezone after consolidation, with next-valid/first-fold handling.
+- Failed loads block saving; failed/stale writes retain the draft, report failure,
+  and publish no success. One save retains the warning mode, timezone and dated
+  exceptions. It never records medication, changes dosing windows or schedules alarms.
 
 ### Dose 1 reminder review (DOSETAP-71)
 

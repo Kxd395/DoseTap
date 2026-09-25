@@ -2,7 +2,7 @@ import Foundation
 
 /// Typical wake-by time for a weekday.
 /// `weekdayIndex` uses Calendar weekday semantics: 1 = Sunday, 7 = Saturday.
-public struct TypicalWeekEntry: Codable, Equatable {
+public struct TypicalWeekEntry: Codable, Equatable, Sendable {
     public let weekdayIndex: Int
     public var wakeByHour: Int
     public var wakeByMinute: Int
@@ -17,13 +17,18 @@ public struct TypicalWeekEntry: Codable, Equatable {
 }
 
 /// Full typical week schedule (7 entries).
-public struct TypicalWeekSchedule: Codable, Equatable {
+public struct TypicalWeekSchedule: Codable, Equatable, Sendable {
     public var entries: [TypicalWeekEntry]
     
     public init(entries: [TypicalWeekEntry] = Self.defaultEntries) {
         self.entries = entries
     }
     
+    public var isValid: Bool {
+        entries.count == 7 && Set(entries.map(\.weekdayIndex)) == Set(1...7)
+            && entries.allSatisfy { (0..<24).contains($0.wakeByHour) && (0..<60).contains($0.wakeByMinute) }
+    }
+
     public static var defaultEntries: [TypicalWeekEntry] {
         (1...7).map { TypicalWeekEntry(weekdayIndex: $0, wakeByHour: 7, wakeByMinute: 30, enabled: true) }
     }
@@ -52,27 +57,24 @@ public struct SleepPlanSettings: Codable, Equatable {
 public enum SleepPlanCalculator {
     
     /// Compute wake-by Date for the active night (session key D -> wake on D+1).
-    public static func wakeByDateTime(forActiveSessionKey key: String, schedule: TypicalWeekSchedule, tz: TimeZone) -> Date {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = tz
-        
+    public static func wakeByDateTime(forActiveSessionKey key: String, schedule: TypicalWeekSchedule, tz: TimeZone) -> Date? {
+        guard schedule.isValid else { return nil }
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = tz
-        
-        let sessionDate = formatter.date(from: key) ?? Date()
-        let nextMorning = calendar.date(byAdding: .day, value: 1, to: sessionDate) ?? sessionDate
-        let weekday = calendar.component(.weekday, from: nextMorning)
-        let entry = schedule.entry(for: weekday)
-        
-        var components = calendar.dateComponents([.year, .month, .day], from: nextMorning)
-        components.hour = entry.enabled ? entry.wakeByHour : 7
-        components.minute = entry.enabled ? entry.wakeByMinute : 30
-        components.second = 0
-        
-        return calendar.date(from: components) ?? nextMorning
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = calendar
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = tz
+        formatter.isLenient = false
+        guard let sessionDate = formatter.date(from: key), formatter.string(from: sessionDate) == key,
+              let nextMorning = calendar.date(byAdding: .day, value: 1, to: sessionDate) else { return nil }
+        let entry = schedule.entry(for: calendar.component(.weekday, from: nextMorning))
+        guard entry.enabled else { return nil }
+        return calendar.date(bySettingHour: entry.wakeByHour, minute: entry.wakeByMinute, second: 0,
+                             of: nextMorning, matchingPolicy: .nextTime, repeatedTimePolicy: .first, direction: .forward)
     }
-    
+
     public static func recommendedInBedTime(wakeBy: Date, settings: SleepPlanSettings) -> Date {
         let totalMinutes = settings.targetSleepMinutes + settings.sleepLatencyMinutes
         return wakeBy.addingTimeInterval(-Double(totalMinutes) * 60)
@@ -138,6 +140,8 @@ public struct WorkWakeSchedule: Codable, Equatable, Sendable {
     public var timeZoneIdentifier: String
     /// nil means unknown; an empty set means explicitly not working any day.
     public var workingWeekdays: Set<Int>?
+    /// Present only after explicit consolidation of the weekly planner.
+    public var weeklySchedule: TypicalWeekSchedule?
     public var wakeMinutes: Int
     public var target: WorkWarningTarget
     public var cutoffMinutes: Int
@@ -156,7 +160,7 @@ public struct WorkWakeSchedule: Codable, Equatable, Sendable {
     }
 
     public var isValid: Bool {
-        TimeZone(identifier: timeZoneIdentifier) != nil && (0..<1440).contains(wakeMinutes)
+        TimeZone(identifier: timeZoneIdentifier) != nil && (weeklySchedule?.isValid ?? true) && (0..<1440).contains(wakeMinutes)
             && (0..<1440).contains(cutoffMinutes) && (0...1440).contains(bufferMinutes)
             && (workingWeekdays?.allSatisfy { (1...7).contains($0) } ?? true)
             && exceptions.values.allSatisfy { $0.wakeMinutes.map { (0..<1440).contains($0) } ?? true }
@@ -183,7 +187,11 @@ public struct WorkWakeSchedule: Codable, Equatable, Sendable {
         func localTime(_ minutes: Int, on day: Date) -> Date? {
             calendar.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: day, matchingPolicy: .nextTime, repeatedTimePolicy: .first, direction: .forward)
         }
-        guard let wake = localTime(exception?.wakeMinutes ?? wakeMinutes, on: wakeDay) else { return nil }
+        let weekday = calendar.component(.weekday, from: wakeDay)
+        let entry = weeklySchedule?.entry(for: weekday)
+        let weeklyMinutes: Int? = entry == nil ? wakeMinutes : (entry!.enabled ? entry!.wakeByHour * 60 + entry!.wakeByMinute : nil)
+        guard let minutes = exception?.wakeMinutes ?? weeklyMinutes,
+              let wake = localTime(minutes, on: wakeDay) else { return nil }
         let targetAt: Date
         switch target {
         case .fixedCutoff:

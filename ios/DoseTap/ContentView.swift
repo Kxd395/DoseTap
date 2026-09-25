@@ -99,7 +99,7 @@ struct ContentView: View {
         themeManager.refreshAutomaticNight(
             sessionID: sessionRepo.activeSessionEnd == nil ? sessionRepo.activeSessionId : nil,
             dose1: sessionRepo.dose1Time,
-            wakeBy: key.map { SleepPlanStore.shared.wakeByDate(for: $0) },
+            wakeBy: key.flatMap { SleepPlanStore.shared.wakeByDate(for: $0) },
             wokeUp: sessionRepo.wakeFinalTime != nil || sessionRepo.checkInCompleted,
             now: Date()
         )

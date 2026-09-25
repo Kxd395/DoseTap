@@ -1040,7 +1040,7 @@ struct StudioBundleExporter {
 
     private func scheduledWakeInfo(for sessionDate: String) -> (wakeDate: Date, minutesAfterMidnight: Int, dayType: String)? {
         let store = SleepPlanStore.shared
-        let wakeDate = store.wakeByDate(for: sessionDate, tz: .current)
+        guard let wakeDate = store.wakeByDate(for: sessionDate, tz: .current) else { return nil }
         let entry = store.schedule.entry(for: nextMorningWeekdayIndex(for: sessionDate))
         guard entry.enabled else {
             return nil
