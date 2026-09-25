@@ -31,6 +31,9 @@ General medication records use medication_events; they do not create dose_events
 New records retain a NULL session_id, even across startup. The obsolete startup
 date-link backfill was removed; historical non-NULL links are left untouched.
 session_date remains a legacy grouping field, not evidence of a sleep relationship.
+Deleting/resetting a night preserves independent NULL-linked medication rows and
+does not enqueue medication tombstones for them. Synced night deletion uses the
+same selection. Explicit Clear All Data still removes independent medication data.
 
 Each pending entry has a stable command ID. A transaction checks that ID, the
 current duplicate evidence and the insert. Repeating the same command is
@@ -47,14 +50,18 @@ Historical unknowns are not filled from current settings.
 ## Validation record
 
 - SwiftPM: 760 XCTest and 43 Swift Testing cases passed.
-- Native iOS: 100 tests passed across MedicationCapture, SessionRepository,
-  ExportRecordFidelity and ExcelExport. These cover independent save/reopen,
+- Native iOS: 142 tests passed across MedicationCapture, SessionRepository,
+  DataIntegrity, EventStorageIntegration, ExportRecordFidelity and ExcelExport.
+  These cover independent save/reopen,
   active nighttime state preservation, insert/commit failure, stable retry,
-  cross-date duplicate evidence, changed consent, invalid inputs and exports.
+  cross-date duplicate evidence, changed consent, invalid inputs, night deletion
+  and tombstone isolation, and exports.
 - Generic unsigned simulator build passed; all four relevant configurations
   report 0.4.19 (68).
 - Two native UI journeys passed, covering explicit amount/time capture and batch
-  duplicate/failure/retry. Final result: 2 tests, zero failures at 11:37 EDT.
+  duplicate/failure/retry. Final result after deletion fix: 2 tests, zero failures
+  at 11:48 EDT. One launch-only attempt reported simulator Busy; retry after the
+  existing simulator booted completed successfully. No runtime download needed.
   Initial attempts exposed a transient-toast assertion and an inherited
   accessibility identifier; neither is accepted as a passing run. The persistent
   receipt count is the final assertion target.
@@ -62,6 +69,9 @@ Historical unknowns are not filled from current settings.
   passed before closeout; the workpad records final integration evidence.
 - Independent code review checked transaction identity, duplicate evidence,
   daytime/nighttime isolation and the deferred scope boundaries.
+  The hosted review subsequently found the legacy date-based night deletion
+  cascade. Its fix shares the NULL-link exclusion between deletion and tombstone
+  selection, with local/reset/sync and export preservation regressions.
 
 No real patient records or private attachments were copied into the repository.
 Native screenshots use synthetic simulator records. Temporary logs/results live

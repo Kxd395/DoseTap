@@ -189,6 +189,10 @@ final class DoseTapUITests: XCTestCase {
         app.buttons["10 mg"].tap()
         XCTAssertFalse(app.buttons["Add"].isEnabled)
         app.buttons["medication-time-now"].tap(); app.buttons["Add"].tap()
+        // Independent prior administrations survive the test's night reset.
+        if app.alerts["Duplicate Entry?"].waitForExistence(timeout: 1) {
+            app.alerts.buttons["Add Anyway"].tap()
+        }
         XCTAssertTrue(app.staticTexts["medication-pending-occurrence"].waitForExistence(timeout: 5))
         let editorClosed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: app.buttons["Add"])
         XCTAssertEqual(XCTWaiter.wait(for: [editorClosed], timeout: 5), .completed)

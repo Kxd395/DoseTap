@@ -93,4 +93,33 @@ final class MedicationCaptureTests: XCTestCase {
         XCTAssertNil(try storage.medicationCaptureRows(column: "id", value: "daytime").first?.sessionId)
     }
 
+    func testNightDeletionAndResetPreserveIndependentMedicationAndDoNotSyncItsDeletion() throws {
+        for action in ["history", "reset", "sync"] {
+            let storage = EventStorage(dbPath: ":memory:"), repo = repository(storage)
+            XCTAssertTrue(repo.setDose1Time(now.addingTimeInterval(-3600)).isCommitted)
+            _ = try repo.logMedicationEntry(entryID: "independent", medicationId: "adderall_xr", doseMg: 20, takenAt: now)
+            let original = try XCTUnwrap(storage.medicationCaptureRows(column: "id", value: "independent").first)
+            XCTAssertEqual(original.sessionDate, repo.activeSessionDate)
+            let linked = StoredMedicationEntry(id: "legacy-linked", sessionId: "legacy-night", sessionDate: original.sessionDate,
+                medicationId: "modafinil", doseMg: 100, takenAtUTC: now, createdAt: now)
+            XCTAssertTrue(storage.insertMedicationEvent(linked))
+            switch action {
+            case "history": repo.deleteSession(sessionDate: original.sessionDate)
+            case "reset": repo.clearTonight()
+            default: repo.deleteSessionFromSync(sessionDate: original.sessionDate)
+            }
+            let remaining = try XCTUnwrap(storage.medicationCaptureRows(column: "id", value: "independent").first)
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys]
+            XCTAssertEqual(try encoder.encode(remaining), try encoder.encode(original))
+            XCTAssertTrue(try storage.medicationCaptureRows(column: "id", value: "legacy-linked").isEmpty)
+            XCTAssertEqual(try storage.medicationExportRecords(sessionDate: original.sessionDate).count, 1)
+            let tombstones = storage.fetchCloudKitTombstones().filter { $0.recordType == "DoseTapMedicationEvent" }
+            XCTAssertEqual(Set(tombstones.map(\.recordName)), action == "sync" ? [] : ["legacy-linked"])
+            storage.clearAllData()
+            XCTAssertTrue(try storage.medicationCaptureRows(column: "id", value: "independent").isEmpty,
+                          "Explicit Clear All Data still removes independent records")
+        }
+    }
+
 }

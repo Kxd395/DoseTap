@@ -331,6 +331,9 @@ stored. The 18:00 `session_date` remains a reporting group, not an inferred nigh
 relationship. `taken_at_utc` is the explicitly reviewed occurrence; `created_at`
 is supplied by this capture path's recording clock. Older creation timestamps
 retain their original meaning. The persisted unit/formulation are unchanged.
+Night deletion/reset, including synced deletion, excludes NULL-linked medication
+rows from local deletion and outbound tombstones. Explicit Clear All Data or
+age-based deletion retains its broader scope.
 
 A pending entry's stable ID is also its retry key. Identical replay returns the
 saved record; changed content under that ID cannot replace it. Duplicate review
