@@ -40,7 +40,8 @@ review invalidation, injected commit failure, frozen retry, uncertain-commit
 readback and restart/export persistence. Core: 789 XCTest plus 43 Swift Testing
 passed. Full native app suite before the final read-status refinement: 535 passed.
 Final targeted capture rerun: eight passed after the read-status refinement.
-Final native UI results are recorded below when completed.
+Final native UI results and exact PR/main integration are recorded in the
+DOSETAP-74 workpad after completion; this document does not substitute for readback.
 
 Independent review identified indistinguishable amount accessibility labels and
 stale review availability after save-time read failure. Both were corrected.
