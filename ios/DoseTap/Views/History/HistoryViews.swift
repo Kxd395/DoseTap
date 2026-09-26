@@ -352,13 +352,6 @@ struct MedicationHistoryView: View {
     }
     var body: some View {
         List {
-            Section {
-                Text("Quick logs and saved-preset administrations across all dates, including entries without a sleep session. Nighttime Dose 1 and Dose 2 remain in session history.")
-                Text("Newest taken time first. Unknown taken times are placed by recording time and remain marked unknown.")
-            }
-            Section("Export location") {
-                Text("Excel: Medication Log for quick logs; Confirmed Medications for saved-preset records. ZIP: both are in insights_bundle.json. Preset settings alone are not taken doses.")
-            }
             if readFailed {
                 Section {
                     Text("Medication history could not be loaded completely. Your saved records have not been changed.")
@@ -383,6 +376,13 @@ struct MedicationHistoryView: View {
                             }
                         }.accessibilityElement(children: .combine)
                     }
+                }
+            }
+            Section {
+                DisclosureGroup("About medication history and exports") {
+                    Text("All dates, including entries without a sleep session. Nighttime Dose 1 and Dose 2 remain in session history.")
+                    Text("Newest taken time first. Unknown times are placed by recording time and remain marked unknown.")
+                    Text("Excel: Medication Log for quick logs; Confirmed Medications for saved-preset records. ZIP: both are in insights_bundle.json. Preset settings alone are not taken doses.")
                 }
             }
         }

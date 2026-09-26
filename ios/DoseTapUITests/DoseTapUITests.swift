@@ -185,6 +185,8 @@ final class DoseTapUITests: XCTestCase {
         captureDashboard("Timeline Live quick log has its own visible wait")
     }
 
+    func testMedicationQuickLogHistoryLargeText() { testMedicationQuickLogRequiresExplicitAmountAndTime() }
+
     func testMedicationQuickLogRequiresExplicitAmountAndTime() {
         let entry = app.buttons["tonight-log-medication"]
         XCTAssertTrue(entry.waitForExistence(timeout: 10)); entry.tap()
@@ -211,7 +213,11 @@ final class DoseTapUITests: XCTestCase {
         captureDashboard("Independent medication saved receipt")
         app.navigationBars.buttons["Done"].tap()
         XCTAssertTrue(entry.waitForExistence(timeout: 5))
-        app.terminate(); app.launch()
+        app.terminate()
+        if name.contains("testMedicationQuickLogHistoryLargeText") {
+            app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        }
+        app.launch()
         app.buttons["History"].firstMatch.tap()
         let medications = app.buttons["history-medications"]
         XCTAssertTrue(medications.waitForExistence(timeout: 10)); medications.tap()

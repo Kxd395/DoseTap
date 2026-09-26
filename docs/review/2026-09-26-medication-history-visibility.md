@@ -1,6 +1,6 @@
 # Independent medication history and export verification
 
-Date: 2026-09-26 · Plane: DOSETAP-74 · Candidate: 0.4.19 (73)
+Date: 2026-09-26 · Plane: DOSETAP-74 · Candidate: 0.4.19 (74)
 
 ## Confirmed problem
 
@@ -48,3 +48,28 @@ Native UI and repository/export regression results, integration state and final
 build/install verification are recorded in the DOSETAP-74 workpad. Owner review of
 the new History screen and a fresh phone export remain open, as do VoiceOver,
 privacy and release acceptance. Audited Edit/Reverse integration remains separate.
+
+Native screenshot review prompted a layout refinement: administrations appear
+first, with explanatory/export help collapsed below the records. Build73 was an
+intermediate installed candidate; build74 is the final layout candidate. A separate
+large-text History journey checks the final arrangement.
+
+A morning quick log can retain the prior treatment-date grouping under the
+default 18:00 boundary while its actual occurrence is today and its session ID
+is absent. The new History reads across those groups; no historical timestamp or
+night identity is rewritten. Completed check-in closes the nighttime session.
+
+## Validated final candidate
+
+Build74's focused quick-log save/restart/History tests passed at normal and largest
+Dynamic Type (2 tests). Native screenshots were inspected: medication records
+appear before collapsed help. The earlier normal and largest-text preset journeys
+also passed, covering preset capture and reopening in History (3 UI journeys
+including quick log). Largest-text History evidence is not VoiceOver acceptance.
+
+Repository/preset/workbook regression passed (20 tests); all 10 medication-capture
+tests passed after offset hardening. The core suite passed 797 XCTest and 43 Swift
+Testing cases. Signed device build and all four version configurations passed,
+along with Plane workflow, SSOT, documentation and whitespace checks. Independent
+source review found no remaining blockers. An initial UI attempt encountered a
+simulator service launch failure before app launch; the rerun passed.
