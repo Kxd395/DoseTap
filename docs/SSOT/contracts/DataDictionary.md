@@ -387,3 +387,12 @@ clock minutes even when the recurring day is disabled. `scheduleDayType` is
 current preference projections, not proven historical obligations. Studio treats
 this value as unknown for schedule grouping unless independent recorded context
 provides a classification.
+
+### Confirmed preset capture (build 72)
+
+Log taken writes `confirmed_medication_administrations` only after actual-component
+and occurrence review. Exact/approximate captures retain timezone and offset;
+unknown times remain nil. Retry retains the administration UUID and timestamps.
+Existing schema-5 source and workbook exports include the exact snapshot without
+night links or a schema migration. Prior-record acknowledgements are transient UI
+state, not medication equivalence or clinical validation. No Edit/Undo is provided.

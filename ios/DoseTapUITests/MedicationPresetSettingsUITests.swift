@@ -42,8 +42,40 @@ final class MedicationPresetSettingsUITests: XCTestCase {
         let presets = app.buttons["settings-medication-presets"]; reveal(presets); presets.tap()
     }
     func testPresetSetupCreateReviseRestart() { journey() }
-    func testPresetSetupLargeText() { journey() }
-    private func journey() {
+    func testPresetSetupLargeText() { journey(captureOnly: true) }
+    private func captureAndReopen(_ label: String) {
+        let log = app.buttons["preset-log-\(label)"]; reveal(log); log.tap()
+        choose("administration-time", "Time unknown")
+        let review = app.buttons["administration-reviewed"]
+        let priorReview = app.buttons["administration-duplicate-reviewed"]
+        // SwiftUI virtualizes off-screen rows. Review candidates while scrolling past them.
+        for _ in 0..<80 {
+            if priorReview.exists && priorReview.isHittable && priorReview.value as? String != "Reviewed" {
+                priorReview.tap(); XCTAssertEqual(priorReview.value as? String, "Reviewed")
+            }
+            if review.exists && review.isHittable { break }
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.70)).press(forDuration: 0.1,
+                thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.40)))
+        }
+        XCTAssertTrue(review.isHittable)
+        XCTAssertEqual(review.value as? String, "Not reviewed")
+        review.tap()
+        let save = app.buttons["administration-save"]; reveal(save)
+        XCTAssertTrue(save.isEnabled)
+        screenshot("Actual amount and explicit time confirmation")
+        save.tap()
+        let receipt = app.staticTexts["administration-receipt"]
+        XCTAssertTrue(receipt.waitForExistence(timeout: 5))
+        screenshot("Confirmed administration receipt")
+        let done = app.buttons["administration-done"]; reveal(done); done.tap()
+        app.terminate(); app.launch(); openPresets()
+        let history = app.buttons["preset-taken-history-\(label)"]; reveal(history); history.tap()
+        let details = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@", "Actual total: 2.25 mg", "Taken · Time unknown")).firstMatch
+        reveal(details); XCTAssertTrue(details.exists)
+        screenshot("Administration retained after restart")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+    }
+    private func journey(captureOnly: Bool = false) {
         let label = "UI Test " + String(Int64.max - Int64(Date().timeIntervalSince1970 * 1000))
         openPresets()
         let add = app.buttons["preset-add"]; reveal(add); add.tap()
@@ -64,6 +96,8 @@ final class MedicationPresetSettingsUITests: XCTestCase {
         screenshot("Saved preset only")
         app.buttons["preset-receipt-dismiss"].tap()
         app.terminate(); app.launch(); openPresets()
+        captureAndReopen(label)
+        if captureOnly { return } // This slice's large-text coverage ends after persisted capture/history.
         let revise = app.buttons["preset-revise-\(label)"]; reveal(revise); revise.tap()
         let field = app.textFields["preset-label"]
         XCTAssertTrue(field.waitForExistence(timeout: 3)); field.tap(); field.typeText(" revised")

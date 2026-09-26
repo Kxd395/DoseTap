@@ -1,7 +1,7 @@
 # Daytime medication, sleepiness and physician review delivery plan
 
 Date: 2026-09-25
-Status: Slices A, B1 and B2 merged. B3a saved preset Settings implemented in build 70 candidate; administration controls and daytime observations remain follow-on work.
+Status: Slices A, B1, B2 and B3a merged. B3b confirmed capture/history implemented in build 72 candidate; audited corrections and daytime observations remain follow-on work.
 Authority: Plane owns work status. SSOT defines implemented behavior.
 
 ## Source and review
@@ -12,7 +12,7 @@ remains source history. Neither attachment establishes existing implementation,
 clinical verification, a prescription or questionnaire permission. This plan
 records the reviewed requirements without copying private patient examples.
 
-Current integration baseline: main `48ca2d1` / app 0.4.19 (69), PR59. B3a candidate is 0.4.19 (70).
+Integration baseline for B3b: main `4642e46` / app 0.4.19 (71), PR62. B3b candidate is 0.4.19 (72).
 All three post-merge workflows passed on fresh September 25 readback. Existing
 dirty main/legacy worktrees remain preserved. Work uses isolated checkouts.
 
@@ -45,7 +45,8 @@ The diary, nap and export-grain limitations remain.
 | B1: preset core contract | DOSETAP-74 | Validated immutable oral-solid revisions, checked decimal components and explicit actual snapshots. Core contract merged in PR58; app build unchanged for B1. |
 | B2: durable preset ledger and exports | DOSETAP-74 | Independent immutable SQLite revisions/admin snapshots, schema-5 source/Studio parity and two workbook sheets; no preset capture UI yet. |
 | B3a: saved prescription setup | DOSETAP-74 | Reviewed Settings create/revise, visible retention policy, exact decimals, stable retries and immutable history. Saving records no administration. |
-| B3b onward: administration controls | DOSETAP-74 | Quick-log review, last-log receipts, checked reversal/edit, then optional named groups. |
+| B3b: confirmed capture/history | DOSETAP-74 | Explicit actual amount/time review, prior saved-preset records, frozen retry, receipt and immutable history. |
+| B3 follow-on: corrections/groups | DOSETAP-74 | Audited reversal/edit, individual retention controls, then optional named groups. |
 | C: Sleepiness now | DOSETAP-58 | Independent timed observations with new ID per save, optional night references, no defaults and no required wake/night record. |
 | D: day review and naps/rest | DOSETAP-58 | Separate waking-day completeness and functional-impact review, linked nap/rest episodes and durable independent timers. |
 | E: periodic ESS | DOSETAP-58, separate licensing gate | Authorized instrument/version/presentation only; original recall period and complete-response scoring. No copied questionnaire ships in A–D. |
@@ -162,3 +163,11 @@ complete/partial/unassessed-day denominators; full export/Studio parity.
 E–F: authorized instrument/version and incomplete-score behavior; calendar-month
 and visit anchors; full-period/recent-panel separation; metric-specific coverage;
 source corrections create a new report version; privacy preview and explicit share.
+
+## B3b capture checkpoint (2026-09-25)
+
+Build72 adds explicit actual-amount/time capture from a selected saved revision,
+prior saved-preset record review, frozen retries, receipts and Taken records.
+See the [delivery record](../review/2026-09-25-medication-preset-capture.md).
+Audited correction/reversal remains the next B3 code slice; do not mark the full
+B acceptance matrix complete. Phone, VoiceOver, privacy and release remain open.
