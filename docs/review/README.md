@@ -30,6 +30,7 @@ Files here record dated reviews, design decisions, migration analysis, and regre
 
 ## Delivery records
 
+- [Confirmed preset administration capture](2026-09-25-medication-preset-capture.md): build72 B3b explicit actual amounts/time, prior-record review, receipts and immutable history; correction/reversal and acceptance remain open.
 - [Saved medication preset Settings](2026-09-25-medication-preset-settings.md): build70 B3a create/revise/history, explicit setup review and retention; no administration capture.
 
 - [September 12 Plane closeout and validator review](2026-09-12-plane-closeout-review.md): DC-12 local-export validation, exact acceptance boundaries and next provider repair; app remains build 53.

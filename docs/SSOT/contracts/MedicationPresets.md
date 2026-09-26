@@ -1,8 +1,8 @@
 # Medication preset foundation
 
 Date: 2026-09-25
-Plane: DOSETAP-74, slices B1/B2/B3a
-Status: Core contract, independent ledger/export and reviewed Settings preset setup
+Plane: DOSETAP-74, slices B1/B2/B3a/B3b
+Status: Core contract, independent ledger/export and reviewed Settings preset setup and confirmed capture
 
 `MedicationPresetRevision` records immutable patient-entered label information,
 never clinician verification or proof of administration. Version 1 supports
@@ -76,10 +76,10 @@ unknown occurrence stays blank. These records do not enter nighttime dose metric
 Clear All Data removes administrations before presets. Night deletion/reset and
 legacy age-based pruning preserve this ledger; its retention policy must be
 exposed before user-facing preset capture. No existing records are backfilled.
-Settings save/revise controls are defined below. Administration duplicate review,
-audited corrections/reversals and named groups remain subsequent work.
+Settings save/revise and administration review controls are defined below.
+Audited corrections/reversals and named groups remain subsequent work.
 
-Next: reviewed administration quick-log controls and audited correction/reversal UI.
+Next: audited correction/reversal UI and full B3 acceptance.
 Keep phone, accessibility,
 privacy and release acceptance separate. Non-taken/uncertain outcomes, liquids,
 named groups and audited reversals remain follow-on work.
@@ -107,13 +107,13 @@ to resolve them. Cancelling an editor records nothing. Drafts are in-memory only
 
 Before entry, explain that revisions remain locally until Clear All Data or app
 removal; night deletion and age cleanup do not remove them. Exported copies are
-separate and are not automatically erased. No individual purge or administration
-quick-log action is offered here. Audited administration corrections/reversals
-and their capture controls remain B3 follow-on work.
+separate and are not automatically erased. No individual purge is offered.
+The separate Log taken flow below confirms an administration. Audited
+administration corrections/reversals remain B3 follow-on work.
 
 ## Confirmed preset capture (B3b)
 
-The next capture surface opens one saved revision for explicit administration
+The Log taken surface opens one saved revision for explicit administration
 review. Display label/formulation, component strengths and entered actual counts;
 a saved plan is a suggestion until the user confirms these actual amounts. Require
 an explicit Now, Earlier, Approximate or Unknown occurrence choice. Now resolves
@@ -133,3 +133,12 @@ retain these same payloads. This bounded capture/history slice does not offer
 unaudited deletion or pretend an Undo/Edit workflow exists; durable audited
 corrections/reversals remain a separate follow-on before full B3 acceptance.
 No alarms, nighttime doses, inventory, session lifecycle or PK estimate changes.
+
+Prior-record review matches stable preset identity or normalized entered ingredient
+and release description, across all dates and including unknown times. It does not
+merge the legacy medication picker ledger or claim clinical equivalence. The UI
+explains that boundary even with no matches. Immediately before saving, a full
+read refreshes candidates and resets acknowledgement if they changed. This is
+a local review guard, not cross-process or clinical duplicate detection. Read
+failure blocks writing. A saved receipt and Taken records view use the original
+occurrence offset and label recording time as the viewer's timezone.

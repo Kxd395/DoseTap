@@ -83,7 +83,7 @@ final class MedicationAdministrationCaptureTests: XCTestCase {
         m.duplicateAcknowledged = true
         ledger.append(try actual(p)); m.save()
         XCTAssertFalse(m.duplicateAcknowledged); XCTAssertEqual(writes, 0); XCTAssertEqual(m.duplicates.count, 3)
-        m.duplicateAcknowledged = true; m.save(); m.save(); XCTAssertEqual(writes, 1)
+        m.duplicateAcknowledged = true; m.save(); m.save(); XCTAssertEqual(writes, 1); XCTAssertTrue(m.historyReadable)
     }
     func testFailureRetainsFrozenCommandAndRetryPersistsOnceAfterRestart() throws {
         let path = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
@@ -130,9 +130,13 @@ final class MedicationAdministrationCaptureTests: XCTestCase {
             if failRead { throw MedicationPresetLedgerError.unreadable }; return []
         }, persist: { _ in writes += 1; throw MedicationPresetLedgerError.notCommitted })
         fill(m); m.refreshDuplicateReview(); XCTAssertNotNil(m.error)
-        m.save(); let first = try XCTUnwrap(m.pending); XCTAssertEqual(writes, 0)
+        XCTAssertFalse(m.historyReadable)
+        failRead = false; m.refreshDuplicateReview(); XCTAssertTrue(m.historyReadable)
+        failRead = true
+        m.save(); XCTAssertFalse(m.historyReadable); XCTAssertTrue(m.duplicates.isEmpty)
+        let first = try XCTUnwrap(m.pending); XCTAssertEqual(writes, 0)
         failRead = false; m.returnToEditing(); XCTAssertNil(m.pending); XCTAssertFalse(m.reviewed)
         m.save(); XCTAssertNil(m.pending)
-        m.reviewed = true; m.save(); XCTAssertNotEqual(m.pending?.id, first.id); XCTAssertEqual(writes, 1)
+        m.reviewed = true; m.save(); XCTAssertNotEqual(m.pending?.id, first.id); XCTAssertEqual(writes, 1); XCTAssertTrue(m.historyReadable)
     }
 }

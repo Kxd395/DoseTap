@@ -12,6 +12,7 @@ final class MedicationAdministrationCaptureModel: ObservableObject {
     @Published var enteredTime: Date { didSet { invalidateReview() } }
     @Published var reviewed = false
     @Published var duplicateAcknowledged = false
+    @Published private(set) var historyReadable = false
     @Published private(set) var duplicates: [ConfirmedMedicationAdministration] = []
     @Published private(set) var pending: ConfirmedMedicationAdministration?
     @Published private(set) var savedReceipt: ConfirmedMedicationAdministration?
@@ -88,9 +89,9 @@ final class MedicationAdministrationCaptureModel: ObservableObject {
         do {
             let latest = try candidates()
             if latest != duplicates { duplicateAcknowledged = false }
-            duplicates = latest; error = nil
+            duplicates = latest; historyReadable = true; error = nil
         } catch {
-            duplicates = []; duplicateAcknowledged = false
+            duplicates = []; historyReadable = false; duplicateAcknowledged = false
             self.error = "Saved medication history could not be read completely. Review is unavailable; nothing new was saved."
         }
     }
@@ -110,7 +111,9 @@ final class MedicationAdministrationCaptureModel: ObservableObject {
             }
             guard let pending else { return }
             // Rescan synchronously on MainActor immediately before the synchronous repository write.
-            let latest = try candidates()
+            let latest: [ConfirmedMedicationAdministration]
+            do { latest = try candidates(); historyReadable = true }
+            catch { historyReadable = false; duplicates = []; throw error }
             if latest != duplicates { duplicates = latest; duplicateAcknowledged = false }
             guard duplicates.isEmpty || duplicateAcknowledged else {
                 error = "Review the matching saved records and acknowledge them before saving. These records do not establish a safe dose or dosing interval."

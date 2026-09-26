@@ -1,7 +1,7 @@
 import SwiftUI
 import DoseCore
 
-private let presetRetention = "Presets and their revisions are stored on this device and included in exports. Night deletion and age cleanup keep them. Clear All Data or removing the app removes the local ledger; exported copies remain separate."
+private let presetRetention = "Presets, revisions and confirmed administrations are stored on this device and included in exports. Night deletion and age cleanup keep them. Clear All Data or removing the app removes the local ledger; exported copies remain separate."
 
 struct MedicationPresetSettingsView: View {
     @ObservedObject private var repository = SessionRepository.shared
@@ -10,6 +10,12 @@ struct MedicationPresetSettingsView: View {
     @State private var loaded = false
     @State private var request: PresetEditorRequest?
     @State private var receipt: String?
+    @State private var administrations: [ConfirmedMedicationAdministration] = []
+    @State private var capture: CaptureRequest?
+    private struct CaptureRequest: Identifiable {
+        let id = UUID()
+        let preset: MedicationPresetRevision
+    }
     private struct PresetEditorRequest: Identifiable {
         let id = UUID()
         let previous: MedicationPresetRevision?
@@ -36,12 +42,25 @@ struct MedicationPresetSettingsView: View {
                 ForEach(MedicationPresetDraft.latest(in: revisions), id: \.presetID) { value in
                     Section {
                         PresetRevisionDetails(value: value)
+                        Button("Log taken using this preset") { capture = CaptureRequest(preset: value) }
+                            .accessibilityIdentifier("preset-log-\(value.labelName)")
+                        NavigationLink("Taken records") {
+                            List {
+                                Text("Saved-preset records only. Individual correction, reversal and deletion are not available here yet.")
+                                let records = administrations.filter { $0.preset.presetID == value.presetID }
+                                if records.isEmpty { Text("No taken records for this preset.") }
+                                ForEach(records, id: \.id) { MedicationAdministrationDetails(value: $0) }
+                            }.navigationTitle("Taken records")
+                        }.accessibilityIdentifier("preset-taken-history-\(value.labelName)")
                         Button("Revise preset") { request = PresetEditorRequest(previous: value) }
                             .accessibilityIdentifier("preset-revise-\(value.labelName)")
                         NavigationLink("Revision history") {
                             List {
                                 ForEach(history(for: value), id: \.revisionID) { revision in
-                                    Section { PresetRevisionDetails(value: revision) }
+                                    Section {
+                                        PresetRevisionDetails(value: revision)
+                                        Button("Log taken using this revision") { capture = CaptureRequest(preset: revision) }
+                                    }
                                 }
                             }.navigationTitle("Preset history")
                         }.accessibilityIdentifier("preset-history-\(value.labelName)")
@@ -64,6 +83,9 @@ struct MedicationPresetSettingsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { load() }
         .onReceive(repository.sessionDidChange) { _ in load() }
+        .sheet(item: $capture, onDismiss: { load() }) { request in
+            NavigationStack { MedicationAdministrationCaptureView(preset: request.preset) }
+        }
         .sheet(item: $request, onDismiss: { load() }) { request in
             NavigationStack {
                 MedicationPresetEditor(previous: request.previous) {
@@ -76,9 +98,11 @@ struct MedicationPresetSettingsView: View {
         do {
             let snapshot = try repository.medicationPresetExportSnapshot()
             revisions = try snapshot.presetRevisions.map(MedicationPresetExportSnapshot.decodePreset)
+            administrations = try snapshot.administrations.map(MedicationPresetExportSnapshot.decodeAdministration)
+                .sorted { $0.recordedAt > $1.recordedAt }
             readError = nil; loaded = true
         } catch {
-            revisions = []; loaded = false
+            revisions = []; administrations = []; loaded = false
             readError = "The saved presets could not be read completely. Retry before adding or revising a preset."
         }
     }
@@ -225,7 +249,7 @@ private struct MedicationPresetEditor: View {
     }
 }
 
-private struct PresetRevisionDetails: View {
+struct PresetRevisionDetails: View {
     let value: MedicationPresetRevision
     var showRecorded = true
     var body: some View {

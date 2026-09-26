@@ -481,7 +481,8 @@ administration. The corresponding confirmed snapshot requires separately supplie
 actual components and occurrence evidence; unknown occurrence remains absent.
 The independent ledger stores immutable revisions and confirmed snapshots without
 night links, and schema5 exports carry exact payload strings outside date groups.
-Preset UI, duplicate review and audited corrections remain follow-on work. The
+Settings now offers explicit preset capture and prior-record review; audited
+corrections remain follow-on work. The
 existing manual medication and nighttime dose paths remain unchanged. See the
 [preset contract](contracts/MedicationPresets.md) for scope and remaining wiring.
 
@@ -914,3 +915,12 @@ Settings → Saved medication presets creates and revises patient-entered oral-s
 label information, with explicit review, immutable history and checked retry.
 It never records medication as taken. Retention is displayed before entry.
 See [MedicationPresets](contracts/MedicationPresets.md) for its full contract.
+
+### Confirmed preset capture (DOSETAP-74, build 72)
+
+Saved medication presets → Log taken reviews actual units and requires an explicit
+Now/Earlier/Approximate/Unknown time choice. Prior saved-preset records are shown
+separately from legacy picker records. Successful writes show a persistent receipt;
+failed writes retain the same command for retry. Taken records preserve immutable
+amount/time snapshots across restart. This does not enable medication estimates,
+new alarms, automatic administration or audited Edit/Undo.
