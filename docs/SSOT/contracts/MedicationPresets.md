@@ -166,3 +166,17 @@ writes or Edit/Reverse controls, a subsequent slice must atomically introduce
 storage transactions, retry/concurrency guards, an explicitly versioned export
 contract, and all workbook/Studio projections; old readers must not silently ignore
 amendments. Phone, accessibility, privacy and release gates remain open.
+
+## Medication history visibility
+
+History offers a separate Medication history destination for all quick-log and
+saved-preset administrations, including records with no nighttime session and
+unknown occurrence time. It is not constrained by the sleep-session date filter.
+Rows identify their logging source, amount/formulation, occurrence evidence and
+recording time. Known occurrences sort newest first; unknown occurrences use
+recording time for ordering without claiming it is the time taken. Searches cover
+medication labels/identifiers. Reads fail visibly rather than display an empty
+history after a database error. App foreground and successful writes refresh it.
+The two ledgers remain distinct evidence sources, never deduplicated by guessed
+identity. Workbook Medication Log covers quick logs; Confirmed Medications covers
+saved-preset administrations. Both are retained in ZIP insights_bundle.json.
