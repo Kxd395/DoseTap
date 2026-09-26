@@ -146,11 +146,29 @@ final class URLRouterTests: XCTestCase {
         }
     }
 
-    private static func prepTimeOutsideActiveDoseWindow(now: Date = Date()) -> Int {
-        let calendar = Calendar.current
+    private static func prepTimeOutsideActiveDoseWindow(now: Date = Date(), calendar: Calendar = .current) -> Int {
         let currentMinute = calendar.component(.hour, from: now) * 60
             + calendar.component(.minute, from: now)
-        return (currentMinute + 1) % (24 * 60)
+        // Next minute can arrive between setup and an awaited route, closing the
+        // synthetic session. Six hours also stays outside the oldest 250m fixture
+        // when the clock wraps and today's prep time is earlier than now.
+        return (currentMinute + 6 * 60) % (24 * 60)
+    }
+
+    func test_fixturePrepTimeDoesNotCloseDoseWindowAcrossMinuteBoundary() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let day = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 9, day: 26)))
+        for minute in 0..<(24 * 60) {
+            let setupTime = day.addingTimeInterval(Double(minute * 60) + 59.9)
+            let actionTime = setupTime.addingTimeInterval(0.2)
+            let prepMinutes = Self.prepTimeOutsideActiveDoseWindow(now: setupTime, calendar: calendar)
+            let prep = try XCTUnwrap(calendar.date(bySettingHour: prepMinutes / 60,
+                minute: prepMinutes % 60, second: 0, of: actionTime))
+            let oldestDose = setupTime.addingTimeInterval(-250 * 60)
+            XCTAssertFalse(actionTime >= prep && oldestDose < prep,
+                "Fixture must not trigger prep rollover across minute \(minute), including midnight")
+        }
     }
     
     // MARK: - URL Parsing Tests
