@@ -25,6 +25,32 @@ extension DashboardAnalyticsModel {
         }.sorted { $0.sessionDate > $1.sessionDate }
     }
 
+    var rangeDescription: String {
+        let key = SessionIdentity(date: now(), timeZone: .current, rolloverHour: 18).key
+        guard let anchor = Self.keyFormatter.date(from: key) else { return selectedRange.label }
+        let start = selectedRange == .all ? populatedNights.last.flatMap { Self.keyFormatter.date(from: $0.sessionDate) }
+            : selectedRange.cutoffDate(from: anchor)
+        guard let start else { return "All available local dates" }
+        return "\(start.formatted(date: .abbreviated, time: .omitted)) – \(anchor.formatted(date: .abbreviated, time: .omitted))"
+    }
+
+    var explicitDayTypeCount: Int {
+        populatedNights.filter { !$0.outcomeReadFailed && $0.outcome?.dayType != nil && $0.outcome?.dayType != .unknown }.count
+    }
+    var timedSleepinessCount: Int {
+        populatedNights.filter {
+            guard !$0.outcomeReadFailed, let value = $0.outcome?.sleepiness,
+                  let assessed = $0.outcome?.assessedAt else { return false }
+            return (0...10).contains(value) && assessed.timeIntervalSince1970.isFinite && assessed <= now()
+        }.count
+    }
+    var recordedFinalWakeCount: Int {
+        populatedNights.filter {
+            guard !$0.outcomeReadFailed, let wake = $0.outcome?.finalWakeAt else { return false }
+            return wake.timeIntervalSince1970.isFinite && wake <= now()
+        }.count
+    }
+
     var trendNights: [DashboardNightAggregate] {
         Array(populatedNights.prefix(14))
     }

@@ -70,3 +70,5 @@ Each record identifies its version, bounded changes, validation and remaining ga
 | 57 candidate | [Pre-sleep pain editor loading repair](2026-09-14-pre-sleep-pain-editor.md) | First saved-pattern opening loads the selected entry and mode together; owner acceptance open |
 
 | 59 installed candidate; PR draft | [Settings export failure diagnosis](2026-09-17-export-failure-diagnosis.md) | USB read-only structural finding; truthful errors and empty-row removal; original export blockage remains open |
+
+- [Dashboard six-month range, coverage and iPad storage](2026-09-26-dashboard-range-storage.md) — DOSETAP-45; provider limits and cross-device boundaries.

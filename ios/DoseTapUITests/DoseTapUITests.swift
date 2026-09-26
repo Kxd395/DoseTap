@@ -993,6 +993,35 @@ final class DoseTapUITests: XCTestCase {
         app.navigationBars["Morning Check-In"].buttons["Cancel"].tap()
     }
 
+    func testDashboardSixMonthLargeTextMenu() throws {
+        app.terminate()
+        app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launch()
+        app.buttons["Dashboard"].tap()
+        let picker = app.buttons["dashboard-range-picker"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 10))
+        picker.tap()
+        app.buttons["6 Months (180 dates)"].tap()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "6 Months (180 dates)")).firstMatch.waitForExistence(timeout: 5))
+        captureDashboard("Six month range at largest text")
+    }
+
+    func testDashboardSixMonthCoverage() throws {
+        app.buttons["Dashboard"].tap()
+        let range = app.segmentedControls["dashboard-range-picker"]
+        XCTAssertTrue(range.waitForExistence(timeout: 10))
+        range.buttons["6 Months (180 dates)"].tap()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "6 Months (180 dates)")).firstMatch.waitForExistence(timeout: 5))
+        captureDashboard("Six month dashboard range")
+        app.segmentedControls["dashboard-section-picker"].buttons["Data"].tap()
+        revealDashboardText("Data Coverage")
+        revealDashboardText("Timed sleepiness 0–10: 4/8 available · 4 missing")
+        captureDashboard("Dashboard measurement coverage")
+        revealDashboardText("Storage & iPad access")
+        app.buttons["Storage & iPad access"].tap()
+        captureDashboard("Dashboard local storage and iPad explanation")
+    }
+
     func testDashboardOverviewTrendsAndData() throws {
         app.buttons["Dashboard"].tap()
         XCTAssertTrue(app.staticTexts["Recorded Nights"].waitForExistence(timeout: 10))

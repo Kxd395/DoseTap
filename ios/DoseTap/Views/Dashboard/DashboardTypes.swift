@@ -12,6 +12,7 @@ enum DashboardDateRange: String, CaseIterable, Identifiable {
     case twoWeeks = "14D"
     case month = "30D"
     case quarter = "90D"
+    case sixMonths = "6M"
     case year = "1Y"
     case all = "All"
 
@@ -23,6 +24,7 @@ enum DashboardDateRange: String, CaseIterable, Identifiable {
         case .twoWeeks: return 14
         case .month:    return 30
         case .quarter:  return 90
+        case .sixMonths: return 180
         case .year:     return 365
         case .all:      return 9999
         }
@@ -34,10 +36,14 @@ enum DashboardDateRange: String, CaseIterable, Identifiable {
         case .twoWeeks: return "2 Weeks"
         case .month:    return "Month"
         case .quarter:  return "Quarter"
+        case .sixMonths: return "6 Months (180 dates)"
         case .year:     return "Year"
         case .all:      return "All Time"
         }
     }
+
+    /// Current and previous periods plus boundary days; provider loading is bounded.
+    var healthQueryDays: Int { self == .all ? 730 : min(730, days * 2 + 2) }
 
     func cutoffDate(from anchor: Date = Date(), calendar: Calendar = .current) -> Date {
         guard self != .all else { return .distantPast }
@@ -128,7 +134,7 @@ struct DashboardNightAggregate: Identifiable {
     }
 
     var hasAnyData: Bool {
-        dose1Time != nil || dose2Time != nil || dose2Skipped || extraDoseCount > 0 || !events.isEmpty || morningCheckIn != nil || preSleepLog != nil || healthSummary != nil || whoopSummary != nil
+        dose1Time != nil || dose2Time != nil || dose2Skipped || extraDoseCount > 0 || !events.isEmpty || morningCheckIn != nil || preSleepLog != nil || healthSummary != nil || whoopSummary != nil || outcome != nil || outcomeReadFailed
     }
 
     var dataCategoryCount: Int {

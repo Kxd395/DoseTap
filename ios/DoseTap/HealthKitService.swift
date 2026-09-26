@@ -702,6 +702,32 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
         Self.sleepNightSummary(from: segments, nightStart: nightStart)
     }
 
+    /// Read-only dashboard history. Does not change the TTFW baseline or dose suggestions.
+    func dashboardSleepHistory(days: Int, through now: Date) async throws -> [SleepNightSummary] {
+        let calendar = Calendar.current
+        let count = max(1, min(days, 730))
+        let start = calendar.date(byAdding: .day, value: -count, to: now)!
+        let segments = try await fetchSleepSegments(from: start, to: now)
+        return Self.dashboardSleepSummaries(segments: segments, days: count, through: now, calendar: calendar)
+    }
+
+    static func dashboardSleepSummaries(segments: [SleepSegment], days: Int, through now: Date,
+                                       calendar: Calendar = .current) -> [SleepNightSummary] {
+        let today = calendar.startOfDay(for: now)
+        let anchor = calendar.component(.hour, from: now) >= 18 ? today
+            : calendar.date(byAdding: .day, value: -1, to: today)!
+        var summaries: [SleepNightSummary] = []
+        for offset in 0..<max(1, min(days, 730)) {
+            guard let day = calendar.date(byAdding: .day, value: -offset, to: anchor),
+                  let next = calendar.date(byAdding: .day, value: 1, to: day),
+                  let lower = calendar.date(bySettingHour: 18, minute: 0, second: 0, of: day),
+                  let upper = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: next) else { continue }
+            let samples = segments.filter { $0.start >= lower && $0.start < upper && $0.start <= now }
+            if let summary = sleepNightSummary(from: samples, nightStart: day) { summaries.append(summary) }
+        }
+        return summaries.sorted { $0.date > $1.date }
+    }
+
     // MARK: - TTFW Baseline Computation
     
     /// Fetch sleep history and compute TTFW baseline

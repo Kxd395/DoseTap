@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-25
 SSOT revision: 0.4.19
-App version defined in this revision's Xcode project: 0.4.19 (75)
+App version defined in this revision's Xcode project: 0.4.19 (76)
 Integration and acceptance evidence: [Quick-log availability](../review/2026-09-24-quick-log-availability.md), [Excel contrast delivery](../review/2026-09-22-excel-contrast-delivery.md), [export delivery record](../review/2026-09-17-export-failure-diagnosis.md) and the DOSETAP-72 and DOSETAP-13 Plane workpads. The project version alone does not establish acceptance.
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
@@ -933,3 +933,18 @@ source, occurrence, explicit preset recording time and quick-log stored creation
 time (which may be import time), and links the export meaning to Medication
 Log / Confirmed Medications sheets and ZIP insights_bundle.json. Read errors are
 visible, not empty success. No records are copied into nighttime dose history.
+
+### Six-month dashboard and measurement coverage (DOSETAP-45, build76)
+
+The dashboard adds 6M between90D and1Y, defined as180 inclusive treatment dates.
+Show the exact range and retain the18:00 treatment-night anchor. The prior period
+is180 adjacent, nonoverlapping civil dates. Apple Health loading requests the
+selected/current plus preceding period with two boundary days, capped at730; All
+Time retains all available local records but only up to730 provider days. Range
+changes refresh provider data. WHOOP remains a30-day query with explicit disclosure.
+Coverage shows available and missing selected-provider sleep readings, explicitly
+answered following-day type, final wake and timed0–10 sleepiness. Unreadable diary
+records do not count as answers; zero sleepiness with a valid nonfuture timestamp
+is usable. Counts describe recorded nights, not all calendar days or clinical
+confidence. Missing stays missing. Shipping records are local; staging CloudKit
+is not a promise of iPad synchronization.
