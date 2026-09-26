@@ -18,6 +18,8 @@ Files here record dated reviews, design decisions, migration analysis, and regre
 
 ## Owner data and dashboard review
 
+- [Medication history and export verification](2026-09-26-medication-history-visibility.md): independent medication visibility, checked reads and matched phone-copy export evidence.
+
 - [Export timing review, build 67](2026-09-24-export-timing-review.md): reviewed interval eligibility, shared CSV/JSON source selection, historical-target missingness and Studio consumer safeguards.
 
 - [Medication export delivery, build 66](2026-09-24-medication-export-delivery.md): Dose Summary, Medication Log, shared timing reconciliation, native Excel evidence and remaining acceptance gates.

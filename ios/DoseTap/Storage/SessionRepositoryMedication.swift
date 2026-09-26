@@ -318,3 +318,40 @@ private extension String {
         isEmpty ? nil : self
     }
 }
+
+/// Distinct source IDs prevent two ledgers from being mistaken for duplicate records.
+enum MedicationHistoryRecord: Identifiable {
+    case quick(StoredMedicationEntry)
+    case preset(ConfirmedMedicationAdministration)
+    var id: String {
+        switch self {
+        case .quick(let row): return "quick:" + row.id
+        case .preset(let row): return "preset:" + row.id.uuidString
+        }
+    }
+    var sortTime: Date {
+        switch self {
+        case .quick(let row): return row.takenAtUTC
+        case .preset(let row): return row.occurredAt ?? row.recordedAt
+        }
+    }
+    var searchText: String {
+        switch self {
+        case .quick(let row): return "\(MedicationConfig.type(for: row.medicationId)?.displayName ?? row.medicationId) \(row.medicationId) \(row.formulation)"
+        case .preset(let row): return "\(row.preset.labelName) \(row.preset.ingredient) \(row.preset.releaseProfile.rawValue)"
+        }
+    }
+}
+
+@MainActor
+extension SessionRepository {
+    func medicationHistory() throws -> [MedicationHistoryRecord] {
+        let quick = try storage.medicationCaptureRows().map(MedicationHistoryRecord.quick)
+        let presets = try storage.medicationPresetExportSnapshot().administrations.map {
+            MedicationHistoryRecord.preset(try MedicationPresetExportSnapshot.decodeAdministration($0))
+        }
+        return (quick + presets).sorted {
+            $0.sortTime == $1.sortTime ? $0.id < $1.id : $0.sortTime > $1.sortTime
+        }
+    }
+}

@@ -73,6 +73,12 @@ final class MedicationPresetSettingsUITests: XCTestCase {
         let details = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@", "Actual total: 2.25 mg", "Taken · Time unknown")).firstMatch
         reveal(details); XCTAssertTrue(details.exists)
         screenshot("Administration retained after restart")
+        app.buttons["History"].firstMatch.tap()
+        let medications = app.buttons["history-medications"]
+        XCTAssertTrue(medications.waitForExistence(timeout: 10)); medications.tap()
+        reveal(details); XCTAssertTrue(details.exists)
+        screenshot("Saved-preset unknown-time record in Medication history")
+        app.buttons["Settings"].firstMatch.tap()
         app.navigationBars.buttons.element(boundBy: 0).tap()
     }
     private func journey(captureOnly: Bool = false) {
