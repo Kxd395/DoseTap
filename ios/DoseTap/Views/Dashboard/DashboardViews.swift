@@ -58,9 +58,13 @@ struct DashboardTabView: View {
                     }.padding(.horizontal).padding(.vertical, 8)
 
                     Text(model.rangeDescription).font(.caption).foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
                     Text(model.selectedRange.label + " • \(model.populatedNights.count) nights with data")
                         .font(.caption)
                         .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
                         .padding(.bottom, 4)
                 }
 
