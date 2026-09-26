@@ -104,6 +104,10 @@ struct HistoryView: View {
 
     private var historyContent: some View {
         ScrollView {
+            NavigationLink { MedicationHistoryView() } label: {
+                Label("Medication history", systemImage: "pills.fill")
+                    .frame(maxWidth: .infinity, alignment: .leading).padding()
+            }.accessibilityIdentifier("history-medications")
             historyFilterBar
 
             if isSearchActive {
@@ -335,4 +339,68 @@ struct HistoryView: View {
         .environmentObject(container.settings)
         .environmentObject(container.sessionRepository)
         .environmentObject(container.alarmService)
+}
+
+struct MedicationHistoryView: View {
+    @ObservedObject private var repository = SessionRepository.shared
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var records: [MedicationHistoryRecord] = []
+    @State private var readFailed = false
+    @State private var search = ""
+    private var filtered: [MedicationHistoryRecord] {
+        records.filter { search.isEmpty || $0.searchText.localizedCaseInsensitiveContains(search) }
+    }
+    var body: some View {
+        List {
+            Section {
+                Text("Quick logs and saved-preset administrations across all dates, including entries without a sleep session. Nighttime Dose 1 and Dose 2 remain in session history.")
+                Text("Newest taken time first. Unknown taken times are placed by recording time and remain marked unknown.")
+            }
+            Section("Export location") {
+                Text("Excel: Medication Log for quick logs; Confirmed Medications for saved-preset records. ZIP: both are in insights_bundle.json. Preset settings alone are not taken doses.")
+            }
+            if readFailed {
+                Section {
+                    Text("Medication history could not be loaded completely. Your saved records have not been changed.")
+                    Button("Retry loading") { load() }
+                }
+            } else {
+                Section("\(filtered.count) recorded administrations") {
+                    if filtered.isEmpty { Text(search.isEmpty ? "No medication administrations recorded." : "No matching medication records.") }
+                    ForEach(filtered) { record in
+                        VStack(alignment: .leading, spacing: 6) {
+                            switch record {
+                            case .preset(let value):
+                                Text("Saved-preset record").font(.caption).foregroundStyle(.secondary)
+                                MedicationAdministrationDetails(value: value)
+                            case .quick(let value):
+                                Text("Medication quick log").font(.caption).foregroundStyle(.secondary)
+                                Text(MedicationConfig.type(for: value.medicationId)?.displayName ?? value.medicationId).font(.headline)
+                                Text("\(value.doseMg) \(value.doseUnit) · \(value.formulation)")
+                                Text("Taken: \(originalTime(value.takenAtUTC, offset: value.localOffsetMinutes * 60))")
+                                Text("Recorded: \(value.createdAt.formatted(date: .abbreviated, time: .shortened)) (viewer timezone)").font(.caption)
+                                if let notes = value.notes, !notes.isEmpty { Text(notes) }
+                            }
+                        }.accessibilityElement(children: .combine)
+                    }
+                }
+            }
+        }
+        .navigationTitle("Medication history")
+        .searchable(text: $search, prompt: "Search medication names")
+        .onAppear { load() }
+        .onReceive(repository.sessionDidChange) { _ in load() }
+        .onChange(of: scenePhase) { phase in if phase == .active { load() } }
+        .refreshable { load() }
+    }
+    private func load() {
+        do { records = try repository.medicationHistory(); readFailed = false }
+        catch { records = []; readFailed = true }
+    }
+    private func originalTime(_ date: Date, offset: Int) -> String {
+        let formatter = DateFormatter()
+        formatter.timeZone = TimeZone(secondsFromGMT: offset)
+        formatter.dateFormat = "MMM d, yyyy HH:mm:ss XXXXX"
+        return formatter.string(from: date)
+    }
 }

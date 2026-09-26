@@ -24,6 +24,25 @@ final class MedicationCaptureTests: XCTestCase {
         XCTAssertEqual(row.formulation, "xr")
         XCTAssertEqual(try reopened.medicationExportRecords(sessionDate: row.sessionDate).count, 1)
     }
+    func testMedicationHistoryIncludesIndependentQuickLogsAndRejectsUnreadableRows() throws {
+        let storage = EventStorage.inMemory(), repo = repository(storage)
+        _ = try repo.logMedicationEntry(entryID: "history-only", medicationId: "adderall_ir", doseMg: 10, takenAt: now)
+        XCTAssertNil(repo.dose1Time)
+        let rows = try repo.medicationHistory()
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows.first?.id, "quick:history-only")
+        XCTAssertEqual(rows.first?.sortTime, now)
+        XCTAssertEqual(sqlite3_exec(storage.db, "UPDATE medication_events SET taken_at_utc='broken'", nil, nil, nil), SQLITE_OK)
+        XCTAssertThrowsError(try repo.medicationHistory())
+    }
+    func testMedicationHistoryRejectsInvalidOriginalOffsets() throws {
+        let storage = EventStorage.inMemory(), repo = repository(storage)
+        _ = try repo.logMedicationEntry(entryID: "bad-offset", medicationId: "adderall_ir", doseMg: 10, takenAt: now)
+        for offset in [Int64.max, -1081, 1081] {
+            XCTAssertEqual(sqlite3_exec(storage.db, "UPDATE medication_events SET local_offset_minutes=\(offset)", nil, nil, nil), SQLITE_OK)
+            XCTAssertThrowsError(try repo.medicationHistory())
+        }
+    }
     func testStableRetryAndConflictingReuse() throws {
         let storage = EventStorage(dbPath: ":memory:"), repo = repository(storage)
         for _ in 0..<2 {

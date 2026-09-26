@@ -22,12 +22,12 @@ extension EventStorage {
     }
 
     /// Strict reads for capture/duplicate decisions. Date grouping is never a matching constraint.
-    func medicationCaptureRows(column: String, value: String) throws -> [StoredMedicationEntry] {
-        guard ["id", "medication_id"].contains(column) else { throw MedicationCaptureError.invalid }
+    func medicationCaptureRows(column: String? = nil, value: String? = nil) throws -> [StoredMedicationEntry] {
+        guard (column == nil && value == nil) || (column.map { ["id", "medication_id"].contains($0) } == true && value != nil) else { throw MedicationCaptureError.invalid }
         return try readExportRows("""
         SELECT id, session_id, session_date, medication_id, dose_mg, dose_unit, formulation,
                taken_at_utc, local_offset_minutes, notes, confirmed_duplicate, created_at
-        FROM medication_events WHERE \(column) = ? ORDER BY taken_at_utc DESC, id
+        FROM medication_events \(column.map { "WHERE \($0) = ?" } ?? "") ORDER BY taken_at_utc DESC, id
         """, binding: value) { stmt in
             func text(_ index: Int32, nullable: Bool = false) throws -> String? {
                 if nullable && sqlite3_column_type(stmt, index) == SQLITE_NULL { return nil }
@@ -51,6 +51,7 @@ extension EventStorage {
             }
             guard sqlite3_column_type(stmt, 4) == SQLITE_INTEGER,
                   sqlite3_column_type(stmt, 8) == SQLITE_INTEGER,
+                  (-1080...1080).contains(sqlite3_column_int64(stmt, 8)),
                   sqlite3_column_type(stmt, 10) == SQLITE_INTEGER,
                   [0, 1].contains(sqlite3_column_int64(stmt, 10)) else { throw MedicationCaptureError.unreadable }
             return try StoredMedicationEntry(id: text(0)!, sessionId: text(1, nullable: true), sessionDate: text(2)!,

@@ -211,6 +211,13 @@ final class DoseTapUITests: XCTestCase {
         captureDashboard("Independent medication saved receipt")
         app.navigationBars.buttons["Done"].tap()
         XCTAssertTrue(entry.waitForExistence(timeout: 5))
+        app.terminate(); app.launch()
+        app.buttons["History"].firstMatch.tap()
+        let medications = app.buttons["history-medications"]
+        XCTAssertTrue(medications.waitForExistence(timeout: 10)); medications.tap()
+        let saved = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@", "Adderall", "10 mg")).firstMatch
+        XCTAssertTrue(saved.waitForExistence(timeout: 5))
+        captureDashboard("Quick-log Adderall survives restart in Medication history")
     }
 
     func testDurableLogMedicationBatchFailureAndConfirmedDuplicateRetry() {

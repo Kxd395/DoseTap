@@ -97,6 +97,40 @@ final class ExcelExportTests: XCTestCase {
         XCTAssertEqual(try repository.medicationPresetExportSnapshot(), before)
     }
 
+    func testQuickLogAndPresetAreVisibleInHistoryAndBothExportFormats() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let repo = SessionRepository(storage: EventStorage.inMemory(), clock: { now })
+        _ = try repo.logMedicationEntry(entryID: "review-quick", medicationId: "adderall_ir", doseMg: 10, takenAt: now)
+        let component = try MedicationPresetComponent(id: UUID(), form: .capsule, strengthMilligrams: 20, unitCount: 1)
+        let preset = try MedicationPresetRevision(presetID: UUID(), revisionID: UUID(), supersedesRevisionID: nil,
+            labelName: "Synthetic XR", ingredient: "Synthetic", releaseProfile: .extendedRelease, components: [component],
+            instructions: "Test", schedule: .scheduled, effectiveFrom: now, effectiveUntil: nil, recordedAt: now)
+        try repo.saveMedicationPresetRevision(preset)
+        let actual = try ConfirmedMedicationAdministration(id: UUID(), preset: preset, actualComponents: [component],
+            occurredAt: nil, precision: .unknown, timeZoneIdentifier: nil, utcOffsetSeconds: nil, confirmedAt: now, recordedAt: now)
+        try repo.saveConfirmedMedicationAdministration(actual)
+        let rows = try repo.medicationHistory()
+        XCTAssertEqual(Set(rows.map(\.id)), ["quick:review-quick", "preset:" + actual.id.uuidString])
+        XCTAssertNil(repo.dose1Time)
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try StudioBundleExporter().writeLocalStudioExportBundle(using: repo, to: folder)
+        let bundle = try Data(contentsOf: folder.appendingPathComponent("insights_bundle.json"))
+        let sheets = try StudioWorkbookProjection.sheets(bundleData: bundle,
+            inventoryCSV: String(contentsOf: folder.appendingPathComponent("inventory.csv"), encoding: .utf8))
+        let quick = try XCTUnwrap(sheets.first { $0.name == "Medication Log" })
+        XCTAssertTrue(quick.rows.flatMap { $0 }.contains(.text("review-quick")))
+        let confirmed = try XCTUnwrap(sheets.first { $0.name == "Confirmed Medications" })
+        XCTAssertEqual(confirmed.rows.count, 1)
+        XCTAssertTrue(confirmed.rows[0].contains(.text(actual.id.uuidString)))
+        XCTAssertTrue(confirmed.rows[0].contains(.text("unknown")))
+        let archive = try StudioBundleExporter().writeScheduledArchive(using: repo, to: folder)
+        let attachment = XCTAttachment(data: try Data(contentsOf: archive), uniformTypeIdentifier: "public.zip-archive")
+        attachment.name = "Medication-history-both-sources.zip"; attachment.lifetime = .keepAlways; add(attachment)
+        XCTAssertEqual(Set(try repo.medicationHistory().map(\.id)), Set(rows.map(\.id)))
+    }
+
     func testInvalidInputCannotPublishWorkbook() throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("excel-invalid-\(UUID())")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
