@@ -70,3 +70,7 @@ Each record identifies its version, bounded changes, validation and remaining ga
 | 57 candidate | [Pre-sleep pain editor loading repair](2026-09-14-pre-sleep-pain-editor.md) | First saved-pattern opening loads the selected entry and mode together; owner acceptance open |
 
 | 59 installed candidate; PR draft | [Settings export failure diagnosis](2026-09-17-export-failure-diagnosis.md) | USB read-only structural finding; truthful errors and empty-row removal; original export blockage remains open |
+
+- [2026-09-26 cloud dashboard audit and foundation](2026-09-26-cloud-dashboard-audit.md)
+  — DOSETAP-76; separate read-only iPad reporting direction, legacy cloud coverage
+  gaps and snapshot acceptance. No shipping cloud synchronization enabled.

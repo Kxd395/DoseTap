@@ -17,6 +17,7 @@ let package = Package(
             path: "ios/Core",
             sources: [
                 "DoseWindowState.swift",
+                "CloudDashboardSnapshot.swift",
                 "APIErrors.swift",
                 "OfflineQueue.swift",
                 "EventRateLimiter.swift",
@@ -83,6 +84,7 @@ let package = Package(
                 "StudioWorkbookPresetTests.swift",
                 "StudioMedicationLedgerFormatTests.swift",
                 "DoseWindowStateTests.swift",
+                "CloudDashboardSnapshotTests.swift",
                 "APIErrorsTests.swift",
                 "APIClientTests.swift",
                 "OfflineQueueTests.swift",

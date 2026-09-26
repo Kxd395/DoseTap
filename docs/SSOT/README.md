@@ -933,3 +933,11 @@ source, occurrence, explicit preset recording time and quick-log stored creation
 time (which may be import time), and links the export meaning to Medication
 Log / Confirmed Medications sheets and ZIP insights_bundle.json. Read errors are
 visible, not empty success. No records are copied into nighttime dose history.
+
+### Separate cloud dashboard reporting foundation (DOSETAP-76)
+
+[Cloud dashboard reporting](contracts/CloudDashboardReporting.md) defines a
+one-way private reporting feed for a separate iPad app. The core snapshot validator
+and in-memory acceptance reducer reject incomplete, stale, corrupt or wrong-context
+refreshes. No cloud upload, iPad target, persistent cache or shipping sync is enabled
+by this foundation. Phone records and alarms remain unchanged.
