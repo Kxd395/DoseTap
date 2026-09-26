@@ -110,3 +110,26 @@ removal; night deletion and age cleanup do not remove them. Exported copies are
 separate and are not automatically erased. No individual purge or administration
 quick-log action is offered here. Audited administration corrections/reversals
 and their capture controls remain B3 follow-on work.
+
+## Confirmed preset capture (B3b)
+
+The next capture surface opens one saved revision for explicit administration
+review. Display label/formulation, component strengths and entered actual counts;
+a saved plan is a suggestion until the user confirms these actual amounts. Require
+an explicit Now, Earlier, Approximate or Unknown occurrence choice. Now resolves
+at confirmation. Earlier/approximate records show calendar date and time; unknown
+has no invented timestamp. Show the selected revision's effective dates as context.
+
+Load the independent administration ledger before confirmation and display prior
+matching records for duplicate review, including unknown-time records. Review is
+not a dosing-window rule or an instruction to take more. No night is required.
+On write failure freeze the reviewed ID, payload and timestamps for retry; edits
+require fresh confirmation. Only a successful repository commit displays a saved
+receipt. Opening/cancelling and ordinary app/alarm actions create nothing.
+
+History displays the immutable administration snapshot, actual components,
+occurrence precision and recording time. Existing source and workbook exports
+retain these same payloads. This bounded capture/history slice does not offer
+unaudited deletion or pretend an Undo/Edit workflow exists; durable audited
+corrections/reversals remain a separate follow-on before full B3 acceptance.
+No alarms, nighttime doses, inventory, session lifecycle or PK estimate changes.
