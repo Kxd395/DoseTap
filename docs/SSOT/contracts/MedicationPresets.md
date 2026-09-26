@@ -142,3 +142,27 @@ read refreshes candidates and resets acknowledgement if they changed. This is
 a local review guard, not cross-process or clinical duplicate detection. Read
 failure blocks writing. A saved receipt and Taken records view use the original
 occurrence offset and label recording time as the viewer's timezone.
+
+## Audited amendment domain contract (B3c foundation)
+
+A correction retains the original administration and supplies a complete revised
+report under the same administration ID. A reversal withdraws that report; it
+does not assert a skipped dose or that medication was not taken. Each immutable
+amendment has its own UUID, root administration UUID, explicit predecessor UUID,
+action, nonblank reason, confirmation/recording timestamps and user-confirmed
+amendment provenance. Corrections require a replacement; reversals prohibit one.
+Replacement confirmation and recording times match the amendment.
+
+Projection accepts only one linear chain per original, with existing exact preset
+references. Unknown roots, orphan/cross-root parents, duplicate IDs, forks, cycles,
+backdated confirmation and children after reversal fail closed. Equal timestamps
+are allowed; explicit predecessor links determine order. Input ordering does not.
+Original reports and every replacement remain available as audit evidence. The
+current report is absent after reversal. No amendment creates another administration.
+
+This slice is Foundation-only domain code, not a persisted/exported capability.
+The existing schema1 ledger and its consumers remain unchanged. Before enabling
+writes or Edit/Reverse controls, a subsequent slice must atomically introduce
+storage transactions, retry/concurrency guards, an explicitly versioned export
+contract, and all workbook/Studio projections; old readers must not silently ignore
+amendments. Phone, accessibility, privacy and release gates remain open.

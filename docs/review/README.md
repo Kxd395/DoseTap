@@ -1,11 +1,13 @@
 # DoseTap review records
 
 Status: Point-in-time review and decision evidence
-Last updated: 2026-09-25 (independent medication capture and daytime roadmap)
+Last updated: 2026-09-26 (medication amendment domain foundation)
 
 Files here record dated reviews, design decisions, migration analysis, and regression runs. They do not override current SSOT, code, or Plane. Promote a lasting rule into SSOT or a maintained architecture decision and link back to its review record.
 
 - [Xcode compiler diagnostic cleanup](2026-09-25-xcode-diagnostics.md): explicit imports, main-actor default dependencies and current certificate-chain API; recommended-settings policy reviewed separately.
+
+- [Medication amendment foundation](2026-09-26-medication-amendment-contract.md): pure correction/reversal audit projection; persistence, export and UI integration remain pending.
 
 ## Questionnaire feedback packet
 

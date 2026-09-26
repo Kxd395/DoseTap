@@ -171,3 +171,11 @@ prior saved-preset record review, frozen retries, receipts and Taken records.
 See the [delivery record](../review/2026-09-25-medication-preset-capture.md).
 Audited correction/reversal remains the next B3 code slice; do not mark the full
 B acceptance matrix complete. Phone, VoiceOver, privacy and release remain open.
+
+### 2026-09-26 B3c domain checkpoint
+
+The [amendment domain foundation](../review/2026-09-26-medication-amendment-contract.md)
+adds tested correction/reversal semantics and deterministic audit projection. It
+does not enable editing or change schema1 exports. Next: transactional persistence
+and explicitly versioned export/consumer integration, followed by reviewed UI.
+App stays 0.4.19 (72); phone/accessibility/privacy/release gates remain open.

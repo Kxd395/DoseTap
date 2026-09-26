@@ -396,3 +396,14 @@ unknown times remain nil. Retry retains the administration UUID and timestamps.
 Existing schema-5 source and workbook exports include the exact snapshot without
 night links or a schema migration. Prior-record acknowledgements are transient UI
 state, not medication equivalence or clinical validation. No Edit/Undo is provided.
+
+### Medication administration amendments — domain foundation only
+
+DOSETAP-74 B3c defines `MedicationAdministrationAmendment` schema1 with `id`,
+`administrationID`, `supersedesAmendmentID`, `action`, optional `replacement`,
+`reason`, `confirmedAt`, `recordedAt`, and `source` (`userConfirmedAmendment`).
+Correction replacements retain the original administration identity. Reversal
+withdraws evidence without asserting non-administration. The deterministic review
+projection retains original and ordered amendments separately from current report.
+See [MedicationPresets.md](MedicationPresets.md). No SQLite table, Settings
+export field, migration, backfill or editing UI is introduced by this foundation.
