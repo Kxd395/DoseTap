@@ -371,7 +371,7 @@ struct MedicationHistoryView: View {
                                 Text(MedicationConfig.type(for: value.medicationId)?.displayName ?? value.medicationId).font(.headline)
                                 Text("\(value.doseMg) \(value.doseUnit) · \(value.formulation)")
                                 Text("Taken: \(originalTime(value.takenAtUTC, offset: value.localOffsetMinutes * 60))")
-                                Text("Recorded: \(value.createdAt.formatted(date: .abbreviated, time: .shortened)) (viewer timezone)").font(.caption)
+                                Text("Stored creation: \(value.createdAt.formatted(date: .abbreviated, time: .shortened)) (viewer timezone)").font(.caption)
                                 if let notes = value.notes, !notes.isEmpty { Text(notes) }
                             }
                         }.accessibilityElement(children: .combine)
@@ -382,6 +382,7 @@ struct MedicationHistoryView: View {
                 DisclosureGroup("About medication history and exports") {
                     Text("All dates, including entries without a sleep session. Nighttime Dose 1 and Dose 2 remain in session history.")
                     Text("Newest taken time first. Unknown times are placed by recording time and remain marked unknown.")
+                    Text("Quick-log stored creation may be the time of an import; it is not verified as the original recording time. Saved-preset records retain an explicit recording timestamp.")
                     Text("Excel: Medication Log for quick logs; Confirmed Medications for saved-preset records. ZIP: both are in insights_bundle.json. Preset settings alone are not taken doses.")
                 }
             }

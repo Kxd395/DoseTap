@@ -1,6 +1,6 @@
 # Independent medication history and export verification
 
-Date: 2026-09-26 · Plane: DOSETAP-74 · Candidate: 0.4.19 (74)
+Date: 2026-09-26 · Plane: DOSETAP-74 · Candidate: 0.4.19 (75)
 
 ## Confirmed problem
 
@@ -73,3 +73,24 @@ Testing cases. Signed device build and all four version configurations passed,
 along with Plane workflow, SSOT, documentation and whitespace checks. Independent
 source review found no remaining blockers. An initial UI attempt encountered a
 simulator service launch failure before app launch; the rerun passed.
+
+## Recording provenance review
+
+PR review identified that historical quick logs imported through the deferred
+CloudKit path can have import-time database creation values. Build75 therefore
+labels this field Stored creation, with an explanation that it is not verified
+as original recording time. Saved-preset records retain their explicit recording
+timestamp. No historical timestamp is rewritten or inferred. Source timestamp
+preservation in the deferred sync path remains follow-on work.
+
+## Calendar-day association follow-up
+
+The owner clarified that morning medication belongs to its actual calendar date
+and should be reviewable against the following sleep. Quick-log capture still
+assigns computeSessionDate using the overnight boundary, and the Medication Log
+sheet still labels that group Treatment dates. The all-date History displays
+actual occurrence but does not repair that older association. The next slice
+should promote occurrence calendar date, retain original grouping as source
+metadata, and derive separate preceding/following sleep links with missingness
+and ambiguous-boundary handling. Do not guess a sleep endpoint or move a dose
+timestamp to make the date fit. This is temporal context, not a causal estimate.

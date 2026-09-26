@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-25
 SSOT revision: 0.4.19
-App version defined in this revision's Xcode project: 0.4.19 (74)
+App version defined in this revision's Xcode project: 0.4.19 (75)
 Integration and acceptance evidence: [Quick-log availability](../review/2026-09-24-quick-log-availability.md), [Excel contrast delivery](../review/2026-09-22-excel-contrast-delivery.md), [export delivery record](../review/2026-09-17-export-failure-diagnosis.md) and the DOSETAP-72 and DOSETAP-13 Plane workpads. The project version alone does not establish acceptance.
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
@@ -925,10 +925,11 @@ failed writes retain the same command for retry. Taken records preserve immutabl
 amount/time snapshots across restart. This does not enable medication estimates,
 new alarms, automatic administration or audited Edit/Undo.
 
-### Independent medication history (DOSETAP-74, build 74)
+### Independent medication history (DOSETAP-74, build 75)
 
 History → Medication history reads quick-log and saved-preset administrations
 across all dates, including no-session and unknown-time records. It distinguishes
-source, occurrence and recording times and links the export meaning to Medication
+source, occurrence, explicit preset recording time and quick-log stored creation
+time (which may be import time), and links the export meaning to Medication
 Log / Confirmed Medications sheets and ZIP insights_bundle.json. Read errors are
 visible, not empty success. No records are copied into nighttime dose history.

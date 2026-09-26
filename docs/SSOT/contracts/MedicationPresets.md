@@ -173,7 +173,9 @@ History offers a separate Medication history destination for all quick-log and
 saved-preset administrations, including records with no nighttime session and
 unknown occurrence time. It is not constrained by the sleep-session date filter.
 Rows identify their logging source, amount/formulation, occurrence evidence and
-recording time. Known occurrences sort newest first; unknown occurrences use
+explicit recording time for presets. Quick logs show stored creation, which may
+be import time and is not verified as original recording time. Known occurrences
+sort newest first; unknown occurrences use
 recording time for ordering without claiming it is the time taken. Searches cover
 medication labels/identifiers. Reads fail visibly rather than display an empty
 history after a database error. App foreground and successful writes refresh it.
