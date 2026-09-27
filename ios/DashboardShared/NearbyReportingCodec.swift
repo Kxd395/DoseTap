@@ -8,7 +8,7 @@ public struct NearbyReportingCodec {
     public enum Role: UInt8 { case publisher = 1, reader = 2 }
     public enum State { case initial, handshaking, authenticated, failed }
     public enum Event: Equatable { case authenticated, requestSnapshot, snapshot(Data) }
-    public enum Failure: Error { case invalidKey, invalidState, protocolViolation, tooLarge }
+    public enum Failure: Error { case invalidKey, invalidState, protocolViolation, tooLarge, unsupportedPlatform }
     public struct Result { public let outbound: [Data]; public let event: Event? }
     public static let maximumSnapshotBytes = 32 * 1024 * 1024
     public static let maximumWireBytes = maximumSnapshotBytes + 64
@@ -21,6 +21,7 @@ public struct NearbyReportingCodec {
     private var verified = false, pending = false
     private var tx: UInt64 = 0, rx: UInt64 = 0
     public init(role: Role, key: Data, nonce: Data = Self.randomBytes()) throws {
+        guard #available(macOS 11.0, *) else { throw Failure.unsupportedPlatform }
         guard key.count == 32, nonce.count == 32 else { throw Failure.invalidKey }
         self.role = role; secret = SymmetricKey(data: key); self.nonce = nonce
     }
@@ -74,6 +75,7 @@ public struct NearbyReportingCodec {
             authenticating: try transcript(otherRole, purpose), using: secret) else { throw Failure.protocolViolation }
     }
     private func channelKey(_ sender: Role) throws -> SymmetricKey {
+        guard #available(macOS 11.0, *) else { throw Failure.unsupportedPlatform }
         guard let secret else { throw Failure.protocolViolation }
         return HKDF<SHA256>.deriveKey(inputKeyMaterial: secret, salt: Self.domain,
             info: try transcript(sender, "payload-key"), outputByteCount: 32)
