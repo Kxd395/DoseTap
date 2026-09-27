@@ -1,7 +1,7 @@
 # DoseTap review records
 
 Status: Point-in-time review and decision evidence
-Last updated: 2026-09-26 (medication amendment domain foundation)
+Last updated: 2026-09-26 (dashboard collection and comparison review)
 
 Files here record dated reviews, design decisions, migration analysis, and regression runs. They do not override current SSOT, code, or Plane. Promote a lasting rule into SSOT or a maintained architecture decision and link back to its review record.
 
@@ -17,6 +17,9 @@ Files here record dated reviews, design decisions, migration analysis, and regre
 - [Independent questionnaire findings](2026-09-10-questionnaire-independent-findings.md): separate source/UX review with proposed fixes and acceptance cases; not phone reproduction or clinical approval.
 
 ## Owner data and dashboard review
+
+- [Dashboard collection and comparison inventory](2026-09-26-dashboard-data-comparison-inventory.md): every collection family, phone/iPad visibility, source ownership, useful comparisons and provider-transfer sequencing.
+- [Dashboard evidence review delivery](2026-09-26-dashboard-evidence-review.md): phone Night Mode/readability, positive interval eligibility and the iPad's explicit wake/sleepiness diary view; validation and remaining whole-overhaul gates.
 
 - [Medication history and export verification](2026-09-26-medication-history-visibility.md): independent medication visibility, checked reads and matched phone-copy export evidence.
 

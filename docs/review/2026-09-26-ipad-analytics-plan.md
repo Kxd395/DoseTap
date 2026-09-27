@@ -75,9 +75,12 @@ unknown confirmation provenance, not freshly confirmed outcomes or a clinical
 effectiveness score. Preserve completed, partial, skipped and conflicting states.
 Provider sleep remains a separate, necessary transport addition.
 
-Provider implementation contract for the next slice: use HealthKitService's
-`fetchSleepEvidence(from:to:)` with sample IDs, original bounds, categories and
-source metadata; retain unknown coverage and conflicts. WHOOP source sleep and
+Provider implementation contract is refined by the
+[collection/comparison inventory](2026-09-26-dashboard-data-comparison-inventory.md):
+prepare bounded raw HealthKit samples with original IDs, boundaries, categories
+and provenance before the nearby request deadline. Do not run the current
+`fetchSleepEvidence` interval resolver across months of samples; resolve bounded
+reviewed windows after transfer. Retain unknown coverage and conflicts. WHOOP source sleep and
 recovery records must preserve nullable values, naps, scoring state and separate
 endpoint failures. Ask for inclusion on the phone, query outside the SQLite
 transaction, declare query bounds and query times, and fence cancellation or

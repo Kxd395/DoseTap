@@ -944,6 +944,15 @@ and explicit foreground pairing. Clinical cloud uploads remain disabled. See
 [nearby iPad delivery](../review/2026-09-26-nearby-ipad-dashboard.md) for validation
 and acceptance gates. Phone records and alarms remain phone-owned.
 
+Dashboard review contracts: [color and Night Mode semantics](contracts/dashboard-colors.md),
+[positive recorded-dose spacing](contracts/dashboard-dose-eligibility.md), and
+[explicit diary outcome matching](contracts/dashboard-diary-analysis.md). The
+separate iPad may display validated timed sleepiness and reported final wake from
+the same snapshot generation, with independent metric eligibility and exclusions.
+Elapsed from Dose 2 to reported final wake is not measured sleep. See the
+[full collection/comparison inventory](../review/2026-09-26-dashboard-data-comparison-inventory.md)
+for implemented visibility versus remaining provider and context comparisons.
+
 Cloud dashboard transport correction (DOSETAP-76): clinical CloudKit publishing
 remains disabled because Apple5.1.3(ii) restricts personal health information in
 iCloud. The owner selected investigation of both a private-server feed and direct
