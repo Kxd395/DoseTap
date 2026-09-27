@@ -38,6 +38,18 @@ final class DashboardReportProjectionTests: XCTestCase {
             XCTAssertNil(p.doseDays.first?.intervalMinutes); XCTAssertEqual(p.validDosePairCount, 0)
         }
     }
+    func testFrozenSnapshotDoesNotGainEligibleFutureDoseOnLaterReload() throws {
+        let iso = ISO8601DateFormatter()
+        let future = iso.string(from: now.addingTimeInterval(3600))
+        let s = try snapshot([.doseEvents: [dose("a", "dose1", iso.string(from: now.addingTimeInterval(-7200))),
+            dose("b", "dose2", future)]])
+        for validationTime in [now, now.addingTimeInterval(7200)] {
+            let p = try DashboardReportProjection(snapshot: s, now: validationTime)
+            XCTAssertEqual(p.doseDays.first?.state, .conflict)
+            XCTAssertNil(p.doseDays.first?.intervalMinutes)
+            XCTAssertNil(p.doseDays.first?.dose1At); XCTAssertNil(p.doseDays.first?.dose2At)
+        }
+    }
     func testLegacyMedicationUsesOccurrenceOffsetNotTreatmentDateOrRecordedTime() throws {
         let r = row("medication_events", ["id": text("med"), "medication_id": text("custom"),
             "dose_mg": ["type": "integer", "integer": 10], "dose_unit": text("mg"),

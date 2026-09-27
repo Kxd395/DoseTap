@@ -86,7 +86,11 @@ public struct DashboardReportProjection: Sendable {
             let ids = records.compactMap { $0.text("id") }.filter { !$0.isEmpty }
             var state: DashboardDoseDayState = .missing
             var interval: Double?
-            let conflict = first.count > 1 || second.count > 1 || skipped.count > 1
+            let invalidOccurrence = (first + second).contains {
+                guard let time = Self.timestamp($0.text("timestamp")) else { return true }
+                return time > snapshot.capturedAt
+            }
+            let conflict = invalidOccurrence || first.count > 1 || second.count > 1 || skipped.count > 1
                 || (!second.isEmpty && !skipped.isEmpty) || identities.count > 1
                 || identities.contains { identityDates[$0, default: []].count > 1 }
                 || Set(ids).count != records.count || records.contains { Self.kind($0.text("event_type")) == nil }
@@ -96,7 +100,7 @@ public struct DashboardReportProjection: Sendable {
             else if let a = first.first, let b = second.first {
                 if a.text("session_id") == b.text("session_id"),
                    let start = Self.timestamp(a.text("timestamp")), let end = Self.timestamp(b.text("timestamp")),
-                   end > start, end <= now {
+                   end > start, end <= snapshot.capturedAt {
                     interval = end.timeIntervalSince(start) / 60; state = .paired
                 } else { state = .conflict }
             }
