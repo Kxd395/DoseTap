@@ -189,6 +189,24 @@ use capture-time 18:00 rollover in the explicitly named iPad timezone; v1 does n
 carry the phone zone. Report contents exposes source-row inventory without calling
 rows clinical observations. Provider and answer-aware analytics remain separate.
 
+The local questionnaire projection reads original morning/pre-sleep rows and
+session-bound `night_outcome.v1` submissions without writing clinical storage.
+Its date denominator is dates present in morning/submission rows or linked
+pre-sleep rows; dose/session-only dates do not imply missing questionnaires.
+Other retained rows inform identity ambiguity only. Unmatched questionnaire
+source rows remain separately counted, without inventing a date association.
+Missing, partial, explicitly complete,
+explicitly skipped, recorded, conflicting and unavailable states are distinct.
+Morning storage has defaults and no field-confirmation provenance: a retained
+1–5 sleep-quality value is only a stored rating with freshness/confirmation
+unknown, never evidence of an explicitly answered or completed assessment.
+Normalized copies do not create additional observations. Only valid v1 outcome
+answers expose wake method and following-day context; unknown is not inferred
+from legacy morning answers or schedules. A stored wake answer does not verify
+that the current dose ledger still has its associated Dose 2. Multiple identities, identity spanning
+dates or duplicate questionnaires suppress derived answers for affected dates.
+Unsupported/malformed outcome payloads remain unavailable, not empty success.
+
 All time removes only the lower date bound. Like shorter ranges, it excludes
 treatment dates after the capture-derived treatment-night key, even if stored
 occurrence timestamps precede capture. Source inventory remains unfiltered.
