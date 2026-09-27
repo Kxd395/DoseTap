@@ -18,6 +18,7 @@ let package = Package(
             sources: [
                 "DoseWindowState.swift",
                 "CloudDashboardSnapshot.swift",
+                "DashboardReportProjection.swift",
                 "APIErrors.swift",
                 "OfflineQueue.swift",
                 "EventRateLimiter.swift",
@@ -85,6 +86,7 @@ let package = Package(
                 "StudioMedicationLedgerFormatTests.swift",
                 "DoseWindowStateTests.swift",
                 "CloudDashboardSnapshotTests.swift",
+                "DashboardReportProjectionTests.swift",
                 "APIErrorsTests.swift",
                 "APIClientTests.swift",
                 "OfflineQueueTests.swift",

@@ -135,3 +135,21 @@ full replacement represents reporting deletions without remote phone deletes.
 UserDefaults, Keychain, files/preferences and provider stores are separate owners,
 so this is not a full-device backup. Durable publisher revisions, payload size limits,
 identity conflict classification and consumer analytics remain unimplemented.
+
+## Initial separate dashboard display and nearby transport
+
+The first display projects dose-day review states and medication occurrences from
+source evidence. Dose spacing requires a single positive ordered pair; skipped,
+missing and duplicate/conflicting sources remain distinct. Medication dates come
+from occurrence plus retained offset, not treatment-date grouping. Unknown time or
+unavailable offset cannot be reconstructed from capture time. No efficacy or safety
+score is produced. Provider sleep evidence remains explicitly unavailable in this
+initial transport; the app must not imply that sleep metrics were transferred.
+
+Nearby pairing requires an out-of-band random secret, fresh challenge nonces and
+mutual authentication before report requests or payload delivery. MC encryption is
+required; application authenticated encryption also protects payloads against a
+relay terminating two MC sessions. Discovery names are not identity. The publisher
+accepts an invitation explicitly. Secrets expire when the pairing session ends;
+no clinical payload enters advertising metadata, logs or clipboard automatically.
+The iPad is a separate app target and has no source write or alarm capability.
