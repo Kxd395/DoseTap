@@ -31,13 +31,16 @@ extension DashboardAnalyticsModel {
         if includeProviders && settings.healthKitEnabled {
             await healthKit.syncAuthorizationState()
             if healthKit.isAuthorized {
-                await healthKit.computeTTFWBaseline(days: max(14, min(days, 120)))
-                guard !Task.isCancelled else { return }
-                for summary in healthKit.sleepHistory {
-                    let key = sessionRepo.sessionDateString(for: eveningAnchorDate(for: summary.date))
-                    if healthByKey[key] == nil {
-                        healthByKey[key] = summary
+                do {
+                    let summaries = try await healthKit.dashboardSleepHistory(days: selectedRange.healthQueryDays, through: now())
+                    guard !Task.isCancelled else { return }
+                    for summary in summaries {
+                        let key = sessionRepo.sessionDateString(for: eveningAnchorDate(for: summary.date))
+                        if healthByKey[key] == nil { healthByKey[key] = summary }
                     }
+                } catch {
+                    guard !Task.isCancelled else { return }
+                    errorMessage = "Apple Health sleep could not refresh. Local records are still available. Try Refresh again."
                 }
             } else if let lastError = healthKit.lastError, !lastError.isEmpty {
                 errorMessage = lastError
@@ -134,8 +137,8 @@ extension DashboardAnalyticsModel {
             detail: settings.healthKitEnabled
                 ? (healthKit.isAuthorized
                     ? (hasReadableHealthData
-                        ? "\(healthMatches) nights with Apple Health sleep summaries loaded (up to 120 nights)"
-                        : "No readable summaries returned from the last 120 nights. Apple Health intentionally makes denied access and an empty result indistinguishable.")
+                        ? "\(healthMatches) nights with Apple Health sleep summaries loaded (up to \(selectedRange.healthQueryDays) days)"
+                        : "No readable summaries returned from the last \(selectedRange.healthQueryDays) days. Apple Health intentionally makes denied access and an empty result indistinguishable.")
                     : (healthKit.lastError ?? "Request read access for sleep analysis in Settings"))
                 : "Enable in Settings to ingest sleep stages automatically.",
             color: settings.healthKitEnabled

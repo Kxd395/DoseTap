@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-25
 SSOT revision: 0.4.19
-App version defined in this revision's Xcode project: 0.4.19 (75)
+App version defined in this revision's Xcode project: 0.4.19 (76)
 Integration and acceptance evidence: [Quick-log availability](../review/2026-09-24-quick-log-availability.md), [Excel contrast delivery](../review/2026-09-22-excel-contrast-delivery.md), [export delivery record](../review/2026-09-17-export-failure-diagnosis.md) and the DOSETAP-72 and DOSETAP-13 Plane workpads. The project version alone does not establish acceptance.
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
@@ -885,7 +885,7 @@ Work schedule configuration and dated overrides are stored together in SQLite `w
 - Studio imports the versioned projection and shows/report-exports its fields without converting old ratings or inferring legacy wake answers. Missing projections in older bundles are unavailable, not zero. CSV quoting must preserve commas, quotes, CR/LF; spreadsheet-safe text escaping must round-trip through Studio. Export remains an analysis archive, not a content-equal whole-project restore guarantee.
 - Studio export actions and metadata adapt to the available window width. Save status remains below the actions. Source iPhone build identifies the imported archive, not the running Studio app or the current phone installation. Redaction applies to generated reports; an imported bundle copy preserves the original data.
 
-- Date ranges include exactly the selected number of civil night keys through the current evening-anchored night; malformed and future keys are excluded. All Time includes all discovered local history. Provider fetch horizons remain explicit (Apple Health up to 120 nights, WHOOP 30 days).
+- Date ranges include exactly the selected number of civil night keys through the current evening-anchored night; malformed and future keys are excluded. All Time includes all discovered local history. Provider fetch horizons remain explicit: the separate read-only Apple Health dashboard query covers the selected and preceding periods plus two boundary days, capped at 730 days; WHOOP remains capped at 30 days. The dosing baseline is unchanged.
 - Recorded dose events own retrospective timing; never infer Dose 1 from Dose 2 or an extra dose. Pending Dose 2 (before the existing upper timing boundary) is separate from missing outcomes. Recorded outcomes include explicit skips; on-time percentages use valid timestamp pairs only, with exact elapsed seconds and the shared MedicationTiming classification.
 - Missing observations remain missing, never zero or an implicit negative answer. Bathroom analytics count logs; duration is not measured. Pre-sleep completion requires a completed log. Stress-driver frequency counts each driver at most once per night.
 - Studio's 30-day dose-timing cards use valid recorded timestamp pairs only, disclose their usable pair count, and show No data when no pairs exist. Classify each pair from unrounded elapsed seconds, never a legacy adherence flag. The average interval is descriptive; it is not labeled Optimal, Good, or an effectiveness result.
@@ -933,3 +933,18 @@ source, occurrence, explicit preset recording time and quick-log stored creation
 time (which may be import time), and links the export meaning to Medication
 Log / Confirmed Medications sheets and ZIP insights_bundle.json. Read errors are
 visible, not empty success. No records are copied into nighttime dose history.
+
+### Six-month dashboard and measurement coverage (DOSETAP-45, build76)
+
+The dashboard adds 6M between90D and1Y, defined as180 inclusive treatment dates.
+Show the exact range and retain the18:00 treatment-night anchor. The prior period
+is180 adjacent, nonoverlapping civil dates. Apple Health loading requests the
+selected/current plus preceding period with two boundary days, capped at730; All
+Time retains all available local records but only up to730 provider days. Range
+changes refresh provider data. WHOOP remains a30-day query with explicit disclosure.
+Coverage shows available and missing selected-provider sleep readings, explicitly
+answered following-day type, final wake and timed0–10 sleepiness. Unreadable diary
+records do not count as answers; zero sleepiness with a valid nonfuture timestamp
+is usable. Counts describe recorded nights, not all calendar days or clinical
+confidence. Missing stays missing. Shipping records are local; staging CloudKit
+is not a promise of iPad synchronization.
