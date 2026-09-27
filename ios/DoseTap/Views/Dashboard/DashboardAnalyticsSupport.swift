@@ -29,13 +29,17 @@ extension DashboardAnalyticsModel {
 
     var sleepSampleCount: Int { populatedNights.compactMap { sleepMinutes(for: $0) }.count }
     var recordedPairCount: Int { dosingNights.compactMap(\.exactIntervalMinutes).count }
+    var invalidIntervalCount: Int {
+        dosingNights.filter { $0.dose1Time != nil && $0.dose2Time != nil && $0.exactIntervalMinutes == nil }.count
+    }
     var skippedDose2Count: Int { dosingNights.filter { $0.dose2Skipped && $0.dose2Time == nil }.count }
     var bathroomLogCount: Int { populatedNights.reduce(0) { $0 + $1.bathroomEventCount } }
     var extraDoseCount: Int { populatedNights.reduce(0) { $0 + $1.extraDoseCount } }
 
     func timingCount(_ timing: DoseCore.MedicationTiming) -> Int {
         dosingNights.filter { night in
-            guard let first = night.dose1Time, let second = night.dose2Time else { return false }
+            guard let first = night.dose1Time, let second = night.dose2Time,
+                  night.exactIntervalMinutes != nil else { return false }
             return DoseCore.MedicationTiming.classify(dose1: first, dose2: second) == timing
         }.count
     }

@@ -274,6 +274,9 @@ struct DashboardRecentNightsCard: View {
         if let interval = night.intervalMinutes {
             return TimeIntervalMath.formatMinutes(interval)
         }
+        if night.dose1Time != nil && night.dose2Time != nil {
+            return "Both doses recorded · Interval needs review"
+        }
         if night.dose1Time != nil {
             return night.isPendingDose2(at: Date()) ? "Dose 2 pending" : "Dose 2 not recorded"
         }

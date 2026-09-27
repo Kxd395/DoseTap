@@ -92,7 +92,7 @@ struct DashboardNightAggregate: Identifiable {
     var exactIntervalMinutes: Double? {
         guard let dose1Time, let dose2Time else { return nil }
         let seconds = dose2Time.timeIntervalSince(dose1Time)
-        return seconds.isFinite && seconds >= 0 ? seconds / 60 : nil
+        return seconds.isFinite && seconds > 0 ? seconds / 60 : nil
     }
 
     func isPendingDose2(at now: Date) -> Bool {
@@ -101,7 +101,7 @@ struct DashboardNightAggregate: Identifiable {
     }
 
     var intervalMinutes: Int? {
-        guard let dose1Time, let dose2Time else { return nil }
+        guard let dose1Time, let dose2Time, exactIntervalMinutes != nil else { return nil }
         let minutes = TimeIntervalMath.minutesBetween(start: dose1Time, end: dose2Time)
         return minutes >= 0 ? minutes : nil
     }
