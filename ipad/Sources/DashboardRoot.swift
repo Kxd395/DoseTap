@@ -11,7 +11,7 @@ struct DashboardRoot: View {
     @State private var days = 180
     @State private var selectedNight: DashboardReportDoseDay?
     @State private var medicationSearch = ""
-    private let sections = ["Overview", "Medications", "Night review", "Report contents", "Connection"]
+    private let sections = ["Overview", "Dose timing", "Sleep & check-ins", "Medications", "Night review", "Report contents", "Connection"]
     private var nights: [DashboardReportDoseDay] {
         guard let report = model.report else { return [] }
         return DashboardReportStatistics.selected(report.doseDays, count: days,
@@ -42,7 +42,12 @@ struct DashboardRoot: View {
                             else { rangePicker.pickerStyle(.segmented) }
                             Text("Treatment-night ranges use the 6 p.m. rollover at report capture in \(TimeZone.current.identifier). Refresh to include later records.")
                                 .font(.caption).foregroundStyle(.secondary)
-                            if section == "Overview" { DoseTimingOverview(nights: nights) { selectedNight = $0 } } else { nightList }
+                            if section == "Overview" { ReportOverview(report: report, nights: nights) { section = $0 } }
+                            else if section == "Dose timing" { DoseTimingOverview(nights: nights) { selectedNight = $0 } }
+                            else if section == "Sleep & check-ins", let answers = model.questionnaires {
+                                QuestionnaireOverview(days: answers.selected(count: days, timeZone: .current),
+                                                      unassignedSourceRowCount: answers.unassignedSourceRowCount)
+                            } else { nightList }
                         }
                     } else {
                         ContentUnavailableView("Connect your iPhone", systemImage: "ipad.and.iphone", description: Text("Receive a read-only report from DoseTap. Your iPhone keeps control of logging and alarms."))
@@ -140,7 +145,7 @@ struct DashboardConnection: View {
             if connection.state != .stopped { Button("End connection") { connection.stop() } }
             Text("This app stores a protected local reporting copy, excluded from backup. It cannot edit iPhone records, log a dose or operate alarms. Nearby refresh currently requires both apps in the foreground; background or cloud updates are not enabled.").font(.footnote).foregroundStyle(.secondary)
             Button("Forget downloaded report", role: .destructive) { confirmForget = true }
-            Text("DoseTap Dashboard 0.1.0 (5)").font(.caption).foregroundStyle(.secondary)
+            Text("DoseTap Dashboard 0.1.0 (6)").font(.caption).foregroundStyle(.secondary)
         }.confirmationDialog("Remove this iPad’s reporting copy? Your iPhone records stay unchanged.", isPresented: $confirmForget, titleVisibility: .visible) {
             Button("Forget report", role: .destructive) { model.forgetReport() }
         }

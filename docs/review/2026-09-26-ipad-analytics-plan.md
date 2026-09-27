@@ -54,6 +54,44 @@ continue using saved occurrence offsets.
 
 ## Follow-on slices
 
+### Owner feedback: the dashboard needs a full overhaul
+
+After the interval expansion, the owner confirmed the connection works but said
+the dashboard is still missing too much. The two attached examples show the same
+iPhone dashboard, including current/prior sleep, sleep quality, interval-versus-
+sleep and natural/alarm comparisons. They are requirements examples, not proof
+of iPad parity or acceptance. The interval-only delivery is not the completed
+dashboard overhaul.
+
+The revised information architecture starts with a cross-domain Overview, then
+dedicated Dose timing, Medications, Sleep & check-ins, and Night review workspaces.
+Data availability belongs beside the measurements, not only in an audit page.
+Daytime symptoms and work context become additional workspaces once their typed,
+source-aware projection is available. No empty chart may imply observed zero.
+
+The first follow-on uses questionnaire rows already present in the saved report.
+Legacy morning ratings may contain defaults: show stored ratings with explicit
+unknown confirmation provenance, not freshly confirmed outcomes or a clinical
+effectiveness score. Preserve completed, partial, skipped and conflicting states.
+Provider sleep remains a separate, necessary transport addition.
+
+Provider implementation contract for the next slice: use HealthKitService's
+`fetchSleepEvidence(from:to:)` with sample IDs, original bounds, categories and
+source metadata; retain unknown coverage and conflicts. WHOOP source sleep and
+recovery records must preserve nullable values, naps, scoring state and separate
+endpoint failures. Ask for inclusion on the phone, query outside the SQLite
+transaction, declare query bounds and query times, and fence cancellation or
+connection changes. Do not infer awake intervals from WHOOP aggregate stages.
+Cross-provider averages and guessed sleep endpoints are excluded. The direct
+nearby transport does not authorize or require cloud storage.
+
+Source audit also confirmed the phone aggregate accepts an equal-timestamp dose
+pair (`exactIntervalMinutes >= 0`), while iPad eligibility requires positive
+spacing. The screenshot cannot distinguish exact zero from a positive subminute
+pair. Correct shared phone eligibility and test subminute, zero, reversed, missing
+and midnight cases separately. Duplicate/skip precedence also differs and needs
+an explicit shared policy before claiming calculation parity.
+
 1. Extend the report with reviewed provider evidence: source identity, stage/awake
    intervals, coverage, endpoint basis and derivation version. Then add treatment
    sleep totals, dose-to-first-sleep and return-to-sleep views using the shared
@@ -91,3 +129,28 @@ Signed iPad build4 succeeded. Real-record visual usefulness and parity stay open
 PR review caught an All time upper-bound gap. Build 5 applies the captured-night
 cutoff to All time as well, with tests on both sides of 18:00. Build 4 was installed
 as the earlier candidate; build 5 supersedes it. Source rows are not rewritten.
+
+## Overhaul stage 1: answer-aware navigation
+
+The next iPad candidate is 0.1.0 (6); phone remains 0.4.19 (78).
+Overview becomes a navigation summary with separate dose timing, medication,
+sleep/check-in and record-review cards. Dose timing retains the existing detailed
+charts in its own workspace. Sleep & check-ins reads the original morning,
+pre-sleep and night-outcome records, never duplicate normalized copies as extra
+observations. Stored quality points carry an explicit confirmation-unknown warning;
+no effectiveness comparison is derived from those historical ratings.
+
+This stage does not deliver wearable sleep charts, previous-period comparisons,
+work cohorts, symptom timelines or full source parity. These remain required
+stages of the requested overhaul, not owner acceptance closed by navigation work.
+PR #68's interval checkpoint merged as 4c7fcdeaadec2c2e9589bfa19cf4c71cec150f4b
+with all required checks passing before this follow-on.
+
+Stage-1 local validation: 825 core XCTest, 20 nearby XCTest and 43 Swift Testing
+passed; 8 native cache tests and 2 normal/largest-text UI journeys passed. Native
+screenshots were inspected for the new home, questionnaire chart and large text.
+An initial fixture compatibility failure led to preserving unassigned rows; a
+subsequent simulator preflight launch failure was resolved by explicitly booting
+the dedicated iPad and running tests serially. Neither failed run counts as a pass.
+Final result: Test-DoseTapDashboard-2026.09.26_21-36-27--0400.xcresult.
+Signed iPad build 6 succeeded. Installation and owner acceptance are separate.

@@ -8,6 +8,7 @@ import DoseTapNearby
 final class DashboardModel: ObservableObject {
     let connection = NearbyReportingSession(role: .reader)
     @Published private(set) var report: DashboardReportProjection?
+    @Published private(set) var questionnaires: DashboardQuestionnaireProjection?
     @Published private(set) var snapshot: CloudDashboardSnapshot?
     @Published private(set) var error: String?
     private let cacheURL: URL
@@ -46,7 +47,7 @@ final class DashboardModel: ObservableObject {
             catch {
                 guard Self.isMissing(error) else { throw error }
             }
-            cache = nil; report = nil; snapshot = nil; requiresForget = false; error = nil
+            cache = nil; report = nil; questionnaires = nil; snapshot = nil; requiresForget = false; error = nil
         } catch {
             self.error = "Could not remove the saved report. Its source remains selected; try Forget again."
         }
@@ -65,8 +66,9 @@ final class DashboardModel: ObservableObject {
             var next = CloudDashboardCache(accountScope: scope, sourceID: candidate.sourceID)
             try next.accept(candidate, accountScope: scope, now: now())
             let projected = try DashboardReportProjection(snapshot: candidate, now: now())
+            let answers = try DashboardQuestionnaireProjection(snapshot: candidate, now: now())
             try protectExistingCache()
-            cache = next; snapshot = candidate; report = projected
+            cache = next; snapshot = candidate; report = projected; questionnaires = answers
         } catch {
             if Self.isMissing(error) { return }
             requiresForget = true
@@ -97,10 +99,11 @@ final class DashboardModel: ObservableObject {
             var next = cache ?? CloudDashboardCache(accountScope: scope, sourceID: candidate.sourceID)
             let changed = try next.accept(candidate, accountScope: scope, now: now())
             let projected = try DashboardReportProjection(snapshot: candidate, now: now())
+            let answers = try DashboardQuestionnaireProjection(snapshot: candidate, now: now())
             guard connection.contextID == context else { return }
             if changed { try persist(bytes) }
             guard connection.contextID == context else { return }
-            cache = next; snapshot = candidate; report = projected; error = nil
+            cache = next; snapshot = candidate; report = projected; questionnaires = answers; error = nil
         } catch {
             self.error = "The new report could not be validated or saved. The previous report remains unchanged."
         }

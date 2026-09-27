@@ -170,7 +170,7 @@ may leave a revision gap. Corrupt identity state fails closed. The iPad persists
 only after full validation and projection, with complete file protection and
 backup exclusion. A new phone source requires explicitly forgetting the old copy.
 
-The separate iPad target is `com.dosetap.dashboard`, version0.1.0(5), generated
+The separate iPad target is `com.dosetap.dashboard`, version0.1.0(6), generated
 from `ipad/project.yml`. It contains no EventStorage, medication writer or alarm
 service. Initial views are recorded dose spacing, medication calendar occurrences,
 night review states and connection status. All-time medications are explicitly
@@ -210,3 +210,9 @@ Unsupported/malformed outcome payloads remain unavailable, not empty success.
 All time removes only the lower date bound. Like shorter ranges, it excludes
 treatment dates after the capture-derived treatment-night key, even if stored
 occurrence timestamps precede capture. Source inventory remains unfiltered.
+
+The answer-aware iPad home separates Overview, Dose timing, Sleep & check-ins,
+Medications and Night review. It displays total unassigned questionnaire source
+rows without calling them distinct observations. Stored wake answers are not
+reconciled with a valid Dose 2 event and are labeled accordingly. No provider
+measurement is manufactured from local questionnaire or dosing timestamps.
