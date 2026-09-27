@@ -4,6 +4,54 @@ import DoseCore
 
 @MainActor
 final class DashboardAnalyticsAuditTests: XCTestCase {
+    func testOutcomeOnlyNightsRemainInCoverage() {
+        let model = DashboardAnalyticsModel(now: { self.date("2026-09-07").addingTimeInterval(22 * 3600) })
+        model.selectedRange = .all
+        var diary = NightOutcomeDiary(); diary.dayType = .dayOff
+        let row = DashboardNightAggregate(sessionDate: "2026-09-01", dose1Time: nil, dose2Time: nil,
+            dose2Skipped: false, snoozeCount: 0, extraDoseCount: 0, events: [], morningCheckIn: nil,
+            preSleepLog: nil, healthSummary: nil, whoopSummary: nil, duplicateClusterCount: 0,
+            napSummary: .init(count: 0, totalMinutes: 0), outcome: diary)
+        model.nights = [row]
+        XCTAssertEqual(model.populatedNights.count, 1)
+        XCTAssertEqual(model.explicitDayTypeCount, 1)
+    }
+
+    func testSixMonthRangeAndProviderLookbackAcrossDST() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/New_York")!
+        let anchor = calendar.date(from: DateComponents(year: 2026, month: 9, day: 26, hour: 22))!
+        let range = DashboardDateRange.sixMonths
+        let start = range.cutoffDate(from: anchor, calendar: calendar)
+        XCTAssertEqual(calendar.dateComponents([.day], from: start, to: calendar.startOfDay(for: anchor)).day, 179)
+        let prior = range.priorPeriodCutoff(from: anchor, calendar: calendar)
+        XCTAssertEqual(prior.end, start)
+        XCTAssertEqual(calendar.dateComponents([.day], from: prior.start, to: prior.end).day, 180)
+        XCTAssertEqual(range.healthQueryDays, 362)
+        XCTAssertEqual(DashboardDateRange.all.healthQueryDays, 730)
+        XCTAssertEqual(DashboardDateRange.allCases.map(\.rawValue), ["7D", "14D", "30D", "90D", "6M", "1Y", "All"])
+    }
+
+    func testMeasurementCoverageRequiresExplicitReadableTimedAnswers() {
+        let model = DashboardAnalyticsModel(now: { self.date("2026-09-07").addingTimeInterval(22 * 3600) })
+        model.selectedRange = .all
+        var valid = night("2026-09-01")
+        var answer = NightOutcomeDiary()
+        answer.dayType = .workday; answer.sleepiness = 0
+        answer.assessedAt = date("2026-09-02"); answer.finalWakeAt = date("2026-09-02")
+        valid.outcome = answer
+        var untimed = night("2026-09-02"); answer.assessedAt = nil; answer.dayType = .unknown
+        untimed.outcome = answer
+        var failed = valid; failed.outcomeReadFailed = true
+        model.nights = [valid, untimed, failed]
+        XCTAssertEqual(model.explicitDayTypeCount, 1)
+        XCTAssertEqual(model.timedSleepinessCount, 1)
+        XCTAssertEqual(model.recordedFinalWakeCount, 2)
+        XCTAssertEqual(model.sleepSampleCount, 0)
+        model.nights = []
+        XCTAssertEqual(model.timedSleepinessCount, 0)
+    }
+
     func testFoodAnalyticsUseCompletedLogsExplicitDaysAndIndependentCounts() {
         let first = date("2026-09-01")
         var answers = DoseTap.PreSleepLogAnswers()

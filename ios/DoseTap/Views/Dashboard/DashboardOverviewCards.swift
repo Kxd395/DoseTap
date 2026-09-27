@@ -62,7 +62,7 @@ struct DashboardDosingSnapshotCard: View {
             Text("Recorded Dose Timing")
                 .font(.headline)
             metricRow(title: "Avg Interval", value: formatInterval(minutes: model.averageIntervalMinutes))
-            metricRow(title: "Avg Snoozes", value: model.averageSnoozeCount.map { String(format: "%.1f", $0) } ?? "No data")
+            metricRow(title: "Avg logged snoozes", value: model.averageSnoozeCount.map { String(format: "%.1f", $0) } ?? "No data")
             metricRow(title: "Missing Dose 2 Outcomes", value: "\(model.missingDose2OutcomeCount)")
             metricRow(title: "Duplicate Nights", value: "\(model.duplicateNightCount)")
             metricRow(title: "Record review flags", value: "\(model.duplicateNightCount + model.missingDose2OutcomeCount)")
@@ -356,6 +356,14 @@ struct DashboardDataQualityCard: View {
             Text("Nights without Apple Health data: \(model.missingHealthSummaryCount)")
                 .font(.subheadline)
                 .foregroundColor(DashboardPalette.coverage)
+            coverage("\(model.sleepSource.rawValue) sleep readings", available: model.sleepSampleCount)
+            coverage("Following-day work/off answer", available: model.explicitDayTypeCount)
+            coverage("Timed sleepiness 0–10", available: model.timedSleepinessCount)
+            coverage("Reported final wake", available: model.recordedFinalWakeCount)
+            Text("Missing counts are among recorded nights only; days with no records are not counted as zero sleep or missed doses. Work/off answers are not inferred from a schedule.")
+                .font(.caption).foregroundColor(.secondary)
+            Text("Apple Health query: up to \(model.selectedRange.healthQueryDays) days, including the prior period. WHOOP query: up to 30 days. All Time includes available local history; it does not promise all-time provider coverage.")
+                .font(.caption).foregroundColor(.secondary)
             Text("Nights with duplicate event clusters: \(model.duplicateNightCount)")
                 .font(.subheadline)
                 .foregroundColor(DashboardPalette.coverage)
@@ -376,6 +384,11 @@ struct DashboardDataQualityCard: View {
             RoundedRectangle(cornerRadius: 16)
                 .fill(Color(.systemGray6))
         )
+    }
+
+    private func coverage(_ title: String, available: Int) -> some View {
+        Text("\(title): \(available)/\(model.populatedNights.count) available · \(max(0, model.populatedNights.count - available)) missing")
+            .font(.subheadline).foregroundColor(DashboardPalette.coverage)
     }
 
 }
