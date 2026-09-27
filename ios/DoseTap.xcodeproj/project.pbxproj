@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		DB770001 /* DashboardPublisherIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB770002 /* DashboardPublisherIdentity.swift */; };
 		AE5EED904A21B803837709F5 /* SessionRepositoryDashboardSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CFAA5DE2681CBC5A3CDB0C /* SessionRepositoryDashboardSnapshot.swift */; };
 		5E58C76954CF526C132B5579 /* EventStorage+DashboardSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56DB383323DB5206C15956FD /* EventStorage+DashboardSnapshot.swift */; };
 		D074B303 /* MedicationPresetSettingsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D074F303 /* MedicationPresetSettingsUITests.swift */; };
@@ -190,6 +191,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		DB770002 /* DashboardPublisherIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardPublisherIdentity.swift; sourceTree = "<group>"; };
 		72CFAA5DE2681CBC5A3CDB0C /* SessionRepositoryDashboardSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SessionRepositoryDashboardSnapshot.swift"; sourceTree = "<group>"; };
 		56DB383323DB5206C15956FD /* EventStorage+DashboardSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+DashboardSnapshot.swift"; sourceTree = "<group>"; };
 		D074F303 /* MedicationPresetSettingsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationPresetSettingsUITests.swift; sourceTree = "<group>"; };
@@ -640,6 +642,7 @@
 				SRQ101 /* SessionRepositoryQueries.swift */,
 				SRQ102 /* SessionRepositoryMedication.swift */,
 				72CFAA5DE2681CBC5A3CDB0C /* SessionRepositoryDashboardSnapshot.swift */,
+				DB770002 /* DashboardPublisherIdentity.swift */,
 				56DB383323DB5206C15956FD /* EventStorage+DashboardSnapshot.swift */,
 				SRQ103 /* SessionRepositoryCheckIn.swift */,
 				SRQ104 /* SessionRepositorySchedule.swift */,
@@ -1005,6 +1008,7 @@
 				SRQ001 /* SessionRepositoryQueries.swift in Sources */,
 				SRQ002 /* SessionRepositoryMedication.swift in Sources */,
 				AE5EED904A21B803837709F5 /* SessionRepositoryDashboardSnapshot.swift in Sources */,
+				DB770001 /* DashboardPublisherIdentity.swift in Sources */,
 				5E58C76954CF526C132B5579 /* EventStorage+DashboardSnapshot.swift in Sources */,
 				SRQ003 /* SessionRepositoryCheckIn.swift in Sources */,
 				SRQ004 /* SessionRepositorySchedule.swift in Sources */,

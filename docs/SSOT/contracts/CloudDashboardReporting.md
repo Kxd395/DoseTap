@@ -153,3 +153,20 @@ relay terminating two MC sessions. Discovery names are not identity. The publish
 accepts an invitation explicitly. Secrets expire when the pairing session ends;
 no clinical payload enters advertising metadata, logs or clipboard automatically.
 The iPad is a separate app target and has no source write or alarm capability.
+
+Nearby prototype v1 uses a fresh 256-bit out-of-band key, role-separated HMAC
+proofs over both random nonces, directional HKDF keys and ChaChaPoly envelopes.
+Counters reject replay; the publisher accepts only a requested snapshot. Snapshot
+payload limit is32MiB; incomplete/failed transfers retain the last verified report.
+No background availability or forward secrecy is claimed. Both apps must stay open.
+The phone reserves a durable monotonic revision before capturing; failed delivery
+may leave a revision gap. Corrupt identity state fails closed. The iPad persists
+only after full validation and projection, with complete file protection and
+backup exclusion. A new phone source requires explicitly forgetting the old copy.
+
+The separate iPad target is `com.dosetap.dashboard`, version0.1.0(1), generated
+from `ipad/project.yml`. It contains no EventStorage, medication writer or alarm
+service. Initial views are recorded dose spacing, medication calendar occurrences,
+night review states and connection status. All-time medications are explicitly
+separate from treatment-date-filtered interval trends. A provider sleep dashboard,
+automatic background updates and private-server transport remain later gates.
