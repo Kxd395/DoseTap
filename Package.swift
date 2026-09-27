@@ -9,9 +9,12 @@ let package = Package(
         .watchOS(.v9)
     ],
     products: [
-        .library(name: "DoseCore", targets: ["DoseCore"])
+        .library(name: "DoseCore", targets: ["DoseCore"]),
+        .library(name: "DoseTapNearby", targets: ["DoseTapNearby"])
     ],
     targets: [
+        .target(name: "DoseTapNearby", path: "ios/DashboardShared"),
+        .testTarget(name: "DoseTapNearbyTests", dependencies: ["DoseTapNearby"], path: "Tests/DoseTapNearbyTests"),
         .target(
             name: "DoseCore",
             path: "ios/Core",
