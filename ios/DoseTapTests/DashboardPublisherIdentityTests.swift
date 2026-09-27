@@ -13,6 +13,10 @@ final class DashboardPublisherIdentityTests: XCTestCase {
         XCTAssertEqual(first.sequence, 1); XCTAssertEqual(second.sequence, 2)
         let file = folder.appendingPathComponent("publisher-identity.json")
         XCTAssertEqual(try file.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup, true)
+        #if !targetEnvironment(simulator)
+        XCTAssertEqual(try FileManager.default.attributesOfItem(atPath: file.path)[.protectionKey] as? String,
+            FileProtectionType.complete.rawValue)
+        #endif // Simulator does not report physical Data Protection attributes.
     }
     func testCorruptionAndExhaustionFailClosedWithoutReplacingState() throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -23,6 +27,7 @@ final class DashboardPublisherIdentityTests: XCTestCase {
         let invalid = [Data("not JSON".utf8),
             try JSONEncoder().encode(DashboardPublisherIdentity.Reservation(schemaVersion: 2, sourceID: original.sourceID, sequence: 2)),
             try JSONEncoder().encode(DashboardPublisherIdentity.Reservation(schemaVersion: 1, sourceID: "bad", sequence: 2)),
+            try JSONEncoder().encode(DashboardPublisherIdentity.Reservation(schemaVersion: 1, sourceID: original.sourceID, sequence: 0)),
             try JSONEncoder().encode(DashboardPublisherIdentity.Reservation(schemaVersion: 1, sourceID: original.sourceID, sequence: UInt64.max))]
         for bytes in invalid {
             try bytes.write(to: file)

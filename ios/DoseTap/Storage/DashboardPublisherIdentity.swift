@@ -40,6 +40,9 @@ final class DashboardPublisherIdentity {
         let bytes = try encoder.encode(next)
         try bytes.write(to: stateURL, options: [.atomic, .completeFileProtection])
         var file = stateURL; try file.setResourceValues(excluded)
+        let handle = try FileHandle(forWritingTo: stateURL)
+        defer { try? handle.close() }
+        try handle.synchronize()
         // Do not return a reservation until the persisted bytes read back exactly.
         guard try Data(contentsOf: stateURL) == bytes else { throw Failure.invalidState }
         return next
