@@ -1,7 +1,8 @@
 # Nearby Apple Health sleep evidence delivery
 
 Date: 2026-09-27. Plane: DOSETAP-76, In Progress.
-Candidates: iPhone 0.4.19 (81), separate iPad Dashboard 0.1.0 (9).
+Installed and independently inventory-verified: iPhone 0.4.19 (81), separate
+iPad Dashboard 0.1.0 (9). Both apps launched successfully. Owner acceptance remains open.
 
 The owner asked to continue the dashboard overhaul. All post-merge workflows for
 previous main `a5978b4` passed on live readback. This slice delivers the bounded
@@ -64,3 +65,11 @@ Next: reviewed per-night source consensus and Dose 2 awakening → dose → obse
 return to sleep, preserving unknown gaps, conflicts and endpoint basis. WHOOP is
 separate work. The broader work/pain/food/environment/daytime comparisons remain
 in the [inventory](2026-09-26-dashboard-data-comparison-inventory.md).
+
+## Hosted validation follow-up
+
+PR #71 initially found that the largest-text UI test assumed the Medications
+sidebar item was already visible. It now uses the existing sidebar scrolling
+helper before tapping. This is a test-only navigation correction; installed app
+binaries and build numbers are unchanged. Hosted rerun results and integration
+are recorded in the live PR and Plane workpad.

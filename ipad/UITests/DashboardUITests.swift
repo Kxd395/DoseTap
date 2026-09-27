@@ -60,9 +60,9 @@ final class DashboardUITests: XCTestCase {
         app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         app.launchEnvironment["DOSETAP_DASHBOARD_UI_FIXTURE"] = try fixture().base64EncodedString()
         app.launch()
-        XCTAssertTrue(app.buttons["Medications"].firstMatch.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "dashboard-sidebar").firstMatch.waitForExistence(timeout: 10))
         capture("Native iPad largest text overview")
-        app.buttons["Medications"].firstMatch.tap()
+        selectSidebar("Medications", app: app)
         XCTAssertTrue(app.staticTexts["SYNTHETIC medication · 15 mg"].waitForExistence(timeout: 5))
         capture("Native iPad largest text medication")
         selectSidebar("Wake & sleepiness", app: app)
