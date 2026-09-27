@@ -1,7 +1,7 @@
 # Dashboard evidence review delivery
 
-Status: Candidate validation; DOSETAP-45 and DOSETAP-76 remain In Progress.
-Date: 2026-09-26. Candidates: iPhone 0.4.19 (79), separate iPad Dashboard 0.1.0 (7).
+Status: Installed; hosted integration pending; DOSETAP-45 and DOSETAP-76 remain In Progress.
+Date: 2026-09-26. Installed: iPhone 0.4.19 (79), separate iPad Dashboard 0.1.0 (7).
 
 The owner requested a whole-dashboard overhaul, including better use of collected
 information. The [collection/comparison inventory](2026-09-26-dashboard-data-comparison-inventory.md)
@@ -54,12 +54,27 @@ diary outcomes; it does not complete the whole overhaul.
   `/tmp/dosetap-dashboard79-ui-retry.log` (Night Mode). The initial Night Mode
   test hit a picker beneath the navigation bar; the corrected native scroll path
   passed. Its stalled Xcode diagnostics process was ended without resetting data.
-- iPad cache and overview/largest-text journeys passed. An incremental run used an
-  older test path, so the added comparison interaction is being revalidated using
-  isolated `/tmp/dosetap-ipad7-exact-build`; prior passes do not establish it.
+- iPad: all eight cache tests and both native journeys passed from isolated
+  `/tmp/dosetap-ipad7-exact-build`, including largest text, comparison selection,
+  exact matched-record detail and retained missingness. An earlier incremental
+  run used an older navigation path; it is superseded by this fresh verification.
+  Log: `/tmp/dosetap-ipad7-exact-tests.log`; native screenshot attachments:
+  `/tmp/dosetap-ipad7-exact-screens`. Rendered normal/large text and detail inspected.
+- Signed builds and installation passed. Device application inventories independently
+  reported phone 0.4.19 (79) and separate iPad Dashboard 0.1.0 (7). The existing
+  full DoseTap app on iPad stays 0.4.19 (76). No uninstall/reset was performed.
+  Evidence: `/tmp/dosetap-phone79-apps.json`, `/tmp/dosetap-ipad7-apps.json`.
+  Both launch attempts were denied because devices were locked; physical visual,
+  owner usability and real-report parity acceptance remain open.
+- Phone build/version check passed all four configurations; iPad Debug and Release
+  settings both read 0.1.0 (7). Plane workflow (15 tests/80 assertions), SSOT,
+  documentation and whitespace checks passed.
+- Independent source review found and resolved stale inspector and time-precision
+  issues. Final review found no remaining actionable issue in this bounded patch.
 - Both Plane workpads were applied and exactly read back as In Progress during
-  implementation. Signed builds, installations, final native evidence and hosted
-  CI are recorded below when completed; candidate versions do not establish them.
+  implementation. PR #69 canonical validation fixes are included in this branch;
+  PR #70 contains this evidence-review slice. Hosted checks and normal protected
+  integration are pending and must not be inferred from local validation.
 
 ## Remaining acceptance and next work
 
