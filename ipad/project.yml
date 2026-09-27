@@ -49,6 +49,18 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.dosetap.dashboard.tests
         GENERATE_INFOPLIST_FILE: YES
+  DoseTapDashboardUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies:
+      - target: DoseTapDashboard
+      - package: DoseTap
+        product: DoseCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dosetap.dashboard.uitests
+        GENERATE_INFOPLIST_FILE: YES
 schemes:
   DoseTapDashboard:
     build:
@@ -57,4 +69,4 @@ schemes:
     run:
       config: Debug
     test:
-      targets: [DoseTapDashboardTests]
+      targets: [DoseTapDashboardTests, DoseTapDashboardUITests]
