@@ -1,10 +1,20 @@
 import Foundation
 
+public enum DashboardDoseDayState: String, CaseIterable, Sendable {
+    case paired = "Recorded dose pair"
+    case missing = "Missing dose pair"
+    case skipped = "Dose 2 explicitly skipped"
+    case conflict = "Conflicting records"
+}
+
 public struct DashboardReportDoseDay: Identifiable, Sendable {
     public var id: String { treatmentDate }
     public let treatmentDate: String
     public let intervalMinutes: Double?
-    public let status: String
+    public let state: DashboardDoseDayState
+    public var status: String { state.rawValue }
+    public let dose1At: Date?
+    public let dose2At: Date?
 }
 
 public struct DashboardReportMedicationEntry: Identifiable, Sendable {
@@ -74,22 +84,25 @@ public struct DashboardReportProjection: Sendable {
             let skipped = records.filter { Self.kind($0.text("event_type")) == "skip" }
             let identities = dateIdentities[key, default: []]
             let ids = records.compactMap { $0.text("id") }.filter { !$0.isEmpty }
-            var status = "Missing dose pair", interval: Double?
+            var state: DashboardDoseDayState = .missing
+            var interval: Double?
             let conflict = first.count > 1 || second.count > 1 || skipped.count > 1
                 || (!second.isEmpty && !skipped.isEmpty) || identities.count > 1
                 || identities.contains { identityDates[$0, default: []].count > 1 }
                 || Set(ids).count != records.count || records.contains { Self.kind($0.text("event_type")) == nil }
                 || records.contains { $0.columns["session_id"].map { !["null", "text"].contains($0.type) } ?? false }
-            if conflict { status = "Conflicting records" }
-            else if !skipped.isEmpty { status = "Dose 2 explicitly skipped" }
+            if conflict { state = .conflict }
+            else if !skipped.isEmpty { state = .skipped }
             else if let a = first.first, let b = second.first {
                 if a.text("session_id") == b.text("session_id"),
                    let start = Self.timestamp(a.text("timestamp")), let end = Self.timestamp(b.text("timestamp")),
                    end > start, end <= now {
-                    interval = end.timeIntervalSince(start) / 60; status = "Recorded dose pair"
-                } else { status = "Conflicting records" }
+                    interval = end.timeIntervalSince(start) / 60; state = .paired
+                } else { state = .conflict }
             }
-            return DashboardReportDoseDay(treatmentDate: key, intervalMinutes: interval, status: status)
+            return DashboardReportDoseDay(treatmentDate: key, intervalMinutes: interval, state: state,
+                dose1At: !conflict && first.count == 1 ? Self.timestamp(first[0].text("timestamp")) : nil,
+                dose2At: !conflict && second.count == 1 ? Self.timestamp(second[0].text("timestamp")) : nil)
         }
         var entries: [DashboardReportMedicationEntry] = []
         for row in try rows(.medicationEntries, tables: ["medication_events"]) {
