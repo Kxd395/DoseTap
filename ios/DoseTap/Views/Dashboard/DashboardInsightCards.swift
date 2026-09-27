@@ -3,6 +3,7 @@ import Charts
 import DoseCore
 
 struct DashboardLifestyleFactorsCard: View {
+    @Environment(\.dashboardPalette) private var palette
     @ObservedObject var model: DashboardAnalyticsModel
 
     var body: some View {
@@ -31,20 +32,20 @@ struct DashboardLifestyleFactorsCard: View {
         )
     }
 
-    private func metricRow(title: String, value: String, color: Color = DashboardPalette.sleep) -> some View {
+    private func metricRow(title: String, value: String, color: Color? = nil) -> some View {
         HStack {
             Text(title).font(.subheadline)
             Spacer()
             Text(value)
                 .font(.subheadline.weight(.semibold))
-                .foregroundColor(value == "No data" || value == "None recorded" ? .secondary : color)
+                .foregroundColor(value == "No data" || value == "None recorded" ? .secondary : (color ?? palette.sleep))
         }
     }
 
     private func factorRow(title: String, samples: (answered: Int, yes: Int, no: Int), rate: Double?, impact: (with: Double?, without: Double?)) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("\(title): \(rate.map { String(format: "%.0f%%", $0) } ?? "No data") · \(samples.answered) answered nights")
-                .font(.subheadline).foregroundColor(rate == nil ? .secondary : DashboardPalette.sleep)
+                .font(.subheadline).foregroundColor(rate == nil ? .secondary : palette.sleep)
             Text("Sleep quality: Yes \(impact.with.map { String(format: "%.1f", $0) } ?? "No data") (n=\(samples.yes)) · No \(impact.without.map { String(format: "%.1f", $0) } ?? "No data") (n=\(samples.no))")
                 .font(.caption).foregroundColor(.secondary)
         }
@@ -53,6 +54,7 @@ struct DashboardLifestyleFactorsCard: View {
 }
 
 struct DashboardMoodSymptomsCard: View {
+    @Environment(\.dashboardPalette) private var palette
     @ObservedObject var model: DashboardAnalyticsModel
 
     var body: some View {
@@ -72,7 +74,7 @@ struct DashboardMoodSymptomsCard: View {
                     metricRow(title: "Dream Recall", value: "No data")
                 }
                 if let stress = model.averageMorningStressLevel {
-                    metricRow(title: "Avg Wake Stress", value: String(format: "%.1f / 5", stress), color: DashboardPalette.sleep)
+                    metricRow(title: "Avg Wake Stress", value: String(format: "%.1f / 5", stress), color: palette.sleep)
                 } else {
                     metricRow(title: "Avg Wake Stress", value: "No data")
                 }
@@ -80,7 +82,7 @@ struct DashboardMoodSymptomsCard: View {
                     metricRow(
                         title: "Wake vs Bedtime",
                         value: String(format: "%+.1f pts", delta),
-                        color: DashboardPalette.sleep
+                        color: palette.sleep
                     )
                 } else {
                     metricRow(title: "Wake vs Bedtime", value: "No data")
@@ -96,11 +98,11 @@ struct DashboardMoodSymptomsCard: View {
                     let total = model.anxietyDistribution.values.reduce(0, +)
                     if total > 0 {
                         let percent = (Double(anxious) / Double(total)) * 100
-                        metricRow(title: "Anxiety Reported", value: String(format: "%.0f%%", percent), color: DashboardPalette.sleep)
+                        metricRow(title: "Anxiety Reported", value: String(format: "%.0f%%", percent), color: palette.sleep)
                     }
                 }
                 if let rate = model.highMorningStressRate {
-                    metricRow(title: "High Wake Stress", value: String(format: "%.0f%%", rate), color: DashboardPalette.sleep)
+                    metricRow(title: "High Wake Stress", value: String(format: "%.0f%%", rate), color: palette.sleep)
                 } else {
                     metricRow(title: "High Wake Stress", value: "No data")
                 }
@@ -110,7 +112,7 @@ struct DashboardMoodSymptomsCard: View {
                     metricRow(title: "Top Wake Stressor", value: "No data")
                 }
                 if let worseRate = model.worseByWakeStressRate {
-                    metricRow(title: "Stress Worse By Wake", value: String(format: "%.0f%%", worseRate), color: DashboardPalette.sleep)
+                    metricRow(title: "Stress Worse By Wake", value: String(format: "%.0f%%", worseRate), color: palette.sleep)
                 } else {
                     metricRow(title: "Stress Worse By Wake", value: "No data")
                 }
@@ -120,7 +122,7 @@ struct DashboardMoodSymptomsCard: View {
                     let total = model.grogginessDistribution.values.reduce(0, +)
                     if total > 0 {
                         let percent = (Double(severe) / Double(total)) * 100
-                        metricRow(title: "Moderate+ Grogginess", value: String(format: "%.0f%%", percent), color: DashboardPalette.sleep)
+                        metricRow(title: "Moderate+ Grogginess", value: String(format: "%.0f%%", percent), color: palette.sleep)
                     }
                 }
 
@@ -128,7 +130,7 @@ struct DashboardMoodSymptomsCard: View {
                     Divider()
                     Text("Narcolepsy Symptoms")
                         .font(.caption.bold())
-                        .foregroundColor(DashboardPalette.sleep)
+                        .foregroundColor(palette.sleep)
                     symptomRow(title: "Sleep Paralysis", count: model.sleepParalysisCount)
                     symptomRow(title: "Hallucinations", count: model.hallucinationCount)
                     symptomRow(title: "Automatic Behavior", count: model.automaticBehaviorCount)
@@ -147,13 +149,13 @@ struct DashboardMoodSymptomsCard: View {
         )
     }
 
-    private func metricRow(title: String, value: String, color: Color = DashboardPalette.sleep) -> some View {
+    private func metricRow(title: String, value: String, color: Color? = nil) -> some View {
         HStack {
             Text(title).font(.subheadline)
             Spacer()
             Text(value)
                 .font(.subheadline.weight(.semibold))
-                .foregroundColor(value == "No data" || value == "None recorded" ? .secondary : color)
+                .foregroundColor(value == "No data" || value == "None recorded" ? .secondary : (color ?? palette.sleep))
         }
     }
 
@@ -162,17 +164,18 @@ struct DashboardMoodSymptomsCard: View {
         HStack {
             Image(systemName: "list.bullet")
                 .font(.caption)
-                .foregroundColor(DashboardPalette.sleep)
+                .foregroundColor(palette.sleep)
             Text(title).font(.caption)
             Spacer()
             Text("\(count) night\(count == 1 ? "" : "s")")
                 .font(.caption.weight(.semibold))
-                .foregroundColor(DashboardPalette.sleep)
+                .foregroundColor(palette.sleep)
         }
     }
 }
 
 struct DashboardStressTrendsCard: View {
+    @Environment(\.dashboardPalette) private var palette
     @ObservedObject var model: DashboardAnalyticsModel
 
     private struct StressSeriesPoint: Identifiable {
@@ -233,14 +236,17 @@ struct DashboardStressTrendsCard: View {
                         y: .value("Score", point.value)
                     )
                     .foregroundStyle(by: .value("Series", point.series))
+                    .symbol(by: .value("Series", point.series))
                     .symbolSize(28)
                 }
                 .chartForegroundStyleScale([
-                    "Bedtime Stress": Color.orange,
-                    "Wake Stress": Color.red,
-                    "Sleep Quality": Color.blue,
-                    "Wake Readiness": Color.green
+                    "Bedtime Stress": palette.chart(.orange),
+                    "Wake Stress": palette.chart(.red),
+                    "Sleep Quality": palette.chart(.blue),
+                    "Wake Readiness": palette.chart(.green)
                 ])
+                .chartSymbolScale(["Bedtime Stress": BasicChartSymbolShape.circle, "Wake Stress": .square,
+                                   "Sleep Quality": .triangle, "Wake Readiness": .diamond])
                 .chartYScale(domain: 1...5)
                 .chartYAxis {
                     AxisMarks(values: [1, 2, 3, 4, 5])
@@ -290,7 +296,7 @@ struct DashboardStressTrendsCard: View {
                     metricRow(
                         title: "Same driver carried into morning",
                         value: String(format: "%.0f%%", rate),
-                        color: DashboardPalette.sleep
+                        color: palette.sleep
                     )
                 }
                 if let topDriver = model.topRecurringStressDriver {

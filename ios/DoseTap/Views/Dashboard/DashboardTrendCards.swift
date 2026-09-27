@@ -12,6 +12,7 @@ enum DashboardTrendMode: String, CaseIterable, Identifiable {
 }
 
 struct DashboardTrendChartsCard: View {
+    @Environment(\.dashboardPalette) private var palette
     @ObservedObject var model: DashboardAnalyticsModel
     @State private var trendMode: DashboardTrendMode = .intervalVsSleep
 
@@ -42,10 +43,17 @@ struct DashboardTrendChartsCard: View {
 
     private var trendColorLegend: String {
         switch trendMode {
-        case .intervalVsSleep: return "Green: recorded pair in the timing window. Orange: outside the window."
-        case .recoveryTrend: return "WHOOP recovery: green 67–100, yellow/orange 34–66, red below 34."
-        case .cohorts: return "Indigo: screens. Green: no screens. Colors identify groups, not better sleep."
-        case .weekday: return "Blue bars: recorded pairs in the timing window, by weekday."
+        case .intervalVsSleep:
+            return (palette.isNight ? "Circles: inside; diamonds: outside. " : "Green circles: inside; orange diamonds: outside. ")
+                + "Built-in recorded-spacing reference: 150–240 minutes inclusive, not a historical prescription."
+        case .recoveryTrend:
+            return palette.isNight ? "WHOOP recovery ranges use labeled symbols: 67–100, 34–66, below 34."
+                : "WHOOP recovery: green 67–100, yellow/orange 34–66, red below 34. Symbols also identify ranges."
+        case .cohorts:
+            return palette.isNight ? "Bars are labeled Screens and No screens; these identify groups, not better sleep."
+                : "Indigo: screens. Green: no screens. Colors identify groups, not better sleep."
+        case .weekday:
+            return "Recorded pairs within the built-in 150–240 minute inclusive reference, by weekday; not a historical prescription."
         }
     }
 
@@ -106,8 +114,10 @@ struct DashboardTrendChartsCard: View {
                         x: .value("Interval (min)", point.intervalMinutes),
                         y: .value("Total Sleep (min)", point.sleepMinutes)
                     )
-                    .foregroundStyle(point.onTime ? .green : .orange)
+                    .foregroundStyle(palette.chart(point.onTime ? .green : .orange))
+                    .symbol(by: .value("Recorded spacing", point.onTime ? "Inside reference" : "Outside reference"))
                 }
+                .chartSymbolScale(["Inside reference": BasicChartSymbolShape.circle, "Outside reference": .diamond])
                 .chartXAxisLabel("Dose interval (minutes)")
                 .accessibilityLabel("\(intervalSleepPoints.count) recorded pairs with \(model.sleepSource.rawValue) sleep")
                 .chartYAxisLabel("Sleep Minutes")
@@ -124,21 +134,23 @@ struct DashboardTrendChartsCard: View {
                             x: .value("Date", point.date),
                             y: .value("Recovery %", point.recovery)
                         )
-                        .foregroundStyle(.green)
+                        .foregroundStyle(palette.chart(.green))
                         .interpolationMethod(.linear)
 
                         PointMark(
                             x: .value("Date", point.date),
                             y: .value("Recovery %", point.recovery)
                         )
-                        .foregroundStyle(point.recovery >= 67 ? .green : point.recovery >= 34 ? .orange : .red)
+                        .foregroundStyle(palette.recovery(point.recovery))
+                        .symbol(by: .value("Recovery range", point.recovery >= 67 ? "67–100" : point.recovery >= 34 ? "34–66" : "Below 34"))
                         .symbolSize(30)
                     }
 
                     RuleMark(y: .value("Green Zone", 67))
                         .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
-                        .foregroundStyle(.green.opacity(0.4))
+                        .foregroundStyle(palette.chart(.green).opacity(palette.isNight ? 0.8 : 0.4))
                 }
+                .chartSymbolScale(["67–100": BasicChartSymbolShape.circle, "34–66": .square, "Below 34": .triangle])
                 .chartYScale(domain: 0...100)
                 .chartYAxisLabel("Recovery %")
             }
@@ -153,7 +165,7 @@ struct DashboardTrendChartsCard: View {
                         x: .value("Cohort", entry.name),
                         y: .value("Avg Sleep (min)", entry.value)
                     )
-                    .foregroundStyle(entry.name == "No screens" ? .green : .indigo)
+                    .foregroundStyle(palette.chart(entry.name == "No screens" ? .green : .indigo))
                     .annotation(position: .top) { Text("n=\(entry.count)").font(.caption) }
                 }
                 .chartYAxisLabel("Avg Sleep Minutes")
@@ -168,7 +180,7 @@ struct DashboardTrendChartsCard: View {
                         x: .value("Weekday", entry.name),
                         y: .value("Recorded On-Time %", entry.value)
                     )
-                    .foregroundStyle(.blue.gradient)
+                    .foregroundStyle(palette.timing.gradient)
                     .annotation(position: .top) { Text("\(Int(entry.value.rounded()))%").font(.caption2) }
                 }
                 .chartYScale(domain: 0...100)
@@ -195,6 +207,7 @@ struct DashboardTrendChartsCard: View {
 }
 
 struct DashboardRecentNightsCard: View {
+    @Environment(\.dashboardPalette) private var palette
     let nights: [DashboardNightAggregate]
     var onResolveDuplicateGroup: (StoredEventDuplicateGroup) -> Void
 
@@ -215,13 +228,13 @@ struct DashboardRecentNightsCard: View {
                 ForEach(nights) { night in
                     VStack(alignment: .leading, spacing: 6) {
                         Text(shortDate(night.sessionDate)).font(.subheadline.bold())
-                        Text("Dose timing: \(intervalText(night))").font(.callout).foregroundColor(DashboardPalette.timing)
-                        Text(sleepText(night)).font(.caption).foregroundColor(night.appleHealthSleepMinutes == nil && night.whoopSleepMinutes == nil ? .secondary : DashboardPalette.sleep)
+                        Text("Dose timing: \(intervalText(night))").font(.callout).foregroundColor(palette.timing)
+                        Text(sleepText(night)).font(.caption).foregroundColor(night.appleHealthSleepMinutes == nil && night.whoopSleepMinutes == nil ? .secondary : palette.sleep)
                         if let recovery = night.whoopRecoveryScore {
-                            Text("WHOOP recovery: \(Int(recovery))%").font(.caption).foregroundColor(DashboardPalette.recovery(recovery))
+                            Text("WHOOP recovery: \(Int(recovery))%").font(.caption).foregroundColor(palette.recovery(recovery))
                         }
                         Text("Coverage: \(night.dataCategoryCount)/4 categories")
-                            .font(.caption).foregroundColor(DashboardPalette.coverage)
+                            .font(.caption).foregroundColor(palette.coverage)
                         let duplicates = buildStoredEventDuplicateGroups(events: night.events)
                         if let firstGroup = duplicates.first {
                             Button {
@@ -276,6 +289,7 @@ struct DashboardRecentNightsCard: View {
 }
 
 struct DashboardPeriodComparisonCard: View {
+    @Environment(\.dashboardPalette) private var palette
     @ObservedObject var model: DashboardAnalyticsModel
 
     var body: some View {
@@ -314,7 +328,7 @@ struct DashboardPeriodComparisonCard: View {
     }
 
     private func comparisonColor(_ name: String) -> Color {
-        ["Avg Sleep", "Sleep Quality", "Recovery", "HRV"].contains(name) ? DashboardPalette.sleep : DashboardPalette.timing
+        ["Avg Sleep", "Sleep Quality", "Recovery", "HRV"].contains(name) ? palette.sleep : palette.timing
     }
 
     private func formatValue(_ name: String, _ value: Double) -> String {

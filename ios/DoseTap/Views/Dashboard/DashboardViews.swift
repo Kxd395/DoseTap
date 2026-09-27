@@ -8,6 +8,7 @@ struct DashboardTabView: View {
     @ObservedObject var core: DoseTapCore
     @ObservedObject var eventLogger: EventLogger
     @ObservedObject private var sessionRepo = SessionRepository.shared
+    @ObservedObject private var themeManager = ThemeManager.shared
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.isInSplitView) private var isInSplitView
@@ -27,14 +28,16 @@ struct DashboardTabView: View {
             : [GridItem(.flexible())]
     }
 
+    private var palette: DashboardPalette { DashboardPalette(isNight: themeManager.currentTheme == .night) }
+
     var body: some View {
-        if isInSplitView {
-            dashboardContent
-        } else {
-            NavigationStack {
+        Group {
+            if isInSplitView {
                 dashboardContent
+            } else {
+                NavigationStack { dashboardContent }
             }
-        }
+        }.environment(\.dashboardPalette, palette)
     }
 
     private var rangePicker: some View {
@@ -77,7 +80,7 @@ struct DashboardTabView: View {
                     .accessibilityIdentifier("dashboard-section-picker")
 
                 DisclosureGroup("Dashboard colors & missing data") {
-                    Text("Blue values: dose timing. Purple: sleep and check-ins. Teal: record coverage. Gray: context or no data. Orange review flags need a record check. Chart legends identify their series; WHOOP recovery uses its labeled ranges. Color alone is not a health rating.")
+                    Text(palette.legend)
                         .font(.caption).foregroundColor(.secondary)
                 }.font(.callout).padding(.horizontal).padding(.top, 8)
 

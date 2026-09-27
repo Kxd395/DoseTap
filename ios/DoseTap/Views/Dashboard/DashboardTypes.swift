@@ -198,14 +198,37 @@ struct DashboardMetricCategory: Identifiable {
 
 
 /// Category accents are descriptive, not health or treatment ratings.
-enum DashboardPalette {
-    static let timing: Color = .blue
-    static let sleep: Color = .purple
-    static let coverage: Color = .teal
-    static let review: Color = .orange
+struct DashboardPalette {
+    var isNight = false
+    var timing: Color { chart(.blue) }
+    var sleep: Color { chart(.purple) }
+    var coverage: Color { chart(.teal) }
+    var review: Color { chart(.orange, warmth: 0.6) }
 
-    static func recovery(_ score: Double?) -> Color {
+    /// Input to the existing global filter, not an additional night filter.
+    func chart(_ normal: Color, warmth: Double = 1) -> Color {
+        isNight ? Color(red: 1, green: warmth, blue: warmth * 0.8) : normal
+    }
+
+    var legend: String {
+        isNight
+            ? "Night Mode uses bright warm values. Category labels, chart symbols and series names identify the data. Review flags need a record check; missing data stays labeled. Color alone is not a health rating."
+            : "Blue values: dose timing. Purple: sleep and check-ins. Teal: record coverage. Gray: context or no data. Orange review flags need a record check. Chart legends identify their series; WHOOP recovery uses its labeled ranges. Color alone is not a health rating."
+    }
+
+    func recovery(_ score: Double?) -> Color {
         guard let score else { return .secondary }
-        return score >= 67 ? .green : score >= 34 ? .orange : .red
+        return chart(score >= 67 ? .green : score >= 34 ? .orange : .red)
+    }
+}
+
+private struct DashboardPaletteKey: EnvironmentKey {
+    static let defaultValue = DashboardPalette()
+}
+
+extension EnvironmentValues {
+    var dashboardPalette: DashboardPalette {
+        get { self[DashboardPaletteKey.self] }
+        set { self[DashboardPaletteKey.self] = newValue }
     }
 }
