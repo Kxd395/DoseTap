@@ -24,6 +24,8 @@ final class DashboardReportProjectionTests: XCTestCase {
         let p = try DashboardReportProjection(snapshot: s, now: now)
         XCTAssertEqual(p.sourceID, "exact-phone-id"); XCTAssertEqual(p.doseDays.first?.intervalMinutes, 180)
         XCTAssertEqual(p.doseDays.first?.treatmentDate, "2026-03-07"); XCTAssertEqual(p.validDosePairCount, 1)
+        XCTAssertEqual(p.doseDays.first?.dose2At?.timeIntervalSince(p.doseDays.first!.dose1At!), 10800)
+        XCTAssertEqual(p.doseDays.first?.state, .paired)
     }
     func testDuplicateSkipIdentityAndNonpositiveIntervalsNeverBecomeZero() throws {
         let first = dose("a", "dose1", "2026-03-08T01:00:00Z")
@@ -34,6 +36,18 @@ final class DashboardReportProjectionTests: XCTestCase {
                      [first, dose("b", "dose2", "2026-03-08T01:00:00Z")]] {
             let p = try DashboardReportProjection(snapshot: snapshot([.doseEvents: rows]), now: now)
             XCTAssertNil(p.doseDays.first?.intervalMinutes); XCTAssertEqual(p.validDosePairCount, 0)
+        }
+    }
+    func testFrozenSnapshotDoesNotGainEligibleFutureDoseOnLaterReload() throws {
+        let iso = ISO8601DateFormatter()
+        let future = iso.string(from: now.addingTimeInterval(3600))
+        let s = try snapshot([.doseEvents: [dose("a", "dose1", iso.string(from: now.addingTimeInterval(-7200))),
+            dose("b", "dose2", future)]])
+        for validationTime in [now, now.addingTimeInterval(7200)] {
+            let p = try DashboardReportProjection(snapshot: s, now: validationTime)
+            XCTAssertEqual(p.doseDays.first?.state, .conflict)
+            XCTAssertNil(p.doseDays.first?.intervalMinutes)
+            XCTAssertNil(p.doseDays.first?.dose1At); XCTAssertNil(p.doseDays.first?.dose2At)
         }
     }
     func testLegacyMedicationUsesOccurrenceOffsetNotTreatmentDateOrRecordedTime() throws {
@@ -87,6 +101,7 @@ final class DashboardReportProjectionTests: XCTestCase {
                          [session("sleep_sessions", "one"), session("current_session", "one", date: "2026-03-08")]] {
             let p = try DashboardReportProjection(snapshot: snapshot([.doseEvents: [first, second], .sessions: evidence]), now: now)
             XCTAssertNil(p.doseDays.first?.intervalMinutes); XCTAssertEqual(p.doseDays.first?.status, "Conflicting records")
+            XCTAssertNil(p.doseDays.first?.dose1At); XCTAssertNil(p.doseDays.first?.dose2At)
         }
         let unique = [session("sleep_sessions", "one"), session("current_session", "one"),
                       session("sleep_sessions", "2026-03-07")]

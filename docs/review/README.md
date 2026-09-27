@@ -77,3 +77,5 @@ Each record identifies its version, bounded changes, validation and remaining ga
 - [Dashboard six-month range, coverage and iPad storage](2026-09-26-dashboard-range-storage.md) — DOSETAP-45; provider limits and cross-device boundaries.
 
 - [Separate iPad dashboard and nearby reporting](2026-09-26-nearby-ipad-dashboard.md) — DOSETAP-76; device candidate, paired-transfer and privacy acceptance open.
+
+- [iPad analytics parity and expansion plan](2026-09-26-ipad-analytics-plan.md): richer interval review, captured-night ranges and remaining provider/questionnaire work.

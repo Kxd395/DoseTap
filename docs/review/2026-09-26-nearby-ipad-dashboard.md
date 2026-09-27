@@ -130,3 +130,10 @@ The generated project and plist are ignored; `ipad/project.yml` is authoritative
 The separate iPad CI workflow builds and runs cache/UI tests. Debug-only synthetic
 UI fixtures are excluded from the signed Release iPad build and never read owner
 records. Rolling back the separate app does not roll back or delete phone records.
+
+## Owner readback and next iPad slice
+
+Owner confirmed phone78/iPad3 paired and a report arrived. Basic pairing/arrival
+is accepted; detailed parity and other gates remain open. The next iPad-only
+analytics expansion and its source limits are documented in
+[the analytics plan](2026-09-26-ipad-analytics-plan.md).
