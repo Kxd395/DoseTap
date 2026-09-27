@@ -111,6 +111,8 @@ final class DashboardDiaryAnalysisTests: XCTestCase {
             let point = try XCTUnwrap(analysis(value).points.first)
             XCTAssertNil(point.dose2ToReportedFinalWakeMinutes)
             XCTAssertNil(point.matchedSleepiness0To10)
+            XCTAssertEqual(point.sleepiness0To10, 0)
+            XCTAssertNotNil(point.reportedFinalWakeAt)
         }
     }
     func testLifecycleCannotPromoteNullDosesAndCrossDateIdentityIsConflict() throws {
@@ -144,6 +146,56 @@ final class DashboardDiaryAnalysisTests: XCTestCase {
             XCTAssertEqual(point.pairedIntervalMinutes, 180)
             XCTAssertEqual(point.dose2ToReportedFinalWakeMinutes, 120)
             XCTAssertEqual(point.sleepiness0To10, 0)
+        }
+    }
+
+    func testDifferentDiaryIdentityPreservesObservationButRejectsDoseJoin() throws {
+        let value = try snapshot(outcomeID: "diary-session")
+        let day = try XCTUnwrap(DashboardQuestionnaireProjection(snapshot: value, now: value.capturedAt).days.first)
+        XCTAssertEqual(day.nightOutcome, .recorded)
+        XCTAssertEqual(day.dose2WakeMethod, .alarm)
+        let point = try XCTUnwrap(analysis(value).points.first)
+        XCTAssertEqual(point.sleepiness0To10, 0)
+        XCTAssertNotNil(point.sleepinessAssessedAt); XCTAssertNotNil(point.reportedFinalWakeAt)
+        XCTAssertEqual(point.elapsedExclusion, .identityMismatch)
+        XCTAssertEqual(point.sleepinessExclusion, .identityMismatch)
+        XCTAssertNil(point.matchedSleepiness0To10); XCTAssertNil(point.dose2ToReportedFinalWakeMinutes)
+    }
+    func testSiblingQuestionnaireConflictDoesNotEraseUniqueDiary() throws {
+        for outcomeID in ["session-a", "diary-session"] {
+            let value = try replacing(.morning, in: snapshot(outcomeID: outcomeID)) { _ in
+                ["m1", "m2"].map { id in
+                    ["sourceTable": "morning_checkins", "columns": [
+                        "id": ["type": "text", "text": id],
+                        "session_id": ["type": "text", "text": "sibling-session"],
+                        "session_date": ["type": "text", "text": "2026-09-01"]]]
+                }
+            }
+            let day = try XCTUnwrap(DashboardQuestionnaireProjection(snapshot: value, now: value.capturedAt).days.first)
+            XCTAssertEqual(day.morning, .conflict); XCTAssertEqual(day.nightOutcome, .recorded)
+            let point = try XCTUnwrap(analysis(value).points.first)
+            XCTAssertEqual(point.sleepiness0To10, 0)
+            XCTAssertEqual(point.matchedSleepiness0To10, outcomeID == "session-a" ? 0 : nil)
+            XCTAssertEqual(point.dose2ToReportedFinalWakeMinutes, outcomeID == "session-a" ? 120 : nil)
+            XCTAssertEqual(point.elapsedExclusion, outcomeID == "session-a" ? nil : .identityMismatch)
+        }
+    }
+    func testAmbiguousDiaryStillSuppressedForDuplicateOrCrossDateIdentity() throws {
+        for identity in ["session-a", "2026-09-01"] {
+            for crossDate in [false, true] {
+                let value = try replacing(.normalizedAnswers, in: snapshot(identity: identity, outcomeID: identity)) { rows in
+                    var copy = rows[0], columns = copy["columns"] as! [String: Any]
+                    columns["id"] = ["type": "text", "text": "second-outcome"]
+                    if crossDate { columns["session_date"] = ["type": "text", "text": "2026-09-02"] }
+                    copy["columns"] = columns
+                    return rows + [copy]
+                }
+                for point in try analysis(value).points {
+                    XCTAssertNil(point.sleepiness0To10)
+                    XCTAssertNil(point.matchedSleepiness0To10)
+                    XCTAssertEqual(point.elapsedExclusion, .unavailableDiary)
+                }
+            }
         }
     }
 

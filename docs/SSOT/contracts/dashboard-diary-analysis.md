@@ -13,7 +13,14 @@ Dose and questionnaire projections are constructed from the same snapshot;
 source ID, revision sequence and capture time accompany the result. A dose join
 requires the same treatment date and exact nonempty, non-date-placeholder identity
 on both actual dose rows and the outcome record. Lifecycle identity cannot repair
-NULL dose context. Existing conflict and cross-date identity rules still apply.
+NULL dose context. Dose-pair conflict and cross-date identity rules still apply.
+A unique canonical diary is decoded independently of unrelated dose or sibling
+questionnaire conflicts. A different diary identity preserves raw observations
+but excludes matched metrics with identity mismatch. A missing dose identity
+also cannot erase the diary. Duplicate diaries or a diary identity spanning
+multiple known dates suppress that diary; undated rows do not invent dates.
+Conflicting morning/pre-sleep records retain their own conflict status. An exact
+dose/diary identity match can remain eligible despite an unrelated sibling identity.
 
 Valid stored sleepiness (integer 0–10, including zero) and its explicit assessment
 time remain diary observations even when a dose join is unavailable. Reported

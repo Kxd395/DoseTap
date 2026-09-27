@@ -78,6 +78,13 @@ public struct DashboardQuestionnaireProjection: Sendable {
                 identities[key, default: []].insert(identity); dates[identity, default: []].insert(key)
             }
         }
+        var outcomeDates: [String: Set<String>] = [:]
+        for row in submissions where row.text("checkin_type") == "night_outcome" {
+            if let identity = row.text("session_id"), !identity.isEmpty,
+               let key = row.text("session_date"), Self.isDate(key) {
+                outcomeDates[identity, default: []].insert(key)
+            }
+        }
         var preByDate: [String: [QuestionnaireRow]] = [:], ambiguousPre = Set<String>(), unassigned = 0
         for row in pre {
             guard row.validIdentity, let id = row.text("id"), !id.isEmpty else { throw DashboardSnapshotError.invalidPayload }
@@ -118,7 +125,6 @@ public struct DashboardQuestionnaireProjection: Sendable {
             if conflict {
                 if !m.isEmpty || !mCopies.isEmpty { mState = .conflict }
                 if !p.isEmpty || !pCopies.isEmpty { pState = .conflict }
-                if !o.isEmpty { oState = .conflict }
             } else {
                 if let row = m.first {
                     if let number = row.number("sleep_quality"), number.isFinite, (1...5).contains(number) { quality = number }
@@ -127,20 +133,26 @@ public struct DashboardQuestionnaireProjection: Sendable {
                 if let state = p.first?.text("completion_state") {
                     pState = ["complete": .complete, "partial": .partial, "skipped": .skipped][state] ?? .unavailable
                 }
-                if let row = o.first, row.text("questionnaire_version") == "night_outcome.v1",
-                   let identity = row.text("session_id"), !identity.isEmpty,
-                   row.text("source_record_id") == identity, let raw = row.text("responses_json") {
-                    let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
-                    if let outcome = try? decoder.decode(QuestionnaireOutcome.self, from: Data(raw.utf8)),
-                       outcome.recordedAt.timeIntervalSince1970.isFinite,
-                       outcome.recordedAt <= snapshot.capturedAt,
-                       outcome.answers.validationError(now: outcome.recordedAt) == nil,
-                       outcome.answers.reviewedSleepWindow.map({ $0.sessionID == identity }) ?? true {
-                        oState = .recorded
-                        diary = outcome; diaryIdentity = identity; diarySource = row.text("id")
-                        wake = outcome.answers.wakeMethod == .unknown ? nil : outcome.answers.wakeMethod
-                        following = outcome.answers.dayType == .unknown ? nil : outcome.answers.dayType
-                    }
+            }
+            // A valid diary is an observation even when it cannot join the dose
+            // ledger. Only this diary's ambiguity suppresses its own answers.
+            let outcomeConflict = o.count > 1 || o.contains { row in
+                row.text("session_id").map { dates[$0, default: []].count > 1 || outcomeDates[$0, default: []].count > 1 } ?? false
+            }
+            if outcomeConflict { oState = .conflict }
+            else if let row = o.first, row.text("questionnaire_version") == "night_outcome.v1",
+               let identity = row.text("session_id"), !identity.isEmpty,
+               row.text("source_record_id") == identity, let raw = row.text("responses_json") {
+                let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
+                if let outcome = try? decoder.decode(QuestionnaireOutcome.self, from: Data(raw.utf8)),
+                   outcome.recordedAt.timeIntervalSince1970.isFinite,
+                   outcome.recordedAt <= snapshot.capturedAt,
+                   outcome.answers.validationError(now: outcome.recordedAt) == nil,
+                   outcome.answers.reviewedSleepWindow.map({ $0.sessionID == identity }) ?? true {
+                    oState = .recorded
+                    diary = outcome; diaryIdentity = identity; diarySource = row.text("id")
+                    wake = outcome.answers.wakeMethod == .unknown ? nil : outcome.answers.wakeMethod
+                    following = outcome.answers.dayType == .unknown ? nil : outcome.answers.dayType
                 }
             }
             let sources = (m + p + s).compactMap { row in row.text("id").map { "\(row.sourceTable):\($0)" } }.sorted()
