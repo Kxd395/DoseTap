@@ -53,8 +53,8 @@ public struct DashboardReportStatistics: Sendable {
     /// Timezone is explicit because the v1 envelope does not carry a source zone.
     public static func selected(_ days: [DashboardReportDoseDay], count: Int,
                                 capturedAt: Date, timeZone: TimeZone) -> [DashboardReportDoseDay] {
-        guard count > 0 else { return days }
         let last = sessionKey(for: capturedAt, timeZone: timeZone, rolloverHour: 18)
+        guard count > 0 else { return days.filter { $0.treatmentDate <= last } }
         let format = DateFormatter(); format.calendar = Calendar(identifier: .gregorian)
         format.locale = Locale(identifier: "en_US_POSIX"); format.timeZone = TimeZone(secondsFromGMT: 0)
         format.dateFormat = "yyyy-MM-dd"

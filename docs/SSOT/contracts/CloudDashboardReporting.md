@@ -170,7 +170,7 @@ may leave a revision gap. Corrupt identity state fails closed. The iPad persists
 only after full validation and projection, with complete file protection and
 backup exclusion. A new phone source requires explicitly forgetting the old copy.
 
-The separate iPad target is `com.dosetap.dashboard`, version0.1.0(4), generated
+The separate iPad target is `com.dosetap.dashboard`, version0.1.0(5), generated
 from `ipad/project.yml`. It contains no EventStorage, medication writer or alarm
 service. Initial views are recorded dose spacing, medication calendar occurrences,
 night review states and connection status. All-time medications are explicitly
@@ -188,3 +188,7 @@ beyond snapshot capture are ineligible even when reopened later. Selected ranges
 use capture-time 18:00 rollover in the explicitly named iPad timezone; v1 does not
 carry the phone zone. Report contents exposes source-row inventory without calling
 rows clinical observations. Provider and answer-aware analytics remain separate.
+
+All time removes only the lower date bound. Like shorter ranges, it excludes
+treatment dates after the capture-derived treatment-night key, even if stored
+occurrence timestamps precede capture. Source inventory remains unfiltered.

@@ -24,7 +24,7 @@ Do not copy the phone's current-window classification into historical analytics.
 No historical regimen is reconstructed from today's settings. Dose occurrence is
 not sleep onset; bathroom events are not measured awake durations.
 
-## First expansion: iPad 0.1.0 (4)
+## First expansion: iPad 0.1.0 (5)
 
 - Dark, adaptive overview with average and median spacing, usable-pair denominator,
   and dates containing dose records. No adherence percentage is implied.
@@ -87,3 +87,7 @@ filtering, night detail, report inventory and largest text. Screenshot review fo
 narrow metric columns at accessibility sizes; those now use a single column and
 range selection becomes a menu. Both native journeys passed again after that fix.
 Signed iPad build4 succeeded. Real-record visual usefulness and parity stay open.
+
+PR review caught an All time upper-bound gap. Build 5 applies the captured-night
+cutoff to All time as well, with tests on both sides of 18:00. Build 4 was installed
+as the earlier candidate; build 5 supersedes it. Source rows are not rewritten.

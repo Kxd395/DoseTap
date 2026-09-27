@@ -36,6 +36,7 @@ final class DashboardReportStatisticsTests: XCTestCase {
         let after = try XCTUnwrap(iso.date(from: "2026-03-08T18:00:00-04:00"))
         XCTAssertEqual(DashboardReportStatistics.selected(values, count: 2, capturedAt: before, timeZone: zone).map(\.treatmentDate), ["2026-03-06", "2026-03-07"])
         XCTAssertEqual(DashboardReportStatistics.selected(values, count: 2, capturedAt: after, timeZone: zone).map(\.treatmentDate), ["2026-03-07", "2026-03-08"])
-        XCTAssertEqual(DashboardReportStatistics.selected(values, count: 0, capturedAt: before, timeZone: zone).count, 4)
+        XCTAssertEqual(DashboardReportStatistics.selected(values, count: 0, capturedAt: before, timeZone: zone).map(\.treatmentDate), ["2026-03-06", "2026-03-07"])
+        XCTAssertEqual(DashboardReportStatistics.selected(values, count: 0, capturedAt: after, timeZone: zone).map(\.treatmentDate), ["2026-03-06", "2026-03-07", "2026-03-08"])
     }
 }

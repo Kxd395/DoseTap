@@ -140,7 +140,7 @@ struct DashboardConnection: View {
             if connection.state != .stopped { Button("End connection") { connection.stop() } }
             Text("This app stores a protected local reporting copy, excluded from backup. It cannot edit iPhone records, log a dose or operate alarms. Nearby refresh currently requires both apps in the foreground; background or cloud updates are not enabled.").font(.footnote).foregroundStyle(.secondary)
             Button("Forget downloaded report", role: .destructive) { confirmForget = true }
-            Text("DoseTap Dashboard 0.1.0 (4)").font(.caption).foregroundStyle(.secondary)
+            Text("DoseTap Dashboard 0.1.0 (5)").font(.caption).foregroundStyle(.secondary)
         }.confirmationDialog("Remove this iPad’s reporting copy? Your iPhone records stay unchanged.", isPresented: $confirmForget, titleVisibility: .visible) {
             Button("Forget report", role: .destructive) { model.forgetReport() }
         }
