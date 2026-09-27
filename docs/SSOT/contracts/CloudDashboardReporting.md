@@ -128,7 +128,8 @@ clinical observation counts. Canonical medication payload checks remain active.
 | inventory | inventory_snapshots, supply_state |
 | symptoms | symptom_events, symptom_locations, body_map_points, symptom_command_log, symptom_summaries |
 | workSchedule | work_wake_schedule |
-| appleHealth / whoop | Explicit unavailable; no provider upload or query |
+| appleHealth | Optional connection-scoped bounded sleep query; see [provider contract](dashboard-provider-evidence.md) |
+| whoop | Explicit unavailable; no WHOOP query in this transport |
 
 Repeated source rows across sections retain source identity and must not be counted
 as multiple observations. Derived symptom caches/audit entries are not new symptoms.
@@ -218,3 +219,12 @@ Medications and Night review. It displays total unassigned questionnaire source
 rows without calling them distinct observations. Stored wake answers are not
 reconciled with a valid Dose 2 event and are labeled accordingly. No provider
 measurement is manufactured from local questionnaire or dosing timestamps.
+
+## Apple Health evidence extension — 2026-09-27
+
+The initial provider-unavailable statements above describe the original local-only
+transport. The [bounded provider contract](dashboard-provider-evidence.md) now
+permits an explicit connection-scoped Apple Health sleep query prepared before
+pairing. The SQLite producer remains provider-free; the publisher composes the
+validated packet afterward. WHOOP and reviewed sleep analytics remain unavailable.
+No server or CloudKit upload is added.

@@ -972,3 +972,9 @@ records do not count as answers; zero sleepiness with a valid nonfuture timestam
 is usable. Counts describe recorded nights, not all calendar days or clinical
 confidence. Missing stays missing. Shipping records are local; staging CloudKit
 is not a promise of iPad synchronization.
+
+### Nearby Apple Health evidence (DOSETAP-76)
+
+Optional bounded sleep-source transfer and receiver validation follow the
+[provider evidence contract](contracts/dashboard-provider-evidence.md). This adds
+original provider intervals, not reviewed sleep totals or dose advice.
