@@ -154,6 +154,39 @@ final class DashboardAnalyticsAuditTests: XCTestCase {
         XCTAssertEqual(model.doseEffectivenessReport.totalNights, 1)
     }
 
+    func testNonpositiveSpacingNeedsReviewWithoutErasingRecordedOutcome() {
+        let model = DashboardAnalyticsModel(now: { self.date("2026-09-07").addingTimeInterval(22 * 3600) })
+        model.selectedRange = .all
+        let zero = night("2026-09-01", interval: 0)
+        let reversed = night("2026-09-02", interval: -1)
+        let positive = night("2026-09-03", interval: 180)
+        model.nights = [zero, reversed, positive]
+        XCTAssertNil(zero.exactIntervalMinutes)
+        XCTAssertNil(zero.intervalMinutes)
+        XCTAssertNil(zero.onTimeDosing)
+        XCTAssertNil(reversed.exactIntervalMinutes)
+        XCTAssertEqual(zero.dose2Time, zero.dose1Time, "Preserve the reported instants")
+        XCTAssertEqual(model.recordedPairCount, 1)
+        XCTAssertEqual(model.invalidIntervalCount, 2)
+        XCTAssertEqual(model.averageIntervalMinutes, 180)
+        XCTAssertEqual(model.onTimePercentage, 100)
+        XCTAssertEqual(model.timingCount(.early), 0)
+        XCTAssertEqual(model.timingCount(.inWindow), 1)
+        XCTAssertEqual(model.recordedDose2OutcomeCount, 3)
+        XCTAssertEqual(model.missingDose2OutcomeCount, 0)
+        XCTAssertEqual(model.doseEffectivenessReport.totalNights, 1)
+    }
+
+    func testPositiveSubminuteSpacingAndAbsoluteDSTElapsedRemainEligible() {
+        let fractional = night("2026-09-01", interval: 0.5)
+        XCTAssertEqual(fractional.exactIntervalMinutes, 0.5)
+        XCTAssertEqual(fractional.intervalMinutes, 0)
+        let first = ISO8601DateFormatter().date(from: "2026-11-01T01:30:00-04:00")!
+        let second = ISO8601DateFormatter().date(from: "2026-11-01T01:30:00-05:00")!
+        let crossing = night("2026-10-31", dose1: first, interval: second.timeIntervalSince(first) / 60)
+        XCTAssertEqual(crossing.exactIntervalMinutes, 60)
+    }
+
     func testCanonicalDoseProjectionDoesNotInventDose1() {
         let timestamp = date("2026-09-01")
         let orphan = StoredDoseEvent(id: "orphan", eventType: "dose_2_(late)", timestamp: timestamp, sessionDate: "2026-09-01")

@@ -5,6 +5,7 @@ import DoseCore
 struct ReportOverview: View {
     let report: DashboardReportProjection
     let nights: [DashboardReportDoseDay]
+    let diaryPoints: [DashboardDiaryPoint]
     let open: (String) -> Void
     @Environment(\.dynamicTypeSize) private var typeSize
     private var stats: DashboardReportStatistics { .init(days: nights) }
@@ -23,6 +24,8 @@ struct ReportOverview: View {
                      detail: "All available calendar dates · \(report.unknownMedicationTimeCount) taken times unknown", color: .teal)
                 card("Sleep & check-ins", icon: "moon.stars", value: "Recorded answers",
                      detail: "Subjective sleep quality and questionnaire coverage, separate from wearable sleep", color: .indigo)
+                card("Wake & sleepiness", icon: "sun.horizon", value: "\(diaryPoints.filter { $0.sleepiness0To10 != nil }.count) timed ratings",
+                     detail: "Explicit diary observations, reported final wake and qualified Dose 2 associations", color: .purple)
                 card("Night review", icon: "calendar", value: "\(stats.count(.conflict)) need review",
                      detail: "Conflicting dose records in this range · inspect dates before comparing", color: .orange)
             }

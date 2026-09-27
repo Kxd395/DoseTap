@@ -1010,6 +1010,37 @@ final class DoseTapUITests: XCTestCase {
         app.navigationBars["Morning Check-In"].buttons["Cancel"].tap()
     }
 
+    func testDashboardNightModeKeepsChartSelectionAndReadableLegends() throws {
+        app.buttons["Dashboard"].tap()
+        let theme = app.navigationBars["Dashboard"].buttons["Theme quick switch"]
+        XCTAssertTrue(theme.waitForExistence(timeout: 10))
+        theme.press(forDuration: 1); app.buttons["Dark"].tap()
+        app.segmentedControls["dashboard-range-picker"].buttons["6 Months (180 dates)"].tap()
+        captureDashboard("Dashboard readable dark overview")
+        theme.tap()
+        XCTAssertEqual(theme.value as? String, "Night Mode")
+        XCTAssertTrue(app.segmentedControls["dashboard-range-picker"].buttons["6 Months (180 dates)"].isSelected)
+        captureDashboard("Dashboard readable Night Mode overview")
+        app.segmentedControls["dashboard-section-picker"].buttons["Trends"].tap()
+        revealDashboardText("Interactive Trends")
+        revealDashboardText("Circles: inside; diamonds: outside. Built-in recorded-spacing reference: 150–240 minutes inclusive, not a historical prescription.")
+        captureDashboard("Night Mode spacing symbols and legend")
+        let chartPicker = app.buttons["dashboard-trend-picker"]
+        for _ in 0..<5 where chartPicker.frame.minY < app.navigationBars["Dashboard"].frame.maxY + 12 {
+            app.swipeDown(velocity: .slow)
+        }
+        XCTAssertTrue(chartPicker.isHittable)
+        chartPicker.tap()
+        XCTAssertTrue(app.buttons["Cohorts"].waitForExistence(timeout: 5))
+        app.buttons["Cohorts"].tap()
+        captureDashboard("Night Mode labeled cohorts")
+        theme.press(forDuration: 1); app.buttons["Dark"].tap()
+        XCTAssertEqual(theme.value as? String, "Dark")
+        XCTAssertTrue(app.buttons["dashboard-trend-picker"].label.contains("Cohorts"))
+        revealDashboardText("Indigo: screens. Green: no screens. Colors identify groups, not better sleep.")
+        captureDashboard("Dark mode retains selected cohort chart")
+    }
+
     func testDashboardSixMonthLargeTextMenu() throws {
         app.terminate()
         app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]

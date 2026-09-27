@@ -1,6 +1,8 @@
 # Private cloud dashboard reporting
 
-Status: nearby device candidate, DOSETAP-76 In Progress. Owner pairing acceptance remains open.
+Status: nearby device candidate, DOSETAP-76 In Progress. Owner confirmed basic
+pairing and report arrival; full field parity, analytics, reconnection, accessibility,
+privacy/security and release acceptance remain open.
 
 ## Transport correction, 2026-09-26
 

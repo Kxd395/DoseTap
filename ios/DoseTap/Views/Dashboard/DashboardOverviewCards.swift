@@ -2,6 +2,7 @@ import SwiftUI
 import DoseCore
 
 struct DashboardExecutiveSummaryCard: View {
+    @Environment(\.dashboardPalette) private var palette
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ObservedObject var model: DashboardAnalyticsModel
     @ObservedObject var core: DoseTapCore
@@ -16,16 +17,16 @@ struct DashboardExecutiveSummaryCard: View {
                 kpi("Pending Dose 2", "\(model.pendingDose2OutcomeCount)")
                 kpi("Finished-night streak", "\(model.finishedNightStreak) nights")
                 kpi("Nights with data", "\(model.populatedNights.count)")
-                kpi("Coverage · 3+ categories", "\(model.threeCategoryNightCount) nights", color: DashboardPalette.coverage)
-                kpi("WHOOP Recovery", model.averageWhoopRecovery.map { String(format: "%.0f%%", $0) } ?? "No data", color: DashboardPalette.recovery(model.averageWhoopRecovery))
-                kpi("WHOOP HRV", model.averageWhoopHRV.map { String(format: "%.0f ms", $0) } ?? "No data", color: DashboardPalette.sleep)
+                kpi("Coverage · 3+ categories", "\(model.threeCategoryNightCount) nights", color: palette.coverage)
+                kpi("WHOOP Recovery", model.averageWhoopRecovery.map { String(format: "%.0f%%", $0) } ?? "No data", color: palette.recovery(model.averageWhoopRecovery))
+                kpi("WHOOP HRV", model.averageWhoopHRV.map { String(format: "%.0f ms", $0) } ?? "No data", color: palette.sleep)
             }
             Text("In-window rate uses \(model.recordedPairCount) valid recorded pairs. Outcomes: \(model.recordedDose2OutcomeCount)/\(model.eligibleDose2OutcomeCount), including explicit skips; pending nights are excluded.")
                 .font(.caption).foregroundColor(.secondary)
             Text("Streak ends with the previous night, resets at gaps and is limited to this range. Coverage counts records, not confidence.")
                 .font(.caption).foregroundColor(.secondary)
             Label(tonightStatus, systemImage: "moon")
-                .font(.callout).foregroundColor(DashboardPalette.timing)
+                .font(.callout).foregroundColor(palette.timing)
             if let lastRefresh = model.lastRefresh {
                 Text("Updated \(lastRefresh.formatted(date: .omitted, time: .shortened))")
                     .font(.caption2).foregroundColor(.secondary)
@@ -35,10 +36,10 @@ struct DashboardExecutiveSummaryCard: View {
         .padding().background(RoundedRectangle(cornerRadius: 16).fill(Color(.systemGray6)))
     }
 
-    private func kpi(_ title: String, _ value: String, color: Color = DashboardPalette.timing) -> some View {
+    private func kpi(_ title: String, _ value: String, color: Color? = nil) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title).font(.caption).foregroundColor(.secondary)
-            Text(value).font(.title2.bold()).foregroundColor(value == "No data" || value == "—" ? .secondary : color)
+            Text(value).font(.title2.bold()).foregroundColor(value == "No data" || value == "—" ? .secondary : (color ?? palette.timing))
         }.accessibilityElement(children: .combine)
     }
 
@@ -55,6 +56,7 @@ struct DashboardExecutiveSummaryCard: View {
 }
 
 struct DashboardDosingSnapshotCard: View {
+    @Environment(\.dashboardPalette) private var palette
     @ObservedObject var model: DashboardAnalyticsModel
 
     var body: some View {
@@ -65,8 +67,9 @@ struct DashboardDosingSnapshotCard: View {
             metricRow(title: "Avg logged snoozes", value: model.averageSnoozeCount.map { String(format: "%.1f", $0) } ?? "No data")
             metricRow(title: "Missing Dose 2 Outcomes", value: "\(model.missingDose2OutcomeCount)")
             metricRow(title: "Duplicate Nights", value: "\(model.duplicateNightCount)")
-            metricRow(title: "Record review flags", value: "\(model.duplicateNightCount + model.missingDose2OutcomeCount)")
-            Text("Review flags count duplicate-event nights and unrecorded Dose 2 outcomes; one night may contribute both.")
+            metricRow(title: "Intervals needing review", value: "\(model.invalidIntervalCount)")
+            metricRow(title: "Record review flags", value: "\(model.duplicateNightCount + model.missingDose2OutcomeCount + model.invalidIntervalCount)")
+            Text("Review flags count duplicate-event nights, unrecorded Dose 2 outcomes and invalid intervals; one night may contribute more than one issue. Equal or reversed dose times stay recorded but are excluded from spacing summaries.")
                 .font(.caption).foregroundColor(.secondary)
             metricRow(title: "Early pairs", value: "\(model.timingCount(.early))")
             metricRow(title: "In-window pairs", value: "\(model.timingCount(.inWindow))")
@@ -91,7 +94,7 @@ struct DashboardDosingSnapshotCard: View {
             Spacer()
             Text(value)
                 .font(.subheadline.weight(.semibold))
-                .foregroundColor(value == "No data" ? .secondary : (title == "Record review flags" && value != "0" ? DashboardPalette.review : DashboardPalette.timing))
+                .foregroundColor(value == "No data" ? .secondary : (title == "Record review flags" && value != "0" ? palette.review : palette.timing))
         }
     }
 
@@ -102,6 +105,7 @@ struct DashboardDosingSnapshotCard: View {
 }
 
 struct DashboardSleepSnapshotCard: View {
+    @Environment(\.dashboardPalette) private var palette
     @ObservedObject var model: DashboardAnalyticsModel
 
     var body: some View {
@@ -134,14 +138,14 @@ struct DashboardSleepSnapshotCard: View {
         )
     }
 
-    private func metricRow(title: String, value: String, color: Color = DashboardPalette.sleep) -> some View {
+    private func metricRow(title: String, value: String, color: Color? = nil) -> some View {
         HStack {
             Text(title)
                 .font(.subheadline)
             Spacer()
             Text(value)
                 .font(.subheadline.weight(.semibold))
-                .foregroundColor(value == "No data" ? .secondary : color)
+                .foregroundColor(value == "No data" ? .secondary : (color ?? palette.sleep))
         }
     }
 
@@ -151,11 +155,12 @@ struct DashboardSleepSnapshotCard: View {
     }
 
     private func recoveryColor(_ score: Double) -> Color {
-        DashboardPalette.recovery(score)
+        palette.recovery(score)
     }
 }
 
 struct DashboardWHOOPCard: View {
+    @Environment(\.dashboardPalette) private var palette
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ObservedObject var model: DashboardAnalyticsModel
 
@@ -197,10 +202,10 @@ struct DashboardWHOOPCard: View {
             Divider()
 
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: dynamicTypeSize.isAccessibilitySize ? 1 : 2), spacing: 10) {
-                biometricTile(icon: "waveform.path.ecg", title: "HRV", value: model.averageWhoopHRV.map { String(format: "%.0f ms", $0) } ?? "No data", color: DashboardPalette.sleep)
-                biometricTile(icon: "heart.fill", title: "Resting HR", value: model.averageWhoopRestingHR.map { String(format: "%.0f bpm", $0) } ?? "No data", color: DashboardPalette.sleep)
-                biometricTile(icon: "moon.fill", title: "Sleep Efficiency", value: model.averageWhoopSleepEfficiency.map { String(format: "%.0f%%", $0) } ?? "No data", color: DashboardPalette.sleep)
-                biometricTile(icon: "lungs.fill", title: "Respiratory Rate", value: model.averageWhoopRespiratoryRate.map { String(format: "%.1f brpm", $0) } ?? "No data", color: DashboardPalette.sleep)
+                biometricTile(icon: "waveform.path.ecg", title: "HRV", value: model.averageWhoopHRV.map { String(format: "%.0f ms", $0) } ?? "No data", color: palette.sleep)
+                biometricTile(icon: "heart.fill", title: "Resting HR", value: model.averageWhoopRestingHR.map { String(format: "%.0f bpm", $0) } ?? "No data", color: palette.sleep)
+                biometricTile(icon: "moon.fill", title: "Sleep Efficiency", value: model.averageWhoopSleepEfficiency.map { String(format: "%.0f%%", $0) } ?? "No data", color: palette.sleep)
+                biometricTile(icon: "lungs.fill", title: "Respiratory Rate", value: model.averageWhoopRespiratoryRate.map { String(format: "%.1f brpm", $0) } ?? "No data", color: palette.sleep)
             }
             if model.averageWhoopDeepMinutes == nil && model.averageWhoopREMMinutes == nil {
                 Text("Sleep stages: No complete stage readings").font(.callout).foregroundColor(.secondary)
@@ -222,19 +227,22 @@ struct DashboardWHOOPCard: View {
                     .foregroundColor(.secondary)
 
                 sleepStageBar
+                if palette.isNight {
+                    Text("Stack order: Light, Deep, REM. Awake is shown separately below.").font(.caption)
+                }
 
                 VStack(alignment: .leading, spacing: 8) {
                     if let light = model.averageWhoopLightMinutes {
-                        stageLegend(label: "Light", value: formatMin(light), color: .blue)
+                        stageLegend(label: "Light", value: formatMin(light), color: palette.chart(.blue))
                     }
                     if let awake = model.averageWhoopAwakeMinutes {
                         stageLegend(label: "Awake (outside sleep total)", value: formatMin(awake), color: .gray)
                     }
                     if let deep = model.averageWhoopDeepMinutes {
-                        stageLegend(label: "Deep", value: formatMin(deep), color: .indigo)
+                        stageLegend(label: "Deep", value: formatMin(deep), color: palette.chart(.indigo, warmth: 0.7))
                     }
                     if let rem = model.averageWhoopREMMinutes {
-                        stageLegend(label: "REM", value: formatMin(rem), color: .cyan)
+                        stageLegend(label: "REM", value: formatMin(rem), color: palette.chart(.cyan, warmth: 0.4))
                     }
                     if let dist = model.averageWhoopDisturbances {
                         stageLegend(label: "Disturbances", value: String(format: "%.1f", dist), color: .orange)
@@ -294,12 +302,12 @@ struct DashboardWHOOPCard: View {
         if total > 0 {
             GeometryReader { geo in
                 HStack(spacing: 0) {
-                    Color.blue.frame(width: geo.size.width * CGFloat(light / total))
+                    palette.chart(.blue).frame(width: geo.size.width * CGFloat(light / total))
                     RoundedRectangle(cornerRadius: 3)
-                        .fill(Color.indigo)
+                        .fill(palette.chart(.indigo, warmth: 0.7))
                         .frame(width: geo.size.width * CGFloat(deep / total))
                     RoundedRectangle(cornerRadius: 3)
-                        .fill(Color.cyan)
+                        .fill(palette.chart(.cyan, warmth: 0.4))
                         .frame(width: geo.size.width * CGFloat(rem / total))
                 }
             }
@@ -319,7 +327,7 @@ struct DashboardWHOOPCard: View {
     }
 
     private func whoopRecoveryColor(_ score: Double) -> Color {
-        DashboardPalette.recovery(score)
+        palette.recovery(score)
     }
 
     private func recoveryLabel(_ score: Double) -> String {
@@ -337,6 +345,7 @@ struct DashboardWHOOPCard: View {
 }
 
 struct DashboardDataQualityCard: View {
+    @Environment(\.dashboardPalette) private var palette
     @ObservedObject var model: DashboardAnalyticsModel
 
     var body: some View {
@@ -349,13 +358,13 @@ struct DashboardDataQualityCard: View {
                 .font(.caption).foregroundColor(.secondary)
             Text("Morning check-in rate: \(model.morningCheckInRate.map { String(format: "%.0f%%", $0) } ?? "No data")")
                 .font(.subheadline)
-                .foregroundColor(model.morningCheckInRate == nil ? .secondary : DashboardPalette.coverage)
+                .foregroundColor(model.morningCheckInRate == nil ? .secondary : palette.coverage)
             Text("Pre-sleep log rate: \(model.preSleepLogRate.map { String(format: "%.0f%%", $0) } ?? "No data")")
                 .font(.subheadline)
-                .foregroundColor(model.preSleepLogRate == nil ? .secondary : DashboardPalette.coverage)
+                .foregroundColor(model.preSleepLogRate == nil ? .secondary : palette.coverage)
             Text("Nights without Apple Health data: \(model.missingHealthSummaryCount)")
                 .font(.subheadline)
-                .foregroundColor(DashboardPalette.coverage)
+                .foregroundColor(palette.coverage)
             coverage("\(model.sleepSource.rawValue) sleep readings", available: model.sleepSampleCount)
             coverage("Following-day work/off answer", available: model.explicitDayTypeCount)
             coverage("Timed sleepiness 0–10", available: model.timedSleepinessCount)
@@ -366,12 +375,12 @@ struct DashboardDataQualityCard: View {
                 .font(.caption).foregroundColor(.secondary)
             Text("Nights with duplicate event clusters: \(model.duplicateNightCount)")
                 .font(.subheadline)
-                .foregroundColor(DashboardPalette.coverage)
+                .foregroundColor(palette.coverage)
             Text("Categories: dose outcome, sleep reading, morning check-in, completed pre-sleep log.")
                 .font(.caption).foregroundColor(.secondary)
             Text("Nights with at least 3 of 4 data categories: \(model.threeCategoryNightCount)")
                 .font(.subheadline)
-                .foregroundColor(DashboardPalette.coverage)
+                .foregroundColor(palette.coverage)
             if let error = model.errorMessage, !error.isEmpty {
                 Text(error)
                     .font(.caption)
@@ -388,12 +397,13 @@ struct DashboardDataQualityCard: View {
 
     private func coverage(_ title: String, available: Int) -> some View {
         Text("\(title): \(available)/\(model.populatedNights.count) available · \(max(0, model.populatedNights.count - available)) missing")
-            .font(.subheadline).foregroundColor(DashboardPalette.coverage)
+            .font(.subheadline).foregroundColor(palette.coverage)
     }
 
 }
 
 struct DashboardIntegrationsCard: View {
+    @Environment(\.dashboardPalette) private var palette
     let states: [DashboardIntegrationState]
 
     var body: some View {
@@ -410,7 +420,7 @@ struct DashboardIntegrationsCard: View {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack {
                             Circle()
-                                .fill(state.color)
+                                .fill(palette.chart(state.color))
                                 .frame(width: 8, height: 8)
                             Text(state.name)
                                 .font(.subheadline.bold())

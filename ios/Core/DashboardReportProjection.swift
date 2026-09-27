@@ -15,6 +15,13 @@ public struct DashboardReportDoseDay: Identifiable, Sendable {
     public var status: String { state.rawValue }
     public let dose1At: Date?
     public let dose2At: Date?
+    /// Identity on both actual dose rows; never inferred from lifecycle context.
+    public let doseSessionID: String?
+    init(treatmentDate: String, intervalMinutes: Double?, state: DashboardDoseDayState,
+         dose1At: Date?, dose2At: Date?, doseSessionID: String? = nil) {
+        self.treatmentDate = treatmentDate; self.intervalMinutes = intervalMinutes; self.state = state
+        self.dose1At = dose1At; self.dose2At = dose2At; self.doseSessionID = doseSessionID
+    }
 }
 
 public struct DashboardReportMedicationEntry: Identifiable, Sendable {
@@ -106,7 +113,10 @@ public struct DashboardReportProjection: Sendable {
             }
             return DashboardReportDoseDay(treatmentDate: key, intervalMinutes: interval, state: state,
                 dose1At: !conflict && first.count == 1 ? Self.timestamp(first[0].text("timestamp")) : nil,
-                dose2At: !conflict && second.count == 1 ? Self.timestamp(second[0].text("timestamp")) : nil)
+                dose2At: !conflict && second.count == 1 ? Self.timestamp(second[0].text("timestamp")) : nil,
+                doseSessionID: state == .paired ? first.first?.text("session_id").flatMap {
+                    !$0.isEmpty && $0 == second.first?.text("session_id") && $0.range(of: "^\\d{4}-\\d{2}-\\d{2}$", options: .regularExpression) == nil ? $0 : nil
+                } : nil)
         }
         var entries: [DashboardReportMedicationEntry] = []
         for row in try rows(.medicationEntries, tables: ["medication_events"]) {
