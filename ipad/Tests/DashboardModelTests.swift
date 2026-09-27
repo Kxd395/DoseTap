@@ -107,4 +107,18 @@ final class DashboardModelTests: XCTestCase {
         XCTAssertEqual(model.error, "Pairing code could not be accepted.")
         model.request(); XCTAssertNotNil(model.error); XCTAssertNil(model.snapshot)
     }
+    func testUnassignedQuestionnaireRemainsInSavedReportAcrossRestart() throws {
+        let url = try temporaryURL(), model = DashboardModel(cacheURL: url, now: { self.now })
+        var snapshot = fixture()
+        let index = try XCTUnwrap(snapshot.sections.firstIndex { $0.dataset == .morning })
+        let rows = Data(#"[{"sourceTable":"morning_checkins","columns":{"id":{"type":"text","text":"orphan"},"session_id":{"type":"null"},"session_date":{"type":"null"},"sleep_quality":{"type":"real","real":3}}}]"#.utf8)
+        snapshot.sections[index] = .init(dataset: .morning, rows: rows, rowCount: 1)
+        try accept(snapshot, into: model)
+        XCTAssertNil(model.error); XCTAssertEqual(model.questionnaires?.unassignedSourceRowCount, 1)
+        XCTAssertEqual(model.questionnaires?.days.count, 0)
+        let reopened = DashboardModel(cacheURL: url, now: { self.now })
+        XCTAssertNil(reopened.error); XCTAssertEqual(reopened.snapshot, snapshot)
+        XCTAssertEqual(reopened.questionnaires?.unassignedSourceRowCount, 1)
+        reopened.forgetReport(); XCTAssertNil(reopened.questionnaires)
+    }
 }
