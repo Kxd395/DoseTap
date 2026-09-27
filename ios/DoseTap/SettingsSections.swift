@@ -252,6 +252,9 @@ extension SettingsView {
             }
 
             Section {
+                NavigationLink(destination: DashboardTransferView()) {
+                    Label("Connect iPad Dashboard", systemImage: "ipad.and.iphone")
+                }.accessibilityIdentifier("settings.dashboardConnection")
                 Button {
                     exportData(format: .excelWorkbook)
                 } label: {

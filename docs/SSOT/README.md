@@ -934,6 +934,21 @@ time (which may be import time), and links the export meaning to Medication
 Log / Confirmed Medications sheets and ZIP insights_bundle.json. Read errors are
 visible, not empty success. No records are copied into nighttime dose history.
 
+### Separate cloud dashboard reporting foundation (DOSETAP-76)
+
+[Cloud dashboard reporting](contracts/CloudDashboardReporting.md) defines a
+one-way private reporting feed for a separate iPad app. The core snapshot validator
+and in-memory acceptance reducer reject incomplete, stale, corrupt or wrong-context
+refreshes. The subsequent nearby slice adds a separate iPad target, protected report cache
+and explicit foreground pairing. Clinical cloud uploads remain disabled. See
+[nearby iPad delivery](../review/2026-09-26-nearby-ipad-dashboard.md) for validation
+and acceptance gates. Phone records and alarms remain phone-owned.
+
+Cloud dashboard transport correction (DOSETAP-76): clinical CloudKit publishing
+remains disabled because Apple5.1.3(ii) restricts personal health information in
+iCloud. The owner selected investigation of both a private-server feed and direct
+nearby device transfer. The reporting validator remains transport-independent; an
+explicit not-collected amendment section cannot be mistaken for zero amendments.
 ### Six-month dashboard and measurement coverage (DOSETAP-45, build76)
 
 The dashboard adds 6M between90D and1Y, defined as180 inclusive treatment dates.

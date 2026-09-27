@@ -9,5 +9,21 @@
   "physical_review_required_when_supported": [
     "watch app installation, state parity, offline behavior, and action routing",
     "widget and complication timeline refresh across medication-state transitions"
+  ],
+  "support_scope": "watchOS and widgets; separate reporting apps listed independently",
+  "read_only_reporting_apps": [
+    {
+      "name": "DoseTap Dashboard",
+      "bundle_id": "com.dosetap.dashboard",
+      "project_spec": "ipad/project.yml",
+      "status": "device_candidate_acceptance_open",
+      "ci_workflow": ".github/workflows/ci-ipad.yml",
+      "acceptance": [
+        "explicit physical pairing and report parity",
+        "disconnect/retry and permissions",
+        "protected cache and privacy release review",
+        "VoiceOver and owner readability"
+      ]
+    }
   ]
 }

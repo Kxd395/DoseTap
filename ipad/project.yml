@@ -1,0 +1,72 @@
+name: DoseTapDashboard
+options:
+  minimumXcodeGenVersion: 2.46.0
+  deploymentTarget:
+    iOS: '17.0'
+packages:
+  DoseTap:
+    path: ..
+settings:
+  base:
+    SWIFT_VERSION: '5.0'
+    DEVELOPMENT_TEAM: PJ487S8PS6
+    CODE_SIGN_STYLE: Automatic
+    TARGETED_DEVICE_FAMILY: '2'
+    MARKETING_VERSION: 0.1.0
+    CURRENT_PROJECT_VERSION: '3'
+targets:
+  DoseTapDashboard:
+    type: application
+    platform: iOS
+    sources: [Sources]
+    dependencies:
+      - package: DoseTap
+        product: DoseCore
+      - package: DoseTap
+        product: DoseTapNearby
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dosetap.dashboard
+        PRODUCT_NAME: DoseTapDashboard
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: DoseTap Dashboard
+    info:
+      path: Generated/Info.plist
+      properties:
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        NSLocalNetworkUsageDescription: Connect to your paired iPhone to receive a read-only DoseTap report.
+        NSBonjourServices: [_dt-report._tcp]
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+  DoseTapDashboardTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [Tests]
+    dependencies:
+      - target: DoseTapDashboard
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dosetap.dashboard.tests
+        GENERATE_INFOPLIST_FILE: YES
+  DoseTapDashboardUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies:
+      - target: DoseTapDashboard
+      - package: DoseTap
+        product: DoseCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dosetap.dashboard.uitests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  DoseTapDashboard:
+    build:
+      targets:
+        DoseTapDashboard: all
+    run:
+      config: Debug
+    test:
+      targets: [DoseTapDashboardTests, DoseTapDashboardUITests]

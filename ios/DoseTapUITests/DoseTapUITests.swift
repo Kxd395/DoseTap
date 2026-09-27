@@ -18,7 +18,7 @@ final class DoseTapUITests: XCTestCase {
             app.launchArguments += ["--uitesting-auto-night-reset", "-setup_completed_v2", "YES", "-quicklog_buttons_json", "", "-cooldown_bathroom", "10", "-cooldown_water", "10", "-healthkit_enabled", "NO", "-whoop_enabled", "NO"]
             if name.contains("BeforeDose2") { app.launchArguments.append("--uitesting-quick-log-waiting") }
         }
-        if name.contains("testExcelWorkbookExport") {
+        if name.contains("testExcelWorkbookExport") || name.contains("testNearbyDashboardPublisher") {
             app.launchArguments += ["-setup_completed_v2", "YES", "-healthkit_enabled", "NO", "-whoop_enabled", "NO"]
         }
         if name.contains("testPreSleepAutomaticSetup") {
@@ -82,6 +82,23 @@ final class DoseTapUITests: XCTestCase {
             app.launch()
         }
         app = nil
+    }
+
+    func testNearbyDashboardPublisherIsExplicitAndReadOnly() {
+        let settings = app.buttons["Settings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 15)); settings.tap()
+        let link = app.buttons["settings.dashboardConnection"]
+        let interior = app.frame.insetBy(dx: 0, dy: app.frame.height * 0.2)
+        for _ in 0..<18 {
+            if link.exists && interior.contains(link.frame) { break }
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.65))
+                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4)))
+        }
+        XCTAssertTrue(link.exists); link.tap()
+        XCTAssertTrue(app.buttons["dashboard-transfer-start"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Not connected"].exists)
+        XCTAssertFalse(app.staticTexts["dashboard-pairing-code"].exists)
+        captureDashboard("Explicit nearby dashboard publisher")
     }
 
     func testExcelWorkbookExportPresentsCompletedShareSheet() {

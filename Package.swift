@@ -9,14 +9,19 @@ let package = Package(
         .watchOS(.v9)
     ],
     products: [
-        .library(name: "DoseCore", targets: ["DoseCore"])
+        .library(name: "DoseCore", targets: ["DoseCore"]),
+        .library(name: "DoseTapNearby", targets: ["DoseTapNearby"])
     ],
     targets: [
+        .target(name: "DoseTapNearby", path: "ios/DashboardShared"),
+        .testTarget(name: "DoseTapNearbyTests", dependencies: ["DoseTapNearby"], path: "Tests/DoseTapNearbyTests"),
         .target(
             name: "DoseCore",
             path: "ios/Core",
             sources: [
                 "DoseWindowState.swift",
+                "CloudDashboardSnapshot.swift",
+                "DashboardReportProjection.swift",
                 "APIErrors.swift",
                 "OfflineQueue.swift",
                 "EventRateLimiter.swift",
@@ -83,6 +88,8 @@ let package = Package(
                 "StudioWorkbookPresetTests.swift",
                 "StudioMedicationLedgerFormatTests.swift",
                 "DoseWindowStateTests.swift",
+                "CloudDashboardSnapshotTests.swift",
+                "DashboardReportProjectionTests.swift",
                 "APIErrorsTests.swift",
                 "APIClientTests.swift",
                 "OfflineQueueTests.swift",
