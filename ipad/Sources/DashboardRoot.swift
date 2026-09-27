@@ -118,32 +118,41 @@ struct DashboardRoot: View {
 struct DashboardConnection: View {
     @ObservedObject var model: DashboardModel
     @ObservedObject var connection: NearbyReportingSession
-    @State private var code = ""
     @State private var confirmForget = false
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             Text("Nearby iPhone connection").font(.title2.bold())
-            Text("On your iPhone, open Settings → Connect iPad Dashboard. Start sharing, then enter its temporary pairing code here. Keep both apps open nearby. Accept the invitation on your iPhone.")
+            Text("On your iPhone, open Settings → Connect iPad Dashboard. Start nearby reporting. Select your phone below and accept its invitation. Then confirm the same six digits on both devices. Keep both apps open; no copying or typing is needed.")
             Text("Status: \(String(describing: connection.state))").font(.headline)
             if let message = connection.errorMessage { Text(message).foregroundStyle(.red) }
             if connection.state == .stopped || connection.state == .failed {
                 Button("Find my iPhone") { connection.start() }.buttonStyle(.borderedProminent)
             }
             if connection.state == .discovering {
-                SecureField("64-character pairing code", text: $code).textInputAutocapitalization(.never).autocorrectionDisabled().textFieldStyle(.roundedBorder)
+                if connection.discoveredPeers.isEmpty {
+                    Text("No iPhone found yet. On your iPhone, open DoseTap → Settings → Data Management → Connect iPad Dashboard → Start nearby reporting. Allow Local Network access and keep both apps open nearby. Finding devices does not start sharing on the phone automatically.")
+                }
                 ForEach(connection.discoveredPeers, id: \.self) { peer in
                     Button("Connect to \(peer.displayName)") {
-                        do { try connection.connect(to: peer, pairingCode: code); code = "" }
-                        catch { model.presentConnectionError("Check the complete pairing code and try again.") }
+                        do { try connection.connect(to: peer) }
+                        catch { model.presentConnectionError("Could not start the connection. Start discovery again.") }
                     }.buttonStyle(.bordered)
                 }
-                Text("Device names are discovery labels. The pairing code authenticates the connection.").font(.footnote)
+                Text("Device names are discovery labels. Compare the six digits on both devices before confirming.").font(.footnote)
+            }
+            if let code = connection.pairingCode {
+                Text(code).font(.system(.largeTitle, design: .monospaced)).bold().privacySensitive()
+                Text("Do these six digits match the code on your iPhone?")
+                Button("Codes match") { connection.confirmMatchingCode() }
+                    .buttonStyle(.borderedProminent).disabled(connection.codeConfirmed)
+                if connection.codeConfirmed { Text("Confirmed here. Confirm on the iPhone too.") }
+                Button("Codes do not match", role: .destructive) { connection.stop() }
             }
             if connection.state == .paired { Button("Refresh report from iPhone") { model.request() }.buttonStyle(.borderedProminent) }
-            if connection.state != .stopped { Button("End connection") { connection.stop(); code = "" } }
+            if connection.state != .stopped { Button("End connection") { connection.stop() } }
             Text("This app stores a protected local reporting copy, excluded from backup. It cannot edit iPhone records, log a dose or operate alarms. Nearby refresh currently requires both apps in the foreground; background or cloud updates are not enabled.").font(.footnote).foregroundStyle(.secondary)
             Button("Forget downloaded report", role: .destructive) { confirmForget = true }
-            Text("DoseTap Dashboard 0.1.0 (2)").font(.caption).foregroundStyle(.secondary)
+            Text("DoseTap Dashboard 0.1.0 (3)").font(.caption).foregroundStyle(.secondary)
         }.confirmationDialog("Remove this iPad’s reporting copy? Your iPhone records stay unchanged.", isPresented: $confirmForget, titleVisibility: .visible) {
             Button("Forget report", role: .destructive) { model.forgetReport() }
         }

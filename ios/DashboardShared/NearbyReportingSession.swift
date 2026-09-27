@@ -34,12 +34,12 @@ final class NearbyInboundBudget: @unchecked Sendable {
 }
 
 /// Foreground, one-peer reporting only. Names and discovery are untrusted.
-/// Requires a fresh publisher code exchanged through a trusted local channel.
+/// Requires explicit six-digit comparison on both foreground devices.
 /// Clinical payloads are opaque; the receiver must separately validate/cache them.
 @MainActor
 public final class NearbyReportingSession: NSObject, ObservableObject {
     public typealias Role = NearbyReportingCodec.Role
-    public enum State { case stopped, discovering, invitation, connecting, authenticating, paired, failed }
+    public enum State { case stopped, discovering, invitation, connecting, authenticating, verifying, paired, failed }
     public enum Failure: Error { case invalidState }
     public nonisolated static let maximumSnapshotBytes = NearbyReportingCodec.maximumSnapshotBytes
     private static let serviceType = "dt-report"
@@ -48,6 +48,7 @@ public final class NearbyReportingSession: NSObject, ObservableObject {
     @Published public private(set) var discoveredPeers: [MCPeerID] = []
     @Published public private(set) var invitationPeer: MCPeerID?
     @Published public private(set) var pairingCode: String?
+    @Published public private(set) var codeConfirmed = false
     @Published public private(set) var errorMessage: String?
     public private(set) var contextID = UUID()
     public var onSnapshot: ((Data, UUID) -> Void)?
@@ -60,6 +61,7 @@ public final class NearbyReportingSession: NSObject, ObservableObject {
     private var invitation: ((Bool, MCSession?) -> Void)?
     private var peer: MCPeerID?
     private var codec: NearbyReportingCodec?
+    private var verification: NearbyPairingVerification?
     private var timeout: Task<Void, Never>?
     public init(role: Role) { self.role = role; super.init() }
 
@@ -69,9 +71,7 @@ public final class NearbyReportingSession: NSObject, ObservableObject {
         let next = MCSession(peer: identity, securityIdentity: nil, encryptionPreference: .required)
         session = next; inboundBudget.configure(next); next.delegate = self; state = .discovering
         if role == .publisher {
-            let key = NearbyReportingCodec.randomBytes()
-            do { codec = try NearbyReportingCodec(role: role, key: key) } catch { abort(); return }
-            pairingCode = NearbyReportingCodec.code(for: key)
+            verification = NearbyPairingVerification(role: role)
             let service = MCNearbyServiceAdvertiser(peer: identity, discoveryInfo: nil, serviceType: Self.serviceType)
             advertiser = service; service.delegate = self; service.startAdvertisingPeer()
         } else {
@@ -85,13 +85,13 @@ public final class NearbyReportingSession: NSObject, ObservableObject {
         advertiser?.stopAdvertisingPeer(); browser?.stopBrowsingForPeers()
         advertiser?.delegate = nil; browser?.delegate = nil; advertiser = nil; browser = nil
         let old = session; session = nil; inboundBudget.configure(nil); old?.delegate = nil; old?.disconnect()
-        peer = nil; codec?.invalidate(); codec = nil; pairingCode = nil
+        peer = nil; codec?.invalidate(); codec = nil; pairingCode = nil; codeConfirmed = false
+        verification?.invalidate(); verification = nil
         discoveredPeers = []; state = .stopped; errorMessage = nil; onDisconnected?()
     }
-    public func connect(to candidate: MCPeerID, pairingCode code: String) throws {
+    public func connect(to candidate: MCPeerID) throws {
         guard role == .reader, state == .discovering, let session, discoveredPeers.contains(candidate) else { throw Failure.invalidState }
-        let key = try NearbyReportingCodec.key(from: code)
-        codec = try NearbyReportingCodec(role: role, key: key)
+        verification = NearbyPairingVerification(role: role)
         peer = candidate; state = .connecting
         browser?.invitePeer(candidate, to: session, withContext: nil, timeout: 30)
         browser?.stopBrowsingForPeers(); armTimeout()
@@ -106,6 +106,27 @@ public final class NearbyReportingSession: NSObject, ObservableObject {
         guard state == .invitation else { return }
         invitation?(false, nil); invitation = nil; invitationPeer = nil
         timeout?.cancel(); timeout = nil; state = .discovering
+    }
+    public func confirmMatchingCode() {
+        guard state == .verifying, !codeConfirmed else { return }
+        do {
+            guard let result = try verification?.confirm() else { throw Failure.invalidState }
+            codeConfirmed = true
+            try advanceVerification(result)
+        } catch { abort() }
+    }
+    private func advanceVerification(_ result: NearbyPairingVerification.Result) throws {
+        for packet in result.outbound { try send(packet) }
+        pairingCode = verification?.code
+        if let key = result.key {
+            codec = try NearbyReportingCodec(role: role, key: key)
+            verification?.invalidate(); verification = nil; pairingCode = nil
+            state = .authenticating; armTimeout()
+            guard let hello = try codec?.begin() else { throw Failure.invalidState }
+            try send(hello)
+        } else if pairingCode != nil, state != .verifying {
+            state = .verifying; armTimeout(seconds: 120)
+        }
     }
     public func requestSnapshot() throws {
         guard role == .reader, state == .paired, let packet = try codec?.requestSnapshot() else { throw Failure.invalidState }
@@ -124,7 +145,12 @@ public final class NearbyReportingSession: NSObject, ObservableObject {
     }
     private func receive(_ data: Data, from sender: MCPeerID) {
         do {
-            guard sender == peer, let result = try codec?.receive(data) else { throw Failure.invalidState }
+            guard sender == peer else { throw Failure.invalidState }
+            if verification != nil {
+                guard let result = try verification?.receive(data) else { throw Failure.invalidState }
+                try advanceVerification(result); return
+            }
+            guard let result = try codec?.receive(data) else { throw Failure.invalidState }
             for packet in result.outbound { try send(packet) }
             switch result.event {
             case .authenticated:
@@ -135,10 +161,10 @@ public final class NearbyReportingSession: NSObject, ObservableObject {
             }
         } catch { abort() }
     }
-    private func armTimeout(request: Bool = false) {
+    private func armTimeout(request: Bool = false, seconds: UInt64 = 30) {
         let generation = contextID; timeout?.cancel()
         timeout = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 30_000_000_000)
+            try? await Task.sleep(nanoseconds: seconds * 1_000_000_000)
             guard !Task.isCancelled, let self, self.contextID == generation, request || self.state != .paired else { return }
             self.abort()
         }
@@ -156,7 +182,7 @@ extension NearbyReportingSession: MCSessionDelegate, MCNearbyServiceAdvertiserDe
                 guard self.state == .connecting else { self.abort(); return }
                 self.state = .authenticating
                 do {
-                    guard let hello = try self.codec?.begin() else { throw Failure.invalidState }
+                    guard let hello = try self.verification?.begin() else { throw Failure.invalidState }
                     try self.send(hello)
                 } catch { self.abort() }
             case .notConnected: self.stop()

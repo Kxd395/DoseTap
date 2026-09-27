@@ -8,9 +8,9 @@ clinical CloudKit uploads, a private-server feed or continuous background sync.
 
 ## Apps and ownership
 
-- Phone: DoseTap 0.4.19 (77), `com.dosetap.ios`. Existing logging, SQLite and alarms
+- Phone: DoseTap 0.4.19 (78), `com.dosetap.ios`. Existing logging, SQLite and alarms
   remain phone-owned. Settings adds **Connect iPad Dashboard**.
-- iPad: DoseTap Dashboard 0.1.0 (2), `com.dosetap.dashboard`, a separate application
+- iPad: DoseTap Dashboard 0.1.0 (3), `com.dosetap.dashboard`, a separate application
   generated from `ipad/project.yml`. It has no EventStorage, repository writer,
   dose action or alarm service. The existing full DoseTap installation is preserved.
 - The iPad stores one validated local reporting snapshot, protected and excluded
@@ -23,18 +23,32 @@ clinical CloudKit uploads, a private-server feed or continuous background sync.
 
 1. On iPhone, open Settings → Connect iPad Dashboard → Start nearby reporting.
 2. Open the separate DoseTap Dashboard app on iPad, then Connection → Find my iPhone.
-3. Enter the full temporary pairing code from the phone and select its discovery
-   entry. Accept that invitation on the phone. Names alone are not identity.
-4. After authentication, choose Refresh report from iPhone on the iPad.
+3. Select the phone in the iPad discovery list, then accept the invitation on the
+   phone. Both screens show six digits. Compare all six and tap **Codes match** on
+   BOTH devices. If they differ, tap **Codes do not match** to end the attempt.
+   Nothing is copied, typed or sent through Messages. Names alone are not identity.
+4. After both confirmations and authentication, choose Refresh report from iPhone.
 5. Compare medication occurrence/calendar dates, stored/recorded timestamps,
    treatment dates and conflict states. Reopen the iPad app to check cached review.
 
 Keep both apps open. Local Network permission is required. Ending the connection
 or backgrounding either app discards pairing state. A new connection uses a new
-code. Clipboard copying is explicit, phone-local and expires after 60 seconds;
-Universal Clipboard is not used. Manual code entry is an initial usability limit.
+comparison. No clipboard or camera access is needed. Discovery does not remotely
+open the phone app or start its publisher. When no phone is found, the iPad names
+the full phone Settings path and Local Network permission requirement.
+
+Owner feedback on phone 77/iPad 2: discovery remained waiting and the 64-character
+key was impractical; switching to Messages ended the foreground session. Builds
+78/3 replace that flow with six-digit comparison. The key exchange stays internal;
+the six digits are not an encryption password. Comparison expires after two minutes;
+connection/transfer waits expire after 30 seconds. Retry requires an explicit new
+attempt with fresh key material. Actual paired transfer acceptance remains open.
 
 ## What is shown
+
+The separate iPad dashboard uses dark appearance throughout, including connection,
+charts, medication history and native sheets. This app-level preference does not
+change the iPad system appearance or the iPhone app.
 
 Overview offers 7/30/90/180/365 days and All Time. Six months means 180 inclusive
 calendar treatment dates. Only a positive, unambiguous reported Dose 1/Dose 2 pair
@@ -59,8 +73,10 @@ report; it does not fabricate sleep analytics or silently call provider APIs.
 
 - Core snapshot/projection tests include ordering, missingness, corruption,
   midnight/DST, Decimal amounts and conflicting session evidence.
-- 13 nearby codec/budget tests cover wrong keys, replay, reflection, tampering,
-  ordering, oversized data, stale session admission and queue bounds.
+- 20 nearby tests cover codec/budget behavior plus commitment/reveal ordering,
+  tampering, role reflection, duplicate messages, correctly directed old-session
+  confirmation, simultaneous confirmations, and encrypted report round-trip.
+  Neither one device confirmation nor peer confirmation alone releases a key.
 - 9 native phone storage/revision tests passed, including concurrent SQLite snapshot
   consistency. Physical Data Protection attributes are not established by simulator
   tests; their assertion is compiled for physical-device execution only.
@@ -71,11 +87,20 @@ report; it does not fabricate sleep analytics or silently call provider APIs.
   with debug-dylib injection disabled ran the tests; this is distinct from test
   failures. One test assertion incorrectly expected simulator file-protection
   metadata; it was constrained to physical devices and rerun successfully.
-- iPad build 1 installed/launched; build 2 adds the final session-identity eligibility
-  correction. Final device readback and commit/check state are recorded in Plane.
+- Signed phone 78 and separate iPad 3 installed, inventory-read back and launched.
+  Existing full DoseTap 76 on the iPad remains installed unchanged.
+- The earlier hosted iPad largest-text job timed out while launching its app; the
+  workflow now waits for simulator boot and runs tests serially. Hosted rerun is
+  required; local passing journeys do not override a failed hosted check.
 
-Mutual PSK authentication, directional authenticated encryption and bounded ingress
-were independently source-reviewed. This is not a protocol security certification.
+The six-digit comparison implementation and transition into directional authenticated
+encryption were independently source-reviewed. Ephemeral X25519 keys and random
+nonces are committed before reveal; domain-separated transcript/HKDF/HMAC operations
+bind both roles. Human comparison provides limited per-attempt authentication;
+confirming without comparing defeats that check. This is a custom protocol, not
+a protocol security certification. The old 64-character workflow is superseded.
+Hosted CI also found an older macOS SDK availability error for HKDF in the payload
+codec; explicit macOS 11 guards now fail closed on unsupported systems.
 Real paired transfer, denial/retry/reconnection, real-report parity, physical cache
 protection, VoiceOver and privacy/release acceptance remain open. No owner acceptance
 is inferred from unit tests, simulator results, installation or merge.

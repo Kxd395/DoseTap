@@ -20,6 +20,7 @@ struct DoseTapDashboardApp: App {
     var body: some Scene {
         WindowGroup {
             DashboardRoot(model: model, connection: model.connection)
+                .preferredColorScheme(.dark)
                 .onChange(of: scenePhase) { _, phase in if phase == .background { model.connection.stop() } }
         }
     }

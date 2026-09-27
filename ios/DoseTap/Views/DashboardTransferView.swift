@@ -1,6 +1,5 @@
 import SwiftUI
 import UIKit
-import UniformTypeIdentifiers
 import DoseTapNearby
 
 @MainActor
@@ -35,41 +34,38 @@ struct DashboardTransferView: View {
     @StateObject private var service = NearbyReportingSession(role: .publisher)
     @StateObject private var model = DashboardPublisherModel()
     @Environment(\.scenePhase) private var scenePhase
-    @State private var copied = false
     var body: some View {
         List {
             Section {
                 Text("Share a read-only report with your nearby iPad. Keep both apps open. The iPad cannot change phone records or alarms.")
-                Text("This report contains sensitive health information. Enter the pairing code only in your own DoseTap dashboard. Provider data is not included.")
+                Text("This report contains sensitive health information. Confirm the matching code only on your own iPad. Provider data is not included.")
             }
             Section("Connection") {
                 Text(status)
                 if service.state == .stopped || service.state == .failed {
                     Button("Start nearby reporting") {
-                        model.receipt = nil; model.error = nil; copied = false; service.start()
+                        model.receipt = nil; model.error = nil; service.start()
                     }.accessibilityIdentifier("dashboard-transfer-start")
                 } else {
-                    Button("End connection") { service.stop(); copied = false }
+                    Button("End connection") { service.stop() }
                         .accessibilityIdentifier("dashboard-transfer-stop")
                 }
             }
             if let code = service.pairingCode {
-                Section("Pairing code") {
-                    Text(code).font(.system(.footnote, design: .monospaced)).textSelection(.enabled)
-                        .accessibilityIdentifier("dashboard-pairing-code")
-                    Text("Enter this full code on the iPad. A new connection uses a new code. Device names alone are not proof of identity.")
-                    Button(copied ? "Copy code again" : "Copy pairing code") {
-                        UIPasteboard.general.setItems([[UTType.plainText.identifier: code]],
-                            options: [.localOnly: true, .expirationDate: Date().addingTimeInterval(60)])
-                        copied = true
-                    }.accessibilityIdentifier("dashboard-pairing-copy")
-                    if copied { Text("Copied on this device for 60 seconds. The code is not shared through Universal Clipboard.").font(.caption) }
+                Section("Compare on both devices") {
+                    Text(code).font(.system(.largeTitle, design: .monospaced)).bold()
+                        .accessibilityIdentifier("dashboard-pairing-code").privacySensitive()
+                    Text("Check that these six digits also appear on your iPad. Nothing needs to be copied or typed.")
+                    Button("Codes match") { service.confirmMatchingCode() }
+                        .disabled(service.codeConfirmed)
+                    if service.codeConfirmed { Text("Confirmed here. Confirm on the iPad too.") }
+                    Button("Codes do not match", role: .destructive) { service.stop() }
                 }
             }
             if let peer = service.invitationPeer {
                 Section("Connection request") {
                     Text(peer.displayName)
-                    Text("Accept only the iPad where you entered this code. Authentication must finish before a report can be requested.")
+                    Text("Accept only the iPad you are connecting now. Next, compare the six digits shown on both screens.")
                     Button("Accept this connection") { service.acceptInvitation() }
                         .accessibilityIdentifier("dashboard-invitation-accept")
                     Button("Reject") { service.rejectInvitation() }
@@ -95,7 +91,8 @@ struct DashboardTransferView: View {
         case .discovering: return "Waiting for an iPad connection request"
         case .invitation: return "Review the connection request"
         case .connecting: return "Connecting"
-        case .authenticating: return "Checking the pairing code"
+        case .authenticating: return "Preparing a secure connection"
+        case .verifying: return "Compare the six digits on both devices"
         case .paired: return "Authenticated nearby connection"
         case .failed: return "Connection ended; start again to retry"
         }

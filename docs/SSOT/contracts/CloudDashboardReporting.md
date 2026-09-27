@@ -1,6 +1,6 @@
 # Private cloud dashboard reporting
 
-Status: foundation only, DOSETAP-76. No shipping transport or iPad app yet.
+Status: nearby device candidate, DOSETAP-76 In Progress. Owner pairing acceptance remains open.
 
 ## Transport correction, 2026-09-26
 
@@ -9,7 +9,7 @@ prohibits personal health information in iCloud. Private-account storage and own
 consent do not establish an exception. No clinical CloudKit upload is authorized
 by this contract. Existing source type names remain for compatibility and are
 transport-independent. The owner requested investigation of BOTH an existing
-private server/database and direct phone-to-iPad transfer. Neither is deployed.
+private server/database and direct phone-to-iPad transfer. The nearby candidate is implemented; the private-server route remains blocked.
 
 Source: [Apple App Review Guidelines](https://developer.apple.com/app-store/review/guidelines/#health-and-health-research).
 
@@ -48,10 +48,10 @@ array replaces the previous array, allowing source deletions to disappear from t
 reporting copy without issuing any phone mutation. No partial merge or date cutoff
 is implicit. Consumer reports must still validate source identity and metric rules.
 
-The core reducer is in-memory only; durable cache, encrypted/protected files,
-account-change invalidation, transport size limits, producer read transaction,
-revision/outbox persistence and asynchronous request-generation fencing must be
-implemented and tested before connection. SHA-256 detects corruption; it is not
+The core reducer is in-memory only. The nearby adapter adds a protected durable
+cache, source selection, transport size limits, a producer read transaction,
+persistent revisions and request-generation fencing. It has no cloud outbox or
+automatic background delivery. SHA-256 detects corruption; it is not
 sender authentication or a substitute for private account authorization.
 
 ## Historical CloudKit adapter proposal (not delivered; superseded)
@@ -147,25 +147,30 @@ unavailable offset cannot be reconstructed from capture time. No efficacy or saf
 score is produced. Provider sleep evidence remains explicitly unavailable in this
 initial transport; the app must not imply that sleep metrics were transferred.
 
-Nearby pairing requires an out-of-band random secret, fresh challenge nonces and
-mutual authentication before report requests or payload delivery. MC encryption is
-required; application authenticated encryption also protects payloads against a
-relay terminating two MC sessions. Discovery names are not identity. The publisher
-accepts an invitation explicitly. Secrets expire when the pairing session ends;
-no clinical payload enters advertising metadata, logs or clipboard automatically.
-The iPad is a separate app target and has no source write or alarm capability.
+Nearby pairing requires explicit six-digit numeric comparison on BOTH devices.
+The phone first accepts the iPad invitation. Each side commits to a fresh X25519
+public key and 32-byte random nonce before revealing either. The role-ordered,
+versioned transcript binds both openings; separate HKDF labels derive confirmation
+and reporting keys. The displayed six digits are a transcript comparison value,
+never password/key material. Role-bound HMAC confirmations from both peers and
+local user confirmation must complete before the reporting codec starts.
 
-Nearby prototype v1 uses a fresh 256-bit out-of-band key, role-separated HMAC
-proofs over both random nonces, directional HKDF keys and ChaChaPoly envelopes.
-Counters reject replay; the publisher accepts only a requested snapshot. Snapshot
-payload limit is32MiB; incomplete/failed transfers retain the last verified report.
-No background availability or forward secrecy is claimed. Both apps must stay open.
+Unexpected/duplicate/early packets fail closed. Comparison expires after two
+minutes; other connection/request waits after 30 seconds. Explicit retry generates
+new material; there is no silent repeated guessing. Device names are untrusted.
+MC encryption is required, plus directional ChaChaPoly envelopes bound to fresh
+codec nonces and monotonic counters. Snapshot payload limit is 32 MiB; failed
+transfers retain the last verified report. No clinical discovery metadata, copied
+secret, camera permission or Messages round-trip is needed. Both apps must stay
+open. Backgrounding ends the connection. The former 256-bit manual-entry workflow
+is superseded, and both apps need the new pairing version. This custom protocol
+has source review and regression tests, not a formal security certification.
 The phone reserves a durable monotonic revision before capturing; failed delivery
 may leave a revision gap. Corrupt identity state fails closed. The iPad persists
 only after full validation and projection, with complete file protection and
 backup exclusion. A new phone source requires explicitly forgetting the old copy.
 
-The separate iPad target is `com.dosetap.dashboard`, version0.1.0(2), generated
+The separate iPad target is `com.dosetap.dashboard`, version0.1.0(3), generated
 from `ipad/project.yml`. It contains no EventStorage, medication writer or alarm
 service. Initial views are recorded dose spacing, medication calendar occurrences,
 night review states and connection status. All-time medications are explicitly
