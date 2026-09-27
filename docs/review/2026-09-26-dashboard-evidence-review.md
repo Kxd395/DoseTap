@@ -1,7 +1,7 @@
 # Dashboard evidence review delivery
 
 Status: Installed; hosted integration pending; DOSETAP-45 and DOSETAP-76 remain In Progress.
-Date: 2026-09-26. Installed: iPhone 0.4.19 (79), separate iPad Dashboard 0.1.0 (7).
+Date: 2026-09-26. Installed: iPhone 0.4.19 (80), separate iPad Dashboard 0.1.0 (8).
 
 The owner requested a whole-dashboard overhaul, including better use of collected
 information. The [collection/comparison inventory](2026-09-26-dashboard-data-comparison-inventory.md)
@@ -44,8 +44,8 @@ diary outcomes; it does not complete the whole overhaul.
 - Phone regression first reproduced the zero-pair bug with eight failed assertions;
   after correction all 23 DashboardAnalyticsAuditTests passed, including positive
   subminute and repeated-hour DST fixtures. Source times remained unchanged.
-- Core: 840 DoseCore XCTest + 20 Nearby XCTest + 43 Swift Testing cases passed.
-  Eleven new diary tests cover identity, chronology, conflicts, missingness,
+- Core: 843 DoseCore XCTest + 20 Nearby XCTest + 43 Swift Testing cases passed.
+  Fourteen new diary tests cover identity, chronology, conflicts, missingness,
   post-capture records, midnight/DST and independent metric denominators.
 - Independent review found no calculation/cache blocker and caught the exact-time
   wording issue; diary detail now displays seconds and summary rounding is labeled.
@@ -55,26 +55,36 @@ diary outcomes; it does not complete the whole overhaul.
   test hit a picker beneath the navigation bar; the corrected native scroll path
   passed. Its stalled Xcode diagnostics process was ended without resetting data.
 - iPad: all eight cache tests and both native journeys passed from isolated
-  `/tmp/dosetap-ipad7-exact-build`, including largest text, comparison selection,
+  `/tmp/dosetap-ipad8-exact-build`, including largest text, comparison selection,
   exact matched-record detail and retained missingness. An earlier incremental
   run used an older navigation path; it is superseded by this fresh verification.
-  Log: `/tmp/dosetap-ipad7-exact-tests.log`; native screenshot attachments:
-  `/tmp/dosetap-ipad7-exact-screens`. Rendered normal/large text and detail inspected.
+  Log: `/tmp/dosetap-ipad8-exact-tests.log`; native screenshot attachments:
+  `/tmp/dosetap-ipad8-exact-screens`. Rendered normal/large text and detail inspected.
 - Signed builds and installation passed. Device application inventories independently
-  reported phone 0.4.19 (79) and separate iPad Dashboard 0.1.0 (7). The existing
+  reported phone 0.4.19 (80) and separate iPad Dashboard 0.1.0 (8). The existing
   full DoseTap app on iPad stays 0.4.19 (76). No uninstall/reset was performed.
-  Evidence: `/tmp/dosetap-phone79-apps.json`, `/tmp/dosetap-ipad7-apps.json`.
+  Evidence: `/tmp/dosetap-phone80-apps.json`, `/tmp/dosetap-ipad8-apps.json`.
   Both launch attempts were denied because devices were locked; physical visual,
   owner usability and real-report parity acceptance remain open.
 - Phone build/version check passed all four configurations; iPad Debug and Release
-  settings both read 0.1.0 (7). Plane workflow (15 tests/80 assertions), SSOT,
+  settings both read 0.1.0 (8). Plane workflow (15 tests/80 assertions), SSOT,
   documentation and whitespace checks passed.
-- Independent source review found and resolved stale inspector and time-precision
-  issues. Final review found no remaining actionable issue in this bounded patch.
+- Independent source review resolved stale inspector and time-precision issues.
+  Hosted PR70 review then found that a dose/diary identity mismatch suppressed a
+  valid raw observation. Eleven failing assertions reproduced it. The correction
+  preserves the unique valid diary while excluding only its dose association;
+  duplicate/cross-date diary ambiguity remains unavailable. All 38 affected tests
+  and the full shared suite passed after the fix. Builds 80/8 supersede installed
+  79/7 for this correction. Evidence: `/tmp/dosetap-diary-identity-*.log`.
 - Both Plane workpads were applied and exactly read back as In Progress during
-  implementation. PR #69 canonical validation fixes are included in this branch;
-  PR #70 contains this evidence-review slice. Hosted checks and normal protected
-  integration are pending and must not be inferred from local validation.
+  implementation. PR #69 merged normally as `533ce35bc0ab3b18559816f961baecd2bf8dca09`
+  after all applicable hosted checks passed (conditional release pinning skipped).
+  PR #70 contains this slice and includes that foundation. Its final hosted checks
+  and normal protected integration were pending when this evidence was written;
+  the live PR and Plane readback own the subsequent integration state.
+- Integration of the PR69 squash history produced merge conflicts. The upstream
+  tree was byte-identical to the already merged feature parent `3787ce1`; resolving
+  those files to the tested feature version left the complete tree unchanged.
 
 ## Remaining acceptance and next work
 
