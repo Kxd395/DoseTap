@@ -92,4 +92,58 @@ final class DashboardQuestionnaireProjectionTests: XCTestCase {
         XCTAssertEqual(p.days.count, 1); XCTAssertEqual(p.days[0].preSleep, .complete)
         XCTAssertEqual(p.unassignedSourceRowCount, 0); XCTAssertEqual(p.selected(count: 0, timeZone: .gmt).count, 1)
     }
+    func testIncompleteCanonicalOutcomeShapeStaysUnavailable() throws {
+        let examples = [
+            #"{"answers":{"wakeMethod":"alarm","dayType":"workday"},"recordedAt":"2026-09-01T12:00:00Z"}"#,
+            #"{"answers":{"wakeMethod":"alarm"},"recordedAt":"2026-09-01T12:00:00Z","revisions":[]}"#,
+            #"{"answers":{"dayType":"workday"},"recordedAt":"2026-09-01T12:00:00Z","revisions":[]}"#,
+            #"{"answers":{"wakeMethod":"alarm","dayType":"workday","backupAlarmSet":"yes"},"recordedAt":"2026-09-01T12:00:00Z","revisions":[]}"#,
+            #"{"answers":{"wakeMethod":"alarm","dayType":"workday"},"recordedAt":"2026-09-01T12:00:00Z","revisions":[{}]}"#
+        ]
+        for raw in examples {
+            let day = try project([.normalizedAnswers: [outcome(raw)]]).days[0]
+            XCTAssertEqual(day.nightOutcome, .unavailable)
+            XCTAssertNil(day.dose2WakeMethod); XCTAssertNil(day.followingDay)
+        }
+    }
+    func testCanonicalReviewedWindowValidationAndIdentityAreRequired() throws {
+        struct Envelope: Encodable {
+            let answers: NightOutcomeDiary
+            let recordedAt: Date
+            let revisions: [String] = []
+        }
+        let recorded = Date(timeIntervalSince1970: 1_788_264_000)
+        for (identity, start, end, expected) in [
+            ("night", recorded.addingTimeInterval(-3600), recorded, DashboardQuestionnaireStatus.recorded),
+            ("other", recorded.addingTimeInterval(-3600), recorded, .unavailable),
+            ("night", recorded, recorded.addingTimeInterval(-3600), .unavailable)] {
+            var answers = NightOutcomeDiary(); answers.wakeMethod = .alarm; answers.dayType = .workday
+            answers.reviewedSleepWindow = .init(sessionID: identity, start: start, end: end,
+                entryTimeZone: .gmt, reviewedAt: recorded)
+            let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
+            let raw = String(decoding: try encoder.encode(Envelope(answers: answers, recordedAt: recorded)), as: UTF8.self)
+            XCTAssertEqual(try project([.normalizedAnswers: [outcome(raw)]]).days[0].nightOutcome, expected)
+        }
+    }
+    func testUndatedEvidenceDoesNotInventSecondDateForValidIdentity() throws {
+        let undated = row("morning_checkins", ["id": text("undated"), "session_id": text("night"),
+            "session_date": ["type": "null"], "sleep_quality": ["type": "real", "real": 2]])
+        let m = morning(quality: ["type": "real", "real": 4])
+        let p = try project([.morning: [m, undated], .sessions: [session()]])
+        XCTAssertEqual(p.days.count, 1); XCTAssertEqual(p.days[0].morning, .recorded)
+        XCTAssertEqual(p.days[0].recordedSleepQuality, 4)
+        XCTAssertEqual(p.unassignedSourceRowCount, 1)
+        let conflicting = try project([.morning: [m, undated], .sessions: [session(), session("night", "2026-09-02")]])
+        XCTAssertEqual(conflicting.days[0].morning, .conflict)
+        XCTAssertNil(conflicting.days[0].recordedSleepQuality)
+    }
+
+    func testTypedHistoricalRevisionPreservesCurrentAnswer() throws {
+        let raw = #"{"answers":{"wakeMethod":"alarm","dayType":"workday"},"recordedAt":"2026-09-01T12:00:00Z","revisions":[{"answers":{"wakeMethod":"natural","dayType":"dayOff"},"recordedAt":"2026-09-01T11:00:00Z","reason":"Corrected answer"}]}"#
+        let day = try project([.normalizedAnswers: [outcome(raw)]]).days[0]
+        XCTAssertEqual(day.nightOutcome, .recorded)
+        XCTAssertEqual(day.dose2WakeMethod, .alarm)
+        XCTAssertEqual(day.followingDay, .workday)
+    }
+
 }

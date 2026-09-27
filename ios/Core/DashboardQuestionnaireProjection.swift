@@ -70,9 +70,8 @@ public struct DashboardQuestionnaireProjection: Sendable {
         for row in evidence {
             guard row.validIdentity else { throw DashboardSnapshotError.invalidPayload }
             guard let key = row.text("session_date"), Self.isDate(key) else {
-                if let identity = row.text("session_id"), !identity.isEmpty {
-                    dates[identity, default: []].insert("unresolved")
-                }
+                // Missing dates contribute to unassigned counts below, not to
+                // the set of distinct known dates for a durable identity.
                 continue
             }
             if let identity = row.text("session_id"), !identity.isEmpty, identity != key {
@@ -135,11 +134,12 @@ public struct DashboardQuestionnaireProjection: Sendable {
                     if let outcome = try? decoder.decode(QuestionnaireOutcome.self, from: Data(raw.utf8)),
                        outcome.recordedAt.timeIntervalSince1970.isFinite,
                        outcome.recordedAt <= snapshot.capturedAt,
-                       outcome.answers.valid(at: outcome.recordedAt) {
+                       outcome.answers.validationError(now: outcome.recordedAt) == nil,
+                       outcome.answers.reviewedSleepWindow.map({ $0.sessionID == identity }) ?? true {
                         oState = .recorded
                         diary = outcome; diaryIdentity = identity; diarySource = row.text("id")
-                        wake = outcome.answers.wakeMethod.flatMap { $0 == .unknown ? nil : $0 }
-                        following = outcome.answers.dayType.flatMap { $0 == .unknown ? nil : $0 }
+                        wake = outcome.answers.wakeMethod == .unknown ? nil : outcome.answers.wakeMethod
+                        following = outcome.answers.dayType == .unknown ? nil : outcome.answers.dayType
                     }
                 }
             }
@@ -180,21 +180,15 @@ private struct QuestionnaireColumn: Decodable {
     let integer: Int64?
     let real: Double?
 }
+/// Wire shape mirrors the app's NightOutcomeRecord. Required fields and typed
+/// revision entries must decode even though this view displays only current answers.
 private struct QuestionnaireOutcome: Decodable {
-    struct Answers: Decodable {
-        let wakeMethod: Dose2WakeKind?
-        let dayType: FollowingDayKind?
-        let finalWakeAt: Date?
-        let sleepiness: Int?
-        let assessedAt: Date?
-        func valid(at recorded: Date) -> Bool {
-            guard [finalWakeAt, assessedAt].compactMap({ $0 }).allSatisfy({ $0.timeIntervalSince1970.isFinite && $0 <= recorded }),
-                  sleepiness.map({ (0...10).contains($0) }) ?? true,
-                  (sleepiness == nil) == (assessedAt == nil) else { return false }
-            if let finalWakeAt, let assessedAt, assessedAt < finalWakeAt { return false }
-            return true
-        }
+    struct Revision: Decodable {
+        let answers: NightOutcomeDiary
+        let recordedAt: Date
+        let reason: String
     }
-    let answers: Answers
+    let answers: NightOutcomeDiary
     let recordedAt: Date
+    let revisions: [Revision]
 }
