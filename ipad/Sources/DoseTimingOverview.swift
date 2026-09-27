@@ -6,6 +6,7 @@ struct DoseTimingOverview: View {
     let nights: [DashboardReportDoseDay]
     let onSelect: (DashboardReportDoseDay) -> Void
     @State private var selectedDate: Date?
+    @Environment(\.dynamicTypeSize) private var typeSize
     private var stats: DashboardReportStatistics { DashboardReportStatistics(days: nights) }
     private var selectedNight: DashboardReportDoseDay? {
         guard let selectedDate else { return nil }
@@ -25,7 +26,7 @@ struct DoseTimingOverview: View {
                 Spacer()
                 Image(systemName: "chart.xyaxis.line").font(.system(size: 42)).foregroundStyle(.cyan)
             }
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), alignment: .leading)], spacing: 14) {
+            LazyVGrid(columns: typeSize.isAccessibilitySize ? [GridItem(.flexible(), alignment: .leading)] : [GridItem(.adaptive(minimum: 210), alignment: .leading)], spacing: 14) {
                 metric("Median recorded spacing", stats.median.map(intervalText) ?? "Not available", detail: "n = \(stats.values.count) usable pairs", icon: "arrow.left.and.right")
                 metric("Average recorded spacing", stats.mean.map(intervalText) ?? "Not available", detail: "Same \(stats.values.count) usable pairs", icon: "sum")
                 metric("Dates with dose records", "\(nights.count)", detail: "Recorded dates, not expected doses", icon: "calendar")
@@ -64,7 +65,7 @@ struct DoseTimingOverview: View {
                     }
                 }.padding(12).frame(maxWidth: .infinity, alignment: .leading)
             }
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 330), alignment: .leading)], alignment: .leading, spacing: 18) {
+            LazyVGrid(columns: typeSize.isAccessibilitySize ? [GridItem(.flexible(), alignment: .leading)] : [GridItem(.adaptive(minimum: 330), alignment: .leading)], alignment: .leading, spacing: 18) {
                 GroupBox {
                     VStack(alignment: .leading, spacing: 12) {
                         Label("How intervals are distributed", systemImage: "chart.bar").font(.headline)

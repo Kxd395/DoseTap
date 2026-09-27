@@ -170,7 +170,7 @@ may leave a revision gap. Corrupt identity state fails closed. The iPad persists
 only after full validation and projection, with complete file protection and
 backup exclusion. A new phone source requires explicitly forgetting the old copy.
 
-The separate iPad target is `com.dosetap.dashboard`, version0.1.0(3), generated
+The separate iPad target is `com.dosetap.dashboard`, version0.1.0(4), generated
 from `ipad/project.yml`. It contains no EventStorage, medication writer or alarm
 service. Initial views are recorded dose spacing, medication calendar occurrences,
 night review states and connection status. All-time medications are explicitly
@@ -180,3 +180,11 @@ automatic background updates and private-server transport remain later gates.
 Identity eligibility unions dose_events, sleep_sessions and current_session. Multiple
 real IDs per date or one ID spanning dates invalidate spacing, even for date-only
 dose pairs. Date placeholders do not establish another real identity.
+
+The iPad interval expansion adds mean/median, inclusive interpolated quartiles,
+one-hour distribution, monthly medians with n, date selection and a read-only
+night summary. All use the same positive unambiguous occurrence pairs. Dose times
+beyond snapshot capture are ineligible even when reopened later. Selected ranges
+use capture-time 18:00 rollover in the explicitly named iPad timezone; v1 does not
+carry the phone zone. Report contents exposes source-row inventory without calling
+rows clinical observations. Provider and answer-aware analytics remain separate.

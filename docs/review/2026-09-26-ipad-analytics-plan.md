@@ -80,3 +80,10 @@ specific conflict reasons are a follow-on, not a delivered full source drilldown
 Native normal/largest-text journeys and signed iPad installation are required for
 this slice. Owner visual usefulness, exact real-report parity, VoiceOver, privacy,
 provider transfer and release gates remain open. The phone remains build 78.
+
+Local validation: 817 core XCTest,20 nearby XCTest and43 Swift Testing passed;
+7 iPad cache tests and2 expanded native UI journeys passed. Journeys cover medication
+filtering, night detail, report inventory and largest text. Screenshot review found
+narrow metric columns at accessibility sizes; those now use a single column and
+range selection becomes a menu. Both native journeys passed again after that fix.
+Signed iPad build4 succeeded. Real-record visual usefulness and parity stay open.

@@ -6,6 +6,7 @@ import DoseTapNearby
 struct DashboardRoot: View {
     @ObservedObject var model: DashboardModel
     @ObservedObject var connection: NearbyReportingSession
+    @Environment(\.dynamicTypeSize) private var typeSize
     @State private var section = "Overview"
     @State private var days = 180
     @State private var selectedNight: DashboardReportDoseDay?
@@ -37,11 +38,8 @@ struct DashboardRoot: View {
                         if section == "Medications" { medicationList(report) }
                         else if section == "Report contents", let snapshot = model.snapshot { ReportContentsView(snapshot: snapshot) }
                         else {
-                            Picker("Treatment dates", selection: $days) {
-                                ForEach([7, 30, 90, 180, 365, 0], id: \.self) { value in
-                                    Text(value == 0 ? "All time" : value == 180 ? "6 months" : "\(value) days").tag(value)
-                                }
-                            }.pickerStyle(.segmented)
+                            if typeSize.isAccessibilitySize { rangePicker.pickerStyle(.menu) }
+                            else { rangePicker.pickerStyle(.segmented) }
                             Text("Treatment-night ranges use the 6 p.m. rollover at report capture in \(TimeZone.current.identifier). Refresh to include later records.")
                                 .font(.caption).foregroundStyle(.secondary)
                             if section == "Overview" { DoseTimingOverview(nights: nights) { selectedNight = $0 } } else { nightList }
@@ -54,6 +52,13 @@ struct DashboardRoot: View {
             }.navigationTitle(section)
         }.tint(.teal)
             .sheet(item: $selectedNight) { DoseNightDetail(night: $0) }
+    }
+    private var rangePicker: some View {
+        Picker("Treatment dates", selection: $days) {
+            ForEach([7, 30, 90, 180, 365, 0], id: \.self) { value in
+                Text(value == 0 ? "All time" : value == 180 ? "6 months" : "\(value) days").tag(value)
+            }
+        }
     }
     private var nightList: some View {
         LazyVStack(alignment: .leading, spacing: 14) {
