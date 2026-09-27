@@ -48,6 +48,9 @@ final class DashboardUITests: XCTestCase {
         app.buttons["Medications"].firstMatch.tap()
         XCTAssertTrue(app.staticTexts["SYNTHETIC medication · 15 mg"].waitForExistence(timeout: 5))
         capture("Native iPad largest text medication")
+        let sidebar = app.descendants(matching: .any).matching(identifier: "dashboard-sidebar").firstMatch
+        for _ in 0..<5 where !app.buttons["Connection"].isHittable { sidebar.swipeUp() }
+        XCTAssertTrue(app.buttons["Connection"].isHittable)
         app.buttons["Connection"].tap()
         for _ in 0..<4 where !app.buttons["Forget downloaded report"].isHittable { app.swipeUp() }
         XCTAssertTrue(app.buttons["Forget downloaded report"].isHittable)

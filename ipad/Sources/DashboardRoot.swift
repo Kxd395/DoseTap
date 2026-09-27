@@ -23,6 +23,7 @@ struct DashboardRoot: View {
             List(sections, id: \.self) { item in
                 Button(item) { section = item }.foregroundStyle(section == item ? .teal : .primary)
             }
+                .accessibilityIdentifier("dashboard-sidebar")
                 .navigationTitle("DoseTap Dashboard")
             Text("Read-only companion").font(.footnote).foregroundStyle(.secondary).padding()
         } detail: {
