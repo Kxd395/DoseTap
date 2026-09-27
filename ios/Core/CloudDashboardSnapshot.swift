@@ -5,7 +5,7 @@ import CryptoKit
 public enum DashboardDataset: String, Codable, CaseIterable, Sendable {
     case sessions, doseEvents, quickLogs, preSleep, morning, normalizedAnswers
     case medicationEntries, presetVersions, administrations, amendments
-    case daytimeDiary, reviewedSleepWindows, inventory, appleHealth, whoop
+    case daytimeDiary, reviewedSleepWindows, inventory, symptoms, workSchedule, appleHealth, whoop
 
     public var isProvider: Bool { self == .appleHealth || self == .whoop }
 }
@@ -16,6 +16,7 @@ public struct DashboardSnapshotSection: Codable, Equatable, Sendable {
     public var rowCount: Int?
     public var sha256: String?
     public var unavailableReason: String?
+    public var notCollectedBySource: Bool?
 
     public init(dataset: DashboardDataset, rows: Data, rowCount: Int) {
         self.dataset = dataset
@@ -33,11 +34,24 @@ public struct DashboardSnapshotSection: Codable, Equatable, Sendable {
         self.unavailableReason = reason
     }
 
+    /// v1 producer has no durable amendment ledger yet. This is not an observed zero.
+    public init(notCollected dataset: DashboardDataset) {
+        self.dataset = dataset
+        self.notCollectedBySource = true
+    }
+
     private static func digest(_ data: Data) -> String {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 
     fileprivate func validate() throws {
+        if notCollectedBySource == true {
+            guard dataset == .amendments, rows == nil, rowCount == nil,
+                  sha256 == nil, unavailableReason == nil else {
+                throw DashboardSnapshotError.incompleteDataset
+            }
+            return
+        }
         if let reason = unavailableReason {
             guard dataset.isProvider, !reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                   rows == nil, rowCount == nil, sha256 == nil else {

@@ -71,6 +71,20 @@ final class CloudDashboardSnapshotTests: XCTestCase {
             XCTAssertNil(c.snapshot)
         }
     }
+    func testAbsentAmendmentLedgerIsNotReportedAsZero() throws {
+        var s = snapshot()
+        let i = s.sections.firstIndex { $0.dataset == .amendments }!
+        s.sections[i] = DashboardSnapshotSection(notCollected: .amendments)
+        var c = cache()
+        try c.accept(s, accountScope: "account-a", now: now)
+        XCTAssertNil(c.snapshot?.sections[i].rowCount)
+        s.sequence = 2
+        s.sections[0] = DashboardSnapshotSection(notCollected: .sessions)
+        XCTAssertThrowsError(try c.accept(s, accountScope: "account-a", now: now))
+        s = snapshot(sequence: 2)
+        s.sections[i].notCollectedBySource = true
+        XCTAssertThrowsError(try c.accept(s, accountScope: "account-a", now: now))
+    }
     func testCompleteEmptyGenerationReplacesRowsWithoutPhoneMutation() throws {
         var s = snapshot()
         s.sections[0] = DashboardSnapshotSection(dataset: .sessions,

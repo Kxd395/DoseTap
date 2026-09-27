@@ -941,3 +941,9 @@ one-way private reporting feed for a separate iPad app. The core snapshot valida
 and in-memory acceptance reducer reject incomplete, stale, corrupt or wrong-context
 refreshes. No cloud upload, iPad target, persistent cache or shipping sync is enabled
 by this foundation. Phone records and alarms remain unchanged.
+
+Cloud dashboard transport correction (DOSETAP-76): clinical CloudKit publishing
+remains disabled because Apple5.1.3(ii) restricts personal health information in
+iCloud. The owner selected investigation of both a private-server feed and direct
+nearby device transfer. The reporting validator remains transport-independent; an
+explicit not-collected amendment section cannot be mistaken for zero amendments.
