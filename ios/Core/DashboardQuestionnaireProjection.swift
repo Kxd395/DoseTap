@@ -18,6 +18,13 @@ public struct DashboardQuestionnaireDay: Identifiable, Sendable {
     public let dose2WakeMethod: Dose2WakeKind?
     public let followingDay: FollowingDayKind?
     public let sourceRecordIDs: [String]
+    public let outcomeSessionID: String?
+    /// Actual normalized submission row ID, for source inspection.
+    public let outcomeSourceRecordID: String?
+    public let outcomeRecordedAt: Date?
+    public let reportedFinalWakeAt: Date?
+    public let sleepiness0To10: Int?
+    public let sleepinessAssessedAt: Date?
 }
 
 /// Local questionnaire evidence only. Stored defaults are not confirmed answers.
@@ -108,6 +115,7 @@ public struct DashboardQuestionnaireProjection: Sendable {
             var pState: DashboardQuestionnaireStatus = p.isEmpty ? .missing : .unavailable
             var oState: DashboardQuestionnaireStatus = o.isEmpty ? .missing : .unavailable
             var quality: Double?, wake: Dose2WakeKind?, following: FollowingDayKind?
+            var diary: QuestionnaireOutcome?, diaryIdentity: String?, diarySource: String?
             if conflict {
                 if !m.isEmpty || !mCopies.isEmpty { mState = .conflict }
                 if !p.isEmpty || !pCopies.isEmpty { pState = .conflict }
@@ -125,9 +133,11 @@ public struct DashboardQuestionnaireProjection: Sendable {
                    row.text("source_record_id") == identity, let raw = row.text("responses_json") {
                     let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
                     if let outcome = try? decoder.decode(QuestionnaireOutcome.self, from: Data(raw.utf8)),
+                       outcome.recordedAt.timeIntervalSince1970.isFinite,
                        outcome.recordedAt <= snapshot.capturedAt,
                        outcome.answers.valid(at: outcome.recordedAt) {
                         oState = .recorded
+                        diary = outcome; diaryIdentity = identity; diarySource = row.text("id")
                         wake = outcome.answers.wakeMethod.flatMap { $0 == .unknown ? nil : $0 }
                         following = outcome.answers.dayType.flatMap { $0 == .unknown ? nil : $0 }
                     }
@@ -136,7 +146,10 @@ public struct DashboardQuestionnaireProjection: Sendable {
             let sources = (m + p + s).compactMap { row in row.text("id").map { "\(row.sourceTable):\($0)" } }.sorted()
             return DashboardQuestionnaireDay(treatmentDate: key, morning: mState, preSleep: pState,
                 nightOutcome: oState, recordedSleepQuality: quality, dose2WakeMethod: wake,
-                followingDay: following, sourceRecordIDs: sources)
+                followingDay: following, sourceRecordIDs: sources,
+                outcomeSessionID: diaryIdentity, outcomeSourceRecordID: diarySource,
+                outcomeRecordedAt: diary?.recordedAt, reportedFinalWakeAt: diary?.answers.finalWakeAt,
+                sleepiness0To10: diary?.answers.sleepiness, sleepinessAssessedAt: diary?.answers.assessedAt)
         }
     }
 
@@ -175,7 +188,7 @@ private struct QuestionnaireOutcome: Decodable {
         let sleepiness: Int?
         let assessedAt: Date?
         func valid(at recorded: Date) -> Bool {
-            guard [finalWakeAt, assessedAt].compactMap({ $0 }).allSatisfy({ $0 <= recorded }),
+            guard [finalWakeAt, assessedAt].compactMap({ $0 }).allSatisfy({ $0.timeIntervalSince1970.isFinite && $0 <= recorded }),
                   sleepiness.map({ (0...10).contains($0) }) ?? true,
                   (sleepiness == nil) == (assessedAt == nil) else { return false }
             if let finalWakeAt, let assessedAt, assessedAt < finalWakeAt { return false }
