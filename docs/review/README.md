@@ -75,3 +75,5 @@ Each record identifies its version, bounded changes, validation and remaining ga
   — DOSETAP-76; separate read-only iPad reporting direction, legacy cloud coverage
   gaps and snapshot acceptance. No shipping cloud synchronization enabled.
 - [Dashboard six-month range, coverage and iPad storage](2026-09-26-dashboard-range-storage.md) — DOSETAP-45; provider limits and cross-device boundaries.
+
+- [Separate iPad dashboard and nearby reporting](2026-09-26-nearby-ipad-dashboard.md) — DOSETAP-76; device candidate, paired-transfer and privacy acceptance open.

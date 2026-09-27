@@ -34,28 +34,37 @@ public struct DashboardReportProjection: Sendable {
         var validator = CloudDashboardCache(accountScope: "projection", sourceID: snapshot.sourceID)
         try validator.accept(snapshot, accountScope: "projection", now: now)
         sourceID = snapshot.sourceID; capturedAt = snapshot.capturedAt
-        func rows(_ dataset: DashboardDataset, table: String) throws -> [ReportRow] {
+        func rows(_ dataset: DashboardDataset, tables: Set<String>) throws -> [ReportRow] {
             guard let data = snapshot.sections.first(where: { $0.dataset == dataset })?.rows else {
                 throw DashboardSnapshotError.incompleteDataset
             }
             let result = try JSONDecoder().decode([ReportRow].self, from: data)
-            guard result.allSatisfy({ $0.sourceTable == table }) else { throw DashboardSnapshotError.invalidPayload }
+            guard result.allSatisfy({ tables.contains($0.sourceTable) }) else { throw DashboardSnapshotError.invalidPayload }
             return result
         }
-        let doses = try rows(.doseEvents, table: "dose_events")
+        let doses = try rows(.doseEvents, tables: ["dose_events"])
+        let sessions = try rows(.sessions, tables: ["sleep_sessions", "current_session"])
         doseEventCount = doses.count
-        quickLogCount = try rows(.quickLogs, table: "sleep_events").count
+        quickLogCount = try rows(.quickLogs, tables: ["sleep_events"]).count
         var groups: [String: [ReportRow]] = [:]
         var identityDates: [String: Set<String>] = [:]
-        for row in doses {
+        var dateIdentities: [String: Set<String>] = [:]
+        // Date-only dose rows cannot establish that stored session identities are
+        // unique. Include both lifecycle tables without promoting NULL context.
+        for row in doses + sessions {
             let key = try row.required("session_date")
             let formatter = Self.dayFormatter()
             guard let date = formatter.date(from: key), formatter.string(from: date) == key else {
                 throw DashboardSnapshotError.invalidPayload
             }
-            groups[key, default: []].append(row)
-            if let identity = row.text("session_id"), !identity.isEmpty {
+            guard row.columns["session_id"].map({ ["null", "text"].contains($0.type) }) ?? true else {
+                throw DashboardSnapshotError.invalidPayload
+            }
+            if row.sourceTable == "dose_events" { groups[key, default: []].append(row) }
+            // Legacy date placeholders are not independent session identities.
+            if let identity = row.text("session_id"), !identity.isEmpty, identity != key {
                 identityDates[identity, default: []].insert(key)
+                dateIdentities[key, default: []].insert(identity)
             }
         }
         doseDays = groups.keys.sorted(by: >).map { key in
@@ -63,7 +72,7 @@ public struct DashboardReportProjection: Sendable {
             let first = records.filter { Self.kind($0.text("event_type")) == "dose1" }
             let second = records.filter { Self.kind($0.text("event_type")) == "dose2" }
             let skipped = records.filter { Self.kind($0.text("event_type")) == "skip" }
-            let identities = Set(records.compactMap { $0.text("session_id") }.filter { !$0.isEmpty })
+            let identities = dateIdentities[key, default: []]
             let ids = records.compactMap { $0.text("id") }.filter { !$0.isEmpty }
             var status = "Missing dose pair", interval: Double?
             let conflict = first.count > 1 || second.count > 1 || skipped.count > 1
@@ -83,7 +92,7 @@ public struct DashboardReportProjection: Sendable {
             return DashboardReportDoseDay(treatmentDate: key, intervalMinutes: interval, status: status)
         }
         var entries: [DashboardReportMedicationEntry] = []
-        for row in try rows(.medicationEntries, table: "medication_events") {
+        for row in try rows(.medicationEntries, tables: ["medication_events"]) {
             let id = try row.required("id"), name = try row.required("medication_id")
             guard let occurred = Self.timestamp(row.text("taken_at_utc")), occurred <= now,
                   let amount = row.integer("dose_mg") else { throw DashboardSnapshotError.invalidPayload }
@@ -94,7 +103,7 @@ public struct DashboardReportProjection: Sendable {
                 recordedAt: Self.timestamp(row.text("created_at")), calendarDate: Self.day(occurred, offset),
                 sourceTable: row.sourceTable, timePrecision: "legacy recorded time"))
         }
-        for row in try rows(.administrations, table: "confirmed_medication_administrations") {
+        for row in try rows(.administrations, tables: ["confirmed_medication_administrations"]) {
             let actual = try MedicationPresetExportSnapshot.decodeAdministration(row.required("payload"))
             guard try row.required("id") == actual.id.uuidString, actual.recordedAt <= now else {
                 throw DashboardSnapshotError.invalidPayload

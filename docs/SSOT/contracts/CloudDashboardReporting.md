@@ -133,8 +133,9 @@ as multiple observations. Derived symptom caches/audit entries are not new sympt
 The snapshot excludes schema_migrations and legacy cloudkit_tombstones intentionally;
 full replacement represents reporting deletions without remote phone deletes.
 UserDefaults, Keychain, files/preferences and provider stores are separate owners,
-so this is not a full-device backup. Durable publisher revisions, payload size limits,
-identity conflict classification and consumer analytics remain unimplemented.
+so this is not a full-device backup. Durable publisher revisions, payload size limits and conservative dose identity
+classification are implemented by the nearby app slice below; richer analytics
+remain separate.
 
 ## Initial separate dashboard display and nearby transport
 
@@ -164,9 +165,13 @@ may leave a revision gap. Corrupt identity state fails closed. The iPad persists
 only after full validation and projection, with complete file protection and
 backup exclusion. A new phone source requires explicitly forgetting the old copy.
 
-The separate iPad target is `com.dosetap.dashboard`, version0.1.0(1), generated
+The separate iPad target is `com.dosetap.dashboard`, version0.1.0(2), generated
 from `ipad/project.yml`. It contains no EventStorage, medication writer or alarm
 service. Initial views are recorded dose spacing, medication calendar occurrences,
 night review states and connection status. All-time medications are explicitly
 separate from treatment-date-filtered interval trends. A provider sleep dashboard,
 automatic background updates and private-server transport remain later gates.
+
+Identity eligibility unions dose_events, sleep_sessions and current_session. Multiple
+real IDs per date or one ID spanning dates invalidate spacing, even for date-only
+dose pairs. Date placeholders do not establish another real identity.

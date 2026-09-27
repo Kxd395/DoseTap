@@ -939,8 +939,10 @@ visible, not empty success. No records are copied into nighttime dose history.
 [Cloud dashboard reporting](contracts/CloudDashboardReporting.md) defines a
 one-way private reporting feed for a separate iPad app. The core snapshot validator
 and in-memory acceptance reducer reject incomplete, stale, corrupt or wrong-context
-refreshes. No cloud upload, iPad target, persistent cache or shipping sync is enabled
-by this foundation. Phone records and alarms remain unchanged.
+refreshes. The subsequent nearby slice adds a separate iPad target, protected report cache
+and explicit foreground pairing. Clinical cloud uploads remain disabled. See
+[nearby iPad delivery](../review/2026-09-26-nearby-ipad-dashboard.md) for validation
+and acceptance gates. Phone records and alarms remain phone-owned.
 
 Cloud dashboard transport correction (DOSETAP-76): clinical CloudKit publishing
 remains disabled because Apple5.1.3(ii) restricts personal health information in

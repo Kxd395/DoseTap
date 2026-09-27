@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root="$(cd "$(dirname "$0")/.." && pwd)"
+command -v xcodegen >/dev/null || { echo 'XcodeGen 2.46 or newer is required.' >&2; exit 1; }
+xcodegen generate --spec "$root/ipad/project.yml"
+mode="${1:-sim}"
+args=(-project "$root/ipad/DoseTapDashboard.xcodeproj" -scheme DoseTapDashboard -derivedDataPath "${DT_DASHBOARD_DERIVED_DATA:-/tmp/dosetap-dashboard-build}")
+case "$mode" in
+  sim) args+=(-configuration Debug -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO) ;;
+  device) [[ -n "${2:-}" ]] || { echo 'Usage: dt-dashboard-build device <device-id>' >&2; exit 1; }
+    args+=(-configuration Release -destination "id=$2" -allowProvisioningUpdates) ;;
+  *) echo 'Usage: dt-dashboard-build [sim|device <device-id>]' >&2; exit 1 ;;
+esac
+exec xcodebuild build "${args[@]}"

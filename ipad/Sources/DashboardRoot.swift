@@ -56,8 +56,8 @@ struct DashboardRoot: View {
         let usable = nights.compactMap(\.intervalMinutes).sorted()
         let median = usable.isEmpty ? nil : (usable[(usable.count - 1) / 2] + usable[usable.count / 2]) / 2
         ViewThatFits(in: .horizontal) {
-            HStack { metric("Recorded treatment dates", "\(nights.count)"); metric("Usable dose pairs", "\(usable.count)"); metric("Median recorded spacing", median.map(duration) ?? "Not available") }
-            VStack { metric("Recorded treatment dates", "\(nights.count)"); metric("Usable dose pairs", "\(usable.count)"); metric("Median recorded spacing", median.map(duration) ?? "Not available") }
+            HStack { metric("Dates with dose records", "\(nights.count)"); metric("Usable dose pairs", "\(usable.count)"); metric("Median recorded spacing", median.map(duration) ?? "Not available") }
+            VStack { metric("Dates with dose records", "\(nights.count)"); metric("Usable dose pairs", "\(usable.count)"); metric("Median recorded spacing", median.map(duration) ?? "Not available") }
         }
         GroupBox("Recorded Dose 1 → Dose 2 spacing") {
             if usable.isEmpty { Text("No unambiguous positive pairs in this range.").padding() }
@@ -143,7 +143,7 @@ struct DashboardConnection: View {
             if connection.state != .stopped { Button("End connection") { connection.stop(); code = "" } }
             Text("This app stores a protected local reporting copy, excluded from backup. It cannot edit iPhone records, log a dose or operate alarms. Nearby refresh currently requires both apps in the foreground; background or cloud updates are not enabled.").font(.footnote).foregroundStyle(.secondary)
             Button("Forget downloaded report", role: .destructive) { confirmForget = true }
-            Text("DoseTap Dashboard 0.1.0 (1)").font(.caption).foregroundStyle(.secondary)
+            Text("DoseTap Dashboard 0.1.0 (2)").font(.caption).foregroundStyle(.secondary)
         }.confirmationDialog("Remove this iPad’s reporting copy? Your iPhone records stay unchanged.", isPresented: $confirmForget, titleVisibility: .visible) {
             Button("Forget report", role: .destructive) { model.forgetReport() }
         }

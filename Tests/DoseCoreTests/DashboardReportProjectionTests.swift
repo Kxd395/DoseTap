@@ -14,9 +14,9 @@ final class DashboardReportProjectionTests: XCTestCase {
                 return DashboardSnapshotSection(dataset: $0, rows: try JSONSerialization.data(withJSONObject: rows), rowCount: rows.count)
             })
     }
-    private func dose(_ id: String, _ type: String, _ time: String, session: String = "night") -> [String: Any] {
+    private func dose(_ id: String, _ type: String, _ time: String, session: String? = "night") -> [String: Any] {
         row("dose_events", ["id": text(id), "event_type": text(type), "timestamp": text(time),
-            "session_date": text("2026-03-07"), "session_id": text(session)])
+            "session_date": text("2026-03-07"), "session_id": session.map { text($0) } ?? ["type": "null"]])
     }
     func testMidnightDSTPairUsesActualElapsedTimeAndExactSource() throws {
         let s = try snapshot([.doseEvents: [dose("a", "dose1", "2026-03-08T01:30:00-05:00"),
@@ -75,5 +75,30 @@ final class DashboardReportProjectionTests: XCTestCase {
         XCTAssertThrowsError(try DashboardReportProjection(snapshot: s, now: now))
         s = try snapshot([:]); s.sections[0].rowCount = 9
         XCTAssertThrowsError(try DashboardReportProjection(snapshot: s, now: now))
+    }
+    func testSessionEvidencePreventsAmbiguousDateOnlyDosePairs() throws {
+        func session(_ table: String, _ id: String, date: String = "2026-03-07") -> [String: Any] {
+            row(table, ["session_id": text(id), "session_date": text(date)])
+        }
+        let first = dose("a", "dose1", "2026-03-08T01:00:00Z", session: nil)
+        let second = dose("b", "dose2", "2026-03-08T04:00:00Z", session: nil)
+        for evidence in [[session("sleep_sessions", "one"), session("sleep_sessions", "two")],
+                         [session("sleep_sessions", "one"), session("current_session", "two")],
+                         [session("sleep_sessions", "one"), session("current_session", "one", date: "2026-03-08")]] {
+            let p = try DashboardReportProjection(snapshot: snapshot([.doseEvents: [first, second], .sessions: evidence]), now: now)
+            XCTAssertNil(p.doseDays.first?.intervalMinutes); XCTAssertEqual(p.doseDays.first?.status, "Conflicting records")
+        }
+        let unique = [session("sleep_sessions", "one"), session("current_session", "one"),
+                      session("sleep_sessions", "2026-03-07")]
+        let p = try DashboardReportProjection(snapshot: snapshot([.doseEvents: [first, second], .sessions: unique]), now: now)
+        XCTAssertEqual(p.doseDays.first?.intervalMinutes, 180)
+    }
+    func testSessionEvidenceCanConflictWithExplicitDoseIdentity() throws {
+        let pair = [dose("a", "dose1", "2026-03-08T01:00:00Z"), dose("b", "dose2", "2026-03-08T04:00:00Z")]
+        for (identity, date) in [("other", "2026-03-07"), ("night", "2026-03-08")] {
+            let evidence = row("sleep_sessions", ["session_id": text(identity), "session_date": text(date)])
+            let p = try DashboardReportProjection(snapshot: snapshot([.doseEvents: pair, .sessions: [evidence]]), now: now)
+            XCTAssertNil(p.doseDays.first?.intervalMinutes)
+        }
     }
 }

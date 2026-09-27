@@ -53,6 +53,12 @@ Signing is only required for physical devices, archive builds, and TestFlight.
 If Xcode shows "Unable to process request - PLA Update available", sign in at
 <https://developer.apple.com/account> and accept the latest Program License Agreement.
 
+## Separate iPad reporting app
+
+The read-only DoseTap Dashboard candidate is generated from `ipad/project.yml`.
+See [nearby reporting setup and acceptance](docs/review/2026-09-26-nearby-ipad-dashboard.md).
+It uses explicit foreground pairing; cloud and background synchronization are not enabled.
+
 ## Documentation
 
 - Documentation lifecycle and authority: `docs/README.md`
