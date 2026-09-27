@@ -11,7 +11,11 @@ struct DashboardRoot: View {
     @State private var days = 180
     @State private var selectedNight: DashboardReportDoseDay?
     @State private var medicationSearch = ""
-    private let sections = ["Overview", "Dose timing", "Sleep & check-ins", "Medications", "Night review", "Report contents", "Connection"]
+    private let sections = ["Overview", "Dose timing", "Sleep & check-ins", "Wake & sleepiness", "Medications", "Night review", "Report contents", "Connection"]
+    private var diaryPoints: [DashboardDiaryPoint] {
+        let dates = Set(model.questionnaires?.selected(count: days, timeZone: .current).map(\.treatmentDate) ?? [])
+        return model.diary?.points.filter { dates.contains($0.treatmentDate) } ?? []
+    }
     private var nights: [DashboardReportDoseDay] {
         guard let report = model.report else { return [] }
         return DashboardReportStatistics.selected(report.doseDays, count: days,
@@ -43,8 +47,9 @@ struct DashboardRoot: View {
                             else { rangePicker.pickerStyle(.segmented) }
                             Text("Treatment-night ranges use the 6 p.m. rollover at report capture in \(TimeZone.current.identifier). Refresh to include later records.")
                                 .font(.caption).foregroundStyle(.secondary)
-                            if section == "Overview" { ReportOverview(report: report, nights: nights) { section = $0 } }
+                            if section == "Overview" { ReportOverview(report: report, nights: nights, diaryPoints: diaryPoints) { section = $0 } }
                             else if section == "Dose timing" { DoseTimingOverview(nights: nights) { selectedNight = $0 } }
+                            else if section == "Wake & sleepiness" { DiaryOverview(points: diaryPoints, generation: model.diary?.sequence ?? 0) }
                             else if section == "Sleep & check-ins", let answers = model.questionnaires {
                                 QuestionnaireOverview(days: answers.selected(count: days, timeZone: .current),
                                                       unassignedSourceRowCount: answers.unassignedSourceRowCount)
@@ -55,13 +60,13 @@ struct DashboardRoot: View {
                         Button("Set up connection") { section = "Connection" }.buttonStyle(.borderedProminent)
                     }
                 }.padding(28).frame(maxWidth: 1100, alignment: .leading).frame(maxWidth: .infinity)
-            }.navigationTitle(section)
+            }.accessibilityIdentifier("dashboard-content").navigationTitle(section)
         }.tint(.teal)
             .sheet(item: $selectedNight) { DoseNightDetail(night: $0) }
     }
     private var rangePicker: some View {
         Picker("Treatment dates", selection: $days) {
-            ForEach([7, 30, 90, 180, 365, 0], id: \.self) { value in
+            ForEach([7, 14, 30, 90, 180, 365, 0], id: \.self) { value in
                 Text(value == 0 ? "All time" : value == 180 ? "6 months" : "\(value) days").tag(value)
             }
         }

@@ -1,5 +1,11 @@
 # Dashboard diary analysis v1
 
+The iPad may plot matched post-wake sleepiness against positive dose spacing or
+elapsed Dose 2 to reported final wake. Use only the matched fields from this
+calculator, show the independent matched count, retain a table/point detail, and
+state when all ratings are identical. Plotting is descriptive: no trend fit,
+causal claim, optimal interval, medication recommendation or efficacy score.
+
 Read-only projection from one validated nearby snapshot. No provider queries,
 clinical writes, inferred sleep duration, or prescribed-window classification.
 

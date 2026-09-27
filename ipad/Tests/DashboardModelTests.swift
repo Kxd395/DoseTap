@@ -29,12 +29,15 @@ final class DashboardModelTests: XCTestCase {
         XCTAssertEqual(try url.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup, true)
         let reloaded = DashboardModel(cacheURL: url, now: { self.now })
         XCTAssertEqual(reloaded.snapshot, first); XCTAssertEqual(reloaded.report?.sourceID, first.sourceID)
+        XCTAssertEqual(reloaded.diary?.sourceID, first.sourceID)
+        XCTAssertEqual(reloaded.diary?.sequence, first.sequence)
         try accept(fixture(source: "phone-b", sequence: 2), into: reloaded)
         XCTAssertEqual(reloaded.snapshot, first); XCTAssertNotNil(reloaded.error)
         let oldContext = reloaded.connection.contextID
         reloaded.forgetReport()
         XCTAssertNotEqual(reloaded.connection.contextID, oldContext)
         XCTAssertNil(reloaded.snapshot); XCTAssertNil(reloaded.report); XCTAssertNil(reloaded.error)
+        XCTAssertNil(reloaded.diary)
         XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
         try accept(fixture(source: "phone-b"), into: reloaded)
         XCTAssertEqual(reloaded.snapshot?.sourceID, "phone-b"); XCTAssertNil(reloaded.error)
@@ -54,12 +57,14 @@ final class DashboardModelTests: XCTestCase {
             try accept(candidate, into: model)
             XCTAssertEqual(model.snapshot, first); XCTAssertNotNil(model.error)
             XCTAssertEqual(model.report?.sourceID, first.sourceID)
+            XCTAssertEqual(model.diary?.sequence, first.sequence)
             XCTAssertEqual(try Data(contentsOf: url), saved)
         }
         model.receive(Data("invalid".utf8), context: model.connection.contextID)
         XCTAssertEqual(model.snapshot, first); XCTAssertEqual(try Data(contentsOf: url), saved)
         try accept(fixture(sequence: 4), into: model)
         XCTAssertEqual(model.snapshot?.sequence, 4); XCTAssertNil(model.error)
+        XCTAssertEqual(model.diary?.sequence, 4)
     }
     func testOldConnectionCannotReplaceReportAfterStop() throws {
         let url = try temporaryURL(), model = DashboardModel(cacheURL: url, now: { self.now })
