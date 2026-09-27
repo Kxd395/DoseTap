@@ -20,6 +20,23 @@ final class DashboardModelTests: XCTestCase {
     private func accept(_ snapshot: CloudDashboardSnapshot, into model: DashboardModel) throws {
         model.receive(try JSONEncoder().encode(snapshot), context: model.connection.contextID)
     }
+    func testProviderEvidenceSurvivesReloadAndInvalidRefreshPreservesIt() throws {
+        let url = try temporaryURL(), model = DashboardModel(cacheURL: url, now: { self.now })
+        var first = fixture()
+        let packet = DashboardSleepEvidence(queryStart: now.addingTimeInterval(-3600), queryEnd: now,
+                                            completedAt: now, timeZoneID: "UTC", samples: [])
+        let i = first.sections.firstIndex { $0.dataset == .appleHealth }!
+        first.sections[i] = try packet.section()
+        try accept(first, into: model)
+        let reloaded = DashboardModel(cacheURL: url, now: { self.now })
+        XCTAssertEqual(try DashboardSleepEvidence.read(from: XCTUnwrap(reloaded.snapshot)), packet)
+        let saved = try Data(contentsOf: url)
+        var invalid = first; invalid.sequence = 2
+        invalid.sections[i] = .init(dataset: .appleHealth, rows: Data("[{\"version\":99}]".utf8), rowCount: 1)
+        try accept(invalid, into: model)
+        XCTAssertNotNil(model.error); XCTAssertEqual(model.snapshot, first)
+        XCTAssertEqual(try Data(contentsOf: url), saved)
+    }
     func testPersistenceReloadPinAndExplicitForget() throws {
         let url = try temporaryURL(), first = fixture()
         let model = DashboardModel(cacheURL: url, now: { self.now })

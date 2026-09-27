@@ -22,14 +22,16 @@ struct ReportContentsView: View {
                         .foregroundStyle(section.rowCount != nil ? .teal : .orange)
                     VStack(alignment: .leading, spacing: 5) {
                         Text(labels[section.dataset] ?? section.dataset.rawValue).font(.headline)
-                        if section.unavailableReason != nil { Text("Not included in this nearby report").foregroundStyle(.secondary) }
+                        if section.dataset == .appleHealth, let evidence = try? DashboardSleepEvidence.read(from: snapshot) {
+                            Text("\(evidence.samples.count) original sleep samples · one bounded query packet").foregroundStyle(.secondary)
+                        } else if section.unavailableReason != nil { Text("Not included in this nearby report").foregroundStyle(.secondary) }
                         else if section.notCollectedBySource == true { Text("Not collected by this source").foregroundStyle(.secondary) }
                         else { Text("\(section.rowCount ?? 0) source rows retained").foregroundStyle(.secondary) }
                     }
                     Spacer()
                 }.padding(16).background(.quaternary, in: RoundedRectangle(cornerRadius: 14))
             }
-            Text("Sleep averages, stages, dose-to-sleep and recovery trends require provider evidence that this report does not yet carry. Questionnaire source is retained, but answer-aware trend calculations need separate validation.")
+            Text("Apple Health evidence, when included, is a bounded raw query with its own dates and source detail. Sleep totals and dose-to-sleep trends need reviewed boundaries and source reconciliation. WHOOP is not included. Questionnaire source is retained, but additional answer-aware trends need separate validation.")
                 .font(.footnote).foregroundStyle(.secondary)
         }
     }

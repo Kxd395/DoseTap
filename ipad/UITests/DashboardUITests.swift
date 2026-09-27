@@ -74,6 +74,36 @@ final class DashboardUITests: XCTestCase {
         for _ in 0..<4 where !app.buttons["Forget downloaded report"].isHittable { app.swipeUp() }
         XCTAssertTrue(app.buttons["Forget downloaded report"].isHittable)
     }
+    func testProviderEvidenceNativeInspection() throws { try providerJourney(largeText: false) }
+    func testProviderEvidenceLargestText() throws { try providerJourney(largeText: true) }
+    private func providerJourney(largeText: Bool) throws {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let app = XCUIApplication()
+        if largeText { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
+        var report = try JSONDecoder().decode(CloudDashboardSnapshot.self, from: fixture())
+        let end = report.capturedAt
+        let origin = SleepEvidenceSample.Origin(sourceName: "Fixture Watch", bundleIdentifier: "example.fixture")
+        let samples = [
+            SleepEvidenceSample(sampleID: "core-sample", start: end.addingTimeInterval(-60), end: end.addingTimeInterval(-30), rawCategory: 3, stage: .core, origin: origin),
+            SleepEvidenceSample(sampleID: "awake-sample", start: end.addingTimeInterval(-30), end: end, rawCategory: 2, stage: .awake, origin: origin)
+        ]
+        let packet = DashboardSleepEvidence(queryStart: end.addingTimeInterval(-86400), queryEnd: end,
+                                             completedAt: end, timeZoneID: "America/New_York", samples: samples)
+        report.sections[report.sections.firstIndex { $0.dataset == .appleHealth }!] = try packet.section()
+        app.launchEnvironment["DOSETAP_DASHBOARD_UI_FIXTURE"] = try JSONEncoder().encode(report).base64EncodedString()
+        app.launch()
+        XCTAssertTrue(app.buttons["Apple Health evidence"].firstMatch.waitForExistence(timeout: 10))
+        app.buttons["Apple Health evidence"].firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["provider-sample-count"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["provider-sample-count"].label.contains("2 original samples"))
+        capture(largeText ? "Apple Health evidence largest text" : "Apple Health evidence native stages")
+        reveal("Original intervals", app: app)
+        let row = app.buttons["provider-interval-awake-sample"]
+        for _ in 0..<8 where !row.isHittable { app.scrollViews["dashboard-content"].swipeUp() }
+        XCTAssertTrue(row.isHittable); row.tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Sample: awake-sample")).firstMatch.waitForExistence(timeout: 5))
+        capture(largeText ? "Apple Health original sample largest text" : "Apple Health original sample provenance")
+    }
     private func capture(_ name: String) {
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)

@@ -34,9 +34,10 @@ struct ReportOverview: View {
                     Label("What this report can tell you", systemImage: "checklist").font(.title2.bold())
                     Text("Dose spacing uses unique reported administration times. Medication history uses the actual calendar date, so a morning medication stays on that day. Questionnaire ratings describe recorded answers; older records may not establish that each answer was freshly confirmed.")
                     Divider()
-                    Label("Wearable sleep is not in this download", systemImage: "waveform.path").font(.headline).foregroundStyle(.orange)
-                    Text("Apple Health and WHOOP measurements are not yet included in nearby reports. Sleep duration, sleep stages, return to sleep, and interval-versus-sleep comparisons cannot be calculated here yet. Their absence does not mean you slept zero hours.")
+                    Label("Inspect provider evidence separately", systemImage: "waveform.path").font(.headline).foregroundStyle(.orange)
+                    Text("Apple Health sleep intervals can be included with an explicit choice on the phone. Open Apple Health evidence to see what arrived and its query range. Reviewed sleep totals, Dose 2 return-to-sleep comparisons and WHOOP remain unavailable. Missing values do not mean zero sleep.")
                         .foregroundStyle(.secondary)
+                    Button("Open Apple Health evidence") { open("Apple Health evidence") }.buttonStyle(.bordered)
                     Button("Inspect report contents") { open("Report contents") }.buttonStyle(.bordered)
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(14)
             }
