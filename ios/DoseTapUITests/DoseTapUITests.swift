@@ -11,6 +11,13 @@ final class DoseTapUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
+        if name.contains("testSupply") || name.contains("testCompactLayout") {
+            app.launchArguments += ["--uitesting-bottle-tracking-reset", "-healthkit_enabled", "NO", "-whoop_enabled", "NO"]
+        }
+        if name.contains("testSupplyTracked") {
+            app.launchArguments += ["--uitesting-auto-night-reset", "-UIPreferredContentSizeCategoryName",
+                name.contains("LargeText") ? "UICTContentSizeCategoryAccessibilityXXXL" : "UICTContentSizeCategoryL"]
+        }
         if name.contains("testMedicationQuickLog") {
             app.launchArguments += ["--uitesting-auto-night-reset", "-setup_completed_v2", "YES", "-healthkit_enabled", "NO", "-whoop_enabled", "NO"]
         }
@@ -67,10 +74,11 @@ final class DoseTapUITests: XCTestCase {
         }
         if name.contains("testHistoryManual") { app.launchArguments += ["--uitesting-history", "--uitesting-history-reset", "-setup_completed_v2", "YES"] }
         app.launch()
+        app.launchArguments.removeAll { $0 == "--uitesting-bottle-tracking-reset" }
     }
 
     override func tearDownWithError() throws {
-        if name.contains("testDose1ReviewLargeText") || name.contains("testMorningRecordedDoseInWindowLargeText") {
+        if name.contains("testSupplyTrackedLargeText") || name.contains("testDose1ReviewLargeText") || name.contains("testMorningRecordedDoseInWindowLargeText") {
             app.terminate()
             app.launchArguments = ["--uitesting", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
             app.launch()
@@ -82,6 +90,76 @@ final class DoseTapUITests: XCTestCase {
             app.launch()
         }
         app = nil
+    }
+
+    func testSupplyTrackedLargeText() { testSupplyTrackedReceiptStartRelaunchAndUndo() }
+
+    func testSupplyTrackedReceiptStartRelaunchAndUndo() {
+        func reveal(_ element: XCUIElement, down: Bool = false) {
+            let interior = app.frame.insetBy(dx: 0, dy: app.frame.height * 0.18)
+            var previousFrame: CGRect?
+            for _ in 0..<14 {
+                if element.exists && element.isHittable && (interior.contains(CGPoint(x: element.frame.midX, y: element.frame.midY)) || previousFrame == element.frame) { break }
+                // At a form's scroll limit, a reachable final row need not reach its center.
+                previousFrame = element.exists ? element.frame : nil
+                let towardTop = element.exists && !element.frame.isEmpty ? element.frame.midY < interior.minY : down
+                if towardTop { app.swipeDown() } else { app.swipeUp() }
+            }
+            XCTAssertTrue(element.exists); XCTAssertTrue(element.isHittable)
+        }
+        func openSupply() {
+            let manage = app.buttons["manage-bottle-supply"]
+            XCTAssertTrue(manage.waitForExistence(timeout: 15)); reveal(manage, down: true); manage.tap()
+            XCTAssertTrue(app.navigationBars["Bottles & supply"].waitForExistence(timeout: 5))
+        }
+        func count(_ expected: Int) {
+            let text = app.staticTexts["bottle-unopened-count"]
+            reveal(text, down: true)
+            XCTAssertEqual(text.label, "Tracked unopened bottles: \(expected)")
+        }
+        func startBottle() {
+            let start = app.buttons["bottle-start"]; reveal(start); start.tap()
+            let save = app.buttons["bottle-entry-save"]
+            XCTAssertTrue(app.navigationBars["Start a bottle"].waitForExistence(timeout: 5)); reveal(save); save.tap()
+            XCTAssertTrue(app.navigationBars["Bottles & supply"].waitForExistence(timeout: 5))
+        }
+        XCTAssertTrue(app.buttons["dose-primary-action"].waitForExistence(timeout: 15))
+        let doseBefore = app.buttons["dose-primary-action"].label
+        openSupply()
+        let receive = app.buttons["bottle-receive"]; reveal(receive); receive.tap()
+        let save = app.buttons["bottle-entry-save"]
+        XCTAssertTrue(app.navigationBars["Received bottles"].waitForExistence(timeout: 5)); reveal(save); save.tap()
+        count(3)
+        startBottle(); count(2)
+        reveal(app.staticTexts["bottle-night-count"], down: true)
+        XCTAssertEqual(app.staticTexts["bottle-night-count"].label, "Recorded dosing nights since opening: 0")
+        captureDashboard("Tracked first bottle and truthful missing quantity")
+        app.navigationBars.buttons["Done"].tap()
+        XCTAssertEqual(app.buttons["dose-primary-action"].label, doseBefore)
+        app.terminate()
+        app.launchArguments.removeAll { $0 == "--uitesting-auto-night-reset" }
+        app.launch(); openSupply(); count(2)
+        startBottle(); count(1)
+        startBottle(); count(0)
+        reveal(app.staticTexts["bottle-refill-notice"], down: true)
+        XCTAssertTrue(app.staticTexts["bottle-refill-notice"].exists)
+        captureDashboard("Last tracked bottle notice")
+        let undo = app.buttons["Undo this opening"].firstMatch
+        reveal(undo); undo.tap()
+        app.buttons["Undo supply record"].tap()
+        let stock = app.staticTexts["bottle-unopened-count"]
+        reveal(stock, down: true); count(1)
+        XCTAssertFalse(app.staticTexts["bottle-refill-notice"].exists)
+        captureDashboard("Undo restores unopened stock without a dose")
+        let calendarReminder = app.buttons["bottle-calendar-reminder"]
+        reveal(calendarReminder); calendarReminder.tap()
+        XCTAssertTrue(app.navigationBars["Supply & reminders"].waitForExistence(timeout: 5))
+        reveal(app.buttons["saveSupplyReminder"])
+        captureDashboard("Calendar reminder available independently of bottle stock")
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.navigationBars["Bottles & supply"].waitForExistence(timeout: 5))
+        app.navigationBars.buttons["Done"].tap()
+        XCTAssertEqual(app.buttons["dose-primary-action"].label, doseBefore)
     }
 
     func testNearbyDashboardPublisherIsExplicitAndReadOnly() {

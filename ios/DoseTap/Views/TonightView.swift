@@ -242,6 +242,8 @@ struct LegacyTonightView: View {
                 .padding(.top, 4)
             }
 
+            BottleSupplyCard().padding(.top, 12)
+
             if homeState.showsDoseStatusCard {
                 Spacer().frame(height: 12)
 

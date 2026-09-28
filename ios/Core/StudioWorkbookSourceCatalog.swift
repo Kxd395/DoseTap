@@ -3,6 +3,7 @@ import Foundation
 struct StudioWorkbookData {
     let root: SWObject
     let medicationPresetLedger: MedicationPresetExportSnapshot?
+    let supplyState: SupplyBackup?
     let groupRoot: String
     let timezone: TimeZone
     let timezoneNote: String
@@ -27,6 +28,7 @@ struct StudioWorkbookData {
             medicationPresetLedger = nil
         }
         let groupRoot = version >= 3 ? "dateGroups" : "sessions"
+        supplyState = try Self.decodeSupplyState(root)
         guard root[version >= 3 ? "sessions" : "dateGroups"] == nil,
               let input = root[groupRoot] as? [SWObject] else { throw StudioWorkbookProjectionError.unsupportedBundle }
         self.root = root; self.groupRoot = groupRoot; self.inventoryCSV = inventoryCSV

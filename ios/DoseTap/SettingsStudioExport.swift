@@ -116,6 +116,11 @@ struct StudioBundleExporter {
             )
         }
 
+        let supply: SupplyBackup
+        do { supply = try repo.loadSupply() }
+        catch { throw StudioExportFailure(step: "Reading bottle and supply records", underlying: error) }
+        let supplyEncoder = JSONEncoder()
+        supplyEncoder.outputFormatting = [.sortedKeys]
         return InsightsBundleExport(
             schemaVersion: 5,
             exportVersion: "3.0",
@@ -129,6 +134,8 @@ struct StudioBundleExporter {
                 + (consent == nil ? ["Local snapshot only; provider enrichment was not fetched."] : []),
             whoopEnrichment: whoopEnrichment,
             medicationPresetLedger: try repo.medicationPresetExportSnapshot(),
+            supplyStateJSON: String(decoding: try supplyEncoder.encode(supply), as: UTF8.self),
+            supplyStateEncoding: "json-date-seconds-since-2001-v1",
             sessions: sessions
         )
     }
@@ -1396,7 +1403,7 @@ struct StudioBundleExporter {
 private struct InsightsBundleExport: Encodable {
     enum CodingKeys: String, CodingKey {
         case schemaVersion, exportVersion, appVersion, exportedAtUTC, timeZoneIdentifier, localOffsetMinutes
-        case consent, exportWarnings, whoopEnrichment, medicationPresetLedger
+        case consent, exportWarnings, whoopEnrichment, medicationPresetLedger, supplyStateJSON, supplyStateEncoding
         case sessions = "dateGroups"
     }
     let schemaVersion: Int
@@ -1409,6 +1416,8 @@ private struct InsightsBundleExport: Encodable {
     let exportWarnings: [String]
     let whoopEnrichment: InsightsWHOOPEnrichment?
     let medicationPresetLedger: MedicationPresetExportSnapshot
+    let supplyStateJSON: String
+    let supplyStateEncoding: String
     let sessions: [InsightsBundleSession]
 }
 

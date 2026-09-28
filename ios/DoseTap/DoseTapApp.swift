@@ -53,6 +53,9 @@ struct DoseTapApp: App {
         #endif
         Self.migrateSetupStateIfNeeded()
         #if DEBUG && targetEnvironment(simulator)
+        if ProcessInfo.processInfo.arguments.contains("--uitesting-bottle-tracking-reset") {
+            try? SessionRepository.shared.saveSupply(SupplyBackup())
+        }
         if ProcessInfo.processInfo.arguments.contains("--uitesting-dose1-review-reset") {
             UserSettingsManager.shared.targetIntervalMinutes = 165
             UserSettingsManager.shared.dose2ReminderEnabled = true
