@@ -195,3 +195,9 @@ reports do not yet analyze these independent records. Older schema-limited
 consumers reject schema 5. Missing/malformed ledgers fail publication. The shell
 archive audit checks structure/identity; exact Decimal arithmetic validation is
 owned by the Swift model and typed consumers, not duplicated by that script.
+
+Quantity-enabled supply version 3 adds baseline, preparation, discard and doseLink
+rows to Bottle & Supply, with grams, original-medication mL, bottle/preparation IDs,
+canonical dose snapshots and the preparation-limit timestamp. These are reported
+inventory allocations, not new dose events or confirmed disposal based on a timer.
+The raw ledger and void history remain in supplyStateJSON and Source Fields.

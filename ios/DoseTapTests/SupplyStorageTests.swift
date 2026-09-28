@@ -5,6 +5,46 @@ import SQLite3
 
 @MainActor
 final class SupplyStorageTests: XCTestCase {
+    func testQuantityRoundTripAllocationAndFailureDoNotCreateMedication() throws {
+        let storage = EventStorage.inMemory(), now = Date(timeIntervalSince1970: 1_801_179_600)
+        let bottle = UUID(), prep = UUID()
+        var value = SupplyBackup()
+        value.bottleStarts = [.init(id: bottle, openedAt: now, recordedAt: now)]
+        try value.recordQuantity(.init(id: UUID(), bottleID: bottle, kind: .baseline, amountMg: 90_000,
+            occurredAt: now, recordedAt: now, reason: "Reported"), now: now)
+        try value.recordQuantity(.init(id: prep, bottleID: bottle, kind: .preparation, amountMg: 4_500,
+            occurredAt: now, recordedAt: now, reason: "Prepared"), now: now)
+        try storage.saveSupply(value)
+        XCTAssertEqual(storage.countDoseEvents(), 0)
+        try usageDose(storage, id: "actual-dose", at: now, type: "dose1")
+        let evidence = try XCTUnwrap(storage.supplyDoseEvidence().first)
+        try value.recordQuantity(.init(id: UUID(), bottleID: bottle, kind: .doseLink, amountMg: 0,
+            occurredAt: now, recordedAt: now, reason: "Allocated", preparationID: prep, dose: evidence), now: now)
+        try storage.saveSupply(value)
+        XCTAssertEqual(try storage.loadSupply(), value)
+        XCTAssertEqual(try storage.loadSupply().remainingBottleMg(bottle), 85_500)
+        XCTAssertEqual(storage.countDoseEvents(), 1)
+        sqlite3_exec(storage.db, "PRAGMA query_only = ON", nil, nil, nil)
+        var failed = value
+        try failed.recordQuantity(.init(id: UUID(), bottleID: bottle, kind: .baseline, amountMg: 40_000,
+            occurredAt: now, recordedAt: now, reason: "Reconciled"), now: now)
+        XCTAssertThrowsError(try storage.saveSupply(failed))
+        XCTAssertEqual(try storage.loadSupply(), value)
+    }
+
+    func testQuantityDoseEvidenceExcludesAmbiguityAndDetectsCorrection() throws {
+        let storage = EventStorage.inMemory(), now = Date(timeIntervalSince1970: 1_801_179_600)
+        try usageDose(storage, id: "actual", at: now, type: "dose1")
+        let snapshot = try XCTUnwrap(storage.supplyDoseEvidence().first)
+        XCTAssertEqual(snapshot.eventID, "actual")
+        XCTAssertEqual(sqlite3_exec(storage.db, "UPDATE dose_events SET timestamp='2027-01-28T23:41:00Z' WHERE id='actual'", nil, nil, nil), SQLITE_OK)
+        XCTAssertFalse(try storage.supplyDoseEvidence().contains(snapshot))
+        try usageDose(storage, id: "duplicate", at: now, type: "dose1")
+        XCTAssertTrue(try storage.supplyDoseEvidence().isEmpty)
+        try usageDose(storage, id: "conflicting", at: now, type: "dose2", session: "other")
+        XCTAssertTrue(try storage.supplyDoseEvidence().isEmpty)
+    }
+
     func testReopenDatabasePreservesSupplyAndCorrectionHistory() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

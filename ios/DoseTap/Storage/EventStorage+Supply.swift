@@ -19,6 +19,40 @@ struct SupplyUsageSummary: Equatable {
 }
 
 extension EventStorage {
+    /// Checked canonical source evidence for manual preparation allocation.
+    /// Ambiguous sessions and duplicate Dose 1/2 records cannot be selected.
+    func supplyDoseEvidence() throws -> [SupplyDoseEvidence] {
+        let full = ISO8601DateFormatter(), fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return try readExportRows("""
+        WITH identities AS (
+            SELECT session_id, session_date FROM dose_events
+            UNION SELECT session_id, session_date FROM sleep_sessions
+            UNION SELECT session_id, session_date FROM current_session
+        )
+        SELECT e.id, e.session_id, e.event_type, e.timestamp
+        FROM dose_events e
+        WHERE e.event_type IN ('dose1', 'dose2', 'extra_dose')
+          AND e.session_id IS NOT NULL AND trim(e.session_id) != '' AND e.session_id != e.session_date
+          AND (SELECT COUNT(DISTINCT session_id) FROM identities i
+               WHERE i.session_date = e.session_date AND i.session_id != i.session_date) = 1
+          AND (SELECT COUNT(DISTINCT session_date) FROM identities i WHERE i.session_id = e.session_id) = 1
+          AND (e.event_type = 'extra_dose' OR
+               (SELECT COUNT(*) FROM dose_events d WHERE d.session_id = e.session_id AND d.event_type = e.event_type) = 1)
+        ORDER BY e.timestamp DESC, e.id
+        """) { stmt in
+            func text(_ column: Int32) throws -> String {
+                guard sqlite3_column_type(stmt, column) == SQLITE_TEXT,
+                      let pointer = sqlite3_column_text(stmt, column),
+                      let value = String(bytes: UnsafeBufferPointer(start: pointer, count: Int(sqlite3_column_bytes(stmt, column))), encoding: .utf8),
+                      !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw SupplyStorageError.invalid }
+                return value
+            }
+            let raw = try text(3)
+            guard let time = fractional.date(from: raw) ?? full.date(from: raw) else { throw SupplyStorageError.invalid }
+            return try SupplyDoseEvidence(eventID: text(0), sessionID: text(1), eventType: text(2), occurredAt: time)
+        }
+    }
     /// A single SELECT supplies one read snapshot. Counts are date groups, not
     /// bottle allocations; identity/duplicate checks include rows outside the range.
     func supplyUsage(since: Date, through: Date) throws -> SupplyUsageSummary {
@@ -104,6 +138,10 @@ extension EventStorage {
 }
 
 extension SessionRepository {
+    func supplyDoseEvidence() throws -> [SupplyDoseEvidence] { try storage.supplyDoseEvidence() }
+    func validateSupplyDose(_ evidence: SupplyDoseEvidence) throws {
+        guard try storage.supplyDoseEvidence().contains(evidence) else { throw SupplyQuantityError.conflict }
+    }
     func supplyUsage(since: Date, through: Date) throws -> SupplyUsageSummary {
         try storage.supplyUsage(since: since, through: through)
     }
