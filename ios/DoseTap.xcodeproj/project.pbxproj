@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		BOTS01B /* BottleSupplyViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = BOTS01F /* BottleSupplyViews.swift */; };
 		DB770003 /* DashboardTransferView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB770004 /* DashboardTransferView.swift */; };
 		DB770005 /* DoseTapNearby in Frameworks */ = {isa = PBXBuildFile; productRef = DB770006 /* DoseTapNearby */; };
 		DB770001 /* DashboardPublisherIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB770002 /* DashboardPublisherIdentity.swift */; };
@@ -193,6 +194,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		BOTS01F /* BottleSupplyViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottleSupplyViews.swift; sourceTree = "<group>"; };
 		DB770004 /* DashboardTransferView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Views/DashboardTransferView.swift; sourceTree = "<group>"; };
 		DB770002 /* DashboardPublisherIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardPublisherIdentity.swift; sourceTree = "<group>"; };
 		72CFAA5DE2681CBC5A3CDB0C /* SessionRepositoryDashboardSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SessionRepositoryDashboardSnapshot.swift"; sourceTree = "<group>"; };
@@ -695,6 +697,7 @@
 				D074F304 /* MedicationAdministrationCaptureModel.swift */,
 				D074F305 /* MedicationAdministrationCaptureView.swift */,
 				SUPUIF01 /* SupplySettingsView.swift */,
+				BOTS01F /* BottleSupplyViews.swift */,
 				SYSUIF01 /* SystemAlarmSettingsView.swift */,
 				D1UIF01 /* Dose1ReviewSheet.swift */,
 				UNDO008 /* MedicationPickerView.swift */,
@@ -972,6 +975,7 @@
 				D074B304 /* MedicationAdministrationCaptureModel.swift in Sources */,
 				D074B305 /* MedicationAdministrationCaptureView.swift in Sources */,
 				SUPUIB01 /* SupplySettingsView.swift in Sources */,
+				BOTS01B /* BottleSupplyViews.swift in Sources */,
 				SYSUIB01 /* SystemAlarmSettingsView.swift in Sources */,
 				D1UIB01 /* Dose1ReviewSheet.swift in Sources */,
 				UNDO007 /* MedicationPickerView.swift in Sources */,
@@ -1127,7 +1131,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Cloud.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 80;
+				CURRENT_PROJECT_VERSION = 82;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;
 				ENABLE_PREVIEWS = YES;
@@ -1170,7 +1174,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Cloud.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 80;
+				CURRENT_PROJECT_VERSION = 82;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;
 				ENABLE_PREVIEWS = YES;
@@ -1445,7 +1449,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Local.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 80;
+				CURRENT_PROJECT_VERSION = 82;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;
@@ -1493,7 +1497,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Local.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 80;
+				CURRENT_PROJECT_VERSION = 82;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;

@@ -1,4 +1,9 @@
 {
+  "bottleTracking": {
+    "defaultReceiptCount": 3,
+    "maximumReceiptCount": 100,
+    "lastBottleContactRecordedNight": 3
+  },
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://dosetap.com/ssot/constants.json",
   "title": "DoseTap SSOT Constants",

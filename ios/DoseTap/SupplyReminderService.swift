@@ -78,7 +78,7 @@ final class SupplyReminderService: ObservableObject {
 
     func recordBottleStart(at date: Date) async -> Bool {
         await change { value in
-            guard date <= now() else { throw SupplyStorageError.invalid }
+            guard date <= now(), value.receipts == nil else { throw SupplyStorageError.invalid }
             value.bottleStarts.append(SupplyBottleStart(openedAt: date, recordedAt: now()))
         }
     }

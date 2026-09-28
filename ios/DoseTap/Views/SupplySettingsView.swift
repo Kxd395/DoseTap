@@ -41,6 +41,7 @@ struct SupplySettingsView: View {
 
     var body: some View {
         Form {
+            Section { NavigationLink("Bottles & supply") { BottleSupplyManagementView() } }
             Section {
                 Picker("Calculate from", selection: $mode) {
                     Text("Last received + 21 days").tag(SupplyReminderDateMode.receivedDate)
@@ -91,7 +92,7 @@ struct SupplySettingsView: View {
             Section("Bottle openings — optional") {
                 SupplyBottleButton()
                 if let records = service.backup?.bottleStarts, !records.isEmpty {
-                    ForEach(records.sorted { $0.openedAt > $1.openedAt }) { record in
+                    ForEach(records.filter { $0.receiptID == nil && $0.voidedAt == nil }.sorted { $0.openedAt > $1.openedAt }) { record in
                         VStack(alignment: .leading) {
                             Text("Started: \(record.openedAt.formatted(date: .abbreviated, time: .shortened))")
                             Button("Delete this bottle record", role: .destructive) {
@@ -100,7 +101,7 @@ struct SupplySettingsView: View {
                         }
                     }
                 } else { Text("No bottle openings recorded.") }
-                Text("Bottle openings do not change your reminder, supply counts, or dose records.").font(.footnote)
+                Text("Unlinked openings do not change stock. Starting a tracked bottle reduces the unopened count. Neither action changes your reminder or dose records.").font(.footnote)
             }.disabled(service.isBusy)
 
             if let history = service.backup?.reminder?.history, !history.isEmpty {
@@ -122,7 +123,7 @@ struct SupplySettingsView: View {
                     } catch { fileMessage = error.localizedDescription }
                 }.disabled(service.backup == nil)
                 Button("Restore supply records…") { importing = true }
-                Text("Includes the reminder, previous entries, and bottle openings. Restore replaces these supply records only. Keep exported files private.").font(.footnote)
+                Text("Includes the reminder and its history, received bottles, openings, and retained corrections. Restore replaces these supply records only. Keep exported files private.").font(.footnote)
                 if let fileMessage { Text(fileMessage) }
             }.disabled(service.isBusy)
         }
@@ -181,7 +182,7 @@ struct PreSleepBottleSection: View {
         QuestionSection(title: "Started a new bottle?", icon: "drop.fill") {
             SupplyBottleButton(accessibilityID: "preSleepStartedNewBottle")
                 .buttonStyle(.bordered)
-            if let latest = service.backup?.bottleStarts.max(by: { $0.openedAt < $1.openedAt }) {
+            if let latest = service.backup?.activeBottleStart {
                 Text("Last recorded opening: \(latest.openedAt.formatted(date: .abbreviated, time: .shortened))")
                     .font(.caption)
                     .accessibilityIdentifier("preSleepLastBottleOpening")
@@ -194,12 +195,16 @@ struct PreSleepBottleSection: View {
 }
 
 struct SupplyBottleButton: View {
+    @ObservedObject private var service = SupplyReminderService.shared
     var accessibilityID = "startedNewBottle"
     @State private var showing = false
     var body: some View {
         Button { showing = true } label: { Label("Started a new bottle", systemImage: "plus.circle") }
             .accessibilityIdentifier(accessibilityID)
-            .sheet(isPresented: $showing) { SupplyBottleSheet() }
+            .sheet(isPresented: $showing) {
+                if service.backup?.receipts != nil { NavigationStack { BottleSupplyManagementView().toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { showing = false } } } } }
+                else { SupplyBottleSheet() }
+            }
     }
 }
 

@@ -291,7 +291,7 @@ prevents archive publication; broader snapshot/read-error coverage is separate.
 
 `inventory_snapshots` records a point-in-time local estimate or imported inventory state. The legacy column name `next_refill_date` does not grant DoseTap authority to refill, order, verify eligibility, contact a pharmacy, or report shipment state.
 
-The proposed supply-cycle feature is a local reminder to order before medication runs out. It remains proposed under `docs/MYWAV_DOSETAP/` until implemented and accepted.
+The local calendar order reminder and reported bottle tracking use `supply_state`; see the [reminder](../supply-reminder.md) and [bottle tracking](../bottle-tracking.md) contracts. Broader MYWAV supply-cycle proposals do not establish delivered or accepted behavior.
 
 ## CloudKit boundary
 
@@ -312,6 +312,18 @@ A replacement event retains `correction.previous_events`, an array of the replac
 ## Local supply state (schema version 5)
 
 `supply_state` contains one row (`id INTEGER PRIMARY KEY CHECK (id = 1)`, `payload TEXT NOT NULL`). The versioned SupplyBackup JSON owns optional reminder source and correction history, plus independent bottle-start IDs, opened-at and recorded-at timestamps. Reminder dates preserve Gregorian year/month/day and local hour/minute, mode, lead days, current-device-wall-clock policy, entry timezone, enabled and handled state. Received-date mode adds 21 calendar days. No quantity is inferred from bottle starts. A single upsert commits the complete supply document; load/validation/write errors are surfaced. Reminder-only deletion preserves bottle starts and all medication data. Supply export/restore includes both reminder and bottle records; Clear All Data clears the row. The additive table does not rewrite existing medication records.
+
+DOSETAP-77 keeps the SQL schema unchanged. `SupplyBackup.version` remains 1 for
+legacy documents; tracking commands promote it to 2. Optional `receipts` contains
+`{id, count, receivedAt, recordedAt, voidedAt?}`; `count` is 1–100 reported bottles,
+not dose quantity. Existing `bottleStarts` add optional `receiptID` and `voidedAt`
+to `{id, openedAt, recordedAt}`. Legacy openings remain unlinked; undo retains source
+history. Unopened stock excludes voided receipts and subtracts nonvoided linked openings.
+Studio JSON adds optional `supplyStateJSON` and `supplyStateEncoding` with supported
+value `json-date-seconds-since-2001-v1`, retaining exact reference-date seconds.
+The conditional **Bottle & Supply** and **Source Fields** sheets retain receipts,
+openings, reminder revisions and void history. Invalid persisted supply stops export;
+absent legacy fields are not zero stock. Calendar reminder behavior remains independent.
 
 ### Dose 1 reminder review metadata (DOSETAP-71)
 
