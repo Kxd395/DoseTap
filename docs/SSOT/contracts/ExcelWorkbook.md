@@ -2,6 +2,24 @@
 
 Status: Current implementation contract for DOSETAP-13. Build 62 adds the workbook; build 63 reduces packaging memory; build 64 repairs row contrast.
 
+## Bottle and supply records (DOSETAP-77)
+
+An additive Studio schema-5 extension includes `supplyStateJSON` and
+`supplyStateEncoding: json-date-seconds-since-2001-v1`. The inner JSON retains the
+validated SQLite supply document with exact default-Date values (seconds since
+2001-01-01 UTC), including fractional seconds, receipt IDs, bottle openings,
+voids and reminder revision history. A failed supply read stops publication.
+
+Workbook schema 5 adds **Bottle & Supply** when this extension is present. Each
+sortable row is a receipt, opening or reminder revision; voids remain visible.
+UTC timestamps are typed dates, while entered reminder civil times stay labeled
+planning values. Source Fields exposes all inner fields under `/supplyStateJSON`
+with source identity `supply_state:1`, without a second giant JSON-string cell.
+The original inner string remains in the Studio ZIP. Older bundles without this
+extension retain their earlier sheet layout. Inventory remains a separate manual
+snapshot table. Neither sheet infers remaining doses, actual bottle consumption,
+successful notification delivery or pharmacy contact from these records.
+
 Settings adds **Export Excel Workbook** beside the existing Studio bundle export.
 The export is a local, styled XLSX reporting snapshot built from the finalized
 Studio JSON and inventory CSV from the same export operation. It never changes

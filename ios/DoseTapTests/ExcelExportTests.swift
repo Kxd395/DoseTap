@@ -42,7 +42,7 @@ final class ExcelExportTests: XCTestCase {
         XCTAssertEqual(try encoder.encode(storage.eventExportRecords(sessionDate: "2030-04-05")), beforeData)
         let sheets = try StudioWorkbookProjection.sheets(bundleData: original,
             inventoryCSV: String(contentsOf: folder.appendingPathComponent("inventory.csv"), encoding: .utf8))
-        XCTAssertEqual(sheets.count, 19)
+        XCTAssertEqual(sheets.count, 20)
         let summary = try XCTUnwrap(sheets.first { $0.name == "Dose Summary" })
         XCTAssertEqual(summary.rows.count, 1)
         XCTAssertEqual(summary.rows[0][try XCTUnwrap(summary.columns.firstIndex(of: "Dose interval"))], .durationMinutes(170))
@@ -140,5 +140,56 @@ final class ExcelExportTests: XCTestCase {
         let destination = folder.appendingPathComponent("review.xlsx")
         XCTAssertThrowsError(try ExcelWorkbookFileExporter.write(from: folder, to: destination))
         XCTAssertFalse(FileManager.default.fileExists(atPath: destination.path))
+    }
+
+    func testSupplyExportsThroughManualAndScheduledWritersWithoutChangingRecords() throws {
+        let repo = SessionRepository(storage: EventStorage.inMemory())
+        let time = Date(timeIntervalSince1970: 1_700_000_000.125), receipt = UUID(), opening = UUID()
+        var value = SupplyBackup()
+        try value.receiveBottles(id: receipt, count: 3, receivedAt: time, recordedAt: time, now: time)
+        try value.startBottle(id: opening, receiptID: receipt, openedAt: time, recordedAt: time, now: time)
+        try value.voidBottleStart(id: opening, at: time.addingTimeInterval(1), now: time.addingTimeInterval(1))
+        try repo.saveSupply(value)
+        for local in [false, true] {
+            let folder = FileManager.default.temporaryDirectory.appendingPathComponent("supply-export-\(UUID())")
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: folder) }
+            let exporter = StudioBundleExporter()
+            if local { try exporter.writeLocalStudioExportBundle(using: repo, to: folder) }
+            else { try exporter.writeStudioExportBundleForTesting(using: repo, to: folder, sessionDates: []) }
+            let bundle = try Data(contentsOf: folder.appendingPathComponent("insights_bundle.json"))
+            let root = try XCTUnwrap(JSONSerialization.jsonObject(with: bundle) as? [String: Any])
+            XCTAssertEqual(root["supplyStateEncoding"] as? String, "json-date-seconds-since-2001-v1")
+            let source = try XCTUnwrap(root["supplyStateJSON"] as? String)
+            XCTAssertEqual(try JSONDecoder().decode(SupplyBackup.self, from: Data(source.utf8)), value)
+            let sheets = try StudioWorkbookProjection.sheets(bundleData: bundle,
+                inventoryCSV: String(contentsOf: folder.appendingPathComponent("inventory.csv"), encoding: .utf8))
+            XCTAssertEqual(try XCTUnwrap(sheets.first { $0.name == "Bottle & Supply" }).rows.count, 2)
+            XCTAssertTrue(try XCTUnwrap(sheets.first { $0.name == "Inventory" }).rows.isEmpty)
+            let archive = try exporter.archiveExportDirectory(folder)
+            defer { try? FileManager.default.removeItem(at: archive) }
+            try attach(Data(contentsOf: archive), name: "supply-\(local ? "scheduled" : "manual").zip", type: "public.zip-archive")
+            let workbook = folder.appendingPathComponent("supply.xlsx")
+            try ExcelWorkbookFileExporter.write(from: folder, to: workbook)
+            try attach(Data(contentsOf: workbook), name: "supply-\(local ? "scheduled" : "manual").xlsx", type: "org.openxmlformats-officedocument.spreadsheetml.sheet")
+            XCTAssertEqual(try repo.loadSupply(), value)
+            XCTAssertTrue(try repo.sessionDatesForExport().isEmpty)
+        }
+    }
+
+    func testCorruptSupplyCannotPublishIncompleteExport() throws {
+        let storage = EventStorage.inMemory(), folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO supply_state(id,payload) VALUES(1,'{}')", nil, nil, nil), SQLITE_OK)
+        XCTAssertThrowsError(try StudioBundleExporter().writeLocalStudioExportBundle(using: SessionRepository(storage: storage), to: folder)) { error in
+            XCTAssertTrue(StudioExportFailureMessage.make(error, step: "Export").contains("Reading bottle and supply records failed"))
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: folder.appendingPathComponent("insights_bundle.json").path))
+    }
+
+    private func attach(_ data: Data, name: String, type: String) {
+        let attachment = XCTAttachment(data: data, uniformTypeIdentifier: type)
+        attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
     }
 }

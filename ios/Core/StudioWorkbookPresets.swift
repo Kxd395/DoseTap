@@ -1,7 +1,7 @@
 import Foundation
 
 extension StudioWorkbookData {
-    var workbookSchema: Int { medicationPresetLedger == nil ? 3 : 4 }
+    var workbookSchema: Int { supplyState != nil ? 5 : medicationPresetLedger == nil ? 3 : 4 }
 
     func medicationLedgerSheets() throws -> [WorkbookSheet] {
         guard let ledger = medicationPresetLedger else { return [] }

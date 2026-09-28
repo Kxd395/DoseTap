@@ -2,7 +2,7 @@ import Foundation
 
 extension StudioWorkbookData {
     var sheetNames: [String] { ["Overview", "Dose Summary", "Medication Log"] + (medicationPresetLedger == nil ? [] : ["Medication Presets", "Confirmed Medications"]) + ["Nights", "Night Review", "Events", "Pre-sleep", "Morning", "Pain", "Daytime",
-        "Sleep Measures", "Sleep Intervals", "Medications", "Inventory", "Source Fields", "Review Issues", "Field Guide"] }
+        "Sleep Measures", "Sleep Intervals", "Medications", "Inventory"] + (supplyState == nil ? [] : ["Bottle & Supply"]) + ["Source Fields", "Review Issues", "Field Guide"] }
 
     func overviewSheet() -> WorkbookSheet {
         let columns = ["Period", "Provider", "Population", "Mean sleep", "Median sleep", "Usable measurements", "Period start", "Period end", "Exported date groups",

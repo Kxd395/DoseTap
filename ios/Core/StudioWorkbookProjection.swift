@@ -5,11 +5,12 @@ import CryptoKit
 #endif
 
 public enum StudioWorkbookProjectionError: Error, LocalizedError {
-    case unsupportedBundle, malformedInventory
+    case unsupportedBundle, malformedInventory, malformedSupply
     public var errorDescription: String? {
         switch self {
         case .unsupportedBundle: return "This Studio bundle has an unsupported or incomplete structure. No workbook was shared."
         case .malformedInventory: return "The inventory table could not be read completely. No workbook was shared."
+        case .malformedSupply: return "The bottle and supply records could not be read completely. No workbook was shared."
         }
     }
 }
@@ -21,7 +22,7 @@ public enum StudioWorkbookProjection {
         return [data.overviewSheet(), data.doseSummarySheet(), data.medicationLogSheet()] + (try data.medicationLedgerSheets()) + [data.nightsSheet(), data.nightReviewSheet(), data.eventsSheet(),
                 data.questionnaireSheet(morning: false), data.questionnaireSheet(morning: true),
                 data.painSheet(), data.daytimeSheet(), data.sleepMeasuresSheet(), data.sleepIntervalsSheet(),
-                data.medicationsSheet(), data.inventorySheet(), data.sourceFieldsSheet(),
+                data.medicationsSheet(), data.inventorySheet()] + data.bottleSupplySheets() + [data.sourceFieldsSheet(),
                 data.reviewIssuesSheet(), data.fieldGuideSheet()]
     }
 }

@@ -52,6 +52,11 @@ extension StudioWorkbookData {
             } else { append(SW.canonical(value), kind: "unrecognized", status: "Original representation retained") }
         }
         var metadata = root; metadata.removeValue(forKey: groupRoot)
+        if let supplyJSON = metadata.removeValue(forKey: "supplyStateJSON"), let supply = SW.parse(supplyJSON) {
+            flatten(supply, path: "/supplyStateJSON", record: "supply_state:1", table: "supply_state",
+                    representation: "Validated supply document; dates use seconds since 2001-01-01 UTC",
+                    dates: "", associations: "", identity: "Independent of treatment dates", parseStrings: false)
+        }
         let ledger = metadata.removeValue(forKey: "medicationPresetLedger")
         if let ledger {
             flatten(ledger, path: "/medicationPresetLedger", record: "independent medication ledger", table: "medicationPresetLedger",
@@ -190,6 +195,9 @@ extension StudioWorkbookData {
         if medicationPresetLedger != nil {
             result["Medication Presets"] = "One immutable patient-entered preset revision; not a taken event."
             result["Confirmed Medications"] = "One confirmed administration snapshot; no implied treatment date, including unknown occurrence times."
+        }
+        if supplyState != nil {
+            result["Bottle & Supply"] = "One receipt, bottle opening or reminder revision. Voided records remain evidence; no inferred dose quantities."
         }
         return result
     }
