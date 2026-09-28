@@ -11,7 +11,7 @@ struct DashboardRoot: View {
     @State private var days = 180
     @State private var selectedNight: DashboardReportDoseDay?
     @State private var medicationSearch = ""
-    private let sections = ["Overview", "Dose timing", "Sleep & check-ins", "Wake & sleepiness", "Medications", "Night review", "Report contents", "Connection"]
+    private let sections = ["Overview", "Dose timing", "Apple Health evidence", "Sleep & check-ins", "Wake & sleepiness", "Medications", "Night review", "Report contents", "Connection"]
     private var diaryPoints: [DashboardDiaryPoint] {
         let dates = Set(model.questionnaires?.selected(count: days, timeZone: .current).map(\.treatmentDate) ?? [])
         return model.diary?.points.filter { dates.contains($0.treatmentDate) } ?? []
@@ -42,6 +42,7 @@ struct DashboardRoot: View {
                             .font(.subheadline).foregroundStyle(.secondary)
                         if section == "Medications" { medicationList(report) }
                         else if section == "Report contents", let snapshot = model.snapshot { ReportContentsView(snapshot: snapshot) }
+                        else if section == "Apple Health evidence", let snapshot = model.snapshot { AppleSleepEvidenceView(snapshot: snapshot) }
                         else {
                             if typeSize.isAccessibilitySize { rangePicker.pickerStyle(.menu) }
                             else { rangePicker.pickerStyle(.segmented) }
@@ -151,7 +152,8 @@ struct DashboardConnection: View {
             if connection.state != .stopped { Button("End connection") { connection.stop() } }
             Text("This app stores a protected local reporting copy, excluded from backup. It cannot edit iPhone records, log a dose or operate alarms. Nearby refresh currently requires both apps in the foreground; background or cloud updates are not enabled.").font(.footnote).foregroundStyle(.secondary)
             Button("Forget downloaded report", role: .destructive) { confirmForget = true }
-            Text("DoseTap Dashboard 0.1.0 (6)").font(.caption).foregroundStyle(.secondary)
+            Text("DoseTap Dashboard \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown") (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "Unknown"))")
+                .font(.caption).foregroundStyle(.secondary)
         }.confirmationDialog("Remove this iPad’s reporting copy? Your iPhone records stay unchanged.", isPresented: $confirmForget, titleVisibility: .visible) {
             Button("Forget report", role: .destructive) { model.forgetReport() }
         }

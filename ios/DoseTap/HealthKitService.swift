@@ -344,7 +344,8 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
         HKQuery.predicateForSamples(withStart: start, end: end, options: options)
     }
 
-    private func fetchSleepSegments(from start: Date, to end: Date, options: HKQueryOptions = .strictStartDate) async throws -> [SleepSegment] {
+    private func fetchSleepSegments(from start: Date, to end: Date, options: HKQueryOptions = .strictStartDate,
+                                    limit: Int = HKObjectQueryNoLimit) async throws -> [SleepSegment] {
         let sleepType = HKCategoryType(.sleepAnalysis)
         let predicate = Self.sleepSamplePredicate(from: start, to: end, options: options)
         let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
@@ -353,7 +354,7 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
             let query = HKSampleQuery(
                 sampleType: sleepType,
                 predicate: predicate,
-                limit: HKObjectQueryNoLimit,
+                limit: limit,
                 sortDescriptors: [sortDescriptor]
             ) { _, samples, error in
                 if let error = error {
@@ -369,6 +370,25 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
             }
             healthStore.execute(query)
         }
+    }
+
+    /// Raw bounded reporting query; deliberately avoids the consensus resolver's
+    /// per-boundary scan over a month of data. No new permission request or write.
+    func dashboardSleepEvidence(endingAt end: Date, timeZone: TimeZone) async throws -> DashboardSleepEvidence {
+        guard HKHealthStore.isHealthDataAvailable() else { throw DashboardSnapshotError.invalidMetadata }
+        let start = end.addingTimeInterval(-DashboardSleepEvidence.maximumRange)
+        let segments = try await fetchSleepSegments(from: start, to: end, options: [],
+                                                    limit: DashboardSleepEvidence.maximumSamples + 1)
+        try Task.checkCancellation()
+        guard segments.count <= DashboardSleepEvidence.maximumSamples else { throw DashboardSnapshotError.invalidPayload }
+        let samples = try segments.map { segment -> SleepEvidenceSample in
+            guard let sample = segment.evidence else { throw DashboardSnapshotError.invalidPayload }
+            return sample
+        }
+        let packet = DashboardSleepEvidence(queryStart: start, queryEnd: end, completedAt: Date(),
+                                             timeZoneID: timeZone.identifier, samples: samples)
+        try packet.validate(capturedAt: packet.completedAt)
+        return packet
     }
 
     /// Opt-in coverage for explicit bounds. Does not select or persist a treatment night.

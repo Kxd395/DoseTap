@@ -21,6 +21,7 @@ let package = Package(
             sources: [
                 "DoseWindowState.swift",
                 "CloudDashboardSnapshot.swift",
+                "DashboardSleepEvidence.swift",
                 "DashboardReportProjection.swift",
                 "DashboardReportStatistics.swift",
                 "DashboardQuestionnaireProjection.swift",
@@ -95,6 +96,7 @@ let package = Package(
                 "StudioMedicationLedgerFormatTests.swift",
                 "DoseWindowStateTests.swift",
                 "CloudDashboardSnapshotTests.swift",
+                "DashboardSleepEvidenceTests.swift",
                 "DashboardReportProjectionTests.swift",
                 "DashboardReportStatisticsTests.swift",
                 "DashboardQuestionnaireProjectionTests.swift",

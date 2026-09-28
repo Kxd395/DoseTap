@@ -189,3 +189,50 @@ final class DashboardSnapshotStorageTests: XCTestCase {
         XCTAssertEqual(sqlite3_total_changes(storage.db), before)
     }
 }
+
+@MainActor
+final class DashboardPublisherPreparationTests: XCTestCase {
+    func testDisabledPreferenceAndOptOutNeverQueryHealth() async {
+        var calls = 0
+        let model = DashboardPublisherModel(healthEnabled: { false }, loadEvidence: {
+            calls += 1
+            throw DashboardSnapshotError.invalidPayload
+        })
+        model.start(includeHealth: false)
+        XCTAssertNil(model.error); XCTAssertEqual(calls, 0)
+        model.start(includeHealth: true)
+        XCTAssertNotNil(model.error); XCTAssertFalse(model.preparing)
+        XCTAssertEqual(calls, 0); XCTAssertNil(model.providerReceipt)
+    }
+    func testCancelledPreparationCannotPublishLateResult() async throws {
+        var continuation: CheckedContinuation<DashboardSleepEvidence, Error>?
+        let model = DashboardPublisherModel(healthEnabled: { true }, loadEvidence: {
+            try await withCheckedThrowingContinuation { continuation = $0 }
+        })
+        model.start(includeHealth: true)
+        for _ in 0..<100 where continuation == nil { await Task.yield() }
+        let pending = try XCTUnwrap(continuation)
+        model.stop()
+        let now = Date()
+        pending.resume(returning: .init(queryStart: now.addingTimeInterval(-3600), queryEnd: now,
+                                       completedAt: now, timeZoneID: "UTC", samples: []))
+        for _ in 0..<10 { await Task.yield() }
+        XCTAssertFalse(model.preparing); XCTAssertNil(model.providerReceipt); XCTAssertNil(model.error)
+    }
+    func testFailureRemainsExplicitAndSuccessfulEmptyQueryIsPrepared() async {
+        let failed = DashboardPublisherModel(healthEnabled: { true }, loadEvidence: {
+            throw DashboardSnapshotError.invalidPayload
+        })
+        failed.start(includeHealth: true)
+        for _ in 0..<100 where failed.preparing { await Task.yield() }
+        XCTAssertNotNil(failed.error); XCTAssertNil(failed.providerReceipt)
+        let now = Date()
+        let success = DashboardPublisherModel(healthEnabled: { true }, loadEvidence: {
+            .init(queryStart: now.addingTimeInterval(-3600), queryEnd: now,
+                  completedAt: now, timeZoneID: "UTC", samples: [])
+        })
+        success.start(includeHealth: true)
+        for _ in 0..<100 where success.preparing { await Task.yield() }
+        XCTAssertNil(success.error); XCTAssertTrue(success.providerReceipt?.contains("0 readable") == true)
+    }
+}
