@@ -17,7 +17,16 @@ final class DashboardUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["SYNTHETIC medication · 15 mg"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Stored creation (may be import time)")).firstMatch.exists)
         capture("Native iPad medication history")
-        app.textFields["medication-filter"].tap(); app.textFields["medication-filter"].typeText("not-present")
+        let medicationFilter = app.textFields["medication-filter"]
+        XCTAssertTrue(medicationFilter.waitForExistence(timeout: 5))
+        // Hosted execution has reached this field before keyboard focus settled.
+        // Require keyboard presentation before sending text, with bounded taps.
+        for _ in 0..<3 {
+            medicationFilter.tap()
+            if app.keyboards.firstMatch.waitForExistence(timeout: 3) { break }
+        }
+        XCTAssertTrue(app.keyboards.firstMatch.exists, "Medication filter should accept keyboard input")
+        medicationFilter.typeText("not-present")
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "0 of 1 records")).firstMatch.exists)
         app.buttons["Sleep & check-ins"].firstMatch.tap()
         XCTAssertTrue(app.staticTexts["Recorded sleep quality"].waitForExistence(timeout: 5))

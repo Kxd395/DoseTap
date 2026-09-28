@@ -73,3 +73,13 @@ sidebar item was already visible. It now uses the existing sidebar scrolling
 helper before tapping. This is a test-only navigation correction; installed app
 binaries and build numbers are unchanged. Hosted rerun results and integration
 are recorded in the live PR and Plane workpad.
+
+The September 28 follow-up inspected failed run `36356616385` and its native
+artifact: the normal medication-filter journey typed before the field acquired
+keyboard focus. All provider journeys and the largest-text navigation passed.
+The test now requires keyboard presentation after a bounded maximum of three
+taps before typing; it still asserts that filtering removes the unmatched record.
+The targeted native journey passed in `/tmp/dosetap-pr71-focus.xcresult`.
+Swift build/tests (848 Core XCTest, 20 nearby XCTest, 43 Swift Testing) and
+Plane workflow checks passed again. This correction changes tests only, retaining
+the installed iPhone 81 and iPad Dashboard 9 binaries.
