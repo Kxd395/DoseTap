@@ -41,6 +41,7 @@ struct BottleSupplyCard: View {
                     Image(systemName: "chevron.right").accessibilityHidden(true)
                 }
             }.accessibilityIdentifier("manage-bottle-supply")
+                .accessibilityHint("Review received bottles and record a bottle opening.")
             if model.supply?.activeBottleStart != nil {
                 Text(model.usage.map { "Recorded dosing nights since opening: \($0.recordedNights)" } ?? "Dosing-night count unavailable")
                     .font(.subheadline)
@@ -50,8 +51,8 @@ struct BottleSupplyCard: View {
                 Text(model.supply?.trackedUnopenedBottleCount.map { "Unopened bottles: \($0) · Doses left: not available" } ?? "Unopened bottles and doses left: not recorded")
                     .font(.caption).foregroundStyle(.secondary)
                 if let notice = model.refillNotice { Text(notice).font(.subheadline.bold()) }
-            } else {
-                Text(model.error ?? "Record received bottles and when you start one.").font(.caption).foregroundStyle(.secondary)
+            } else if let error = model.error {
+                Text(error).font(.caption).foregroundStyle(.secondary)
             }
         }.padding().frame(maxWidth: .infinity, alignment: .leading)
             .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))

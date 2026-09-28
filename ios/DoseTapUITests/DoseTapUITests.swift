@@ -115,7 +115,7 @@ final class DoseTapUITests: XCTestCase {
             XCTAssertEqual(text.label, "Tracked unopened bottles: \(expected)")
         }
         func startBottle() {
-            let start = app.buttons["bottle-start"]; reveal(start, down: true); start.tap()
+            let start = app.buttons["bottle-start"]; reveal(start); start.tap()
             let save = app.buttons["bottle-entry-save"]
             XCTAssertTrue(app.navigationBars["Start a bottle"].waitForExistence(timeout: 5)); reveal(save); save.tap()
             XCTAssertTrue(app.navigationBars["Bottles & supply"].waitForExistence(timeout: 5))
