@@ -18,46 +18,45 @@ struct SupplyUsageSummary: Equatable {
     let excludedRows: Int
 }
 
+private typealias SupplyDoseRow = (id: String, type: CanonicalDoseEventType?, time: Date, day: String,
+                                   session: String?, conflictingIdentity: Bool)
+
 extension EventStorage {
-    /// Checked canonical source evidence for manual preparation allocation.
-    /// Ambiguous sessions and duplicate Dose 1/2 records cannot be selected.
+    /// Both supply projections use the same checked logical-date groups, including
+    /// legacy identities and event aliases. An ambiguous group cannot allocate stock.
     func supplyDoseEvidence() throws -> [SupplyDoseEvidence] {
-        let full = ISO8601DateFormatter(), fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return try readExportRows("""
-        WITH identities AS (
-            SELECT session_id, session_date FROM dose_events
-            UNION SELECT session_id, session_date FROM sleep_sessions
-            UNION SELECT session_id, session_date FROM current_session
-        )
-        SELECT e.id, e.session_id, e.event_type, e.timestamp
-        FROM dose_events e
-        WHERE e.event_type IN ('dose1', 'dose2', 'extra_dose')
-          AND e.session_id IS NOT NULL AND trim(e.session_id) != '' AND e.session_id != e.session_date
-          AND (SELECT COUNT(DISTINCT session_id) FROM identities i
-               WHERE i.session_date = e.session_date AND i.session_id != i.session_date) = 1
-          AND (SELECT COUNT(DISTINCT session_date) FROM identities i WHERE i.session_id = e.session_id) = 1
-          AND (e.event_type = 'extra_dose' OR
-               (SELECT COUNT(*) FROM dose_events d WHERE d.session_id = e.session_id AND d.event_type = e.event_type) = 1)
-        ORDER BY e.timestamp DESC, e.id
-        """) { stmt in
-            func text(_ column: Int32) throws -> String {
-                guard sqlite3_column_type(stmt, column) == SQLITE_TEXT,
-                      let pointer = sqlite3_column_text(stmt, column),
-                      let value = String(bytes: UnsafeBufferPointer(start: pointer, count: Int(sqlite3_column_bytes(stmt, column))), encoding: .utf8),
-                      !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw SupplyStorageError.invalid }
-                return value
+        try supplyDoseGroups().flatMap { group -> [SupplyDoseEvidence] in
+            guard unambiguousSupplyGroup(group) else { return [] }
+            return group.compactMap { row in
+                guard let type = row.type, type.countsAsTakenDose, let session = row.session else { return nil }
+                return SupplyDoseEvidence(eventID: row.id, sessionID: session, eventType: type.rawValue, occurredAt: row.time)
             }
-            let raw = try text(3)
-            guard let time = fractional.date(from: raw) ?? full.date(from: raw) else { throw SupplyStorageError.invalid }
-            return try SupplyDoseEvidence(eventID: text(0), sessionID: text(1), eventType: text(2), occurredAt: time)
-        }
+        }.sorted { $0.occurredAt == $1.occurredAt ? $0.eventID < $1.eventID : $0.occurredAt > $1.occurredAt }
     }
-    /// A single SELECT supplies one read snapshot. Counts are date groups, not
-    /// bottle allocations; identity/duplicate checks include rows outside the range.
+
     func supplyUsage(since: Date, through: Date) throws -> SupplyUsageSummary {
         guard since.timeIntervalSince1970.isFinite, through.timeIntervalSince1970.isFinite,
               since <= through else { throw SupplyStorageError.invalid }
+        var nights = 0, doses = 0, excluded = 0
+        for group in try supplyDoseGroups() {
+            let candidates = group.filter { $0.type?.countsAsTakenDose == true && since <= $0.time && $0.time <= through }
+            guard !candidates.isEmpty else { continue }
+            if unambiguousSupplyGroup(group) { nights += 1; doses += candidates.count }
+            else { excluded += candidates.count }
+        }
+        return SupplyUsageSummary(recordedNights: nights, recordedDoses: doses, excludedRows: excluded)
+    }
+
+    private func unambiguousSupplyGroup(_ group: [SupplyDoseRow]) -> Bool {
+        Set(group.compactMap(\.session)).count == 1
+            && !group.contains { $0.conflictingIdentity || $0.session == nil || $0.session == $0.day }
+            && group.filter { $0.type == .dose1 }.count <= 1
+            && group.filter { $0.type == .dose2 }.count <= 1
+    }
+
+    /// One SELECT supplies the snapshot; conflicts outside the requested time
+    /// range still participate in date/session identity and duplicate checks.
+    private func supplyDoseGroups() throws -> [[SupplyDoseRow]] {
         let full = ISO8601DateFormatter(), fractional = ISO8601DateFormatter()
         fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let civil = DateFormatter()
@@ -85,7 +84,7 @@ extension EventStorage {
                       allowEmpty || !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw SupplyStorageError.invalid }
                 return value
             }
-            _ = try text(0)
+            let id = try text(0)
             let type = try text(1), rawTime = try text(2), day = try text(3)
             guard let time = fractional.date(from: rawTime) ?? full.date(from: rawTime), time.timeIntervalSince1970.isFinite,
                   day.count == 10, let date = civil.date(from: day), civil.string(from: date) == day else { throw SupplyStorageError.invalid }
@@ -93,20 +92,10 @@ extension EventStorage {
             if sqlite3_column_type(stmt, 4) == SQLITE_NULL { session = nil }
             else { let raw = try text(4, allowEmpty: true); session = raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : raw }
             guard sqlite3_column_type(stmt, 5) == SQLITE_INTEGER, sqlite3_column_type(stmt, 6) == SQLITE_INTEGER else { throw SupplyStorageError.invalid }
-            return (type: CanonicalDoseEventType(canonicalizing: type), time: time, day: day, session: session,
+            return (id: id, type: CanonicalDoseEventType(canonicalizing: type), time: time, day: day, session: session,
                     conflictingIdentity: sqlite3_column_int64(stmt, 5) != 1 || sqlite3_column_int64(stmt, 6) != 1)
         }
-        var nights = 0, doses = 0, excluded = 0
-        for (day, group) in Dictionary(grouping: rows, by: { $0.day }) {
-            let candidates = group.filter { $0.type?.countsAsTakenDose == true && since <= $0.time && $0.time <= through }
-            guard !candidates.isEmpty else { continue }
-            let identities = Set(group.compactMap { $0.session })
-            let ambiguous = group.contains { $0.conflictingIdentity || $0.session == nil || $0.session == day }
-                || identities.count != 1 || group.filter { $0.type == .dose1 }.count > 1 || group.filter { $0.type == .dose2 }.count > 1
-            if ambiguous { excluded += candidates.count }
-            else { nights += 1; doses += candidates.count }
-        }
-        return SupplyUsageSummary(recordedNights: nights, recordedDoses: doses, excludedRows: excluded)
+        return Array(Dictionary(grouping: rows, by: \.day).values)
     }
 
     func loadSupply() throws -> SupplyBackup {

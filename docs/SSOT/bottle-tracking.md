@@ -41,7 +41,11 @@ Preparing two doses explicitly creates two records in one durable write. A
 preparation can be linked to an existing canonical taken-dose record, or explicitly
 marked discarded. Neither action deducts bottle stock again. Supply actions never
 create, correct or cancel medication events or medication alarms. Deleted/changed
-linked dose evidence is flagged for review, not silently substituted. One dose
+linked dose evidence is flagged for review, not silently substituted. Dose-link
+candidates and usage counts share the same checked date-group projection. A
+legacy NULL, blank or date-only dose identity makes the entire date unresolved;
+legacy event-name aliases participate in duplicate checks through the existing
+canonical event vocabulary. One dose
 cannot consume multiple preparations in this slice; split-bottle allocation remains
 open. Prepared-but-unresolved is not proof of a skipped dose or available medication.
 

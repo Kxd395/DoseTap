@@ -45,6 +45,37 @@ final class SupplyStorageTests: XCTestCase {
         XCTAssertTrue(try storage.supplyDoseEvidence().isEmpty)
     }
 
+    func testQuantityCandidatesExcludeMixedCanonicalAndLegacyDates() throws {
+        let now = Date(timeIntervalSince1970: 1_801_179_600)
+        for type in ["dose1", "dose2"] {
+            for identity in [String?.none, "", "   ", "2027-01-28"] {
+                let storage = EventStorage.inMemory()
+                try usageDose(storage, id: "canonical", at: now, type: type)
+                try usageDose(storage, id: "legacy", at: now, type: type, session: identity ?? "placeholder")
+                if identity == nil {
+                    XCTAssertEqual(sqlite3_exec(storage.db, "UPDATE dose_events SET session_id=NULL WHERE id='legacy'", nil, nil, nil), SQLITE_OK)
+                }
+                try usageDose(storage, id: "other-day", at: now, type: type, day: "2027-01-29", session: "b")
+                XCTAssertEqual(try storage.supplyDoseEvidence().map(\.eventID), ["other-day"])
+                XCTAssertEqual(try storage.supplyUsage(since: now, through: now).recordedDoses, 1)
+                XCTAssertEqual(sqlite3_exec(storage.db, "DELETE FROM dose_events WHERE id='legacy'", nil, nil, nil), SQLITE_OK)
+                XCTAssertEqual(Set(try storage.supplyDoseEvidence().map(\.eventID)), ["canonical", "other-day"])
+            }
+        }
+    }
+
+    func testQuantityCandidatesUseCanonicalAliasesInDuplicateChecks() throws {
+        let now = Date(timeIntervalSince1970: 1_801_179_600)
+        for (type, alias) in [("dose1", "Dose 1 Taken"), ("dose2", "Dose 2 (Late)")] {
+            let storage = EventStorage.inMemory()
+            try usageDose(storage, id: "canonical", at: now, type: type)
+            try usageDose(storage, id: "alias", at: now, type: alias)
+            XCTAssertTrue(try storage.supplyDoseEvidence().isEmpty)
+            XCTAssertEqual(sqlite3_exec(storage.db, "DELETE FROM dose_events WHERE id='canonical'", nil, nil, nil), SQLITE_OK)
+            XCTAssertEqual(try storage.supplyDoseEvidence().map(\.eventType), [type])
+        }
+    }
+
     func testReopenDatabasePreservesSupplyAndCorrectionHistory() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

@@ -1,6 +1,6 @@
 # Bottle quantity and prepared-dose tracking — DOSETAP-77
 
-Installed and independently verified phone version: **0.4.19 (83)**. This follows the
+Installed and independently verified phone version: **0.4.19 (84)**. This follows the
 [build 82 bottle foundation](2026-09-28-bottle-tracking.md). The separate iPad app
 is unchanged. Device, owner, accessibility, privacy and release acceptance remain
 separate from source and simulator validation.
@@ -64,24 +64,35 @@ nearby report carries the source document; this slice adds no iPad quantity UI.
   wrong-bottle references, retained-history correction and the 24-hour boundary.
 - Full Swift suite passed: 867 DoseCore XCTest, 20 nearby XCTest and 43 Swift
   Testing cases. Build passed.
-- 24 native integration tests passed: 12 supply storage, six supply service and
+- 26 native integration tests passed: 14 supply storage, six supply service and
   six Excel/ZIP tests. They cover checked source reads, reload, failed writes,
   no medication creation and source/export parity.
 - Unsigned simulator build and all four phone version configurations passed.
   SSOT, documentation, architecture, Plane workflow and whitespace checks passed.
-- Normal and largest-text native quantity journeys passed: baseline, two-dose
+- Normal and largest-text native quantity journeys passed on build 83's unchanged
+  interface: baseline, two-dose
   preparation, separate link/discard routes, no duplicate deduction, unchanged
   medication controls, and retained balance/unresolved count after relaunch.
   Compact Tonight/History layout also passed. Test navigation was corrected for
   the composed stepper identifier and offscreen lazy rows; assertions now use
   the visible unresolved count. Normal text was restored after large-text tests.
 - The signed final build installed without resetting app data. Independent
-  CoreDevice app inventory reports 0.4.19 (83). No owner medication or supply
+  CoreDevice app inventory reports 0.4.19 (84). No owner medication or supply
   records were created for testing. Installation is not owner-flow acceptance.
 - Source review checked allocation identity, atomic preparation writes, retry
   idempotency, correction dependencies and separation from medication events.
   Exact feature/main commit and hosted-check evidence live in the pull request
   and the structured DOSETAP-77 workpad.
+
+## Review correction after the build-83 candidate
+
+Automated PR review found that the initial dose-link SQL could overlook a legacy
+NULL/date-only row beside a canonical session row. Regression fixtures reproduced
+this and event-name alias duplicates. Both supply counts and dose-link candidates
+now share one checked date-group projection and the existing canonical event
+vocabulary. Ambiguous groups are excluded; unrelated dates remain eligible.
+This correction is delivered as build 84, replacing the installed build-83
+candidate. No historical records are modified or merged by this lookup.
 
 ## Remaining gates and bounds
 
