@@ -96,9 +96,10 @@ public struct SupplyBackup: Codable, Equatable {
     public var reminder: SupplyReminderDocument?
     public var bottleStarts: [SupplyBottleStart] = []
     public var receipts: [SupplyBottleReceipt]?
+    public var quantityEntries: [SupplyQuantityEntry]?
     public init(reminder: SupplyReminderDocument? = nil) { self.reminder = reminder }
     public var isValid: Bool {
-        (version == 1 || version == 2) && bottleStarts.count <= Self.maximumRecordCount && trackingIsValid
+        (1...3).contains(version) && bottleStarts.count <= Self.maximumRecordCount && trackingIsValid && quantityIsValid
             && reminder?.isValid != false
             && Set(bottleStarts.map(\.id)).count == bottleStarts.count
             && bottleStarts.allSatisfy {

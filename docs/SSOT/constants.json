@@ -647,5 +647,14 @@
         "generic_name", "formulation", "dose_value", "dose_unit", "is_duplicate_confirmed"
       ]
     }
+  },
+  "bottle_quantity": {
+    "supply_document_version": 3,
+    "product": "XYWAV oral solution",
+    "concentration_mg_per_ml": 500,
+    "nominal_bottle_mg": 90000,
+    "reference_dose_mg": 4500,
+    "diluted_preparation_limit_seconds": 86400,
+    "reference_only_not_prescribing": true
   }
 }

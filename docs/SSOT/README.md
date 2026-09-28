@@ -30,7 +30,7 @@ alarm changes may re-enable them for the still-active dose.
 - Dose persistence contract: `docs/SSOT/dose-state-persistence.md`
 - Alarm scheduling contract: `docs/SSOT/alarm-scheduling.md`
 - Local order reminder contract: `docs/SSOT/supply-reminder.md`
-- Local bottle tracking and its limits: [Bottle tracking](bottle-tracking.md)
+- Local bottle tracking, confirmed quantity and preparations: [Bottle tracking](bottle-tracking.md)
 - Data dictionary: `docs/SSOT/contracts/DataDictionary.md`
 - Diagnostic logging: `docs/DIAGNOSTIC_LOGGING.md`
 

@@ -73,7 +73,7 @@ extension SupplyBackup {
         }
         guard recordedAt <= now else { throw SupplyTrackingError.invalid }
         var candidate = self
-        candidate.version = 2
+        candidate.version = max(version, 2)
         candidate.receipts = (receipts ?? []) + [entry]
         try accept(candidate)
     }
@@ -90,7 +90,7 @@ extension SupplyBackup {
         else { throw SupplyTrackingError.noStock }
         guard recordedAt <= now, activeBottleStart.map({ openedAt > $0.openedAt }) ?? true else { throw SupplyTrackingError.invalid }
         var candidate = self
-        candidate.version = 2
+        candidate.version = max(version, 2)
         candidate.bottleStarts.append(entry)
         try accept(candidate)
     }
@@ -100,7 +100,7 @@ extension SupplyBackup {
         if bottleStarts[index].voidedAt == time { return }
         guard activeBottleStart?.id == id else { throw SupplyTrackingError.correctionUnavailable }
         var candidate = self
-        candidate.version = 2
+        candidate.version = max(version, 2)
         candidate.receipts = receipts ?? []
         candidate.bottleStarts[index].voidedAt = time
         try accept(candidate)
