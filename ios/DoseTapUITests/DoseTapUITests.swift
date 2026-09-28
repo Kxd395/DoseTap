@@ -97,6 +97,8 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(link.exists); link.tap()
         XCTAssertTrue(app.buttons["dashboard-transfer-start"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Not connected"].exists)
+        XCTAssertTrue(app.switches["dashboard-transfer-health"].exists)
+        XCTAssertEqual(app.switches["dashboard-transfer-health"].value as? String, "0")
         XCTAssertFalse(app.staticTexts["dashboard-pairing-code"].exists)
         captureDashboard("Explicit nearby dashboard publisher")
     }

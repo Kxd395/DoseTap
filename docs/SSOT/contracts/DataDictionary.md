@@ -407,3 +407,11 @@ withdraws evidence without asserting non-administration. The deterministic revie
 projection retains original and ordered amendments separately from current report.
 See [MedicationPresets.md](MedicationPresets.md). No SQLite table, Settings
 export field, migration, backfill or editing UI is introduced by this foundation.
+
+### Nearby dashboard provider packet
+
+`DashboardSleepEvidence` version 1 carries a bounded successful Apple Health sleep
+query in the nearby snapshot, separately from clinical SQLite and Studio exports.
+It preserves the allowed `SleepEvidenceSample` fields and query/timezone metadata.
+See [dashboard-provider-evidence.md](dashboard-provider-evidence.md) for validation,
+empty-query meaning, limits and read-only scope.

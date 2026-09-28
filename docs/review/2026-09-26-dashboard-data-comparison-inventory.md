@@ -115,3 +115,7 @@ Relevant implementation anchors: [HealthKitService](../../ios/DoseTap/HealthKitS
 - Signed phone → nearby report → iPad reopening with exact selected-night times, source counts, retained cache, realistic payload duration and export parity. Privacy/security, live provider behavior and owner usefulness remain open.
 
 No owner records are relinked, inferred, deleted or backfilled by this inventory. No medication guidance, “safe to drive” result, licensed questionnaire or combined clinical score is added. The whole-dashboard overhaul remains **In Progress**; connection success and individual merged slices do not close it.
+
+## Follow-on delivery
+
+The [2026-09-27 Apple Health evidence slice](2026-09-27-nearby-apple-sleep-evidence.md) adds optional bounded sleep-source transfer and an original-interval inspector. The baseline table above remains dated evidence; WHOOP and reviewed sleep analytics are still follow-on work.

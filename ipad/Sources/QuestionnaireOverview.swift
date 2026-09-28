@@ -46,7 +46,7 @@ struct QuestionnaireOverview: View {
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
                     Label("Wearable sleep measurements", systemImage: "waveform.path").font(.headline)
-                    Text("This downloaded report does not yet contain Apple Health or WHOOP evidence. Total sleep, awake intervals, return to sleep after Dose 2, and natural-versus-alarm sleep comparisons are unavailable here. Questionnaire completion and dose times cannot substitute for those measurements.")
+                    Text("Inspect Apple Health evidence for any original sleep intervals included by the phone. Reviewed total sleep, return to sleep after Dose 2, and natural-versus-alarm sleep comparisons are not calculated here yet. Questionnaire completion and dose times cannot substitute for those measurements. WHOOP is not included.")
                         .foregroundStyle(.secondary)
                 }.padding(14)
             }

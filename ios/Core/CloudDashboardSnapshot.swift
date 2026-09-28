@@ -92,6 +92,7 @@ public struct CloudDashboardSnapshot: Codable, Equatable, Sendable {
             throw DashboardSnapshotError.incompleteDataset
         }
         for section in sections { try section.validate() }
+        _ = try DashboardSleepEvidence.read(from: self)
     }
 }
 
