@@ -35,7 +35,8 @@ The estimate is baseline minus confirmed preparations since that baseline. Grams
 are stored as integer milligrams; dilution water is excluded. Reference-dose
 counts are equivalents, not a prescribing instruction or a count of taken doses.
 
-Each preparation has its own ID, bottle ID, amount, prepared-at and recorded-at.
+Each preparation has its own ID, bottle ID, amount, mixing time and recorded-at.
+The capture explicitly asks when the medication was mixed with water.
 Preparing two doses explicitly creates two records in one durable write. A
 preparation can be linked to an existing canonical taken-dose record, or explicitly
 marked discarded. Neither action deducts bottle stock again. Supply actions never

@@ -78,7 +78,7 @@ final class DoseTapUITests: XCTestCase {
     }
 
     override func tearDownWithError() throws {
-        if name.contains("testSupplyTrackedLargeText") || name.contains("testDose1ReviewLargeText") || name.contains("testMorningRecordedDoseInWindowLargeText") {
+        if (name.contains("testSupplyTracked") && name.contains("LargeText")) || name.contains("testDose1ReviewLargeText") || name.contains("testMorningRecordedDoseInWindowLargeText") {
             app.terminate()
             app.launchArguments = ["--uitesting", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
             app.launch()
@@ -90,6 +90,73 @@ final class DoseTapUITests: XCTestCase {
             app.launch()
         }
         app = nil
+    }
+
+    func testSupplyTrackedQuantity() { quantityJourney() }
+    func testSupplyTrackedQuantityLargeText() { quantityJourney() }
+
+    private func quantityJourney() {
+        func reveal(_ element: XCUIElement, down: Bool = false) {
+            let interior = app.frame.insetBy(dx: 0, dy: app.frame.height * 0.18)
+            var previousFrame: CGRect?
+            for _ in 0..<14 {
+                if element.exists && element.isHittable && (interior.contains(CGPoint(x: element.frame.midX, y: element.frame.midY)) || previousFrame == element.frame) { break }
+                // At a form's scroll limit, a reachable final row need not reach its center.
+                previousFrame = element.exists ? element.frame : nil
+                let towardTop = element.exists && !element.frame.isEmpty ? element.frame.midY < interior.minY : down
+                if towardTop { app.swipeDown() } else { app.swipeUp() }
+            }
+            XCTAssertTrue(element.exists); XCTAssertTrue(element.isHittable)
+        }
+        func tap(_ id: String, down: Bool = false) { let e = app.buttons[id]; reveal(e, down: down); e.tap() }
+        func save(_ title: String) {
+            tap("quantity-save")
+            XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 8))
+        }
+        func openQuantities() {
+            tap("manage-bottle-supply", down: true)
+            XCTAssertTrue(app.navigationBars["Bottles & supply"].waitForExistence(timeout: 8))
+            tap("bottle-quantities")
+            XCTAssertTrue(app.navigationBars["Amounts & preparations"].waitForExistence(timeout: 8))
+        }
+        XCTAssertTrue(app.buttons["dose-primary-action"].waitForExistence(timeout: 15))
+        let doseBefore = app.buttons["dose-primary-action"].label
+        tap("manage-bottle-supply", down: true)
+        tap("bottle-receive"); tap("bottle-entry-save")
+        XCTAssertTrue(app.navigationBars["Bottles & supply"].waitForExistence(timeout: 8))
+        tap("bottle-start"); tap("bottle-entry-save")
+        XCTAssertTrue(app.navigationBars["Bottles & supply"].waitForExistence(timeout: 8))
+        tap("bottle-quantities", down: true); tap("quantity-baseline")
+        let grams = app.textFields["quantity-grams"], reason = app.textFields["quantity-reason"]
+        XCTAssertTrue(grams.waitForExistence(timeout: 5)); grams.tap(); grams.typeText("90")
+        reveal(reason); reason.tap(); reason.typeText("Full bottle confirmed\n")
+        save("Amounts & preparations")
+        tap("quantity-prepare", down: true)
+        XCTAssertTrue(grams.waitForExistence(timeout: 5)); grams.tap(); grams.typeText("4.5")
+        let increment = app.buttons["quantity-count-Increment"]
+        reveal(increment); increment.tap()
+        save("Amounts & preparations")
+        let balance = app.staticTexts["bottle-remaining-grams"]
+        reveal(balance, down: true); XCTAssertEqual(balance.label, "Estimated in bottle: 81 g")
+        captureDashboard("Quantity balance after two preparations")
+        let link = app.buttons["Link to a recorded dose"].firstMatch
+        reveal(link); link.tap()
+        XCTAssertTrue(app.navigationBars["Link recorded dose"].waitForExistence(timeout: 5))
+        app.navigationBars.buttons["Cancel"].tap()
+        let discard = app.buttons["Record as discarded"].firstMatch
+        reveal(discard); discard.tap(); save("Amounts & preparations")
+        reveal(balance, down: true); XCTAssertEqual(balance.label, "Estimated in bottle: 81 g")
+        let unresolved = app.staticTexts["quantity-unresolved-count"]
+        reveal(unresolved); XCTAssertEqual(unresolved.label, "Unresolved preparations: 1")
+        captureDashboard("One prepared dose remains unresolved after discard")
+        app.navigationBars.buttons.firstMatch.tap()
+        app.navigationBars.buttons["Done"].tap()
+        XCTAssertEqual(app.buttons["dose-primary-action"].label, doseBefore)
+        app.terminate(); app.launchArguments.removeAll { $0 == "--uitesting-auto-night-reset" }; app.launch()
+        openQuantities(); reveal(balance, down: true)
+        XCTAssertEqual(balance.label, "Estimated in bottle: 81 g")
+        reveal(unresolved); XCTAssertEqual(unresolved.label, "Unresolved preparations: 1")
+        captureDashboard("Quantity and unresolved preparation survive relaunch")
     }
 
     func testSupplyTrackedLargeText() { testSupplyTrackedReceiptStartRelaunchAndUndo() }
