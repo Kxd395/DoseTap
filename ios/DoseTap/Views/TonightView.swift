@@ -242,8 +242,6 @@ struct LegacyTonightView: View {
                 .padding(.top, 4)
             }
 
-            BottleSupplyCard().padding(.top, 12)
-
             if homeState.showsDoseStatusCard {
                 Spacer().frame(height: 12)
 
@@ -310,6 +308,8 @@ struct LegacyTonightView: View {
                 }
 
             }
+
+            BottleSupplyCard().padding(.top, 12)
 
             if let night = sessionRepo.activeSessionDate, sessionRepo.dose2Time != nil {
                 NightOutcomeButton(sessionDate: night).padding(.horizontal)

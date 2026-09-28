@@ -7,12 +7,13 @@ func supplyGrams(_ mg: Int) -> String {
 
 struct BottleQuantityEstimate: View {
     let remaining: Int
+    var accessibilityPrefix = "bottle"
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Estimated in bottle: \(supplyGrams(remaining))").font(.headline)
-                .accessibilityIdentifier("bottle-remaining-grams")
+                .accessibilityIdentifier("\(accessibilityPrefix)-remaining-grams")
             Text("\((Double(remaining) / Double(SupplyQuantity.referenceDoseMg)).formatted(.number.precision(.fractionLength(0...2)))) dose equivalents at 4.5 g")
-                .accessibilityIdentifier("bottle-dose-equivalents")
+                .accessibilityIdentifier("\(accessibilityPrefix)-dose-equivalents")
             Text("\((Double(remaining) / Double(SupplyQuantity.referenceDoseMg * 2)).formatted(.number.precision(.fractionLength(0...2)))) night equivalents at 4.5 g twice nightly")
                 .font(.caption).foregroundStyle(.secondary)
         }

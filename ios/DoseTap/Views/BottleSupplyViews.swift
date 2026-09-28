@@ -39,6 +39,7 @@ struct BottleSupplyCard: View {
     @StateObject private var model = BottleSupplyModel()
     @ObservedObject private var repo = SessionRepository.shared
     @State private var showing = false
+    @State private var showingAmounts = false
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Button { showing = true } label: {
@@ -48,22 +49,36 @@ struct BottleSupplyCard: View {
                     Image(systemName: "chevron.right").accessibilityHidden(true)
                 }
             }.accessibilityIdentifier("manage-bottle-supply")
-                .accessibilityHint("Review received bottles and record a bottle opening.")
+                .accessibilityHint("Review bottle amounts, unopened stock and bottle openings.")
+            if let supply = model.supply {
+                if let remaining = model.remainingMg {
+                    BottleQuantityEstimate(remaining: remaining, accessibilityPrefix: "bottle-card")
+                } else {
+                    Text("Amount remaining: not recorded").font(.subheadline.bold())
+                        .accessibilityIdentifier("bottle-card-quantity-missing")
+                    Text("Set a confirmed bottle amount to see grams and 4.5 g dose equivalents. Nights since opening cannot establish the amount left.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Text(supply.trackedUnopenedBottleCount.map { "Unopened bottles: \($0)" } ?? "Unopened bottles: not recorded")
+                    .font(.subheadline).accessibilityIdentifier("bottle-card-unopened")
+                if supply.activeBottleStart != nil {
+                    Button(model.remainingMg == nil ? "Set bottle amount" : "Review amounts & prepared doses") { showingAmounts = true }
+                        .accessibilityIdentifier("bottle-card-amounts")
+                } else {
+                    Text("Record a bottle opening in Bottle & supply to start quantity tracking.").font(.caption)
+                }
+            }
             if model.supply?.activeBottleStart != nil {
                 Text(model.usage.map { "Recorded dosing nights since opening: \($0.recordedNights)" } ?? "Dosing-night count unavailable")
-                    .font(.subheadline)
+                    .font(.caption).foregroundStyle(.secondary)
                 if let usage = model.usage, usage.excludedRows > 0 {
                     Text("\(usage.excludedRows) dose records need review and were excluded.").font(.caption)
                 }
-                if let remaining = model.remainingMg {
-                    Text("\((Double(remaining) / Double(SupplyQuantity.referenceDoseMg)).formatted(.number.precision(.fractionLength(0...2)))) dose equivalents at 4.5 g · estimated in bottle")
-                        .font(.subheadline.bold()).accessibilityIdentifier("bottle-card-quantity")
-                }
-                Text(model.supply?.trackedUnopenedBottleCount.map { "Unopened bottles: \($0)" } ?? "Unopened bottles: not recorded")
-                    .font(.caption).foregroundStyle(.secondary)
                 if let notice = model.refillNotice { Text(notice).font(.subheadline.bold()) }
-            } else if let error = model.error {
+            }
+            if let error = model.error {
                 Text(error).font(.caption).foregroundStyle(.secondary)
+                Button("Retry bottle information") { model.refresh() }
             }
         }.padding().frame(maxWidth: .infinity, alignment: .leading)
             .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
@@ -73,6 +88,11 @@ struct BottleSupplyCard: View {
             .sheet(isPresented: $showing, onDismiss: { model.refresh() }) {
                 NavigationStack { BottleSupplyManagementView().toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("Done") { showing = false } }
+                } }
+            }
+            .sheet(isPresented: $showingAmounts, onDismiss: { model.refresh() }) {
+                NavigationStack { BottleQuantityView().toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("Done") { showingAmounts = false } }
                 } }
             }
     }
@@ -104,7 +124,7 @@ private struct BottleSupplySummary: View {
             if let unopened = value.trackedUnopenedBottleCount {
                 Text("Tracked unopened bottles: \(unopened)").accessibilityIdentifier("bottle-unopened-count")
             } else { Text("Unopened bottle count not recorded.") }
-            if let remaining = model.remainingMg { BottleQuantityEstimate(remaining: remaining) }
+            if let remaining = model.remainingMg { BottleQuantityEstimate(remaining: remaining, accessibilityPrefix: "bottle-summary") }
             else { Text("Doses remaining: not available — set a confirmed amount and record preparations.").font(.caption).foregroundStyle(.secondary) }
         }
         if let error = model.error {

@@ -120,7 +120,13 @@ final class DoseTapUITests: XCTestCase {
             XCTAssertTrue(app.navigationBars["Amounts & preparations"].waitForExistence(timeout: 8))
         }
         XCTAssertTrue(app.buttons["dose-primary-action"].waitForExistence(timeout: 15))
+        if !name.contains("LargeText") { XCTAssertTrue(app.buttons["dose-primary-action"].isHittable) }
         let doseBefore = app.buttons["dose-primary-action"].label
+        let missing = app.staticTexts["bottle-card-quantity-missing"]
+        reveal(missing); XCTAssertEqual(missing.label, "Amount remaining: not recorded")
+        let unopened = app.staticTexts["bottle-card-unopened"]
+        reveal(unopened); XCTAssertEqual(unopened.label, "Unopened bottles: not recorded")
+        captureDashboard("Tonight explains missing quantity and bottle stock")
         tap("manage-bottle-supply", down: true)
         tap("bottle-receive"); tap("bottle-entry-save")
         XCTAssertTrue(app.navigationBars["Bottles & supply"].waitForExistence(timeout: 8))
@@ -152,6 +158,13 @@ final class DoseTapUITests: XCTestCase {
         app.navigationBars.buttons.firstMatch.tap()
         app.navigationBars.buttons["Done"].tap()
         XCTAssertEqual(app.buttons["dose-primary-action"].label, doseBefore)
+        let cardBalance = app.staticTexts["bottle-card-remaining-grams"]
+        reveal(cardBalance); XCTAssertEqual(cardBalance.label, "Estimated in bottle: 81 g")
+        reveal(unopened); XCTAssertEqual(unopened.label, "Unopened bottles: 2")
+        captureDashboard("Tonight shows grams dose equivalents and unopened bottles")
+        tap("bottle-card-amounts")
+        XCTAssertTrue(app.navigationBars["Amounts & preparations"].waitForExistence(timeout: 8))
+        app.navigationBars.buttons["Done"].tap()
         app.terminate(); app.launchArguments.removeAll { $0 == "--uitesting-auto-night-reset" }; app.launch()
         openQuantities(); reveal(balance, down: true)
         XCTAssertEqual(balance.label, "Estimated in bottle: 81 g")
@@ -522,16 +535,18 @@ final class DoseTapUITests: XCTestCase {
         captureDashboard("Automatic Night Mode setting")
     }
 
-    func testCompactLayoutTonightFitsAndHistoryUsesOneMetricRow() throws {
+    func testCompactLayoutTonightContentReachableAndHistoryUsesOneMetricRow() throws {
         let heading = app.staticTexts["tonight-session-date"].firstMatch
         XCTAssertTrue(heading.waitForExistence(timeout: 15))
-        let originalY = heading.frame.minY
         let weekly = app.descendants(matching: .any).matching(identifier: "tonight-weekly-insights").firstMatch
         XCTAssertTrue(weekly.exists)
+        for _ in 0..<8 {
+            if weekly.frame.maxY <= app.buttons["Tonight"].frame.minY { break }
+            app.swipeUp()
+        }
+        XCTAssertTrue(weekly.isHittable)
         XCTAssertLessThanOrEqual(weekly.frame.maxY, app.buttons["Tonight"].frame.minY)
-        captureDashboard("Compact Tonight before scroll")
-        app.swipeUp()
-        XCTAssertEqual(heading.frame.minY, originalY, accuracy: 2, "A fitting Tonight page must not scroll into empty padding")
+        captureDashboard("Tonight supply and weekly information remain reachable")
         app.buttons["History"].tap()
         let titles = ["On-Time", "Avg Interval", "Natural Wake", "Bathroom Logs"]
         let cells = titles.map { app.descendants(matching: .any).matching(identifier: "insight-\($0)").firstMatch }

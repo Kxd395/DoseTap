@@ -1,6 +1,6 @@
 # Bottle quantity and prepared-dose tracking — DOSETAP-77
 
-Installed and independently verified phone version: **0.4.19 (84)**. This follows the
+Installed and independently verified phone version: **0.4.19 (85)**. This follows the
 [build 82 bottle foundation](2026-09-28-bottle-tracking.md). The separate iPad app
 is unchanged. Device, owner, accessibility, privacy and release acceptance remain
 separate from source and simulator validation.
@@ -69,15 +69,16 @@ nearby report carries the source document; this slice adds no iPad quantity UI.
   no medication creation and source/export parity.
 - Unsigned simulator build and all four phone version configurations passed.
   SSOT, documentation, architecture, Plane workflow and whitespace checks passed.
-- Normal and largest-text native quantity journeys passed on build 83's unchanged
-  interface: baseline, two-dose
+- Normal and largest-text native quantity journeys passed again on final build 85:
+  baseline, two-dose
   preparation, separate link/discard routes, no duplicate deduction, unchanged
   medication controls, and retained balance/unresolved count after relaunch.
-  Compact Tonight/History layout also passed. Test navigation was corrected for
+  Compact Tonight/History reachability also passed; normal-text dosing stays
+  ahead of the expanded supply card. Test navigation was corrected for
   the composed stepper identifier and offscreen lazy rows; assertions now use
   the visible unresolved count. Normal text was restored after large-text tests.
 - The signed final build installed without resetting app data. Independent
-  CoreDevice app inventory reports 0.4.19 (84). No owner medication or supply
+  CoreDevice app inventory reports 0.4.19 (85). No owner medication or supply
   records were created for testing. Installation is not owner-flow acceptance.
 - Source review checked allocation identity, atomic preparation writes, retry
   idempotency, correction dependencies and separation from medication events.
@@ -91,8 +92,8 @@ NULL/date-only row beside a canonical session row. Regression fixtures reproduce
 this and event-name alias duplicates. Both supply counts and dose-link candidates
 now share one checked date-group projection and the existing canonical event
 vocabulary. Ambiguous groups are excluded; unrelated dates remain eligible.
-This correction is delivered as build 84, replacing the installed build-83
-candidate. No historical records are modified or merged by this lookup.
+This correction was delivered as build 84, replacing the installed build-83
+candidate; build 85 retains it. No historical records are modified or merged by this lookup.
 
 ## Remaining gates and bounds
 
@@ -109,3 +110,21 @@ owner's intended day-3 basis and contact lead time before changing that policy.
 
 VoiceOver, actual phone behavior, physical notification delivery, clinical
 wording, privacy and release acceptance remain open. DOSETAP-77 stays In Progress.
+
+## Owner-reported Tonight visibility gap
+
+After build84 installation, the owner reported seeing only the nights-since-opening
+information. Source inspection confirmed that Tonight omitted a missing balance
+and only showed dose equivalents when a balance existed. Build85 puts grams and
+reference dose/night equivalents on that card, always displays unopened-stock
+status, and provides a direct amount setup/review route. The supply card follows the
+compact dosing control so the amount detail does not displace the normal-text
+dose action. The page remains scrollable for supply and weekly information. Missing amounts and stock
+are explicitly not recorded; elapsed nights never invent consumption. Read errors
+remain unavailable with retry. All three final native checks passed, including missing-quantity visibility,
+gram/dose/bottle values on Tonight, direct quantity navigation, relaunch persistence
+and compact Tonight/History reachability. Native screenshots were inspected;
+normal text was restored. Earlier attempts exposed duplicate accessibility
+identifiers and an obsolete one-screen-fit assumption; both were corrected. The
+final successful result is Test-DoseTapUITests-2026.09.28_19-16-01--0400.xcresult. The supplied image was unrelated to DoseTap
+and was not treated as app evidence.

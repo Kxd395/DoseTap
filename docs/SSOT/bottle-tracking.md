@@ -35,6 +35,16 @@ The estimate is baseline minus confirmed preparations since that baseline. Grams
 are stored as integer milligrams; dilution water is excluded. Reference-dose
 counts are equivalents, not a prescribing instruction or a count of taken doses.
 
+Tonight always exposes quantity status and tracked unopened-bottle status. A
+compact-layout supply card follows the primary dosing control so supply details
+do not push that control out of the initial view at normal text size. The page
+can scroll to fit supply and weekly information; larger text remains scrollable.
+A confirmed balance displays grams plus labeled 4.5 g dose/two-dose-night equivalents;
+an absent baseline displays "Amount remaining: not recorded" with a direct amount
+setup/review route. Unknown stock remains "not recorded", not zero. Recorded nights
+appear separately and never initialize or deduct a quantity. A checked read failure
+is shown as unavailable, with retry guidance rather than a setup prompt.
+
 Each preparation has its own ID, bottle ID, amount, mixing time and recorded-at.
 The capture explicitly asks when the medication was mixed with water.
 Preparing two doses explicitly creates two records in one durable write. A
