@@ -13,7 +13,7 @@ extension StudioWorkbookData {
     func bottleSupplySheets() -> [WorkbookSheet] {
         guard let supply = supplyState else { return [] }
         let columns = ["Record type", "Status", "Occurred (UTC)", "Occurred (local)", "Recorded (UTC)",
-            "Bottles received", "Record ID", "Linked receipt ID", "Voided (UTC)", "Reminder mode",
+            "Bottles added", "Record ID", "Linked receipt ID", "Voided (UTC)", "Reminder mode",
             "Entered planning date/time", "Entered timezone", "Lead days", "Enabled", "Handled (UTC)", "Source"]
         func date(_ value: Date?) -> WorkbookCell {
             guard let value else { return .blank }
@@ -28,7 +28,7 @@ extension StudioWorkbookData {
         }
         var rows: [(Date, [WorkbookCell])] = []
         for receipt in supply.receipts ?? [] {
-            var cells = row("Bottles received", receipt.voidedAt == nil ? "Recorded" : "Voided", receipt.receivedAt, receipt.recordedAt, receipt.id)
+            var cells = row("Unopened stock added", receipt.voidedAt == nil ? "Recorded" : "Voided", receipt.receivedAt, receipt.recordedAt, receipt.id)
             cells[5] = .number(Double(receipt.count)); cells[8] = date(receipt.voidedAt)
             rows.append((receipt.recordedAt, cells))
         }
@@ -51,6 +51,6 @@ extension StudioWorkbookData {
         let sorted = rows.sorted { a, b in
             a.0 == b.0 ? String(describing: a.1[6]) < String(describing: b.1[6]) : a.0 > b.0
         }.map(\.1)
-        return [SW.table("Bottle & Supply", columns, sorted, note: "One reported receipt, opening or order-reminder revision from supply_state. Voided records remain visible and are not active stock. Opening a bottle does not mean a dose was taken or the previous bottle was empty. Reminder dates are planning inputs, not delivery claims. Inventory contains separate manual snapshots; quantities remaining and bottle-specific dose consumption are not inferred here. Full precision and all source fields remain under /supplyStateJSON in Source Fields and the Studio ZIP. \(timezoneNote)")]
+        return [SW.table("Bottle & Supply", columns, sorted, note: "One reported unopened-stock entry, opening or order-reminder revision from supply_state. Counts may represent only the unopened portion of a delivery, not the total shipment. Voided records remain visible and are not active stock. Opening a bottle does not mean a dose was taken or the previous bottle was empty. Reminder dates are planning inputs, not delivery claims. Inventory contains separate manual snapshots; quantities remaining and bottle-specific dose consumption are not inferred here. Full precision and all source fields remain under /supplyStateJSON in Source Fields and the Studio ZIP. \(timezoneNote)")]
     }
 }

@@ -316,7 +316,9 @@ A replacement event retains `correction.previous_events`, an array of the replac
 DOSETAP-77 keeps the SQL schema unchanged. `SupplyBackup.version` remains 1 for
 legacy documents; tracking commands promote it to 2. Optional `receipts` contains
 `{id, count, receivedAt, recordedAt, voidedAt?}`; `count` is 1–100 reported bottles,
-not dose quantity. Existing `bottleStarts` add optional `receiptID` and `voidedAt`
+not dose quantity. A receipt adds unopened bottles to tracking and may represent
+only the unopened portion of a delivery; its count is not a full shipment total.
+Existing `bottleStarts` add optional `receiptID` and `voidedAt`
 to `{id, openedAt, recordedAt}`. Legacy openings remain unlinked; undo retains source
 history. Unopened stock excludes voided receipts and subtracts nonvoided linked openings.
 Studio JSON adds optional `supplyStateJSON` and `supplyStateEncoding` with supported

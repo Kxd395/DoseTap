@@ -197,7 +197,7 @@ extension StudioWorkbookData {
             result["Confirmed Medications"] = "One confirmed administration snapshot; no implied treatment date, including unknown occurrence times."
         }
         if supplyState != nil {
-            result["Bottle & Supply"] = "One receipt, bottle opening or reminder revision. Voided records remain evidence; no inferred dose quantities."
+            result["Bottle & Supply"] = "One unopened-stock entry, bottle opening or reminder revision. Stock entries may be part of a delivery. Voids remain evidence; no inferred dose quantities."
         }
         return result
     }

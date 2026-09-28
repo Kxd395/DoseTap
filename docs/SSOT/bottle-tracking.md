@@ -7,7 +7,10 @@ The usual receipt count is three, editable before confirmation. Receiving bottle
 never records medication or automatically replaces an open bottle. Starting a
 tracked bottle explicitly replaces the current bottle for display; it does not
 claim the previous bottle was empty. Legacy timestamp-only openings remain intact
-and are not assigned to a shipment by inference.
+and are not assigned to a shipment by inference. Entries may represent only the
+unopened portion of a delivery, not its total shipment count. Already-open unlinked
+bottles do not receive stock-based notices; a direct calendar-reminder route is
+available while explicit current-bottle adoption remains a follow-on.
 
 The display separates tracked unopened bottles, the active opening date, and
 recorded dosing nights since opening. A dosing night is a distinct stored treatment

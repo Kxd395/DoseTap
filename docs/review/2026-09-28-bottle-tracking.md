@@ -1,6 +1,6 @@
 # Local bottle tracking — DOSETAP-77
 
-Phone candidate: **0.4.19 (82)**. Separate iPad Dashboard remains **0.1.0 (9)**.
+Phone installed and independently verified: **0.4.19 (82)**. Separate iPad Dashboard remains **0.1.0 (9)**.
 This record describes the first bounded bottle-tracking delivery; it does not close
 quantity, owner, accessibility, privacy, notification or release acceptance.
 
@@ -9,9 +9,12 @@ quantity, owner, accessibility, privacy, notification or release acceptance.
 - Tonight has a compact **Bottle & supply** entry. Management is also available
   from Settings → Supply & order reminder → Bottles & supply and the existing
   pre-sleep bottle action once tracked receipts exist.
-- Record bottles actually received, defaulting to three with an editable count,
+- Add unopened bottles actually received, defaulting to three with an editable count,
   and explicitly start a bottle from an available receipt. Receiving never opens
   a bottle or records medication. An older unlinked opening stays unlinked.
+  An entry can be the unopened portion of a delivery; it does not assert the full
+  shipment count. Already-open bottles do not receive stock-based notices. A direct
+  calendar-reminder link is available without inventing a receipt or opening.
 - Show current opening, ordinal within its receipt, tracked unopened bottles and
   **recorded dosing nights since opening**. A new start replaces the displayed
   opening without claiming the prior bottle was empty.
@@ -62,10 +65,19 @@ reduced the Tonight card's height.
   third-night notices and later receipts are covered.
 - Normal native receipt/start/relaunch/last-bottle/undo journey and existing
   pre-sleep bottle regression passed. Largest text and compact-layout rechecks
-  remain pending. Earlier runs encountered simulator accessibility startup
-  failures; only the test simulator was restarted, without erasing its data.
-- Signed phone build 82 passed. Installation, hosted CI and integration evidence
-  are pending in this candidate record and must be updated before closeout.
+  passed again after first-use clarification and the direct calendar-reminder
+  route. The final combined run passed three native journeys; normal and largest
+  text both exercised the reminder route without saving a reminder. Screenshots
+  were inspected; normal text was restored. Earlier runs encountered simulator
+  accessibility startup failures and offscreen test-navigation assumptions; only
+  the test simulator was restarted, without erasing its data.
+- Signed phone build 82 passed and installed. Independent device inventory
+  confirmed 0.4.19 (82). Automatic launch failed with CoreDevice error 4000
+  (remoteService XPC unavailable); installation is not owner launch acceptance.
+  Separate iPad Dashboard 0.1.0 (9) was not changed.
+- Integration: [PR #72](https://github.com/Kxd395/DoseTap/pull/72). Exact final
+  head/check/merge evidence is maintained in the PR and DOSETAP-77 workpad; the
+  initial PR checks do not substitute for final-head validation.
 
 ## Remaining scope and owner check
 
@@ -73,6 +85,8 @@ reduced the Tonight card's height.
 quantity, actual consumption, preparation versus administration handling,
 corrections and split-bottle use. Elapsed nights and planned amounts cannot supply
 those facts. The next slice must settle these inputs before estimating stock.
+It must also explicitly adopt an already-open bottle without inventing a receipt,
+changing the opening time or presenting partial stock as a full shipment.
 
 The third-night notice is currently in-app, not an automatic third-night iOS
 notification or a pharmacy order. A saved calendar notification remains available.

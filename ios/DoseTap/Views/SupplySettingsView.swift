@@ -14,6 +14,7 @@ private struct SupplyFile: FileDocument {
 }
 
 struct SupplySettingsView: View {
+    var showsBottleManagement = true
     @ObservedObject private var service = SupplyReminderService.shared
     @State private var mode: SupplyReminderDateMode = .receivedDate
     @State private var sourceDate = Date()
@@ -41,7 +42,9 @@ struct SupplySettingsView: View {
 
     var body: some View {
         Form {
-            Section { NavigationLink("Bottles & supply") { BottleSupplyManagementView() } }
+            if showsBottleManagement {
+                Section { NavigationLink("Bottles & supply") { BottleSupplyManagementView() } }
+            }
             Section {
                 Picker("Calculate from", selection: $mode) {
                     Text("Last received + 21 days").tag(SupplyReminderDateMode.receivedDate)
@@ -89,20 +92,22 @@ struct SupplySettingsView: View {
                 }
             }.disabled(service.isBusy)
 
-            Section("Bottle openings — optional") {
-                SupplyBottleButton()
-                if let records = service.backup?.bottleStarts, !records.isEmpty {
-                    ForEach(records.filter { $0.receiptID == nil && $0.voidedAt == nil }.sorted { $0.openedAt > $1.openedAt }) { record in
-                        VStack(alignment: .leading) {
-                            Text("Started: \(record.openedAt.formatted(date: .abbreviated, time: .shortened))")
-                            Button("Delete this bottle record", role: .destructive) {
-                                bottleToDelete = record.id; showConfirmation = true
-                            }.font(.footnote)
+            if showsBottleManagement {
+                Section("Bottle openings — optional") {
+                    SupplyBottleButton()
+                    if let records = service.backup?.bottleStarts, !records.isEmpty {
+                        ForEach(records.filter { $0.receiptID == nil && $0.voidedAt == nil }.sorted { $0.openedAt > $1.openedAt }) { record in
+                            VStack(alignment: .leading) {
+                                Text("Started: \(record.openedAt.formatted(date: .abbreviated, time: .shortened))")
+                                Button("Delete this bottle record", role: .destructive) {
+                                    bottleToDelete = record.id; showConfirmation = true
+                                }.font(.footnote)
+                            }
                         }
-                    }
-                } else { Text("No bottle openings recorded.") }
-                Text("Unlinked openings do not change stock. Starting a tracked bottle reduces the unopened count. Neither action changes your reminder or dose records.").font(.footnote)
-            }.disabled(service.isBusy)
+                    } else { Text("No bottle openings recorded.") }
+                    Text("Unlinked openings do not change stock. Starting a tracked bottle reduces the unopened count. Neither action changes your reminder or dose records.").font(.footnote)
+                }.disabled(service.isBusy)
+            }
 
             if let history = service.backup?.reminder?.history, !history.isEmpty {
                 Section("Previous reminder entries") {

@@ -74,9 +74,9 @@ private struct BottleSupplySummary: View {
             if let active = value.activeBottleStart {
                 if let id = active.receiptID, let receipt = value.receipts?.first(where: { $0.id == id }),
                    let ordinal = value.currentReceiptOrdinal {
-                    Text("Current bottle: \(ordinal) of \(receipt.count) in this receipt")
+                    Text("Current bottle: \(ordinal) of \(receipt.count) added in this entry")
                         .accessibilityIdentifier("bottle-current")
-                } else { Text("Current opening has no linked receipt.") }
+                } else { Text("Current opening is unlinked. Stock-based notices are unavailable for this bottle; use a calendar reminder.") }
                 Text("Opened \(active.openedAt.formatted(date: .abbreviated, time: .shortened))").font(.caption)
                 if let usage = model.usage {
                     Text("Recorded dosing nights since opening: \(usage.recordedNights)")
@@ -116,12 +116,14 @@ struct BottleSupplyManagementView: View {
         Form {
             Section("Current supply") { BottleSupplySummary(model: model) }
             Section {
-                Button("Record received bottles") { receive = true }.accessibilityIdentifier("bottle-receive")
+                Button("Add unopened bottles") { receive = true }.accessibilityIdentifier("bottle-receive")
                 Button("Start a tracked bottle") { start = true }.accessibilityIdentifier("bottle-start")
                     .disabled((model.supply?.trackedUnopenedBottleCount ?? 0) < 1)
-                Text("Record bottles you have unopened. Receiving bottles does not open one. Starting another replaces the current opening for display; it does not claim the previous bottle was empty.").font(.footnote)
+                Text("Add only bottles still unopened. This may be the unopened portion of a delivery. Tracking begins when you next open one; an already-open bottle keeps its original unlinked history.").font(.footnote)
+                Text("Starting another bottle replaces the current opening for display; it does not claim the previous bottle was empty.").font(.footnote)
                 Text("Night counts describe dose records since opening, not verified consumption from this bottle. The third-night notice appears in the app. Set a separate calendar reminder in Settings for an iOS alert.").font(.footnote)
-                Text("Calendar reminder: Settings → Supply & order reminder.").font(.footnote)
+                NavigationLink("Set a calendar order reminder") { SupplySettingsView(showsBottleManagement: false) }
+                    .accessibilityIdentifier("bottle-calendar-reminder")
             }.disabled(service.isBusy || model.supply == nil)
             if let value = model.supply {
                 Section("Bottle openings") {
@@ -135,11 +137,11 @@ struct BottleSupplyManagementView: View {
                         }
                     }
                 }
-                Section("Received bottles") {
+                Section("Unopened bottles added to tracking") {
                     ForEach((value.receipts ?? []).sorted { $0.receivedAt > $1.receivedAt }) { item in
                         VStack(alignment: .leading, spacing: 4) {
                             Text("\(item.count) bottles · \(item.receivedAt.formatted(date: .abbreviated, time: .omitted))")
-                            Text(item.voidedAt == nil ? "Reported received" : "Voided — retained in history").font(.caption)
+                            Text(item.voidedAt == nil ? "Unopened stock added; may be part of a delivery" : "Voided — retained in history").font(.caption)
                             if item.voidedAt == nil && !value.bottleStarts.contains(where: { $0.receiptID == item.id && $0.voidedAt == nil }) {
                                 Button("Undo this receipt", role: .destructive) { undoReceipt = item.id; undoOpening = nil; confirmingUndo = true }
                             }
@@ -189,8 +191,8 @@ struct BottleTrackingEntrySheet: View {
         NavigationStack {
             Form {
                 if receiving {
-                    Stepper("Bottles received: \(count)", value: $count, in: 1...100).accessibilityIdentifier("bottle-receipt-count")
-                    Text("Include only bottles currently unopened. Previously opened bottles stay in opening history.")
+                    Stepper("Unopened bottles: \(count)", value: $count, in: 1...100).accessibilityIdentifier("bottle-receipt-count")
+                    Text("Include only bottles still unopened, even if the delivery contained more. Use their actual received date. Already-open bottles stay unlinked and do not get stock-based notices.")
                 } else {
                     Picker("Use a bottle from", selection: $receiptID) {
                         ForEach(available) { item in

@@ -12,6 +12,8 @@ voids and reminder revision history. A failed supply read stops publication.
 
 Workbook schema 5 adds **Bottle & Supply** when this extension is present. Each
 sortable row is a receipt, opening or reminder revision; voids remain visible.
+Receipt counts describe unopened stock added to tracking and may be a subset of
+a delivery; do not interpret them as complete shipment quantities.
 UTC timestamps are typed dates, while entered reminder civil times stay labeled
 planning values. Source Fields exposes all inner fields under `/supplyStateJSON`
 with source identity `supply_state:1`, without a second giant JSON-string cell.

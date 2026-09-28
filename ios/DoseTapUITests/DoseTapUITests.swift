@@ -97,8 +97,11 @@ final class DoseTapUITests: XCTestCase {
     func testSupplyTrackedReceiptStartRelaunchAndUndo() {
         func reveal(_ element: XCUIElement, down: Bool = false) {
             let interior = app.frame.insetBy(dx: 0, dy: app.frame.height * 0.18)
+            var previousFrame: CGRect?
             for _ in 0..<14 {
-                if element.exists && element.isHittable && interior.contains(CGPoint(x: element.frame.midX, y: element.frame.midY)) { break }
+                if element.exists && element.isHittable && (interior.contains(CGPoint(x: element.frame.midX, y: element.frame.midY)) || previousFrame == element.frame) { break }
+                // At a form's scroll limit, a reachable final row need not reach its center.
+                previousFrame = element.exists ? element.frame : nil
                 let towardTop = element.exists && !element.frame.isEmpty ? element.frame.midY < interior.minY : down
                 if towardTop { app.swipeDown() } else { app.swipeUp() }
             }
@@ -148,6 +151,13 @@ final class DoseTapUITests: XCTestCase {
         reveal(stock, down: true); count(1)
         XCTAssertFalse(app.staticTexts["bottle-refill-notice"].exists)
         captureDashboard("Undo restores unopened stock without a dose")
+        let calendarReminder = app.buttons["bottle-calendar-reminder"]
+        reveal(calendarReminder); calendarReminder.tap()
+        XCTAssertTrue(app.navigationBars["Supply & reminders"].waitForExistence(timeout: 5))
+        reveal(app.buttons["saveSupplyReminder"])
+        captureDashboard("Calendar reminder available independently of bottle stock")
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.navigationBars["Bottles & supply"].waitForExistence(timeout: 5))
         app.navigationBars.buttons["Done"].tap()
         XCTAssertEqual(app.buttons["dose-primary-action"].label, doseBefore)
     }
