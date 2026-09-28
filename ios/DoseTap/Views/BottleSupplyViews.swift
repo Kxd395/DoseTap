@@ -7,6 +7,13 @@ final class BottleSupplyModel: ObservableObject {
     @Published var supply: SupplyBackup?
     @Published var usage: SupplyUsageSummary?
     @Published var error: String?
+    var refillNotice: String? {
+        guard let value = supply, value.activeBottleStart?.receiptID != nil,
+              value.trackedUnopenedBottleCount == 0 else { return nil }
+        return (usage?.recordedNights ?? 0) >= 3
+            ? "Third recorded night reached: contact your pharmacy about your next supply."
+            : "Last tracked bottle: plan your next supply."
+    }
     private let repository: SessionRepository
     init(repository: SessionRepository? = nil) { self.repository = repository ?? .shared }
     func refresh(now: Date = Date()) {
@@ -27,10 +34,25 @@ struct BottleSupplyCard: View {
     @State private var showing = false
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("Bottle & supply", systemImage: "cross.case").font(.headline)
-            BottleSupplySummary(model: model)
-            Button("Manage bottles & supply") { showing = true }
-                .accessibilityIdentifier("manage-bottle-supply")
+            Button { showing = true } label: {
+                HStack {
+                    Label("Bottle & supply", systemImage: "cross.case").font(.headline)
+                    Spacer()
+                    Image(systemName: "chevron.right").accessibilityHidden(true)
+                }
+            }.accessibilityIdentifier("manage-bottle-supply")
+            if model.supply?.activeBottleStart != nil {
+                Text(model.usage.map { "Recorded dosing nights since opening: \($0.recordedNights)" } ?? "Dosing-night count unavailable")
+                    .font(.subheadline)
+                if let usage = model.usage, usage.excludedRows > 0 {
+                    Text("\(usage.excludedRows) dose records need review and were excluded.").font(.caption)
+                }
+                Text(model.supply?.trackedUnopenedBottleCount.map { "Unopened bottles: \($0) · Doses left: not available" } ?? "Unopened bottles and doses left: not recorded")
+                    .font(.caption).foregroundStyle(.secondary)
+                if let notice = model.refillNotice { Text(notice).font(.subheadline.bold()) }
+            } else {
+                Text(model.error ?? "Record received bottles and when you start one.").font(.caption).foregroundStyle(.secondary)
+            }
         }.padding().frame(maxWidth: .infinity, alignment: .leading)
             .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
             .padding(.horizontal)
@@ -62,8 +84,8 @@ private struct BottleSupplySummary: View {
                         Text("\(usage.excludedRows) dose rows need identity review and are excluded.").font(.caption)
                     }
                 }
-                if active.receiptID != nil && value.trackedUnopenedBottleCount == 0 {
-                    Label((model.usage?.recordedNights ?? 0) >= 3 ? "Third recorded night reached: contact your pharmacy about your next supply." : "Last tracked bottle: plan your next supply.", systemImage: "exclamationmark.bubble")
+                if let notice = model.refillNotice {
+                    Label(notice, systemImage: "exclamationmark.bubble")
                         .font(.subheadline.bold()).accessibilityIdentifier("bottle-refill-notice")
                 }
             } else { Text("No current bottle opening recorded.") }

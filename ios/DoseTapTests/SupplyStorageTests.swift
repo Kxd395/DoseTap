@@ -15,8 +15,20 @@ final class SupplyStorageTests: XCTestCase {
         var corrected = backup.reminder!.current
         corrected.day = 5
         backup.reminder!.replace(with: corrected, at: Date())
+        let now = Date(timeIntervalSince1970: 1_700_000_100), received = now.addingTimeInterval(-100)
+        let receipt = UUID(), first = UUID(), mistaken = UUID()
+        backup.bottleStarts = [SupplyBottleStart(openedAt: received.addingTimeInterval(-100), recordedAt: received)]
+        try backup.receiveBottles(id: receipt, count: 3, receivedAt: received, recordedAt: now, now: now)
+        try backup.startBottle(id: first, receiptID: receipt, openedAt: received, recordedAt: now, now: now)
+        try backup.startBottle(id: mistaken, receiptID: receipt, openedAt: received.addingTimeInterval(1), recordedAt: now, now: now)
+        try backup.voidBottleStart(id: mistaken, at: now, now: now)
         do { try EventStorage(dbPath: path).saveSupply(backup) }
-        XCTAssertEqual(try EventStorage(dbPath: path).loadSupply(), backup)
+        let reopened = try EventStorage(dbPath: path).loadSupply()
+        XCTAssertEqual(reopened, backup)
+        XCTAssertEqual(reopened.version, 2)
+        XCTAssertEqual(reopened.activeBottleStart?.id, first)
+        XCTAssertEqual(reopened.trackedUnopenedBottleCount, 2)
+        XCTAssertEqual(reopened.bottleStarts.last?.voidedAt, now)
     }
     func testRoundTripRestoreAndResetPreserveIndependentRecords() throws {
         let storage = EventStorage.inMemory()
@@ -97,7 +109,19 @@ final class SupplyStorageTests: XCTestCase {
             XCTAssertEqual(try storage.supplyUsage(since: now, through: now), .init(recordedNights: 0, recordedDoses: 0, excludedRows: 1))
             XCTAssertEqual(sqlite3_exec(storage.db, "UPDATE \(table) SET session_id = 'a'", nil, nil, nil), SQLITE_OK)
             XCTAssertEqual(try storage.supplyUsage(since: now, through: now).recordedNights, 1)
+            XCTAssertEqual(sqlite3_exec(storage.db, "UPDATE \(table) SET session_date = '2027-01-29'", nil, nil, nil), SQLITE_OK)
+            XCTAssertEqual(try storage.supplyUsage(since: now, through: now), .init(recordedNights: 0, recordedDoses: 0, excludedRows: 1))
         }
+    }
+
+    func testSupplyUsageExcludesOneSessionIdentityAssignedToMultipleDates() throws {
+        let storage = EventStorage.inMemory(), now = Date(timeIntervalSince1970: 1_801_179_600)
+        try usageDose(storage, id: "first", at: now, type: "dose1")
+        try usageDose(storage, id: "otherDate", at: now.addingTimeInterval(-100), type: "dose1", day: "2027-01-29")
+        XCTAssertEqual(try storage.supplyUsage(since: now, through: now), .init(recordedNights: 0, recordedDoses: 0, excludedRows: 1))
+        XCTAssertEqual(try storage.supplyUsage(since: now.addingTimeInterval(-100), through: now), .init(recordedNights: 0, recordedDoses: 0, excludedRows: 2))
+        XCTAssertEqual(sqlite3_exec(storage.db, "UPDATE dose_events SET session_id = 'b' WHERE id = 'otherDate'", nil, nil, nil), SQLITE_OK)
+        XCTAssertEqual(try storage.supplyUsage(since: now.addingTimeInterval(-100), through: now), .init(recordedNights: 2, recordedDoses: 2, excludedRows: 0))
     }
 
     func testSupplyUsageReadFailuresNeverBecomeZero() throws {
@@ -108,6 +132,38 @@ final class SupplyStorageTests: XCTestCase {
         XCTAssertThrowsError(try storage.supplyUsage(since: now, through: now))
         XCTAssertEqual(sqlite3_exec(storage.db, "DROP TABLE dose_events", nil, nil, nil), SQLITE_OK)
         XCTAssertThrowsError(try storage.supplyUsage(since: now, through: now))
+    }
+
+    func testBottleNoticeRetainsKnownStockWhenUsageFailsAndClearsAfterReceipt() throws {
+        let storage = EventStorage.inMemory(), repo = SessionRepository(storage: storage)
+        let opened = ISO8601DateFormatter().date(from: "2027-01-28T22:00:00Z")!
+        let now = opened.addingTimeInterval(3 * 86_400), receipt = UUID()
+        var supply = SupplyBackup()
+        try supply.receiveBottles(id: receipt, count: 1, receivedAt: opened, recordedAt: opened, now: now)
+        try supply.startBottle(id: UUID(), receiptID: receipt, openedAt: opened, recordedAt: opened, now: now)
+        try repo.saveSupply(supply)
+        for index in 0..<3 {
+            try usageDose(storage, id: "night-\(index)", at: opened.addingTimeInterval(Double(index * 86_400 + 3_600)),
+                          type: "dose1", day: "2027-01-\(28 + index)", session: "session-\(index)")
+        }
+        let model = BottleSupplyModel(repository: repo)
+        model.refresh(now: now)
+        XCTAssertEqual(model.usage?.recordedNights, 3)
+        XCTAssertTrue(model.refillNotice?.hasPrefix("Third recorded night") == true)
+        XCTAssertNil(model.error)
+        XCTAssertEqual(sqlite3_exec(storage.db, "UPDATE dose_events SET timestamp = 'invalid' WHERE id = 'night-0'", nil, nil, nil), SQLITE_OK)
+        model.refresh(now: now)
+        XCTAssertEqual(model.supply, supply)
+        XCTAssertNil(model.usage)
+        XCTAssertNotNil(model.error)
+        XCTAssertTrue(model.refillNotice?.hasPrefix("Last tracked bottle") == true)
+        try supply.receiveBottles(id: UUID(), count: 3, receivedAt: now, recordedAt: now, now: now)
+        try repo.saveSupply(supply)
+        model.refresh(now: now)
+        XCTAssertEqual(model.supply?.trackedUnopenedBottleCount, 3)
+        XCTAssertNil(model.refillNotice)
+        XCTAssertNil(model.usage)
+        XCTAssertNotNil(model.error)
     }
 
     private func usageDose(_ storage: EventStorage, id: String, at date: Date, type: String,

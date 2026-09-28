@@ -1,6 +1,7 @@
 import XCTest
 import DoseCore
 import UserNotifications
+import SQLite3
 @testable import DoseTap
 
 @MainActor
@@ -114,4 +115,59 @@ final class SupplyReminderServiceTests: XCTestCase {
         XCTAssertEqual(repo.dose1Time, doseAt)
         XCTAssertEqual(try repo.loadSupply().reminder?.current, savedSource)
     }
+    func testTrackedOpeningWriteFailureAndStableRetryPreserveDosesAndReminder() async throws {
+        let storage = EventStorage.inMemory(), repo = SessionRepository(storage: storage)
+        let client = Client(), now = Date(), receipt = UUID(), opening = UUID()
+        let doseTime = now.addingTimeInterval(-60)
+        repo.setDose1Time(doseTime)
+        let doseAlarm = "dosetap_dose2_alarm"
+        client.requests[doseAlarm] = UNNotificationRequest(identifier: doseAlarm,
+            content: UNMutableNotificationContent(), trigger: UNTimeIntervalNotificationTrigger(timeInterval: 60, repeats: false))
+        let service = SupplyReminderService(repository: repo, client: client, now: { now })
+        let reminderSaved = await service.save(entry())
+        XCTAssertTrue(reminderSaved)
+        let received = await service.change {
+            try $0.receiveBottles(id: receipt, count: 3, receivedAt: doseTime, recordedAt: now, now: now)
+        }
+        XCTAssertTrue(received)
+        let before = try repo.loadSupply()
+        XCTAssertEqual(sqlite3_exec(storage.db, "PRAGMA query_only = ON", nil, nil, nil), SQLITE_OK)
+        let failed = await service.change {
+            try $0.startBottle(id: opening, receiptID: receipt, openedAt: now, recordedAt: now, now: now)
+        }
+        XCTAssertFalse(failed)
+        XCTAssertEqual(try repo.loadSupply(), before)
+        XCTAssertEqual(service.backup, before)
+        XCTAssertEqual(sqlite3_exec(storage.db, "PRAGMA query_only = OFF", nil, nil, nil), SQLITE_OK)
+        for _ in 0..<2 {
+            let saved = await service.change {
+                try $0.startBottle(id: opening, receiptID: receipt, openedAt: now, recordedAt: now, now: now)
+            }
+            XCTAssertTrue(saved)
+        }
+        let after = try repo.loadSupply()
+        XCTAssertEqual(after.bottleStarts.count, 1)
+        XCTAssertEqual(after.trackedUnopenedBottleCount, 2)
+        XCTAssertEqual(after.reminder, before.reminder)
+        XCTAssertEqual(repo.dose1Time, doseTime)
+        XCTAssertNotNil(client.requests[doseAlarm])
+        XCTAssertFalse(client.removed.contains(doseAlarm))
+    }
+
+    func testLegacyOpeningCommandCannotBypassTrackedReceiptSelection() async throws {
+        let repo = SessionRepository(storage: EventStorage.inMemory()), now = Date()
+        let service = SupplyReminderService(repository: repo, client: Client(), now: { now })
+        let received = await service.change {
+            try $0.receiveBottles(id: UUID(), count: 3, receivedAt: now, recordedAt: now, now: now)
+        }
+        XCTAssertTrue(received)
+        let before = try repo.loadSupply()
+        let saved = await service.recordBottleStart(at: now)
+        XCTAssertFalse(saved)
+        XCTAssertEqual(try repo.loadSupply(), before)
+        XCTAssertEqual(service.backup, before)
+        XCTAssertNil(repo.dose1Time)
+        XCTAssertNil(repo.dose2Time)
+    }
+
 }

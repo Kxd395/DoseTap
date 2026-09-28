@@ -37,9 +37,13 @@ extension EventStorage {
         ), identity_counts AS (
             SELECT session_date, COUNT(DISTINCT session_id) AS n FROM identities
             WHERE session_id IS NOT NULL AND session_id != session_date GROUP BY session_date
+        ), session_date_counts AS (
+            SELECT session_id, COUNT(DISTINCT session_date) AS n FROM identities
+            WHERE session_id IS NOT NULL AND session_id != session_date GROUP BY session_id
         )
-        SELECT e.id, e.event_type, e.timestamp, e.session_date, e.session_id, COALESCE(i.n, 0)
+        SELECT e.id, e.event_type, e.timestamp, e.session_date, e.session_id, COALESCE(i.n, 0), COALESCE(d.n, 0)
         FROM dose_events e LEFT JOIN identity_counts i ON i.session_date = e.session_date
+        LEFT JOIN session_date_counts d ON d.session_id = e.session_id
         """) { stmt in
             func text(_ column: Int32, allowEmpty: Bool = false) throws -> String {
                 guard sqlite3_column_type(stmt, column) == SQLITE_TEXT, let pointer = sqlite3_column_text(stmt, column),
@@ -54,9 +58,9 @@ extension EventStorage {
             let session: String?
             if sqlite3_column_type(stmt, 4) == SQLITE_NULL { session = nil }
             else { let raw = try text(4, allowEmpty: true); session = raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : raw }
-            guard sqlite3_column_type(stmt, 5) == SQLITE_INTEGER else { throw SupplyStorageError.invalid }
+            guard sqlite3_column_type(stmt, 5) == SQLITE_INTEGER, sqlite3_column_type(stmt, 6) == SQLITE_INTEGER else { throw SupplyStorageError.invalid }
             return (type: CanonicalDoseEventType(canonicalizing: type), time: time, day: day, session: session,
-                    conflictingIdentity: sqlite3_column_int64(stmt, 5) != 1)
+                    conflictingIdentity: sqlite3_column_int64(stmt, 5) != 1 || sqlite3_column_int64(stmt, 6) != 1)
         }
         var nights = 0, doses = 0, excluded = 0
         for (day, group) in Dictionary(grouping: rows, by: { $0.day }) {

@@ -37,6 +37,8 @@ Files here record dated reviews, design decisions, migration analysis, and regre
 
 ## Delivery records
 
+- [Local bottle tracking](2026-09-28-bottle-tracking.md): build 82 receipts, explicit openings, recorded dosing nights, in-app last-bottle notices and supply exports; quantity and acceptance gates remain open.
+
 - [Confirmed preset administration capture](2026-09-25-medication-preset-capture.md): build72 B3b explicit actual amounts/time, prior-record review, receipts and immutable history; correction/reversal and acceptance remain open.
 - [Saved medication preset Settings](2026-09-25-medication-preset-settings.md): build70 B3a create/revise/history, explicit setup review and retention; no administration capture.
 
