@@ -93,6 +93,7 @@ struct BottleQuantityView: View {
             if let message { Text(message) }
         }.navigationTitle("Amounts & preparations")
             .task { model.refresh() }
+            .onChange(of: service.backup) { _ in model.refresh() }
             .sheet(item: $route, onDismiss: { model.refresh() }) { route in
                 BottleQuantityEntrySheet(kind: route.kind, preparation: route.preparation)
             }
@@ -178,6 +179,9 @@ private struct BottleQuantityEntrySheet: View {
                 .task {
                     do {
                         source = try SessionRepository.shared.loadSupply()
+                        if kind == .preparation, grams.isEmpty {
+                            grams = String(Double(SupplyQuantity.referenceDoseMg) / 1000)
+                        }
                         if kind == .doseLink, let preparation {
                             let used = Set((source?.quantityEntries ?? []).filter { $0.voidedAt == nil }.compactMap { $0.dose?.eventID })
                             evidence = try SessionRepository.shared.supplyDoseEvidence().filter { $0.occurredAt >= preparation.occurredAt && $0.occurredAt <= Date() && !used.contains($0.eventID) }

@@ -150,8 +150,8 @@ struct BottleSupplyManagementView: View {
                 .accessibilityIdentifier("bottle-quantities")
             Section {
                 Button("Add unopened bottles") { receive = true }.accessibilityIdentifier("bottle-receive")
-                Button("Start a tracked bottle") { start = true }.accessibilityIdentifier("bottle-start")
-                    .disabled((model.supply?.trackedUnopenedBottleCount ?? 0) < 1)
+                Button("Start a full bottle") { start = true }.accessibilityIdentifier("bottle-start")
+                    .disabled(model.supply?.trackedUnopenedBottleCount == 0)
                 Text("Add only bottles still unopened. This may be the unopened portion of a delivery. Tracking begins when you next open one; an already-open bottle keeps its original unlinked history.").font(.footnote)
                 Text("Starting another bottle replaces the current opening for display; it does not claim the previous bottle was empty.").font(.footnote)
                 Text("Night counts describe dose records since opening, not verified consumption from this bottle. The third-night notice appears in the app. Set a separate calendar reminder in Settings for an iOS alert.").font(.footnote)
@@ -185,6 +185,7 @@ struct BottleSupplyManagementView: View {
             if let message { Section { Text(message) } }
         }.navigationTitle("Bottles & supply")
             .onAppear { model.refresh() }
+            .onChange(of: service.backup) { _ in model.refresh() }
             .sheet(isPresented: $receive, onDismiss: { model.refresh() }) { BottleTrackingEntrySheet(receiving: true) }
             .sheet(isPresented: $start, onDismiss: { model.refresh() }) { BottleTrackingEntrySheet(receiving: false) }
             .confirmationDialog("Undo the selected supply record?", isPresented: $confirmingUndo, titleVisibility: .visible) {
@@ -227,17 +228,23 @@ struct BottleTrackingEntrySheet: View {
                     Stepper("Unopened bottles: \(count)", value: $count, in: 1...100).accessibilityIdentifier("bottle-receipt-count")
                     Text("Include only bottles still unopened, even if the delivery contained more. Use their actual received date. Already-open bottles stay unlinked and do not get stock-based notices.")
                 } else {
-                    Picker("Use a bottle from", selection: $receiptID) {
-                        ForEach(available) { item in
-                            Text("\(item.receivedAt.formatted(date: .abbreviated, time: .omitted)) · \(item.count) received").tag(Optional(item.id))
+                    if !available.isEmpty {
+                        Picker("Use a bottle from", selection: $receiptID) {
+                            ForEach(available) { item in
+                                Text("\(item.receivedAt.formatted(date: .abbreviated, time: .omitted)) · \(item.count) received").tag(Optional(item.id))
+                            }
                         }
+                    } else {
+                        Text("Unopened stock has not been recorded. This opening tracks this bottle's amount only; it does not assume a delivery or a number of spare bottles.")
                     }
-                    Text("Confirm when you actually started this bottle. This replaces the current opening for display without recording a dose.")
+                    Text("Start a full XYWAV bottle · 180 mL at 0.5 g/mL")
+                    Text("Automatically starts at 90 g: 20 dose equivalents at 4.5 g, or 10 two-dose-night equivalents. Confirm the bottle was full when opened. Record preparations to update the remaining amount; opening a bottle does not record a dose.")
+                        .accessibilityIdentifier("bottle-full-start-explanation")
                 }
                 DatePicker(receiving ? "Received on" : "Opened on", selection: $occurredAt, in: ...Date())
-                Button(receiving ? "Save received bottles" : "Confirm bottle start") { save() }
+                Button(receiving ? "Save received bottles" : "Confirm full bottle start") { save() }
                     .accessibilityIdentifier("bottle-entry-save")
-                    .disabled(service.isBusy || source == nil || (!receiving && receiptID == nil))
+                    .disabled(service.isBusy || source == nil || (!receiving && receiptID == nil && source?.trackedUnopenedBottleCount != nil))
                 if let error { Text(error).foregroundStyle(.secondary) }
             }.disabled(service.isBusy)
                 .navigationTitle(receiving ? "Received bottles" : "Start a bottle")
@@ -259,9 +266,9 @@ struct BottleTrackingEntrySheet: View {
         Task {
             let success = await service.change { value in
                 if receiving { try value.receiveBottles(id: id, count: quantity, receivedAt: occurred, recordedAt: captured) }
-                else if let receipt {
+                else {
                     guard value.activeBottleStart?.id == expected || value.activeBottleStart?.id == id else { throw SupplyTrackingError.conflictingIdentity }
-                    try value.startBottle(id: id, receiptID: receipt, openedAt: occurred, recordedAt: captured)
+                    try value.startFullXYWAVBottle(id: id, receiptID: receipt, openedAt: occurred, recordedAt: captured, now: Date())
                 }
             }
             if success { dismiss() } else { error = service.status }

@@ -1,6 +1,6 @@
 # Bottle quantity and prepared-dose tracking — DOSETAP-77
 
-Installed and independently verified phone version: **0.4.19 (85)**. This follows the
+Installed phone: **0.4.19 (86)**, independently verified through CoreDevice. Automated quantity checks passed; hosted checks and merge are tracked in PR #73. This follows the
 [build 82 bottle foundation](2026-09-28-bottle-tracking.md). The separate iPad app
 is unchanged. Device, owner, accessibility, privacy and release acceptance remain
 separate from source and simulator validation.
@@ -8,8 +8,9 @@ separate from source and simulator validation.
 ## What changes
 
 Tonight → Bottle & supply → **Amounts & preparations** now supports an explicit
-starting or reconciled amount for the active bottle. It never assumes an opened
-bottle is full. The screen identifies XYWAV 0.5 g/mL; the owner's label and official
+starting or reconciled amount for the active bottle. Build 86 initializes 90 g
+when the user explicitly confirms starting a new full XYWAV bottle. Existing
+openings are not retroactively filled. The screen identifies XYWAV 0.5 g/mL; the owner's label and official
 product information support a nominal 180 mL / 90 g bottle. Private label photos,
 patient names and prescription identifiers are not copied into the repository.
 
@@ -62,24 +63,27 @@ nearby report carries the source document; this slice adds no iPad quantity UI.
 - Test-first quantity fixtures cover balance replay, atomic insufficient-stock
   failure, explicit zero, duplicate actions and dose allocation, future dates,
   wrong-bottle references, retained-history correction and the 24-hour boundary.
-- Full Swift suite passed: 867 DoseCore XCTest, 20 nearby XCTest and 43 Swift
+- Full Swift suite passed: 872 DoseCore XCTest, 20 nearby XCTest and 43 Swift
   Testing cases. Build passed.
 - 26 native integration tests passed: 14 supply storage, six supply service and
   six Excel/ZIP tests. They cover checked source reads, reload, failed writes,
   no medication creation and source/export parity.
 - Unsigned simulator build and all four phone version configurations passed.
   SSOT, documentation, architecture, Plane workflow and whitespace checks passed.
-- Normal and largest-text native quantity journeys passed again on final build 85:
-  baseline, two-dose
-  preparation, separate link/discard routes, no duplicate deduction, unchanged
-  medication controls, and retained balance/unresolved count after relaunch.
-  Compact Tonight/History reachability also passed; normal-text dosing stays
-  ahead of the expanded supply card. Test navigation was corrected for
-  the composed stepper identifier and offscreen lazy rows; assertions now use
-  the visible unresolved count. Normal text was restored after large-text tests.
+- Five build-86 native journeys passed: normal and largest-text quantity flows,
+  full-opening/undo, confirmed unlinked balance and restart, and compact
+  Tonight/History reachability. Automatic 90 g initialization, displayed 4.5 g,
+  two-dose withdrawal to 81 g, separate link/discard actions and retained balance
+  were checked. Test scrolling was adjusted for the full-bottle form and lazy
+  rows at large text; normal text was restored. Native screenshots were inspected.
+  Results: `Test-DoseTapUITests-2026.09.28_19-37-39--0400.xcresult` contains four
+  passing journeys; the corrected large-text journey passed in
+  `Test-DoseTapUITests-2026.09.28_19-42-50--0400.xcresult`.
 - The signed final build installed without resetting app data. Independent
-  CoreDevice app inventory reports 0.4.19 (85). No owner medication or supply
-  records were created for testing. Installation is not owner-flow acceptance.
+  CoreDevice app inventory reports 0.4.19 (86). No synthetic owner records were created.
+  One owner-confirmed current balance was saved through the normal mirrored app
+  form and verified after reopening and installing build 86. Unopened stock stays
+  unknown. This bounded check does not accept the remaining preparation/export flow.
 - Source review checked allocation identity, atomic preparation writes, retry
   idempotency, correction dependencies and separation from medication events.
   Exact feature/main commit and hosted-check evidence live in the pull request
@@ -128,3 +132,26 @@ normal text was restored. Earlier attempts exposed duplicate accessibility
 identifiers and an obsolete one-screen-fit assumption; both were corrected. The
 final successful result is Test-DoseTapUITests-2026.09.28_19-16-01--0400.xcresult. The supplied image was unrelated to DoseTap
 and was not treated as app evidence.
+
+## Owner clarification: standard full bottles and current elapsed-night count
+
+The owner requested automatic quantities for a new full bottle. Build86 confirms
+the standard XYWAV180mL/90g opening and starting baseline in one atomic write.
+Retrying the action does not refill a partially used bottle. A preparation starts
+with the confirmed4.5g amount displayed, editable before explicit save. An unused
+opening can be undone together with its automatic baseline; later quantity actions
+must be corrected first. No dose event is created.
+
+Elapsed-night counts remain separate from confirmed withdrawals. A confirmed
+90g opening with ten4.5g withdrawals leaves45g (ten reference doses/five two-dose
+night equivalents). This example requires confirmed quantities; five elapsed
+nights alone is insufficient. A current-bottle correction is a dated balance
+reconciliation and never creates historical medication events. Build 86 is installed;
+quantity validation passed; hosted review and merge state are recorded in PR #73.
+
+The physical-phone balance entry also exposed an unknown-stock display defect:
+a quantity-only document upgrade could show zero unopened bottles. The projection
+now keeps stock unknown until a receipt has actually been recorded. Every
+new-bottle route shares the full-bottle flow; an opening without a receipt does
+not invent a shipment or stock count. Quantity and supply pages refresh after
+saves, and openings with quantity history route to retained-history corrections.

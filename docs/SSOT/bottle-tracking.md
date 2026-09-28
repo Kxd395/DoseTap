@@ -30,7 +30,14 @@ independent and available as a fallback. No medication alarm changes.
 Quantity tracking is opt-in per bottle, including an existing unlinked opening.
 An explicit XYWAV 0.5 g/mL baseline records the amount still IN the bottle, excluding
 already-prepared doses. A full 180 mL bottle is nominally 90 g; a 4.5 g reference
-dose is 9 mL. Nothing initializes a full balance from an opening or a photograph.
+dose is 9 mL. Confirming **Start a full XYWAV bottle** creates the opening and its
+90 g baseline atomically from the standard 180 mL product. Both retain the same
+action ID in their separate ledgers; retries never refill the bottle or duplicate
+the receipt withdrawal. Existing openings and photos never initialize a balance.
+The preparation form prefills the confirmed 4.5 g reference amount, remains
+editable and requires explicit confirmation; it never records medication as taken.
+Undoing an unused full-bottle opening voids its automatic baseline in the same
+write. Later quantity actions must be corrected first; history remains retained.
 The estimate is baseline minus confirmed preparations since that baseline. Grams
 are stored as integer milligrams; dilution water is excluded. Reference-dose
 counts are equivalents, not a prescribing instruction or a count of taken doses.
@@ -95,3 +102,10 @@ Inventory/manual snapshots remain separate. Invalid persisted supply fails the
 export rather than silently omitting it.
 
 Quantity commands write supply version 3 with optional `quantityEntries`; older readers reject rather than strip the ledger. No SQL migration or historical backfill. Studio ZIP, supply backup, Source Fields and Bottle & Supply retain every quantity entry and dose-link snapshot.
+
+An amount entry does not establish unopened stock. If no receipt has ever been
+recorded, the unopened count remains unknown even after the document upgrades to
+version 3. All new-bottle entry points use the same full-bottle confirmation.
+Without a receipt, an explicit full opening can initialize 90 g but stays
+unlinked, with stock-based refill notices unavailable. Existing dated openings
+never receive an automatic backfill. Quantity pages refresh after a saved change.

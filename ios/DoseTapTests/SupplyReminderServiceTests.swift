@@ -133,7 +133,7 @@ final class SupplyReminderServiceTests: XCTestCase {
         let before = try repo.loadSupply()
         XCTAssertEqual(sqlite3_exec(storage.db, "PRAGMA query_only = ON", nil, nil, nil), SQLITE_OK)
         let failed = await service.change {
-            try $0.startBottle(id: opening, receiptID: receipt, openedAt: now, recordedAt: now, now: now)
+            try $0.startFullXYWAVBottle(id: opening, receiptID: receipt, openedAt: now, recordedAt: now, now: now)
         }
         XCTAssertFalse(failed)
         XCTAssertEqual(try repo.loadSupply(), before)
@@ -141,13 +141,15 @@ final class SupplyReminderServiceTests: XCTestCase {
         XCTAssertEqual(sqlite3_exec(storage.db, "PRAGMA query_only = OFF", nil, nil, nil), SQLITE_OK)
         for _ in 0..<2 {
             let saved = await service.change {
-                try $0.startBottle(id: opening, receiptID: receipt, openedAt: now, recordedAt: now, now: now)
+                try $0.startFullXYWAVBottle(id: opening, receiptID: receipt, openedAt: now, recordedAt: now, now: now)
             }
             XCTAssertTrue(saved)
         }
         let after = try repo.loadSupply()
         XCTAssertEqual(after.bottleStarts.count, 1)
         XCTAssertEqual(after.trackedUnopenedBottleCount, 2)
+        XCTAssertEqual(after.remainingBottleMg(opening), 90_000)
+        XCTAssertEqual(after.quantityEntries?.count, 1)
         XCTAssertEqual(after.reminder, before.reminder)
         XCTAssertEqual(repo.dose1Time, doseTime)
         XCTAssertNotNil(client.requests[doseAlarm])

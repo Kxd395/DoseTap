@@ -35,6 +35,90 @@ final class SupplyQuantityTests: XCTestCase {
         XCTAssertEqual(try JSONDecoder().decode(SupplyBackup.self, from: JSONEncoder().encode(value)), value)
         XCTAssertEqual(value.version, 3)
     }
+    func testFullBottleStartInitializesStandardAmountOnce() throws {
+        var value = SupplyBackup()
+        let receipt = UUID(), bottle = UUID()
+        try value.receiveBottles(id: receipt, count: 3, receivedAt: time, recordedAt: time, now: time)
+        try value.startFullXYWAVBottle(id: bottle, receiptID: receipt, openedAt: time, recordedAt: time, now: time)
+        XCTAssertEqual(value.remainingBottleMg(bottle), 90_000)
+        XCTAssertEqual(value.trackedUnopenedBottleCount, 2)
+        XCTAssertEqual(value.quantityEntries?.count, 1)
+        try value.recordQuantity(entry(.preparation, bottle, 4_500, offset: 1), now: time.addingTimeInterval(1))
+        let prepared = value
+        try value.startFullXYWAVBottle(id: bottle, receiptID: receipt, openedAt: time, recordedAt: time, now: time.addingTimeInterval(2))
+        XCTAssertEqual(value, prepared)
+        XCTAssertEqual(value.remainingBottleMg(bottle), 85_500)
+        XCTAssertEqual(try JSONDecoder().decode(SupplyBackup.self, from: JSONEncoder().encode(value)), value)
+    }
+
+    func testBalanceDoesNotInventUnopenedStock() throws {
+        var (value, bottle) = source()
+        try value.recordQuantity(entry(.baseline, bottle, 45_000), now: time)
+        XCTAssertEqual(value.remainingBottleMg(bottle), 45_000)
+        XCTAssertNil(value.trackedUnopenedBottleCount)
+        let restored = try JSONDecoder().decode(SupplyBackup.self, from: JSONEncoder().encode(value))
+        XCTAssertNil(restored.trackedUnopenedBottleCount)
+    }
+
+    func testFullUnlinkedBottleHasQuantityWithoutInventingDelivery() throws {
+        var value = SupplyBackup()
+        let bottle = UUID()
+        try value.startFullXYWAVBottle(id: bottle, receiptID: nil, openedAt: time, recordedAt: time, now: time)
+        XCTAssertEqual(value.remainingBottleMg(bottle), 90_000)
+        XCTAssertNil(value.trackedUnopenedBottleCount)
+        XCTAssertNil(value.activeBottleStart?.receiptID)
+        let before = value
+        try value.startFullXYWAVBottle(id: bottle, receiptID: nil, openedAt: time, recordedAt: time, now: time)
+        XCTAssertEqual(value, before)
+        try value.voidBottleStart(id: bottle, at: time, now: time)
+        XCTAssertNil(value.trackedUnopenedBottleCount)
+        XCTAssertNil(value.activeBottleStart)
+        let receipt = UUID()
+        try value.receiveBottles(id: receipt, count: 1, receivedAt: time, recordedAt: time, now: time)
+        let tracked = value
+        XCTAssertThrowsError(try value.startFullXYWAVBottle(id: UUID(), receiptID: nil, openedAt: time, recordedAt: time, now: time))
+        XCTAssertEqual(value, tracked, "Known stock requires choosing its receipt, not bypassing the count")
+    }
+
+    func testFullBottleStartFailureDoesNotCreateOpeningOrRefillLegacyBottle() throws {
+        var value = SupplyBackup()
+        let receipt = UUID(), bottle = UUID()
+        try value.receiveBottles(id: receipt, count: 3, receivedAt: time, recordedAt: time, now: time)
+        let before = value
+        XCTAssertThrowsError(try value.startFullXYWAVBottle(id: bottle, receiptID: UUID(), openedAt: time, recordedAt: time, now: time))
+        XCTAssertThrowsError(try value.startFullXYWAVBottle(id: bottle, receiptID: receipt, openedAt: time.addingTimeInterval(1), recordedAt: time, now: time))
+        XCTAssertEqual(value, before)
+        try value.startBottle(id: bottle, receiptID: receipt, openedAt: time, recordedAt: time, now: time)
+        let legacy = value
+        XCTAssertThrowsError(try value.startFullXYWAVBottle(id: bottle, receiptID: receipt, openedAt: time, recordedAt: time, now: time))
+        XCTAssertEqual(value, legacy)
+        XCTAssertNil(value.remainingBottleMg(bottle))
+        let conflictingID = UUID()
+        var baseline = entry(.baseline, bottle, 90_000); baseline.id = conflictingID
+        try value.recordQuantity(baseline, now: time)
+        let beforeConflict = value, later = time.addingTimeInterval(1)
+        XCTAssertThrowsError(try value.startFullXYWAVBottle(id: conflictingID, receiptID: receipt, openedAt: later, recordedAt: later, now: later))
+        XCTAssertEqual(value, beforeConflict, "A baseline conflict must also roll back the new opening and stock count")
+    }
+
+    func testUndoUnusedFullOpeningVoidsItsAutomaticBaselineOnly() throws {
+        var value = SupplyBackup()
+        let receipt = UUID(), bottle = UUID()
+        try value.receiveBottles(id: receipt, count: 3, receivedAt: time, recordedAt: time, now: time)
+        try value.startFullXYWAVBottle(id: bottle, receiptID: receipt, openedAt: time, recordedAt: time, now: time)
+        let prep = entry(.preparation, bottle, 4_500, offset: 1)
+        try value.recordQuantity(prep, now: time.addingTimeInterval(1))
+        let before = value
+        XCTAssertThrowsError(try value.voidBottleStart(id: bottle, at: time.addingTimeInterval(2), now: time.addingTimeInterval(2)))
+        XCTAssertEqual(value, before)
+        try value.voidQuantity(id: prep.id, at: time.addingTimeInterval(2), now: time.addingTimeInterval(2))
+        try value.voidBottleStart(id: bottle, at: time.addingTimeInterval(3), now: time.addingTimeInterval(3))
+        XCTAssertNil(value.activeBottleStart)
+        XCTAssertNil(value.remainingBottleMg(bottle))
+        XCTAssertEqual(value.trackedUnopenedBottleCount, 3)
+        XCTAssertEqual(value.quantityEntries?.count, 2)
+        XCTAssertTrue(value.quantityEntries?.allSatisfy { $0.voidedAt != nil } == true)
+    }
     func testAtomicInsufficientStockAndExplicitZero() throws {
         var (value, bottle) = source()
         try value.recordQuantity(entry(.baseline, bottle, 4_500), now: time)

@@ -28,8 +28,9 @@ extension SupplyBackup {
         bottleStarts.filter { $0.voidedAt == nil }.max { $0.openedAt < $1.openedAt }
     }
     public var trackedUnopenedBottleCount: Int? {
-        receipts.map { $0.filter { $0.voidedAt == nil }.reduce(0) { $0 + $1.count } -
-            bottleStarts.filter { $0.receiptID != nil && $0.voidedAt == nil }.count }
+        guard let receipts, !receipts.isEmpty else { return nil }
+        return receipts.filter { $0.voidedAt == nil }.reduce(0) { $0 + $1.count } -
+            bottleStarts.filter { $0.receiptID != nil && $0.voidedAt == nil }.count
     }
     public var currentReceiptOrdinal: Int? {
         guard let active = activeBottleStart, let id = active.receiptID else { return nil }
@@ -102,8 +103,41 @@ extension SupplyBackup {
         var candidate = self
         candidate.version = max(version, 2)
         candidate.receipts = receipts ?? []
+        let quantities = (quantityEntries ?? []).filter { $0.bottleID == id && $0.voidedAt == nil }
+        if !quantities.isEmpty {
+            guard quantities.count == 1, let baseline = quantities.first,
+                  baseline.id == id, baseline.kind == .baseline,
+                  baseline.amountMg == SupplyQuantity.xywavBottleMg,
+                  baseline.occurredAt == bottleStarts[index].openedAt else { throw SupplyQuantityError.dependentCorrection }
+            try candidate.voidQuantity(id: baseline.id, at: time, now: now)
+        }
         candidate.bottleStarts[index].voidedAt = time
         try accept(candidate)
+    }
+
+    /// Explicit confirmation of a standard full product, never inferred for an old opening.
+    public mutating func startFullXYWAVBottle(id: UUID, receiptID: UUID?, openedAt: Date, recordedAt: Date, now: Date) throws {
+        if bottleStarts.contains(where: { $0.id == id }), quantityEntries?.contains(where: { $0.id == id }) != true {
+            throw SupplyTrackingError.conflictingIdentity
+        }
+        var candidate = self
+        if let receiptID {
+            try candidate.startBottle(id: id, receiptID: receiptID, openedAt: openedAt, recordedAt: recordedAt, now: now)
+        } else {
+            let opening = SupplyBottleStart(id: id, openedAt: openedAt, recordedAt: recordedAt)
+            guard isValid else { throw SupplyTrackingError.invalid }
+            if let prior = bottleStarts.first(where: { $0.id == id }) {
+                guard prior == opening else { throw SupplyTrackingError.conflictingIdentity }
+            } else {
+                guard trackedUnopenedBottleCount == nil, recordedAt <= now,
+                      activeBottleStart.map({ openedAt > $0.openedAt }) ?? true else { throw SupplyTrackingError.invalid }
+                candidate.bottleStarts.append(opening)
+            }
+        }
+        try candidate.recordQuantity(.init(id: id, bottleID: id, kind: .baseline,
+            amountMg: SupplyQuantity.xywavBottleMg, occurredAt: openedAt, recordedAt: recordedAt,
+            reason: "User confirmed opening a full XYWAV 180 mL bottle"), now: now)
+        self = candidate
     }
 
     public mutating func voidReceipt(id: UUID, at time: Date, now: Date = Date()) throws {
