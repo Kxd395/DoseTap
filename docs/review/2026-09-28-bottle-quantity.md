@@ -70,7 +70,7 @@ nearby report carries the source document; this slice adds no iPad quantity UI.
   no medication creation and source/export parity.
 - Unsigned simulator build and all four phone version configurations passed.
   SSOT, documentation, architecture, Plane workflow and whitespace checks passed.
-- Five build-86 native journeys passed: normal and largest-text quantity flows,
+- Seven build-86 native journeys passed: normal and largest-text quantity flows,
   full-opening/undo, confirmed unlinked balance and restart, and compact
   Tonight/History reachability. Automatic 90 g initialization, displayed 4.5 g,
   two-dose withdrawal to 81 g, separate link/discard actions and retained balance
@@ -78,7 +78,9 @@ nearby report carries the source document; this slice adds no iPad quantity UI.
   rows at large text; normal text was restored. Native screenshots were inspected.
   Results: `Test-DoseTapUITests-2026.09.28_19-37-39--0400.xcresult` contains four
   passing journeys; the corrected large-text journey passed in
-  `Test-DoseTapUITests-2026.09.28_19-42-50--0400.xcresult`.
+  `Test-DoseTapUITests-2026.09.28_19-42-50--0400.xcresult`. Both existing
+  pre-sleep bottle/reminder entry-point journeys also passed against the unified
+  route, bringing the final native total to seven.
 - The signed final build installed without resetting app data. Independent
   CoreDevice app inventory reports 0.4.19 (86). No synthetic owner records were created.
   One owner-confirmed current balance was saved through the normal mirrored app
@@ -97,7 +99,8 @@ this and event-name alias duplicates. Both supply counts and dose-link candidate
 now share one checked date-group projection and the existing canonical event
 vocabulary. Ambiguous groups are excluded; unrelated dates remain eligible.
 This correction was delivered as build 84, replacing the installed build-83
-candidate; build 85 retains it. No historical records are modified or merged by this lookup.
+candidate; builds 85 and 86 retain it. No historical records are modified or
+merged by this lookup.
 
 ## Remaining gates and bounds
 
