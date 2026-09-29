@@ -99,9 +99,14 @@ struct SupplySettingsView: View {
                         ForEach(records.filter { $0.receiptID == nil && $0.voidedAt == nil }.sorted { $0.openedAt > $1.openedAt }) { record in
                             VStack(alignment: .leading) {
                                 Text("Started: \(record.openedAt.formatted(date: .abbreviated, time: .shortened))")
-                                Button("Delete this bottle record", role: .destructive) {
-                                    bottleToDelete = record.id; showConfirmation = true
-                                }.font(.footnote)
+                                if service.backup?.quantityEntries?.contains(where: { $0.bottleID == record.id }) == true {
+                                    NavigationLink("Review amount and corrections") { BottleSupplyManagementView() }
+                                        .font(.footnote)
+                                } else {
+                                    Button("Delete this bottle record", role: .destructive) {
+                                        bottleToDelete = record.id; showConfirmation = true
+                                    }.font(.footnote)
+                                }
                             }
                         }
                     } else { Text("No bottle openings recorded.") }
@@ -207,28 +212,7 @@ struct SupplyBottleButton: View {
         Button { showing = true } label: { Label("Started a new bottle", systemImage: "plus.circle") }
             .accessibilityIdentifier(accessibilityID)
             .sheet(isPresented: $showing) {
-                if service.backup?.receipts != nil { NavigationStack { BottleSupplyManagementView().toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { showing = false } } } } }
-                else { SupplyBottleSheet() }
+                NavigationStack { BottleSupplyManagementView().toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { showing = false } } } }
             }
-    }
-}
-
-private struct SupplyBottleSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @ObservedObject private var service = SupplyReminderService.shared
-    @State private var openedAt = Date()
-    var body: some View {
-        NavigationStack {
-            Form {
-                DatePicker("Started on", selection: $openedAt, in: ...Date())
-                Text("Optional personal record. This does not log a dose or change the reorder reminder.")
-                Button("Record bottle start") {
-                    Task { if await service.recordBottleStart(at: openedAt) { dismiss() } }
-                }.disabled(service.isBusy)
-                if service.status.hasPrefix("Failed:") { Text(service.status) }
-            }
-            .navigationTitle("New bottle")
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
-        }.interactiveDismissDisabled(service.isBusy)
     }
 }

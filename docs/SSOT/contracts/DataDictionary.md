@@ -429,3 +429,15 @@ query in the nearby snapshot, separately from clinical SQLite and Studio exports
 It preserves the allowed `SleepEvidenceSample` fields and query/timezone metadata.
 See [dashboard-provider-evidence.md](dashboard-provider-evidence.md) for validation,
 empty-query meaning, limits and read-only scope.
+
+### Bottle quantity ledger (supply document version 3)
+
+Optional `quantityEntries` contains baseline, preparation, discard and dose-link
+records with UUID, bottleID, integer amountMg, occurredAt, recordedAt, reason,
+optional preparationID, optional immutable dose evidence, and optional voidedAt.
+Dose evidence retains eventID, sessionID, eventType and occurrence timestamp.
+Product contract is XYWAV 0.5 g/mL (90,000 mg nominal bottle capacity); baseline
+amount is explicitly reported. Prepared amount leaves the bottle once; linking or
+discarding a preparation never subtracts it twice. These allocated amounts are
+inventory reports, not a backfill of actual administered amounts in dose_events.
+See [quantity and preparation rules](../bottle-tracking.md).

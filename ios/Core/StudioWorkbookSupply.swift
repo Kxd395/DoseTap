@@ -14,7 +14,9 @@ extension StudioWorkbookData {
         guard let supply = supplyState else { return [] }
         let columns = ["Record type", "Status", "Occurred (UTC)", "Occurred (local)", "Recorded (UTC)",
             "Bottles added", "Record ID", "Linked receipt ID", "Voided (UTC)", "Reminder mode",
-            "Entered planning date/time", "Entered timezone", "Lead days", "Enabled", "Handled (UTC)", "Source"]
+            "Entered planning date/time", "Entered timezone", "Lead days", "Enabled", "Handled (UTC)", "Source",
+            "Quantity (g)", "Medication volume (mL)", "Bottle opening ID", "Preparation ID", "Dose event ID",
+            "Dose session ID", "Dose type", "Dose occurred (UTC)", "Preparation limit (UTC)", "Reason"]
         func date(_ value: Date?) -> WorkbookCell {
             guard let value else { return .blank }
             return SW.validDate(value).map(WorkbookCell.date) ?? .text("Outside Excel date range; see Source Fields")
@@ -38,6 +40,23 @@ extension StudioWorkbookData {
             cells[15] = .text(opening.receiptID == nil ? "Opening without receipt link" : "Linked bottle opening")
             rows.append((opening.recordedAt, cells))
         }
+        for entry in supply.quantityEntries ?? [] {
+            var cells = row("Quantity: \(entry.kind.rawValue)", entry.voidedAt == nil ? "Recorded" : "Voided",
+                            entry.occurredAt, entry.recordedAt, entry.id)
+            cells[8] = date(entry.voidedAt)
+            cells[15] = .text("XYWAV 0.5 g/mL · supply quantity v1")
+            if entry.kind == .baseline || entry.kind == .preparation {
+                cells[16] = .number(Double(entry.amountMg) / 1000)
+                cells[17] = .number(Double(entry.amountMg) / Double(SupplyQuantity.xywavMgPerML))
+            }
+            cells[18] = .text(entry.bottleID.uuidString)
+            cells[19] = SW.text(entry.preparationID?.uuidString)
+            cells[20] = SW.text(entry.dose?.eventID); cells[21] = SW.text(entry.dose?.sessionID)
+            cells[22] = SW.text(entry.dose?.eventType); cells[23] = date(entry.dose?.occurredAt)
+            if entry.kind == .preparation { cells[24] = date(entry.occurredAt.addingTimeInterval(SupplyQuantity.xywavPreparationLimit)) }
+            cells[25] = .text(entry.reason)
+            rows.append((entry.recordedAt, cells))
+        }
         if let reminder = supply.reminder {
             for entry in reminder.history + [reminder.current] {
                 var cells = row("Order reminder", entry.revision == reminder.current.revision ? "Current" : "Previous revision", nil, entry.changedAt, entry.revision)
@@ -51,6 +70,6 @@ extension StudioWorkbookData {
         let sorted = rows.sorted { a, b in
             a.0 == b.0 ? String(describing: a.1[6]) < String(describing: b.1[6]) : a.0 > b.0
         }.map(\.1)
-        return [SW.table("Bottle & Supply", columns, sorted, note: "One reported unopened-stock entry, opening or order-reminder revision from supply_state. Counts may represent only the unopened portion of a delivery, not the total shipment. Voided records remain visible and are not active stock. Opening a bottle does not mean a dose was taken or the previous bottle was empty. Reminder dates are planning inputs, not delivery claims. Inventory contains separate manual snapshots; quantities remaining and bottle-specific dose consumption are not inferred here. Full precision and all source fields remain under /supplyStateJSON in Source Fields and the Studio ZIP. \(timezoneNote)")]
+        return [SW.table("Bottle & Supply", columns, sorted, note: "Reported stock, openings, quantity actions and reminder revisions. Quantity baseline means medication still in the bottle; preparation removes it once. A doseLink allocates an existing dose record and does not create medication or deduct stock again. Its source snapshot may require review after dose corrections. A preparation limit is not proof of safe use or actual disposal. Voided entries remain in history. Inventory contains separate manual snapshots. Full precision and all fields remain under /supplyStateJSON in Source Fields and the Studio ZIP. \(timezoneNote)")]
     }
 }

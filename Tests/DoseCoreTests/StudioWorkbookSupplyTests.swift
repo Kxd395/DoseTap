@@ -52,6 +52,30 @@ final class StudioWorkbookSupplyTests: XCTestCase {
         XCTAssertTrue(try XCTUnwrap(sheets.first { $0.name == "Bottle & Supply" }).rows.isEmpty)
     }
 
+    func testQuantityPreparationAndDoseSnapshotReachWorkbookAndRawFields() throws {
+        let time = Date(timeIntervalSince1970: 1_800_000_000.125), bottle = UUID(), prep = UUID()
+        var supply = SupplyBackup()
+        supply.bottleStarts = [.init(id: bottle, openedAt: time, recordedAt: time)]
+        try supply.recordQuantity(.init(id: UUID(), bottleID: bottle, kind: .baseline, amountMg: 90_000,
+            occurredAt: time, recordedAt: time, reason: "Confirmed full bottle"), now: time)
+        try supply.recordQuantity(.init(id: prep, bottleID: bottle, kind: .preparation, amountMg: 4_500,
+            occurredAt: time, recordedAt: time, reason: "Prepared"), now: time)
+        try supply.recordQuantity(.init(id: UUID(), bottleID: bottle, kind: .doseLink, amountMg: 0,
+            occurredAt: time, recordedAt: time, reason: "=literal", preparationID: prep,
+            dose: .init(eventID: "canonical-dose", sessionID: "night", eventType: "dose1", occurredAt: time)), now: time)
+        let input = try bundle(supply), finalized = try StudioDoseTimingExport.prepare(bundleData: input)
+        XCTAssertEqual(try StudioWorkbookData(bundleData: finalized.bundleData, inventoryCSV: "").supplyState, supply)
+        let sheets = try StudioWorkbookProjection.sheets(bundleData: finalized.bundleData, inventoryCSV: "")
+        let sheet = try XCTUnwrap(sheets.first { $0.name == "Bottle & Supply" })
+        let row = try XCTUnwrap(sheet.rows.first { $0.contains(.text("Quantity: preparation")) })
+        XCTAssertEqual(row[16], .number(4.5)); XCTAssertEqual(row[17], .number(9))
+        XCTAssertEqual(row[24], .date(time.addingTimeInterval(86_400)))
+        XCTAssertTrue(sheet.rows.contains { $0.contains(.text("canonical-dose")) && $0.contains(.text("=literal")) })
+        let fields = try XCTUnwrap(sheets.first { $0.name == "Source Fields" })
+        XCTAssertTrue(fields.rows.contains { $0.contains(.text("/supplyStateJSON/quantityEntries/2/dose/eventID")) })
+        XCTAssertTrue(sheet.rows.allSatisfy { $0.count == sheet.columns.count })
+    }
+
     func testMalformedPresentSupplyCannotSilentlyPublishWithoutIt() throws {
         var root = try XCTUnwrap(JSONSerialization.jsonObject(with: bundle(SupplyBackup())) as? [String: Any])
         for value: Any in [NSNull(), "not json", "{}", #"{"version":99,"bottleStarts":[]}"#] {

@@ -18,6 +18,8 @@ Files here record dated reviews, design decisions, migration analysis, and regre
 
 ## Owner data and dashboard review
 
+- [Bottle quantity and prepared-dose tracking](2026-09-28-bottle-quantity.md): explicit bottle balances, separate preparations and dose links, version-3 persistence and complete exports.
+
 - [Dashboard collection and comparison inventory](2026-09-26-dashboard-data-comparison-inventory.md): every collection family, phone/iPad visibility, source ownership, useful comparisons and provider-transfer sequencing.
 - [Dashboard evidence review delivery](2026-09-26-dashboard-evidence-review.md): phone Night Mode/readability, positive interval eligibility and the iPad's explicit wake/sleepiness diary view; validation and remaining whole-overhaul gates.
 

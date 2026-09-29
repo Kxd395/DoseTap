@@ -78,7 +78,7 @@ final class DoseTapUITests: XCTestCase {
     }
 
     override func tearDownWithError() throws {
-        if name.contains("testSupplyTrackedLargeText") || name.contains("testDose1ReviewLargeText") || name.contains("testMorningRecordedDoseInWindowLargeText") {
+        if (name.contains("testSupplyTracked") && name.contains("LargeText")) || name.contains("testDose1ReviewLargeText") || name.contains("testMorningRecordedDoseInWindowLargeText") {
             app.terminate()
             app.launchArguments = ["--uitesting", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
             app.launch()
@@ -90,6 +90,118 @@ final class DoseTapUITests: XCTestCase {
             app.launch()
         }
         app = nil
+    }
+
+    func testSupplyTrackedQuantity() { quantityJourney() }
+    func testSupplyTrackedQuantityLargeText() { quantityJourney() }
+
+    func testSupplyTrackedUnlinkedFullBottleAndConfirmedBalance() {
+        func tap(_ id: String) {
+            let button = app.buttons[id]
+            for _ in 0..<12 {
+                if button.exists && button.isHittable { break }
+                app.swipeUp()
+            }
+            XCTAssertTrue(button.isHittable); button.tap()
+        }
+        XCTAssertTrue(app.buttons["manage-bottle-supply"].waitForExistence(timeout: 15))
+        tap("manage-bottle-supply"); tap("bottle-start"); tap("bottle-entry-save")
+        XCTAssertTrue(app.staticTexts["bottle-summary-remaining-grams"].waitForExistence(timeout: 8))
+        XCTAssertEqual(app.staticTexts["bottle-summary-remaining-grams"].label, "Estimated in bottle: 90 g")
+        tap("bottle-quantities"); tap("quantity-baseline")
+        let grams = app.textFields["quantity-grams"]
+        XCTAssertTrue(grams.waitForExistence(timeout: 5)); grams.tap(); grams.typeText("45")
+        let reason = app.textFields["quantity-reason"]
+        reason.tap(); reason.typeText("Confirmed current amount")
+        tap("quantity-save")
+        XCTAssertTrue(app.navigationBars["Amounts & preparations"].waitForExistence(timeout: 8))
+        let balance = app.staticTexts["bottle-remaining-grams"]
+        XCTAssertTrue(balance.waitForExistence(timeout: 8))
+        XCTAssertEqual(balance.label, "Estimated in bottle: 45 g")
+        app.navigationBars.buttons.firstMatch.tap()
+        app.navigationBars.buttons["Done"].tap()
+        XCTAssertEqual(app.staticTexts["bottle-card-unopened"].label, "Unopened bottles: not recorded")
+        app.terminate(); app.launchArguments.removeAll { $0 == "--uitesting-auto-night-reset" }; app.launch()
+        XCTAssertTrue(app.staticTexts["bottle-card-remaining-grams"].waitForExistence(timeout: 15))
+        XCTAssertEqual(app.staticTexts["bottle-card-remaining-grams"].label, "Estimated in bottle: 45 g")
+        XCTAssertEqual(app.staticTexts["bottle-card-unopened"].label, "Unopened bottles: not recorded")
+        captureDashboard("Confirmed balance survives restart without inventing unopened stock")
+    }
+
+    private func quantityJourney() {
+        func reveal(_ element: XCUIElement, down: Bool = false) {
+            let interior = app.frame.insetBy(dx: 0, dy: app.frame.height * 0.18)
+            var previousFrame: CGRect?
+            for _ in 0..<14 {
+                if element.exists && element.isHittable && (interior.contains(CGPoint(x: element.frame.midX, y: element.frame.midY)) || previousFrame == element.frame) { break }
+                // At a form's scroll limit, a reachable final row need not reach its center.
+                previousFrame = element.exists ? element.frame : nil
+                let towardTop = element.exists && !element.frame.isEmpty ? element.frame.midY < interior.minY : down
+                if towardTop { app.swipeDown() } else { app.swipeUp() }
+            }
+            XCTAssertTrue(element.exists); XCTAssertTrue(element.isHittable)
+        }
+        func tap(_ id: String, down: Bool = false) { let e = app.buttons[id]; reveal(e, down: down); e.tap() }
+        func save(_ title: String) {
+            tap("quantity-save")
+            XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 8))
+        }
+        func openQuantities() {
+            tap("manage-bottle-supply", down: true)
+            XCTAssertTrue(app.navigationBars["Bottles & supply"].waitForExistence(timeout: 8))
+            tap("bottle-quantities")
+            XCTAssertTrue(app.navigationBars["Amounts & preparations"].waitForExistence(timeout: 8))
+        }
+        XCTAssertTrue(app.buttons["dose-primary-action"].waitForExistence(timeout: 15))
+        if !name.contains("LargeText") { XCTAssertTrue(app.buttons["dose-primary-action"].isHittable) }
+        let doseBefore = app.buttons["dose-primary-action"].label
+        let missing = app.staticTexts["bottle-card-quantity-missing"]
+        reveal(missing); XCTAssertEqual(missing.label, "Amount remaining: not recorded")
+        let unopened = app.staticTexts["bottle-card-unopened"]
+        reveal(unopened); XCTAssertEqual(unopened.label, "Unopened bottles: not recorded")
+        captureDashboard("Tonight explains missing quantity and bottle stock")
+        tap("manage-bottle-supply", down: true)
+        tap("bottle-receive"); tap("bottle-entry-save")
+        XCTAssertTrue(app.navigationBars["Bottles & supply"].waitForExistence(timeout: 8))
+        tap("bottle-start"); tap("bottle-entry-save")
+        XCTAssertTrue(app.navigationBars["Bottles & supply"].waitForExistence(timeout: 8))
+        let initial = app.staticTexts["bottle-summary-remaining-grams"]
+        reveal(initial, down: true); XCTAssertEqual(initial.label, "Estimated in bottle: 90 g")
+        tap("bottle-quantities")
+        tap("quantity-prepare")
+        let grams = app.textFields["quantity-grams"]
+        XCTAssertTrue(grams.waitForExistence(timeout: 5)); XCTAssertEqual(grams.value as? String, "4.5")
+        let increment = app.buttons["quantity-count-Increment"]
+        reveal(increment); increment.tap()
+        save("Amounts & preparations")
+        let balance = app.staticTexts["bottle-remaining-grams"]
+        reveal(balance, down: true); XCTAssertEqual(balance.label, "Estimated in bottle: 81 g")
+        captureDashboard("Quantity balance after two preparations")
+        let link = app.buttons["Link to a recorded dose"].firstMatch
+        reveal(link); link.tap()
+        XCTAssertTrue(app.navigationBars["Link recorded dose"].waitForExistence(timeout: 5))
+        app.navigationBars.buttons["Cancel"].tap()
+        let discard = app.buttons["Record as discarded"].firstMatch
+        reveal(discard); discard.tap(); save("Amounts & preparations")
+        reveal(balance, down: true); XCTAssertEqual(balance.label, "Estimated in bottle: 81 g")
+        let unresolved = app.staticTexts["quantity-unresolved-count"]
+        reveal(unresolved); XCTAssertEqual(unresolved.label, "Unresolved preparations: 1")
+        captureDashboard("One prepared dose remains unresolved after discard")
+        app.navigationBars.buttons.firstMatch.tap()
+        app.navigationBars.buttons["Done"].tap()
+        XCTAssertEqual(app.buttons["dose-primary-action"].label, doseBefore)
+        let cardBalance = app.staticTexts["bottle-card-remaining-grams"]
+        reveal(cardBalance); XCTAssertEqual(cardBalance.label, "Estimated in bottle: 81 g")
+        reveal(unopened); XCTAssertEqual(unopened.label, "Unopened bottles: 2")
+        captureDashboard("Tonight shows grams dose equivalents and unopened bottles")
+        tap("bottle-card-amounts")
+        XCTAssertTrue(app.navigationBars["Amounts & preparations"].waitForExistence(timeout: 8))
+        app.navigationBars.buttons["Done"].tap()
+        app.terminate(); app.launchArguments.removeAll { $0 == "--uitesting-auto-night-reset" }; app.launch()
+        openQuantities(); reveal(balance, down: true)
+        XCTAssertEqual(balance.label, "Estimated in bottle: 81 g")
+        reveal(unresolved); XCTAssertEqual(unresolved.label, "Unresolved preparations: 1")
+        captureDashboard("Quantity and unresolved preparation survive relaunch")
     }
 
     func testSupplyTrackedLargeText() { testSupplyTrackedReceiptStartRelaunchAndUndo() }
@@ -133,7 +245,7 @@ final class DoseTapUITests: XCTestCase {
         startBottle(); count(2)
         reveal(app.staticTexts["bottle-night-count"], down: true)
         XCTAssertEqual(app.staticTexts["bottle-night-count"].label, "Recorded dosing nights since opening: 0")
-        captureDashboard("Tracked first bottle and truthful missing quantity")
+        captureDashboard("Tracked first full bottle and automatic starting quantity")
         app.navigationBars.buttons["Done"].tap()
         XCTAssertEqual(app.buttons["dose-primary-action"].label, doseBefore)
         app.terminate()
@@ -455,16 +567,18 @@ final class DoseTapUITests: XCTestCase {
         captureDashboard("Automatic Night Mode setting")
     }
 
-    func testCompactLayoutTonightFitsAndHistoryUsesOneMetricRow() throws {
+    func testCompactLayoutTonightContentReachableAndHistoryUsesOneMetricRow() throws {
         let heading = app.staticTexts["tonight-session-date"].firstMatch
         XCTAssertTrue(heading.waitForExistence(timeout: 15))
-        let originalY = heading.frame.minY
         let weekly = app.descendants(matching: .any).matching(identifier: "tonight-weekly-insights").firstMatch
         XCTAssertTrue(weekly.exists)
+        for _ in 0..<8 {
+            if weekly.frame.maxY <= app.buttons["Tonight"].frame.minY { break }
+            app.swipeUp()
+        }
+        XCTAssertTrue(weekly.isHittable)
         XCTAssertLessThanOrEqual(weekly.frame.maxY, app.buttons["Tonight"].frame.minY)
-        captureDashboard("Compact Tonight before scroll")
-        app.swipeUp()
-        XCTAssertEqual(heading.frame.minY, originalY, accuracy: 2, "A fitting Tonight page must not scroll into empty padding")
+        captureDashboard("Tonight supply and weekly information remain reachable")
         app.buttons["History"].tap()
         let titles = ["On-Time", "Avg Interval", "Natural Wake", "Bathroom Logs"]
         let cells = titles.map { app.descendants(matching: .any).matching(identifier: "insight-\($0)").firstMatch }
@@ -1511,6 +1625,19 @@ final class DoseTapUITests: XCTestCase {
         add(proof)
     }
 
+    private func confirmFullBottleFromPreSleep() {
+        XCTAssertTrue(app.navigationBars["Bottles & supply"].waitForExistence(timeout: 5))
+        let start = app.buttons["bottle-start"]
+        for _ in 0..<10 where !start.isHittable { app.swipeUp() }
+        XCTAssertTrue(start.isHittable); start.tap()
+        let save = app.buttons["bottle-entry-save"]
+        XCTAssertTrue(save.waitForExistence(timeout: 5))
+        for _ in 0..<8 where !save.isHittable { app.swipeUp() }
+        save.tap()
+        XCTAssertTrue(app.navigationBars["Bottles & supply"].waitForExistence(timeout: 8))
+        app.navigationBars["Bottles & supply"].buttons["Done"].tap()
+    }
+
     func testSupplyBottleIsFirstInPreSleepAndNeverCarriedForward() throws {
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         if springboard.buttons["Allow"].waitForExistence(timeout: 3) { springboard.buttons["Allow"].tap() }
@@ -1534,10 +1661,10 @@ final class DoseTapUITests: XCTestCase {
         let remembered = app.staticTexts["Remember room setup"]
         XCTAssertLessThan(bottle.frame.minY, remembered.frame.minY)
         bottle.tap()
-        app.navigationBars["New bottle"].buttons["Cancel"].tap()
+        app.navigationBars["Bottles & supply"].buttons["Done"].tap()
         XCTAssertTrue(bottle.waitForExistence(timeout: 5))
         bottle.tap()
-        app.buttons["Record bottle start"].tap()
+        confirmFullBottleFromPreSleep()
         let saved = app.staticTexts["preSleepLastBottleOpening"]
         XCTAssertTrue(saved.waitForExistence(timeout: 5))
         let savedLabel = saved.label
@@ -1864,7 +1991,7 @@ final class DoseTapUITests: XCTestCase {
         let bottle = app.buttons["preSleepStartedNewBottle"]
         XCTAssertTrue(bottle.waitForExistence(timeout: 5))
         bottle.tap()
-        app.buttons["Record bottle start"].tap()
+        confirmFullBottleFromPreSleep()
         XCTAssertTrue(app.staticTexts["preSleepLastBottleOpening"].waitForExistence(timeout: 5))
         // Earlier questionnaire journeys may leave a saved check for this night.
         // Close its editor without changing that record; new checks can be skipped.

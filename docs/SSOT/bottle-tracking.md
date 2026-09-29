@@ -25,16 +25,72 @@ contact reminder. This is an in-app notice, not proof of pharmacy contact, appro
 ordering or shipping. Existing explicitly saved calendar notification stays
 independent and available as a fallback. No medication alarm changes.
 
-No remaining quantity or dose count is inferred from elapsed nights, a planned
-amount, or an empty allocation ledger. Explain that estimated doses remaining
-requires confirmed quantity and consumption; that quantity-based follow-on remains
-open. Preparation versus administration and split-bottle doses are not conflated.
+## Confirmed quantity and preparations (DOSETAP-77)
+
+Quantity tracking is opt-in per bottle, including an existing unlinked opening.
+An explicit XYWAV 0.5 g/mL baseline records the amount still IN the bottle, excluding
+already-prepared doses. A full 180 mL bottle is nominally 90 g; a 4.5 g reference
+dose is 9 mL. Confirming **Start a full XYWAV bottle** creates the opening and its
+90 g baseline atomically from the standard 180 mL product. Both retain the same
+action ID in their separate ledgers; retries never refill the bottle or duplicate
+the receipt withdrawal. Existing openings and photos never initialize a balance.
+The preparation form prefills the confirmed 4.5 g reference amount, remains
+editable and requires explicit confirmation; it never records medication as taken.
+Undoing an unused full-bottle opening voids its automatic baseline in the same
+write. Later quantity actions must be corrected first; history remains retained.
+The estimate is baseline minus confirmed preparations since that baseline. Grams
+are stored as integer milligrams; dilution water is excluded. Reference-dose
+counts are equivalents, not a prescribing instruction or a count of taken doses.
+
+Tonight always exposes quantity status and tracked unopened-bottle status. A
+compact-layout supply card follows the primary dosing control so supply details
+do not push that control out of the initial view at normal text size. The page
+can scroll to fit supply and weekly information; larger text remains scrollable.
+A confirmed balance displays grams plus labeled 4.5 g dose/two-dose-night equivalents;
+an absent baseline displays "Amount remaining: not recorded" with a direct amount
+setup/review route. Unknown stock remains "not recorded", not zero. Recorded nights
+appear separately and never initialize or deduct a quantity. A checked read failure
+is shown as unavailable, with retry guidance rather than a setup prompt.
+
+Each preparation has its own ID, bottle ID, amount, mixing time and recorded-at.
+The capture explicitly asks when the medication was mixed with water.
+Preparing two doses explicitly creates two records in one durable write. A
+preparation can be linked to an existing canonical taken-dose record, or explicitly
+marked discarded. Neither action deducts bottle stock again. Supply actions never
+create, correct or cancel medication events or medication alarms. Deleted/changed
+linked dose evidence is flagged for review, not silently substituted. Dose-link
+candidates and usage counts share the same checked date-group projection. A
+legacy NULL, blank or date-only dose identity makes the entire date unresolved;
+legacy event-name aliases participate in duplicate checks through the existing
+canonical event vocabulary. One dose
+cannot consume multiple preparations in this slice; split-bottle allocation remains
+open. Prepared-but-unresolved is not proof of a skipped dose or available medication.
+
+The quantity ledger preserves corrections by voiding the latest applicable action;
+undoing a preparation is a correction of an erroneous entry, not returning mixed
+medicine to the bottle. Dependent actions must be undone first. Reconciliation
+baselines keep earlier evidence and require an explicit reason. Backdated changes
+must not reorder inventory history. Failed writes preserve inputs and expose retry.
+
+XYWAV diluted-dose instructions require use within 24 hours after mixing and
+otherwise disposal. The UI shows the original preparation time and elapsed-limit
+review state; it never recommends taking, auto-carries a dose into tomorrow, or
+records disposal based on a timer. Reported historical use beyond the limit remains
+recordable through the medication ledger and can be linked with a review warning.
+Official source checked 2026-09-28:
+https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=1e0ae43a-037f-42af-8e23-a0e51d75abe8
+
+Doses/nights are estimates from confirmed quantity entries only. Missing withdrawals
+can overstate stock and are disclosed. Night equivalents use an explicitly labeled
+4.5 g twice-nightly reference, not an inferred historical prescription. Existing
+night-count contact notices stay independent; automatic quantity-triggered alerts
+and pharmacy contact remain outside this slice.
 
 Source truth remains one versioned SQLite supply document through
 Views -> SessionRepository -> EventStorage. Commands preserve legacy records,
 validate counts/identities/times, and publish success only after a durable write.
 New fields are optional when reading older version-1 documents; the first tracking
-command writes version 2 so older apps reject rather than erase the new records. Settings supply JSON and
+receipt/opening command writes at least version 2 so older apps reject rather than erase the new records. Settings supply JSON and
 Studio ZIP/Excel retain the source document and field-level evidence. This is not
 a promise of full-app restore. No cloud or pharmacy integration.
 
@@ -44,3 +100,12 @@ still uses its existing timestamp convention. A conditional Bottle & Supply shee
 and Source Fields expose receipts, openings, reminder revisions and void history.
 Inventory/manual snapshots remain separate. Invalid persisted supply fails the
 export rather than silently omitting it.
+
+Quantity commands write supply version 3 with optional `quantityEntries`; older readers reject rather than strip the ledger. No SQL migration or historical backfill. Studio ZIP, supply backup, Source Fields and Bottle & Supply retain every quantity entry and dose-link snapshot.
+
+An amount entry does not establish unopened stock. If no receipt has ever been
+recorded, the unopened count remains unknown even after the document upgrades to
+version 3. All new-bottle entry points use the same full-bottle confirmation.
+Without a receipt, an explicit full opening can initialize 90 g but stays
+unlinked, with stock-based refill notices unavailable. Existing dated openings
+never receive an automatic backfill. Quantity pages refresh after a saved change.

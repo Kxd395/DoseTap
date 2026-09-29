@@ -7,6 +7,11 @@ final class BottleSupplyModel: ObservableObject {
     @Published var supply: SupplyBackup?
     @Published var usage: SupplyUsageSummary?
     @Published var error: String?
+    @Published var doseEvidence: [SupplyDoseEvidence]?
+    var remainingMg: Int? {
+        guard let supply, let bottle = supply.activeBottleStart else { return nil }
+        return supply.remainingBottleMg(bottle.id)
+    }
     var refillNotice: String? {
         guard let value = supply, value.activeBottleStart?.receiptID != nil,
               value.trackedUnopenedBottleCount == 0 else { return nil }
@@ -17,7 +22,7 @@ final class BottleSupplyModel: ObservableObject {
     private let repository: SessionRepository
     init(repository: SessionRepository? = nil) { self.repository = repository ?? .shared }
     func refresh(now: Date = Date()) {
-        supply = nil; usage = nil; error = nil
+        supply = nil; usage = nil; error = nil; doseEvidence = nil
         do {
             let value = try repository.loadSupply()
             supply = value
@@ -25,6 +30,8 @@ final class BottleSupplyModel: ObservableObject {
                 usage = try repository.supplyUsage(since: active.openedAt, through: now)
             }
         } catch { self.error = "Bottle usage is unavailable. Your records have not been changed. Retry or review supply history." }
+        do { doseEvidence = try repository.supplyDoseEvidence() }
+        catch { self.error = "Linked-dose verification is unavailable. Your supply records were not changed. Retry before relying on allocations." }
     }
 }
 
@@ -32,6 +39,7 @@ struct BottleSupplyCard: View {
     @StateObject private var model = BottleSupplyModel()
     @ObservedObject private var repo = SessionRepository.shared
     @State private var showing = false
+    @State private var showingAmounts = false
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Button { showing = true } label: {
@@ -41,18 +49,36 @@ struct BottleSupplyCard: View {
                     Image(systemName: "chevron.right").accessibilityHidden(true)
                 }
             }.accessibilityIdentifier("manage-bottle-supply")
-                .accessibilityHint("Review received bottles and record a bottle opening.")
+                .accessibilityHint("Review bottle amounts, unopened stock and bottle openings.")
+            if let supply = model.supply {
+                if let remaining = model.remainingMg {
+                    BottleQuantityEstimate(remaining: remaining, accessibilityPrefix: "bottle-card")
+                } else {
+                    Text("Amount remaining: not recorded").font(.subheadline.bold())
+                        .accessibilityIdentifier("bottle-card-quantity-missing")
+                    Text("Set a confirmed bottle amount to see grams and 4.5 g dose equivalents. Nights since opening cannot establish the amount left.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Text(supply.trackedUnopenedBottleCount.map { "Unopened bottles: \($0)" } ?? "Unopened bottles: not recorded")
+                    .font(.subheadline).accessibilityIdentifier("bottle-card-unopened")
+                if supply.activeBottleStart != nil {
+                    Button(model.remainingMg == nil ? "Set bottle amount" : "Review amounts & prepared doses") { showingAmounts = true }
+                        .accessibilityIdentifier("bottle-card-amounts")
+                } else {
+                    Text("Record a bottle opening in Bottle & supply to start quantity tracking.").font(.caption)
+                }
+            }
             if model.supply?.activeBottleStart != nil {
                 Text(model.usage.map { "Recorded dosing nights since opening: \($0.recordedNights)" } ?? "Dosing-night count unavailable")
-                    .font(.subheadline)
+                    .font(.caption).foregroundStyle(.secondary)
                 if let usage = model.usage, usage.excludedRows > 0 {
                     Text("\(usage.excludedRows) dose records need review and were excluded.").font(.caption)
                 }
-                Text(model.supply?.trackedUnopenedBottleCount.map { "Unopened bottles: \($0) · Doses left: not available" } ?? "Unopened bottles and doses left: not recorded")
-                    .font(.caption).foregroundStyle(.secondary)
                 if let notice = model.refillNotice { Text(notice).font(.subheadline.bold()) }
-            } else if let error = model.error {
+            }
+            if let error = model.error {
                 Text(error).font(.caption).foregroundStyle(.secondary)
+                Button("Retry bottle information") { model.refresh() }
             }
         }.padding().frame(maxWidth: .infinity, alignment: .leading)
             .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
@@ -62,6 +88,11 @@ struct BottleSupplyCard: View {
             .sheet(isPresented: $showing, onDismiss: { model.refresh() }) {
                 NavigationStack { BottleSupplyManagementView().toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("Done") { showing = false } }
+                } }
+            }
+            .sheet(isPresented: $showingAmounts, onDismiss: { model.refresh() }) {
+                NavigationStack { BottleQuantityView().toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("Done") { showingAmounts = false } }
                 } }
             }
     }
@@ -93,8 +124,8 @@ private struct BottleSupplySummary: View {
             if let unopened = value.trackedUnopenedBottleCount {
                 Text("Tracked unopened bottles: \(unopened)").accessibilityIdentifier("bottle-unopened-count")
             } else { Text("Unopened bottle count not recorded.") }
-            Text("Doses remaining: not available — confirmed bottle quantity and consumption are needed.")
-                .font(.caption).foregroundStyle(.secondary)
+            if let remaining = model.remainingMg { BottleQuantityEstimate(remaining: remaining, accessibilityPrefix: "bottle-summary") }
+            else { Text("Doses remaining: not available — set a confirmed amount and record preparations.").font(.caption).foregroundStyle(.secondary) }
         }
         if let error = model.error {
             Text(error).foregroundStyle(.secondary)
@@ -115,10 +146,12 @@ struct BottleSupplyManagementView: View {
     var body: some View {
         Form {
             Section("Current supply") { BottleSupplySummary(model: model) }
+            NavigationLink("Amounts & prepared doses") { BottleQuantityView() }
+                .accessibilityIdentifier("bottle-quantities")
             Section {
                 Button("Add unopened bottles") { receive = true }.accessibilityIdentifier("bottle-receive")
-                Button("Start a tracked bottle") { start = true }.accessibilityIdentifier("bottle-start")
-                    .disabled((model.supply?.trackedUnopenedBottleCount ?? 0) < 1)
+                Button("Start a full bottle") { start = true }.accessibilityIdentifier("bottle-start")
+                    .disabled(model.supply?.trackedUnopenedBottleCount == 0)
                 Text("Add only bottles still unopened. This may be the unopened portion of a delivery. Tracking begins when you next open one; an already-open bottle keeps its original unlinked history.").font(.footnote)
                 Text("Starting another bottle replaces the current opening for display; it does not claim the previous bottle was empty.").font(.footnote)
                 Text("Night counts describe dose records since opening, not verified consumption from this bottle. The third-night notice appears in the app. Set a separate calendar reminder in Settings for an iOS alert.").font(.footnote)
@@ -151,7 +184,8 @@ struct BottleSupplyManagementView: View {
             }
             if let message { Section { Text(message) } }
         }.navigationTitle("Bottles & supply")
-            .task { model.refresh() }
+            .onAppear { model.refresh() }
+            .onChange(of: service.backup) { _ in model.refresh() }
             .sheet(isPresented: $receive, onDismiss: { model.refresh() }) { BottleTrackingEntrySheet(receiving: true) }
             .sheet(isPresented: $start, onDismiss: { model.refresh() }) { BottleTrackingEntrySheet(receiving: false) }
             .confirmationDialog("Undo the selected supply record?", isPresented: $confirmingUndo, titleVisibility: .visible) {
@@ -194,17 +228,23 @@ struct BottleTrackingEntrySheet: View {
                     Stepper("Unopened bottles: \(count)", value: $count, in: 1...100).accessibilityIdentifier("bottle-receipt-count")
                     Text("Include only bottles still unopened, even if the delivery contained more. Use their actual received date. Already-open bottles stay unlinked and do not get stock-based notices.")
                 } else {
-                    Picker("Use a bottle from", selection: $receiptID) {
-                        ForEach(available) { item in
-                            Text("\(item.receivedAt.formatted(date: .abbreviated, time: .omitted)) · \(item.count) received").tag(Optional(item.id))
+                    if !available.isEmpty {
+                        Picker("Use a bottle from", selection: $receiptID) {
+                            ForEach(available) { item in
+                                Text("\(item.receivedAt.formatted(date: .abbreviated, time: .omitted)) · \(item.count) received").tag(Optional(item.id))
+                            }
                         }
+                    } else {
+                        Text("Unopened stock has not been recorded. This opening tracks this bottle's amount only; it does not assume a delivery or a number of spare bottles.")
                     }
-                    Text("Confirm when you actually started this bottle. This replaces the current opening for display without recording a dose.")
+                    Text("Start a full XYWAV bottle · 180 mL at 0.5 g/mL")
+                    Text("Automatically starts at 90 g: 20 dose equivalents at 4.5 g, or 10 two-dose-night equivalents. Confirm the bottle was full when opened. Record preparations to update the remaining amount; opening a bottle does not record a dose.")
+                        .accessibilityIdentifier("bottle-full-start-explanation")
                 }
                 DatePicker(receiving ? "Received on" : "Opened on", selection: $occurredAt, in: ...Date())
-                Button(receiving ? "Save received bottles" : "Confirm bottle start") { save() }
+                Button(receiving ? "Save received bottles" : "Confirm full bottle start") { save() }
                     .accessibilityIdentifier("bottle-entry-save")
-                    .disabled(service.isBusy || source == nil || (!receiving && receiptID == nil))
+                    .disabled(service.isBusy || source == nil || (!receiving && receiptID == nil && source?.trackedUnopenedBottleCount != nil))
                 if let error { Text(error).foregroundStyle(.secondary) }
             }.disabled(service.isBusy)
                 .navigationTitle(receiving ? "Received bottles" : "Start a bottle")
@@ -226,9 +266,9 @@ struct BottleTrackingEntrySheet: View {
         Task {
             let success = await service.change { value in
                 if receiving { try value.receiveBottles(id: id, count: quantity, receivedAt: occurred, recordedAt: captured) }
-                else if let receipt {
+                else {
                     guard value.activeBottleStart?.id == expected || value.activeBottleStart?.id == id else { throw SupplyTrackingError.conflictingIdentity }
-                    try value.startBottle(id: id, receiptID: receipt, openedAt: occurred, recordedAt: captured)
+                    try value.startFullXYWAVBottle(id: id, receiptID: receipt, openedAt: occurred, recordedAt: captured, now: Date())
                 }
             }
             if success { dismiss() } else { error = service.status }
