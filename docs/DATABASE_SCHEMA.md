@@ -350,3 +350,8 @@ Named timezone provenance is not yet stored on every historical event row. Exist
 ## Local supply state (schema version 5)
 
 `supply_state` contains one row (`id INTEGER PRIMARY KEY CHECK (id = 1)`, `payload TEXT NOT NULL`). The versioned SupplyBackup JSON owns optional reminder source and correction history, plus independent bottle-start IDs, opened-at and recorded-at timestamps. Reminder dates preserve Gregorian year/month/day and local hour/minute, mode, lead days, current-device-wall-clock policy, entry timezone, enabled and handled state. Received-date mode adds 21 calendar days. No quantity is inferred from bottle starts. A single upsert commits the complete supply document; load/validation/write errors are surfaced. Reminder-only deletion preserves bottle starts and all medication data. Supply export/restore includes both reminder and bottle records; Clear All Data clears the row. The additive table does not rewrite existing medication records.
+
+
+### Dashboard dose-history reviews
+
+`dashboard_dose_reviews(observation_id TEXT PRIMARY KEY, session_date TEXT NOT NULL, payload TEXT NOT NULL)` stores versioned explicit patient count/plan review revisions independently of dose events. Reads validate the full ledger; writes compare the expected revision inside one SQLite transaction. Existing records are not backfilled. Raw local source exports include the ledger; Clear All Data removes it. Source fingerprint mismatch prevents an old confirmation from classifying changed administration evidence.

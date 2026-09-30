@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		DDRV001 /* EventStorage+DashboardDoseReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDRV101; };
 		DPAC101 /* DashboardProviderAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPAC001 /* DashboardProviderAccess.swift */; };
 		BOTQ01B /* BottleQuantityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BOTQ01F /* BottleQuantityView.swift */; };
 		BOTS01B /* BottleSupplyViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = BOTS01F /* BottleSupplyViews.swift */; };
@@ -196,6 +197,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		DDRV101 /* EventStorage+DashboardDoseReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+DashboardDoseReview.swift"; sourceTree = "<group>"; };
 		DPAC001 /* DashboardProviderAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardProviderAccess.swift; sourceTree = "<group>"; };
 		BOTQ01F /* BottleQuantityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottleQuantityView.swift; sourceTree = "<group>"; };
 		BOTS01F /* BottleSupplyViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottleSupplyViews.swift; sourceTree = "<group>"; };
@@ -646,6 +648,7 @@
 				ESF021 /* EventStorage+MorningCheckIn.swift */,
 				ESF022 /* EventStorage+CheckInSubmissions.swift */,
 				NWF002 /* EventStorage+NightOutcome.swift */,
+				DDRV101 /* EventStorage+DashboardDoseReview.swift */,
 				HQF001 /* EventStorage+HistoryQuestionnaires.swift */,
 				ESF023 /* EventStorage+SessionSupport.swift */,
 				ESF024 /* EventStorage+SymptomEvents.swift */,
@@ -990,6 +993,7 @@
 				EDIT002 /* EditDoseTimeView.swift in Sources */,
 				NWB001 /* NightOutcomeView.swift in Sources */,
 				NWB002 /* EventStorage+NightOutcome.swift in Sources */,
+				DDRV001 /* EventStorage+DashboardDoseReview.swift in Sources */,
 				0A777B0D5CC54803B060A980 /* UserSettingsManager.swift in Sources */,
 				626911F284B24C54BA73D7F8 /* SettingsView.swift in Sources */,
 				SET001 /* SettingsSections.swift in Sources */,

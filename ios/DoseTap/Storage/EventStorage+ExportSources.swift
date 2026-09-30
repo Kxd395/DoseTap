@@ -79,7 +79,7 @@ extension EventStorage {
             return id
         }).sorted()
         var records: [StoredExportSourceRecord] = []
-        for table in ["sleep_sessions", "current_session", "morning_checkins", "checkin_submissions"] {
+        for table in ["sleep_sessions", "current_session", "morning_checkins", "checkin_submissions", "dashboard_dose_reviews"] {
             records += try readExportSourceRows(table: table,
                 sql: "SELECT * FROM \(table) WHERE session_date = ?1 ORDER BY rowid", sessionDate: sessionDate)
         }

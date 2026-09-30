@@ -121,6 +121,12 @@ extension EventStorage {
         );
         
         -- Sleep session metadata (non-calendar lifecycle)
+        CREATE TABLE IF NOT EXISTS dashboard_dose_reviews (
+            observation_id TEXT PRIMARY KEY,
+            session_date TEXT NOT NULL,
+            payload TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS sleep_sessions (
             session_id TEXT PRIMARY KEY,
             session_date TEXT NOT NULL,
