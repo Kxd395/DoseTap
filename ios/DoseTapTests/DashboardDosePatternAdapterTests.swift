@@ -153,16 +153,16 @@ final class DashboardDosePatternAdapterTests: XCTestCase {
     }
     func testSameProviderIDCorrectionsInvalidateCountReview() throws {
         let model = model(EventStorage.inMemory())
-        func summary(_ date: Date, _ sleep: Int) -> WHOOPNightSummary {
+        func summary(_ date: Date, _ sleep: Int, inBed: Int = 440) -> WHOOPNightSummary {
             .init(date: date, sleepId: "same-episode", totalSleepMinutes: sleep, remMinutes: 90,
-                deepMinutes: 70, lightMinutes: 260, awakeMinutes: 20, inBedMinutes: 440, disturbanceCount: 2,
+                deepMinutes: 70, lightMinutes: 260, awakeMinutes: 20, inBedMinutes: inBed, disturbanceCount: 2,
                 sleepEfficiency: 95, sleepPerformance: nil, sleepConsistency: nil, respiratoryRate: nil,
                 sleepNeedBaselineMinutes: nil, sleepNeedDebtMinutes: nil, sleepNeedStrainMinutes: nil,
                 sleepNeedNapMinutes: nil, recoveryScore: 60, hrvMs: nil)
         }
         let row = try XCTUnwrap(model.identityAggregates(local: [], health: [:], whoop: ["2026-09-29": summary(now, 420)]).first)
         var ledger = DashboardDoseReviewLedger(); try ledger.append(review(row, count: 0), expectedRevision: nil, now: now)
-        for changed in [summary(now.addingTimeInterval(3600), 420), summary(now, 430)] {
+        for changed in [summary(now.addingTimeInterval(3600), 420), summary(now, 430), summary(now, 420, inBed: 450)] {
             var corrected = try XCTUnwrap(model.identityAggregates(local: [], health: [:], whoop: ["2026-09-29": changed]).first)
             corrected.doseReviewLedger = ledger
             XCTAssertEqual(corrected.id, row.id)

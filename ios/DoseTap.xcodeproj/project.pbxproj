@@ -12,6 +12,7 @@
 		DPUI003B /* DosePatternPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI003F; };
 		DPUI004B /* DosePatternReviewSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI004F; };
 		DPUI005B /* MorningDoseHistoryReviewSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI005F; };
+		DHSIDE101 /* DashboardSharedSleepProducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = DHSIDE001 /* DashboardSharedSleepProducer.swift */; };
 		DPAD101 /* DashboardDosePatternAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPAD001 /* DashboardDosePatternAdapter.swift */; };
 		DDRV001 /* EventStorage+DashboardDoseReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDRV101; };
 		DIDENT108 /* DashboardContextProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT008 /* DashboardContextProjection.swift */; };
@@ -237,6 +238,7 @@
 		DPUI003F /* DosePatternPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternPresentation.swift; sourceTree = "<group>"; };
 		DPUI004F /* DosePatternReviewSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternReviewSheet.swift; sourceTree = "<group>"; };
 		DPUI005F /* MorningDoseHistoryReviewSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningDoseHistoryReviewSection.swift; sourceTree = "<group>"; };
+		DHSIDE001 /* DashboardSharedSleepProducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardSharedSleepProducer.swift; sourceTree = "<group>"; };
 		DPAD001 /* DashboardDosePatternAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardDosePatternAdapter.swift; sourceTree = "<group>"; };
 		DDRV101 /* EventStorage+DashboardDoseReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+DashboardDoseReview.swift"; sourceTree = "<group>"; };
 		DIDENT008 /* DashboardContextProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardContextProjection.swift; sourceTree = "<group>"; };
@@ -752,6 +754,7 @@
 				DIDENT006 /* DashboardAssociationUITestFixture.swift */,
 				DIDENT007 /* DashboardContextSnapshot.swift */,
 				DIDENT003 /* DashboardProviderAssociations.swift */,
+				DHSIDE001 /* DashboardSharedSleepProducer.swift */,
 				DIDENT001 /* SessionRepositoryDashboardIdentities.swift */,
 				WBCTX101 /* EventStorage+WorkContext.swift */,
 				72CFAA5DE2681CBC5A3CDB0C /* SessionRepositoryDashboardSnapshot.swift */,
@@ -1151,6 +1154,7 @@
 				SRQ002 /* SessionRepositoryMedication.swift in Sources */,
 				DIDENT107 /* DashboardContextSnapshot.swift in Sources */,
 				DIDENT103 /* DashboardProviderAssociations.swift in Sources */,
+				DHSIDE101 /* DashboardSharedSleepProducer.swift in Sources */,
 				DIDENT101 /* SessionRepositoryDashboardIdentities.swift in Sources */,
 				WBCTX001 /* EventStorage+WorkContext.swift in Sources */,
 				AE5EED904A21B803837709F5 /* SessionRepositoryDashboardSnapshot.swift in Sources */,

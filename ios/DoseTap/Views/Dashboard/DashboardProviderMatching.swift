@@ -13,7 +13,8 @@ extension HealthKitService.SleepNightSummary {
 extension WHOOPNightSummary {
     var associationFingerprint: String {
         dashboardFingerprint([id, String(date.timeIntervalSince1970), String(totalSleepMinutes), String(remMinutes),
-            String(deepMinutes), String(lightMinutes), String(awakeMinutes), String(hasCompleteSleepStages)])
+            String(deepMinutes), String(lightMinutes), String(awakeMinutes), String(hasCompleteSleepStages),
+            inBedMinutes.map(String.init) ?? ""])
     }
 }
 
