@@ -122,6 +122,7 @@ let package = Package(
                 "DashboardInspectionStateTests.swift",
                 "DashboardSleepMetricProjectionTests.swift",
                 "DashboardDoseReviewTests.swift",
+                "DashboardReviewedPeriodTests.swift",
                 "PhysicianVisitTests.swift",
                 "PhysicianReportTests.swift",
                 "DashboardSharedDoseReviewTests.swift",

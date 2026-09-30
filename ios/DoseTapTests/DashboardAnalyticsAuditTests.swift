@@ -28,7 +28,7 @@ final class DashboardAnalyticsAuditTests: XCTestCase {
         XCTAssertEqual(calendar.dateComponents([.day], from: priorStart, to: start).day, 181)
         XCTAssertEqual(window.healthQueryDays, 367)
         XCTAssertEqual(DashboardDateRange.all.window(asOf: anchor, timeZone: calendar.timeZone)?.healthQueryDays, 730)
-        XCTAssertEqual(DashboardDateRange.allCases.map(\.rawValue), ["7D", "14D", "30D", "90D", "6M", "1Y", "All"])
+        XCTAssertEqual(DashboardDateRange.allCases.map(\.rawValue), ["7D", "14D", "28D", "30D", "90D", "6M", "1Y", "All", "Custom", "Since visit"])
     }
 
     func testSixMonthPhoneAndFrozenReportHaveIdenticalMembership() throws {

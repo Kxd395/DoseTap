@@ -18,7 +18,7 @@ struct DashboardProviderSnapshot<Summary> {
     func description(provider: String) -> String {
         let formatter = DateFormatter(); formatter.locale = .current; formatter.timeZone = window.timeZone
         formatter.dateStyle = .medium; formatter.timeStyle = .short
-        let query = "\(provider) successful query: \(formatter.string(from: queryStart)) – \(formatter.string(from: window.asOf)) (\(window.timeZone.identifier))."
+        let query = "\(provider) successful query: \(formatter.string(from: queryStart)) – \(formatter.string(from: window.healthQueryEnd)) (\(window.timeZone.identifier))."
         let stale = failedAttemptAt.map { " Stale results retained after the failed attempt at \(formatter.string(from: $0))." } ?? ""
         let partial = isPartial ? " This sleep snapshot has unavailable recovery metrics." : ""
         return query + stale + partial

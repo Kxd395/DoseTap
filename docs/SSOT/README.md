@@ -26,6 +26,8 @@ The [physician review contract](contracts/physician-review.md) defines completed
 
 ## Canonical References
 
+- Phone dashboard reporting supports 7/28/90 days, 6/12 calendar months, legacy 14/30-day and All Time choices, reviewed custom bounds and Since last completed visit. Custom and visit periods reuse the completed-visit ledger and `PhysicianReportPeriod`; a future booking cannot anchor a report. The captured timezone, cutoff and query bounds remain fixed during each refresh. Invalid bounds or a failed visit-ledger read produce no substituted period. Dashboard membership remains whole treatment nights with an 18:00 rollover; boundary nights can include observations outside the exact reviewed instants and are labeled accordingly. Custom/visit views have no inferred prior-period comparison. Provider retrieval limits and stale snapshots remain explicit.
+
 - Code entry points: `ios/DoseTap/Storage/SessionRepository.swift`, `ios/Core/DoseTapCore.swift`, `ios/DoseTap/ContentView.swift`
 - Views: `ios/DoseTap/Views/TonightView.swift`, `ios/DoseTap/Views/CompactDoseButton.swift`, `ios/DoseTap/Views/DetailsView.swift`
 - Storage: `ios/DoseTap/Storage/EventStorage.swift` and the maintained `ios/DoseTap/Storage/EventStorage+*.swift` extensions

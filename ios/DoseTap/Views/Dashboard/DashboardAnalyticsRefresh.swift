@@ -28,6 +28,7 @@ extension DashboardAnalyticsModel {
         doseReviewReadReady = false
         defer { if refreshGeneration == generation { isLoading = false } }
         let asOf = now(), zone = timeZone(), range = selectedRange
+        let customRange = customReportingRange
         let access = providerAccess.revision
         refreshProviderAccess = access
         let healthEnabled = providerQueries.healthEnabled()
@@ -35,11 +36,14 @@ extension DashboardAnalyticsModel {
         func requestIsCurrent() -> Bool {
             !Task.isCancelled && refreshGeneration == generation && providerAccess.revision == access
                 && range == selectedRange && zone == timeZone()
+                && customRange == customReportingRange
                 && healthEnabled == providerQueries.healthEnabled()
                 && whoopEnabled == providerQueries.whoopEnabled() && whoopConnected == providerQueries.whoopConnected()
         }
-        guard let requestedWindow = range.window(asOf: asOf, timeZone: zone) else {
-            errorMessage = "Reporting dates could not be determined. Check the device date and refresh."
+        let requestedWindow: DashboardReportingWindow
+        do { requestedWindow = try resolveReportingWindow(asOf: asOf, timeZone: zone) }
+        catch {
+            errorMessage = reportingPeriodError(error)
             return
         }
         var calendar = Calendar(identifier: .gregorian); calendar.timeZone = zone
@@ -78,8 +82,10 @@ extension DashboardAnalyticsModel {
         if includeProviders && whoopEnabled && whoopConnected {
             do {
                 let fetchDays = max(1, min(days, 30))
-                let startDate = calendar.date(byAdding: .day, value: -fetchDays, to: asOf) ?? asOf
-                let result = try await providerQueries.whoopHistory(startDate, asOf)
+                let queryEnd = requestedWindow.healthQueryEnd
+                let limitStart = calendar.date(byAdding: .day, value: -fetchDays, to: queryEnd) ?? queryEnd
+                let startDate = requestedWindow.reviewedPeriod == nil ? limitStart : max(limitStart, requestedWindow.healthQueryStart)
+                let result = try await providerQueries.whoopHistory(startDate, queryEnd)
                 guard requestIsCurrent() else { return }
                 var values: [String: WHOOPNightSummary] = [:]
                 for summary in result.summaries {
@@ -113,6 +119,8 @@ extension DashboardAnalyticsModel {
         guard requestIsCurrent() else { return }
         publishedProviderAccess = access
         reportingAsOf = asOf; reportingTimeZone = zone
+        reportingPeriod = requestedWindow.reviewedPeriod
+        publishedCustomReportingRange = customRange
         healthSnapshot = health; whoopSnapshot = whoopResult
         healthQueryWindow = health?.window
         errorMessage = refreshErrors.isEmpty ? nil : refreshErrors.joined(separator: " ")

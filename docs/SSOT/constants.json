@@ -4,6 +4,14 @@
     "maximumReceiptCount": 100,
     "lastBottleContactRecordedNight": 3
   },
+  "dashboardReportingPeriods": {
+    "presetTreatmentDays": [7, 14, 28, 30, 90],
+    "presetCalendarMonths": [6, 12],
+    "treatmentRolloverHour": 18,
+    "appleHealthMaximumTreatmentNights": 730,
+    "whoopMaximumCalendarDays": 30,
+    "description": "Reporting choices and current provider retrieval bounds, not clinical instructions. Custom and completed-visit periods retain reviewed bounds and disclose shorter provider coverage."
+  },
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://dosetap.com/ssot/constants.json",
   "title": "DoseTap SSOT Constants",

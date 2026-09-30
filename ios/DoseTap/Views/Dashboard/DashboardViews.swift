@@ -41,11 +41,7 @@ struct DashboardTabView: View {
     }
 
     private var rangePicker: some View {
-        Picker("Range", selection: $model.selectedRange) {
-            ForEach(DashboardDateRange.allCases) { range in
-                Text(range.rawValue).tag(range).accessibilityLabel(range.label)
-            }
-        }.accessibilityIdentifier("dashboard-range-picker")
+        DashboardPeriodControls(model: model)
     }
 
     private var dashboardContent: some View {
@@ -58,13 +54,7 @@ struct DashboardTabView: View {
                 #endif
                 VStack(spacing: 0) {
                     // MARK: Date Range Picker
-                    Group {
-                        if dynamicTypeSize.isAccessibilitySize {
-                            rangePicker.pickerStyle(.menu)
-                        } else {
-                            rangePicker.pickerStyle(.segmented)
-                        }
-                    }.padding(.horizontal).padding(.vertical, 8)
+                    rangePicker.padding(.horizontal).padding(.vertical, 8)
 
                     Text(model.rangeDescription).font(.caption).foregroundColor(.secondary)
                         .multilineTextAlignment(.center)

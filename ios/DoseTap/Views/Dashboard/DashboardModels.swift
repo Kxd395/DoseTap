@@ -22,6 +22,9 @@ final class DashboardAnalyticsModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var sleepSource: DashboardSleepSource = .appleHealth
     @Published var selectedRange: DashboardDateRange = .month
+    @Published var customReportingRange: PhysicianReportRange?
+    @Published var reportingPeriod: PhysicianReportPeriod?
+    var publishedCustomReportingRange: PhysicianReportRange?
 
     @Published var reportingAsOf: Date
     @Published var reportingTimeZone: TimeZone
@@ -73,8 +76,9 @@ final class DashboardAnalyticsModel: ObservableObject {
         guard !isLoading, providerAssociationsReady else { return false }
         func current<T>(_ snapshot: DashboardProviderSnapshot<T>?) -> Bool {
             guard let snapshot else { return false }
-            return snapshot.failedAttemptAt == nil && snapshot.window.range == selectedRange
+            return snapshot.failedAttemptAt == nil && snapshot.window == currentReportWindow
                 && snapshot.window.asOf == reportingAsOf && reportingTimeZone == timeZone()
+                && publishedCustomReportingRange == customReportingRange
                 && snapshot.matches(timeZone: reportingTimeZone, epoch: providerAccess.revision[provider])
         }
         if provider == .health { return providerQueries.healthEnabled() && current(healthSnapshot) }

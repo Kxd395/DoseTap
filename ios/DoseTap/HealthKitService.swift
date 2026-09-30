@@ -744,6 +744,23 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
         return Self.dashboardSleepSummaries(segments: segments, days: count, through: now, calendar: calendar)
     }
 
+    /// A captured dashboard window, including a reviewed historical cutoff.
+    func dashboardSleepHistory(days: Int, from start: Date, through end: Date,
+                               calendar: Calendar) async throws -> [SleepNightSummary] {
+        guard start.timeIntervalSince1970.isFinite, end.timeIntervalSince1970.isFinite, start < end,
+              (1...730).contains(days) else { throw DashboardSnapshotError.invalidMetadata }
+        let segments = try await fetchSleepSegments(from: start, to: end)
+        try Task.checkCancellation()
+        return Self.dashboardSleepSummaries(segments: segments, days: days, before: end, calendar: calendar)
+    }
+
+    static func dashboardSleepSummaries(segments: [SleepSegment], days: Int, before end: Date,
+                                       calendar: Calendar) -> [SleepNightSummary] {
+        guard end.timeIntervalSince1970.isFinite else { return [] }
+        let lastIncluded = Date(timeIntervalSince1970: end.timeIntervalSince1970.nextDown)
+        return dashboardSleepSummaries(segments: segments, days: days, through: lastIncluded, calendar: calendar)
+    }
+
     static func dashboardSleepSummaries(segments: [SleepSegment], days: Int, through now: Date,
                                        calendar: Calendar = .current) -> [SleepNightSummary] {
         let today = calendar.startOfDay(for: now)

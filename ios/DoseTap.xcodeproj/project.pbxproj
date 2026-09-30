@@ -23,6 +23,7 @@
 		PHRU1004 /* PhysicianReportPDF.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRU004 /* PhysicianReportPDF.swift */; };
 		PHRU1003 /* PhysicianReportPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRU003 /* PhysicianReportPreview.swift */; };
 		PHRU1002 /* PhysicianReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRU002 /* PhysicianReviewView.swift */; };
+		DPRU1001 /* DashboardPeriodControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPRU001 /* DashboardPeriodControls.swift */; };
 		PHRV101 /* EventStorage+PhysicianReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRV001 /* EventStorage+PhysicianReview.swift */; };
 		DPAC101 /* DashboardProviderAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPAC001 /* DashboardProviderAccess.swift */; };
 		DPSN101 /* DashboardProviderSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPSN001 /* DashboardProviderSnapshot.swift */; };
@@ -235,6 +236,7 @@
 		PHRU004 /* PhysicianReportPDF.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianReportPDF.swift; sourceTree = "<group>"; };
 		PHRU003 /* PhysicianReportPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianReportPreview.swift; sourceTree = "<group>"; };
 		PHRU002 /* PhysicianReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianReviewView.swift; sourceTree = "<group>"; };
+		DPRU001 /* DashboardPeriodControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardPeriodControls.swift; sourceTree = "<group>"; };
 		PHRV001 /* EventStorage+PhysicianReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+PhysicianReview.swift"; sourceTree = "<group>"; };
 		DPAC001 /* DashboardProviderAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardProviderAccess.swift; sourceTree = "<group>"; };
 		DPSN001 /* DashboardProviderSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardProviderSnapshot.swift; sourceTree = "<group>"; };
@@ -621,6 +623,7 @@
 				CLUST109 /* DashboardAnalyticsRefresh.swift */,
 				CLUST111 /* DashboardAnalyticsSupport.swift */,
 				CLUST113 /* DashboardAnalyticsMetrics.swift */,
+				DPRU001 /* DashboardPeriodControls.swift */,
 				CLUST115 /* DashboardAnalyticsPreSleep.swift */,
 				CLUST119 /* DashboardAnalyticsMorning.swift */,
 				CLUST117 /* DashboardAnalyticsCatalog.swift */,
@@ -1181,6 +1184,7 @@
 				CLUST108 /* DashboardAnalyticsRefresh.swift in Sources */,
 				CLUST110 /* DashboardAnalyticsSupport.swift in Sources */,
 				CLUST112 /* DashboardAnalyticsMetrics.swift in Sources */,
+				DPRU1001 /* DashboardPeriodControls.swift in Sources */,
 				CLUST114 /* DashboardAnalyticsPreSleep.swift in Sources */,
 				CLUST116 /* DashboardAnalyticsCatalog.swift in Sources */,
 				CLUST118 /* DashboardAnalyticsMorning.swift in Sources */,

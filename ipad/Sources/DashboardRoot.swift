@@ -68,7 +68,7 @@ struct DashboardRoot: View {
     }
     private var rangePicker: some View {
         Picker("Treatment dates", selection: $range) {
-            ForEach(DashboardReportingRange.allCases) { value in
+            ForEach(DashboardReportingRange.presetCases) { value in
                 Text(value.rawValue).tag(value).accessibilityLabel(value.label)
             }
         }.accessibilityIdentifier("dashboard-report-range")

@@ -1211,11 +1211,12 @@ final class DoseTapUITests: XCTestCase {
         let theme = app.navigationBars["Dashboard"].buttons["Theme quick switch"]
         XCTAssertTrue(theme.waitForExistence(timeout: 10))
         theme.press(forDuration: 1); app.buttons["Dark"].tap()
-        app.segmentedControls["dashboard-range-picker"].buttons["6 Months"].tap()
+        app.buttons["dashboard-range-picker"].tap()
+        app.buttons["6 Months"].tap()
         captureDashboard("Dashboard readable dark overview")
         theme.tap()
         XCTAssertEqual(theme.value as? String, "Night Mode")
-        XCTAssertTrue(app.segmentedControls["dashboard-range-picker"].buttons["6 Months"].isSelected)
+        XCTAssertTrue(app.buttons["dashboard-range-picker"].label.contains("6 Months"))
         captureDashboard("Dashboard readable Night Mode overview")
         app.segmentedControls["dashboard-section-picker"].buttons["Trends"].tap()
         revealDashboardText("Interactive Trends")
@@ -1297,9 +1298,10 @@ final class DoseTapUITests: XCTestCase {
 
     func testDashboardSixMonthCoverage() throws {
         app.buttons["Dashboard"].tap()
-        let range = app.segmentedControls["dashboard-range-picker"]
+        let range = app.buttons["dashboard-range-picker"]
         XCTAssertTrue(range.waitForExistence(timeout: 10))
-        range.buttons["6 Months"].tap()
+        range.tap()
+        app.buttons["6 Months"].tap()
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "6 Months")).firstMatch.waitForExistence(timeout: 5))
         captureDashboard("Six month dashboard range")
         app.segmentedControls["dashboard-section-picker"].buttons["Data"].tap()
@@ -1353,8 +1355,9 @@ final class DoseTapUITests: XCTestCase {
         captureDashboard("Build14 parity WHOOP missing readings")
 
         selectDashboardSection("Trends")
-        app.buttons["7D"].tap()
-        revealDashboardText("vs. Prior Week")
+        app.buttons["dashboard-range-picker"].tap()
+        app.buttons["7 Days"].tap()
+        revealDashboardText("vs. Prior 7 Days")
         revealDashboardText("Recorded On-Time %", prefix: true)
         captureDashboard("Build14 parity prior comparison")
         revealDashboardText("Natural waking vs. alarm waking")

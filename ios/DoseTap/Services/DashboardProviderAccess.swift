@@ -42,7 +42,7 @@ struct DashboardProviderQueries {
              }, healthHistory: { window in
                  var calendar = Calendar(identifier: .gregorian); calendar.timeZone = window.timeZone
                  return try await HealthKitService.shared.dashboardSleepHistory(
-                    days: window.healthQueryDays, through: window.asOf, calendar: calendar)
+                    days: window.healthQueryDays, from: window.healthQueryStart, through: window.healthQueryEnd, calendar: calendar)
              }, whoopHistory: { start, end in
                  try await WHOOPService.shared.fetchNightSummaryResult(from: start, to: end)
              })
