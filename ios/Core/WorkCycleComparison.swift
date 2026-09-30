@@ -38,7 +38,7 @@ public extension WorkCycleObservation {
         }
         guard evidence.metric.state == .available || evidence.metric.state == .partial else { return result }
         guard [evidence.start, evidence.end].compactMap({ $0 }).allSatisfy({ $0.timeIntervalSince1970.isFinite }),
-              evidence.start.flatMap({ start in evidence.end.map { start < $0 } }) != false else {
+              evidence.start.flatMap({ start in evidence.end.map { start < $0 || (start == $0 && evidence.metric.value == 0) } }) != false else {
             return review("invalid_metric_bounds")
         }
         if let capture, [evidence.start, evidence.end].compactMap({ $0 }).contains(where: { $0 > capture }) {
@@ -55,7 +55,7 @@ public extension WorkCycleObservation {
             guard let start = evidence.start, let end = evidence.end else {
                 result.contributionState = .unavailable; result.contributionReason = "metric_bounds_unavailable"; return result
             }
-            guard start.timeIntervalSince1970.isFinite, end.timeIntervalSince1970.isFinite, start < end else {
+            guard start.timeIntervalSince1970.isFinite, end.timeIntervalSince1970.isFinite, (start < end || (start == end && value == 0)) else {
                 return review("invalid_metric_bounds")
             }
             guard period.contains(start), period.contains(end) else {

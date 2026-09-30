@@ -130,7 +130,7 @@ public struct WorkContextDocument: Codable, Equatable, Sendable {
     public init() {}
     public var isValid: Bool {
         (1...3).contains(schemaVersion) && (((planSnapshots ?? []).isEmpty && (shiftEvents ?? []).isEmpty) || schemaVersion >= 2)
-            && (schemaVersion >= 3 || associations.allSatisfy { $0.eventContext == nil })
+            && (schemaVersion >= 3 || (associations.allSatisfy { $0.eventContext == nil } && (shiftEvents ?? []).allSatisfy { $0.workDate == nil }))
             && (shiftEvents ?? []).count <= 50000 && (shiftEvents ?? []).allSatisfy(\.isValid) && Set((shiftEvents ?? []).map(\.id)).count == (shiftEvents ?? []).count
             && (planSnapshots ?? []).count <= 50000 && (planSnapshots ?? []).allSatisfy { $0.isValid && $0.rosterCount <= rosters.count && $0.occurrenceCount <= occurrences.count && ($0.shiftEventCount ?? 0) <= (shiftEvents ?? []).count }
             && Set((planSnapshots ?? []).map(\.id)).count == (planSnapshots ?? []).count
@@ -273,6 +273,22 @@ public extension WorkContextDocument {
         let shift = records.last { $0.scheduledTimesReviewed == true || $0.scheduledStart != nil || $0.scheduledEnd != nil }
         let pause = records.last { $0.breakReviewed == true || $0.plannedBreakAt != nil }
         let actual = records.last { $0.actualTimesReviewed == true || $0.actualStart != nil || $0.actualEnd != nil }
+        let datedEvents = latestShiftEvents(asOf: asOf).filter { $0.workDate == workDate && TimeZone(identifier: $0.timeZoneIdentifier)?.identifier == zone.identifier }
+        if let newest = datedEvents.map(\.recordedAt).max(), newest >= (plan?.recordedAt ?? roster?.recordedAt ?? .distantPast) {
+            let active = datedEvents.filter { $0.status == .scheduled || ($0.status == .worked && ($0.scheduledStart != nil || $0.scheduledEnd != nil)) }
+            let planned: Bool? = !active.isEmpty ? true : datedEvents.allSatisfy { $0.status == .cancelled || $0.status == .notWorked } ? false : nil
+            let single = active.count == 1 ? active[0] : nil
+            let attended = datedEvents.filter { $0.attendanceConfirmed && $0.status == .worked }
+            let actualEvent = attended.count == 1 ? attended[0] : nil
+            let attendance: WorkAttendance? = !attended.isEmpty ? .worked : datedEvents.allSatisfy { $0.attendanceConfirmed && $0.status == .notWorked } ? .notWorked : nil
+            let only = datedEvents.count == 1 ? datedEvents[0] : nil
+            let interval = actualEvent?.interval(basis: .confirmed)
+            return WorkDateResolution(workDate: workDate, timeZoneIdentifier: timeZoneIdentifier, documentRevision: revision,
+                plannedWorking: planned, attendance: attendance, plannedSourceID: only?.id, shiftSourceID: single?.id,
+                breakSourceID: planned == true ? pause?.id : nil, actualSourceID: actualEvent?.id,
+                scheduledStart: single?.scheduledStart, scheduledEnd: single?.scheduledEnd,
+                plannedBreakAt: planned == true ? pause?.plannedBreakAt : nil, actualStart: interval?.start, actualEnd: interval?.end)
+        }
         return WorkDateResolution(workDate: workDate, timeZoneIdentifier: timeZoneIdentifier, documentRevision: revision, plannedWorking: working, attendance: records.last { $0.attendance != nil }?.attendance, plannedSourceID: plan?.id ?? roster?.id, shiftSourceID: shift?.id, breakSourceID: pause?.id, actualSourceID: actual?.id, scheduledStart: working == true ? shift?.scheduledStart : nil, scheduledEnd: working == true ? shift?.scheduledEnd : nil, plannedBreakAt: working == true ? pause?.plannedBreakAt : nil, actualStart: actual?.actualStart, actualEnd: actual?.actualEnd)
     }
 }

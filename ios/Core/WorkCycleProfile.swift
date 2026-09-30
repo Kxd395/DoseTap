@@ -21,6 +21,9 @@ public struct WorkCycleObservation: Identifiable, Equatable, Sendable {
     public var associationID: UUID?
     public var contextSnapshotAt: Date?
     public var planSnapshotID: UUID?
+    public var classificationVersion = 1
+    public var firstShiftDate: String?
+    public var metricSourceRecordIDs: [String] = []
     public var id: String { sleepID }
     public init(sleepID: String, sleepDate: String, phase: WorkPhase, position: String, blockID: String?, value: Double?, rosterID: UUID? = nil, detail: String = "", associationID: UUID? = nil, contextSnapshotAt: Date? = nil, isOverride: Bool = false, intervalMinutes: Double? = nil, stratumID: String? = nil, stratumLabel: String? = nil, planSnapshotID: UUID? = nil) {
         self.sleepID = sleepID; self.sleepDate = sleepDate; self.phase = phase; self.position = position
@@ -102,7 +105,7 @@ public struct WorkCycleSummary: Equatable, Sendable {
                 count.upperQuartile.map(String.init(describing:)) ?? ""]
             for row in group.rows { groupFields[row.id] = fields }
         }
-        let headers = ["sleep_id", "sleep_date", "phase", "position", "block_id", "value_minutes", "value_state", "metric", "context_basis", "range", "context_revision", "as_of_utc", "classification_version", "roster_revision", "detail", "eligible_observations", "missing_observations", "distinct_known_blocks", "reference", "association_revision", "context_snapshot_at_utc", "is_override", "override_reason", "interval_minutes", "grouping", "group_label", "phase_filter", "position_filter", "matrix_encoding", "context_stratum_id", "context_stratum_label", "group_symbol", "row_type", "plan_snapshot_id", "reference_lower_minutes", "reference_upper_minutes", "raw_metric_value", "contribution_reason", "metric_id", "metric_source", "metric_definition_version", "metric_unit", "metric_start_utc", "metric_end_utc", "available_observations", "not_applicable_observations", "partial_observations", "partial_included_observations", "notes_policy", "contribution_state", "context_revision_state"] + WorkCycleExportContext.headers + groupHeaders
+        let headers = ["sleep_id", "sleep_date", "phase", "position", "block_id", "value_minutes", "value_state", "metric", "context_basis", "range", "context_revision", "as_of_utc", "classification_version", "roster_revision", "detail", "eligible_observations", "missing_observations", "distinct_known_blocks", "reference", "association_revision", "context_snapshot_at_utc", "is_override", "override_reason", "interval_minutes", "grouping", "group_label", "phase_filter", "position_filter", "matrix_encoding", "context_stratum_id", "context_stratum_label", "group_symbol", "row_type", "plan_snapshot_id", "reference_lower_minutes", "reference_upper_minutes", "raw_metric_value", "contribution_reason", "metric_id", "metric_source", "metric_definition_version", "metric_unit", "metric_start_utc", "metric_end_utc", "available_observations", "not_applicable_observations", "partial_observations", "partial_included_observations", "notes_policy", "contribution_state", "context_revision_state"] + WorkCycleExportContext.headers + groupHeaders + ["first_shift_date", "metric_source_record_ids"]
         let stamp = WorkCycleExportContext.stamp(asOf)
         let viewFields = exportContext?.fields ?? ["view_context_state": "unavailable"]
         let contextRevisionState = revision == nil ? "unavailable" : "available"
@@ -111,7 +114,7 @@ public struct WorkCycleSummary: Equatable, Sendable {
             return ReportCSV.row(headers) + "\r\n" + ReportCSV.row(headers.map { metadata[$0] ?? viewFields[$0] ?? "" }) + "\r\n"
         }
         let exportedRows: [String] = observations.map { row in
-            var fields: [String] = [row.sleepID, row.sleepDate, row.phase.rawValue, row.position, row.blockID ?? "", row.value.map { String($0) } ?? "", row.metricEvidence?.metric.state.rawValue ?? (row.value == nil ? "unavailable" : "available"), metric, basis.rawValue, range, revision?.uuidString ?? "", stamp, "1", row.rosterID?.uuidString ?? "", "", String(summary.eligibleCount), String(summary.missingCount), String(summary.distinctBlockCount), "Built-in spacing reference; not a prescription.", row.associationID?.uuidString ?? "", WorkCycleExportContext.stamp(row.contextSnapshotAt), row.isOverride ? "true" : "false", "", row.intervalMinutes.map(String.init(describing:)) ?? "", grouping.rawValue, row.groupLabel(grouping), phaseFilter, positionFilter, matrixEncoding, row.stratumID ?? "", row.stratumLabel ?? "", row.groupSymbol(grouping), "observation", row.planSnapshotID?.uuidString ?? "", "150", "240"]
+            var fields: [String] = [row.sleepID, row.sleepDate, row.phase.rawValue, row.position, row.blockID ?? "", row.value.map { String($0) } ?? "", row.metricEvidence?.metric.state.rawValue ?? (row.value == nil ? "unavailable" : "available"), metric, basis.rawValue, range, revision?.uuidString ?? "", stamp, String(row.classificationVersion), row.rosterID?.uuidString ?? "", "", String(summary.eligibleCount), String(summary.missingCount), String(summary.distinctBlockCount), "Built-in spacing reference; not a prescription.", row.associationID?.uuidString ?? "", WorkCycleExportContext.stamp(row.contextSnapshotAt), row.isOverride ? "true" : "false", "", row.intervalMinutes.map(String.init(describing:)) ?? "", grouping.rawValue, row.groupLabel(grouping), phaseFilter, positionFilter, matrixEncoding, row.stratumID ?? "", row.stratumLabel ?? "", row.groupSymbol(grouping), "observation", row.planSnapshotID?.uuidString ?? "", "150", "240"]
             let evidenceFields: [String] = [
                 row.metricEvidence?.metric.value.map(String.init(describing:)) ?? "", row.contributionReason,
                 row.metricEvidence?.metricID ?? "", row.metricEvidence?.source ?? "", row.metricEvidence?.definitionVersion ?? "",
@@ -121,6 +124,7 @@ public struct WorkCycleSummary: Equatable, Sendable {
             fields.append(contentsOf: evidenceFields)
             fields.append(contentsOf: WorkCycleExportContext.headers.map { viewFields[$0] ?? "" })
             fields.append(contentsOf: groupFields[row.id] ?? Array(repeating: "", count: groupHeaders.count))
+            fields.append(contentsOf: [row.firstShiftDate ?? "", row.metricSourceRecordIDs.joined(separator: "|")])
             return ReportCSV.row(fields)
         }
         return ([ReportCSV.row(headers)] + exportedRows).joined(separator: "\r\n") + "\r\n"

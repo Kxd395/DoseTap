@@ -9,6 +9,7 @@ public struct WorkSleepEventContext: Codable, Equatable, Sendable {
     public var precedingShiftID: UUID?, followingShiftID: UUID?
     public var wakingPeriodsReviewed: Bool
     public var postBlockMainSleepIndex: Int?
+    public var postBlockReferenceShiftID: UUID?
     public init(mainSleepStart: Date?, mainSleepEnd: Date?, precedingStatus: WorkWakingStatus,
                 followingStatus: WorkWakingStatus, precedingShiftID: UUID? = nil, followingShiftID: UUID? = nil,
                 wakingPeriodsReviewed: Bool) {
@@ -45,8 +46,8 @@ extension WorkContextDocument {
                        documentIsValid: Bool, shifts: WorkShiftHistoryIndex) -> WorkPhaseResult {
         let context = association.eventContext
         func result(_ phase: WorkPhase, _ detail: String, before: WorkShiftEvent? = nil,
-                    after: WorkShiftEvent? = nil, override: Bool = false) -> WorkPhaseResult {
-            let reference = phase == .entering ? after : before
+                    after: WorkShiftEvent? = nil, postBlock: WorkShiftEvent? = nil, override: Bool = false) -> WorkPhaseResult {
+            let reference = phase == .entering ? after : phase == .off ? postBlock : before
             return .init(classificationVersion: 2, phase: phase, basis: basis, rosterID: nil,
                 blockID: override ? nil : reference?.blockID, firstShiftDate: override ? nil : reference?.firstShiftDate,
                 precedingPosition: override ? nil : before?.position, followingPosition: override ? nil : after?.position,
@@ -114,7 +115,18 @@ extension WorkContextDocument {
             }
             return result(.between, "Reviewed main-sleep links within one explicit work block.", before: before, after: after)
         }
+        var priorBlock: WorkShiftEvent?
+        if !priorWork && !nextWork, let referenceID = context.postBlockReferenceShiftID {
+            guard let event = shifts.latest(referenceID, cutoff: cutoff, prefix: prefix),
+                  event.blockID != nil, event.position != nil, event.position == event.blockShiftCount,
+                  TimeZone(identifier: event.timeZoneIdentifier)?.identifier == zone.identifier,
+                  basis == .planned ? (event.status == .scheduled || event.status == .worked) : (event.status == .worked && event.attendanceConfirmed),
+                  (basis == .planned ? event.scheduledEnd : event.actualEnd).map({ $0 <= start }) == true else {
+                return result(.unknown, "The selected previous block endpoint needs review.")
+            }
+            priorBlock = event
+        }
         return result(priorWork ? .after : nextWork ? .entering : .off,
-            "Reviewed main-sleep and adjacent waking-period evidence; no recovery inference.", before: priorWork ? before : nil, after: nextWork ? after : nil)
+            "Reviewed main-sleep and adjacent waking-period evidence; no recovery inference.", before: priorWork ? before : nil, after: nextWork ? after : nil, postBlock: priorBlock)
     }
 }

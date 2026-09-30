@@ -13,6 +13,7 @@ public struct WorkShiftEvent: Codable, Equatable, Identifiable, Sendable {
     public var attendanceConfirmed = false
     public var actualTimePrecision = WorkActualTimePrecision.unknown
     public var scheduledStart: Date?, scheduledEnd: Date?, actualStart: Date?, actualEnd: Date?
+    public var workDate: String?
     public var blockID: String?, firstShiftDate: String?
     public var position: Int?, blockShiftCount: Int?
     public var recordedAt: Date
@@ -25,6 +26,7 @@ public struct WorkShiftEvent: Codable, Equatable, Identifiable, Sendable {
               [actualStart, actualEnd].compactMap({ $0 }).allSatisfy({ $0 <= recordedAt }),
               position.map({ (1...366).contains($0) }) ?? true, blockShiftCount.map({ (1...366).contains($0) }) ?? true,
               blockID.map({ !$0.isEmpty && $0.count <= 300 }) ?? true,
+              workDate.map({ WorkContextDocument.day($0, zone: timeZoneIdentifier) != nil }) ?? true,
               firstShiftDate.map({ WorkContextDocument.day($0, zone: timeZoneIdentifier) != nil }) ?? true else { return false }
         if let scheduledStart, let scheduledEnd, scheduledEnd <= scheduledStart { return false }
         if let actualStart, let actualEnd, actualEnd <= actualStart { return false }
