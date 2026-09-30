@@ -30,7 +30,7 @@ extension EventStorage {
         let presets = try dashboardRows("medication_preset_revisions")
         let administrations = try dashboardRows("confirmed_medication_administrations")
         let inventory = try dashboardRows("inventory_snapshots") + dashboardRows("supply_state")
-        let workSchedule = try dashboardRows("work_wake_schedule")
+        let workSchedule = try dashboardRows("work_wake_schedule") + dashboardRows("work_block_context")
         // Audit/cache rows retain their own source tables; never count them as
         // additional symptom observations or rebuild them during a reporting read.
         let symptoms = try ["symptom_events", "symptom_locations", "body_map_points",

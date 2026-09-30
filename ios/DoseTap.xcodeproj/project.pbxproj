@@ -14,6 +14,7 @@
 		DIDENT103 /* DashboardProviderAssociations.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT003 /* DashboardProviderAssociations.swift */; };
 		DIDENT102 /* DashboardIdentityAggregation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT002 /* DashboardIdentityAggregation.swift */; };
 		DIDENT101 /* SessionRepositoryDashboardIdentities.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT001 /* SessionRepositoryDashboardIdentities.swift */; };
+		WBCTX001 /* EventStorage+WorkContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBCTX101 /* EventStorage+WorkContext.swift */; };
 		DPAC101 /* DashboardProviderAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPAC001 /* DashboardProviderAccess.swift */; };
 		DPSN101 /* DashboardProviderSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPSN001 /* DashboardProviderSnapshot.swift */; };
 		BOTQ01B /* BottleQuantityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BOTQ01F /* BottleQuantityView.swift */; };
@@ -215,6 +216,7 @@
 		DIDENT003 /* DashboardProviderAssociations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardProviderAssociations.swift; sourceTree = "<group>"; };
 		DIDENT002 /* DashboardIdentityAggregation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardIdentityAggregation.swift; sourceTree = "<group>"; };
 		DIDENT001 /* SessionRepositoryDashboardIdentities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepositoryDashboardIdentities.swift; sourceTree = "<group>"; };
+		WBCTX101 /* EventStorage+WorkContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+WorkContext.swift"; sourceTree = "<group>"; };
 		DPAC001 /* DashboardProviderAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardProviderAccess.swift; sourceTree = "<group>"; };
 		DPSN001 /* DashboardProviderSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardProviderSnapshot.swift; sourceTree = "<group>"; };
 		BOTQ01F /* BottleQuantityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottleQuantityView.swift; sourceTree = "<group>"; };
@@ -686,6 +688,7 @@
 				SRQ102 /* SessionRepositoryMedication.swift */,
 				DIDENT003 /* DashboardProviderAssociations.swift */,
 				DIDENT001 /* SessionRepositoryDashboardIdentities.swift */,
+				WBCTX101 /* EventStorage+WorkContext.swift */,
 				72CFAA5DE2681CBC5A3CDB0C /* SessionRepositoryDashboardSnapshot.swift */,
 				DB770002 /* DashboardPublisherIdentity.swift */,
 				DB770004 /* DashboardTransferView.swift */,
@@ -1071,6 +1074,7 @@
 				SRQ002 /* SessionRepositoryMedication.swift in Sources */,
 				DIDENT103 /* DashboardProviderAssociations.swift in Sources */,
 				DIDENT101 /* SessionRepositoryDashboardIdentities.swift in Sources */,
+				WBCTX001 /* EventStorage+WorkContext.swift in Sources */,
 				AE5EED904A21B803837709F5 /* SessionRepositoryDashboardSnapshot.swift in Sources */,
 				DB770001 /* DashboardPublisherIdentity.swift in Sources */,
 				DB770003 /* DashboardTransferView.swift in Sources */,

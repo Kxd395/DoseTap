@@ -85,6 +85,10 @@ extension EventStorage {
             payload TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS work_block_context (
+            id INTEGER PRIMARY KEY CHECK (id = 1), payload TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS work_wake_schedule (
             id INTEGER PRIMARY KEY CHECK (id = 1),
             payload TEXT NOT NULL,
