@@ -77,6 +77,7 @@ public class EventStorage {
     var timeZoneProvider: () -> TimeZone = { TimeZone.current }
     var medicationFaultInjector: MedicationStorageFaultInjector?
     var databaseInitializationFailure: MedicationStorageInjectedFailure?
+    public internal(set) var lastDataResetFailure: DataResetFailure?
     
     // ISO8601 formatter for date serialization — reuse shared instance
     var isoFormatter: ISO8601DateFormatter { AppFormatters.iso8601Fractional }

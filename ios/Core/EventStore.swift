@@ -486,7 +486,8 @@ public protocol EventStore: AnyObject {
     func deleteSession(sessionKey: String)
     
     /// Clear all data (for testing/reset)
-    func clearAllData()
+    @discardableResult
+    func clearAllData() -> Bool
     
     // MARK: - Export
     

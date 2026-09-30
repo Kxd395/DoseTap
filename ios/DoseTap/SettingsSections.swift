@@ -394,7 +394,12 @@ extension SettingsView {
                 clearAllData()
             }
         } message: {
-            Text("This will permanently delete all your dose history, sleep events, and settings. This action cannot be undone.")
+            Text("This permanently deletes local dose history, sleep events, and settings. Diagnostic files, exported files, connected-service credentials, and Apple Health/WHOOP records are retained. This action cannot be undone.")
+        }
+        .alert("Reset Status", isPresented: $showingResetError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(resetErrorMessage)
         }
         .alert("Export Complete", isPresented: $showingExportSuccess) {
             Button("OK", role: .cancel) {}
