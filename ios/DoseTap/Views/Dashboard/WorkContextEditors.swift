@@ -16,7 +16,14 @@ struct WorkContextEditor: View {
     @State private var updateAttendance = false
     @State private var planned = "Unchanged"
     @State private var reason = ""
-    @State private var actualTimes = false
+    @State private var scheduledMode = "Unchanged"
+    @State private var scheduledStart = Date()
+    @State private var scheduledEnd = Date()
+    @State private var breakMode = "Unchanged"
+    @State private var plannedBreak = Date()
+    @State private var actualMode = "Unchanged"
+    @State private var actualStartKnown = false
+    @State private var actualEndKnown = false
     @State private var actualStart = Date()
     @State private var actualEnd = Date()
     @State private var error: String?
@@ -55,10 +62,25 @@ struct WorkContextEditor: View {
                             Text("Did not work").tag(WorkAttendance.notWorked)
                         }.disabled(!updateAttendance)
                         TextField("Change reason (extra shift, leave, swap…)", text: $reason, axis: .vertical)
-                        Toggle("I know the actual start and end", isOn: $actualTimes)
-                        if actualTimes {
-                            DatePicker("Actual start", selection: $actualStart)
-                            DatePicker("Actual end", selection: $actualEnd)
+                        Picker("Scheduled times", selection: $scheduledMode) {
+                            ForEach(["Unchanged", "Enter times", "Clear times"], id: \.self) { Text($0) }
+                        }
+                        if scheduledMode == "Enter times" {
+                            DatePicker("Scheduled start", selection: $scheduledStart)
+                            DatePicker("Scheduled end", selection: $scheduledEnd)
+                        }
+                        Picker("Planned break", selection: $breakMode) {
+                            ForEach(["Unchanged", "Enter time", "Clear time"], id: \.self) { Text($0) }
+                        }
+                        if breakMode == "Enter time" { DatePicker("Planned break time", selection: $plannedBreak) }
+                        Picker("Actual times", selection: $actualMode) {
+                            ForEach(["Unchanged", "Enter times", "Clear times"], id: \.self) { Text($0) }
+                        }
+                        if actualMode == "Enter times" {
+                            Toggle("Actual start is known", isOn: $actualStartKnown)
+                            if actualStartKnown { DatePicker("Actual start", selection: $actualStart) }
+                            Toggle("Actual end is known", isOn: $actualEndKnown)
+                            if actualEndKnown { DatePicker("Actual end", selection: $actualEnd) }
                         }
                         Text("Scheduled is a plan. Only an explicit attendance answer establishes Worked or Did not work.").font(.caption)
                     }
@@ -72,6 +94,16 @@ struct WorkContextEditor: View {
                 }
             }
             .environment(\.timeZone, TimeZone(identifier: zone) ?? .current)
+            .onChange(of: from) { _ in resetAnchorEdits() }
+            .onChange(of: zone) { _ in resetAnchorEdits() }
+            .onChange(of: actualMode) { value in
+                if value == "Enter times" {
+                    let saved = document.resolvedWorkDate(dateKey(from), timeZoneIdentifier: zone, asOf: Date())
+                    actualStartKnown = saved?.actualStart != nil; actualEndKnown = saved?.actualEnd != nil
+                    if let value = saved?.actualStart { actualStart = value }
+                    if let value = saved?.actualEnd { actualEnd = value }
+                }
+            }
             .navigationTitle("Work context")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
@@ -79,6 +111,7 @@ struct WorkContextEditor: View {
             }
         }
     }
+    private func resetAnchorEdits() { actualMode = "Unchanged"; scheduledMode = "Unchanged"; breakMode = "Unchanged" }
     private func dateKey(_ date: Date) -> String {
         let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.calendar = Calendar(identifier: .gregorian); formatter.timeZone = TimeZone(identifier: zone)
@@ -86,13 +119,24 @@ struct WorkContextEditor: View {
     }
     private func submit() {
         guard TimeZone(identifier: zone) != nil else { error = "Enter a valid timezone identifier."; return }
+        if mode == "Work date", scheduledMode == "Enter times", scheduledEnd <= scheduledStart { error = "Scheduled end must be after scheduled start."; return }
+        if mode == "Work date", actualMode == "Enter times" {
+            guard actualStartKnown || actualEndKnown else { error = "Enter at least one known actual endpoint, or choose Clear times."; return }
+            if actualStartKnown && actualEndKnown && actualEnd <= actualStart { error = "Actual end must be after actual start."; return }
+            if (actualStartKnown && actualStart > Date()) || (actualEndKnown && actualEnd > Date()) { error = "Actual times cannot be in the future. Enter future work under Scheduled times."; return }
+        }
         var next = document; let now = Date(); next.revision = UUID()
         if mode == "Roster" {
             guard minutes.isEmpty || Int(minutes) != nil else { error = "Enter whole planned minutes or leave them blank."; return }
             next.rosters.append(WorkRoster(effectiveFrom: dateKey(from), effectiveTo: dateKey(through), timeZoneIdentifier: zone, weekdays: weekdays, plannedShiftMinutes: Int(minutes), recordedAt: now))
         } else {
             var occurrence = WorkOccurrence(workDate: dateKey(from), timeZoneIdentifier: zone, plannedWorking: planned == "Unchanged" ? nil : planned == "Scheduled", attendance: updateAttendance ? attendance : nil, reason: reason, recordedAt: now)
-            if actualTimes { occurrence.actualStart = actualStart; occurrence.actualEnd = actualEnd }
+            occurrence.scheduledTimesReviewed = scheduledMode == "Unchanged" ? nil : true
+            occurrence.breakReviewed = breakMode == "Unchanged" ? nil : true
+            occurrence.actualTimesReviewed = actualMode == "Unchanged" ? nil : true
+            if scheduledMode == "Enter times" { occurrence.scheduledStart = scheduledStart; occurrence.scheduledEnd = scheduledEnd }
+            if breakMode == "Enter time" { occurrence.plannedBreakAt = plannedBreak }
+            if actualMode == "Enter times" { occurrence.actualStart = actualStartKnown ? actualStart : nil; occurrence.actualEnd = actualEndKnown ? actualEnd : nil }
             next.occurrences.append(occurrence)
         }
         do { try save(next); dismiss() } catch { self.error = error.localizedDescription }

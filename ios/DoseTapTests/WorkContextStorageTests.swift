@@ -55,4 +55,44 @@ final class WorkContextStorageTests: XCTestCase {
         let section = try XCTUnwrap(snapshot.sections.first { $0.dataset == .workSchedule })
         XCTAssertEqual(section.rowCount, 1)
     }
+    func testPayloadRejectsBlobEmbeddedNULAndInvalidUTF8() throws {
+        let storage = EventStorage.inMemory(), value = document()
+        try storage.saveWorkContext(value, expectedRevision: nil)
+        let valid = try JSONEncoder().encode(value)
+        let malformedUTF8 = valid.dropLast() + Data(",\"extra\":\"".utf8) + Data([0xff]) + Data("\"}".utf8)
+        for (payload, blob) in [(valid, true), (valid + Data([0]) + Data("tail".utf8), false), (Data(malformedUTF8), false)] {
+            var statement: OpaquePointer?
+            XCTAssertEqual(sqlite3_prepare_v2(storage.db, "UPDATE work_block_context SET payload = ?", -1, &statement, nil), SQLITE_OK)
+            let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+            let bound = payload.withUnsafeBytes { bytes in
+                blob ? sqlite3_bind_blob(statement, 1, bytes.baseAddress, Int32(bytes.count), transient)
+                    : sqlite3_bind_text(statement, 1, bytes.baseAddress?.assumingMemoryBound(to: CChar.self), Int32(bytes.count), transient)
+            }
+            XCTAssertEqual(bound, SQLITE_OK); XCTAssertEqual(sqlite3_step(statement), SQLITE_DONE); sqlite3_finalize(statement)
+            XCTAssertThrowsError(try storage.loadWorkContext())
+        }
+    }
+
+    func testProspectiveCaptureJoinsTransactionAndPreservesFirstSnapshot() throws {
+        let storage = EventStorage.inMemory(), value = document(), now = Date()
+        try storage.saveWorkContext(value, expectedRevision: nil)
+        XCTAssertThrowsError(try storage.captureWorkPlanInCurrentTransaction(preSleepLogID: "pre", sessionID: nil, capturedAt: now))
+        XCTAssertEqual(sqlite3_exec(storage.db, "BEGIN IMMEDIATE", nil, nil, nil), SQLITE_OK)
+        let rolledBack = try XCTUnwrap(storage.captureWorkPlanInCurrentTransaction(preSleepLogID: "pre", sessionID: nil, capturedAt: now))
+        XCTAssertEqual(try storage.loadWorkContext()?.planSnapshots?.first?.id, rolledBack.id)
+        XCTAssertEqual(sqlite3_exec(storage.db, "ROLLBACK", nil, nil, nil), SQLITE_OK)
+        XCTAssertEqual(try storage.loadWorkContext(), value)
+        XCTAssertEqual(sqlite3_exec(storage.db, "BEGIN IMMEDIATE", nil, nil, nil), SQLITE_OK)
+        let saved = try XCTUnwrap(storage.captureWorkPlanInCurrentTransaction(preSleepLogID: "pre", sessionID: nil, capturedAt: now))
+        XCTAssertEqual(try storage.captureWorkPlanInCurrentTransaction(preSleepLogID: "pre", sessionID: nil, capturedAt: now.addingTimeInterval(1))?.id, saved.id)
+        XCTAssertEqual(sqlite3_exec(storage.db, "COMMIT", nil, nil, nil), SQLITE_OK)
+        let persisted = try XCTUnwrap(storage.loadWorkContext())
+        var destructive = persisted; destructive.planSnapshots = []; destructive.revision = UUID()
+        XCTAssertThrowsError(try storage.saveWorkContext(destructive, expectedRevision: persisted.revision))
+        var shifted = persisted; shifted.revision = UUID(); shifted.shiftEvents = [.init(timeZoneIdentifier: "UTC", recordedAt: now)]
+        try storage.saveWorkContext(shifted, expectedRevision: persisted.revision)
+        destructive = shifted; destructive.shiftEvents = []; destructive.revision = UUID()
+        XCTAssertThrowsError(try storage.saveWorkContext(destructive, expectedRevision: shifted.revision))
+    }
+
 }

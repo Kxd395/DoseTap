@@ -1324,6 +1324,33 @@ final class DoseTapUITests: XCTestCase {
         captureDashboard("Work cycle profile and exact record table")
     }
 
+    func testDashboardWorkComparisonEncodings() throws {
+        app.buttons["Dashboard"].tap()
+        let link = app.buttons["dashboard-work-block"]
+        XCTAssertTrue(link.waitForExistence(timeout: 10)); link.tap()
+        XCTAssertTrue(app.navigationBars["Work Block & Sleep"].waitForExistence(timeout: 10))
+        app.buttons["work-comparison-controls"].tap()
+        app.buttons["work-display"].tap(); app.buttons["Interval scatter"].tap()
+        let grouping = app.buttons["work-comparison-grouping"]
+        for _ in 0..<6 where !grouping.isHittable { app.swipeUp() }
+        grouping.tap(); app.buttons["Work phase"].tap(); app.buttons["Done"].tap()
+        let reference = app.staticTexts["Built-in spacing reference; not a prescription."].firstMatch
+        for _ in 0..<8 where !reference.isHittable { app.swipeUp() }
+        XCTAssertTrue(reference.exists)
+        app.swipeUp(); XCTAssertTrue(app.staticTexts["Off-block"].exists)
+        captureDashboard("Work phase scatter keeps neutral spacing reference")
+        let controls = app.buttons["work-comparison-controls"]
+        for _ in 0..<8 where !controls.isHittable { app.swipeDown() }
+        controls.tap(); grouping.tap(); app.buttons["Spacing reference"].tap(); app.buttons["Done"].tap()
+        app.swipeUp(); captureDashboard("Spacing reference replaces work phase encoding")
+        for _ in 0..<8 where !controls.isHittable { app.swipeDown() }
+        controls.tap(); app.buttons["work-display"].tap(); app.buttons["Block matrix"].tap(); app.buttons["Done"].tap()
+        let encoding = app.buttons["work-matrix-encoding"]
+        for _ in 0..<8 where !encoding.isHittable { app.swipeUp() }
+        XCTAssertTrue(encoding.exists); encoding.tap(); app.buttons["Work phase"].tap()
+        captureDashboard("Categorical work phase matrix uses separate fill mode")
+    }
+
     func testDashboardSixMonthCoverage() throws {
         app.buttons["Dashboard"].tap()
         let range = app.buttons["dashboard-range-picker"]
