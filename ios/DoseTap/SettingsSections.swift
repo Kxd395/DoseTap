@@ -257,17 +257,19 @@ extension SettingsView {
                     Label("Connect iPad Dashboard", systemImage: "ipad.and.iphone")
                 }.accessibilityIdentifier("settings.dashboardConnection")
                 Button {
-                    exportData(format: .excelWorkbook)
+                    requestedExportFormat = .excelWorkbook
+                    showingFullExportReview = true
                 } label: {
-                    Label("Export Excel Workbook", systemImage: "tablecells")
+                    Label("Export Full Excel Workbook", systemImage: "tablecells")
                 }
                 .disabled(isExporting)
                 .accessibilityIdentifier("settings.exportExcel")
 
                 Button {
-                    exportData()
+                    requestedExportFormat = .studioBundle
+                    showingFullExportReview = true
                 } label: {
-                    Label("Export Studio Bundle", systemImage: "square.and.arrow.up")
+                    Label("Export Full Studio Bundle", systemImage: "square.and.arrow.up")
                 }
                 .disabled(isExporting)
                 .accessibilityIdentifier("settings.exportStudio")
@@ -326,7 +328,7 @@ extension SettingsView {
             } header: {
                 Label("Data Management", systemImage: "externaldrive.fill")
             } footer: {
-                Text("Excel workbooks include styled sheets with sortable columns and filters for reviewing your nights and recorded details. Studio bundles retain the original CSV and JSON records for software import. Scheduled ZIPs save local records to Files > DoseTap Exports; iOS decides when they run. Use a manual export for available provider measurements. Exports are not a tested full-app restore.")
+                Text("Excel workbooks include styled sheets with sortable columns and filters for reviewing your nights and recorded details. Studio bundles retain the original CSV and JSON records for software import. Scheduled ZIPs save a local subset to Files > DoseTap Exports; iOS decides when they run. Use a full manual export for independent daytime, nap, prompt, physician-review, work-context and dashboard review records, plus available provider measurements. Exports are not a tested full-app restore.")
             }
 
             Section {
@@ -396,6 +398,13 @@ extension SettingsView {
             }
         } message: {
             Text("This will permanently delete all your dose history, sleep events, and settings. This action cannot be undone.")
+        }
+        .alert("Create full export?", isPresented: $showingFullExportReview) {
+            Button("Cancel", role: .cancel) {}
+            Button("Create full export") { exportData(format: requestedExportFormat) }
+                .accessibilityIdentifier("settings.confirmFullExport")
+        } message: {
+            Text("This file includes original health and diary records, private notes, and exact timestamps. Review it before sharing. For a focused report, use the dashboard or physician review export. Creating a file does not send it to anyone.")
         }
         .alert("Export Complete", isPresented: $showingExportSuccess) {
             Button("OK", role: .cancel) {}

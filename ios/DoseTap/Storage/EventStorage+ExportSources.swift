@@ -1,5 +1,6 @@
 import Foundation
 import SQLite3
+import DoseCore
 
 /// SQLite values are tagged so NULL, empty text, numbers and blobs stay distinct.
 struct StoredExportColumn: Encodable, Equatable {
@@ -57,6 +58,19 @@ struct ExportSourceSnapshot {
 
 @MainActor
 extension EventStorage {
+    /// Strict snapshot for explicit local archives only. Never used by nearby transport.
+    func exportIndependentSourceRecords() throws -> [StoredExportSourceRecord] {
+        try withSQLiteTransaction {
+            var records: [StoredExportSourceRecord] = []
+            for table in StudioIndependentSourceRecord.sourceTables {
+                records += try readExportSourceRows(table: table, sql: "SELECT * FROM \(table) ORDER BY rowid", sessionDate: nil)
+            }
+            // A damaged identity cannot silently become an unrelated derived-path record.
+            _ = try JSONDecoder().decode([StudioIndependentSourceRecord].self, from: JSONEncoder().encode(records))
+            return records
+        }
+    }
+
     /// Date grouping is for archival discovery, never authority to join two identities.
     private static let exportIdentitiesSQL = ["dose_events", "sleep_events", "sleep_sessions",
         "current_session", "morning_checkins", "checkin_submissions", "medication_events"]
@@ -79,7 +93,7 @@ extension EventStorage {
             return id
         }).sorted()
         var records: [StoredExportSourceRecord] = []
-        for table in ["sleep_sessions", "current_session", "morning_checkins", "checkin_submissions", "dashboard_dose_reviews"] {
+        for table in ["sleep_sessions", "current_session", "morning_checkins", "checkin_submissions"] {
             records += try readExportSourceRows(table: table,
                 sql: "SELECT * FROM \(table) WHERE session_date = ?1 ORDER BY rowid", sessionDate: sessionDate)
         }
@@ -111,7 +125,7 @@ extension EventStorage {
             status: reasons.isEmpty ? "resolved" : "raw_only", sessionIds: allIds.sorted(), reasons: reasons), records: records)
     }
 
-    private func readExportSourceRows(table: String, sql: String, sessionDate: String) throws -> [StoredExportSourceRecord] {
+    private func readExportSourceRows(table: String, sql: String, sessionDate: String?) throws -> [StoredExportSourceRecord] {
         try readExportRows(sql, binding: sessionDate) { stmt in
             var columns: [String: StoredExportColumn] = [:]
             for index in 0..<sqlite3_column_count(stmt) {

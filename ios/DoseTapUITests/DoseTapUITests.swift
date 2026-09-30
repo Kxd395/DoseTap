@@ -315,6 +315,16 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(export.isHittable)
         captureDashboard("Excel and Studio export choices")
         export.tap()
+        let review = app.alerts["Create full export?"]
+        XCTAssertTrue(review.waitForExistence(timeout: 5))
+        captureDashboard("Full export privacy review before creating a file")
+        review.buttons["Cancel"].tap()
+        XCTAssertFalse(app.otherElements["settings.exportProgress"].exists)
+        XCTAssertFalse(app.cells["Save to Files"].exists)
+        XCTAssertTrue(export.isEnabled)
+        export.tap()
+        XCTAssertTrue(review.waitForExistence(timeout: 5))
+        review.buttons["settings.confirmFullExport"].firstMatch.tap()
         let save = app.cells["Save to Files"]
         XCTAssertTrue(save.waitForExistence(timeout: 45), "Completed workbook should open the native share sheet")
         XCTAssertFalse(app.alerts["Export Failed"].exists)
@@ -323,6 +333,8 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(export.waitForExistence(timeout: 5))
         XCTAssertTrue(export.isEnabled)
         export.tap()
+        XCTAssertTrue(review.waitForExistence(timeout: 5))
+        review.buttons["settings.confirmFullExport"].firstMatch.tap()
         XCTAssertTrue(save.waitForExistence(timeout: 45), "A second export should publish another completed workbook")
         captureDashboard("Second completed Excel workbook ready to save")
     }

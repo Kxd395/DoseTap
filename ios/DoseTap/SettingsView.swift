@@ -5,6 +5,7 @@ struct SettingsView: View {
     @StateObject var settings = UserSettingsManager.shared
     @State var showingResetConfirmation = false
     @State var showingExportSuccess = false
+    @State var showingFullExportReview = false
     @State var exportArchive: StudioExportArchive?
     @State var isExporting = false
     @State var exportStatus = ""
