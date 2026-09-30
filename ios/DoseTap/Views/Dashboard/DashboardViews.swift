@@ -96,6 +96,8 @@ struct DashboardTabView: View {
                     }.multilineTextAlignment(.center).padding()
                 }
 
+                NavigationLink("Context & Morning Outcomes") { ContextMorningOutcomesView(model: model) }
+                    .accessibilityIdentifier("dashboard-context-open")
                 LazyVGrid(columns: columns, spacing: 12) {
                     if !model.populatedNights.isEmpty {
                         if section == "All" || section == "Overview" {
