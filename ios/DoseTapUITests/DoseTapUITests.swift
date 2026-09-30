@@ -74,7 +74,11 @@ final class DoseTapUITests: XCTestCase {
             app.launchArguments += ["--uitesting-expired-session", "-morningCheckIn.rememberSettings", "NO"]
         }
         if name.contains("testHistoryManual") { app.launchArguments += ["--uitesting-history", "--uitesting-history-reset", "-setup_completed_v2", "YES"] }
-        if name.contains("testDaytime") { app.launchArguments += ["-setup_completed_v2", "YES", "-healthkit_enabled", "NO", "-whoop_enabled", "NO"] }
+        if name.contains("testDaytime") {
+            app.launchArguments += ["-setup_completed_v2", "YES", "-healthkit_enabled", "NO", "-whoop_enabled", "NO"]
+            app.launchEnvironment["DOSETAP_DAYTIME_TEST_ID"] = UUID().uuidString
+            if name.contains("Overlap") { app.launchArguments.append("--uitesting-daytime-overlap") }
+        }
         if name.contains("testDaytimeTrendLargestText") { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
         if name.contains("testDaytimeFailure") { app.launchArguments += ["--uitesting-durable-log", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
         app.launch()
@@ -2502,6 +2506,10 @@ extension DoseTapUITests {
         for _ in 0..<5 where !save.isHittable { app.swipeUp() }
         XCTAssertTrue(save.isHittable); save.tap()
         reveal(app.staticTexts["Custom sleepiness: 4/10"].firstMatch)
+        let saved = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH %@", "daytime-saved-observation-")).firstMatch
+        reveal(saved)
+        let savedID = String(saved.identifier.dropFirst("daytime-saved-observation-".count))
+        XCTAssertNotNil(UUID(uuidString: savedID))
         let screenshot = XCTAttachment(screenshot: app.screenshot()); screenshot.name = "Independent daytime observation"; screenshot.lifetime = .keepAlways; self.add(screenshot)
         app.terminate(); app.launch()
         XCTAssertTrue(app.buttons["History"].firstMatch.waitForExistence(timeout: 15)); app.buttons["History"].firstMatch.tap(); app.buttons["history-daytime"].tap()
@@ -2513,7 +2521,22 @@ extension DoseTapUITests {
         let trends = XCTAttachment(screenshot: app.screenshot()); trends.name = "Daytime trend with actual observation"; trends.lifetime = .keepAlways; self.add(trends)
         chart.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)).tap()
         reveal(app.staticTexts["Selected saved observation"])
+        XCTAssertTrue(app.descendants(matching: .any)["daytime-selected-observation-\(savedID)"].firstMatch.exists)
         let selected = XCTAttachment(screenshot: app.screenshot()); selected.name = "Selected actual daytime point"; selected.lifetime = .keepAlways; self.add(selected)
+        if !name.contains("LargestText") {
+            reveal(app.buttons["Period, entry type and setting"])
+            app.buttons["Period, entry type and setting"].tap()
+            reveal(app.buttons["daytime-origin-filter"]); app.buttons["daytime-origin-filter"].tap()
+            app.buttons["Scheduled"].tap()
+            reveal(app.staticTexts["daytime-retained-selection"], down: true)
+            XCTAssertTrue(app.staticTexts["daytime-retained-selection"].label.contains("hidden by the entry filters"))
+            reveal(app.buttons["Reset entry filters"]); app.buttons["Reset entry filters"].tap()
+            reveal(app.staticTexts["Selected saved observation"], down: true)
+            reveal(app.buttons["Refresh"]); app.buttons["Refresh"].tap()
+            reveal(app.staticTexts["Selected saved observation"], down: true)
+            XCTAssertTrue(app.descendants(matching: .any)["daytime-selected-observation-\(savedID)"].firstMatch.exists)
+            let retained = XCTAttachment(screenshot: app.screenshot()); retained.name = "Daytime selection retained after filter and refresh"; retained.lifetime = .keepAlways; self.add(retained)
+        }
     }
 }
 
@@ -2553,4 +2576,25 @@ extension DoseTapUITests {
 
 extension DoseTapUITests {
     func testDaytimeTrendLargestText() throws { try testDaytimeIndependentCheckInPersists() }
+}
+
+
+extension DoseTapUITests {
+    func testDaytimeOverlapRequiresExactCandidateChoice() throws {
+        app.buttons["History"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["history-daytime"].waitForExistence(timeout: 10)); app.buttons["history-daytime"].tap()
+        XCTAssertTrue(app.buttons["Daytime trends"].waitForExistence(timeout: 5)); app.buttons["Daytime trends"].tap()
+        let chart = app.descendants(matching: .any)["daytime-trend-chart"].firstMatch
+        XCTAssertTrue(chart.waitForExistence(timeout: 5))
+        chart.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)).tap()
+        XCTAssertFalse(app.staticTexts["Selected saved observation"].exists)
+        let chosenID = "00000000-0000-4000-8000-000000000002"
+        let choice = app.buttons["daytime-overlap-candidate-\(chosenID)"]
+        for _ in 0..<10 where !choice.isHittable { app.swipeUp() }
+        XCTAssertTrue(choice.isHittable); choice.tap()
+        let selected = app.descendants(matching: .any)["daytime-selected-observation-\(chosenID)"].firstMatch
+        for _ in 0..<10 where !selected.exists { app.swipeDown() }
+        XCTAssertTrue(selected.exists)
+        let proof = XCTAttachment(screenshot: app.screenshot()); proof.name = "Explicit coincident-point choice"; proof.lifetime = .keepAlways; add(proof)
+    }
 }

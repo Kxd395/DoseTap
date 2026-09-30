@@ -5,9 +5,9 @@ import DoseCore
 struct ContextMorningOutcomesView: View {
     @ObservedObject var model: DashboardAnalyticsModel
     @Environment(\.dynamicTypeSize) private var typeSize
-    @State private var metric = ContextMorningMetric.mainSleep
-    @State private var grouping = ContextMorningGrouping.dayDemand
-    @State private var groupID: String?
+    private var metric: ContextMorningMetric { model.contextPresentation.metric }
+    private var grouping: ContextMorningGrouping { model.contextPresentation.grouping }
+    private var groupID: String? { model.contextPresentation.compatibleGroupID }
     @State private var candidates: [ContextOutcomeObservation] = []
     private var report: ContextOutcomeComparison { model.contextOutcomeReport(metric: metric, grouping: grouping) }
     private var selectedGroup: ContextOutcomeComparison.Group? { report.groups.first { $0.id == groupID } }
@@ -16,7 +16,8 @@ struct ContextMorningOutcomesView: View {
     private var selected: ContextOutcomeObservation? { visible.first { $0.id == model.inspection.selectedObservationID } }
     private var exportReport: ContextOutcomeComparison {
         .init(observations: visible, asOf: report.asOf, timeZoneID: report.timeZoneID,
-              filterDescription: report.filterDescription + "; compatible_group=" + (groupID ?? "all individual observations"),
+              filterDescription: report.filterDescription + "; compatible_group=" + (groupID ?? "all individual observations")
+                + "; selected_observation=" + (model.inspection.selectedObservationID ?? "none"),
               metric: report.metric, includePartial: report.includePartial)
     }
     var body: some View {
@@ -27,7 +28,7 @@ struct ContextMorningOutcomesView: View {
                 focalChart
                 controls
                 Text("\(eligible.count) available / \(visible.count) observations; \(visible.count - eligible.count) excluded. \(report.unknownContextCount) unknown contexts in the selected range.").font(.callout)
-                Text(model.rangeDescription + " · " + model.reportingTimeZone.identifier + " · As of " + timestamp(model.reportingAsOf)).font(.caption)
+                Text(model.rangeDescription + " · As of " + timestamp(model.reportingAsOf)).font(.caption)
                 if let issue = model.inspectionFilterIssue { Text(issue).foregroundStyle(.orange) }
                 if let error = model.errorMessage { Text("Refresh issue: " + error).foregroundStyle(.orange) }
                 if let issue = model.inspection.selectionStatus(visibleIDs: visible.map(\.id), knownIDs: model.nights.map(\.id)).explanation {
@@ -37,19 +38,22 @@ struct ContextMorningOutcomesView: View {
                 navigation
                 if let selected { detail(selected) }
                 if !candidates.isEmpty {
-                    Text("Choose an observation at this plotted context").font(.headline)
+                    Text("All observations in the tapped context — choose explicitly").font(.headline)
                     ForEach(candidates) { row in Button(row.treatmentDate + " · " + display(row) + " · " + row.id) { select(row) } }
                 }
                 DisclosureGroup("Exact observation table (\(visible.count))") {
                     ForEach(Array(visible.enumerated()), id: \.offset) { _, row in
                         Button { select(row) } label: {
                             VStack(alignment: .leading) {
+                                if row.id == model.inspection.selectedObservationID { Label("Selected observation", systemImage: "checkmark.circle.fill") }
                                 Text(row.treatmentDate + " · " + row.contextLabel)
                                 Text(display(row)).font(.caption)
                                 Text(row.id).font(.caption2)
                                 Text(report.exclusionReason(row) ?? "Available").font(.caption)
                             }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 5)
-                        }.accessibilityIdentifier("context-row-" + row.id)
+                        }.background(row.id == model.inspection.selectedObservationID ? Color.accentColor.opacity(0.15) : Color.clear)
+                            .accessibilityAddTraits(row.id == model.inspection.selectedObservationID ? .isSelected : [])
+                            .accessibilityIdentifier("context-row-" + row.id)
                     }
                 }
                 DisclosureGroup("Separate chronological morning panels") {
@@ -70,25 +74,25 @@ struct ContextMorningOutcomesView: View {
             }.padding().padding(.bottom, 100)
         }.navigationTitle("Context & Morning Outcomes")
             .accessibilityIdentifier("context-morning-outcomes")
-            .onChange(of: metric) { _ in groupID = nil; candidates = [] }
-            .onChange(of: grouping) { _ in groupID = nil; candidates = [] }
+            .onChange(of: metric) { _ in model.contextPresentation.compatibleGroupID = nil; candidates = [] }
+            .onChange(of: grouping) { _ in model.contextPresentation.compatibleGroupID = nil; candidates = [] }
             .onChange(of: model.reportingAsOf) { _ in candidates = [] }
             .onChange(of: model.sleepSource) { _ in candidates = [] }
     }
     private var controls: some View {
         VStack(alignment: .leading) {
-            Picker("Outcome", selection: $metric) { ForEach(ContextMorningMetric.allCases) { Text($0.rawValue).tag($0) } }
+            Picker("Outcome", selection: $model.contextPresentation.metric) { ForEach(ContextMorningMetric.allCases) { Text($0.rawValue).tag($0) } }
                 .accessibilityIdentifier("context-outcome")
-            Picker("Context", selection: $grouping) { ForEach(ContextMorningGrouping.allCases) { Text($0.rawValue).tag($0) } }
+            Picker("Context", selection: $model.contextPresentation.grouping) { ForEach(ContextMorningGrouping.allCases) { Text($0.rawValue).tag($0) } }
                 .accessibilityIdentifier("context-grouping")
-            Picker("Compatible group", selection: $groupID) {
+            Picker("Compatible group", selection: $model.contextPresentation.compatibleGroupID) {
                 Text("All individual observations").tag(nil as String?)
                 ForEach(report.groups) { group in
                     Text(group.context + " · " + (group.observations.first?.compatibilityStratum == nil ? "Unknown version · " + group.observations[0].treatmentDate : "Compatible recorded period") + " · n=\(group.eligible.count)").tag(Optional(group.id))
                 }
             }
             Toggle("Include partial or stale measurements", isOn: $model.inspection.includePartialMetrics)
-            Button("Reset comparison filters") { model.inspection.resetFilters(); groupID = nil; candidates = [] }
+            Button("Reset comparison filters") { model.inspection.resetFilters(); model.contextPresentation.compatibleGroupID = nil; candidates = [] }
             if grouping == .finalWakeMethod { Text("Final-wake method was not collected in this source; Dose 2 wake method is a separate question.").font(.caption) }
         }.pickerStyle(.menu)
     }
@@ -102,7 +106,9 @@ struct ContextMorningOutcomesView: View {
                         if let value = row.value {
                             PointMark(x: .value("Context", row.contextLabel), y: .value("Minutes", value))
                                 .symbol(.circle).foregroundStyle(.blue)
-                                .accessibilityLabel(row.treatmentDate + ", " + row.contextLabel + ", " + display(row))
+                                .symbolSize(row.id == model.inspection.selectedObservationID ? 110 : 35)
+                                .annotation(position: .top) { if row.id == model.inspection.selectedObservationID { Text("Selected").font(.caption.bold()) } }
+                                .accessibilityLabel((row.id == model.inspection.selectedObservationID ? "Selected, " : "") + row.treatmentDate + ", " + row.contextLabel + ", " + display(row))
                         }
                     }
                     if let group = selectedGroup, let median = group.summary.median,
@@ -118,7 +124,7 @@ struct ContextMorningOutcomesView: View {
                         }
                     }
                 }
-                Text("Circles: individual observations. Select a compatible group to show its diamond median and gray middle-50% spread. Unknown-version observations are never pooled.").font(.caption)
+                Text("Circles: individual observations; the selected circle is enlarged and labeled. Tap a context to list all its candidates. Select a compatible group to show its diamond median and gray middle-50% spread. Unknown-version observations are never pooled.").font(.caption)
             } else if let group = selectedGroup {
                 Chart(group.categoryCounts.keys.sorted(), id: \.self) { category in
                     BarMark(x: .value("Answer", category), y: .value("Recorded count", group.categoryCounts[category] ?? 0))
@@ -159,11 +165,15 @@ struct ContextMorningOutcomesView: View {
         VStack(alignment: .leading, spacing: 5) {
             Text("Selected: " + row.treatmentDate).font(.headline)
             Text(row.contextLabel + " · " + display(row))
-            Text(row.source + " · " + row.state.rawValue + " · " + row.reason)
+            Text(row.source)
+            Text(row.state.rawValue + " · " + row.reason.replacingOccurrences(of: "_", with: " "))
             Text(row.relationship)
             Text(row.occurredAt.map { "Occurrence: " + timestamp($0) } ?? "Assessment/occurrence time not collected; treatment date is a grouping label.")
-            Text("Observation: " + row.id + "; session: " + row.sessionID)
-            Text("Compatibility: " + row.stratumLabel)
+            Text(row.compatibilityStratum == nil ? "Compatibility unknown; observations remain separate." : "Documented comparison period; only compatible observations are summarized.")
+            DisclosureGroup("Source record identifiers") {
+                Text("Observation: " + row.id + "; session: " + row.sessionID)
+                Text("Compatibility: " + row.stratumLabel)
+            }
         }.font(.caption).accessibilityIdentifier("context-selected-detail")
     }
     private func chronological(_ metric: ContextMorningMetric) -> some View {
@@ -172,7 +182,10 @@ struct ContextMorningOutcomesView: View {
             Text(metric.rawValue).font(.headline)
             Chart(report.observations.filter { $0.category != nil && $0.state == .needsReview && !$0.sessionID.isEmpty }) { row in
                 PointMark(x: .value("Treatment date", row.treatmentDate), y: .value("Original answer", row.category ?? "Unavailable"))
-                    .symbol(.square).foregroundStyle(.orange).accessibilityLabel("Unconfirmed saved answer, " + row.treatmentDate + ", " + display(row))
+                    .symbol(.square).foregroundStyle(.orange)
+                    .symbolSize(row.id == model.inspection.selectedObservationID ? 110 : 35)
+                    .annotation(position: .top) { if row.id == model.inspection.selectedObservationID { Text("Selected").font(.caption.bold()) } }
+                    .accessibilityLabel((row.id == model.inspection.selectedObservationID ? "Selected, " : "") + "Unconfirmed saved answer, " + row.treatmentDate + ", " + display(row))
             }.frame(height: 180)
             Text("Squares show raw saved answers needing review, including possible defaults. They are excluded from confirmed category counts; saved No is not confirmed absence. \(report.excludedCount) excluded from comparison summaries.").font(.caption)
         }

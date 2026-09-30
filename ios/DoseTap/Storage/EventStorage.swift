@@ -112,6 +112,25 @@ public class EventStorage {
     }
 
     private convenience init() {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--uitesting"),
+           let token = ProcessInfo.processInfo.environment["DOSETAP_DAYTIME_TEST_ID"], let id = UUID(uuidString: token) {
+            self.init(dbPath: FileManager.default.temporaryDirectory.appendingPathComponent("daytime-ui-\(id.uuidString).sqlite").path)
+            if ProcessInfo.processInfo.arguments.contains("--uitesting-daytime-overlap") {
+                do {
+                    if try daytimeCheckIns().revisions.isEmpty {
+                        let time = Date().addingTimeInterval(-600)
+                        for (id, offset) in [("00000000-0000-4000-8000-000000000001", 0.0), ("00000000-0000-4000-8000-000000000002", 1.0)] {
+                            guard let uuid = UUID(uuidString: id) else { continue }
+                            let observed = time.addingTimeInterval(offset)
+                            _ = try saveDaytimeCheckIn(DaytimeCheckIn(id: uuid, assessedAt: observed, recordedAt: observed, timeZoneIdentifier: "UTC", response: 3))
+                        }
+                    }
+                } catch { storageLog.error("Isolated daytime UI fixture could not be prepared") }
+            }
+            return
+        }
+        #endif
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         self.init(dbPath: documentsPath.appendingPathComponent("dosetap_events.sqlite").path)
     }

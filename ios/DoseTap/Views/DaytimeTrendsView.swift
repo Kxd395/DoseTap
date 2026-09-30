@@ -6,22 +6,24 @@ struct DaytimeTrendsView: View {
     private enum Range: String, CaseIterable { case twoWeeks = "14D", fourWeeks = "28D", sixMonths = "6M", year = "12M", custom = "Custom" }
     @ObservedObject private var repository: SessionRepository
     let sharedSelection: DaytimeTrendSelection?
+    let sharedInspection: Binding<DaytimeInspectionState>?
     let refreshShared: (() -> Void)?
     let now: () -> Date
     init(repository: SessionRepository = .shared, sharedSelection: DaytimeTrendSelection? = nil,
-         refreshShared: (() -> Void)? = nil, now: @escaping () -> Date = Date.init) {
-        self.repository = repository; self.sharedSelection = sharedSelection; self.refreshShared = refreshShared; self.now = now
+         sharedInspection: Binding<DaytimeInspectionState>? = nil, refreshShared: (() -> Void)? = nil, now: @escaping () -> Date = Date.init) {
+        self.sharedInspection = sharedInspection; self.repository = repository; self.sharedSelection = sharedSelection; self.refreshShared = refreshShared; self.now = now
         let initial = sharedSelection?.asOf ?? now(); _start = State(initialValue: initial); _end = State(initialValue: initial)
     }
     @State private var range: Range = .fourWeeks
     @State private var start: Date
     @State private var end: Date
-    @State private var origin: DaytimeCheckIn.Origin?
-    @State private var setting: DaytimeCheckIn.Setting?
+    @State private var localInspection = DaytimeInspectionState()
+    private var inspection: Binding<DaytimeInspectionState> { sharedInspection ?? $localInspection }
+    private var selectedID: UUID? { inspection.wrappedValue.selectedObservationID }
+    private var origin: DaytimeCheckIn.Origin? { inspection.wrappedValue.origin }
+    private var setting: DaytimeCheckIn.Setting? { inspection.wrappedValue.setting }
     @State private var records: DaytimeTrendRecords?
     @State private var capture: DaytimeTrendSelection?
-    @State private var selectedTime: Date?
-    @State private var selectedID: UUID?
     @State private var basis: WorkContextBasis = .confirmed
     @State private var report: DaytimeDiaryAnalysis?
     @State private var failure: String?
@@ -36,15 +38,25 @@ struct DaytimeTrendsView: View {
                             if let score = row.response {
                                 PointMark(x: .value("Assessed at", row.assessedAt), y: .value("Custom sleepiness 0–10", score))
                                     .foregroundStyle(by: .value("Entry type", row.origin.title))
+                                    .symbolSize(row.id == selectedID ? 160 : 40)
                                     .accessibilityLabel("\(row.assessedAt.formatted()), \(score) of 10, \(row.origin.title)")
                             }
                         }.chartXScale(domain: start...end).chartYScale(domain: 0...10)
+                            .chartXAxis {
+                                AxisMarks(values: [0.2, 0.5, 0.8].map { start.addingTimeInterval(end.timeIntervalSince(start) * $0) }) { _ in
+                                    AxisGridLine(); AxisTick()
+                                    AxisValueLabel(format: end.timeIntervalSince(start) < 172800 ? .dateTime.hour().minute() : .dateTime.month(.abbreviated).day())
+                                }
+                            }
                             .chartOverlay { proxy in
                                 GeometryReader { geometry in
                                     Rectangle().fill(.clear).contentShape(Rectangle()).gesture(SpatialTapGesture().onEnded { gesture in
                                         let frame = geometry[proxy.plotAreaFrame], x = gesture.location.x - frame.origin.x
                                         guard x >= 0, x <= frame.width, let time: Date = proxy.value(atX: x) else { return }
-                                        selectedTime = time
+                                        let left: Date? = proxy.value(atX: max(0, x - 8))
+                                        let right: Date? = proxy.value(atX: min(frame.width, x + 8))
+                                        let tolerance = max(left.map { abs($0.timeIntervalSince(time)) } ?? 0, right.map { abs($0.timeIntervalSince(time)) } ?? 0)
+                                        inspection.wrappedValue.offer(at: time, observations: report.observations, tolerance: tolerance)
                                     })
                                 }
                             }.dynamicTypeSize(...DynamicTypeSize.xxxLarge).frame(height: 220).accessibilityIdentifier("daytime-trend-chart")
@@ -63,12 +75,13 @@ struct DaytimeTrendsView: View {
                                     ForEach(context.sourceRecordIDs, id: \.self) { Text($0).font(.caption.monospaced()) }
                                 }
                             }
-                        }.accessibilityIdentifier("daytime-selected-observation")
+                        }.accessibilityIdentifier("daytime-selected-observation-\(selected.id.uuidString)")
                     }
                 } else if failure == nil { Text("No daytime history was collected for these bounds.") }
                 Text("Daytime calendar dates; night dose, work-phase and context filters do not apply.").font(.caption)
                 Text("Points are actual reported observations. Selection snaps to a saved point; gaps are unmeasured. No continuous level or clinical score is inferred.").font(.caption)
             }
+            inspectionControls
             samplingControls
             if let report {
                 if let issue = capture?.contextIssue { Section("Comparison context unavailable") { Text(issue) } }
@@ -100,9 +113,10 @@ struct DaytimeTrendsView: View {
                 Section("Observation table") {
                     ForEach(report.observations) { row in
                         VStack(alignment: .leading) {
-                            Button(row.assessedAt.formatted()) { selectedID = row.id }.font(.headline).accessibilityIdentifier("daytime-select-observation")
+                            Button(row.assessedAt.formatted()) { inspection.wrappedValue.select(row.id) }.font(.headline).accessibilityIdentifier("daytime-select-observation-\(row.id.uuidString)")
                             Text("\(row.response.map { "\($0)/10" } ?? row.status.rawValue) · \(row.origin.title) · \(row.setting.rawValue)")
                             Text("Recorded \(row.recordedAt.formatted()); source timezone \(row.timeZoneIdentifier)").font(.caption)
+                            if row.id == selectedID { Label("Selected observation", systemImage: "checkmark.circle.fill").accessibilityIdentifier("daytime-selected-row") }
                             if let label = row.samplingProtocolLabel { Text("Saved reminder: \(label)").font(.caption) }
                         }
                     }
@@ -110,14 +124,39 @@ struct DaytimeTrendsView: View {
             }
         }.navigationTitle("Daytime trends")
             .onAppear { applyRange(); reload() }
-            .onChange(of: selectedTime) { value in
-                guard let value else { return }
-                selectedID = report?.observations.filter { $0.response != nil }.min {
-                    abs($0.assessedAt.timeIntervalSince(value)) < abs($1.assessedAt.timeIntervalSince(value))
-                }?.id
-            }
             .onChange(of: start) { _ in calculate() }.onChange(of: end) { _ in calculate() }
             .onChange(of: origin) { _ in calculate() }.onChange(of: setting) { _ in calculate() }
+    }
+    private var inspectionControls: some View {
+        Section("Inspect saved observations") {
+            if !inspection.wrappedValue.offeredCandidateIDs.isEmpty {
+                Text("Several saved points share this position. Choose an observation; the previous selection is retained.")
+                ForEach(inspection.wrappedValue.offeredCandidateIDs, id: \.self) { id in
+                    if let row = report?.observations.first(where: { $0.id == id }) {
+                        Button("\(row.assessedAt.formatted()) · \(row.response.map { "\($0)/10" } ?? row.status.rawValue) · \(row.origin.title) · \(row.id.uuidString.prefix(8))") {
+                            inspection.wrappedValue.select(id)
+                        }.accessibilityIdentifier("daytime-overlap-candidate-\(id.uuidString)")
+                    } else { Text("Candidate \(id.uuidString.prefix(8)) is outside the visible data. Its identity is retained.") }
+                }
+                Button("Dismiss candidates") { inspection.wrappedValue.offeredCandidateIDs = [] }
+            }
+            if let id = selectedID, report?.observations.contains(where: { $0.id == id }) != true {
+                Text(retainedSelectionMessage(id)).accessibilityIdentifier("daytime-retained-selection")
+            }
+            Button("Previous observation") { inspection.wrappedValue.move(-1, observations: report?.observations ?? []) }
+                .disabled(inspection.wrappedValue.neighbor(-1, observations: report?.observations ?? []) == nil)
+            Button("Next observation") { inspection.wrappedValue.move(1, observations: report?.observations ?? []) }
+                .disabled(inspection.wrappedValue.neighbor(1, observations: report?.observations ?? []) == nil)
+            Button("Reset selection") { inspection.wrappedValue.resetSelection() }.disabled(selectedID == nil && inspection.wrappedValue.offeredCandidateIDs.isEmpty)
+            Button("Reset entry filters") { inspection.wrappedValue.resetFilters() }.disabled(origin == nil && setting == nil)
+        }
+    }
+    private func retainedSelectionMessage(_ id: UUID) -> String {
+        let prefix = "Selected observation \(id.uuidString.prefix(8)) is retained. "
+        guard failure == nil, let records else { return prefix + "Records are unavailable or updating; refresh to retry." }
+        guard let row = records.observations.first(where: { $0.id == id }) else { return prefix + "It is unavailable at this capture time. No replacement was selected." }
+        if row.assessedAt < start || row.assessedAt >= end { return prefix + "It is outside the selected period. Return to its period to inspect it." }
+        return prefix + "It is hidden by the entry filters. Reset those filters to inspect it."
     }
     private var samplingControls: some View {
         Section {
@@ -135,11 +174,11 @@ struct DaytimeTrendsView: View {
                         ForEach(WorkContextBasis.allCases, id: \.self) { Text($0.rawValue.capitalized).tag($0) }
                     }.onChange(of: basis) { _ in reload() }
                 } else { Text("Period and work basis follow the Dashboard selection.").font(.caption) }
-                Picker("Entry type", selection: $origin) {
+                Picker("Entry type", selection: inspection.origin) {
                     Text("All entry types").tag(DaytimeCheckIn.Origin?.none)
                     ForEach(DaytimeCheckIn.Origin.allCases, id: \.self) { Text($0.title).tag(Optional($0)) }
-                }
-                Picker("Setting", selection: $setting) {
+                }.accessibilityIdentifier("daytime-origin-filter")
+                Picker("Setting", selection: inspection.setting) {
                     Text("All settings").tag(DaytimeCheckIn.Setting?.none)
                     ForEach(DaytimeCheckIn.Setting.allCases, id: \.self) { Text($0.rawValue).tag(Optional($0)) }
                 }
@@ -195,7 +234,7 @@ struct DaytimeTrendsView: View {
             }) : nil
             report = try DaytimeDiaryAnalysis(observations: rows, events: records.events, start: lower, end: window.endExclusive,
                 now: selection.asOf, timeZone: selection.timeZone, includesEnd: false, contexts: contexts)
-            selectedID = nil; selectedTime = nil; failure = nil
+            failure = nil
         } catch { report = nil; failure = "Choose valid dates within the captured period, or Refresh to retry. Saved records are unchanged." }
     }
 }

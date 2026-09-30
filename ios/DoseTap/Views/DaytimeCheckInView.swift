@@ -24,7 +24,7 @@ struct DaytimeCheckInView: View {
                 if ledger.current.isEmpty { Text("No daytime observations recorded. Missing observations are not zero sleepiness.") }
                 ForEach(ledger.current) { value in
                     Section {
-                        Text(value.assessedAt.formatted(date: .abbreviated, time: .shortened)).font(.headline)
+                        Text(value.assessedAt.formatted(date: .abbreviated, time: .shortened)).font(.headline).accessibilityIdentifier("daytime-saved-observation-\(value.id.uuidString)")
                         Text(value.response.map { "Custom sleepiness: \($0)/10" } ?? "Response: \(value.status.rawValue)")
                         Text(value.origin.title)
                         if let activity = value.activity { Text(activity.rawValue) }

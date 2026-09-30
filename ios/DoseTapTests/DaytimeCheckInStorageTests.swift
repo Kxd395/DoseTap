@@ -175,3 +175,54 @@ extension DaytimeCheckInStorageTests {
         XCTAssertThrowsError(try repository.daytimeMainWakeSources(asOf: now))
     }
 }
+
+
+extension DaytimeCheckInStorageTests {
+    func testDaytimeInspectionOverlapRequiresExplicitChoice() throws {
+        let a = try value(), b = try value()
+        var state = DaytimeInspectionState()
+        state.offer(at: now, observations: [a, b])
+        XCTAssertNil(state.selectedObservationID)
+        XCTAssertEqual(Set(state.offeredCandidateIDs), Set([a.id, b.id]))
+        state.select(a.id)
+        state.offer(at: now, observations: [a, b])
+        XCTAssertEqual(state.selectedObservationID, a.id)
+        XCTAssertEqual(state.offeredCandidateIDs.count, 2)
+        let nearby = try DaytimeCheckIn(assessedAt: now.addingTimeInterval(-1), recordedAt: now, timeZoneIdentifier: "UTC", response: 0)
+        state.offer(at: now, observations: [a, nearby], tolerance: 2)
+        XCTAssertEqual(Set(state.offeredCandidateIDs), Set([a.id, nearby.id]))
+        XCTAssertEqual(state.selectedObservationID, a.id)
+        state.offer(at: now, observations: [a, nearby], tolerance: .infinity)
+        XCTAssertTrue(state.offeredCandidateIDs.isEmpty)
+        XCTAssertEqual(state.selectedObservationID, a.id)
+    }
+    func testDaytimeInspectionRetainsIdentityAcrossCaptureAndFilters() throws {
+        let a = try value(), repository = repo(EventStorage(dbPath: ":memory:"))
+        let model = DashboardAnalyticsModel(now: { self.now }, sessionRepo: repository, timeZone: { TimeZone(secondsFromGMT: 0)! })
+        model.daytimeInspection.select(a.id)
+        model.daytimeInspection.origin = .scheduled
+        model.reportingAsOf = now.addingTimeInterval(30); model.selectedRange = .sixMonths
+        XCTAssertEqual(model.daytimeInspection.selectedObservationID, a.id)
+        XCTAssertEqual(model.daytimeInspection.origin, .scheduled)
+        var state = model.daytimeInspection
+        state.move(1, observations: [])
+        XCTAssertEqual(state.selectedObservationID, a.id)
+        let revision = try a.corrected(response: 7, status: .answered, reason: "Correction", recordedAt: now.addingTimeInterval(20))
+        XCTAssertEqual(state.selected(in: [revision])?.revisionID, revision.revisionID)
+        state.resetFilters()
+        XCTAssertEqual(state.selectedObservationID, a.id)
+        state.resetSelection()
+        XCTAssertNil(state.selectedObservationID)
+    }
+    func testDaytimeInspectionNavigationAndUnansweredRows() throws {
+        let a = try value()
+        let b = try DaytimeCheckIn(assessedAt: now.addingTimeInterval(-10), recordedAt: now, timeZoneIdentifier: "UTC", response: nil, status: .incomplete)
+        var state = DaytimeInspectionState()
+        state.move(1, observations: [a, b]); XCTAssertNil(state.selectedObservationID)
+        state.select(b.id); state.move(1, observations: [a, b])
+        XCTAssertEqual(state.selectedObservationID, a.id)
+        state.move(1, observations: [a, b]); XCTAssertEqual(state.selectedObservationID, a.id)
+        state.offer(at: b.assessedAt, observations: [b]); XCTAssertEqual(state.selectedObservationID, a.id)
+        XCTAssertTrue(state.offeredCandidateIDs.isEmpty)
+    }
+}

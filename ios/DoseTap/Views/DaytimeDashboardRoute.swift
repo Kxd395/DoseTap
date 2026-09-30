@@ -1,6 +1,35 @@
 import SwiftUI
 import DoseCore
 
+struct DaytimeInspectionState: Equatable {
+    var selectedObservationID: UUID?
+    var offeredCandidateIDs: [UUID] = []
+    var origin: DaytimeCheckIn.Origin?
+    var setting: DaytimeCheckIn.Setting?
+    static func ordered(_ rows: [DaytimeCheckIn]) -> [DaytimeCheckIn] {
+        rows.sorted { $0.assessedAt == $1.assessedAt ? $0.id.uuidString < $1.id.uuidString : $0.assessedAt < $1.assessedAt }
+    }
+    func selected(in rows: [DaytimeCheckIn]) -> DaytimeCheckIn? { rows.first { $0.id == selectedObservationID } }
+    mutating func select(_ id: UUID) { selectedObservationID = id; offeredCandidateIDs = [] }
+    mutating func resetSelection() { selectedObservationID = nil; offeredCandidateIDs = [] }
+    mutating func resetFilters() { origin = nil; setting = nil }
+    mutating func offer(at: Date, observations: [DaytimeCheckIn], tolerance: TimeInterval = 0) {
+        let rows = Self.ordered(observations.filter { $0.response != nil })
+        guard at.timeIntervalSince1970.isFinite, tolerance.isFinite, tolerance >= 0, let distance = rows.map({ abs($0.assessedAt.timeIntervalSince(at)) }).min() else { offeredCandidateIDs = []; return }
+        let candidates = rows.filter { abs($0.assessedAt.timeIntervalSince(at)) <= distance + tolerance + 0.000001 }
+        if candidates.count == 1, let candidate = candidates.first { select(candidate.id) }
+        else { offeredCandidateIDs = candidates.map(\.id) }
+    }
+    func neighbor(_ step: Int, observations: [DaytimeCheckIn]) -> UUID? {
+        let rows = Self.ordered(observations)
+        guard step == -1 || step == 1, let index = rows.firstIndex(where: { $0.id == selectedObservationID }), rows.indices.contains(index + step) else { return nil }
+        return rows[index + step].id
+    }
+    mutating func move(_ step: Int, observations: [DaytimeCheckIn]) {
+        if let id = neighbor(step, observations: observations) { select(id) }
+    }
+}
+
 struct DaytimeTrendSelection {
     let range: DashboardReportingRange
     let asOf: Date
@@ -50,7 +79,7 @@ struct DashboardDaytimeRoute: View {
     var body: some View {
         switch Result(catching: { try model.validatedSharedDaytimeSelection() }) {
         case .success(let selection):
-            DaytimeTrendsView(repository: model.sessionRepo, sharedSelection: selection, refreshShared: { model.refresh() })
+            DaytimeTrendsView(repository: model.sessionRepo, sharedSelection: selection, sharedInspection: $model.daytimeInspection, refreshShared: { model.refresh() })
                 .id(selection.identity)
         case .failure(let error):
             VStack(spacing: 16) {

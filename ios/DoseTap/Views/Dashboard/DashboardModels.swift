@@ -16,6 +16,8 @@ final class DashboardAnalyticsModel: ObservableObject {
     @Published var replayPresentation = DashboardReplayPresentation()
     let replayCoverageState = TimelineDoseSleepModel()
     var replaySourceSubscriptions: Set<AnyCancellable> = []
+    @Published var contextPresentation = ContextMorningPresentation()
+    @Published var daytimeInspection = DaytimeInspectionState()
     @Published var workInspectionContext: WorkContextDocument?
     @Published var workContextReadReady = false
     @Published var workContextIssue: String?

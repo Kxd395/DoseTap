@@ -16,6 +16,13 @@ enum ContextMorningGrouping: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+/// Route presentation only, retained by the dashboard model across page recreation.
+struct ContextMorningPresentation: Equatable {
+    var metric = ContextMorningMetric.mainSleep
+    var grouping = ContextMorningGrouping.dayDemand
+    var compatibleGroupID: String?
+}
+
 enum ContextMorningProjection {
     static func observation(_ night: DashboardNightAggregate, metric: ContextMorningMetric, grouping: ContextMorningGrouping,
                             source: DashboardSleepSource, freshness: DashboardSleepMetricProjection.Freshness,
