@@ -187,4 +187,74 @@ final class DashboardReplayAdapterTests: XCTestCase {
         let result = await model.replayCoverage(sessionID: "durable-session")
         XCTAssertEqual(result.status, .needsReview)
     }
+    func testProviderQualityRetainsRawIntervalButDefaultsToExcluded() throws {
+        let model = presentationModel(); var row = night()
+        row.healthSummary = .init(date: start, bedTime: start, sleepOnset: start, firstWake: nil,
+            finalWake: start.addingTimeInterval(14_400), ttfwMinutes: nil, totalSleepMinutes: 0, wakeCount: 0, source: "Synthetic")
+        model.nights = [row]
+        let snapshot = model.replaySnapshot(for: row), interval = snapshot.interval(.dose2ToDeviceEnd)
+        XCTAssertEqual(interval.state, .partial); XCTAssertEqual(interval.minutes, 60)
+        XCTAssertNil(interval.eligibleMinutes()); XCTAssertEqual(interval.eligibleMinutes(includePartial: true), 60)
+        XCTAssertEqual(snapshot.interval(.dose1ToDose2).eligibleMinutes(), 180)
+        XCTAssertEqual(snapshot.markers.first { $0.kind == .deviceSleepEnd }?.evidenceQuality?.providerRecordID, row.healthSummary?.id)
+        let first = try XCTUnwrap(model.replayComparison(for: snapshot, outcome: .mainSleep, preset: .dose1ToDose2))
+        XCTAssertEqual(first.metric.value, 0); XCTAssertEqual(first.metric.state, .partial); XCTAssertFalse(first.paired)
+        model.inspection.includePartialMetrics = true
+        let included = try XCTUnwrap(model.replayComparison(for: snapshot, outcome: .mainSleep, preset: .dose1ToDose2))
+        XCTAssertEqual(included.y, 0); XCTAssertTrue(included.paired)
+    }
+    func testTimedSleepinessZeroIsNotMissingAndUntimedIsReview() throws {
+        let model = presentationModel(); var row = night(); var diary = NightOutcomeDiary()
+        diary.sleepiness = 0; diary.assessedAt = start.addingTimeInterval(30_000); row.outcome = diary; model.nights = [row]
+        let snap = model.replaySnapshot(for: row)
+        let paired = try XCTUnwrap(model.replayComparison(for: snap, outcome: .sleepiness, preset: .dose1ToDose2))
+        XCTAssertTrue(paired.paired); XCTAssertEqual(paired.y, 0); XCTAssertEqual(paired.sourceRecordID, row.sessionID)
+        XCTAssertEqual(paired.observedAt, diary.assessedAt); XCTAssertTrue(paired.metric.reason.contains("not ESS"))
+        row.outcome?.assessedAt = nil; model.nights = [row]
+        XCTAssertEqual(model.replayComparison(for: snap, outcome: .sleepiness, preset: .dose1ToDose2)?.metric.state, .needsReview)
+        row.outcome = diary; row.outcomeReadFailed = true; model.nights = [row]
+        XCTAssertNil(model.replayComparison(for: snap, outcome: .sleepiness, preset: .dose1ToDose2)?.y)
+    }
+    func testComparisonExportFreezesExactPairedValuesAndSourceIdentity() throws {
+        let model = presentationModel(); var row = night(); var diary = NightOutcomeDiary()
+        diary.sleepiness = 2; diary.assessedAt = start.addingTimeInterval(30_000); row.outcome = diary; model.nights = [row]
+        let snap = try model.replaySnapshot(for: row).selectingDosePair(dose1ID: "d1", dose2ID: "d2")
+        let comparison = try XCTUnwrap(model.replayComparison(for: snap, outcome: .sleepiness, preset: .dose1ToDose2))
+        let frozen = ReplayInspectionExport(scope: "Paired", selectedObservationID: row.id, rows: [.init(observationID: row.id,
+            snapshot: snap, recordedWakeTarget: model.replayWakeTarget(for: row), comparison: comparison)])
+        model.nights = []
+        let decoded = try JSONDecoder().decode(ReplayInspectionExport.self, from: frozen.jsonData())
+        XCTAssertEqual(decoded.rows.first?.comparison?.x, 180); XCTAssertEqual(decoded.rows.first?.comparison?.y, 2)
+        XCTAssertEqual(decoded.rows.first?.snapshot.dosePairSelection?.dose1ID, "d1")
+        XCTAssertEqual(comparison.binLower, 180); XCTAssertTrue(frozen.csv.contains(comparison.csv))
+        XCTAssertTrue(frozen.csv.contains("night-outcome.sleepiness_0_10.v1"))
+        XCTAssertEqual(decoded.rows.first?.comparison?.referenceVersion, comparison.referenceVersion)
+    }
+    func testDosePairAndComparedOutcomeSurvivePresentationButNotRecordChange() {
+        let model = presentationModel()
+        model.replayPresentation.dosePairs["durable-session"] = .init(dose1ID: "d1", dose2ID: "d2")
+        model.replayPresentation.comparedOutcome = .sleepiness; model.replayPresentation.selectedBinLower = 180
+        model.replayPresentation.open(initialMode: .intervals); model.replayPresentation.mode = .medication
+        XCTAssertEqual(model.replayPresentation.dosePairs["durable-session"]?.dose2ID, "d2")
+        XCTAssertEqual(model.replayPresentation.comparedOutcome, .sleepiness)
+        model.sessionRepo.sessionDidChange.send()
+        XCTAssertTrue(model.replayPresentation.dosePairs.isEmpty)
+        XCTAssertEqual(model.replayPresentation.selectedBinLower, 180)
+    }
+
+    func testWHOOPOriginalEndpointsStaySeparateFromActualWakeAndRespectPeriod() throws {
+        let model = presentationModel(); model.selectedRange = .all; model.sleepSource = .whoop
+        let formatter = ISO8601DateFormatter(), end = start.addingTimeInterval(14_400)
+        let json: [String: String] = ["id": "original-episode", "start": formatter.string(from: start), "end": formatter.string(from: end)]
+        let raw = try WHOOPService.makeAPIDecoder().decode(WHOOPSleep.self, from: JSONSerialization.data(withJSONObject: json))
+        var row = night(); row.whoopSummary = raw.toNightSummary(); model.nights = [row]
+        let snapshot = model.replaySnapshot(for: row)
+        XCTAssertEqual(snapshot.interval(.dose2ToWHOOPepisodeEnd).minutes, 60)
+        XCTAssertEqual(snapshot.interval(.dose2ToWHOOPepisodeEnd).state, .partial)
+        XCTAssertNil(snapshot.interval(.dose2ToDeviceEnd).minutes); XCTAssertNil(snapshot.interval(.dose2ToReportedWake).minutes)
+        XCTAssertEqual(snapshot.markers.first { $0.kind == .whoopEpisodeEnd }?.evidenceQuality?.providerRecordID, "original-episode")
+        row.whoopSummary?.endpointEvidence = .init(sleepID: "foreign", originalStart: start, originalEnd: end, providerTimeZoneOffset: nil, providerUpdatedAt: nil)
+        XCTAssertFalse(model.replaySnapshot(for: row).markers.contains { $0.kind == .whoopEpisodeEnd })
+    }
+
 }

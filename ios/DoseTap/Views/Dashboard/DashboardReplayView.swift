@@ -44,7 +44,7 @@ struct DashboardReplayView: View {
     private var snapshots: [DashboardReplaySnapshot] {
         model.visibleInspectionNights.map { night in
             let base = model.replaySnapshot(for: night, reviewed: night.replayID == selectedID ? coverage.result : nil)
-            do { return try base.addingSelectedEndpoints(endpointSelections[night.replayID] ?? []) }
+            do { return try applyChoices(base) }
             catch {
                 return DashboardReplaySnapshot(sessionID: base.sessionID, treatmentDate: base.treatmentDate,
                     asOf: base.asOf, timeZoneID: base.timeZoneID, sourcePolicy: base.sourcePolicy,
@@ -59,24 +59,24 @@ struct DashboardReplayView: View {
         return hasInvalidEndpoints(night)
     }
     private func hasInvalidEndpoints(_ night: DashboardNightAggregate) -> Bool {
-        (try? model.replaySnapshot(for: night).addingSelectedEndpoints(endpointSelections[night.replayID] ?? [])) == nil
+        (try? applyChoices(model.replaySnapshot(for: night))) == nil
+    }
+    private func applyChoices(_ base: DashboardReplaySnapshot) throws -> DashboardReplaySnapshot {
+        let result = try base.addingSelectedEndpoints(endpointSelections[base.sessionID] ?? [])
+        guard let choice = model.replayPresentation.dosePairs[base.sessionID] else { return result }
+        return try result.selectingDosePair(dose1ID: choice.dose1ID, dose2ID: choice.dose2ID)
     }
     private var selected: DashboardReplaySnapshot? { snapshots.first { $0.sessionID == selectedID } }
-    private var available: [(snapshot: DashboardReplaySnapshot, value: Double)] {
-        snapshots.compactMap { snap in snap.interval(preset).minutes.map { (snap, $0) } }
-    }
     private var alignedRows: [DashboardReplaySnapshot] {
         let start = selectedIndex ?? 0
         return Array(snapshots.dropFirst(start).prefix(28))
     }
     private var selectedIndex: Int? { snapshots.firstIndex { $0.sessionID == selectedID } }
-    private var sleepPairCount: Int {
-        available.filter { pair in
-            guard let night = model.populatedNights.first(where: { $0.replayID == pair.snapshot.sessionID }) else { return false }
-            return (model.sleepSource == .appleHealth ? night.appleHealthSleepMinutes : night.whoopSleepMinutes) != nil
-        }.count
+    private var filteredIntervalSnapshots: [DashboardReplaySnapshot] {
+        guard page == .intervals, let lower = model.replayPresentation.selectedBinLower else { return snapshots }
+        return snapshots.filter { model.replayComparison(for: $0, outcome: model.replayPresentation.comparedOutcome,
+            preset: preset)?.binLower == lower }
     }
-    private var bins: [Int: Int] { Dictionary(grouping: available, by: { Int(floor($0.value / 30)) }).mapValues(\.count) }
 
     var body: some View {
         ScrollView {
@@ -105,29 +105,32 @@ struct DashboardReplayView: View {
                     if let notice = selectionNotice { Text(notice).font(.caption) }
                     if selectionIsInvalid {
                         Label("Selected endpoints are no longer valid. Clear them and select current records before exporting.", systemImage: "exclamationmark.triangle")
-                        Button("Clear selected endpoints") { endpointSelections[snap.sessionID] = [] }
+                        Button("Clear selected endpoints") { endpointSelections[snap.sessionID] = []; model.replayPresentation.dosePairs[snap.sessionID] = nil }
                     }
+                    dosePairPicker(snap)
                     DashboardReplayEndpoints(model: model, snapshot: snap, selected: Binding(
                         get: { endpointSelections[snap.sessionID] ?? [] }, set: {
                             endpointSelections[snap.sessionID] = $0; selectionNotice = nil
                         }), onRecords: { records in medicationLabels = Dictionary(records.map { ($0.id, $0.name + " · " + $0.formulation) }, uniquingKeysWith: { left, right in left == right ? left : "Conflicting medication labels" }) })
                     if page == .replay || page == .medication { replay(snap) }
-                    else if page == .intervals { intervals }
+                    else if page == .intervals { DashboardIntervalExplorer(model: model, snapshots: snapshots) }
                     else if page == .opportunity { opportunity(snap) }
                     else { coveragePanel(snap) }
                     if page == .medication { reminderDeviations }
                     Button("Preview selected session export") {
                         export = ReplayExportPreview(export: makeExport([snap], scope: "Selected observation"))
                     }
-                        .accessibilityIdentifier("dashboard-replay-export").disabled(selectionIsInvalid)
+                        .accessibilityIdentifier("dashboard-replay-export")
+                        .disabled(selectionIsInvalid || !filteredIntervalSnapshots.contains(where: { $0.sessionID == snap.sessionID }))
                 } else {
                     Text(model.inspection.selectionStatus(visibleIDs: model.visibleInspectionNights.map(\.id), knownIDs: model.nights.map(\.id)).explanation
                          ?? "Choose a session to inspect its recorded occurrences. Missing endpoints remain unavailable.")
                 }
+                if page == .intervals, selected == nil { DashboardIntervalExplorer(model: model, snapshots: snapshots) }
                 Button("Preview filtered observations export") {
-                    export = ReplayExportPreview(export: makeExport(snapshots, scope: "All filtered observations"))
+                    export = ReplayExportPreview(export: makeExport(filteredIntervalSnapshots, scope: "All filtered observations"))
                 }.accessibilityIdentifier("dashboard-replay-export-filtered")
-                    .disabled(snapshots.isEmpty || model.visibleInspectionNights.contains(where: hasInvalidEndpoints) || model.isLoading)
+                    .disabled(filteredIntervalSnapshots.isEmpty || model.visibleInspectionNights.contains(where: hasInvalidEndpoints) || model.isLoading)
             }.padding()
         }
         .navigationTitle("Replay & intervals")
@@ -185,6 +188,10 @@ struct DashboardReplayView: View {
                 Text(lane(marker)).font(.subheadline.bold())
                 Text(stamp(marker.occurredAt, snap))
                 Text(marker.kind.label + " · " + marker.source).font(.caption).foregroundStyle(.secondary)
+                if let quality = marker.evidenceQuality {
+                    Text("\(quality.state.rawValue): \(quality.reason)").font(.caption)
+                    if let captured = quality.capturedAt { Text("Source captured \(stamp(captured, snap))").font(.caption) }
+                }
                 if let amount = marker.amountDescription { Text("Actual amount: " + amount).font(.caption) }
                 if let formulation = marker.formulation { Text("Formulation: " + formulation).font(.caption) }
                 if let recorded = marker.recordedAt { Text("Recorded \(stamp(recorded, snap))").font(.caption) }
@@ -228,59 +235,33 @@ struct DashboardReplayView: View {
         return marker.kind.label
     }
 
-    private var intervals: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Picker("Curated interval", selection: $model.replayPresentation.preset) {
-                ForEach(DashboardIntervalPreset.allCases) { Text($0.rawValue).tag($0) }
-            }.accessibilityIdentifier("dashboard-interval-preset")
-            Picker("Interval display", selection: $model.replayPresentation.intervalMode) {
-                ForEach(["By date", "Distribution", "Compare sleep"], id: \.self) { Text($0) }
-            }.pickerStyle(.menu)
-            Text("\(available.count) available / \(snapshots.count) selected sessions. Each interval uses its named occurrence endpoints; elapsed minutes are not sleep duration.").font(.caption)
-            if preset == .dose1ToDose2 {
-                Text("150–240 minutes: built-in reference only, inclusive boundaries; not a prescription or safety range. Shorter and longer observations remain separate.").font(.caption.bold())
-            }
-            if available.isEmpty { Text("No eligible pairs for this preset. Exact missing dependencies appear in the table.") }
-            else if intervalMode == "Distribution" {
-                Chart(bins.keys.sorted(), id: \.self) { bin in
-                    BarMark(x: .value("Minutes", "\(bin * 30)–<\((bin + 1) * 30)"), y: .value("Sessions", bins[bin] ?? 0))
-                        .foregroundStyle(palette.timing)
-                }.frame(height: 220)
-            } else if intervalMode == "Compare sleep" {
-                Text("\(sleepPairCount) of \(available.count) interval pairs also have selected main-episode sleep from \(model.sleepSource.rawValue). Sleep availability is independent.").font(.caption)
-                Chart(available, id: \.snapshot.sessionID) { pair in
-                    if let night = model.populatedNights.first(where: { $0.replayID == pair.snapshot.sessionID }),
-                       let sleep = model.sleepSource == .appleHealth ? night.appleHealthSleepMinutes : night.whoopSleepMinutes {
-                        PointMark(x: .value("Interval minutes", pair.value), y: .value("Main sleep minutes", sleep))
-                            .foregroundStyle(palette.sleep)
+    @ViewBuilder private func dosePairPicker(_ snap: DashboardReplaySnapshot) -> some View {
+        if snap.markers.filter({ $0.kind == .dose1 || $0.kind == .dose2 }).count > 2 || model.replayPresentation.dosePairs[snap.sessionID] != nil {
+            Text("Choose an explicit D1–D2 pair for this inspection. All recorded administrations remain visible; this does not change the dose pattern.").font(.caption)
+            ForEach([DashboardReplayMarker.Kind.dose1, .dose2], id: \.rawValue) { kind in
+                Picker("Selected " + kind.label, selection: Binding<String?>(get: {
+                    let choice = model.replayPresentation.dosePairs[snap.sessionID]
+                    return kind == .dose1 ? choice?.dose1ID : choice?.dose2ID
+                }, set: { id in
+                    var choice = model.replayPresentation.dosePairs[snap.sessionID] ?? .init()
+                    if kind == .dose1 { choice.dose1ID = id } else { choice.dose2ID = id }
+                    model.replayPresentation.dosePairs[snap.sessionID] = choice
+                })) {
+                    Text("Choose recorded occurrence").tag(String?.none)
+                    ForEach(snap.markers.filter { $0.kind == kind }) { marker in
+                        Text(stamp(marker.occurredAt, snap) + " · " + marker.id).tag(Optional(marker.id))
                     }
-                }.frame(height: 240)
-            } else {
-                Chart(available, id: \.snapshot.sessionID) { pair in
-                    PointMark(x: .value("Session date", plotDate(pair.snapshot)), y: .value("Minutes", pair.value))
-                        .foregroundStyle(palette.timing)
-                }.frame(height: 240)
-            }
-            Text("Exact interval table").font(.headline)
-            ForEach(snapshots, id: \.sessionID) { snap in
-                let result = snap.interval(preset)
-                Button { selectedID = snap.sessionID } label: {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(label(snap)).font(.subheadline.bold())
-                        Text(result.minutes.map { $0.formatted(.number.precision(.fractionLength(0...6))) + " minutes" } ?? result.state.rawValue)
-                        if let reference = result.referenceGroup { Text(reference).font(.caption.bold()) }
-                        Text(result.reason).font(.caption)
-                    }.frame(maxWidth: .infinity, alignment: .leading)
-                }.accessibilityElement(children: .combine)
+                }.accessibilityIdentifier("dashboard-replay-pair-" + kind.rawValue)
             }
         }
     }
 
     private func makeExport(_ values: [DashboardReplaySnapshot], scope: String) -> ReplayInspectionExport {
-        let context = "View: \(page.rawValue); preset: \(preset.rawValue); alignment: \(alignment.rawValue); display: \(intervalMode); pattern: \(model.inspection.dosePatternFilter?.rawValue ?? "all"); work: \(model.inspection.workPhaseFilter?.rawValue ?? "all"); work basis: \(model.inspection.workContextBasis.rawValue); context: \(model.inspection.contextStratumID ?? "all"); include partial: \(model.inspection.includePartialMetrics)"
+        let context = "View: \(page.rawValue); preset: \(preset.rawValue); alignment: \(alignment.rawValue); display: \(intervalMode); outcome: \(model.replayPresentation.comparedOutcome.rawValue); bin: \(model.replayPresentation.selectedBinLower.map(ReplayComparisonRow.binLabel) ?? "all"); pattern: \(model.inspection.dosePatternFilter?.rawValue ?? "all"); work: \(model.inspection.workPhaseFilter?.rawValue ?? "all"); work basis: \(model.inspection.workContextBasis.rawValue); context: \(model.inspection.contextStratumID ?? "all"); include partial: \(model.inspection.includePartialMetrics)"
         return .init(scope: scope, selectedObservationID: model.inspection.selectedObservationID, rows: values.compactMap { snap in
             guard let night = model.nights.first(where: { $0.replayID == snap.sessionID }) else { return nil }
-            return .init(observationID: night.id, snapshot: snap.withViewContext(context), recordedWakeTarget: model.replayWakeTarget(for: night))
+            return .init(observationID: night.id, snapshot: snap.withViewContext(context), recordedWakeTarget: model.replayWakeTarget(for: night),
+                comparison: model.replayComparison(for: snap, outcome: model.replayPresentation.comparedOutcome, preset: preset))
         })
     }
 

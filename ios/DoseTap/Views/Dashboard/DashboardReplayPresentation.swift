@@ -8,6 +8,10 @@ struct DashboardReplayPresentation {
     var alignment: DashboardReplaySnapshot.Alignment = .clock
     var preset: DashboardIntervalPreset = .dose1ToDose2
     var intervalMode = "By date"
+    var comparedOutcome: ReplayComparedOutcome = .mainSleep
+    var selectedBinLower: Double?
+    struct DosePairChoice { var dose1ID: String?; var dose2ID: String? }
+    var dosePairs: [String: DosePairChoice] = [:]
     var opportunityEndpoint: DashboardIntervalPreset = .dose2ToDeviceEnd
     var endpointSelections: [String: [DashboardReplayMarker]] = [:]
     var medicationLabels: [String: String] = [:]
@@ -21,10 +25,10 @@ struct DashboardReplayPresentation {
     }
 
     mutating func localRecordsChanged() {
-        if !endpointSelections.isEmpty {
-            selectionNotice = "Local records changed. Select current medication or nap endpoints again."
+        if !endpointSelections.isEmpty || !dosePairs.isEmpty {
+            selectionNotice = "Local records changed. Select current dose, medication or nap endpoints again."
         }
-        endpointSelections.removeAll()
+        endpointSelections.removeAll(); dosePairs.removeAll()
     }
 }
 

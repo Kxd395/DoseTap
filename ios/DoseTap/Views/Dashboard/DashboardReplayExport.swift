@@ -7,15 +7,17 @@ struct ReplayInspectionExport: Codable {
         let observationID: String
         let snapshot: DashboardReplaySnapshot
         let recordedWakeTarget: DashboardRecordedWakeTarget
+        let comparison: ReplayComparisonRow?
         let postDoseCoverage: [DashboardPostDoseCoverage]
-        init(observationID: String, snapshot: DashboardReplaySnapshot, recordedWakeTarget: DashboardRecordedWakeTarget) {
+        init(observationID: String, snapshot: DashboardReplaySnapshot, recordedWakeTarget: DashboardRecordedWakeTarget, comparison: ReplayComparisonRow? = nil) {
             self.observationID = observationID; self.snapshot = snapshot; self.recordedWakeTarget = recordedWakeTarget
+            self.comparison = comparison
             postDoseCoverage = [.dose2ToDeviceEnd, .dose2ToReportedWake, .dose2ToRequiredWake].map {
                 DashboardPostDoseCoverage.calculate(snapshot: snapshot, preset: $0)
             }
         }
     }
-    private(set) var version = "dashboard_inspection_export_v1"
+    private(set) var version = "dashboard_inspection_export_v2"
     let scope: String
     let selectedObservationID: String?
     let rows: [Row]
@@ -35,6 +37,7 @@ struct ReplayInspectionExport: Codable {
             sections += row.recordedWakeTarget.sources.map {
                 ReportCSV.row([$0.eventID, $0.eventSessionID ?? "", $0.sessionID, $0.revision.uuidString, timestamp($0.requiredWake), $0.timeZoneID])
             }
+            if let comparison = row.comparison { sections.append(comparison.csv) }
             sections.append(ReportCSV.row(["postdose_endpoint", "state", "elapsed_minutes", "asleep_minutes", "awake_minutes", "unmeasured_minutes", "conflict_subset_minutes", "start_id", "end_id", "reason"]))
             sections += row.postDoseCoverage.map {
                 ReportCSV.row([$0.preset.rawValue, $0.state.rawValue, number($0.elapsedMinutes), number($0.asleepMinutes),

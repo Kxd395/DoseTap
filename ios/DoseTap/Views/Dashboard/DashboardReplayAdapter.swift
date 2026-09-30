@@ -19,9 +19,9 @@ extension DashboardAnalyticsModel {
     func replaySnapshot(for night: DashboardNightAggregate, reviewed: ReviewedNightSleepResult? = nil) -> DashboardReplaySnapshot {
         let identity = night.replayID
         var markers: [DashboardReplayMarker] = []
-        func append(_ kind: DashboardReplayMarker.Kind, _ date: Date?, _ id: String, _ source: String, recorded: Date? = nil, sourceSessionID: String? = nil) {
+        func append(_ kind: DashboardReplayMarker.Kind, _ date: Date?, _ id: String, _ source: String, recorded: Date? = nil, sourceSessionID: String? = nil, quality: DashboardReplayMarker.EvidenceQuality? = nil, amount: String? = nil) {
             guard let date else { return }
-            markers.append(.init(id: id, sessionID: sourceSessionID ?? identity, kind: kind, occurredAt: date, recordedAt: recorded, source: source))
+            markers.append(.init(id: id, sessionID: sourceSessionID ?? identity, kind: kind, occurredAt: date, recordedAt: recorded, source: source, amountDescription: amount, evidenceQuality: quality))
         }
         for event in night.doseEvents {
             let kind: DashboardReplayMarker.Kind
@@ -33,7 +33,7 @@ extension DashboardAnalyticsModel {
             }
             let metadata = event.metadata.flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }
             let recorded = (metadata?["recorded_at_utc"] as? String).flatMap { ISO8601DateFormatter().date(from: $0) }
-            append(kind, event.timestamp, event.id, "Patient-reported administration", recorded: recorded, sourceSessionID: event.sessionId ?? "")
+            append(kind, event.timestamp, event.id, "Patient-reported administration", recorded: recorded, sourceSessionID: event.sessionId ?? "", amount: DosePatternPresentation.recordedAmountMg(event).map { "\($0) mg" })
             if kind == .dose1, metadata?["dose2_reminder_enabled"] as? Bool != false,
                let target = metadata?["reminder_interval_minutes"] as? Int, (1...1440).contains(target) {
                 append(.reminder, event.timestamp.addingTimeInterval(Double(target) * 60), event.id + ":reminder",
@@ -58,8 +58,24 @@ extension DashboardAnalyticsModel {
         }
         // The aggregate supplies a provider summary only after the shared identity policy resolves its association.
         if sleepSource == .appleHealth, let health = night.healthSummary {
-            append(.deviceSleepEnd, health.finalWake, "health:end:" + identity, "Apple Health " + (health.finalWakeBasis ?? "selected main episode"))
-            append(.mainSleepStart, health.sleepOnset, "health:start:" + identity, "Apple Health selected main episode")
+            append(.deviceSleepEnd, health.finalWake, "health:end:" + identity, "Apple Health " + (health.finalWakeBasis ?? "selected main episode"), quality: replayProviderQuality(.health, recordID: health.id))
+            append(.mainSleepStart, health.sleepOnset, "health:start:" + identity, "Apple Health selected main episode", quality: replayProviderQuality(.health, recordID: health.id))
+        }
+        if sleepSource == .whoop, let whoop = night.whoopSummary, let interval = whoop.originalSleepInterval {
+            var quality = replayProviderQuality(.whoop, recordID: whoop.sleepId)
+            if currentReportWindow == nil {
+                quality = .init(state: .needsReview, reason: "Reporting period is unresolved",
+                    capturedAt: quality.capturedAt, providerRecordID: whoop.sleepId)
+            } else if let window = currentReportWindow,
+               whoop.endpointEvidence?.endpointsAreWithin(startInclusive: window.start ?? .distantPast,
+                    endExclusive: window.endExclusive, asOf: reportingAsOf) != true {
+                quality = .init(state: .notApplicable, reason: "Original episode endpoints are outside the half-open reporting period",
+                    capturedAt: quality.capturedAt, providerRecordID: whoop.sleepId)
+            }
+            append(.whoopEpisodeStart, interval.start, "whoop:start:" + whoop.sleepId,
+                "WHOOP original API episode start; not first measured asleep", quality: quality)
+            append(.whoopEpisodeEnd, interval.end, "whoop:end:" + whoop.sleepId,
+                "WHOOP original API episode end; not final measured asleep or reported wake", quality: quality)
         }
         let wake = replayWakeTarget(for: night)
         if let date = wake.requiredWake, let first = wake.sources.first {
@@ -69,7 +85,8 @@ extension DashboardAnalyticsModel {
         }
         let projection = reviewed?.projection.flatMap { $0.window.sessionID == night.sessionID ? $0 : nil }
         if let metric = reviewed?.doseSleepMetrics?.dose2ToSleep, metric.status == .available, projection != nil {
-            append(.returnSleep, metric.end, "reviewed:return:" + identity, "Apple Health reviewed-window boundary")
+            append(.returnSleep, metric.end, "reviewed:return:" + identity, "Apple Health reviewed-window boundary", quality: .init(state: .available,
+                    reason: "Explicit reviewed-window check", capturedAt: projection?.generatedAt))
         }
         return .init(sessionID: identity, treatmentDate: night.sessionDate,
             asOf: max(reportingAsOf, projection?.generatedAt ?? reportingAsOf), timeZoneID: reportingTimeZone.identifier,
@@ -77,6 +94,15 @@ extension DashboardAnalyticsModel {
             filterDescription: rangeDescription, markers: markers, dose2NotTaken: night.dose2Skipped,
             identityResolved: !night.identityNeedsReview && night.doseEvents.allSatisfy { $0.sessionId == night.sessionID && $0.sessionId != nil } && (night.sessionID != nil || night.healthSummary != nil || night.whoopSummary != nil), reviewedProjection: projection,
             mainEpisodeIntervals: sleepSource == .appleHealth ? night.healthSummary?.recordedIntervals ?? [] : [])
+    }
+
+    func replayProviderQuality(_ provider: DashboardProviderAccess.Provider, recordID: String) -> DashboardReplayMarker.EvidenceQuality {
+        let captured = provider == .health ? healthSnapshot?.window.asOf : whoopSnapshot?.window.asOf
+        let fixture = DashboardReplayUITestFixture.enabled
+        let current = fixture || providerSnapshotIsCurrent(provider)
+        return .init(state: current ? .available : .partial,
+            reason: current ? "Current provider capture" : "Retained provider endpoints; current capture unavailable",
+            capturedAt: captured ?? (fixture ? reportingAsOf : nil), providerRecordID: recordID)
     }
 
     func replayWakeTarget(for night: DashboardNightAggregate) -> DashboardRecordedWakeTarget {

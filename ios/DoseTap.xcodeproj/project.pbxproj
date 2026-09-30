@@ -16,6 +16,8 @@
 		DPUI001B /* DosePatternDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI001F; };
 		UI_DP01B /* DosePatternDashboardUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI_DP01F; };
 		DRPL106 /* DashboardReplayPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DRPL006 /* DashboardReplayPresentation.swift */; };
+		DRPL107 /* DashboardReplayComparison.swift in Sources */ = {isa = PBXBuildFile; fileRef = DRPL007 /* DashboardReplayComparison.swift */; };
+		DRPL108 /* DashboardIntervalExplorer.swift in Sources */ = {isa = PBXBuildFile; fileRef = DRPL008 /* DashboardIntervalExplorer.swift */; };
 		DINS001B /* DashboardInspection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DINS001F; };
 		DPUI002B /* DosePatternDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI002F; };
 		DPUI003B /* DosePatternPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI003F; };
@@ -278,6 +280,8 @@
 		DPUI001F /* DosePatternDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternDashboardView.swift; sourceTree = "<group>"; };
 		UI_DP01F /* DosePatternDashboardUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternDashboardUITests.swift; sourceTree = "<group>"; };
 		DRPL006 /* DashboardReplayPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardReplayPresentation.swift; sourceTree = "<group>"; };
+		DRPL007 /* DashboardReplayComparison.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardReplayComparison.swift; sourceTree = "<group>"; };
+		DRPL008 /* DashboardIntervalExplorer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardIntervalExplorer.swift; sourceTree = "<group>"; };
 		DINS001F /* DashboardInspection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardInspection.swift; sourceTree = "<group>"; };
 		DPUI002F /* DosePatternDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternDetailSheet.swift; sourceTree = "<group>"; };
 		DPUI003F /* DosePatternPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternPresentation.swift; sourceTree = "<group>"; };
@@ -712,6 +716,8 @@
 				CLUST001 /* DashboardModels.swift */,
 				DINS001F /* DashboardInspection.swift */,
 				DRPL006 /* DashboardReplayPresentation.swift */,
+		DRPL007 /* DashboardReplayComparison.swift */,
+		DRPL008 /* DashboardIntervalExplorer.swift */,
 				DPPK001F /* DashboardPagePicker.swift */,
 				DICT001F /* DashboardInspectionControls.swift */,
 				DADM001F /* DashboardAdditionalMeasuresView.swift */,
@@ -1342,6 +1348,8 @@
 				CLUST101 /* DashboardModels.swift in Sources */,
 				DINS001B /* DashboardInspection.swift in Sources */,
 				DRPL106 /* DashboardReplayPresentation.swift in Sources */,
+		DRPL107 /* DashboardReplayComparison.swift in Sources */,
+		DRPL108 /* DashboardIntervalExplorer.swift in Sources */,
 				DPPK001B /* DashboardPagePicker.swift in Sources */,
 				DICT001B /* DashboardInspectionControls.swift in Sources */,
 				DADM001B /* DashboardAdditionalMeasuresView.swift in Sources */,
