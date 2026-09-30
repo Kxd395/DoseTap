@@ -11,6 +11,7 @@
 		DIDENT102 /* DashboardIdentityAggregation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT002 /* DashboardIdentityAggregation.swift */; };
 		DIDENT101 /* SessionRepositoryDashboardIdentities.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT001 /* SessionRepositoryDashboardIdentities.swift */; };
 		DPAC101 /* DashboardProviderAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPAC001 /* DashboardProviderAccess.swift */; };
+		DPSN101 /* DashboardProviderSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPSN001 /* DashboardProviderSnapshot.swift */; };
 		BOTQ01B /* BottleQuantityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BOTQ01F /* BottleQuantityView.swift */; };
 		BOTS01B /* BottleSupplyViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = BOTS01F /* BottleSupplyViews.swift */; };
 		DB770003 /* DashboardTransferView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB770004 /* DashboardTransferView.swift */; };
@@ -203,6 +204,7 @@
 		DIDENT002 /* DashboardIdentityAggregation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardIdentityAggregation.swift; sourceTree = "<group>"; };
 		DIDENT001 /* SessionRepositoryDashboardIdentities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepositoryDashboardIdentities.swift; sourceTree = "<group>"; };
 		DPAC001 /* DashboardProviderAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardProviderAccess.swift; sourceTree = "<group>"; };
+		DPSN001 /* DashboardProviderSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardProviderSnapshot.swift; sourceTree = "<group>"; };
 		BOTQ01F /* BottleQuantityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottleQuantityView.swift; sourceTree = "<group>"; };
 		BOTS01F /* BottleSupplyViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottleSupplyViews.swift; sourceTree = "<group>"; };
 		DB770004 /* DashboardTransferView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Views/DashboardTransferView.swift; sourceTree = "<group>"; };
@@ -629,6 +631,7 @@
 				HKP002 /* HealthKitProviding.swift */,
 				RNS002 /* ReviewedNightSleepLoader.swift */,
 				DPAC001 /* DashboardProviderAccess.swift */,
+		DPSN001 /* DashboardProviderSnapshot.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -984,6 +987,7 @@
 				HKP001 /* HealthKitProviding.swift in Sources */,
 				RNS001 /* ReviewedNightSleepLoader.swift in Sources */,
 				DPAC101 /* DashboardProviderAccess.swift in Sources */,
+		DPSN101 /* DashboardProviderSnapshot.swift in Sources */,
 				UNDO003 /* UndoSnackbarView.swift in Sources */,
 				UNDO005 /* MedicationSettingsView.swift in Sources */,
 				D074B302 /* MedicationPresetSettingsView.swift in Sources */,

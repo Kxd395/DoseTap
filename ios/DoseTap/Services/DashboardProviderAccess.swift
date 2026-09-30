@@ -29,23 +29,22 @@ struct DashboardProviderQueries {
     var healthEnabled: () -> Bool
     var whoopEnabled: () -> Bool
     var whoopConnected: () -> Bool
-    var prepareHealth: () async -> Bool
+    var prepareHealth: () async -> HealthReadPreparation
     var healthHistory: (DashboardReportingWindow) async throws -> [HealthKitService.SleepNightSummary]
-    var whoopHistory: (Date, Date) async throws -> [WHOOPNightSummary]
+    var whoopHistory: (Date, Date) async throws -> WHOOPNightFetchResult
 
     static var live: Self {
         Self(healthEnabled: { UserSettingsManager.shared.healthKitEnabled },
              whoopEnabled: { WHOOPService.isEnabled && UserSettingsManager.shared.whoopEnabled },
              whoopConnected: { WHOOPService.shared.isConnected },
              prepareHealth: {
-                 await HealthKitService.shared.syncAuthorizationState()
-                 return HealthKitService.shared.isAuthorized
+                 await HealthKitService.shared.prepareReadAuthorization()
              }, healthHistory: { window in
                  var calendar = Calendar(identifier: .gregorian); calendar.timeZone = window.timeZone
                  return try await HealthKitService.shared.dashboardSleepHistory(
                     days: window.healthQueryDays, through: window.asOf, calendar: calendar)
              }, whoopHistory: { start, end in
-                 try await WHOOPService.shared.fetchNightSummaries(from: start, to: end)
+                 try await WHOOPService.shared.fetchNightSummaryResult(from: start, to: end)
              })
     }
 }

@@ -30,15 +30,22 @@ extension DashboardAnalyticsModel {
     }
 
     var healthQueryDescription: String {
-        guard let query = healthQueryWindow else { return "Apple Health has not been queried for this report." }
+        guard let query = healthQueryWindow else { return "Apple Health has no successful query for this report." }
         let formatter = DateFormatter(); formatter.locale = .current; formatter.timeZone = query.timeZone
         formatter.dateStyle = .medium; formatter.timeStyle = .short
-        let period = "Apple Health query requested \(formatter.string(from: query.healthQueryStart)) – \(formatter.string(from: query.asOf)) (\(query.timeZone.identifier)); up to \(query.healthQueryDays) treatment nights."
+        let stale = healthSnapshot?.failedAttemptAt.map { "Stale Apple Health results; failed attempt at \(formatter.string(from: $0)). " } ?? ""
+        let period = stale + "Apple Health successful query requested \(formatter.string(from: query.healthQueryStart)) – \(formatter.string(from: query.asOf)) (\(query.timeZone.identifier)); up to \(query.healthQueryDays) treatment nights."
         if query.range != selectedRange { return period + " The selected range has changed; refresh coverage is pending." }
         let coverage = query.healthQueryTruncatesPriorPeriod
             ? " The 730-night limit omits the beginning of the preceding calendar period."
             : (query.range == .all ? " All Time includes local history beyond provider retrieval." : " Query bounds include the selected and preceding periods.")
         return period + coverage + " Query bounds do not establish complete sleep measurements."
+    }
+
+    var whoopQueryDescription: String {
+        guard let snapshot = whoopSnapshot else { return "WHOOP has no successful query for this report." }
+        let pending = snapshot.window.range != selectedRange ? " The selected range has changed; refresh coverage is pending." : ""
+        return snapshot.description(provider: "WHOOP") + pending + " Retrieval is limited to 30 days; query bounds do not establish complete measurements."
     }
 
     var explicitDayTypeCount: Int {

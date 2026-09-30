@@ -188,15 +188,15 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
             _ = try await withTimeout(seconds: authorizationTimeoutSeconds) {
                 try await self.requestAuthorizationViaCallback()
             }
-            await refreshReadAuthorization()
-            if isAuthorized {
+            let preparation = await refreshReadAuthorization()
+            if preparation == .ready {
                 lastError = nil
                 healthKitLog.info("HealthKit read request completed; readable data remains query-dependent")
             } else {
                 lastError = "HealthKit access could not be prepared"
                 healthKitLog.warning("HealthKit read access is not ready")
             }
-            return isAuthorized
+            return preparation == .ready
         } catch AuthorizationError.timedOut {
             lastError = "HealthKit authorization timed out. Open Health and try again."
             healthKitLog.warning("Authorization timed out")

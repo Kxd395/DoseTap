@@ -22,6 +22,8 @@ final class DashboardAnalyticsModel: ObservableObject {
     @Published var reportingAsOf: Date
     @Published var reportingTimeZone: TimeZone
     @Published var healthQueryWindow: DashboardReportingWindow?
+    @Published var healthSnapshot: DashboardProviderSnapshot<HealthKitService.SleepNightSummary>?
+    @Published var whoopSnapshot: DashboardProviderSnapshot<WHOOPNightSummary>?
     let timeZone: () -> TimeZone
     let now: () -> Date
     let providerAccess: DashboardProviderAccess
@@ -62,6 +64,18 @@ final class DashboardAnalyticsModel: ObservableObject {
 
     static let keyFormatter: DateFormatter = AppFormatters.sessionDate
 
+    func providerSnapshotIsCurrent(_ provider: DashboardProviderAccess.Provider) -> Bool {
+        guard !isLoading else { return false }
+        func current<T>(_ snapshot: DashboardProviderSnapshot<T>?) -> Bool {
+            guard let snapshot else { return false }
+            return snapshot.failedAttemptAt == nil && snapshot.window.range == selectedRange
+                && snapshot.window.asOf == reportingAsOf && reportingTimeZone == timeZone()
+                && snapshot.matches(timeZone: reportingTimeZone, epoch: providerAccess.revision[provider])
+        }
+        if provider == .health { return providerQueries.healthEnabled() && current(healthSnapshot) }
+        return providerQueries.whoopEnabled() && providerQueries.whoopConnected() && current(whoopSnapshot)
+    }
+
     func providerAccessChanged(_ provider: DashboardProviderAccess.Provider) {
         let current = providerAccess.revision
         // A delayed notification must not erase a newer, already validated publication.
@@ -74,7 +88,7 @@ final class DashboardAnalyticsModel: ObservableObject {
             if provider == .health { row.healthSummary = nil } else { row.whoopSummary = nil }
             return row
         }.filter { $0.hasAnyData || $0.napSummary.count > 0 || $0.snoozeCount > 0 }
-        if provider == .health { healthQueryWindow = nil }
+        if provider == .health { healthQueryWindow = nil; healthSnapshot = nil } else { whoopSnapshot = nil }
         publishedProviderAccess[provider] = current[provider]
         integrationStates = buildIntegrationStates(healthMatches: nights.filter { $0.healthSummary != nil }.count,
             whoopMatches: nights.filter { $0.whoopSummary != nil }.count)
