@@ -7,12 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		CTX003B /* ContextMorningOutcomesUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CTX003F; };
-		CTX002B /* ContextMorningOutcomesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CTX002F; };
-		CTX001B /* ContextMorningProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = CTX001F; };
-		WBPROJ001 /* DashboardWorkCycleProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBPROJ101 /* DashboardWorkCycleProjection.swift */; };
-		DRPL105 /* DashboardReplayUITestFixture.swift in Sources */ = {isa = PBXBuildFile; fileRef = DRPL005 /* DashboardReplayUITestFixture.swift */; };
-		DRPL104 /* DashboardReplayExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = DRPL004 /* DashboardReplayExport.swift */; };
 		DINS001B /* DashboardInspection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DINS001F; };
 		DPUI002B /* DosePatternDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI002F; };
 		DPUI003B /* DosePatternPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI003F; };
@@ -225,6 +219,12 @@
 		DAYB005 /* DaytimeTrendsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYF005 /* DaytimeTrendsView.swift */; };
 		DAYB006 /* DaytimeDashboardRoute.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYF006 /* DaytimeDashboardRoute.swift */; };
 		DAYB007 /* SessionRepositoryDaytimeSources.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYF007 /* SessionRepositoryDaytimeSources.swift */; };
+		CTX003B /* ContextMorningOutcomesUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CTX003F; };
+		CTX002B /* ContextMorningOutcomesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CTX002F; };
+		CTX001B /* ContextMorningProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = CTX001F; };
+		WBPROJ001 /* DashboardWorkCycleProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBPROJ101 /* DashboardWorkCycleProjection.swift */; };
+		DRPL105 /* DashboardReplayUITestFixture.swift in Sources */ = {isa = PBXBuildFile; fileRef = DRPL005 /* DashboardReplayUITestFixture.swift */; };
+		DRPL104 /* DashboardReplayExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = DRPL004 /* DashboardReplayExport.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -245,12 +245,6 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		CTX003F /* ContextMorningOutcomesUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextMorningOutcomesUITests.swift; sourceTree = "<group>"; };
-		CTX002F /* ContextMorningOutcomesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextMorningOutcomesView.swift; sourceTree = "<group>"; };
-		CTX001F /* ContextMorningProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextMorningProjection.swift; sourceTree = "<group>"; };
-		WBPROJ101 /* DashboardWorkCycleProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardWorkCycleProjection.swift; sourceTree = "<group>"; };
-		DRPL005 /* DashboardReplayUITestFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardReplayUITestFixture.swift; sourceTree = "<group>"; };
-		DRPL004 /* DashboardReplayExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardReplayExport.swift; sourceTree = "<group>"; };
 		DINS001F /* DashboardInspection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardInspection.swift; sourceTree = "<group>"; };
 		DPUI002F /* DosePatternDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternDetailSheet.swift; sourceTree = "<group>"; };
 		DPUI003F /* DosePatternPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternPresentation.swift; sourceTree = "<group>"; };
@@ -488,6 +482,12 @@
 		DAYF005 /* DaytimeTrendsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaytimeTrendsView.swift; sourceTree = "<group>"; };
 		DAYF006 /* DaytimeDashboardRoute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaytimeDashboardRoute.swift; sourceTree = "<group>"; };
 		DAYF007 /* SessionRepositoryDaytimeSources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepositoryDaytimeSources.swift; sourceTree = "<group>"; };
+		CTX003F /* ContextMorningOutcomesUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextMorningOutcomesUITests.swift; sourceTree = "<group>"; };
+		CTX002F /* ContextMorningOutcomesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextMorningOutcomesView.swift; sourceTree = "<group>"; };
+		CTX001F /* ContextMorningProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextMorningProjection.swift; sourceTree = "<group>"; };
+		WBPROJ101 /* DashboardWorkCycleProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardWorkCycleProjection.swift; sourceTree = "<group>"; };
+		DRPL005 /* DashboardReplayUITestFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardReplayUITestFixture.swift; sourceTree = "<group>"; };
+		DRPL004 /* DashboardReplayExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardReplayExport.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
