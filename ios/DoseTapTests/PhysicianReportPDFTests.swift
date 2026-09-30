@@ -21,6 +21,9 @@ final class PhysicianReportPDFTests: XCTestCase {
         XCTAssertTrue(text.contains("Synthetic source"))
         XCTAssertTrue(text.contains("1/1 eligible"))
         XCTAssertTrue(text.contains("America/New_York"))
+        XCTAssertTrue(text.contains("2026-12"))
+        XCTAssertTrue(text.contains("No observations recorded"))
+        XCTAssertTrue(text.contains("13 calendar days"))
         XCTAssertTrue(text.contains("FINAL QUESTION RETAINED"))
         XCTAssertTrue(text.contains(snapshot.id.uuidString))
     }

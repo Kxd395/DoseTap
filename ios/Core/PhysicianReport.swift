@@ -27,12 +27,15 @@ public struct PhysicianReportObservation: Codable, Equatable, Identifiable, Send
     public let detail: String
     public let recordIDs: [String]
     public let requiresReview: Bool
+    public let detailOnly: Bool?
+    public let comparisonLabel: String?
     public init(id: String, observedAt: Date?, metricID: String, value: Double?, state: PhysicianMetricState,
                 unit: String, source: String, definitionVersion: String, detail: String,
-                recordIDs: [String], requiresReview: Bool = false) {
+                recordIDs: [String], requiresReview: Bool = false, detailOnly: Bool = false, comparisonLabel: String? = nil) {
         self.id = id; self.observedAt = observedAt; self.metricID = metricID; self.value = value
         self.state = state; self.unit = unit; self.source = source; self.definitionVersion = definitionVersion
         self.detail = detail; self.recordIDs = recordIDs; self.requiresReview = requiresReview
+        self.detailOnly = detailOnly ? true : nil; self.comparisonLabel = comparisonLabel
     }
     fileprivate var stratum: [String] { [metricID, unit, source, definitionVersion] }
 }
@@ -65,7 +68,10 @@ public struct VisitPreparationNote: Codable, Equatable, Identifiable, Sendable {
 }
 
 public struct PhysicianMetricSummary: Codable, Equatable, Identifiable, Sendable {
-    public var id: String { ([month ?? "full", metricID, unit, source, definitionVersion]).joined(separator: " | ") }
+    public var id: String { ([month ?? "full", metricID, unit, source, definitionVersion, comparisonLabel ?? ""]).joined(separator: " | ") }
+    public let comparisonLabel: String?
+    public let includedPartialCount: Int?
+    public var numericContributionCount: Int { availableCount + (includedPartialCount ?? 0) }
     public let month: String?
     public let metricID: String
     public let unit: String
@@ -98,11 +104,13 @@ public struct PhysicianReportSnapshot: Codable, Equatable, Identifiable, Sendabl
     public let observations: [PhysicianReportObservation]
     public let notes: [VisitPreparationNote]
     public let questions: [String]
+    public let contexts: [PhysicianReportContext]?
+    public let includePartialMetrics: Bool?
     public let summaries: [PhysicianMetricSummary]
     public let monthlySummaries: [PhysicianMetricSummary]
 
     public init(period: PhysicianReportPeriod, observations: [PhysicianReportObservation],
-                notes: [VisitPreparationNote], questions: [String], appVersion: String, generatedAt: Date, coverageDescription: String = "") throws {
+                notes: [VisitPreparationNote], questions: [String], appVersion: String, generatedAt: Date, coverageDescription: String = "", contexts: [PhysicianReportContext] = [], includePartialMetrics: Bool = false) throws {
         try period.validate()
         guard generatedAt.timeIntervalSince1970.isFinite, generatedAt >= period.capturedAt,
               !appVersion.isEmpty, appVersion.count <= 100,
@@ -111,10 +119,14 @@ public struct PhysicianReportSnapshot: Codable, Equatable, Identifiable, Sendabl
               questions.count <= 20, questions.allSatisfy({ $0.count <= 2000 }) else { throw PhysicianReviewError.invalidText }
         for value in observations {
             guard !value.id.isEmpty, value.stratum.allSatisfy({ !$0.isEmpty && $0.count <= 300 }),
-                  value.value.map(\.isFinite) != false,
+                  value.value.map(\.isFinite) != false, value.comparisonLabel.map({ !$0.isEmpty && $0.count <= 2000 }) != false,
                   value.observedAt.map({ $0.timeIntervalSince1970.isFinite && $0 <= generatedAt }) != false,
                   value.state != .available || value.value != nil else { throw PhysicianReviewError.invalidText }
         }
+        guard Set(contexts.map(\.id)).count == contexts.count else { throw PhysicianReviewError.invalidText }
+        for context in contexts { try context.validate() }
+        self.contexts = contexts.isEmpty ? nil : contexts
+        self.includePartialMetrics = includePartialMetrics ? true : nil
         let selected = observations.filter { $0.observedAt.map(period.contains) ?? true }
         let evidence = Set(selected.map(\.id) + selected.flatMap(\.recordIDs))
         guard notes.allSatisfy({ Set($0.evidenceIDs).isSubset(of: evidence) && $0.activity.count <= 300 && $0.comment.count <= 4000 &&
@@ -126,16 +138,16 @@ public struct PhysicianReportSnapshot: Codable, Equatable, Identifiable, Sendabl
             $0.observedAt == $1.observedAt ? $0.id < $1.id : ($0.observedAt ?? .distantPast) > ($1.observedAt ?? .distantPast)
         }
         self.notes = notes.filter(\.selectedForSharing); self.questions = questions
-        summaries = Self.aggregate(self.observations, period: period, monthly: false)
-        monthlySummaries = Self.aggregate(self.observations, period: period, monthly: true)
+        summaries = Self.aggregate(self.observations, period: period, monthly: false, includePartial: includePartialMetrics)
+        monthlySummaries = Self.aggregate(self.observations, period: period, monthly: true, includePartial: includePartialMetrics)
     }
 
     /// Revalidate decoded snapshots before rendering or re-exporting local/imported data.
     public func validate() throws {
         let checked = try Self(period: period, observations: observations, notes: notes, questions: questions,
-                               appVersion: appVersion, generatedAt: generatedAt, coverageDescription: coverageDescription)
+                               appVersion: appVersion, generatedAt: generatedAt, coverageDescription: coverageDescription, contexts: contexts ?? [], includePartialMetrics: includePartialMetrics == true)
         guard version == Self.formatVersion, checked.observations == observations, checked.notes == notes,
-              checked.summaries == summaries, checked.monthlySummaries == monthlySummaries else {
+              checked.contexts == contexts, checked.includePartialMetrics == includePartialMetrics, checked.summaries == summaries, checked.monthlySummaries == monthlySummaries else {
             throw PhysicianReviewError.invalidRevision
         }
     }
@@ -147,33 +159,36 @@ public struct PhysicianReportSnapshot: Codable, Equatable, Identifiable, Sendabl
         return observations.filter { $0.observedAt.map { $0 >= max(period.start, start) } ?? false }
     }
     public func jsonData() throws -> Data {
+        try validate()
         let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         guard var object = try JSONSerialization.jsonObject(with: encoder.encode(self)) as? [String: Any] else { throw PhysicianReviewError.invalidText }
+        object["monthlyCoverage"] = try JSONSerialization.jsonObject(with: encoder.encode(monthlyCoverage))
         object["timestampEncoding"] = "seconds since 2001-01-01T00:00:00Z"
         return try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys])
     }
     public var detailCSV: String {
         let formatter = ISO8601DateFormatter()
-        var rows = [["snapshot_id", "format_version", "period_start", "period_end_exclusive", "timezone", "observation_id", "observed_at", "metric", "value", "unit", "state", "source", "definition_version", "record_ids", "requires_review", "detail"]]
+        var rows = [["snapshot_id", "format_version", "period_start", "period_end_exclusive", "timezone", "observation_id", "observed_at", "metric", "value", "unit", "state", "source", "definition_version", "record_ids", "requires_review", "detail", "detail_only", "comparison_label", "include_partial_metrics"]]
         rows += observations.map { value in
             [id.uuidString, version, formatter.string(from: period.start), formatter.string(from: period.endExclusive),
              period.timeZoneIdentifier, value.id, value.observedAt.map(formatter.string) ?? "Unknown occurrence time",
              value.metricID, value.value.map { String($0) } ?? "", value.unit, value.state.rawValue, value.source,
-             value.definitionVersion, value.recordIDs.joined(separator: " | "), value.requiresReview ? "yes" : "no", value.detail]
+             value.definitionVersion, value.recordIDs.joined(separator: " | "), value.requiresReview ? "yes" : "no", value.detail, value.detailOnly == true ? "yes" : "no", value.comparisonLabel ?? "", includePartialMetrics == true ? "yes" : "no"]
         }
         return rows.map(ReportCSV.row).joined(separator: "\r\n") + "\r\n"
     }
     private static func aggregate(_ values: [PhysicianReportObservation], period: PhysicianReportPeriod,
-                                  monthly: Bool) -> [PhysicianMetricSummary] {
+                                  monthly: Bool, includePartial: Bool) -> [PhysicianMetricSummary] {
         let formatter = DateFormatter(); formatter.calendar = Calendar(identifier: .gregorian)
         formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.timeZone = TimeZone(identifier: period.timeZoneIdentifier)
         formatter.dateFormat = "yyyy-MM-dd"
-        let groups = Dictionary(grouping: values, by: { value in
-            value.stratum + [monthly ? value.observedAt.map { String(formatter.string(from: $0).prefix(7)) } ?? "Unknown date" : "full"]
+        let groups = Dictionary(grouping: values.filter { $0.detailOnly != true }, by: { value in
+            value.stratum + [value.comparisonLabel ?? "", monthly ? value.observedAt.map { String(formatter.string(from: $0).prefix(7)) } ?? "Unknown date" : "full"]
         })
         return groups.map { key, rows in
             let available = rows.filter { $0.state == .available && $0.observedAt != nil }
-            let numbers = available.compactMap(\.value).sorted()
+            let partial = includePartial ? rows.filter { $0.state == .partial && $0.observedAt != nil && $0.value != nil } : []
+            let numbers = (available + partial).compactMap(\.value).sorted()
             func quantile(_ p: Double) -> Double? {
                 guard !numbers.isEmpty else { return nil }
                 let position = Double(numbers.count - 1) * p, low = Int(position), high = min(low + 1, numbers.count - 1)
@@ -190,7 +205,8 @@ public struct PhysicianReportSnapshot: Codable, Equatable, Identifiable, Sendabl
                     dayCount = max(0, (calendar.dateComponents([.day], from: lower, to: upper).day ?? -1) + 1)
                 } else { dayCount = 0 }
             }
-            return PhysicianMetricSummary(month: monthly ? key[4] : nil, metricID: key[0], unit: key[1], source: key[2], definitionVersion: key[3],
+            return PhysicianMetricSummary(comparisonLabel: rows.first?.comparisonLabel, includedPartialCount: partial.isEmpty ? nil : partial.count,
+                month: monthly ? key[5] : nil, metricID: key[0], unit: key[1], source: key[2], definitionVersion: key[3],
                 eligibleCount: rows.filter { $0.observedAt != nil && $0.state != .notApplicable && $0.state != .notCollected }.count,
                 availableCount: available.count, unavailableCount: count(.unavailable), partialCount: count(.partial),
                 reviewCount: count(.needsReview), notApplicableCount: count(.notApplicable), notCollectedCount: count(.notCollected),

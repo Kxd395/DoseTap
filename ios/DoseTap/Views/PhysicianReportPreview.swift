@@ -17,18 +17,28 @@ struct PhysicianReportPreview: View {
                     Text("Timezone: \(snapshot.period.timeZoneIdentifier)")
                     Text("\(snapshot.period.calendarDayCount) calendar days; captured \(date(snapshot.generatedAt))")
                     Text(snapshot.coverageDescription).font(.caption)
+                    Text(snapshot.includePartialMetrics == true ? "Partial values included by explicit selection." : "Partial values excluded from numeric summaries.").font(.caption)
                     Text("Not a diagnosis, treatment recommendation or clinical scale score.").font(.caption)
                 }
                 Section("Full-period overview") {
-                    if snapshot.summaries.isEmpty { Text("No observations in this period. Missing information is not zero.") }
+                    if snapshot.summaries.isEmpty { Text("No numeric metric summaries available. Missing information is not zero.") }
                     ForEach(snapshot.summaries) { summary in summaryRow(summary) }
                 }
+                ForEach(snapshot.contexts ?? []) { context in
+                    Section(context.title) {
+                        ForEach(Array(context.lines.enumerated()), id: \.offset) { _, line in Text(line) }
+                        Text("\(context.source) • \(context.definitionVersion)").font(.caption)
+                    }
+                }
                 Section("Monthly detail") {
-                    ForEach(snapshot.monthlySummaries) { summary in summaryRow(summary) }
+                    ForEach(snapshot.monthlyCoverage) { coverage in
+                        Text(coverage.description).font(.headline)
+                        ForEach(snapshot.monthlySummaries.filter { $0.month == coverage.month }) { summary in summaryRow(summary) }
+                    }
                 }
                 Section("Recent detail alongside the full period") {
                     Picker("Recent detail", selection: $recentDays) { Text("14 days").tag(14); Text("28 days").tag(28) }
-                    ForEach(snapshot.recentDetail(days: recentDays)) { value in observationRow(value) }
+                    ForEach(snapshot.recentDetail(days: recentDays).filter { $0.detailOnly != true }) { value in observationRow(value) }
                 }
                 Section("Reviewed visit notes and questions") {
                     ForEach(snapshot.notes) { note in
@@ -71,9 +81,11 @@ struct PhysicianReportPreview: View {
     private func summaryRow(_ value: PhysicianMetricSummary) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text([value.month, value.metricID].compactMap { $0 }.joined(separator: " • ")).font(.headline)
+            if let label = value.comparisonLabel { Text(label).font(.subheadline) }
             Text("Median \(value.median.map { $0.formatted(.number.precision(.fractionLength(1))) } ?? "unavailable") \(value.unit)")
             if let lower = value.lowerQuartile, let upper = value.upperQuartile { Text("Middle 50%: \(lower.formatted())–\(upper.formatted()) \(value.unit)") }
-            Text("\(value.availableCount)/\(value.eligibleCount) eligible observations available; \(value.assessedDays)/\(value.calendarDayCount) assessed calendar days; \(value.availableDays) days with values")
+            Text("\(value.availableCount)/\(value.eligibleCount) eligible observations available; \(value.assessedDays)/\(value.calendarDayCount) calendar days represented; \(value.availableDays) days with values")
+            Text("\(value.numericContributionCount) numeric contributions, including \(value.includedPartialCount ?? 0) partial.").font(.caption)
             Text("Partial \(value.partialCount) • unavailable \(value.unavailableCount) • review \(value.reviewCount) • not applicable \(value.notApplicableCount) • not collected \(value.notCollectedCount) • unplaced \(value.unplacedCount)").font(.caption)
             Text("\(value.source) • \(value.definitionVersion)").font(.caption).foregroundStyle(.secondary)
         }.accessibilityElement(children: .combine)
@@ -102,7 +114,9 @@ struct PhysicianReportPreview: View {
             try Data(snapshot.detailCSV.utf8).write(to: csv, options: [.atomic, .completeFileProtection])
             let pdf = directory.appendingPathComponent("DoseTap-physician-review.pdf")
             try PhysicianReportPDF.render(snapshot).write(to: pdf, options: [.atomic, .completeFileProtection])
-            share = PhysicianShareFiles(urls: [pdf, json, csv])
+            let summary = directory.appendingPathComponent("DoseTap-physician-summary.csv")
+            try Data(snapshot.summaryCSV.utf8).write(to: summary, options: [.atomic, .completeFileProtection])
+            share = PhysicianShareFiles(urls: [pdf, json, summary, csv])
         } catch { cleanShare(); failure = "The export files could not be prepared. Your saved preview is unchanged; retry sharing." }
     }
     private func cleanShare() {
