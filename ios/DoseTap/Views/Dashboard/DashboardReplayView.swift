@@ -12,15 +12,34 @@ struct DashboardReplayView: View {
     @State private var preset = DashboardIntervalPreset.dose1ToDose2
     @State private var intervalMode = "By date"
     @State private var export: ReplayExportPreview?
+    @State private var selectionNotice: String?
+    @State private var endpointSelections: [String: [DashboardReplayMarker]] = [:]
     @Environment(\.dashboardPalette) private var palette
 
     private var snapshots: [DashboardReplaySnapshot] {
-        model.populatedNights.map { model.replaySnapshot(for: $0,
-            reviewed: $0.replayID == selectedID ? coverage.result : nil) }
+        model.populatedNights.map { night in
+            let base = model.replaySnapshot(for: night, reviewed: night.replayID == selectedID ? coverage.result : nil)
+            do { return try base.addingSelectedEndpoints(endpointSelections[night.replayID] ?? []) }
+            catch {
+                return DashboardReplaySnapshot(sessionID: base.sessionID, treatmentDate: base.treatmentDate,
+                    asOf: base.asOf, timeZoneID: base.timeZoneID, sourcePolicy: base.sourcePolicy,
+                    filterDescription: base.filterDescription + "; endpoint selection needs review", markers: base.markers,
+                    dose2NotTaken: base.dose2NotTaken, identityResolved: false,
+                    reviewedProjection: base.reviewedProjection, mainEpisodeIntervals: base.mainEpisodeIntervals)
+            }
+        }
+    }
+    private var selectionIsInvalid: Bool {
+        guard let night = model.populatedNights.first(where: { $0.replayID == selectedID }) else { return false }
+        return (try? model.replaySnapshot(for: night).addingSelectedEndpoints(endpointSelections[night.replayID] ?? [])) == nil
     }
     private var selected: DashboardReplaySnapshot? { snapshots.first { $0.sessionID == selectedID } }
     private var available: [(snapshot: DashboardReplaySnapshot, value: Double)] {
         snapshots.compactMap { snap in snap.interval(preset).minutes.map { (snap, $0) } }
+    }
+    private var alignedRows: [DashboardReplaySnapshot] {
+        let start = selectedIndex ?? 0
+        return Array(snapshots.dropFirst(start).prefix(28))
     }
     private var selectedIndex: Int? { snapshots.firstIndex { $0.sessionID == selectedID } }
     private var sleepPairCount: Int {
@@ -54,11 +73,22 @@ struct DashboardReplayView: View {
                     Text("\(snap.sourcePolicy) • \(snap.timeZoneID)").font(.caption)
                     Text("As of \(stamp(snap.asOf, snap)) • one row is one session").font(.caption).foregroundStyle(.secondary)
                     if !snap.identityResolved { Label("Session association needs review. No interval is inferred.", systemImage: "questionmark.diamond") }
+                    if let notice = selectionNotice { Text(notice).font(.caption) }
+                    if selectionIsInvalid {
+                        Label("Selected endpoints are no longer valid. Clear them and select current records before exporting.", systemImage: "exclamationmark.triangle")
+                        Button("Clear selected endpoints") { endpointSelections[snap.sessionID] = [] }
+                    }
+                    DashboardReplayEndpoints(model: model, snapshot: snap, selected: Binding(
+                        get: { endpointSelections[snap.sessionID] ?? [] }, set: {
+                            endpointSelections[snap.sessionID] = $0; selectionNotice = nil
+                        }))
                     if page == "Replay" { replay(snap) }
                     else if page == "Intervals" { intervals }
                     else { coveragePanel(snap) }
-                    Button("Preview selected session export") { export = ReplayExportPreview(snapshot: snap) }
-                        .accessibilityIdentifier("dashboard-replay-export")
+                    Button("Preview selected session export") {
+                        export = ReplayExportPreview(snapshot: snap.withViewContext("View: \(page); preset: \(preset.rawValue); alignment: \(alignment.rawValue); display: \(intervalMode); selected-session export"))
+                    }
+                        .accessibilityIdentifier("dashboard-replay-export").disabled(selectionIsInvalid)
                 } else {
                     Text(selectedID == nil ? "Choose a session to inspect its recorded occurrences. Missing endpoints remain unavailable."
                          : "The selected session is no longer in the current source or filter results. Choose another session; no replacement was selected automatically.")
@@ -69,7 +99,11 @@ struct DashboardReplayView: View {
         .onAppear { if selectedID == nil { selectedID = snapshots.first?.sessionID } }
         .onChange(of: selectedID) { _ in coverage.invalidate() }
         .onReceive(model.objectWillChange) { _ in coverage.invalidate() }
-        .onReceive(model.sessionRepo.sessionDidChange) { _ in coverage.invalidate() }
+        .onReceive(model.sessionRepo.sessionDidChange) { _ in
+            coverage.invalidate()
+            if !endpointSelections.isEmpty { selectionNotice = "Local records changed. Select current medication or nap endpoints again." }
+            endpointSelections.removeAll()
+        }
         .onReceive(model.providerAccess.changes) { _ in coverage.invalidate() }
         .sheet(item: $export) { $0 }
     }
@@ -81,13 +115,24 @@ struct DashboardReplayView: View {
         Text(alignment == .clock ? "Local clock labels include date and UTC offset; elapsed intervals use UTC."
              : "Minutes from the selected administration; negative values occurred before it.").font(.caption)
         if !snap.markers.isEmpty, snap.position(of: snap.markers[0].occurredAt, alignment: alignment) != nil {
-            Chart(snap.markers) { marker in
+            Chart {
+                ForEach(snap.markers) { marker in
                 if let x = snap.position(of: marker.occurredAt, alignment: alignment) {
                     PointMark(x: .value("Position", x), y: .value("Event", marker.kind.label))
                         .foregroundStyle(palette.timing).symbol(.diamond)
                         .accessibilityLabel(marker.kind.label + ", " + stamp(marker.occurredAt, snap))
                 }
-            }.frame(height: max(180, CGFloat(Set(snap.markers.map(\.kind)).count) * 36))
+                }
+                if let evidence = snap.mainEpisodeEvidence {
+                    ForEach(Array(evidence.slices.enumerated()), id: \.offset) { _, band in
+                        if let start = snap.position(of: band.start, alignment: alignment), let end = snap.position(of: band.end, alignment: alignment) {
+                            BarMark(xStart: .value("Position", start), xEnd: .value("Position", end),
+                                    y: .value("Event", "Observed " + band.state.rawValue)).foregroundStyle(palette.sleep)
+                        }
+                    }
+                }
+            }.frame(height: max(240, CGFloat(Set(snap.markers.map(\.kind)).count + 3) * 36))
+                .chartXScale(domain: replayDomain(snap))
                 .chartXAxis { AxisMarks(values: .automatic(desiredCount: 3)) { value in
                     AxisGridLine(); AxisValueLabel {
                         if let x = value.as(Double.self) {
@@ -96,6 +141,12 @@ struct DashboardReplayView: View {
                     }
                 } }
         } else { Text("No usable alignment endpoint. Select Clock time or review the dose occurrences.") }
+        if let evidence = snap.mainEpisodeEvidence {
+            Text("Imported main-episode intervals; \(amount(evidence.coverage.unmeasuredMinutes)) unmeasured, including \(amount(evidence.conflictMinutes)) conflicting. No stage sequence is inferred.").font(.caption)
+            ForEach(Array(evidence.slices.enumerated()), id: \.offset) { _, band in
+                Text("\(band.state.rawValue): \(stamp(band.start, snap)) to \(stamp(band.end, snap))").font(.caption)
+            }
+        }
         Text("Exact event table").font(.headline)
         Text("Events at the same plotted position remain separate below. Patient wake, device ending and recording times are distinct.").font(.caption)
         ForEach(snap.markers) { marker in
@@ -103,23 +154,32 @@ struct DashboardReplayView: View {
                 Text(marker.kind.label).font(.subheadline.bold())
                 Text(stamp(marker.occurredAt, snap))
                 Text(marker.source).font(.caption).foregroundStyle(.secondary)
+                if let amount = marker.amountDescription { Text("Actual amount: " + amount).font(.caption) }
+                if let formulation = marker.formulation { Text("Formulation: " + formulation).font(.caption) }
                 if let recorded = marker.recordedAt { Text("Recorded \(stamp(recorded, snap))").font(.caption) }
             }.accessibilityElement(children: .combine)
         }
         Text("Aligned session comparison").font(.headline)
-        Text("Same alignment across \(snapshots.count) sessions. The table and session picker retain overlapping events.").font(.caption)
+        Text("Same alignment for up to 28 sessions from the selection (\(alignedRows.count) shown). The table and session picker retain overlapping events.").font(.caption)
         Chart {
-            ForEach(snapshots, id: \.sessionID) { row in
+            ForEach(alignedRows, id: \.sessionID) { row in
                 ForEach(row.markers.filter { [.dose1, .dose2, .reportedWake, .deviceSleepEnd].contains($0.kind) }) { marker in
-                    if let x = row.position(of: marker.occurredAt, alignment: alignment) {
+                    if let x = alignedPosition(marker.occurredAt, row) {
                         PointMark(x: .value("Position", x), y: .value("Session", label(row)))
                             .symbol(by: .value("Endpoint", marker.kind.label)).foregroundStyle(palette.timing)
                     }
                 }
             }
-        }.frame(height: max(180, CGFloat(snapshots.count) * 28))
-        Text("Dose and final-wake endpoints; all recorded event types remain in the selected session table.").font(.caption)
-        ForEach(snapshots, id: \.sessionID) { row in
+        }.frame(height: max(180, CGFloat(alignedRows.count) * 28))
+            .chartXAxis { AxisMarks(values: .automatic(desiredCount: 3)) { value in
+                AxisGridLine(); AxisValueLabel {
+                    if let x = value.as(Double.self) {
+                        Text(alignment == .clock ? String(format: "%02d:%02d", Int(x / 60) % 24, Int(x) % 60) : String(format: "%.0f min", x))
+                    }
+                }
+            } }
+        Text("Clock comparison uses local noon through the following noon. Repeated clock times remain separate records in the exact table; elapsed alignment uses UTC. Dose and final-wake endpoints are shown.").font(.caption)
+        ForEach(alignedRows, id: \.sessionID) { row in
             Button { selectedID = row.sessionID } label: {
                 HStack { Text(label(row)); Spacer(); Text(row.interval(.dose1ToDose2).minutes.map { String(format: "%.1f min D1–D2", $0) } ?? row.interval(.dose1ToDose2).state.rawValue) }
             }
@@ -155,7 +215,7 @@ struct DashboardReplayView: View {
                 }.frame(height: 240)
             } else {
                 Chart(available, id: \.snapshot.sessionID) { pair in
-                    PointMark(x: .value("Session", label(pair.snapshot)), y: .value("Minutes", pair.value))
+                    PointMark(x: .value("Session date", plotDate(pair.snapshot)), y: .value("Minutes", pair.value))
                         .foregroundStyle(palette.timing)
                 }.frame(height: 240)
             }
@@ -165,7 +225,7 @@ struct DashboardReplayView: View {
                 Button { selectedID = snap.sessionID } label: {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(label(snap)).font(.subheadline.bold())
-                        Text(result.minutes.map { String(format: "%.2f minutes", $0) } ?? result.state.rawValue)
+                        Text(result.minutes.map { $0.formatted(.number.precision(.fractionLength(0...6))) + " minutes" } ?? result.state.rawValue)
                         if let reference = result.referenceGroup { Text(reference).font(.caption.bold()) }
                         Text(result.reason).font(.caption)
                     }.frame(maxWidth: .infinity, alignment: .leading)
@@ -197,6 +257,27 @@ struct DashboardReplayView: View {
             }
         }
     }
+    private func replayDomain(_ snap: DashboardReplaySnapshot) -> ClosedRange<Double> {
+        let dates = snap.markers.map(\.occurredAt) + (snap.mainEpisodeEvidence?.slices.flatMap { [$0.start, $0.end] } ?? [])
+        let values = dates.compactMap { snap.position(of: $0, alignment: alignment) }.filter(\.isFinite)
+        guard let low = values.min(), let high = values.max() else { return 0...1 }
+        return (low - 5)...(high + 5)
+    }
+    private func alignedPosition(_ date: Date, _ snap: DashboardReplaySnapshot) -> Double? {
+        guard alignment == .clock else { return snap.position(of: date, alignment: alignment) }
+        guard date.timeIntervalSince1970.isFinite else { return nil }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: snap.timeZoneID) ?? .current
+        let parts = calendar.dateComponents([.hour, .minute, .second], from: date)
+        guard let hour = parts.hour, let minute = parts.minute, let second = parts.second else { return nil }
+        let position = Double(hour * 60 + minute) + Double(second) / 60
+        return position < 720 ? position + 1440 : position
+    }
+    private func plotDate(_ snap: DashboardReplaySnapshot) -> Date {
+        let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian); formatter.timeZone = TimeZone(identifier: snap.timeZoneID)
+        formatter.dateFormat = "yyyy-MM-dd"; return formatter.date(from: snap.treatmentDate) ?? snap.asOf
+    }
     private func label(_ snap: DashboardReplaySnapshot) -> String { "\(snap.treatmentDate) · \(snap.sessionID.suffix(6))" }
     private func amount(_ value: Double?) -> String { value.map { String(format: "%.1f min", $0) } ?? "unavailable" }
     private func move(_ delta: Int) {
@@ -218,7 +299,7 @@ private struct ReplayExportPreview: View, Identifiable {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     Text("Selected session snapshot").font(.headline)
-                    Text("Review the session, source, filters, exact endpoints and coverage before sharing. No notes or names are included. Later corrections require a new snapshot.")
+                    Text("Review the session, source, filters, exact endpoints and coverage before sharing. Notes are excluded. Medication labels, source IDs and timing are included. Later corrections require a new snapshot.")
                     Text(snapshot.csv).font(.caption.monospaced()).textSelection(.enabled)
                     ShareLink("Share CSV text", item: snapshot.csv)
                     if let data = try? snapshot.jsonData(), let json = String(data: data, encoding: .utf8) {

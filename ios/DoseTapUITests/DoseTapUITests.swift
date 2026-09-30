@@ -1275,6 +1275,26 @@ final class DoseTapUITests: XCTestCase {
         captureDashboard("Provider sleep retained after unlink")
     }
 
+    func testDashboardReplayIntervalsAndExport() throws {
+        app.buttons["Dashboard"].tap()
+        let open = app.buttons["dashboard-replay-open"]
+        XCTAssertTrue(open.waitForExistence(timeout: 10)); open.tap()
+        XCTAssertTrue(app.navigationBars["Replay & intervals"].waitForExistence(timeout: 5))
+        captureDashboard("Replay observed intervals and durable selection")
+        app.swipeUp()
+        captureDashboard("Replay clock event positions and observed bands")
+        app.swipeDown()
+        app.segmentedControls["dashboard-replay-page"].buttons["Intervals"].tap()
+        XCTAssertTrue(app.buttons["dashboard-interval-preset"].waitForExistence(timeout: 5))
+        captureDashboard("Curated intervals and explicit denominator")
+        for _ in 0..<12 where !app.buttons["dashboard-replay-export"].isHittable { app.swipeUp() }
+        XCTAssertTrue(app.buttons["dashboard-replay-export"].isHittable)
+        app.buttons["dashboard-replay-export"].tap()
+        XCTAssertTrue(app.navigationBars["Export preview"].waitForExistence(timeout: 5))
+        captureDashboard("Immutable selected session export preview")
+        app.buttons["Close"].tap()
+    }
+
     func testDashboardSixMonthCoverage() throws {
         app.buttons["Dashboard"].tap()
         let range = app.segmentedControls["dashboard-range-picker"]

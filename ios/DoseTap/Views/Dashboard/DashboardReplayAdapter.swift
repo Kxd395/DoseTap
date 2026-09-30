@@ -9,20 +9,21 @@ extension DashboardAnalyticsModel {
     func replaySnapshot(for night: DashboardNightAggregate, reviewed: ReviewedNightSleepResult? = nil) -> DashboardReplaySnapshot {
         let identity = night.replayID
         var markers: [DashboardReplayMarker] = []
-        func append(_ kind: DashboardReplayMarker.Kind, _ date: Date?, _ id: String, _ source: String, recorded: Date? = nil) {
+        func append(_ kind: DashboardReplayMarker.Kind, _ date: Date?, _ id: String, _ source: String, recorded: Date? = nil, sourceSessionID: String? = nil) {
             guard let date else { return }
-            markers.append(.init(id: id, sessionID: identity, kind: kind, occurredAt: date, recordedAt: recorded, source: source))
+            markers.append(.init(id: id, sessionID: sourceSessionID ?? identity, kind: kind, occurredAt: date, recordedAt: recorded, source: source))
         }
         for event in night.doseEvents {
             let kind: DashboardReplayMarker.Kind
             switch CanonicalDoseEventType(canonicalizing: event.eventType) {
             case .dose1: kind = .dose1
             case .dose2: kind = .dose2
+            case .extraDose: kind = .extraDose
             default: continue
             }
             let metadata = event.metadata.flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }
             let recorded = (metadata?["recorded_at_utc"] as? String).flatMap { ISO8601DateFormatter().date(from: $0) }
-            append(kind, event.timestamp, event.id, "Patient-reported administration", recorded: recorded)
+            append(kind, event.timestamp, event.id, "Patient-reported administration", recorded: recorded, sourceSessionID: event.sessionId ?? "")
             if kind == .dose1, metadata?["dose2_reminder_enabled"] as? Bool != false,
                let target = metadata?["reminder_interval_minutes"] as? Int, (1...1440).contains(target) {
                 append(.reminder, event.timestamp.addingTimeInterval(Double(target) * 60), event.id + ":reminder",
@@ -50,25 +51,13 @@ extension DashboardAnalyticsModel {
         }
         return .init(sessionID: identity, treatmentDate: night.sessionDate,
             asOf: max(reportingAsOf, projection?.generatedAt ?? reportingAsOf), timeZoneID: reportingTimeZone.identifier,
-            sourcePolicy: sleepSource.rawValue + " main episode; " + night.providerAssociation,
+            sourcePolicy: sleepSource.rawValue + " main episode; " + night.providerAssociation + (projection == nil ? "" : "; reviewed intervals: Apple Health"),
             filterDescription: rangeDescription, markers: markers, dose2NotTaken: night.dose2Skipped,
-            identityResolved: night.sessionID != nil && !night.identityNeedsReview, reviewedProjection: projection)
+            identityResolved: !night.identityNeedsReview && night.doseEvents.allSatisfy { $0.sessionId == night.sessionID && $0.sessionId != nil } && (night.sessionID != nil || night.healthSummary != nil || night.whoopSummary != nil), reviewedProjection: projection,
+            mainEpisodeIntervals: sleepSource == .appleHealth ? night.healthSummary?.recordedIntervals ?? [] : [])
     }
 
-    /// The existing reviewed-window loader is date-scoped. Never use it when a date contains multiple identities.
     func replayCoverage(sessionID: String) async -> ReviewedNightSleepResult {
-        guard let night = populatedNights.first(where: { $0.replayID == sessionID }),
-              let identity = night.sessionID, !night.identityNeedsReview,
-              Set(nights.filter { $0.sessionDate == night.sessionDate }.compactMap(\.sessionID)).count == 1 else {
-            return .init(status: .needsReview)
-        }
-        let access = providerAccess.revision
-        let result = await sessionRepo.reviewedNightSleep(sessionDate: night.sessionDate)
-        guard access == providerAccess.revision,
-              populatedNights.contains(where: { $0.replayID == sessionID && $0.sessionID == identity && !$0.identityNeedsReview }) else {
-            return .init(status: .stale)
-        }
-        guard result.window == nil || result.window?.sessionID == identity else { return .init(status: .needsReview) }
-        return result
+        await dashboardReviewedCoverage(sessionID: sessionID)
     }
 }

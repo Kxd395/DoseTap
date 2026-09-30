@@ -13,6 +13,11 @@ final class DashboardReplayTests: XCTestCase {
               timeZoneID: "America/New_York", sourcePolicy: "Apple Health main episode", filterDescription: "28 days",
               markers: markers, dose2NotTaken: omitted, identityResolved: resolved)
     }
+    func testInvalidOrFutureDoseCannotAnchorAChart() {
+        for offset in [Double.nan, Double.infinity, 70_000] {
+            XCTAssertNil(snapshot([marker(.dose1, offset)]).position(of: base, alignment: .dose1))
+        }
+    }
     func testOccurrenceNotRecordedAtDrivesElapsedAndLineage() {
         let value = snapshot([marker(.dose1, 0), marker(.dose2, 10_800)]).interval(.dose1ToDose2)
         XCTAssertEqual(value.minutes, 180); XCTAssertEqual(value.state, .available)
@@ -73,6 +78,34 @@ final class DashboardReplayTests: XCTestCase {
         XCTAssertEqual(snap(100).interval(.dose2ToSleep).state, .needsReview)
         XCTAssertTrue(snap(300).csv.contains("conflict_subset_minutes"))
         XCTAssertTrue(snap(300).csv.contains("band_start,band_end,state"))
+    }
+    func testExplicitSelectionRetainsSourceIdentityAndRejectsDoseReplacement() throws {
+        let source = DashboardReplayMarker(id: "xr:selected", sessionID: "session", kind: .medicationXR,
+            occurredAt: base, source: "Explicitly selected administration", sourceRecordID: "original-xr",
+            medicationID: "medicine", formulation: "extendedRelease", amountDescription: "15 mg")
+        let selected = try snapshot([marker(.mainSleepStart, 900)]).addingSelectedEndpoints([source])
+        XCTAssertEqual(selected.markers.first?.sourceRecordID, "original-xr")
+        XCTAssertEqual(selected.markers.first?.amountDescription, "15 mg")
+        XCTAssertTrue(selected.csv.contains("original-xr"))
+        XCTAssertThrowsError(try selected.addingSelectedEndpoints([marker(.dose1, 0)]))
+        XCTAssertThrowsError(try selected.addingSelectedEndpoints([marker(.napEnd, 0, session: "other")]))
+    }
+    func testExtraAdministrationRequiresPairReview() {
+        let snap = snapshot([marker(.dose1, 0), marker(.dose2, 600), marker(.extraDose, 900)])
+        XCTAssertEqual(snap.interval(.dose1ToDose2).state, .needsReview)
+        XCTAssertNil(snap.interval(.dose1ToDose2).minutes)
+    }
+    func testMainEpisodeBandsPreserveUnknownAndConflictInsteadOfInventingStages() throws {
+        let intervals = [RecordedSleepInterval(start: base, end: base.addingTimeInterval(300), asleep: true),
+                         .init(start: base.addingTimeInterval(200), end: base.addingTimeInterval(400), asleep: false),
+                         .init(start: base.addingTimeInterval(500), end: base.addingTimeInterval(600), asleep: true)]
+        let snap = DashboardReplaySnapshot(sessionID: "session", treatmentDate: "2026-09-21", asOf: base.addingTimeInterval(700),
+            timeZoneID: "UTC", sourcePolicy: "Apple Health", filterDescription: "test", markers: [], mainEpisodeIntervals: intervals)
+        let evidence = try XCTUnwrap(snap.mainEpisodeEvidence)
+        XCTAssertEqual(evidence.slices.map(\.state), [.asleep, .conflict, .awake, .unmeasured, .asleep])
+        XCTAssertEqual(evidence.conflictMinutes, 100 / 60, accuracy: 0.0001)
+        XCTAssertEqual(evidence.coverage.unmeasuredMinutes, 200 / 60, accuracy: 0.0001)
+        XCTAssertTrue(snap.csv.contains("main_episode_interval_start"))
     }
     func testFutureAndDuplicateIDsAreRejected() {
         XCTAssertEqual(snapshot([marker(.dose1, 0), marker(.dose2, 70_000)]).interval(.dose1ToDose2).state, .needsReview)

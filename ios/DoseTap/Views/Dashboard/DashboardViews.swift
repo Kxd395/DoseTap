@@ -77,6 +77,8 @@ struct DashboardTabView: View {
                         .padding(.bottom, 4)
                 }
 
+                NavigationLink("Replay & intervals") { DashboardReplayView(model: model) }
+                    .accessibilityIdentifier("dashboard-replay-open").padding(.horizontal)
                 Picker("Dashboard section", selection: $section) {
                     Text("All").tag("All")
                     Text("Overview").tag("Overview")

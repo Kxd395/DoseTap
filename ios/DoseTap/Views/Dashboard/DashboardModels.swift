@@ -117,8 +117,11 @@ extension DashboardAnalyticsModel {
             nights = (1...8).map { offset in
                 let date = Calendar.current.date(byAdding: .day, value: -offset, to: now())!
                 let key = Self.keyFormatter.string(from: date)
-                let health = HealthKitService.SleepNightSummary(date: date, bedTime: nil, sleepOnset: nil,
-                    firstWake: nil, finalWake: nil, ttfwMinutes: 180, totalSleepMinutes: Double(390 + offset * 10), wakeCount: 2, source: "UI test")
+                var health = HealthKitService.SleepNightSummary(date: date, bedTime: nil, sleepOnset: date.addingTimeInterval(600),
+                    firstWake: nil, finalWake: date.addingTimeInterval(Double(390 + offset * 10) * 60 + 1200), ttfwMinutes: 180, totalSleepMinutes: Double(390 + offset * 10), wakeCount: 2, source: "UI test")
+                health.recordedIntervals = [.init(start: date.addingTimeInterval(600), end: date.addingTimeInterval(12_000), asleep: true),
+                    .init(start: date.addingTimeInterval(12_000), end: date.addingTimeInterval(12_600), asleep: false),
+                    .init(start: date.addingTimeInterval(12_600), end: date.addingTimeInterval(Double(390 + offset * 10) * 60 + 1200), asleep: true)]
                 let whoop = WHOOPNightSummary(date: date, sleepId: key, totalSleepMinutes: 450,
                     remMinutes: 90, deepMinutes: 75, lightMinutes: 285, awakeMinutes: 30,
                     inBedMinutes: 480, disturbanceCount: 3, sleepEfficiency: 93.75,
@@ -144,6 +147,12 @@ extension DashboardAnalyticsModel {
                 if offset % 3 == 0 || offset == 4 || offset == 5 {
                     diary.sleepiness = offset == 4 ? 0 : offset
                     diary.assessedAt = date.addingTimeInterval(14 * 3600)
+                }
+                aggregate.sessionID = key; aggregate.stableID = "session:" + key; aggregate.sessionClosed = true
+                aggregate.providerAssociation = "Synthetic resolved association"
+                aggregate.doseEvents = [.init(id: "d1:" + key, eventType: "dose1", timestamp: date, sessionDate: key, sessionId: key)]
+                if let second = aggregate.dose2Time {
+                    aggregate.doseEvents.append(.init(id: "d2:" + key, eventType: "dose2", timestamp: second, sessionDate: key, sessionId: key))
                 }
                 aggregate.outcome = diary
                 return aggregate

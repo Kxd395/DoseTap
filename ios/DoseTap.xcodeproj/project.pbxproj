@@ -14,6 +14,7 @@
 		DIDENT104 /* DashboardProviderMatching.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT004 /* DashboardProviderMatching.swift */; };
 		DIDENT103 /* DashboardProviderAssociations.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT003 /* DashboardProviderAssociations.swift */; };
 		DRPL103 /* DashboardReviewedCoverage.swift in Sources */ = {isa = PBXBuildFile; fileRef = DRPL003 /* DashboardReviewedCoverage.swift */; };
+		DRPL102 /* DashboardReplayEndpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = DRPL002 /* DashboardReplayEndpoints.swift */; };
 		DRPL101 /* DashboardReplayAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = DRPL001 /* DashboardReplayAdapter.swift */; };
 		DRPL100 /* DashboardReplayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DRPL000 /* DashboardReplayView.swift */; };
 		DIDENT102 /* DashboardIdentityAggregation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT002 /* DashboardIdentityAggregation.swift */; };
@@ -225,6 +226,7 @@
 		DIDENT004 /* DashboardProviderMatching.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardProviderMatching.swift; sourceTree = "<group>"; };
 		DIDENT003 /* DashboardProviderAssociations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardProviderAssociations.swift; sourceTree = "<group>"; };
 		DRPL003 /* DashboardReviewedCoverage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardReviewedCoverage.swift; sourceTree = "<group>"; };
+		DRPL002 /* DashboardReplayEndpoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardReplayEndpoints.swift; sourceTree = "<group>"; };
 		DRPL001 /* DashboardReplayAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardReplayAdapter.swift; sourceTree = "<group>"; };
 		DRPL000 /* DashboardReplayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardReplayView.swift; sourceTree = "<group>"; };
 		DIDENT002 /* DashboardIdentityAggregation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardIdentityAggregation.swift; sourceTree = "<group>"; };
@@ -607,6 +609,7 @@
 			children = (
 				CLUST001 /* DashboardModels.swift */,
 				DRPL003 /* DashboardReviewedCoverage.swift */,
+				DRPL002 /* DashboardReplayEndpoints.swift */,
 				DRPL001 /* DashboardReplayAdapter.swift */,
 				DRPL000 /* DashboardReplayView.swift */,
 				CLUST002 /* DashboardViews.swift */,
@@ -1165,6 +1168,7 @@
 				1B95E3AD96741FD0E9FED120 /* Secrets.swift in Sources */,
 				CLUST101 /* DashboardModels.swift in Sources */,
 				DRPL103 /* DashboardReviewedCoverage.swift in Sources */,
+				DRPL102 /* DashboardReplayEndpoints.swift in Sources */,
 				DRPL101 /* DashboardReplayAdapter.swift in Sources */,
 				DRPL100 /* DashboardReplayView.swift in Sources */,
 				CLUST102 /* DashboardViews.swift in Sources */,
