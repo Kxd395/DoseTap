@@ -135,7 +135,7 @@ public extension WorkPhaseResult {
             if let precedingPosition, let followingPosition { return "Between \(precedingPosition) and \(followingPosition)" }
             return "Between • positions unknown"
         case .after: return postBlockMainSleepIndex == 1 ? "First post-block main sleep" : "After block • index unknown"
-        case .off: return "Later off-block • index unknown"
+        case .off: return postBlockMainSleepIndex.map { "Post-block main sleep \($0)" } ?? "Later off-block • index unknown"
         case .unknown: return "Unknown / review"
         }
     }

@@ -74,6 +74,7 @@ public struct WorkSleepAssociation: Codable, Equatable, Identifiable, Sendable {
     public var isMainSleep = true
     public var daytimeAssociationReviewed = true
     public var planSnapshotID: UUID?
+    public var eventContext: WorkSleepEventContext?
     public var overridePhase: WorkPhase?
     public var overrideReason = ""
     public init(sleepID: String, precedingDate: String, followingDate: String, timeZoneIdentifier: String, plannedAt: Date, recordedAt: Date) {
@@ -84,6 +85,7 @@ public struct WorkSleepAssociation: Codable, Equatable, Identifiable, Sendable {
         !sleepID.isEmpty && sleepID.count <= 300 && WorkContextDocument.day(precedingDate, zone: timeZoneIdentifier) != nil
             && WorkContextDocument.day(followingDate, zone: timeZoneIdentifier) != nil
             && plannedAt.timeIntervalSince1970.isFinite && recordedAt.timeIntervalSince1970.isFinite && plannedAt <= recordedAt
+            && (eventContext.map { $0.isValid(recordedAt: recordedAt) } ?? true)
             && overrideReason.count <= 1000 && (overridePhase == nil || !overrideReason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
 }
@@ -127,7 +129,8 @@ public struct WorkContextDocument: Codable, Equatable, Sendable {
     public var shiftEvents: [WorkShiftEvent]?
     public init() {}
     public var isValid: Bool {
-        (schemaVersion == 1 || schemaVersion == 2) && (((planSnapshots ?? []).isEmpty && (shiftEvents ?? []).isEmpty) || schemaVersion == 2)
+        (1...3).contains(schemaVersion) && (((planSnapshots ?? []).isEmpty && (shiftEvents ?? []).isEmpty) || schemaVersion >= 2)
+            && (schemaVersion >= 3 || associations.allSatisfy { $0.eventContext == nil })
             && (shiftEvents ?? []).count <= 50000 && (shiftEvents ?? []).allSatisfy(\.isValid) && Set((shiftEvents ?? []).map(\.id)).count == (shiftEvents ?? []).count
             && (planSnapshots ?? []).count <= 50000 && (planSnapshots ?? []).allSatisfy { $0.isValid && $0.rosterCount <= rosters.count && $0.occurrenceCount <= occurrences.count && ($0.shiftEventCount ?? 0) <= (shiftEvents ?? []).count }
             && Set((planSnapshots ?? []).map(\.id)).count == (planSnapshots ?? []).count
@@ -144,7 +147,7 @@ public struct WorkContextDocument: Codable, Equatable, Sendable {
         var snapshot = WorkPlanSnapshot(preSleepLogID: preSleepLogID, sessionID: sessionID, capturedAt: at, contextRevision: revision, rosterCount: rosters.count, occurrenceCount: occurrences.count)
         snapshot.shiftEventCount = (shiftEvents ?? []).count
         guard snapshot.isValid else { return nil }
-        planSnapshots = (planSnapshots ?? []) + [snapshot]; schemaVersion = 2; revision = UUID()
+        planSnapshots = (planSnapshots ?? []) + [snapshot]; schemaVersion = max(schemaVersion, 2); revision = UUID()
         return snapshot
     }
     public static func day(_ value: String, zone: String) -> Date? {
@@ -159,7 +162,7 @@ public struct WorkContextDocument: Codable, Equatable, Sendable {
         associations.filter { $0.sleepID == sleepID && $0.recordedAt <= asOf }.max { $0.recordedAt < $1.recordedAt }
     }
     public func classify(_ association: WorkSleepAssociation, basis: WorkContextBasis, asOf: Date) -> WorkPhaseResult {
-        classify(association, basis: basis, asOf: asOf, documentIsValid: isValid)
+        classify(association, basis: basis, asOf: asOf, documentIsValid: isValid, shifts: WorkShiftHistoryIndex(shiftEvents ?? []))
     }
     public func classificationsBySleepID(_ sleepIDs: Set<String>, basis: WorkContextBasis, asOf: Date) -> [String: WorkPhaseResult] {
         let indexed = associationsBySleepID(sleepIDs, asOf: asOf)
@@ -174,12 +177,15 @@ public struct WorkContextDocument: Codable, Equatable, Sendable {
         return indexed
     }
     public func classifications(_ inputs: [WorkSleepAssociation], basis: WorkContextBasis, asOf: Date) -> [UUID: WorkPhaseResult] {
-        let valid = isValid
+        let valid = isValid, shifts = WorkShiftHistoryIndex(shiftEvents ?? [])
         return inputs.reduce(into: [:]) { output, association in
-            output[association.id] = classify(association, basis: basis, asOf: asOf, documentIsValid: valid)
+            output[association.id] = classify(association, basis: basis, asOf: asOf, documentIsValid: valid, shifts: shifts)
         }
     }
-    private func classify(_ association: WorkSleepAssociation, basis: WorkContextBasis, asOf: Date, documentIsValid: Bool) -> WorkPhaseResult {
+    private func classify(_ association: WorkSleepAssociation, basis: WorkContextBasis, asOf: Date, documentIsValid: Bool, shifts: WorkShiftHistoryIndex) -> WorkPhaseResult {
+        if association.eventContext != nil {
+            return classifyEvent(association, basis: basis, asOf: asOf, documentIsValid: documentIsValid, shifts: shifts)
+        }
         func result(_ phase: WorkPhase, _ detail: String, roster: UUID? = nil, block: String? = nil, first: String? = nil, before: Int? = nil, after: Int? = nil, override: Bool = false) -> WorkPhaseResult {
             WorkPhaseResult(classificationVersion: 1, phase: phase, basis: basis, rosterID: roster, blockID: block, firstShiftDate: first, precedingPosition: before, followingPosition: after, postBlockMainSleepIndex: phase == .after && !override ? 1 : nil, isOverride: override, detail: detail)
         }
