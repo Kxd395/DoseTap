@@ -19,15 +19,19 @@ final class DaytimePromptService: ObservableObject {
     @Published private(set) var status = "Not checked"
     @Published private(set) var isBusy = false
     @Published private(set) var scheduledThrough: Date?
+    @Published private(set) var anchorAvailability: [String] = []
     @Published var promptToOpen: DaytimePrompt?
     private let repository: SessionRepository
     private let client: AlarmNotificationCenterClient
     private let now: () -> Date
+    private let contextProvider: (DaytimePromptSchedule, DaytimePromptLedger, Date) throws -> [DaytimePromptAnchorContext]
     private var again = false
     private var actions: [(UUID, String, CheckedContinuation<Void, Never>)] = []
     private let log = Logger(subsystem: "com.dosetap.app", category: "DaytimePrompt")
-    init(repository: SessionRepository, client: AlarmNotificationCenterClient, now: @escaping () -> Date = Date.init) {
+    init(repository: SessionRepository, client: AlarmNotificationCenterClient, now: @escaping () -> Date = Date.init,
+         contexts: ((DaytimePromptSchedule, DaytimePromptLedger, Date) throws -> [DaytimePromptAnchorContext])? = nil) {
         self.repository = repository; self.client = client; self.now = now
+        contextProvider = contexts ?? { try repository.daytimePromptContexts(for: $0, ledger: $1, asOf: $2) }
     }
     var permitsForegroundPresentation: Bool {
         guard let value = try? repository.daytimePrompts(), value.enabled, !repository.daytimePromptSleepActive,
@@ -36,10 +40,20 @@ final class DaytimePromptService: ObservableObject {
         let minute = calendar.component(.hour, from: now()) * 60 + calendar.component(.minute, from: now())
         return !DaytimePromptSchedule.isQuiet(minute: minute, start: value.quietStart, end: value.quietEnd)
     }
+    func protocolLabel(for prompt: DaytimePrompt) -> String {
+        guard let schedule = ledger.schedules.first(where: { $0.id == prompt.scheduleID }),
+              let zone = TimeZone(identifier: schedule.timeZone) else { return "Schedule definition unavailable" }
+        var calendar = Calendar(identifier: .gregorian); calendar.timeZone = zone
+        let weekdays = schedule.rule?.selectedWeekdays ?? Array(1...7)
+        let days = weekdays.count == 7 ? "Every day" : weekdays.map { calendar.shortWeekdaySymbols[$0 - 1] }.joined(separator: ", ")
+        let clock = String(format: "%02d:%02d", calendar.component(.hour, from: prompt.intendedAt), calendar.component(.minute, from: prompt.intendedAt))
+        let fixedTime = prompt.anchor == nil || prompt.anchor?.kind == .clock ? " \(clock)" : ""
+        return "\(prompt.anchor?.label ?? "Clock time")\(fixedTime) · \(days) · \(schedule.timeZone)"
+    }
     func reconcile() async { _ = await change { _ in } }
     @discardableResult func change(requestPermission: Bool = false, _ mutation: (inout DaytimePromptLedger) throws -> Void) async -> Bool {
         guard !isBusy else { again = true; return false }
-        isBusy = true
+        isBusy = true; anchorAvailability = []
         defer {
             isBusy = false
             if !actions.isEmpty {
@@ -77,9 +91,23 @@ final class DaytimePromptService: ObservableObject {
                 try repository.saveDaytimePrompts(value); ledger = value
                 status = "Suppressed during known sleep or nap. Rechecked when the app records wake or nap end."; return true
             }
-            let upcoming = value.prepareHorizon(at: now())
             guard let schedule = value.current, let zone = TimeZone(identifier: schedule.timeZone) else { throw DaytimeDiaryError.invalid }
             var calendar = Calendar(identifier: .gregorian); calendar.timeZone = zone
+            let sampledAt = now(), contexts = try contextProvider(schedule, value, now())
+            let upcoming = value.prepareHorizon(at: sampledAt, contexts: contexts)
+            if let rule = schedule.rule {
+                let grouped = Dictionary(grouping: contexts, by: \.dayKey)
+                anchorAvailability = (0...7).compactMap { offset in
+                    guard let day = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: sampledAt)),
+                          rule.selectedWeekdays.contains(calendar.component(.weekday, from: day)) else { return nil }
+                    let key = DaytimePromptRule.dayKey(day, timeZone: schedule.timeZone), candidates = grouped[key] ?? []
+                    let resolution = rule.resolve(day: day, clockHour: schedule.hour, clockMinute: schedule.minute,
+                        timeZone: schedule.timeZone, context: candidates.count == 1 ? candidates.first : nil, now: sampledAt)
+                    if let reason = resolution.unavailableReason { return "\(key): not queued — \(reason)." }
+                    if let intended = resolution.intendedAt, intended <= sampledAt { return "\(key): selected anchor has passed; no new reminder queued." }
+                    return nil
+                }
+            }
             let eligible = upcoming.filter { prompt in
                 let minute = calendar.component(.hour, from: prompt.nextAttemptAt) * 60 + calendar.component(.minute, from: prompt.nextAttemptAt)
                 if DaytimePromptSchedule.isQuiet(minute: minute, start: value.quietStart, end: value.quietEnd) {
@@ -94,18 +122,24 @@ final class DaytimePromptService: ObservableObject {
                 status = "Reminder queue is full. Existing dose reminders were preserved; retry after pending reminders clear."
                 return true
             }
+            guard try repository.daytimePrompts().encodedPayload() == value.encodedPayload(),
+                  try contextProvider(schedule, value, now()) == contexts else { throw DaytimeDiaryError.conflict }
+            var triggerCalendar = Calendar(identifier: .gregorian)
+            triggerCalendar.timeZone = TimeZone(secondsFromGMT: 0)!
             for prompt in eligible {
                 let content = UNMutableNotificationContent()
                 content.title = "DoseTap"; content.body = "Your optional check-in is ready when it is safe to pause."
                 content.categoryIdentifier = Self.categoryID; content.interruptionLevel = .passive
                 content.userInfo = ["prompt_id": prompt.id.uuidString]
-                let trigger = UNCalendarNotificationTrigger(dateMatching: calendar.dateComponents([.timeZone, .year, .month, .day, .hour, .minute, .second], from: prompt.nextAttemptAt), repeats: false)
+                let trigger = UNCalendarNotificationTrigger(dateMatching: triggerCalendar.dateComponents([.timeZone, .year, .month, .day, .hour, .minute, .second], from: prompt.nextAttemptAt), repeats: false)
                 try await client.add(UNNotificationRequest(identifier: Self.requestID + "." + prompt.id.uuidString, content: content, trigger: trigger))
             }
-            guard try repository.daytimePrompts().encodedPayload() == value.encodedPayload() else { throw DaytimeDiaryError.conflict }
+            guard try repository.daytimePrompts().encodedPayload() == value.encodedPayload(),
+                  try contextProvider(schedule, value, now()) == contexts else { throw DaytimeDiaryError.conflict }
             let pending = await client.pendingRequests()
             guard Set(pending.filter { Self.owns($0.identifier) }.map(\.identifier)) == Set(eligible.map { Self.requestID + "." + $0.id.uuidString }),
-                  try repository.daytimePrompts().encodedPayload() == value.encodedPayload(), eligible.allSatisfy({ prompt in
+                  try repository.daytimePrompts().encodedPayload() == value.encodedPayload(),
+                  try contextProvider(schedule, value, now()) == contexts, eligible.allSatisfy({ prompt in
                 pending.contains { request in
                     request.identifier == Self.requestID + "." + prompt.id.uuidString
                     && request.content.userInfo["prompt_id"] as? String == prompt.id.uuidString
@@ -119,7 +153,7 @@ final class DaytimePromptService: ObservableObject {
                 status = "Queued reminders paused during known sleep or nap."
             } else {
                 scheduledThrough = eligible.last?.nextAttemptAt
-                status = eligible.isEmpty ? "No reminders queued: the selected time is inside quiet hours." : "Routine reminders queued for up to seven days. Delivery is controlled by iOS."
+                status = eligible.isEmpty ? "No reminders queued. Review available anchors, selected days and quiet hours." : "Routine reminders queued for up to seven days. Delivery is controlled by iOS."
             }
             try repository.saveDaytimePrompts(value); ledger = value
             return true

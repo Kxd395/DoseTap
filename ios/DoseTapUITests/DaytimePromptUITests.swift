@@ -16,10 +16,11 @@ final class DaytimePromptUITests: XCTestCase {
         XCTAssertTrue(toggle.waitForExistence(timeout: 10))
         XCTAssertEqual(toggle.value as? String, "0")
         let save = app.buttons["Save reminder"]
-        for _ in 0..<5 where !save.isHittable { app.swipeUp() }
+        for _ in 0..<16 where !save.isHittable { app.swipeUp() }
         XCTAssertTrue(save.isHittable); save.tap()
         for _ in 0..<6 where !app.staticTexts["Reminders paused"].isHittable { app.swipeUp() }
         XCTAssertTrue(app.staticTexts["Reminders paused"].waitForExistence(timeout: 10))
+        app.swipeUp()
         let proof = XCTAttachment(screenshot: app.screenshot())
         proof.name = "Optional daytime reminder largest text paused"; proof.lifetime = .keepAlways; add(proof)
     }

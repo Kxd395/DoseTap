@@ -82,3 +82,7 @@ The phone dashboard's reporting-period menu offers 7/28/90 days, 6/12 calendar m
 ## Physician review
 
 The physician-review screen opens a completed-visit history and explicit report-period selection, followed by unscored activity notes and questions. Save and preview persists one immutable snapshot. Saved previews reopen the captured values; corrections generate another preview. The preview contains a separate Share button. Opening or saving never invokes the activity sheet or sends health records.
+
+### Optional daytime reminder
+
+Settings → Daytime reminder provides one explicit Save for the master opt-in, selected weekdays, anchor, saved timezone, quiet hours and independent off-day rule. Clock anchors use a chosen clock time; main-wake anchors use an elapsed-minute offset; work anchors require reviewed shift endpoints or a saved break. “Use current timezone” is an explicit action; travel does not silently replace the saved zone. Enabling requires at least one weekday. Pausing remains available with an empty draft selection and retains the previous valid day selection. Status shows scheduled-through and expandable reasons for unscheduled dates. History keeps original intended time, anchor label and actual assessment time separate. Notification taps open an unanswered current check-in with immutable schedule protocol identity and label.

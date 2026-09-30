@@ -113,4 +113,118 @@ final class DaytimePromptServiceTests: XCTestCase {
         XCTAssertNotNil(client.requests[DaytimePromptService.requestID + "." + prompt.id.uuidString])
     }
 
+    func testReportedWakeAnchorQueuesOnePreciseSlotAndPreservesRevisionHistory() async throws {
+        let repo = SessionRepository(storage: .inMemory()), client = Client()
+        let key = DaytimePromptRule.dayKey(now, timeZone: "UTC")
+        var source = try DaytimeAnchorSource(id: "main-night", revision: "r1", at: now.addingTimeInterval(-7200))
+        let service = DaytimePromptService(repository: repo, client: client, now: { self.now }, contexts: { _, _, _ in
+            [DaytimePromptAnchorContext(dayKey: key, timeZone: "UTC", mainWake: source)]
+        })
+        let saved = await service.change { value in
+            try value.configure(hour: 14, minute: 0, timeZone: "UTC", enabled: true, at: now,
+                                rule: DaytimePromptRule(anchor: .mainWake))
+        }
+        XCTAssertTrue(saved); XCTAssertEqual(client.requests.count, 1)
+        let first = try XCTUnwrap(service.ledger.prompts.first)
+        XCTAssertEqual(first.anchor?.sourceRevision, "r1")
+        XCTAssertTrue(service.protocolLabel(for: first).contains("After main wake + 240 min"))
+        source = try DaytimeAnchorSource(id: "main-night", revision: "r2", at: now.addingTimeInterval(-3600))
+        await service.reconcile()
+        XCTAssertEqual(client.requests.count, 1)
+        XCTAssertEqual(service.ledger.prompts.first?.status, .suppressed)
+        XCTAssertEqual(service.ledger.prompts.last?.anchor?.sourceRevision, "r2")
+        XCTAssertEqual(service.protocolLabel(for: first), service.protocolLabel(for: try XCTUnwrap(service.ledger.prompts.last)))
+    }
+    func testSourceRevisionChangeDuringOSAddFailsClosed() async throws {
+        let repo = SessionRepository(storage: .inMemory()), client = Client()
+        let key = DaytimePromptRule.dayKey(now, timeZone: "UTC")
+        var source = try DaytimeAnchorSource(id: "main-night", revision: "r1", at: now.addingTimeInterval(-7200))
+        let revised = try DaytimeAnchorSource(id: "main-night", revision: "r2", at: now.addingTimeInterval(-3600))
+        let service = DaytimePromptService(repository: repo, client: client, now: { self.now }, contexts: { _, _, _ in
+            [DaytimePromptAnchorContext(dayKey: key, timeZone: "UTC", mainWake: source)]
+        })
+        client.onAdd = { source = revised }
+        let saved = await service.change { value in
+            try value.configure(hour: 14, minute: 0, timeZone: "UTC", enabled: true, at: now,
+                                rule: DaytimePromptRule(anchor: .mainWake))
+        }
+        XCTAssertFalse(saved); XCTAssertNil(service.scheduledThrough)
+        XCTAssertTrue(client.requests.isEmpty)
+        XCTAssertNil(service.ledger.prompts.first?.assessmentID)
+    }
+    func testMissingAnchorStaysUnscheduledWithVisibleReason() async throws {
+        let repo = SessionRepository(storage: .inMemory()), client = Client()
+        let service = DaytimePromptService(repository: repo, client: client, now: { self.now }, contexts: { _, _, _ in [] })
+        let saved = await service.change { value in
+            try value.configure(hour: 14, minute: 0, timeZone: "UTC", enabled: true, at: now,
+                                rule: DaytimePromptRule(anchor: .mainWake))
+        }
+        XCTAssertTrue(saved); XCTAssertTrue(client.requests.isEmpty)
+        XCTAssertTrue(service.ledger.prompts.isEmpty)
+        XCTAssertTrue(service.anchorAvailability.contains { $0.contains("main-wake observation unavailable") })
+    }
+
+    func testSecondFallBackOccurrenceKeepsExplicitAbsoluteAnchor() async throws {
+        let clock = ISO8601DateFormatter().date(from: "2035-11-04T05:00:00Z")!
+        let wake = ISO8601DateFormatter().date(from: "2035-11-04T04:30:00Z")!
+        let intended = ISO8601DateFormatter().date(from: "2035-11-04T06:30:00Z")!
+        let source = try DaytimeAnchorSource(id: "fall-back-main-wake", revision: "r1", at: wake)
+        let repo = SessionRepository(storage: .inMemory()), client = Client()
+        let service = DaytimePromptService(repository: repo, client: client, now: { clock }, contexts: { _, _, _ in
+            [DaytimePromptAnchorContext(dayKey: "2035-11-04", timeZone: "America/New_York", mainWake: source)]
+        })
+        let saved = await service.change { value in
+            value.quietStart = 0; value.quietEnd = 0
+            try value.configure(hour: 14, minute: 0, timeZone: "America/New_York", enabled: true, at: clock,
+                                rule: DaytimePromptRule(anchor: .mainWake, wakeOffsetMinutes: 120))
+        }
+        XCTAssertTrue(saved)
+        let prompt = try XCTUnwrap(service.ledger.prompts.first)
+        XCTAssertEqual(prompt.intendedAt, intended)
+        XCTAssertEqual(prompt.anchorDayKey, "2035-11-04")
+        XCTAssertEqual(service.ledger.current?.timeZone, "America/New_York")
+        let request = try XCTUnwrap(client.requests[DaytimePromptService.requestID + "." + prompt.id.uuidString])
+        let trigger = try XCTUnwrap(request.trigger as? UNCalendarNotificationTrigger)
+        XCTAssertEqual(trigger.nextTriggerDate(), intended)
+        XCTAssertEqual(trigger.dateComponents.timeZone?.secondsFromGMT(for: intended), 0)
+    }
+
+    func testRepositoryContextKeepsOriginalWakeIdentityWhenAnotherSourceAppears() throws {
+        let storage = EventStorage.inMemory(), repo = SessionRepository(storage: storage)
+        XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_sessions(session_id,session_date,start_utc) VALUES('original-night','2035-10-03','2035-10-03T23:00:00Z'),('other-night','2035-10-04','2035-10-04T00:00:00Z')", nil, nil, nil), SQLITE_OK)
+        var diary = NightOutcomeDiary(); diary.finalWakeAt = now.addingTimeInterval(-7200)
+        XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: "2035-10-03"), reason: "", recordedAt: now).isCommitted)
+        var ledger = DaytimePromptLedger()
+        try ledger.configure(hour: 14, minute: 0, timeZone: "UTC", enabled: true, at: now, rule: DaytimePromptRule(anchor: .mainWake))
+        let schedule = try XCTUnwrap(ledger.current)
+        _ = ledger.prepareHorizon(at: now, contexts: try repo.daytimePromptContexts(for: schedule, ledger: ledger, asOf: now))
+        XCTAssertEqual(ledger.prompts.first?.anchor?.sourceID, "original-night")
+        diary.finalWakeAt = now.addingTimeInterval(-3600)
+        XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: "2035-10-04"), reason: "", recordedAt: now).isCommitted)
+        let key = DaytimePromptRule.dayKey(now, timeZone: "UTC")
+        XCTAssertEqual(try repo.daytimePromptContexts(for: schedule, ledger: ledger, asOf: now).first { $0.dayKey == key }?.mainWake?.id, "original-night")
+        XCTAssertNil(try repo.daytimePromptContexts(for: schedule, ledger: DaytimePromptLedger(), asOf: now).first { $0.dayKey == key }?.mainWake)
+        diary.finalWakeAt = nil
+        XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: "2035-10-03"), reason: "Wake uncertain", recordedAt: now.addingTimeInterval(1)).isCommitted)
+        XCTAssertNil(try repo.daytimePromptContexts(for: schedule, ledger: ledger, asOf: now.addingTimeInterval(1)).first { $0.dayKey == key }?.mainWake)
+    }
+    func testRepositoryContextIncludesPriorDayReviewedOvernightShift() throws {
+        let clock = ISO8601DateFormatter().date(from: "2035-10-04T00:15:00Z")!
+        let storage = EventStorage.inMemory(), repo = SessionRepository(storage: storage)
+        var work = WorkContextDocument()
+        var occurrence = WorkOccurrence(workDate: "2035-10-03", timeZoneIdentifier: "UTC", plannedWorking: true, recordedAt: clock)
+        occurrence.scheduledStart = ISO8601DateFormatter().date(from: "2035-10-03T20:00:00Z")!
+        occurrence.scheduledEnd = ISO8601DateFormatter().date(from: "2035-10-04T09:00:00Z")!
+        occurrence.scheduledTimesReviewed = true; work.occurrences = [occurrence]
+        try storage.saveWorkContext(work, expectedRevision: nil)
+        var ledger = DaytimePromptLedger()
+        try ledger.configure(hour: 14, minute: 0, timeZone: "UTC", enabled: true, at: clock, rule: DaytimePromptRule(anchor: .shiftMidpoint))
+        let contexts = try repo.daytimePromptContexts(for: XCTUnwrap(ledger.current), ledger: ledger, asOf: clock)
+        let source = try XCTUnwrap(contexts.first { $0.dayKey == "2035-10-03" }?.shift)
+        XCTAssertEqual(source.id, occurrence.id.uuidString)
+        XCTAssertEqual(source.endAt, occurrence.scheduledEnd)
+        XCTAssertEqual(ledger.prepareHorizon(at: clock, contexts: contexts).first?.intendedAt,
+                       ISO8601DateFormatter().date(from: "2035-10-04T02:30:00Z"))
+    }
+
 }

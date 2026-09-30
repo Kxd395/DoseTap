@@ -45,3 +45,42 @@ extension SessionRepository {
         return nap || (mainSleep && !checkInCompleted)
     }
 }
+
+@MainActor
+extension SessionRepository {
+    func daytimePromptContexts(for schedule: DaytimePromptSchedule, ledger: DaytimePromptLedger,
+                               asOf now: Date) throws -> [DaytimePromptAnchorContext] {
+        guard let rule = schedule.rule, rule.anchor != .clock,
+              let zone = TimeZone(identifier: schedule.timeZone) else { return [] }
+        let usesWork = rule.anchor == .shiftMidpoint || rule.anchor == .shiftBreak
+        let work = usesWork ? try workContext() : nil
+        let usesWake = rule.anchor == .mainWake || (usesWork && rule.offDayAnchor == .mainWake)
+        let wakes = usesWake ? try daytimeMainWakeSources(asOf: now) : []
+        var calendar = Calendar(identifier: .gregorian); calendar.timeZone = zone
+        return try (-1...7).compactMap { offset in
+            guard let day = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: now)) else { return nil }
+            let key = DaytimePromptRule.dayKey(day, timeZone: schedule.timeZone)
+            let resolved = work?.resolvedWorkDate(key, timeZoneIdentifier: schedule.timeZone, asOf: now)
+            let originalID = ledger.prompts.first {
+                $0.scheduleID == schedule.id && $0.anchorDayKey == key && $0.anchor?.kind == .mainWake
+            }?.anchor?.sourceID
+            let candidates = wakes.filter { source in
+                if let originalID { return source.id == originalID }
+                return DaytimePromptRule.dayKey(source.at, timeZone: schedule.timeZone) == key
+            }
+            let wake = candidates.count == 1 ? try candidates.first.map {
+                try DaytimeAnchorSource(id: $0.id, revision: $0.revision, at: $0.at)
+            } : nil
+            var shift: DaytimeAnchorSource?, pause: DaytimeAnchorSource?
+            if let resolved, let id = resolved.shiftSourceID, let start = resolved.scheduledStart, let end = resolved.scheduledEnd {
+                shift = try DaytimeAnchorSource(id: id.uuidString, revision: resolved.documentRevision.uuidString, at: start, endAt: end)
+            }
+            if let resolved, let id = resolved.breakSourceID, let at = resolved.plannedBreakAt {
+                pause = try DaytimeAnchorSource(id: id.uuidString, revision: resolved.documentRevision.uuidString, at: at)
+            }
+            return DaytimePromptAnchorContext(dayKey: key, timeZone: schedule.timeZone, working: resolved?.plannedWorking,
+                mainWake: wake, shift: shift, plannedBreak: pause, workSourceID: resolved?.plannedSourceID?.uuidString,
+                workRevision: resolved?.documentRevision.uuidString)
+        }
+    }
+}
