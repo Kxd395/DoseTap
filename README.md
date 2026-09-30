@@ -2,6 +2,10 @@
 
 DoseTap is a local-first iOS app that helps patients manage two-dose nighttime medication timing and track sleep-related events.
 
+For a presentation-ready description of the nightly workflow, Apple Health integration and planned WHOOP feature, see the [product overview](docs/PRODUCT_OVERVIEW.md).
+
+For local work, use `/Volumes/Developer/projects/DoseTap-main`. The [working-folder guide](docs/WORKSPACE_GUIDE.md) explains the preserved checkout, archives and pending branches. The [September 30 dashboard roadmap](docs/plans/dashboard-2026-09-30/README.md) organizes the four proposed feature documents.
+
 ## Core Behavior
 
 - Dose 1 starts the session. Dose 2 uses the configured timing window. Early recording retains its explicit confirmation; after the window closes, users can record an occurrence already taken or explicitly mark it missed.
@@ -22,6 +26,11 @@ DoseTap is a local-first iOS app that helps patients manage two-dose nighttime m
 - Integration reads sleep analysis plus heart rate, respiratory rate, HRV SDNN, and resting heart rate.
 - Preference is stored in `UserSettingsManager.healthKitEnabled`.
 - Authorization is checked via `HealthKitService.isAuthorized` and may need re-grant after reinstall.
+- Sleep onset, estimated sleep ending and total sleep come from the available Apple Health sleep intervals in the selected main episode. Tapping Wake Up and completing the morning check-in record separate app actions; they do not extend the measured sleep total. See [which time means what](docs/PRODUCT_OVERVIEW.md#which-time-means-what).
+
+## Planned WHOOP feature
+
+A near-term DoseTap feature is planned to bring WHOOP sleep and recovery context alongside dose records and morning observations. Integration code exists; production enablement and live validation remain open, with no committed release date. Apple Health and WHOOP remain separate named sources. See the [product roadmap explanation](docs/PRODUCT_OVERVIEW.md#whoop-planned-near-term-dosetap-feature) and [integration gates](docs/WHOOP_INTEGRATION.md).
 
 ## Quick Start
 
