@@ -17,3 +17,15 @@ Descriptive report contexts preserve shared diary coverage, sampling distributio
 Numeric summaries exclude partial measurements by default. When the user explicitly selects the dashboard's include-partial policy, the immutable report preserves that choice and counts finite, dated partial contributions separately from complete available observations. Missing-value or unknown-time partial rows never enter numeric summaries. The displayed source states and eligible/available/partial denominators do not change when that policy changes.
 
 Human-readable comparison labels accompany exact source/version compatibility keys. Differing labels remain separate groups; unknown context is never silently pooled with a documented reference.
+
+## Explicit report source preparation
+
+The report adapter consumes `visibleInspectionNights`, preserving the selected sleep source, dose-pattern/work/context filters and exact stable identities. Missing filter evaluation or incomplete local dose/context/work reads fail preparation; a valid retained filter with no matching nights is an ordinary empty night selection. Independent daytime assessments and events retain their own actual occurrence-time membership and are not removed by night filters.
+
+Report membership is the original inclusive-start/exclusive-end interval, independent of the dashboard's broader provider retrieval window and 18:00 treatment-date grouping. An interval's source start and required ending occurrence must be inside that interval before a numeric report contribution is accepted. Missing original provider boundaries or endpoints at/after the exclusive end withhold the numeric contribution with a partial-window explanation; raw values/source IDs remain visible. Recorded amounts are preserved as source evidence and never inferred from medication plans.
+
+The shared dose-pattern, sleep-metric and replay projections remain the calculation authorities. Source and definition versions, compatibility strata, raw review revisions, and missing states survive into the immutable report. The selected provider supplies sleep metrics; the adapter does not add the other provider's primary sleep outcome as an extra result. WHOOP original endpoint contribution remains unavailable until the validated provider transport supplies it.
+
+Legacy morning questionnaire fields can contain materialized defaults or carried-forward values. These records are always unconfirmed `needsReview` details with unknown assessment time. They cannot contribute to confirmed metric/category summaries, including when partial values are enabled. Their stored timestamps, original values, uncertainty and serious flags remain visible for review.
+
+Daytime rating samples are separate from independently recorded events. Shared diary analysis supplies sampling groups and counts of full/partial reviewed intervals, event counts and calendar dates; no inferred sleep episode or clinical score is derived from a custom rating. Frozen work/medication compatibility grouping and historical reminder intent/open/response evidence will be added through their shared validated source adapters, not a new report-owned ledger.

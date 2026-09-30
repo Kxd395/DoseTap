@@ -33,6 +33,7 @@
 		WBCTX003 /* WorkContextEditors.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBCTX103 /* WorkContextEditors.swift */; };
 		WBCTX002 /* DashboardWorkBlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBCTX102 /* DashboardWorkBlockView.swift */; };
 		WBCTX001 /* EventStorage+WorkContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBCTX101 /* EventStorage+WorkContext.swift */; };
+		PHRU1005 /* PhysicianReportAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRU005 /* PhysicianReportAdapter.swift */; };
 		PHRU1004 /* PhysicianReportPDF.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRU004 /* PhysicianReportPDF.swift */; };
 		PHRU1003 /* PhysicianReportPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRU003 /* PhysicianReportPreview.swift */; };
 		PHRU1002 /* PhysicianReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRU002 /* PhysicianReviewView.swift */; };
@@ -271,6 +272,7 @@
 		WBCTX103 /* WorkContextEditors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkContextEditors.swift; sourceTree = "<group>"; };
 		WBCTX102 /* DashboardWorkBlockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardWorkBlockView.swift; sourceTree = "<group>"; };
 		WBCTX101 /* EventStorage+WorkContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+WorkContext.swift"; sourceTree = "<group>"; };
+		PHRU005 /* PhysicianReportAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianReportAdapter.swift; sourceTree = "<group>"; };
 		PHRU004 /* PhysicianReportPDF.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianReportPDF.swift; sourceTree = "<group>"; };
 		PHRU003 /* PhysicianReportPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianReportPreview.swift; sourceTree = "<group>"; };
 		PHRU002 /* PhysicianReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianReviewView.swift; sourceTree = "<group>"; };
@@ -860,6 +862,7 @@
 		DAYF006 /* DaytimeDashboardRoute.swift */,
 				DAYF004 /* DaytimeEventView.swift */,
 				PHRU003 /* PhysicianReportPreview.swift */,
+				PHRU005 /* PhysicianReportAdapter.swift */,
 				PHRU004 /* PhysicianReportPDF.swift */,
 				PHRU002 /* PhysicianReviewView.swift */,
 				GRP_DASHBOARD /* Dashboard */,
@@ -1146,6 +1149,7 @@
 				NWB002 /* EventStorage+NightOutcome.swift in Sources */,
 				DDRV001 /* EventStorage+DashboardDoseReview.swift in Sources */,
 				PHRU1003 /* PhysicianReportPreview.swift in Sources */,
+				PHRU1005 /* PhysicianReportAdapter.swift in Sources */,
 				PHRU1004 /* PhysicianReportPDF.swift in Sources */,
 				PHRU1002 /* PhysicianReviewView.swift in Sources */,
 				PHRV101 /* EventStorage+PhysicianReview.swift in Sources */,
