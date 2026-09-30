@@ -8,11 +8,19 @@ enum DosePatternDisplayMode: String, CaseIterable, Identifiable {
 }
 
 enum DosePatternSleepOutcome: String, CaseIterable, Identifiable {
-    case mainSleep = "Total main sleep", postDose2 = "Sleep after Dose 2"
+    case mainSleep = "Main sleep", postDose2 = "After Dose 2"
     var id: String { rawValue }
 }
 
 enum DosePatternPresentation {
+    struct PlotPoint { let id: String; let point: CGPoint }
+    static func candidates(at tap: CGPoint, points: [PlotPoint], radius: CGFloat = 22) -> Set<String> {
+        guard tap.x.isFinite, tap.y.isFinite, radius.isFinite, radius > 0 else { return [] }
+        return Set(points.filter {
+            $0.point.x.isFinite && $0.point.y.isFinite
+                && hypot($0.point.x - tap.x, $0.point.y - tap.y) <= radius
+        }.map(\.id))
+    }
     @MainActor
     static func csv(model: DashboardAnalyticsModel, outcome: DosePatternSleepOutcome) -> String? {
         guard !model.isLoading, model.doseReviewReadReady, model.contextReadReady, model.workContextReadReady,

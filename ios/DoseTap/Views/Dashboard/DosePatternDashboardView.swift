@@ -97,7 +97,7 @@ struct DosePatternDashboardView: View {
                 exactTable(rows, title: "All observations and exact values")
             }
             HStack {
-                Button("Reset filters") { model.inspection.resetFilters(); candidates = [] }
+                Button("Reset filters") { model.inspection.resetFilters(); candidates = [] }.accessibilityIdentifier("dose-pattern-reset-filters")
                 Button("Clear selection") { model.inspection.selectedObservationID = nil; candidates = []; detailPresented = false }
             }
             if let csv = DosePatternPresentation.csv(model: model, outcome: outcome) {
@@ -121,7 +121,7 @@ struct DosePatternDashboardView: View {
             else { modePicker.pickerStyle(.segmented); sourcePicker.pickerStyle(.segmented) }
             Picker("Sleep measure", selection: $outcome) {
                 ForEach(DosePatternSleepOutcome.allCases) { Text($0.rawValue).tag($0) }
-            }
+            }.accessibilityIdentifier("dose-pattern-outcome")
             Picker("Dose pattern", selection: $model.inspection.dosePatternFilter) {
                 Text("All patterns").tag(DashboardDosePattern.Pattern?.none)
                 ForEach(DashboardDosePattern.Pattern.allCases, id: \.self) { Text($0.label).tag(Optional($0)) }
@@ -171,20 +171,14 @@ struct DosePatternDashboardView: View {
                                 .symbol(DosePatternPresentation.symbol(sample.night.dosePattern.pattern))
                                 .foregroundStyle(.primary).symbolSize(sample.sleep.metric.state == .partial ? 35 : 70)
                                 .accessibilityLabel(label(sample))
+                                .annotation(position: .top) { selectedAnnotation(sample.id) }
                         }
                     }.frame(height: 230).chartXScale(domain: Array(Set(group.map { $0.night.sessionDate })).sorted())
                         .chartYScale(domain: 0...sleepMaximum).chartYAxisLabel("Sleep (minutes)")
-                        .chartOverlay { proxy in
-                            GeometryReader { geometry in
-                                Rectangle().fill(.clear).contentShape(Rectangle()).onTapGesture { point in
-                                    let x = point.x - geometry[proxy.plotAreaFrame].origin.x
-                                    if let day: String = proxy.value(atX: x) { candidates = Set(group.filter { $0.night.sessionDate == day }.map(\.id)) }
-                                }
-                            }
-                        }
+                        .chartOverlay { plotOverlay(group, axes: .date, proxy: $0) }
                 }
             }
-            Text("Circle: two reported; square: one confirmed; triangle: confirmed zero; diamond: incomplete, in progress or review. Smaller marks are partial. Tap a date for exact candidates.")
+            Text("Circle: two reported; square: one confirmed; triangle: confirmed zero; diamond: incomplete, in progress or review. Smaller marks are partial. Tap a mark for exact candidates; overlapping marks stay separate.")
                 .font(.caption).foregroundStyle(.secondary)
         }
     }
@@ -204,8 +198,10 @@ struct DosePatternDashboardView: View {
                             PointMark(x: .value("Sleep minutes", value), y: .value("Pattern", first.night.dosePattern.pattern.label))
                                 .symbol(DosePatternPresentation.symbol(sample.night.dosePattern.pattern)).foregroundStyle(.primary)
                                 .symbolSize(sample.sleep.metric.state == .partial ? 35 : 70).accessibilityLabel(label(sample))
+                                .annotation(position: .top) { selectedAnnotation(sample.id) }
                         }
-                    }.chartXScale(domain: 0...sleepMaximum).frame(height: 70)
+                    }.chartXScale(domain: 0...sleepMaximum).frame(height: 100)
+                        .chartOverlay { plotOverlay(group, axes: .comparison, proxy: $0) }
                     Button("Inspect this compatible group") { candidates = Set(group.map(\.id)) }
                 }
             }
@@ -242,9 +238,11 @@ struct DosePatternDashboardView: View {
                         .symbol(DosePatternPresentation.symbol(sample.night.dosePattern.pattern)).foregroundStyle(.primary)
                         .symbolSize(sample.sleep.metric.state == .partial ? 35 : 70)
                         .accessibilityLabel(label(sample))
+                                .annotation(position: .top) { selectedAnnotation(sample.id) }
                 }
             }.frame(height: 230).chartYScale(domain: 0...sleepMaximum)
                 .chartXAxisLabel("Reported spacing (minutes)").chartYAxisLabel("Sleep (minutes)")
+                .chartOverlay { plotOverlay(group, axes: .spacing, proxy: $0) }
         }.frame(maxWidth: .infinity)
     }
     private func companionPanel(_ group: [Sample]) -> some View {
@@ -257,9 +255,51 @@ struct DosePatternDashboardView: View {
                         .symbol(DosePatternPresentation.symbol(sample.night.dosePattern.pattern)).foregroundStyle(.primary)
                         .symbolSize(sample.sleep.metric.state == .partial ? 35 : 70)
                         .accessibilityLabel(label(sample))
+                                .annotation(position: .top) { selectedAnnotation(sample.id) }
                 }
             }.frame(height: 230).chartYScale(domain: 0...sleepMaximum).chartYAxisLabel("Sleep (minutes)")
+                .chartOverlay { plotOverlay(group, axes: .companion, proxy: $0) }
         }.frame(maxWidth: .infinity)
+    }
+    private enum PlotAxes: String { case date, spacing, companion, comparison }
+    @ViewBuilder private func selectedAnnotation(_ id: String) -> some View {
+        if model.inspection.selectedObservationID == id { Text("Selected").font(.caption2.bold()) }
+    }
+    private func plotPositions(_ group: [Sample], axes: PlotAxes, proxy: ChartProxy) -> [DosePatternPresentation.PlotPoint] {
+        group.compactMap { sample in
+            guard let value = sample.value else { return nil }
+            let x: CGFloat?, y: CGFloat?
+            switch axes {
+            case .date: x = proxy.position(forX: sample.night.sessionDate); y = proxy.position(forY: value)
+            case .spacing:
+                guard let pair = sample.pair else { return nil }
+                x = proxy.position(forX: pair); y = proxy.position(forY: value)
+            case .companion: x = proxy.position(forX: sample.night.dosePattern.pattern.label); y = proxy.position(forY: value)
+            case .comparison: x = proxy.position(forX: value); y = proxy.position(forY: sample.night.dosePattern.pattern.label)
+            }
+            guard let x, let y, x.isFinite, y.isFinite else { return nil }
+            return .init(id: sample.id, point: CGPoint(x: x, y: y))
+        }
+    }
+    private func plotOverlay(_ group: [Sample], axes: PlotAxes, proxy: ChartProxy) -> some View {
+        GeometryReader { geometry in
+            let bounds = geometry[proxy.plotAreaFrame]
+            let points = plotPositions(group, axes: axes, proxy: proxy)
+            ZStack(alignment: .topLeading) {
+                Rectangle().fill(.clear).contentShape(Rectangle()).onTapGesture { location in
+                    guard bounds.contains(location) else { return }
+                    candidates = DosePatternPresentation.candidates(at: CGPoint(x: location.x - bounds.minX, y: location.y - bounds.minY), points: points)
+                }
+                ForEach(points, id: \.id) { point in
+                    Button { candidates = DosePatternPresentation.candidates(at: point.point, points: points) } label: {
+                        Rectangle().fill(.clear).frame(width: 44, height: 44).contentShape(Rectangle())
+                    }.buttonStyle(.plain).position(x: bounds.minX + point.point.x, y: bounds.minY + point.point.y)
+                        .accessibilityLabel("Inspect " + (group.first { $0.id == point.id }.map(label) ?? "observation"))
+                        .accessibilityHint("Shows all overlapping observations; choose the exact session in the candidate table.")
+                        .accessibilityIdentifier("dose-pattern-point-\(axes.rawValue)-\(point.id)")
+                }
+            }.accessibilityElement(children: .contain)
+        }
     }
     private var workStrip: some View {
         DisclosureGroup("Work phase strip • \(model.inspection.workContextBasis.rawValue)") {
@@ -306,6 +346,7 @@ struct DosePatternDashboardView: View {
                     } label: {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(night.sessionDate + " • " + night.dosePattern.pattern.label).font(.callout.bold())
+                            if model.inspection.selectedObservationID == night.id { Text("Selected observation").font(.caption.bold()) }
                             Text(discriminator(night)).font(.caption)
                             Text(DosePatternPresentation.description(night, sleep: DosePatternPresentation.sleepValue(night, source: model.sleepSource, outcome: outcome, freshness: freshness))).font(.caption)
                             Text(DosePatternPresentation.sleepDescription(night, source: model.sleepSource, outcome: outcome, freshness: freshness)).font(.caption)

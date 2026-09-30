@@ -4,6 +4,30 @@ import DoseCore
 
 @MainActor
 final class DosePatternPresentationTests: XCTestCase {
+    func testPlotHitTestingReturnsAllOverlapsWithoutChangingSelection() {
+        let points: [DosePatternPresentation.PlotPoint] = [
+            .init(id: "one", point: .init(x: 10, y: 30)), .init(id: "two", point: .init(x: 10, y: 30)),
+            .init(id: "edge", point: .init(x: 32, y: 30)), .init(id: "far", point: .init(x: 33, y: 30)),
+            .init(id: "invalid", point: .init(x: CGFloat.nan, y: 30))]
+        var inspection = DashboardInspectionState(); inspection.selectedObservationID = "retained"
+        XCTAssertEqual(DosePatternPresentation.candidates(at: .init(x: 10, y: 30), points: points), ["one", "two", "edge"])
+        XCTAssertEqual(inspection.selectedObservationID, "retained")
+        XCTAssertTrue(DosePatternPresentation.candidates(at: .init(x: CGFloat.nan, y: 30), points: points).isEmpty)
+        XCTAssertTrue(DosePatternPresentation.candidates(at: .zero, points: points, radius: 0).isEmpty)
+    }
+    func testOverlapFixtureUsesExactReviewedProviderIdentityAndRealCanonicalDosePairs() async throws {
+        let dependencies = try XCTUnwrap(DashboardAssociationUITestFixture.dependencies(arguments: ["-dashboard-dose-pattern-overlap-uitest"]))
+        let model = DashboardAnalyticsModel(sessionRepo: dependencies.repository, providerQueries: dependencies.queries)
+        await model.performRefresh(days: 31, includeProviders: true)
+        XCTAssertTrue(model.doseReviewReadReady); XCTAssertTrue(model.providerAssociationsReady)
+        XCTAssertEqual(model.nights.count, 3)
+        for id in ["session:overlap-a", "session:overlap-b"] {
+            let row = try XCTUnwrap(model.nights.first { $0.id == id })
+            XCTAssertEqual(row.dosePattern.interval.value, 180)
+            XCTAssertEqual(row.healthSummary?.totalSleepMinutes, 420)
+            XCTAssertFalse(row.identityNeedsReview)
+        }
+    }
     func testCSVMatchesExactFilteredRowsAndMetricCoveragePolicy() throws {
         let second = start.addingTimeInterval(180 * 60)
         var observed = night(intervals: [.init(start: second, end: second.addingTimeInterval(30 * 60), asleep: true)])

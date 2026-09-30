@@ -88,3 +88,5 @@ is attached. Opt-out omits both packet and episode metadata; stale associations
 remain unbound provider episodes. Health preference is checked again after an
 asynchronous preparation and at the actual report boundary. WHOOP remains outside
 this connection capability. No provider query or fingerprint transfer is added.
+
+Plot interaction uses the rendered plot coordinates and a 22-point radius (44-point accessible target) in every mode. Tapping a point exposes all overlapping exact observation IDs; candidate discovery never replaces the retained selection. Selection is explicit and labeled in the plotted mark and exact table, including after resetting filters. Missing or nonfinite coordinates cannot become candidates. Simulator overlap evidence uses isolated in-memory administrations and explicitly reviewed provider associations; fixture failures retain disabled provider queries and never fall back to live storage.
