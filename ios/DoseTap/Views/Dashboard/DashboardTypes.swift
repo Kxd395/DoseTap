@@ -7,55 +7,7 @@ enum DashboardSleepSource: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-enum DashboardDateRange: String, CaseIterable, Identifiable {
-    case week = "7D"
-    case twoWeeks = "14D"
-    case month = "30D"
-    case quarter = "90D"
-    case sixMonths = "6M"
-    case year = "1Y"
-    case all = "All"
-
-    var id: String { rawValue }
-
-    var days: Int {
-        switch self {
-        case .week:     return 7
-        case .twoWeeks: return 14
-        case .month:    return 30
-        case .quarter:  return 90
-        case .sixMonths: return 180
-        case .year:     return 365
-        case .all:      return 9999
-        }
-    }
-
-    var label: String {
-        switch self {
-        case .week:     return "Week"
-        case .twoWeeks: return "2 Weeks"
-        case .month:    return "Month"
-        case .quarter:  return "Quarter"
-        case .sixMonths: return "6 Months (180 dates)"
-        case .year:     return "Year"
-        case .all:      return "All Time"
-        }
-    }
-
-    /// Current and previous periods plus boundary days; provider loading is bounded.
-    var healthQueryDays: Int { self == .all ? 730 : min(730, days * 2 + 2) }
-
-    func cutoffDate(from anchor: Date = Date(), calendar: Calendar = .current) -> Date {
-        guard self != .all else { return .distantPast }
-        return calendar.date(byAdding: .day, value: -(days - 1), to: calendar.startOfDay(for: anchor)) ?? .distantPast
-    }
-
-    func priorPeriodCutoff(from anchor: Date = Date(), calendar: Calendar = .current) -> (start: Date, end: Date) {
-        let end = cutoffDate(from: anchor, calendar: calendar)
-        let start = calendar.date(byAdding: .day, value: -days, to: end) ?? .distantPast
-        return (start, end)
-    }
-}
+typealias DashboardDateRange = DashboardReportingRange
 
 struct DashboardNightAggregate: Identifiable {
     let sessionDate: String

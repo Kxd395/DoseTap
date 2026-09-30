@@ -78,3 +78,7 @@ Before the work-block or dose-pattern stages, record their reviewed bounded scop
 For this documentation slice, run `bash tools/doc_lint.sh`, `bash tools/ssot_check.sh`, `bash tools/check_plane_workflow.sh`, `git diff --check`, local link checks and original-file SHA-256 comparisons. These prove source preservation/navigation, not implementation.
 
 For future behavior slices follow [TESTING_GUIDE.md](../../TESTING_GUIDE.md) and [WORKFLOW.md](../../../WORKFLOW.md): core/domain tests, touched-area storage/app tests, UI accessibility/table inspection, export/Studio parity, provider permission/offline/partial coverage, and signed-device/owner gates as applicable. Record commit, exact commands, destination, outcomes and evidence class. Apply structured closeout and verify independent Plane readback; keep In Progress while any acceptance gate remains.
+
+## Calendar-range implementation increment
+
+The [September 30 implementation record](../../review/2026-09-30-dashboard-calendar-ranges.md) tracks the reporting-range portion of stage 1: shared phone/iPad calendar months and explicit provider query bounds. This does not close the other foundation or dashboard stages; integration and device/provider acceptance are reported separately.

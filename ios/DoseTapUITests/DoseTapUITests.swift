@@ -1209,11 +1209,11 @@ final class DoseTapUITests: XCTestCase {
         let theme = app.navigationBars["Dashboard"].buttons["Theme quick switch"]
         XCTAssertTrue(theme.waitForExistence(timeout: 10))
         theme.press(forDuration: 1); app.buttons["Dark"].tap()
-        app.segmentedControls["dashboard-range-picker"].buttons["6 Months (180 dates)"].tap()
+        app.segmentedControls["dashboard-range-picker"].buttons["6 Months"].tap()
         captureDashboard("Dashboard readable dark overview")
         theme.tap()
         XCTAssertEqual(theme.value as? String, "Night Mode")
-        XCTAssertTrue(app.segmentedControls["dashboard-range-picker"].buttons["6 Months (180 dates)"].isSelected)
+        XCTAssertTrue(app.segmentedControls["dashboard-range-picker"].buttons["6 Months"].isSelected)
         captureDashboard("Dashboard readable Night Mode overview")
         app.segmentedControls["dashboard-section-picker"].buttons["Trends"].tap()
         revealDashboardText("Interactive Trends")
@@ -1243,8 +1243,8 @@ final class DoseTapUITests: XCTestCase {
         let picker = app.buttons["dashboard-range-picker"]
         XCTAssertTrue(picker.waitForExistence(timeout: 10))
         picker.tap()
-        app.buttons["6 Months (180 dates)"].tap()
-        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "6 Months (180 dates)")).firstMatch.waitForExistence(timeout: 5))
+        app.buttons["6 Months"].tap()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "6 Months")).firstMatch.waitForExistence(timeout: 5))
         captureDashboard("Six month range at largest text")
     }
 
@@ -1252,8 +1252,8 @@ final class DoseTapUITests: XCTestCase {
         app.buttons["Dashboard"].tap()
         let range = app.segmentedControls["dashboard-range-picker"]
         XCTAssertTrue(range.waitForExistence(timeout: 10))
-        range.buttons["6 Months (180 dates)"].tap()
-        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "6 Months (180 dates)")).firstMatch.waitForExistence(timeout: 5))
+        range.buttons["6 Months"].tap()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "6 Months")).firstMatch.waitForExistence(timeout: 5))
         captureDashboard("Six month dashboard range")
         app.segmentedControls["dashboard-section-picker"].buttons["Data"].tap()
         revealDashboardText("Data Coverage")

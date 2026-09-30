@@ -8,6 +8,7 @@ final class DashboardUITests: XCTestCase {
         app.launchEnvironment["DOSETAP_DASHBOARD_UI_FIXTURE"] = try fixture().base64EncodedString()
         app.launch()
         XCTAssertTrue(app.staticTexts["Your nights. Your days."].waitForExistence(timeout: 10))
+        try verifyCalendarRanges(app, largeText: false)
         capture("Native iPad review home")
         app.buttons["Dose timing"].firstMatch.tap()
         XCTAssertTrue(app.staticTexts["Median recorded spacing"].waitForExistence(timeout: 5))
@@ -70,6 +71,7 @@ final class DashboardUITests: XCTestCase {
         app.launchEnvironment["DOSETAP_DASHBOARD_UI_FIXTURE"] = try fixture().base64EncodedString()
         app.launch()
         XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "dashboard-sidebar").firstMatch.waitForExistence(timeout: 10))
+        try verifyCalendarRanges(app, largeText: true)
         capture("Native iPad largest text overview")
         selectSidebar("Medications", app: app)
         XCTAssertTrue(app.staticTexts["SYNTHETIC medication · 15 mg"].waitForExistence(timeout: 5))
@@ -113,15 +115,50 @@ final class DashboardUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Sample: awake-sample")).firstMatch.waitForExistence(timeout: 5))
         capture(largeText ? "Apple Health original sample largest text" : "Apple Health original sample provenance")
     }
+    private func verifyCalendarRanges(_ app: XCUIApplication, largeText: Bool) throws {
+        let data = try XCTUnwrap(Data(base64Encoded: try XCTUnwrap(app.launchEnvironment["DOSETAP_DASHBOARD_UI_FIXTURE"])))
+        let report = try JSONDecoder().decode(CloudDashboardSnapshot.self, from: data)
+        let span = app.staticTexts["dashboard-report-range-span"]
+        XCTAssertTrue(span.waitForExistence(timeout: 5))
+        for range in [DashboardReportingRange.sixMonths, .year, .sixMonths] {
+            if largeText { app.buttons["dashboard-report-range"].tap() }
+            let choice = largeText ? app.buttons[range.label] : app.segmentedControls["dashboard-report-range"].buttons[range.label]
+            XCTAssertTrue(choice.waitForExistence(timeout: 5)); choice.tap()
+            let window = try XCTUnwrap(range.window(asOf: report.capturedAt, timeZone: .current))
+            let first = try XCTUnwrap(window.firstTreatmentDate)
+            let expected = "Treatment dates: \(first) through \(window.lastTreatmentDate)"
+            let update = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label BEGINSWITH %@", expected), object: span)
+            XCTAssertEqual(XCTWaiter.wait(for: [update], timeout: 5), .completed)
+            XCTAssertTrue(span.label.contains(TimeZone.current.identifier))
+            XCTAssertTrue(span.label.contains("18:00 rollover at report capture"))
+        }
+    }
     private func capture(_ name: String) {
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
     }
     private func selectSidebar(_ title: String, app: XCUIApplication) {
         let sidebar = app.descendants(matching: .any).matching(identifier: "dashboard-sidebar").firstMatch
-        let button = sidebar.buttons[title].firstMatch
-        for _ in 0..<5 where !button.isHittable { sidebar.swipeUp() }
-        XCTAssertTrue(button.isHittable); button.tap()
+        let navigation = app.navigationBars["DoseTap Dashboard"].firstMatch
+        let footer = app.staticTexts["Read-only companion"].firstMatch
+        for _ in 0..<12 {
+            let button = sidebar.buttons[title].firstMatch
+            let top = max(sidebar.frame.minY, navigation.exists ? navigation.frame.maxY : sidebar.frame.minY) + 4
+            let bottom = min(sidebar.frame.maxY, footer.exists ? footer.frame.minY : sidebar.frame.maxY) - 4
+            if button.exists, button.frame.height > 0, button.frame.minY >= top,
+               button.frame.maxY <= bottom, button.isHittable {
+                button.tap()
+                if app.navigationBars[title].waitForExistence(timeout: 5) { return }
+            } else if button.exists, button.frame.minY < top {
+                sidebar.swipeDown(velocity: .slow)
+            } else {
+                sidebar.swipeUp(velocity: .slow)
+            }
+        }
+        capture("Sidebar failed to select " + title)
+        let hierarchy = XCTAttachment(string: app.debugDescription)
+        hierarchy.name = "Sidebar selection hierarchy"; hierarchy.lifetime = .keepAlways; add(hierarchy)
+        XCTFail("Could not fully reveal and select sidebar section: " + title)
     }
     private func reveal(_ title: String, app: XCUIApplication, button: Bool = false) {
         let element = button ? app.buttons[title].firstMatch : app.staticTexts[title].firstMatch

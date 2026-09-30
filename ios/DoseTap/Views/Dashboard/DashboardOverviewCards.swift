@@ -371,7 +371,7 @@ struct DashboardDataQualityCard: View {
             coverage("Reported final wake", available: model.recordedFinalWakeCount)
             Text("Missing counts are among recorded nights only; days with no records are not counted as zero sleep or missed doses. Work/off answers are not inferred from a schedule.")
                 .font(.caption).foregroundColor(.secondary)
-            Text("Apple Health query: up to \(model.selectedRange.healthQueryDays) days, including the prior period. WHOOP query: up to 30 days. All Time includes available local history; it does not promise all-time provider coverage.")
+            Text(model.healthQueryDescription + " WHOOP query: up to 30 days.")
                 .font(.caption).foregroundColor(.secondary)
             Text("Nights with duplicate event clusters: \(model.duplicateNightCount)")
                 .font(.subheadline)
