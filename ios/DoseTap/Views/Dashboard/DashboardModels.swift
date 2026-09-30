@@ -58,12 +58,29 @@ final class DashboardAnalyticsModel: ObservableObject {
     init(now: @escaping () -> Date = Date.init, sessionRepo: SessionRepository? = nil,
          timeZone: @escaping () -> TimeZone = { .current },
          providerAccess: DashboardProviderAccess = .shared, providerQueries: DashboardProviderQueries? = nil) {
-        self.now = now
+        let useReplayFixture = DashboardReplayUITestFixture.enabled && sessionRepo == nil && providerQueries == nil
+        var dashboardNow = now
+        if useReplayFixture {
+            var calendar = Calendar(identifier: .gregorian); calendar.timeZone = timeZone()
+            let instant = now()
+            let captured = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: instant) ?? calendar.startOfDay(for: instant)
+            dashboardNow = { captured }
+        }
+        self.now = dashboardNow
         self.timeZone = timeZone
-        reportingAsOf = now()
+        reportingAsOf = dashboardNow()
         reportingTimeZone = timeZone()
         let fixture = sessionRepo == nil && providerQueries == nil ? DashboardAssociationUITestFixture.dependencies() : nil
-        self.sessionRepo = sessionRepo ?? fixture?.repository ?? .shared
+        #if DEBUG && targetEnvironment(simulator)
+        #if DEBUG && targetEnvironment(simulator)
+        let replayRepository = useReplayFixture ? SessionRepository(storage: .inMemory(), clock: dashboardNow, timeZoneProvider: timeZone) : nil
+        #else
+        let replayRepository: SessionRepository? = nil
+        #endif
+        #else
+        let replayRepository: SessionRepository? = nil
+        #endif
+        self.sessionRepo = sessionRepo ?? fixture?.repository ?? replayRepository ?? .shared
         self.providerAccess = providerAccess
         self.providerQueries = providerQueries ?? fixture?.queries ?? Self.dashboardDisplayFixtureQueries() ?? .live
         publishedProviderAccess = providerAccess.revision
@@ -174,6 +191,8 @@ extension DashboardAnalyticsModel {
                     inBedMinutes: 480, disturbanceCount: 3, sleepEfficiency: 93.75,
                     sleepPerformance: nil, sleepConsistency: nil, respiratoryRate: 16,
                     sleepNeedBaselineMinutes: nil, sleepNeedDebtMinutes: nil, sleepNeedStrainMinutes: nil, sleepNeedNapMinutes: nil,
+                    stageEvidence: .init(sleepID: key, scoreState: "SCORED", lightMilliseconds: 285 * 60_000,
+                        deepMilliseconds: 75 * 60_000, remMilliseconds: 90 * 60_000),
                     recoveryScore: 65, hrvMs: 42)
                 var preSleep = PreSleepLogAnswers(stressLevel: offset % 5 + 1, stimulants: .coffee, screensInBed: PreSleepLogAnswers.ScreensInBed.none)
                 if offset % 3 != 0 {

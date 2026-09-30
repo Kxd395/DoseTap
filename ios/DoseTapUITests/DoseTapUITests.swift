@@ -1227,7 +1227,7 @@ final class DoseTapUITests: XCTestCase {
 
     func testDashboardNightModeKeepsChartSelectionAndReadableLegends() throws {
         app.buttons["Dashboard"].tap()
-        let theme = app.navigationBars["Dashboard"].buttons["Theme quick switch"]
+        let theme = app.buttons["Theme quick switch"]
         XCTAssertTrue(theme.waitForExistence(timeout: 10))
         theme.press(forDuration: 1); app.buttons["Dark"].tap()
         app.buttons["dashboard-range-picker"].tap()
@@ -1237,7 +1237,7 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertEqual(theme.value as? String, "Night Mode")
         XCTAssertTrue(app.buttons["dashboard-range-picker"].label.contains("6 Months"))
         captureDashboard("Dashboard readable Night Mode overview")
-        app.segmentedControls["dashboard-section-picker"].buttons["Trends"].tap()
+        selectDashboardMeasure("Recorded trends")
         revealDashboardText("Interactive Trends")
         revealDashboardText("Circles: inside; diamonds: outside. Built-in recorded-spacing reference: 150–240 minutes inclusive, not a historical prescription.")
         captureDashboard("Night Mode spacing symbols and legend")
@@ -1247,14 +1247,14 @@ final class DoseTapUITests: XCTestCase {
         }
         XCTAssertTrue(chartPicker.isHittable)
         chartPicker.tap()
-        XCTAssertTrue(app.buttons["Cohorts"].waitForExistence(timeout: 5))
-        app.buttons["Cohorts"].tap()
-        captureDashboard("Night Mode labeled cohorts")
+        XCTAssertTrue(app.buttons["Recovery Trend"].waitForExistence(timeout: 5))
+        app.buttons["Recovery Trend"].tap()
+        captureDashboard("Night Mode labeled recovery ranges")
         theme.press(forDuration: 1); app.buttons["Dark"].tap()
         XCTAssertEqual(theme.value as? String, "Dark")
-        XCTAssertTrue(app.buttons["dashboard-trend-picker"].label.contains("Cohorts"))
-        revealDashboardText("Indigo: screens. Green: no screens. Colors identify groups, not better sleep.")
-        captureDashboard("Dark mode retains selected cohort chart")
+        XCTAssertTrue(app.buttons["dashboard-trend-picker"].label.contains("Recovery Trend"))
+        revealDashboardText("WHOOP recovery: green 67–100, yellow/orange 34–66, red below 34. Symbols also identify ranges.")
+        captureDashboard("Dark mode retains selected recovery chart")
     }
 
     func testDashboardSixMonthLargeTextMenu() throws {
@@ -1266,7 +1266,8 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(picker.waitForExistence(timeout: 10))
         picker.tap()
         app.buttons["6 Months"].tap()
-        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "6 Months")).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["dashboard-range-picker"].label.contains("6 Months"))
+        XCTAssertTrue(app.buttons["dashboard-range-picker"].isHittable)
         captureDashboard("Six month range at largest text")
     }
 
@@ -1275,8 +1276,11 @@ final class DoseTapUITests: XCTestCase {
         app.launchArguments = ["--uitesting", "-dashboard-provider-match-uitest", "-setup_completed_v2", "YES"]
         app.launch()
         XCTAssertTrue(app.buttons["Dashboard"].waitForExistence(timeout: 15)); app.buttons["Dashboard"].tap()
-        let open = app.buttons["dashboard-provider-match-test-open"]
-        XCTAssertTrue(open.waitForExistence(timeout: 10)); open.tap()
+        selectDashboardPage("dashboard-data-open", title: "Review Data")
+        let open = app.buttons["dashboard-provider-match-open"]
+        XCTAssertTrue(open.waitForExistence(timeout: 10))
+        for _ in 0..<18 where !open.isHittable { app.swipeUp(velocity: .slow) }
+        XCTAssertTrue(open.isHittable); open.tap()
         let choose = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "provider-match-choose-")).firstMatch
         XCTAssertTrue(choose.waitForExistence(timeout: 10)); choose.tap()
         let target = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Session -session")).firstMatch
@@ -1297,18 +1301,31 @@ final class DoseTapUITests: XCTestCase {
 
     func testDashboardReplayIntervalsAndExport() throws {
         app.buttons["Dashboard"].tap()
-        let open = app.buttons["dashboard-replay-open"]
-        XCTAssertTrue(open.waitForExistence(timeout: 10)); open.tap()
-        XCTAssertTrue(app.navigationBars["Replay & intervals"].waitForExistence(timeout: 5))
+        selectDashboardPage("dashboard-replay-open", title: "Session Replay")
+        let selection = app.buttons["dashboard-replay-selection"]
+        XCTAssertTrue(selection.waitForExistence(timeout: 10))
+        let selectedSession = selection.label
+        XCTAssertFalse(selectedSession.contains("Choose a session"), "The fixture must identify an actual observation")
         captureDashboard("Replay observed intervals and durable selection")
         app.swipeUp()
         captureDashboard("Replay clock event positions and observed bands")
         app.swipeDown()
         app.buttons["dashboard-replay-page"].tap()
         app.buttons["Intervals"].tap()
-        XCTAssertTrue(app.buttons["dashboard-interval-preset"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["dashboard-view-picker"].label.contains("Interval Explorer"), "Both inspection controls must display the same shared mode")
+        XCTAssertEqual(selection.label, selectedSession)
+        let preset = app.buttons["dashboard-interval-preset"]
+        XCTAssertTrue(preset.waitForExistence(timeout: 5))
+        for _ in 0..<18 where !preset.isHittable { app.swipeUp(velocity: .slow) }
+        XCTAssertTrue(preset.isHittable); preset.tap()
+        XCTAssertTrue(app.buttons["Dose 2 to reported final wake"].waitForExistence(timeout: 5))
+        app.buttons["Dose 2 to reported final wake"].tap()
+        let selectedPreset = preset.label
+        for _ in 0..<18 where !app.buttons["dashboard-replay-page"].isHittable { app.swipeDown(velocity: .slow) }
         captureDashboard("Curated intervals and explicit denominator")
         app.buttons["dashboard-replay-page"].tap(); app.buttons["Sleep opportunity"].tap()
+        XCTAssertTrue(app.buttons["dashboard-view-picker"].label.contains("Sleep Opportunity"))
+        XCTAssertEqual(selection.label, selectedSession)
         XCTAssertTrue(app.buttons["dashboard-opportunity-endpoint"].waitForExistence(timeout: 5))
         app.buttons["Check Apple Health reviewed coverage"].tap()
         captureDashboard("Named post dose coverage and historical required wake")
@@ -1316,12 +1333,15 @@ final class DoseTapUITests: XCTestCase {
         captureDashboard("Named coverage partition and exact source table")
         for _ in 0..<6 where !app.buttons["dashboard-replay-page"].isHittable { app.swipeDown() }
         app.buttons["dashboard-replay-page"].tap(); app.buttons["Medication"].tap()
+        XCTAssertTrue(app.buttons["dashboard-view-picker"].label.contains("Medication Explorer"))
         let endpointPanel = app.buttons["Select medication or nap endpoints / review medication logs"]
         endpointPanel.tap()
         app.buttons["dashboard-replay-endpoint-medicationXR"].tap()
         app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "Synthetic XR")).firstMatch.tap()
         app.buttons["dashboard-replay-endpoint-medicationIR"].tap()
         app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "Synthetic IR")).firstMatch.tap()
+        let medicationChoice = app.buttons["dashboard-replay-endpoint-medicationXR"].label
+        let immediateChoice = app.buttons["dashboard-replay-endpoint-medicationIR"].label
         for _ in 0..<3 where !endpointPanel.isHittable { app.swipeDown() }
         endpointPanel.tap()
         XCTAssertTrue(app.otherElements["dashboard-medication-chart"].waitForExistence(timeout: 5))
@@ -1331,13 +1351,67 @@ final class DoseTapUITests: XCTestCase {
         for _ in 0..<12 where !app.staticTexts["Actual minus saved reminder"].isHittable { app.swipeUp() }
         XCTAssertTrue(app.staticTexts["Actual minus saved reminder"].isHittable)
         captureDashboard("Signed historical reminder deviation and exact rows")
-        for _ in 0..<16 where !app.buttons["dashboard-replay-page"].isHittable { app.swipeDown() }
-        app.navigationBars["Replay & intervals"].buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(open.waitForExistence(timeout: 5)); open.tap()
+        selectDashboardPage("dashboard-data-open", title: "Review Data")
+        selectDashboardPage("dashboard-medications-open", title: "Medication Explorer")
         XCTAssertTrue(app.buttons["dashboard-replay-page"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["dashboard-replay-page"].label.contains("Medication"))
-        captureDashboard("Replay route reentry retains medication inspection mode")
-        app.buttons["dashboard-replay-page"].tap(); app.buttons["Intervals"].tap()
+        XCTAssertEqual(selection.label, selectedSession, "Focused route reentry must retain the exact observation")
+        XCTAssertTrue(endpointPanel.waitForExistence(timeout: 5)); endpointPanel.tap()
+        XCTAssertEqual(app.buttons["dashboard-replay-endpoint-medicationXR"].label, medicationChoice)
+        XCTAssertEqual(app.buttons["dashboard-replay-endpoint-medicationIR"].label, immediateChoice)
+        endpointPanel.tap()
+        captureDashboard("Replay route reentry retains medication inspection mode and exact endpoints")
+        selectDashboardPage("dashboard-intervals-open", title: "Interval Explorer")
+        XCTAssertEqual(preset.label, selectedPreset, "Leaving and returning must preserve the interval preset")
+        for _ in 0..<18 where !preset.isHittable { app.swipeUp(velocity: .slow) }
+        preset.tap(); app.buttons["Dose 1 to Dose 2"].tap()
+        let display = app.buttons["dashboard-interval-display"]
+        XCTAssertTrue(display.waitForExistence(timeout: 5))
+        display.tap(); app.buttons["Compare outcome"].tap()
+        let outcome = app.buttons["dashboard-interval-outcome"]
+        XCTAssertTrue(outcome.exists)
+        let points = app.otherElements["dashboard-interval-points"]
+        for _ in 0..<10 where !points.isHittable { app.swipeUp(velocity: .slow) }
+        XCTAssertTrue(points.exists)
+        captureDashboard("Interval paired source sleep and built in reference groups")
+        for _ in 0..<10 where !outcome.isHittable { app.swipeDown(velocity: .slow) }
+        outcome.tap(); app.buttons["Recorded sleepiness 0–10"].tap()
+        XCTAssertTrue(outcome.label.contains("Recorded sleepiness"))
+        app.swipeUp(velocity: .slow)
+        captureDashboard("Interval paired timed sleepiness and exact inclusion denominator")
+        for _ in 0..<10 where !display.isHittable { app.swipeDown(velocity: .slow) }
+        display.tap(); app.buttons["Distribution"].tap()
+        let bin = app.buttons["dashboard-interval-bin"]
+        XCTAssertTrue(bin.waitForExistence(timeout: 5)); bin.tap()
+        let selectedBin = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "180–<210 min")).firstMatch
+        XCTAssertTrue(selectedBin.waitForExistence(timeout: 5)); selectedBin.tap()
+        app.swipeUp(velocity: .slow)
+        captureDashboard("Labeled interval bin and linked exact rows")
+        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "dashboard-interval-row-")).count, 2)
+        let filteredExport = app.buttons["dashboard-replay-export-filtered"]
+        for _ in 0..<18 where !filteredExport.isHittable { app.swipeUp(velocity: .slow) }
+        XCTAssertTrue(filteredExport.isHittable); filteredExport.tap()
+        XCTAssertTrue(app.navigationBars["Export preview"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["All filtered observations: 2 observations"].exists)
+        captureDashboard("Frozen bin export matches two exact interval and outcome rows")
+        app.buttons["Close"].tap()
+        for _ in 0..<18 where !app.buttons["Clear interval bin"].isHittable { app.swipeDown(velocity: .slow) }
+        app.buttons["Clear interval bin"].tap()
+        for _ in 0..<10 where !display.isHittable { app.swipeDown(velocity: .slow) }
+        display.tap(); app.buttons["By date"].tap()
+        let pointPrefix = "dashboard-interval-point-"
+        let mark = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label MATCHES %@", pointPrefix, "[0-9]{4}-[0-9]{2}-[0-9]{2}; .*; interval 200 minutes; .*" )).firstMatch
+        let pointSafeBottom = app.buttons["Dashboard"].frame.minY - 8
+        for _ in 0..<10 where !mark.isHittable || mark.frame.maxY > pointSafeBottom { app.swipeUp(velocity: .slow) }
+        XCTAssertTrue(mark.isHittable, "A plotted observation must be directly inspectable")
+        XCTAssertLessThanOrEqual(mark.frame.maxY, pointSafeBottom, "The entire point target must be above the tab overlay")
+        let expectedObservationID = String(mark.identifier.dropFirst(pointPrefix.count))
+        mark.tap()
+        let selectedRow = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label BEGINSWITH %@", "dashboard-interval-row-", "Selected · ")).firstMatch
+        XCTAssertTrue(selectedRow.waitForExistence(timeout: 5))
+        XCTAssertEqual(selectedRow.identifier, "dashboard-interval-row-" + expectedObservationID)
+        XCTAssertTrue(selectedRow.label.contains("200 min"))
+        captureDashboard("Direct interval point selection links exact source table")
         for _ in 0..<12 where !app.buttons["dashboard-replay-export"].isHittable { app.swipeUp() }
         XCTAssertTrue(app.buttons["dashboard-replay-export"].isHittable)
         app.buttons["dashboard-replay-export"].tap()
@@ -1348,9 +1422,8 @@ final class DoseTapUITests: XCTestCase {
 
     func testDashboardWorkBlockUnknownAndRosterReview() throws {
         app.buttons["Dashboard"].tap()
-        let link = app.buttons["dashboard-work-block"]
-        XCTAssertTrue(link.waitForExistence(timeout: 10)); link.tap()
-        XCTAssertTrue(app.navigationBars["Work Block & Sleep"].waitForExistence(timeout: 10))
+        selectDashboardPage("dashboard-work-block", title: "Work Block & Sleep")
+        XCTAssertTrue(app.buttons["work-context-configure"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["work-context-configure"].exists)
         captureDashboard("Work block basis and unknown context")
         app.buttons["work-context-configure"].tap()
@@ -1364,13 +1437,13 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertEqual(review.value as? String, "1")
         XCTAssertTrue(app.buttons["Save revision"].isEnabled); app.buttons["Save revision"].tap()
         XCTAssertTrue(app.navigationBars["Work context"].waitForNonExistence(timeout: 5), "Successful save dismisses the editor; storage errors must remain visible")
-        XCTAssertTrue(app.navigationBars["Work Block & Sleep"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["work-context-configure"].waitForExistence(timeout: 5))
         app.buttons["work-context-configure"].tap()
         let history = app.staticTexts.matching(NSPredicate(format: "label MATCHES %@", "[1-9][0-9]* roster revisions • [0-9]+ work-date revisions")).firstMatch
         for _ in 0..<8 where !history.exists { app.swipeUp() }
         XCTAssertTrue(history.exists, "An explicitly reviewed roster must persist when reopened")
         app.buttons["Cancel"].tap()
-        XCTAssertTrue(app.navigationBars["Work Block & Sleep"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["work-context-configure"].waitForExistence(timeout: 5))
         for _ in 0..<8 where !app.staticTexts["Records and exact values"].isHittable { app.swipeUp() }
         captureDashboard("Work cycle profile and exact record table")
     }
@@ -1439,8 +1512,7 @@ final class DoseTapUITests: XCTestCase {
     }
     func testDashboardWorkReportedCategoriesAndNapAssessmentScope() throws {
         app.buttons["Dashboard"].tap()
-        let work = app.buttons["dashboard-work-block"]
-        XCTAssertTrue(work.waitForExistence(timeout: 10)); work.tap()
+        selectDashboardPage("dashboard-work-block", title: "Work Block & Sleep")
         let outcomes = app.buttons["work-reported-outcomes"]
         for _ in 0..<8 where !outcomes.isHittable { app.swipeUp() }
         XCTAssertTrue(outcomes.isHittable); outcomes.tap()
@@ -1459,8 +1531,7 @@ final class DoseTapUITests: XCTestCase {
 
     func testDashboardWorkSharedSelectionSurvivesPhaseFilter() throws {
         app.buttons["Dashboard"].tap()
-        let link = app.buttons["dashboard-work-block"]
-        XCTAssertTrue(link.waitForExistence(timeout: 10)); link.tap()
+        selectDashboardPage("dashboard-work-block", title: "Work Block & Sleep")
         let record = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "work-context-record-")).firstMatch
         for _ in 0..<15 where !record.isHittable { app.swipeUp() }
         XCTAssertTrue(record.isHittable); record.tap()
@@ -1480,9 +1551,8 @@ final class DoseTapUITests: XCTestCase {
 
     func testDashboardWorkComparisonEncodings() throws {
         app.buttons["Dashboard"].tap()
-        let link = app.buttons["dashboard-work-block"]
-        XCTAssertTrue(link.waitForExistence(timeout: 10)); link.tap()
-        XCTAssertTrue(app.navigationBars["Work Block & Sleep"].waitForExistence(timeout: 10))
+        selectDashboardPage("dashboard-work-block", title: "Work Block & Sleep")
+        XCTAssertTrue(app.buttons["work-context-configure"].waitForExistence(timeout: 10))
         app.buttons["work-comparison-controls"].tap()
         app.buttons["work-display"].tap(); app.buttons["Interval scatter"].tap()
         let grouping = app.buttons["work-comparison-grouping"]
@@ -1511,9 +1581,10 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(range.waitForExistence(timeout: 10))
         range.tap()
         app.buttons["6 Months"].tap()
-        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "6 Months")).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["dashboard-range-picker"].label.contains("6 Months"))
+        XCTAssertTrue(app.buttons["dashboard-range-picker"].isHittable)
         captureDashboard("Six month dashboard range")
-        app.segmentedControls["dashboard-section-picker"].buttons["Data"].tap()
+        selectDashboardPage("dashboard-data-open", title: "Review Data")
         revealDashboardText("Data Coverage")
         revealDashboardText("Timed sleepiness 0–10: 4/8 available · 4 missing")
         captureDashboard("Dashboard measurement coverage")
@@ -1524,18 +1595,17 @@ final class DoseTapUITests: XCTestCase {
 
     func testDashboardOverviewTrendsAndData() throws {
         app.buttons["Dashboard"].tap()
+        selectDashboardMeasure("Recorded summary")
         XCTAssertTrue(app.staticTexts["Recorded Nights"].waitForExistence(timeout: 10))
         captureDashboard("Dashboard overview")
-        app.segmentedControls["dashboard-section-picker"].buttons["Trends"].tap()
+        selectDashboardMeasure("Recorded trends")
         revealDashboardText("Interactive Trends")
-        app.buttons["WHOOP"].tap()
+        selectDashboardSleepSource("WHOOP")
         captureDashboard("Dashboard trends WHOOP")
         app.buttons["dashboard-trend-picker"].tap()
         app.buttons["Weekday"].tap()
         captureDashboard("Dashboard weekday observed samples")
-        let sectionPicker = app.segmentedControls["dashboard-section-picker"]
-        for _ in 0..<8 where !sectionPicker.isHittable { app.swipeDown() }
-        sectionPicker.buttons["Data"].tap()
+        selectDashboardPage("dashboard-data-open", title: "Review Data")
         XCTAssertTrue(app.staticTexts["Data Coverage"].waitForExistence(timeout: 5))
         captureDashboard("Dashboard data coverage")
         app.swipeUp()
@@ -1544,81 +1614,131 @@ final class DoseTapUITests: XCTestCase {
         app.launchArguments += ["--dashboard-empty", "--dashboard-partial"]
         app.launch()
         app.buttons["Dashboard"].tap()
-        XCTAssertTrue(app.staticTexts["No data in this range"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["No session or provider observations in this range"].waitForExistence(timeout: 10))
         captureDashboard("Dashboard empty and provider error")
     }
 
     func testDashboardBuild14MetricsInEverySection() throws {
         app.buttons["Dashboard"].tap()
+        selectDashboardMeasure("Recorded summary")
         XCTAssertTrue(app.staticTexts["Recorded Nights"].waitForExistence(timeout: 10))
-        selectDashboardSection("Overview")
         revealDashboardText("Finished-night streak", prefix: true)
         revealDashboardText("Coverage · 3+ categories", prefix: true)
         revealDashboardText("WHOOP HRV", prefix: true)
         revealDashboardText("Tonight:", prefix: true)
         captureDashboard("Build14 parity Overview summaries")
+        selectDashboardMeasure("Dose records")
         revealDashboardText("Duplicate Nights")
         revealDashboardText("Record review flags")
-        revealDashboardText("Nap Nights")
+        selectDashboardMeasure("Sleep outcomes")
+        revealDashboardText("Nap Nights:", prefix: true)
+        selectDashboardMeasure("WHOOP recovery & biometrics")
         revealDashboardText("Resting HR")
+        selectDashboardPage("dashboard-data-open", title: "Review Data")
+        selectDashboardPage("dashboard-additional-open", title: "Other Recorded Measures")
+        XCTAssertTrue(app.buttons["dashboard-additional-measure"].label.contains("WHOOP recovery & biometrics"), "Returning must retain the selected recorded-measure panel")
         captureDashboard("Build14 parity WHOOP missing readings")
 
-        selectDashboardSection("Trends")
         app.buttons["dashboard-range-picker"].tap()
         app.buttons["7 Days"].tap()
+        selectDashboardMeasure("Prior period comparison")
         revealDashboardText("vs. Prior 7 Days")
         revealDashboardText("Recorded On-Time %", prefix: true)
         captureDashboard("Build14 parity prior comparison")
+        selectDashboardMeasure("Reported waking methods")
         revealDashboardText("Natural waking vs. alarm waking")
         revealDashboardText("Within-window pairs")
         captureDashboard("Wake comparison replaces legacy timing split")
-        revealDashboardText("Alcohol: No data", prefix: true)
-        revealDashboardText("Exercise Days")
-        captureDashboard("Build14 parity lifestyle missing answers")
-        revealDashboardText("Mental Clarity")
-        revealDashboardText("Narcolepsy Symptoms")
-        captureDashboard("Build14 parity morning metrics")
+        selectDashboardMeasure("Lifestyle answers")
+        inspectRawSavedAnswers()
+        captureDashboard("Lifestyle original answers require review")
+        selectDashboardMeasure("Morning answers")
+        inspectRawSavedAnswers()
+        XCTAssertFalse(app.staticTexts["Narcolepsy Symptoms"].exists, "Unconfirmed defaults must not be summarized as symptom prevalence")
+        captureDashboard("Morning original answers preserved without inferred percentages")
 
-        selectDashboardSection("Data")
+        selectDashboardPage("dashboard-data-open", title: "Review Data")
         revealDashboardText("Morning check-in rate:", prefix: true)
         revealDashboardText("Nights with at least 3 of 4 data categories:", prefix: true)
         revealDashboardText("Coverage: 4/4 categories")
         captureDashboard("Build14 parity Data per-night coverage")
-        selectDashboardSection("Overview")
-        app.buttons["Dashboard colors & missing data"].tap()
+        selectDashboardPage("dashboard-data-open", title: "Review Data")
+        let colors = app.buttons["Colors & missing data"]
+        for _ in 0..<18 where !colors.isHittable { app.swipeDown(velocity: .slow) }
+        XCTAssertTrue(colors.isHittable); colors.tap()
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Blue values:")).firstMatch.waitForExistence(timeout: 5))
         captureDashboard("Build14 parity color key")
     }
 
-    private func selectDashboardSection(_ title: String) {
-        let picker = app.segmentedControls["dashboard-section-picker"]
-        for _ in 0..<30 where !picker.isHittable { app.swipeDown(velocity: .fast) }
-        XCTAssertTrue(picker.isHittable)
-        picker.buttons[title].tap()
+    private func selectDashboardPage(_ identifier: String, title: String) {
+        let picker = app.buttons["dashboard-view-picker"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 10))
+        XCTAssertTrue(picker.isHittable, "The focused-view picker must remain reachable")
+        picker.tap()
+        let destination = app.buttons[identifier]
+        app.revealDashboardMenuItem(destination)
+        XCTAssertTrue(destination.waitForExistence(timeout: 5)); destination.tap()
+        XCTAssertTrue(picker.label.contains(title), "The visible picker must identify the selected focused view")
+    }
+
+    private func selectDashboardMeasure(_ title: String) {
+        selectDashboardPage("dashboard-additional-open", title: "Other Recorded Measures")
+        let picker = app.buttons["dashboard-additional-measure"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 10))
+        for _ in 0..<18 where !picker.isHittable { app.swipeDown(velocity: .slow) }
+        XCTAssertTrue(picker.isHittable); picker.tap()
+        let choice = app.buttons[title]
+        app.revealDashboardMenuItem(choice)
+        XCTAssertTrue(choice.waitForExistence(timeout: 5)); choice.tap()
+        XCTAssertTrue(picker.label.contains(title))
+    }
+
+    private func selectDashboardSleepSource(_ title: String) {
+        let filters = app.buttons["dashboard-shared-filters"]
+        XCTAssertTrue(filters.waitForExistence(timeout: 5)); filters.tap()
+        let source = app.buttons["dashboard-sleep-source"]
+        XCTAssertTrue(source.waitForExistence(timeout: 5)); source.tap()
+        XCTAssertTrue(app.buttons[title].waitForExistence(timeout: 5)); app.buttons[title].tap()
+        XCTAssertTrue(source.label.contains(title))
+        app.navigationBars["Dashboard filters"].buttons["Done"].tap()
     }
 
     func testDashboardAllRestoresEveryCardWithoutChangingSections() throws {
         app.buttons["Dashboard"].tap()
+        selectDashboardMeasure("Recorded summary")
         XCTAssertTrue(app.staticTexts["Recorded Nights"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.segmentedControls["dashboard-section-picker"].buttons["All"].isSelected)
-        captureDashboard("Restored dashboard All overview")
-        for title in ["Recorded Dose Timing", "Sleep Outcomes", "WHOOP Recovery & Biometrics",
-                      "Period Comparison", "Interactive Trends", "Natural waking vs. alarm waking",
-                      "Timing & status · full date range", "Food timing & next-day diary", "Lifestyle Factors",
-                      "Mood & Symptoms", "Stress Trends", "Data Coverage", "Integrations",
-                      "Recent Nights · up to 14", "Captured Metrics Inventory"] {
+        captureDashboard("Focused recorded summary")
+        let measures: [(String, [String])] = [
+            ("Dose records", ["Recorded Dose Timing"]),
+            ("Sleep outcomes", ["Sleep Outcomes"]),
+            ("WHOOP recovery & biometrics", ["WHOOP Recovery & Biometrics"]),
+            ("Prior period comparison", ["Period Comparison"]),
+            ("Recorded trends", ["Interactive Trends"]),
+            ("Reported waking methods", ["Natural waking vs. alarm waking", "Timing & status · full date range"]),
+            ("Food & next-day diary", ["Food timing & next-day diary", "Original saved records"]),
+            ("Lifestyle answers", ["Lifestyle Factors", "Original saved records"]),
+            ("Morning answers", ["Mood & Symptoms", "Original saved records"]),
+            ("Stress answers", ["Stress Trends", "Original saved records"])
+        ]
+        for (measure, headings) in measures {
+            selectDashboardMeasure(measure)
+            for heading in headings { revealDashboardText(heading) }
+            captureDashboard("Retained focused measure " + measure)
+        }
+        selectDashboardPage("dashboard-data-open", title: "Review Data")
+        for title in ["Data Coverage", "Integrations", "Recent Nights · up to 14", "Captured Metrics Inventory"] {
             revealDashboardText(title)
-            if ["Lifestyle Factors", "Data Coverage", "Captured Metrics Inventory"].contains(title) {
-                captureDashboard("Restored dashboard " + title)
-            }
+            captureDashboard("Retained data reference " + title)
         }
         app.terminate()
         app.launchArguments += ["--dashboard-sparse"]
         app.launch()
         app.buttons["Dashboard"].tap()
+        selectDashboardMeasure("Recorded summary")
         XCTAssertTrue(app.staticTexts["Recorded Nights"].waitForExistence(timeout: 10))
-        revealDashboardText("WHOOP Recovery & Biometrics")
-        revealDashboardText("No WHOOP nights in this range. Check the WHOOP connection in Settings, then refresh or choose a wider range.")
+        selectDashboardMeasure("WHOOP recovery & biometrics")
+        revealDashboardText("No WHOOP records in this range. Check the connection in Settings, then refresh or choose a wider range.")
+        selectDashboardMeasure("Reported waking methods")
         revealDashboardText("Natural waking vs. alarm waking")
         revealDashboardText("Each n counts nights with that measurement, not all recorded pairs. Missing data is not zero.")
         revealDashboardText("Timing & status · full date range")
@@ -1628,7 +1748,8 @@ final class DoseTapUITests: XCTestCase {
         app.launchArguments += ["--dashboard-empty"]
         app.launch()
         app.buttons["Dashboard"].tap()
-        XCTAssertTrue(app.staticTexts["No data in this range"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["No session or provider observations in this range"].waitForExistence(timeout: 10))
+        selectDashboardPage("dashboard-data-open", title: "Review Data")
         revealDashboardText("Integrations")
         revealDashboardText("Captured Metrics Inventory")
         captureDashboard("Empty dashboard keeps data reference")
@@ -1636,8 +1757,9 @@ final class DoseTapUITests: XCTestCase {
 
     func testDashboardWakeComparison() throws {
         app.buttons["Dashboard"].tap()
+        selectDashboardMeasure("Recorded summary")
         XCTAssertTrue(app.staticTexts["Recorded Nights"].waitForExistence(timeout: 10))
-        app.segmentedControls["dashboard-section-picker"].buttons["Trends"].tap()
+        selectDashboardMeasure("Reported waking methods")
         revealDashboardText("Natural waking vs. alarm waking")
         captureDashboard("Wake comparison heading and day filter")
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75)).press(forDuration: 0.1,
@@ -1645,28 +1767,68 @@ final class DoseTapUITests: XCTestCase {
         captureDashboard("Wake comparison medians and independent usable counts")
         revealDashboardText("Timing & status · full date range")
         captureDashboard("Wake comparison missing-data and full-status disclosures")
-        revealDashboardText("Food timing & next-day diary")
-        let foodFilter = app.descendants(matching: .any).matching(identifier: "food-comparison-day-filter").firstMatch
-        XCTAssertTrue(foodFilter.isHittable, app.debugDescription)
-        foodFilter.tap()
-        app.buttons["Day off"].tap()
-        XCTAssertTrue(app.staticTexts["Last food recorded: 3 of 4 nights"].exists)
-        foodFilter.tap()
-        app.buttons["All days"].tap()
-        captureDashboard("Food timing recorded and missing counts")
-        let foodComparison = app.buttons["Compare recorded food answers"]
-        for _ in 0..<4 where !foodComparison.isHittable { app.swipeUp(velocity: .slow) }
-        XCTAssertTrue(foodComparison.isHittable)
-        foodComparison.tap()
-        revealDashboardText("High-fat: No")
-        captureDashboard("Food timing paired outcomes and usable counts")
+        selectDashboardMeasure("Food & next-day diary")
+        inspectRawSavedAnswers()
+        XCTAssertFalse(app.buttons["Compare recorded food answers"].exists, "Legacy food/outcome pairing must not bypass canonical source state and assessment-time validation")
+        captureDashboard("Original saved food answers retained without unverified paired outcomes")
+    }
+
+    func testDashboardRawSavedAnswerIdentity() throws {
+        app.buttons["Dashboard"].tap()
+        selectDashboardMeasure("Lifestyle answers")
+        inspectRawSavedAnswers()
+        captureDashboard("Raw answer controls retain exact accessible source identities")
+    }
+
+    private func inspectRawSavedAnswers() {
+        let warning = app.staticTexts["dashboard-saved-answer-needs-review"]
+        XCTAssertTrue(warning.waitForExistence(timeout: 5))
+        XCTAssertTrue(warning.label.contains("legacy defaults"))
+        revealDashboardText("Original saved records")
+        let record = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "dashboard-raw-answer-")).firstMatch
+        for _ in 0..<18 where !record.isHittable { app.swipeUp(velocity: .slow) }
+        XCTAssertTrue(record.isHittable)
+        let savedClarity = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Saved mental clarity:")).firstMatch
+        if !savedClarity.exists { record.tap() }
+        revealDashboardText("Saved mental clarity:", prefix: true)
+        revealDashboardText("Stored physical-symptom flag:", prefix: true)
+        revealDashboardText("A stored false flag does not establish a confirmed No answer or an absence.")
+        let select = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "dashboard-raw-select-")).firstMatch
+        XCTAssertTrue(select.exists)
+        let observationID = String(select.identifier.dropFirst("dashboard-raw-select-".count))
+        XCTAssertFalse(observationID.isEmpty)
+        for _ in 0..<18 where !select.isHittable { app.swipeDown(velocity: .slow) }
+        XCTAssertTrue(select.isHittable); select.tap()
+        let selected = app.staticTexts["dashboard-raw-selected-" + observationID]
+        XCTAssertTrue(selected.waitForExistence(timeout: 5))
+        XCTAssertEqual(selected.label, "Selected observation: " + observationID)
+        let context = app.buttons["dashboard-reviewed-context-open"]
+        for _ in 0..<18 where !context.isHittable { app.swipeDown(velocity: .slow) }
+        XCTAssertTrue(context.isHittable, "Validated comparisons must remain reachable from raw saved answers")
     }
 
     private func revealDashboardText(_ title: String, prefix: Bool = false) {
         let element = app.staticTexts.matching(NSPredicate(format: prefix ? "label BEGINSWITH %@" : "label == %@", title)).firstMatch
         for _ in 0..<18 {
             if element.exists && element.isHittable { return }
-            app.swipeUp(velocity: .slow)
+            let data = app.scrollViews["dashboard-data-review"]
+            let viewport = data.exists ? data : app.scrollViews.firstMatch
+            guard viewport.exists else { break }
+            let bounds = viewport.frame.intersection(app.frame)
+            let tab = app.buttons["Dashboard"]
+            let bottom = tab.exists ? min(bounds.maxY, tab.frame.minY) : bounds.maxY
+            let height = bottom - bounds.minY
+            guard height > 40 else { break }
+            let downward = element.exists && element.frame.midY < bounds.minY + height / 2
+            let origin = app.coordinate(withNormalizedOffset: .zero)
+            let center = bounds.minY + height / 2
+            let distance = element.exists ? min(height * 0.35, max(12, abs(element.frame.midY - center))) : height * 0.35
+            let upper = origin.withOffset(CGVector(dx: bounds.midX - app.frame.minX,
+                dy: center - distance / 2 - app.frame.minY))
+            let lower = origin.withOffset(CGVector(dx: bounds.midX - app.frame.minX,
+                dy: center + distance / 2 - app.frame.minY))
+            (downward ? upper : lower).press(forDuration: 0.1, thenDragTo: downward ? lower : upper,
+                withVelocity: .slow, thenHoldForDuration: 0.2)
         }
         XCTFail("Dashboard card not reachable: " + title)
     }
@@ -1676,13 +1838,25 @@ final class DoseTapUITests: XCTestCase {
         app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         app.launch()
         app.buttons["Dashboard"].tap()
+        selectDashboardMeasure("Recorded summary")
         XCTAssertTrue(app.staticTexts["Recorded Nights"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["dashboard-view-picker"].isHittable)
+        XCTAssertTrue(app.buttons["dashboard-range-picker"].isHittable)
+        let details = app.buttons["Reporting period details"]
+        XCTAssertTrue(details.waitForExistence(timeout: 5)); details.tap()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "rollover")).firstMatch.exists)
+        details.tap()
+        selectDashboardPage("dashboard-data-open", title: "Review Data")
+        revealDashboardText("Data Coverage")
+        selectDashboardMeasure("Recorded summary")
         captureDashboard("Dashboard accessibility text")
         XCUIDevice.shared.orientation = .landscapeLeft
         defer { XCUIDevice.shared.orientation = .portrait }
         let landscape = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in self.app.frame.width > self.app.frame.height }, object: app)
         wait(for: [landscape], timeout: 10)
-        app.swipeUp()
+        XCTAssertTrue(app.buttons["dashboard-view-picker"].isHittable)
+        XCTAssertTrue(app.buttons["dashboard-range-picker"].isHittable)
+        revealDashboardText("WHOOP HRV", prefix: true)
         let screenRotated = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
             let size = XCUIScreen.main.screenshot().image.size
             return size.width > size.height
@@ -2731,5 +2905,17 @@ extension DoseTapUITests {
         let source = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "synthetic-nap-source")).firstMatch
         reveal(source); XCTAssertTrue(source.exists)
         let proof = XCTAttachment(screenshot: app.screenshot()); proof.name = "Independent observation with existing nap link after restart"; proof.lifetime = .keepAlways; add(proof)
+    }
+}
+
+// Native menus virtualize offscreen rows at accessibility text sizes.
+extension XCUIApplication {
+    func revealDashboardMenuItem(_ item: XCUIElement) {
+        let menu = collectionViews.firstMatch
+        for _ in 0..<16 {
+            if item.exists && item.isHittable { return }
+            guard menu.exists else { return }
+            menu.swipeUp(velocity: .slow)
+        }
     }
 }

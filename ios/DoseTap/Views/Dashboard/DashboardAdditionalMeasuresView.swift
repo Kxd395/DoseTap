@@ -136,12 +136,12 @@ struct DashboardAdditionalMeasuresView: View {
                             } else { Text("No decoded pre-sleep answers available. The original record remains stored.") }
                         }
                     }.padding(.vertical, 8)
-                }.accessibilityIdentifier("dashboard-raw-answer-" + night.id)
+                }.accessibilityElement(children: .contain).accessibilityIdentifier("dashboard-raw-answer-" + night.id)
             }
             if !model.populatedNights.contains(where: { $0.preSleepLog != nil || $0.morningCheckIn != nil }) {
                 Text("No saved questionnaire records in this range. Unanswered questions remain unavailable.")
             }
-        }.accessibilityIdentifier("dashboard-raw-saved-answers")
+        }
     }
     private var contextLink: some View {
         NavigationLink("Open Context & Morning Outcomes") { ContextMorningOutcomesView(model: model) }

@@ -93,29 +93,44 @@ struct DashboardIntervalExplorer: View {
                     PointMark(x: .value("Interval minutes", x), y: .value(model.replayPresentation.comparedOutcome.rawValue, y))
                         .foregroundStyle(by: .value("Reference group", row.referenceGroup ?? "Unclassified"))
                         .symbolSize(row.id == model.inspection.selectedObservationID ? 125 : 45)
-                        .accessibilityLabel(pointLabel(row))
+                        .accessibilityHidden(true)
                 } else if !paired {
                     PointMark(x: .value("Treatment date", date(row)), y: .value("Interval minutes", x))
                         .foregroundStyle(by: .value("Reference group", row.referenceGroup ?? "Unclassified"))
                         .symbolSize(row.id == model.inspection.selectedObservationID ? 125 : 45)
-                        .accessibilityLabel(pointLabel(row))
+                        .accessibilityHidden(true)
                 }
             }
         }.frame(height: typeSize.isAccessibilitySize ? 360 : 250)
             .accessibilityIdentifier("dashboard-interval-points")
             .chartOverlay { proxy in GeometryReader { geometry in
-                Rectangle().fill(.clear).contentShape(Rectangle()).onTapGesture { tap in
-                    let frame = geometry[proxy.plotAreaFrame]
-                    guard frame.contains(tap) else { return }
-                    let points: [DosePatternPresentation.PlotPoint] = filtered.compactMap { row in
-                        guard let interval = row.x else { return nil }
-                        let x = paired ? proxy.position(forX: interval) : proxy.position(forX: date(row))
-                        guard let x, let value = paired ? row.y : interval, let y = proxy.position(forY: value) else { return nil }
-                        return .init(id: row.id, point: CGPoint(x: x, y: y))
-                    }
-                    candidates = DosePatternPresentation.candidates(at: CGPoint(x: tap.x - frame.minX, y: tap.y - frame.minY), points: points)
-                    if candidates.count == 1, let row = filtered.first(where: { candidates.contains($0.id) }) { select(row) }
+                let frame = geometry[proxy.plotAreaFrame]
+                let points: [DosePatternPresentation.PlotPoint] = filtered.compactMap { row in
+                    guard let interval = row.x else { return nil }
+                    let x = paired ? proxy.position(forX: interval) : proxy.position(forX: date(row))
+                    guard let x, let value = paired ? row.y : interval, let y = proxy.position(forY: value) else { return nil }
+                    return .init(id: row.id, point: CGPoint(x: x, y: y))
                 }
+                ZStack(alignment: .topLeading) {
+                    Rectangle().fill(.clear).contentShape(Rectangle())
+                    ForEach(filtered) { row in
+                        if let point = points.first(where: { $0.id == row.id }) {
+                            Button { select(row) } label: { Color.clear.frame(width: 44, height: 44).contentShape(Circle()) }
+                                .buttonStyle(.plain).accessibilityLabel(pointLabel(row))
+                                .accessibilityIdentifier("dashboard-interval-point-" + row.id)
+                                .accessibilityValue(row.id == model.inspection.selectedObservationID ? "Selected" : "Not selected")
+                                .accessibilityAction { select(row) }
+                                .position(x: frame.minX + point.point.x, y: frame.minY + point.point.y)
+                        }
+                    }
+                }.frame(width: geometry.size.width, height: geometry.size.height)
+                    .accessibilityElement(children: .contain)
+                    .highPriorityGesture(SpatialTapGesture().onEnded { value in
+                        let tap = value.location
+                        guard frame.contains(tap) else { return }
+                        candidates = DosePatternPresentation.candidates(at: CGPoint(x: tap.x - frame.minX, y: tap.y - frame.minY), points: points)
+                        if candidates.count == 1, let row = filtered.first(where: { candidates.contains($0.id) }) { select(row) }
+                    })
             } }
     }
     private func tableRow(_ row: ReplayComparisonRow) -> some View {

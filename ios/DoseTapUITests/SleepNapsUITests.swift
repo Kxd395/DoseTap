@@ -68,7 +68,12 @@ final class SleepNapsUITests: XCTestCase {
         continueAfterFailure = false
         launch(largeText: largeText, reset: false, fixture: false)
         let dashboard = app.buttons["Dashboard"]; XCTAssertTrue(dashboard.waitForExistence(timeout: 10)); dashboard.tap()
-        let route = app.buttons["dashboard-sleep-naps-open"]; reveal(route); route.tap()
+        let picker = app.buttons["dashboard-view-picker"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 10)); XCTAssertTrue(picker.isHittable); picker.tap()
+        let route = app.buttons["dashboard-sleep-naps-open"]
+        app.revealDashboardMenuItem(route)
+        XCTAssertTrue(route.waitForExistence(timeout: 5)); XCTAssertTrue(route.isHittable); route.tap()
+        XCTAssertTrue(picker.label.contains("Sleep & Naps"))
         XCTAssertTrue(app.buttons["nap-add-report"].waitForExistence(timeout: 10)); app.terminate()
         launch(largeText: largeText, reset: true)
         let add = app.buttons["nap-add-report"]

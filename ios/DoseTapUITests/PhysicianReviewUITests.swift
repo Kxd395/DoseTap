@@ -31,6 +31,12 @@ final class PhysicianReviewUITests: XCTestCase {
     private func journey() {
         let dashboard = app.buttons["Dashboard"].firstMatch
         XCTAssertTrue(dashboard.waitForExistence(timeout: 10)); dashboard.tap()
+        let picker = app.buttons["dashboard-view-picker"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 10)); XCTAssertTrue(picker.isHittable); picker.tap()
+        let route = app.buttons["dashboard-physician-open"]
+        app.revealDashboardMenuItem(route)
+        XCTAssertTrue(route.waitForExistence(timeout: 5)); XCTAssertTrue(route.isHittable); route.tap()
+        XCTAssertTrue(picker.label.contains("Physician Review"))
         let open = app.buttons["physician-review-open"]; reveal(open); open.tap()
         let period = app.buttons["physician-report-period"]; reveal(period); period.tap()
         app.buttons["28 Days"].firstMatch.tap()

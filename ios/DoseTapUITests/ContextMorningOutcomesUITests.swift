@@ -10,9 +10,12 @@ final class ContextMorningOutcomesUITests: XCTestCase {
         app.launch()
         let dashboard = app.buttons["Dashboard"]
         XCTAssertTrue(dashboard.waitForExistence(timeout: 15)); dashboard.tap()
+        let picker = app.buttons["dashboard-view-picker"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 10)); XCTAssertTrue(picker.isHittable); picker.tap()
         let route = app.buttons["dashboard-context-open"]
-        for _ in 0..<8 where !route.isHittable { app.swipeUp() }
-        XCTAssertTrue(route.waitForExistence(timeout: 5)); route.tap()
+        app.revealDashboardMenuItem(route)
+        XCTAssertTrue(route.waitForExistence(timeout: 5)); XCTAssertTrue(route.isHittable); route.tap()
+        XCTAssertTrue(picker.label.contains("Context & Morning Outcomes"))
         let outcome = app.buttons["context-outcome"]
         for _ in 0..<5 where !outcome.isHittable { app.swipeUp() }
         XCTAssertTrue(outcome.exists); outcome.tap()
@@ -41,9 +44,13 @@ final class ContextMorningOutcomesUITests: XCTestCase {
             let identity = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Observation:")).firstMatch
             XCTAssertTrue(identity.waitForExistence(timeout: 5))
             let retainedIdentity = identity.label
-            app.navigationBars.buttons.firstMatch.tap()
-            for _ in 0..<10 where !route.isHittable { app.swipeUp() }
-            XCTAssertTrue(route.isHittable); route.tap()
+            XCTAssertTrue(picker.isHittable); picker.tap()
+            let inventory = app.buttons["dashboard-data-open"]
+        app.revealDashboardMenuItem(inventory)
+            XCTAssertTrue(inventory.waitForExistence(timeout: 5)); inventory.tap()
+            XCTAssertTrue(picker.label.contains("Review Data"))
+            picker.tap(); app.revealDashboardMenuItem(route); XCTAssertTrue(route.waitForExistence(timeout: 5)); XCTAssertTrue(route.isHittable); route.tap()
+            XCTAssertTrue(picker.label.contains("Context & Morning Outcomes"))
             for _ in 0..<8 where !outcome.isHittable { app.swipeUp() }
             XCTAssertTrue(outcome.label.contains("D1–D2 spacing"))
             for _ in 0..<10 where !detail.isHittable { app.swipeUp() }

@@ -63,7 +63,7 @@ Nightly wake overrides persist in the existing local UserDefaults store under `s
 
 ## Focused dashboard views
 
-Dashboard opens on Session Replay. One view menu selects Session Replay, Interval Explorer, Sleep Opportunity, Medication Explorer, Reviewed Sleep Coverage, Sleep & Naps, Sleep & Dose Pattern, Work Block & Sleep, Context & Morning Outcomes, Daytime Diary, Physician Review, Review Data or Other Recorded Measures. The reporting-period controls remain visible above the selected page. Accessibility text sizes stack the controls vertically without clamping the selected text size.
+Dashboard opens on Session Replay. One view menu selects Session Replay, Interval Explorer, Sleep Opportunity, Medication Explorer, Reviewed Sleep Coverage, Sleep & Naps, Sleep & Dose Pattern, Work Block & Sleep, Context & Morning Outcomes, Daytime Diary, Physician Review, Review Data or Other Recorded Measures. The reporting-period controls remain visible above the selected page. Accessibility text sizes stack the controls vertically, except in compact-height landscape where the controls share a row. At accessibility sizes, Reporting period details expands the complete range and timezone description on demand so the fixed header leaves room for the selected view. Text sizes are not clamped.
 
 Replay-related pages and the internal replay mode menu share one model-owned mode. Changing a page only changes presentation: it does not reload sources, reset the reporting period, clear a stable observation selection or invalidate checked sleep coverage. Actual source, selection, cutoff, timezone or provider changes still invalidate checked evidence. A refresh retains stable identifiers while marking filtered or unavailable selections explicitly.
 

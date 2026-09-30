@@ -10,6 +10,7 @@ struct DashboardTabView: View {
     @ObservedObject private var sessionRepo = SessionRepository.shared
     @ObservedObject private var themeManager = ThemeManager.shared
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Environment(\.isInSplitView) private var isInSplitView
     @StateObject private var model = DashboardAnalyticsModel()
     @StateObject private var cloudSync = DeferredCloudKitSyncService.shared
@@ -43,14 +44,20 @@ struct DashboardTabView: View {
     private var dashboardContent: some View {
             VStack(spacing: 8) {
                 Group {
-                    if dynamicTypeSize.isAccessibilitySize {
+                    if dynamicTypeSize.isAccessibilitySize && verticalSizeClass != .compact {
                         VStack(spacing: 0) { rangePicker; DashboardPagePicker(selection: selectedPage) }
                     } else {
                         HStack { rangePicker; DashboardPagePicker(selection: selectedPage) }
                     }
                 }.padding(.horizontal)
-                Text(model.rangeDescription).font(.caption).foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center).padding(.horizontal)
+                if dynamicTypeSize.isAccessibilitySize && verticalSizeClass != .compact {
+                    DisclosureGroup("Reporting period details") {
+                        Text(model.rangeDescription).multilineTextAlignment(.leading)
+                    }.font(.caption).foregroundStyle(.secondary).padding(.horizontal)
+                } else if !dynamicTypeSize.isAccessibilitySize {
+                    Text(model.rangeDescription).font(.caption).foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center).padding(.horizontal)
+                }
                 if let error = model.errorMessage {
                     Label(error, systemImage: "exclamationmark.triangle")
                         .font(.caption).foregroundStyle(.orange).padding(.horizontal)
@@ -127,7 +134,12 @@ struct DashboardTabView: View {
             }
             .sheet(isPresented: $showingInspection) {
                 NavigationStack {
-                    ScrollView { DashboardInspectionControls(model: model).padding() }
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text(model.rangeDescription).font(.caption)
+                            DashboardInspectionControls(model: model)
+                        }.padding()
+                    }
                         .navigationTitle("Dashboard filters")
                         .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showingInspection = false } } }
                 }

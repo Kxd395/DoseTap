@@ -18,8 +18,12 @@ final class DosePatternDashboardUITests: XCTestCase {
         app.launch()
         let dashboard = app.buttons["Dashboard"]
         XCTAssertTrue(dashboard.waitForExistence(timeout: 15)); dashboard.tap()
+        let picker = app.buttons["dashboard-view-picker"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 10)); XCTAssertTrue(picker.isHittable); picker.tap()
         let open = app.buttons["dashboard-dose-pattern-open"]
-        reveal(open, in: app); XCTAssertTrue(open.isHittable); open.tap()
+        app.revealDashboardMenuItem(open)
+        XCTAssertTrue(open.waitForExistence(timeout: 5)); XCTAssertTrue(open.isHittable); open.tap()
+        XCTAssertTrue(picker.label.contains("Sleep & Dose Pattern"))
         let modes = app.descendants(matching: .any)["dose-pattern-mode"].firstMatch
         XCTAssertTrue(modes.waitForExistence(timeout: 10))
         reveal(modes, in: app)
@@ -72,8 +76,12 @@ final class DosePatternDashboardUITests: XCTestCase {
         app.launch()
         let dashboard = app.buttons["Dashboard"]
         XCTAssertTrue(dashboard.waitForExistence(timeout: 15)); dashboard.tap()
+        let picker = app.buttons["dashboard-view-picker"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 10)); XCTAssertTrue(picker.isHittable); picker.tap()
         let open = app.buttons["dashboard-dose-pattern-open"]
-        reveal(open, in: app); XCTAssertTrue(open.isHittable); open.tap()
+        app.revealDashboardMenuItem(open)
+        XCTAssertTrue(open.waitForExistence(timeout: 5)); XCTAssertTrue(open.isHittable); open.tap()
+        XCTAssertTrue(picker.label.contains("Sleep & Dose Pattern"))
         let modes = app.descendants(matching: .any)["dose-pattern-mode"].firstMatch
         XCTAssertTrue(modes.waitForExistence(timeout: 10))
         for title in ["Compare", "Paired intervals", "By date"] {
