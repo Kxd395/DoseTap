@@ -74,3 +74,5 @@ administration. Existing My Medications picker settings remain a separate route.
 ### Independent daytime diary
 
 History → Daytime check-in opens independent observations, current custom 0–10 entry, explicit remembered entries and correction history. Opening does not create a nighttime session. No score is selected initially; save failure retains the exact pending revision for retry.
+## Physician review
+The physician-review screen opens a completed-visit history and explicit report-period selection, followed by unscored activity notes and questions. Save and preview persists one immutable snapshot. Saved previews reopen the captured values; corrections generate another preview. The preview contains a separate Share button. Opening or saving never invokes the activity sheet or sends health records.

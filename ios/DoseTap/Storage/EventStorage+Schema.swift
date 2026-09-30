@@ -89,6 +89,10 @@ extension EventStorage {
             id INTEGER PRIMARY KEY CHECK (id = 1), payload TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS physician_review_records (
+            id TEXT PRIMARY KEY, kind TEXT NOT NULL CHECK (kind IN ('visit', 'report')), payload TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS work_wake_schedule (
             id INTEGER PRIMARY KEY CHECK (id = 1),
             payload TEXT NOT NULL,

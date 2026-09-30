@@ -59,6 +59,7 @@ public struct PhysicianMetricSummary: Codable, Equatable, Identifiable, Sendable
     public let reviewCount: Int
     public let notApplicableCount: Int
     public let notCollectedCount: Int
+    public let calendarDayCount: Int
     public let assessedDays: Int
     public let availableDays: Int
     public let unplacedCount: Int
@@ -94,7 +95,8 @@ public struct PhysicianReportSnapshot: Codable, Equatable, Identifiable, Sendabl
                   value.observedAt.map({ $0.timeIntervalSince1970.isFinite && $0 <= generatedAt }) != false,
                   value.state != .available || value.value != nil else { throw PhysicianReviewError.invalidText }
         }
-        guard notes.allSatisfy({ $0.activity.count <= 300 && $0.comment.count <= 4000 &&
+        let evidence = Set(observations.map(\.id) + observations.flatMap(\.recordIDs))
+        guard notes.allSatisfy({ Set($0.evidenceIDs).isSubset(of: evidence) && $0.activity.count <= 300 && $0.comment.count <= 4000 &&
             $0.reviewedAt.timeIntervalSince1970.isFinite && $0.reviewedAt <= generatedAt }) else { throw PhysicianReviewError.invalidText }
         id = UUID(); version = Self.formatVersion; self.period = period; self.generatedAt = generatedAt
         self.appVersion = appVersion; self.coverageDescription = coverageDescription
@@ -145,11 +147,21 @@ public struct PhysicianReportSnapshot: Codable, Equatable, Identifiable, Sendabl
                 return numbers[low] + (numbers[high] - numbers[low]) * (position - Double(low))
             }
             func count(_ state: PhysicianMetricState) -> Int { rows.filter { $0.state == state }.count }
+            var calendar = formatter.calendar!; calendar.timeZone = formatter.timeZone!
+            var dayCount = period.calendarDayCount
+            if monthly {
+                if let date = rows.compactMap(\.observedAt).first,
+                   let month = calendar.dateInterval(of: .month, for: date) {
+                    let lower = calendar.startOfDay(for: max(month.start, period.start))
+                    let upper = calendar.startOfDay(for: Date(timeIntervalSince1970: min(month.end, period.endExclusive).timeIntervalSince1970.nextDown))
+                    dayCount = max(0, (calendar.dateComponents([.day], from: lower, to: upper).day ?? -1) + 1)
+                } else { dayCount = 0 }
+            }
             return PhysicianMetricSummary(month: monthly ? key[4] : nil, metricID: key[0], unit: key[1], source: key[2], definitionVersion: key[3],
                 eligibleCount: rows.filter { $0.state != .notApplicable && $0.state != .notCollected }.count,
                 availableCount: available.count, unavailableCount: count(.unavailable), partialCount: count(.partial),
                 reviewCount: count(.needsReview), notApplicableCount: count(.notApplicable), notCollectedCount: count(.notCollected),
-                assessedDays: Set(rows.filter { $0.state != .notCollected && $0.state != .notApplicable }.compactMap(\.observedAt).map(formatter.string)).count,
+                calendarDayCount: dayCount, assessedDays: Set(rows.filter { $0.state != .notCollected && $0.state != .notApplicable }.compactMap(\.observedAt).map(formatter.string)).count,
                 availableDays: Set(available.compactMap(\.observedAt).map(formatter.string)).count,
                 unplacedCount: rows.filter { $0.observedAt == nil }.count,
                 median: quantile(0.5), lowerQuartile: quantile(0.25), upperQuartile: quantile(0.75))

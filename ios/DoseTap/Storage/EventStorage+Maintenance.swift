@@ -39,7 +39,7 @@ extension EventStorage {
             "dashboard_dose_reviews", "daytime_checkins", "daytime_events", "confirmed_medication_administrations", "medication_preset_revisions",
             "sleep_events", "dose_events", "current_session", "sleep_sessions", "pre_sleep_logs",
             "morning_checkins", "checkin_submissions", "medication_events", "inventory_snapshots", "body_map_points",
-            "symptom_locations", "symptom_events", "symptom_command_log", "symptom_summaries", "dashboard_provider_associations", "work_wake_schedule", "work_block_context", "supply_state"
+            "physician_review_records", "symptom_locations", "symptom_events", "symptom_command_log", "symptom_summaries", "dashboard_provider_associations", "work_wake_schedule", "work_block_context", "supply_state"
         ]
         for table in tables {
             let sql = "DELETE FROM \(table)"

@@ -30,6 +30,7 @@ final class PhysicianVisitTests: XCTestCase {
         XCTAssertThrowsError(try PhysicianReportPeriod.resolve(.custom(start: now, endExclusive: now), ledger: .init(), asOf: now, timeZone: zone))
         XCTAssertThrowsError(try PhysicianReportPeriod.resolve(.custom(start: now.addingTimeInterval(-1), endExclusive: now.addingTimeInterval(1)), ledger: .init(), asOf: now, timeZone: zone))
         XCTAssertThrowsError(try PhysicianVisit(occurredAt: now.addingTimeInterval(1), recordedAt: now, now: now))
+        XCTAssertThrowsError(try PhysicianReportPeriod.resolve(.days28, ledger: .init(), asOf: Date(timeIntervalSince1970: 1e18), timeZone: zone))
     }
     func testCalendarMonthsAndDSTKeepExplicitBounds() throws {
         let formatter = ISO8601DateFormatter()

@@ -16,6 +16,9 @@
 		DIDENT102 /* DashboardIdentityAggregation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT002 /* DashboardIdentityAggregation.swift */; };
 		DIDENT101 /* SessionRepositoryDashboardIdentities.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT001 /* SessionRepositoryDashboardIdentities.swift */; };
 		WBCTX001 /* EventStorage+WorkContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBCTX101 /* EventStorage+WorkContext.swift */; };
+		PHRU1003 /* PhysicianReportPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRU003 /* PhysicianReportPreview.swift */; };
+		PHRU1002 /* PhysicianReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRU002 /* PhysicianReviewView.swift */; };
+		PHRV101 /* EventStorage+PhysicianReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRV001 /* EventStorage+PhysicianReview.swift */; };
 		DPAC101 /* DashboardProviderAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPAC001 /* DashboardProviderAccess.swift */; };
 		DPSN101 /* DashboardProviderSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPSN001 /* DashboardProviderSnapshot.swift */; };
 		BOTQ01B /* BottleQuantityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BOTQ01F /* BottleQuantityView.swift */; };
@@ -219,6 +222,9 @@
 		DIDENT002 /* DashboardIdentityAggregation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardIdentityAggregation.swift; sourceTree = "<group>"; };
 		DIDENT001 /* SessionRepositoryDashboardIdentities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepositoryDashboardIdentities.swift; sourceTree = "<group>"; };
 		WBCTX101 /* EventStorage+WorkContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+WorkContext.swift"; sourceTree = "<group>"; };
+		PHRU003 /* PhysicianReportPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianReportPreview.swift; sourceTree = "<group>"; };
+		PHRU002 /* PhysicianReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianReviewView.swift; sourceTree = "<group>"; };
+		PHRV001 /* EventStorage+PhysicianReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+PhysicianReview.swift"; sourceTree = "<group>"; };
 		DPAC001 /* DashboardProviderAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardProviderAccess.swift; sourceTree = "<group>"; };
 		DPSN001 /* DashboardProviderSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardProviderSnapshot.swift; sourceTree = "<group>"; };
 		BOTQ01F /* BottleQuantityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottleQuantityView.swift; sourceTree = "<group>"; };
@@ -683,6 +689,7 @@
 				ESF022 /* EventStorage+CheckInSubmissions.swift */,
 				NWF002 /* EventStorage+NightOutcome.swift */,
 				DDRV101 /* EventStorage+DashboardDoseReview.swift */,
+				PHRV001 /* EventStorage+PhysicianReview.swift */,
 				HQF001 /* EventStorage+HistoryQuestionnaires.swift */,
 				ESF023 /* EventStorage+SessionSupport.swift */,
 				ESF024 /* EventStorage+SymptomEvents.swift */,
@@ -759,6 +766,8 @@
 				NWF001 /* NightOutcomeView.swift */,
 				DAYF002 /* DaytimeCheckInView.swift */,
 				DAYF004 /* DaytimeEventView.swift */,
+				PHRU003 /* PhysicianReportPreview.swift */,
+				PHRU002 /* PhysicianReviewView.swift */,
 				GRP_DASHBOARD /* Dashboard */,
 				GRP_TIMELINE /* Timeline */,
 				GRP_HISTORY /* History */,
@@ -1037,6 +1046,9 @@
 				DAYB004 /* DaytimeEventView.swift in Sources */,
 				NWB002 /* EventStorage+NightOutcome.swift in Sources */,
 				DDRV001 /* EventStorage+DashboardDoseReview.swift in Sources */,
+				PHRU1003 /* PhysicianReportPreview.swift in Sources */,
+				PHRU1002 /* PhysicianReviewView.swift in Sources */,
+				PHRV101 /* EventStorage+PhysicianReview.swift in Sources */,
 				0A777B0D5CC54803B060A980 /* UserSettingsManager.swift in Sources */,
 				626911F284B24C54BA73D7F8 /* SettingsView.swift in Sources */,
 				SET001 /* SettingsSections.swift in Sources */,

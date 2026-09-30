@@ -367,3 +367,5 @@ Named timezone provenance is not yet stored on every historical event row. Exist
 ### Work-block context (version 1)
 
 `work_block_context(id INTEGER PRIMARY KEY CHECK(id=1), payload TEXT NOT NULL)` stores the validated, versioned roster, attendance and reviewed sleep-association document. Writes compare the document revision and append history inside one transaction. It is independent of `work_wake_schedule`; raw nearby reporting includes it in the work-schedule dataset and Clear All Data removes it. See [work-block contract](SSOT/contracts/work-block-context.md).
+## Physician review records
+`physician_review_records(id TEXT PRIMARY KEY, kind TEXT NOT NULL, payload TEXT NOT NULL)` holds append-only completed-visit revisions (`kind=visit`, ID is revision ID) and immutable preview snapshots (`kind=report`, ID is snapshot ID). The kind CHECK permits only these values. Source records, corrections and explicit share selection remain in versioned JSON payloads; no night/session row is created. Failed writes roll back and identical retries are idempotent.

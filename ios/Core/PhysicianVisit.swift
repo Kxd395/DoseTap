@@ -83,7 +83,7 @@ public struct PhysicianReportPeriod: Codable, Equatable, Sendable {
 
     public static func resolve(_ range: PhysicianReportRange, ledger: PhysicianVisitLedger,
                                asOf: Date, timeZone: TimeZone) throws -> Self {
-        guard asOf.timeIntervalSince1970.isFinite else { throw PhysicianReviewError.invalidDate }
+        guard (-62135596800...253402300799).contains(asOf.timeIntervalSince1970) else { throw PhysicianReviewError.invalidDate }
         try ledger.validate(now: asOf)
         var calendar = Calendar(identifier: .gregorian); calendar.timeZone = timeZone
         let today = calendar.startOfDay(for: asOf)

@@ -23,6 +23,7 @@ final class PhysicianReportTests: XCTestCase {
         XCTAssertEqual(first.assessedDays, 1); XCTAssertEqual(first.median, 150)
         XCTAssertEqual(first.unavailableCount, 1); XCTAssertEqual(first.notApplicableCount, 1)
         XCTAssertEqual(report.monthlySummaries.count, 2)
+        XCTAssertLessThan(report.monthlySummaries[0].calendarDayCount, report.period.calendarDayCount)
     }
     func testSeriousAndUnknownReportsStayInAppendixAndCSVIsReversible() throws {
         let report = try snapshot([observation("serious", state: .needsReview, serious: true)])
