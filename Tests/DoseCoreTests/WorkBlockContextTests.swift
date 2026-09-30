@@ -98,6 +98,15 @@ final class WorkBlockContextTests: XCTestCase {
         value.occurrences.append(.init(workDate: "2026-09-22", timeZoneIdentifier: "America/New_York", plannedWorking: false, recordedAt: late.addingTimeInterval(1)))
         XCTAssertNil(value.resolvedWorkDate("2026-09-22", timeZoneIdentifier: "America/New_York", asOf: late.addingTimeInterval(1))?.scheduledStart)
     }
+    func testExplicitAnchorClearDoesNotEraseOtherAnchorHistory() {
+        var value = document(), shift = WorkOccurrence(workDate: "2026-09-22", timeZoneIdentifier: "America/New_York", plannedWorking: true, recordedAt: early)
+        shift.scheduledStart = early; shift.scheduledEnd = early.addingTimeInterval(3600); shift.plannedBreakAt = early.addingTimeInterval(1800)
+        var clear = WorkOccurrence(workDate: shift.workDate, timeZoneIdentifier: shift.timeZoneIdentifier, recordedAt: late)
+        clear.scheduledTimesReviewed = true; value.occurrences = [shift, clear]
+        let resolved = value.resolvedWorkDate(shift.workDate, timeZoneIdentifier: shift.timeZoneIdentifier, asOf: late)
+        XCTAssertNil(resolved?.scheduledStart); XCTAssertEqual(resolved?.shiftSourceID, clear.id)
+        XCTAssertEqual(resolved?.plannedBreakAt, shift.plannedBreakAt)
+    }
     func testInvalidAnalysisTimestampCannotClassify() {
         let association = WorkSleepAssociation(sleepID: "night", precedingDate: "2026-09-21", followingDate: "2026-09-22", timeZoneIdentifier: "America/New_York", plannedAt: late, recordedAt: late)
         XCTAssertEqual(document().classify(association, basis: .planned, asOf: Date(timeIntervalSince1970: .infinity)).phase, .unknown)

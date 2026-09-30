@@ -56,6 +56,7 @@ public struct WorkOccurrence: Codable, Equatable, Identifiable, Sendable {
         guard WorkContextDocument.day(workDate, zone: timeZoneIdentifier) != nil, reason.count <= 1000,
               recordedAt.timeIntervalSince1970.isFinite else { return false }
         guard [actualStart, actualEnd, scheduledStart, scheduledEnd, plannedBreakAt].compactMap({ $0 }).allSatisfy({ $0.timeIntervalSince1970.isFinite }) else { return false }
+        guard [actualStart, actualEnd].compactMap({ $0 }).allSatisfy({ $0 <= recordedAt }) else { return false }
         if let scheduledStart, let scheduledEnd, scheduledEnd <= scheduledStart { return false }
         if let actualStart, let actualEnd, actualEnd <= actualStart { return false }
         return true
@@ -72,6 +73,7 @@ public struct WorkSleepAssociation: Codable, Equatable, Identifiable, Sendable {
     public var recordedAt: Date
     public var isMainSleep = true
     public var daytimeAssociationReviewed = true
+    public var planSnapshotID: UUID?
     public var overridePhase: WorkPhase?
     public var overrideReason = ""
     public init(sleepID: String, precedingDate: String, followingDate: String, timeZoneIdentifier: String, plannedAt: Date, recordedAt: Date) {
@@ -100,18 +102,49 @@ public struct WorkPhaseResult: Codable, Equatable, Sendable {
     public let detail: String
 }
 
+public struct WorkPlanSnapshot: Codable, Equatable, Identifiable, Sendable {
+    public var id = UUID()
+    public let preSleepLogID: String
+    public let sessionID: String?
+    public let capturedAt: Date
+    public let contextRevision: UUID
+    public let rosterCount: Int
+    public let occurrenceCount: Int
+    public var shiftEventCount: Int?
+    public var isValid: Bool {
+        !preSleepLogID.isEmpty && preSleepLogID.count <= 300 && (sessionID.map { !$0.isEmpty && $0.count <= 300 } ?? true)
+            && capturedAt.timeIntervalSince1970.isFinite && rosterCount >= 0 && occurrenceCount >= 0 && (shiftEventCount.map { $0 >= 0 } ?? true)
+    }
+}
+
 public struct WorkContextDocument: Codable, Equatable, Sendable {
     public var schemaVersion = 1
     public var revision = UUID()
     public var rosters: [WorkRoster] = []
     public var occurrences: [WorkOccurrence] = []
     public var associations: [WorkSleepAssociation] = []
+    public var planSnapshots: [WorkPlanSnapshot]?
+    public var shiftEvents: [WorkShiftEvent]?
     public init() {}
     public var isValid: Bool {
-        schemaVersion == 1 && rosters.count <= 2000 && occurrences.count <= 50000 && associations.count <= 50000
+        (schemaVersion == 1 || schemaVersion == 2) && (((planSnapshots ?? []).isEmpty && (shiftEvents ?? []).isEmpty) || schemaVersion == 2)
+            && (shiftEvents ?? []).count <= 50000 && (shiftEvents ?? []).allSatisfy(\.isValid) && Set((shiftEvents ?? []).map(\.id)).count == (shiftEvents ?? []).count
+            && (planSnapshots ?? []).count <= 50000 && (planSnapshots ?? []).allSatisfy { $0.isValid && $0.rosterCount <= rosters.count && $0.occurrenceCount <= occurrences.count && ($0.shiftEventCount ?? 0) <= (shiftEvents ?? []).count }
+            && Set((planSnapshots ?? []).map(\.id)).count == (planSnapshots ?? []).count
+            && Set((planSnapshots ?? []).map(\.preSleepLogID)).count == (planSnapshots ?? []).count
+            && rosters.count <= 2000 && occurrences.count <= 50000 && associations.count <= 50000
             && rosters.allSatisfy(\.isValid) && occurrences.allSatisfy(\.isValid) && associations.allSatisfy(\.isValid)
             && Set(rosters.map(\.id)).count == rosters.count && Set(occurrences.map(\.id)).count == occurrences.count
             && Set(associations.map(\.id)).count == associations.count
+    }
+    public mutating func capturePlan(preSleepLogID: String, sessionID: String?, at: Date) -> WorkPlanSnapshot? {
+        guard isValid else { return nil }
+        if let existing = planSnapshots?.first(where: { $0.preSleepLogID == preSleepLogID }) { return existing }
+        var snapshot = WorkPlanSnapshot(preSleepLogID: preSleepLogID, sessionID: sessionID, capturedAt: at, contextRevision: revision, rosterCount: rosters.count, occurrenceCount: occurrences.count)
+        snapshot.shiftEventCount = (shiftEvents ?? []).count
+        guard snapshot.isValid else { return nil }
+        planSnapshots = (planSnapshots ?? []) + [snapshot]; schemaVersion = 2; revision = UUID()
+        return snapshot
     }
     public static func day(_ value: String, zone: String) -> Date? {
         guard let timezone = TimeZone(identifier: zone), value.count == 10 else { return nil }
@@ -152,16 +185,20 @@ public struct WorkContextDocument: Codable, Equatable, Sendable {
         guard calendar.date(byAdding: .day, value: 1, to: previous) == following else {
             return result(.unknown, "Waking periods are not adjacent; review the sleep association.")
         }
+        let snapshot = basis == .planned ? association.planSnapshotID.flatMap { id in planSnapshots?.first { $0.id == id } } : nil
+        if basis == .planned && association.planSnapshotID != nil && (snapshot.map { $0.capturedAt <= association.recordedAt } != true) {
+            return result(.unknown, "Referenced prospective plan snapshot is unavailable or later than this review.")
+        }
         if let override = association.overridePhase { return result(override, association.overrideReason, override: true) }
-        let cutoff = basis == .planned ? min(association.plannedAt, asOf) : asOf
+        let cutoff = basis == .planned ? min(snapshot?.capturedAt ?? association.plannedAt, asOf) : asOf
         let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.calendar = calendar; formatter.timeZone = zone; formatter.dateFormat = "yyyy-MM-dd"
         func roster(_ date: String) -> WorkRoster? {
-            rosters.filter { $0.timeZoneIdentifier == zone.identifier && $0.effectiveFrom <= date && $0.effectiveTo >= date && $0.recordedAt <= cutoff }.max { $0.recordedAt < $1.recordedAt }
+            rosters.prefix(snapshot?.rosterCount ?? rosters.count).filter { TimeZone(identifier: $0.timeZoneIdentifier)?.identifier == zone.identifier && $0.effectiveFrom <= date && $0.effectiveTo >= date && $0.recordedAt <= cutoff }.max { $0.recordedAt < $1.recordedAt }
         }
         func status(_ date: Date) -> Bool? {
             let key = formatter.string(from: date)
-            let records = occurrences.filter { $0.workDate == key && $0.timeZoneIdentifier == zone.identifier && $0.recordedAt <= cutoff }
+            let records = occurrences.prefix(snapshot?.occurrenceCount ?? occurrences.count).filter { $0.workDate == key && TimeZone(identifier: $0.timeZoneIdentifier)?.identifier == zone.identifier && $0.recordedAt <= cutoff }
             if basis == .confirmed {
                 guard let record = records.filter({ $0.attendance != nil }).max(by: { $0.recordedAt < $1.recordedAt }) else { return nil }
                 return record.attendance == .unknown ? nil : record.attendance == .worked

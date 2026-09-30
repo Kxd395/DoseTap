@@ -1,5 +1,7 @@
 import Foundation
 
+public enum WorkComparisonGrouping: String, CaseIterable, Sendable { case none, workPhase, spacingReference }
+
 public struct WorkCycleObservation: Identifiable, Equatable, Sendable {
     public let sleepID: String
     public let sleepDate: String
@@ -7,17 +9,41 @@ public struct WorkCycleObservation: Identifiable, Equatable, Sendable {
     public let position: String
     public let blockID: String?
     public let value: Double?
+    public var intervalMinutes: Double?
+    public var stratumID: String?
+    public var stratumLabel: String?
     public var rosterID: UUID?
     public var isOverride: Bool
     public var detail: String
     public var associationID: UUID?
     public var contextSnapshotAt: Date?
     public var id: String { sleepID }
-    public init(sleepID: String, sleepDate: String, phase: WorkPhase, position: String, blockID: String?, value: Double?, rosterID: UUID? = nil, detail: String = "", associationID: UUID? = nil, contextSnapshotAt: Date? = nil, isOverride: Bool = false) {
+    public init(sleepID: String, sleepDate: String, phase: WorkPhase, position: String, blockID: String?, value: Double?, rosterID: UUID? = nil, detail: String = "", associationID: UUID? = nil, contextSnapshotAt: Date? = nil, isOverride: Bool = false, intervalMinutes: Double? = nil, stratumID: String? = nil, stratumLabel: String? = nil) {
         self.sleepID = sleepID; self.sleepDate = sleepDate; self.phase = phase; self.position = position
         self.blockID = blockID; self.value = value.flatMap { $0.isFinite && $0 >= 0 ? $0 : nil }
+        self.intervalMinutes = intervalMinutes.flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
+        self.stratumID = stratumID; self.stratumLabel = stratumLabel
         self.rosterID = rosterID; self.detail = detail
         self.associationID = associationID; self.contextSnapshotAt = contextSnapshotAt; self.isOverride = isOverride
+    }
+    public func groupSymbol(_ grouping: WorkComparisonGrouping) -> String {
+        switch grouping {
+        case .none: return "circle"
+        case .workPhase:
+            return phase.comparisonSymbol
+        case .spacingReference:
+            switch groupLabel(grouping) { case "Shorter than reference": return "diamond"; case "Within reference": return "circle"; case "Longer than reference": return "triangle"; default: return "cross" }
+        }
+    }
+    public func groupLabel(_ grouping: WorkComparisonGrouping) -> String {
+        switch grouping {
+        case .none: return "All observations"
+        case .workPhase: return phase.label
+        case .spacingReference:
+            guard let intervalMinutes, intervalMinutes.isFinite, intervalMinutes > 0 else { return "Interval unavailable" }
+            if intervalMinutes < 150 { return "Shorter than reference" }
+            return intervalMinutes <= 240 ? "Within reference" : "Longer than reference"
+        }
     }
 }
 
@@ -44,12 +70,16 @@ public struct WorkCycleSummary: Equatable, Sendable {
         lowerQuartile = values.count >= 2 ? quantile(0.25) : nil
         upperQuartile = values.count >= 2 ? quantile(0.75) : nil
     }
-    public static func csv(_ observations: [WorkCycleObservation], metric: String, basis: WorkContextBasis, range: String, revision: UUID, asOf: Date) -> String {
+    public static func csv(_ observations: [WorkCycleObservation], metric: String, basis: WorkContextBasis, range: String, revision: UUID, asOf: Date, grouping: WorkComparisonGrouping = .none, phaseFilter: String = "All", positionFilter: String = "All", matrixEncoding: String = "Values") -> String {
         let summary = WorkCycleSummary(observations: observations)
-        let headers = ["sleep_id", "sleep_date", "phase", "position", "block_id", "value_minutes", "value_state", "metric", "context_basis", "range", "context_revision", "as_of_utc", "classification_version", "roster_revision", "detail", "eligible_observations", "missing_observations", "distinct_known_blocks", "reference", "association_revision", "context_snapshot_at_utc", "is_override", "override_reason"]
+        let headers = ["sleep_id", "sleep_date", "phase", "position", "block_id", "value_minutes", "value_state", "metric", "context_basis", "range", "context_revision", "as_of_utc", "classification_version", "roster_revision", "detail", "eligible_observations", "missing_observations", "distinct_known_blocks", "reference", "association_revision", "context_snapshot_at_utc", "is_override", "override_reason", "interval_minutes", "grouping", "group_label", "phase_filter", "position_filter", "matrix_encoding", "context_stratum_id", "context_stratum_label", "group_symbol", "row_type"]
         let stamp = ISO8601DateFormatter().string(from: asOf)
+        if observations.isEmpty {
+            let metadata = ["row_type": "comparison_metadata", "metric": metric, "context_basis": basis.rawValue, "range": range, "context_revision": revision.uuidString, "as_of_utc": stamp, "classification_version": "1", "grouping": grouping.rawValue, "phase_filter": phaseFilter, "position_filter": positionFilter, "matrix_encoding": matrixEncoding, "eligible_observations": "0", "missing_observations": "0", "distinct_known_blocks": "0", "reference": "Built-in spacing reference; not a prescription."]
+            return ReportCSV.row(headers) + "\r\n" + ReportCSV.row(headers.map { metadata[$0] ?? "" }) + "\r\n"
+        }
         return ([ReportCSV.row(headers)] + observations.map { row in
-            ReportCSV.row([row.sleepID, row.sleepDate, row.phase.rawValue, row.position, row.blockID ?? "", row.value.map { String($0) } ?? "", row.value == nil ? "unavailable" : "available", metric, basis.rawValue, range, revision.uuidString, stamp, "1", row.rosterID?.uuidString ?? "", row.detail, String(summary.availableCount), String(summary.missingCount), String(summary.distinctBlockCount), "Built-in spacing reference; not a prescription.", row.associationID?.uuidString ?? "", row.contextSnapshotAt.map { ISO8601DateFormatter().string(from: $0) } ?? "", row.isOverride ? "true" : "false", row.isOverride ? row.detail : ""])
+            ReportCSV.row([row.sleepID, row.sleepDate, row.phase.rawValue, row.position, row.blockID ?? "", row.value.map { String($0) } ?? "", row.value == nil ? "unavailable" : "available", metric, basis.rawValue, range, revision.uuidString, stamp, "1", row.rosterID?.uuidString ?? "", row.detail, String(summary.availableCount), String(summary.missingCount), String(summary.distinctBlockCount), "Built-in spacing reference; not a prescription.", row.associationID?.uuidString ?? "", row.contextSnapshotAt.map { ISO8601DateFormatter().string(from: $0) } ?? "", row.isOverride ? "true" : "false", row.isOverride ? row.detail : "", row.intervalMinutes.map(String.init(describing:)) ?? "", grouping.rawValue, row.groupLabel(grouping), phaseFilter, positionFilter, matrixEncoding, row.stratumID ?? "", row.stratumLabel ?? "", row.groupSymbol(grouping), "observation"])
         }).joined(separator: "\r\n") + "\r\n"
     }
 }
@@ -65,5 +95,11 @@ public extension WorkPhaseResult {
         case .off: return "Later off-block • index unknown"
         case .unknown: return "Unknown / review"
         }
+    }
+}
+
+public extension WorkPhase {
+    var comparisonSymbol: String {
+        switch self { case .entering: return "circle"; case .between: return "square"; case .after: return "triangle"; case .off: return "diamond"; case .unknown: return "cross" }
     }
 }
