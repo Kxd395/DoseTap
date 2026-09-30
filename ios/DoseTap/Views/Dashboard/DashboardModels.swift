@@ -12,6 +12,7 @@ let dashboardLogger = Logger(subsystem: "com.dosetap.app", category: "Dashboard"
 @MainActor
 final class DashboardAnalyticsModel: ObservableObject {
     @Published var nights: [DashboardNightAggregate] = []
+    @Published var inspection = DashboardInspectionState()
     @Published var integrationStates: [DashboardIntegrationState] = []
     @Published var isLoading = false
     @Published var savedProviderAssociations: [DashboardProviderAssociation] = []
