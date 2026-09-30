@@ -53,6 +53,27 @@ final class DashboardReplayTests: XCTestCase {
         let snap = snapshot([marker(.dose2, 100), marker(.returnSleep, 200)])
         XCTAssertEqual(snap.interval(.dose2ToSleep).state, .unavailable)
     }
+    func testReviewedReturnBoundaryAndCSVAccounting() throws {
+        let end = base.addingTimeInterval(900), checked = base.addingTimeInterval(1000)
+        let window = ReviewedSleepWindow(sessionID: "session", start: base, end: end,
+            entryTimeZone: TimeZone(secondsFromGMT: 0)!, reviewedAt: checked)
+        func sample(_ id: String, _ a: Double, _ b: Double, _ stage: SleepEvidenceSample.Stage) -> SleepEvidenceSample {
+            .init(sampleID: id, start: base.addingTimeInterval(a), end: base.addingTimeInterval(b),
+                  rawCategory: 99, stage: stage, origin: .init(sourceName: "test", bundleIdentifier: nil))
+        }
+        let evidence = try XCTUnwrap(SleepEvidenceResolution.calculate(start: base, end: end,
+            samples: [sample("a", 0, 200, .asleep), sample("b", 200, 400, .awake), sample("c", 400, 900, .asleep)]))
+        let projection = try XCTUnwrap(ReviewedNightSleepProjection.calculate(window: window, evidence: evidence, generatedAt: checked))
+        func snap(_ dose: Double) -> DashboardReplaySnapshot {
+            .init(sessionID: "session", treatmentDate: "2026-09-21", asOf: checked, timeZoneID: "UTC",
+                  sourcePolicy: "reviewed", filterDescription: "test", markers: [marker(.dose2, dose), marker(.returnSleep, 400)],
+                  reviewedProjection: projection)
+        }
+        XCTAssertEqual(snap(300).interval(.dose2ToSleep).minutes!, 100 / 60, accuracy: 0.0001)
+        XCTAssertEqual(snap(100).interval(.dose2ToSleep).state, .needsReview)
+        XCTAssertTrue(snap(300).csv.contains("conflict_subset_minutes"))
+        XCTAssertTrue(snap(300).csv.contains("band_start,band_end,state"))
+    }
     func testFutureAndDuplicateIDsAreRejected() {
         XCTAssertEqual(snapshot([marker(.dose1, 0), marker(.dose2, 70_000)]).interval(.dose1ToDose2).state, .needsReview)
         XCTAssertEqual(snapshot([marker(.dose1, 0, id: "same"), marker(.dose2, 100, id: "same")])

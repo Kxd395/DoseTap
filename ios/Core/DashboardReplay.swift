@@ -65,13 +65,17 @@ public enum DashboardIntervalPreset: String, Codable, CaseIterable, Identifiable
 }
 
 public struct DashboardIntervalObservation: Codable, Equatable, Sendable {
-    public enum State: String, Codable, Sendable { case available, unavailable, notApplicable, needsReview }
+    public typealias State = DashboardMetricState
     public let preset: DashboardIntervalPreset
     public let minutes: Double?
     public let state: State
     public let reason: String
     public let startID: String?
     public let endID: String?
+    public var referenceGroup: String? {
+        guard preset == .dose1ToDose2, let minutes else { return nil }
+        return minutes < 150 ? "Below reference" : minutes <= 240 ? "Within reference" : "Above reference"
+    }
 }
 
 /// Immutable report of selected evidence; later corrections create a different snapshot.
@@ -157,11 +161,11 @@ public struct DashboardReplaySnapshot: Codable, Equatable, Sendable {
                     ["derivation_version", derivationVersion], ["as_of", ISO8601DateFormatter().string(from: asOf)],
                     ["timezone", timeZoneID], ["source_policy", sourcePolicy], ["filters", filterDescription],
                     ["reference", "150–240 minutes built-in reference only; not a prescription or safety range"],
-                    ["preset", "minutes", "state", "reason", "start_id", "end_id"]]
+                    ["preset", "minutes", "state", "reason", "start_id", "end_id", "reference_group"]]
         rows += DashboardIntervalPreset.allCases.map { preset in
             let value = interval(preset)
             return [preset.rawValue, value.minutes.map(String.init(describing:)) ?? "", value.state.rawValue,
-                    value.reason, value.startID ?? "", value.endID ?? ""]
+                    value.reason, value.startID ?? "", value.endID ?? "", value.referenceGroup ?? ""]
         }
         if let projection = reviewedProjection {
             rows += [["coverage_definition", "Reviewed window; distinct from main-episode total"],
