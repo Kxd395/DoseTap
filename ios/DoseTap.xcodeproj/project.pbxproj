@@ -193,6 +193,7 @@
 		DAYB002 /* DaytimeCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYF002 /* DaytimeCheckInView.swift */; };
 		DAYB003 /* EventStorage+DaytimeEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYF003 /* EventStorage+DaytimeEvent.swift */; };
 		DAYB004 /* DaytimeEventView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYF004 /* DaytimeEventView.swift */; };
+		DAYB005 /* DaytimeTrendsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYF005 /* DaytimeTrendsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -424,6 +425,7 @@
 		DAYF002 /* DaytimeCheckInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaytimeCheckInView.swift; sourceTree = "<group>"; };
 		DAYF003 /* EventStorage+DaytimeEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+DaytimeEvent.swift"; sourceTree = "<group>"; };
 		DAYF004 /* DaytimeEventView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaytimeEventView.swift; sourceTree = "<group>"; };
+		DAYF005 /* DaytimeTrendsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaytimeTrendsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -765,6 +767,7 @@
 				EDIT001 /* EditDoseTimeView.swift */,
 				NWF001 /* NightOutcomeView.swift */,
 				DAYF002 /* DaytimeCheckInView.swift */,
+				DAYF005 /* DaytimeTrendsView.swift */,
 				DAYF004 /* DaytimeEventView.swift */,
 				PHRU003 /* PhysicianReportPreview.swift */,
 				PHRU002 /* PhysicianReviewView.swift */,
@@ -1043,6 +1046,7 @@
 				EDIT002 /* EditDoseTimeView.swift in Sources */,
 				NWB001 /* NightOutcomeView.swift in Sources */,
 				DAYB002 /* DaytimeCheckInView.swift in Sources */,
+				DAYB005 /* DaytimeTrendsView.swift in Sources */,
 				DAYB004 /* DaytimeEventView.swift in Sources */,
 				NWB002 /* EventStorage+NightOutcome.swift in Sources */,
 				DDRV001 /* EventStorage+DashboardDoseReview.swift in Sources */,

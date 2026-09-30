@@ -360,7 +360,8 @@
     "contentVersion": "custom-0-10-v1",
     "sleepinessMinimum": 0,
     "sleepinessMaximum": 10,
-    "maximumNoteCharacters": 2000
+    "maximumNoteCharacters": 2000,
+    "descriptiveClockBandHours": 6
   },
 
   "nightOutcomeDiary": {

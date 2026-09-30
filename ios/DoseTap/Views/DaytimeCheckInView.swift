@@ -12,6 +12,7 @@ struct DaytimeCheckInView: View {
             Section {
                 Text("Record only when it is safe to pause. This custom diary records your experience; saving does not notify a clinician.")
                     .font(.footnote).foregroundStyle(.secondary)
+                NavigationLink("Daytime trends") { DaytimeTrendsView() }
                 NavigationLink("Daytime events") { DaytimeEventView() }
                 Button("Record daytime check-in") { adding = true }
                     .disabled(ledger == nil).accessibilityIdentifier("daytime-add")
@@ -25,7 +26,7 @@ struct DaytimeCheckInView: View {
                     Section {
                         Text(value.assessedAt.formatted(date: .abbreviated, time: .shortened)).font(.headline)
                         Text(value.response.map { "Custom sleepiness: \($0)/10" } ?? "Response: \(value.status.rawValue)")
-                        Text(value.origin == .retrospective ? "Remembered observation" : "Current observation")
+                        Text(value.origin.title)
                         if let activity = value.activity { Text(activity.rawValue) }
                         Text("Setting: \(value.setting.rawValue). Coping: \(value.coping.rawValue)")
                         if !value.copingActions.isEmpty { Text(value.copingActions.map(\.rawValue).joined(separator: ", ")) }
@@ -43,6 +44,12 @@ struct DaytimeCheckInView: View {
             }
         }
         .navigationTitle("Daytime check-in")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button { adding = true } label: { Image(systemName: "plus") }
+                    .disabled(ledger == nil).accessibilityLabel("Record daytime check-in").accessibilityIdentifier("daytime-add-top")
+            }
+        }
         .sheet(isPresented: $adding, onDismiss: reload) { DaytimeCheckInEditor(original: nil) }
         .sheet(item: $editing, onDismiss: reload) { DaytimeCheckInEditor(original: $0) }
         .onAppear(perform: reload)
@@ -56,12 +63,15 @@ struct DaytimeCheckInView: View {
 struct DaytimeCheckInEditor: View {
     var original: DaytimeCheckIn? = nil
     var promptID: UUID? = nil
+    var samplingProtocolID: UUID? = nil
+    var samplingProtocolLabel: String? = nil
     var onSaved: ((DaytimeCheckIn) -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var repository = SessionRepository.shared
     @State private var score: Int?
     @State private var status: DaytimeCheckIn.Status = .incomplete
     @State private var retrospective = false
+    @State private var symptomTriggered = false
     @State private var assessedAt = Date()
     @State private var activity: DaytimeCheckIn.Activity?
     @State private var setting: DaytimeCheckIn.Setting = .unanswered
@@ -77,6 +87,7 @@ struct DaytimeCheckInEditor: View {
     @State private var events: [DaytimeEvent] = []
     @State private var eventsLoaded = false
     @State private var pending: DaytimeCheckIn?
+    @State private var showSaveFailure = false
     @State private var failure: String?
     var body: some View {
         NavigationStack {
@@ -85,6 +96,8 @@ struct DaytimeCheckInEditor: View {
                     Text("How sleepy do you feel now? 0 means not sleepy; 10 means extremely sleepy. This is a custom diary, not KSS or ESS.")
                     if original == nil && promptID == nil {
                         Toggle("Remembering an earlier observation", isOn: $retrospective)
+                            .onChange(of: retrospective) { _ in score = nil; status = .incomplete; assessedAt = Date() }
+                        if !retrospective { Toggle("Recording because I feel sleepy", isOn: $symptomTriggered) }
                         if retrospective {
                             DatePicker("Observed at", selection: $assessedAt, in: ...Date())
                             Text("This will be labeled retrospective, not a current assessment.").font(.caption)
@@ -154,6 +167,7 @@ struct DaytimeCheckInEditor: View {
                 if let failure {
                     Section {
                         Text(failure).foregroundStyle(.red)
+                        if !eventsLoaded { Button("Retry loading context", action: loadEvents) }
                         if pending != nil { Button("Edit entry before retry") { pending = nil; self.failure = nil } }
                     }
                 }
@@ -161,13 +175,25 @@ struct DaytimeCheckInEditor: View {
                     .accessibilityIdentifier("daytime-save")
             }
             .navigationTitle(original == nil ? "Daytime check-in" : "Correct observation")
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+            .alert("Observation not saved", isPresented: $showSaveFailure) {
+                Button("Retry save", action: save)
+                Button("Keep entry", role: .cancel) {}
+            } message: { Text(failure ?? DaytimeDiaryError.notCommitted.localizedDescription) }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(pending == nil ? "Save" : "Retry", action: save).accessibilityIdentifier("daytime-save-top")
+                }
+            }
             .onAppear {
                 if let original { score = original.response; status = original.status; assessedAt = original.assessedAt }
-                do { events = try repository.daytimeEvents().current; eventsLoaded = true }
-                catch { failure = DaytimeDiaryError.unreadable.localizedDescription; eventsLoaded = false }
+                loadEvents()
             }
         }
+    }
+    private func loadEvents() {
+        do { events = try repository.daytimeEvents().current; eventsLoaded = true; failure = nil }
+        catch { failure = DaytimeDiaryError.unreadable.localizedDescription; eventsLoaded = false }
     }
     private func save() {
         do {
@@ -179,15 +205,16 @@ struct DaytimeCheckInEditor: View {
                 } else {
                     pending = try DaytimeCheckIn(assessedAt: score == nil && !retrospective ? now : assessedAt,
                         recordedAt: now, timeZoneIdentifier: TimeZone.current.identifier, response: score, status: status,
-                        origin: retrospective ? .retrospective : (promptID == nil ? .userInitiated : .scheduled), activity: activity, setting: setting,
+                        origin: retrospective ? .retrospective : (promptID == nil ? (symptomTriggered ? .symptomTriggered : .userInitiated) : .scheduled), activity: activity, setting: setting,
                         coping: coping, copingActions: actions, note: note, promptID: promptID,
-                        eventReview: reviewEnabled ? DaytimeEventReview(from: reviewFrom, to: reviewTo, status: reviewStatus, eventIDs: Array(eventIDs)) : nil)
+                        eventReview: reviewEnabled ? DaytimeEventReview(from: reviewFrom, to: reviewTo, status: reviewStatus, eventIDs: Array(eventIDs)) : nil,
+                        samplingProtocolID: samplingProtocolID, samplingProtocolLabel: samplingProtocolLabel)
                 }
             }
             guard let pending else { return }
             try repository.saveDaytimeCheckIn(pending)
             onSaved?(pending)
             dismiss()
-        } catch { failure = (error as? DaytimeDiaryError)?.localizedDescription ?? DaytimeDiaryError.notCommitted.localizedDescription }
+        } catch { failure = (error as? DaytimeDiaryError)?.localizedDescription ?? DaytimeDiaryError.notCommitted.localizedDescription; showSaveFailure = true }
     }
 }

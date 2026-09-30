@@ -2364,7 +2364,7 @@ extension DoseTapUITests {
         let rating = app.buttons["daytime-rating"]
         XCTAssertTrue(rating.waitForExistence(timeout: 5)); rating.tap()
         app.buttons["4"].tap()
-        let save = app.buttons["daytime-save"]
+        let save = app.buttons["daytime-save-top"]
         for _ in 0..<5 where !save.isHittable { app.swipeUp() }
         XCTAssertTrue(save.isHittable); save.tap()
         XCTAssertTrue(app.staticTexts["Custom sleepiness: 4/10"].firstMatch.waitForExistence(timeout: 5))
@@ -2372,6 +2372,9 @@ extension DoseTapUITests {
         app.terminate(); app.launch()
         XCTAssertTrue(app.buttons["History"].firstMatch.waitForExistence(timeout: 15)); app.buttons["History"].firstMatch.tap(); app.buttons["history-daytime"].tap()
         XCTAssertTrue(app.staticTexts["Custom sleepiness: 4/10"].firstMatch.waitForExistence(timeout: 5))
+        app.buttons["Daytime trends"].tap()
+        XCTAssertTrue(app.staticTexts["Observed diary samples"].waitForExistence(timeout: 5))
+        let trends = XCTAttachment(screenshot: app.screenshot()); trends.name = "Daytime trend with actual observation"; trends.lifetime = .keepAlways; self.add(trends)
     }
 }
 
@@ -2380,14 +2383,14 @@ extension DoseTapUITests {
         XCTAssertTrue(app.buttons["History"].firstMatch.waitForExistence(timeout: 15)); app.buttons["History"].firstMatch.tap()
         let entry = app.buttons["history-daytime"]
         XCTAssertTrue(entry.waitForExistence(timeout: 10)); entry.tap()
-        app.buttons["daytime-add"].tap()
-        let save = app.buttons["daytime-save"]
+        XCTAssertTrue(app.buttons["daytime-add-top"].waitForExistence(timeout: 5)); app.buttons["daytime-add-top"].tap()
+        let save = app.buttons["daytime-save-top"]
         for _ in 0..<10 where !save.isHittable { app.swipeUp() }
         XCTAssertTrue(save.isHittable); save.tap()
         XCTAssertTrue(app.staticTexts["The observation was not saved. Your entry is retained; retry when ready."].waitForExistence(timeout: 5))
-        for _ in 0..<5 where !save.isHittable { app.swipeUp() }
-        XCTAssertEqual(save.label, "Retry exact observation"); save.tap()
-        XCTAssertTrue(app.buttons["daytime-add"].waitForExistence(timeout: 5))
+        let retry = app.alerts.buttons["Retry save"]
+        XCTAssertTrue(retry.isHittable); retry.tap()
+        XCTAssertTrue(app.buttons["daytime-add-top"].waitForExistence(timeout: 5))
         let proof = XCTAttachment(screenshot: app.screenshot()); proof.name = "Daytime saved after exact retry largest text"; proof.lifetime = .keepAlways; add(proof)
     }
 }
