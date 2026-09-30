@@ -20,6 +20,10 @@ global notifications and medication timing windows do not change. Restart and
 History correction must not automatically recreate opted-out reminders. Explicit
 alarm changes may re-enable them for the still-active dose.
 
+## Physician review preparation (DOSETAP-59)
+
+The [physician review contract](contracts/physician-review.md) defines completed-visit anchors, explicit report bounds, immutable preview snapshots and unscored notes. It does not authorize automatic sharing or instrument scoring.
+
 ## Canonical References
 
 - Code entry points: `ios/DoseTap/Storage/SessionRepository.swift`, `ios/Core/DoseTapCore.swift`, `ios/DoseTap/ContentView.swift`
