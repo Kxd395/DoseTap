@@ -60,26 +60,29 @@ public struct DaytimeWorkContext: Equatable, Sendable {
 
 /// Recomputed evidence projection. The source observation and its explicitly selected links stay immutable.
 public struct DaytimeObservationContext: Equatable, Sendable {
-    public let definitionVersion = 1
+    public let definitionVersion = 2
     public let observationID: UUID
     public let observationRevisionID: UUID
     public let assessedAt: Date
     public let asOf: Date
     public let work: DaytimeWorkContext
     public let medication: DashboardContextStratum
+    public let wake: DaytimeWakeContext?
     public let groupingKey: String
     public var workStatus: DaytimeWorkContext.Status { work.status }
     public var shiftID: UUID? { work.shiftID }
     public var shiftRevisionID: UUID? { work.shiftRevisionID }
     public var shiftThird: Int? { work.shiftThird }
     public var workLabel: String { work.label }
-    public var label: String { work.label + " · " + medication.label }
-    public var sourceRecordIDs: [String] { Array(Set(work.sourceRecordIDs + medication.sourceRecordIDs)).sorted() }
+    public var label: String { work.label + " · " + medication.label + " · " + (wake?.label ?? "Wake context not evaluated") }
+    public var sourceRecordIDs: [String] { Array(Set(work.sourceRecordIDs + medication.sourceRecordIDs + (wake?.sourceRecordIDs ?? []))).sorted() }
 
     public init(observation: DaytimeCheckIn, work: WorkContextDocument?, basis: WorkContextBasis,
-                medication: DashboardContextTimeline?, asOf: Date) throws {
+                medication: DashboardContextTimeline?, asOf: Date, wake: DaytimeWakeContext? = nil) throws {
         try observation.validate()
         guard observation.recordedAt <= asOf, medication.map({ $0.capturedAt == asOf }) ?? true else { throw DaytimeDiaryError.invalid }
+        guard wake.map({ $0.observationID == observation.id && $0.observationRevisionID == observation.revisionID && $0.assessedAt == observation.assessedAt && $0.asOf == asOf }) ?? true else { throw DaytimeDiaryError.invalid }
+        self.wake = wake
         observationID = observation.id; observationRevisionID = observation.revisionID
         assessedAt = observation.assessedAt; self.asOf = asOf
         self.work = try DaytimeWorkContext(at: assessedAt, sourceRecordID: observation.revisionID.uuidString,
@@ -89,7 +92,7 @@ public struct DaytimeObservationContext: Equatable, Sendable {
             language: observation.language, observedAt: assessedAt)
         self.medication = medication?.stratum(observationID: observation.id.uuidString, start: assessedAt, end: nil, content: [content])
             ?? .unknown(observationID: observation.id.uuidString)
-        groupingKey = daytimeContextKey(["daytime_context_v1", self.work.groupingKey, self.medication.id])
+        groupingKey = daytimeContextKey(["daytime_context_v2", self.work.groupingKey, self.medication.id, wake?.groupingKey ?? "wake_not_evaluated"])
     }
 }
 
