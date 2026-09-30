@@ -70,8 +70,10 @@ final class DashboardCompanionPhysicianReportTests: XCTestCase {
         let rating = try XCTUnwrap(value.preview.observations.first { $0.metricID == entry.instrumentID })
         XCTAssertEqual(rating.value, 0); XCTAssertEqual(rating.state, .available)
         XCTAssertEqual(rating.observedAt, entry.assessedAt)
+        XCTAssertTrue(rating.detail.hasPrefix("Source JSON timestamps use seconds since 1970."))
         let retained = try XCTUnwrap(value.preview.observations.first { $0.id == "daytime-event:" + event.revisionID.uuidString })
         XCTAssertTrue(retained.detailOnly == true); XCTAssertTrue(retained.detail.contains("not reported sleep"))
+        XCTAssertTrue(retained.detail.hasPrefix("Source JSON timestamps use seconds since 1970."))
         XCTAssertFalse(value.preview.summaries.contains { $0.metricID == retained.metricID })
         XCTAssertTrue(value.preview.coverageDescription.contains("origin/protocol filters are not inherited"))
     }

@@ -110,13 +110,13 @@ public struct DashboardCompanionPhysicianReport: Sendable {
             observations.append(.init(id: "daytime-checkin:" + entry.revisionID.uuidString, observedAt: entry.assessedAt,
                 metricID: entry.instrumentID, value: entry.response.map(Double.init), state: entry.status == .answered ? .available : .unavailable,
                 unit: "custom 0–10", source: "Patient-reported daytime check-in", definitionVersion: entry.contentVersion,
-                detail: try entry.encoded(), recordIDs: ["daytime_checkins:" + entry.revisionID.uuidString] + (context?.sourceRecordIDs ?? []), comparisonLabel: compatibility))
+                detail: "Source JSON timestamps use seconds since 1970. " + (try entry.encoded()), recordIDs: ["daytime_checkins:" + entry.revisionID.uuidString] + (context?.sourceRecordIDs ?? []), comparisonLabel: compatibility))
         }
         for entry in daytime.events {
             observations.append(.init(id: "daytime-event:" + entry.revisionID.uuidString, observedAt: entry.occurredAt,
                 metricID: "daytime.event." + entry.kind.rawValue, value: entry.kind == .unclear ? nil : 1, state: entry.kind == .unclear ? .needsReview : .available,
                 unit: "reported event", source: "Patient-reported daytime event", definitionVersion: "daytime-event.v\(entry.version)",
-                detail: try entry.encoded(), recordIDs: ["daytime_events:" + entry.revisionID.uuidString], requiresReview: true, detailOnly: true))
+                detail: "Source JSON timestamps use seconds since 1970. " + (try entry.encoded()), recordIDs: ["daytime_events:" + entry.revisionID.uuidString], requiresReview: true, detailOnly: true))
         }
         let analysis = daytime.analysis
         contexts.append(try Self.context(id: "daytime-coverage", title: "Independent daytime coverage", source: "Patient-reported daytime diary",
