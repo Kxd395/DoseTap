@@ -15,6 +15,10 @@
 		DPUI004B /* DosePatternReviewSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI004F; };
 		DPUI005B /* MorningDoseHistoryReviewSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI005F; };
 		DHSIDE101 /* DashboardSharedSleepProducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = DHSIDE001 /* DashboardSharedSleepProducer.swift */; };
+		NAP007B /* SleepNapsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAP007F /* SleepNapsUITests.swift */; };
+		NAP006B /* SleepNapsFixtureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAP006F /* SleepNapsFixtureView.swift */; };
+		NAP005B /* NapPeriodEligibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAP005F /* NapPeriodEligibility.swift */; };
+		NAP004B /* SleepNapsDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAP004F /* SleepNapsDashboardView.swift */; };
 		DPAD101 /* DashboardDosePatternAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPAD001 /* DashboardDosePatternAdapter.swift */; };
 		DDRV001 /* EventStorage+DashboardDoseReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDRV101; };
 		DIDENT108 /* DashboardContextProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT008 /* DashboardContextProjection.swift */; };
@@ -256,6 +260,10 @@
 		DPUI004F /* DosePatternReviewSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternReviewSheet.swift; sourceTree = "<group>"; };
 		DPUI005F /* MorningDoseHistoryReviewSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningDoseHistoryReviewSection.swift; sourceTree = "<group>"; };
 		DHSIDE001 /* DashboardSharedSleepProducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardSharedSleepProducer.swift; sourceTree = "<group>"; };
+		NAP007F /* SleepNapsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SleepNapsUITests.swift"; sourceTree = "<group>"; };
+		NAP006F /* SleepNapsFixtureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SleepNapsFixtureView.swift"; sourceTree = "<group>"; };
+		NAP005F /* NapPeriodEligibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NapPeriodEligibility.swift"; sourceTree = "<group>"; };
+		NAP004F /* SleepNapsDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SleepNapsDashboardView.swift"; sourceTree = "<group>"; };
 		DPAD001 /* DashboardDosePatternAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardDosePatternAdapter.swift; sourceTree = "<group>"; };
 		DDRV101 /* EventStorage+DashboardDoseReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+DashboardDoseReview.swift"; sourceTree = "<group>"; };
 		DIDENT008 /* DashboardContextProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardContextProjection.swift; sourceTree = "<group>"; };
@@ -676,6 +684,9 @@
 				DRPL001 /* DashboardReplayAdapter.swift */,
 				DRPL000 /* DashboardReplayView.swift */,
 				NAP003F /* NapProviderCheck.swift */,
+				NAP006F /* SleepNapsFixtureView.swift */,
+				NAP005F /* NapPeriodEligibility.swift */,
+				NAP004F /* SleepNapsDashboardView.swift */,
 				NAP002F /* NapEpisodeEditor.swift */,
 				CLUST002 /* DashboardViews.swift */,
 				DIDENT005 /* ProviderSessionAssociationView.swift */,
@@ -894,6 +905,7 @@
 				UI_F01 /* DoseTapUITests.swift */,
 				DYPU101 /* DaytimePromptUITests.swift */,
 				CTX003F /* ContextMorningOutcomesUITests.swift */,
+				NAP007F /* SleepNapsUITests.swift */,
 				D074F303 /* MedicationPresetSettingsUITests.swift */,
 				UI_F02 /* DoseTapUITestsLaunchTests.swift */,
 			);
@@ -1160,6 +1172,9 @@
 				PHRU1002 /* PhysicianReviewView.swift in Sources */,
 				PHRV101 /* EventStorage+PhysicianReview.swift in Sources */,
 				NAP003B /* NapProviderCheck.swift in Sources */,
+				NAP006B /* SleepNapsFixtureView.swift in Sources */,
+				NAP005B /* NapPeriodEligibility.swift in Sources */,
+				NAP004B /* SleepNapsDashboardView.swift in Sources */,
 				NAP002B /* NapEpisodeEditor.swift in Sources */,
 				NAP001B /* EventStorage+NapDiary.swift in Sources */,
 				0A777B0D5CC54803B060A980 /* UserSettingsManager.swift in Sources */,
@@ -1319,6 +1334,7 @@
 				UI_B01 /* DoseTapUITests.swift in Sources */,
 				DYPU001 /* DaytimePromptUITests.swift in Sources */,
 				CTX003B /* ContextMorningOutcomesUITests.swift in Sources */,
+				NAP007B /* SleepNapsUITests.swift in Sources */,
 				D074B303 /* MedicationPresetSettingsUITests.swift in Sources */,
 				UI_B02 /* DoseTapUITestsLaunchTests.swift in Sources */,
 			);

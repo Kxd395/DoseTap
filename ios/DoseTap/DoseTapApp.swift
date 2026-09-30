@@ -196,6 +196,9 @@ struct DoseTapApp: App {
             .sheet(isPresented: .constant(ProcessInfo.processInfo.arguments.contains("--uitesting-medication-save"))) {
                 MedicationPickerView()
             }
+            .sheet(isPresented: .constant(ProcessInfo.processInfo.arguments.contains("--uitesting-sleep-naps"))) {
+                SleepNapsFixtureView()
+            }
             .sheet(isPresented: .constant(ProcessInfo.processInfo.arguments.contains("--uitesting-dose-sleep"))) {
                 ReviewedDoseSleepFixtureView()
             }

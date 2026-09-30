@@ -67,6 +67,7 @@ struct DashboardTabView: View {
                         .padding(.bottom, 4)
                 }
 
+                NavigationLink("Sleep & Naps") { SleepNapsDashboardView(model: model) }.accessibilityIdentifier("dashboard-sleep-naps-open").padding(.horizontal)
                 NavigationLink("Replay & intervals") { DashboardReplayView(model: model) }
                     .accessibilityIdentifier("dashboard-replay-open").padding(.horizontal)
                 NavigationLink("Sleep & Dose Pattern") { ScrollView { DosePatternDashboardView(model: model).padding() } }

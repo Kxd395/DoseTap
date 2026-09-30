@@ -66,8 +66,8 @@ struct NapEpisodeEditor: View {
                 }
                 Toggle("I reviewed the timing, estimate and episode association", isOn: $reviewed).accessibilityIdentifier("nap-reviewed")
                 if let error { Text(error).foregroundStyle(.red).accessibilityIdentifier("nap-save-error") }
-            }.environment(\.timeZone, TimeZone(identifier: zone) ?? .current)
-                .navigationTitle(original == nil ? "Add nap report" : "Review nap")
+            }.environment(\.timeZone, TimeZone(identifier: zone) ?? .current).scrollDismissesKeyboard(.immediately)
+                .navigationTitle(original == nil ? "Add nap report" : "Review nap").navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                     ToolbarItem(placement: .confirmationAction) { Button("Save review", action: submit).disabled(!reviewed).accessibilityIdentifier("nap-save-review") }
