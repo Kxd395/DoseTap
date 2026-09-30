@@ -70,3 +70,7 @@ All, Overview, Trends and Data share the same card implementations and metric de
 Settings → Saved medication presets → Add medication preset or Revise preset.
 Revision history is read-only. Save preset only writes label setup, never a taken
 administration. Existing My Medications picker settings remain a separate route.
+
+### Independent daytime diary
+
+History → Daytime check-in opens independent observations, current custom 0–10 entry, explicit remembered entries and correction history. Opening does not create a nighttime session. No score is selected initially; save failure retains the exact pending revision for retry.

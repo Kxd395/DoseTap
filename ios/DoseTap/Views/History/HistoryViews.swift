@@ -108,6 +108,9 @@ struct HistoryView: View {
                 Label("Medication history", systemImage: "pills.fill")
                     .frame(maxWidth: .infinity, alignment: .leading).padding()
             }.accessibilityIdentifier("history-medications")
+            NavigationLink { DaytimeCheckInView() } label: {
+                Label("Daytime check-in", systemImage: "sun.max").frame(maxWidth: .infinity, alignment: .leading).padding()
+            }.accessibilityIdentifier("history-daytime")
             historyFilterBar
 
             if isSearchActive {

@@ -441,3 +441,7 @@ amount is explicitly reported. Prepared amount leaves the bottle once; linking o
 discarding a preparation never subtracts it twice. These allocated amounts are
 inventory reports, not a backfill of actual administered amounts in dose_events.
 See [quantity and preparation rules](../bottle-tracking.md).
+
+## Independent daytime observations
+
+`daytime_checkins`: `revision_id` is the immutable revision UUID; `observation_id` identifies one observation across corrections; `payload` is versioned validated custom diary JSON. UTC assessed/created/recorded timestamps and timezone offset, instrument/content identifiers, explicit response status, activity/coping and provenance remain independent of nighttime questionnaires. Missing response is never numeric zero.

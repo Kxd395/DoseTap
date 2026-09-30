@@ -356,6 +356,13 @@
     }
   },
   
+  "daytimeCheckIn": {
+    "contentVersion": "custom-0-10-v1",
+    "sleepinessMinimum": 0,
+    "sleepinessMaximum": 10,
+    "maximumNoteCharacters": 2000
+  },
+
   "nightOutcomeDiary": {
     "questionnaireVersion": "night_outcome.v1",
     "sleepinessMinimum": 0,

@@ -1,0 +1,160 @@
+import SwiftUI
+import DoseCore
+
+struct DaytimeCheckInView: View {
+    @ObservedObject private var repository = SessionRepository.shared
+    @State private var ledger: DaytimeCheckInLedger?
+    @State private var failure: String?
+    @State private var adding = false
+    @State private var editing: DaytimeCheckIn?
+    var body: some View {
+        List {
+            Section {
+                Text("Record only when it is safe to pause. This custom diary records your experience; saving does not notify a clinician.")
+                    .font(.footnote).foregroundStyle(.secondary)
+                Button("Record daytime check-in") { adding = true }
+                    .disabled(ledger == nil).accessibilityIdentifier("daytime-add")
+            }
+            if let failure {
+                Section { Text(failure); Button("Retry loading", action: reload) }
+            }
+            if let ledger {
+                if ledger.current.isEmpty { Text("No daytime observations recorded. Missing observations are not zero sleepiness.") }
+                ForEach(ledger.current) { value in
+                    Section {
+                        Text(value.assessedAt.formatted(date: .abbreviated, time: .shortened)).font(.headline)
+                        Text(value.response.map { "Custom sleepiness: \($0)/10" } ?? "Response: \(value.status.rawValue)")
+                        Text(value.origin == .retrospective ? "Remembered observation" : "Current observation")
+                        if let activity = value.activity { Text(activity.rawValue) }
+                        Text("Setting: \(value.setting.rawValue). Coping: \(value.coping.rawValue)")
+                        if !value.copingActions.isEmpty { Text(value.copingActions.map(\.rawValue).joined(separator: ", ")) }
+                        if !value.note.isEmpty { Text(value.note) }
+                        Text("Recorded \(value.recordedAt.formatted()). \(value.timeZoneIdentifier)").font(.caption).foregroundStyle(.secondary)
+                        Button("Correct response") { editing = value }
+                        DisclosureGroup("Revision history") {
+                            ForEach(ledger.revisions.filter { $0.id == value.id }, id: \.revisionID) { revision in
+                                Text("\(revision.recordedAt.formatted()): \(revision.response.map(String.init) ?? revision.status.rawValue). \(revision.correctionReason ?? "Original observation")")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .navigationTitle("Daytime check-in")
+        .sheet(isPresented: $adding, onDismiss: reload) { DaytimeCheckInEditor(original: nil) }
+        .sheet(item: $editing, onDismiss: reload) { DaytimeCheckInEditor(original: $0) }
+        .onAppear(perform: reload)
+    }
+    private func reload() {
+        do { ledger = try repository.daytimeCheckIns(); failure = nil }
+        catch { ledger = nil; failure = DaytimeDiaryError.unreadable.localizedDescription }
+    }
+}
+
+struct DaytimeCheckInEditor: View {
+    var original: DaytimeCheckIn? = nil
+    var promptID: UUID? = nil
+    var onSaved: ((DaytimeCheckIn) -> Void)? = nil
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var repository = SessionRepository.shared
+    @State private var score: Int?
+    @State private var status: DaytimeCheckIn.Status = .incomplete
+    @State private var retrospective = false
+    @State private var assessedAt = Date()
+    @State private var activity: DaytimeCheckIn.Activity?
+    @State private var setting: DaytimeCheckIn.Setting = .unanswered
+    @State private var coping: DaytimeCheckIn.Coping = .unanswered
+    @State private var actions: Set<DaytimeCheckIn.Action> = []
+    @State private var note = ""
+    @State private var reason = ""
+    @State private var pending: DaytimeCheckIn?
+    @State private var failure: String?
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Custom sleepiness diary · 0–10") {
+                    Text("How sleepy do you feel now? 0 means not sleepy; 10 means extremely sleepy. This is a custom diary, not KSS or ESS.")
+                    if original == nil && promptID == nil {
+                        Toggle("Remembering an earlier observation", isOn: $retrospective)
+                        if retrospective {
+                            DatePicker("Observed at", selection: $assessedAt, in: ...Date())
+                            Text("This will be labeled retrospective, not a current assessment.").font(.caption)
+                        }
+                    } else if original != nil { Text("Correcting the saved response; its observation time remains unchanged.") }
+                    Picker("Response", selection: $score) {
+                        Text("Choose a rating").tag(Int?.none)
+                        ForEach(0...10, id: \.self) { Text(String($0)).tag(Optional($0)) }
+                    }.accessibilityIdentifier("daytime-rating")
+                        .onChange(of: score) { value in
+                            status = value == nil ? .incomplete : .answered
+                            if !retrospective && original == nil { assessedAt = Date() }
+                        }
+                    if score == nil {
+                        Picker("No rating", selection: $status) {
+                            Text("Incomplete").tag(DaytimeCheckIn.Status.incomplete)
+                            Text("Unsure").tag(DaytimeCheckIn.Status.unsure)
+                            Text("Skipped").tag(DaytimeCheckIn.Status.skipped)
+                        }
+                    }
+                }.disabled(pending != nil)
+                if original == nil {
+                    Section("Optional context") {
+                        Picker("Activity during observation", selection: $activity) {
+                            Text("Not answered").tag(DaytimeCheckIn.Activity?.none)
+                            ForEach(DaytimeCheckIn.Activity.allCases, id: \.self) { Text($0.rawValue).tag(Optional($0)) }
+                        }
+                        Picker("Setting", selection: $setting) {
+                            ForEach(DaytimeCheckIn.Setting.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                        }
+                        Picker("Trying specifically to stay awake?", selection: $coping) {
+                            ForEach(DaytimeCheckIn.Coping.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                        }.onChange(of: coping) { if $0 != .yes { actions.removeAll() } }
+                        if coping == .yes {
+                            ForEach(DaytimeCheckIn.Action.allCases, id: \.self) { action in
+                                Toggle(action.rawValue, isOn: Binding(get: { actions.contains(action) }, set: {
+                                    if $0 { actions.insert(action) } else { actions.remove(action) }
+                                }))
+                            }
+                        }
+                        TextField("Optional note (no names)", text: $note, axis: .vertical)
+                        Text("Record actions already taken; this diary does not recommend caffeine or medication.").font(.caption)
+                    }.disabled(pending != nil)
+                } else {
+                    Section("Correction reason") { TextField("Why are you correcting this response?", text: $reason) }.disabled(pending != nil)
+                }
+                if let failure {
+                    Section {
+                        Text(failure).foregroundStyle(.red)
+                        if pending != nil { Button("Edit entry before retry") { pending = nil; self.failure = nil } }
+                    }
+                }
+                Button(pending == nil ? "Save observation" : "Retry exact observation", action: save)
+                    .accessibilityIdentifier("daytime-save")
+            }
+            .navigationTitle(original == nil ? "Daytime check-in" : "Correct observation")
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+            .onAppear {
+                if let original { score = original.response; status = original.status; assessedAt = original.assessedAt }
+            }
+        }
+    }
+    private func save() {
+        do {
+            if pending == nil {
+                let now = Date()
+                if let original {
+                    pending = try original.corrected(response: score, status: status, reason: reason, recordedAt: now)
+                } else {
+                    pending = try DaytimeCheckIn(assessedAt: score == nil && !retrospective ? now : assessedAt,
+                        recordedAt: now, timeZoneIdentifier: TimeZone.current.identifier, response: score, status: status,
+                        origin: retrospective ? .retrospective : (promptID == nil ? .userInitiated : .scheduled), activity: activity, setting: setting,
+                        coping: coping, copingActions: actions, note: note, promptID: promptID)
+                }
+            }
+            guard let pending else { return }
+            try repository.saveDaytimeCheckIn(pending)
+            onSaved?(pending)
+            dismiss()
+        } catch { failure = (error as? DaytimeDiaryError)?.localizedDescription ?? DaytimeDiaryError.notCommitted.localizedDescription }
+    }
+}
