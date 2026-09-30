@@ -18,6 +18,8 @@ final class DashboardAnalyticsModel: ObservableObject {
     var replaySourceSubscriptions: Set<AnyCancellable> = []
     @Published var contextPresentation = ContextMorningPresentation()
     @Published var daytimeInspection = DaytimeInspectionState()
+    @Published var napInspection = DashboardNapInspection()
+    @Published var additionalMeasure = DashboardAdditionalMeasure.summary
     @Published var workInspectionContext: WorkContextDocument?
     @Published var workContextReadReady = false
     @Published var workContextIssue: String?

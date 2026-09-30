@@ -50,8 +50,7 @@ struct DashboardTrendChartsCard: View {
             return palette.isNight ? "WHOOP recovery ranges use labeled symbols: 67–100, 34–66, below 34."
                 : "WHOOP recovery: green 67–100, yellow/orange 34–66, red below 34. Symbols also identify ranges."
         case .cohorts:
-            return palette.isNight ? "Bars are labeled Screens and No screens; these identify groups, not better sleep."
-                : "Indigo: screens. Green: no screens. Colors identify groups, not better sleep."
+            return "Saved screen answers need review; questionnaire cohort averages are withheld."
         case .weekday:
             return "Recorded pairs within the built-in 150–240 minute inclusive reference, by weekday; not a historical prescription."
         }
@@ -71,7 +70,7 @@ struct DashboardTrendChartsCard: View {
                     .font(.headline)
                 Spacer()
                 Picker("Trend", selection: $trendMode) {
-                    ForEach(DashboardTrendMode.allCases) { mode in
+                    ForEach([DashboardTrendMode.intervalVsSleep, .recoveryTrend, .weekday]) { mode in
                         Text(mode.rawValue).tag(mode)
                     }
                 }
@@ -156,20 +155,7 @@ struct DashboardTrendChartsCard: View {
             }
 
         case .cohorts:
-            let values = model.screenSleepValues
-            if values.isEmpty {
-                emptyChartState("Need pre-sleep screen/no-screen data with sleep totals.")
-            } else {
-                Chart(values) { entry in
-                    BarMark(
-                        x: .value("Cohort", entry.name),
-                        y: .value("Avg Sleep (min)", entry.value)
-                    )
-                    .foregroundStyle(palette.chart(entry.name == "No screens" ? .green : .indigo))
-                    .annotation(position: .top) { Text("n=\(entry.count)").font(.caption) }
-                }
-                .chartYAxisLabel("Avg Sleep Minutes")
-            }
+            emptyChartState("Saved screen answers need review. Questionnaire cohort averages are withheld; review the original answers in Other Recorded Measures or Context & Morning Outcomes.")
 
         case .weekday:
             if model.weekdayTimingValues.isEmpty {

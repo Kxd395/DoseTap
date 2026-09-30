@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		DADM001B /* DashboardAdditionalMeasuresView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DADM001F; };
 		DPUI001B /* DosePatternDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI001F; };
 		UI_DP01B /* DosePatternDashboardUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI_DP01F; };
 		DRPL106 /* DashboardReplayPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DRPL006 /* DashboardReplayPresentation.swift */; };
@@ -19,6 +20,7 @@
 		NAP007B /* SleepNapsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAP007F /* SleepNapsUITests.swift */; };
 		NAP006B /* SleepNapsFixtureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAP006F /* SleepNapsFixtureView.swift */; };
 		NAP005B /* NapPeriodEligibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAP005F /* NapPeriodEligibility.swift */; };
+		NAP009B /* DashboardNapInspection.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAP009F /* DashboardNapInspection.swift */; };
 		NAP008B /* NapDoseComparisonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAP008F /* NapDoseComparisonView.swift */; };
 		NAP004B /* SleepNapsDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAP004F /* SleepNapsDashboardView.swift */; };
 		DPAD101 /* DashboardDosePatternAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPAD001 /* DashboardDosePatternAdapter.swift */; };
@@ -254,6 +256,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		DADM001F /* DashboardAdditionalMeasuresView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardAdditionalMeasuresView.swift; sourceTree = "<group>"; };
 		DPUI001F /* DosePatternDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternDashboardView.swift; sourceTree = "<group>"; };
 		UI_DP01F /* DosePatternDashboardUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternDashboardUITests.swift; sourceTree = "<group>"; };
 		DRPL006 /* DashboardReplayPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardReplayPresentation.swift; sourceTree = "<group>"; };
@@ -266,6 +269,7 @@
 		NAP007F /* SleepNapsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SleepNapsUITests.swift"; sourceTree = "<group>"; };
 		NAP006F /* SleepNapsFixtureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SleepNapsFixtureView.swift"; sourceTree = "<group>"; };
 		NAP005F /* NapPeriodEligibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NapPeriodEligibility.swift"; sourceTree = "<group>"; };
+		NAP009F /* DashboardNapInspection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DashboardNapInspection.swift"; sourceTree = "<group>"; };
 		NAP008F /* NapDoseComparisonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NapDoseComparisonView.swift"; sourceTree = "<group>"; };
 		NAP004F /* SleepNapsDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SleepNapsDashboardView.swift"; sourceTree = "<group>"; };
 		DPAD001 /* DashboardDosePatternAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardDosePatternAdapter.swift; sourceTree = "<group>"; };
@@ -682,6 +686,7 @@
 				CLUST001 /* DashboardModels.swift */,
 				DINS001F /* DashboardInspection.swift */,
 				DRPL006 /* DashboardReplayPresentation.swift */,
+				DADM001F /* DashboardAdditionalMeasuresView.swift */,
 				DRPL005 /* DashboardReplayUITestFixture.swift */,
 				DRPL004 /* DashboardReplayExport.swift */,
 				DRPL003 /* DashboardReviewedCoverage.swift */,
@@ -691,6 +696,7 @@
 				NAP003F /* NapProviderCheck.swift */,
 				NAP006F /* SleepNapsFixtureView.swift */,
 				NAP005F /* NapPeriodEligibility.swift */,
+				NAP009F /* DashboardNapInspection.swift */,
 				NAP008F /* NapDoseComparisonView.swift */,
 				NAP004F /* SleepNapsDashboardView.swift */,
 				NAP002F /* NapEpisodeEditor.swift */,
@@ -1180,6 +1186,7 @@
 				NAP003B /* NapProviderCheck.swift in Sources */,
 				NAP006B /* SleepNapsFixtureView.swift in Sources */,
 				NAP005B /* NapPeriodEligibility.swift in Sources */,
+				NAP009B /* DashboardNapInspection.swift in Sources */,
 				NAP008B /* NapDoseComparisonView.swift in Sources */,
 				NAP004B /* SleepNapsDashboardView.swift in Sources */,
 				NAP002B /* NapEpisodeEditor.swift in Sources */,
@@ -1289,6 +1296,7 @@
 				CLUST101 /* DashboardModels.swift in Sources */,
 				DINS001B /* DashboardInspection.swift in Sources */,
 				DRPL106 /* DashboardReplayPresentation.swift in Sources */,
+				DADM001B /* DashboardAdditionalMeasuresView.swift in Sources */,
 				DRPL105 /* DashboardReplayUITestFixture.swift in Sources */,
 				DRPL104 /* DashboardReplayExport.swift in Sources */,
 				DRPL103 /* DashboardReviewedCoverage.swift in Sources */,

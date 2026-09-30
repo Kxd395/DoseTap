@@ -4,6 +4,7 @@ import DoseCore
 @MainActor
 struct SleepNapsFixtureView: View {
     @StateObject private var model: DashboardAnalyticsModel
+    @State private var refreshFinished = false
     private let failure: String?
     init() {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("dosetap-synthetic-nap-fixture", isDirectory: true)
@@ -21,7 +22,7 @@ struct SleepNapsFixtureView: View {
         let captured = interval ? calendar.startOfDay(for: Date()).addingTimeInterval(-12 * 3600) : Date()
         if interval {
             let dose = captured.addingTimeInterval(-1800), end = captured.addingTimeInterval(-4500)
-            if !storage.saveDose1(timestamp: dose, sessionId: "synthetic-nap-dose-session", sessionDateOverride: storage.sessionDateString(for: dose), sessionStart: dose).isCommitted {
+            if !DashboardAssociationUITestFixture.prepareNapDose(storage: storage, at: dose) {
                 failure = "Synthetic administration could not be prepared."
             }
             do {
@@ -38,8 +39,17 @@ struct SleepNapsFixtureView: View {
     var body: some View {
         NavigationStack {
             if let failure { Text(failure) }
-            else { SleepNapsDashboardView(model: model).task { if ProcessInfo.processInfo.arguments.contains("--uitesting-nap-interval") { await model.refreshAndWait() } } }
-        }
+            else if ProcessInfo.processInfo.arguments.contains("--uitesting-nap-navigation") {
+                List {
+                    NavigationLink("Sleep & Naps") { SleepNapsDashboardView(model: model) }.accessibilityIdentifier("nap-fixture-open")
+                    Button("Refresh dashboard") {
+                        refreshFinished = false
+                        Task { await model.refreshAndWait(); refreshFinished = true }
+                    }.accessibilityIdentifier("nap-fixture-refresh")
+                    if refreshFinished { Text("Nap refresh finished") }
+                }.navigationTitle("Dashboard fixture")
+            } else { SleepNapsDashboardView(model: model) }
+        }.task { if ProcessInfo.processInfo.arguments.contains("--uitesting-nap-interval") { await model.refreshAndWait() } }
     }
 }
 #endif

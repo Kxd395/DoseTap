@@ -9,10 +9,16 @@ struct SleepNapsDashboardView: View {
     @State private var storedRevision: UUID?
     @State private var timers: [NapEpisode] = []
     @State private var failure: String?
-    @State private var selectedDay = Date()
-    @State private var calendarPage = 0
+    private var selectedDay: Date {
+        get { model.napInspection.selectedDay ?? calendarExtent.upperBound }
+        nonmutating set { model.napInspection.selectDay(newValue) }
+    }
+    private var calendarPage: Int { model.napInspection.visiblePage(dayCount: calendarDayCount) }
     @State private var napAsOf = Date()
-    @State private var selectedNap: String?
+    private var selectedNap: String? {
+        get { model.napInspection.selectedEpisodeID }
+        nonmutating set { if let newValue { model.napInspection.selectEpisode(newValue) } else { model.napInspection.clearSelection() } }
+    }
     private var selectedMain: String? { model.inspection.selectedObservationID }
     @State private var editing: NapEpisode?
     @State private var adding = false
@@ -79,16 +85,28 @@ struct SleepNapsDashboardView: View {
                 if let issue = model.inspectionFilterIssue { Text(issue).foregroundStyle(.orange) }
                 if let failure { Text(failure).foregroundStyle(.red) }
                 if let message = model.errorMessage { Text(message).foregroundStyle(.orange) }
-                DatePicker("Inspect calendar day", selection: $selectedDay, in: calendarExtent, displayedComponents: .date)
+                DatePicker("Inspect calendar day", selection: Binding(get: { selectedDay }, set: { selectedDay = $0 }), in: ...max(napAsOf, selectedDay), displayedComponents: .date)
+                if let id = selectedNap {
+                    Text("Selected nap: " + id).font(.caption).accessibilityIdentifier("nap-selected-id")
+                    let status = model.napInspection.selectionStatus(visibleIDs: rows.filter(onInspectedDate).map(\.id), knownIDs: all.map(\.id))
+                    if let explanation = status.explanation { Text(explanation).font(.caption).foregroundStyle(.orange).accessibilityIdentifier("nap-selection-status") }
+                    Button("Clear nap selection") { selectedNap = nil }.accessibilityIdentifier("nap-clear-selection")
+                }
+                if let window = napWindow, let lower = window.start, let bounds = dayBounds, bounds.1 <= lower || bounds.0 >= window.endExclusive {
+                    Text("The inspected date is outside the current reporting period. Its date and nap selection are retained.").font(.caption).foregroundStyle(.orange)
+                }
                 if let bounds = dayBounds {
                     Text("\(day) in \(zone): \(Int(bounds.1.timeIntervalSince(bounds.0) / 3600)) elapsed hours. DST calendar days are not always 24 hours.").font(.caption)
                 }
             }
             DisclosureGroup("Calendar rows and daily values") {
                 HStack {
-                    Button("Newer days") { calendarPage = max(0, calendarPage - 1) }.disabled(calendarPage == 0)
+                    Button("Newer days") { model.napInspection.setCalendarPage(max(0, calendarPage - 1)) }.disabled(calendarPage == 0)
                     Spacer()
-                    Button("Older days") { calendarPage += 1 }.disabled((calendarPage + 1) * 14 >= calendarDayCount)
+                    Button("Older days") { model.napInspection.setCalendarPage(calendarPage + 1) }.disabled((calendarPage + 1) * 14 >= calendarDayCount)
+                }
+                if model.napInspection.calendarPage != calendarPage {
+                    Text("The saved calendar page is outside this range. Showing the nearest page; the saved page is retained.").font(.caption)
                 }
                 ForEach(calendarDays, id: \.self) { date in
                     let key = NapEpisode.day(date, zone)
@@ -181,13 +199,14 @@ struct SleepNapsDashboardView: View {
             }
         }.navigationTitle("Sleep & Naps").environment(\.timeZone, model.reportingTimeZone)
             .toolbar { ToolbarItem(placement: .primaryAction) { Button("Add nap report") { adding = true }.disabled(document == nil).accessibilityIdentifier("nap-add-report") } }
-            .task { load(); selectedDay = calendarExtent.upperBound }
+            .task { load(); model.napInspection.initializeDayIfNeeded(calendarExtent.upperBound) }
             .refreshable { await model.refreshAndWait(); load() }
-            .onChange(of: selectedDay) { _ in completeness = nil; selectedNap = nil; napCheck.invalidate() }
+            .onChange(of: selectedDay) { _ in completeness = nil; napCheck.invalidate(); exportText = nil }
+            .onChange(of: model.napInspection) { _ in napCheck.invalidate(); exportText = nil }
+            .onDisappear { napCheck.invalidate(); mainCheck.invalidate(); exportText = nil }
             .onChange(of: model.inspection) { _ in mainCheck.invalidate() }
             .onChange(of: model.currentReportWindow) { _ in
-                calendarPage = 0; selectedDay = min(max(selectedDay, calendarExtent.lowerBound), calendarExtent.upperBound)
-                selectedNap = nil; completeness = nil; napCheck.invalidate(); mainCheck.invalidate()
+                completeness = nil; napCheck.invalidate(); mainCheck.invalidate(); exportText = nil
             }
             .onChange(of: model.reportingTimeZone) { _ in load() }
             .onReceive(model.sessionRepo.sessionDidChange) { _ in napCheck.invalidate(); mainCheck.invalidate(); load() }

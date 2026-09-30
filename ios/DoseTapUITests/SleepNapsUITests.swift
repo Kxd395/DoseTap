@@ -1,11 +1,12 @@
 import XCTest
 final class SleepNapsUITests: XCTestCase {
     private let app = XCUIApplication()
-    private func launch(largeText: Bool, reset: Bool, fixture: Bool = true, interval: Bool = false) {
+    private func launch(largeText: Bool, reset: Bool, fixture: Bool = true, interval: Bool = false, navigation: Bool = false) {
         app.launchArguments = ["--uitesting", "-setup_completed_v2", "YES", "-healthkit_enabled", "NO", "-whoop_enabled", "NO"]
         if fixture { app.launchArguments.append("--uitesting-sleep-naps") }
         if reset { app.launchArguments.append("--uitesting-nap-reset") }
         if interval { app.launchArguments.append("--uitesting-nap-interval") }
+        if navigation { app.launchArguments.append("--uitesting-nap-navigation") }
         if largeText { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
         app.launch()
     }
@@ -19,6 +20,14 @@ final class SleepNapsUITests: XCTestCase {
         }
         let attachment = XCTAttachment(screenshot: app.screenshot()); attachment.name = "Nap control visibility failure"; attachment.lifetime = .keepAlways; add(attachment)
         XCTFail("Control unavailable: \(element)")
+    }
+    private func revealSelectionAtTop(_ element: XCUIElement) {
+        for _ in 0..<12 {
+            if element.exists && element.isHittable && element.frame.midY > 120 && element.frame.midY < app.frame.maxY - 40 { return }
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)).press(forDuration: 0.1,
+                thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75)))
+        }
+        XCTFail("Selected nap identity unavailable after returning to top")
     }
     private func setOn(_ identifier: String) {
         let control = app.switches[identifier]; reveal(control)
@@ -38,6 +47,22 @@ final class SleepNapsUITests: XCTestCase {
         XCTAssertTrue(dose.waitForExistence(timeout: 5)); dose.tap()
         let interval = app.staticTexts["nap-dose-interval"]; reveal(interval); XCTAssertEqual(interval.label, "45.0 elapsed minutes")
         let attachment = XCTAttachment(screenshot: app.screenshot()); attachment.name = "Explicit actual nap end and dose occurrence"; attachment.lifetime = .keepAlways; add(attachment)
+    }
+    func testExactNapSelectionSurvivesRouteBackAndRefresh() {
+        continueAfterFailure = false
+        launch(largeText: false, reset: true, interval: true, navigation: true)
+        let open = app.buttons["nap-fixture-open"]; XCTAssertTrue(open.waitForExistence(timeout: 10)); open.tap()
+        let record = app.buttons["nap-record-synthetic-nap-ended"]; reveal(record); record.tap()
+        let selected = app.staticTexts["nap-selected-id"]; revealSelectionAtTop(selected)
+        XCTAssertEqual(selected.label, "Selected nap: synthetic-nap-ended")
+        app.navigationBars.buttons["Dashboard fixture"].tap()
+        let refresh = app.buttons["nap-fixture-refresh"]; XCTAssertTrue(refresh.waitForExistence(timeout: 5)); refresh.tap()
+        XCTAssertTrue(app.staticTexts["Nap refresh finished"].waitForExistence(timeout: 10))
+        open.tap(); revealSelectionAtTop(selected); XCTAssertEqual(selected.label, "Selected nap: synthetic-nap-ended")
+        XCTAssertFalse(app.staticTexts["nap-dose-interval"].exists, "A recreated route must not retain a stale interval/provider measurement")
+        let proof = XCTAttachment(screenshot: app.screenshot()); proof.name = "Exact nap identity retained after route back and refresh"; proof.lifetime = .keepAlways; add(proof)
+        let clear = app.buttons["nap-clear-selection"]; reveal(clear); clear.tap()
+        XCTAssertFalse(selected.exists)
     }
     private func journey(largeText: Bool) {
         continueAfterFailure = false

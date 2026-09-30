@@ -3,6 +3,12 @@ import DoseCore
 
 @MainActor
 enum DashboardAssociationUITestFixture {
+    #if DEBUG && targetEnvironment(simulator)
+    static func prepareNapDose(storage: EventStorage, at date: Date) -> Bool {
+        storage.saveDose1(timestamp: date, sessionId: "synthetic-nap-dose-session",
+            sessionDateOverride: storage.sessionDateString(for: date), sessionStart: date).isCommitted
+    }
+    #endif
     static func dependencies(arguments: [String] = ProcessInfo.processInfo.arguments) -> (repository: SessionRepository, queries: DashboardProviderQueries)? {
         #if DEBUG && targetEnvironment(simulator)
         if arguments.contains("-dashboard-dose-pattern-overlap-uitest") { return overlapDependencies() }
