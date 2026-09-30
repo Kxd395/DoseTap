@@ -4,6 +4,8 @@ DoseTap is a local-first iOS app that helps patients manage two-dose nighttime m
 
 For a presentation-ready description of the nightly workflow, Apple Health integration and planned WHOOP feature, see the [product overview](docs/PRODUCT_OVERVIEW.md).
 
+For local work, use `/Volumes/Developer/projects/DoseTap-main`. The [working-folder guide](docs/WORKSPACE_GUIDE.md) explains the preserved checkout, archives and pending branches. The [September 30 dashboard roadmap](docs/plans/dashboard-2026-09-30/README.md) organizes the four proposed feature documents.
+
 ## Core Behavior
 
 - Dose 1 starts the session. Dose 2 uses the configured timing window. Early recording retains its explicit confirmation; after the window closes, users can record an occurrence already taken or explicitly mark it missed.

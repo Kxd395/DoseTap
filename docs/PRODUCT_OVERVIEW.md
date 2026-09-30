@@ -58,6 +58,7 @@ DoseTap stores its clinical diary records locally on the iPhone. Apple Health an
 
 ## Supporting references
 
+- [Proposed dashboard, work-block, dose-pattern and daytime-check-in roadmap](plans/dashboard-2026-09-30/README.md)
 - [Current behavior and sleep boundaries](SSOT/README.md#healthkit)
 - [WHOOP implementation and production validation gates](WHOOP_INTEGRATION.md)
 - [Feature status and validation limits](FEATURE_TRIAGE.md)

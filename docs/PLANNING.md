@@ -71,6 +71,8 @@ The [September 9 quick-win review](audit/2026-09-09/plane-quick-wins.md) records
 
 ## Proposed next version
 
+The [September 30 dashboard package](plans/dashboard-2026-09-30/README.md) preserves four owner-supplied proposals and consolidates their definitions and delivery dependencies. It maps the proposed work to DOSETAP-45/56/57/58/59/75; DOSETAP-79 records document/workspace reconciliation. No proposed chart, work-block classifier, daytime instrument or clinician report becomes implemented merely by inclusion in that package.
+
 `docs/MYWAV_DOSETAP/` describes proposed vNext behavior. The supply-cycle feature is a local notification and alarm that helps a user order medication before a cycle ends. It is not a refill request, order, pharmacy acknowledgement, insurance status, shipment status, or clinical eligibility decision.
 
 The proposal remains downstream of the data-integrity foundation and its explicit acceptance gates. See `docs/MYWAV_DOSETAP/README.md` and the supply-cycle Plane module.
