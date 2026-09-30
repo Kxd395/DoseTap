@@ -1375,6 +1375,26 @@ final class DoseTapUITests: XCTestCase {
         captureDashboard("Work cycle profile and exact record table")
     }
 
+    func testDashboardWorkReportedCategoriesAndNapAssessmentScope() throws {
+        app.buttons["Dashboard"].tap()
+        let work = app.buttons["dashboard-work-block"]
+        XCTAssertTrue(work.waitForExistence(timeout: 10)); work.tap()
+        let outcomes = app.buttons["work-reported-outcomes"]
+        for _ in 0..<8 where !outcomes.isHittable { app.swipeUp() }
+        XCTAssertTrue(outcomes.isHittable); outcomes.tap()
+        XCTAssertTrue(app.navigationBars["Reported work outcomes"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Categorical observations by work position"].exists)
+        let naps = app.staticTexts["Independent assessed nap days"]
+        for _ in 0..<16 where !naps.isHittable { app.swipeUp() }
+        XCTAssertTrue(naps.isHittable)
+        let export = app.buttons["Share assessed nap days CSV"]
+        for _ in 0..<5 where !export.isHittable { app.swipeUp() }
+        app.swipeUp()
+        XCTAssertTrue(export.isHittable)
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Unknown work context")).firstMatch.exists)
+        captureDashboard("Independent original-day nap assessment denominator stays separate from work-night categories")
+    }
+
     func testDashboardWorkSharedSelectionSurvivesPhaseFilter() throws {
         app.buttons["Dashboard"].tap()
         let link = app.buttons["dashboard-work-block"]

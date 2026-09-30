@@ -50,21 +50,31 @@ extension DashboardAnalyticsModel {
                 contextSnapshotAt: inspection.workContextBasis == .planned ? (association?.planSnapshotID == nil ? association?.plannedAt : snapshot?.capturedAt) : reportingAsOf,
                 isOverride: classification?.isOverride ?? false, stratumID: context.id, stratumLabel: context.label,
                 planSnapshotID: inspection.workContextBasis == .planned ? association?.planSnapshotID : nil)
-            row.intervalMinutes = row.applying(intervalEvidence, includePartial: false, period: period).value
-            return row.applying(evidence, includePartial: inspection.includePartialMetrics, period: period)
+            row.intervalMinutes = row.applying(intervalEvidence, includePartial: false, period: period, asOf: reportingAsOf).value
+            return row.applying(evidence, includePartial: inspection.includePartialMetrics, period: period, asOf: reportingAsOf)
         }
         return WorkCycleComparison(observations: rows)
     }
 
-    private func appleMainSleepBounds(_ summary: HealthKitService.SleepNightSummary?) -> DateInterval? {
-        guard let summary else { return nil }
+    private func appleMainSleepBounds(_ summary: HealthKitService.SleepNightSummary?) -> (bounds: DateInterval?, issue: String?) {
+        guard let summary else { return (nil, nil) }
+        let named = [summary.sleepOnset, summary.finalWake].compactMap { $0 }
+        guard named.allSatisfy({ $0.timeIntervalSince1970.isFinite && $0 <= reportingAsOf }),
+              summary.sleepOnset.flatMap({ start in summary.finalWake.map { start < $0 } }) != false else {
+            return (nil, "invalid_named_sleep_bounds")
+        }
         let asleep = summary.recordedIntervals.filter(\.asleep)
-        guard !asleep.isEmpty, asleep.allSatisfy({ $0.start.timeIntervalSince1970.isFinite && $0.end.timeIntervalSince1970.isFinite
+        guard !asleep.isEmpty else { return (nil, nil) }
+        guard asleep.allSatisfy({ $0.start.timeIntervalSince1970.isFinite && $0.end.timeIntervalSince1970.isFinite
             && $0.start < $0.end && $0.end <= reportingAsOf }),
-              let first = asleep.map(\.start).min(), let last = asleep.map(\.end).max(),
-              summary.sleepOnset.map({ $0 == first }) != false,
-              summary.finalWake.map({ $0 == last }) != false else { return nil }
-        return DateInterval(start: first, end: last)
+              let first = asleep.map(\.start).min(), let last = asleep.map(\.end).max() else {
+            return (nil, "invalid_recorded_sleep_bounds")
+        }
+        guard summary.sleepOnset.map({ $0 == first }) != false,
+              summary.finalWake.map({ $0 == last }) != false else {
+            return (nil, "inconsistent_recorded_sleep_bounds")
+        }
+        return (DateInterval(start: first, end: last), nil)
     }
 
     private func workCycleEvidence(_ night: DashboardNightAggregate, metric: WorkCycleMetric,
@@ -79,17 +89,26 @@ extension DashboardAnalyticsModel {
         let projection = DosePatternPresentation.sleepProjection(night, source: source,
             outcome: metric == .mainSleep ? .mainSleep : .postDose2, freshness: freshness)
         let start: Date?, end: Date?
+        var boundaryIssue: String?
+        var metricValue = projection.metric
         if metric == .sleepAfterDose2 {
             start = night.dose2Time
             end = source == .appleHealth ? night.outcome?.finalWakeAt ?? night.healthSummary?.finalWake : nil
         } else {
-            // Only named observed sleep endpoints bound the main-sleep total.
-            // WHOOP's existing summary has no original end; exact-period contribution stays unavailable.
-            let bounds = source == .appleHealth ? appleMainSleepBounds(night.healthSummary) : nil
-            start = bounds?.start; end = bounds?.end
+            if source == .appleHealth {
+                let checked = appleMainSleepBounds(night.healthSummary)
+                start = checked.bounds?.start; end = checked.bounds?.end; boundaryIssue = checked.issue
+            } else {
+                let bounds = night.whoopSummary?.originalSleepInterval
+                start = bounds?.start; end = bounds?.end
+                if let reason = night.whoopSummary?.sleepEvidenceReviewReason {
+                    metricValue = .init(value: nil, state: .needsReview, reason: reason, unit: "minutes")
+                    boundaryIssue = "invalid_whoop_sleep_evidence"
+                }
+            }
         }
         return .init(metricID: projection.definition.rawValue, source: projection.source.rawValue,
             definitionVersion: projection.derivationVersion + ":" + projection.boundaryBasis.rawValue,
-            metric: projection.metric, start: start, end: end)
+            metric: metricValue, start: start, end: end, boundaryIssue: boundaryIssue)
     }
 }

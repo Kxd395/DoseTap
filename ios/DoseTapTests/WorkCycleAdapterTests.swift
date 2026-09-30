@@ -105,4 +105,53 @@ final class WorkCycleAdapterTests: XCTestCase {
         XCTAssertNotNil(value.inspection.selectedObservationID)
     }
 
+    func testFutureIntervalIsExcludedAtFrozenCaptureWithoutExactPeriod() throws {
+        let value = model(); value.reportingAsOf = start.addingTimeInterval(15_000)
+        value.nights[0].doseEvents[1] = .init(id: "a-d2", eventType: "dose2", timestamp: start.addingTimeInterval(18_000), sessionDate: "2026-09-21", sessionId: "a")
+        value.publishWorkInspectionContext(nil, nights: value.nights, asOf: value.reportingAsOf)
+        let row = try XCTUnwrap(value.workCycleComparison(metric: .doseInterval)?.observations.first)
+        XCTAssertEqual(row.metricEvidence?.metric.value, 300)
+        XCTAssertNil(row.value); XCTAssertEqual(row.contributionState, .needsReview)
+        XCTAssertEqual(row.contributionReason, "metric_bounds_after_capture")
+    }
+    func testInvalidAppleBoundsCannotContributeChronologicalTotal() throws {
+        let value = model(); value.inspection.includePartialMetrics = true
+        var health = HealthKitService.SleepNightSummary(date: start, bedTime: nil, sleepOnset: start,
+            firstWake: nil, finalWake: start.addingTimeInterval(3600), ttfwMinutes: nil,
+            totalSleepMinutes: 60, wakeCount: 0, source: "Synthetic")
+        health.recordedIntervals = [.init(start: start.addingTimeInterval(60), end: start.addingTimeInterval(3600), asleep: true)]
+        value.nights[0].healthSummary = health
+        let row = try XCTUnwrap(value.workCycleComparison(metric: .mainSleep)?.observations.first { $0.id == "session:a" })
+        XCTAssertNil(row.value); XCTAssertEqual(row.metricEvidence?.metric.value, 60)
+        XCTAssertEqual(row.contributionState, .needsReview)
+        XCTAssertEqual(row.contributionReason, "inconsistent_recorded_sleep_bounds")
+    }
+    func testWHOOPOriginalEndpointsAndReviewReasonUseTheSharedFactory() throws {
+        let value = model(); value.sleepSource = .whoop; value.inspection.includePartialMetrics = true
+        func summary(end: Date) throws -> WHOOPNightSummary {
+            let object: [String: Any] = ["id": "scored-episode", "start": ISO8601DateFormatter().string(from: start),
+                "end": ISO8601DateFormatter().string(from: end), "score_state": "SCORED",
+                "score": ["stage_summary": ["total_light_sleep_time_milli": 60_000,
+                    "total_slow_wave_sleep_time_milli": 0, "total_rem_sleep_time_milli": 0]]]
+            let raw = try WHOOPService.makeAPIDecoder().decode(WHOOPSleep.self, from: JSONSerialization.data(withJSONObject: object))
+            return try XCTUnwrap(WHOOPService.makeNightSummaries(sleeps: [raw], recoveries: []).first)
+        }
+        let period = try PhysicianReportPeriod.resolve(.custom(start: start, endExclusive: start.addingTimeInterval(7200)),
+            ledger: .init(), asOf: value.reportingAsOf, timeZone: .gmt)
+        value.nights[0].whoopSummary = try summary(end: start.addingTimeInterval(3600))
+        let valid = try XCTUnwrap(value.workCycleComparison(metric: .mainSleep, period: period)?.observations.first { $0.id == "session:a" })
+        XCTAssertEqual(valid.value, 1); XCTAssertEqual(valid.metricEvidence?.end, start.addingTimeInterval(3600))
+        value.nights[0].whoopSummary = try summary(end: start.addingTimeInterval(30))
+        let invalid = try XCTUnwrap(value.workCycleComparison(metric: .mainSleep)?.observations.first { $0.id == "session:a" })
+        XCTAssertNil(invalid.value); XCTAssertEqual(invalid.metricEvidence?.metric.state, .needsReview)
+        XCTAssertEqual(invalid.contributionState, .needsReview)
+    }
+
+    func testNapComparisonRejectsUnpublishedReportingSelection() throws {
+        let value = model()
+        XCTAssertThrowsError(try value.workCycleNapDayReport())
+        XCTAssertTrue(value.loadDashboardUITestFixtureIfRequested(arguments: ["--uitesting-dashboard"]))
+        XCTAssertNil(try value.workCycleNapDayReport().documentRevision)
+    }
+
 }

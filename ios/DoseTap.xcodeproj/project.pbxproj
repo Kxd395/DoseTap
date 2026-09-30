@@ -46,6 +46,9 @@
 		DIDENT102 /* DashboardIdentityAggregation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT002 /* DashboardIdentityAggregation.swift */; };
 		DIDENT101 /* SessionRepositoryDashboardIdentities.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT001 /* SessionRepositoryDashboardIdentities.swift */; };
 		WBCTX003 /* WorkContextEditors.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBCTX103 /* WorkContextEditors.swift */; };
+		WBOUT003 /* WorkCycleReportedOutcomesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBOUT103 /* WorkCycleReportedOutcomesView.swift */; };
+		WBOUT002 /* WorkCycleNapDayReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBOUT102 /* WorkCycleNapDayReport.swift */; };
+		WBOUT001 /* WorkCycleCategoryReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBOUT101 /* WorkCycleCategoryReport.swift */; };
 		WBCTX002 /* DashboardWorkBlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBCTX102 /* DashboardWorkBlockView.swift */; };
 		WBCTX001 /* EventStorage+WorkContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBCTX101 /* EventStorage+WorkContext.swift */; };
 		PHRU1006 /* PhysicianDashboardReviewLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRU006 /* PhysicianDashboardReviewLink.swift */; };
@@ -305,6 +308,9 @@
 		DIDENT002 /* DashboardIdentityAggregation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardIdentityAggregation.swift; sourceTree = "<group>"; };
 		DIDENT001 /* SessionRepositoryDashboardIdentities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepositoryDashboardIdentities.swift; sourceTree = "<group>"; };
 		WBCTX103 /* WorkContextEditors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkContextEditors.swift; sourceTree = "<group>"; };
+		WBOUT103 /* WorkCycleReportedOutcomesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkCycleReportedOutcomesView.swift; sourceTree = "<group>"; };
+		WBOUT102 /* WorkCycleNapDayReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkCycleNapDayReport.swift; sourceTree = "<group>"; };
+		WBOUT101 /* WorkCycleCategoryReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkCycleCategoryReport.swift; sourceTree = "<group>"; };
 		WBCTX102 /* DashboardWorkBlockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardWorkBlockView.swift; sourceTree = "<group>"; };
 		WBCTX101 /* EventStorage+WorkContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+WorkContext.swift"; sourceTree = "<group>"; };
 		PHRU006 /* PhysicianDashboardReviewLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianDashboardReviewLink.swift; sourceTree = "<group>"; };
@@ -737,6 +743,9 @@
 				DPAD001 /* DashboardDosePatternAdapter.swift */,
 				WBPROJ101 /* DashboardWorkCycleProjection.swift */,
 				WBCTX103 /* WorkContextEditors.swift */,
+				WBOUT103 /* WorkCycleReportedOutcomesView.swift */,
+				WBOUT102 /* WorkCycleNapDayReport.swift */,
+				WBOUT101 /* WorkCycleCategoryReport.swift */,
 				WBCTX102 /* DashboardWorkBlockView.swift */,
 				CLUST106 /* DashboardTypes.swift */,
 				CLUST109 /* DashboardAnalyticsRefresh.swift */,
@@ -1352,6 +1361,9 @@
 				DPUI005B /* MorningDoseHistoryReviewSection.swift in Sources */,
 				WBPROJ001 /* DashboardWorkCycleProjection.swift in Sources */,
 				WBCTX003 /* WorkContextEditors.swift in Sources */,
+				WBOUT003 /* WorkCycleReportedOutcomesView.swift in Sources */,
+				WBOUT002 /* WorkCycleNapDayReport.swift in Sources */,
+				WBOUT001 /* WorkCycleCategoryReport.swift in Sources */,
 				WBCTX002 /* DashboardWorkBlockView.swift in Sources */,
 				CLUST105 /* DeferredCloudKitSyncService.swift in Sources */,
 				DIDENT105 /* ProviderSessionAssociationView.swift in Sources */,

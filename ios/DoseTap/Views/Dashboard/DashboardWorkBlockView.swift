@@ -4,7 +4,6 @@ import DoseCore
 
 struct DashboardWorkBlockView: View {
     @ObservedObject var model: DashboardAnalyticsModel
-    private var document: WorkContextDocument { model.workInspectionContext ?? WorkContextDocument() }
     private var loaded: Bool { model.workContextReadReady && model.workInspectionAsOf == asOf }
     private struct EditorSnapshot: Identifiable {
         let id = UUID()
@@ -42,6 +41,22 @@ struct DashboardWorkBlockView: View {
             Set(observations.filter { $0.phase == phase }.map(\.position)).sorted { $0.localizedStandardCompare($1) == .orderedAscending }
         }
     }
+    private var selectedExportContext: WorkCycleExportContext {
+        let provider: DashboardProviderAccess.Provider = model.sleepSource == .appleHealth ? .health : .whoop
+        let hasSnapshot = model.sleepSource == .appleHealth ? model.healthSnapshot != nil : model.whoopSnapshot != nil
+        let definition = metric == .doseInterval ? DashboardDosePattern.version
+            : DashboardSleepMetricProjection.version + ":" + (metric == .mainSleep ? "mainProviderEpisode" : "observedAfterDose2")
+        return .init(selectedSource: model.sleepSource.rawValue, selectedDefinition: definition,
+            timeZoneIdentifier: model.reportingTimeZone.identifier,
+            periodStart: model.reportingPeriod?.start ?? model.currentReportWindow?.start,
+            periodEndExclusive: model.reportingPeriod?.endExclusive ?? model.currentReportWindow?.endExclusive,
+            dosePatternFilter: model.inspection.dosePatternFilter?.rawValue,
+            contextStratumFilter: model.inspection.contextStratumID, includePartialMetrics: model.inspection.includePartialMetrics,
+            selectedObservationID: model.inspection.selectedObservationID, visualization: visualization,
+            monthlySummaries: visualization == "Summaries" && monthlySummary,
+            periodPolicy: model.reportingPeriod == nil ? "treatment_date_membership" : "reviewed_exact",
+            providerSnapshotState: model.providerSnapshotIsCurrent(provider) ? "current" : hasSnapshot ? "stale" : "unavailable")
+    }
     private func profileLabel(_ row: WorkCycleObservation) -> String {
         let index = profileNames[row.stratumID ?? "unknown:" + row.id] ?? "Unknown"
         return row.position + " • " + (row.stratumLabel ?? "Context unknown, " + row.sleepDate) + " [" + index + "]"
@@ -63,6 +78,7 @@ struct DashboardWorkBlockView: View {
                 }
                 if let selected { Button("Open selected observation: " + selected.sleepDate) { prepareEditorSnapshot(); detailVisible = true } }
 
+                NavigationLink("Reported categories and assessed nap days") { WorkCycleReportedOutcomesView(model: model) }.accessibilityIdentifier("work-reported-outcomes")
                 Button("Configure roster or confirm a work date") { prepareEditorSnapshot(); if loaded { rosterEditor = editorSnapshot } }.disabled(!loaded)
                     .accessibilityIdentifier("work-context-configure")
             }
@@ -129,7 +145,7 @@ struct DashboardWorkBlockView: View {
             }
             Section("Review snapshot") {
                 Text("Context as of \(asOf.formatted()). Classification version 1. CSV preserves this range, metric, context basis and revision.").font(.caption)
-                ShareLink("Share this comparison CSV", item: WorkCycleSummary.csv(rows, metric: metric.rawValue, basis: basis, range: model.rangeDescription, revision: document.revision, asOf: asOf, grouping: grouping, phaseFilter: phaseFilter, positionFilter: positionFilter, matrixEncoding: matrixEncoding)).disabled(!loaded)
+                ShareLink("Share this comparison CSV", item: WorkCycleSummary.csv(rows, metric: metric.rawValue, basis: basis, range: model.rangeDescription, revision: model.workInspectionContext?.revision, asOf: asOf, grouping: grouping, phaseFilter: phaseFilter, positionFilter: positionFilter, matrixEncoding: matrixEncoding, exportContext: selectedExportContext)).disabled(!loaded || comparison == nil)
             }
         }.navigationTitle("Work Block & Sleep")
             .task { scheduleProjection() }
@@ -387,6 +403,7 @@ private struct WorkBlockRecordDetail: View {
                     Text(evidence.metric.value.map { "Recorded value: " + String($0) + " " + evidence.metric.unit } ?? "Recorded value unavailable")
                     Text(evidence.source + " • " + evidence.definitionVersion)
                 }
+                Text("Contribution state: " + row.contributionState.rawValue)
                 Text("Contribution: " + row.contributionReason)
                 Text("Block: " + (row.blockID.map { String($0.suffix(10)) } ?? "Unresolved"))
                 Text("Roster revision: " + (row.rosterID?.uuidString ?? "Unavailable"))
