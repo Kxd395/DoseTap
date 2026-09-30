@@ -3,6 +3,8 @@ import HealthKit
 import DoseCore
 import os.log
 
+enum HealthReadPreparation: Equatable { case ready, unavailable, transientFailure }
+
 private let healthKitLog = Logger(subsystem: "com.dosetap.app", category: "HealthKitService")
 
 /// HealthKit service for reading sleep data and computing TTFW baselines
@@ -220,50 +222,55 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
         }
     }
 
-    /// Refreshes read authorization so callers can reliably decide whether exports can include HealthKit data.
+    /// Prepares a query; HealthKit intentionally does not disclose actual read permission.
     func syncAuthorizationState() async {
-        guard isAvailable else {
-            authorizationStatus = .notDetermined
-            isAuthorized = false
-            lastError = "HealthKit is not available on this device"
-            return
-        }
-
-        await refreshReadAuthorization()
+        _ = await prepareReadAuthorization()
     }
 
-    private func refreshReadAuthorization() async {
+    func prepareReadAuthorization() async -> HealthReadPreparation {
+        guard isAvailable else {
+            authorizationStatus = .notDetermined
+            applyReadPreparation(.unavailable)
+            return .unavailable
+        }
+        return await refreshReadAuthorization()
+    }
+
+    @discardableResult
+    private func refreshReadAuthorization() async -> HealthReadPreparation {
+        // This synchronous XPC can stall while HealthKit starts; keep it off the UI actor.
+        authorizationStatus = await Task.detached(priority: .utility) {
+            HKHealthStore().authorizationStatus(for: HKCategoryType(.sleepAnalysis))
+        }.value
+        let result = await Self.prepareReadAccess(status: { try await self.requestStatusForRead() },
+                                                probe: { try await self.probeSleepReadAccess() })
+        guard !Task.isCancelled else { return .transientFailure }
+        applyReadPreparation(result)
+        return result
+    }
+
+    static func prepareReadAccess(status: () async throws -> HKAuthorizationRequestStatus,
+                                  probe: () async throws -> Bool) async -> HealthReadPreparation {
         do {
-            // This is synchronous HealthKit XPC and can stall while the system
-            // service starts. Never run it on the UI actor, including bootstrap.
-            authorizationStatus = await Task.detached(priority: .utility) {
-                HKHealthStore().authorizationStatus(for: HKCategoryType(.sleepAnalysis))
-            }.value
-            let requestStatus = try await requestStatusForRead()
-            switch requestStatus {
-            case .shouldRequest:
-                isAuthorized = false
-                lastError = nil
-                return
-            case .unnecessary:
-                let canRead = try await probeSleepReadAccess()
-                isAuthorized = canRead
-                lastError = canRead ? nil : "HealthKit permission not granted"
-            case .unknown:
-                isAuthorized = false
-                lastError = "HealthKit authorization state unknown"
-            @unknown default:
-                isAuthorized = false
-                lastError = "HealthKit authorization state unknown"
+            switch try await status() {
+            case .unnecessary: return try await probe() ? .ready : .unavailable
+            case .shouldRequest, .unknown: return .unavailable
+            @unknown default: return .unavailable
             }
         } catch {
-            if isAuthorizationDenied(error) {
-                isAuthorized = false
-                lastError = "HealthKit permission not granted"
-            } else {
-                isAuthorized = false
-                lastError = error.localizedDescription
-            }
+            return isAuthorizationDenied(error) ? .unavailable : .transientFailure
+        }
+    }
+
+    func applyReadPreparation(_ result: HealthReadPreparation) {
+        switch result {
+        case .ready:
+            isAuthorized = true; lastError = nil
+        case .unavailable:
+            isAuthorized = false; lastError = "Apple Health access is unavailable. Check access in Settings."
+        case .transientFailure:
+            // Keep last prepared state; this is not evidence that current read access is granted.
+            lastError = "Apple Health access status could not refresh. Try again."
         }
     }
 
@@ -302,13 +309,14 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
         }
     }
 
-    private func isAuthorizationDenied(_ error: Error) -> Bool {
+    static func isAuthorizationDenied(_ error: Error) -> Bool {
         let nsError = error as NSError
         guard nsError.domain == HKErrorDomain,
               let code = HKError.Code(rawValue: nsError.code) else {
             return false
         }
-        return code == .errorAuthorizationDenied || code == .errorHealthDataUnavailable
+        return [.errorAuthorizationDenied, .errorHealthDataUnavailable, .errorHealthDataRestricted,
+                .errorAuthorizationNotDetermined, .errorRequiredAuthorizationDenied].contains(code)
     }
 
     private func requestAuthorizationViaCallback() async throws -> Bool {

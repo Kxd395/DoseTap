@@ -10,3 +10,10 @@ Date: 2026-09-30
 - This is a prerequisite to later stale-snapshot retention. No disk cache, provider history extension, WHOOP production enablement or iPad envelope change is delivered here.
 
 Preference writes must use `UserSettingsManager`; direct writes to the integration defaults keys bypass synchronous invalidation and are not allowed in production. The access monitor has no dependency on service or settings singletons.
+
+## Provider snapshot freshness
+
+- Dashboard refresh retains the last successful in-memory snapshot only after a transient provider failure. It retains the original successful query bounds, timezone and capture time, and explicitly labels the result stale alongside the latest attempt time. A refresh failure never advances the last-success time or extends claimed coverage.
+- A successful empty query replaces prior data with an empty snapshot. Provider disable, known access loss, WHOOP disconnect/account change, a local-only refresh, or a timezone change clears the affected snapshot. Query completion after access/range/generation changes cannot republish stale results.
+- Authorization preparation distinguishes an accepted query from explicit unavailability and a transient error. A transient HealthKit preparation error preserves the last prepared state but does not establish current read permission; empty results still cannot distinguish denied access from no data.
+- WHOOP partial recovery failure replaces sleep with fresh sleep data and missing recovery values; it never silently restores previous recovery metrics. The two providers and local records refresh independently. No disk cache, provider history extension, medication calculation change or production-provider acceptance is included.
