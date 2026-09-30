@@ -50,7 +50,8 @@ final class PhysicianReportAdapterTests: XCTestCase {
         let cutoff = try XCTUnwrap(night.dose2Time)
         let rows = try model.physicianReportObservations(for: period(end: cutoff))
         let spacing = try XCTUnwrap(rows.first { $0.id == night.id + ":spacing" })
-        XCTAssertEqual(spacing.state, .partial); XCTAssertNil(spacing.value)
+        XCTAssertEqual(spacing.state, .unavailable); XCTAssertNil(spacing.value)
+        XCTAssertTrue(spacing.detail.contains("metric_bounds_outside_selected_period"))
         XCTAssertTrue(spacing.detail.contains("Raw source value: 120"))
         XCTAssertEqual(spacing.recordIDs, ["first", "second"])
         let raw = try XCTUnwrap(rows.first { $0.id == "administration:first" })
@@ -130,5 +131,107 @@ extension PhysicianReportAdapterTests {
         do { _ = try await task.value; XCTFail("Cancelled preparation must not produce a capture") }
         catch { XCTAssertTrue(error is CancellationError) }
         XCTAssertTrue(try model.sessionRepo.physicianReports().isEmpty)
+    }
+}
+
+extension PhysicianReportAdapterTests {
+    func testReportUsesSharedRecordedSleepBoundaryGate() async throws {
+        let first = now.addingTimeInterval(-7200), last = now.addingTimeInterval(-1800)
+        let summary = HealthKitService.SleepNightSummary(date: first, bedTime: first, sleepOnset: first,
+            firstWake: nil, finalWake: last, ttfwMinutes: nil, totalSleepMinutes: 90, wakeCount: 0, source: "Synthetic")
+        let queries = DashboardProviderQueries(healthEnabled: { true }, whoopEnabled: { false }, whoopConnected: { false },
+            prepareHealth: { .ready }, healthHistory: { _ in [summary] },
+            whoopHistory: { _, _ in .init(summaries: [], sleepRecordCount: 0, recoveryRecordCount: 0, recoveryStatus: .completed) })
+        let model = DashboardAnalyticsModel(now: { self.now }, sessionRepo: SessionRepository(storage: .inMemory(), clock: { self.now }),
+            timeZone: { .gmt }, providerAccess: DashboardProviderAccess(), providerQueries: queries)
+        model.selectedRange = .all; await model.performRefresh(days: 730)
+        XCTAssertTrue(model.providerSnapshotIsCurrent(.health))
+        let shared = try XCTUnwrap(model.workCycleComparison(metric: .mainSleep, period: period())?.observations.first)
+        XCTAssertNil(shared.value); XCTAssertEqual(shared.contributionReason, "metric_bounds_unavailable")
+        let rows = try model.physicianReportObservations(for: period())
+        let primary = try XCTUnwrap(rows.first { $0.metricID.hasPrefix("Primary episode sleep") })
+        XCTAssertNil(primary.value); XCTAssertTrue(primary.detail.contains(shared.contributionReason))
+        XCTAssertTrue(primary.detail.contains("90"))
+        var paired = night(); paired.healthSummary = summary; model.nights = [paired]
+        for includePartial in [false, true] {
+            model.inspection.includePartialMetrics = includePartial
+            let interval = model.replaySnapshot(for: paired).interval(.dose2ToDeviceEnd)
+            XCTAssertNotNil(interval.minutes)
+            let reportRows = try model.physicianReportObservations(for: period())
+            let row = try XCTUnwrap(reportRows.first { $0.id == paired.id + ":interval:" + DashboardIntervalPreset.dose2ToDeviceEnd.rawValue })
+            XCTAssertEqual(row.value, interval.eligibleMinutes(includePartial: includePartial))
+            XCTAssertTrue(row.detail.contains(interval.reason))
+        }
+    }
+    func testUnknownDaytimeContextsCannotBecomeOnePooledReportGroup() async throws {
+        let model = await model()
+        for rating in [1, 9] {
+            try model.sessionRepo.saveDaytimeCheckIn(.init(assessedAt: now.addingTimeInterval(-60), recordedAt: now,
+                timeZoneIdentifier: "UTC", response: rating))
+        }
+        let rows = try model.physicianReportObservations(for: period())
+        let report = try PhysicianReportSnapshot(period: period(), observations: rows, notes: [], questions: [], appVersion: "test", generatedAt: now)
+        XCTAssertEqual(report.summaries.filter { $0.metricID == "Current sleepiness (custom 0–10)" }.count, 2)
+        XCTAssertTrue(rows.allSatisfy { $0.comparisonLabel?.lowercased().contains("unknown") == true })
+    }
+    func testPromptHistoryPreservesIntentAndResponseWithoutInventingDelivery() async throws {
+        let model = await model()
+        var ledger = DaytimePromptLedger()
+        let earlier = now.addingTimeInterval(-86400)
+        var calendar = Calendar(identifier: .gregorian); calendar.timeZone = .gmt
+        let clock = calendar.dateComponents([.hour, .minute], from: now.addingTimeInterval(-3600))
+        try ledger.configure(hour: try XCTUnwrap(clock.hour), minute: try XCTUnwrap(clock.minute), timeZone: "UTC", enabled: true, at: earlier)
+        let prompt = try XCTUnwrap(ledger.prepare(at: earlier))
+        try ledger.open(id: prompt.id, at: now.addingTimeInterval(-2))
+        try ledger.respond(id: prompt.id, assessmentID: UUID(), assessedAt: now.addingTimeInterval(-3), at: now.addingTimeInterval(-1))
+        _ = ledger.prepareHorizon(at: now)
+        try model.sessionRepo.saveDaytimePrompts(ledger)
+        let rows = try model.physicianReportObservations(for: period()).filter { $0.id.hasPrefix("prompt:") }
+        XCTAssertTrue(rows.contains { $0.id.hasSuffix(":responded") })
+        XCTAssertTrue(rows.contains { $0.id.hasSuffix(":intended") })
+        XCTAssertFalse(rows.contains { $0.observedAt.map { $0 >= now } == true })
+        XCTAssertTrue(rows.allSatisfy { $0.detailOnly == true && $0.detail.contains("not observed delivery") })
+    }
+    func testWorkContextRetainsCanonicalCountsWithoutInventingRevision() async throws {
+        let model = await model(); model.nights = [night()]
+        let shared = try XCTUnwrap(model.workCycleComparison(metric: .doseInterval, period: period()))
+        let group = try XCTUnwrap(shared.selectedPeriod.first)
+        let contexts = try model.physicianReportContexts(for: period(), generatedAt: now)
+        let work = try XCTUnwrap(contexts.first { $0.id.hasPrefix("work-comparison:") && $0.title.contains("D1–D2") && $0.title.contains("Full period") })
+        XCTAssertTrue(work.lines.contains { $0.contains("\(group.summary.availableCount)/\(group.summary.eligibleCount) eligible") })
+        XCTAssertFalse(work.recordIDs.contains("00000000-0000-0000-0000-000000000000"))
+        XCTAssertTrue(work.lines.contains { $0.contains("Context revision: unavailable") })
+    }
+}
+
+extension PhysicianReportAdapterTests {
+    func testNapReportPreservesRevisionsAndUnknownEstimatesWithoutPrivateReason() async throws {
+        let model = await model()
+        let start = now.addingTimeInterval(-120), end = now.addingTimeInterval(-60)
+        var original = NapEpisode(day: NapEpisode.day(start, "UTC"), timeZoneID: "UTC", start: start, end: end, recordedAt: end)
+        original.intent = .unknown
+        var correction = original; correction.revision = UUID(); correction.predecessor = original.revision
+        correction.recordedAt = now; correction.reason = "Private correction reason"; correction.intent = .rest
+        var document = NapDiaryDocument(); document.episodes = [original, correction]
+        try model.sessionRepo.saveNapDiary(document, expectedRevision: nil)
+        let rows = try model.physicianReportObservations(for: period()).filter { $0.id.hasPrefix("nap:") }
+        XCTAssertEqual(rows.count, 2)
+        XCTAssertTrue(rows.allSatisfy { $0.value == nil && $0.detailOnly == true && $0.detail.contains("Work context unknown") })
+        XCTAssertFalse(rows.contains { $0.detail.contains("Private correction reason") })
+        XCTAssertTrue(rows.contains { $0.recordIDs.contains(original.revision.uuidString) })
+        XCTAssertTrue(rows.contains { $0.recordIDs.contains(correction.revision.uuidString) })
+        let report = try PhysicianReportSnapshot(period: period(), observations: rows, notes: [], questions: [], appVersion: "test", generatedAt: now)
+        XCTAssertTrue(report.summaries.isEmpty)
+    }
+    func testNapDayReviewRemainsOriginalDayEvidenceWithoutInventedOccurrence() async throws {
+        let model = await model()
+        var document = NapDiaryDocument()
+        let review = NapDayReview(day: NapEpisode.day(now, "UTC"), timeZoneID: "UTC", status: .none, recordedAt: now)
+        document.reviews = [review]
+        try model.sessionRepo.saveNapDiary(document, expectedRevision: nil)
+        let rows = try model.physicianReportObservations(for: period()).filter { $0.id.hasPrefix("nap-day-review:") }
+        XCTAssertEqual(rows.count, 1); XCTAssertNil(rows.first?.observedAt); XCTAssertNil(rows.first?.value)
+        XCTAssertEqual(rows.first?.detailOnly, true); XCTAssertEqual(rows.first?.recordIDs, [review.id.uuidString])
+        XCTAssertTrue(rows.first?.detail.contains("fully assessed report day") == true)
     }
 }

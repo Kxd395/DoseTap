@@ -1,0 +1,9 @@
+# Physician canonical source parity checkpoint
+
+The report now consumes shared work-cycle duration evidence, contribution states and full-period/monthly comparison groups. Exact source boundaries, metric definitions, raw values and exclusion reasons remain inspectable. Replay interval summaries use shared partial-evidence eligibility. Missing work revisions stay unavailable.
+
+Independent daytime observations are reconstructed at the frozen source cutoff and use shared work/medication compatibility groups. Original intended/opened/responded/assessed reminder phases remain separate; no delivery or sleep is inferred. Legacy morning defaults remain excluded from confirmed counts. Nap occurrences and original-day reviews retain corrections, stable timer evidence and unknown durations as raw detail, without inventing a work association or assessed-day zero; correction reasons are omitted from sharing.
+
+Validation: 15 native adapter regressions passed on simulator `59B53B2A-7736-488A-A6DD-838B0F7F648B`; evidence in `.build/physician-evidence/canonical-native-tests.xcresult` and matching log. Plane15/80, architecture, SSOT, project syntax and whitespace checks passed in `canonical-guards.log`. The normal enabled hook supplies the generic simulator compile gate; `canonical-commit.log` records it. Core and UI behavior did not change; their previously validated suites were not repeated.
+
+This checkpoint builds on root `ab8635f`. Shared original-wake context, final WHOOP/as-of work factory adoption, categorical work comparisons and fully assessed original-day nap counts remain follow-on integrations with their validated owners. Integrated acceptance, actual providers, physical-device review and parent Plane closeout remain open; no version or device installation changes are included.
