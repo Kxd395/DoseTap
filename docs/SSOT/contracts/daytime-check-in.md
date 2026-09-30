@@ -39,3 +39,13 @@ Context calculation version 1 consumes the immutable observation, a validated wo
 Medication strata come from the shared context timeline and remain patient-entered label references, not verified prescriptions or evidence of administration. Missing reference context stays observation-specific. Recalculation names current source revisions without editing the submitted response; report consumers freeze these derived values at their capture time. A context-free descriptive analysis is labeled unadjusted and does not claim matched work/medication conditions.
 
 Historical medication timezone identifiers can remain recorded even when the current OS no longer recognizes them; no local date is invented in that case. Source calendar dates require a recognized source zone. Nap links always preserve their validated saved calendar date and timezone.
+
+## Shared dashboard presentation
+
+The Dashboard daytime route captures the published reporting range, as-of instant, reporting timezone and exact reviewed custom/visit bounds. Updating, unpublished or mismatched selection is unavailable rather than silently replaced with an independent default. Daytime observations use civil-date bounds through that capture, not the 18:00 treatment-night grouping; night dose/work-phase filters do not filter independent observations. History retains its deliberately independent period selection.
+
+Only revisions recorded by the captured as-of time participate. A correction saved later cannot replace an earlier report's source observation. Raw points remain visible when contextual reads fail, with an explicit unavailable-context state and no matched comparisons. The focal point chart precedes secondary filters, spans the selected period explicitly, and permits selecting an actual stored sample; empty space and gaps never generate interpolated observations.
+
+The shared main-wake source reader accepts only validated `NightOutcomeDiary.finalWakeAt` tied to the strict history snapshot's stable session ID. Its semantic revision fingerprints that ID and reported wake instant, so unrelated rating edits do not invalidate a wake anchor. Captured reads use the latest recorded revision at or before as-of; a cleared wake is absent. Nap endpoints, session closure, provider endpoints and questionnaire submission time never substitute for a reported main wake.
+
+Chart selection uses a spatial tap so vertical gestures continue scrolling the list. Axis/legend type is bounded at XXX Large to retain readable dates within the plot; the exact observation table and inspection text retain the requested accessibility text size. Compact chart bounds have an exact timestamp/capture readout in the period disclosure.

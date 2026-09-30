@@ -100,3 +100,78 @@ extension DaytimeCheckInStorageTests {
         XCTAssertTrue(text.contains("daytime_checkins")); XCTAssertTrue(text.contains("daytime_events"))
     }
 }
+
+extension DaytimeCheckInStorageTests {
+    private func publishedDaytimeModel() -> DashboardAnalyticsModel {
+        let model = DashboardAnalyticsModel(now: { self.now }, sessionRepo: repo(EventStorage(dbPath: ":memory:")), timeZone: { TimeZone(secondsFromGMT: 0)! })
+        model.selectedRange = .month; model.lastRefresh = now
+        return model
+    }
+    func testSharedDaytimeSelectionRejectsPendingAndUnpublishedBounds() throws {
+        let model = publishedDaytimeModel()
+        let selection = try model.validatedSharedDaytimeSelection()
+        XCTAssertEqual(selection.asOf, now); XCTAssertEqual(selection.range, .month)
+        XCTAssertNotNil(selection.contextIssue)
+        model.isLoading = true
+        XCTAssertThrowsError(try model.validatedSharedDaytimeSelection())
+        model.isLoading = false; model.lastRefresh = nil
+        XCTAssertThrowsError(try model.validatedSharedDaytimeSelection())
+    }
+    func testSharedDaytimeSelectionRejectsChangedTimezone() throws {
+        let model = publishedDaytimeModel()
+        model.reportingTimeZone = TimeZone(identifier: "America/New_York")!
+        XCTAssertThrowsError(try model.validatedSharedDaytimeSelection())
+    }
+    func testSharedDaytimeSelectionRejectsPreviousCustomPublication() throws {
+        let model = publishedDaytimeModel()
+        let input = PhysicianReportRange.custom(start: now.addingTimeInterval(-86400), endExclusive: now)
+        model.selectedRange = .custom; model.customReportingRange = input; model.publishedCustomReportingRange = input
+        model.reportingPeriod = try PhysicianReportPeriod.resolve(input, ledger: .init(), asOf: now, timeZone: TimeZone(secondsFromGMT: 0)!)
+        XCTAssertNoThrow(try model.validatedSharedDaytimeSelection())
+        model.customReportingRange = .custom(start: now.addingTimeInterval(-172800), endExclusive: now)
+        XCTAssertThrowsError(try model.validatedSharedDaytimeSelection())
+    }
+    func testDaytimeCapturedReadKeepsOriginalBeforeLaterCorrection() throws {
+        let repository = repo(EventStorage(dbPath: ":memory:")), original = try value()
+        try repository.saveDaytimeCheckIn(original)
+        let later = try original.corrected(response: 8, status: .answered, reason: "Later correction", recordedAt: now.addingTimeInterval(30))
+        try repository.saveDaytimeCheckIn(later)
+        let capture = try DaytimeTrendRecords(repository: repository, asOf: now)
+        XCTAssertEqual(capture.observations, [original])
+        XCTAssertEqual(try DaytimeTrendRecords(repository: repository, asOf: now.addingTimeInterval(30)).observations, [later])
+    }
+}
+
+extension DaytimeCheckInStorageTests {
+    func testMainWakeSourceUsesExplicitAnswerAndStableSemanticRevision() throws {
+        let storage = EventStorage.inMemory(), repository = repo(storage), key = "2026-09-20"
+        XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_sessions(session_id,session_date,start_utc) VALUES('explicit-wake','2026-09-20','2026-09-21T00:00:00Z')", nil, nil, nil), SQLITE_OK)
+        XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_events(id,event_type,timestamp,session_date) VALUES('nap-only','nap_end','2026-09-19T12:00:00Z','2026-09-19')", nil, nil, nil), SQLITE_OK)
+        XCTAssertTrue(try repository.daytimeMainWakeSources(asOf: now).isEmpty)
+        var diary = NightOutcomeDiary(); diary.finalWakeAt = Date(timeIntervalSince1970: floor(now.timeIntervalSince1970) - 60)
+        XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: key), reason: "", recordedAt: now).isCommitted)
+        let first = try XCTUnwrap(repository.daytimeMainWakeSources(asOf: now).first)
+        XCTAssertEqual(first.id, "explicit-wake"); XCTAssertEqual(first.at, diary.finalWakeAt)
+        diary.dayType = .workday
+        XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: key), reason: "Context added", recordedAt: now.addingTimeInterval(10)).isCommitted)
+        XCTAssertEqual(try repository.daytimeMainWakeSources(asOf: now.addingTimeInterval(10)).first?.revision, first.revision)
+        diary.finalWakeAt = diary.finalWakeAt?.addingTimeInterval(30)
+        XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: key), reason: "Wake corrected", recordedAt: now.addingTimeInterval(20)).isCommitted)
+        XCTAssertNotEqual(try repository.daytimeMainWakeSources(asOf: now.addingTimeInterval(20)).first?.revision, first.revision)
+        XCTAssertEqual(try repository.daytimeMainWakeSources(asOf: now).first?.revision, first.revision)
+        diary.finalWakeAt = nil
+        XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: key), reason: "Wake uncertain", recordedAt: now.addingTimeInterval(30)).isCommitted)
+        XCTAssertTrue(try repository.daytimeMainWakeSources(asOf: now.addingTimeInterval(30)).isEmpty)
+    }
+    func testMainWakeSourceRejectsUnreadableOutcomeAndInvalidCapture() throws {
+        let storage = EventStorage.inMemory(), repository = repo(storage)
+        XCTAssertThrowsError(try repository.daytimeMainWakeSources(asOf: Date(timeIntervalSince1970: .nan)))
+        XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_sessions(session_id,session_date,start_utc) VALUES('explicit-wake','2026-09-20','2026-09-21T00:00:00Z')", nil, nil, nil), SQLITE_OK)
+        var diary = NightOutcomeDiary(); diary.finalWakeAt = now.addingTimeInterval(-60)
+        XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: "2026-09-20"), reason: "", recordedAt: now).isCommitted)
+        XCTAssertEqual(sqlite3_exec(storage.db, "UPDATE checkin_submissions SET responses_json=responses_json || char(0) || 'trailing' WHERE checkin_type='night_outcome'", nil, nil, nil), SQLITE_OK)
+        XCTAssertThrowsError(try repository.daytimeMainWakeSources(asOf: now))
+        XCTAssertEqual(sqlite3_exec(storage.db, "UPDATE checkin_submissions SET responses_json='invalid JSON' WHERE checkin_type='night_outcome'", nil, nil, nil), SQLITE_OK)
+        XCTAssertThrowsError(try repository.daytimeMainWakeSources(asOf: now))
+    }
+}

@@ -74,6 +74,7 @@ final class DoseTapUITests: XCTestCase {
         }
         if name.contains("testHistoryManual") { app.launchArguments += ["--uitesting-history", "--uitesting-history-reset", "-setup_completed_v2", "YES"] }
         if name.contains("testDaytime") { app.launchArguments += ["-setup_completed_v2", "YES", "-healthkit_enabled", "NO", "-whoop_enabled", "NO"] }
+        if name.contains("testDaytimeTrendLargestText") { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
         if name.contains("testDaytimeFailure") { app.launchArguments += ["--uitesting-durable-log", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
         app.launch()
         app.launchArguments.removeAll { $0 == "--uitesting-bottle-tracking-reset" }
@@ -2446,25 +2447,41 @@ final class DoseTapUITests: XCTestCase {
 
 extension DoseTapUITests {
     func testDaytimeIndependentCheckInPersists() throws {
+        func reveal(_ element: XCUIElement, down: Bool = false) {
+            let interior = app.frame.insetBy(dx: 0, dy: app.frame.height * 0.18)
+            var previousFrame: CGRect?
+            for _ in 0..<14 {
+                if element.exists && element.isHittable && (interior.contains(CGPoint(x: element.frame.midX, y: element.frame.midY)) || previousFrame == element.frame) { break }
+                previousFrame = element.exists ? element.frame : nil
+                let towardTop = element.exists && !element.frame.isEmpty ? element.frame.midY < interior.minY : down
+                if towardTop { app.swipeDown() } else { app.swipeUp() }
+            }
+            XCTAssertTrue(element.exists); XCTAssertTrue(element.isHittable)
+        }
         XCTAssertTrue(app.buttons["History"].firstMatch.waitForExistence(timeout: 15)); app.buttons["History"].firstMatch.tap()
         let entry = app.buttons["history-daytime"]
         XCTAssertTrue(entry.waitForExistence(timeout: 10)); entry.tap()
-        let add = app.buttons["daytime-add"]
+        let add = app.buttons["daytime-add-top"]
         XCTAssertTrue(add.waitForExistence(timeout: 5)); add.tap()
         let rating = app.buttons["daytime-rating"]
-        XCTAssertTrue(rating.waitForExistence(timeout: 5)); rating.tap()
+        reveal(rating); rating.tap()
         app.buttons["4"].tap()
         let save = app.buttons["daytime-save-top"]
         for _ in 0..<5 where !save.isHittable { app.swipeUp() }
         XCTAssertTrue(save.isHittable); save.tap()
-        XCTAssertTrue(app.staticTexts["Custom sleepiness: 4/10"].firstMatch.waitForExistence(timeout: 5))
+        reveal(app.staticTexts["Custom sleepiness: 4/10"].firstMatch)
         let screenshot = XCTAttachment(screenshot: app.screenshot()); screenshot.name = "Independent daytime observation"; screenshot.lifetime = .keepAlways; self.add(screenshot)
         app.terminate(); app.launch()
         XCTAssertTrue(app.buttons["History"].firstMatch.waitForExistence(timeout: 15)); app.buttons["History"].firstMatch.tap(); app.buttons["history-daytime"].tap()
-        XCTAssertTrue(app.staticTexts["Custom sleepiness: 4/10"].firstMatch.waitForExistence(timeout: 5))
-        app.buttons["Daytime trends"].tap()
+        reveal(app.staticTexts["Custom sleepiness: 4/10"].firstMatch)
+        reveal(app.buttons["Daytime trends"], down: true); app.buttons["Daytime trends"].tap()
         XCTAssertTrue(app.staticTexts["Observed diary samples"].waitForExistence(timeout: 5))
+        let chart = app.descendants(matching: .any)["daytime-trend-chart"].firstMatch
+        reveal(chart)
         let trends = XCTAttachment(screenshot: app.screenshot()); trends.name = "Daytime trend with actual observation"; trends.lifetime = .keepAlways; self.add(trends)
+        chart.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)).tap()
+        reveal(app.staticTexts["Selected saved observation"])
+        let selected = XCTAttachment(screenshot: app.screenshot()); selected.name = "Selected actual daytime point"; selected.lifetime = .keepAlways; self.add(selected)
     }
 }
 
@@ -2500,4 +2517,8 @@ extension DoseTapUITests {
         XCTAssertTrue(app.staticTexts["Struggling to stay awake"].firstMatch.waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Approximate time · Duration unknown"].firstMatch.exists)
     }
+}
+
+extension DoseTapUITests {
+    func testDaytimeTrendLargestText() throws { try testDaytimeIndependentCheckInPersists() }
 }

@@ -220,6 +220,8 @@
 		DAYB003 /* EventStorage+DaytimeEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYF003 /* EventStorage+DaytimeEvent.swift */; };
 		DAYB004 /* DaytimeEventView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYF004 /* DaytimeEventView.swift */; };
 		DAYB005 /* DaytimeTrendsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYF005 /* DaytimeTrendsView.swift */; };
+		DAYB006 /* DaytimeDashboardRoute.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYF006 /* DaytimeDashboardRoute.swift */; };
+		DAYB007 /* SessionRepositoryDaytimeSources.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYF007 /* SessionRepositoryDaytimeSources.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -478,6 +480,8 @@
 		DAYF003 /* EventStorage+DaytimeEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+DaytimeEvent.swift"; sourceTree = "<group>"; };
 		DAYF004 /* DaytimeEventView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaytimeEventView.swift; sourceTree = "<group>"; };
 		DAYF005 /* DaytimeTrendsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaytimeTrendsView.swift; sourceTree = "<group>"; };
+		DAYF006 /* DaytimeDashboardRoute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaytimeDashboardRoute.swift; sourceTree = "<group>"; };
+		DAYF007 /* SessionRepositoryDaytimeSources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepositoryDaytimeSources.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -769,6 +773,7 @@
 				ESF024 /* EventStorage+SymptomEvents.swift */,
 				64641673735B464BB4E4B02F /* SessionRepository.swift */,
 				SRQ101 /* SessionRepositoryQueries.swift */,
+				DAYF007 /* SessionRepositoryDaytimeSources.swift */,
 				SRQ102 /* SessionRepositoryMedication.swift */,
 				DIDENT006 /* DashboardAssociationUITestFixture.swift */,
 				DIDENT007 /* DashboardContextSnapshot.swift */,
@@ -843,6 +848,7 @@
 				NWF001 /* NightOutcomeView.swift */,
 				DAYF002 /* DaytimeCheckInView.swift */,
 				DAYF005 /* DaytimeTrendsView.swift */,
+		DAYF006 /* DaytimeDashboardRoute.swift */,
 				DAYF004 /* DaytimeEventView.swift */,
 				PHRU003 /* PhysicianReportPreview.swift */,
 				PHRU004 /* PhysicianReportPDF.swift */,
@@ -1125,6 +1131,8 @@
 				NWB001 /* NightOutcomeView.swift in Sources */,
 				DAYB002 /* DaytimeCheckInView.swift in Sources */,
 				DAYB005 /* DaytimeTrendsView.swift in Sources */,
+		DAYB006 /* DaytimeDashboardRoute.swift in Sources */,
+		DAYB007 /* SessionRepositoryDaytimeSources.swift in Sources */,
 				DAYB004 /* DaytimeEventView.swift in Sources */,
 				NWB002 /* EventStorage+NightOutcome.swift in Sources */,
 				DDRV001 /* EventStorage+DashboardDoseReview.swift in Sources */,
