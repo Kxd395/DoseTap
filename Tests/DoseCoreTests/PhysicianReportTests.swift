@@ -41,6 +41,43 @@ final class PhysicianReportTests: XCTestCase {
         XCTAssertThrowsError(try snapshot([observation("infinite", value: .infinity)]))
         XCTAssertThrowsError(try snapshot([observation("missing", value: nil)]))
     }
+    func testUnknownTimeIsRetainedButCannotEnlargePeriodDenominator() throws {
+        let value = PhysicianReportObservation(id: "unplaced", observedAt: nil, metricID: "sleep", value: 30,
+            state: .available, unit: "minutes", source: "Synthetic", definitionVersion: "v1", detail: "unknown date", recordIDs: [])
+        let report = try snapshot([value])
+        XCTAssertEqual(report.observations.count, 1)
+        XCTAssertEqual(report.summaries.first?.eligibleCount, 0)
+        XCTAssertEqual(report.summaries.first?.unplacedCount, 1)
+    }
+    func testDecodedPeriodAndSummaryCannotBypassValidation() throws {
+        let report = try snapshot([observation("a", value: 120)])
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: report.jsonData()) as? [String: Any])
+        var period = try XCTUnwrap(json["period"] as? [String: Any])
+        period["timeZoneIdentifier"] = "Invalid/Zone"
+        let invalid = try JSONDecoder().decode(PhysicianReportPeriod.self, from: JSONSerialization.data(withJSONObject: period))
+        XCTAssertThrowsError(try PhysicianReportSnapshot(period: invalid, observations: [], notes: [], questions: [], appVersion: "test", generatedAt: now))
+        var summaries = try XCTUnwrap(json["summaries"] as? [[String: Any]])
+        summaries[0]["median"] = 9999
+        json["summaries"] = summaries
+        let corrupted = try JSONDecoder().decode(PhysicianReportSnapshot.self, from: JSONSerialization.data(withJSONObject: json))
+        XCTAssertThrowsError(try corrupted.validate())
+    }
+    func testRecentWindowUsesLastIncludedDayAtMidnightBoundary() throws {
+        let zone = TimeZone(secondsFromGMT: 0)!
+        let end = ISO8601DateFormatter().date(from: "2026-09-30T00:00:00Z")!
+        let date = ISO8601DateFormatter().date(from: "2026-09-16T12:00:00Z")!
+        let period = try PhysicianReportPeriod.resolve(.custom(start: end.addingTimeInterval(-40 * 86400), endExclusive: end), ledger: .init(), asOf: end, timeZone: zone)
+        let row = PhysicianReportObservation(id: "day14", observedAt: date, metricID: "sleep", value: 1,
+            state: .available, unit: "minutes", source: "synthetic", definitionVersion: "v1", detail: "", recordIDs: [])
+        let report = try PhysicianReportSnapshot(period: period, observations: [row], notes: [], questions: [], appVersion: "test", generatedAt: end)
+        XCTAssertEqual(report.recentDetail(days: 14).map(\.id), ["day14"])
+    }
+    func testPortableJSONNamesItsTimestampEncoding() throws {
+        let report = try snapshot([observation("dated", value: 10)])
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: report.jsonData()) as? [String: Any])
+        XCTAssertEqual(object["timestampEncoding"] as? String, "seconds since 2001-01-01T00:00:00Z")
+        XCTAssertEqual(try JSONDecoder().decode(PhysicianReportSnapshot.self, from: report.jsonData()), report)
+    }
     func testSnapshotDoesNotChangeWhenInputIsCorrected() throws {
         var values = [observation("old", value: 100)]
         let original = try snapshot(values)

@@ -2,6 +2,16 @@ import Foundation
 
 public enum PhysicianMetricState: String, Codable, Sendable {
     case available, partial, unavailable, notApplicable, needsReview, notCollected
+    public var label: String {
+        switch self {
+        case .available: return "Available"
+        case .partial: return "Partially recorded"
+        case .unavailable: return "Unavailable"
+        case .notApplicable: return "Not applicable"
+        case .needsReview: return "Needs review"
+        case .notCollected: return "Not collected"
+        }
+    }
 }
 
 /// An already-derived observation. Reports never infer medication or sleep metrics.
@@ -30,6 +40,15 @@ public struct PhysicianReportObservation: Codable, Equatable, Identifiable, Send
 public struct VisitPreparationNote: Codable, Equatable, Identifiable, Sendable {
     public enum Opportunity: String, Codable, CaseIterable, Sendable {
         case observed, noRecentOpportunity, avoidedOrStopped, uncertainRecollection, notCollected
+        public var label: String {
+            switch self {
+            case .observed: return "Opportunity with observation"
+            case .noRecentOpportunity: return "No recent opportunity"
+            case .avoidedOrStopped: return "Activity avoided or stopped"
+            case .uncertainRecollection: return "Uncertain recollection"
+            case .notCollected: return "No information collected"
+            }
+        }
     }
     public let id: UUID
     public let activity: String
@@ -84,6 +103,7 @@ public struct PhysicianReportSnapshot: Codable, Equatable, Identifiable, Sendabl
 
     public init(period: PhysicianReportPeriod, observations: [PhysicianReportObservation],
                 notes: [VisitPreparationNote], questions: [String], appVersion: String, generatedAt: Date, coverageDescription: String = "") throws {
+        try period.validate()
         guard generatedAt.timeIntervalSince1970.isFinite, generatedAt >= period.capturedAt,
               !appVersion.isEmpty, appVersion.count <= 100,
               Set(observations.map(\.id)).count == observations.count,
@@ -95,13 +115,14 @@ public struct PhysicianReportSnapshot: Codable, Equatable, Identifiable, Sendabl
                   value.observedAt.map({ $0.timeIntervalSince1970.isFinite && $0 <= generatedAt }) != false,
                   value.state != .available || value.value != nil else { throw PhysicianReviewError.invalidText }
         }
-        let evidence = Set(observations.map(\.id) + observations.flatMap(\.recordIDs))
+        let selected = observations.filter { $0.observedAt.map(period.contains) ?? true }
+        let evidence = Set(selected.map(\.id) + selected.flatMap(\.recordIDs))
         guard notes.allSatisfy({ Set($0.evidenceIDs).isSubset(of: evidence) && $0.activity.count <= 300 && $0.comment.count <= 4000 &&
             $0.reviewedAt.timeIntervalSince1970.isFinite && $0.reviewedAt <= generatedAt }) else { throw PhysicianReviewError.invalidText }
         id = UUID(); version = Self.formatVersion; self.period = period; self.generatedAt = generatedAt
         self.appVersion = appVersion; self.coverageDescription = coverageDescription
         // Unknown-time reports remain explicitly unplaced, not silently excluded.
-        self.observations = observations.filter { $0.observedAt.map(period.contains) ?? true }.sorted {
+        self.observations = selected.sorted {
             $0.observedAt == $1.observedAt ? $0.id < $1.id : ($0.observedAt ?? .distantPast) > ($1.observedAt ?? .distantPast)
         }
         self.notes = notes.filter(\.selectedForSharing); self.questions = questions
@@ -109,15 +130,27 @@ public struct PhysicianReportSnapshot: Codable, Equatable, Identifiable, Sendabl
         monthlySummaries = Self.aggregate(self.observations, period: period, monthly: true)
     }
 
+    /// Revalidate decoded snapshots before rendering or re-exporting local/imported data.
+    public func validate() throws {
+        let checked = try Self(period: period, observations: observations, notes: notes, questions: questions,
+                               appVersion: appVersion, generatedAt: generatedAt, coverageDescription: coverageDescription)
+        guard version == Self.formatVersion, checked.observations == observations, checked.notes == notes,
+              checked.summaries == summaries, checked.monthlySummaries == monthlySummaries else {
+            throw PhysicianReviewError.invalidRevision
+        }
+    }
     public func recentDetail(days: Int) -> [PhysicianReportObservation] {
         guard [14, 28].contains(days), let zone = TimeZone(identifier: period.timeZoneIdentifier) else { return [] }
         var calendar = Calendar(identifier: .gregorian); calendar.timeZone = zone
-        guard let start = calendar.date(byAdding: .day, value: -(days - 1), to: calendar.startOfDay(for: period.endExclusive)) else { return [] }
+        let lastIncluded = Date(timeIntervalSince1970: period.endExclusive.timeIntervalSince1970.nextDown)
+        guard let start = calendar.date(byAdding: .day, value: -(days - 1), to: calendar.startOfDay(for: lastIncluded)) else { return [] }
         return observations.filter { $0.observedAt.map { $0 >= max(period.start, start) } ?? false }
     }
     public func jsonData() throws -> Data {
         let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        return try encoder.encode(self)
+        guard var object = try JSONSerialization.jsonObject(with: encoder.encode(self)) as? [String: Any] else { throw PhysicianReviewError.invalidText }
+        object["timestampEncoding"] = "seconds since 2001-01-01T00:00:00Z"
+        return try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys])
     }
     public var detailCSV: String {
         let formatter = ISO8601DateFormatter()
@@ -158,7 +191,7 @@ public struct PhysicianReportSnapshot: Codable, Equatable, Identifiable, Sendabl
                 } else { dayCount = 0 }
             }
             return PhysicianMetricSummary(month: monthly ? key[4] : nil, metricID: key[0], unit: key[1], source: key[2], definitionVersion: key[3],
-                eligibleCount: rows.filter { $0.state != .notApplicable && $0.state != .notCollected }.count,
+                eligibleCount: rows.filter { $0.observedAt != nil && $0.state != .notApplicable && $0.state != .notCollected }.count,
                 availableCount: available.count, unavailableCount: count(.unavailable), partialCount: count(.partial),
                 reviewCount: count(.needsReview), notApplicableCount: count(.notApplicable), notCollectedCount: count(.notCollected),
                 calendarDayCount: dayCount, assessedDays: Set(rows.filter { $0.state != .notCollected && $0.state != .notApplicable }.compactMap(\.observedAt).map(formatter.string)).count,

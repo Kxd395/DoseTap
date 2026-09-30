@@ -34,7 +34,7 @@ struct PhysicianReportPreview: View {
                     ForEach(snapshot.notes) { note in
                         VStack(alignment: .leading) {
                             Text(note.activity).font(.headline)
-                            Text(note.opportunity.physicianLabel)
+                            Text(note.opportunity.label)
                             Text(note.comment)
                             Text("Examples: \(note.evidenceIDs.joined(separator: ", "))").font(.caption)
                             Text("Reviewed \(date(note.reviewedAt))").font(.caption)
@@ -86,7 +86,7 @@ struct PhysicianReportPreview: View {
         } label: {
             VStack(alignment: .leading) {
                 Text(value.metricID)
-                Text("\(value.observedAt.map(date) ?? "Unknown occurrence time") • \(value.state.rawValue)").font(.caption)
+                Text("\(value.observedAt.map(date) ?? "Unknown occurrence time") • \(value.state.label)").font(.caption)
                 if let amount = value.value { Text("\(amount.formatted()) \(value.unit)") }
                 if value.requiresReview { Label("Retained for review", systemImage: "exclamationmark.triangle") }
             }
@@ -100,7 +100,9 @@ struct PhysicianReportPreview: View {
             let json = directory.appendingPathComponent("DoseTap-physician-review.json"), csv = directory.appendingPathComponent("DoseTap-physician-detail.csv")
             try snapshot.jsonData().write(to: json, options: [.atomic, .completeFileProtection])
             try Data(snapshot.detailCSV.utf8).write(to: csv, options: [.atomic, .completeFileProtection])
-            share = PhysicianShareFiles(urls: [json, csv])
+            let pdf = directory.appendingPathComponent("DoseTap-physician-review.pdf")
+            try PhysicianReportPDF.render(snapshot).write(to: pdf, options: [.atomic, .completeFileProtection])
+            share = PhysicianShareFiles(urls: [pdf, json, csv])
         } catch { cleanShare(); failure = "The export files could not be prepared. Your saved preview is unchanged; retry sharing." }
     }
     private func cleanShare() {
@@ -112,16 +114,4 @@ struct PhysicianReportPreview: View {
 private struct PhysicianShareFiles: Identifiable {
     let id = UUID()
     let urls: [URL]
-}
-
-private extension VisitPreparationNote.Opportunity {
-    var physicianLabel: String {
-        switch self {
-        case .observed: return "Opportunity with observation"
-        case .noRecentOpportunity: return "No recent opportunity"
-        case .avoidedOrStopped: return "Activity avoided or stopped"
-        case .uncertainRecollection: return "Uncertain recollection"
-        case .notCollected: return "No information collected"
-        }
-    }
 }

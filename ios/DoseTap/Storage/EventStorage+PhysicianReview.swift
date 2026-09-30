@@ -9,6 +9,7 @@ extension EventStorage {
             let payload = try StoredExportColumn(statement: stmt, index: 1)
             guard payload.type == "text", let text = payload.text else { throw ExportReadError.unreadable }
             let value = try JSONDecoder().decode(T.self, from: Data(text.utf8))
+            if let snapshot = value as? PhysicianReportSnapshot { try snapshot.validate() }
             let storedID = try StoredExportColumn(statement: stmt, index: 0).text
             let expectedID = (value as? PhysicianVisit)?.revisionID ?? (value as? PhysicianReportSnapshot)?.id
             guard storedID == expectedID?.uuidString else { throw ExportReadError.unreadable }
@@ -33,6 +34,7 @@ extension EventStorage {
         }
     }
     func savePhysicianReport(_ value: PhysicianReportSnapshot, now: Date) throws -> Bool {
+        try value.validate()
         guard value.generatedAt <= now, value.period.endExclusive <= value.generatedAt,
               value.period.start < value.period.endExclusive, value.version == PhysicianReportSnapshot.formatVersion else {
             throw PhysicianReviewError.invalidPeriod

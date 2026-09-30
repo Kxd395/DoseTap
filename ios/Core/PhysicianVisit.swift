@@ -80,6 +80,12 @@ public struct PhysicianReportPeriod: Codable, Equatable, Sendable {
     public let label: String
     public let calendarDayCount: Int
     public func contains(_ date: Date) -> Bool { date >= start && date < endExclusive }
+    public func validate() throws {
+        guard version == Self.definitionVersion, let zone = TimeZone(identifier: timeZoneIdentifier),
+              !label.isEmpty, label.count <= 300 else { throw PhysicianReviewError.invalidPeriod }
+        let checked = try Self.resolve(.custom(start: start, endExclusive: endExclusive), ledger: .init(), asOf: capturedAt, timeZone: zone)
+        guard checked.calendarDayCount == calendarDayCount else { throw PhysicianReviewError.invalidPeriod }
+    }
 
     public static func resolve(_ range: PhysicianReportRange, ledger: PhysicianVisitLedger,
                                asOf: Date, timeZone: TimeZone) throws -> Self {

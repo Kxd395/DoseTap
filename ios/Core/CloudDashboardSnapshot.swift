@@ -73,6 +73,7 @@ public struct CloudDashboardSnapshot: Codable, Equatable, Sendable {
     public var sequence: UInt64
     public var capturedAt: Date
     public var sections: [DashboardSnapshotSection]
+    public var doseReviews: [DashboardSharedDoseReview]? = nil
 
     public init(sourceID: String, sequence: UInt64, capturedAt: Date,
                 sections: [DashboardSnapshotSection]) {
@@ -93,6 +94,7 @@ public struct CloudDashboardSnapshot: Codable, Equatable, Sendable {
         }
         for section in sections { try section.validate() }
         _ = try DashboardSleepEvidence.read(from: self)
+        try DashboardSharedDoseReview.validate(doseReviews ?? [], in: self)
     }
 }
 

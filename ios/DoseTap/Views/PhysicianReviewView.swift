@@ -143,7 +143,7 @@ struct PhysicianReviewView: View {
         } catch PhysicianReviewError.missingCompletedVisit {
             failure = "Save a completed visit first, or choose another report period."
         } catch {
-            failure = "The preview was not saved. Check the ordered date bounds (no future cutoff), notes and questions, then retry. Source or storage errors are never replaced with an empty report."
+            failure = "The preview was not saved. Check the ordered date bounds (no future cutoff), notes and questions, and keep linked examples within the period, then retry. Source or storage errors are never replaced with an empty report."
         }
     }
 }

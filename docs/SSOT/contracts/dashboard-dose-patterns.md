@@ -20,3 +20,13 @@ Metric construction and JSON decoding enforce the same invariant: available requ
 ## Shared inspection state
 
 Dashboard routes preserve one selected stable observation ID, dose-pattern filter, work-phase filter and work-context basis, context stratum filter, and explicit partial-metric inclusion. Range, timezone, source and reporting as-of remain model-owned. Refresh and filtering never silently replace a selected observation. Each view distinguishes a visible selection, a selection excluded by its current filters/range, and an observation no longer available; clearing selection is explicit. Resetting filters preserves the selected observation and work-context basis. A filter unsupported by a view is disclosed rather than silently applied to a different grain.
+
+## Read-only nearby review transfer
+
+A nearby report may carry a versioned, sanitized local dose-review sidecar. The
+producer rechecks exact canonical session identity and the complete current dose
+evidence inside its report transaction. Stale, unresolved and provider-only reviews
+are omitted. Count, plan, explicit omission, revision and source record IDs remain
+separate from administrations; the private source fingerprint never travels.
+Missing sidecars mean no review supplied, not zero administrations. The receiving
+iPad preserves report source/generation/capture and cannot write the phone ledger.

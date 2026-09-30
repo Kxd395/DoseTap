@@ -13,9 +13,11 @@
 		DIDENT105 /* ProviderSessionAssociationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT005 /* ProviderSessionAssociationView.swift */; };
 		DIDENT104 /* DashboardProviderMatching.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT004 /* DashboardProviderMatching.swift */; };
 		DIDENT103 /* DashboardProviderAssociations.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT003 /* DashboardProviderAssociations.swift */; };
+		DRPL103 /* DashboardReviewedCoverage.swift in Sources */ = {isa = PBXBuildFile; fileRef = DRPL003 /* DashboardReviewedCoverage.swift */; };
 		DIDENT102 /* DashboardIdentityAggregation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT002 /* DashboardIdentityAggregation.swift */; };
 		DIDENT101 /* SessionRepositoryDashboardIdentities.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT001 /* SessionRepositoryDashboardIdentities.swift */; };
 		WBCTX001 /* EventStorage+WorkContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBCTX101 /* EventStorage+WorkContext.swift */; };
+		PHRU1004 /* PhysicianReportPDF.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRU004 /* PhysicianReportPDF.swift */; };
 		PHRU1003 /* PhysicianReportPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRU003 /* PhysicianReportPreview.swift */; };
 		PHRU1002 /* PhysicianReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRU002 /* PhysicianReviewView.swift */; };
 		PHRV101 /* EventStorage+PhysicianReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRV001 /* EventStorage+PhysicianReview.swift */; };
@@ -220,9 +222,11 @@
 		DIDENT005 /* ProviderSessionAssociationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderSessionAssociationView.swift; sourceTree = "<group>"; };
 		DIDENT004 /* DashboardProviderMatching.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardProviderMatching.swift; sourceTree = "<group>"; };
 		DIDENT003 /* DashboardProviderAssociations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardProviderAssociations.swift; sourceTree = "<group>"; };
+		DRPL003 /* DashboardReviewedCoverage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardReviewedCoverage.swift; sourceTree = "<group>"; };
 		DIDENT002 /* DashboardIdentityAggregation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardIdentityAggregation.swift; sourceTree = "<group>"; };
 		DIDENT001 /* SessionRepositoryDashboardIdentities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepositoryDashboardIdentities.swift; sourceTree = "<group>"; };
 		WBCTX101 /* EventStorage+WorkContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+WorkContext.swift"; sourceTree = "<group>"; };
+		PHRU004 /* PhysicianReportPDF.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianReportPDF.swift; sourceTree = "<group>"; };
 		PHRU003 /* PhysicianReportPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianReportPreview.swift; sourceTree = "<group>"; };
 		PHRU002 /* PhysicianReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianReviewView.swift; sourceTree = "<group>"; };
 		PHRV001 /* EventStorage+PhysicianReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+PhysicianReview.swift"; sourceTree = "<group>"; };
@@ -598,6 +602,7 @@
 			isa = PBXGroup;
 			children = (
 				CLUST001 /* DashboardModels.swift */,
+				DRPL003 /* DashboardReviewedCoverage.swift */,
 				CLUST002 /* DashboardViews.swift */,
 				DIDENT005 /* ProviderSessionAssociationView.swift */,
 				DIDENT004 /* DashboardProviderMatching.swift */,
@@ -770,6 +775,7 @@
 				DAYF005 /* DaytimeTrendsView.swift */,
 				DAYF004 /* DaytimeEventView.swift */,
 				PHRU003 /* PhysicianReportPreview.swift */,
+				PHRU004 /* PhysicianReportPDF.swift */,
 				PHRU002 /* PhysicianReviewView.swift */,
 				GRP_DASHBOARD /* Dashboard */,
 				GRP_TIMELINE /* Timeline */,
@@ -1051,6 +1057,7 @@
 				NWB002 /* EventStorage+NightOutcome.swift in Sources */,
 				DDRV001 /* EventStorage+DashboardDoseReview.swift in Sources */,
 				PHRU1003 /* PhysicianReportPreview.swift in Sources */,
+				PHRU1004 /* PhysicianReportPDF.swift in Sources */,
 				PHRU1002 /* PhysicianReviewView.swift in Sources */,
 				PHRV101 /* EventStorage+PhysicianReview.swift in Sources */,
 				0A777B0D5CC54803B060A980 /* UserSettingsManager.swift in Sources */,
@@ -1151,6 +1158,7 @@
 				SSV001 /* SessionSupportViews.swift in Sources */,
 				1B95E3AD96741FD0E9FED120 /* Secrets.swift in Sources */,
 				CLUST101 /* DashboardModels.swift in Sources */,
+				DRPL103 /* DashboardReviewedCoverage.swift in Sources */,
 				CLUST102 /* DashboardViews.swift in Sources */,
 				CLUST105 /* DeferredCloudKitSyncService.swift in Sources */,
 				DIDENT105 /* ProviderSessionAssociationView.swift in Sources */,
