@@ -2,6 +2,26 @@ import XCTest
 @testable import DoseCore
 
 final class DashboardSleepMetricProjectionTests: XCTestCase {
+    func testProviderEvidenceReviewRetainsReasonAndFreshnessWithoutNumericSummary() throws {
+        for freshness in [DashboardSleepMetricProjection.Freshness.current, .stale, .unavailable] {
+            for total in [nil, 0, 540] as [Double?] {
+                let reason = "WHOOP scored sleep exceeds the original episode interval."
+                let projection = DashboardSleepMetricProjection.providerEpisode(totalMinutes: total,
+                    source: .whoop, freshness: freshness, evidenceReviewReason: reason)
+                XCTAssertEqual(projection.metric.state, .needsReview)
+                XCTAssertEqual(projection.metric.reason, reason)
+                XCTAssertEqual(projection.source, .whoop); XCTAssertEqual(projection.freshness, freshness)
+                XCTAssertEqual(projection.definition, .mainProviderEpisode)
+                XCTAssertNil(projection.metric.value); XCTAssertNil(projection.summaryValue(includePartial: true))
+                let data = try JSONEncoder().encode(projection)
+                XCTAssertEqual(try JSONDecoder().decode(DashboardSleepMetricProjection.self, from: data), projection)
+            }
+        }
+        XCTAssertEqual(DashboardSleepMetricProjection.providerEpisode(totalMinutes: 0, source: .whoop,
+            freshness: .current).summaryValue(), 0)
+        XCTAssertEqual(DashboardSleepMetricProjection.providerEpisode(totalMinutes: nil, source: .whoop,
+            freshness: .current).metric.state, .unavailable)
+    }
     let start = Date(timeIntervalSince1970: 1_790_720_000)
     func pattern(second: Bool = true) -> DashboardDosePattern {
         var rows: [DashboardDosePattern.Administration] = [.init(id: "d1", sessionID: "s", slot: 1, occurredAt: start)]

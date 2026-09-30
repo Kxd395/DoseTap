@@ -31,7 +31,12 @@ public struct DashboardSleepMetricProjection: Codable, Equatable, Sendable {
         return metric.state == .available || (includePartial && metric.state == .partial) ? metric.value : nil
     }
     /// Provider-defined main episode total. It does not assert complete reviewed-night coverage.
-    public static func providerEpisode(totalMinutes: Double?, source: Source, freshness: Freshness) -> Self {
+    public static func providerEpisode(totalMinutes: Double?, source: Source, freshness: Freshness,
+                                       evidenceReviewReason: String? = nil) -> Self {
+        if let reason = evidenceReviewReason {
+            return .init(value: nil, state: .needsReview, reason: reason, source: source,
+                         definition: .mainProviderEpisode, freshness: freshness)
+        }
         guard freshness != .unavailable, let value = totalMinutes else {
             return .init(value: nil, state: .unavailable, reason: "provider_main_episode_unavailable", source: source,
                          definition: .mainProviderEpisode, freshness: freshness)

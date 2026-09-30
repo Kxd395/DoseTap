@@ -88,4 +88,21 @@ final class WorkCycleAdapterTests: XCTestCase {
         let row = try XCTUnwrap(comparison.observations.first { $0.id == "session:a" })
         XCTAssertNil(row.value); XCTAssertEqual(row.metricEvidence?.metric.state, .needsReview)
     }
+    func testDisplayFixturePublishesOneFrozenReadableComparisonSnapshot() throws {
+        let value = model()
+        XCTAssertTrue(value.loadDashboardUITestFixtureIfRequested(arguments: ["--uitesting-dashboard"]))
+        XCTAssertEqual(value.lastRefresh, value.reportingAsOf)
+        XCTAssertEqual(value.workInspectionAsOf, value.reportingAsOf)
+        XCTAssertTrue(value.contextReadReady); XCTAssertTrue(value.doseReviewReadReady)
+        XCTAssertTrue(value.providerAssociationsReady); XCTAssertNotNil(value.contextTimeline)
+        XCTAssertEqual(value.healthSnapshot?.window, value.currentReportWindow)
+        XCTAssertEqual(value.healthSnapshot?.window.asOf, value.reportingAsOf)
+        XCTAssertNil(value.workCycleComparisonIssue(metric: .doseInterval))
+        XCTAssertEqual(try XCTUnwrap(value.workCycleComparison(metric: .doseInterval)).observations.count, 8)
+        value.inspection.selectedObservationID = value.nights.first?.id
+        value.inspection.workPhaseFilter = .entering
+        XCTAssertTrue(try XCTUnwrap(value.workCycleComparison(metric: .doseInterval)).observations.isEmpty)
+        XCTAssertNotNil(value.inspection.selectedObservationID)
+    }
+
 }

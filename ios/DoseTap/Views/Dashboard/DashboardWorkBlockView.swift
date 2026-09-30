@@ -4,52 +4,70 @@ import DoseCore
 
 struct DashboardWorkBlockView: View {
     @ObservedObject var model: DashboardAnalyticsModel
-    @State private var document = WorkContextDocument()
-    @State private var storedRevision: UUID?
-    @State private var loaded = false
-    @State private var error: String?
-    @State private var editing = false
+    private var document: WorkContextDocument { model.workInspectionContext ?? WorkContextDocument() }
+    private var loaded: Bool { model.workContextReadReady && model.workInspectionAsOf == asOf }
+    private struct EditorSnapshot: Identifiable {
+        let id = UUID()
+        let document: WorkContextDocument
+        let expectedRevision: UUID?
+    }
+    @State private var editorSnapshot: EditorSnapshot?
+    @State private var rosterEditor: EditorSnapshot?
     @State private var controlsVisible = false
-    @State private var selected: WorkCycleObservation?
-    @State private var basis = WorkContextBasis.planned
-    @State private var metric = WorkBlockMetric.appleSleep
-    @State private var phaseFilter = "All"
+    @State private var detailVisible = false
+    @State private var metric = WorkCycleMetric.mainSleep
+    private var basis: WorkContextBasis { model.inspection.workContextBasis }
+    private var phaseFilter: String { model.inspection.workPhaseFilter?.rawValue ?? "All" }
     @State private var visualization = "Profile"
+    @State private var monthlySummary = true
     @State private var grouping = WorkComparisonGrouping.none
     @State private var matrixEncoding = "Value intensity"
     @State private var positionFilter = "All"
-    @State private var profileNames: [String: String] = [:]
     @State private var candidates: [WorkCycleObservation] = []
     private var asOf: Date { model.reportingAsOf }
-    @State private var observations: [WorkCycleObservation] = []
+    @State private var comparison: WorkCycleComparison?
+    @State private var projectionTask: Task<Void, Never>?
+    @State private var profileNames: [String: String] = [:]
+    private var observations: [WorkCycleObservation] { comparison?.observations ?? [] }
+    @State private var axisRows: [WorkCycleObservation] = []
+    private var selected: WorkCycleObservation? { rows.first { $0.id == model.inspection.selectedObservationID } }
+    private func select(_ row: WorkCycleObservation) {
+        prepareEditorSnapshot()
+        model.inspection.selectedObservationID = row.id; detailVisible = true
+    }
 
-    private var rows: [WorkCycleObservation] { observations.filter { (phaseFilter == "All" || $0.phase.rawValue == phaseFilter) && (positionFilter == "All" || $0.position == positionFilter) } }
+    private var rows: [WorkCycleObservation] { observations.filter { positionFilter == "All" || $0.position == positionFilter } }
     private var positions: [String] {
         WorkPhase.allCases.flatMap { phase in
             Set(observations.filter { $0.phase == phase }.map(\.position)).sorted { $0.localizedStandardCompare($1) == .orderedAscending }
         }
     }
     private func profileLabel(_ row: WorkCycleObservation) -> String {
-        let key = row.stratumID ?? "unknown:" + row.id
-        return row.position + " • " + (row.stratumLabel ?? "Context unknown, " + row.sleepDate) + " [" + (profileNames[key] ?? "Unknown") + "]"
+        let index = profileNames[row.stratumID ?? "unknown:" + row.id] ?? "Unknown"
+        return row.position + " • " + (row.stratumLabel ?? "Context unknown, " + row.sleepDate) + " [" + index + "]"
     }
     private var profileLabels: [String] { Array(Set(rows.map(profileLabel))).sorted() }
-    private var maximum: Double { max(1, (observations.compactMap(\.value).max() ?? 1) * 1.1) }
+    private var maximum: Double { max(1, (axisRows.compactMap(\.value).max() ?? 1) * 1.1) }
     var body: some View {
         List {
             Section {
                 Text(model.rangeDescription).font(.caption)
-                Text((basis == .planned ? "Reviewed plan snapshot" : "Confirmed work history") + " • " + metric.rawValue).font(.caption)
-                Text("Phase: " + phaseFilter + " • Position: " + positionFilter).font(.caption)
+                Text((basis == .planned ? "Reviewed plan snapshot" : "Confirmed work history") + " • " + metric.rawValue + " • " + model.sleepSource.rawValue).font(.caption)
+                Text("Phase: " + (model.inspection.workPhaseFilter?.label ?? "All") + " • Position: " + positionFilter).font(.caption)
                 Button("Comparison controls") { controlsVisible = true }.accessibilityIdentifier("work-comparison-controls")
                 Text("Plans never establish attendance. Off-block does not mean recovered. Missing values are not zero.").font(.caption)
                 if let message = model.errorMessage { Text(message).foregroundStyle(.orange) }
-                if let error { Text(error).foregroundStyle(.red) }
-                Button("Configure roster or confirm a work date") { load(); editing = loaded }.disabled(!loaded)
+                if let issue = model.workCycleComparisonIssue(metric: metric) { Text(issue).foregroundStyle(.orange) }
+                if let notice = model.inspection.selectionStatus(visibleIDs: rows.map(\.id), knownIDs: model.nights.map(\.id)).explanation {
+                    Text(notice).accessibilityIdentifier("work-selection-notice")
+                }
+                if let selected { Button("Open selected observation: " + selected.sleepDate) { prepareEditorSnapshot(); detailVisible = true } }
+
+                Button("Configure roster or confirm a work date") { prepareEditorSnapshot(); if loaded { rosterEditor = editorSnapshot } }.disabled(!loaded)
                     .accessibilityIdentifier("work-context-configure")
             }
             if visualization == "Profile" { Section("Work-cycle profile") {
-                if metric == .interval { Text("Built-in spacing reference: 150–240 minutes, inclusive; not a prescription.").font(.caption) }
+                if metric == .doseInterval { Text("Built-in spacing reference: 150–240 minutes, inclusive; not a prescription.").font(.caption) }
                 counts(rows)
                 if rows.contains(where: { $0.value != nil }) {
                     Chart {
@@ -84,7 +102,7 @@ struct DashboardWorkBlockView: View {
             }
             }
             if visualization == "Scatter" { Section("Interval versus selected outcome") {
-                if metric == .interval { Text("Choose a sleep outcome in Comparison controls to compare it against dose interval.") } else { scatter }
+                if metric == .doseInterval { Text("Choose a sleep outcome in Comparison controls to compare it against dose interval.") } else { scatter }
             } }
             if visualization == "Matrix" { Section("Week-by-week block matrix") {
                 Picker("Cell fill represents", selection: $matrixEncoding) {
@@ -93,16 +111,18 @@ struct DashboardWorkBlockView: View {
                 }.accessibilityIdentifier("work-matrix-encoding")
                 matrix
             } }
+            if visualization == "Summaries" { comparisonSummaries }
             Section("Records and exact values") {
                 if rows.isEmpty { Text("No nights in this range. Choose a different range on Dashboard.") }
                 ForEach(rows) { row in
-                    Button { selected = row } label: {
+                    Button { select(row) } label: {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(row.sleepDate + " • " + row.phase.label).font(.headline)
                             Text(row.position)
                             Text("Group: " + row.groupLabel(grouping) + " • " + row.groupSymbol(grouping)).font(.caption)
                             if row.isOverride { Text("Reviewed override").font(.caption) }
-                            Text(row.value.map { String(format: "%.1f minutes", $0) } ?? "Unavailable")
+                            Text(row.value.map { String(format: "%.1f minutes contributed", $0) } ?? "No numeric contribution")
+                            Text((row.metricEvidence?.metric.state.rawValue ?? "unavailable") + " • " + row.contributionReason).font(.caption)
                         }.foregroundStyle(.primary)
                     }.accessibilityIdentifier("work-context-record-" + row.id)
                 }
@@ -112,11 +132,13 @@ struct DashboardWorkBlockView: View {
                 ShareLink("Share this comparison CSV", item: WorkCycleSummary.csv(rows, metric: metric.rawValue, basis: basis, range: model.rangeDescription, revision: document.revision, asOf: asOf, grouping: grouping, phaseFilter: phaseFilter, positionFilter: positionFilter, matrixEncoding: matrixEncoding)).disabled(!loaded)
             }
         }.navigationTitle("Work Block & Sleep")
-            .task { load() }
-            .refreshable { load() }
-            .onReceive(model.$nights) { rebuild($0) }
-            .onChange(of: basis) { _ in rebuild(model.populatedNights) }
-            .onChange(of: metric) { _ in rebuild(model.populatedNights) }
+            .task { scheduleProjection() }
+            .onReceive(model.objectWillChange) { _ in scheduleProjection() }
+            .onDisappear { projectionTask?.cancel() }
+            .refreshable { await model.refreshAndWait() }
+            .onChange(of: basis) { _ in candidates = [] }
+            .onChange(of: metric) { _ in scheduleProjection() }
+            .onChange(of: model.lastRefresh) { _ in candidates = [] }
             .onChange(of: phaseFilter) { _ in candidates = [] }
             .onChange(of: positionFilter) { _ in candidates = [] }
             .onChange(of: grouping) { _ in candidates = [] }
@@ -125,22 +147,37 @@ struct DashboardWorkBlockView: View {
                 NavigationStack { Form { comparisonControls }.navigationTitle("Work comparisons")
                     .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { controlsVisible = false } } } }
             }
-            .sheet(isPresented: $editing) { WorkContextEditor(document: document, save: save) }
-            .sheet(item: $selected) { row in WorkBlockRecordDetail(row: row, grouping: grouping, siblings: rows, select: { selected = $0 }, document: document, save: save) }
+            .sheet(item: $rosterEditor) { snapshot in
+                WorkContextEditor(document: snapshot.document) { try save($0, expectedRevision: snapshot.expectedRevision) }
+            }
+            .sheet(isPresented: $detailVisible) {
+                if let selected, let snapshot = editorSnapshot {
+                    WorkBlockRecordDetail(row: selected, grouping: grouping, siblings: rows, select: select, document: snapshot.document) {
+                        try save($0, expectedRevision: snapshot.expectedRevision)
+                    }
+                }
+                else { Text("The selected observation is outside the current view. Its selection is retained.").padding() }
+            }
     }
     private var comparisonControls: some View {
         Group {
-                Picker("Context basis", selection: $basis) {
+                Picker("Context basis", selection: $model.inspection.workContextBasis) {
                     Text("Reviewed plan snapshot").tag(WorkContextBasis.planned)
                     Text("Confirmed work history").tag(WorkContextBasis.confirmed)
                 }.accessibilityIdentifier("work-context-basis")
-                Picker("Outcome (minutes)", selection: $metric) { ForEach(WorkBlockMetric.allCases, id: \.self) { Text($0.rawValue).tag($0) } }
-                Picker("Work phase", selection: $phaseFilter) {
-                    Text("All including unknown").tag("All")
-                    ForEach(WorkPhase.allCases, id: \.self) { Text($0.label).tag($0.rawValue) }
+                Picker("Outcome (minutes)", selection: $metric) { ForEach(WorkCycleMetric.allCases, id: \.self) { Text($0.rawValue).tag($0) } }
+                Picker("Sleep source", selection: $model.sleepSource) {
+                    ForEach(DashboardSleepSource.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                 }
+                Picker("Work phase", selection: $model.inspection.workPhaseFilter) {
+                    Text("All including unknown").tag(Optional<WorkPhase>.none)
+                    ForEach(WorkPhase.allCases, id: \.self) { Text($0.label).tag(Optional($0)) }
+                }.accessibilityIdentifier("work-phase-filter")
+                Toggle("Include partial metric contributions", isOn: $model.inspection.includePartialMetrics)
+
                 Picker("Display", selection: $visualization) {
                     Text("Profile").tag("Profile"); Text("Block matrix").tag("Matrix"); Text("Interval scatter").tag("Scatter")
+                    Text("Period summaries").tag("Summaries")
                 }.accessibilityIdentifier("work-display")
                 Picker("Shift position", selection: $positionFilter) {
                     Text("All positions").tag("All")
@@ -155,8 +192,33 @@ struct DashboardWorkBlockView: View {
     }
     private func counts(_ values: [WorkCycleObservation]) -> some View {
         let summary = WorkCycleSummary(observations: values)
-        return Text("\(summary.availableCount) available • \(summary.missingCount) unavailable • \(summary.distinctBlockCount) distinct known blocks with values • \(summary.unresolvedBlockCount) unresolved block links")
+        return Text("\(summary.availableCount) contributing / \(summary.eligibleCount) eligible • \(summary.missingCount) unavailable • \(summary.notApplicableCount) not applicable • \(summary.partialIncludedCount)/\(summary.partialCount) partial included • \(summary.distinctBlockCount) distinct known blocks with values • \(summary.unresolvedBlockCount) unresolved block links")
             .font(.caption).foregroundStyle(.secondary)
+    }
+    private var comparisonSummaries: some View {
+        let comparison = WorkCycleComparison(observations: rows)
+        let groups = monthlySummary ? comparison.monthly : comparison.selectedPeriod
+        return Section("Compatible work-cycle summaries") {
+            Toggle("Separate calendar months", isOn: $monthlySummary)
+            Text("Uses the selected dashboard period, including six-month or since-visit ranges. First post-block sleep and later off-block positions remain separate. Context changes, sources and metric definitions are never pooled.").font(.caption)
+            Text("Recorded dates show observation coverage only. Missing calendar dates do not establish expected work, attendance, sleep, or recovery.").font(.caption)
+            if groups.isEmpty { Text("No observations match this summary. Current filters remain selected.") }
+            ForEach(groups) { group in
+                VStack(alignment: .leading, spacing: 5) {
+                    Text((group.month ?? model.rangeDescription) + " • " + group.phase.label).font(.headline)
+                    Text(group.position + " • " + group.stratumLabel)
+                    Text(group.source + " • " + group.definitionVersion).font(.caption)
+                    Text("\(group.representedDateCount) recorded dates • \(group.rows.count) observations • \(group.needsReviewCount) need review").font(.caption)
+                    counts(group.rows)
+                    let summary = group.summary
+                    Text(summary.median.map { String(format: "Median %.1f %@", $0, group.unit) } ?? "Median unavailable")
+                    if let lower = summary.lowerQuartile, let upper = summary.upperQuartile {
+                        Text(String(format: "Middle 50%%: %.1f–%.1f %@", lower, upper, group.unit)).font(.caption)
+                    }
+                    Text("Descriptive observations; not a confidence interval or a recovery assessment.").font(.caption)
+                }
+            }
+        }
     }
     private var matrix: some View {
         let blocks = Set(rows.compactMap(\.blockID)).sorted()
@@ -177,7 +239,7 @@ struct DashboardWorkBlockView: View {
                                 VStack {
                                     if cells.isEmpty { Text("Missing") }
                                     ForEach(cells) { cell in
-                                        Button { selected = cell } label: {
+                                        Button { select(cell) } label: {
                                             Text(cell.sleepDate + "\n" + cell.phase.label + "\n" + (cell.value.map { String(format: "%.1f min", $0) } ?? "Unavailable"))
                                                 .foregroundStyle(.primary).padding(6).frame(maxWidth: .infinity)
                                                 .background(cellFill(cell)).clipShape(RoundedRectangle(cornerRadius: 6))
@@ -191,7 +253,7 @@ struct DashboardWorkBlockView: View {
             }
         }
     }
-    private var intervalMaximum: Double { max(300, (observations.compactMap(\.intervalMinutes).max() ?? 300) * 1.1) }
+    private var intervalMaximum: Double { max(300, (axisRows.compactMap(\.intervalMinutes).max() ?? 300) * 1.1) }
     private var groupLabels: [String] {
         switch grouping {
         case .none: return ["All observations"]
@@ -264,50 +326,34 @@ struct DashboardWorkBlockView: View {
             }.accessibilityElement(children: .combine)
             Text("Tap near a marker to list every nearby observation. The exact-value table provides the same records without chart gestures.").font(.caption)
             ForEach(candidates) { row in
-                Button(row.sleepDate + " • " + row.groupLabel(grouping)) { selected = row }
+                Button(row.sleepDate + " • " + row.groupLabel(grouping)) { select(row) }
             }
         }
     }
-    private func load() {
-        do {
-            let stored = try model.sessionRepo.workContext()
-            document = stored ?? WorkContextDocument(); storedRevision = stored?.revision
-            loaded = true; error = nil; rebuild(model.populatedNights)
-        } catch { loaded = false; self.error = error.localizedDescription }
+    private func scheduleProjection() {
+        projectionTask?.cancel()
+        comparison = nil; axisRows = []; profileNames = [:]; candidates = []
+        projectionTask = Task { @MainActor in
+            // Published values emit before mutation; coalesce the completed publication once.
+            await Task.yield()
+            guard !Task.isCancelled else { return }
+            comparison = model.workCycleComparison(metric: metric, period: model.reportingPeriod)
+            axisRows = model.workCycleAxisObservations(metric: metric) ?? []
+            let strata = Set(axisRows.map { $0.stratumID ?? "unknown:" + $0.id }).sorted()
+            profileNames = Dictionary(uniqueKeysWithValues: strata.enumerated().map { ($0.element, "S" + String($0.offset + 1)) })
+        }
     }
-    private func save(_ next: WorkContextDocument) throws {
-        try model.sessionRepo.saveWorkContext(next, expectedRevision: storedRevision)
-        document = next; storedRevision = next.revision; rebuild(model.populatedNights)
+    private func prepareEditorSnapshot() {
+        editorSnapshot = EditorSnapshot(document: model.workInspectionContext ?? WorkContextDocument(), expectedRevision: model.workInspectionContext?.revision)
+    }
+    private func save(_ next: WorkContextDocument, expectedRevision: UUID?) throws {
+        try model.sessionRepo.saveWorkContext(next, expectedRevision: expectedRevision)
+        model.invalidateWorkInspectionContext()
+        model.refresh()
     }
     static func scopedNights(_ nights: [DashboardNightAggregate], window: DashboardReportingWindow?) -> [DashboardNightAggregate] {
         guard let window else { return [] }
         return nights.filter { window.contains($0.sessionDate) && ($0.hasAnyData || $0.napSummary.count > 0 || $0.snoozeCount > 0) }
-    }
-    private func rebuild(_ nights: [DashboardNightAggregate]) {
-        let scoped = Self.scopedNights(nights, window: model.currentReportWindow)
-        let associations = document.associationsBySleepID(Set(scoped.map(\.id)), asOf: asOf)
-        let contexts = document.classifications(Array(associations.values), basis: basis, asOf: asOf)
-        observations = scoped.map { night in
-            let association = associations[night.id]
-            let context = association.flatMap { contexts[$0.id] }
-            return WorkCycleObservation(sleepID: night.id, sleepDate: night.sessionDate, phase: context?.phase ?? .unknown, position: context?.positionLabel ?? "Unknown / review", blockID: context?.blockID, value: metric.value(night), rosterID: context?.rosterID, detail: context?.detail ?? "Review this main sleep's adjacent waking dates.", associationID: association?.id, contextSnapshotAt: association.map { basis == .planned ? $0.plannedAt : asOf }, isOverride: context?.isOverride ?? false, intervalMinutes: night.exactIntervalMinutes, stratumID: "unknown:" + night.id)
-        }.sorted { $0.sleepDate == $1.sleepDate ? $0.id < $1.id : $0.sleepDate > $1.sleepDate }
-        let strata = Set(observations.map { $0.stratumID ?? "unknown:" + $0.id }).sorted()
-        profileNames = Dictionary(uniqueKeysWithValues: strata.enumerated().map { ($0.element, "S" + String($0.offset + 1)) })
-        candidates = candidates.compactMap { candidate in observations.first { $0.id == candidate.id } }
-        if let selected { self.selected = observations.first { $0.id == selected.id } }
-    }
-}
-
-private enum WorkBlockMetric: String, CaseIterable {
-    case appleSleep = "Apple Health main sleep", whoopSleep = "WHOOP main sleep", interval = "D1–D2 interval", afterDose2 = "Observed sleep after Dose 2"
-    func value(_ night: DashboardNightAggregate) -> Double? {
-        switch self {
-        case .appleSleep: return night.appleHealthSleepMinutes
-        case .whoopSleep: return night.whoopSleepMinutes
-        case .interval: return night.exactIntervalMinutes
-        case .afterDose2: return night.postDoseSleep?.asleepMinutes
-        }
     }
 }
 
@@ -335,7 +381,13 @@ private struct WorkBlockRecordDetail: View {
                 Text("Group: " + row.groupLabel(grouping) + " • " + row.groupSymbol(grouping))
                 Text(row.intervalMinutes.map { String(format: "D1–D2: %.3f minutes", $0) } ?? "D1–D2 interval unavailable")
                 if row.isOverride { Text("Reviewed override").font(.headline) }; Text(row.detail)
-                Text(row.value.map { String(format: "%.3f minutes", $0) } ?? "Measurement unavailable")
+                Text(row.value.map { String(format: "%.3f minutes contributed", $0) } ?? "No numeric contribution")
+                if let evidence = row.metricEvidence {
+                    Text("Recorded state: " + evidence.metric.state.rawValue)
+                    Text(evidence.metric.value.map { "Recorded value: " + String($0) + " " + evidence.metric.unit } ?? "Recorded value unavailable")
+                    Text(evidence.source + " • " + evidence.definitionVersion)
+                }
+                Text("Contribution: " + row.contributionReason)
                 Text("Block: " + (row.blockID.map { String($0.suffix(10)) } ?? "Unresolved"))
                 Text("Roster revision: " + (row.rosterID?.uuidString ?? "Unavailable"))
                 if let associationID = row.associationID, let association = document.associations.first(where: { $0.id == associationID }) {

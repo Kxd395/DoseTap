@@ -52,9 +52,12 @@ final class DosePatternDashboardUITests: XCTestCase {
         XCTAssertTrue(table.isHittable); table.tap()
         for _ in 0..<10 where !point.isHittable { app.swipeDown() }
         XCTAssertTrue(point.isHittable)
+        XCTAssertEqual(app.buttons["dose-pattern-point-spacing-session:overlap-b"].value as? String, "Selected observation")
         capture(app, "Exact selected overlapping observation remains marked in paired chart")
         let companion = app.buttons["dose-pattern-point-companion-session:overlap-c"]
-        reveal(companion, in: app); XCTAssertTrue(companion.isHittable); companion.tap()
+        reveal(companion, in: app); XCTAssertTrue(companion.isHittable)
+        capture(app, "Categorical companion keeps labels and observed values distinct")
+        companion.tap()
         let single = app.buttons["dose-pattern-row-session:overlap-c"].firstMatch
         reveal(single, in: app); XCTAssertTrue(single.isHittable); single.tap()
         XCTAssertTrue(app.navigationBars["Observation detail"].waitForExistence(timeout: 5))

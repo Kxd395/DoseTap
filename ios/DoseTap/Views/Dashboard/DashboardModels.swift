@@ -65,7 +65,7 @@ final class DashboardAnalyticsModel: ObservableObject {
         let fixture = sessionRepo == nil && providerQueries == nil ? DashboardAssociationUITestFixture.dependencies() : nil
         self.sessionRepo = sessionRepo ?? fixture?.repository ?? .shared
         self.providerAccess = providerAccess
-        self.providerQueries = providerQueries ?? fixture?.queries ?? .live
+        self.providerQueries = providerQueries ?? fixture?.queries ?? Self.dashboardDisplayFixtureQueries() ?? .live
         publishedProviderAccess = providerAccess.revision
         installReplaySourceObservation()
         providerAccessSubscription = providerAccess.changes.sink { [weak self] provider in
@@ -75,6 +75,17 @@ final class DashboardAnalyticsModel: ObservableObject {
                 Task { @MainActor [weak self] in self?.providerAccessChanged(provider) }
             }
         }
+    }
+
+    private static func dashboardDisplayFixtureQueries() -> DashboardProviderQueries? {
+        #if DEBUG && targetEnvironment(simulator)
+        guard ProcessInfo.processInfo.arguments.contains("--uitesting-dashboard") else { return nil }
+        return .init(healthEnabled: { true }, whoopEnabled: { true }, whoopConnected: { true },
+            prepareHealth: { .ready }, healthHistory: { _ in [] },
+            whoopHistory: { _, _ in .init(summaries: [], sleepRecordCount: 0, recoveryRecordCount: 0, recoveryStatus: .completed) })
+        #else
+        return nil
+        #endif
     }
 
     let sessionRepo: SessionRepository
@@ -137,16 +148,22 @@ import Foundation
 
 extension DashboardAnalyticsModel {
     /// Deterministic display-only fixtures. Never writes to a repository or requests provider access.
-    func loadDashboardUITestFixtureIfRequested() -> Bool {
-        let arguments = ProcessInfo.processInfo.arguments
+    func loadDashboardUITestFixtureIfRequested(arguments: [String] = ProcessInfo.processInfo.arguments) -> Bool {
         guard arguments.contains("--uitesting-dashboard") else { return false }
         reportingAsOf = now(); reportingTimeZone = timeZone()
-        healthQueryWindow = currentReportWindow
+        invalidateContextPublication(); invalidateWorkInspectionContext()
+        doseReviewReadReady = false; providerAssociationsReady = false
+        guard let window = try? resolveReportingWindow(asOf: reportingAsOf, timeZone: reportingTimeZone) else {
+            errorMessage = "The fixture reporting period is invalid."; return true
+        }
+        reportingPeriod = window.reviewedPeriod; publishedCustomReportingRange = customReportingRange
+        healthQueryWindow = window
+        var calendar = Calendar(identifier: .gregorian); calendar.timeZone = reportingTimeZone
         nights = []
         if !arguments.contains("--dashboard-empty") {
             nights = (1...8).map { offset in
-                let date = Calendar.current.date(byAdding: .day, value: -offset, to: now())!
-                let key = Self.keyFormatter.string(from: date)
+                let date = calendar.date(byAdding: .day, value: -offset, to: reportingAsOf)!
+                let key = sessionKey(for: date, timeZone: reportingTimeZone)
                 var health = HealthKitService.SleepNightSummary(date: date, bedTime: nil, sleepOnset: date.addingTimeInterval(600),
                     firstWake: nil, finalWake: date.addingTimeInterval(Double(390 + offset * 10) * 60 + 1200), ttfwMinutes: 180, totalSleepMinutes: Double(390 + offset * 10), wakeCount: 2, source: "UI test")
                 health.recordedIntervals = [.init(start: date.addingTimeInterval(600), end: date.addingTimeInterval(12_000), asleep: true),
@@ -195,9 +212,28 @@ extension DashboardAnalyticsModel {
             }
         }
         if arguments.contains("--dashboard-sparse") { nights = Array(nights.prefix(2)) }
+        do {
+            let snapshot = try sessionRepo.dashboardContextSnapshot(capturedAt: reportingAsOf)
+            let reviews = try sessionRepo.dashboardDoseReviews()
+            let work = try sessionRepo.workContext()
+            nights = nights.map { row in
+                var row = row; row.applyContext(snapshot.timeline); row.doseReviewLedger = reviews[row.id]; return row
+            }
+            contextTimeline = snapshot.timeline; contextReadReady = true
+            savedProviderAssociations = snapshot.associations; providerAssociationsReady = true; doseReviewReadReady = true
+            publishWorkInspectionContext(work, nights: nights, asOf: reportingAsOf)
+        } catch {
+            errorMessage = "Fixture local records could not be read completely."; isLoading = false; return true
+        }
+        publishedProviderAccess = providerAccess.revision
+        healthSnapshot = .init(values: Dictionary(uniqueKeysWithValues: nights.compactMap { row in row.healthSummary.map { (row.id, $0) } }),
+            window: window, queryStart: window.healthQueryStart, epoch: publishedProviderAccess[.health])
+        whoopSnapshot = .init(values: Dictionary(uniqueKeysWithValues: nights.compactMap { row in row.whoopSummary.map { (row.id, $0) } }),
+            window: window, queryStart: window.healthQueryStart, epoch: publishedProviderAccess[.whoop])
+        if arguments.contains("--dashboard-partial") { whoopSnapshot?.failedAttemptAt = reportingAsOf }
         integrationStates = []
         errorMessage = arguments.contains("--dashboard-partial") ? "WHOOP sleep could not refresh. Local records are still available. Try Refresh again." : nil
-        lastRefresh = now()
+        lastRefresh = reportingAsOf
         isLoading = false
         return true
     }

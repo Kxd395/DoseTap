@@ -12,6 +12,8 @@ struct DosePatternDashboardView: View {
     @State private var detailPresented = false
     @Environment(\.horizontalSizeClass) private var width
     @Environment(\.dynamicTypeSize) private var typeSize
+    @ScaledMetric(relativeTo: .caption2) private var accessiblePlotHeight: CGFloat = 230
+    @ScaledMetric(relativeTo: .caption2) private var accessibleComparisonHeight: CGFloat = 100
 
     private struct Sample: Identifiable {
         let night: DashboardNightAggregate
@@ -165,6 +167,7 @@ struct DosePatternDashboardView: View {
             ForEach(basisGroups, id: \.first?.sleep.boundaryBasis) { group in
                 if let first = group.first {
                     Text("Sleep by night • " + endpointLabel(first.sleep.boundaryBasis)).font(.headline)
+                    Text("Vertical: sleep (minutes). Horizontal: treatment date; date ticks show month–day at accessibility sizes. Exact tables retain full dates.").font(.caption)
                     Chart(group) { sample in
                         if let value = sample.value {
                             PointMark(x: .value("Treatment date", sample.night.sessionDate), y: .value("Sleep minutes", value))
@@ -173,8 +176,9 @@ struct DosePatternDashboardView: View {
                                 .accessibilityLabel(label(sample))
                                 .annotation(position: .top) { selectedAnnotation(sample.id) }
                         }
-                    }.frame(height: 230).chartXScale(domain: Array(Set(group.map { $0.night.sessionDate })).sorted())
-                        .chartYScale(domain: 0...sleepMaximum).chartYAxisLabel("Sleep (minutes)")
+                    }.frame(height: plotHeight).chartXScale(domain: Array(Set(group.map { $0.night.sessionDate })).sorted())
+                        .chartYScale(domain: 0...sleepMaximum).chartYAxis { numericAxis }
+                        .chartXAxis { categoricalAxis(dates: true) }
                         .chartOverlay { plotOverlay(group, axes: .date, proxy: $0) }
                 }
             }
@@ -193,6 +197,7 @@ struct DosePatternDashboardView: View {
                     let summary = DiaryMetricSummary(included.map(Optional.some))
                     Text(DosePatternPresentation.summary(summary, total: group.count) + "; partial contributions \(group.filter { $0.sleep.metric.state == .partial && $0.sleep.summaryValue(includePartial: model.inspection.includePartialMetrics) != nil }.count)")
                         .font(.caption)
+                    Text("Horizontal: sleep (minutes). Vertical: reported dose pattern; the full category label is shown above.").font(.caption)
                     Chart(group) { sample in
                         if let value = sample.value {
                             PointMark(x: .value("Sleep minutes", value), y: .value("Pattern", first.night.dosePattern.pattern.label))
@@ -200,7 +205,8 @@ struct DosePatternDashboardView: View {
                                 .symbolSize(sample.sleep.metric.state == .partial ? 35 : 70).accessibilityLabel(label(sample))
                                 .annotation(position: .top) { selectedAnnotation(sample.id) }
                         }
-                    }.chartXScale(domain: 0...sleepMaximum).frame(height: 100)
+                    }.chartXScale(domain: 0...sleepMaximum).frame(height: typeSize.isAccessibilitySize ? accessibleComparisonHeight : 100)
+                        .chartXAxis { numericAxis }.chartYAxis { categoricalAxis(dates: false) }
                         .chartOverlay { plotOverlay(group, axes: .comparison, proxy: $0) }
                     Button("Inspect this compatible group") { candidates = Set(group.map(\.id)) }
                 }
@@ -231,6 +237,7 @@ struct DosePatternDashboardView: View {
     private func pairPanel(_ group: [Sample]) -> some View {
         VStack(alignment: .leading) {
             Text("D1–D2 spacing").font(.subheadline.bold())
+            Text("Horizontal: reported D1–D2 spacing (minutes). Vertical: sleep (minutes).").font(.caption)
             if group.isEmpty { Text("No usable pairs with this sleep measure.") }
             Chart(group) { sample in
                 if let pair = sample.pair, let value = sample.value {
@@ -240,14 +247,16 @@ struct DosePatternDashboardView: View {
                         .accessibilityLabel(label(sample))
                                 .annotation(position: .top) { selectedAnnotation(sample.id) }
                 }
-            }.frame(height: 230).chartYScale(domain: 0...sleepMaximum)
-                .chartXAxisLabel("Reported spacing (minutes)").chartYAxisLabel("Sleep (minutes)")
+            }.frame(height: plotHeight).chartYScale(domain: 0...sleepMaximum)
+                .chartXAxis { numericAxis }.chartYAxis { numericAxis }
                 .chartOverlay { plotOverlay(group, axes: .spacing, proxy: $0) }
         }.frame(maxWidth: .infinity)
     }
     private func companionPanel(_ group: [Sample]) -> some View {
         VStack(alignment: .leading) {
             Text("No usable D1–D2 spacing").font(.subheadline.bold())
+            Text("Horizontal: reported dose pattern. Vertical: sleep (minutes). Categories: "
+                + Array(Set(group.map { $0.night.dosePattern.pattern.label })).sorted().joined(separator: "; ")).font(.caption)
             if group.compactMap(\.value).isEmpty { Text("No observed sleep values; statuses remain in the exact table.") }
             Chart(group) { sample in
                 if let value = sample.value {
@@ -257,9 +266,47 @@ struct DosePatternDashboardView: View {
                         .accessibilityLabel(label(sample))
                                 .annotation(position: .top) { selectedAnnotation(sample.id) }
                 }
-            }.frame(height: 230).chartYScale(domain: 0...sleepMaximum).chartYAxisLabel("Sleep (minutes)")
+            }.frame(height: plotHeight).chartYScale(domain: 0...sleepMaximum)
+                .chartXAxis { categoricalAxis(dates: false) }.chartYAxis { numericAxis }
                 .chartOverlay { plotOverlay(group, axes: .companion, proxy: $0) }
         }.frame(maxWidth: .infinity)
+    }
+    private var plotHeight: CGFloat { typeSize.isAccessibilitySize ? accessiblePlotHeight : 230 }
+    private var numericAxis: some AxisContent {
+        AxisMarks(values: .automatic(desiredCount: typeSize.isAccessibilitySize ? 3 : 5)) { value in
+            AxisGridLine(); AxisTick()
+            AxisValueLabel {
+                if let number = value.as(Double.self) {
+                    Text(number.formatted(.number.precision(.fractionLength(0...1)))).font(.caption2)
+                }
+            }
+        }
+    }
+    private func categoricalAxis(dates: Bool) -> some AxisContent {
+        AxisMarks(values: .automatic(desiredCount: typeSize.isAccessibilitySize ? 2 : 5)) { value in
+            AxisGridLine(); AxisTick()
+            AxisValueLabel {
+                if let label = value.as(String.self) {
+                    Text(dates && typeSize.isAccessibilitySize ? String(label.suffix(5)) : categoryTick(label))
+                        .font(.caption2).frame(maxWidth: typeSize.isAccessibilitySize ? 140 : nil)
+                        .fixedSize(horizontal: false, vertical: true).multilineTextAlignment(.center)
+                }
+            }
+        }
+    }
+    private func categoryTick(_ label: String) -> String {
+        guard typeSize.isAccessibilitySize,
+              let pattern = DashboardDosePattern.Pattern.allCases.first(where: { $0.label == label }) else { return label }
+        switch pattern {
+        case .twoReported: return "Two reported"
+        case .singlePlanned: return "One, planned"
+        case .singleOmitted: return "One, D2 omitted"
+        case .singleUnknownPlan: return "One, plan unknown"
+        case .noneReported: return "Zero confirmed"
+        case .incomplete: return "Incomplete"
+        case .needsReview: return "Review needed"
+        case .inProgress: return "In progress"
+        }
     }
     private enum PlotAxes: String { case date, spacing, companion, comparison }
     @ViewBuilder private func selectedAnnotation(_ id: String) -> some View {
@@ -296,6 +343,7 @@ struct DosePatternDashboardView: View {
                     }.buttonStyle(.plain).position(x: bounds.minX + point.point.x, y: bounds.minY + point.point.y)
                         .accessibilityLabel("Inspect " + (group.first { $0.id == point.id }.map(label) ?? "observation"))
                         .accessibilityHint("Shows all overlapping observations; choose the exact session in the candidate table.")
+                        .accessibilityValue(model.inspection.selectedObservationID == point.id ? "Selected observation" : "Unselected observation")
                         .accessibilityIdentifier("dose-pattern-point-\(axes.rawValue)-\(point.id)")
                 }
             }.accessibilityElement(children: .contain)

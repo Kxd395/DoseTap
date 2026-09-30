@@ -1362,6 +1362,7 @@ final class DoseTapUITests: XCTestCase {
         review.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
         XCTAssertEqual(review.value as? String, "1")
         XCTAssertTrue(app.buttons["Save revision"].isEnabled); app.buttons["Save revision"].tap()
+        XCTAssertTrue(app.navigationBars["Work context"].waitForNonExistence(timeout: 5), "Successful save dismisses the editor; storage errors must remain visible")
         XCTAssertTrue(app.navigationBars["Work Block & Sleep"].waitForExistence(timeout: 5))
         app.buttons["work-context-configure"].tap()
         let history = app.staticTexts.matching(NSPredicate(format: "label MATCHES %@", "[1-9][0-9]* roster revisions • [0-9]+ work-date revisions")).firstMatch
@@ -1371,6 +1372,27 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Work Block & Sleep"].waitForExistence(timeout: 5))
         for _ in 0..<8 where !app.staticTexts["Records and exact values"].isHittable { app.swipeUp() }
         captureDashboard("Work cycle profile and exact record table")
+    }
+
+    func testDashboardWorkSharedSelectionSurvivesPhaseFilter() throws {
+        app.buttons["Dashboard"].tap()
+        let link = app.buttons["dashboard-work-block"]
+        XCTAssertTrue(link.waitForExistence(timeout: 10)); link.tap()
+        let record = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "work-context-record-")).firstMatch
+        for _ in 0..<15 where !record.isHittable { app.swipeUp() }
+        XCTAssertTrue(record.isHittable); record.tap()
+        XCTAssertTrue(app.navigationBars["Work context detail"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Recorded state:")).firstMatch.exists)
+        app.buttons["Done"].tap()
+        let controls = app.buttons["work-comparison-controls"]
+        for _ in 0..<15 where !controls.isHittable { app.swipeDown() }
+        controls.tap(); app.buttons["work-display"].tap(); app.buttons["Period summaries"].tap(); app.buttons["Done"].tap()
+        XCTAssertTrue(app.staticTexts["Compatible work-cycle summaries"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.switches["Separate calendar months"].exists)
+        captureDashboard("Monthly work summaries preserve compatible contexts and coverage")
+        controls.tap(); app.buttons["work-phase-filter"].tap(); app.buttons["Entering block"].tap(); app.buttons["Done"].tap()
+        XCTAssertTrue(app.staticTexts["work-selection-notice"].waitForExistence(timeout: 5))
+        captureDashboard("Filtered work observation selection remains retained")
     }
 
     func testDashboardWorkComparisonEncodings() throws {

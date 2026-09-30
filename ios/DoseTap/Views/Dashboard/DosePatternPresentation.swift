@@ -93,7 +93,8 @@ enum DosePatternPresentation {
         let provider: DashboardSleepMetricProjection.Source = source == .appleHealth ? .appleHealth : .whoop
         if outcome == .mainSleep {
             return .providerEpisode(totalMinutes: source == .appleHealth ? night.appleHealthSleepMinutes : night.whoopSleepMinutes,
-                                    source: provider, freshness: freshness)
+                                    source: provider, freshness: freshness,
+                                    evidenceReviewReason: source == .whoop ? night.whoopSummary?.sleepEvidenceReviewReason : nil)
         }
         let basis: DashboardSleepMetricProjection.BoundaryBasis = source == .whoop ? .unresolved
             : night.outcome?.finalWakeAt != nil ? .reportedFinalAwakening
