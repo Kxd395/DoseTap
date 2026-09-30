@@ -48,7 +48,7 @@ struct SleepNapsDashboardView: View {
     private func report(_ key: String) -> NapDayProjection {
         NapDayProjection(timeZoneID: zone, day: key, episodes: eligible.filter { $0.timeZoneID == zone }, review: document?.status(day: key, zone: zone, episodes: all) ?? .unreviewed)
     }
-    private var selected: NapEpisode? { dayRows.first { $0.id == selectedNap } }
+    private var selected: NapEpisode? { rows.first { $0.id == selectedNap && onInspectedDate($0) } }
     private var dayRows: [NapEpisode] { rows.filter { $0.day == day && $0.timeZoneID == zone } }
     private var projection: NapDayProjection {
         NapDayProjection(timeZoneID: zone, day: day, episodes: eligible.filter { $0.timeZoneID == zone },
@@ -67,16 +67,18 @@ struct SleepNapsDashboardView: View {
     var body: some View {
         List {
             Section("Sleep across the day") {
+                DisclosureGroup("Sources and reporting rules") {
                 Text("Main-night dates: " + model.rangeDescription).font(.caption)
                 Text("Nap civil period: \(napWindow?.start.map { NapPeriodEligibility.stamp($0, zone: zone) } ?? "no history") to \(napWindow.map { NapPeriodEligibility.stamp($0.endExclusive, zone: zone) } ?? "unavailable") (end exclusive). Unknown starts on partial boundary dates cannot supply period estimates.").font(.caption)
-                if let issue = model.inspectionFilterIssue { Text(issue).foregroundStyle(.orange) }
                 Text("Main-night filters use the dashboard's selected source: \(model.sleepSource.rawValue).").font(.caption)
                 Text("Nap review as of \(NapPeriodEligibility.stamp(napAsOf, zone: zone)). Main provider history retains its dashboard query timestamp.").font(.caption)
                 Text("Night dose-pattern/work filters apply to main sleep and available dose candidates. Independent nap records use the civil-date range; they have no inferred night association and are not filtered by night context.").font(.caption)
                 Text("Naps retain their reviewed civil date inside the selected report dates. Main sleep keeps its treatment-session identity. These are separate measures, not a combined 24-hour total.").font(.caption)
+                Text(model.healthQueryDescription).font(.caption)
+                }
+                if let issue = model.inspectionFilterIssue { Text(issue).foregroundStyle(.orange) }
                 if let failure { Text(failure).foregroundStyle(.red) }
                 if let message = model.errorMessage { Text(message).foregroundStyle(.orange) }
-                Text(model.healthQueryDescription).font(.caption)
                 DatePicker("Inspect calendar day", selection: $selectedDay, in: calendarExtent, displayedComponents: .date)
                 if let bounds = dayBounds {
                     Text("\(day) in \(zone): \(Int(bounds.1.timeIntervalSince(bounds.0) / 3600)) elapsed hours. DST calendar days are not always 24 hours.").font(.caption)
@@ -116,7 +118,7 @@ struct SleepNapsDashboardView: View {
                 Button("Save day review", action: saveDay).disabled(document == nil || completeness == nil)
             }
             Section("Exact nap records") {
-                if dayRows.isEmpty { Text("No nap record for this date. That does not establish no naps.") }
+                if dayRows.isEmpty { Text("No nap record saved for this date in \(zone). That does not establish no naps.") }
                 ForEach(dayRows) { row in
                     Button { selectedNap = row.id; napCheck.invalidate() } label: {
                         VStack(alignment: .leading) {
@@ -135,11 +137,15 @@ struct SleepNapsDashboardView: View {
                 if let selected {
                     Button("Review selected nap") { editing = selected }.disabled(document == nil)
                     providerPanel(selected)
+                    let selectedProjection = NapDayProjection(timeZoneID: selected.timeZoneID, day: selected.day, episodes: eligible.filter { $0.timeZoneID == selected.timeZoneID }, review: document?.status(day: selected.day, zone: selected.timeZoneID, episodes: all) ?? .unreviewed)
+                    if selectedProjection.overlapIDs.contains(selected.id) || selectedProjection.unresolvedDuplicateIDs.contains(selected.id) {
+                        Text("Resolve overlapping or conflicting episode observations before comparing a nap-end interval.").font(.caption)
+                    } else { NapDoseComparisonView(episode: selected, nights: model.visibleInspectionNights, asOf: napAsOf, doseDataAsOf: model.reportingAsOf) }
                 }
                 let otherZones = rows.filter { $0.timeZoneID != zone && onInspectedDate($0) }
                 if !otherZones.isEmpty {
                     Text("\(otherZones.count) records have original calendar dates in another timezone that overlap this inspection date. They remain separate from this date's totals and retain original dates in the export.").font(.caption)
-                    ForEach(otherZones) { row in Button("\(row.day) · \(row.timeZoneID) · \(row.id.suffix(6))") { editing = row } }
+                    ForEach(otherZones) { row in Button("\(row.day) · \(row.timeZoneID) · \(row.id.suffix(6))") { selectedNap = row.id; napCheck.invalidate() }.accessibilityIdentifier("nap-record-" + row.id) }
                 }
             }
             Section("Main sleep and reviewed coverage") {
@@ -204,7 +210,7 @@ struct SleepNapsDashboardView: View {
             ForEach(model.visibleInspectionNights) { night in
                 if let summary = night.healthSummary, let lower = summary.sleepOnset ?? summary.bedTime,
                    let upper = summary.finalWake ?? summary.observationEnd, lower < upper, lower < bounds.1, upper > bounds.0 {
-                    BarMark(xStart: .value("Start", max(bounds.0, lower)), xEnd: .value("End", min(bounds.1, upper)), y: .value("Observation", "Primary episode bounds"))
+                    BarMark(xStart: .value("Start", max(bounds.0, lower)), xEnd: .value("End", min(bounds.1, upper)), y: .value("Observation", "Apple Health episode bounds"))
                         .foregroundStyle(.blue)
                 }
             }
@@ -218,16 +224,16 @@ struct SleepNapsDashboardView: View {
         ForEach(naps) { nap in
             Text("Nap/rest \(nap.id): \(NapPeriodEligibility.stamp(nap.start!, zone: nap.timeZoneID)) – \(NapPeriodEligibility.stamp(nap.end!, zone: nap.timeZoneID)); original date \(nap.day), \(nap.timeZoneID)." + (nap.sourceNeedsReview ? " Source changed; review required." : "")).font(.caption).textSelection(.enabled)
         }
-        Text("Blue: reported primary-episode bounds. Orange: reported nap/rest window. Neither span means continuously asleep; checked coverage below supplies resolved asleep/awake/unknown accounting. Duration-only and incomplete naps have no invented bar. Cross-midnight bars are clipped; records retain their original episode date.").font(.caption)
+        Text("Blue: Apple Health primary-episode bounds. Orange: reported nap/rest window. Neither span means continuously asleep; checked coverage below supplies resolved asleep/awake/unknown accounting. Duration-only and incomplete naps have no invented bar. Cross-midnight bars are clipped; records retain their original episode date.").font(.caption)
         let measured = main.isEmpty ? nil : SleepIntervalCoverage.calculate(start: bounds.0, end: bounds.1, intervals: main)?.asleepMinutes
         Chart {
-            if let measured { BarMark(x: .value("Measure", "Observed primary sleep"), y: .value("Minutes", measured)).foregroundStyle(.blue) }
+            if let measured { BarMark(x: .value("Measure", "Apple Health primary sleep"), y: .value("Minutes", measured)).foregroundStyle(.blue) }
             ForEach(NapIntent.allCases, id: \.self) { intent in
                 if let estimated = projection.estimatedMinutesByIntent[intent] { BarMark(x: .value("Measure", intent.rawValue), y: .value("Minutes", estimated)).foregroundStyle(.orange) }
             }
         }.frame(height: 130)
         ForEach(NapIntent.allCases, id: \.self) { intent in Text("\(intent.rawValue): \(minutes(projection.estimatedMinutesByIntent[intent])) reported asleep").font(.caption) }
-        Text("Primary-episode asleep intervals on this day: \(minutes(measured)). Reported nap estimates: \(minutes(projection.estimatedMinutes)). Separate bars are not additive: main coverage may be partial and nap estimates have a different source.").font(.caption)
+        Text("Apple Health primary-episode asleep intervals on this day: \(minutes(measured)). Reported nap estimates: \(minutes(projection.estimatedMinutes)). Separate bars are not additive: main coverage may be partial and nap estimates have a different source.").font(.caption)
     }
     @ViewBuilder private func providerPanel(_ episode: NapEpisode) -> some View {
         let reviewed = document?.current.contains { $0.id == episode.id } == true

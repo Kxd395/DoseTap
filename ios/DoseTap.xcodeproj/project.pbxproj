@@ -18,6 +18,7 @@
 		NAP007B /* SleepNapsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAP007F /* SleepNapsUITests.swift */; };
 		NAP006B /* SleepNapsFixtureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAP006F /* SleepNapsFixtureView.swift */; };
 		NAP005B /* NapPeriodEligibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAP005F /* NapPeriodEligibility.swift */; };
+		NAP008B /* NapDoseComparisonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAP008F /* NapDoseComparisonView.swift */; };
 		NAP004B /* SleepNapsDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAP004F /* SleepNapsDashboardView.swift */; };
 		DPAD101 /* DashboardDosePatternAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPAD001 /* DashboardDosePatternAdapter.swift */; };
 		DDRV001 /* EventStorage+DashboardDoseReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDRV101; };
@@ -263,6 +264,7 @@
 		NAP007F /* SleepNapsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SleepNapsUITests.swift"; sourceTree = "<group>"; };
 		NAP006F /* SleepNapsFixtureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SleepNapsFixtureView.swift"; sourceTree = "<group>"; };
 		NAP005F /* NapPeriodEligibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NapPeriodEligibility.swift"; sourceTree = "<group>"; };
+		NAP008F /* NapDoseComparisonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NapDoseComparisonView.swift"; sourceTree = "<group>"; };
 		NAP004F /* SleepNapsDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SleepNapsDashboardView.swift"; sourceTree = "<group>"; };
 		DPAD001 /* DashboardDosePatternAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardDosePatternAdapter.swift; sourceTree = "<group>"; };
 		DDRV101 /* EventStorage+DashboardDoseReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+DashboardDoseReview.swift"; sourceTree = "<group>"; };
@@ -686,6 +688,7 @@
 				NAP003F /* NapProviderCheck.swift */,
 				NAP006F /* SleepNapsFixtureView.swift */,
 				NAP005F /* NapPeriodEligibility.swift */,
+				NAP008F /* NapDoseComparisonView.swift */,
 				NAP004F /* SleepNapsDashboardView.swift */,
 				NAP002F /* NapEpisodeEditor.swift */,
 				CLUST002 /* DashboardViews.swift */,
@@ -1174,6 +1177,7 @@
 				NAP003B /* NapProviderCheck.swift in Sources */,
 				NAP006B /* SleepNapsFixtureView.swift in Sources */,
 				NAP005B /* NapPeriodEligibility.swift in Sources */,
+				NAP008B /* NapDoseComparisonView.swift in Sources */,
 				NAP004B /* SleepNapsDashboardView.swift in Sources */,
 				NAP002B /* NapEpisodeEditor.swift in Sources */,
 				NAP001B /* EventStorage+NapDiary.swift in Sources */,

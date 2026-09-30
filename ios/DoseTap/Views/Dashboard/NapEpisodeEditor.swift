@@ -39,7 +39,7 @@ struct NapEpisodeEditor: View {
                     Toggle("I know the end time", isOn: $endKnown)
                     if endKnown { DatePicker("Nap / rest ended", selection: $end, in: ...Date()) }
                     if !hasTimes || !endKnown { Text("A missing clock boundary stays unknown. A duration-only report has no invented clock position.").font(.caption) }
-                    Toggle("I can estimate time actually asleep", isOn: $estimateKnown).accessibilityIdentifier("nap-estimate-known")
+                    Toggle("Sleep estimate available", isOn: $estimateKnown).accessibilityIdentifier("nap-estimate-known")
                     if estimateKnown { TextField("Estimated asleep minutes", text: $estimate).keyboardType(.decimalPad).accessibilityIdentifier("nap-estimated-minutes") }
                     TextField("Optional reported benefit (0–10)", text: $benefit).keyboardType(.numberPad)
                     Text("Custom rating: 0 = no benefit, 10 = greatest perceived benefit. Leave blank if unknown; this is not a validated symptom scale.").font(.caption)
@@ -48,7 +48,7 @@ struct NapEpisodeEditor: View {
                 if original?.sourceEventIDs.isEmpty == false {
                     Section("Recorded timer evidence") {
                         if let capturedSource {
-                            Text("Recorded start: \(capturedSource.start?.formatted() ?? "unknown"); recorded end: \(capturedSource.end?.formatted() ?? "unknown").")
+                            Text("Recorded start: \(capturedSource.start.map { NapPeriodEligibility.stamp($0, zone: capturedSource.timeZoneID) } ?? "unknown"); recorded end: \(capturedSource.end.map { NapPeriodEligibility.stamp($0, zone: capturedSource.timeZoneID) } ?? "unknown").")
                             Text("Your reviewed report above remains separate from these source boundaries.").font(.caption)
                         } else { Text("The original timer evidence is no longer available. Reopen if it changed, or explicitly remove its association with a reason.") }
                         Toggle("Retain recorded timer association", isOn: $keepSource)
@@ -58,13 +58,14 @@ struct NapEpisodeEditor: View {
                     Picker("Same episode as", selection: $duplicate) {
                         Text("Separate episode").tag("")
                         ForEach(candidates.filter { $0.id != original?.id && $0.duplicateOf == nil }) { value in
-                            Text("\(value.day) · \(value.start?.formatted() ?? "duration only") · \(value.id.suffix(6))").tag(value.id)
+                            Text("\(value.day) · \(value.start.map { NapPeriodEligibility.stamp($0, zone: value.timeZoneID) } ?? "duration only") · \(value.id.suffix(6))").tag(value.id)
                         }
                     }
                     Text("Choose an existing episode only after reviewing both records. A linked manual/device observation is counted once. Overlap alone does not establish a match.").font(.caption)
                     TextField("Correction or matching reason", text: $reason, axis: .vertical)
                 }
-                Toggle("I reviewed the timing, estimate and episode association", isOn: $reviewed).accessibilityIdentifier("nap-reviewed")
+                Text("Confirm after reviewing the timing, asleep estimate and episode association.").font(.caption)
+                Toggle("Review confirmed", isOn: $reviewed).accessibilityIdentifier("nap-reviewed")
                 if let error { Text(error).foregroundStyle(.red).accessibilityIdentifier("nap-save-error") }
             }.environment(\.timeZone, TimeZone(identifier: zone) ?? .current).scrollDismissesKeyboard(.immediately)
                 .navigationTitle(original == nil ? "Add nap report" : "Review nap").navigationBarTitleDisplayMode(.inline)

@@ -1,21 +1,23 @@
 import XCTest
 final class SleepNapsUITests: XCTestCase {
     private let app = XCUIApplication()
-    private func launch(largeText: Bool, reset: Bool, fixture: Bool = true) {
+    private func launch(largeText: Bool, reset: Bool, fixture: Bool = true, interval: Bool = false) {
         app.launchArguments = ["--uitesting", "-setup_completed_v2", "YES", "-healthkit_enabled", "NO", "-whoop_enabled", "NO"]
         if fixture { app.launchArguments.append("--uitesting-sleep-naps") }
         if reset { app.launchArguments.append("--uitesting-nap-reset") }
+        if interval { app.launchArguments.append("--uitesting-nap-interval") }
         if largeText { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
         app.launch()
     }
     private func reveal(_ element: XCUIElement) {
-        for _ in 0..<70 {
-            if element.exists && element.isHittable && element.frame.midY < app.frame.maxY * 0.60 && element.frame.midY > 150 { return }
+        for _ in 0..<24 {
+            if element.exists && element.isHittable && element.frame.midY < app.frame.maxY - 40 && element.frame.midY > 120 { return }
             let down = !element.exists || element.frame.midY > app.frame.midY
-            let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: down ? 0.50 : 0.35))
-            let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: down ? 0.25 : 0.65))
+            let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: down ? 0.55 : 0.35))
+            let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: down ? 0.30 : 0.60))
             start.press(forDuration: 0.1, thenDragTo: end)
         }
+        let attachment = XCTAttachment(screenshot: app.screenshot()); attachment.name = "Nap control visibility failure"; attachment.lifetime = .keepAlways; add(attachment)
         XCTFail("Control unavailable: \(element)")
     }
     private func setOn(_ identifier: String) {
@@ -25,6 +27,18 @@ final class SleepNapsUITests: XCTestCase {
     }
     func testExplicitDurationOnlyReviewPersistsAcrossRestart() { journey(largeText: false) }
     func testExplicitDurationOnlyReviewAtLargestText() { journey(largeText: true) }
+    func testActualNapEndRequiresExplicitDoseOccurrence() {
+        continueAfterFailure = false
+        launch(largeText: false, reset: true, interval: true)
+        let record = app.buttons["nap-record-synthetic-nap-ended"]; reveal(record); record.tap()
+        let unselected = app.staticTexts["No explicit endpoint pair selected."]; reveal(unselected); XCTAssertTrue(unselected.exists)
+        XCTAssertFalse(app.staticTexts["nap-dose-interval"].exists)
+        let choice = app.buttons["nap-dose-choice"]; reveal(choice); choice.tap()
+        let dose = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Dose 1 ·")).firstMatch
+        XCTAssertTrue(dose.waitForExistence(timeout: 5)); dose.tap()
+        let interval = app.staticTexts["nap-dose-interval"]; reveal(interval); XCTAssertEqual(interval.label, "45.0 elapsed minutes")
+        let attachment = XCTAttachment(screenshot: app.screenshot()); attachment.name = "Explicit actual nap end and dose occurrence"; attachment.lifetime = .keepAlways; add(attachment)
+    }
     private func journey(largeText: Bool) {
         continueAfterFailure = false
         launch(largeText: largeText, reset: false, fixture: false)
