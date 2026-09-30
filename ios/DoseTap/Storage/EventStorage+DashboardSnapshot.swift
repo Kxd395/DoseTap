@@ -39,7 +39,6 @@ extension EventStorage {
         // Existing diary/window evidence is embedded in these original answers.
         // Shared rows are references, not additional observations or measured sleep.
         // Preserve the full envelope, including revisions and unknown future fields.
-        _ = try daytimeCheckIns(); _ = try daytimeEvents()
         let daytime = try dashboardRows("daytime_checkins") + dashboardRows("daytime_events")
         let nightOutcomes = answers.filter { $0.columns["checkin_type"]?.text == "night_outcome" }
         var sections: [DashboardSnapshotSection] = []
@@ -61,9 +60,24 @@ extension EventStorage {
             sections.append(DashboardSnapshotSection(unavailable: provider,
                 reason: "Provider reporting is unavailable pending explicit consent and permitted transport handling."))
         }
+        let ledgers = try dashboardDoseReviews(now: capturedAt)
+        var reviews: [DashboardSharedDoseReview] = []
+        // Keep raw source export tolerant when there is no review to bind.
+        if !ledgers.isEmpty {
+            for local in try dashboardLocalSessions(inTransaction: true) where !local.needsReview {
+                guard let sessionID = local.sessionID, let review = ledgers[local.id]?.current,
+                      let shared = DashboardSharedDoseReview.project(review, sessionID: sessionID,
+                          treatmentDate: local.sessionDate, events: local.doses, capturedAt: capturedAt) else { continue }
+                reviews.append(shared)
+            }
+        }
+        let visits = try physicianVisits(now: capturedAt).dashboardShared(now: capturedAt)
         guard sqlite3_exec(db, "COMMIT", nil, nil, nil) == SQLITE_OK else { throw ExportReadError.unreadable }
         committed = true
-        return CloudDashboardSnapshot(sourceID: sourceID, sequence: sequence, capturedAt: capturedAt, sections: sections)
+        var snapshot = CloudDashboardSnapshot(sourceID: sourceID, sequence: sequence, capturedAt: capturedAt, sections: sections)
+        snapshot.doseReviews = reviews.sorted { $0.observationID < $1.observationID }
+        snapshot.completedVisits = visits
+        return snapshot
     }
 
     func dashboardRows(_ table: String) throws -> [StoredExportSourceRecord] {

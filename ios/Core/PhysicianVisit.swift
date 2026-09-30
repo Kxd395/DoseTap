@@ -64,6 +64,26 @@ public struct PhysicianVisitLedger: Codable, Equatable, Sendable {
     }
 }
 
+public extension PhysicianVisitLedger {
+    /// Nearby reports need completed dates, never private preparation or visit notes.
+    func dashboardShared(now: Date) throws -> Self {
+        try validate(now: now)
+        var shared = Self()
+        for visit in revisions {
+            try shared.append(PhysicianVisit(id: visit.id, revisionID: visit.revisionID,
+                predecessorID: visit.predecessorID, occurredAt: visit.occurredAt,
+                recordedAt: visit.recordedAt, note: "", now: now), now: now)
+        }
+        return shared
+    }
+    func validateDashboardShared(now: Date) throws {
+        try validate(now: now)
+        guard appointments.isEmpty, revisions.allSatisfy({ $0.note.isEmpty }) else {
+            throw DashboardSnapshotError.invalidPayload
+        }
+    }
+}
+
 public enum PhysicianReportRange: Equatable, Sendable {
     case days7, days28, days90, sixMonths, twelveMonths, sinceCompletedVisit
     case custom(start: Date, endExclusive: Date)

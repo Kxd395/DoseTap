@@ -31,6 +31,35 @@ final class DashboardSnapshotStorageTests: XCTestCase {
     private func columns(_ row: [String: Any]) throws -> [String: [String: Any]] {
         try XCTUnwrap(row["columns"] as? [String: [String: Any]])
     }
+
+    func testMalformedDaytimePayloadRemainsOriginalRawEvidence() throws {
+        let storage = EventStorage.inMemory()
+        execute("INSERT INTO daytime_checkins(revision_id,observation_id,payload) VALUES('bad','bad','unparsed original')", storage)
+        let snapshot = try storage.dashboardSnapshot(sourceID: "test", sequence: 1, capturedAt: now)
+        let daytime = try rows(.daytimeDiary, snapshot)
+        XCTAssertEqual(daytime.count, 1)
+        XCTAssertEqual(try columns(daytime[0])["payload"]?["text"] as? String, "unparsed original")
+    }
+    func testNearbyReviewIsBoundToCurrentDoseAndCompletedVisitsExcludeNotes() throws {
+        let storage = EventStorage.inMemory()
+        execute("INSERT INTO sleep_sessions(session_id,session_date,start_utc) VALUES('s','2026-09-21','2026-09-21T01:00:00Z')", storage)
+        execute("INSERT INTO dose_events(id,event_type,timestamp,session_date,session_id) VALUES('d1','dose1','2026-09-21T01:00:00Z','2026-09-21','s')", storage)
+        let local = try XCTUnwrap(storage.dashboardLocalSessions().first { $0.sessionID == "s" })
+        let review = DashboardDoseReview(observationID: local.id,
+            sourceFingerprint: try XCTUnwrap(DashboardDoseReview.observationFingerprint(observationID: local.id,
+                sessionDate: local.sessionDate, events: local.doses)),
+            confirmedCount: 1, historicalPlanCount: 1, secondNotTaken: nil, recordedAt: now, reason: "Private")
+        try storage.saveDashboardDoseReview(review, sessionDate: local.sessionDate, expectedRevision: nil, now: now)
+        let visit = try PhysicianVisit(occurredAt: now.addingTimeInterval(-100), recordedAt: now, note: "Private", now: now)
+        _ = try storage.savePhysicianVisit(visit, now: now)
+        let snapshot = try storage.dashboardSnapshot(sourceID: "test", sequence: 1, capturedAt: now)
+        XCTAssertEqual(snapshot.doseReviews?.first?.confirmedCount, 1)
+        XCTAssertEqual(snapshot.completedVisits?.current.first?.note, "")
+        XCTAssertEqual(try storage.physicianVisits(now: now).current.first?.note, "Private")
+        execute("UPDATE dose_events SET timestamp='2026-09-21T01:01:00Z' WHERE id='d1'", storage)
+        XCTAssertEqual(try storage.dashboardSnapshot(sourceID: "test", sequence: 2, capturedAt: now).doseReviews, [])
+    }
+
     func testEmptyCompleteLocalSectionsAndExplicitMissingCapabilities() throws {
         let storage = EventStorage.inMemory()
         let repository = SessionRepository(storage: storage, clock: { self.now })

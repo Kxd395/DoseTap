@@ -45,3 +45,17 @@ Sleep projection policy v2 requires an explicit post-Dose-2 endpoint basis befor
 WHOOP episode evidence includes its reported in-bed minutes as well as start/date and sleep-stage totals. A correction to that duration invalidates a prior episode association or provider-only count review even if the episode ID and other totals are unchanged. In-bed duration is not a substitute for an unavailable original provider end timestamp.
 
 WHOOP original endpoint evidence is an additive optional payload: exact sleep ID, raw optional API `start` and `end`, `timezone_offset`, `updated_at`, and the fixed provenance `whoop.v2.activity.sleep.start-end`. A legacy summary with no payload remains unavailable for endpoint eligibility. Reversed, equal, missing or nonfinite bounds are not repaired from duration. Valid bounds must agree with the summary ID and start/date; corrected endpoints invalidate source fingerprints. Named-endpoint period eligibility requires both endpoints inside the half-open reporting window and no endpoint after the as-of instant. This is provider episode evidence, not a user-reported main wake, final observed asleep instant, full sleep-stage interval coverage or provider authorization. Studio exports preserve the optional evidence without enabling a new nearby WHOOP dataset.
+Completed-visit reporting transfers a separately validated ledger of completed
+visit identities, revision links and timestamps. Visit notes, appointments and
+private physician report previews are excluded. The receiver rejects any
+unsanitized note or malformed revision chain before replacing its saved report.
+
+The companion projection groups dose evidence by durable session identity, never
+by treatment date alone. Reused IDs across dates remain unresolved. Custom daytime
+revision ledgers are decoded independently; malformed daytime payloads remain in
+the raw reporting copy and suppress daytime calculations with an explicit issue.
+They do not erase otherwise readable domains. Work context retains its document
+revision, original associations and planned-versus-confirmed basis.
+Unassigned questionnaire rows remain raw and contribute to an explicit unassigned
+count. They do not create a synthetic treatment night; malformed dates attached
+to an otherwise known ID mark that identity unresolved.

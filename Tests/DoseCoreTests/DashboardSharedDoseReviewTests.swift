@@ -60,4 +60,21 @@ final class DashboardSharedDoseReviewTests: XCTestCase {
         XCTAssertEqual(cache.snapshot?.sequence, 2)
     }
 
+    func testCompletedVisitsAreSanitizedAndUntrustedNotesRejected() throws {
+        let visit = try PhysicianVisit(occurredAt: now.addingTimeInterval(-3600), recordedAt: now,
+                                      note: "Private preparation", now: now)
+        var ledger = PhysicianVisitLedger(); try ledger.append(visit, now: now)
+        let sanitized = try ledger.dashboardShared(now: now)
+        XCTAssertEqual(sanitized.current.first?.id, visit.id)
+        XCTAssertEqual(sanitized.current.first?.note, "")
+        var snapshot = CloudDashboardSnapshot(sourceID: "synthetic", sequence: 1, capturedAt: now,
+            sections: DashboardDataset.allCases.map { .init(dataset: $0, rows: Data("[]".utf8), rowCount: 0) })
+        snapshot.completedVisits = sanitized
+        var cache = CloudDashboardCache(accountScope: "test", sourceID: "synthetic")
+        XCTAssertTrue(try cache.accept(snapshot, accountScope: "test", now: now))
+        snapshot.sequence = 2; snapshot.completedVisits = ledger
+        XCTAssertThrowsError(try cache.accept(snapshot, accountScope: "test", now: now))
+        XCTAssertEqual(cache.snapshot?.sequence, 1)
+    }
+
 }
