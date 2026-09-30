@@ -31,6 +31,7 @@ struct DashboardNightAggregate: Identifiable {
     var sessionClosed = false
     var identityNeedsReview = false
     var providerAssociation = "No provider association"
+    var localFingerprint: String? = nil
 
     var effectiveWakeMethod: Dose2WakeKind {
         guard dose2Time != nil, !outcomeReadFailed else { return .unknown }

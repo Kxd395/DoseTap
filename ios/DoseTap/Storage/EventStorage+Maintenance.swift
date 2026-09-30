@@ -39,7 +39,7 @@ extension EventStorage {
             "dashboard_dose_reviews", "confirmed_medication_administrations", "medication_preset_revisions",
             "sleep_events", "dose_events", "current_session", "sleep_sessions", "pre_sleep_logs",
             "morning_checkins", "checkin_submissions", "medication_events", "inventory_snapshots", "body_map_points",
-            "symptom_locations", "symptom_events", "symptom_command_log", "symptom_summaries", "work_wake_schedule", "supply_state"
+            "symptom_locations", "symptom_events", "symptom_command_log", "symptom_summaries", "dashboard_provider_associations", "work_wake_schedule", "supply_state"
         ]
         for table in tables {
             let sql = "DELETE FROM \(table)"
@@ -104,7 +104,7 @@ extension EventStorage {
 
         sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
 
-        let tables = ["dashboard_dose_reviews", "sleep_events", "dose_events", "sleep_sessions", "morning_checkins", "checkin_submissions", "medication_events", "symptom_events", "symptom_command_log", "symptom_summaries"]
+        let tables = ["dashboard_dose_reviews", "dashboard_provider_associations", "sleep_events", "dose_events", "sleep_sessions", "morning_checkins", "checkin_submissions", "medication_events", "symptom_events", "symptom_command_log", "symptom_summaries"]
         for table in tables {
             let sql = "DELETE FROM \(table) WHERE session_date < ?"
             var stmt: OpaquePointer?
@@ -167,7 +167,7 @@ extension EventStorage {
                 let tables = [
                     "sleep_events", "dose_events", "sleep_sessions", "morning_checkins",
                     "checkin_submissions", "medication_events", "symptom_events",
-                    "symptom_command_log", "symptom_summaries", "dashboard_dose_reviews"
+                    "symptom_command_log", "symptom_summaries", "dashboard_dose_reviews", "dashboard_provider_associations"
                 ]
                 for table in tables {
                     try deleteRowsForSessionOrThrow(table: table, sessionDate: sessionDate)
@@ -391,7 +391,7 @@ extension EventStorage {
         let allowedTables = Set([
             "sleep_events", "dose_events", "sleep_sessions", "morning_checkins",
             "checkin_submissions", "medication_events", "symptom_events",
-            "symptom_command_log", "symptom_summaries", "dashboard_dose_reviews"
+            "symptom_command_log", "symptom_summaries", "dashboard_dose_reviews", "dashboard_provider_associations"
         ])
         guard allowedTables.contains(table) else {
             throw StorageDeleteError.prepareFailed("delete from \(table)", "Unsupported table")

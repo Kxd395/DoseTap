@@ -97,7 +97,8 @@ extension DashboardAnalyticsModel {
 
         let aggregates: [DashboardNightAggregate]
         do {
-            aggregates = identityAggregates(local: try sessionRepo.dashboardLocalSessions(), health: healthByKey, whoop: whoopByKey)
+            let snapshot = try sessionRepo.dashboardIdentitySnapshot()
+            aggregates = identityAggregates(local: snapshot.sessions, health: healthByKey, whoop: whoopByKey, associations: snapshot.associations)
         } catch {
             errorMessage = "Local records could not be read completely. Previous dashboard data is retained. Try Refresh again."
             return
@@ -110,7 +111,7 @@ extension DashboardAnalyticsModel {
         healthQueryWindow = health?.window
         errorMessage = refreshErrors.isEmpty ? nil : refreshErrors.joined(separator: " ")
         if !refreshErrors.isEmpty { dashboardLogger.warning("Dashboard refresh completed with \(refreshErrors.count, privacy: .public) provider warnings") }
-        nights = aggregates.sorted { $0.sessionDate > $1.sessionDate }
+        nights = aggregates
         integrationStates = buildIntegrationStates(healthMatches: healthByKey.count, whoopMatches: whoopByKey.count)
         lastRefresh = asOf
         isLoading = false

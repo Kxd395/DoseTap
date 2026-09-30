@@ -3,7 +3,7 @@ import DoseCore
 
 extension DashboardAnalyticsModel {
     func identityAggregates(local: [DashboardLocalSession], health: [String: HealthKitService.SleepNightSummary],
-                            whoop: [String: WHOOPNightSummary]) -> [DashboardNightAggregate] {
+                            whoop: [String: WHOOPNightSummary], associations: [DashboardProviderAssociation] = []) -> [DashboardNightAggregate] {
         var result = local.map { session -> DashboardNightAggregate in
             let metrics = Self.deriveDoseMetrics(from: session.doses)
             let events = session.events.sorted { $0.timestamp < $1.timestamp }
@@ -14,6 +14,7 @@ extension DashboardAnalyticsModel {
                 duplicateClusterCount: buildStoredEventDuplicateGroups(events: events).count,
                 napSummary: SessionRepository.napSummary(events: events))
             row.sessionID = session.sessionID; row.stableID = session.id; row.doseEvents = session.doses
+            row.localFingerprint = session.fingerprint
             row.sessionClosed = session.sessionClosed; row.identityNeedsReview = session.needsReview
             row.outcome = session.outcome; row.outcomeReadFailed = session.outcomeReadFailed
             return row
@@ -31,7 +32,15 @@ extension DashboardAnalyticsModel {
                     row.stableID = source == "health" ? health[key]!.id : "whoop:\(whoop[key]!.id)"
                     row.providerAssociation = candidates.isEmpty ? "Provider-only sleep; no session association"
                         : "Ambiguous session association; provider-only sleep"
-                    result.append(row)
+                    if let evidence = row.unmatchedProviderEvidence,
+                       let match = associations.first(where: { $0.episodeID == evidence.episode }),
+                       match.provider == evidence.provider, match.episodeFingerprint == evidence.fingerprint,
+                       let index = result.firstIndex(where: { $0.sessionID == match.sessionID && $0.sessionDate == key }),
+                       !result[index].identityNeedsReview, result[index].localFingerprint == match.sessionFingerprint {
+                        if source == "health" { result[index].healthSummary = row.healthSummary }
+                        else { result[index].whoopSummary = row.whoopSummary }
+                        result[index].providerAssociation = "Explicit provider match · v1"
+                    } else { result.append(row) }
                 }
         }
         return result.sorted { $0.sessionDate == $1.sessionDate ? $0.id < $1.id : $0.sessionDate > $1.sessionDate }

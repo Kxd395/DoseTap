@@ -127,6 +127,12 @@ extension EventStorage {
             payload TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS dashboard_provider_associations (
+            episode_id TEXT PRIMARY KEY, provider TEXT NOT NULL, session_id TEXT NOT NULL,
+            session_date TEXT NOT NULL, session_fingerprint TEXT NOT NULL, episode_fingerprint TEXT NOT NULL,
+            revision TEXT NOT NULL, recorded_at TEXT NOT NULL, UNIQUE(provider, session_id)
+        );
+
         CREATE TABLE IF NOT EXISTS sleep_sessions (
             session_id TEXT PRIMARY KEY,
             session_date TEXT NOT NULL,

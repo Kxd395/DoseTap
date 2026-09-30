@@ -14,6 +14,7 @@ struct DashboardLocalSession {
     var outcome: NightOutcomeDiary?
     var outcomeReadFailed = false
     var needsReview = false
+    var fingerprint = ""
 }
 
 @MainActor
@@ -27,11 +28,11 @@ extension SessionRepository {
 extension EventStorage {
     /// Read every contributing table in one snapshot. No date-based fallback,
     /// legacy synchronization, limits, writes, or swallowed SQL failures.
-    func dashboardLocalSessions() throws -> [DashboardLocalSession] {
-        guard databaseInitializationFailure == nil, let db, sqlite3_get_autocommit(db) != 0,
-              sqlite3_exec(db, "BEGIN DEFERRED", nil, nil, nil) == SQLITE_OK else { throw ExportReadError.unreadable }
+    func dashboardLocalSessions(inTransaction: Bool = false) throws -> [DashboardLocalSession] {
+        guard databaseInitializationFailure == nil, let db,
+              (inTransaction ? sqlite3_get_autocommit(db) == 0 : (sqlite3_get_autocommit(db) != 0 && sqlite3_exec(db, "BEGIN DEFERRED", nil, nil, nil) == SQLITE_OK)) else { throw ExportReadError.unreadable }
         var committed = false
-        defer { if !committed { sqlite3_exec(db, "ROLLBACK", nil, nil, nil) } }
+        defer { if !committed && !inTransaction { sqlite3_exec(db, "ROLLBACK", nil, nil, nil) } }
         let records = try ["sleep_sessions", "current_session", "dose_events", "sleep_events",
                            "morning_checkins", "checkin_submissions", "pre_sleep_logs"].flatMap { try dashboardRows($0) }
         var dates: [String: Set<String>] = [:]
@@ -42,6 +43,7 @@ extension EventStorage {
             }
         }
         var groups: [String: DashboardLocalSession] = [:]
+        var evidence: [String: [String]] = [:]
         var questionnaireCounts: [String: Int] = [:]
         for row in records {
             let c = row.columns
@@ -73,7 +75,10 @@ extension EventStorage {
             group.needsReview = group.needsReview || resolved == nil
             switch row.sourceTable {
             case "sleep_sessions", "current_session":
-                group.sessionClosed = group.sessionClosed || text("end_utc") != nil || text("session_end_utc") != nil
+                if let ending = text("end_utc") ?? text("session_end_utc") {
+                    guard AppFormatters.parseISO8601Flexible(ending) != nil else { throw ExportReadError.unreadable }
+                    group.sessionClosed = true
+                }
             case "dose_events":
                 group.doses.append(.init(id: try required("id"), eventType: try required("event_type"),
                     timestamp: try timestamp("timestamp"), sessionDate: day, metadata: text("metadata"), sessionId: identity))
@@ -106,9 +111,15 @@ extension EventStorage {
                 questionnaireCounts[key + ":outcome", default: 0] += 1
             default: break
             }
+            evidence[key, default: []].append(dashboardFingerprint([row.sourceTable] + c.keys.sorted().flatMap { name in
+                let value = c[name]!
+                return [name, value.type, value.text ?? "", value.integer.map(String.init) ?? "",
+                        value.real.map { String($0) } ?? "", value.blobBase64 ?? ""]
+            }))
             groups[key] = group
         }
         for key in groups.keys {
+            groups[key]?.fingerprint = dashboardFingerprint(evidence[key, default: []].sorted())
             if questionnaireCounts[key + ":outcome", default: 0] > 1 {
                 groups[key]?.outcome = nil; groups[key]?.outcomeReadFailed = true
             }
@@ -116,7 +127,7 @@ extension EventStorage {
                 groups[key]?.needsReview = true
             }
         }
-        guard sqlite3_exec(db, "COMMIT", nil, nil, nil) == SQLITE_OK else { throw ExportReadError.unreadable }
+        guard inTransaction || sqlite3_exec(db, "COMMIT", nil, nil, nil) == SQLITE_OK else { throw ExportReadError.unreadable }
         committed = true
         return groups.values.sorted { $0.id < $1.id }
     }

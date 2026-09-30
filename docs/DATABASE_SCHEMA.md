@@ -355,3 +355,6 @@ Named timezone provenance is not yet stored on every historical event row. Exist
 ### Dashboard dose-history reviews
 
 `dashboard_dose_reviews(observation_id TEXT PRIMARY KEY, session_date TEXT NOT NULL, payload TEXT NOT NULL)` stores versioned explicit patient count/plan review revisions independently of dose events. Reads validate the full ledger; writes compare the expected revision inside one SQLite transaction. Existing records are not backfilled. Raw local source exports include the ledger; Clear All Data removes it. Source fingerprint mismatch prevents an old confirmation from classifying changed administration evidence.
+### Dashboard provider associations (local-only)
+
+`dashboard_provider_associations` is additive: `episode_id` TEXT primary key, `provider`, `session_id`, `session_date`, `session_fingerprint`, `episode_fingerprint`, `revision`, and `recorded_at` are non-null TEXT; `(provider, session_id)` is unique. It retains an explicit reviewed relationship, never medication or measured sleep. Fingerprints revalidate every dashboard read. Clear All Data and date/session deletion remove it. Provider relationship metadata is not transferred by the nearby/cloud source snapshot.
