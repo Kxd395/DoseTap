@@ -47,12 +47,13 @@ public struct DaytimeCheckIn: Codable, Equatable, Identifiable, Sendable {
     public let samplingProtocolLabel: String?
     public let eventReview: DaytimeEventReview?
     public let promptID: UUID?
+    public let sourceLinks: [DaytimeSourceLink]?
 
     public init(id: UUID = UUID(), revisionID: UUID = UUID(), predecessorID: UUID? = nil,
                 createdAt: Date? = nil, assessedAt: Date, recordedAt: Date, timeZoneIdentifier: String,
                 response: Int?, status: Status = .answered, origin: Origin = .userInitiated,
                 activity: Activity? = nil, setting: Setting = .unanswered, coping: Coping = .unanswered,
-                copingActions: Set<Action> = [], note: String = "", correctionReason: String? = nil, promptID: UUID? = nil, eventReview: DaytimeEventReview? = nil, samplingProtocolID: UUID? = nil, samplingProtocolLabel: String? = nil) throws {
+                copingActions: Set<Action> = [], note: String = "", correctionReason: String? = nil, promptID: UUID? = nil, eventReview: DaytimeEventReview? = nil, samplingProtocolID: UUID? = nil, samplingProtocolLabel: String? = nil, sourceLinks: [DaytimeSourceLink]? = nil) throws {
         self.id = id; self.revisionID = revisionID; self.predecessorID = predecessorID
         self.createdAt = createdAt ?? recordedAt; self.assessedAt = assessedAt; self.recordedAt = recordedAt
         self.timeZoneIdentifier = timeZoneIdentifier
@@ -61,12 +62,13 @@ public struct DaytimeCheckIn: Codable, Equatable, Identifiable, Sendable {
         self.response = response; self.status = status; self.origin = origin; self.activity = activity
         self.setting = setting; self.coping = coping; self.copingActions = copingActions.sorted { $0.rawValue < $1.rawValue }
         self.note = note; self.correctionReason = correctionReason; self.promptID = promptID; self.eventReview = eventReview
-        self.samplingProtocolID = samplingProtocolID; self.samplingProtocolLabel = samplingProtocolLabel
+        self.samplingProtocolID = samplingProtocolID; self.samplingProtocolLabel = samplingProtocolLabel; self.sourceLinks = sourceLinks
         try validate()
     }
 
     public func validate() throws {
         try eventReview?.validate()
+        try DaytimeSourceLink.validate(sourceLinks, recordedAt: recordedAt)
         guard eventReview.map({ $0.to <= recordedAt }) ?? true,
               samplingProtocolID == nil || origin == .scheduled,
               samplingProtocolLabel.map({ samplingProtocolID != nil && !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && $0.count <= 2000 }) ?? true, instrumentID == "dosetap.custom-current-sleepiness", contentVersion == "custom-0-10-v1", language == "en",
@@ -84,7 +86,7 @@ public struct DaytimeCheckIn: Codable, Equatable, Identifiable, Sendable {
         try Self(id: id, predecessorID: revisionID, createdAt: createdAt, assessedAt: assessedAt,
                  recordedAt: recordedAt, timeZoneIdentifier: timeZoneIdentifier, response: response, status: status,
                  origin: origin, activity: activity, setting: setting, coping: coping, copingActions: Set(copingActions),
-                 note: note, correctionReason: reason, promptID: promptID, eventReview: eventReview, samplingProtocolID: samplingProtocolID, samplingProtocolLabel: samplingProtocolLabel)
+                 note: note, correctionReason: reason, promptID: promptID, eventReview: eventReview, samplingProtocolID: samplingProtocolID, samplingProtocolLabel: samplingProtocolLabel, sourceLinks: sourceLinks)
     }
 
     public func encoded() throws -> String {
@@ -126,7 +128,7 @@ public struct DaytimeCheckInLedger: Sendable {
                       old.createdAt == value.createdAt, old.recordedAt <= value.recordedAt,
                       old.assessedAt == value.assessedAt, old.origin == value.origin, old.promptID == value.promptID,
                       old.timeZoneIdentifier == value.timeZoneIdentifier, old.samplingProtocolID == value.samplingProtocolID,
-                      old.samplingProtocolLabel == value.samplingProtocolLabel else { throw DaytimeDiaryError.conflict }
+                      old.samplingProtocolLabel == value.samplingProtocolLabel, old.sourceLinks == value.sourceLinks else { throw DaytimeDiaryError.conflict }
                 var seen: Set<UUID> = [value.revisionID]; var cursor = old
                 while let predecessor = cursor.predecessorID {
                     guard seen.insert(cursor.revisionID).inserted, let next = group.first(where: { $0.revisionID == predecessor }) else { throw DaytimeDiaryError.conflict }

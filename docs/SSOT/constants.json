@@ -369,7 +369,9 @@
     "sleepinessMinimum": 0,
     "sleepinessMaximum": 10,
     "maximumNoteCharacters": 2000,
-    "descriptiveClockBandHours": 6
+    "descriptiveClockBandHours": 6,
+    "maximumRelatedSourceLinks": 32,
+    "maximumSourceIdentifierCharacters": 300
   },
 
   "nightOutcomeDiary": {

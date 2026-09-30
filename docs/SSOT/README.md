@@ -1028,3 +1028,7 @@ Relevant trend comparisons partition by the explicit patient-entered medication-
 ### Sleep and naps review (DOSETAP-45)
 
 [Sleep and naps contract](contracts/sleep-naps.md) defines independent reviewed nap episodes, explicit daily completeness, overlap reconciliation and separate reported/rest/provider measures.
+
+### Nearby matched Apple Health episodes
+
+The optional `sleepEpisodes` sidecar carries named Apple Health main-episode derivations from the already opted-in bounded raw sleep packet, including original query completion time. It never performs a new query or enables sharing. Local association is exported only after the current saved provider and local fingerprints match within the raw-row SQLite snapshot transaction. Missing, stale or ambiguous matches retain provider-only identity. Private fingerprints are never transported. Episode intervals and original endpoint definitions remain distinct from app closing/check-in times. The consumer validates bounds, source receipt and exact local identity; an absent sidecar is unavailable, not zero sleep.

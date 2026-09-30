@@ -9,3 +9,5 @@ Dashboard association increment: add `dashboard_provider_associations` idempoten
 ## Independent daytime observation ledger (2026-09-30)
 
 Add `daytime_checkins` through idempotent `CREATE TABLE IF NOT EXISTS`. Each row stores a stable observation ID and unique immutable revision ID with validated JSON. Existing records are not migrated or reinterpreted. The ledger is independent of `sleep_sessions`; Clear All Data removes all of its revisions. Unknown content versions and invalid revision chains fail closed on read.
+
+Additive daytime payload fields (`sourceLinks`) decode as absent for existing observations. Link schema version 1 validates explicit source evidence; unknown versions fail closed. No new table, no backfilled source associations and no conversion of legacy night ratings.
