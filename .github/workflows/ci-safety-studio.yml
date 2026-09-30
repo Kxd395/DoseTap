@@ -1,0 +1,84 @@
+name: Safety UI and Studio
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: safety-studio-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  iphone-safety:
+    name: iPhone safety UI tests
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run the explicit iPhone UI scheme
+        run: bash tools/run_ci_iphone_tests.sh safety "$RUNNER_TEMP/iphone-safety"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: iphone-safety-test-evidence
+          path: |
+            ${{ runner.temp }}/iphone-safety/tests.log
+            ${{ runner.temp }}/iphone-safety/tests.xcresult
+          retention-days: 7
+
+  ios-export-fixtures:
+    name: iOS export fixture tests
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test production exporters with synthetic records
+        run: bash tools/run_ci_iphone_tests.sh exports "$RUNNER_TEMP/ios-exports"
+      - name: Extract the six required synthetic archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcrun xcresulttool export attachments --path "$RUNNER_TEMP/ios-exports/tests.xcresult" \
+            --output-path "$RUNNER_TEMP/ios-attachments" > "$RUNNER_TEMP/ios-exports/attachments.log"
+          python3 tools/export_studio_fixtures.py "$RUNNER_TEMP/ios-attachments" "$RUNNER_TEMP/studio-fixtures"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: studio-ios-fixtures
+          path: ${{ runner.temp }}/studio-fixtures
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-export-test-evidence
+          path: |
+            ${{ runner.temp }}/ios-exports/tests.log
+            ${{ runner.temp }}/ios-exports/attachments.log
+            ${{ runner.temp }}/ios-exports/tests.xcresult
+          retention-days: 7
+
+  studio-tests:
+    name: Studio tests
+    runs-on: macos-latest
+    needs: ios-export-fixtures
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download tested iOS archives
+        uses: actions/download-artifact@v4
+        with:
+          name: studio-ios-fixtures
+          path: ${{ runner.temp }}/studio-fixtures
+      - name: Validate fixture extraction safety
+        run: python3 tools/tests/studio_fixtures_test.py
+      - name: Build Studio and run all tests with required iOS fixtures
+        run: bash tools/run_ci_studio_tests.sh "$RUNNER_TEMP/studio-fixtures" "$RUNNER_TEMP/studio-tests"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: studio-test-evidence
+          path: |
+            ${{ runner.temp }}/studio-tests/build.log
+            ${{ runner.temp }}/studio-tests/tests.log
+          retention-days: 7

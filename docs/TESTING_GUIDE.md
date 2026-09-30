@@ -137,3 +137,22 @@ Evidence class: <automated, simulator runtime, signed device, external, owner ob
 Open gates: <what this run did not prove>
 ```
 
+
+### iPhone safety and Studio CI
+
+`ci-safety-studio.yml` runs the separate `DoseTapUITests` scheme for Dose 1 review without an alarm, Dose 2 cancel/background/explicit save, and quick-log availability before each dose. `tools/run_ci_iphone_tests.sh` requires each selected test to pass, applies execution timeouts, and retains the result bundle. These simulator checks do not establish signed-device alarm delivery or owner-observed acceptance.
+
+A separate iOS job exercises six production exporter scenarios with synthetic records. XCTest archive attachments pass through `tools/export_studio_fixtures.py`, which rejects missing/ambiguous archives, unsafe paths, symlinks, duplicate members and oversized expansion. It supports XCTest's generated attachment names and the exporter's single-folder ZIP layout.
+
+`tools/run_ci_studio_tests.sh` requires all six extracted payloads, builds Studio and runs its full suite. The iOS archive and raw-only identity round-trip tests must execute and pass; medication, stored-event, WHOOP and Apple Health fixtures also exercise their existing production-archive assertions. The two opt-in native preview tests remain a separate visual review gate.
+
+Local reproduction (choose a fresh output directory for every run):
+
+```bash
+bash tools/run_ci_iphone_tests.sh safety .build/ci-safety-local
+bash tools/run_ci_iphone_tests.sh exports .build/ci-exports-local
+xcrun xcresulttool export attachments --path .build/ci-exports-local/tests.xcresult --output-path .build/ci-attachments-local
+python3 tools/export_studio_fixtures.py .build/ci-attachments-local .build/ci-fixtures-local
+bash tools/run_ci_studio_tests.sh .build/ci-fixtures-local .build/ci-studio-local
+python3 tools/tests/studio_fixtures_test.py
+```
