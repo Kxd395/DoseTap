@@ -33,6 +33,18 @@ final class DashboardReplayCoverageTests: XCTestCase {
         XCTAssertEqual(value.bands.last?.end, base.addingTimeInterval(900))
         XCTAssertEqual(value.startID, "d2"); XCTAssertEqual(value.endID, "end")
     }
+    func testPartialEndpointQualityCannotPromoteCompleteReviewedCoverage() throws {
+        let source = DashboardReplaySnapshot(sessionID: "s", treatmentDate: "2026-09-21", asOf: base.addingTimeInterval(2000),
+            timeZoneID: "UTC", sourcePolicy: "Retained Apple Health", filterDescription: "test",
+            markers: [.init(id: "dose", sessionID: "s", kind: .dose2, occurredAt: base.addingTimeInterval(100), source: "actual"),
+                .init(id: "end", sessionID: "s", kind: .deviceSleepEnd, occurredAt: base.addingTimeInterval(300), source: "provider",
+                    evidenceQuality: .init(state: .partial, reason: "Retained source", capturedAt: base.addingTimeInterval(1000)))],
+            reviewedProjection: try projection())
+        let value = DashboardPostDoseCoverage.calculate(snapshot: source, preset: .dose2ToDeviceEnd)
+        XCTAssertEqual(value.state, .partial)
+        XCTAssertEqual(try XCTUnwrap(value.asleepMinutes), 200 / 60, accuracy: 0.0001)
+        XCTAssertEqual(value.unmeasuredMinutes, 0)
+    }
     func testUncheckedOrNonpositiveSpansDoNotInventZeroCoverage() throws {
         let unchecked = DashboardPostDoseCoverage.calculate(snapshot: snapshot(), preset: .dose2ToReportedWake)
         XCTAssertEqual(unchecked.state, .unavailable); XCTAssertNil(unchecked.asleepMinutes)

@@ -13,6 +13,77 @@ final class DashboardReplayTests: XCTestCase {
               timeZoneID: "America/New_York", sourcePolicy: "Apple Health main episode", filterDescription: "28 days",
               markers: markers, dose2NotTaken: omitted, identityResolved: resolved)
     }
+    func providerMarker(_ kind: DashboardReplayMarker.Kind, _ seconds: Double,
+                        state: DashboardMetricState = .available, captured: Double = 40_000) -> DashboardReplayMarker {
+        .init(id: kind.rawValue, sessionID: "session", kind: kind, occurredAt: base.addingTimeInterval(seconds),
+            source: "Original provider endpoint", evidenceQuality: .init(state: state, reason: "Provider capture policy",
+                capturedAt: base.addingTimeInterval(captured), providerRecordID: "original-provider-record"))
+    }
+    func testStaleProviderIntervalRetainsRawEvidenceButRequiresPartialOptIn() throws {
+        let source = snapshot([marker(.dose1, 0), marker(.dose2, 600), providerMarker(.deviceSleepEnd, 1200, state: .partial)])
+        let value = source.interval(.dose2ToDeviceEnd)
+        XCTAssertEqual(value.state, .partial); XCTAssertEqual(value.minutes, 10)
+        XCTAssertNil(value.eligibleMinutes())
+        XCTAssertEqual(value.eligibleMinutes(includePartial: true), 10)
+        XCTAssertEqual(source.interval(.dose1ToDose2).eligibleMinutes(), 10)
+        let decoded = try JSONDecoder().decode(DashboardReplaySnapshot.self, from: source.jsonData())
+        XCTAssertEqual(decoded.markers.last?.evidenceQuality?.providerRecordID, "original-provider-record")
+        XCTAssertEqual(decoded.markers.last?.occurredAt, base.addingTimeInterval(1200))
+        XCTAssertTrue(source.csv.contains("evidence_state"))
+        XCTAssertTrue(source.csv.contains("original-provider-record"))
+    }
+    func testMissingProviderQualityIsPartialAndInvalidQualityCannotBecomeAvailable() {
+        let legacy = snapshot([marker(.dose2, 0), marker(.deviceSleepEnd, 600)]).interval(.dose2ToDeviceEnd)
+        XCTAssertEqual(legacy.state, .partial); XCTAssertEqual(legacy.minutes, 10)
+        for state in [DashboardMetricState.unavailable, .notApplicable, .needsReview] {
+            let value = snapshot([marker(.dose2, 0), providerMarker(.deviceSleepEnd, 600, state: state)]).interval(.dose2ToDeviceEnd)
+            XCTAssertEqual(value.state, state); XCTAssertNil(value.minutes)
+        }
+        for date in [Double.nan, Double.infinity, 70_000] {
+            XCTAssertEqual(snapshot([marker(.dose2, 0), providerMarker(.deviceSleepEnd, 600, captured: date)])
+                .interval(.dose2ToDeviceEnd).state, .needsReview)
+        }
+        XCTAssertEqual(snapshot([marker(.dose2, 700), providerMarker(.deviceSleepEnd, 600, state: .partial)])
+            .interval(.dose2ToDeviceEnd).state, .needsReview)
+        XCTAssertEqual(snapshot([providerMarker(.deviceSleepEnd, 600, state: .partial)], omitted: true)
+            .interval(.dose2ToDeviceEnd).state, .notApplicable)
+    }
+    func testWHOOPOriginalEpisodeEndNeverBecomesLastObservedSleepOrFinalWake() {
+        let source = snapshot([marker(.dose2, 0), providerMarker(.whoopEpisodeStart, -600), providerMarker(.whoopEpisodeEnd, 1200)])
+        XCTAssertEqual(source.interval(.dose2ToWHOOPepisodeEnd).eligibleMinutes(), 20)
+        XCTAssertEqual(source.interval(.dose2ToDeviceEnd).state, .unavailable)
+        XCTAssertEqual(source.interval(.dose2ToReportedWake).state, .unavailable)
+        XCTAssertTrue(source.csv.contains("WHOOP original episode end"))
+    }
+    func testExplicitDosePairResolvesOnlyChosenCanonicalOccurrencesAndRetainsRawMarkers() throws {
+        let source = snapshot([marker(.dose1, 0), marker(.dose2, 600, id: "first-d2"),
+            marker(.dose2, 1200, id: "second-d2"), marker(.extraDose, 1800)])
+        XCTAssertEqual(source.interval(.dose1ToDose2).state, .needsReview)
+        let selected = try source.selectingDosePair(dose1ID: "dose1", dose2ID: "second-d2")
+        XCTAssertEqual(selected.interval(.dose1ToDose2).eligibleMinutes(), 20)
+        XCTAssertEqual(selected.interval(.dose1ToDose2).endID, "second-d2")
+        XCTAssertEqual(selected.markers, source.markers)
+        XCTAssertEqual(selected.position(of: base.addingTimeInterval(1800), alignment: .dose2), 10)
+        XCTAssertEqual(try selected.addingSelectedEndpoints([]).withViewContext("retained").dosePairSelection, selected.dosePairSelection)
+        let decoded = try JSONDecoder().decode(DashboardReplaySnapshot.self, from: selected.jsonData())
+        XCTAssertEqual(decoded.dosePairSelection, selected.dosePairSelection)
+        XCTAssertTrue(selected.csv.contains("selected_dose2_id,second-d2"))
+        XCTAssertEqual(try selected.selectingDosePair(dose1ID: nil, dose2ID: nil).interval(.dose1ToDose2).state, .needsReview)
+    }
+    func testDosePairCannotRelabelForeignExtraFutureOrReversedOccurrences() throws {
+        let candidates = [marker(.dose1, 0), marker(.dose2, 600), marker(.extraDose, 900),
+            marker(.dose2, 1200, id: "foreign", session: "other"), marker(.dose2, 70_000, id: "future"),
+            marker(.dose2, -1, id: "reversed")]
+        let source = snapshot(candidates)
+        for id in ["extraDose", "foreign", "future", "reversed", "missing", "dose1"] {
+            XCTAssertThrowsError(try source.selectingDosePair(dose1ID: "dose1", dose2ID: id))
+        }
+        XCTAssertThrowsError(try source.selectingDosePair(dose1ID: "dose1", dose2ID: nil))
+        let omitted = try snapshot(candidates, omitted: true).selectingDosePair(dose1ID: "dose1", dose2ID: "dose2")
+        XCTAssertEqual(omitted.interval(.dose1ToDose2).state, .needsReview)
+        XCTAssertEqual(snapshot([marker(.dose1, 0), marker(.dose2, 600)]).interval(.dose1ToDose2).referenceVersion,
+                       "dose_spacing_reference_v1_150_240_minutes")
+    }
     func testInvalidOrFutureDoseCannotAnchorAChart() {
         for offset in [Double.nan, Double.infinity, 70_000] {
             XCTAssertNil(snapshot([marker(.dose1, offset)]).position(of: base, alignment: .dose1))

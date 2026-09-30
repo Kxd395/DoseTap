@@ -2,7 +2,7 @@ import Foundation
 
 /// Coverage for a named post-administration span, retaining its independent endpoint meaning.
 public struct DashboardPostDoseCoverage: Codable, Equatable, Sendable {
-    public static let version = "dashboard_postdose_coverage_v1"
+    public static let version = "dashboard_postdose_coverage_v2"
     public struct Band: Codable, Equatable, Sendable {
         public let start: Date
         public let end: Date
@@ -35,7 +35,7 @@ public struct DashboardPostDoseCoverage: Codable, Equatable, Sendable {
         guard [.dose2ToDeviceEnd, .dose2ToReportedWake, .dose2ToRequiredWake].contains(preset) else {
             return result(.notApplicable, "Choose a named final endpoint for post-Dose-2 coverage")
         }
-        guard interval.state == .available else { return result(interval.state, interval.reason) }
+        guard interval.state == .available || interval.state == .partial else { return result(interval.state, interval.reason) }
         guard let start = snapshot.markers.first(where: { $0.id == interval.startID && $0.kind == preset.endpoints.0 })?.occurredAt,
               let end = snapshot.markers.first(where: { $0.id == interval.endID && $0.kind == preset.endpoints.1 })?.occurredAt, end > start else {
             return result(.needsReview, "The endpoint does not follow Dose 2; signed target timing remains separate")
@@ -70,8 +70,8 @@ public struct DashboardPostDoseCoverage: Codable, Equatable, Sendable {
         }
         if cursor < end { clipped.append(.init(start: cursor, end: end, state: .unmeasured)) }
         let conflicts = clipped.filter { $0.state == .conflict }.reduce(0.0) { $0 + $1.end.timeIntervalSince($1.start) / 60 }
-        let state: DashboardMetricState = coverage.status == .available ? .available : coverage.status == .partial ? .partial : .unavailable
-        return result(state, "Exact named span; conflicts are included in unmeasured; outside the checked window is unmeasured",
+        let state: DashboardMetricState = coverage.status == .available ? (interval.state == .partial ? .partial : .available) : coverage.status == .partial ? .partial : .unavailable
+        return result(state, "Exact named span; conflicts are included in unmeasured; outside the checked window is unmeasured; endpoint: " + interval.reason,
                       coverage: coverage, conflicts: conflicts, bands: clipped)
     }
 }

@@ -2,9 +2,20 @@ import Foundation
 
 /// Explicitly selected occurrence endpoints. Recording time is never substituted.
 public struct DashboardReplayMarker: Codable, Equatable, Identifiable, Sendable {
+    public struct EvidenceQuality: Codable, Equatable, Sendable {
+        public let state: DashboardMetricState
+        public let reason: String
+        public let capturedAt: Date?
+        public let providerRecordID: String?
+        public init(state: DashboardMetricState, reason: String, capturedAt: Date?, providerRecordID: String? = nil) {
+            self.state = state; self.reason = reason; self.capturedAt = capturedAt; self.providerRecordID = providerRecordID
+        }
+    }
     public enum Kind: String, Codable, CaseIterable, Sendable {
         case dose1, dose2, extraDose, foodFinish, caffeine, returnSleep, deviceSleepEnd, reportedWake, requiredWake
         case medicationXR, medicationIR, daytimeMedication, mainSleepStart, napEnd, reminder, alarmDelivered, event
+        case whoopEpisodeStart, whoopEpisodeEnd
+        public var isProviderDerived: Bool { [.mainSleepStart, .deviceSleepEnd, .returnSleep, .whoopEpisodeStart, .whoopEpisodeEnd].contains(self) }
         public var label: String {
             switch self {
             case .dose1: return "Dose 1"
@@ -24,6 +35,8 @@ public struct DashboardReplayMarker: Codable, Equatable, Identifiable, Sendable 
             case .reminder: return "Saved reminder target"
             case .alarmDelivered: return "Recorded alarm delivery"
             case .event: return "Recorded event"
+            case .whoopEpisodeStart: return "WHOOP original episode start"
+            case .whoopEpisodeEnd: return "WHOOP original episode end"
             }
         }
     }
@@ -37,12 +50,14 @@ public struct DashboardReplayMarker: Codable, Equatable, Identifiable, Sendable 
     public let medicationID: String?
     public let formulation: String?
     public let amountDescription: String?
+    public let evidenceQuality: EvidenceQuality?
     public init(id: String, sessionID: String, kind: Kind, occurredAt: Date, recordedAt: Date? = nil, source: String,
                 sourceRecordID: String? = nil, medicationID: String? = nil, formulation: String? = nil,
-                amountDescription: String? = nil) {
+                amountDescription: String? = nil, evidenceQuality: EvidenceQuality? = nil) {
         self.id = id; self.sessionID = sessionID; self.kind = kind; self.occurredAt = occurredAt
         self.recordedAt = recordedAt; self.source = source; self.sourceRecordID = sourceRecordID ?? id
         self.medicationID = medicationID; self.formulation = formulation; self.amountDescription = amountDescription
+        self.evidenceQuality = evidenceQuality
     }
 }
 
@@ -53,6 +68,9 @@ public enum DashboardIntervalPreset: String, Codable, CaseIterable, Identifiable
     case caffeineToDose1 = "Last caffeine to Dose 1", xrToIR = "Selected XR to IR"
     case medicationToSleep = "Daytime medication to main sleep", napToSleep = "Nap end to main sleep"
     case reminderDeviation = "Administration minus saved reminder", deliveredAlarmToDose = "Delivered alarm to administration"
+    case dose2ToWHOOPepisodeEnd = "Dose 2 to WHOOP original episode end"
+    case medicationToWHOOPepisodeStart = "Daytime medication to WHOOP original episode start"
+    case napToWHOOPepisodeStart = "Nap end to WHOOP original episode start"
     public var id: String { rawValue }
     public var endpoints: (DashboardReplayMarker.Kind, DashboardReplayMarker.Kind) {
         switch self {
@@ -68,6 +86,9 @@ public enum DashboardIntervalPreset: String, Codable, CaseIterable, Identifiable
         case .napToSleep: return (.napEnd, .mainSleepStart)
         case .reminderDeviation: return (.reminder, .dose2)
         case .deliveredAlarmToDose: return (.alarmDelivered, .dose2)
+        case .dose2ToWHOOPepisodeEnd: return (.dose2, .whoopEpisodeEnd)
+        case .medicationToWHOOPepisodeStart: return (.daytimeMedication, .whoopEpisodeStart)
+        case .napToWHOOPepisodeStart: return (.napEnd, .whoopEpisodeStart)
         }
     }
 }
@@ -80,6 +101,11 @@ public struct DashboardIntervalObservation: Codable, Equatable, Sendable {
     public let reason: String
     public let startID: String?
     public let endID: String?
+    public func eligibleMinutes(includePartial: Bool = false) -> Double? {
+        guard state == .available || (includePartial && state == .partial), let minutes, minutes.isFinite else { return nil }
+        return minutes
+    }
+    public var referenceVersion: String? { preset == .dose1ToDose2 ? "dose_spacing_reference_v1_150_240_minutes" : nil }
     public var referenceGroup: String? {
         guard preset == .dose1ToDose2, let minutes else { return nil }
         return minutes < 150 ? "Below reference" : minutes <= 240 ? "Within reference" : "Above reference"
@@ -105,18 +131,26 @@ public struct DashboardReplaySnapshot: Codable, Equatable, Sendable {
     public let identityResolved: Bool
     public let reviewedProjection: ReviewedNightSleepProjection?
     public let mainEpisodeIntervals: [RecordedSleepInterval]
+    public struct DosePairSelection: Codable, Equatable, Sendable {
+        public let dose1ID: String
+        public let dose2ID: String
+        public init(dose1ID: String, dose2ID: String) { self.dose1ID = dose1ID; self.dose2ID = dose2ID }
+    }
+    public let dosePairSelection: DosePairSelection?
     public init(sessionID: String, treatmentDate: String, asOf: Date, timeZoneID: String,
                 sourcePolicy: String, filterDescription: String, markers: [DashboardReplayMarker],
                 dose2NotTaken: Bool = false, identityResolved: Bool = true,
-                reviewedProjection: ReviewedNightSleepProjection? = nil, mainEpisodeIntervals: [RecordedSleepInterval] = []) {
+                reviewedProjection: ReviewedNightSleepProjection? = nil, mainEpisodeIntervals: [RecordedSleepInterval] = [],
+                dosePairSelection: DosePairSelection? = nil) {
         timestampEncoding = "JSON dates: elapsed seconds since 2001-01-01T00:00:00Z; CSV dates: ISO 8601 UTC"
-        derivationVersion = "dashboard_replay_v1"; self.sessionID = sessionID; self.treatmentDate = treatmentDate
+        derivationVersion = "dashboard_replay_v2"; self.sessionID = sessionID; self.treatmentDate = treatmentDate
         self.asOf = asOf; self.timeZoneID = timeZoneID; self.sourcePolicy = sourcePolicy
         self.filterDescription = filterDescription; self.markers = markers.sorted {
             $0.occurredAt == $1.occurredAt ? $0.id < $1.id : $0.occurredAt < $1.occurredAt
         }
         self.dose2NotTaken = dose2NotTaken; self.identityResolved = identityResolved
         self.reviewedProjection = reviewedProjection; self.mainEpisodeIntervals = mainEpisodeIntervals
+        self.dosePairSelection = dosePairSelection
     }
     public var hasValidBoundary: Bool {
         !sessionID.isEmpty && asOf.timeIntervalSinceReferenceDate.isFinite && TimeZone(identifier: timeZoneID) != nil
@@ -133,14 +167,15 @@ public struct DashboardReplaySnapshot: Codable, Equatable, Sendable {
     }
     public func interval(_ preset: DashboardIntervalPreset) -> DashboardIntervalObservation {
         let pair = preset.endpoints
-        let starts = markers.filter { $0.kind == pair.0 }, ends = markers.filter { $0.kind == pair.1 }
+        let starts = endpoints(for: pair.0), ends = endpoints(for: pair.1)
         func result(_ state: DashboardIntervalObservation.State, _ reason: String, _ value: Double? = nil) -> DashboardIntervalObservation {
             .init(preset: preset, minutes: value, state: state, reason: reason,
                   startID: starts.count == 1 ? starts.first?.id : nil, endID: ends.count == 1 ? ends.first?.id : nil)
         }
         guard hasValidBoundary else { return result(.needsReview, "Snapshot identity, as-of time or timezone is invalid") }
         guard identityResolved else { return result(.needsReview, "Session or episode association is unresolved") }
-        if preset == .dose1ToDose2 && markers.contains(where: { $0.kind == .extraDose }) {
+        guard dosePairIsValid else { return result(.needsReview, "Explicit dose pair is no longer valid") }
+        if preset == .dose1ToDose2 && dosePairSelection == nil && markers.contains(where: { $0.kind == .extraDose }) {
             return result(.needsReview, "Additional administration requires explicit pair review")
         }
         let selected = starts + ends
@@ -170,13 +205,59 @@ public struct DashboardReplaySnapshot: Codable, Equatable, Sendable {
         let minutes = end.occurredAt.timeIntervalSince(start.occurredAt) / 60
         let signed = preset == .dose2ToRequiredWake || preset == .reminderDeviation
         guard minutes.isFinite, signed || minutes > 0 else { return result(.needsReview, "Nonpositive endpoint order requires review") }
-        return result(.available, signed ? "Signed elapsed minutes; not a safety classification" : "UTC elapsed minutes; not sleep duration", minutes)
+        let quality = endpointQuality(selected)
+        let meaning = signed ? "Signed elapsed minutes; not a safety classification" : "UTC elapsed minutes; not sleep duration"
+        guard quality.0 == .available || quality.0 == .partial else { return result(quality.0, quality.1) }
+        return result(quality.0, meaning + (quality.1.isEmpty ? "" : "; " + quality.1), minutes)
+    }
+    private func endpoints(for kind: DashboardReplayMarker.Kind) -> [DashboardReplayMarker] {
+        let selectedID = kind == .dose1 ? dosePairSelection?.dose1ID : kind == .dose2 ? dosePairSelection?.dose2ID : nil
+        return markers.filter { $0.kind == kind && (selectedID == nil || $0.id == selectedID) }
+    }
+    private var dosePairIsValid: Bool {
+        guard let pair = dosePairSelection else { return true }
+        guard identityResolved, !pair.dose1ID.isEmpty, !pair.dose2ID.isEmpty, pair.dose1ID != pair.dose2ID else { return false }
+        let first = markers.filter { $0.id == pair.dose1ID }, second = markers.filter { $0.id == pair.dose2ID }
+        guard first.count == 1, second.count == 1, let start = first.first, let end = second.first,
+              start.kind == .dose1, end.kind == .dose2,
+              [start, end].allSatisfy({ $0.sessionID == sessionID && $0.occurredAt.timeIntervalSince1970.isFinite && $0.occurredAt <= asOf }) else { return false }
+        return end.occurredAt > start.occurredAt
+    }
+    public func selectingDosePair(dose1ID: String?, dose2ID: String?) throws -> Self {
+        guard hasValidBoundary, (dose1ID == nil) == (dose2ID == nil) else { throw SelectionError.invalidEndpoint }
+        let pair = dose1ID.flatMap { first in dose2ID.map { DosePairSelection(dose1ID: first, dose2ID: $0) } }
+        let value = Self(sessionID: sessionID, treatmentDate: treatmentDate, asOf: asOf, timeZoneID: timeZoneID,
+            sourcePolicy: sourcePolicy, filterDescription: filterDescription, markers: markers,
+            dose2NotTaken: dose2NotTaken, identityResolved: identityResolved, reviewedProjection: reviewedProjection,
+            mainEpisodeIntervals: mainEpisodeIntervals, dosePairSelection: pair)
+        guard value.dosePairIsValid else { throw SelectionError.invalidEndpoint }
+        return value
+    }
+    private func endpointQuality(_ endpoints: [DashboardReplayMarker]) -> (DashboardMetricState, String) {
+        var states: [DashboardMetricState] = [], reasons: [String] = []
+        for marker in endpoints where marker.kind.isProviderDerived || marker.evidenceQuality != nil {
+            guard let quality = marker.evidenceQuality else {
+                states.append(.partial); reasons.append("Provider capture quality is unknown; raw endpoint retained")
+                continue
+            }
+            if [.needsReview, .notApplicable, .unavailable].contains(quality.state) {
+                states.append(quality.state); reasons.append(quality.reason); continue
+            }
+            guard !quality.reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  quality.capturedAt.map({ $0.timeIntervalSince1970.isFinite && $0 >= marker.occurredAt && $0 <= asOf }) != false else {
+                states.append(.needsReview); reasons.append("Provider capture metadata is invalid"); continue
+            }
+            states.append(quality.capturedAt == nil ? .partial : quality.state)
+            reasons.append(quality.reason + (quality.capturedAt == nil ? "; capture time unknown" : ""))
+        }
+        let state = [DashboardMetricState.needsReview, .notApplicable, .unavailable, .partial].first { states.contains($0) } ?? .available
+        return (state, reasons.joined(separator: "; "))
     }
     public func withViewContext(_ description: String) -> Self {
         .init(sessionID: sessionID, treatmentDate: treatmentDate, asOf: asOf, timeZoneID: timeZoneID,
             sourcePolicy: sourcePolicy, filterDescription: filterDescription + "; " + description, markers: markers,
             dose2NotTaken: dose2NotTaken, identityResolved: identityResolved, reviewedProjection: reviewedProjection,
-            mainEpisodeIntervals: mainEpisodeIntervals)
+            mainEpisodeIntervals: mainEpisodeIntervals, dosePairSelection: dosePairSelection)
     }
     public enum SelectionError: Error { case invalidEndpoint }
     public func addingSelectedEndpoints(_ endpoints: [DashboardReplayMarker]) throws -> Self {
@@ -188,14 +269,14 @@ public struct DashboardReplaySnapshot: Codable, Equatable, Sendable {
         return .init(sessionID: sessionID, treatmentDate: treatmentDate, asOf: asOf, timeZoneID: timeZoneID,
             sourcePolicy: sourcePolicy, filterDescription: filterDescription + (endpoints.isEmpty ? "" : "; explicit inspection-only endpoint selection"),
             markers: markers.filter { !allowed.contains($0.kind) } + endpoints, dose2NotTaken: dose2NotTaken,
-            identityResolved: identityResolved, reviewedProjection: reviewedProjection, mainEpisodeIntervals: mainEpisodeIntervals)
+            identityResolved: identityResolved, reviewedProjection: reviewedProjection, mainEpisodeIntervals: mainEpisodeIntervals, dosePairSelection: dosePairSelection)
     }
     public func position(of date: Date, alignment: Alignment) -> Double? {
         guard hasValidBoundary, date.timeIntervalSince1970.isFinite else { return nil }
         if alignment == .clock { return date.timeIntervalSince1970 / 60 }
         let kind: DashboardReplayMarker.Kind = alignment == .dose1 ? .dose1 : .dose2
-        let matches = markers.filter { $0.kind == kind && $0.sessionID == sessionID }
-        guard identityResolved, matches.count == 1, let start = matches.first, !start.id.isEmpty,
+        let matches = endpoints(for: kind).filter { $0.sessionID == sessionID }
+        guard identityResolved, dosePairIsValid, matches.count == 1, let start = matches.first, !start.id.isEmpty,
               start.occurredAt.timeIntervalSince1970.isFinite, start.occurredAt <= asOf else { return nil }
         let minutes = date.timeIntervalSince(start.occurredAt) / 60
         return minutes.isFinite ? minutes : nil
@@ -211,6 +292,8 @@ public struct DashboardReplaySnapshot: Codable, Equatable, Sendable {
         }
         var rows = [["field", "value"], ["session_id", sessionID], ["treatment_date", treatmentDate],
                     ["derivation_version", derivationVersion], ["as_of", timestamp(asOf)],
+                    ["selected_dose1_id", dosePairSelection?.dose1ID ?? ""], ["selected_dose2_id", dosePairSelection?.dose2ID ?? ""],
+                    ["reference_version", "dose_spacing_reference_v1_150_240_minutes"],
                     ["timezone", timeZoneID], ["source_policy", sourcePolicy], ["filters", filterDescription],
                     ["reference", "150–240 minutes built-in reference only; not a prescription or safety range"],
                     ["preset", "minutes", "state", "reason", "start_id", "end_id", "reference_group"]]
@@ -235,10 +318,13 @@ public struct DashboardReplaySnapshot: Codable, Equatable, Sendable {
             rows += projection.bands.map { [timestamp($0.start),
                 timestamp($0.end), $0.state.rawValue] }
         }
-        rows += [["event_id", "kind", "occurred_at", "recorded_at", "source", "source_record_id", "medication_id", "formulation", "actual_amount"]]
+        rows += [["event_id", "kind", "occurred_at", "recorded_at", "source", "source_record_id", "medication_id", "formulation", "actual_amount", "evidence_state", "evidence_reason", "source_captured_at", "provider_record_id"]]
         rows += markers.map { [$0.id, $0.kind.rawValue, timestamp($0.occurredAt),
             $0.recordedAt.map { timestamp($0) } ?? "", $0.source,
-            $0.sourceRecordID ?? "", $0.medicationID ?? "", $0.formulation ?? "", $0.amountDescription ?? ""] }
+            $0.sourceRecordID ?? "", $0.medicationID ?? "", $0.formulation ?? "", $0.amountDescription ?? "",
+            $0.evidenceQuality?.state.rawValue ?? ($0.kind.isProviderDerived ? "partial" : "available"),
+            $0.evidenceQuality?.reason ?? ($0.kind.isProviderDerived ? "Provider capture quality unknown" : "Local recorded evidence"),
+            $0.evidenceQuality?.capturedAt.map(timestamp) ?? "", $0.evidenceQuality?.providerRecordID ?? ""] }
         return rows.map(ReportCSV.row).joined(separator: "\r\n")
     }
 }
