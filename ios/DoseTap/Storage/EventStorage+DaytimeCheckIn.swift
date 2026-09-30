@@ -30,6 +30,10 @@ extension EventStorage {
             sqlite3_exec(db, "ROLLBACK", nil, nil, nil)
             storageLog.error("Independent daytime observation transaction rolled back")
         } }
+        if let review = value.eventReview {
+            let events = try daytimeEvents().current
+            guard review.eventIDs.allSatisfy({ id in events.contains { $0.id == id && $0.occurredAt >= review.from && $0.occurredAt <= review.to } }) else { throw DaytimeDiaryError.invalid }
+        }
         let ledger = try daytimeCheckIns()
         let existing = ledger.revisions.first { $0.revisionID == value.revisionID }
         if let existing {

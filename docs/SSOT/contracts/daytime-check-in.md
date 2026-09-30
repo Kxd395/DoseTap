@@ -7,3 +7,11 @@
 - Every observation is independent of nighttime sessions. Saving, correcting and reading never records medication, changes dose alarms or creates a night. Failed reads block editing; failed writes keep the exact revision for retry and never show success.
 - SQLite stores original and corrected payloads; readback validates all payloads and revision chains. Clear All Data removes this ledger. Reports consume current revisions while preserving original provenance.
 - Routine reminders, prompt history, linked event-interval review, formal instruments and physical-device/owner/privacy acceptance remain separate work.
+
+## Explicit daytime events and interval review
+
+- A separately identified daytime event records reported unplanned sleep, interrupted activity, struggling to stay awake or an unclear event. Struggling is not counted as sleep. Approximate times are labeled; unknown duration remains absent. No medication/night record is created.
+- A check-in may review an explicit start/end interval as none reported, events reported, unsure or not reviewed. Event references are unique existing IDs; reviewing or reusing a reference never inserts another event. Missing/partial review is not a symptom-free day.
+- Corrections preserve event identity and original evidence. Reporting counts current event IDs once, separately from reviewed intervals and observed days. No extrapolated monthly burden or full-day percentage is derived.
+
+- Explicit nearby reporting snapshots include both independent ledgers in `daytimeDiary` as original source rows with all revisions. Consumers validate payloads and use current revisions; legacy morning/night ratings remain separate instruments. This transport does not include provider-owned health data.

@@ -38,13 +38,15 @@ extension EventStorage {
         // Existing diary/window evidence is embedded in these original answers.
         // Shared rows are references, not additional observations or measured sleep.
         // Preserve the full envelope, including revisions and unknown future fields.
+        _ = try daytimeCheckIns(); _ = try daytimeEvents()
+        let daytime = try dashboardRows("daytime_checkins") + dashboardRows("daytime_events")
         let nightOutcomes = answers.filter { $0.columns["checkin_type"]?.text == "night_outcome" }
         var sections: [DashboardSnapshotSection] = []
         for (dataset, records): (DashboardDataset, [StoredExportSourceRecord]) in [
             (.sessions, sessions), (.doseEvents, doses), (.quickLogs, quickLogs),
             (.preSleep, preSleep), (.morning, morning), (.normalizedAnswers, answers),
             (.medicationEntries, medications), (.presetVersions, presets), (.administrations, administrations),
-            (.daytimeDiary, morning + nightOutcomes), (.reviewedSleepWindows, nightOutcomes), (.inventory, inventory),
+            (.daytimeDiary, morning + nightOutcomes + daytime), (.reviewedSleepWindows, nightOutcomes), (.inventory, inventory),
             (.symptoms, symptoms), (.workSchedule, workSchedule)
         ] {
             let encoder = JSONEncoder()

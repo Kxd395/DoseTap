@@ -2356,7 +2356,7 @@ final class DoseTapUITests: XCTestCase {
 
 extension DoseTapUITests {
     func testDaytimeIndependentCheckInPersists() throws {
-        app.tabBars.buttons["History"].tap()
+        XCTAssertTrue(app.buttons["History"].firstMatch.waitForExistence(timeout: 15)); app.buttons["History"].firstMatch.tap()
         let entry = app.buttons["history-daytime"]
         XCTAssertTrue(entry.waitForExistence(timeout: 10)); entry.tap()
         let add = app.buttons["daytime-add"]
@@ -2370,14 +2370,14 @@ extension DoseTapUITests {
         XCTAssertTrue(app.staticTexts["Custom sleepiness: 4/10"].firstMatch.waitForExistence(timeout: 5))
         let screenshot = XCTAttachment(screenshot: app.screenshot()); screenshot.name = "Independent daytime observation"; screenshot.lifetime = .keepAlways; self.add(screenshot)
         app.terminate(); app.launch()
-        app.tabBars.buttons["History"].tap(); app.buttons["history-daytime"].tap()
+        XCTAssertTrue(app.buttons["History"].firstMatch.waitForExistence(timeout: 15)); app.buttons["History"].firstMatch.tap(); app.buttons["history-daytime"].tap()
         XCTAssertTrue(app.staticTexts["Custom sleepiness: 4/10"].firstMatch.waitForExistence(timeout: 5))
     }
 }
 
 extension DoseTapUITests {
     func testDaytimeFailureRetainsRetryLargeText() throws {
-        app.tabBars.buttons["History"].tap()
+        XCTAssertTrue(app.buttons["History"].firstMatch.waitForExistence(timeout: 15)); app.buttons["History"].firstMatch.tap()
         let entry = app.buttons["history-daytime"]
         XCTAssertTrue(entry.waitForExistence(timeout: 10)); entry.tap()
         app.buttons["daytime-add"].tap()
@@ -2389,5 +2389,22 @@ extension DoseTapUITests {
         XCTAssertEqual(save.label, "Retry exact observation"); save.tap()
         XCTAssertTrue(app.buttons["daytime-add"].waitForExistence(timeout: 5))
         let proof = XCTAttachment(screenshot: app.screenshot()); proof.name = "Daytime saved after exact retry largest text"; proof.lifetime = .keepAlways; add(proof)
+    }
+}
+
+extension DoseTapUITests {
+    func testDaytimeEventKeepsStrugglingSeparateFromSleep() throws {
+        XCTAssertTrue(app.buttons["History"].firstMatch.waitForExistence(timeout: 15)); app.buttons["History"].firstMatch.tap()
+        let entry = app.buttons["history-daytime"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 10)); entry.tap()
+        app.buttons["Daytime events"].tap()
+        app.buttons["daytime-event-add"].tap()
+        app.buttons["daytime-event-kind"].tap()
+        app.buttons["Struggling to stay awake"].tap()
+        let save = app.buttons["daytime-event-save"]
+        for _ in 0..<5 where !save.isHittable { app.swipeUp() }
+        save.tap()
+        XCTAssertTrue(app.staticTexts["Struggling to stay awake"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Approximate time · Duration unknown"].firstMatch.exists)
     }
 }

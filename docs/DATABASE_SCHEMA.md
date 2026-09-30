@@ -362,3 +362,5 @@ Named timezone provenance is not yet stored on every historical event row. Exist
 ## Independent daytime observations
 
 `daytime_checkins(revision_id TEXT PRIMARY KEY, observation_id TEXT NOT NULL, payload TEXT NOT NULL)` stores validated versioned custom diary JSON with original and correction revisions. Index `idx_daytime_observation` groups revisions. No foreign key or operation creates a nighttime session. Clear All Data includes this table.
+
+`daytime_events(revision_id TEXT PRIMARY KEY, event_id TEXT NOT NULL, payload TEXT NOT NULL)` retains original and corrected explicit daytime events. `idx_daytime_event` groups revisions. A check-in can reference existing stable event IDs within an explicit review interval; links do not duplicate event records. Clear All Data includes this independent ledger.

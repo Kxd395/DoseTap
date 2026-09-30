@@ -50,3 +50,53 @@ final class DaytimeCheckInStorageTests: XCTestCase {
         XCTAssertThrowsError(try repository.saveDaytimeCheckIn(value()))
     }
 }
+
+extension DaytimeCheckInStorageTests {
+    func testLinkedEventReviewCountsOneIndependentEvent() throws {
+        let repository = repo(EventStorage(dbPath: ":memory:"))
+        let event = try DaytimeEvent(kind: .unplannedSleep, occurredAt: now.addingTimeInterval(-600), recordedAt: now, timeZoneIdentifier: "UTC")
+        try repository.saveDaytimeEvent(event); try repository.saveDaytimeEvent(event)
+        let review = try DaytimeEventReview(from: now.addingTimeInterval(-3600), to: now, status: .eventsReported, eventIDs: [event.id])
+        for _ in 0..<2 {
+            let observation = try DaytimeCheckIn(assessedAt: now, recordedAt: now, timeZoneIdentifier: "UTC", response: nil, status: .incomplete, eventReview: review)
+            try repository.saveDaytimeCheckIn(observation)
+        }
+        XCTAssertEqual(try repository.daytimeEvents().current.count, 1)
+        XCTAssertEqual(try repository.daytimeCheckIns().current.count, 2)
+        XCTAssertTrue(try repository.sessionDatesForExport().isEmpty)
+    }
+    func testUnknownEventReferenceRejectedWithoutSaving() throws {
+        let repository = repo(EventStorage(dbPath: ":memory:"))
+        let review = try DaytimeEventReview(from: now, to: now, status: .eventsReported, eventIDs: [UUID()])
+        let observation = try DaytimeCheckIn(assessedAt: now, recordedAt: now, timeZoneIdentifier: "UTC", response: 4, eventReview: review)
+        XCTAssertThrowsError(try repository.saveDaytimeCheckIn(observation))
+        XCTAssertTrue(try repository.daytimeCheckIns().current.isEmpty)
+    }
+    func testEventFailureAndCorrectionHistory() throws {
+        let storage = EventStorage(dbPath: ":memory:"), repository = repo(storage)
+        let event = try DaytimeEvent(kind: .struggling, occurredAt: now, recordedAt: now, timeZoneIdentifier: "UTC")
+        storage.medicationFaultInjector = { $0 == .commit ? MedicationStorageInjectedFailure(code: .diskFull, sqliteCode: 13, detail: "Synthetic") : nil }
+        XCTAssertThrowsError(try repository.saveDaytimeEvent(event))
+        XCTAssertTrue(try repository.daytimeEvents().current.isEmpty)
+        storage.medicationFaultInjector = nil
+        try repository.saveDaytimeEvent(event)
+        let corrected = try event.corrected(kind: .unclear, note: "Unsure", reason: "Correction", recordedAt: now)
+        try repository.saveDaytimeEvent(corrected)
+        XCTAssertEqual(try repository.daytimeEvents().revisions.count, 2)
+        XCTAssertEqual(try repository.daytimeEvents().current, [corrected])
+        storage.clearAllData(); XCTAssertTrue(try repository.daytimeEvents().revisions.isEmpty)
+    }
+}
+
+extension DaytimeCheckInStorageTests {
+    func testNearbySnapshotIncludesIndependentRevisions() throws {
+        let storage = EventStorage(dbPath: ":memory:"), repository = repo(storage), a = try value()
+        try repository.saveDaytimeCheckIn(a)
+        try repository.saveDaytimeEvent(DaytimeEvent(kind: .unclear, occurredAt: now, recordedAt: now, timeZoneIdentifier: "UTC"))
+        let snapshot = try storage.dashboardSnapshot(sourceID: "synthetic", sequence: 1, capturedAt: now)
+        let section = try XCTUnwrap(snapshot.sections.first { $0.dataset == .daytimeDiary })
+        XCTAssertEqual(section.rowCount, 2)
+        let text = String(data: try XCTUnwrap(section.rows), encoding: .utf8) ?? ""
+        XCTAssertTrue(text.contains("daytime_checkins")); XCTAssertTrue(text.contains("daytime_events"))
+    }
+}

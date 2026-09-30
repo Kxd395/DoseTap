@@ -34,13 +34,14 @@ public struct DaytimeCheckIn: Codable, Equatable, Identifiable, Sendable {
     public let copingActions: [Action]
     public let note: String
     public let correctionReason: String?
+    public let eventReview: DaytimeEventReview?
     public let promptID: UUID?
 
     public init(id: UUID = UUID(), revisionID: UUID = UUID(), predecessorID: UUID? = nil,
                 createdAt: Date? = nil, assessedAt: Date, recordedAt: Date, timeZoneIdentifier: String,
                 response: Int?, status: Status = .answered, origin: Origin = .userInitiated,
                 activity: Activity? = nil, setting: Setting = .unanswered, coping: Coping = .unanswered,
-                copingActions: Set<Action> = [], note: String = "", correctionReason: String? = nil, promptID: UUID? = nil) throws {
+                copingActions: Set<Action> = [], note: String = "", correctionReason: String? = nil, promptID: UUID? = nil, eventReview: DaytimeEventReview? = nil) throws {
         self.id = id; self.revisionID = revisionID; self.predecessorID = predecessorID
         self.createdAt = createdAt ?? recordedAt; self.assessedAt = assessedAt; self.recordedAt = recordedAt
         self.timeZoneIdentifier = timeZoneIdentifier
@@ -48,12 +49,13 @@ public struct DaytimeCheckIn: Codable, Equatable, Identifiable, Sendable {
         instrumentID = "dosetap.custom-current-sleepiness"; contentVersion = "custom-0-10-v1"; language = "en"
         self.response = response; self.status = status; self.origin = origin; self.activity = activity
         self.setting = setting; self.coping = coping; self.copingActions = copingActions.sorted { $0.rawValue < $1.rawValue }
-        self.note = note; self.correctionReason = correctionReason; self.promptID = promptID
+        self.note = note; self.correctionReason = correctionReason; self.promptID = promptID; self.eventReview = eventReview
         try validate()
     }
 
     public func validate() throws {
-        guard instrumentID == "dosetap.custom-current-sleepiness", contentVersion == "custom-0-10-v1", language == "en",
+        try eventReview?.validate()
+        guard eventReview.map({ $0.to <= recordedAt }) ?? true, instrumentID == "dosetap.custom-current-sleepiness", contentVersion == "custom-0-10-v1", language == "en",
               let zone = TimeZone(identifier: timeZoneIdentifier), zone.secondsFromGMT(for: assessedAt) == utcOffsetSeconds,
               [createdAt, assessedAt, recordedAt].allSatisfy({ $0.timeIntervalSince1970.isFinite }),
               createdAt <= recordedAt, assessedAt <= recordedAt,
@@ -68,7 +70,7 @@ public struct DaytimeCheckIn: Codable, Equatable, Identifiable, Sendable {
         try Self(id: id, predecessorID: revisionID, createdAt: createdAt, assessedAt: assessedAt,
                  recordedAt: recordedAt, timeZoneIdentifier: timeZoneIdentifier, response: response, status: status,
                  origin: origin, activity: activity, setting: setting, coping: coping, copingActions: Set(copingActions),
-                 note: note, correctionReason: reason, promptID: promptID)
+                 note: note, correctionReason: reason, promptID: promptID, eventReview: eventReview)
     }
 
     public func encoded() throws -> String {

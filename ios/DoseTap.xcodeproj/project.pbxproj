@@ -186,6 +186,8 @@
 		WP001 /* WeeklyPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP002 /* WeeklyPlanner.swift */; };
 		DAYB001 /* EventStorage+DaytimeCheckIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYF001 /* EventStorage+DaytimeCheckIn.swift */; };
 		DAYB002 /* DaytimeCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYF002 /* DaytimeCheckInView.swift */; };
+		DAYB003 /* EventStorage+DaytimeEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYF003 /* EventStorage+DaytimeEvent.swift */; };
+		DAYB004 /* DaytimeEventView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYF004 /* DaytimeEventView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -410,6 +412,8 @@
 		WP002 /* WeeklyPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyPlanner.swift; sourceTree = "<group>"; };
 		DAYF001 /* EventStorage+DaytimeCheckIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+DaytimeCheckIn.swift"; sourceTree = "<group>"; };
 		DAYF002 /* DaytimeCheckInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaytimeCheckInView.swift; sourceTree = "<group>"; };
+		DAYF003 /* EventStorage+DaytimeEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+DaytimeEvent.swift"; sourceTree = "<group>"; };
+		DAYF004 /* DaytimeEventView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaytimeEventView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -662,6 +666,7 @@
 				DC74F001 /* EventStorage+MedicationCapture.swift */,
 				DC74F002 /* EventStorage+MedicationPresets.swift */,
 				DAYF001 /* EventStorage+DaytimeCheckIn.swift */,
+				DAYF003 /* EventStorage+DaytimeEvent.swift */,
 				ESF045 /* EventStorage+ExportSources.swift */,
 				ESF004 /* EventStorage+EventStore.swift */,
 				ESF005 /* StorageModels.swift */,
@@ -747,6 +752,7 @@
 				EDIT001 /* EditDoseTimeView.swift */,
 				NWF001 /* NightOutcomeView.swift */,
 				DAYF002 /* DaytimeCheckInView.swift */,
+				DAYF004 /* DaytimeEventView.swift */,
 				GRP_DASHBOARD /* Dashboard */,
 				GRP_TIMELINE /* Timeline */,
 				GRP_HISTORY /* History */,
@@ -1022,6 +1028,7 @@
 				EDIT002 /* EditDoseTimeView.swift in Sources */,
 				NWB001 /* NightOutcomeView.swift in Sources */,
 				DAYB002 /* DaytimeCheckInView.swift in Sources */,
+				DAYB004 /* DaytimeEventView.swift in Sources */,
 				NWB002 /* EventStorage+NightOutcome.swift in Sources */,
 				DDRV001 /* EventStorage+DashboardDoseReview.swift in Sources */,
 				0A777B0D5CC54803B060A980 /* UserSettingsManager.swift in Sources */,
@@ -1046,6 +1053,7 @@
 				DC74B001 /* EventStorage+MedicationCapture.swift in Sources */,
 				DC74B002 /* EventStorage+MedicationPresets.swift in Sources */,
 				DAYB001 /* EventStorage+DaytimeCheckIn.swift in Sources */,
+				DAYB003 /* EventStorage+DaytimeEvent.swift in Sources */,
 				ESB045 /* EventStorage+ExportSources.swift in Sources */,
 				ESB004 /* EventStorage+EventStore.swift in Sources */,
 				ESB005 /* StorageModels.swift in Sources */,

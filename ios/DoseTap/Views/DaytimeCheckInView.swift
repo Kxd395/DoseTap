@@ -12,6 +12,7 @@ struct DaytimeCheckInView: View {
             Section {
                 Text("Record only when it is safe to pause. This custom diary records your experience; saving does not notify a clinician.")
                     .font(.footnote).foregroundStyle(.secondary)
+                NavigationLink("Daytime events") { DaytimeEventView() }
                 Button("Record daytime check-in") { adding = true }
                     .disabled(ledger == nil).accessibilityIdentifier("daytime-add")
             }
@@ -29,6 +30,7 @@ struct DaytimeCheckInView: View {
                         Text("Setting: \(value.setting.rawValue). Coping: \(value.coping.rawValue)")
                         if !value.copingActions.isEmpty { Text(value.copingActions.map(\.rawValue).joined(separator: ", ")) }
                         if !value.note.isEmpty { Text(value.note) }
+                        if let review = value.eventReview { Text("Event review: \(review.from.formatted()) – \(review.to.formatted()); \(review.status.rawValue), \(review.eventIDs.count) linked events") }
                         Text("Recorded \(value.recordedAt.formatted()). \(value.timeZoneIdentifier)").font(.caption).foregroundStyle(.secondary)
                         Button("Correct response") { editing = value }
                         DisclosureGroup("Revision history") {
@@ -67,6 +69,13 @@ struct DaytimeCheckInEditor: View {
     @State private var actions: Set<DaytimeCheckIn.Action> = []
     @State private var note = ""
     @State private var reason = ""
+    @State private var reviewEnabled = false
+    @State private var reviewFrom = Date()
+    @State private var reviewTo = Date()
+    @State private var reviewStatus: DaytimeEventReview.Status = .notReviewed
+    @State private var eventIDs: Set<UUID> = []
+    @State private var events: [DaytimeEvent] = []
+    @State private var eventsLoaded = false
     @State private var pending: DaytimeCheckIn?
     @State private var failure: String?
     var body: some View {
@@ -122,6 +131,26 @@ struct DaytimeCheckInEditor: View {
                 } else {
                     Section("Correction reason") { TextField("Why are you correcting this response?", text: $reason) }.disabled(pending != nil)
                 }
+                if original == nil {
+                    Section("Optional event review") {
+                        Toggle("Review an interval", isOn: $reviewEnabled)
+                        if reviewEnabled {
+                            DatePicker("Review from", selection: $reviewFrom, in: ...Date())
+                            DatePicker("Review through", selection: $reviewTo, in: ...Date())
+                            Picker("Unplanned sleep / interrupted activities", selection: $reviewStatus) {
+                                ForEach(DaytimeEventReview.Status.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                            }.onChange(of: reviewStatus) { if $0 != .eventsReported { eventIDs.removeAll() } }
+                            if reviewStatus == .eventsReported {
+                                Text("Select existing daytime events in this interval. Add a missing event from Daytime events first; linking never creates a second event.").font(.caption)
+                                ForEach(events.filter { $0.occurredAt >= reviewFrom && $0.occurredAt <= reviewTo }) { event in
+                                    Toggle("\(event.kind.rawValue), \(event.occurredAt.formatted())", isOn: Binding(get: { eventIDs.contains(event.id) }, set: {
+                                        if $0 { eventIDs.insert(event.id) } else { eventIDs.remove(event.id) }
+                                    }))
+                                }
+                            }
+                        }
+                    }.disabled(pending != nil || !eventsLoaded)
+                }
                 if let failure {
                     Section {
                         Text(failure).foregroundStyle(.red)
@@ -135,11 +164,14 @@ struct DaytimeCheckInEditor: View {
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
             .onAppear {
                 if let original { score = original.response; status = original.status; assessedAt = original.assessedAt }
+                do { events = try repository.daytimeEvents().current; eventsLoaded = true }
+                catch { failure = DaytimeDiaryError.unreadable.localizedDescription; eventsLoaded = false }
             }
         }
     }
     private func save() {
         do {
+            guard eventsLoaded else { throw DaytimeDiaryError.unreadable }
             if pending == nil {
                 let now = Date()
                 if let original {
@@ -148,7 +180,8 @@ struct DaytimeCheckInEditor: View {
                     pending = try DaytimeCheckIn(assessedAt: score == nil && !retrospective ? now : assessedAt,
                         recordedAt: now, timeZoneIdentifier: TimeZone.current.identifier, response: score, status: status,
                         origin: retrospective ? .retrospective : (promptID == nil ? .userInitiated : .scheduled), activity: activity, setting: setting,
-                        coping: coping, copingActions: actions, note: note, promptID: promptID)
+                        coping: coping, copingActions: actions, note: note, promptID: promptID,
+                        eventReview: reviewEnabled ? DaytimeEventReview(from: reviewFrom, to: reviewTo, status: reviewStatus, eventIDs: Array(eventIDs)) : nil)
                 }
             }
             guard let pending else { return }
