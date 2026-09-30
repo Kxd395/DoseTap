@@ -10,6 +10,11 @@ final class WorkCycleProfileTests: XCTestCase {
         XCTAssertEqual(summary.distinctBlockCount, 1); XCTAssertEqual(summary.unresolvedBlockCount, 1)
         XCTAssertEqual(summary.median, 2.5); XCTAssertEqual(summary.lowerQuartile, 1.75); XCTAssertEqual(summary.upperQuartile, 3.25)
     }
+    func testCSVExplicitlyRetainsOverrideProvenance() throws {
+        let row = WorkCycleObservation(sleepID: "sleep", sleepDate: "2026-09-22", phase: .after, position: "After", blockID: nil, value: 12, detail: "Reviewed extra shift", isOverride: true)
+        let parsed = try ReportCSV.rows(WorkCycleSummary.csv([row], metric: "Minutes", basis: .planned, range: "week", revision: UUID(), asOf: Date(timeIntervalSince1970: 0)))
+        XCTAssertEqual(Array(parsed[1].suffix(2)), ["true", "Reviewed extra shift"])
+    }
     func testZeroIsObservedAndInvalidValuesExcluded() {
         let rows = [0.0, Double.nan, -.infinity, -1].enumerated().map { WorkCycleObservation(sleepID: "\($0.offset)", sleepDate: "2026-09-22", phase: .unknown, position: "Unknown", blockID: nil, value: $0.element) }
         let summary = WorkCycleSummary(observations: rows)

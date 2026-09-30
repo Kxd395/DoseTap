@@ -8,12 +8,16 @@ public struct WorkCycleObservation: Identifiable, Equatable, Sendable {
     public let blockID: String?
     public let value: Double?
     public var rosterID: UUID?
+    public var isOverride: Bool
     public var detail: String
+    public var associationID: UUID?
+    public var contextSnapshotAt: Date?
     public var id: String { sleepID }
-    public init(sleepID: String, sleepDate: String, phase: WorkPhase, position: String, blockID: String?, value: Double?, rosterID: UUID? = nil, detail: String = "") {
+    public init(sleepID: String, sleepDate: String, phase: WorkPhase, position: String, blockID: String?, value: Double?, rosterID: UUID? = nil, detail: String = "", associationID: UUID? = nil, contextSnapshotAt: Date? = nil, isOverride: Bool = false) {
         self.sleepID = sleepID; self.sleepDate = sleepDate; self.phase = phase; self.position = position
         self.blockID = blockID; self.value = value.flatMap { $0.isFinite && $0 >= 0 ? $0 : nil }
         self.rosterID = rosterID; self.detail = detail
+        self.associationID = associationID; self.contextSnapshotAt = contextSnapshotAt; self.isOverride = isOverride
     }
 }
 
@@ -42,10 +46,10 @@ public struct WorkCycleSummary: Equatable, Sendable {
     }
     public static func csv(_ observations: [WorkCycleObservation], metric: String, basis: WorkContextBasis, range: String, revision: UUID, asOf: Date) -> String {
         let summary = WorkCycleSummary(observations: observations)
-        let headers = ["sleep_id", "sleep_date", "phase", "position", "block_id", "value_minutes", "value_state", "metric", "context_basis", "range", "context_revision", "as_of_utc", "classification_version", "roster_revision", "detail", "eligible_observations", "missing_observations", "distinct_known_blocks", "reference"]
+        let headers = ["sleep_id", "sleep_date", "phase", "position", "block_id", "value_minutes", "value_state", "metric", "context_basis", "range", "context_revision", "as_of_utc", "classification_version", "roster_revision", "detail", "eligible_observations", "missing_observations", "distinct_known_blocks", "reference", "association_revision", "context_snapshot_at_utc", "is_override", "override_reason"]
         let stamp = ISO8601DateFormatter().string(from: asOf)
         return ([ReportCSV.row(headers)] + observations.map { row in
-            ReportCSV.row([row.sleepID, row.sleepDate, row.phase.rawValue, row.position, row.blockID ?? "", row.value.map { String($0) } ?? "", row.value == nil ? "unavailable" : "available", metric, basis.rawValue, range, revision.uuidString, stamp, "1", row.rosterID?.uuidString ?? "", row.detail, String(summary.availableCount), String(summary.missingCount), String(summary.distinctBlockCount), "Built-in spacing reference; not a prescription."])
+            ReportCSV.row([row.sleepID, row.sleepDate, row.phase.rawValue, row.position, row.blockID ?? "", row.value.map { String($0) } ?? "", row.value == nil ? "unavailable" : "available", metric, basis.rawValue, range, revision.uuidString, stamp, "1", row.rosterID?.uuidString ?? "", row.detail, String(summary.availableCount), String(summary.missingCount), String(summary.distinctBlockCount), "Built-in spacing reference; not a prescription.", row.associationID?.uuidString ?? "", row.contextSnapshotAt.map { ISO8601DateFormatter().string(from: $0) } ?? "", row.isOverride ? "true" : "false", row.isOverride ? row.detail : ""])
         }).joined(separator: "\r\n") + "\r\n"
     }
 }
@@ -57,7 +61,7 @@ public extension WorkPhaseResult {
         case .between:
             if let precedingPosition, let followingPosition { return "Between \(precedingPosition) and \(followingPosition)" }
             return "Between • positions unknown"
-        case .after: return "First post-block main sleep"
+        case .after: return postBlockMainSleepIndex == 1 ? "First post-block main sleep" : "After block • index unknown"
         case .off: return "Later off-block • index unknown"
         case .unknown: return "Unknown / review"
         }

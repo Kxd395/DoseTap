@@ -77,6 +77,31 @@ final class WorkBlockContextTests: XCTestCase {
         var value = document(); value.rosters[0].weekdays = [0]
         XCTAssertFalse(value.isValid)
     }
+    func testBatchClassificationMatchesSingleResultAndToleratesRepeatedAssociation() {
+        let association = WorkSleepAssociation(sleepID: "night", precedingDate: "2026-09-21", followingDate: "2026-09-22", timeZoneIdentifier: "America/New_York", plannedAt: late, recordedAt: late)
+        var value = document(); value.associations = [association]
+        XCTAssertEqual(Set(value.classificationsBySleepID(["night", "unreviewed"], basis: .planned, asOf: late).keys), ["night"])
+        XCTAssertEqual(value.classifications([association, association], basis: .planned, asOf: late)[association.id], value.classify(association, basis: .planned, asOf: late))
+    }
+    func testPlannedExceptionDoesNotEraseConfirmedAttendance() {
+        var value = document()
+        value.occurrences = [.init(workDate: "2026-09-22", timeZoneIdentifier: "America/New_York", attendance: .worked, recordedAt: early), .init(workDate: "2026-09-23", timeZoneIdentifier: "America/New_York", attendance: .notWorked, recordedAt: early), .init(workDate: "2026-09-22", timeZoneIdentifier: "America/New_York", plannedWorking: false, recordedAt: late)]
+        XCTAssertEqual(context(value, "2026-09-22", "2026-09-23", basis: .confirmed).phase, .after)
+    }
+    func testResolvedShiftAnchorsPreserveIndependentRevisionsAndCancellation() throws {
+        var value = document(), shift = WorkOccurrence(workDate: "2026-09-22", timeZoneIdentifier: "America/New_York", plannedWorking: true, recordedAt: early)
+        shift.scheduledTimesReviewed = true; shift.scheduledStart = early; shift.scheduledEnd = early.addingTimeInterval(3600)
+        value.occurrences = [shift]
+        XCTAssertEqual(value.resolvedWorkDate("2026-09-22", timeZoneIdentifier: "America/New_York", asOf: late)?.scheduledEnd, shift.scheduledEnd)
+        value.occurrences.append(.init(workDate: "2026-09-22", timeZoneIdentifier: "America/New_York", attendance: .worked, recordedAt: late))
+        XCTAssertEqual(value.resolvedWorkDate("2026-09-22", timeZoneIdentifier: "America/New_York", asOf: late)?.shiftSourceID, shift.id)
+        value.occurrences.append(.init(workDate: "2026-09-22", timeZoneIdentifier: "America/New_York", plannedWorking: false, recordedAt: late.addingTimeInterval(1)))
+        XCTAssertNil(value.resolvedWorkDate("2026-09-22", timeZoneIdentifier: "America/New_York", asOf: late.addingTimeInterval(1))?.scheduledStart)
+    }
+    func testInvalidAnalysisTimestampCannotClassify() {
+        let association = WorkSleepAssociation(sleepID: "night", precedingDate: "2026-09-21", followingDate: "2026-09-22", timeZoneIdentifier: "America/New_York", plannedAt: late, recordedAt: late)
+        XCTAssertEqual(document().classify(association, basis: .planned, asOf: Date(timeIntervalSince1970: .infinity)).phase, .unknown)
+    }
     func testRevisionRoundTripAndDuplicateIDsRejected() throws {
         var value = document()
         XCTAssertEqual(try JSONDecoder().decode(WorkContextDocument.self, from: JSONEncoder().encode(value)), value)

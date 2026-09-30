@@ -40,12 +40,14 @@ public struct WorkOccurrence: Codable, Equatable, Identifiable, Sendable {
     public var workDate: String
     public var timeZoneIdentifier: String
     public var plannedWorking: Bool?
-    public var attendance: WorkAttendance
+    public var attendance: WorkAttendance?
+    public var scheduledStart: Date?, scheduledEnd: Date?, plannedBreakAt: Date?
+    public var scheduledTimesReviewed: Bool?, breakReviewed: Bool?, actualTimesReviewed: Bool?
     public var actualStart: Date?
     public var actualEnd: Date?
     public var reason: String
     public var recordedAt: Date
-    public init(workDate: String, timeZoneIdentifier: String, plannedWorking: Bool? = nil, attendance: WorkAttendance = .unknown, reason: String = "", recordedAt: Date) {
+    public init(workDate: String, timeZoneIdentifier: String, plannedWorking: Bool? = nil, attendance: WorkAttendance? = nil, reason: String = "", recordedAt: Date) {
         self.workDate = workDate; self.timeZoneIdentifier = timeZoneIdentifier
         self.plannedWorking = plannedWorking; self.attendance = attendance
         self.reason = reason; self.recordedAt = recordedAt
@@ -53,8 +55,8 @@ public struct WorkOccurrence: Codable, Equatable, Identifiable, Sendable {
     public var isValid: Bool {
         guard WorkContextDocument.day(workDate, zone: timeZoneIdentifier) != nil, reason.count <= 1000,
               recordedAt.timeIntervalSince1970.isFinite else { return false }
-        if let actualStart, !actualStart.timeIntervalSince1970.isFinite { return false }
-        if let actualEnd, !actualEnd.timeIntervalSince1970.isFinite { return false }
+        guard [actualStart, actualEnd, scheduledStart, scheduledEnd, plannedBreakAt].compactMap({ $0 }).allSatisfy({ $0.timeIntervalSince1970.isFinite }) else { return false }
+        if let scheduledStart, let scheduledEnd, scheduledEnd <= scheduledStart { return false }
         if let actualStart, let actualEnd, actualEnd <= actualStart { return false }
         return true
     }
@@ -123,10 +125,24 @@ public struct WorkContextDocument: Codable, Equatable, Sendable {
         associations.filter { $0.sleepID == sleepID && $0.recordedAt <= asOf }.max { $0.recordedAt < $1.recordedAt }
     }
     public func classify(_ association: WorkSleepAssociation, basis: WorkContextBasis, asOf: Date) -> WorkPhaseResult {
+        classify(association, basis: basis, asOf: asOf, documentIsValid: isValid)
+    }
+    public func classificationsBySleepID(_ sleepIDs: Set<String>, basis: WorkContextBasis, asOf: Date) -> [String: WorkPhaseResult] {
+        let associations = sleepIDs.compactMap { association(for: $0, asOf: asOf) }
+        let results = classifications(associations, basis: basis, asOf: asOf)
+        return associations.reduce(into: [:]) { $0[$1.sleepID] = results[$1.id] }
+    }
+    public func classifications(_ inputs: [WorkSleepAssociation], basis: WorkContextBasis, asOf: Date) -> [UUID: WorkPhaseResult] {
+        let valid = isValid
+        return inputs.reduce(into: [:]) { output, association in
+            output[association.id] = classify(association, basis: basis, asOf: asOf, documentIsValid: valid)
+        }
+    }
+    private func classify(_ association: WorkSleepAssociation, basis: WorkContextBasis, asOf: Date, documentIsValid: Bool) -> WorkPhaseResult {
         func result(_ phase: WorkPhase, _ detail: String, roster: UUID? = nil, block: String? = nil, first: String? = nil, before: Int? = nil, after: Int? = nil, override: Bool = false) -> WorkPhaseResult {
             WorkPhaseResult(classificationVersion: 1, phase: phase, basis: basis, rosterID: roster, blockID: block, firstShiftDate: first, precedingPosition: before, followingPosition: after, postBlockMainSleepIndex: phase == .after && !override ? 1 : nil, isOverride: override, detail: detail)
         }
-        guard isValid, association.isValid, association.recordedAt <= asOf, association.isMainSleep,
+        guard documentIsValid, asOf.timeIntervalSince1970.isFinite, association.isValid, association.recordedAt <= asOf, association.isMainSleep,
               association.daytimeAssociationReviewed, let zone = TimeZone(identifier: association.timeZoneIdentifier),
               let previous = Self.day(association.precedingDate, zone: zone.identifier),
               let following = Self.day(association.followingDate, zone: zone.identifier) else {
@@ -147,7 +163,7 @@ public struct WorkContextDocument: Codable, Equatable, Sendable {
             let key = formatter.string(from: date)
             let records = occurrences.filter { $0.workDate == key && $0.timeZoneIdentifier == zone.identifier && $0.recordedAt <= cutoff }
             if basis == .confirmed {
-                guard let record = records.max(by: { $0.recordedAt < $1.recordedAt }) else { return nil }
+                guard let record = records.filter({ $0.attendance != nil }).max(by: { $0.recordedAt < $1.recordedAt }) else { return nil }
                 return record.attendance == .unknown ? nil : record.attendance == .worked
             }
             if let record = records.filter({ $0.plannedWorking != nil }).max(by: { $0.recordedAt < $1.recordedAt }) { return record.plannedWorking }
@@ -184,5 +200,28 @@ public struct WorkContextDocument: Codable, Equatable, Sendable {
         let firstKey = knownBoundary ? formatter.string(from: first) : nil
         let block = firstKey.map { "\(basis.rawValue):\(zone.identifier):\(referenceRoster?.id.uuidString ?? "attendance"):\($0)" }
         return result(phase, knownBoundary ? (phase == .off ? "Previous block linked; later main-sleep index remains unresolved." : "Consecutive work dates; actual shift hours remain separate.") : "Phase known; block boundary unresolved.", roster: referenceRoster?.id, block: block, first: firstKey, before: before && knownBoundary ? position : nil, after: after && knownBoundary ? (before ? position + 1 : 1) : nil)
+    }
+}
+
+public struct WorkDateResolution: Sendable {
+    public let workDate: String, timeZoneIdentifier: String
+    public let documentRevision: UUID
+    public let plannedWorking: Bool?, attendance: WorkAttendance?
+    public let plannedSourceID: UUID?, shiftSourceID: UUID?, breakSourceID: UUID?, actualSourceID: UUID?
+    public let scheduledStart: Date?, scheduledEnd: Date?, plannedBreakAt: Date?, actualStart: Date?, actualEnd: Date?
+}
+
+public extension WorkContextDocument {
+    func resolvedWorkDate(_ workDate: String, timeZoneIdentifier: String, asOf: Date) -> WorkDateResolution? {
+        guard isValid, asOf.timeIntervalSince1970.isFinite, let day = Self.day(workDate, zone: timeZoneIdentifier), let zone = TimeZone(identifier: timeZoneIdentifier) else { return nil }
+        var calendar = Calendar(identifier: .gregorian); calendar.timeZone = zone
+        let records = occurrences.filter { $0.workDate == workDate && $0.timeZoneIdentifier == timeZoneIdentifier && $0.recordedAt <= asOf }.sorted { $0.recordedAt < $1.recordedAt }
+        let roster = rosters.filter { $0.timeZoneIdentifier == timeZoneIdentifier && $0.effectiveFrom <= workDate && $0.effectiveTo >= workDate && $0.recordedAt <= asOf }.max { $0.recordedAt < $1.recordedAt }
+        let plan = records.last { $0.plannedWorking != nil }
+        let working = plan?.plannedWorking ?? roster.map { $0.weekdays.contains(calendar.component(.weekday, from: day)) }
+        let shift = records.last { $0.scheduledTimesReviewed == true || $0.scheduledStart != nil || $0.scheduledEnd != nil }
+        let pause = records.last { $0.breakReviewed == true || $0.plannedBreakAt != nil }
+        let actual = records.last { $0.actualTimesReviewed == true || $0.actualStart != nil || $0.actualEnd != nil }
+        return WorkDateResolution(workDate: workDate, timeZoneIdentifier: timeZoneIdentifier, documentRevision: revision, plannedWorking: working, attendance: records.last { $0.attendance != nil }?.attendance, plannedSourceID: plan?.id ?? roster?.id, shiftSourceID: shift?.id, breakSourceID: pause?.id, actualSourceID: actual?.id, scheduledStart: working == true ? shift?.scheduledStart : nil, scheduledEnd: working == true ? shift?.scheduledEnd : nil, plannedBreakAt: working == true ? pause?.plannedBreakAt : nil, actualStart: actual?.actualStart, actualEnd: actual?.actualEnd)
     }
 }

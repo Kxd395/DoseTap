@@ -1,0 +1,61 @@
+import XCTest
+@testable import DoseCore
+
+final class DashboardSleepMetricProjectionTests: XCTestCase {
+    let start = Date(timeIntervalSince1970: 1_790_720_000)
+    func pattern(second: Bool = true) -> DashboardDosePattern {
+        var rows: [DashboardDosePattern.Administration] = [.init(id: "d1", sessionID: "s", slot: 1, occurredAt: start)]
+        if second { rows.append(.init(id: "d2", sessionID: "s", slot: 2, occurredAt: start.addingTimeInterval(180 * 60))) }
+        return .derive(sessionID: "s", administrations: rows, confirmedCount: second ? 2 : 1,
+                       historicalPlanCount: second ? 2 : 1, secondNotTaken: false, sessionOpen: false)
+    }
+    func estimate(awake: Bool = false, gap: Bool = false) -> PostDoseSleepEstimate? {
+        let dose2 = start.addingTimeInterval(180 * 60)
+        return .calculate(dose2: dose2, finalWake: dose2.addingTimeInterval(60 * 60),
+            intervals: [.init(start: dose2, end: dose2.addingTimeInterval((gap ? 30 : 60) * 60), asleep: !awake)])
+    }
+    func testPartialMeasurementHasExplicitCoverageAndInclusionPolicy() throws {
+        let result = DashboardSleepMetricProjection.afterDose2(pattern: pattern(), estimate: estimate(gap: true), source: .appleHealth,
+            freshness: .current, boundaryBasis: .reportedFinalAwakening)
+        XCTAssertEqual(result.boundaryBasis, .reportedFinalAwakening)
+        XCTAssertEqual(result.metric.state, .partial); XCTAssertEqual(result.metric.value, 30)
+        XCTAssertEqual(result.coveredMinutes, 30); XCTAssertEqual(result.intervalMinutes, 60)
+        XCTAssertEqual(result.unmeasuredMinutes, 30); XCTAssertNil(result.summaryValue())
+        XCTAssertEqual(result.summaryValue(includePartial: true), 30)
+        let encoded = try JSONEncoder().encode(result)
+        XCTAssertEqual(try JSONDecoder().decode(DashboardSleepMetricProjection.self, from: encoded), result)
+        XCTAssertEqual((try JSONSerialization.jsonObject(with: encoded) as? [String: Any])?["unmeasuredMinutes"] as? Double, 30)
+    }
+    func testObservedAllAwakeIsZeroAndNoDoseIsNotApplicable() {
+        let awake = DashboardSleepMetricProjection.afterDose2(pattern: pattern(), estimate: estimate(awake: true), source: .appleHealth, freshness: .current)
+        XCTAssertEqual(awake.metric.state, .available); XCTAssertEqual(awake.summaryValue(), 0)
+        let absent = DashboardSleepMetricProjection.afterDose2(pattern: pattern(second: false), estimate: nil, source: .appleHealth, freshness: .current)
+        XCTAssertEqual(absent.metric.state, .notApplicable); XCTAssertNil(absent.metric.value)
+    }
+    func testFreshnessAndSourceDoNotSubstituteObservations() {
+        let stale = DashboardSleepMetricProjection.providerEpisode(totalMinutes: 0, source: .appleHealth, freshness: .stale)
+        XCTAssertEqual(stale.metric.state, .partial); XCTAssertEqual(stale.metric.value, 0); XCTAssertNil(stale.summaryValue())
+        let missing = DashboardSleepMetricProjection.providerEpisode(totalMinutes: 500, source: .appleHealth, freshness: .unavailable)
+        XCTAssertEqual(missing.metric.state, .unavailable); XCTAssertNil(missing.metric.value)
+        let wrong = DashboardSleepMetricProjection.afterDose2(pattern: pattern(), estimate: estimate(), source: .whoop, freshness: .current)
+        XCTAssertEqual(wrong.metric.state, .unavailable); XCTAssertNil(wrong.metric.value)
+    }
+    func testInvalidProviderTotalsAndUnresolvedDoseTimeRemainDistinct() {
+        for invalid in [-1.0, .infinity, .nan] {
+            let value = DashboardSleepMetricProjection.providerEpisode(totalMinutes: invalid, source: .appleHealth, freshness: .current)
+            XCTAssertEqual(value.metric.state, .needsReview); XCTAssertNil(value.summaryValue(includePartial: true))
+        }
+        let incomplete = DashboardDosePattern.derive(sessionID: "s", administrations: [
+            .init(id: "d1", sessionID: "s", slot: 1, occurredAt: start),
+            .init(id: "d2", sessionID: "s", slot: 2, occurredAt: nil)
+        ], confirmedCount: 2, historicalPlanCount: 2, secondNotTaken: false, sessionOpen: false)
+        let unresolved = DashboardSleepMetricProjection.afterDose2(pattern: incomplete, estimate: estimate(), source: .appleHealth, freshness: .current)
+        XCTAssertEqual(unresolved.metric.state, .unavailable); XCTAssertNil(unresolved.metric.value)
+        XCTAssertEqual(DashboardSleepMetricProjection.providerEpisode(totalMinutes: 400, source: .appleHealth, freshness: .current).summaryValue(), 400)
+    }
+    func testNonpositiveExplicitEndpointNeedsReview() {
+        let result = DashboardSleepMetricProjection.afterDose2(pattern: pattern(), estimate: nil, source: .appleHealth,
+            freshness: .current, boundaryBasis: .reportedFinalAwakening, dose2At: start, endpointAt: start)
+        XCTAssertEqual(result.metric.state, .needsReview); XCTAssertNil(result.metric.value)
+    }
+}
