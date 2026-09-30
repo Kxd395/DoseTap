@@ -83,6 +83,20 @@ final class WorkBlockContextTests: XCTestCase {
         XCTAssertEqual(Set(value.classificationsBySleepID(["night", "unreviewed"], basis: .planned, asOf: late).keys), ["night"])
         XCTAssertEqual(value.classifications([association, association], basis: .planned, asOf: late)[association.id], value.classify(association, basis: .planned, asOf: late))
     }
+    func testSleepIndexPreservesLatestAndFirstEqualTimestampSemantics() {
+        var first = WorkSleepAssociation(sleepID: "night", precedingDate: "2026-09-21", followingDate: "2026-09-22", timeZoneIdentifier: "America/New_York", plannedAt: early, recordedAt: early)
+        first.overridePhase = .entering; first.overrideReason = "First reviewed phase"
+        var latest = first; latest.id = UUID(); latest.recordedAt = late
+        latest.overridePhase = .after; latest.overrideReason = "Later reviewed phase"
+        var tied = latest; tied.id = UUID(); tied.overridePhase = .off
+        var future = latest; future.id = UUID(); future.recordedAt = late.addingTimeInterval(1)
+        var unrelated = latest; unrelated.id = UUID(); unrelated.sleepID = "unrelated"
+        var value = document(); value.associations = [first, latest, tied, future, unrelated]
+        XCTAssertEqual(value.association(for: "night", asOf: late)?.id, latest.id)
+        let result = value.classificationsBySleepID(["night", "absent"], basis: .planned, asOf: late)
+        XCTAssertEqual(Set(result.keys), ["night"])
+        XCTAssertEqual(result["night"]?.phase, .after)
+    }
     func testPlannedExceptionDoesNotEraseConfirmedAttendance() {
         var value = document()
         value.occurrences = [.init(workDate: "2026-09-22", timeZoneIdentifier: "America/New_York", attendance: .worked, recordedAt: early), .init(workDate: "2026-09-23", timeZoneIdentifier: "America/New_York", attendance: .notWorked, recordedAt: early), .init(workDate: "2026-09-22", timeZoneIdentifier: "America/New_York", plannedWorking: false, recordedAt: late)]
@@ -110,6 +124,10 @@ final class WorkBlockContextTests: XCTestCase {
     func testInvalidAnalysisTimestampCannotClassify() {
         let association = WorkSleepAssociation(sleepID: "night", precedingDate: "2026-09-21", followingDate: "2026-09-22", timeZoneIdentifier: "America/New_York", plannedAt: late, recordedAt: late)
         XCTAssertEqual(document().classify(association, basis: .planned, asOf: Date(timeIntervalSince1970: .infinity)).phase, .unknown)
+    }
+    func testDateResolverAcceptsCanonicalUTCZoneName() {
+        var value = document(); value.rosters[0].timeZoneIdentifier = "UTC"
+        XCTAssertEqual(value.resolvedWorkDate("2026-09-22", timeZoneIdentifier: "GMT", asOf: late)?.plannedWorking, true)
     }
     func testRevisionRoundTripAndDuplicateIDsRejected() throws {
         var value = document()

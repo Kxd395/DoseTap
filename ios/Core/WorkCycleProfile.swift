@@ -17,12 +17,13 @@ public struct WorkCycleObservation: Identifiable, Equatable, Sendable {
     public var detail: String
     public var associationID: UUID?
     public var contextSnapshotAt: Date?
+    public var planSnapshotID: UUID?
     public var id: String { sleepID }
-    public init(sleepID: String, sleepDate: String, phase: WorkPhase, position: String, blockID: String?, value: Double?, rosterID: UUID? = nil, detail: String = "", associationID: UUID? = nil, contextSnapshotAt: Date? = nil, isOverride: Bool = false, intervalMinutes: Double? = nil, stratumID: String? = nil, stratumLabel: String? = nil) {
+    public init(sleepID: String, sleepDate: String, phase: WorkPhase, position: String, blockID: String?, value: Double?, rosterID: UUID? = nil, detail: String = "", associationID: UUID? = nil, contextSnapshotAt: Date? = nil, isOverride: Bool = false, intervalMinutes: Double? = nil, stratumID: String? = nil, stratumLabel: String? = nil, planSnapshotID: UUID? = nil) {
         self.sleepID = sleepID; self.sleepDate = sleepDate; self.phase = phase; self.position = position
         self.blockID = blockID; self.value = value.flatMap { $0.isFinite && $0 >= 0 ? $0 : nil }
         self.intervalMinutes = intervalMinutes.flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
-        self.stratumID = stratumID; self.stratumLabel = stratumLabel
+        self.stratumID = stratumID; self.stratumLabel = stratumLabel; self.planSnapshotID = planSnapshotID
         self.rosterID = rosterID; self.detail = detail
         self.associationID = associationID; self.contextSnapshotAt = contextSnapshotAt; self.isOverride = isOverride
     }
@@ -72,14 +73,14 @@ public struct WorkCycleSummary: Equatable, Sendable {
     }
     public static func csv(_ observations: [WorkCycleObservation], metric: String, basis: WorkContextBasis, range: String, revision: UUID, asOf: Date, grouping: WorkComparisonGrouping = .none, phaseFilter: String = "All", positionFilter: String = "All", matrixEncoding: String = "Values") -> String {
         let summary = WorkCycleSummary(observations: observations)
-        let headers = ["sleep_id", "sleep_date", "phase", "position", "block_id", "value_minutes", "value_state", "metric", "context_basis", "range", "context_revision", "as_of_utc", "classification_version", "roster_revision", "detail", "eligible_observations", "missing_observations", "distinct_known_blocks", "reference", "association_revision", "context_snapshot_at_utc", "is_override", "override_reason", "interval_minutes", "grouping", "group_label", "phase_filter", "position_filter", "matrix_encoding", "context_stratum_id", "context_stratum_label", "group_symbol", "row_type"]
+        let headers = ["sleep_id", "sleep_date", "phase", "position", "block_id", "value_minutes", "value_state", "metric", "context_basis", "range", "context_revision", "as_of_utc", "classification_version", "roster_revision", "detail", "eligible_observations", "missing_observations", "distinct_known_blocks", "reference", "association_revision", "context_snapshot_at_utc", "is_override", "override_reason", "interval_minutes", "grouping", "group_label", "phase_filter", "position_filter", "matrix_encoding", "context_stratum_id", "context_stratum_label", "group_symbol", "row_type", "plan_snapshot_id", "reference_lower_minutes", "reference_upper_minutes"]
         let stamp = ISO8601DateFormatter().string(from: asOf)
         if observations.isEmpty {
-            let metadata = ["row_type": "comparison_metadata", "metric": metric, "context_basis": basis.rawValue, "range": range, "context_revision": revision.uuidString, "as_of_utc": stamp, "classification_version": "1", "grouping": grouping.rawValue, "phase_filter": phaseFilter, "position_filter": positionFilter, "matrix_encoding": matrixEncoding, "eligible_observations": "0", "missing_observations": "0", "distinct_known_blocks": "0", "reference": "Built-in spacing reference; not a prescription."]
+            let metadata = ["row_type": "comparison_metadata", "reference_lower_minutes": "150", "reference_upper_minutes": "240", "metric": metric, "context_basis": basis.rawValue, "range": range, "context_revision": revision.uuidString, "as_of_utc": stamp, "classification_version": "1", "grouping": grouping.rawValue, "phase_filter": phaseFilter, "position_filter": positionFilter, "matrix_encoding": matrixEncoding, "eligible_observations": "0", "missing_observations": "0", "distinct_known_blocks": "0", "reference": "Built-in spacing reference; not a prescription."]
             return ReportCSV.row(headers) + "\r\n" + ReportCSV.row(headers.map { metadata[$0] ?? "" }) + "\r\n"
         }
         return ([ReportCSV.row(headers)] + observations.map { row in
-            ReportCSV.row([row.sleepID, row.sleepDate, row.phase.rawValue, row.position, row.blockID ?? "", row.value.map { String($0) } ?? "", row.value == nil ? "unavailable" : "available", metric, basis.rawValue, range, revision.uuidString, stamp, "1", row.rosterID?.uuidString ?? "", row.detail, String(summary.availableCount), String(summary.missingCount), String(summary.distinctBlockCount), "Built-in spacing reference; not a prescription.", row.associationID?.uuidString ?? "", row.contextSnapshotAt.map { ISO8601DateFormatter().string(from: $0) } ?? "", row.isOverride ? "true" : "false", row.isOverride ? row.detail : "", row.intervalMinutes.map(String.init(describing:)) ?? "", grouping.rawValue, row.groupLabel(grouping), phaseFilter, positionFilter, matrixEncoding, row.stratumID ?? "", row.stratumLabel ?? "", row.groupSymbol(grouping), "observation"])
+            ReportCSV.row([row.sleepID, row.sleepDate, row.phase.rawValue, row.position, row.blockID ?? "", row.value.map { String($0) } ?? "", row.value == nil ? "unavailable" : "available", metric, basis.rawValue, range, revision.uuidString, stamp, "1", row.rosterID?.uuidString ?? "", row.detail, String(summary.availableCount), String(summary.missingCount), String(summary.distinctBlockCount), "Built-in spacing reference; not a prescription.", row.associationID?.uuidString ?? "", row.contextSnapshotAt.map { ISO8601DateFormatter().string(from: $0) } ?? "", row.isOverride ? "true" : "false", row.isOverride ? row.detail : "", row.intervalMinutes.map(String.init(describing:)) ?? "", grouping.rawValue, row.groupLabel(grouping), phaseFilter, positionFilter, matrixEncoding, row.stratumID ?? "", row.stratumLabel ?? "", row.groupSymbol(grouping), "observation", row.planSnapshotID?.uuidString ?? "", "150", "240"])
         }).joined(separator: "\r\n") + "\r\n"
     }
 }

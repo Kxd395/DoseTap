@@ -27,4 +27,12 @@ final class WorkPlanSnapshotTests: XCTestCase {
         association.planSnapshotID = UUID()
         XCTAssertEqual(value.classify(association, basis: .planned, asOf: Date()).phase, .unknown)
     }
+    func testCaptureAtHistoryLimitDoesNotMutateDocument() {
+        var value = WorkContextDocument(); value.schemaVersion = 2
+        value.planSnapshots = (0..<50000).map { WorkPlanSnapshot(preSleepLogID: String($0), sessionID: nil, capturedAt: Date(timeIntervalSince1970: 100), contextRevision: value.revision, rosterCount: 0, occurrenceCount: 0) }
+        let revision = value.revision
+        XCTAssertNil(value.capturePlan(preSleepLogID: "overflow", sessionID: nil, at: Date()))
+        XCTAssertEqual(value.planSnapshots?.count, 50000); XCTAssertEqual(value.revision, revision)
+    }
+
 }

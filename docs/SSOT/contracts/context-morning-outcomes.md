@@ -1,0 +1,7 @@
+# Context and morning outcomes
+
+DOSETAP-45 provides descriptive comparisons from exact session observations. Each metric retains its original unit, source, content/regimen compatibility stratum and occurrence time. Unknown contexts remain an explicit group; unknown compatibility stays observation-specific. Missing, invalid, partial and conflicting observations remain visible and never become zero. Partial numeric evidence is excluded by default with an explicit inclusion choice. Ordinal/categorical responses are counts, never manufactured duration values.
+
+Groups are partitioned by context, compatibility stratum, outcome unit and source. Numeric duration summaries use existing R-7 median and middle-50% calculations; there is no optimization or causal ranking. Exact duplicates collapse; conflicting duplicate identities are excluded and retained for review. Future/invalid timestamps and values are excluded. Missing observation times remain in exact rows but cannot be placed on a chronological axis.
+
+The dedicated view offers context/outcome choices, individual observations, exact-table selection and previous/next controls. Separate chronological panels preserve original scales. Selected session is injected by the dashboard owner. Exports use the same projection, filters, inclusion policy, as-of time, timezone and derivation version as the visible report. Export is an explicit user action. This projection never changes medication, alarms, provider records or clinical questionnaire answers.

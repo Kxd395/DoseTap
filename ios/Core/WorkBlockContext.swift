@@ -140,6 +140,7 @@ public struct WorkContextDocument: Codable, Equatable, Sendable {
     public mutating func capturePlan(preSleepLogID: String, sessionID: String?, at: Date) -> WorkPlanSnapshot? {
         guard isValid else { return nil }
         if let existing = planSnapshots?.first(where: { $0.preSleepLogID == preSleepLogID }) { return existing }
+        guard (planSnapshots ?? []).count < 50000 else { return nil }
         var snapshot = WorkPlanSnapshot(preSleepLogID: preSleepLogID, sessionID: sessionID, capturedAt: at, contextRevision: revision, rosterCount: rosters.count, occurrenceCount: occurrences.count)
         snapshot.shiftEventCount = (shiftEvents ?? []).count
         guard snapshot.isValid else { return nil }
@@ -161,9 +162,16 @@ public struct WorkContextDocument: Codable, Equatable, Sendable {
         classify(association, basis: basis, asOf: asOf, documentIsValid: isValid)
     }
     public func classificationsBySleepID(_ sleepIDs: Set<String>, basis: WorkContextBasis, asOf: Date) -> [String: WorkPhaseResult] {
-        let associations = sleepIDs.compactMap { association(for: $0, asOf: asOf) }
-        let results = classifications(associations, basis: basis, asOf: asOf)
-        return associations.reduce(into: [:]) { $0[$1.sleepID] = results[$1.id] }
+        let indexed = associationsBySleepID(sleepIDs, asOf: asOf)
+        let results = classifications(Array(indexed.values), basis: basis, asOf: asOf)
+        return indexed.reduce(into: [:]) { $0[$1.key] = results[$1.value.id] }
+    }
+    public func associationsBySleepID(_ sleepIDs: Set<String>, asOf: Date) -> [String: WorkSleepAssociation] {
+        var indexed: [String: WorkSleepAssociation] = [:]
+        for association in associations where sleepIDs.contains(association.sleepID) && association.recordedAt <= asOf {
+            if indexed[association.sleepID].map({ $0.recordedAt < association.recordedAt }) ?? true { indexed[association.sleepID] = association }
+        }
+        return indexed
     }
     public func classifications(_ inputs: [WorkSleepAssociation], basis: WorkContextBasis, asOf: Date) -> [UUID: WorkPhaseResult] {
         let valid = isValid
@@ -252,8 +260,8 @@ public extension WorkContextDocument {
     func resolvedWorkDate(_ workDate: String, timeZoneIdentifier: String, asOf: Date) -> WorkDateResolution? {
         guard isValid, asOf.timeIntervalSince1970.isFinite, let day = Self.day(workDate, zone: timeZoneIdentifier), let zone = TimeZone(identifier: timeZoneIdentifier) else { return nil }
         var calendar = Calendar(identifier: .gregorian); calendar.timeZone = zone
-        let records = occurrences.filter { $0.workDate == workDate && $0.timeZoneIdentifier == timeZoneIdentifier && $0.recordedAt <= asOf }.sorted { $0.recordedAt < $1.recordedAt }
-        let roster = rosters.filter { $0.timeZoneIdentifier == timeZoneIdentifier && $0.effectiveFrom <= workDate && $0.effectiveTo >= workDate && $0.recordedAt <= asOf }.max { $0.recordedAt < $1.recordedAt }
+        let records = occurrences.filter { $0.workDate == workDate && TimeZone(identifier: $0.timeZoneIdentifier)?.identifier == zone.identifier && $0.recordedAt <= asOf }.sorted { $0.recordedAt < $1.recordedAt }
+        let roster = rosters.filter { TimeZone(identifier: $0.timeZoneIdentifier)?.identifier == zone.identifier && $0.effectiveFrom <= workDate && $0.effectiveTo >= workDate && $0.recordedAt <= asOf }.max { $0.recordedAt < $1.recordedAt }
         let plan = records.last { $0.plannedWorking != nil }
         let working = plan?.plannedWorking ?? roster.map { $0.weekdays.contains(calendar.component(.weekday, from: day)) }
         let shift = records.last { $0.scheduledTimesReviewed == true || $0.scheduledStart != nil || $0.scheduledEnd != nil }
