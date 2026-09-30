@@ -10,7 +10,7 @@ Candidate phone version: 0.4.19 (88); separate iPad Dashboard remains 0.1.0 (10)
 
 The dashboard could retain provider summaries after an integration was disabled and publish an older asynchronous result after an off/on or disconnect/reconnect cycle. Before adding failed-refresh snapshot retention, this slice establishes an explicit access invalidation boundary. The [access contract](../SSOT/contracts/dashboard-provider-access.md) defines the scope.
 
-A thread-safe, provider-specific in-memory revision advances on preference changes, known HealthKit access loss, WHOOP disconnect, account identity change and credential replacement. The monitor has no singleton dependencies and releases its lock before notifying observers. Replacement credentials advance the revision before assignment; ordinary token refresh is unchanged. Production integration preference writes use the monitored settings setter.
+A thread-safe, provider-specific in-memory revision advances on preference changes, known HealthKit access loss, WHOOP disconnect, account identity change and credential replacement. The monitor has no singleton dependencies and releases its lock before notifying observers. Replacement credentials advance the revision before assignment; ordinary token refresh is unchanged. Production integration preference writes use the monitored settings setter. WHOOP startup normalization runs in a main-actor task after construction and skips equal values; this avoids publishing settings during SwiftUI rendering.
 
 The model removes affected provider summaries and query metadata on the main actor, retains local records and the other provider, and rejects obsolete results after every suspension and before publication. Delayed notifications cannot erase results already published under the current revision. Cancelling an invalidated generation settles loading. No provider measurements or credentials are persisted by the monitor.
 
@@ -21,6 +21,7 @@ The original Apple Health-disable test failed because displayed summaries remain
 - Full core suite: 879 XCTest and 43 Swift Testing tests passed.
 - Targeted iPhone simulator suite: 10 access-invalidation, 26 dashboard audit and 28 HealthKit tests passed (64 total).
 - Generic iOS Simulator build passed. Three native dashboard journeys passed: six-month coverage, largest-text range menu, and Night Mode chart selection/legends.
+- Final launch control passed after removing the new SwiftUI startup-publication warning; its result bundle completed normally.
 - App/staging Debug/Release version checks, Plane workflow, SSOT/docs, architecture, dose-write and whitespace checks passed.
 
 Evidence is retained in `.build/provider-access-evidence/` in the provider-access worktree. The failed test runners stalled after reporting their assertion failures and were terminated by their verified exact process IDs; final passing tests produced a successful result bundle.

@@ -116,7 +116,11 @@ final class WHOOPService: NSObject, ObservableObject {
         super.init()
         loadTokensFromKeychain()
         updateConnectionState()
-        UserSettingsManager.shared.whoopEnabled = isConnected
+        // SwiftUI may create this service while rendering. Publish settings afterward.
+        Task { @MainActor [weak self] in
+            guard let self, UserSettingsManager.shared.whoopEnabled != self.isConnected else { return }
+            UserSettingsManager.shared.whoopEnabled = self.isConnected
+        }
     }
     
     // MARK: - Public API
