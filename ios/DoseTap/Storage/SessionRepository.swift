@@ -992,7 +992,9 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             completionState: completionState,
             now: now,
             timeZone: timeZoneProvider(),
-            existingLog: existingLog
+            existingLog: existingLog,
+            prospectiveCaptureEligible: existingLog == nil && completionState == "complete",
+            prospectiveCaptureSessionID: activeSessionId
         )
         
         // Diagnostic logging: Pre-sleep saved or skipped (Tier 2)

@@ -27,6 +27,7 @@ extension DashboardAnalyticsModel {
         providerAssociationsReady = false
         doseReviewReadReady = false
         invalidateContextPublication()
+        invalidateWorkInspectionContext()
         defer { if refreshGeneration == generation { isLoading = false } }
         let asOf = now(), zone = timeZone(), range = selectedRange
         let customRange = customReportingRange
@@ -107,9 +108,11 @@ extension DashboardAnalyticsModel {
         let aggregates: [DashboardNightAggregate]
         let associations: [DashboardProviderAssociation]
         let context: DashboardContextTimeline
+        let workContext: WorkContextDocument?
         do {
-            let snapshot = try sessionRepo.dashboardContextSnapshot(capturedAt: now())
+            let snapshot = try sessionRepo.dashboardContextSnapshot(capturedAt: asOf)
             context = snapshot.timeline
+            workContext = try sessionRepo.workContext()
             associations = snapshot.associations
             let reviews = try sessionRepo.dashboardDoseReviews()
             aggregates = identityAggregates(local: snapshot.sessions, health: healthByKey, whoop: whoopByKey,
@@ -135,6 +138,7 @@ extension DashboardAnalyticsModel {
         doseReviewReadReady = true
         contextTimeline = context
         contextReadReady = true
+        publishWorkInspectionContext(workContext, nights: aggregates, asOf: asOf)
         integrationStates = buildIntegrationStates(healthMatches: healthByKey.count, whoopMatches: whoopByKey.count)
         lastRefresh = asOf
         isLoading = false

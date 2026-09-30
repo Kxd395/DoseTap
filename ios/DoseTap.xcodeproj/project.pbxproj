@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		DINS001B /* DashboardInspection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DINS001F; };
 		DPUI002B /* DosePatternDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI002F; };
 		DPUI003B /* DosePatternPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI003F; };
 		DPUI004B /* DosePatternReviewSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI004F; };
@@ -231,6 +232,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		DINS001F /* DashboardInspection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardInspection.swift; sourceTree = "<group>"; };
 		DPUI002F /* DosePatternDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternDetailSheet.swift; sourceTree = "<group>"; };
 		DPUI003F /* DosePatternPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternPresentation.swift; sourceTree = "<group>"; };
 		DPUI004F /* DosePatternReviewSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternReviewSheet.swift; sourceTree = "<group>"; };
@@ -632,6 +634,7 @@
 			isa = PBXGroup;
 			children = (
 				CLUST001 /* DashboardModels.swift */,
+				DINS001F /* DashboardInspection.swift */,
 				DRPL003 /* DashboardReviewedCoverage.swift */,
 				DRPL002 /* DashboardReplayEndpoints.swift */,
 				DRPL001 /* DashboardReplayAdapter.swift */,
@@ -1207,6 +1210,7 @@
 				SSV001 /* SessionSupportViews.swift in Sources */,
 				1B95E3AD96741FD0E9FED120 /* Secrets.swift in Sources */,
 				CLUST101 /* DashboardModels.swift in Sources */,
+				DINS001B /* DashboardInspection.swift in Sources */,
 				DRPL103 /* DashboardReviewedCoverage.swift in Sources */,
 				DRPL102 /* DashboardReplayEndpoints.swift in Sources */,
 				DRPL101 /* DashboardReplayAdapter.swift in Sources */,

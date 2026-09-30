@@ -1036,3 +1036,7 @@ The native dashboard reads context, exact sessions, provider relationships and t
 
 The optional `sleepEpisodes` sidecar carries named Apple Health main-episode derivations from the already opted-in bounded raw sleep packet, including original query completion time. It never performs a new query or enables sharing. Local association is exported only after the current saved provider and local fingerprints match within the raw-row SQLite snapshot transaction. Missing, stale or ambiguous matches retain provider-only identity. Private fingerprints are never transported. Episode intervals and original endpoint definitions remain distinct from app closing/check-in times. The consumer validates bounds, source receipt and exact local identity; an absent sidecar is unavailable, not zero sleep.
 Context and morning outcome comparisons follow [the context contract](contracts/context-morning-outcomes.md).
+
+### Shared dashboard inspection
+
+[Shared inspection contract](contracts/dashboard-inspection.md) defines canonical selection, applicable filters, failed-read behavior, frozen work-context classification and atomic prospective work-plan capture. Night-level filters do not silently become independent daytime filters.
