@@ -98,9 +98,9 @@ public struct DaytimePromptLedger: Codable, Equatable, Sendable {
               let zone = TimeZone(identifier: schedule.timeZone) else { return [] }
         var calendar = Calendar(identifier: .gregorian); calendar.timeZone = zone
         let start = calendar.startOfDay(for: now)
-        guard let end = calendar.date(byAdding: .day, value: 7, to: start) else { return [] }
+        guard let end = calendar.date(byAdding: .day, value: 7, to: now) else { return [] }
         let grouped = Dictionary(grouping: contexts, by: \.dayKey)
-        for offset in 0..<7 {
+        for offset in -1...7 {
             guard let day = calendar.date(byAdding: .day, value: offset, to: start) else { continue }
             let key = DaytimePromptRule.dayKey(day, timeZone: schedule.timeZone)
             let candidates = grouped[key] ?? []
@@ -120,7 +120,7 @@ public struct DaytimePromptLedger: Codable, Equatable, Sendable {
                 }
                 if changedIdentity { continue }
             }
-            guard let intended = resolution.intendedAt, intended > now, intended < end else { continue }
+            guard let intended = resolution.intendedAt, intended > now, intended <= end else { continue }
             // Stable schedule/day/revision identity, independent of process-randomized Swift hashing.
             var hash: UInt64 = 14695981039346656037
             for byte in "\(key)#\(previous.count)".utf8 { hash = (hash ^ UInt64(byte)) &* 1099511628211 }
@@ -130,7 +130,7 @@ public struct DaytimePromptLedger: Codable, Equatable, Sendable {
             prompts.append(DaytimePrompt(id: id, scheduleID: schedule.id, intendedAt: intended, nextAttemptAt: attempt,
                                         anchor: resolution, anchorDayKey: key))
         }
-        return Array(prompts.filter { $0.scheduleID == schedule.id && $0.isOutstanding && $0.nextAttemptAt > now && $0.nextAttemptAt < end }
+        return Array(prompts.filter { $0.scheduleID == schedule.id && $0.isOutstanding && $0.nextAttemptAt > now && $0.nextAttemptAt <= end }
             .sorted { $0.nextAttemptAt < $1.nextAttemptAt }.prefix(7))
     }
     public mutating func suppressDue(at now: Date, reason _: String) {

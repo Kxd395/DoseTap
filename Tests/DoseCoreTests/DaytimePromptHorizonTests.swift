@@ -79,4 +79,43 @@ final class DaytimePromptHorizonTests: XCTestCase {
         XCTAssertThrowsError(try DaytimePromptLedger.decodePayload(JSONSerialization.data(withJSONObject: object)))
     }
 
+    func testWeeklyTimeAlreadyPassedStillQueuesNextOccurrenceWithinRollingWeek() throws {
+        var ledger = try configured(DaytimePromptRule(anchor: .clock, selectedWeekdays: [4]))
+        let afternoon = now.addingTimeInterval(5 * 3600)
+        let slots = ledger.prepareHorizon(at: afternoon)
+        XCTAssertEqual(slots.count, 1)
+        XCTAssertEqual(slots.first?.intendedAt, ISO8601DateFormatter().date(from: "2026-10-07T14:00:00Z"))
+    }
+    func testRollingWeekUsesCivilDaysAcrossFallBack() throws {
+        let afternoon = ISO8601DateFormatter().date(from: "2026-10-31T19:00:00Z")!
+        var ledger = DaytimePromptLedger()
+        try ledger.configure(hour: 14, minute: 0, timeZone: "America/New_York", enabled: true,
+                             at: afternoon, rule: DaytimePromptRule(anchor: .clock))
+        let slots = ledger.prepareHorizon(at: afternoon)
+        XCTAssertEqual(slots.count, 7)
+        XCTAssertEqual(slots.last?.intendedAt, ISO8601DateFormatter().date(from: "2026-11-07T19:00:00Z"))
+    }
+
+    func testPreviousDayExplicitAnchorCanScheduleAfterMidnight() throws {
+        let clock = ISO8601DateFormatter().date(from: "2026-09-30T00:15:00Z")!
+        let start = ISO8601DateFormatter().date(from: "2026-09-29T20:00:00Z")!
+        let end = ISO8601DateFormatter().date(from: "2026-09-30T09:00:00Z")!
+        for anchor in [DaytimePromptRule.Anchor.mainWake, .shiftMidpoint] {
+            var ledger = DaytimePromptLedger()
+            try ledger.configure(hour: 14, minute: 0, timeZone: "UTC", enabled: true, at: clock,
+                                 rule: DaytimePromptRule(anchor: anchor, selectedWeekdays: [3], wakeOffsetMinutes: 390))
+            let source = try DaytimeAnchorSource(id: "prior-day-source", revision: "r1", at: start, endAt: end)
+            let context = DaytimePromptAnchorContext(dayKey: "2026-09-29", timeZone: "UTC", working: true,
+                                                    mainWake: source, shift: source)
+            let slots = ledger.prepareHorizon(at: clock, contexts: [context])
+            XCTAssertEqual(slots.count, 1)
+            XCTAssertEqual(slots.first?.intendedAt, ISO8601DateFormatter().date(from: "2026-09-30T02:30:00Z"))
+            XCTAssertEqual(slots.first?.anchorDayKey, "2026-09-29")
+            var otherDay = DaytimePromptLedger()
+            try otherDay.configure(hour: 14, minute: 0, timeZone: "UTC", enabled: true, at: clock,
+                                   rule: DaytimePromptRule(anchor: anchor, selectedWeekdays: [4], wakeOffsetMinutes: 390))
+            XCTAssertTrue(otherDay.prepareHorizon(at: clock, contexts: [context]).isEmpty)
+        }
+    }
+
 }
