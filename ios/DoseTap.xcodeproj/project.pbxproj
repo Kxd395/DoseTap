@@ -17,6 +17,9 @@
 		DRPL102 /* DashboardReplayEndpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = DRPL002 /* DashboardReplayEndpoints.swift */; };
 		DRPL101 /* DashboardReplayAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = DRPL001 /* DashboardReplayAdapter.swift */; };
 		DRPL100 /* DashboardReplayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DRPL000 /* DashboardReplayView.swift */; };
+		NAP003B /* NapProviderCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAP003F /* NapProviderCheck.swift */; };
+		NAP002B /* NapEpisodeEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAP002F /* NapEpisodeEditor.swift */; };
+		NAP001B /* EventStorage+NapDiary.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAP001F /* EventStorage+NapDiary.swift */; };
 		DIDENT102 /* DashboardIdentityAggregation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT002 /* DashboardIdentityAggregation.swift */; };
 		DIDENT101 /* SessionRepositoryDashboardIdentities.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT001 /* SessionRepositoryDashboardIdentities.swift */; };
 		WBCTX001 /* EventStorage+WorkContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBCTX101 /* EventStorage+WorkContext.swift */; };
@@ -230,6 +233,9 @@
 		DRPL002 /* DashboardReplayEndpoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardReplayEndpoints.swift; sourceTree = "<group>"; };
 		DRPL001 /* DashboardReplayAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardReplayAdapter.swift; sourceTree = "<group>"; };
 		DRPL000 /* DashboardReplayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardReplayView.swift; sourceTree = "<group>"; };
+		NAP003F /* NapProviderCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NapProviderCheck.swift"; sourceTree = "<group>"; };
+		NAP002F /* NapEpisodeEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NapEpisodeEditor.swift"; sourceTree = "<group>"; };
+		NAP001F /* EventStorage+NapDiary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+NapDiary.swift"; sourceTree = "<group>"; };
 		DIDENT002 /* DashboardIdentityAggregation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardIdentityAggregation.swift; sourceTree = "<group>"; };
 		DIDENT001 /* SessionRepositoryDashboardIdentities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepositoryDashboardIdentities.swift; sourceTree = "<group>"; };
 		WBCTX101 /* EventStorage+WorkContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+WorkContext.swift"; sourceTree = "<group>"; };
@@ -614,6 +620,8 @@
 				DRPL002 /* DashboardReplayEndpoints.swift */,
 				DRPL001 /* DashboardReplayAdapter.swift */,
 				DRPL000 /* DashboardReplayView.swift */,
+				NAP003F /* NapProviderCheck.swift */,
+				NAP002F /* NapEpisodeEditor.swift */,
 				CLUST002 /* DashboardViews.swift */,
 				DIDENT005 /* ProviderSessionAssociationView.swift */,
 				DIDENT004 /* DashboardProviderMatching.swift */,
@@ -709,6 +717,7 @@
 				NWF002 /* EventStorage+NightOutcome.swift */,
 				DDRV101 /* EventStorage+DashboardDoseReview.swift */,
 				PHRV001 /* EventStorage+PhysicianReview.swift */,
+				NAP001F /* EventStorage+NapDiary.swift */,
 				HQF001 /* EventStorage+HistoryQuestionnaires.swift */,
 				ESF023 /* EventStorage+SessionSupport.swift */,
 				ESF024 /* EventStorage+SymptomEvents.swift */,
@@ -1072,6 +1081,9 @@
 				PHRU1004 /* PhysicianReportPDF.swift in Sources */,
 				PHRU1002 /* PhysicianReviewView.swift in Sources */,
 				PHRV101 /* EventStorage+PhysicianReview.swift in Sources */,
+				NAP003B /* NapProviderCheck.swift in Sources */,
+				NAP002B /* NapEpisodeEditor.swift in Sources */,
+				NAP001B /* EventStorage+NapDiary.swift in Sources */,
 				0A777B0D5CC54803B060A980 /* UserSettingsManager.swift in Sources */,
 				626911F284B24C54BA73D7F8 /* SettingsView.swift in Sources */,
 				SET001 /* SettingsSections.swift in Sources */,

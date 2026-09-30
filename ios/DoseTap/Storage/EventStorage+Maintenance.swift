@@ -36,7 +36,7 @@ extension EventStorage {
     /// Clear all data (for testing/debug)
     public func clearAllData() {
         let tables = [
-            "dashboard_dose_reviews", "daytime_checkins", "daytime_events", "confirmed_medication_administrations", "medication_preset_revisions",
+            "dashboard_dose_reviews", "daytime_checkins", "daytime_events", "confirmed_medication_administrations", "medication_preset_revisions", "nap_diary",
             "sleep_events", "dose_events", "current_session", "sleep_sessions", "pre_sleep_logs",
             "morning_checkins", "checkin_submissions", "medication_events", "inventory_snapshots", "body_map_points",
             "physician_review_records", "symptom_locations", "symptom_events", "symptom_command_log", "symptom_summaries", "dashboard_provider_associations", "work_wake_schedule", "work_block_context", "supply_state"

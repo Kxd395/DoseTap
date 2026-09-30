@@ -31,6 +31,7 @@ extension EventStorage {
         let administrations = try dashboardRows("confirmed_medication_administrations")
         let inventory = try dashboardRows("inventory_snapshots") + dashboardRows("supply_state")
         let workSchedule = try dashboardRows("work_wake_schedule") + dashboardRows("work_block_context")
+        let napDiary = try dashboardRows("nap_diary")
         // Audit/cache rows retain their own source tables; never count them as
         // additional symptom observations or rebuild them during a reporting read.
         let symptoms = try ["symptom_events", "symptom_locations", "body_map_points",
@@ -46,7 +47,7 @@ extension EventStorage {
             (.sessions, sessions), (.doseEvents, doses), (.quickLogs, quickLogs),
             (.preSleep, preSleep), (.morning, morning), (.normalizedAnswers, answers),
             (.medicationEntries, medications), (.presetVersions, presets), (.administrations, administrations),
-            (.daytimeDiary, morning + nightOutcomes + daytime), (.reviewedSleepWindows, nightOutcomes), (.inventory, inventory),
+            (.daytimeDiary, morning + nightOutcomes + daytime + napDiary), (.reviewedSleepWindows, nightOutcomes), (.inventory, inventory),
             (.symptoms, symptoms), (.workSchedule, workSchedule)
         ] {
             let encoder = JSONEncoder()
