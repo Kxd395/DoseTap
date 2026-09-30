@@ -118,8 +118,12 @@ public struct DashboardReplaySnapshot: Codable, Equatable, Sendable {
         self.dose2NotTaken = dose2NotTaken; self.identityResolved = identityResolved
         self.reviewedProjection = reviewedProjection; self.mainEpisodeIntervals = mainEpisodeIntervals
     }
+    public var hasValidBoundary: Bool {
+        !sessionID.isEmpty && asOf.timeIntervalSinceReferenceDate.isFinite && TimeZone(identifier: timeZoneID) != nil
+    }
     /// Render only timestamped imported episode intervals, not reconstructed stages.
     public var mainEpisodeEvidence: SleepEvidenceResolution? {
+        guard hasValidBoundary else { return nil }
         guard let start = mainEpisodeIntervals.map(\.start).min(), let end = mainEpisodeIntervals.map(\.end).max() else { return nil }
         guard let result = SleepEvidenceResolution.calculate(start: start, end: end, samples: mainEpisodeIntervals.map {
             .init(sampleID: nil, start: $0.start, end: $0.end, rawCategory: 0, stage: $0.asleep ? .asleep : .awake,
@@ -134,6 +138,7 @@ public struct DashboardReplaySnapshot: Codable, Equatable, Sendable {
             .init(preset: preset, minutes: value, state: state, reason: reason,
                   startID: starts.count == 1 ? starts.first?.id : nil, endID: ends.count == 1 ? ends.first?.id : nil)
         }
+        guard hasValidBoundary else { return result(.needsReview, "Snapshot identity, as-of time or timezone is invalid") }
         guard identityResolved else { return result(.needsReview, "Session or episode association is unresolved") }
         if preset == .dose1ToDose2 && markers.contains(where: { $0.kind == .extraDose }) {
             return result(.needsReview, "Additional administration requires explicit pair review")
@@ -176,7 +181,7 @@ public struct DashboardReplaySnapshot: Codable, Equatable, Sendable {
     public enum SelectionError: Error { case invalidEndpoint }
     public func addingSelectedEndpoints(_ endpoints: [DashboardReplayMarker]) throws -> Self {
         let allowed: Set<DashboardReplayMarker.Kind> = [.medicationXR, .medicationIR, .daytimeMedication, .napEnd]
-        guard endpoints.allSatisfy({ allowed.contains($0.kind) && $0.sessionID == sessionID && !$0.id.isEmpty &&
+        guard hasValidBoundary, endpoints.allSatisfy({ allowed.contains($0.kind) && $0.sessionID == sessionID && !$0.id.isEmpty &&
             $0.sourceRecordID?.isEmpty == false && $0.occurredAt.timeIntervalSince1970.isFinite && $0.occurredAt <= asOf }),
             Set(endpoints.map(\.id)).count == endpoints.count,
             Set(endpoints.map(\.kind)).count == endpoints.count else { throw SelectionError.invalidEndpoint }
@@ -186,21 +191,26 @@ public struct DashboardReplaySnapshot: Codable, Equatable, Sendable {
             identityResolved: identityResolved, reviewedProjection: reviewedProjection, mainEpisodeIntervals: mainEpisodeIntervals)
     }
     public func position(of date: Date, alignment: Alignment) -> Double? {
-        guard date.timeIntervalSince1970.isFinite else { return nil }
+        guard hasValidBoundary, date.timeIntervalSince1970.isFinite else { return nil }
         if alignment == .clock { return date.timeIntervalSince1970 / 60 }
         let kind: DashboardReplayMarker.Kind = alignment == .dose1 ? .dose1 : .dose2
         let matches = markers.filter { $0.kind == kind && $0.sessionID == sessionID }
-        guard identityResolved, matches.count == 1, let start = matches.first,
+        guard identityResolved, matches.count == 1, let start = matches.first, !start.id.isEmpty,
               start.occurredAt.timeIntervalSince1970.isFinite, start.occurredAt <= asOf else { return nil }
-        return date.timeIntervalSince(start.occurredAt) / 60
+        let minutes = date.timeIntervalSince(start.occurredAt) / 60
+        return minutes.isFinite ? minutes : nil
     }
     public func jsonData() throws -> Data {
         let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         return try encoder.encode(self)
     }
     public var csv: String {
+        guard hasValidBoundary else { return "state,reason\nneedsReview,Invalid snapshot identity or time boundary\n" }
+        func timestamp(_ date: Date) -> String {
+            date.timeIntervalSinceReferenceDate.isFinite ? ISO8601DateFormatter().string(from: date) : "invalid_timestamp"
+        }
         var rows = [["field", "value"], ["session_id", sessionID], ["treatment_date", treatmentDate],
-                    ["derivation_version", derivationVersion], ["as_of", ISO8601DateFormatter().string(from: asOf)],
+                    ["derivation_version", derivationVersion], ["as_of", timestamp(asOf)],
                     ["timezone", timeZoneID], ["source_policy", sourcePolicy], ["filters", filterDescription],
                     ["reference", "150–240 minutes built-in reference only; not a prescription or safety range"],
                     ["preset", "minutes", "state", "reason", "start_id", "end_id", "reference_group"]]
@@ -210,24 +220,24 @@ public struct DashboardReplaySnapshot: Codable, Equatable, Sendable {
                     value.reason, value.startID ?? "", value.endID ?? "", value.referenceGroup ?? ""]
         }
         rows += [["main_episode_interval_start", "main_episode_interval_end", "asleep"]]
-        rows += mainEpisodeIntervals.map { [ISO8601DateFormatter().string(from: $0.start),
-            ISO8601DateFormatter().string(from: $0.end), String($0.asleep)] }
+        rows += mainEpisodeIntervals.map { [timestamp($0.start),
+            timestamp($0.end), String($0.asleep)] }
         if let projection = reviewedProjection {
             rows += [["coverage_definition", "Reviewed window; distinct from main-episode total"],
-                     ["coverage_start", ISO8601DateFormatter().string(from: projection.window.start)],
-                     ["coverage_end", ISO8601DateFormatter().string(from: projection.window.end)],
+                     ["coverage_start", timestamp(projection.window.start)],
+                     ["coverage_end", timestamp(projection.window.end)],
                      ["coverage_version", projection.derivationVersion],
                      ["asleep_minutes", projection.coverage.asleepMinutes.map(String.init(describing:)) ?? ""],
                      ["awake_minutes", projection.coverage.awakeMinutes.map(String.init(describing:)) ?? ""],
                      ["unmeasured_minutes", String(projection.coverage.unmeasuredMinutes)],
                      ["conflict_subset_minutes", String(projection.conflictMinutes)],
                      ["band_start", "band_end", "state"]]
-            rows += projection.bands.map { [ISO8601DateFormatter().string(from: $0.start),
-                ISO8601DateFormatter().string(from: $0.end), $0.state.rawValue] }
+            rows += projection.bands.map { [timestamp($0.start),
+                timestamp($0.end), $0.state.rawValue] }
         }
         rows += [["event_id", "kind", "occurred_at", "recorded_at", "source", "source_record_id", "medication_id", "formulation", "actual_amount"]]
-        rows += markers.map { [$0.id, $0.kind.rawValue, ISO8601DateFormatter().string(from: $0.occurredAt),
-            $0.recordedAt.map { ISO8601DateFormatter().string(from: $0) } ?? "", $0.source,
+        rows += markers.map { [$0.id, $0.kind.rawValue, timestamp($0.occurredAt),
+            $0.recordedAt.map { timestamp($0) } ?? "", $0.source,
             $0.sourceRecordID ?? "", $0.medicationID ?? "", $0.formulation ?? "", $0.amountDescription ?? ""] }
         return rows.map(ReportCSV.row).joined(separator: "\r\n")
     }

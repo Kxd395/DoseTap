@@ -20,10 +20,14 @@ public struct DaytimePromptAnchorContext: Equatable, Sendable {
     public let mainWake: DaytimeAnchorSource?
     public let shift: DaytimeAnchorSource?
     public let plannedBreak: DaytimeAnchorSource?
+    public let workSourceID: String?
+    public let workRevision: String?
     public init(dayKey: String, timeZone: String, working: Bool? = nil, mainWake: DaytimeAnchorSource? = nil,
-                shift: DaytimeAnchorSource? = nil, plannedBreak: DaytimeAnchorSource? = nil) {
+                shift: DaytimeAnchorSource? = nil, plannedBreak: DaytimeAnchorSource? = nil,
+                workSourceID: String? = nil, workRevision: String? = nil) {
         self.dayKey = dayKey; self.timeZone = timeZone; self.working = working
         self.mainWake = mainWake; self.shift = shift; self.plannedBreak = plannedBreak
+        self.workSourceID = workSourceID; self.workRevision = workRevision
     }
 }
 public struct DaytimePromptAnchorResolution: Codable, Equatable, Sendable {
@@ -33,6 +37,11 @@ public struct DaytimePromptAnchorResolution: Codable, Equatable, Sendable {
     public let sourceAt: Date?
     public let label: String
     public let unavailableReason: String?
+    public var kind: DaytimePromptRule.Anchor?
+    public var sourceEndAt: Date?
+    public var working: Bool?
+    public var workSourceID: String?
+    public var workRevision: String?
 }
 public struct DaytimePromptRule: Codable, Equatable, Sendable {
     public enum Anchor: String, Codable, CaseIterable, Sendable {
@@ -100,7 +109,8 @@ public struct DaytimePromptRule: Codable, Equatable, Sendable {
             source = plannedBreak; date = plannedBreak.at
         }
         guard let date else { return unavailable("Anchor time could not be resolved") }
-        return .init(intendedAt: date, sourceID: source?.id, sourceRevision: source?.revision,
-                     sourceAt: source?.at, label: label, unavailableReason: nil)
+        return .init(intendedAt: DaytimePromptLedger.canonicalDate(date), sourceID: source?.id, sourceRevision: source?.revision,
+                     sourceAt: source?.at, label: label, unavailableReason: nil, kind: selected, sourceEndAt: source?.endAt,
+                     working: evidence?.working, workSourceID: evidence?.workSourceID, workRevision: evidence?.workRevision)
     }
 }
