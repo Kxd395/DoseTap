@@ -77,6 +77,8 @@ struct DashboardTabView: View {
                 }.pickerStyle(.segmented).padding(.horizontal)
                     .accessibilityIdentifier("dashboard-section-picker")
 
+                NavigationLink("Work Block & Sleep") { DashboardWorkBlockView(model: model) }.accessibilityIdentifier("dashboard-work-block").padding()
+
                 DisclosureGroup("Dashboard colors & missing data") {
                     Text(palette.legend)
                         .font(.caption).foregroundColor(.secondary)

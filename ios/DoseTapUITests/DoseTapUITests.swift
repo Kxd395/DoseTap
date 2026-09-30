@@ -1296,6 +1296,34 @@ final class DoseTapUITests: XCTestCase {
         app.buttons["Close"].tap()
     }
 
+    func testDashboardWorkBlockUnknownAndRosterReview() throws {
+        app.buttons["Dashboard"].tap()
+        let link = app.buttons["dashboard-work-block"]
+        XCTAssertTrue(link.waitForExistence(timeout: 10)); link.tap()
+        XCTAssertTrue(app.navigationBars["Work Block & Sleep"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["work-context-configure"].exists)
+        captureDashboard("Work block basis and unknown context")
+        app.buttons["work-context-configure"].tap()
+        XCTAssertTrue(app.navigationBars["Work context"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Save revision"].isEnabled, "Roster dates and attendance cannot be accepted implicitly")
+        captureDashboard("Work roster requires explicit review")
+        let review = app.switches["I reviewed these dates and planned workdays"]
+        for _ in 0..<8 where !review.isHittable || review.frame.maxY > app.frame.maxY - 90 { app.swipeUp() }
+        XCTAssertTrue(review.isHittable)
+        review.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        XCTAssertEqual(review.value as? String, "1")
+        XCTAssertTrue(app.buttons["Save revision"].isEnabled); app.buttons["Save revision"].tap()
+        XCTAssertTrue(app.navigationBars["Work Block & Sleep"].waitForExistence(timeout: 5))
+        app.buttons["work-context-configure"].tap()
+        let history = app.staticTexts.matching(NSPredicate(format: "label MATCHES %@", "[1-9][0-9]* roster revisions • [0-9]+ work-date revisions")).firstMatch
+        for _ in 0..<8 where !history.exists { app.swipeUp() }
+        XCTAssertTrue(history.exists, "An explicitly reviewed roster must persist when reopened")
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(app.navigationBars["Work Block & Sleep"].waitForExistence(timeout: 5))
+        for _ in 0..<8 where !app.staticTexts["Records and exact values"].isHittable { app.swipeUp() }
+        captureDashboard("Work cycle profile and exact record table")
+    }
+
     func testDashboardSixMonthCoverage() throws {
         app.buttons["Dashboard"].tap()
         let range = app.buttons["dashboard-range-picker"]

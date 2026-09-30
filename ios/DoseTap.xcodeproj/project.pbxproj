@@ -28,6 +28,8 @@
 		NAP001B /* EventStorage+NapDiary.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAP001F /* EventStorage+NapDiary.swift */; };
 		DIDENT102 /* DashboardIdentityAggregation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT002 /* DashboardIdentityAggregation.swift */; };
 		DIDENT101 /* SessionRepositoryDashboardIdentities.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT001 /* SessionRepositoryDashboardIdentities.swift */; };
+		WBCTX003 /* WorkContextEditors.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBCTX103 /* WorkContextEditors.swift */; };
+		WBCTX002 /* DashboardWorkBlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBCTX102 /* DashboardWorkBlockView.swift */; };
 		WBCTX001 /* EventStorage+WorkContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBCTX101 /* EventStorage+WorkContext.swift */; };
 		PHRU1004 /* PhysicianReportPDF.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRU004 /* PhysicianReportPDF.swift */; };
 		PHRU1003 /* PhysicianReportPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRU003 /* PhysicianReportPreview.swift */; };
@@ -250,6 +252,8 @@
 		NAP001F /* EventStorage+NapDiary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+NapDiary.swift"; sourceTree = "<group>"; };
 		DIDENT002 /* DashboardIdentityAggregation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardIdentityAggregation.swift; sourceTree = "<group>"; };
 		DIDENT001 /* SessionRepositoryDashboardIdentities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepositoryDashboardIdentities.swift; sourceTree = "<group>"; };
+		WBCTX103 /* WorkContextEditors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkContextEditors.swift; sourceTree = "<group>"; };
+		WBCTX102 /* DashboardWorkBlockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardWorkBlockView.swift; sourceTree = "<group>"; };
 		WBCTX101 /* EventStorage+WorkContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+WorkContext.swift"; sourceTree = "<group>"; };
 		PHRU004 /* PhysicianReportPDF.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianReportPDF.swift; sourceTree = "<group>"; };
 		PHRU003 /* PhysicianReportPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianReportPreview.swift; sourceTree = "<group>"; };
@@ -644,6 +648,8 @@
 				DIDENT004 /* DashboardProviderMatching.swift */,
 				DIDENT002 /* DashboardIdentityAggregation.swift */,
 				DPAD001 /* DashboardDosePatternAdapter.swift */,
+				WBCTX103 /* WorkContextEditors.swift */,
+				WBCTX102 /* DashboardWorkBlockView.swift */,
 				CLUST106 /* DashboardTypes.swift */,
 				CLUST109 /* DashboardAnalyticsRefresh.swift */,
 				CLUST111 /* DashboardAnalyticsSupport.swift */,
@@ -1210,6 +1216,8 @@
 				DPUI003B /* DosePatternPresentation.swift in Sources */,
 				DPUI004B /* DosePatternReviewSheet.swift in Sources */,
 				DPUI005B /* MorningDoseHistoryReviewSection.swift in Sources */,
+				WBCTX003 /* WorkContextEditors.swift in Sources */,
+				WBCTX002 /* DashboardWorkBlockView.swift in Sources */,
 				CLUST105 /* DeferredCloudKitSyncService.swift in Sources */,
 				DIDENT105 /* ProviderSessionAssociationView.swift in Sources */,
 				DIDENT108 /* DashboardContextProjection.swift in Sources */,
