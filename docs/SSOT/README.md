@@ -877,6 +877,10 @@ Work schedule configuration and dated overrides are stored together in SQLite `w
 - The card covers up to 14 most recent recorded night keys, not necessarily 14 consecutive calendar nights. Its header says Recorded nights and shows the actual count. Display the bathroom count explanation in compact History as well as detailed review/capture, with full accessible labels.
 - Corrections and deletions refresh the same read-only summary. No migration, source-event rewriting, medication action or alarm change is part of this correction.
 
+### Dashboard dose-pattern evidence (DOSETAP-45)
+
+The [dose-pattern contract](contracts/dashboard-dose-patterns.md) separates reported administrations, explicitly completed counts, historical patient-reported plans and metric availability. It does not change medication records or alarms.
+
 ### Dashboard analytics contract (DOSETAP-45)
 
 Calendar reporting windows follow the [shared range contract](contracts/dashboard-calendar-ranges.md).
