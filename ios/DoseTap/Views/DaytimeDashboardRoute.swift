@@ -93,6 +93,7 @@ struct DashboardDaytimeRoute: View {
 struct DaytimeTrendRecords {
     let observations: [DaytimeCheckIn]
     let events: [DaytimeEvent]
+    let wakeContexts: [UUID: DaytimeWakeContext]
     var earliestEvidenceAt: Date? {
         (observations.map(\.assessedAt) + observations.compactMap { $0.eventReview?.from } + events.map(\.occurredAt)).min()
     }
@@ -100,5 +101,6 @@ struct DaytimeTrendRecords {
         guard asOf.timeIntervalSince1970.isFinite else { throw DaytimeDiaryError.invalid }
         observations = try DaytimeCheckInLedger(revisions: repository.daytimeCheckIns().revisions.filter { $0.recordedAt <= asOf }).current
         events = try DaytimeEventLedger(revisions: repository.daytimeEvents().revisions.filter { $0.recordedAt <= asOf }).current
+        wakeContexts = try repository.daytimeWakeContexts(observations: observations, asOf: asOf)
     }
 }

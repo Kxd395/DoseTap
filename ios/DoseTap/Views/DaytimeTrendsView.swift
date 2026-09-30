@@ -75,6 +75,19 @@ struct DaytimeTrendsView: View {
                                     ForEach(context.sourceRecordIDs, id: \.self) { Text($0).font(.caption.monospaced()) }
                                 }
                             }
+                            if let wake = records?.wakeContexts[selected.id] {
+                                Text(wake.label).font(.caption)
+                                DisclosureGroup("Main-wake source references") {
+                                    Text("Main-wake context v\(wake.definitionVersion) · \(wake.status.rawValue)").font(.caption)
+                                    Text(wake.elapsedSeconds.map { "Exact elapsed seconds: \($0)" } ?? "Elapsed time unavailable").font(.caption)
+                                    ForEach(wake.originalReferences, id: \.self) { original in
+                                        Text("Saved wake: \(original.at.formatted(date: .complete, time: .complete)) · \(original.sourceID) · \(original.revision)").font(.caption)
+                                    }
+                                    if let current = wake.currentSource {
+                                        Text("Current source wake: \(current.reference.at.formatted(date: .complete, time: .complete)); recorded \(current.recordedAt.formatted(date: .complete, time: .complete))").font(.caption)
+                                    }
+                                }
+                            }
                         }.accessibilityIdentifier("daytime-selected-observation-\(selected.id.uuidString)")
                     }
                 } else if failure == nil { Text("No daytime history was collected for these bounds.") }
@@ -230,7 +243,7 @@ struct DaytimeTrendsView: View {
             start = lower; end = window.endExclusive
             let rows = records.observations.filter { (origin == nil || $0.origin == origin) && (setting == nil || $0.setting == setting) }
             let contexts = selection.contextIssue == nil ? try Dictionary(uniqueKeysWithValues: rows.map {
-                ($0.id, try DaytimeObservationContext(observation: $0, work: selection.work, basis: selection.basis, medication: selection.medication, asOf: selection.asOf))
+                ($0.id, try DaytimeObservationContext(observation: $0, work: selection.work, basis: selection.basis, medication: selection.medication, asOf: selection.asOf, wake: records.wakeContexts[$0.id]))
             }) : nil
             report = try DaytimeDiaryAnalysis(observations: rows, events: records.events, start: lower, end: window.endExclusive,
                 now: selection.asOf, timeZone: selection.timeZone, includesEnd: false, contexts: contexts)

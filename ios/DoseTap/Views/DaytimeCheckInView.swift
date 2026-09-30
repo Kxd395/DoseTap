@@ -32,6 +32,14 @@ struct DaytimeCheckInView: View {
                         if !value.copingActions.isEmpty { Text(value.copingActions.map(\.rawValue).joined(separator: ", ")) }
                         if !value.note.isEmpty { Text(value.note) }
                         if let review = value.eventReview { Text("Event review: \(review.from.formatted()) – \(review.to.formatted()); \(review.status.rawValue), \(review.eventIDs.count) linked events") }
+                        if let links = value.sourceLinks, !links.isEmpty {
+                            DisclosureGroup("Saved source links (\(links.count))") {
+                                ForEach(links) { link in
+                                    Text("\(link.kind.rawValue) · \(link.daytimePrecisionLabel) · \(link.daytimeTimestamp(link.start)) · \(link.sourceCalendarDay ?? "") \(link.timeZoneIdentifier ?? "")")
+                                    Text("Saved source \(link.sourceID); evidence \(link.evidenceKey)").font(.caption)
+                                }
+                            }
+                        }
                         Text("Recorded \(value.recordedAt.formatted()). \(value.timeZoneIdentifier)").font(.caption).foregroundStyle(.secondary)
                         Button("Correct response") { editing = value }
                         DisclosureGroup("Revision history") {
@@ -84,6 +92,7 @@ struct DaytimeCheckInEditor: View {
     @State private var reviewTo = Date()
     @State private var reviewStatus: DaytimeEventReview.Status = .notReviewed
     @State private var eventIDs: Set<UUID> = []
+    @State private var sourceLinks: [DaytimeSourceLink] = []
     @State private var events: [DaytimeEvent] = []
     @State private var eventsLoaded = false
     @State private var pending: DaytimeCheckIn?
@@ -145,6 +154,11 @@ struct DaytimeCheckInEditor: View {
                     Section("Correction reason") { TextField("Why are you correcting this response?", text: $reason) }.disabled(pending != nil)
                 }
                 if original == nil {
+                    Section("Optional existing source links") {
+                        NavigationLink("Review nap, medication or main-wake links (\(sourceLinks.count))") {
+                            DaytimeSourcePicker(repository: repository, selected: $sourceLinks)
+                        }.accessibilityIdentifier("daytime-source-open")
+                    }.disabled(pending != nil)
                     Section("Optional event review") {
                         Toggle("Review an interval", isOn: $reviewEnabled)
                         if reviewEnabled {
@@ -208,13 +222,13 @@ struct DaytimeCheckInEditor: View {
                         origin: retrospective ? .retrospective : (promptID == nil ? (symptomTriggered ? .symptomTriggered : .userInitiated) : .scheduled), activity: activity, setting: setting,
                         coping: coping, copingActions: actions, note: note, promptID: promptID,
                         eventReview: reviewEnabled ? DaytimeEventReview(from: reviewFrom, to: reviewTo, status: reviewStatus, eventIDs: Array(eventIDs)) : nil,
-                        samplingProtocolID: samplingProtocolID, samplingProtocolLabel: samplingProtocolLabel)
+                        samplingProtocolID: samplingProtocolID, samplingProtocolLabel: samplingProtocolLabel, sourceLinks: sourceLinks.isEmpty ? nil : sourceLinks)
                 }
             }
             guard let pending else { return }
             try repository.saveDaytimeCheckIn(pending)
             onSaved?(pending)
             dismiss()
-        } catch { failure = (error as? DaytimeDiaryError)?.localizedDescription ?? DaytimeDiaryError.notCommitted.localizedDescription; showSaveFailure = true }
+        } catch { failure = (error as? DaytimeSourceSelectionError)?.localizedDescription ?? (error as? DaytimeDiaryError)?.localizedDescription ?? DaytimeDiaryError.notCommitted.localizedDescription; showSaveFailure = true }
     }
 }

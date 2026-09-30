@@ -78,6 +78,7 @@ final class DoseTapUITests: XCTestCase {
             app.launchArguments += ["-setup_completed_v2", "YES", "-healthkit_enabled", "NO", "-whoop_enabled", "NO"]
             app.launchEnvironment["DOSETAP_DAYTIME_TEST_ID"] = UUID().uuidString
             if name.contains("Overlap") { app.launchArguments.append("--uitesting-daytime-overlap") }
+            if name.contains("SourceLink") { app.launchArguments.append("--uitesting-daytime-source") }
         }
         if name.contains("testDaytimeTrendLargestText") { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
         if name.contains("testDaytimeFailure") { app.launchArguments += ["--uitesting-durable-log", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
@@ -2618,5 +2619,35 @@ extension DoseTapUITests {
         for _ in 0..<10 where !selected.exists { app.swipeDown() }
         XCTAssertTrue(selected.exists)
         let proof = XCTAttachment(screenshot: app.screenshot()); proof.name = "Explicit coincident-point choice"; proof.lifetime = .keepAlways; add(proof)
+    }
+}
+
+extension DoseTapUITests {
+    func testDaytimeExistingNapSourceLinkPersists() throws {
+        func reveal(_ element: XCUIElement) {
+            for _ in 0..<12 where !element.isHittable { app.swipeUp() }
+            XCTAssertTrue(element.isHittable)
+        }
+        XCTAssertTrue(app.buttons["History"].firstMatch.waitForExistence(timeout: 15)); app.buttons["History"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["history-daytime"].waitForExistence(timeout: 10)); app.buttons["history-daytime"].tap()
+        app.buttons["daytime-add-top"].tap()
+        reveal(app.buttons["daytime-rating"]); app.buttons["daytime-rating"].tap(); app.buttons["4"].tap()
+        reveal(app.buttons["daytime-source-open"]); app.buttons["daytime-source-open"].tap()
+        let candidate = app.buttons["daytime-source-candidate"].firstMatch
+        XCTAssertTrue(candidate.waitForExistence(timeout: 5)); reveal(candidate); candidate.tap()
+        XCTAssertTrue(app.buttons["Remove selection"].waitForExistence(timeout: 5))
+        app.navigationBars["Existing source links"].buttons.firstMatch.tap()
+        app.buttons["daytime-save-top"].tap()
+        let saved = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH %@", "daytime-saved-observation-")).firstMatch
+        XCTAssertTrue(saved.waitForExistence(timeout: 5))
+        let id = saved.identifier
+        app.terminate(); app.launch()
+        XCTAssertTrue(app.buttons["History"].firstMatch.waitForExistence(timeout: 15)); app.buttons["History"].firstMatch.tap(); app.buttons["history-daytime"].tap()
+        XCTAssertTrue(app.staticTexts[id].waitForExistence(timeout: 5))
+        let links = app.buttons["Saved source links (1)"]
+        reveal(links); links.tap()
+        let source = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "synthetic-nap-source")).firstMatch
+        reveal(source); XCTAssertTrue(source.exists)
+        let proof = XCTAttachment(screenshot: app.screenshot()); proof.name = "Independent observation with existing nap link after restart"; proof.lifetime = .keepAlways; add(proof)
     }
 }

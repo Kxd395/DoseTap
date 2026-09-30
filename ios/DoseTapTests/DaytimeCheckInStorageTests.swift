@@ -226,3 +226,143 @@ extension DaytimeCheckInStorageTests {
         XCTAssertTrue(state.offeredCandidateIDs.isEmpty)
     }
 }
+
+extension DaytimeCheckInStorageTests {
+    func testNapSelectionPreservesReviewedIdentityWithoutDuplicatingNap() throws {
+        let repository = repo(EventStorage(dbPath: ":memory:"))
+        let episode = NapEpisode(day: NapEpisode.day(now, "UTC"), timeZoneID: "UTC", start: now.addingTimeInterval(-900), end: now.addingTimeInterval(-300), recordedAt: now)
+        var document = NapDiaryDocument(); document.episodes = [episode]
+        try repository.saveNapDiary(document, expectedRevision: nil)
+        let candidate = try XCTUnwrap(repository.daytimeSourceCandidates(kind: .nap, asOf: now).first)
+        XCTAssertEqual(candidate.link.sourceRevisionID, episode.revision.uuidString)
+        XCTAssertEqual(candidate.link.sourceCalendarDay, episode.day)
+        let row = try DaytimeCheckIn(assessedAt: now, recordedAt: now, timeZoneIdentifier: "UTC", response: 4, sourceLinks: [candidate.link])
+        try repository.saveDaytimeCheckIn(row)
+        XCTAssertEqual(try repository.napDiary()?.episodes.count, 1)
+        XCTAssertEqual(try repository.daytimeCheckIns().current.first?.sourceLinks, [candidate.link])
+        XCTAssertNil(repository.dose1Time)
+    }
+    func testChangedNapRejectsNewLinkButExactRetryAndCorrectionKeepHistoricalEvidence() throws {
+        let repository = repo(EventStorage(dbPath: ":memory:"))
+        let episode = NapEpisode(day: NapEpisode.day(now, "UTC"), timeZoneID: "UTC", start: now.addingTimeInterval(-900), recordedAt: now)
+        var document = NapDiaryDocument(); document.episodes = [episode]
+        try repository.saveNapDiary(document, expectedRevision: nil)
+        let link = try XCTUnwrap(repository.daytimeSourceCandidates(kind: .nap, asOf: now).first?.link)
+        let row = try DaytimeCheckIn(assessedAt: now, recordedAt: now, timeZoneIdentifier: "UTC", response: 4, sourceLinks: [link])
+        try repository.saveDaytimeCheckIn(row)
+        var corrected = episode; corrected.revision = UUID(); corrected.predecessor = episode.revision
+        corrected.end = now.addingTimeInterval(-100); corrected.reason = "End reviewed"; corrected.recordedAt = now.addingTimeInterval(10)
+        let previousRevision = document.revision; document.revision = UUID(); document.episodes.append(corrected)
+        try repository.saveNapDiary(document, expectedRevision: previousRevision)
+        let newRow = try DaytimeCheckIn(assessedAt: now, recordedAt: now, timeZoneIdentifier: "UTC", response: 4, sourceLinks: [link])
+        XCTAssertThrowsError(try repository.saveDaytimeCheckIn(newRow))
+        try repository.saveDaytimeCheckIn(row)
+        try repository.saveDaytimeCheckIn(row.corrected(response: 5, status: .answered, reason: "Response", recordedAt: now.addingTimeInterval(20)))
+        XCTAssertEqual(try repository.daytimeCheckIns().current.count, 1)
+        XCTAssertEqual(try repository.daytimeCheckIns().current.first?.sourceLinks, [link])
+    }
+    func testOverlappingNapSourcesRemainIneligibleUntilReviewed() throws {
+        let repository = repo(EventStorage(dbPath: ":memory:"))
+        let first = NapEpisode(day: NapEpisode.day(now, "UTC"), timeZoneID: "UTC", start: now.addingTimeInterval(-900), end: now.addingTimeInterval(-300), recordedAt: now)
+        let second = NapEpisode(day: first.day, timeZoneID: "UTC", start: now.addingTimeInterval(-600), end: now.addingTimeInterval(-100), recordedAt: now)
+        var document = NapDiaryDocument(); document.episodes = [first, second]
+        try repository.saveNapDiary(document, expectedRevision: nil)
+        XCTAssertTrue(try repository.daytimeSourceCandidates(kind: .nap, asOf: now).isEmpty)
+        XCTAssertEqual(try repository.napDiary()?.episodes.count, 2)
+    }
+    func testNapSourceReadJoinsTransactionWithoutCommittingIt() throws {
+        let storage = EventStorage(dbPath: ":memory:"), repository = repo(storage)
+        let episode = NapEpisode(day: NapEpisode.day(now, "UTC"), timeZoneID: "UTC", start: now.addingTimeInterval(-900), recordedAt: now)
+        var document = NapDiaryDocument(); document.episodes = [episode]
+        try repository.saveNapDiary(document, expectedRevision: nil)
+        let link = try XCTUnwrap(repository.daytimeSourceCandidates(kind: .nap, asOf: now).first?.link)
+        let row = try DaytimeCheckIn(assessedAt: now, recordedAt: now, timeZoneIdentifier: "UTC", response: 4, sourceLinks: [link])
+        storage.medicationFaultInjector = { $0 == .commit ? MedicationStorageInjectedFailure(code: .diskFull, sqliteCode: 13, detail: "Synthetic") : nil }
+        XCTAssertThrowsError(try repository.saveDaytimeCheckIn(row))
+        XCTAssertTrue(try repository.daytimeCheckIns().revisions.isEmpty)
+        XCTAssertEqual(try repository.napDiary(), document)
+        storage.medicationFaultInjector = nil
+        try repository.saveDaytimeCheckIn(row)
+        XCTAssertEqual(try repository.daytimeCheckIns().current, [row])
+        XCTAssertEqual(try repository.napDiary(), document)
+    }
+    func testMissingSourceRollbackAndRetryPreservesLedger() throws {
+        let repository = repo(EventStorage(dbPath: ":memory:"))
+        let link = try DaytimeSourceLink(kind: .mainWake, sourceID: "missing", evidenceKey: String(repeating: "a", count: 64), start: now.addingTimeInterval(-100), timePrecision: .reported, selectedAt: now)
+        let row = try DaytimeCheckIn(assessedAt: now, recordedAt: now, timeZoneIdentifier: "UTC", response: 4, sourceLinks: [link])
+        XCTAssertThrowsError(try repository.saveDaytimeCheckIn(row))
+        XCTAssertTrue(try repository.daytimeCheckIns().revisions.isEmpty)
+        try repository.saveDaytimeCheckIn(value())
+        XCTAssertEqual(try repository.daytimeCheckIns().current.count, 1)
+    }
+    func testMedicationCandidateKeepsUnknownOccurrenceAndActualComponents() throws {
+        let repository = repo(EventStorage(dbPath: ":memory:"))
+        let component = try MedicationPresetComponent(id: UUID(), form: .tablet, strengthMilligrams: 2, unitCount: 1)
+        let preset = try MedicationPresetRevision(presetID: UUID(), revisionID: UUID(), supersedesRevisionID: nil, labelName: "Synthetic", ingredient: "Synthetic ingredient", releaseProfile: .extendedRelease, components: [component], instructions: "Label", schedule: .scheduled, effectiveFrom: now, effectiveUntil: nil, recordedAt: now)
+        try repository.saveMedicationPresetRevision(preset)
+        let actual = try ConfirmedMedicationAdministration(id: UUID(), preset: preset, actualComponents: [component], occurredAt: nil, precision: .unknown, timeZoneIdentifier: nil, utcOffsetSeconds: nil, confirmedAt: now, recordedAt: now)
+        try repository.saveConfirmedMedicationAdministration(actual)
+        let candidate = try XCTUnwrap(repository.daytimeSourceCandidates(kind: .medication, asOf: now).first)
+        XCTAssertNil(candidate.link.start)
+        XCTAssertEqual(candidate.link.timePrecision, .unknown)
+        XCTAssertEqual(candidate.link.sourceEventIDs, [actual.id.uuidString])
+        XCTAssertEqual(candidate.link.sourceRevisionID, preset.revisionID.uuidString)
+        XCTAssertTrue(candidate.label.contains("2 mg"))
+        try repository.saveDaytimeCheckIn(DaytimeCheckIn(assessedAt: now, recordedAt: now, timeZoneIdentifier: "UTC", response: 4, sourceLinks: [candidate.link]))
+        XCTAssertEqual(try repository.medicationPresetExportSnapshot().administrations.count, 1)
+    }
+}
+
+extension DaytimeCheckInStorageTests {
+    func makeWake(_ storage: EventStorage, at: Date, recordedAt: Date) throws {
+        XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_sessions(session_id,session_date,start_utc) VALUES('explicit-wake','2026-09-20','2026-09-21T00:00:00Z')", nil, nil, nil), SQLITE_OK)
+        var diary = NightOutcomeDiary(); diary.finalWakeAt = at
+        XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: "2026-09-20"), reason: "", recordedAt: recordedAt).isCommitted)
+    }
+    func testLinkedWakeContextIsFrozenAndClearDoesNotRetarget() throws {
+        let storage = EventStorage.inMemory(), repository = repo(storage)
+        try makeWake(storage, at: now.addingTimeInterval(-3600), recordedAt: now.addingTimeInterval(-100))
+        let link = try XCTUnwrap(repository.daytimeSourceCandidates(kind: .mainWake, asOf: now).first?.link)
+        let row = try DaytimeCheckIn(assessedAt: now, recordedAt: now, timeZoneIdentifier: "UTC", response: 4, sourceLinks: [link])
+        try repository.saveDaytimeCheckIn(row)
+        let snapshot = try DaytimeTrendRecords(repository: repository, asOf: now)
+        XCTAssertEqual(snapshot.wakeContexts[row.id]?.status, .current)
+        let source = try XCTUnwrap(snapshot.wakeContexts[row.id]?.currentSource?.reference.at)
+        XCTAssertEqual(snapshot.wakeContexts[row.id]?.elapsedSeconds, now.timeIntervalSince(source))
+        XCTAssertTrue(storage.saveNightOutcome(NightOutcomeDiary(), review: try storage.nightOutcomeSnapshot(sessionDate: "2026-09-20"), reason: "Wake uncertain", recordedAt: now.addingTimeInterval(10)).isCommitted)
+        XCTAssertEqual(try DaytimeTrendRecords(repository: repository, asOf: now).wakeContexts[row.id]?.status, .current)
+        XCTAssertEqual(try DaytimeTrendRecords(repository: repository, asOf: now.addingTimeInterval(20)).wakeContexts[row.id]?.status, .unavailable)
+        XCTAssertEqual(try repository.daytimeCheckIns().current.first?.sourceLinks, [link])
+    }
+    func testScheduledWakeUsesOriginalPromptAndScheduleIdentity() throws {
+        let storage = EventStorage.inMemory(), repository = repo(storage)
+        try makeWake(storage, at: now.addingTimeInterval(-3600), recordedAt: now.addingTimeInterval(-3500))
+        let wake = try XCTUnwrap(repository.daytimeMainWakeSources(asOf: now).first)
+        var ledger = DaytimePromptLedger()
+        try ledger.configure(hour: 12, minute: 0, timeZone: "UTC", enabled: true, at: now.addingTimeInterval(-7200), rule: DaytimePromptRule(anchor: .mainWake, selectedWeekdays: Set(1...7), wakeOffsetMinutes: 60))
+        let anchor = try DaytimeAnchorSource(id: wake.id, revision: wake.revision, at: wake.at)
+        let context = DaytimePromptAnchorContext(dayKey: DaytimePromptRule.dayKey(wake.at, timeZone: "UTC"), timeZone: "UTC", mainWake: anchor)
+        let prompt = try XCTUnwrap(ledger.prepareHorizon(at: now.addingTimeInterval(-1800), contexts: [context]).first)
+        try repository.saveDaytimePrompts(ledger)
+        let row = try DaytimeCheckIn(assessedAt: now, recordedAt: now, timeZoneIdentifier: "UTC", response: 4, origin: .scheduled, promptID: prompt.id, samplingProtocolID: prompt.scheduleID)
+        let result = try repository.daytimeWakeContexts(observations: [row], asOf: now)
+        XCTAssertEqual(result[row.id]?.status, .current)
+        XCTAssertEqual(result[row.id]?.originalReferences.first?.sourceID, wake.id)
+        XCTAssertEqual(result[row.id]?.originalReferences.first?.revision, wake.revision)
+        let mismatched = try DaytimeCheckIn(assessedAt: now, recordedAt: now, timeZoneIdentifier: "UTC", response: 4, origin: .scheduled, promptID: prompt.id, samplingProtocolID: UUID())
+        XCTAssertEqual(try repository.daytimeWakeContexts(observations: [mismatched], asOf: now)[mismatched.id]?.status, .unavailable)
+        let unlinked = try value()
+        XCTAssertEqual(try repository.daytimeWakeContexts(observations: [unlinked], asOf: now)[unlinked.id]?.status, .notLinked)
+    }
+}
+
+
+extension DaytimeCheckInStorageTests {
+    func testWakeProjectionRejectsDuplicateRowsAndUnreadablePromptDoesNotGuess() throws {
+        let repository = repo(EventStorage.inMemory()), row = try value()
+        XCTAssertThrowsError(try repository.daytimeWakeContexts(observations: [row, row], asOf: now))
+        let scheduled = try DaytimeCheckIn(assessedAt: now, recordedAt: now, timeZoneIdentifier: "UTC", response: 4, origin: .scheduled, promptID: UUID())
+        XCTAssertEqual(try repository.daytimeWakeContexts(observations: [scheduled], asOf: now)[scheduled.id]?.status, .unavailable)
+        XCTAssertTrue(try repository.daytimeCheckIns().current.isEmpty)
+    }
+}

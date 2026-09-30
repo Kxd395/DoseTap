@@ -59,8 +59,8 @@ extension SessionRepository {
         catch { storageLog.error("Nap review save failed; existing history retained"); throw error }
         sessionDidChange.send()
     }
-    private func napTimerMarkers() throws -> [NapTimerMarker] {
-        try dashboardLocalSessions().flatMap { session in
+    private func napTimerMarkers(inTransaction: Bool = false) throws -> [NapTimerMarker] {
+        try storage.dashboardLocalSessions(inTransaction: inTransaction).flatMap { session in
             session.events.compactMap { event -> NapTimerMarker? in
                 let kind = normalizeStoredEventType(event.eventType)
                 guard ["nap_start", "nap_end"].contains(kind) else { return nil }
@@ -72,19 +72,19 @@ extension SessionRepository {
         NapEpisode.timers(try napTimerMarkers(), zone: timeZoneID, asOf: asOf)
     }
     /// Reconstruct each reviewed timer in its recorded zone; travel does not change its source identity.
-    func napDiarySources(document: NapDiaryDocument?, asOf: Date, defaultTimeZoneID: String) throws -> [NapEpisode] {
+    func napDiarySources(document: NapDiaryDocument?, asOf: Date, defaultTimeZoneID: String, inTransaction: Bool = false) throws -> [NapEpisode] {
         guard asOf.timeIntervalSince1970.isFinite, TimeZone(identifier: defaultTimeZoneID) != nil, document?.isValid != false else { throw NapDiaryStorageError.invalid }
         let storedZones = Dictionary(uniqueKeysWithValues: (document?.current ?? []).map { ($0.id, $0.timeZoneID) })
-        let markers = try napTimerMarkers()
+        let markers = try napTimerMarkers(inTransaction: inTransaction)
         return Set(storedZones.values).union([defaultTimeZoneID]).sorted().flatMap { sourceZone in
             NapEpisode.timers(markers, zone: sourceZone, asOf: asOf).filter {
                 (storedZones[$0.id] ?? defaultTimeZoneID) == sourceZone
             }
         }
     }
-    func reviewedNapEpisodes(asOf: Date, defaultTimeZoneID: String) throws -> [NapEpisode] {
+    func reviewedNapEpisodes(asOf: Date, defaultTimeZoneID: String, inTransaction: Bool = false) throws -> [NapEpisode] {
         let document = try napDiary() ?? NapDiaryDocument()
-        return document.merging(try napDiarySources(document: document, asOf: asOf, defaultTimeZoneID: defaultTimeZoneID))
+        return document.merging(try napDiarySources(document: document, asOf: asOf, defaultTimeZoneID: defaultTimeZoneID, inTransaction: inTransaction))
     }
 
 }

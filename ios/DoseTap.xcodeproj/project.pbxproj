@@ -233,6 +233,9 @@
 		DAYB004 /* DaytimeEventView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYF004 /* DaytimeEventView.swift */; };
 		DAYB005 /* DaytimeTrendsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYF005 /* DaytimeTrendsView.swift */; };
 		DAYB006 /* DaytimeDashboardRoute.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYF006 /* DaytimeDashboardRoute.swift */; };
+		DAYSRCB09 /* DaytimeWakeProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYSRCF09 /* DaytimeWakeProjection.swift */; };
+		DAYSRCB08 /* DaytimeSourcePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYSRCF08 /* DaytimeSourcePicker.swift */; };
+		DAYSRCB07 /* DaytimeSourceCandidates.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYSRCF07 /* DaytimeSourceCandidates.swift */; };
 		DAYB007 /* SessionRepositoryDaytimeSources.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYF007 /* SessionRepositoryDaytimeSources.swift */; };
 		CTX003B /* ContextMorningOutcomesUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CTX003F; };
 		CTX002B /* ContextMorningOutcomesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CTX002F; };
@@ -511,6 +514,9 @@
 		DAYF004 /* DaytimeEventView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaytimeEventView.swift; sourceTree = "<group>"; };
 		DAYF005 /* DaytimeTrendsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaytimeTrendsView.swift; sourceTree = "<group>"; };
 		DAYF006 /* DaytimeDashboardRoute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaytimeDashboardRoute.swift; sourceTree = "<group>"; };
+		DAYSRCF09 /* DaytimeWakeProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaytimeWakeProjection.swift; sourceTree = "<group>"; };
+		DAYSRCF08 /* DaytimeSourcePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaytimeSourcePicker.swift; sourceTree = "<group>"; };
+		DAYSRCF07 /* DaytimeSourceCandidates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaytimeSourceCandidates.swift; sourceTree = "<group>"; };
 		DAYF007 /* SessionRepositoryDaytimeSources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepositoryDaytimeSources.swift; sourceTree = "<group>"; };
 		CTX003F /* ContextMorningOutcomesUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextMorningOutcomesUITests.swift; sourceTree = "<group>"; };
 		CTX002F /* ContextMorningOutcomesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextMorningOutcomesView.swift; sourceTree = "<group>"; };
@@ -898,6 +904,9 @@
 				DAYF002 /* DaytimeCheckInView.swift */,
 				DAYF005 /* DaytimeTrendsView.swift */,
 		DAYF006 /* DaytimeDashboardRoute.swift */,
+		DAYSRCF09 /* DaytimeWakeProjection.swift */,
+		DAYSRCF08 /* DaytimeSourcePicker.swift */,
+		DAYSRCF07 /* DaytimeSourceCandidates.swift */,
 				DAYF004 /* DaytimeEventView.swift */,
 				PHRU003 /* PhysicianReportPreview.swift */,
 				PHRU006 /* PhysicianDashboardReviewLink.swift */,
@@ -1186,6 +1195,9 @@
 				DAYB002 /* DaytimeCheckInView.swift in Sources */,
 				DAYB005 /* DaytimeTrendsView.swift in Sources */,
 		DAYB006 /* DaytimeDashboardRoute.swift in Sources */,
+		DAYSRCB09 /* DaytimeWakeProjection.swift in Sources */,
+		DAYSRCB08 /* DaytimeSourcePicker.swift in Sources */,
+		DAYSRCB07 /* DaytimeSourceCandidates.swift in Sources */,
 		DAYB007 /* SessionRepositoryDaytimeSources.swift in Sources */,
 				DAYB004 /* DaytimeEventView.swift in Sources */,
 				NWB002 /* EventStorage+NightOutcome.swift in Sources */,

@@ -21,7 +21,7 @@ extension EventStorage {
     }
 
     /// Commit one immutable revision atomically; identical retries do not append twice.
-    func saveDaytimeCheckIn(_ value: DaytimeCheckIn) throws -> Bool {
+    func saveDaytimeCheckIn(_ value: DaytimeCheckIn, validateNewLinks: ([DaytimeSourceLink]) throws -> Void = { _ in throw DaytimeDiaryError.invalid }) throws -> Bool {
         let payload = try value.encoded()
         guard databaseInitializationFailure == nil, let db, injectedMedicationFailure(at: .begin) == nil,
               sqlite3_exec(db, "BEGIN IMMEDIATE", nil, nil, nil) == SQLITE_OK else { throw DaytimeDiaryError.notCommitted }
@@ -40,6 +40,7 @@ extension EventStorage {
             guard existing == value else { throw DaytimeDiaryError.conflict }
         } else {
             _ = try DaytimeCheckInLedger(revisions: ledger.revisions + [value])
+            if value.predecessorID == nil, let links = value.sourceLinks, !links.isEmpty { try validateNewLinks(links) }
             guard injectedMedicationFailure(at: .insert) == nil else { throw DaytimeDiaryError.notCommitted }
             var stmt: OpaquePointer?
             defer { sqlite3_finalize(stmt) }
@@ -63,6 +64,8 @@ extension SessionRepository {
     func daytimeCheckIns() throws -> DaytimeCheckInLedger { try storage.daytimeCheckIns() }
     func saveDaytimeCheckIn(_ value: DaytimeCheckIn) throws {
         guard value.recordedAt <= clock() else { throw DaytimeDiaryError.invalid }
-        if try storage.saveDaytimeCheckIn(value) { sessionDidChange.send() }
+        if try storage.saveDaytimeCheckIn(value, validateNewLinks: { links in
+            try self.validateDaytimeSourceSelection(links, asOf: self.clock())
+        }) { sessionDidChange.send() }
     }
 }

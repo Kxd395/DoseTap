@@ -128,6 +128,16 @@ public class EventStorage {
                     }
                 } catch { storageLog.error("Isolated daytime UI fixture could not be prepared") }
             }
+            if ProcessInfo.processInfo.arguments.contains("--uitesting-daytime-source") {
+                do {
+                    if try napDiary() == nil {
+                        let now = Date().addingTimeInterval(-600)
+                        var document = NapDiaryDocument()
+                        document.episodes = [NapEpisode(id: "synthetic-nap-source", day: NapEpisode.day(now, "UTC"), timeZoneID: "UTC", start: now.addingTimeInterval(-900), end: now.addingTimeInterval(-300), recordedAt: now)]
+                        try saveNapDiary(document, expectedRevision: nil)
+                    }
+                } catch { storageLog.error("Isolated nap-source UI fixture could not be prepared") }
+            }
             return
         }
         #endif
