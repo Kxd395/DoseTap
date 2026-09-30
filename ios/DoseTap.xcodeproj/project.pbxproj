@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		DPUI002B /* DosePatternDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI002F; };
+		DPUI003B /* DosePatternPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI003F; };
+		DPUI004B /* DosePatternReviewSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI004F; };
+		DPUI005B /* MorningDoseHistoryReviewSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI005F; };
 		DPAD101 /* DashboardDosePatternAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPAD001 /* DashboardDosePatternAdapter.swift */; };
 		DDRV001 /* EventStorage+DashboardDoseReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDRV101; };
 		DIDENT106 /* DashboardAssociationUITestFixture.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT006 /* DashboardAssociationUITestFixture.swift */; };
@@ -223,6 +227,10 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		DPUI002F /* DosePatternDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternDetailSheet.swift; sourceTree = "<group>"; };
+		DPUI003F /* DosePatternPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternPresentation.swift; sourceTree = "<group>"; };
+		DPUI004F /* DosePatternReviewSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternReviewSheet.swift; sourceTree = "<group>"; };
+		DPUI005F /* MorningDoseHistoryReviewSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningDoseHistoryReviewSection.swift; sourceTree = "<group>"; };
 		DPAD001 /* DashboardDosePatternAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardDosePatternAdapter.swift; sourceTree = "<group>"; };
 		DDRV101 /* EventStorage+DashboardDoseReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+DashboardDoseReview.swift"; sourceTree = "<group>"; };
 		DIDENT006 /* DashboardAssociationUITestFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardAssociationUITestFixture.swift; sourceTree = "<group>"; };
@@ -624,6 +632,10 @@
 				NAP002F /* NapEpisodeEditor.swift */,
 				CLUST002 /* DashboardViews.swift */,
 				DIDENT005 /* ProviderSessionAssociationView.swift */,
+				DPUI002F /* DosePatternDetailSheet.swift */,
+				DPUI003F /* DosePatternPresentation.swift */,
+				DPUI004F /* DosePatternReviewSheet.swift */,
+				DPUI005F /* MorningDoseHistoryReviewSection.swift */,
 				DIDENT004 /* DashboardProviderMatching.swift */,
 				DIDENT002 /* DashboardIdentityAggregation.swift */,
 				DPAD001 /* DashboardDosePatternAdapter.swift */,
@@ -1187,6 +1199,10 @@
 				DRPL101 /* DashboardReplayAdapter.swift in Sources */,
 				DRPL100 /* DashboardReplayView.swift in Sources */,
 				CLUST102 /* DashboardViews.swift in Sources */,
+				DPUI002B /* DosePatternDetailSheet.swift in Sources */,
+				DPUI003B /* DosePatternPresentation.swift in Sources */,
+				DPUI004B /* DosePatternReviewSheet.swift in Sources */,
+				DPUI005B /* MorningDoseHistoryReviewSection.swift in Sources */,
 				CLUST105 /* DeferredCloudKitSyncService.swift in Sources */,
 				DIDENT105 /* ProviderSessionAssociationView.swift in Sources */,
 				DIDENT104 /* DashboardProviderMatching.swift in Sources */,

@@ -30,3 +30,12 @@ are omitted. Count, plan, explicit omission, revision and source record IDs rema
 separate from administrations; the private source fingerprint never travels.
 Missing sidecars mean no review supplied, not zero administrations. The receiving
 iPad preserves report source/generation/capture and cannot write the phone ledger.
+
+## Sleep & Dose Pattern consumer
+
+- By date, category comparison and paired-interval modes share the selected provider and sleep definition. Total main-episode sleep is independent of count/spacing; post-Dose-2 sleep requires a usable Dose 2 and compatible Apple Health intervals. Missing values are not points at zero.
+- Neutral count symbols are circle/two, square/one, triangle/confirmed zero and diamond/unresolved or review. Categories remain text-labeled; a count view does not inherit the old spacing-reference symbol legend. Comparisons show observed counts, median and middle-50% spread without treatment recommendations.
+- Numeric paired spacing and its categorical unpaired companion share the sleep scale, with separate x-axis meanings. Exact selectable tables retain missing sleep and incomplete history. Same-date candidates remain separate; detail navigation and refresh retain observation identity.
+- Post-Dose-2 sleep exposes metric state/reason, endpoint basis and covered/elapsed-window minutes. Patient-reported final awakening and provider last observed sleep end remain different comparison strata. Any unmeasured interval is partial; observed all-awake coverage can be zero sleep. Partial values remain inspectable but are excluded from comparison summaries by default, with a visible inclusion choice. Provider main-episode totals do not certify complete reviewed-night coverage.
+- A review form captures source fingerprint and expected review revision on opening. Count/plan/omission start unanswered unless an unchanged saved review supplies them. Corrections require a reason; stale or failed writes preserve the editable form and expose failure. Saving a report never fabricates an administration timestamp or amount.
+- The live morning flow reads exact-session reviews locally, with provider queries disabled even after saving. It offers unresolved one-log count/plan review, suppresses unchanged complete reports and explicit omissions, and keeps already selected medication actions visible. Historical morning questionnaires do not open this live review or change medication records.

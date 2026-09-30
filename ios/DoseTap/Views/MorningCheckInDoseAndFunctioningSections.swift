@@ -153,6 +153,10 @@ struct MorningCheckInDoseReconciliationSection: View {
                             Text(interval).font(.subheadline)
                                 .accessibilityIdentifier("morning-dose2-in-window")
                         }
+                    } else if viewModel.loggedDose2Skipped {
+                        MorningCheckInDoseStatusRow(title: "Dose 2 not taken — already recorded",
+                            detail: "The omission is already recorded. These morning answers do not repeat it or create an administration. Use History for corrections.")
+                            .accessibilityIdentifier("morning-dose2-omission-already-recorded")
                     } else {
                         Picker("Dose 2 status", selection: $viewModel.dose2Reconciliation) {
                             ForEach(Dose2ReconciliationChoice.allCases) { choice in

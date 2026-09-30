@@ -51,11 +51,7 @@ public struct MorningCheckInView: View {
                     MorningCheckInQuickModeSection(viewModel: viewModel)
                     MorningSleepingSetupSection(viewModel: viewModel)
                     if !viewModel.isHistory {
-                        if viewModel.hasCommittedDoseReconciliation {
-                            Text("Medication choices will not be reapplied. Retrying saves only your morning answers. Use History for further medication corrections.")
-                                .font(.footnote)
-                                .accessibilityIdentifier("morning-medication-review-saved")
-                        } else { MorningCheckInDoseReconciliationSection(viewModel: viewModel) }
+                        MorningDoseHistoryReviewSection(viewModel: viewModel)
                     }
                     else { Text("Treatment night: \(viewModel.sessionDate). These answers do not add doses or close tonight's session. Use Add / Correct Records for medication changes.").font(.footnote) }
                     MorningCheckInNightContextSection(viewModel: viewModel)
