@@ -2,6 +2,7 @@ import SwiftUI
 import Charts
 import DoseCore
 import os.log
+import Combine
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -23,14 +24,30 @@ final class DashboardAnalyticsModel: ObservableObject {
     @Published var healthQueryWindow: DashboardReportingWindow?
     let timeZone: () -> TimeZone
     let now: () -> Date
+    let providerAccess: DashboardProviderAccess
+    let providerQueries: DashboardProviderQueries
+    var publishedProviderAccess: DashboardProviderAccess.Revision
+    var refreshProviderAccess: DashboardProviderAccess.Revision?
+    private var providerAccessSubscription: AnyCancellable?
 
     init(now: @escaping () -> Date = Date.init, sessionRepo: SessionRepository? = nil,
-         timeZone: @escaping () -> TimeZone = { .current }) {
+         timeZone: @escaping () -> TimeZone = { .current },
+         providerAccess: DashboardProviderAccess = .shared, providerQueries: DashboardProviderQueries? = nil) {
         self.now = now
         self.timeZone = timeZone
         reportingAsOf = now()
         reportingTimeZone = timeZone()
         self.sessionRepo = sessionRepo ?? .shared
+        self.providerAccess = providerAccess
+        self.providerQueries = providerQueries ?? .live
+        publishedProviderAccess = providerAccess.revision
+        providerAccessSubscription = providerAccess.changes.sink { [weak self] provider in
+            if Thread.isMainThread {
+                MainActor.assumeIsolated { self?.providerAccessChanged(provider) }
+            } else {
+                Task { @MainActor [weak self] in self?.providerAccessChanged(provider) }
+            }
+        }
     }
 
     let sessionRepo: SessionRepository
@@ -45,6 +62,25 @@ final class DashboardAnalyticsModel: ObservableObject {
 
     static let keyFormatter: DateFormatter = AppFormatters.sessionDate
 
+    func providerAccessChanged(_ provider: DashboardProviderAccess.Provider) {
+        let current = providerAccess.revision
+        // A delayed notification must not erase a newer, already validated publication.
+        guard publishedProviderAccess[provider] != current[provider] else { return }
+        if refreshProviderAccess != current {
+            refreshTask?.cancel(); refreshGeneration = UUID(); isLoading = false
+        }
+        nights = nights.map { night in
+            var row = night
+            if provider == .health { row.healthSummary = nil } else { row.whoopSummary = nil }
+            return row
+        }.filter { $0.hasAnyData || $0.napSummary.count > 0 || $0.snoozeCount > 0 }
+        if provider == .health { healthQueryWindow = nil }
+        publishedProviderAccess[provider] = current[provider]
+        integrationStates = buildIntegrationStates(healthMatches: nights.filter { $0.healthSummary != nil }.count,
+            whoopMatches: nights.filter { $0.whoopSummary != nil }.count)
+        errorMessage = "Provider access changed. Refresh the dashboard to check current availability."
+        dashboardLogger.info("Dashboard provider access changed; previous provider results invalidated")
+    }
 }
 
 #if DEBUG && targetEnvironment(simulator)

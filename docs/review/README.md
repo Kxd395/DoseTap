@@ -1,7 +1,7 @@
 # DoseTap review records
 
 Status: Point-in-time review and decision evidence
-Last updated: 2026-09-30 (calendar reporting ranges)
+Last updated: 2026-09-30 (provider-access invalidation)
 
 Files here record dated reviews, design decisions, migration analysis, and regression runs. They do not override current SSOT, code, or Plane. Promote a lasting rule into SSOT or a maintained architecture decision and link back to its review record.
 
@@ -17,6 +17,8 @@ Files here record dated reviews, design decisions, migration analysis, and regre
 - [Independent questionnaire findings](2026-09-10-questionnaire-independent-findings.md): separate source/UX review with proposed fixes and acceptance cases; not phone reproduction or clinical approval.
 
 ## Owner data and dashboard review
+
+- [Provider-access invalidation](2026-09-30-dashboard-provider-access.md): consent/connection revisions, asynchronous publication guards and source-preserving clearing before future stale-snapshot retention.
 
 - [Calendar reporting range candidate](2026-09-30-dashboard-calendar-ranges.md): shared phone/iPad calendar-month windows, provider query limits, regression/native evidence and remaining acceptance.
 

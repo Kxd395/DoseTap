@@ -19,8 +19,8 @@ struct DashboardNightAggregate: Identifiable {
     let events: [StoredSleepEvent]
     let morningCheckIn: StoredMorningCheckIn?
     let preSleepLog: StoredPreSleepLog?
-    let healthSummary: HealthKitService.SleepNightSummary?
-    let whoopSummary: WHOOPNightSummary?
+    var healthSummary: HealthKitService.SleepNightSummary?
+    var whoopSummary: WHOOPNightSummary?
     let duplicateClusterCount: Int
     let napSummary: SessionRepository.NapSummary
     var outcome: NightOutcomeDiary? = nil

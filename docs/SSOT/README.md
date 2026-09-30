@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-09-30
 SSOT revision: 0.4.19
-App version defined in this revision's Xcode project: 0.4.19 (87)
+App version defined in this revision's Xcode project: 0.4.19 (88)
 Integration and acceptance evidence: [Quick-log availability](../review/2026-09-24-quick-log-availability.md), [Excel contrast delivery](../review/2026-09-22-excel-contrast-delivery.md), [export delivery record](../review/2026-09-17-export-failure-diagnosis.md) and the DOSETAP-72 and DOSETAP-13 Plane workpads. The project version alone does not establish acceptance.
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
@@ -980,6 +980,16 @@ records do not count as answers; zero sleepiness with a valid nonfuture timestam
 is usable. Counts describe recorded nights, not all calendar days or clinical
 confidence. Missing stays missing. Shipping records are local; staging CloudKit
 is not a promise of iPad synchronization.
+
+### Dashboard provider access (DOSETAP-45)
+
+Dashboard provider access changes follow the [invalidation contract](contracts/dashboard-provider-access.md).
+An integration preference change, known access loss, WHOOP disconnect or account
+change invalidates pending dashboard provider results and removes affected in-memory
+summaries. Local diary/dose records and the other provider remain separate. Re-enabling
+an integration requires a new query; an older request cannot republish after an off/on
+cycle. This does not detect HealthKit read revocation that Apple exposes as an empty
+query, add a persistent provider cache, or retain data after transient errors.
 
 ### Nearby Apple Health evidence (DOSETAP-76)
 
