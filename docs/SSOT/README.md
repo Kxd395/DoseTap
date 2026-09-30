@@ -40,6 +40,10 @@ Notes:
 
 ---
 
+## Work-block context
+
+[Work-block context contract](contracts/work-block-context.md) defines effective rosters, explicit attendance and reviewed sleep associations independently of wake scheduling.
+
 ## Domain Entities and Invariants
 
 ### Weekly wake schedule (DOSETAP-41, build 71)
