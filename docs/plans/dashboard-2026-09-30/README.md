@@ -1,5 +1,23 @@
 # September 30 dashboard consolidation and delivery roadmap
 
+## Phone-first integration checkpoint
+
+The phone-first source integration is at `b33ab92`, including the physician-report,
+work-context and app integration checkpoints. The integration run recorded **1,234
+passing core tests**. Current UI checks for raw identity handling and restoring
+the full selection have passed. The UI-fix checkpoint passed its normal commit hook. Final interface verification
+remains open: largest-text landscape reachability still fails. The replay
+journey passed, including exact point selection and export.
+
+**Build 89 is not yet installed.** Source integration and automated checks do not
+establish phone delivery. The [phone-first delivery record](../../review/2026-09-30-phone-first-delivery.md)
+keeps installation, launch and owner-observed results separate from source work.
+
+This is a phone-first checkpoint, not overall roadmap completion. iPad parity and
+its deferred physical launch check, live-provider acceptance, privacy and owner
+review remain open as recorded below and in the delivery record. The four
+original specifications and their manifest remain unchanged.
+
 Date: 2026-09-30.
 Status: implementation and integration In Progress. The original proposal and acceptance requirements are preserved below; source implementation does not establish installed-device delivery.
 Original proposal baseline: upstream `main` at `99914e4e77a0a0655e0c6a41383a5a274c39b91f`.

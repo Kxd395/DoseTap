@@ -22,14 +22,17 @@ extension DashboardAnalyticsModel {
                 let raw = evidence.metric
                 let state = PhysicianMetricState(rawValue: row.contributionState.rawValue) ?? .needsReview
                 let providerID = sleepSource == .appleHealth ? night.healthSummary?.id : night.whoopSummary?.sleepId
-                let ids = night.dosePattern.evidenceIDs + [providerID, row.associationID?.uuidString,
-                    row.planSnapshotID?.uuidString, row.rosterID?.uuidString].compactMap { $0 }
+                var seenIDs = Set<String>()
+                let ids = (night.dosePattern.evidenceIDs + [providerID, row.associationID?.uuidString,
+                    row.planSnapshotID?.uuidString, row.rosterID?.uuidString].compactMap { $0 } + row.metricSourceRecordIDs)
+                    .filter { seenIDs.insert($0).inserted }
                 let contextID = row.stratumID ?? "unknown:" + row.id
                 let hash = SHA256.hash(data: Data(contextID.utf8)).map { String(format: "%02x", $0) }.joined()
                 let stamp = evidence.start ?? (metric == .sleepAfterDose2 ? night.dose2Time : nil)
                     ?? (metric == .mainSleep ? (sleepSource == .appleHealth ? night.healthSummary?.sleepOnset : night.whoopSummary?.date) : nil)
                     ?? night.dose1Time ?? night.dose2Time
                 let lines = ["Treatment date: \(row.sleepDate); observation: \(row.id). \(night.dosePattern.pattern.label).",
+                    "Metric identity: \(evidence.metricID). Classification version: \(row.classificationVersion); first shift date: \(row.firstShiftDate ?? "unavailable"); metric source records: \(row.metricSourceRecordIDs.joined(separator: ", ")).",
                     "Raw source value: \(raw.value.map(String.init(describing:)) ?? "unknown") \(raw.unit); state \(raw.state.rawValue); reason \(raw.reason).",
                     "Original validated bounds: \(evidence.start.map(iso.string) ?? "unavailable") to \(evidence.end.map(iso.string) ?? "unavailable").",
                     "Numeric contribution: \(row.contributionReason). Source value and state remain inspectable when withheld.",
@@ -59,11 +62,11 @@ extension DashboardAnalyticsModel {
                     "Median: \(summary.median.map(String.init(describing:)) ?? "unavailable") \(group.unit); Q1: \(summary.lowerQuartile.map(String.init(describing:)) ?? "unavailable"); Q3: \(summary.upperQuartile.map(String.init(describing:)) ?? "unavailable").",
                     "Basis: \(inspection.workContextBasis.rawValue); source: \(group.source); comparison: \(group.stratumLabel).",
                     "Context revision: \(workInspectionContext?.revision.uuidString ?? "unavailable"). Candidate counts use the shared selected treatment-night set; exact source endpoints govern numeric contribution."]
-                    + group.rows.map { "\($0.id): \($0.contributionReason); raw state \($0.metricEvidence?.metric.state.rawValue ?? "unavailable"); actual source bounds \($0.metricEvidence?.start.map { ISO8601DateFormatter().string(from: $0) } ?? "unavailable") to \($0.metricEvidence?.end.map { ISO8601DateFormatter().string(from: $0) } ?? "unavailable")." }
+                    + group.rows.map { "\($0.id): classification version \($0.classificationVersion); first shift date \($0.firstShiftDate ?? "unavailable"); metric source records \($0.metricSourceRecordIDs.joined(separator: ", ")); \($0.contributionReason); raw state \($0.metricEvidence?.metric.state.rawValue ?? "unavailable"); actual source bounds \($0.metricEvidence?.start.map { ISO8601DateFormatter().string(from: $0) } ?? "unavailable") to \($0.metricEvidence?.end.map { ISO8601DateFormatter().string(from: $0) } ?? "unavailable")." }
                 result.append(try .init(id: "work-comparison:" + hash,
                     title: scope + " • " + metric.rawValue + " • " + group.phase.label + " • " + group.position,
                     lines: lines, source: group.source, definitionVersion: group.definitionVersion,
-                    recordIDs: group.observationIDs + [workInspectionContext?.revision.uuidString].compactMap { $0 }))
+                    recordIDs: group.rows.flatMap(\.metricSourceRecordIDs) + group.observationIDs + [workInspectionContext?.revision.uuidString].compactMap { $0 }))
             }
             if !comparison.duplicateIDs.isEmpty || !comparison.unplacedIDs.isEmpty || !comparison.conflictingIDs.isEmpty {
                 let lines = ["Duplicate IDs: " + comparison.duplicateIDs.joined(separator: ", "),

@@ -309,3 +309,43 @@ extension PhysicianReportAdapterTests {
         XCTAssertNil(primary.value)
     }
 }
+
+
+extension PhysicianReportAdapterTests {
+    func testCanonicalWorkMetricRowsRetainClassifierAndMetricSourceProvenance() async throws {
+        let model = await model(), night = night(), sleep = now.addingTimeInterval(-20000)
+        model.nights = [night]
+        var before = WorkShiftEvent(timeZoneIdentifier: "GMT", recordedAt: now)
+        before.status = .worked; before.attendanceConfirmed = true; before.actualTimePrecision = .reportedMinute
+        before.actualStart = sleep.addingTimeInterval(-28800); before.actualEnd = sleep.addingTimeInterval(-3600)
+        before.blockID = "report-block"; before.firstShiftDate = "2026-09-29"; before.position = 1; before.blockShiftCount = 2
+        var after = before; after.id = UUID(); after.shiftID = UUID(); after.position = 2
+        after.actualStart = sleep.addingTimeInterval(14400); after.actualEnd = sleep.addingTimeInterval(18000)
+        var association = WorkSleepAssociation(sleepID: night.id, precedingDate: "2026-09-29", followingDate: "2026-09-30",
+            timeZoneIdentifier: "GMT", plannedAt: now, recordedAt: now)
+        association.eventContext = .init(mainSleepStart: sleep, mainSleepEnd: sleep.addingTimeInterval(10800),
+            precedingStatus: .work, followingStatus: .work, precedingShiftID: before.shiftID,
+            followingShiftID: after.shiftID, wakingPeriodsReviewed: true)
+        var document = WorkContextDocument(); document.schemaVersion = 3
+        document.shiftEvents = [before, after]; document.associations = [association]
+        try model.sessionRepo.saveWorkContext(document, expectedRevision: nil)
+        model.inspection.workContextBasis = .confirmed
+        model.publishWorkInspectionContext(try model.sessionRepo.workContext(), nights: model.nights, asOf: now)
+        let shared = try XCTUnwrap(model.workCycleComparison(metric: .shiftEndToSleep, period: period())?.observations.first)
+        XCTAssertEqual(shared.classificationVersion, 2); XCTAssertEqual(shared.firstShiftDate, "2026-09-29")
+        XCTAssertEqual(shared.value, 60)
+        let expectedIDs = Set([before.id.uuidString, after.id.uuidString])
+        XCTAssertEqual(Set(shared.metricSourceRecordIDs), expectedIDs)
+        let evidence = try XCTUnwrap(shared.metricEvidence)
+        let rows = try model.physicianCanonicalNightMetrics(for: period())
+        let row = try XCTUnwrap(rows.first { $0.id == night.id + ":work-metric:" + evidence.metricID })
+        XCTAssertEqual(row.value, shared.value); XCTAssertEqual(row.state.rawValue, shared.contributionState.rawValue)
+        XCTAssertTrue(row.detail.contains("Classification version: 2; first shift date: 2026-09-29"))
+        XCTAssertTrue(expectedIDs.isSubset(of: Set(row.recordIDs)))
+        XCTAssertEqual(row.recordIDs.count, Set(row.recordIDs).count)
+        let contexts = try model.physicianWorkComparisons(for: period())
+        let group = try XCTUnwrap(contexts.first { $0.title.contains("Full period") && $0.title.contains(WorkCycleMetric.shiftEndToSleep.rawValue) })
+        XCTAssertTrue(expectedIDs.isSubset(of: Set(group.recordIDs)))
+        XCTAssertTrue(group.lines.contains { $0.contains("classification version 2; first shift date 2026-09-29") })
+    }
+}

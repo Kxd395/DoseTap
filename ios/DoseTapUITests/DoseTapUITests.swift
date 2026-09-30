@@ -1450,8 +1450,7 @@ final class DoseTapUITests: XCTestCase {
 
     func testDashboardWorkShiftAttendancePersistsWithoutInventingActualTimes() throws {
         app.buttons["Dashboard"].tap()
-        let route = app.buttons["dashboard-work-block"]
-        XCTAssertTrue(route.waitForExistence(timeout: 10)); route.tap()
+        selectDashboardPage("dashboard-work-block", title: "Work Block & Sleep")
         let edit = app.buttons["work-shift-edit"]
         XCTAssertTrue(edit.waitForExistence(timeout: 5)); edit.tap()
         XCTAssertTrue(app.navigationBars["Work shift"].waitForExistence(timeout: 5))
@@ -1479,7 +1478,7 @@ final class DoseTapUITests: XCTestCase {
 
 
     func testDashboardWorkSleepLinksSaveAndReopenWithUnknownBounds() throws {
-        app.buttons["Dashboard"].tap(); app.buttons["dashboard-work-block"].tap()
+        app.buttons["Dashboard"].tap(); selectDashboardPage("dashboard-work-block", title: "Work Block & Sleep")
         let record = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "work-context-record-")).firstMatch
         for _ in 0..<15 where !record.isHittable { app.swipeUp() }; XCTAssertTrue(record.isHittable); record.tap()
         let review = app.buttons["Review main-sleep work context"]
@@ -1500,7 +1499,7 @@ final class DoseTapUITests: XCTestCase {
     }
     func testDashboardWorkPopulatedEventPhaseMatrix() throws {
         app.terminate(); app.launchArguments.append("--uitesting-work-events"); app.launch()
-        app.buttons["Dashboard"].tap(); app.buttons["dashboard-work-block"].tap()
+        app.buttons["Dashboard"].tap(); selectDashboardPage("dashboard-work-block", title: "Work Block & Sleep")
         app.buttons["work-comparison-controls"].tap()
         app.buttons["work-display"].tap(); app.buttons["Block matrix"].tap(); app.buttons["Done"].tap()
         XCTAssertTrue(app.staticTexts["Week-by-week block matrix"].waitForExistence(timeout: 5))
@@ -1822,7 +1821,7 @@ final class DoseTapUITests: XCTestCase {
             let downward = element.exists && element.frame.midY < bounds.minY + height / 2
             let origin = app.coordinate(withNormalizedOffset: .zero)
             let center = bounds.minY + height / 2
-            let distance = element.exists ? min(height * 0.35, max(12, abs(element.frame.midY - center))) : height * 0.35
+            let distance = element.exists ? min(height * 0.35, max(12, abs(element.frame.midY - center))) : height * 0.70
             let upper = origin.withOffset(CGVector(dx: bounds.midX - app.frame.minX,
                 dy: center - distance / 2 - app.frame.minY))
             let lower = origin.withOffset(CGVector(dx: bounds.midX - app.frame.minX,
@@ -1830,6 +1829,10 @@ final class DoseTapUITests: XCTestCase {
             (downward ? upper : lower).press(forDuration: 0.1, thenDragTo: downward ? lower : upper,
                 withVelocity: .slow, thenHoldForDuration: 0.2)
         }
+        let diagnostic = XCTAttachment(string: "Target: \(title); exists: \(element.exists); app: \(app.frame)\n" + app.debugDescription)
+        diagnostic.name = "Dashboard text reachability geometry: " + title
+        diagnostic.lifetime = .keepAlways; add(diagnostic)
+        captureDashboard("Dashboard text reachability failure: " + title)
         XCTFail("Dashboard card not reachable: " + title)
     }
 
