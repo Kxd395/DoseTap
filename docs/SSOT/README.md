@@ -879,6 +879,8 @@ Work schedule configuration and dated overrides are stored together in SQLite `w
 
 ### Dashboard analytics contract (DOSETAP-45)
 
+Calendar reporting windows follow the [shared range contract](contracts/dashboard-calendar-ranges.md).
+
 - Food/outcome reporting parity: one versioned `collectedNight` projection exposes last-food finish/type/high-fat/notes, exact non-negative food-to-dose intervals, explicit Dose 2 wake/backup-alarm/following-day/final-wake answers, personal 0–10 sleepiness and assessment/record timestamps, and measured post-Dose-2 sleep with source/coverage. Raw questionnaire answers and revision history remain in the bundle; legacy 1–5 ratings and late-meal answers stay separate.
 - Food analytics use completed pre-sleep logs only. High-fat Yes/No/Unsure groups and unrecorded nights remain distinct, use medians with per-outcome usable counts, and follow the selected range/provider. No dose changes, inferred fasting, causal claims or food-effectiveness score. Food notes remain a detail field rather than an aggregate.
 - Manual and scheduled local exports share the Studio bundle writer and include all local questionnaire submissions, events, medication and inventory rows, plus a flat collected-night CSV. Scheduled exports do not fetch network/provider enrichment; source unavailability stays explicit. Publish a unique completed archive only after all files succeed; cancellation/failure must not advance the successful-export date. Scheduled timing and signed-device background behavior remain OS-controlled acceptance gates.

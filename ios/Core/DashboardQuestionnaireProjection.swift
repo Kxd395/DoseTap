@@ -36,6 +36,11 @@ public struct DashboardQuestionnaireProjection: Sendable {
     /// Source rows, not distinct questionnaires; normalized copies may overlap.
     public let unassignedSourceRowCount: Int
 
+    public func selected(range: DashboardReportingRange, timeZone: TimeZone) -> [DashboardQuestionnaireDay] {
+        guard let window = range.window(asOf: capturedAt, timeZone: timeZone) else { return [] }
+        return days.filter { window.contains($0.treatmentDate) }
+    }
+
     public func selected(count: Int, timeZone: TimeZone) -> [DashboardQuestionnaireDay] {
         let keys = days.map { DashboardReportDoseDay(treatmentDate: $0.treatmentDate,
             intervalMinutes: nil, state: .missing, dose1At: nil, dose2At: nil) }
