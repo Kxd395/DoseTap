@@ -1053,3 +1053,7 @@ Independent payload strings are preserved byte-for-byte as SQLite text. Daytime 
 Schema 6 declares `archiveScope=manual_full_local_records` and `independentRecordsIncluded=true`. Scheduled archives retain the schema 5 local subset, declare exclusions and direct users to the full manual export for independent records. Neither archive scope is a tested full-app restore.
 
 Full manual Excel and Studio exports require an explicit review describing original private notes and exact timestamps before any file or provider enrichment is created. Cancel creates no archive. Scheduled exports retain the labeled local subset. Focused dashboard/physician exports preserve their separate selected-record policies; a full archive is deliberate raw-record disclosure, not a default clinical report or tested app restore.
+
+### iPad independent daytime companion
+
+The daytime companion reads immutable transferred custom observation/event revisions and nap source records. It uses an explicitly supplied civil half-open report period frozen at source capture, never treatment-night date matching. Unknown collection or work/medication context remains unknown. Scheduled, self-initiated, symptom-triggered and retrospective samples retain separate filters and comparable strata; sparse ordinal points never become a continuous curve or ESS score. Export contains only the selected points with their source revision, exact occurrence/recording times, definitions and filter scope.

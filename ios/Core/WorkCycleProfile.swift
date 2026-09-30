@@ -8,7 +8,9 @@ public struct WorkCycleObservation: Identifiable, Equatable, Sendable {
     public let phase: WorkPhase
     public let position: String
     public let blockID: String?
-    public let value: Double?
+    public internal(set) var value: Double?
+    public internal(set) var metricEvidence: WorkCycleMetricEvidence?
+    public internal(set) var contributionReason = "legacy_observation"
     public var intervalMinutes: Double?
     public var stratumID: String?
     public var stratumLabel: String?
@@ -51,6 +53,10 @@ public struct WorkCycleObservation: Identifiable, Equatable, Sendable {
 public struct WorkCycleSummary: Equatable, Sendable {
     public let availableCount: Int
     public let missingCount: Int
+    public let eligibleCount: Int
+    public let notApplicableCount: Int
+    public let partialCount: Int
+    public let partialIncludedCount: Int
     public let distinctBlockCount: Int
     public let unresolvedBlockCount: Int
     public let median: Double?
@@ -58,7 +64,12 @@ public struct WorkCycleSummary: Equatable, Sendable {
     public let upperQuartile: Double?
     public init(observations: [WorkCycleObservation]) {
         let values = observations.compactMap(\.value).sorted()
-        availableCount = values.count; missingCount = observations.count - values.count
+        availableCount = values.count
+        notApplicableCount = observations.filter { $0.metricEvidence?.metric.state == .notApplicable }.count
+        eligibleCount = observations.count - notApplicableCount
+        missingCount = eligibleCount - values.count
+        partialCount = observations.filter { $0.metricEvidence?.metric.state == .partial }.count
+        partialIncludedCount = observations.filter { $0.metricEvidence?.metric.state == .partial && $0.value != nil }.count
         distinctBlockCount = Set(observations.filter { $0.value != nil }.compactMap(\.blockID)).count
         unresolvedBlockCount = observations.filter { $0.blockID == nil }.count
         func quantile(_ fraction: Double) -> Double? {
@@ -73,14 +84,19 @@ public struct WorkCycleSummary: Equatable, Sendable {
     }
     public static func csv(_ observations: [WorkCycleObservation], metric: String, basis: WorkContextBasis, range: String, revision: UUID, asOf: Date, grouping: WorkComparisonGrouping = .none, phaseFilter: String = "All", positionFilter: String = "All", matrixEncoding: String = "Values") -> String {
         let summary = WorkCycleSummary(observations: observations)
-        let headers = ["sleep_id", "sleep_date", "phase", "position", "block_id", "value_minutes", "value_state", "metric", "context_basis", "range", "context_revision", "as_of_utc", "classification_version", "roster_revision", "detail", "eligible_observations", "missing_observations", "distinct_known_blocks", "reference", "association_revision", "context_snapshot_at_utc", "is_override", "override_reason", "interval_minutes", "grouping", "group_label", "phase_filter", "position_filter", "matrix_encoding", "context_stratum_id", "context_stratum_label", "group_symbol", "row_type", "plan_snapshot_id", "reference_lower_minutes", "reference_upper_minutes"]
+        let headers = ["sleep_id", "sleep_date", "phase", "position", "block_id", "value_minutes", "value_state", "metric", "context_basis", "range", "context_revision", "as_of_utc", "classification_version", "roster_revision", "detail", "eligible_observations", "missing_observations", "distinct_known_blocks", "reference", "association_revision", "context_snapshot_at_utc", "is_override", "override_reason", "interval_minutes", "grouping", "group_label", "phase_filter", "position_filter", "matrix_encoding", "context_stratum_id", "context_stratum_label", "group_symbol", "row_type", "plan_snapshot_id", "reference_lower_minutes", "reference_upper_minutes", "raw_metric_value", "contribution_reason", "metric_id", "metric_source", "metric_definition_version", "metric_unit", "metric_start_utc", "metric_end_utc", "available_observations", "not_applicable_observations", "partial_observations", "partial_included_observations", "notes_policy"]
         let stamp = ISO8601DateFormatter().string(from: asOf)
         if observations.isEmpty {
-            let metadata = ["row_type": "comparison_metadata", "reference_lower_minutes": "150", "reference_upper_minutes": "240", "metric": metric, "context_basis": basis.rawValue, "range": range, "context_revision": revision.uuidString, "as_of_utc": stamp, "classification_version": "1", "grouping": grouping.rawValue, "phase_filter": phaseFilter, "position_filter": positionFilter, "matrix_encoding": matrixEncoding, "eligible_observations": "0", "missing_observations": "0", "distinct_known_blocks": "0", "reference": "Built-in spacing reference; not a prescription."]
+            let metadata = ["row_type": "comparison_metadata", "reference_lower_minutes": "150", "reference_upper_minutes": "240", "available_observations": "0", "not_applicable_observations": "0", "partial_observations": "0", "partial_included_observations": "0", "notes_policy": "free_text_omitted", "metric": metric, "context_basis": basis.rawValue, "range": range, "context_revision": revision.uuidString, "as_of_utc": stamp, "classification_version": "1", "grouping": grouping.rawValue, "phase_filter": phaseFilter, "position_filter": positionFilter, "matrix_encoding": matrixEncoding, "eligible_observations": "0", "missing_observations": "0", "distinct_known_blocks": "0", "reference": "Built-in spacing reference; not a prescription."]
             return ReportCSV.row(headers) + "\r\n" + ReportCSV.row(headers.map { metadata[$0] ?? "" }) + "\r\n"
         }
         return ([ReportCSV.row(headers)] + observations.map { row in
-            ReportCSV.row([row.sleepID, row.sleepDate, row.phase.rawValue, row.position, row.blockID ?? "", row.value.map { String($0) } ?? "", row.value == nil ? "unavailable" : "available", metric, basis.rawValue, range, revision.uuidString, stamp, "1", row.rosterID?.uuidString ?? "", row.detail, String(summary.availableCount), String(summary.missingCount), String(summary.distinctBlockCount), "Built-in spacing reference; not a prescription.", row.associationID?.uuidString ?? "", row.contextSnapshotAt.map { ISO8601DateFormatter().string(from: $0) } ?? "", row.isOverride ? "true" : "false", row.isOverride ? row.detail : "", row.intervalMinutes.map(String.init(describing:)) ?? "", grouping.rawValue, row.groupLabel(grouping), phaseFilter, positionFilter, matrixEncoding, row.stratumID ?? "", row.stratumLabel ?? "", row.groupSymbol(grouping), "observation", row.planSnapshotID?.uuidString ?? "", "150", "240"])
+            ReportCSV.row([row.sleepID, row.sleepDate, row.phase.rawValue, row.position, row.blockID ?? "", row.value.map { String($0) } ?? "", row.metricEvidence?.metric.state.rawValue ?? (row.value == nil ? "unavailable" : "available"), metric, basis.rawValue, range, revision.uuidString, stamp, "1", row.rosterID?.uuidString ?? "", "", String(summary.eligibleCount), String(summary.missingCount), String(summary.distinctBlockCount), "Built-in spacing reference; not a prescription.", row.associationID?.uuidString ?? "", row.contextSnapshotAt.map { ISO8601DateFormatter().string(from: $0) } ?? "", row.isOverride ? "true" : "false", "", row.intervalMinutes.map(String.init(describing:)) ?? "", grouping.rawValue, row.groupLabel(grouping), phaseFilter, positionFilter, matrixEncoding, row.stratumID ?? "", row.stratumLabel ?? "", row.groupSymbol(grouping), "observation", row.planSnapshotID?.uuidString ?? "", "150", "240",
+                row.metricEvidence?.metric.value.map(String.init(describing:)) ?? "", row.contributionReason,
+                row.metricEvidence?.metricID ?? "", row.metricEvidence?.source ?? "", row.metricEvidence?.definitionVersion ?? "",
+                row.metricEvidence?.metric.unit ?? "minutes", row.metricEvidence?.start.map { ISO8601DateFormatter().string(from: $0) } ?? "",
+                row.metricEvidence?.end.map { ISO8601DateFormatter().string(from: $0) } ?? "", String(summary.availableCount),
+                String(summary.notApplicableCount), String(summary.partialCount), String(summary.partialIncludedCount), "free_text_omitted"])
         }).joined(separator: "\r\n") + "\r\n"
     }
 }
