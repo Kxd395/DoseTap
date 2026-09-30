@@ -13,6 +13,8 @@
 		DPUI005B /* MorningDoseHistoryReviewSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI005F; };
 		DPAD101 /* DashboardDosePatternAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPAD001 /* DashboardDosePatternAdapter.swift */; };
 		DDRV001 /* EventStorage+DashboardDoseReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDRV101; };
+		DIDENT108 /* DashboardContextProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT008 /* DashboardContextProjection.swift */; };
+		DIDENT107 /* DashboardContextSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT007 /* DashboardContextSnapshot.swift */; };
 		DIDENT106 /* DashboardAssociationUITestFixture.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT006 /* DashboardAssociationUITestFixture.swift */; };
 		DIDENT105 /* ProviderSessionAssociationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT005 /* ProviderSessionAssociationView.swift */; };
 		DIDENT104 /* DashboardProviderMatching.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT004 /* DashboardProviderMatching.swift */; };
@@ -233,6 +235,8 @@
 		DPUI005F /* MorningDoseHistoryReviewSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningDoseHistoryReviewSection.swift; sourceTree = "<group>"; };
 		DPAD001 /* DashboardDosePatternAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardDosePatternAdapter.swift; sourceTree = "<group>"; };
 		DDRV101 /* EventStorage+DashboardDoseReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+DashboardDoseReview.swift"; sourceTree = "<group>"; };
+		DIDENT008 /* DashboardContextProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardContextProjection.swift; sourceTree = "<group>"; };
+		DIDENT007 /* DashboardContextSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardContextSnapshot.swift; sourceTree = "<group>"; };
 		DIDENT006 /* DashboardAssociationUITestFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardAssociationUITestFixture.swift; sourceTree = "<group>"; };
 		DIDENT005 /* ProviderSessionAssociationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderSessionAssociationView.swift; sourceTree = "<group>"; };
 		DIDENT004 /* DashboardProviderMatching.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardProviderMatching.swift; sourceTree = "<group>"; };
@@ -636,6 +640,7 @@
 				DPUI003F /* DosePatternPresentation.swift */,
 				DPUI004F /* DosePatternReviewSheet.swift */,
 				DPUI005F /* MorningDoseHistoryReviewSection.swift */,
+				DIDENT008 /* DashboardContextProjection.swift */,
 				DIDENT004 /* DashboardProviderMatching.swift */,
 				DIDENT002 /* DashboardIdentityAggregation.swift */,
 				DPAD001 /* DashboardDosePatternAdapter.swift */,
@@ -698,7 +703,6 @@
 			children = (
 				HKP002 /* HealthKitProviding.swift */,
 				RNS002 /* ReviewedNightSleepLoader.swift */,
-				DIDENT006 /* DashboardAssociationUITestFixture.swift */,
 				DPAC001 /* DashboardProviderAccess.swift */,
 		DPSN001 /* DashboardProviderSnapshot.swift */,
 			);
@@ -736,6 +740,8 @@
 				64641673735B464BB4E4B02F /* SessionRepository.swift */,
 				SRQ101 /* SessionRepositoryQueries.swift */,
 				SRQ102 /* SessionRepositoryMedication.swift */,
+				DIDENT006 /* DashboardAssociationUITestFixture.swift */,
+				DIDENT007 /* DashboardContextSnapshot.swift */,
 				DIDENT003 /* DashboardProviderAssociations.swift */,
 				DIDENT001 /* SessionRepositoryDashboardIdentities.swift */,
 				WBCTX101 /* EventStorage+WorkContext.swift */,
@@ -1134,6 +1140,7 @@
 				92518D93643945F4B64E860F /* SessionRepository.swift in Sources */,
 				SRQ001 /* SessionRepositoryQueries.swift in Sources */,
 				SRQ002 /* SessionRepositoryMedication.swift in Sources */,
+				DIDENT107 /* DashboardContextSnapshot.swift in Sources */,
 				DIDENT103 /* DashboardProviderAssociations.swift in Sources */,
 				DIDENT101 /* SessionRepositoryDashboardIdentities.swift in Sources */,
 				WBCTX001 /* EventStorage+WorkContext.swift in Sources */,
@@ -1205,6 +1212,7 @@
 				DPUI005B /* MorningDoseHistoryReviewSection.swift in Sources */,
 				CLUST105 /* DeferredCloudKitSyncService.swift in Sources */,
 				DIDENT105 /* ProviderSessionAssociationView.swift in Sources */,
+				DIDENT108 /* DashboardContextProjection.swift in Sources */,
 				DIDENT104 /* DashboardProviderMatching.swift in Sources */,
 				DIDENT102 /* DashboardIdentityAggregation.swift in Sources */,
 				DPAD101 /* DashboardDosePatternAdapter.swift in Sources */,

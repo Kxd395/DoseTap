@@ -26,6 +26,7 @@ extension DashboardAnalyticsModel {
         isLoading = true
         providerAssociationsReady = false
         doseReviewReadReady = false
+        invalidateContextPublication()
         defer { if refreshGeneration == generation { isLoading = false } }
         let asOf = now(), zone = timeZone(), range = selectedRange
         let customRange = customReportingRange
@@ -105,11 +106,14 @@ extension DashboardAnalyticsModel {
 
         let aggregates: [DashboardNightAggregate]
         let associations: [DashboardProviderAssociation]
+        let context: DashboardContextTimeline
         do {
-            let snapshot = try sessionRepo.dashboardIdentitySnapshot()
+            let snapshot = try sessionRepo.dashboardContextSnapshot(capturedAt: now())
+            context = snapshot.timeline
             associations = snapshot.associations
             let reviews = try sessionRepo.dashboardDoseReviews()
-            aggregates = identityAggregates(local: snapshot.sessions, health: healthByKey, whoop: whoopByKey, associations: snapshot.associations)
+            aggregates = identityAggregates(local: snapshot.sessions, health: healthByKey, whoop: whoopByKey,
+                associations: snapshot.associations, contextTimeline: context)
                 .map { row in var row = row; row.doseReviewLedger = reviews[row.id]; return row }
         } catch {
             errorMessage = "Local records could not be read completely. Previous dashboard data is retained. Try Refresh again."
@@ -129,6 +133,8 @@ extension DashboardAnalyticsModel {
         savedProviderAssociations = associations
         providerAssociationsReady = true
         doseReviewReadReady = true
+        contextTimeline = context
+        contextReadReady = true
         integrationStates = buildIntegrationStates(healthMatches: healthByKey.count, whoopMatches: whoopByKey.count)
         lastRefresh = asOf
         isLoading = false

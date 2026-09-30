@@ -3,7 +3,8 @@ import DoseCore
 
 extension DashboardAnalyticsModel {
     func identityAggregates(local: [DashboardLocalSession], health: [String: HealthKitService.SleepNightSummary],
-                            whoop: [String: WHOOPNightSummary], associations: [DashboardProviderAssociation] = []) -> [DashboardNightAggregate] {
+                            whoop: [String: WHOOPNightSummary], associations: [DashboardProviderAssociation] = [],
+                            contextTimeline: DashboardContextTimeline? = nil) -> [DashboardNightAggregate] {
         var result = local.map { session -> DashboardNightAggregate in
             let metrics = Self.deriveDoseMetrics(from: session.doses)
             let events = session.events.sorted { $0.timestamp < $1.timestamp }
@@ -15,6 +16,7 @@ extension DashboardAnalyticsModel {
                 napSummary: SessionRepository.napSummary(events: events))
             row.sessionID = session.sessionID; row.stableID = session.id; row.doseEvents = session.doses
             row.localFingerprint = session.fingerprint
+            row.contentObservations = session.contentObservations
             row.sessionActive = session.sessionActive
             row.sessionClosed = session.sessionClosed; row.identityNeedsReview = session.needsReview
             row.outcome = session.outcome; row.outcomeReadFailed = session.outcomeReadFailed
@@ -43,6 +45,9 @@ extension DashboardAnalyticsModel {
                         result[index].providerAssociation = "Explicit provider match · v1"
                     } else { result.append(row) }
                 }
+        }
+        if let contextTimeline {
+            for index in result.indices { result[index].applyContext(contextTimeline) }
         }
         return result.sorted { $0.sessionDate == $1.sessionDate ? $0.id < $1.id : $0.sessionDate > $1.sessionDate }
     }

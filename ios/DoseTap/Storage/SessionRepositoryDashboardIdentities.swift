@@ -16,6 +16,7 @@ struct DashboardLocalSession {
     var outcomeReadFailed = false
     var needsReview = false
     var fingerprint = ""
+    var contentObservations: [DashboardContentObservation] = []
 }
 
 @MainActor

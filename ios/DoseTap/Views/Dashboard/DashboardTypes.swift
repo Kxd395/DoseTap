@@ -10,6 +10,10 @@ enum DashboardSleepSource: String, CaseIterable, Identifiable {
 typealias DashboardDateRange = DashboardReportingRange
 
 struct DashboardNightAggregate: Identifiable {
+    var contentObservations: [DashboardContentObservation] = []
+    var contextProjection: DashboardContextStratum?
+    var contextAnnotations: [DashboardContextAnnotation] = []
+    var contextStratum: DashboardContextStratum { contextProjection ?? .unknown(observationID: id) }
     let sessionDate: String
     let dose1Time: Date?
     let dose2Time: Date?

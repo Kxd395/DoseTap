@@ -1025,6 +1025,9 @@ Provider-match confirmation captures immutable local/provider fingerprints and t
 ### Dashboard context annotations (B24)
 
 Relevant trend comparisons partition by the explicit patient-entered medication-label revision period and recorded questionnaire instrument/content version/language. Label references are not verified prescriptions or proof of administration. Effective dates come only from source effective intervals; recording a questionnaire version does not establish its rollout date. Unknown occurrence/effective dates remain unplaced with their recorded observation provenance. Unknown context or an observation spanning a context boundary remains separate rather than silently joining a compatible stratum. Missing doses and current preferences never manufacture historical regimen changes.
+
+The native dashboard reads context, exact sessions, provider relationships and the immutable preset ledger in one transaction. Stored normalized questionnaire versions join only the matching source record, exact session ID and treatment date. Orphan/mislinked content evidence remains in the annotation ledger; legacy responses without a version keep an unknown version. Context uses actual dose/provider bounds, never form completion or the treatment-date label. `contextReadReady` is false during refresh, after read failure or provider invalidation; report/filter consumers require it before using the retained timeline.
+
 ### Sleep and naps review (DOSETAP-45)
 
 [Sleep and naps contract](contracts/sleep-naps.md) defines independent reviewed nap episodes, explicit daily completeness, overlap reconciliation and separate reported/rest/provider measures.

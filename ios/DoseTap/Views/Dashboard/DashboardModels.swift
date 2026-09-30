@@ -18,6 +18,9 @@ final class DashboardAnalyticsModel: ObservableObject {
     @Published var savedProviderAssociations: [DashboardProviderAssociation] = []
     var providerAssociationsReady = false
     @Published var doseReviewReadReady = false
+    @Published var contextTimeline: DashboardContextTimeline?
+    @Published var contextReadReady = false
+    var contextAnnotations: [DashboardContextAnnotation] { contextReadReady ? contextTimeline?.annotations ?? [] : [] }
     @Published var lastRefresh: Date?
     @Published var errorMessage: String?
     @Published var sleepSource: DashboardSleepSource = .appleHealth
@@ -85,6 +88,14 @@ final class DashboardAnalyticsModel: ObservableObject {
         return providerQueries.whoopEnabled() && providerQueries.whoopConnected() && current(whoopSnapshot)
     }
 
+    func invalidateContextPublication() {
+        contextReadReady = false; contextTimeline = nil
+        nights = nights.map { night in
+            var row = night; row.contextProjection = nil; row.contextAnnotations = []
+            return row
+        }
+    }
+
     func providerAccessChanged(_ provider: DashboardProviderAccess.Provider) {
         let current = providerAccess.revision
         // A delayed notification must not erase a newer, already validated publication.
@@ -92,6 +103,7 @@ final class DashboardAnalyticsModel: ObservableObject {
         if refreshProviderAccess != current {
             refreshTask?.cancel(); refreshGeneration = UUID(); isLoading = false
         }
+        invalidateContextPublication()
         nights = nights.map { night in
             var row = night
             if provider == .health { row.healthSummary = nil } else { row.whoopSummary = nil }
