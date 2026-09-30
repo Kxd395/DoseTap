@@ -1000,3 +1000,7 @@ query, add a persistent provider cache, or retain data after transient errors.
 Optional bounded sleep-source transfer and receiver validation follow the
 [provider evidence contract](contracts/dashboard-provider-evidence.md). This adds
 original provider intervals, not reviewed sleep totals or dose advice.
+
+### Dashboard session identity (DOSETAP-45)
+
+Dashboard rows retain exact session identity independently of treatment-date grouping. Same-date sessions never share dose pairs, questionnaires, events or outcome answers. Date-only legacy records remain a labeled unresolved row and cannot supply a paired interval. The reporting read is one SQLite snapshot; failed or partial reads preserve the previous dashboard and report failure. Provider episodes keep a separate stable source identity. A treatment date alone cannot associate provider sleep with medication. Provider episodes remain separate until a reviewed or explicitly saved association resolves them. Apple Health still returns the selected primary episode per evening; this does not claim complete episode discovery. Session closure is lifecycle evidence, never administration-count confirmation.

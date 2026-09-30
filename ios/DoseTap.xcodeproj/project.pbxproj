@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		DDRV001 /* EventStorage+DashboardDoseReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDRV101; };
+		DIDENT102 /* DashboardIdentityAggregation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT002 /* DashboardIdentityAggregation.swift */; };
+		DIDENT101 /* SessionRepositoryDashboardIdentities.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT001 /* SessionRepositoryDashboardIdentities.swift */; };
 		DPAC101 /* DashboardProviderAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPAC001 /* DashboardProviderAccess.swift */; };
 		BOTQ01B /* BottleQuantityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BOTQ01F /* BottleQuantityView.swift */; };
 		BOTS01B /* BottleSupplyViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = BOTS01F /* BottleSupplyViews.swift */; };
@@ -198,6 +200,8 @@
 
 /* Begin PBXFileReference section */
 		DDRV101 /* EventStorage+DashboardDoseReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+DashboardDoseReview.swift"; sourceTree = "<group>"; };
+		DIDENT002 /* DashboardIdentityAggregation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardIdentityAggregation.swift; sourceTree = "<group>"; };
+		DIDENT001 /* SessionRepositoryDashboardIdentities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepositoryDashboardIdentities.swift; sourceTree = "<group>"; };
 		DPAC001 /* DashboardProviderAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardProviderAccess.swift; sourceTree = "<group>"; };
 		BOTQ01F /* BottleQuantityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottleQuantityView.swift; sourceTree = "<group>"; };
 		BOTS01F /* BottleSupplyViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottleSupplyViews.swift; sourceTree = "<group>"; };
@@ -565,6 +569,7 @@
 			children = (
 				CLUST001 /* DashboardModels.swift */,
 				CLUST002 /* DashboardViews.swift */,
+				DIDENT002 /* DashboardIdentityAggregation.swift */,
 				CLUST106 /* DashboardTypes.swift */,
 				CLUST109 /* DashboardAnalyticsRefresh.swift */,
 				CLUST111 /* DashboardAnalyticsSupport.swift */,
@@ -655,6 +660,7 @@
 				64641673735B464BB4E4B02F /* SessionRepository.swift */,
 				SRQ101 /* SessionRepositoryQueries.swift */,
 				SRQ102 /* SessionRepositoryMedication.swift */,
+				DIDENT001 /* SessionRepositoryDashboardIdentities.swift */,
 				72CFAA5DE2681CBC5A3CDB0C /* SessionRepositoryDashboardSnapshot.swift */,
 				DB770002 /* DashboardPublisherIdentity.swift */,
 				DB770004 /* DashboardTransferView.swift */,
@@ -1030,6 +1036,7 @@
 				92518D93643945F4B64E860F /* SessionRepository.swift in Sources */,
 				SRQ001 /* SessionRepositoryQueries.swift in Sources */,
 				SRQ002 /* SessionRepositoryMedication.swift in Sources */,
+				DIDENT101 /* SessionRepositoryDashboardIdentities.swift in Sources */,
 				AE5EED904A21B803837709F5 /* SessionRepositoryDashboardSnapshot.swift in Sources */,
 				DB770001 /* DashboardPublisherIdentity.swift in Sources */,
 				DB770003 /* DashboardTransferView.swift in Sources */,
@@ -1089,6 +1096,7 @@
 				CLUST101 /* DashboardModels.swift in Sources */,
 				CLUST102 /* DashboardViews.swift in Sources */,
 				CLUST105 /* DeferredCloudKitSyncService.swift in Sources */,
+				DIDENT102 /* DashboardIdentityAggregation.swift in Sources */,
 				CLUST107 /* DashboardTypes.swift in Sources */,
 				CLUST108 /* DashboardAnalyticsRefresh.swift in Sources */,
 				CLUST110 /* DashboardAnalyticsSupport.swift in Sources */,

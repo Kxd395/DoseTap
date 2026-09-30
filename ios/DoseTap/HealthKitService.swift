@@ -47,7 +47,11 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
     // MARK: - Data Types
     
     struct SleepNightSummary: Identifiable {
-        let id = UUID()
+        var id: String {
+            let start = recordedIntervals.map(\.start).min() ?? bedTime ?? sleepOnset ?? date
+            let end = recordedIntervals.map(\.end).max() ?? observationEnd ?? finalWake ?? date
+            return "apple-health:\(source.utf8.count):\(source):\(start.timeIntervalSince1970):\(end.timeIntervalSince1970)"
+        }
         let date: Date          // Night start date
         let bedTime: Date?      // When user got in bed
         let sleepOnset: Date?   // When first fell asleep

@@ -24,7 +24,7 @@ struct DashboardTrendChartsCard: View {
     }
 
     private struct RecoveryPoint: Identifiable {
-        var id: Date { date }
+        let id: String
         let date: Date
         let recovery: Double
         let hrv: Double?
@@ -36,7 +36,7 @@ struct DashboardTrendChartsCard: View {
                 guard let recovery = night.whoopRecoveryScore,
                       let date = AppFormatters.sessionDate.date(from: night.sessionDate)
                 else { return nil }
-                return RecoveryPoint(date: date, recovery: recovery, hrv: night.whoopHRV)
+                return RecoveryPoint(id: night.id, date: date, recovery: recovery, hrv: night.whoopHRV)
             }
             .sorted { $0.date < $1.date }
     }
@@ -60,7 +60,7 @@ struct DashboardTrendChartsCard: View {
     private var intervalSleepPoints: [IntervalSleepPoint] {
         model.populatedNights.compactMap { night in
             guard let interval = night.exactIntervalMinutes, let sleep = model.sleepMinutes(for: night) else { return nil }
-            return IntervalSleepPoint(id: night.sessionDate, intervalMinutes: Double(interval), sleepMinutes: sleep, onTime: night.onTimeDosing ?? false)
+            return IntervalSleepPoint(id: night.id, intervalMinutes: Double(interval), sleepMinutes: sleep, onTime: night.onTimeDosing ?? false)
         }
     }
 

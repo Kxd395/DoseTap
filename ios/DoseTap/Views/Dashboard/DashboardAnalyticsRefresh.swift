@@ -87,34 +87,12 @@ extension DashboardAnalyticsModel {
             }
         }
 
-        let sessionKeys = Set(sessionRepo.allSessionDatesForSync())
-            .union(healthByKey.keys).union(whoopByKey.keys).sorted(by: >)
-        var aggregates: [DashboardNightAggregate] = []
-        for key in sessionKeys {
-            guard requestIsCurrent() else { return }
-            let derivedDose = Self.deriveDoseMetrics(from: sessionRepo.fetchDoseEvents(forSessionDate: key))
-            let events = sessionRepo.fetchSleepEvents(for: key).sorted { $0.timestamp < $1.timestamp }
-            let duplicateClusters = buildStoredEventDuplicateGroups(events: events).count
-
-            var aggregate = DashboardNightAggregate(
-                sessionDate: key,
-                dose1Time: derivedDose.dose1Time,
-                dose2Time: derivedDose.dose2Time,
-                dose2Skipped: derivedDose.dose2Skipped,
-                snoozeCount: derivedDose.snoozeCount,
-                extraDoseCount: derivedDose.extraDoseCount,
-                events: events,
-                morningCheckIn: sessionRepo.fetchMorningCheckIn(for: key),
-                preSleepLog: sessionRepo.fetchPreSleepLog(forSessionDate: key),
-                healthSummary: healthByKey[key],
-                whoopSummary: whoopByKey[key],
-                duplicateClusterCount: duplicateClusters,
-                napSummary: sessionRepo.napSummary(for: key)
-            )
-            do { aggregate.outcome = try sessionRepo.nightOutcomeSnapshot(sessionDate: key).record?.answers }
-            catch { aggregate.outcomeReadFailed = true }
-            aggregates.append(aggregate)
-            await Task.yield()
+        let aggregates: [DashboardNightAggregate]
+        do {
+            aggregates = identityAggregates(local: try sessionRepo.dashboardLocalSessions(), health: healthByKey, whoop: whoopByKey)
+        } catch {
+            errorMessage = "Local records could not be read completely. Previous dashboard data is retained. Try Refresh again."
+            return
         }
 
         guard requestIsCurrent() else { return }
@@ -134,8 +112,8 @@ extension DashboardAnalyticsModel {
             sorted.filter { CanonicalDoseEventType(canonicalizing: $0.eventType) == kind }
         }
         return DashboardDerivedDoseMetrics(
-            dose1Time: events(.dose1).first?.timestamp,
-            dose2Time: events(.dose2).first?.timestamp,
+            dose1Time: events(.dose1).count == 1 ? events(.dose1).first?.timestamp : nil,
+            dose2Time: events(.dose2).count == 1 ? events(.dose2).first?.timestamp : nil,
             dose2Skipped: !events(.dose2Skipped).isEmpty,
             extraDoseCount: events(.extraDose).count,
             snoozeCount: events(.snooze).count

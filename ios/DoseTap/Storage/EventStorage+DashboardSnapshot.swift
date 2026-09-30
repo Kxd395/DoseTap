@@ -63,7 +63,7 @@ extension EventStorage {
         return CloudDashboardSnapshot(sourceID: sourceID, sequence: sequence, capturedAt: capturedAt, sections: sections)
     }
 
-    private func dashboardRows(_ table: String) throws -> [StoredExportSourceRecord] {
+    func dashboardRows(_ table: String) throws -> [StoredExportSourceRecord] {
         // Only the fixed producer mapping above can supply a table name.
         try readExportRows("SELECT * FROM \(table) ORDER BY rowid") { statement in
             var columns: [String: StoredExportColumn] = [:]

@@ -25,6 +25,12 @@ struct DashboardNightAggregate: Identifiable {
     let napSummary: SessionRepository.NapSummary
     var outcome: NightOutcomeDiary? = nil
     var outcomeReadFailed = false
+    var sessionID: String? = nil
+    var stableID: String? = nil
+    var doseEvents: [DoseCore.StoredDoseEvent] = []
+    var sessionClosed = false
+    var identityNeedsReview = false
+    var providerAssociation = "No provider association"
 
     var effectiveWakeMethod: Dose2WakeKind {
         guard dose2Time != nil, !outcomeReadFailed else { return .unknown }
@@ -39,10 +45,10 @@ struct DashboardNightAggregate: Identifiable {
             intervals: healthSummary?.recordedIntervals ?? [])
     }
 
-    var id: String { sessionDate }
+    var id: String { stableID ?? "legacy:\(sessionDate)" }
 
     var exactIntervalMinutes: Double? {
-        guard let dose1Time, let dose2Time else { return nil }
+        guard !identityNeedsReview, let dose1Time, let dose2Time else { return nil }
         let seconds = dose2Time.timeIntervalSince(dose1Time)
         return seconds.isFinite && seconds > 0 ? seconds / 60 : nil
     }
@@ -86,7 +92,7 @@ struct DashboardNightAggregate: Identifiable {
     }
 
     var hasAnyData: Bool {
-        dose1Time != nil || dose2Time != nil || dose2Skipped || extraDoseCount > 0 || !events.isEmpty || morningCheckIn != nil || preSleepLog != nil || healthSummary != nil || whoopSummary != nil || outcome != nil || outcomeReadFailed
+        sessionID != nil || identityNeedsReview || dose1Time != nil || dose2Time != nil || dose2Skipped || extraDoseCount > 0 || !events.isEmpty || morningCheckIn != nil || preSleepLog != nil || healthSummary != nil || whoopSummary != nil || outcome != nil || outcomeReadFailed
     }
 
     var dataCategoryCount: Int {
@@ -113,6 +119,7 @@ struct DashboardIntegrationState: Identifiable {
 }
 
 struct DashboardStressTrendPoint: Identifiable {
+    var stableID: String? = nil
     let sessionDate: String
     let date: Date
     let bedtimeStress: Double?
@@ -123,7 +130,7 @@ struct DashboardStressTrendPoint: Identifiable {
     let bedtimeDrivers: [CommonStressDriver]
     let wakeDrivers: [CommonStressDriver]
 
-    var id: String { sessionDate }
+    var id: String { stableID ?? sessionDate }
 
     var carryoverDrivers: [CommonStressDriver] {
         let wakeSet = Set(wakeDrivers)
