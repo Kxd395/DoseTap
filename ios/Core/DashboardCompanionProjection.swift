@@ -12,6 +12,7 @@ public struct DashboardCompanionProjection: Sendable {
         public let reviewRevisionID: UUID?
         public let identityResolved: Bool
     }
+    let sourceSnapshot: CloudDashboardSnapshot
     public let sourceID: String
     public let sequence: UInt64
     public let capturedAt: Date
@@ -27,6 +28,7 @@ public struct DashboardCompanionProjection: Sendable {
     public init(snapshot: CloudDashboardSnapshot, now: Date) throws {
         var cache = CloudDashboardCache(accountScope: "companion", sourceID: snapshot.sourceID)
         try cache.accept(snapshot, accountScope: "companion", now: now)
+        sourceSnapshot = snapshot
         sourceID = snapshot.sourceID; sequence = snapshot.sequence; capturedAt = snapshot.capturedAt
         completedVisits = snapshot.completedVisits
         let doses = try Self.rows(.doseEvents, snapshot)
@@ -59,7 +61,7 @@ public struct DashboardCompanionProjection: Sendable {
             groups[identity(row).0, default: []].append(row)
         }
         let reviews = Dictionary(uniqueKeysWithValues: (snapshot.doseReviews ?? []).map { ($0.observationID, $0) })
-        nights = try groups.keys.sorted().map { key in
+        var projected: [Night] = try groups.keys.sorted().map { key -> Night in
             let rows = groups[key]!
             let first = rows[0], sessionID = identity(first).1, day = try first.required("session_date")
             let evidence = rows.filter { $0.sourceTable == "dose_events" }
@@ -92,6 +94,14 @@ public struct DashboardCompanionProjection: Sendable {
                 administrations: administrations, sourceRecordIDs: evidence.compactMap { $0.text("id") },
                 reviewRevisionID: review?.revisionID, identityResolved: sessionID != nil)
         }.sorted { $0.treatmentDate == $1.treatmentDate ? $0.id < $1.id : $0.treatmentDate > $1.treatmentDate }
+        for episode in snapshot.sleepEpisodes ?? [] where episode.sessionID == nil {
+            let review = episode.review
+            projected.append(Night(id: episode.episodeID, sessionID: nil, treatmentDate: episode.treatmentDate,
+                pattern: .derive(sessionID: episode.episodeID, administrations: [], confirmedCount: review?.confirmedCount,
+                    historicalPlanCount: review?.historicalPlanCount, secondNotTaken: review?.secondNotTaken == true, sessionOpen: false),
+                administrations: [], sourceRecordIDs: [episode.episodeID], reviewRevisionID: review?.revisionID, identityResolved: true))
+        }
+        nights = projected.sorted { $0.treatmentDate == $1.treatmentDate ? $0.id < $1.id : $0.treatmentDate > $1.treatmentDate }
         do {
             let daytime = try Self.rows(.daytimeDiary, snapshot)
             var checks: [DaytimeCheckIn] = [], events: [DaytimeEvent] = []
@@ -134,8 +144,8 @@ public struct DashboardCompanionProjection: Sendable {
             workIssue = "Work context source needs review on the phone. Raw rows remain in the report; no work-cycle classification is calculated."
         }
     }
-    public func selected(range: DashboardReportingRange, timeZone: TimeZone) -> [Night] {
-        guard let window = range.window(asOf: capturedAt, timeZone: timeZone) else { return [] }
+    public func selected(range: DashboardReportingRange, timeZone: TimeZone, period: PhysicianReportPeriod? = nil) -> [Night] {
+        guard let window = range.window(asOf: capturedAt, timeZone: timeZone, reviewedPeriod: period) else { return [] }
         return nights.filter { window.contains($0.treatmentDate) }
     }
     struct Row: Decodable {

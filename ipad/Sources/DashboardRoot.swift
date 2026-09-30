@@ -9,17 +9,24 @@ struct DashboardRoot: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     @State private var section = "Overview"
     @State private var range: DashboardReportingRange = .sixMonths
+    @State private var inspection = DashboardInspectionState()
+    @State private var period: PhysicianReportPeriod?
+    @State private var rangeIssue: String?
+    @State private var customRangePresented = false
+    @State private var customStart = Date()
+    @State private var customEnd = Date()
+    @State private var reportTimeZone = TimeZone.current
+    @State private var capturedReportKey: String?
     @State private var selectedNight: DashboardReportDoseDay?
     @State private var medicationSearch = ""
-    private let sections = ["Overview", "Dose timing", "Apple Health evidence", "Sleep & check-ins", "Wake & sleepiness", "Medications", "Night review", "Report contents", "Connection"]
+    private let sections = ["Overview", "Sleep & dose pattern", "Dose timing", "Apple Health evidence", "Sleep & check-ins", "Wake & sleepiness", "Medications", "Night review", "Report contents", "Connection"]
     private var diaryPoints: [DashboardDiaryPoint] {
-        let dates = Set(model.questionnaires?.selected(range: range, timeZone: .current).map(\.treatmentDate) ?? [])
+        let dates = Set(selectedQuestionnaires.map(\.treatmentDate))
         return model.diary?.points.filter { dates.contains($0.treatmentDate) } ?? []
     }
     private var nights: [DashboardReportDoseDay] {
         guard let report = model.report else { return [] }
-        return DashboardReportStatistics.selected(report.doseDays, range: range,
-            capturedAt: report.capturedAt, timeZone: .current)
+        return report.doseDays.filter { reportWindow?.contains($0.treatmentDate) == true }
     }
 
     var body: some View {
@@ -46,14 +53,27 @@ struct DashboardRoot: View {
                         else {
                             if typeSize.isAccessibilitySize { rangePicker.pickerStyle(.menu) }
                             else { rangePicker.pickerStyle(.segmented) }
+                            HStack {
+                                Button("Custom period") {
+                                    customEnd = report.capturedAt
+                                    customStart = Calendar.current.date(byAdding: .day, value: -28, to: customEnd) ?? customEnd
+                                    customRangePresented = true
+                                }
+                                Button("Since completed visit") { applyPeriod(.sinceCompletedVisit) }
+                            }
+                            if let rangeIssue { Text(rangeIssue).foregroundStyle(.red) }
                             Text(rangeDescription(capturedAt: report.capturedAt))
                                 .font(.caption).foregroundStyle(.secondary)
                                 .accessibilityIdentifier("dashboard-report-range-span")
-                            if section == "Overview" { ReportOverview(report: report, nights: nights, diaryPoints: diaryPoints) { section = $0 } }
+                            if section == "Sleep & dose pattern", let companion = model.companion {
+                                companionFilters(companion)
+                                CompanionSleepPatterns(report: companion, nights: visibleNights(companion), inspection: $inspection)
+                            }
+                            else if section == "Overview" { ReportOverview(report: report, nights: nights, diaryPoints: diaryPoints) { section = $0 } }
                             else if section == "Dose timing" { DoseTimingOverview(nights: nights) { selectedNight = $0 } }
                             else if section == "Wake & sleepiness" { DiaryOverview(points: diaryPoints, generation: model.diary?.sequence ?? 0) }
                             else if section == "Sleep & check-ins", let answers = model.questionnaires {
-                                QuestionnaireOverview(days: answers.selected(range: range, timeZone: .current),
+                                QuestionnaireOverview(days: selectedQuestionnaires,
                                                       unassignedSourceRowCount: answers.unassignedSourceRowCount)
                             } else { nightList }
                         }
@@ -64,23 +84,86 @@ struct DashboardRoot: View {
                 }.padding(28).frame(maxWidth: 1100, alignment: .leading).frame(maxWidth: .infinity)
             }.accessibilityIdentifier("dashboard-content").navigationTitle(section)
         }.tint(.teal)
+            .onAppear { captureReportZone() }
+            .onChange(of: model.snapshot?.sequence) { _, _ in captureReportZone() }
+            .onChange(of: range) { _, value in if DashboardReportingRange.presetCases.contains(value) { period = nil; rangeIssue = nil } }
+            .sheet(isPresented: $customRangePresented) {
+                NavigationStack {
+                    Form {
+                        DatePicker("Start inclusive", selection: $customStart)
+                        DatePicker("End exclusive", selection: $customEnd)
+                        Text("The end must be no later than the saved report capture. Time zone: \(reportTimeZone.identifier).")
+                        if let rangeIssue { Text(rangeIssue).foregroundStyle(.red) }
+                        Button("Apply custom period") { if applyPeriod(.custom(start: customStart, endExclusive: customEnd)) { customRangePresented = false } }
+                            .accessibilityIdentifier("companion-apply-period")
+                    }.navigationTitle("Reporting period").toolbar { Button("Cancel") { customRangePresented = false } }
+                }
+            }
             .sheet(item: $selectedNight) { DoseNightDetail(night: $0) }
+    }
+    private func captureReportZone() {
+        guard let snapshot = model.snapshot else { capturedReportKey = nil; period = nil; return }
+        let key = "\(snapshot.sourceID):\(snapshot.sequence)"
+        guard key != capturedReportKey else { return }
+        capturedReportKey = key
+        reportTimeZone = model.snapshot?.reportingTimeZoneID.flatMap(TimeZone.init(identifier:)) ?? .current
+        if period != nil {
+            period = nil
+            rangeIssue = "A new reporting copy arrived. Recheck the custom or completed-visit period against its capture before using it."
+        }
+    }
+    private var reportWindow: DashboardReportingWindow? {
+        model.report.flatMap { range.window(asOf: $0.capturedAt, timeZone: reportTimeZone, reviewedPeriod: period) }
+    }
+    private var selectedQuestionnaires: [DashboardQuestionnaireDay] {
+        model.questionnaires?.days.filter { reportWindow?.contains($0.treatmentDate) == true } ?? []
+    }
+    private func visibleNights(_ report: DashboardCompanionProjection) -> [DashboardCompanionProjection.Night] {
+        report.visible(range: range, period: period, timeZone: reportTimeZone, inspection: inspection)
+    }
+    @discardableResult private func applyPeriod(_ selection: PhysicianReportRange) -> Bool {
+        guard let report = model.companion else { return false }
+        do {
+            let resolved = try PhysicianReportPeriod.resolve(selection, ledger: report.completedVisits ?? PhysicianVisitLedger(), asOf: report.capturedAt, timeZone: reportTimeZone)
+            period = resolved; range = resolved.completedVisitID == nil ? .custom : .sinceCompletedVisit
+            rangeIssue = nil; return true
+        } catch {
+            rangeIssue = "The requested period is unavailable. Use valid bounds ending by report capture, or record a completed visit on the phone and refresh."
+            return false
+        }
+    }
+    private func companionFilters(_ report: DashboardCompanionProjection) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Picker("Dose pattern filter", selection: $inspection.dosePatternFilter) {
+                Text("All dose patterns").tag(Optional<DashboardDosePattern.Pattern>.none)
+                ForEach(DashboardDosePattern.Pattern.allCases, id: \.self) { Text($0.label).tag(Optional($0)) }
+            }.accessibilityIdentifier("companion-dose-filter")
+            Picker("Work phase filter", selection: $inspection.workPhaseFilter) {
+                Text("All work phases").tag(Optional<WorkPhase>.none)
+                ForEach(WorkPhase.allCases, id: \.self) { Text($0.label).tag(Optional($0)) }
+            }
+            Button("Reset comparison filters") { inspection.resetFilters() }
+            if let issue = report.workIssue, inspection.workPhaseFilter != nil { Text(issue).foregroundStyle(.orange) }
+            let status = inspection.selectionStatus(visibleIDs: visibleNights(report).map(\.id), knownIDs: report.nights.map(\.id))
+            if let explanation = status.explanation { Text(explanation).foregroundStyle(.orange) }
+            Text("\(report.unassignedIdentityRowCount) unassigned source rows · Read-only; edit source records on the phone and refresh.").font(.caption)
+        }
     }
     private var rangePicker: some View {
         Picker("Treatment dates", selection: $range) {
-            ForEach(DashboardReportingRange.presetCases) { value in
+            ForEach(DashboardReportingRange.presetCases + ([.custom, .sinceCompletedVisit].contains(range) ? [range] : [])) { value in
                 Text(value.rawValue).tag(value).accessibilityLabel(value.label)
             }
         }.accessibilityIdentifier("dashboard-report-range")
     }
     private func rangeDescription(capturedAt: Date) -> String {
-        let zone = TimeZone.current
-        guard let window = range.window(asOf: capturedAt, timeZone: zone) else {
+        let zone = reportTimeZone
+        guard let window = range.window(asOf: capturedAt, timeZone: zone, reviewedPeriod: period) else {
             return "Treatment-date range unavailable for this report."
         }
         let dates = window.firstTreatmentDate.map { "\($0) through \(window.lastTreatmentDate)" }
             ?? "All available dates through \(window.lastTreatmentDate)"
-        return "Treatment dates: \(dates) · \(zone.identifier) · 18:00 rollover at report capture. Refresh to include later records."
+        return "Treatment dates: \(dates) · \(model.snapshot?.reportingTimeZoneID == nil ? "Legacy report: iPad zone fixed at load" : "Phone capture zone") · \(zone.identifier) · 18:00 rollover at report capture. Refresh to include later records."
     }
     private var nightList: some View {
         LazyVStack(alignment: .leading, spacing: 14) {

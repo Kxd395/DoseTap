@@ -62,4 +62,50 @@ final class DashboardCompanionProjectionTests: XCTestCase {
         XCTAssertEqual(source.sections.first { $0.dataset == .morning }?.rowCount, 1)
     }
 
+    func testProviderOnlyEpisodeKeepsIdentityAndSleepIndependentOfDoseCount() throws {
+        let start = now.addingTimeInterval(-7200), end = now.addingTimeInterval(-3600)
+        let packet = DashboardSleepEvidence(queryStart: now.addingTimeInterval(-10000), queryEnd: now,
+            completedAt: now, timeZoneID: "UTC", samples: [.init(sampleID: "sample", start: start, end: end,
+                rawCategory: 1, stage: .asleep, origin: .init(sourceName: "Watch", bundleIdentifier: nil))])
+        var source = try snapshot()
+        source.sections[source.sections.firstIndex { $0.dataset == .appleHealth }!] = try packet.section()
+        source.sleepEpisodes = [.init(episodeID: "apple-health:episode", treatmentDate: "2027-01-15", source: "Watch",
+            sessionID: nil, associationRevision: nil, intervals: [.init(start: start, end: end, asleep: true)],
+            bedTime: nil, sleepOnset: start, finalWake: end, observationEnd: end, finalWakeBasis: "last_observed_sleep_end",
+            derivationVersion: "primary_episode_boundary_v2", totalSleepMinutes: 60,
+            queryStart: packet.queryStart, queryEnd: now, completedAt: now, timeZoneID: "UTC")]
+        let report = try DashboardCompanionProjection(snapshot: source, now: now)
+        let night = try XCTUnwrap(report.nights.first)
+        XCTAssertEqual(night.id, "apple-health:episode")
+        XCTAssertFalse(night.pattern.countComplete)
+        XCTAssertEqual(report.sleepMetric(for: night, definition: .mainProviderEpisode).metric.value, 60)
+        XCTAssertNil(report.sleepMetric(for: night, definition: .observedAfterDose2).metric.value)
+        XCTAssertEqual(report.replay(for: night, timeZone: .gmt, filterDescription: "test").markers.count, 2)
+        source.sections[source.sections.firstIndex { $0.dataset == .appleHealth }!] = .init(dataset: .appleHealth, rows: Data("[]".utf8), rowCount: 0)
+        XCTAssertThrowsError(try DashboardCompanionProjection(snapshot: source, now: now))
+    }
+    func testSharedFiltersRetainUnknownWorkAndStableSelection() throws {
+        let source = try snapshot([.doseEvents: [row("dose_events", ["id":"d", "session_id":"a", "session_date":"2027-01-14", "event_type":"dose1", "timestamp":"2027-01-15T01:00:00Z"])]])
+        let report = try DashboardCompanionProjection(snapshot: source, now: now)
+        var inspection = DashboardInspectionState(); inspection.selectedObservationID = "session:a"
+        inspection.workPhaseFilter = .unknown
+        XCTAssertEqual(report.visible(range: .all, period: nil, timeZone: .gmt, inspection: inspection).count, 1)
+        inspection.dosePatternFilter = .twoReported
+        let visible = report.visible(range: .all, period: nil, timeZone: .gmt, inspection: inspection)
+        XCTAssertTrue(visible.isEmpty)
+        XCTAssertEqual(inspection.selectionStatus(visibleIDs: visible.map(\.id), knownIDs: report.nights.map(\.id)), .filtered)
+        let replay = report.replay(for: report.nights[0], timeZone: .gmt, filterDescription: "test")
+        XCTAssertEqual(replay.interval(.dose1ToDose2).state, .unavailable)
+        XCTAssertEqual(replay.markers.first?.sourceRecordID, "d")
+    }
+
+    func testCapturedReportingZoneMustBeValidAndRoundTrips() throws {
+        var source = try snapshot(); source.reportingTimeZoneID = "America/New_York"
+        let copy = try JSONDecoder().decode(CloudDashboardSnapshot.self, from: JSONEncoder().encode(source))
+        XCTAssertEqual(copy.reportingTimeZoneID, "America/New_York")
+        XCTAssertNoThrow(try DashboardCompanionProjection(snapshot: copy, now: now))
+        source.reportingTimeZoneID = "Unknown/Not-A-Zone"
+        XCTAssertThrowsError(try DashboardCompanionProjection(snapshot: source, now: now))
+    }
+
 }

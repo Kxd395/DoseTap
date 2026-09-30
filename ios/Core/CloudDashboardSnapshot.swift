@@ -74,6 +74,8 @@ public struct CloudDashboardSnapshot: Codable, Equatable, Sendable {
     public var capturedAt: Date
     public var sections: [DashboardSnapshotSection]
     public var doseReviews: [DashboardSharedDoseReview]? = nil
+    public var reportingTimeZoneID: String? = nil
+    public var sleepEpisodes: [DashboardSharedSleepEpisode]? = nil
     public var completedVisits: PhysicianVisitLedger? = nil
 
     public init(sourceID: String, sequence: UInt64, capturedAt: Date,
@@ -85,6 +87,7 @@ public struct CloudDashboardSnapshot: Codable, Equatable, Sendable {
     }
 
     fileprivate func validate(now: Date) throws {
+        guard reportingTimeZoneID.map({ TimeZone(identifier: $0) != nil }) ?? true else { throw DashboardSnapshotError.invalidMetadata }
         guard schemaVersion == 1 else { throw DashboardSnapshotError.unsupportedSchema }
         guard !sourceID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, sequence > 0,
               now.timeIntervalSince1970.isFinite, capturedAt.timeIntervalSince1970.isFinite,
@@ -97,6 +100,7 @@ public struct CloudDashboardSnapshot: Codable, Equatable, Sendable {
         _ = try DashboardSleepEvidence.read(from: self)
         try DashboardSharedDoseReview.validate(doseReviews ?? [], in: self)
         try completedVisits?.validateDashboardShared(now: capturedAt)
+        try DashboardSharedSleepEpisode.validate(sleepEpisodes ?? [], in: self)
     }
 }
 

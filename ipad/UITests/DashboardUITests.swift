@@ -2,6 +2,29 @@ import XCTest
 import DoseCore
 
 final class DashboardUITests: XCTestCase {
+    func testSleepPatternsReadOnlyInspection() throws { try sleepPatternsJourney(largeText: false) }
+    func testSleepPatternsLargestText() throws { try sleepPatternsJourney(largeText: true) }
+    private func sleepPatternsJourney(largeText: Bool) throws {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let app = XCUIApplication()
+        if largeText { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
+        app.launchEnvironment["DOSETAP_DASHBOARD_UI_FIXTURE"] = try sleepPatternFixture().base64EncodedString()
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Your nights. Your days."].waitForExistence(timeout: 10))
+        selectSidebar("Sleep & dose pattern", app: app)
+        let content = app.scrollViews["dashboard-content"]
+        for _ in 0..<8 where !app.buttons["companion-sleep-definition"].isHittable { content.swipeUp() }
+        XCTAssertTrue(app.buttons["companion-sleep-definition"].isHittable)
+        app.buttons["companion-sleep-definition"].tap()
+        app.buttons["Observed after Dose 2"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["companion-sleep-mode"].exists)
+        capture(largeText ? "Sleep patterns largest text" : "Sleep patterns source inspection")
+        for _ in 0..<10 where !app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "companion-observation-")).firstMatch.isHittable { content.swipeUp() }
+        let observation = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "companion-observation-")).firstMatch
+        XCTAssertTrue(observation.isHittable); observation.tap()
+        capture(largeText ? "Sleep patterns largest exact record" : "Sleep patterns exact record")
+        XCTAssertFalse(app.buttons["Save dose review"].exists)
+    }
     func testNativeOverviewMedicationAndConnection() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
         let app = XCUIApplication()
@@ -164,6 +187,22 @@ final class DashboardUITests: XCTestCase {
         let element = button ? app.buttons[title].firstMatch : app.staticTexts[title].firstMatch
         for _ in 0..<12 where !element.isHittable { app.scrollViews["dashboard-content"].swipeUp() }
         XCTAssertTrue(element.isHittable)
+    }
+    private func sleepPatternFixture() throws -> Data {
+        var report = try JSONDecoder().decode(CloudDashboardSnapshot.self, from: fixture())
+        let start = report.capturedAt.addingTimeInterval(-86400 + 900), end = report.capturedAt.addingTimeInterval(-86400 + 7 * 3600)
+        let day = String(ISO8601DateFormatter().string(from: report.capturedAt.addingTimeInterval(-86400)).prefix(10))
+        let packet = DashboardSleepEvidence(queryStart: report.capturedAt.addingTimeInterval(-100000), queryEnd: report.capturedAt,
+            completedAt: report.capturedAt, timeZoneID: "UTC", samples: [.init(sampleID: "synthetic-sleep", start: start, end: end,
+                rawCategory: 1, stage: .asleep, origin: .init(sourceName: "Fixture Watch", bundleIdentifier: "example.fixture"))])
+        report.sections[report.sections.firstIndex { $0.dataset == .appleHealth }!] = try packet.section()
+        report.reportingTimeZoneID = "UTC"
+        report.sleepEpisodes = [.init(episodeID: "apple-health:synthetic", treatmentDate: day, source: "Fixture Watch",
+            sessionID: "sample", associationRevision: UUID(), intervals: [.init(start: start, end: end, asleep: true)],
+            bedTime: nil, sleepOnset: start, finalWake: end, observationEnd: end, finalWakeBasis: "last_observed_sleep_end",
+            derivationVersion: "primary_episode_boundary_v2", totalSleepMinutes: end.timeIntervalSince(start) / 60,
+            queryStart: packet.queryStart, queryEnd: packet.queryEnd, completedAt: packet.completedAt, timeZoneID: "UTC")]
+        return try JSONEncoder().encode(report)
     }
     private func fixture() throws -> Data {
         let now = Date(), start = now.addingTimeInterval(-86400)

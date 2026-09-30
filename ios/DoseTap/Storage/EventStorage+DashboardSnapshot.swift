@@ -10,6 +10,7 @@ extension EventStorage {
     func dashboardSnapshot(sourceID: String, sequence: UInt64, capturedAt: Date) throws -> CloudDashboardSnapshot {
         guard !sourceID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, sequence > 0,
               capturedAt.timeIntervalSince1970.isFinite else { throw DashboardSnapshotError.invalidMetadata }
+        let capturedTimeZoneID = TimeZone.current.identifier
         guard databaseInitializationFailure == nil, let db, sqlite3_get_autocommit(db) != 0,
               sqlite3_exec(db, "BEGIN DEFERRED", nil, nil, nil) == SQLITE_OK else {
             throw ExportReadError.unreadable
@@ -75,6 +76,7 @@ extension EventStorage {
         guard sqlite3_exec(db, "COMMIT", nil, nil, nil) == SQLITE_OK else { throw ExportReadError.unreadable }
         committed = true
         var snapshot = CloudDashboardSnapshot(sourceID: sourceID, sequence: sequence, capturedAt: capturedAt, sections: sections)
+        snapshot.reportingTimeZoneID = capturedTimeZoneID
         snapshot.doseReviews = reviews.sorted { $0.observationID < $1.observationID }
         snapshot.completedVisits = visits
         return snapshot

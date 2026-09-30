@@ -43,6 +43,7 @@ let package = Package(
                 "DashboardSharedSleepEpisode.swift",
                 "DashboardCompanionDaytime.swift",
                 "DashboardCompanionProjection.swift",
+                "DashboardCompanionEvidence.swift",
                 "DashboardQuestionnaireProjection.swift",
                 "DashboardDiaryAnalysis.swift",
                 "DashboardReplay.swift",
