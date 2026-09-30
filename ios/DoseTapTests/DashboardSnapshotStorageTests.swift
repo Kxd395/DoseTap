@@ -248,6 +248,37 @@ final class DashboardPublisherPreparationTests: XCTestCase {
         for _ in 0..<10 { await Task.yield() }
         XCTAssertFalse(model.preparing); XCTAssertNil(model.providerReceipt); XCTAssertNil(model.error)
     }
+    func testRevokedPreferenceBlocksPreparedPacketAtReportBoundary() async throws {
+        var enabled = true
+        let now = Date()
+        let model = DashboardPublisherModel(healthEnabled: { enabled }, loadEvidence: {
+            .init(queryStart: now.addingTimeInterval(-3600), queryEnd: now,
+                  completedAt: now, timeZoneID: "UTC", samples: [])
+        })
+        model.start(includeHealth: true)
+        for _ in 0..<100 where model.preparing { await Task.yield() }
+        XCTAssertNotNil(try model.reportSleepEvidence())
+        enabled = false
+        XCTAssertThrowsError(try model.reportSleepEvidence())
+        model.start(includeHealth: false)
+        XCTAssertNil(try model.reportSleepEvidence())
+    }
+    func testRevokedPreferenceDuringPreparationDoesNotStartSharing() async throws {
+        var enabled = true
+        var continuation: CheckedContinuation<DashboardSleepEvidence, Error>?
+        let model = DashboardPublisherModel(healthEnabled: { enabled }, loadEvidence: {
+            try await withCheckedThrowingContinuation { continuation = $0 }
+        })
+        model.start(includeHealth: true)
+        for _ in 0..<100 where continuation == nil { await Task.yield() }
+        enabled = false
+        let now = Date()
+        try XCTUnwrap(continuation).resume(returning: .init(queryStart: now.addingTimeInterval(-3600),
+            queryEnd: now, completedAt: now, timeZoneID: "UTC", samples: []))
+        for _ in 0..<100 where model.preparing { await Task.yield() }
+        XCTAssertFalse(model.preparing); XCTAssertNotNil(model.error)
+        XCTAssertNil(model.providerReceipt); XCTAssertNil(try model.reportSleepEvidence())
+    }
     func testFailureRemainsExplicitAndSuccessfulEmptyQueryIsPrepared() async {
         let failed = DashboardPublisherModel(healthEnabled: { true }, loadEvidence: {
             throw DashboardSnapshotError.invalidPayload

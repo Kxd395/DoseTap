@@ -80,3 +80,11 @@ revisions; malformed or missing inputs cannot silently fall back to another rang
 Reports carry the phone capture time-zone identifier for treatment-night range
 parity. Legacy reports explicitly disclose the iPad-at-load zone policy. Receiving
 a new capture invalidates a previously reviewed custom/visit period visibly.
+
+The nearby publisher passes the connection's explicitly opted-in Apple Health
+packet into the local snapshot transaction. Exact reviewed episode bindings are
+validated against that same local read snapshot before sanitized episode metadata
+is attached. Opt-out omits both packet and episode metadata; stale associations
+remain unbound provider episodes. Health preference is checked again after an
+asynchronous preparation and at the actual report boundary. WHOOP remains outside
+this connection capability. No provider query or fingerprint transfer is added.

@@ -7,7 +7,7 @@ extension EventStorage {
     /// Transport-independent source evidence, not normalized clinical observations.
     /// Caller owns durable installation identity and monotonic generation allocation.
     /// An existing write transaction is rejected so uncommitted records cannot escape.
-    func dashboardSnapshot(sourceID: String, sequence: UInt64, capturedAt: Date) throws -> CloudDashboardSnapshot {
+    func dashboardSnapshot(sourceID: String, sequence: UInt64, capturedAt: Date, sleepEvidence: DashboardSleepEvidence? = nil) throws -> CloudDashboardSnapshot {
         guard !sourceID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, sequence > 0,
               capturedAt.timeIntervalSince1970.isFinite else { throw DashboardSnapshotError.invalidMetadata }
         let capturedTimeZoneID = TimeZone.current.identifier
@@ -73,12 +73,19 @@ extension EventStorage {
             }
         }
         let visits = try physicianVisits(now: capturedAt).dashboardShared(now: capturedAt)
+        // The opted-in packet and exact reviewed bindings share the same local
+        // read transaction. No provider query or inferred date join occurs here.
+        let sleepEpisodes = try sleepEvidence.map { try dashboardSharedSleepEpisodes(evidence: $0, capturedAt: capturedAt) }
+        if let sleepEvidence, let index = sections.firstIndex(where: { $0.dataset == .appleHealth }) {
+            sections[index] = try sleepEvidence.section()
+        }
         guard sqlite3_exec(db, "COMMIT", nil, nil, nil) == SQLITE_OK else { throw ExportReadError.unreadable }
         committed = true
         var snapshot = CloudDashboardSnapshot(sourceID: sourceID, sequence: sequence, capturedAt: capturedAt, sections: sections)
         snapshot.reportingTimeZoneID = capturedTimeZoneID
         snapshot.doseReviews = reviews.sorted { $0.observationID < $1.observationID }
         snapshot.completedVisits = visits
+        snapshot.sleepEpisodes = sleepEpisodes
         return snapshot
     }
 

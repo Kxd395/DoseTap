@@ -31,6 +31,30 @@ final class DashboardSharedSleepProducerTests: XCTestCase {
             sessionDate: "2026-09-29", sessionFingerprint: session.fingerprint,
             episodeFingerprint: summary.associationFingerprint, revision: UUID().uuidString), expectedRevision: nil, now: now)
     }
+    func testSnapshotOptInCarriesExactReviewedEpisodeAndOptOutOmitsIt() throws {
+        let storage = store(); try associate(storage)
+        let repository = SessionRepository(storage: storage, clock: { self.now })
+        let local = try repository.dashboardSnapshot(sourceID: "test", sequence: 1)
+        XCTAssertNil(local.sleepEpisodes)
+        XCTAssertNotNil(local.sections.first { $0.dataset == .appleHealth }?.unavailableReason)
+        let shared = try repository.dashboardSnapshot(sourceID: "test", sequence: 2, sleepEvidence: packet)
+        XCTAssertEqual(shared.sleepEpisodes?.first?.sessionID, "a")
+        XCTAssertEqual(shared.sleepEpisodes?.first?.completedAt, packet.completedAt)
+        XCTAssertNotNil(shared.sections.first { $0.dataset == .whoop }?.unavailableReason)
+        var cache = CloudDashboardCache(accountScope: "test", sourceID: "test")
+        XCTAssertTrue(try cache.accept(shared, accountScope: "test", now: now))
+        let receiver = try DashboardCompanionProjection(snapshot: shared, now: now)
+        let night = try XCTUnwrap(receiver.nights.first { $0.id == "session:a" })
+        XCTAssertEqual(receiver.episode(for: night)?.episodeID, shared.sleepEpisodes?.first?.episodeID)
+        XCTAssertEqual(receiver.sleepMetric(for: night, definition: .mainProviderEpisode).metric.value, 60)
+        let encoded = String(decoding: try JSONEncoder().encode(shared), as: UTF8.self)
+        XCTAssertFalse(encoded.contains("sessionFingerprint")); XCTAssertFalse(encoded.contains("episodeFingerprint"))
+        XCTAssertEqual(sqlite3_get_autocommit(storage.db), 1)
+        XCTAssertEqual(sqlite3_exec(storage.db, "UPDATE dose_events SET timestamp='2026-09-29T20:00:00Z' WHERE id='d1'", nil, nil, nil), SQLITE_OK)
+        let stale = try repository.dashboardSnapshot(sourceID: "test", sequence: 3, sleepEvidence: packet)
+        XCTAssertNil(stale.sleepEpisodes?.first?.sessionID)
+        XCTAssertEqual(stale.sleepEpisodes?.count, 1)
+    }
     func testRequiresSnapshotTransactionAndNeverDateMatches() throws {
         let storage = store()
         XCTAssertThrowsError(try storage.dashboardSharedSleepEpisodes(evidence: packet, capturedAt: now))
