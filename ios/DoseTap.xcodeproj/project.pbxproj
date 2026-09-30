@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		DPPK001B /* DashboardPagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPPK001F; };
+		DICT001B /* DashboardInspectionControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = DICT001F; };
 		DADM001B /* DashboardAdditionalMeasuresView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DADM001F; };
 		DPUI001B /* DosePatternDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI001F; };
 		UI_DP01B /* DosePatternDashboardUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI_DP01F; };
@@ -258,6 +260,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		DPPK001F /* DashboardPagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardPagePicker.swift; sourceTree = "<group>"; };
+		DICT001F /* DashboardInspectionControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardInspectionControls.swift; sourceTree = "<group>"; };
 		DADM001F /* DashboardAdditionalMeasuresView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardAdditionalMeasuresView.swift; sourceTree = "<group>"; };
 		DPUI001F /* DosePatternDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternDashboardView.swift; sourceTree = "<group>"; };
 		UI_DP01F /* DosePatternDashboardUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternDashboardUITests.swift; sourceTree = "<group>"; };
@@ -690,6 +694,8 @@
 				CLUST001 /* DashboardModels.swift */,
 				DINS001F /* DashboardInspection.swift */,
 				DRPL006 /* DashboardReplayPresentation.swift */,
+				DPPK001F /* DashboardPagePicker.swift */,
+				DICT001F /* DashboardInspectionControls.swift */,
 				DADM001F /* DashboardAdditionalMeasuresView.swift */,
 				DRPL005 /* DashboardReplayUITestFixture.swift */,
 				DRPL004 /* DashboardReplayExport.swift */,
@@ -1303,6 +1309,8 @@
 				CLUST101 /* DashboardModels.swift in Sources */,
 				DINS001B /* DashboardInspection.swift in Sources */,
 				DRPL106 /* DashboardReplayPresentation.swift in Sources */,
+				DPPK001B /* DashboardPagePicker.swift in Sources */,
+				DICT001B /* DashboardInspectionControls.swift in Sources */,
 				DADM001B /* DashboardAdditionalMeasuresView.swift in Sources */,
 				DRPL105 /* DashboardReplayUITestFixture.swift in Sources */,
 				DRPL104 /* DashboardReplayExport.swift in Sources */,

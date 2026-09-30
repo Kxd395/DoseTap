@@ -10,23 +10,13 @@ struct DashboardTabView: View {
     @ObservedObject private var sessionRepo = SessionRepository.shared
     @ObservedObject private var themeManager = ThemeManager.shared
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.isInSplitView) private var isInSplitView
     @StateObject private var model = DashboardAnalyticsModel()
     @StateObject private var cloudSync = DeferredCloudKitSyncService.shared
     @State private var resolvingDuplicateGroup: StoredEventDuplicateGroup?
-    @State private var section = "All"
+    @State private var page: DashboardPage = .timing
+    @State private var showingInspection = false
     @State private var cloudSyncError: String?
-
-    private var isWideLayout: Bool {
-        UIDevice.current.userInterfaceIdiom == .pad || horizontalSizeClass == .regular
-    }
-
-    private var columns: [GridItem] {
-        isWideLayout
-            ? [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
-            : [GridItem(.flexible())]
-    }
 
     private var palette: DashboardPalette { DashboardPalette(isNight: themeManager.currentTheme == .night) }
 
@@ -40,122 +30,40 @@ struct DashboardTabView: View {
         }.environment(\.dashboardPalette, palette)
     }
 
+    private var selectedPage: Binding<DashboardPage> {
+        Binding(get: { page }, set: { newPage in
+            if let mode = newPage.replayMode { model.replayPresentation.mode = mode }
+            page = newPage
+        })
+    }
     private var rangePicker: some View {
         DashboardPeriodControls(model: model)
     }
 
     private var dashboardContent: some View {
-            ScrollView {
-                #if DEBUG && targetEnvironment(simulator)
-                if ProcessInfo.processInfo.arguments.contains("-dashboard-provider-match-uitest") {
-                    NavigationLink("Match synthetic provider sleep") { ProviderSessionAssociationView(model: model) }
-                        .accessibilityIdentifier("dashboard-provider-match-test-open")
-                }
-                #endif
-                VStack(spacing: 0) {
-                    // MARK: Date Range Picker
-                    rangePicker.padding(.horizontal).padding(.vertical, 8)
-
-                    Text(model.rangeDescription).font(.caption).foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                    Text(model.selectedRange.label + " • \(model.populatedNights.count) nights with data")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                        .padding(.bottom, 4)
-                }
-
-                NavigationLink("Sleep & Naps") { SleepNapsDashboardView(model: model) }.accessibilityIdentifier("dashboard-sleep-naps-open").padding(.horizontal)
-                PhysicianDashboardReviewLink(model: model).padding(.horizontal)
-                NavigationLink("Replay & intervals") { DashboardReplayView(model: model) }
-                    .accessibilityIdentifier("dashboard-replay-open").padding(.horizontal)
-                NavigationLink("Sleep & Dose Pattern") { ScrollView { DosePatternDashboardView(model: model).padding() } }
-                    .accessibilityIdentifier("dashboard-dose-pattern-open").padding(.horizontal)
-                Picker("Dashboard section", selection: $section) {
-                    Text("All").tag("All")
-                    Text("Overview").tag("Overview")
-                    Text("Trends").tag("Trends")
-                    Text("Data").tag("Data")
-                }.pickerStyle(.segmented).padding(.horizontal)
-                    .accessibilityIdentifier("dashboard-section-picker")
-
-                NavigationLink("Work Block & Sleep") { DashboardWorkBlockView(model: model) }.accessibilityIdentifier("dashboard-work-block").padding()
-
-                DisclosureGroup("Dashboard colors & missing data") {
-                    Text(palette.legend)
-                        .font(.caption).foregroundColor(.secondary)
-                }.font(.callout).padding(.horizontal).padding(.top, 8)
-
+            VStack(spacing: 8) {
+                Group {
+                    if dynamicTypeSize.isAccessibilitySize {
+                        VStack(spacing: 0) { rangePicker; DashboardPagePicker(selection: selectedPage) }
+                    } else {
+                        HStack { rangePicker; DashboardPagePicker(selection: selectedPage) }
+                    }
+                }.padding(.horizontal)
+                Text(model.rangeDescription).font(.caption).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center).padding(.horizontal)
                 if let error = model.errorMessage {
                     Label(error, systemImage: "exclamationmark.triangle")
-                        .font(.callout).foregroundColor(.orange).padding()
+                        .font(.caption).foregroundStyle(.orange).padding(.horizontal)
                 }
-                if !model.isLoading && model.populatedNights.isEmpty {
-                    VStack(spacing: 8) {
-                        Text("No data in this range").font(.headline)
-                        Text("Choose a wider range or record a night from Tonight. Connected sleep sources appear after Refresh.")
-                            .font(.callout).foregroundColor(.secondary)
-                    }.multilineTextAlignment(.center).padding()
+                if page.requiresNightEvidence && !model.isLoading && model.populatedNights.isEmpty {
+                    VStack(spacing: 4) {
+                        Text("No session or provider observations in this range").font(.headline)
+                        Text("Choose a wider range, record a night from Tonight, or Refresh connected sleep sources. Independent daytime and nap records remain available in their views.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }.multilineTextAlignment(.center).padding(.horizontal)
+                        .accessibilityIdentifier("dashboard-empty-nights")
                 }
-
-                NavigationLink("Context & Morning Outcomes") { ContextMorningOutcomesView(model: model) }
-                    .accessibilityIdentifier("dashboard-context-open")
-                LazyVGrid(columns: columns, spacing: 12) {
-                    if !model.populatedNights.isEmpty {
-                        if section == "All" || section == "Overview" {
-                            dashboardHeading("Overview")
-                            DashboardExecutiveSummaryCard(model: model, core: core)
-                            DashboardDosingSnapshotCard(model: model)
-                            DashboardSleepSnapshotCard(model: model)
-                            if section == "Overview" { DashboardDataQualityCard(model: model) }
-                            if !model.whoopNights.isEmpty {
-                                DashboardWHOOPCard(model: model)
-                            } else {
-                                unavailableCard("WHOOP Recovery & Biometrics", detail: "No WHOOP nights in this range. Check the WHOOP connection in Settings, then refresh or choose a wider range.")
-                            }
-                        }
-                        if section == "All" || section == "Trends" {
-                            dashboardHeading("Trends")
-                            VStack(alignment: .leading, spacing: 8) {
-                                Picker("Sleep source for comparisons", selection: $model.sleepSource) {
-                                    ForEach(DashboardSleepSource.allCases) { Text($0.rawValue).tag($0) }
-                                }.pickerStyle(.segmented)
-                                Text("\(model.sleepSampleCount) nights from \(model.sleepSource.rawValue). Missing readings are excluded; sources are never substituted.")
-                                    .font(.caption).foregroundColor(.secondary)
-                            }.gridCellColumns(columns.count)
-                            if !model.periodComparison.isEmpty {
-                                DashboardPeriodComparisonCard(model: model)
-                            } else {
-                                unavailableCard("Period Comparison", detail: "A comparison needs matching measurements in this range and the preceding period. All Time has no preceding comparison period.")
-                            }
-                            DashboardTrendChartsCard(model: model).gridCellColumns(columns.count)
-                            DashboardWakeComparisonCard(model: model).gridCellColumns(columns.count)
-                            DashboardFoodDiaryCard(model: model).gridCellColumns(columns.count)
-                            DashboardLifestyleFactorsCard(model: model)
-                            DashboardMoodSymptomsCard(model: model)
-                            DashboardStressTrendsCard(model: model).gridCellColumns(columns.count)
-                        }
-                    }
-                    if section == "All" || section == "Data" {
-                        dashboardHeading("Data")
-                        DashboardDataQualityCard(model: model)
-                        DisclosureGroup("Storage & iPad access") {
-                            Text(cloudSync.cloudSyncAvailableInBuild
-                                ? "This validation build has experimental cloud sync. Complete cross-device record coverage and conflict handling are not accepted for release."
-                                : "DoseTap records are stored locally on this device. Automatic DoseTap iCloud sync is disabled in this build. An iPad installation does not automatically receive this phone’s medication or check-in records.")
-                            Text("Apple Health syncing, device backups, and files saved to iCloud Drive are separate. An exported workbook is a review snapshot, not a live dashboard or a tested full-app restore.")
-                        }.font(.callout).gridCellColumns(columns.count)
-                        DashboardIntegrationsCard(states: model.integrationStates)
-                        DashboardRecentNightsCard(nights: model.trendNights, onResolveDuplicateGroup: { resolvingDuplicateGroup = $0 })
-                            .gridCellColumns(columns.count)
-                        DashboardCapturedMetricsCard(categories: model.metricsCatalog)
-                            .gridCellColumns(columns.count)
-                    }
-                }
-                .padding()
-                .padding(.bottom, 90)
+                dashboardPageContent.frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .navigationTitle("Dashboard")
             .navigationBarTitleDisplayMode(isInSplitView ? .automatic : .inline)
@@ -165,6 +73,10 @@ struct DashboardTabView: View {
             }
             .toolbar {
                 PageToolbar {
+                    Button { showingInspection = true } label: {
+                        Image(systemName: "line.3.horizontal.decrease.circle")
+                    }.accessibilityLabel("Dashboard shared filters")
+                        .accessibilityIdentifier("dashboard-shared-filters")
                     if cloudSync.cloudSyncAvailableInBuild {
                         if cloudSync.isSyncing {
                             ProgressView()
@@ -206,9 +118,19 @@ struct DashboardTabView: View {
             .task {
                 model.refresh()
             }
+            .onChange(of: model.replayPresentation.mode) { mode in
+                if page.replayMode != nil { page = DashboardPage.page(for: mode) }
+            }
             .onChange(of: model.selectedRange) { _ in model.refresh() }
             .onReceive(sessionRepo.sessionDidChange) { _ in
                 model.refresh()
+            }
+            .sheet(isPresented: $showingInspection) {
+                NavigationStack {
+                    ScrollView { DashboardInspectionControls(model: model).padding() }
+                        .navigationTitle("Dashboard filters")
+                        .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showingInspection = false } } }
+                }
             }
             .sheet(item: $resolvingDuplicateGroup) { group in
                 DuplicateResolutionSheet(
@@ -243,22 +165,41 @@ struct DashboardTabView: View {
             }
     }
 
-    private func dashboardHeading(_ title: String) -> some View {
-        Text(title)
-            .font(.title2.bold())
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityAddTraits(.isHeader)
-            .gridCellColumns(columns.count)
-    }
-
-    private func unavailableCard(_ title: String, detail: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title).font(.headline)
-            Text(detail).font(.callout).foregroundColor(.secondary)
+    @ViewBuilder private var dashboardPageContent: some View {
+        switch page {
+        case .timing, .intervals, .opportunity, .medications, .coverage:
+            DashboardReplayView(model: model)
+        case .sleepNaps: SleepNapsDashboardView(model: model)
+        case .dosePatterns: ScrollView { DosePatternDashboardView(model: model).padding() }
+        case .work: DashboardWorkBlockView(model: model)
+        case .context: ContextMorningOutcomesView(model: model)
+        case .daytime: DashboardDaytimeRoute(model: model)
+        case .physician: ScrollView { PhysicianDashboardReviewLink(model: model).padding() }
+        case .data: reviewData
+        case .additional: DashboardAdditionalMeasuresView(model: model, core: core)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 16))
     }
 
+    private var reviewData: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("What records are available for review?").font(.title2.bold())
+                Text("This inventory covers the whole selected reporting range. Night-level comparison filters do not remove records from this inventory.")
+                    .font(.callout).foregroundStyle(.secondary)
+                DashboardDataQualityCard(model: model)
+                DashboardIntegrationsCard(states: model.integrationStates)
+                NavigationLink("Review provider-to-session matches") { ProviderSessionAssociationView(model: model) }
+                    .accessibilityIdentifier("dashboard-provider-match-open")
+                DisclosureGroup("Storage & iPad access") {
+                    Text(cloudSync.cloudSyncAvailableInBuild
+                        ? "This validation build has experimental cloud sync. Complete cross-device record coverage and conflict handling remain under review."
+                        : "DoseTap records are stored locally. Automatic DoseTap iCloud sync is disabled. Use the explicit nearby transfer in Settings to update an iPad review snapshot.")
+                    Text("Apple Health syncing, device backups, and files saved to iCloud Drive are separate. An exported file is a review snapshot, not a live dashboard or full-app restore.")
+                }
+                DisclosureGroup("Colors & missing data") { Text(palette.legend) }
+                DashboardRecentNightsCard(nights: model.trendNights, onResolveDuplicateGroup: { resolvingDuplicateGroup = $0 })
+                DashboardCapturedMetricsCard(categories: model.metricsCatalog)
+            }.padding().padding(.bottom, 90)
+        }.accessibilityIdentifier("dashboard-data-review")
+    }
 }

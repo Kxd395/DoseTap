@@ -1,7 +1,7 @@
 # DoseTap SSOT Navigation
 
 Status: Current SSOT index
-Last verified: 2026-09-11
+Last verified: 2026-09-30
 
 This file is a pointer map for the SSOT. The canonical spec lives in `docs/SSOT/README.md`.
 
@@ -61,9 +61,15 @@ Nightly wake overrides persist in the existing local UserDefaults store under `s
 - Production readiness: `docs/PRODUCTION_READINESS_CHECKLIST.md`
 - Archived point-in-time plans/results: `docs/archive/`
 
-Dashboard opens with All selected: Overview (recorded timing, sleep and WHOOP), Trends (explicit sleep source, comparisons, lifestyle/mood/stress), and Data (coverage, integrations, recent 14 nights, captured metric reference) appear in one scroll. Overview, Trends and Data remain optional filters and preserve the date range. Missing WHOOP, prior-period or timing-group data has an explanatory card rather than silently removing the section. Empty ranges retain Data cards and the metric reference without showing fabricated outcome statistics. Pull-to-refresh awaits data loading; provider errors stay visible.
+## Focused dashboard views
 
-All, Overview, Trends and Data share the same card implementations and metric definitions. Each exposes the Dashboard colors & missing data explanation. Overview restores build-14 summary coverage/streak/status, Trends restores neutral interval change and paired comparisons, and Data includes each recent night’s coverage.
+Dashboard opens on Session Replay. One view menu selects Session Replay, Interval Explorer, Sleep Opportunity, Medication Explorer, Reviewed Sleep Coverage, Sleep & Naps, Sleep & Dose Pattern, Work Block & Sleep, Context & Morning Outcomes, Daytime Diary, Physician Review, Review Data or Other Recorded Measures. The reporting-period controls remain visible above the selected page. Accessibility text sizes stack the controls vertically without clamping the selected text size.
+
+Replay-related pages and the internal replay mode menu share one model-owned mode. Changing a page only changes presentation: it does not reload sources, reset the reporting period, clear a stable observation selection or invalidate checked sleep coverage. Actual source, selection, cutoff, timezone or provider changes still invalidate checked evidence. A refresh retains stable identifiers while marking filtered or unavailable selections explicitly.
+
+The shared-filter sheet owns sleep source, dose pattern, work phase and planned/confirmed basis, documented context and partial-value inclusion. Resetting filters retains the selected night/provider ID; clearing that ID is a separate action and does not clear an independent nap or daytime selection. Each independent-record view states its own period and filter scope. Night-empty guidance cannot hide daytime, nap, medication or physician records.
+
+Review Data retains source coverage, integrations, provider matching, duplicate review, the metric inventory, local/iPad storage explanation and the color/missing-data legend. Other Recorded Measures retains the trustworthy dose/provider panels and the selected panel when leaving and returning; these panels explicitly describe their whole-period scope. Original morning and pre-sleep questionnaire values remain inspectable with stable source identity and needs-review labels, without inferred confirmation, absence, percentages, averages or paired outcomes from legacy defaults. Provider errors and unavailable states remain visible, and refresh awaits completion.
 
 ## Saved medication setup (build 70)
 
