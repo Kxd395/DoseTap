@@ -4,6 +4,8 @@ struct SettingsView: View {
     @Environment(\.isInSplitView) var isInSplitView
     @StateObject var settings = UserSettingsManager.shared
     @State var showingResetConfirmation = false
+    @State var showingResetError = false
+    @State var resetErrorMessage = ""
     @State var showingExportSuccess = false
     @State var exportArchive: StudioExportArchive?
     @State var isExporting = false

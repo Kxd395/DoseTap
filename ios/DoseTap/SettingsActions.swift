@@ -52,7 +52,13 @@ extension SettingsView {
         settingsActionsLog.debug("Clearing all data")
         #endif
 
-        SessionRepository.shared.clearAllData()
+        guard SessionRepository.shared.clearAllData() else {
+            resetErrorMessage = SessionRepository.shared.lastDataResetFailure?.localizedDescription
+                ?? "The reset could not be completed. Your session and settings were not reset."
+            showingResetError = true
+            return
+        }
+        AlarmService.shared.prepareAlarmsForDataReset()
 
         if let bundleId = Bundle.main.bundleIdentifier {
             UserDefaults.standard.removePersistentDomain(forName: bundleId)
@@ -63,6 +69,13 @@ extension SettingsView {
         SavedPainPatternStore.shared.reloadFromPreferences()
         sleepPlanStore.resetToDefaults()
         SessionRepository.shared.reload()
+        Task { @MainActor in
+            guard SessionRepository.shared.activeSessionId == nil else { return }
+            let verified = await AlarmService.shared.verifyDataResetAlarmCancellation()
+            guard !verified, SessionRepository.shared.activeSessionId == nil else { return }
+            resetErrorMessage = "Local records and settings were cleared, but alarm cleanup could not be verified. Check iOS alarms and notifications before relying on them."
+            showingResetError = true
+        }
 
         #if DEBUG
         settingsActionsLog.debug("All data cleared successfully")

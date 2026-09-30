@@ -1402,8 +1402,11 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     
     /// Clear all data from storage (factory reset)
     /// ⚠️ DESTRUCTIVE: This removes all dose logs, sleep events, check-ins, etc.
-    public func clearAllData() {
-        storage.clearAllData()
+    public var lastDataResetFailure: EventStorage.DataResetFailure? { storage.lastDataResetFailure }
+
+    @discardableResult
+    public func clearAllData() -> Bool {
+        guard storage.clearAllData() else { return false }
         supplyGeneration &+= 1
         notificationScheduler.cancelNotifications(withIdentifiers: [SupplyReminderService.requestID])
         cancelPendingNotifications()
@@ -1419,6 +1422,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         #endif
         
         sessionDidChange.send()
+        return true
     }
     
     /// Clear all sleep events (preserves dose logs)

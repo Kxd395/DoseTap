@@ -33,23 +33,66 @@ extension EventStorage {
 
     // MARK: - Bulk Data Management
 
-    /// Clear all data (for testing/debug)
-    public func clearAllData() {
+    public struct DataResetFailure: Error, LocalizedError, Equatable {
+        public let stage: String
+        public let sqliteCode: Int32
+        public let rollbackFailed: Bool
+
+        public var errorDescription: String? {
+            rollbackFailed
+                ? "The reset could not finish and storage is unavailable. Restart DoseTap before trying again."
+                : "Your local records could not be cleared. Your session and settings were not reset. Please try again."
+        }
+    }
+
+    /// Reset source collections atomically; callers may publish only after true.
+    @discardableResult
+    public func clearAllData() -> Bool {
+        lastDataResetFailure = nil
+        guard databaseInitializationFailure == nil, let db, sqlite3_get_autocommit(db) != 0 else {
+            lastDataResetFailure = DataResetFailure(stage: "preflight", sqliteCode: SQLITE_MISUSE, rollbackFailed: false)
+            return false
+        }
         let tables = [
             "confirmed_medication_administrations", "medication_preset_revisions",
             "sleep_events", "dose_events", "current_session", "sleep_sessions", "pre_sleep_logs",
             "morning_checkins", "checkin_submissions", "medication_events", "inventory_snapshots", "body_map_points",
             "symptom_locations", "symptom_events", "symptom_command_log", "symptom_summaries", "work_wake_schedule", "supply_state"
         ]
-        for table in tables {
-            let sql = "DELETE FROM \(table)"
-            var errMsg: UnsafeMutablePointer<CChar>?
-            sqlite3_exec(db, sql, nil, nil, &errMsg)
-            if errMsg != nil {
-                sqlite3_free(errMsg)
+        func execute(_ sql: String, at point: MedicationStorageFaultPoint) throws {
+            if let failure = injectedMedicationFailure(at: point) {
+                throw DataResetFailure(stage: String(describing: point), sqliteCode: failure.sqliteCode ?? SQLITE_IOERR, rollbackFailed: false)
+            }
+            let result = sqlite3_exec(db, sql, nil, nil, nil)
+            guard result == SQLITE_OK else {
+                throw DataResetFailure(stage: String(describing: point), sqliteCode: sqlite3_extended_errcode(db), rollbackFailed: false)
             }
         }
-        storageLog.info("All EventStorage data cleared")
+        var began = false
+        do {
+            try execute("BEGIN IMMEDIATE", at: .begin)
+            began = true
+            for table in tables { try execute("DELETE FROM \(table)", at: .delete) }
+            try execute("COMMIT", at: .commit)
+            storageLog.info("Local clinical database reset committed")
+            return true
+        } catch {
+            let failure = error as? DataResetFailure
+                ?? DataResetFailure(stage: "unknown", sqliteCode: SQLITE_ERROR, rollbackFailed: false)
+            var rollbackFailed = false
+            if began, sqlite3_get_autocommit(db) == 0 {
+                do { try execute("ROLLBACK", at: .rollback) }
+                catch {
+                    rollbackFailed = true
+                    databaseInitializationFailure = medicationStorageFailure(sqliteCode: SQLITE_IOERR, detail: "Reset rollback failed")
+                    sqlite3_close_v2(db)
+                    self.db = nil
+                }
+            }
+            lastDataResetFailure = DataResetFailure(stage: failure.stage, sqliteCode: failure.sqliteCode, rollbackFailed: rollbackFailed)
+            storageLog.error("Local reset failed stage=\(failure.stage, privacy: .public) sqlite=\(failure.sqliteCode, privacy: .public) rollback_failed=\(rollbackFailed, privacy: .public)")
+            return false
+        }
     }
 
     /// Fetch row count for a table filtered by session_date (for test assertions)

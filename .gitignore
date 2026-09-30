@@ -63,3 +63,4 @@ docs/review/*.pdf
 # Generated from ipad/project.yml using XcodeGen.
 /ipad/DoseTapDashboard.xcodeproj/
 /ipad/Generated/
+__pycache__/

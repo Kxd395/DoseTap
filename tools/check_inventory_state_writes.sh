@@ -41,7 +41,8 @@ TABLE_LITERAL_HITS="$(
   scan_app_swift 'inventory_snapshots' \
     | grep -v '^ios/DoseTap/Storage/EventStorage+Schema.swift:' \
     | grep -v '^ios/DoseTap/Storage/EventStorage+Exports.swift:' \
-    | grep -v '^ios/DoseTap/Storage/EventStorage+Maintenance.swift:' || true
+    | grep -v '^ios/DoseTap/Storage/EventStorage+Maintenance.swift:' \
+    | grep -v '^ios/DoseTap/Storage/EventStorage+DashboardSnapshot.swift:' || true
 )"
 if [[ -n "$TABLE_LITERAL_HITS" ]]; then
   fail "inventory_snapshots table name leaked outside storage schema/accessors" "$TABLE_LITERAL_HITS"
@@ -49,8 +50,8 @@ fi
 
 STUDIO_EXPORT="ios/DoseTap/SettingsStudioExport.swift"
 
-if ! rg -q 'repo.listInventorySnapshots' "$STUDIO_EXPORT"; then
-  fail "Studio export must read inventory through SessionRepository.listInventorySnapshots"
+if ! rg -q 'repo\.inventoryExportRecords[[:space:]]*\(' "$STUDIO_EXPORT"; then
+  fail "Studio export must read inventory through the checked SessionRepository.inventoryExportRecords accessor"
 fi
 
 EXPORT_DERIVED_SOURCE_HITS="$(

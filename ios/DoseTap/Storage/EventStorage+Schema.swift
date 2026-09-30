@@ -59,18 +59,19 @@ extension EventStorage {
     
     @discardableResult
     func createTables() -> Bool {
-        guard db != nil else { return false }
+        guard let db, sqlite3_get_autocommit(db) != 0 else {
+            databaseInitializationFailure = medicationStorageFailure(sqliteCode: SQLITE_MISUSE, detail: "Schema initialization requires an available idle connection")
+            return false
+        }
         let createSQL = """
         CREATE TABLE IF NOT EXISTS medication_preset_revisions (
             id TEXT PRIMARY KEY, preset_id TEXT NOT NULL, predecessor_id TEXT,
             recorded_at_utc TEXT NOT NULL, payload TEXT NOT NULL
         );
-        CREATE INDEX IF NOT EXISTS idx_preset_revision_owner ON medication_preset_revisions(preset_id);
         CREATE TABLE IF NOT EXISTS confirmed_medication_administrations (
             id TEXT PRIMARY KEY, revision_id TEXT NOT NULL REFERENCES medication_preset_revisions(id),
             recorded_at_utc TEXT NOT NULL, occurred_at_utc TEXT, payload TEXT NOT NULL
         );
-        CREATE INDEX IF NOT EXISTS idx_confirmed_medication_recorded ON confirmed_medication_administrations(recorded_at_utc);
 
         CREATE TABLE IF NOT EXISTS supply_state (
             id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -223,21 +224,6 @@ extension EventStorage {
         );
         
         -- Indexes for performance
-        CREATE INDEX IF NOT EXISTS idx_sleep_events_session ON sleep_events(session_date);
-        CREATE INDEX IF NOT EXISTS idx_sleep_events_timestamp ON sleep_events(timestamp);
-        CREATE INDEX IF NOT EXISTS idx_sleep_events_session_type ON sleep_events(session_date, event_type);
-        CREATE INDEX IF NOT EXISTS idx_sleep_events_session_id ON sleep_events(session_id);
-        CREATE INDEX IF NOT EXISTS idx_dose_events_session ON dose_events(session_date);
-        CREATE INDEX IF NOT EXISTS idx_dose_events_session_type ON dose_events(session_date, event_type);
-        CREATE INDEX IF NOT EXISTS idx_dose_events_session_id ON dose_events(session_id);
-        CREATE INDEX IF NOT EXISTS idx_morning_checkins_session ON morning_checkins(session_date);
-        CREATE INDEX IF NOT EXISTS idx_morning_checkins_session_id ON morning_checkins(session_id);
-        CREATE INDEX IF NOT EXISTS idx_checkin_submissions_session_date ON checkin_submissions(session_date);
-        CREATE INDEX IF NOT EXISTS idx_checkin_submissions_session_id ON checkin_submissions(session_id);
-        CREATE INDEX IF NOT EXISTS idx_checkin_submissions_type_time ON checkin_submissions(checkin_type, submitted_at_utc);
-        CREATE INDEX IF NOT EXISTS idx_pre_sleep_logs_session_id ON pre_sleep_logs(session_id);
-        CREATE INDEX IF NOT EXISTS idx_sleep_sessions_date ON sleep_sessions(session_date);
-        CREATE INDEX IF NOT EXISTS idx_cloudkit_tombstones_created ON cloudkit_tombstones(created_at);
         
         -- Medication events (Adderall, etc.) - local-only, session-linked
         CREATE TABLE IF NOT EXISTS medication_events (
@@ -256,10 +242,6 @@ extension EventStorage {
         );
         
         -- Indexes for medication events
-        CREATE INDEX IF NOT EXISTS idx_medication_events_session ON medication_events(session_id);
-        CREATE INDEX IF NOT EXISTS idx_medication_events_session_date ON medication_events(session_date);
-        CREATE INDEX IF NOT EXISTS idx_medication_events_medication ON medication_events(medication_id);
-        CREATE INDEX IF NOT EXISTS idx_medication_events_taken_at ON medication_events(taken_at_utc);
 
         -- Medication inventory snapshots used by Studio export.
         CREATE TABLE IF NOT EXISTS inventory_snapshots (
@@ -274,8 +256,6 @@ extension EventStorage {
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
 
-        CREATE INDEX IF NOT EXISTS idx_inventory_snapshots_as_of ON inventory_snapshots(as_of_utc);
-        CREATE INDEX IF NOT EXISTS idx_inventory_snapshots_medication ON inventory_snapshots(medication_name);
 
         -- Native symptom event foundation for future body-map check-ins.
         CREATE TABLE IF NOT EXISTS symptom_events (
@@ -346,6 +326,32 @@ extension EventStorage {
             rebuilt_at TEXT NOT NULL
         );
 
+        """
+
+        let indexSQL = """
+        CREATE INDEX IF NOT EXISTS idx_preset_revision_owner ON medication_preset_revisions(preset_id);
+        CREATE INDEX IF NOT EXISTS idx_confirmed_medication_recorded ON confirmed_medication_administrations(recorded_at_utc);
+        CREATE INDEX IF NOT EXISTS idx_sleep_events_session ON sleep_events(session_date);
+        CREATE INDEX IF NOT EXISTS idx_sleep_events_timestamp ON sleep_events(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_sleep_events_session_type ON sleep_events(session_date, event_type);
+        CREATE INDEX IF NOT EXISTS idx_sleep_events_session_id ON sleep_events(session_id);
+        CREATE INDEX IF NOT EXISTS idx_dose_events_session ON dose_events(session_date);
+        CREATE INDEX IF NOT EXISTS idx_dose_events_session_type ON dose_events(session_date, event_type);
+        CREATE INDEX IF NOT EXISTS idx_dose_events_session_id ON dose_events(session_id);
+        CREATE INDEX IF NOT EXISTS idx_morning_checkins_session ON morning_checkins(session_date);
+        CREATE INDEX IF NOT EXISTS idx_morning_checkins_session_id ON morning_checkins(session_id);
+        CREATE INDEX IF NOT EXISTS idx_checkin_submissions_session_date ON checkin_submissions(session_date);
+        CREATE INDEX IF NOT EXISTS idx_checkin_submissions_session_id ON checkin_submissions(session_id);
+        CREATE INDEX IF NOT EXISTS idx_checkin_submissions_type_time ON checkin_submissions(checkin_type, submitted_at_utc);
+        CREATE INDEX IF NOT EXISTS idx_pre_sleep_logs_session_id ON pre_sleep_logs(session_id);
+        CREATE INDEX IF NOT EXISTS idx_sleep_sessions_date ON sleep_sessions(session_date);
+        CREATE INDEX IF NOT EXISTS idx_cloudkit_tombstones_created ON cloudkit_tombstones(created_at);
+        CREATE INDEX IF NOT EXISTS idx_medication_events_session ON medication_events(session_id);
+        CREATE INDEX IF NOT EXISTS idx_medication_events_session_date ON medication_events(session_date);
+        CREATE INDEX IF NOT EXISTS idx_medication_events_medication ON medication_events(medication_id);
+        CREATE INDEX IF NOT EXISTS idx_medication_events_taken_at ON medication_events(taken_at_utc);
+        CREATE INDEX IF NOT EXISTS idx_inventory_snapshots_as_of ON inventory_snapshots(as_of_utc);
+        CREATE INDEX IF NOT EXISTS idx_inventory_snapshots_medication ON inventory_snapshots(medication_name);
         CREATE INDEX IF NOT EXISTS idx_symptom_events_session_date ON symptom_events(session_date);
         CREATE INDEX IF NOT EXISTS idx_symptom_events_session_id ON symptom_events(session_id);
         CREATE INDEX IF NOT EXISTS idx_symptom_events_phase_kind ON symptom_events(phase, kind);
@@ -355,35 +361,41 @@ extension EventStorage {
         CREATE INDEX IF NOT EXISTS idx_symptom_command_log_status ON symptom_command_log(status);
         CREATE INDEX IF NOT EXISTS idx_symptom_command_log_source_record ON symptom_command_log(source, source_record_id);
         """
-        
-        var errMsg: UnsafeMutablePointer<CChar>?
-        if sqlite3_exec(db, createSQL, nil, nil, &errMsg) != SQLITE_OK {
-            let code = db.map(sqlite3_extended_errcode) ?? SQLITE_CANTOPEN
-            let detail = errMsg.map { String(cString: $0) }
-                ?? "Failed to create the database schema"
-            databaseInitializationFailure = medicationStorageFailure(
-                sqliteCode: code,
-                detail: detail
-            )
-            if let errMsg = errMsg {
-                storageLog.error("Failed to create tables: \(String(cString: errMsg))")
-                sqlite3_free(errMsg)
+        var began = false
+        do {
+            let version = try checkedSchemaUserVersion()
+            guard version <= EventStorage.schemaUserVersion else {
+                throw SchemaMigrationFailure(sqliteCode: SQLITE_MISMATCH)
             }
+            try executeSchemaMigration("BEGIN IMMEDIATE TRANSACTION")
+            began = true
+            try executeSchemaMigration(createSQL)
+            try migrateDatabase()
+            try executeSchemaMigration(indexSQL)
+            try migrateEventTypesIfNeeded()
+            try migrateBriefWakeAliasIfNeeded()
+            try migrateSessionIdsToUUIDIfNeeded()
+            try deduplicateLegacyEntriesIfNeeded()
+            try executeSchemaMigration("PRAGMA user_version = \(EventStorage.schemaUserVersion)")
+            guard try checkedSchemaUserVersion() == EventStorage.schemaUserVersion else { throw schemaFailure() }
+            try executeSchemaMigration("COMMIT")
+            databaseInitializationFailure = nil
+            return true
+        } catch {
+            let code = (error as? SchemaMigrationFailure)?.sqliteCode ?? SQLITE_ERROR
+            let rollbackFailed = began && sqlite3_get_autocommit(db) == 0
+                && sqlite3_exec(db, "ROLLBACK", nil, nil, nil) != SQLITE_OK
+            databaseInitializationFailure = medicationStorageFailure(sqliteCode: code,
+                detail: rollbackFailed ? "Schema initialization and rollback failed; reopen required" : "Schema initialization failed; reopen required")
+            storageLog.error("Schema initialization failed sqlite=\(code, privacy: .public) rollback_failed=\(rollbackFailed, privacy: .public)")
+            sqlite3_close_v2(db)
+            self.db = nil
             return false
         }
-        
-        // Migration: Add new columns to existing tables (safe to run multiple times)
-        migrateDatabase()
-        migrateEventTypesIfNeeded()
-        migrateBriefWakeAliasIfNeeded()
-        migrateSessionIdsToUUIDIfNeeded()
-        deduplicateLegacyEntriesIfNeeded()
-        applyCurrentSchemaUserVersion()
-        return true
     }
-    
+
     /// Add new columns if they don't exist (safe migration)
-    private func migrateDatabase() {
+    private func migrateDatabase() throws {
         let migrations = [
             // Morning check-in sleep therapy columns
             AddColumnMigration(table: "morning_checkins", column: "used_sleep_therapy", sql: "ALTER TABLE morning_checkins ADD COLUMN used_sleep_therapy INTEGER NOT NULL DEFAULT 0"),
@@ -416,12 +428,14 @@ extension EventStorage {
             AddColumnMigration(table: "symptom_command_log", column: "source_entry_key", sql: "ALTER TABLE symptom_command_log ADD COLUMN source_entry_key TEXT")
         ]
         
-        for migration in migrations where !columnExists(migration.column, in: migration.table) {
-            executeSchemaStatement(migration.sql)
+        for migration in migrations {
+            if try !columnExists(migration.column, in: migration.table) {
+                try executeSchemaMigration(migration.sql)
+            }
         }
         
         // Backfill NULL session_id values (P0 data integrity fix)
-        backfillNullSessionIds()
+        try backfillNullSessionIds()
     }
 
     private struct AddColumnMigration {
@@ -430,39 +444,25 @@ extension EventStorage {
         let sql: String
     }
 
-    private func columnExists(_ column: String, in table: String) -> Bool {
-        let sql = "PRAGMA table_info(\(table))"
+    private func columnExists(_ column: String, in table: String) throws -> Bool {
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            storageLog.error("Failed to inspect schema for \(table).\(column): \(String(cString: sqlite3_errmsg(self.db)))")
-            return false
-        }
+        guard sqlite3_prepare_v2(db, "PRAGMA table_info(\(table))", -1, &stmt, nil) == SQLITE_OK else { throw schemaFailure() }
         defer { sqlite3_finalize(stmt) }
-
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            guard let namePtr = sqlite3_column_text(stmt, 1) else { continue }
-            if String(cString: namePtr).caseInsensitiveCompare(column) == .orderedSame {
-                return true
-            }
+        var found = false
+        var status = sqlite3_step(stmt)
+        while status == SQLITE_ROW {
+            guard let name = sqlite3_column_text(stmt, 1) else { throw schemaFailure() }
+            found = found || String(cString: name).caseInsensitiveCompare(column) == .orderedSame
+            status = sqlite3_step(stmt)
         }
-
-        return false
-    }
-
-    private func executeSchemaStatement(_ sql: String) {
-        var errMsg: UnsafeMutablePointer<CChar>?
-        if sqlite3_exec(db, sql, nil, nil, &errMsg) != SQLITE_OK, let errMsg {
-            storageLog.error("Schema migration failed: \(String(cString: errMsg))")
-        }
-        if errMsg != nil {
-            sqlite3_free(errMsg)
-        }
+        guard status == SQLITE_DONE else { throw schemaFailure() }
+        return found
     }
 
     // MARK: - Event Type Normalization Migration
 
-    private func migrateEventTypesIfNeeded() {
-        runSchemaMigration(id: "event_types_normalized_v1") {
+    private func migrateEventTypesIfNeeded() throws {
+        try runSchemaMigration(id: "event_types_normalized_v1") {
             let updates = [
                 // Lights out
                 "UPDATE sleep_events SET event_type = 'lights_out' WHERE lower(event_type) IN ('lights out', 'lightsout', 'lights_out', 'lightout')",
@@ -515,8 +515,8 @@ extension EventStorage {
         }
     }
 
-    private func migrateBriefWakeAliasIfNeeded() {
-        runSchemaMigration(id: "brief_wake_alias_migration_v1") {
+    private func migrateBriefWakeAliasIfNeeded() throws {
+        try runSchemaMigration(id: "brief_wake_alias_migration_v1") {
             try executeSchemaMigration("UPDATE sleep_events SET event_type = 'wake_temp' WHERE lower(event_type) = 'brief_wake'")
 
             storageLog.info("EventStorage: Migrated brief_wake aliases to wake_temp")
@@ -525,8 +525,8 @@ extension EventStorage {
 
     // MARK: - Session ID UUID Migration
 
-    private func migrateSessionIdsToUUIDIfNeeded() {
-        runSchemaMigration(id: "session_id_uuid_migration_v1") {
+    private func migrateSessionIdsToUUIDIfNeeded() throws {
+        try runSchemaMigration(id: "session_id_uuid_migration_v1") {
             let legacyIds = try fetchLegacySessionIds()
             guard !legacyIds.isEmpty else { return }
 
@@ -559,20 +559,20 @@ extension EventStorage {
         UNION SELECT DISTINCT session_id FROM symptom_events WHERE session_id IS NOT NULL
         """
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { throw SchemaMigrationFailure() }
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { throw schemaFailure() }
         defer { sqlite3_finalize(stmt) }
 
         var results: [String] = []
         var status = sqlite3_step(stmt)
         while status == SQLITE_ROW {
-            guard let valuePtr = sqlite3_column_text(stmt, 0) else { continue }
+            guard let valuePtr = sqlite3_column_text(stmt, 0) else { throw schemaFailure() }
             let value = String(cString: valuePtr)
             if isLegacySessionKey(value) {
                 results.append(value)
             }
             status = sqlite3_step(stmt)
         }
-        guard status == SQLITE_DONE else { throw SchemaMigrationFailure() }
+        guard status == SQLITE_DONE else { throw schemaFailure() }
         return results
     }
 
@@ -598,18 +598,18 @@ extension EventStorage {
     private func updateSessionId(in table: String, oldId: String, newId: String) throws {
         let sql = "UPDATE \(table) SET session_id = ? WHERE session_id = ?"
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { throw SchemaMigrationFailure() }
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { throw schemaFailure() }
         defer { sqlite3_finalize(stmt) }
 
-        sqlite3_bind_text(stmt, 1, newId, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 2, oldId, -1, SQLITE_TRANSIENT)
-        guard sqlite3_step(stmt) == SQLITE_DONE else { throw SchemaMigrationFailure() }
+        guard sqlite3_bind_text(stmt, 1, newId, -1, SQLITE_TRANSIENT) == SQLITE_OK,
+              sqlite3_bind_text(stmt, 2, oldId, -1, SQLITE_TRANSIENT) == SQLITE_OK else { throw schemaFailure() }
+        guard sqlite3_step(stmt) == SQLITE_DONE else { throw schemaFailure() }
     }
 
     // MARK: - Deduplication
 
-    private func deduplicateLegacyEntriesIfNeeded() {
-        runSchemaMigration(id: "event_deduplication_v1") {
+    private func deduplicateLegacyEntriesIfNeeded() throws {
+        try runSchemaMigration(id: "event_deduplication_v1") {
             let statements = [
                 """
                 DELETE FROM dose_events
@@ -639,105 +639,112 @@ extension EventStorage {
 
     // MARK: - Migration Ledger
 
-    private struct SchemaMigrationFailure: Error {}
+    private struct SchemaMigrationFailure: Error {
+        let sqliteCode: Int32
+    }
+
+    private func schemaFailure() -> SchemaMigrationFailure {
+        let code = db.map(sqlite3_extended_errcode) ?? SQLITE_CANTOPEN
+        return SchemaMigrationFailure(sqliteCode: code == SQLITE_OK ? SQLITE_ERROR : code)
+    }
 
     private func executeSchemaMigration(_ sql: String) throws {
-        guard sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK else { throw SchemaMigrationFailure() }
+        guard sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK else { throw schemaFailure() }
     }
 
-    private func runSchemaMigration(id: String, _ operation: () throws -> Void) {
-        if hasAppliedSchemaMigration(id) { return }
-        // Process preferences can belong to a different/restored database.
-        // The operation and its database-scoped ledger row commit together.
-        do {
-            try executeSchemaMigration("BEGIN IMMEDIATE TRANSACTION")
-            try operation()
-            try markSchemaMigrationApplied(id)
-            try executeSchemaMigration("COMMIT")
-        } catch {
-            sqlite3_exec(db, "ROLLBACK", nil, nil, nil)
-            storageLog.error("Schema migration failed and remains unapplied: \(id, privacy: .public)")
-        }
+    private func runSchemaMigration(id: String, _ operation: () throws -> Void) throws {
+        if try hasAppliedSchemaMigration(id) { return }
+        // The enclosing initialization transaction owns all operations and markers.
+        guard let db, sqlite3_get_autocommit(db) == 0 else { throw schemaFailure() }
+        try operation()
+        try markSchemaMigrationApplied(id)
     }
 
-    private func hasAppliedSchemaMigration(_ id: String) -> Bool {
-        let sql = "SELECT 1 FROM schema_migrations WHERE id = ? LIMIT 1"
+    private func hasAppliedSchemaMigration(_ id: String) throws -> Bool {
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return false }
+        guard sqlite3_prepare_v2(db, "SELECT 1 FROM schema_migrations WHERE id = ? LIMIT 1", -1, &stmt, nil) == SQLITE_OK else { throw schemaFailure() }
         defer { sqlite3_finalize(stmt) }
-
-        sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
-        return sqlite3_step(stmt) == SQLITE_ROW
+        guard sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT) == SQLITE_OK else { throw schemaFailure() }
+        let status = sqlite3_step(stmt)
+        guard status == SQLITE_ROW || status == SQLITE_DONE else { throw schemaFailure() }
+        return status == SQLITE_ROW
     }
 
     private func markSchemaMigrationApplied(_ id: String) throws {
-        let sql = "INSERT OR IGNORE INTO schema_migrations (id, applied_at) VALUES (?, ?)"
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { throw SchemaMigrationFailure() }
+        guard sqlite3_prepare_v2(db, "INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)", -1, &stmt, nil) == SQLITE_OK else { throw schemaFailure() }
         defer { sqlite3_finalize(stmt) }
-
-        sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 2, isoFormatter.string(from: nowProvider()), -1, SQLITE_TRANSIENT)
-        guard sqlite3_step(stmt) == SQLITE_DONE else { throw SchemaMigrationFailure() }
+        guard sqlite3_bind_text(stmt, 1, id, -1, SQLITE_TRANSIENT) == SQLITE_OK,
+              sqlite3_bind_text(stmt, 2, isoFormatter.string(from: nowProvider()), -1, SQLITE_TRANSIENT) == SQLITE_OK,
+              sqlite3_step(stmt) == SQLITE_DONE else { throw schemaFailure() }
     }
 
-    private func applyCurrentSchemaUserVersion() {
-        let currentVersion = getSchemaVersion()
-        guard currentVersion < EventStorage.schemaUserVersion else { return }
-        sqlite3_exec(db, "PRAGMA user_version = \(EventStorage.schemaUserVersion)", nil, nil, nil)
+    private func checkedSchemaUserVersion() throws -> Int {
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, "PRAGMA user_version", -1, &stmt, nil) == SQLITE_OK else { throw schemaFailure() }
+        defer { sqlite3_finalize(stmt) }
+        guard sqlite3_step(stmt) == SQLITE_ROW else { throw schemaFailure() }
+        let version = Int(sqlite3_column_int(stmt, 0))
+        guard sqlite3_step(stmt) == SQLITE_DONE else { throw schemaFailure() }
+        return version
     }
-    
+
     // MARK: - Session ID Backfill Migration
     
     /// Backfill legacy sleep/dose identities. Independent medication session IDs remain NULL.
     /// This is idempotent - safe to run multiple times.
     /// Fixes the "I logged it and it vanished" bug class by ensuring all rows have session_id.
-    public func backfillNullSessionIds() {
-        backfillPreSleepLogSessionIds()
-        backfillDoseEventSessionIds()
-        backfillSleepEventSessionIds()
-        backfillCurrentSessionIdIfNeeded()
+    public func backfillNullSessionIds() throws {
+        try backfillPreSleepLogSessionIds()
+        try backfillDoseEventSessionIds()
+        try backfillSleepEventSessionIds()
+        try backfillCurrentSessionIdIfNeeded()
     }
     
     /// Backfill pre_sleep_logs.session_id from created_at_utc
-    private func backfillPreSleepLogSessionIds() {
+    private func backfillPreSleepLogSessionIds() throws {
         let selectSQL = "SELECT id, created_at_utc, local_offset_minutes FROM pre_sleep_logs WHERE session_id IS NULL"
         var selectStmt: OpaquePointer?
         
-        guard sqlite3_prepare_v2(db, selectSQL, -1, &selectStmt, nil) == SQLITE_OK else { return }
+        guard sqlite3_prepare_v2(db, selectSQL, -1, &selectStmt, nil) == SQLITE_OK else { throw schemaFailure() }
         defer { sqlite3_finalize(selectStmt) }
         
         var rowsToUpdate: [(id: String, sessionKey: String)] = []
         
-        while sqlite3_step(selectStmt) == SQLITE_ROW {
+        var status = sqlite3_step(selectStmt)
+        while status == SQLITE_ROW {
+            defer { status = sqlite3_step(selectStmt) }
             guard let idPtr = sqlite3_column_text(selectStmt, 0),
-                  let timestampPtr = sqlite3_column_text(selectStmt, 1) else { continue }
+                  let timestampPtr = sqlite3_column_text(selectStmt, 1) else { throw schemaFailure() }
             
             let id = String(cString: idPtr)
             let timestampStr = String(cString: timestampPtr)
             let offsetMinutes = Int(sqlite3_column_int(selectStmt, 2))
             
             // Parse ISO8601 timestamp and compute session key
-            if let date = parseISO8601(timestampStr) {
+            guard let date = parseISO8601(timestampStr),
+                  let tz = TimeZone(secondsFromGMT: offsetMinutes * 60) else { throw schemaFailure() }
+            do {
                 // Use the local timezone that was stored with the record
-                let tz = TimeZone(secondsFromGMT: offsetMinutes * 60) ?? TimeZone.current
                 let key = sessionKey(for: date, timeZone: tz, rolloverHour: 18)
                 rowsToUpdate.append((id: id, sessionKey: key))
             }
         }
         
         // Update rows
+        guard status == SQLITE_DONE else { throw schemaFailure() }
+
         let updateSQL = "UPDATE pre_sleep_logs SET session_id = ? WHERE id = ?"
         var updateStmt: OpaquePointer?
         
-        guard sqlite3_prepare_v2(db, updateSQL, -1, &updateStmt, nil) == SQLITE_OK else { return }
+        guard sqlite3_prepare_v2(db, updateSQL, -1, &updateStmt, nil) == SQLITE_OK else { throw schemaFailure() }
         defer { sqlite3_finalize(updateStmt) }
         
         for row in rowsToUpdate {
-            sqlite3_reset(updateStmt)
-            sqlite3_bind_text(updateStmt, 1, row.sessionKey, -1, SQLITE_TRANSIENT)
-            sqlite3_bind_text(updateStmt, 2, row.id, -1, SQLITE_TRANSIENT)
-            sqlite3_step(updateStmt)
+            guard sqlite3_reset(updateStmt) == SQLITE_OK else { throw schemaFailure() }
+            guard sqlite3_bind_text(updateStmt, 1, row.sessionKey, -1, SQLITE_TRANSIENT) == SQLITE_OK else { throw schemaFailure() }
+            guard sqlite3_bind_text(updateStmt, 2, row.id, -1, SQLITE_TRANSIENT) == SQLITE_OK else { throw schemaFailure() }
+            guard sqlite3_step(updateStmt) == SQLITE_DONE else { throw schemaFailure() }
         }
         
         if !rowsToUpdate.isEmpty {
@@ -746,34 +753,38 @@ extension EventStorage {
     }
     
     /// Backfill dose_events.session_id from session_date
-    private func backfillDoseEventSessionIds() {
+    private func backfillDoseEventSessionIds() throws {
         let selectSQL = "SELECT id, session_date FROM dose_events WHERE session_id IS NULL"
         var selectStmt: OpaquePointer?
 
-        guard sqlite3_prepare_v2(db, selectSQL, -1, &selectStmt, nil) == SQLITE_OK else { return }
+        guard sqlite3_prepare_v2(db, selectSQL, -1, &selectStmt, nil) == SQLITE_OK else { throw schemaFailure() }
         defer { sqlite3_finalize(selectStmt) }
 
         var rowsToUpdate: [(id: String, sessionId: String)] = []
 
-        while sqlite3_step(selectStmt) == SQLITE_ROW {
+        var status = sqlite3_step(selectStmt)
+        while status == SQLITE_ROW {
+            defer { status = sqlite3_step(selectStmt) }
             guard let idPtr = sqlite3_column_text(selectStmt, 0),
-                  let sessionPtr = sqlite3_column_text(selectStmt, 1) else { continue }
+                  let sessionPtr = sqlite3_column_text(selectStmt, 1) else { throw schemaFailure() }
             let id = String(cString: idPtr)
             let sessionId = String(cString: sessionPtr)
             rowsToUpdate.append((id, sessionId))
         }
 
+        guard status == SQLITE_DONE else { throw schemaFailure() }
+
         let updateSQL = "UPDATE dose_events SET session_id = ? WHERE id = ?"
         var updateStmt: OpaquePointer?
 
-        guard sqlite3_prepare_v2(db, updateSQL, -1, &updateStmt, nil) == SQLITE_OK else { return }
+        guard sqlite3_prepare_v2(db, updateSQL, -1, &updateStmt, nil) == SQLITE_OK else { throw schemaFailure() }
         defer { sqlite3_finalize(updateStmt) }
 
         for row in rowsToUpdate {
-            sqlite3_reset(updateStmt)
-            sqlite3_bind_text(updateStmt, 1, row.sessionId, -1, SQLITE_TRANSIENT)
-            sqlite3_bind_text(updateStmt, 2, row.id, -1, SQLITE_TRANSIENT)
-            sqlite3_step(updateStmt)
+            guard sqlite3_reset(updateStmt) == SQLITE_OK else { throw schemaFailure() }
+            guard sqlite3_bind_text(updateStmt, 1, row.sessionId, -1, SQLITE_TRANSIENT) == SQLITE_OK else { throw schemaFailure() }
+            guard sqlite3_bind_text(updateStmt, 2, row.id, -1, SQLITE_TRANSIENT) == SQLITE_OK else { throw schemaFailure() }
+            guard sqlite3_step(updateStmt) == SQLITE_DONE else { throw schemaFailure() }
         }
 
         if !rowsToUpdate.isEmpty {
@@ -782,34 +793,38 @@ extension EventStorage {
     }
 
     /// Backfill sleep_events.session_id from session_date
-    private func backfillSleepEventSessionIds() {
+    private func backfillSleepEventSessionIds() throws {
         let selectSQL = "SELECT id, session_date FROM sleep_events WHERE session_id IS NULL"
         var selectStmt: OpaquePointer?
 
-        guard sqlite3_prepare_v2(db, selectSQL, -1, &selectStmt, nil) == SQLITE_OK else { return }
+        guard sqlite3_prepare_v2(db, selectSQL, -1, &selectStmt, nil) == SQLITE_OK else { throw schemaFailure() }
         defer { sqlite3_finalize(selectStmt) }
 
         var rowsToUpdate: [(id: String, sessionId: String)] = []
 
-        while sqlite3_step(selectStmt) == SQLITE_ROW {
+        var status = sqlite3_step(selectStmt)
+        while status == SQLITE_ROW {
+            defer { status = sqlite3_step(selectStmt) }
             guard let idPtr = sqlite3_column_text(selectStmt, 0),
-                  let sessionPtr = sqlite3_column_text(selectStmt, 1) else { continue }
+                  let sessionPtr = sqlite3_column_text(selectStmt, 1) else { throw schemaFailure() }
             let id = String(cString: idPtr)
             let sessionId = String(cString: sessionPtr)
             rowsToUpdate.append((id, sessionId))
         }
 
+        guard status == SQLITE_DONE else { throw schemaFailure() }
+
         let updateSQL = "UPDATE sleep_events SET session_id = ? WHERE id = ?"
         var updateStmt: OpaquePointer?
 
-        guard sqlite3_prepare_v2(db, updateSQL, -1, &updateStmt, nil) == SQLITE_OK else { return }
+        guard sqlite3_prepare_v2(db, updateSQL, -1, &updateStmt, nil) == SQLITE_OK else { throw schemaFailure() }
         defer { sqlite3_finalize(updateStmt) }
 
         for row in rowsToUpdate {
-            sqlite3_reset(updateStmt)
-            sqlite3_bind_text(updateStmt, 1, row.sessionId, -1, SQLITE_TRANSIENT)
-            sqlite3_bind_text(updateStmt, 2, row.id, -1, SQLITE_TRANSIENT)
-            sqlite3_step(updateStmt)
+            guard sqlite3_reset(updateStmt) == SQLITE_OK else { throw schemaFailure() }
+            guard sqlite3_bind_text(updateStmt, 1, row.sessionId, -1, SQLITE_TRANSIENT) == SQLITE_OK else { throw schemaFailure() }
+            guard sqlite3_bind_text(updateStmt, 2, row.id, -1, SQLITE_TRANSIENT) == SQLITE_OK else { throw schemaFailure() }
+            guard sqlite3_step(updateStmt) == SQLITE_DONE else { throw schemaFailure() }
         }
 
         if !rowsToUpdate.isEmpty {
@@ -817,29 +832,11 @@ extension EventStorage {
         }
     }
 
-    /// Ensure current_session has a session_id when legacy data exists
-    private func backfillCurrentSessionIdIfNeeded() {
-        let selectSQL = "SELECT session_id, session_date FROM current_session WHERE id = 1"
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, selectSQL, -1, &stmt, nil) == SQLITE_OK else { return }
-        defer { sqlite3_finalize(stmt) }
-
-        if sqlite3_step(stmt) == SQLITE_ROW {
-            let sessionId = sqlite3_column_text(stmt, 0).map { String(cString: $0) }
-            let sessionDate = sqlite3_column_text(stmt, 1).map { String(cString: $0) }
-            guard sessionId == nil, let fallback = sessionDate else { return }
-
-            let updateSQL = "UPDATE current_session SET session_id = ? WHERE id = 1"
-            var updateStmt: OpaquePointer?
-            if sqlite3_prepare_v2(db, updateSQL, -1, &updateStmt, nil) == SQLITE_OK {
-                sqlite3_bind_text(updateStmt, 1, fallback, -1, SQLITE_TRANSIENT)
-                sqlite3_step(updateStmt)
-                sqlite3_finalize(updateStmt)
-                storageLog.debug("EventStorage: Backfilled current_session.session_id with \(fallback)")
-            }
-        }
+    /// Ensure current_session has a session_id when legacy data exists.
+    private func backfillCurrentSessionIdIfNeeded() throws {
+        try executeSchemaMigration("UPDATE current_session SET session_id = session_date WHERE id = 1 AND session_id IS NULL")
     }
-    
+
     /// Parse ISO8601 date string
     private func parseISO8601(_ string: String) -> Date? {
         AppFormatters.parseISO8601Flexible(string)

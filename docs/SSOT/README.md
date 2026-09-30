@@ -629,6 +629,8 @@ by the parsed instant; existing History identity and complete-read guards remain
 
 Persistence is local SQLite via `EventStorage`.
 
+Reset failure behavior is defined in [Storage initialization and reset](storage-initialization-and-reset.md). Database deletion must commit before preferences, active-session state or alarms are cleared.
+
 The executable schema is `EventStorage.createTables()` in `ios/DoseTap/Storage/EventStorage+Schema.swift`, including the SQLite `user_version` and internal `schema_migrations` ledger. `docs/DATABASE_SCHEMA.md` and `docs/SSOT/contracts/DataDictionary.md` contain the field-by-field inventory and must move with that source. Do not duplicate mutable schema versions, table totals, or partial table lists in this overview.
 
 Symptom source identity:
