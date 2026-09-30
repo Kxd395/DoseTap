@@ -33,6 +33,11 @@ jobs:
       - name: Guard dose state write paths
         run: bash tools/check_dose_state_writes.sh
 
+      - name: Guard authoritative inventory paths
+        run: |
+          bash tools/check_inventory_state_writes.sh
+          bash tools/tests/inventory_guard_test.sh
+
       - name: Guard retired safety-sensitive paths
         run: bash tools/check_legacy_safety_paths.sh
 
