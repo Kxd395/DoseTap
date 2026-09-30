@@ -149,6 +149,7 @@ struct WorkSleepContextEditor: View {
     let document: WorkContextDocument
     let save: (WorkContextDocument) throws -> Void
     @Environment(\.dismiss) private var dismiss
+    @State private var eventEditor = false
     @State private var previous = ""
     @State private var following = ""
     @State private var zone = TimeZone.current.identifier
@@ -160,6 +161,7 @@ struct WorkSleepContextEditor: View {
     var body: some View {
         NavigationStack {
             Form {
+                Button("Review sleep-to-shift links (including overnight work)") { eventEditor = true }.accessibilityIdentifier("work-sleep-events-open")
                 Section("Main sleep \(sleepDate)") {
                     TextField("Preceding waking date (YYYY-MM-DD)", text: $previous)
                     TextField("Following waking date (YYYY-MM-DD)", text: $following)
@@ -176,6 +178,9 @@ struct WorkSleepContextEditor: View {
                 }
                 if let error { Text(error).foregroundStyle(.red) }
             }.navigationTitle("Review sleep context")
+                .sheet(isPresented: $eventEditor) {
+                    WorkSleepEventEditor(sleepID: sleepID, sleepDate: sleepDate, document: document) { try save($0); dismiss() }
+                }
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                     ToolbarItem(placement: .confirmationAction) { Button("Save review", action: submit).disabled(!reviewed) }

@@ -50,6 +50,8 @@
 		NAP001B /* EventStorage+NapDiary.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAP001F /* EventStorage+NapDiary.swift */; };
 		DIDENT102 /* DashboardIdentityAggregation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT002 /* DashboardIdentityAggregation.swift */; };
 		DIDENT101 /* SessionRepositoryDashboardIdentities.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT001 /* SessionRepositoryDashboardIdentities.swift */; };
+		WBOUT104 /* WorkShiftEventEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBOUT004 /* WorkShiftEventEditor.swift */; };
+		WBOUT105 /* WorkSleepEventEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBOUT005 /* WorkSleepEventEditor.swift */; };
 		WBCTX003 /* WorkContextEditors.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBCTX103 /* WorkContextEditors.swift */; };
 		WBOUT003 /* WorkCycleReportedOutcomesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBOUT103 /* WorkCycleReportedOutcomesView.swift */; };
 		WBOUT002 /* WorkCycleNapDayReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBOUT102 /* WorkCycleNapDayReport.swift */; };
@@ -317,6 +319,8 @@
 		NAP001F /* EventStorage+NapDiary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+NapDiary.swift"; sourceTree = "<group>"; };
 		DIDENT002 /* DashboardIdentityAggregation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardIdentityAggregation.swift; sourceTree = "<group>"; };
 		DIDENT001 /* SessionRepositoryDashboardIdentities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepositoryDashboardIdentities.swift; sourceTree = "<group>"; };
+		WBOUT004 /* WorkShiftEventEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkShiftEventEditor.swift; sourceTree = "<group>"; };
+		WBOUT005 /* WorkSleepEventEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkSleepEventEditor.swift; sourceTree = "<group>"; };
 		WBCTX103 /* WorkContextEditors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkContextEditors.swift; sourceTree = "<group>"; };
 		WBOUT103 /* WorkCycleReportedOutcomesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkCycleReportedOutcomesView.swift; sourceTree = "<group>"; };
 		WBOUT102 /* WorkCycleNapDayReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkCycleNapDayReport.swift; sourceTree = "<group>"; };
@@ -754,6 +758,8 @@
 				DIDENT002 /* DashboardIdentityAggregation.swift */,
 				DPAD001 /* DashboardDosePatternAdapter.swift */,
 				WBPROJ101 /* DashboardWorkCycleProjection.swift */,
+				WBOUT004 /* WorkShiftEventEditor.swift */,
+				WBOUT005 /* WorkSleepEventEditor.swift */,
 				WBCTX103 /* WorkContextEditors.swift */,
 				WBOUT103 /* WorkCycleReportedOutcomesView.swift */,
 				WBOUT102 /* WorkCycleNapDayReport.swift */,
@@ -1380,6 +1386,8 @@
 				DPUI004B /* DosePatternReviewSheet.swift in Sources */,
 				DPUI005B /* MorningDoseHistoryReviewSection.swift in Sources */,
 				WBPROJ001 /* DashboardWorkCycleProjection.swift in Sources */,
+				WBOUT104 /* WorkShiftEventEditor.swift in Sources */,
+				WBOUT105 /* WorkSleepEventEditor.swift in Sources */,
 				WBCTX003 /* WorkContextEditors.swift in Sources */,
 				WBOUT003 /* WorkCycleReportedOutcomesView.swift in Sources */,
 				WBOUT002 /* WorkCycleNapDayReport.swift in Sources */,

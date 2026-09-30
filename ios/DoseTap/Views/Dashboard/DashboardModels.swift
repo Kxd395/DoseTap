@@ -215,7 +215,7 @@ extension DashboardAnalyticsModel {
         do {
             let snapshot = try sessionRepo.dashboardContextSnapshot(capturedAt: reportingAsOf)
             let reviews = try sessionRepo.dashboardDoseReviews()
-            let work = try sessionRepo.workContext()
+            let work = arguments.contains("--uitesting-work-events") ? workEventDisplayFixture() : try sessionRepo.workContext()
             nights = nights.map { row in
                 var row = row; row.applyContext(snapshot.timeline); row.doseReviewLedger = reviews[row.id]; return row
             }

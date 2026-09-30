@@ -1375,6 +1375,68 @@ final class DoseTapUITests: XCTestCase {
         captureDashboard("Work cycle profile and exact record table")
     }
 
+    func testDashboardWorkShiftAttendancePersistsWithoutInventingActualTimes() throws {
+        app.buttons["Dashboard"].tap()
+        let route = app.buttons["dashboard-work-block"]
+        XCTAssertTrue(route.waitForExistence(timeout: 10)); route.tap()
+        let edit = app.buttons["work-shift-edit"]
+        XCTAssertTrue(edit.waitForExistence(timeout: 5)); edit.tap()
+        XCTAssertTrue(app.navigationBars["Work shift"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Save shift revision"].isEnabled)
+        app.buttons["work-shift-status"].tap(); app.buttons["Worked"].tap()
+        let attendance = app.switches["work-shift-attendance"]
+        attendance.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        let reviewed = app.switches["work-shift-reviewed"]
+        for _ in 0..<10 where !reviewed.isHittable || reviewed.frame.maxY > app.frame.maxY - 90 { app.swipeUp() }
+        XCTAssertTrue(reviewed.isHittable)
+        reviewed.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        XCTAssertTrue(app.buttons["Save shift revision"].isEnabled); app.buttons["Save shift revision"].tap()
+        XCTAssertTrue(app.navigationBars["Work shift"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Work Block & Sleep"].waitForExistence(timeout: 5)); edit.tap()
+        app.buttons["work-shift-choose"].tap()
+        let saved = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Worked • Actual times unknown")).firstMatch
+        XCTAssertTrue(saved.waitForExistence(timeout: 5)); saved.tap()
+        XCTAssertEqual(app.switches["work-shift-attendance"].value as? String, "1")
+        let actualStart = app.switches["work-shift-actual-start-known"]
+        for _ in 0..<8 where !actualStart.isHittable { app.swipeUp() }
+        XCTAssertEqual(actualStart.value as? String, "0")
+        XCTAssertEqual(app.switches["work-shift-actual-end-known"].value as? String, "0")
+        captureDashboard("Confirmed attendance preserves unknown actual shift times")
+    }
+
+
+    func testDashboardWorkSleepLinksSaveAndReopenWithUnknownBounds() throws {
+        app.buttons["Dashboard"].tap(); app.buttons["dashboard-work-block"].tap()
+        let record = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "work-context-record-")).firstMatch
+        for _ in 0..<15 where !record.isHittable { app.swipeUp() }; XCTAssertTrue(record.isHittable); record.tap()
+        let review = app.buttons["Review main-sleep work context"]
+        for _ in 0..<12 where !review.isHittable { app.swipeUp() }; review.tap()
+        app.buttons["work-sleep-events-open"].tap()
+        XCTAssertTrue(app.navigationBars["Main-sleep shift links"].waitForExistence(timeout: 5))
+        let prior = app.textFields["work-sleep-prior-date"], next = app.textFields["work-sleep-next-date"]
+        prior.tap(); prior.typeText("2026-09-20"); next.tap(); next.typeText("2026-09-21")
+        let reviewed = app.switches["work-sleep-events-reviewed"]
+        for _ in 0..<12 where !reviewed.isHittable || reviewed.frame.maxY > app.frame.maxY - 90 { app.swipeUp() }
+        reviewed.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap(); app.buttons["Save shift links"].tap()
+        XCTAssertTrue(app.navigationBars["Work Block & Sleep"].waitForExistence(timeout: 5))
+        for _ in 0..<15 where !record.isHittable { app.swipeUp() }; record.tap()
+        for _ in 0..<12 where !review.isHittable { app.swipeUp() }; review.tap(); app.buttons["work-sleep-events-open"].tap()
+        XCTAssertEqual(prior.value as? String, "2026-09-20"); XCTAssertEqual(next.value as? String, "2026-09-21")
+        XCTAssertEqual(app.switches["Main-sleep start is known"].value as? String, "0")
+        captureDashboard("Saved exact sleep identity retains unknown main-sleep boundaries")
+    }
+    func testDashboardWorkPopulatedEventPhaseMatrix() throws {
+        app.terminate(); app.launchArguments.append("--uitesting-work-events"); app.launch()
+        app.buttons["Dashboard"].tap(); app.buttons["dashboard-work-block"].tap()
+        app.buttons["work-comparison-controls"].tap()
+        app.buttons["work-display"].tap(); app.buttons["Block matrix"].tap(); app.buttons["Done"].tap()
+        XCTAssertTrue(app.staticTexts["Week-by-week block matrix"].waitForExistence(timeout: 5))
+        let cell = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Between shifts")).firstMatch
+        for _ in 0..<8 where !cell.isHittable { app.swipeUp() }; XCTAssertTrue(cell.isHittable)
+        captureDashboard("Event-based main sleep appears in its explicitly reviewed block matrix")
+        cell.tap(); XCTAssertTrue(app.navigationBars["Work context detail"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Between 1 and 2"].exists)
+    }
     func testDashboardWorkReportedCategoriesAndNapAssessmentScope() throws {
         app.buttons["Dashboard"].tap()
         let work = app.buttons["dashboard-work-block"]

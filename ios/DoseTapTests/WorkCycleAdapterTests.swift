@@ -154,4 +154,40 @@ final class WorkCycleAdapterTests: XCTestCase {
         XCTAssertNil(try value.workCycleNapDayReport().documentRevision)
     }
 
+    func testActualShiftComparisonUsesStoredExactLinksAndUnknownActualTimesStayMissing() throws {
+        let value = model(), sleep = start.addingTimeInterval(3600)
+        var before = WorkShiftEvent(timeZoneIdentifier: "GMT", recordedAt: value.reportingAsOf)
+        before.status = .worked; before.attendanceConfirmed = true; before.actualTimePrecision = .reportedMinute
+        before.actualStart = sleep.addingTimeInterval(-28800); before.actualEnd = sleep.addingTimeInterval(-3600)
+        before.blockID = "reviewed-block"; before.firstShiftDate = "2026-09-19"; before.position = 1; before.blockShiftCount = 2
+        var after = before; after.id = UUID(); after.shiftID = UUID(); after.position = 2
+        after.actualStart = sleep.addingTimeInterval(32400); after.actualEnd = sleep.addingTimeInterval(40000)
+        var association = WorkSleepAssociation(sleepID: "session:a", precedingDate: "2026-09-21", followingDate: "2026-09-22", timeZoneIdentifier: "GMT", plannedAt: value.reportingAsOf, recordedAt: value.reportingAsOf)
+        association.eventContext = .init(mainSleepStart: sleep, mainSleepEnd: sleep.addingTimeInterval(25200), precedingStatus: .work, followingStatus: .work, precedingShiftID: before.shiftID, followingShiftID: after.shiftID, wakingPeriodsReviewed: true)
+        var document = WorkContextDocument(); document.schemaVersion = 3; document.shiftEvents = [before, after]; document.associations = [association]
+        try value.sessionRepo.saveWorkContext(document, expectedRevision: nil)
+        let stored = try XCTUnwrap(value.sessionRepo.workContext())
+        value.inspection.workContextBasis = .confirmed
+        value.publishWorkInspectionContext(stored, nights: value.nights, asOf: value.reportingAsOf)
+        let row = try XCTUnwrap(value.workCycleComparison(metric: .shiftEndToSleep)?.observations.first { $0.id == "session:a" })
+        XCTAssertEqual(row.value, 60); XCTAssertEqual(row.phase, .between); XCTAssertEqual(row.classificationVersion, 2)
+        XCTAssertEqual(row.firstShiftDate, "2026-09-19"); XCTAssertEqual(Set(row.metricSourceRecordIDs), Set([before.id.uuidString, after.id.uuidString]))
+        XCTAssertEqual(value.workCycleComparison(metric: .timeBetweenShifts)?.observations.first?.value, 600)
+        XCTAssertEqual(value.workCycleComparison(metric: .recordedWork24h)?.observations.first?.value, 420)
+        before.actualEnd = nil; document.shiftEvents = [before, after]
+        value.publishWorkInspectionContext(document, nights: value.nights, asOf: value.reportingAsOf)
+        XCTAssertNil(value.workCycleComparison(metric: .shiftEndToSleep)?.observations.first?.value)
+    }
+    func testRequiredWakeComparisonUsesHistoricalWarningAndPreservesItsRevision() throws {
+        let value = model(), revision = UUID(), wake = start.addingTimeInterval(21600)
+        let payload: [String: Any] = ["sessionId": "a", "revision": revision.uuidString, "wakeDate": "2026-09-21", "timeZoneIdentifier": "GMT",
+            "requiredWake": wake.timeIntervalSinceReferenceDate, "targetAt": start.timeIntervalSinceReferenceDate, "target": WorkWarningTarget.doseTarget.rawValue]
+        let metadata = String(decoding: try JSONSerialization.data(withJSONObject: ["work_warning_acknowledgement": payload]), as: UTF8.self)
+        value.nights[0].doseEvents[1] = .init(id: "a-d2", eventType: "dose2", timestamp: start.addingTimeInterval(10800), sessionDate: "2026-09-21", metadata: metadata, sessionId: "a")
+        let row = try XCTUnwrap(value.workCycleComparison(metric: .dose2ToRequiredWake)?.observations.first)
+        XCTAssertEqual(row.value, 180); XCTAssertEqual(row.metricEvidence?.end, wake)
+        XCTAssertEqual(row.metricSourceRecordIDs, ["a-d2:" + revision.uuidString])
+        XCTAssertNil(value.workCycleComparison(metric: .dose2ToRequiredWake)?.observations.last?.value)
+    }
+
 }

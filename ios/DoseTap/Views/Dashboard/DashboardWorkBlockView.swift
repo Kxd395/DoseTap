@@ -12,6 +12,7 @@ struct DashboardWorkBlockView: View {
     }
     @State private var editorSnapshot: EditorSnapshot?
     @State private var rosterEditor: EditorSnapshot?
+    @State private var shiftEditor: EditorSnapshot?
     @State private var controlsVisible = false
     @State private var detailVisible = false
     @State private var metric = WorkCycleMetric.mainSleep
@@ -44,9 +45,9 @@ struct DashboardWorkBlockView: View {
     private var selectedExportContext: WorkCycleExportContext {
         let provider: DashboardProviderAccess.Provider = model.sleepSource == .appleHealth ? .health : .whoop
         let hasSnapshot = model.sleepSource == .appleHealth ? model.healthSnapshot != nil : model.whoopSnapshot != nil
-        let definition = metric == .doseInterval ? DashboardDosePattern.version
+        let definition = !metric.isProviderSleep && metric != .doseInterval ? (metric == .dose2ToRequiredWake ? DashboardRecordedWakeTarget.version : "actual_shift_intervals_v1") : metric == .doseInterval ? DashboardDosePattern.version
             : DashboardSleepMetricProjection.version + ":" + (metric == .mainSleep ? "mainProviderEpisode" : "observedAfterDose2")
-        return .init(selectedSource: model.sleepSource.rawValue, selectedDefinition: definition,
+        return .init(selectedSource: metric.isProviderSleep ? model.sleepSource.rawValue : "Reported administration / work evidence", selectedDefinition: definition,
             timeZoneIdentifier: model.reportingTimeZone.identifier,
             periodStart: model.reportingPeriod?.start ?? model.currentReportWindow?.start,
             periodEndExclusive: model.reportingPeriod?.endExclusive ?? model.currentReportWindow?.endExclusive,
@@ -55,7 +56,7 @@ struct DashboardWorkBlockView: View {
             selectedObservationID: model.inspection.selectedObservationID, visualization: visualization,
             monthlySummaries: visualization == "Summaries" && monthlySummary,
             periodPolicy: model.reportingPeriod == nil ? "treatment_date_membership" : "reviewed_exact",
-            providerSnapshotState: model.providerSnapshotIsCurrent(provider) ? "current" : hasSnapshot ? "stale" : "unavailable")
+            providerSnapshotState: !metric.isProviderSleep ? "not_applicable" : model.providerSnapshotIsCurrent(provider) ? "current" : hasSnapshot ? "stale" : "unavailable")
     }
     private func profileLabel(_ row: WorkCycleObservation) -> String {
         let index = profileNames[row.stratumID ?? "unknown:" + row.id] ?? "Unknown"
@@ -70,6 +71,8 @@ struct DashboardWorkBlockView: View {
                 Text((basis == .planned ? "Reviewed plan snapshot" : "Confirmed work history") + " • " + metric.rawValue + " • " + model.sleepSource.rawValue).font(.caption)
                 Text("Phase: " + (model.inspection.workPhaseFilter?.label ?? "All") + " • Position: " + positionFilter).font(.caption)
                 Button("Comparison controls") { controlsVisible = true }.accessibilityIdentifier("work-comparison-controls")
+                if metric == .recordedWork24h { Text("Recorded shift minutes only; unlogged attendance is unknown, not zero.").font(.caption) }
+                if metric == .dose2ToRequiredWake { Text("Uses a saved required-wake target, not actual awakening or today’s schedule.").font(.caption) }
                 Text("Plans never establish attendance. Off-block does not mean recovered. Missing values are not zero.").font(.caption)
                 if let message = model.errorMessage { Text(message).foregroundStyle(.orange) }
                 if let issue = model.workCycleComparisonIssue(metric: metric) { Text(issue).foregroundStyle(.orange) }
@@ -79,6 +82,8 @@ struct DashboardWorkBlockView: View {
                 if let selected { Button("Open selected observation: " + selected.sleepDate) { prepareEditorSnapshot(); detailVisible = true } }
 
                 NavigationLink("Reported categories and assessed nap days") { WorkCycleReportedOutcomesView(model: model) }.accessibilityIdentifier("work-reported-outcomes")
+                Button("Record or correct a work shift") { prepareEditorSnapshot(); if loaded { shiftEditor = editorSnapshot } }
+                    .disabled(!loaded).accessibilityIdentifier("work-shift-edit")
                 Button("Configure roster or confirm a work date") { prepareEditorSnapshot(); if loaded { rosterEditor = editorSnapshot } }.disabled(!loaded)
                     .accessibilityIdentifier("work-context-configure")
             }
@@ -144,7 +149,7 @@ struct DashboardWorkBlockView: View {
                 }
             }
             Section("Review snapshot") {
-                Text("Context as of \(asOf.formatted()). Classification version 1. CSV preserves this range, metric, context basis and revision.").font(.caption)
+                Text("Context as of \(asOf.formatted()). Classification versions: \(Set(rows.map(\.classificationVersion)).sorted().map(String.init).joined(separator: ", ")). CSV preserves this range, metric, context basis and revision.").font(.caption)
                 ShareLink("Share this comparison CSV", item: WorkCycleSummary.csv(rows, metric: metric.rawValue, basis: basis, range: model.rangeDescription, revision: model.workInspectionContext?.revision, asOf: asOf, grouping: grouping, phaseFilter: phaseFilter, positionFilter: positionFilter, matrixEncoding: matrixEncoding, exportContext: selectedExportContext)).disabled(!loaded || comparison == nil)
             }
         }.navigationTitle("Work Block & Sleep")
@@ -165,6 +170,9 @@ struct DashboardWorkBlockView: View {
             }
             .sheet(item: $rosterEditor) { snapshot in
                 WorkContextEditor(document: snapshot.document) { try save($0, expectedRevision: snapshot.expectedRevision) }
+            }
+            .sheet(item: $shiftEditor) { snapshot in
+                WorkShiftEventEditor(document: snapshot.document) { try save($0, expectedRevision: snapshot.expectedRevision) }
             }
             .sheet(isPresented: $detailVisible) {
                 if let selected, let snapshot = editorSnapshot {
@@ -249,7 +257,8 @@ struct DashboardWorkBlockView: View {
                     }
                     ForEach(blocks, id: \.self) { block in
                         HStack(alignment: .top) {
-                            Text(String(block.suffix(10))).frame(width: 100)
+                            let dates = Set(rows.filter { $0.blockID == block }.compactMap(\.firstShiftDate))
+                            Text(dates.count == 1 ? dates.first! : "First date unknown").frame(width: 100)
                             ForEach(positions, id: \.self) { position in
                                 let cells = rows.filter { $0.blockID == block && $0.position == position }
                                 VStack {
@@ -405,11 +414,21 @@ private struct WorkBlockRecordDetail: View {
                 }
                 Text("Contribution state: " + row.contributionState.rawValue)
                 Text("Contribution: " + row.contributionReason)
-                Text("Block: " + (row.blockID.map { String($0.suffix(10)) } ?? "Unresolved"))
+                Text("Block first shift: " + (row.firstShiftDate ?? "Unresolved"))
+                Text("Classifier version: " + String(row.classificationVersion))
                 Text("Roster revision: " + (row.rosterID?.uuidString ?? "Unavailable"))
                 if let associationID = row.associationID, let association = document.associations.first(where: { $0.id == associationID }) {
                     Text("Waking dates: \(association.precedingDate) → \(association.followingDate)")
                     Text(association.timeZoneIdentifier)
+                    if let context = association.eventContext {
+                        Text("Reviewed main sleep: " + (context.mainSleepStart?.formatted() ?? "Start unknown") + " → " + (context.mainSleepEnd?.formatted() ?? "End unknown"))
+                        ForEach([context.precedingShiftID, context.followingShiftID].compactMap { $0 }, id: \.self) { id in
+                            if let shift = document.shiftEvents?.first(where: { $0.shiftID == id && row.metricSourceRecordIDs.contains($0.id.uuidString) }) ?? document.latestShiftEvents(asOf: row.contextSnapshotAt ?? association.recordedAt).first(where: { $0.shiftID == id }) {
+                                Text(shift.positionLabel + " • " + shift.status.rawValue)
+                                Text("Actual: " + (shift.actualStart?.formatted() ?? "Start unknown") + " → " + (shift.actualEnd?.formatted() ?? "End unknown")).font(.caption)
+                            }
+                        }
+                    }
                     Text("Reviewed plan snapshot: \(association.plannedAt.formatted())")
                 }
                 Text("Built-in spacing reference; not a prescription. Work context cannot change doses, alarms or sleep records.").font(.caption)
