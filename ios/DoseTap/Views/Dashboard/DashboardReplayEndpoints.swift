@@ -46,6 +46,7 @@ struct DashboardReplayEndpoints: View {
     @ObservedObject var model: DashboardAnalyticsModel
     let snapshot: DashboardReplaySnapshot
     @Binding var selected: [DashboardReplayMarker]
+    var onRecords: ([ReplayMedication]) -> Void = { _ in }
     @State private var medications: [ReplayMedication] = []
     @State private var error: String?
     private let roles: [DashboardReplayMarker.Kind] = [.medicationXR, .medicationIR, .daytimeMedication, .napEnd]
@@ -73,7 +74,7 @@ struct DashboardReplayEndpoints: View {
                                 Text("\(medication.name) · \(medication.formulation) · \(medication.amount) · \(medication.occurredAt?.formatted() ?? "time unknown")").tag(medication.id)
                             }
                         }
-                    }.disabled(error != nil || model.isLoading)
+                    }.accessibilityIdentifier("dashboard-replay-endpoint-" + role.rawValue).disabled(error != nil || model.isLoading)
                 }
                 Text("Reported medication ledger").font(.headline)
                 Text("Actual amounts stay per medication. No combined milligram scale, planned-amount substitution or claim of alarm delivery. Unknown-time records remain below but cannot become interval endpoints.").font(.caption)
@@ -101,7 +102,7 @@ struct DashboardReplayEndpoints: View {
         })
     }
     private func reload() {
-        do { medications = try model.sessionRepo.medicationHistory().map(ReplayMedication.init); error = nil }
-        catch { self.error = "Medication records could not be read completely. Endpoint selection is disabled; retry reload." }
+        do { medications = try DashboardReplayUITestFixture.medications(model: model) ?? model.sessionRepo.medicationHistory().map(ReplayMedication.init); error = nil; onRecords(medications) }
+        catch { onRecords([]); self.error = "Medication records could not be read completely. Endpoint selection is disabled; retry reload." }
     }
 }

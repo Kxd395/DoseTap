@@ -157,7 +157,7 @@ extension DashboardAnalyticsModel {
                 }
                 var aggregate = DashboardNightAggregate(sessionDate: key, dose1Time: date,
                     dose2Time: offset == 2 ? nil : date.addingTimeInterval(Double(140 + offset * 15) * 60),
-                    dose2Skipped: offset == 2, snoozeCount: 1, extraDoseCount: 0, events: [],
+                    dose2Skipped: offset == 2, snoozeCount: 1, extraDoseCount: 0, events: DashboardReplayUITestFixture.events(at: date, sessionDate: key),
                     morningCheckIn: .init(id: key, sessionId: key, timestamp: date, sessionDate: key, sleepQuality: 3, stressLevel: offset % 5 + 1),
                     preSleepLog: .init(id: key, sessionId: key, createdAtUtc: "", localOffsetMinutes: 0, completionState: "complete",
                         answers: preSleep),
@@ -177,6 +177,12 @@ extension DashboardAnalyticsModel {
                     aggregate.doseEvents.append(.init(id: "d2:" + key, eventType: "dose2", timestamp: second, sessionDate: key, sessionId: key))
                 }
                 aggregate.outcome = diary
+                if let metadata = DashboardReplayUITestFixture.doseMetadata(for: aggregate) {
+                    aggregate.doseEvents = aggregate.doseEvents.map { event in
+                        .init(id: event.id, eventType: event.eventType, timestamp: event.timestamp, sessionDate: event.sessionDate,
+                            metadata: event.eventType == "dose1" ? metadata : event.metadata, sessionId: event.sessionId)
+                    }
+                }
                 return aggregate
             }
         }

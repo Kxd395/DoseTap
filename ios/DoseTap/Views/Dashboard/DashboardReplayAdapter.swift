@@ -6,6 +6,16 @@ extension DashboardNightAggregate {
 }
 
 extension DashboardAnalyticsModel {
+    var selectedReplayID: String? {
+        let matches = nights.filter { $0.id == inspection.selectedObservationID }
+        return matches.count == 1 ? matches.first?.replayID : nil
+    }
+    func selectReplayID(_ value: String?) {
+        guard let value else { inspection.selectedObservationID = nil; return }
+        let matches = nights.filter { $0.replayID == value }
+        if matches.count == 1 { inspection.selectedObservationID = matches[0].id }
+    }
+
     func replaySnapshot(for night: DashboardNightAggregate, reviewed: ReviewedNightSleepResult? = nil) -> DashboardReplaySnapshot {
         let identity = night.replayID
         var markers: [DashboardReplayMarker] = []
@@ -31,7 +41,13 @@ extension DashboardAnalyticsModel {
             }
         }
         for event in night.events {
-            append(.event, event.timestamp, "event:" + event.id, "Recorded " + event.eventType)
+            let source: String
+            if normalizeStoredEventType(event.eventType) == "lights_out", event.notes == "Pre-sleep check completed" {
+                source = "Pre-sleep check completed; not confirmed lights out"
+            } else if normalizeStoredEventType(event.eventType) == "lights_out", event.notes == "Pre-sleep check skipped" {
+                source = "Pre-sleep check skipped; not confirmed lights out"
+            } else { source = "Recorded " + normalizeStoredEventType(event.eventType).replacingOccurrences(of: "_", with: " ") }
+            append(.event, event.timestamp, "event:" + event.id, source)
         }
         if let log = night.preSleepLog, log.completionState == "complete" {
             append(.foodFinish, log.answers?.lastFood?.finishedAt, "food:" + log.id, "Pre-sleep food diary")
@@ -45,19 +61,30 @@ extension DashboardAnalyticsModel {
             append(.deviceSleepEnd, health.finalWake, "health:end:" + identity, "Apple Health " + (health.finalWakeBasis ?? "selected main episode"))
             append(.mainSleepStart, health.sleepOnset, "health:start:" + identity, "Apple Health selected main episode")
         }
+        let wake = replayWakeTarget(for: night)
+        if let date = wake.requiredWake, let first = wake.sources.first {
+            append(.requiredWake, date, "required-wake:" + first.revision.uuidString,
+                "Saved required wake; revision " + first.revision.uuidString + "; " + first.timeZoneID
+                    + "; source events: " + wake.sources.map(\.eventID).joined(separator: ","), sourceSessionID: first.sessionID)
+        }
         let projection = reviewed?.projection.flatMap { $0.window.sessionID == night.sessionID ? $0 : nil }
         if let metric = reviewed?.doseSleepMetrics?.dose2ToSleep, metric.status == .available, projection != nil {
             append(.returnSleep, metric.end, "reviewed:return:" + identity, "Apple Health reviewed-window boundary")
         }
         return .init(sessionID: identity, treatmentDate: night.sessionDate,
             asOf: max(reportingAsOf, projection?.generatedAt ?? reportingAsOf), timeZoneID: reportingTimeZone.identifier,
-            sourcePolicy: sleepSource.rawValue + " main episode; " + night.providerAssociation + (projection == nil ? "" : "; reviewed intervals: Apple Health"),
+            sourcePolicy: sleepSource.rawValue + " main episode; " + night.providerAssociation + (wake.state == .needsReview ? "; required wake needs review" : "") + (projection == nil ? "" : "; reviewed intervals: Apple Health"),
             filterDescription: rangeDescription, markers: markers, dose2NotTaken: night.dose2Skipped,
             identityResolved: !night.identityNeedsReview && night.doseEvents.allSatisfy { $0.sessionId == night.sessionID && $0.sessionId != nil } && (night.sessionID != nil || night.healthSummary != nil || night.whoopSummary != nil), reviewedProjection: projection,
             mainEpisodeIntervals: sleepSource == .appleHealth ? night.healthSummary?.recordedIntervals ?? [] : [])
     }
 
+    func replayWakeTarget(for night: DashboardNightAggregate) -> DashboardRecordedWakeTarget {
+        .derive(sessionID: night.sessionID ?? "", events: night.doseEvents, asOf: reportingAsOf)
+    }
+
     func replayCoverage(sessionID: String) async -> ReviewedNightSleepResult {
-        await dashboardReviewedCoverage(sessionID: sessionID)
+        if let fixture = DashboardReplayUITestFixture.coverage(model: self, sessionID: sessionID) { return fixture }
+        return await dashboardReviewedCoverage(sessionID: sessionID)
     }
 }

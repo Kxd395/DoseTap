@@ -54,6 +54,7 @@ final class DoseTapUITests: XCTestCase {
         if name.contains("testAutomaticNightMode") { app.launchArguments += ["--uitesting-auto-night-reset", "-setup_completed_v2", "YES"] }
         if name.contains("testCompactLayout") { app.launchArguments += ["--uitesting-layout", "-setup_completed_v2", "YES"] }
         if name.contains("testSupply") || name.contains("testSystemAlarm") || name.contains("testPreSleep") || name.contains("testMorningSavedPain") { app.launchArguments += ["-setup_completed_v2", "YES"] }
+        if name.contains("testDashboardReplay") { app.launchArguments.append("--uitesting-replay") }
         if name.contains("testDashboard") { app.launchArguments += ["--uitesting-dashboard", "-setup_completed_v2", "YES"] }
         if name.contains("testWeeklySchedule") {
             app.launchArguments += ["-setup_completed_v2", "YES", "-healthkit_enabled", "NO", "-whoop_enabled", "NO"]
@@ -1298,9 +1299,35 @@ final class DoseTapUITests: XCTestCase {
         app.swipeUp()
         captureDashboard("Replay clock event positions and observed bands")
         app.swipeDown()
-        app.segmentedControls["dashboard-replay-page"].buttons["Intervals"].tap()
+        app.buttons["dashboard-replay-page"].tap()
+        app.buttons["Intervals"].tap()
         XCTAssertTrue(app.buttons["dashboard-interval-preset"].waitForExistence(timeout: 5))
         captureDashboard("Curated intervals and explicit denominator")
+        app.buttons["dashboard-replay-page"].tap(); app.buttons["Sleep opportunity"].tap()
+        XCTAssertTrue(app.buttons["dashboard-opportunity-endpoint"].waitForExistence(timeout: 5))
+        app.buttons["Check Apple Health reviewed coverage"].tap()
+        captureDashboard("Named post dose coverage and historical required wake")
+        app.swipeUp()
+        captureDashboard("Named coverage partition and exact source table")
+        for _ in 0..<6 where !app.buttons["dashboard-replay-page"].isHittable { app.swipeDown() }
+        app.buttons["dashboard-replay-page"].tap(); app.buttons["Medication"].tap()
+        let endpointPanel = app.buttons["Select medication or nap endpoints / review medication logs"]
+        endpointPanel.tap()
+        app.buttons["dashboard-replay-endpoint-medicationXR"].tap()
+        app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "Synthetic XR")).firstMatch.tap()
+        app.buttons["dashboard-replay-endpoint-medicationIR"].tap()
+        app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "Synthetic IR")).firstMatch.tap()
+        for _ in 0..<3 where !endpointPanel.isHittable { app.swipeDown() }
+        endpointPanel.tap()
+        XCTAssertTrue(app.otherElements["dashboard-medication-chart"].waitForExistence(timeout: 5))
+        captureDashboard("Medication rows distinguish saved schedule and occurrence")
+        app.swipeUp()
+        captureDashboard("Medication saved target and sleep lanes")
+        for _ in 0..<12 where !app.staticTexts["Actual minus saved reminder"].isHittable { app.swipeUp() }
+        XCTAssertTrue(app.staticTexts["Actual minus saved reminder"].isHittable)
+        captureDashboard("Signed historical reminder deviation and exact rows")
+        for _ in 0..<16 where !app.buttons["dashboard-replay-page"].isHittable { app.swipeDown() }
+        app.buttons["dashboard-replay-page"].tap(); app.buttons["Intervals"].tap()
         for _ in 0..<12 where !app.buttons["dashboard-replay-export"].isHittable { app.swipeUp() }
         XCTAssertTrue(app.buttons["dashboard-replay-export"].isHittable)
         app.buttons["dashboard-replay-export"].tap()
