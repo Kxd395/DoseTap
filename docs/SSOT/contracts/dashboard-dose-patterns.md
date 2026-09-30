@@ -59,3 +59,7 @@ revision, original associations and planned-versus-confirmed basis.
 Unassigned questionnaire rows remain raw and contribute to an explicit unassigned
 count. They do not create a synthetic treatment night; malformed dates attached
 to an otherwise known ID mark that identity unresolved.
+
+WHOOP quantitative sleep requires explicit `SCORED` state plus complete, nonnegative original light/deep/REM millisecond fields and the stage-evidence version/provenance. The shared projection sums those fields in floating-point minutes without per-stage integer truncation. An explicitly scored complete zero is usable zero; a positive sub-minute result remains positive. Neither establishes continuous all-awake coverage. Missing score/provenance, missing stages, or negative fields remain unavailable for quantitative sleep; original fields remain inspectable and transport round-trips never supply omitted scoring provenance. Legacy display minute totals are raw fields, not a substitute for this evidence.
+
+Scored stage evidence also carries the exact original sleep ID. The summary rejects quantitative sleep when endpoint or stage identity disagrees with that ID/start, when two supplied endpoints are invalid, or when scored sleep exceeds the original episode interval. It retains the raw values and an explicit review reason. A missing endpoint still cannot establish period membership; it is never reconstructed from scored duration.
