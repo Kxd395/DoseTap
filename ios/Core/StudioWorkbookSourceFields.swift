@@ -52,6 +52,7 @@ extension StudioWorkbookData {
             } else { append(SW.canonical(value), kind: "unrecognized", status: "Original representation retained") }
         }
         var metadata = root; metadata.removeValue(forKey: groupRoot)
+        metadata.removeValue(forKey: "independentSourceRecords")
         if let supplyJSON = metadata.removeValue(forKey: "supplyStateJSON"), let supply = SW.parse(supplyJSON) {
             flatten(supply, path: "/supplyStateJSON", record: "supply_state:1", table: "supply_state",
                     representation: "Validated supply document; dates use seconds since 2001-01-01 UTC",
@@ -161,6 +162,8 @@ extension StudioWorkbookData {
             ("Saved preferences", "Outside this archive", "Exported nightly answers do not establish full preservation of room, sleeping-setup or pain preferences. Reusable preferences are not nightly symptoms."),
             ("Medication windows", "Historical snapshots unavailable", "The workbook does not reclassify historical timing using current settings. An exported interval is descriptive, not medication advice."),
             ("Review comments", "Owner review / Owner notes", "Use Keep, Optional, Change, Remove or Need information and a note. Workbook-only comments never update app records."),
+            ("Independent roadmap records", "independentSourceRecords / Source Fields", "Schema 6 retains original daytime, nap, prompt, visit, work and dashboard review rows without inferred date-group associations. Revision rows are source evidence, not additional current observations. These do not populate the legacy nightly Daytime sheet."),
+            ("Independent payload date encoding", "columns/payload", "Payload text is unchanged. Daytime assessment and event dates use seconds since 1970-01-01 UTC. Prompt payload dates use UTC ISO8601 with millisecond precision. Nap, physician-review, work-context and dose-review Codable payload dates use seconds since 2001-01-01 UTC. Do not treat numeric values as timestamps without the owning payload schema."),
             ("Complete machine ingestion", "Studio ZIP / insights_bundle.json", "Prefer the companion versioned Studio bundle. Do not append two snapshots as new observations or treat Excel edits as a phone import.")
         ]
         rows += contracts.map { topic, path, meaning in [.text("Definitions and limits"), .text(topic), .text(path), .text("Contract"), .blank,

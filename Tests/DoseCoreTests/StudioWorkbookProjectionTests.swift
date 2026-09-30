@@ -2,6 +2,68 @@ import XCTest
 @testable import DoseCore
 
 final class StudioWorkbookProjectionTests: XCTestCase {
+    func testIndependentRoadmapRecordsSurviveWithoutInventedNights() throws {
+        let payload = "{\"revision\":1,\"score\":0,\"note\":\"=1+1\"}"
+        let row: [String: Any] = ["sourceTable": "daytime_checkins", "columns": [
+            "revision_id": ["type": "text", "text": "revision-1"],
+            "payload": ["type": "text", "text": payload]]]
+        let bundle: [String: Any] = ["schemaVersion": 6, "archiveScope": "manual_full_local_records", "independentRecordsIncluded": true, "dateGroups": [],
+            "medicationPresetLedger": ["schemaVersion": 1, "presetRevisions": [], "administrations": []],
+            "independentSourceRecords": [row, row]]
+        let original = try JSONSerialization.data(withJSONObject: bundle)
+        let prepared = try StudioDoseTimingExport.prepare(bundleData: original)
+        let root = try XCTUnwrap(JSONSerialization.jsonObject(with: prepared.bundleData) as? [String: Any])
+        XCTAssertEqual(root["schemaVersion"] as? Int, 6)
+        XCTAssertEqual((root["independentSourceRecords"] as? [Any])?.count, 2)
+        let data = try StudioWorkbookData(bundleData: prepared.bundleData, inventoryCSV: "")
+        XCTAssertTrue(data.groups.isEmpty)
+        XCTAssertEqual(data.records.count, 1)
+        XCTAssertEqual(data.records.first?.id, "revision-1")
+        XCTAssertTrue(data.records.first?.groupKeys.isEmpty == true)
+        XCTAssertEqual(data.identity(for: try XCTUnwrap(data.records.first)), "Independent of treatment dates")
+        let fields = data.sourceFieldsSheet()
+        XCTAssertTrue(fields.rows.contains { $0.contains(.text(payload)) })
+        XCTAssertTrue(fields.rows.contains { $0.contains(.text("=1+1")) })
+        XCTAssertEqual(try ReportCSV.rows(prepared.sessionsCSV).count, 1)
+    }
+
+    func testIndependentRecordsRequireSchemaAndStrictTypedValues() throws {
+        let base: [String: Any] = ["schemaVersion": 6, "archiveScope": "manual_full_local_records", "independentRecordsIncluded": true, "dateGroups": [],
+            "medicationPresetLedger": ["schemaVersion": 1, "presetRevisions": [], "administrations": []]]
+        for value: Any in [NSNull(), "invalid", [["sourceTable": "daytime_events", "columns": ["payload": ["type": "real", "text": "bad"]]]]] {
+            var root = base; root["independentSourceRecords"] = value
+            XCTAssertThrowsError(try StudioWorkbookData(bundleData: JSONSerialization.data(withJSONObject: root), inventoryCSV: ""))
+        }
+        XCTAssertThrowsError(try StudioWorkbookData(bundleData: JSONSerialization.data(withJSONObject: base), inventoryCSV: ""))
+        var legacy = base; legacy["schemaVersion"] = 5; legacy["independentSourceRecords"] = []
+        XCTAssertThrowsError(try StudioWorkbookData(bundleData: JSONSerialization.data(withJSONObject: legacy), inventoryCSV: ""))
+        legacy.removeValue(forKey: "independentSourceRecords")
+        XCTAssertThrowsError(try StudioWorkbookData(bundleData: JSONSerialization.data(withJSONObject: legacy), inventoryCSV: ""))
+    }
+
+    func testIndependentCatalogRetainsEveryTableAndConflictingRevisionVariant() throws {
+        var rows: [[String: Any]] = StudioIndependentSourceRecord.sourceTables.map { table in
+            ["sourceTable": table, "columns": [
+                StudioIndependentSourceRecord.primaryKeys[table]!: ["type": "text", "text": "original"],
+                "missing": ["type": "null"], "zero": ["type": "integer", "integer": 0],
+                "binary": ["type": "blob", "blobBase64": "AAE="], "payload": ["type": "text", "text": "{}"]]]
+        }
+        var conflict = rows[0]
+        var columns = try XCTUnwrap(conflict["columns"] as? [String: Any])
+        columns["payload"] = ["type": "text", "text": "{\"correction\":true}"]
+        conflict["columns"] = columns; rows.append(conflict)
+        let root: [String: Any] = ["schemaVersion": 6, "archiveScope": "manual_full_local_records", "independentRecordsIncluded": true, "dateGroups": [], "independentSourceRecords": rows,
+            "medicationPresetLedger": ["schemaVersion": 1, "presetRevisions": [], "administrations": []]]
+        let data = try StudioWorkbookData(bundleData: JSONSerialization.data(withJSONObject: root), inventoryCSV: "")
+        XCTAssertEqual(data.records.count, StudioIndependentSourceRecord.sourceTables.count + 1)
+        XCTAssertEqual(Set(data.records.map(\.table)), Set(StudioIndependentSourceRecord.sourceTables))
+        XCTAssertEqual(data.records.filter { data.identity(for: $0) == "Needs record review" }.count, 2)
+        XCTAssertTrue(data.groups.isEmpty)
+        let fields = data.sourceFieldsSheet()
+        XCTAssertTrue(fields.rows.contains { $0.contains(.text("Explicit null")) })
+        XCTAssertTrue(fields.rows.contains { $0.contains(.number(0)) })
+    }
+
     func testSeventeenNamedSheetsEmptySourcesAndNoInventedObservations() throws {
         let result = try project([])
         XCTAssertEqual(result.map(\.name), ["Overview", "Dose Summary", "Medication Log", "Nights", "Night Review", "Events", "Pre-sleep",

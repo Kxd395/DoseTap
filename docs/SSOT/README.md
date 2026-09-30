@@ -1040,3 +1040,11 @@ Context and morning outcome comparisons follow [the context contract](contracts/
 ### Shared dashboard inspection
 
 [Shared inspection contract](contracts/dashboard-inspection.md) defines canonical selection, applicable filters, failed-read behavior, frozen work-context classification and atomic prospective work-plan capture. Night-level filters do not silently become independent daytime filters.
+
+### Independent roadmap records in explicit exports
+
+Studio bundle schema 6 retains original typed SQLite rows for daytime check-ins/events, nap history, prompt schedules, physician review history, work context and dashboard review/association metadata in a required root `independentSourceRecords` array. These records retain their own identifiers and revision payloads without invented night/date associations. All source reads must succeed before publication; an empty array means no records, not a failed read. Studio preserves the rows through import/re-export and exposes their fields in the workbook source catalog. This explicit local archive contract does not expand nearby provider-sharing consent. Older schema 1–5 archives remain readable.
+
+Independent payload strings are preserved byte-for-byte as SQLite text. Daytime assessment/event payload timestamps use seconds since 1970; prompt payload timestamps use UTC ISO8601 with millisecond precision; nap, physician-review, work-context and dose-review Codable payload timestamps use seconds since 2001. The workbook Field Guide identifies this difference; source numbers are not silently converted between epochs.
+
+Schema 6 declares `archiveScope=manual_full_local_records` and `independentRecordsIncluded=true`. Scheduled archives retain the schema 5 local subset, declare exclusions and direct users to the full manual export for independent records. Neither archive scope is a tested full-app restore.

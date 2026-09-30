@@ -3,6 +3,27 @@ import DoseCore
 @testable import DoseTapStudio
 
 final class MedicationLedgerImportTests: XCTestCase {
+    func testSchemaSixIndependentRawRowsSurviveImportAndReexport() throws {
+        let row: [String: Any] = ["sourceTable": "daytime_events", "columns": [
+            "revision_id": ["type": "text", "text": "event-revision"],
+            "payload": ["type": "text", "text": "{\"unknown\":null,\"score\":0}"]]]
+        let object: [String: Any] = ["schemaVersion": 6, "archiveScope": "manual_full_local_records", "independentRecordsIncluded": true, "dateGroups": [],
+            "exportedAtUTC": "2026-09-30T12:00:00Z", "independentSourceRecords": [row],
+            "medicationPresetLedger": ["schemaVersion": 1, "presetRevisions": [], "administrations": []]]
+        let imported = try Importer().parseInsightsBundle(JSONSerialization.data(withJSONObject: object))
+        let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
+        let restored = try XCTUnwrap(JSONSerialization.jsonObject(with: encoder.encode(imported)) as? [String: Any])
+        XCTAssertEqual((restored["independentSourceRecords"] as? [[String: Any]])?.count, 1)
+        XCTAssertEqual(restored["schemaVersion"] as? Int, 6)
+        XCTAssertTrue(imported.sessions.isEmpty)
+        XCTAssertEqual(try JSONSerialization.data(withJSONObject: restored["independentSourceRecords"]!, options: .sortedKeys),
+                       try JSONSerialization.data(withJSONObject: [row], options: .sortedKeys))
+        var invalid = object; invalid.removeValue(forKey: "independentSourceRecords")
+        XCTAssertThrowsError(try Importer().parseInsightsBundle(JSONSerialization.data(withJSONObject: invalid)))
+        invalid = object; invalid["schemaVersion"] = 5
+        XCTAssertThrowsError(try Importer().parseInsightsBundle(JSONSerialization.data(withJSONObject: invalid)))
+    }
+
     func testIndependentLedgerSurvivesImportReexportWithoutNights() throws {
         let time = Date(timeIntervalSince1970: 1_790_000_000)
         let part = try MedicationPresetComponent(id: UUID(), form: .tablet,

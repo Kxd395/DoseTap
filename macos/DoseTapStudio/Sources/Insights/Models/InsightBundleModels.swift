@@ -44,6 +44,9 @@ struct InsightBundle: Codable, Hashable, Sendable {
     let whoopEnrichment: InsightWHOOPEnrichment?
     var importMetadata: InsightBundleImportMetadata?
     let medicationPresetLedger: MedicationPresetExportSnapshot?
+    let independentSourceRecords: [StudioIndependentSourceRecord]?
+    let archiveScope: String?
+    let independentRecordsIncluded: Bool?
     let sessions: [InsightSessionSupplement]
 
     init(
@@ -58,6 +61,9 @@ struct InsightBundle: Codable, Hashable, Sendable {
         whoopEnrichment: InsightWHOOPEnrichment? = nil,
         importMetadata: InsightBundleImportMetadata? = nil,
         medicationPresetLedger: MedicationPresetExportSnapshot? = nil,
+        independentSourceRecords: [StudioIndependentSourceRecord]? = nil,
+        archiveScope: String? = nil,
+        independentRecordsIncluded: Bool? = nil,
         sessions: [InsightSessionSupplement]
     ) {
         self.schemaVersion = schemaVersion
@@ -71,6 +77,9 @@ struct InsightBundle: Codable, Hashable, Sendable {
         self.whoopEnrichment = whoopEnrichment
         self.importMetadata = importMetadata
         self.medicationPresetLedger = medicationPresetLedger
+        self.independentSourceRecords = independentSourceRecords
+        self.archiveScope = archiveScope
+        self.independentRecordsIncluded = independentRecordsIncluded
         self.sessions = sessions
     }
 }

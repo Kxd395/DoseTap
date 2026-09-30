@@ -99,6 +99,7 @@ let package = Package(
                 "StudioWorkbookSupply.swift",
                 "StudioDoseTimingExport.swift",
                 "StudioWorkbookSourceCatalog.swift",
+                "StudioIndependentSourceRecords.swift",
                 "StudioWorkbookDetails.swift",
                 "StudioWorkbookSummaries.swift",
                 "StudioWorkbookNightReview.swift",

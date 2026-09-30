@@ -124,6 +124,18 @@ case("schema5-empty", 0, seed=schema5)
 case("schema5-missing-ledger", 1, lambda b: b.pop("medicationPresetLedger"), seed=schema5)
 case("schema5-malformed-payload", 1, lambda b: b["medicationPresetLedger"].update(presetRevisions=["{}"]), seed=schema5)
 case("schema5-wrong-version", 1, lambda b: b["medicationPresetLedger"].update(schemaVersion=True), seed=schema5)
+schema6 = copy.deepcopy(schema5)
+schema6.update(schemaVersion=6, exportVersion="3.1", independentSourceRecords=[], archiveScope="manual_full_local_records", independentRecordsIncluded=True)
+case("schema6-empty", 0, seed=schema6)
+case("schema6-scope-mismatch", 1, lambda b: b.update(archiveScope="local_subset"), seed=schema6)
+case("schema6-missing-independent", 1, lambda b: b.pop("independentSourceRecords"), seed=schema6)
+case("schema6-malformed-independent", 1, lambda b: b.update(independentSourceRecords="not records"), seed=schema6)
+case("schema5-wrong-independent", 1, lambda b: b.update(independentSourceRecords=[]), seed=schema5)
+schema6["independentSourceRecords"] = [dict(sourceTable="daytime_events", columns=dict(
+    revision_id=dict(type="text", text="original-revision"), payload=dict(type="text", text='{"score":0}')))]
+case("schema6-independent-original", 0, seed=schema6)
+case("schema6-independent-invalid-type", 1, lambda b: b["independentSourceRecords"][0]["columns"]["payload"].update(type="real"), seed=schema6)
+
 preset = dict(schemaVersion=1, presetID="00000000-0000-0000-0000-000000000001", revisionID="00000000-0000-0000-0000-000000000002",
     labelName="Synthetic", ingredient="Synthetic ingredient", releaseProfile="extendedRelease", source="patientEnteredLabel",
     schedule="scheduled", instructions="Entered label", effectiveFrom=800000000, recordedAt=800000000,
@@ -299,7 +311,7 @@ for name, expected, value, csv_value in cases:
         path = folder / "sessions.csv"
         path.write_text(path.read_text().splitlines()[0] + "\n")
     (folder / "insights_bundle.json").write_text(json.dumps(value))
-    if name.startswith(("schema4", "schema5")) and name != "schema4-legacy-csv":
+    if name.startswith(("schema4", "schema5", "schema6")) and name != "schema4-legacy-csv":
         path = folder / "sessions.csv"
         with path.open(newline="") as handle:
             reader = csv.DictReader(handle); rows, fields = list(reader), reader.fieldnames
@@ -309,7 +321,7 @@ for name, expected, value, csv_value in cases:
             rows[0].update(ended_utc=rows[0]["started_utc"], window_actual_min="", adherence_flag="needs_review", actual_interval_seconds="", interval_status="needs_review", interval_review_reason="nonpositive_dose_interval")
         if name.startswith("schema4-skip-"):
             rows[0].update(ended_utc="2026-06-17T04:45:00Z" if name == "schema4-skip-with-end" else "", window_actual_min="", adherence_flag="explicitly_skipped", actual_interval_seconds="", interval_status="missing", interval_review_reason="dose2_explicitly_skipped")
-        if name == "schema4-no-dose1" or name.startswith("schema5"):
+        if name == "schema4-no-dose1" or name.startswith(("schema5", "schema6")):
             rows = []
         with path.open("w", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=fields); writer.writeheader(); writer.writerows(rows)
