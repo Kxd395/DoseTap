@@ -30,6 +30,7 @@ struct DashboardNightAggregate: Identifiable {
     var doseEvents: [DoseCore.StoredDoseEvent] = []
     var sessionClosed = false
     var sessionActive = false
+    var doseReviewLedger: DashboardDoseReviewLedger? = nil
     var identityNeedsReview = false
     var providerAssociation = "No provider association"
     var localFingerprint: String? = nil

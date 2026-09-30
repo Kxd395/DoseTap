@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		DPAD101 /* DashboardDosePatternAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPAD001 /* DashboardDosePatternAdapter.swift */; };
 		DDRV001 /* EventStorage+DashboardDoseReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDRV101; };
 		DIDENT106 /* DashboardAssociationUITestFixture.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT006 /* DashboardAssociationUITestFixture.swift */; };
 		DIDENT105 /* ProviderSessionAssociationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT005 /* ProviderSessionAssociationView.swift */; };
@@ -209,6 +210,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		DPAD001 /* DashboardDosePatternAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardDosePatternAdapter.swift; sourceTree = "<group>"; };
 		DDRV101 /* EventStorage+DashboardDoseReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+DashboardDoseReview.swift"; sourceTree = "<group>"; };
 		DIDENT006 /* DashboardAssociationUITestFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardAssociationUITestFixture.swift; sourceTree = "<group>"; };
 		DIDENT005 /* ProviderSessionAssociationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderSessionAssociationView.swift; sourceTree = "<group>"; };
@@ -592,6 +594,7 @@
 				DIDENT005 /* ProviderSessionAssociationView.swift */,
 				DIDENT004 /* DashboardProviderMatching.swift */,
 				DIDENT002 /* DashboardIdentityAggregation.swift */,
+				DPAD001 /* DashboardDosePatternAdapter.swift */,
 				CLUST106 /* DashboardTypes.swift */,
 				CLUST109 /* DashboardAnalyticsRefresh.swift */,
 				CLUST111 /* DashboardAnalyticsSupport.swift */,
@@ -1137,6 +1140,7 @@
 				DIDENT105 /* ProviderSessionAssociationView.swift in Sources */,
 				DIDENT104 /* DashboardProviderMatching.swift in Sources */,
 				DIDENT102 /* DashboardIdentityAggregation.swift in Sources */,
+				DPAD101 /* DashboardDosePatternAdapter.swift in Sources */,
 				CLUST107 /* DashboardTypes.swift in Sources */,
 				CLUST108 /* DashboardAnalyticsRefresh.swift in Sources */,
 				CLUST110 /* DashboardAnalyticsSupport.swift in Sources */,

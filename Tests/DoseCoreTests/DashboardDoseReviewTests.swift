@@ -33,4 +33,17 @@ final class DashboardDoseReviewTests: XCTestCase {
         XCTAssertEqual(ledger.current(matching:"changed"),nil)
         XCTAssertEqual(ledger.current(matching:"evidence"),second)
     }
+    func testObservationFingerprintBindsEmptyEvidenceToIdentityDateAndProvider() throws {
+        func fingerprint(_ id: String = "session:a", _ day: String = "2026-09-29", _ provider: String? = nil) -> String? {
+            DashboardDoseReview.observationFingerprint(observationID: id, sessionDate: day, events: [], providerFingerprint: provider)
+        }
+        let original = try XCTUnwrap(fingerprint())
+        XCTAssertEqual(original, fingerprint())
+        XCTAssertNotEqual(original, fingerprint("session:b"))
+        XCTAssertNotEqual(original, fingerprint("session:a", "2026-09-30"))
+        XCTAssertNotEqual(fingerprint("whoop:a", "2026-09-29", "episode-old"), fingerprint("whoop:a", "2026-09-29", "episode-corrected"))
+        XCTAssertNil(fingerprint("", "2026-09-29"))
+        XCTAssertNil(fingerprint("session:a", "invalid"))
+    }
+
 }

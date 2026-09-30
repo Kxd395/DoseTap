@@ -29,6 +29,16 @@ public struct DashboardDoseReview: Codable, Equatable, Sendable {
         }
         return nil
     }
+    /// Bind review evidence to its observation context, including provider corrections when no local session exists.
+    public static func observationFingerprint(observationID: String, sessionDate: String,
+                                              events: [StoredDoseEvent], providerFingerprint: String? = nil) -> String? {
+        guard !observationID.isEmpty, !observationID.contains("\0"),
+              DashboardReportingWindow.isValidDateKey(sessionDate),
+              providerFingerprint.map({ !$0.isEmpty }) ?? true, let canonical = fingerprint(events) else { return nil }
+        let context = ["dose-review-observation.v1", observationID, sessionDate, canonical, providerFingerprint ?? ""]
+        return (try? JSONEncoder().encode(context)).map { $0.base64EncodedString() }
+    }
+
     /// Full canonical evidence comparison, not a hash of private data for transport.
     public static func fingerprint(_ events: [StoredDoseEvent]) -> String? {
         guard events.allSatisfy({ $0.timestamp.timeIntervalSince1970.isFinite }) else { return nil }

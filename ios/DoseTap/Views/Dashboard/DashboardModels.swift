@@ -16,6 +16,7 @@ final class DashboardAnalyticsModel: ObservableObject {
     @Published var isLoading = false
     @Published var savedProviderAssociations: [DashboardProviderAssociation] = []
     var providerAssociationsReady = false
+    @Published var doseReviewReadReady = false
     @Published var lastRefresh: Date?
     @Published var errorMessage: String?
     @Published var sleepSource: DashboardSleepSource = .appleHealth
