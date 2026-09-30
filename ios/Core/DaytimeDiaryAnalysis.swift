@@ -16,6 +16,8 @@ public struct DaytimeSamplingGroup: Identifiable, Sendable {
     public let ratedDays: Int
     public let median: Double?
     public let distribution: [Int: Int]
+    public let contextLabel: String?
+    public let contextSourceRecordIDs: [String]
     public var clockBandLabel: String { String(format: "%02d:00–%02d:59 local", clockBand * 6, clockBand * 6 + 5) }
 }
 
@@ -24,6 +26,8 @@ public struct DaytimeDiaryAnalysis: Sendable {
     public let calculationVersion = 1
     public let observations: [DaytimeCheckIn]
     public let groups: [DaytimeSamplingGroup]
+    public let observationContexts: [UUID: DaytimeObservationContext]?
+    public var contextScopeLabel: String { observationContexts == nil ? "Descriptive samples; work and medication context not adjusted" : "Grouped by documented work and medication-reference context; unknowns kept separate" }
     public let answeredCount: Int
     public let ratedCalendarDays: Int
     public let calendarDays: Int
@@ -37,7 +41,7 @@ public struct DaytimeDiaryAnalysis: Sendable {
     public var partiallyReviewedCalendarDays: Int { reviewedCalendarDays - fullyReviewedCalendarDays }
     public var daysWithoutReviewedInterval: Int { calendarDays - reviewedCalendarDays }
 
-    public init(observations input: [DaytimeCheckIn], events: [DaytimeEvent], start: Date, end: Date, now: Date, timeZone: TimeZone, includesEnd: Bool = true) throws {
+    public init(observations input: [DaytimeCheckIn], events: [DaytimeEvent], start: Date, end: Date, now: Date, timeZone: TimeZone, includesEnd: Bool = true, contexts: [UUID: DaytimeObservationContext]? = nil) throws {
         var calendar = Calendar(identifier: .gregorian); calendar.timeZone = timeZone
         func supported(_ date: Date) -> Bool {
             guard date.timeIntervalSince1970.isFinite else { return false }
@@ -55,6 +59,15 @@ public struct DaytimeDiaryAnalysis: Sendable {
         observations = input.filter { inRange($0.assessedAt) }.sorted {
             $0.assessedAt == $1.assessedAt ? $0.id.uuidString < $1.id.uuidString : $0.assessedAt < $1.assessedAt
         }
+        if let contexts {
+            for row in observations {
+                guard let context = contexts[row.id], context.observationID == row.id,
+                      context.observationRevisionID == row.revisionID, context.assessedAt == row.assessedAt,
+                      context.asOf == now else { throw DaytimeDiaryError.invalid }
+            }
+        }
+        let selectedObservations = observations
+        observationContexts = contexts.map { values in Dictionary(uniqueKeysWithValues: selectedObservations.compactMap { row in values[row.id].map { (row.id, $0) } }) }
         let rated = observations.filter { $0.response != nil }
         answeredCount = rated.count; ratedCalendarDays = Set(rated.map { dayIndex($0.assessedAt) }).count
         eventCountsByKind = Dictionary(grouping: events.filter { inRange($0.occurredAt) }, by: \.kind).mapValues(\.count)
@@ -99,7 +112,7 @@ public struct DaytimeDiaryAnalysis: Sendable {
             let band = local.component(.hour, from: row.assessedAt) / 6
             let protocolKey = row.samplingProtocolID?.uuidString ?? (row.origin == .scheduled ? (row.promptID ?? row.id).uuidString : "unscheduled")
             let key = [row.origin.rawValue, row.setting.rawValue, row.timeZoneIdentifier, String(band), protocolKey,
-                row.samplingProtocolLabel ?? "", row.instrumentID, row.contentVersion, row.language].joined(separator: "|")
+                row.samplingProtocolLabel ?? "", row.instrumentID, row.contentVersion, row.language, contexts?[row.id]?.groupingKey ?? "unadjusted"].map { "\($0.utf8.count):\($0)" }.joined()
             buckets[key, default: []].append(row)
         }
         groups = buckets.keys.sorted().compactMap { key in
@@ -113,7 +126,8 @@ public struct DaytimeDiaryAnalysis: Sendable {
                 clockBand: local.component(.hour, from: first.assessedAt) / 6, observationIDs: rows.map(\.id), entryCount: rows.count,
                 firstAssessedAt: rows.map(\.assessedAt).min() ?? first.assessedAt, lastAssessedAt: rows.map(\.assessedAt).max() ?? first.assessedAt, answeredCount: scores.count,
                 ratedDays: Set(rows.filter { $0.response != nil }.map { local.startOfDay(for: $0.assessedAt) }).count,
-                median: median, distribution: Dictionary(grouping: scores, by: { $0 }).mapValues(\.count))
+                median: median, distribution: Dictionary(grouping: scores, by: { $0 }).mapValues(\.count),
+                contextLabel: contexts?[first.id]?.label, contextSourceRecordIDs: Array(Set(rows.flatMap { contexts?[$0.id]?.sourceRecordIDs ?? [] })).sorted())
         }
     }
 }

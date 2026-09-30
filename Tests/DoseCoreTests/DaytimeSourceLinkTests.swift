@@ -61,4 +61,13 @@ final class DaytimeSourceLinkTests: XCTestCase {
         XCTAssertThrowsError(try DaytimeCheckIn.decode(String(decoding: payload, as: UTF8.self)))
     }
 
+    func testHistoricalMedicationTimezoneIsPreservedWithoutInventingCalendarDate() throws {
+        let value = try DaytimeSourceLink(kind: .medication, sourceID: "legacy", evidenceKey: digest,
+            timeZoneIdentifier: "Historical/NoLongerRecognized", start: now, timePrecision: .reported, selectedAt: now)
+        XCTAssertEqual(value.timeZoneIdentifier, "Historical/NoLongerRecognized")
+        XCTAssertNil(value.sourceCalendarDay)
+        XCTAssertThrowsError(try DaytimeSourceLink(kind: .nap, sourceID: "legacy", evidenceKey: digest,
+            sourceCalendarDay: "2026-09-21", timeZoneIdentifier: "Historical/NoLongerRecognized", selectedAt: now))
+    }
+
 }

@@ -27,7 +27,8 @@ final class DashboardSleepMetricProjectionTests: XCTestCase {
         XCTAssertEqual((try JSONSerialization.jsonObject(with: encoded) as? [String: Any])?["unmeasuredMinutes"] as? Double, 30)
     }
     func testObservedAllAwakeIsZeroAndNoDoseIsNotApplicable() {
-        let awake = DashboardSleepMetricProjection.afterDose2(pattern: pattern(), estimate: estimate(awake: true), source: .appleHealth, freshness: .current)
+        let awake = DashboardSleepMetricProjection.afterDose2(pattern: pattern(), estimate: estimate(awake: true), source: .appleHealth,
+            freshness: .current, boundaryBasis: .providerLastObservedSleepEnd)
         XCTAssertEqual(awake.metric.state, .available); XCTAssertEqual(awake.summaryValue(), 0)
         let absent = DashboardSleepMetricProjection.afterDose2(pattern: pattern(second: false), estimate: nil, source: .appleHealth, freshness: .current)
         XCTAssertEqual(absent.metric.state, .notApplicable); XCTAssertNil(absent.metric.value)
@@ -57,5 +58,39 @@ final class DashboardSleepMetricProjectionTests: XCTestCase {
         let result = DashboardSleepMetricProjection.afterDose2(pattern: pattern(), estimate: nil, source: .appleHealth,
             freshness: .current, boundaryBasis: .reportedFinalAwakening, dose2At: start, endpointAt: start)
         XCTAssertEqual(result.metric.state, .needsReview); XCTAssertNil(result.metric.value)
+    }
+    func testUnnamedOrMainEpisodeBoundaryCannotAuthorizePostDoseSummary() {
+        for basis in [DashboardSleepMetricProjection.BoundaryBasis.unresolved, .providerMainEpisode] {
+            let result = DashboardSleepMetricProjection.afterDose2(pattern: pattern(), estimate: estimate(),
+                source: .appleHealth, freshness: .current, boundaryBasis: basis)
+            XCTAssertEqual(result.metric.state, .needsReview)
+            XCTAssertNil(result.summaryValue(includePartial: true))
+            XCTAssertEqual(result.coveredMinutes, 60)
+        }
+    }
+    func testReviewedAndPlannedWindowBasesRequireExplicitCoverageAndRemainDistinct() throws {
+        let dose2 = start.addingTimeInterval(180 * 60), end = dose2.addingTimeInterval(60 * 60)
+        let coverage = try XCTUnwrap(SleepIntervalCoverage.calculate(start: dose2, end: end,
+            intervals: [.init(start: dose2, end: end, asleep: true)]))
+        for basis in [DashboardSleepMetricProjection.BoundaryBasis.reviewedWindowEnd, .appSessionEnd, .requiredWakeTarget] {
+            let bound = DashboardSleepMetricProjection.afterDose2(pattern: pattern(), coverage: coverage,
+                source: .appleHealth, freshness: .current, boundaryBasis: basis)
+            XCTAssertEqual(bound.metric.state, .available); XCTAssertEqual(bound.summaryValue(), 60)
+            XCTAssertEqual(bound.boundaryBasis, basis); XCTAssertEqual(bound.derivationVersion, "dashboard-sleep-metric.v2")
+            XCTAssertEqual(try JSONDecoder().decode(DashboardSleepMetricProjection.self, from: JSONEncoder().encode(bound)), bound)
+            let unbound = DashboardSleepMetricProjection.afterDose2(pattern: pattern(), estimate: estimate(),
+                source: .appleHealth, freshness: .current, boundaryBasis: basis)
+            XCTAssertEqual(unbound.metric.state, .needsReview); XCTAssertNil(unbound.summaryValue(includePartial: true))
+        }
+    }
+    func testDecodedLegacyUnnamedWindowCannotEnterSummary() throws {
+        let named = DashboardSleepMetricProjection.afterDose2(pattern: pattern(), estimate: estimate(),
+            source: .appleHealth, freshness: .current, boundaryBasis: .reportedFinalAwakening)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(named)) as? [String: Any])
+        for basis in ["unresolved", "providerMainEpisode"] {
+            object["boundaryBasis"] = basis; object["derivationVersion"] = "dashboard-sleep-metric.v1"
+            let decoded = try JSONDecoder().decode(DashboardSleepMetricProjection.self, from: JSONSerialization.data(withJSONObject: object))
+            XCTAssertNil(decoded.summaryValue(includePartial: true))
+        }
     }
 }

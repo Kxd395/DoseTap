@@ -39,7 +39,7 @@ public struct DaytimeSourceLink: Codable, Equatable, Identifiable, Sendable {
               selectedAt.timeIntervalSince1970.isFinite,
               dates.allSatisfy({ $0.timeIntervalSince1970.isFinite && $0 <= selectedAt }),
               timePrecision == .unknown || !dates.isEmpty,
-              timeZoneIdentifier.map({ TimeZone(identifier: $0) != nil }) ?? true,
+              timeZoneIdentifier.map({ validID($0) && (TimeZone(identifier: $0) != nil || (kind == .medication && sourceCalendarDay == nil)) }) ?? true,
               sourceCalendarDay.map(DashboardReportingWindow.isValidDateKey) ?? true,
               sourceCalendarDay == nil || timeZoneIdentifier != nil,
               kind != .nap || (sourceCalendarDay != nil && timeZoneIdentifier != nil) else { throw DaytimeDiaryError.invalid }

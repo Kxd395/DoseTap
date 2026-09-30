@@ -2,10 +2,10 @@ import Foundation
 
 /// Shared screen/report policy; arithmetic remains in PostDoseSleepEstimate/SleepIntervalCoverage.
 public struct DashboardSleepMetricProjection: Codable, Equatable, Sendable {
-    public static let version = "dashboard-sleep-metric.v1"
+    public static let version = "dashboard-sleep-metric.v2"
     public enum Source: String, Codable, Sendable { case appleHealth = "apple-health", whoop }
     public enum Definition: String, Codable, Sendable { case mainProviderEpisode, observedAfterDose2 }
-    public enum BoundaryBasis: String, Codable, Sendable { case providerMainEpisode, reportedFinalAwakening, providerLastObservedSleepEnd, unresolved }
+    public enum BoundaryBasis: String, Codable, Sendable { case providerMainEpisode, reportedFinalAwakening, providerLastObservedSleepEnd, reviewedWindowEnd, appSessionEnd, requiredWakeTarget, unresolved }
     public enum Freshness: String, Codable, Sendable { case current, stale, unavailable }
     public let derivationVersion: String
     public let metric: DashboardMetricValue
@@ -27,7 +27,8 @@ public struct DashboardSleepMetricProjection: Codable, Equatable, Sendable {
         unmeasuredMinutes = covered.flatMap { value in interval.map { max(0, $0 - value) } }
     }
     public func summaryValue(includePartial: Bool = false) -> Double? {
-        metric.state == .available || (includePartial && metric.state == .partial) ? metric.value : nil
+        if definition == .observedAfterDose2 && (boundaryBasis == .unresolved || boundaryBasis == .providerMainEpisode) { return nil }
+        return metric.state == .available || (includePartial && metric.state == .partial) ? metric.value : nil
     }
     /// Provider-defined main episode total. It does not assert complete reviewed-night coverage.
     public static func providerEpisode(totalMinutes: Double?, source: Source, freshness: Freshness) -> Self {
@@ -46,6 +47,12 @@ public struct DashboardSleepMetricProjection: Codable, Equatable, Sendable {
     public static func afterDose2(pattern: DashboardDosePattern, estimate: PostDoseSleepEstimate?,
                                  source: Source, freshness: Freshness, boundaryBasis: BoundaryBasis = .unresolved,
                                  dose2At: Date? = nil, endpointAt: Date? = nil) -> Self {
+        projectAfterDose2(pattern: pattern, estimate: estimate, source: source, freshness: freshness,
+            boundaryBasis: boundaryBasis, dose2At: dose2At, endpointAt: endpointAt, reviewedCoverage: false)
+    }
+    private static func projectAfterDose2(pattern: DashboardDosePattern, estimate: PostDoseSleepEstimate?,
+        source: Source, freshness: Freshness, boundaryBasis: BoundaryBasis,
+        dose2At: Date?, endpointAt: Date?, reviewedCoverage: Bool) -> Self {
         func result(_ value: Double?, _ state: DashboardMetricState, _ reason: String,
                     _ estimate: PostDoseSleepEstimate? = nil) -> Self {
             .init(value: value, state: state, reason: reason, source: source, definition: .observedAfterDose2,
@@ -63,6 +70,10 @@ public struct DashboardSleepMetricProjection: Codable, Equatable, Sendable {
         }
         guard freshness != .unavailable else { return result(nil, .unavailable, "provider_observations_unavailable") }
         guard let estimate else { return result(nil, .unavailable, "post_dose_observations_unavailable") }
+        guard boundaryBasis == .reportedFinalAwakening || boundaryBasis == .providerLastObservedSleepEnd
+            || (reviewedCoverage && [.reviewedWindowEnd, .appSessionEnd, .requiredWakeTarget].contains(boundaryBasis)) else {
+            return result(nil, .needsReview, "post_dose_endpoint_basis_unresolved_or_incompatible", estimate)
+        }
         guard estimate.asleepMinutes.isFinite, estimate.coveredMinutes.isFinite, estimate.intervalMinutes.isFinite,
               estimate.asleepMinutes >= 0, estimate.coveredMinutes > 0, estimate.asleepMinutes <= estimate.coveredMinutes,
               estimate.coveredMinutes <= estimate.intervalMinutes else { return result(nil, .needsReview, "invalid_measured_coverage") }
@@ -70,14 +81,15 @@ public struct DashboardSleepMetricProjection: Codable, Equatable, Sendable {
         return result(estimate.asleepMinutes, partial || freshness == .stale ? .partial : .available,
                       partial ? "observed_sleep_with_unmeasured_time" : freshness == .stale ? "retained_stale_post_dose_sleep" : "observed_post_dose_sleep", estimate)
     }
-    /// Accept an already resolved/clipped reviewed coverage value without deriving sleep again.
+    /// Accept already resolved/clipped coverage. App close, required target and reviewed-window
+    /// end name observation windows; none is evidence of actual awakening or physiological response.
     public static func afterDose2(pattern: DashboardDosePattern, coverage: SleepIntervalCoverage?,
                                  source: Source, freshness: Freshness, boundaryBasis: BoundaryBasis = .unresolved) -> Self {
         let estimate = coverage.flatMap { value -> PostDoseSleepEstimate? in
             guard let asleep = value.asleepMinutes else { return nil }
             return .init(asleepMinutes: asleep, coveredMinutes: value.coveredMinutes, intervalMinutes: value.intervalMinutes)
         }
-        return afterDose2(pattern: pattern, estimate: estimate, source: source, freshness: freshness,
-                          boundaryBasis: boundaryBasis, dose2At: coverage?.start, endpointAt: coverage?.end)
+        return projectAfterDose2(pattern: pattern, estimate: estimate, source: source, freshness: freshness,
+            boundaryBasis: boundaryBasis, dose2At: coverage?.start, endpointAt: coverage?.end, reviewedCoverage: true)
     }
 }
