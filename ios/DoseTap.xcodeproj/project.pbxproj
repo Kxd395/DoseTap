@@ -43,6 +43,7 @@
 		WBCTX003 /* WorkContextEditors.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBCTX103 /* WorkContextEditors.swift */; };
 		WBCTX002 /* DashboardWorkBlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBCTX102 /* DashboardWorkBlockView.swift */; };
 		WBCTX001 /* EventStorage+WorkContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBCTX101 /* EventStorage+WorkContext.swift */; };
+		PHRU1006 /* PhysicianDashboardReviewLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRU006 /* PhysicianDashboardReviewLink.swift */; };
 		PHRU1005 /* PhysicianReportAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRU005 /* PhysicianReportAdapter.swift */; };
 		PHRU1004 /* PhysicianReportPDF.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRU004 /* PhysicianReportPDF.swift */; };
 		PHRU1003 /* PhysicianReportPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRU003 /* PhysicianReportPreview.swift */; };
@@ -60,6 +61,7 @@
 		DB770001 /* DashboardPublisherIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB770002 /* DashboardPublisherIdentity.swift */; };
 		AE5EED904A21B803837709F5 /* SessionRepositoryDashboardSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CFAA5DE2681CBC5A3CDB0C /* SessionRepositoryDashboardSnapshot.swift */; };
 		5E58C76954CF526C132B5579 /* EventStorage+DashboardSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56DB383323DB5206C15956FD /* EventStorage+DashboardSnapshot.swift */; };
+		PHRT1001 /* PhysicianReviewUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRT001 /* PhysicianReviewUITests.swift */; };
 		D074B303 /* MedicationPresetSettingsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D074F303 /* MedicationPresetSettingsUITests.swift */; };
 		D074B302 /* MedicationPresetSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D074F302 /* MedicationPresetSettingsView.swift */; };
 		D074B301 /* MedicationPresetSetupModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D074F301 /* MedicationPresetSetupModel.swift */; };
@@ -292,6 +294,7 @@
 		WBCTX103 /* WorkContextEditors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkContextEditors.swift; sourceTree = "<group>"; };
 		WBCTX102 /* DashboardWorkBlockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardWorkBlockView.swift; sourceTree = "<group>"; };
 		WBCTX101 /* EventStorage+WorkContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+WorkContext.swift"; sourceTree = "<group>"; };
+		PHRU006 /* PhysicianDashboardReviewLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianDashboardReviewLink.swift; sourceTree = "<group>"; };
 		PHRU005 /* PhysicianReportAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianReportAdapter.swift; sourceTree = "<group>"; };
 		PHRU004 /* PhysicianReportPDF.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianReportPDF.swift; sourceTree = "<group>"; };
 		PHRU003 /* PhysicianReportPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianReportPreview.swift; sourceTree = "<group>"; };
@@ -308,6 +311,7 @@
 		DB770002 /* DashboardPublisherIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardPublisherIdentity.swift; sourceTree = "<group>"; };
 		72CFAA5DE2681CBC5A3CDB0C /* SessionRepositoryDashboardSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SessionRepositoryDashboardSnapshot.swift"; sourceTree = "<group>"; };
 		56DB383323DB5206C15956FD /* EventStorage+DashboardSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+DashboardSnapshot.swift"; sourceTree = "<group>"; };
+		PHRT001 /* PhysicianReviewUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianReviewUITests.swift; sourceTree = "<group>"; };
 		D074F303 /* MedicationPresetSettingsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationPresetSettingsUITests.swift; sourceTree = "<group>"; };
 		D074F302 /* MedicationPresetSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationPresetSettingsView.swift; sourceTree = "<group>"; };
 		D074F301 /* MedicationPresetSetupModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationPresetSetupModel.swift; sourceTree = "<group>"; };
@@ -890,6 +894,7 @@
 		DAYF006 /* DaytimeDashboardRoute.swift */,
 				DAYF004 /* DaytimeEventView.swift */,
 				PHRU003 /* PhysicianReportPreview.swift */,
+				PHRU006 /* PhysicianDashboardReviewLink.swift */,
 				PHRU005 /* PhysicianReportAdapter.swift */,
 				PHRU004 /* PhysicianReportPDF.swift */,
 				PHRU002 /* PhysicianReviewView.swift */,
@@ -918,6 +923,7 @@
 				DYPU101 /* DaytimePromptUITests.swift */,
 				CTX003F /* ContextMorningOutcomesUITests.swift */,
 				NAP007F /* SleepNapsUITests.swift */,
+				PHRT001 /* PhysicianReviewUITests.swift */,
 				D074F303 /* MedicationPresetSettingsUITests.swift */,
 				UI_F02 /* DoseTapUITestsLaunchTests.swift */,
 			);
@@ -1179,6 +1185,7 @@
 				NWB002 /* EventStorage+NightOutcome.swift in Sources */,
 				DDRV001 /* EventStorage+DashboardDoseReview.swift in Sources */,
 				PHRU1003 /* PhysicianReportPreview.swift in Sources */,
+				PHRU1006 /* PhysicianDashboardReviewLink.swift in Sources */,
 				PHRU1005 /* PhysicianReportAdapter.swift in Sources */,
 				PHRU1004 /* PhysicianReportPDF.swift in Sources */,
 				PHRU1002 /* PhysicianReviewView.swift in Sources */,
@@ -1351,6 +1358,7 @@
 				DYPU001 /* DaytimePromptUITests.swift in Sources */,
 				CTX003B /* ContextMorningOutcomesUITests.swift in Sources */,
 				NAP007B /* SleepNapsUITests.swift in Sources */,
+				PHRT1001 /* PhysicianReviewUITests.swift in Sources */,
 				D074B303 /* MedicationPresetSettingsUITests.swift in Sources */,
 				UI_B02 /* DoseTapUITestsLaunchTests.swift in Sources */,
 			);

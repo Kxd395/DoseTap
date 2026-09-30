@@ -103,3 +103,32 @@ final class PhysicianReportAdapterTests: XCTestCase {
     }
 
 }
+
+extension PhysicianReportAdapterTests {
+    func testExplicitPreparationFreezesExactPeriodSourceAndPartialPolicy() async throws {
+        let model = await model(), period = try period()
+        let row = try DaytimeCheckIn(assessedAt: now.addingTimeInterval(-60), recordedAt: now, timeZoneIdentifier: "UTC", response: 4)
+        try model.sessionRepo.saveDaytimeCheckIn(row)
+        var selection = DashboardInspectionState(); selection.includePartialMetrics = true
+        selection.contextStratumID = "retained-empty-context"
+        let source = PhysicianSourcePreparation(model: model)
+        let prepared = try await source.prepare(period: period, inspection: selection, sleepSource: .whoop)
+        XCTAssertEqual(prepared.period, period); XCTAssertTrue(prepared.includePartialMetrics)
+        XCTAssertEqual(prepared.observations.map(\.id), ["daytime:" + row.id.uuidString])
+        XCTAssertTrue(prepared.contexts.first?.lines.contains("Selected sleep source: WHOOP") == true)
+        XCTAssertTrue(prepared.contexts.first?.lines.contains { $0.contains("retained-empty-context") } == true)
+        selection.resetFilters(); model.inspection = selection
+        XCTAssertTrue(prepared.includePartialMetrics)
+        let report = try PhysicianReportSnapshot(period: prepared.period, observations: prepared.observations, notes: [], questions: [],
+            appVersion: "test", generatedAt: now, contexts: prepared.contexts, includePartialMetrics: prepared.includePartialMetrics)
+        XCTAssertEqual(report.includePartialMetrics, true)
+    }
+    func testCancelledPreparationCannotPublishPreviewSources() async throws {
+        let model = await model(), period = try period(), source = PhysicianSourcePreparation(model: model)
+        let task = Task { try await source.prepare(period: period, inspection: .init(), sleepSource: .appleHealth) }
+        task.cancel()
+        do { _ = try await task.value; XCTFail("Cancelled preparation must not produce a capture") }
+        catch { XCTAssertTrue(error is CancellationError) }
+        XCTAssertTrue(try model.sessionRepo.physicianReports().isEmpty)
+    }
+}

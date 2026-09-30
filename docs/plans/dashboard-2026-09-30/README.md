@@ -1,9 +1,9 @@
 # September 30 dashboard consolidation and delivery roadmap
 
 Date: 2026-09-30.
-Status: proposed implementation roadmap; no dashboard feature is delivered by this documentation change.
-Code review baseline: upstream `main` at `99914e4e77a0a0655e0c6a41383a5a274c39b91f`.
-Authority: [SSOT](../../SSOT/README.md) defines implemented behavior; Plane owns live priority, assignment and acceptance. This roadmap consolidates requirements without changing medication, alarms, records or the SSOT.
+Status: implementation and integration In Progress. The original proposal and acceptance requirements are preserved below; source implementation does not establish installed-device delivery.
+Original proposal baseline: upstream `main` at `99914e4e77a0a0655e0c6a41383a5a274c39b91f`.
+Authority: [SSOT](../../SSOT/README.md) defines implemented behavior; Plane owns live priority, assignment and acceptance. This roadmap preserves the original requirements and links current implementation contracts. Final delivery evidence belongs to the integration owner and the exact Plane workpads.
 
 ## Preserved inputs
 
@@ -14,7 +14,7 @@ The four owner-supplied documents below are preserved unchanged. Their September
 - [Single-dose and dose-pattern views](DoseTap_Single_Dose_and_Dose_Pattern_Views_2026-09-30.md): retain usable sleep independently of dose-spacing eligibility.
 - [Daytime check-in and visit preparation](DoseTap_Daytime_CheckIn_and_ESS_Prep_2026-09-30.md): independent observations, prompt history and unscored visit context.
 
-## Shared decisions before implementation
+## Shared contract decisions
 
 1. **Identity:** retain a stable treatment/session ID and a separate provider sleep-episode ID with an explicit association. A treatment date is a grouping label, never the unique observation ID. Multiple sessions on one date remain selectable; ambiguous associations stay unresolved. Provider-only or confirmed no-dose sleep can exist without creating a medication action.
 2. **Metric contract:** one versioned domain contract owns units, occurrence timestamps, source policy, selected pair/endpoint IDs, eligible inputs, calculation version, coverage and exclusion reasons. Each result distinguishes available, partial, unavailable, not applicable and needs review. Record-count completeness and timestamp completeness are independent. Views, accessible tables, exports and Studio consume the same derivation.
@@ -29,9 +29,23 @@ The four owner-supplied documents below are preserved unchanged. Their September
 11. **Daytime grain:** append one independent assessment ID per observation, with assessed-at, recorded-at, recall/review bounds, instrument/content version and optional prompt/event links. It must not require or create a night session. Keep scheduled, user-initiated and retrospective entries distinct; a delayed response assesses its actual current window, not the intended reminder time. Existing event links and evening review do not duplicate events.
 12. **Instrument decision:** the [September 25 roadmap](../2026-09-25-daytime-treatment-roadmap.md) starts with a custom 0–10 diary; the new addendum proposes authorized KSS. Retain those as different instruments and require an explicit content/version decision before named-scale enablement. Do not convert old ratings to KSS, infer diagnosis, derive ESS from diary/KSS, interpolate missing formal items or combine scales. ESS/KSS/NSS content and electronic-use review remain separate release gates.
 
-## Current implementation mapping
+## Current implementation progress
 
-These are reuse/audit entry points at the baseline, not claims that all proposed contracts exist.
+Source review at `c94c27c` shows implementation across the stages below. All remain **In Progress for integrated delivery and acceptance**; this table is a source navigation update, not a build or installation record.
+
+| Area | Implemented source and current contract | Remaining delivery boundary |
+| --- | --- | --- |
+| Foundations | Stable session/provider association, calendar ranges, explicit metric states, provider access invalidation and retained stale snapshots. [Provider contract](../../SSOT/contracts/dashboard-provider-access.md). | Integrated source/consumer parity and applicable owner, provider and device checks. |
+| Sleep and dose patterns | By-date/category/paired views, reviewed count and plan evidence, source-specific sleep definitions and filtered export. [Dose-pattern contract](../../SSOT/contracts/dashboard-dose-patterns.md). | Final integrated validation, consumer consistency and owner review. |
+| Replay and work block | Named interval inspection and reviewed coverage; versioned work context with planned versus confirmed basis. [Replay](../../SSOT/contracts/dashboard-replay.md), [work context](../../SSOT/contracts/work-block-context.md). | Remaining interaction/export parity, exact source-boundary adoption and integrated acceptance. |
+| Daytime and nap diary | Independent custom observations/events, reminder records, reviewed nap evidence and source provenance. [Daytime](../../SSOT/contracts/daytime-check-in.md), [reminders](../../SSOT/contracts/daytime-prompts.md), [naps](../../SSOT/contracts/sleep-naps.md). | Final app integration, notification/device/privacy and owner-observed checks. Named clinical instruments remain separate. |
+| Physician review | Completed-visit history, immutable report preview, coverage and explicit export/share. [Report contract](../../SSOT/contracts/physician-review.md). | Integrated report parity, source preparation, privacy and owner review. |
+
+WHOOP endpoint and scored-stage evidence now have reviewed implementation contracts. Production connection and real-account validation remain open. The endpoint model does not enable WHOOP transfer to iPad or turn aggregate stages into interval coverage.
+
+## Original implementation mapping (historical)
+
+The following table records reuse/audit entry points and gaps at the original `99914e4` proposal baseline. Its statements about date-key joins, 180-day ranges and not-yet-existing foundations are historical; use the current contracts above for the later implementation.
 
 | Responsibility | Existing source | Required follow-on |
 | --- | --- | --- |
@@ -60,9 +74,13 @@ Keep the fully custom interval explorer, predictive/medication models, causal ra
 
 ## Tracker ownership and open gates
 
-Plane preflight on 2026-09-30 returned the states below. This is a dated navigation snapshot, not a replacement for live preflight. DOSETAP-79 owns this documentation consolidation/main-workspace reconciliation; it does not claim implementation of the dashboard stages.
+Read-only exact-ID preflight during this documentation review confirmed both **DOSETAP-58** (independent daytime observations/events) and **DOSETAP-59** (clinician report) are **In Progress**. Their original Todo entries below are preserved as history. Plane remains the live work-status authority; this update does not close either item or claim delivery.
 
-| Exact item | State at readback | Related scope and gates |
+### Original tracker snapshot (historical)
+
+The table below is the original September 30 planning readback, not current assignment or state. DOSETAP-79 owned that documentation consolidation/main-workspace reconciliation. Its original wording about starting work applies to that historical planning record.
+
+| Exact item | Historical state at original readback | Original related scope and gates |
 | --- | --- | --- |
 | DOSETAP-45 | In Progress | Dashboard calculations, representation, source labels and consumer/export parity; owner comparison across real nights, accessibility, iPad and release performance remain open. |
 | DOSETAP-56 | In Progress | Sleep boundaries/evidence, reviewed-window coverage and wider consumer adoption; durable provider reconciliation and real Apple Health/device evidence remain separate. |
@@ -83,4 +101,4 @@ For future behavior slices follow [TESTING_GUIDE.md](../../TESTING_GUIDE.md) and
 
 The [September 30 implementation record](../../review/2026-09-30-dashboard-calendar-ranges.md) tracks the reporting-range portion of stage 1: shared phone/iPad calendar months and explicit provider query bounds. This does not close the other foundation or dashboard stages; integration and device/provider acceptance are reported separately.
 
-The [provider-access prerequisite](../../review/2026-09-30-dashboard-provider-access.md) adds invalidation and request-revision checks before future failed-refresh retention. It does not implement a stale cache.
+The [provider-access prerequisite](../../review/2026-09-30-dashboard-provider-access.md) records the earlier invalidation step. Subsequent source implements transient-failure retention with original query/as-of metadata and access invalidation, as described in the [current provider contract](../../SSOT/contracts/dashboard-provider-access.md). The prerequisite record is historical evidence of that smaller step, not the full current refresh behavior.

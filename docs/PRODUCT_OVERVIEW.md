@@ -1,67 +1,93 @@
 # DoseTap product overview
 
-Status: Current reference, with the WHOOP roadmap explicitly identified as planned
-Last verified against the source: 2026-09-30
+Status: Presentation candidate. The next-version features identified below are pending integrated delivery and verification. Availability on an installed device must be confirmed separately.
+Source review: September 30, 2026.
 
 ## What DoseTap does
 
-DoseTap is a local-first iPhone treatment diary that brings together recorded nighttime doses, sleep-related events, morning observations and optional wearable data. It helps a person review what they recorded and what their sleep provider observed for the same night. It does not automatically adjust medication or determine whether a dose is safe to take.
+DoseTap is a local-first iPhone treatment diary that brings together recorded nighttime doses, sleep-related events, morning observations and optional wearable data. It helps a person review their own treatment record alongside the sleep observations supplied by a connected provider.
 
-The person records Dose 1 and Dose 2 in DoseTap, can log events such as a bathroom visit or waking during the night, and completes a morning check-in. With permission, DoseTap reads Apple Health sleep records and supported measurements to add sleep context to the diary. Medication records, wearable measurements and questionnaire answers retain their own sources and meanings.
+The person records Dose 1 and Dose 2, can log events such as a bathroom visit or waking during the night, and completes a morning check-in. Medication records, questionnaire answers and wearable measurements retain their own sources. DoseTap does not automatically adjust medication or determine whether a dose is safe to take.
 
 ## How Apple Health and Apple Watch fit together
 
-Apple Watch can record sleep information into Apple Health. DoseTap reads the available Apple Health sleep records through Apple's HealthKit interface after the person enables the integration and grants access. Apple Health is the integration point: records can also come from other supported apps or devices, so an Apple Health value is not necessarily an Apple Watch-only measurement.
+Apple Watch can write sleep information to Apple Health. With the person's permission, DoseTap reads the available sleep records through Apple's HealthKit interface. Apple Health is the integration point: records can also come from other supported apps or devices, so an Apple Health value is not necessarily an Apple Watch-only measurement.
 
-DoseTap also supports reading heart rate, respiratory rate, heart-rate variability and resting heart rate from Apple Health. Availability depends on the records the provider supplies and the access the person allows. The diary can still record doses and check-in answers without wearable data. Missing measurements remain unavailable rather than being filled in from the time the app was opened.
+Supported context includes heart rate, respiratory rate, heart-rate variability and resting heart rate when those records are available. Dose logging and check-ins can continue without wearable data. Missing measurements remain unavailable.
 
 ## Which time means what?
 
-Ending a DoseTap session and completing its check-in do **not** determine the Apple Health sleep total. These are separate records:
+**The sleep measurements come from the provider's recorded observations. Tapping Wake Up or finishing the morning check-in records a separate diary action and does not extend measured sleep.**
 
-| Record | Where the time comes from | What it means |
+| Record | Where the time comes from | Meaning |
 | --- | --- | --- |
-| Apple Health sleep onset | Start of the first asleep interval in DoseTap's selected main sleep episode | The provider-based estimate of when sleep began |
-| Apple Health sleep ending | End of the last asleep interval in that episode | The estimated sleep ending; an immediately adjoining awake interval provides additional support. Without that transition, it is only the last observed sleep ending, not proof of the exact awakening time. |
-| Apple Health total sleep | Duration of intervals classified as asleep in the selected main episode | Recorded sleep time; awake intervals are excluded. It is not the elapsed time between opening and closing the DoseTap session. |
-| DoseTap **Wake Up** event | Time the person confirms Wake Up in the app | A logged app action that opens the morning check-in; it may occur later than the provider's sleep ending |
-| Morning check-in completion | Time the answers are successfully saved and the active session closes | Completion of the diary workflow, separate from measured sleep |
-| Diary **Final awakening** | Time explicitly entered and saved by the person in Wake & Next Day | A self-reported observation that can differ from the provider estimate |
+| Apple Health sleep onset | Start of the first asleep interval in the selected main episode | Provider-based estimate of when sleep began |
+| Apple Health sleep ending | End of the last asleep interval in that episode | Last observed sleep ending. An immediately adjoining awake interval adds evidence of a transition; absent that transition, the exact awakening time remains uncertain. |
+| Apple Health total sleep | Available intervals classified as asleep in the selected main episode | Recorded asleep time, with awake time excluded |
+| DoseTap Wake Up event | Time the person confirms Wake Up in the app | Logged app action that opens the morning check-in |
+| Morning check-in completion | Time the answers are saved and the active session closes | Completion of the diary workflow |
+| Diary Final awakening | Time the person explicitly enters and saves | Self-reported final awakening, which can differ from the provider estimate |
+| WHOOP original episode start and end, in the forthcoming integration | Original timestamps supplied for the WHOOP sleep record | WHOOP's episode boundaries. Its end is not automatically treated as the last observed asleep instant or the person's reported final awakening. |
 
-For example, Apple Health may show sleep ending at **7:00 AM**, while the person taps **Wake Up at 8:00 AM** and completes the check-in at **8:05 AM**. DoseTap keeps these meanings separate. The later app actions do not add an extra hour or five minutes to the Apple Health sleep total.
+For example, Apple Health may show sleep ending at **7:00 AM**, while the person taps **Wake Up at 8:00 AM** and finishes the check-in at **8:05 AM**. The later app actions do not add 65 minutes to the Apple Health sleep total.
 
-The current Apple Health summary selects the main sleep episode. Its total may differ from an Apple Health daily total that includes naps or other sleep episodes. A provider-derived sleep ending is an estimate from the available observations, and a gap in recording does not establish that the person was asleep or awake.
+The main-episode total can differ from an Apple Health daily total that also includes naps or other episodes. Missing observations do not establish that the person was asleep or awake.
 
 ## How dose timing and sleep are compared
 
-DoseTap keeps the recorded dose times alongside sleep observations so the person can review their night with context. The current **estimated sleep after Dose 2** uses the recorded Dose 2 time as its starting boundary and the explicitly saved diary Final awakening as its ending boundary when available; otherwise it uses the Apple Health sleep-ending estimate. It counts only the available Apple Health intervals classified as asleep within those boundaries. It does not assume that the entire time after Dose 2 was spent sleeping.
+DoseTap keeps recorded dose times alongside sleep observations. Its existing estimated sleep after Dose 2 uses the recorded Dose 2 time and the explicitly saved diary Final awakening when available, otherwise the Apple Health sleep-ending estimate. It counts only available Apple Health asleep intervals inside that window. The elapsed interval and measured sleep are different quantities.
 
-An optional **reviewed night window** lets the person explicitly confirm a start and end for a separate Apple Health coverage check. That window is a reviewed observation period, not a measurement of sleep or a replacement for Final awakening. The coverage check distinguishes sleep, awake time, unmeasured time and conflicting observations. It does not currently replace the existing dashboard sleep totals.
+A separately reviewed night window lets the person confirm bounds for an Apple Health coverage check. That check distinguishes observed sleep, awake time, unmeasured time and conflicting observations. It remains separately named from the selected main-episode total.
 
-These comparisons describe the recorded night; they do not establish treatment effectiveness or authorize a medication change.
+The next dashboard makes the chosen sleep definition, endpoint and missing-data status visible in its comparisons. A one-dose night can still have usable sleep data while having no paired-dose interval. Missing Dose 2 is not automatically recorded as skipped; finishing a check-in does not confirm how many administrations occurred. Historical count and plan reviews remain patient reports, separate from actual medication actions.
+
+## Next-version diary, dashboard and report capabilities
+
+These capabilities are being integrated and verified for the next version. This section describes their intended delivered behavior, not confirmation that they are installed on a particular phone or iPad.
+
+| Capability | What the person can review |
+| --- | --- |
+| Sleep and dose patterns | Sleep by date, dose-pattern categories and valid paired-dose intervals. Single-dose, explicitly omitted, confirmed no-dose, incomplete and conflicting histories remain distinguishable. Exact tables retain observations that cannot supply a numeric chart point. |
+| Session replay | Recorded dose and event times beside available provider intervals, with explicitly selected endpoints for interval inspection. Gaps stay unmeasured; aggregate sleep totals do not create a stage timeline. |
+| Work block and sleep | Sleep around reviewed work blocks, with planned schedules and confirmed attendance kept separate. Unknown work status remains unknown; weekday names alone do not establish a shift or actual hours worked. |
+| Independent daytime diary | Current or explicitly retrospective sleepiness observations using DoseTap's custom 0–10 scale, with optional activity, coping and event context. An entry does not require or create a nighttime session. Missing, unsure and skipped responses remain distinct. |
+| Optional routine reminders | A user-selected reminder with explicit scheduling history, quiet-hours and known-sleep checks. A late response records the actual assessment time. No response is unknown, not a sleepiness score. Device delivery still requires verification. |
+| Sleep and nap review | Separate rest-window duration, estimated asleep time and provider-observed sleep. Incomplete, overlapping or changed source records remain visible for review rather than silently adding to a total. |
+| Physician review | A preview for an explicit period, including full-period and monthly summaries, recent detail, coverage and missing-data counts, and unscored patient notes and questions. PDF, CSV and JSON sharing uses an explicit action on the captured preview. A completed visit can anchor a period; a future or cancelled appointment cannot. |
+
+The custom daytime diary and visit notes do not supply an ESS, KSS or NSS score. Named clinical questionnaire content and enablement remain separate work.
+
+Reporting keeps the selected time period, timezone, capture time, source and calculation definition. A partial or stale observation is identified, and unavailable values are not charted as zero. A failed provider refresh can retain the last successful result with its earlier query bounds and stale status; disabling or disconnecting a provider clears its retained dashboard data.
 
 ## WHOOP: planned near-term DoseTap feature
 
-A forthcoming DoseTap feature is planned to use **WHOOP data** to provide another source of sleep and recovery context alongside the person's dose records and morning check-ins. The intended experience includes WHOOP sleep measurements and supported recovery indicators, such as recovery score and heart-rate variability, when available from the connected account. This is a DoseTap roadmap item; it is not an announcement of a new feature from WHOOP itself.
+A forthcoming DoseTap feature is planned to add WHOOP sleep and recovery context alongside dose records and morning observations. This is a DoseTap integration roadmap item, not an announcement of a new feature from WHOOP itself. Production enablement and real-account validation remain open, with no committed release date.
 
-Integration code already exists, but production enablement and live end-to-end validation remain open. The feature is planned for the near term, with no committed release date. Availability depends on a reviewed production connection, successful real-account testing and matching privacy disclosures.
+The implementation preserves WHOOP's original episode timestamps and stage amounts. Quantitative sleep requires explicitly scored, complete, nonnegative stage evidence. A supported zero stays zero; positive sub-minute sleep retains its precision. Missing scoring information, incomplete stages and legacy values without scoring provenance do not acquire an invented sleep total. Contradictory identities, invalid supplied bounds or a sleep total longer than the original episode remain reviewable raw evidence and cannot supply an available comparison.
 
-Apple Health and WHOOP will remain clearly named sources. WHOOP values must not silently replace Apple Health values or be added to them as if they were additional sleep. A missing or unscored WHOOP result must remain missing. The current dashboard supports selecting a sleep source; that selection does not combine the two providers or make either provider authoritative for dose recording.
+Apple Health and WHOOP remain named, separate sources. Their totals are not added together. WHOOP's aggregate stages do not establish when individual sleep stages occurred or provide the compatible intervals required for the Apple Health sleep-after-Dose-2 calculation. Supported recovery context is shown only when supplied by the connected account.
 
-## Storage and sharing
+## Storage and deliberate sharing
 
-DoseTap stores its clinical diary records locally on the iPhone. Apple Health and WHOOP remain the owners of their provider records. The shipping DoseTap target does not currently enable CloudKit sync. Reporting exports support deliberate review and sharing, but they are not a complete app backup and do not imply automatic transmission to a clinician or partner.
+DoseTap stores its clinical diary records locally on the iPhone. Apple Health and WHOOP retain their provider records. The shipping DoseTap target does not currently enable CloudKit sync.
+
+Reporting exports support deliberate review and sharing; they are not a complete app backup or automatic clinician transmission. The separate iPad reporting experience reads a deliberately transferred copy. Its Apple Health inclusion has its own opt-in; WHOOP transfer to iPad is not enabled by the new endpoint model. The iPad does not write changes back to the phone's medication ledger.
 
 ## Presentation wording
 
-> DoseTap connects the night's dose record with sleep context and the person's morning observations. With permission, it reads Apple Health sleep data, including records from Apple Watch. The sleep measurements come from the provider's recorded sleep intervals; tapping Wake Up or finishing the morning check-in records separate diary actions and does not extend measured sleep. A planned near-term DoseTap feature will add WHOOP sleep and recovery context, with each provider clearly identified and availability subject to connection and validation.
+> DoseTap brings together the night's dose record, sleep observations and the person's own morning and daytime reports. With permission, it reads Apple Health data, including sleep records from Apple Watch. Measured sleep follows the provider's observations; opening the morning check-in later does not extend it. The next version is adding clearer sleep and dose-pattern comparisons, work and nap context, and a report preview for clinical discussions. Those features are pending integrated delivery and verification. A planned near-term DoseTap integration will add separately identified WHOOP sleep and recovery context, subject to production connection and real-account validation.
 
 ## Supporting references
 
-- [Proposed dashboard, work-block, dose-pattern and daytime-check-in roadmap](plans/dashboard-2026-09-30/README.md)
-- [Current behavior and sleep boundaries](SSOT/README.md#healthkit)
-- [WHOOP implementation and production validation gates](WHOOP_INTEGRATION.md)
-- [Feature status and validation limits](FEATURE_TRIAGE.md)
+- [Dashboard, work-block, dose-pattern and daytime roadmap](plans/dashboard-2026-09-30/README.md)
+- [Sleep definitions and dose-pattern evidence](SSOT/contracts/dashboard-dose-patterns.md)
+- [Replay and interval inspection](SSOT/contracts/dashboard-replay.md)
+- [Work-block context](SSOT/contracts/work-block-context.md)
+- [Independent daytime diary](SSOT/contracts/daytime-check-in.md)
+- [Optional daytime routine reminders](SSOT/contracts/daytime-prompts.md)
+- [Sleep and nap review](SSOT/contracts/sleep-naps.md)
+- [Physician review](SSOT/contracts/physician-review.md)
+- [WHOOP production integration gates](WHOOP_INTEGRATION.md)
 - [Collection, storage and reporting export inventory](audit/2026-09-12/README.md)
 
-Source verification: `ios/DoseTap/HealthKitService.swift`, `ios/DoseTap/Views/QuickEventViews.swift`, `ios/DoseTap/Storage/SessionRepository.swift`, `ios/DoseTap/Storage/SessionRepositoryCheckIn.swift`, `ios/DoseTap/Views/Dashboard/DashboardTypes.swift`, `ios/DoseTap/Views/Dashboard/DashboardAnalyticsSupport.swift`, `ios/DoseTap/Views/NightOutcomeView.swift`, `ios/DoseTap/Services/ReviewedNightSleepLoader.swift` and `ios/Core/NightOutcome.swift`. This explanation summarizes current source behavior; it does not establish which build is installed on a particular phone or close production/provider acceptance gates.
+Source basis: integrated source at `c94c27c`, reviewed alongside WHOOP checkpoints `507d0f3`, `477fa0d` and `a32a999`. This description does not establish installed-build availability or close device, provider, instrument, privacy or owner acceptance. Delivery wording must be updated only after the actual integrated build and its applicable checks.
