@@ -353,7 +353,7 @@ public class AlarmService: NSObject, ObservableObject {
             intentIdentifiers: [],
             options: []
         )
-        notificationClient.setNotificationCategories([category])
+        notificationClient.setNotificationCategories([category, DaytimePromptService.category])
     }
 
     public var maxSnoozesAllowed: Int {
@@ -1809,6 +1809,12 @@ extension AlarmService: UNUserNotificationCenterDelegate {
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
+        if DaytimePromptService.owns(notification.request.identifier) {
+            Task { @MainActor in
+                completionHandler(DaytimePromptService.shared.permitsForegroundPresentation ? [.banner] : [])
+            }
+            return
+        }
         // Diagnostic logging: notification delivered (shown while app in foreground)
         let notificationId = notification.request.identifier
         Task { @MainActor in
@@ -1838,6 +1844,15 @@ extension AlarmService: UNUserNotificationCenterDelegate {
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
+        if DaytimePromptService.owns(response.notification.request.identifier) {
+            Task { @MainActor in
+                if let raw = response.notification.request.content.userInfo["prompt_id"] as? String, let id = UUID(uuidString: raw) {
+                    await DaytimePromptService.shared.handle(promptID: id, action: response.actionIdentifier)
+                }
+                completionHandler()
+            }
+            return
+        }
         // Diagnostic logging: notification tapped
         let notificationId = response.notification.request.identifier
         let actionId = response.actionIdentifier

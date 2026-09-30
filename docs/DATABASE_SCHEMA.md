@@ -372,3 +372,7 @@ Named timezone provenance is not yet stored on every historical event row. Exist
 ## Independent reviewed naps
 
 `nap_diary` is an additive singleton table (`id INTEGER PRIMARY KEY CHECK(id=1)`, `payload TEXT NOT NULL`). The version1 NapDiaryDocument JSON stores append-only reviewed episodes/day reviews and an optimistic document revision. Dates use Foundation numeric seconds since2001-01-01 UTC; calendar dates and timezones are explicit. Exact SQLite TEXT bytes are decoded and validated; stale writes, replaced history and corrupt payloads fail visibly. No medication/session/alarm rows are created. Clear All Data includes the ledger; `.daytimeDiary` nearby snapshots preserve its original payload and source table without inventing a nightly association. Provider coverage remains transient and is not stored here.
+
+### Optional daytime prompts
+
+`daytime_prompt_state` stores one checked SQLite row (`id = 1`, JSON `payload`) containing immutable schedule versions and prompt history. It has no session or dose dependency. Writes atomically replace the ledger; failed/corrupt reads fail visibly. Clear All Data removes it. Delivery timestamps are never fabricated; intended and actual assessment timestamps remain distinct.

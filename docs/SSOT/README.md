@@ -1023,6 +1023,8 @@ Provider-match confirmation captures immutable local/provider fingerprints and t
 
 [Daytime contract](contracts/daytime-check-in.md) defines separate custom 0–10 observations, revision history and failure semantics. They do not create or close nighttime sessions and are not licensed scale assessments.
 
+Optional daytime reminders use the [versioned prompt contract](contracts/daytime-prompts.md): explicit opt-in, a seven-day routine horizon, quiet/sleep suppression, independent actual assessment time, and no inferred delivery or symptoms.
+
 ### Dashboard context annotations (B24)
 
 Relevant trend comparisons partition by the explicit patient-entered medication-label revision period and recorded questionnaire instrument/content version/language. Label references are not verified prescriptions or proof of administration. Effective dates come only from source effective intervals; recording a questionnaire version does not establish its rollout date. Unknown occurrence/effective dates remain unplaced with their recorded observation provenance. Unknown context or an observation spanning a context boundary remains separate rather than silently joining a compatible stratum. Missing doses and current preferences never manufacture historical regimen changes.

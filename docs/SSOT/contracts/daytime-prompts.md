@@ -17,3 +17,5 @@ Main-wake anchors use an explicit reported final-wake observation and source/rev
 ## Persisted timestamp representation
 
 The new `daytime_prompt_state` JSON payload encodes every timestamp as UTC ISO8601 with exactly millisecond precision (`yyyy-MM-dd'T'HH:mm:ss.SSS'Z'`). Normalize supplied event times to the nearest millisecond once at the ledger mutation boundary; calendar minute boundaries remain exact. Awaited repository readbacks compare canonical encoded payloads, avoiding submillisecond in-memory differences. Consumers use the shared strict `DaytimePromptLedger.decodePayload` codec. This payload has not shipped and has no legacy numeric-date migration.
+
+Calendar notification attempts have whole-second precision: a 30-minute user deferral rounds its requested fire time up to the next whole second. Actual assessment and opening times retain millisecond precision; the original intended prompt time is unchanged.

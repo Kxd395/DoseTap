@@ -200,18 +200,22 @@ struct DoseTapApp: App {
                 ReviewedDoseSleepFixtureView()
             }
             #endif
+            .modifier(DaytimePromptPresentation())
+            .onReceive(container.sessionRepository.sessionDidChange) { _ in
+                Task { await DaytimePromptService.shared.reconcile() }
+            }
             .onAppear {
                 ReleaseArtifactSmokeMarker.recordIfRequested()
-                Task { await SupplyReminderService.shared.reconcile() }
+                Task { await SupplyReminderService.shared.reconcile(); await DaytimePromptService.shared.reconcile() }
             }
             .onChange(of: scenePhase) { phase in
-                if phase == .active { Task { await SupplyReminderService.shared.reconcile() } }
+                if phase == .active { Task { await SupplyReminderService.shared.reconcile(); await DaytimePromptService.shared.reconcile() } }
             }
             .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
-                Task { await SupplyReminderService.shared.reconcile() }
+                Task { await SupplyReminderService.shared.reconcile(); await DaytimePromptService.shared.reconcile() }
             }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in
-                Task { await SupplyReminderService.shared.reconcile() }
+                Task { await SupplyReminderService.shared.reconcile(); await DaytimePromptService.shared.reconcile() }
             }
             .onChange(of: isSetupComplete) { completed in
                 if completed {

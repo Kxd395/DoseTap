@@ -80,6 +80,10 @@ extension EventStorage {
         );
         CREATE INDEX IF NOT EXISTS idx_confirmed_medication_recorded ON confirmed_medication_administrations(recorded_at_utc);
 
+        CREATE TABLE IF NOT EXISTS daytime_prompt_state (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            payload TEXT NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS supply_state (
             id INTEGER PRIMARY KEY CHECK (id = 1),
             payload TEXT NOT NULL
