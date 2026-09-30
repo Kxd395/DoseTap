@@ -1,4 +1,5 @@
 {
+  "daytimePrompts": {"horizonDays": 7, "deferMinutes": 30, "nonresponseAfterHours": 24, "notificationQueueCeiling": 64, "anchorRuleVersion": 1, "maximumWakeOffsetMinutes": 1440},
   "bottleTracking": {
     "defaultReceiptCount": 3,
     "maximumReceiptCount": 100,

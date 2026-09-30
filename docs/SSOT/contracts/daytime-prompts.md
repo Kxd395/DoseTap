@@ -1,0 +1,19 @@
+# Optional daytime routine prompt (DOSETAP-58)
+
+One optional user-selected routine reminder is off by default. Its anchor and selected days are explicitly configured. Store immutable schedule versions and prompt IDs, intended time, opened time, actual assessment time, response identity, and explicit pending/deferred/suppressed/skipped/expired/responded state. A schedule change cancels outstanding prompts; it never rewrites old intended times. Retry uses the same prompt/request identity. Nonresponse is unknown, never a symptom or sleep score.
+
+Use a routine passive notification with generic DoseTap wording, no sound, no health value, and no bypass of Focus. Skip and Later are explicit actions. Suppress while a known main sleep or nap is active, within user-configured quiet hours, or without permission. Up to seven daily occurrences are queued using stable schedule/date identities; foreground reconciliation replenishes the horizon. Settings shows the last scheduled time and explains the renewal boundary. Known active sleep cancels queued requests, keeps past unanswered delivery unknown, and retains future pending slots for wake reconciliation. This bounded schedule does not promise indefinite background scheduling. Delivery time is not claimed. A delayed response assesses the current moment, never the intended prompt time.
+
+History and preferences persist in SQLite through SessionRepository. Clear All Data removes both and cancels the owned request on reconciliation. Dose alarm categories, requests, permissions and routing remain independent. Physical-device background delivery, Focus, actions, nap cancellation and notification privacy require owner-observed acceptance.
+
+Eligibility recovery may resume only future instances in the current schedule that were suppressed for notification permission or configured quiet hours. Preserve their intended time and identity; recheck permission and quiet hours before queueing. Explicit skips, responses, older schedule versions and past unknown-delivery instances never reactivate automatically.
+
+## Selected days and evidence-based anchors
+
+A versioned rule chooses Gregorian weekdays in its explicitly saved timezone and one primary anchor: local clock time, elapsed minutes after a patient-reported designated main wake, reviewed saved shift midpoint, or reviewed saved shift break. Shift-based rules have a separately configured off-day clock or main-wake anchor. Unknown work status cannot silently choose either branch. A 13-hour explicitly saved shift midpoint is 6 hours 30 minutes after its start; weekday names never supply a start. Missing, conflicting or differently zoned source evidence remains explicitly unscheduled.
+
+Main-wake anchors use an explicit reported final-wake observation and source/revision; session closure, check-in completion and nap end cannot substitute. Preserve original intended notification time, source IDs/revisions, anchor kind, work/off-day basis and actual assessment time separately. Revisions may change future scheduling only after recording the prior source; saved assessment answers and timestamps remain immutable. Future wakes are not predicted. The horizon is seven civil days, not seven selected weekdays spanning multiple weeks.
+
+## Persisted timestamp representation
+
+The new `daytime_prompt_state` JSON payload encodes every timestamp as UTC ISO8601 with exactly millisecond precision (`yyyy-MM-dd'T'HH:mm:ss.SSS'Z'`). Normalize supplied event times to the nearest millisecond once at the ledger mutation boundary; calendar minute boundaries remain exact. Awaited repository readbacks compare canonical encoded payloads, avoiding submillisecond in-memory differences. Consumers use the shared strict `DaytimePromptLedger.decodePayload` codec. This payload has not shipped and has no legacy numeric-date migration.
