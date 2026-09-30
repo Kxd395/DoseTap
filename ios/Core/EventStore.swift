@@ -497,5 +497,5 @@ public protocol EventStore: AnyObject {
     // MARK: - Migration Support
     
     /// Backfill session_id for rows with NULL
-    func backfillNullSessionIds()
+    func backfillNullSessionIds() throws
 }
