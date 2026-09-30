@@ -12,26 +12,33 @@ extension DashboardAnalyticsModel {
         selectedRange == .all ? [] : filteredNights(prior: true)
     }
 
+    var currentReportWindow: DashboardReportingWindow? {
+        selectedRange.window(asOf: reportingAsOf, timeZone: reportingTimeZone)
+    }
+
     private func filteredNights(prior: Bool) -> [DashboardNightAggregate] {
-        let key = SessionIdentity(date: now(), timeZone: .current, rolloverHour: 18).key
-        guard let anchor = Self.keyFormatter.date(from: key) else { return [] }
-        let cutoff = selectedRange.cutoffDate(from: anchor)
-        let lower = prior ? selectedRange.priorPeriodCutoff(from: anchor).start : cutoff
-        return nights.filter { night in
-            guard night.hasAnyData,
-                  let date = Self.keyFormatter.date(from: night.sessionDate),
-                  Self.keyFormatter.string(from: date) == night.sessionDate else { return false }
-            return date >= lower && (prior ? date < cutoff : date <= anchor)
-        }.sorted { $0.sessionDate > $1.sessionDate }
+        guard let window = currentReportWindow else { return [] }
+        return nights.filter { $0.hasAnyData && window.contains($0.sessionDate, prior: prior) }
+            .sorted { $0.sessionDate > $1.sessionDate }
     }
 
     var rangeDescription: String {
-        let key = SessionIdentity(date: now(), timeZone: .current, rolloverHour: 18).key
-        guard let anchor = Self.keyFormatter.date(from: key) else { return selectedRange.label }
-        let start = selectedRange == .all ? populatedNights.last.flatMap { Self.keyFormatter.date(from: $0.sessionDate) }
-            : selectedRange.cutoffDate(from: anchor)
-        guard let start else { return "All available local dates" }
-        return "\(start.formatted(date: .abbreviated, time: .omitted)) – \(anchor.formatted(date: .abbreviated, time: .omitted))"
+        guard let window = currentReportWindow else { return "Reporting dates unavailable" }
+        let first = window.firstTreatmentDate ?? populatedNights.last?.sessionDate
+        guard let first else { return "All available local dates" }
+        return "\(first) – \(window.lastTreatmentDate) · \(window.timeZone.identifier) · 6 p.m. rollover"
+    }
+
+    var healthQueryDescription: String {
+        guard let query = healthQueryWindow else { return "Apple Health has not been queried for this report." }
+        let formatter = DateFormatter(); formatter.locale = .current; formatter.timeZone = query.timeZone
+        formatter.dateStyle = .medium; formatter.timeStyle = .short
+        let period = "Apple Health query requested \(formatter.string(from: query.healthQueryStart)) – \(formatter.string(from: query.asOf)) (\(query.timeZone.identifier)); up to \(query.healthQueryDays) treatment nights."
+        if query.range != selectedRange { return period + " The selected range has changed; refresh coverage is pending." }
+        let coverage = query.healthQueryTruncatesPriorPeriod
+            ? " The 730-night limit omits the beginning of the preceding calendar period."
+            : (query.range == .all ? " All Time includes local history beyond provider retrieval." : " Query bounds include the selected and preceding periods.")
+        return period + coverage + " Query bounds do not establish complete sleep measurements."
     }
 
     var explicitDayTypeCount: Int {
@@ -84,13 +91,16 @@ extension DashboardAnalyticsModel {
 
     /// Finished civil nights only; gaps break the streak and the selected range bounds it.
     var finishedNightStreak: Int {
-        let key = SessionIdentity(date: now(), timeZone: .current, rolloverHour: 18).key
-        guard let anchor = Self.keyFormatter.date(from: key) else { return 0 }
+        guard let window = currentReportWindow else { return 0 }
+        var calendar = Calendar(identifier: .gregorian); calendar.timeZone = window.timeZone
+        let formatter = DateFormatter(); formatter.calendar = calendar; formatter.timeZone = window.timeZone
+        formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.dateFormat = "yyyy-MM-dd"
+        guard let anchor = calendar.date(byAdding: .day, value: -1, to: window.endExclusive) else { return 0 }
         let eligibleKeys = Set(populatedNights.filter { $0.onTimeDosing == true }.map(\.sessionDate))
         var cursor = anchor
         var count = 0
-        while let previous = Calendar.current.date(byAdding: .day, value: -1, to: cursor),
-              eligibleKeys.contains(Self.keyFormatter.string(from: previous)) {
+        while let previous = calendar.date(byAdding: .day, value: -1, to: cursor),
+              eligibleKeys.contains(formatter.string(from: previous)) {
             count += 1
             cursor = previous
         }

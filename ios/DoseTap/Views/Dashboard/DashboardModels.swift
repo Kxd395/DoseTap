@@ -18,10 +18,18 @@ final class DashboardAnalyticsModel: ObservableObject {
     @Published var sleepSource: DashboardSleepSource = .appleHealth
     @Published var selectedRange: DashboardDateRange = .month
 
+    @Published var reportingAsOf: Date
+    @Published var reportingTimeZone: TimeZone
+    @Published var healthQueryWindow: DashboardReportingWindow?
+    let timeZone: () -> TimeZone
     let now: () -> Date
 
-    init(now: @escaping () -> Date = Date.init, sessionRepo: SessionRepository? = nil) {
+    init(now: @escaping () -> Date = Date.init, sessionRepo: SessionRepository? = nil,
+         timeZone: @escaping () -> TimeZone = { .current }) {
         self.now = now
+        self.timeZone = timeZone
+        reportingAsOf = now()
+        reportingTimeZone = timeZone()
         self.sessionRepo = sessionRepo ?? .shared
     }
 
@@ -47,6 +55,8 @@ extension DashboardAnalyticsModel {
     func loadDashboardUITestFixtureIfRequested() -> Bool {
         let arguments = ProcessInfo.processInfo.arguments
         guard arguments.contains("--uitesting-dashboard") else { return false }
+        reportingAsOf = now(); reportingTimeZone = timeZone()
+        healthQueryWindow = currentReportWindow
         nights = []
         if !arguments.contains("--dashboard-empty") {
             nights = (1...8).map { offset in

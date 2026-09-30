@@ -6,6 +6,18 @@ public enum DashboardReportingRange: String, CaseIterable, Identifiable, Sendabl
     case sixMonths = "6M", year = "1Y", all = "All"
     public var id: String { rawValue }
 
+    public var label: String {
+        switch self {
+        case .week: return "7 Days"
+        case .twoWeeks: return "14 Days"
+        case .month: return "30 Days"
+        case .quarter: return "90 Days"
+        case .sixMonths: return "6 Months"
+        case .year: return "12 Months"
+        case .all: return "All Time"
+        }
+    }
+
     public func window(asOf: Date, timeZone: TimeZone) -> DashboardReportingWindow? {
         guard asOf.timeIntervalSince1970.isFinite else { return nil }
         var calendar = Calendar(identifier: .gregorian); calendar.timeZone = timeZone
