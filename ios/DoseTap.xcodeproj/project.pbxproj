@@ -10,6 +10,7 @@
 		CTX003B /* ContextMorningOutcomesUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CTX003F; };
 		CTX002B /* ContextMorningOutcomesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CTX002F; };
 		CTX001B /* ContextMorningProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = CTX001F; };
+		WBPROJ001 /* DashboardWorkCycleProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBPROJ101 /* DashboardWorkCycleProjection.swift */; };
 		DINS001B /* DashboardInspection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DINS001F; };
 		DPUI002B /* DosePatternDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI002F; };
 		DPUI003B /* DosePatternPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI003F; };
@@ -245,6 +246,7 @@
 		CTX003F /* ContextMorningOutcomesUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextMorningOutcomesUITests.swift; sourceTree = "<group>"; };
 		CTX002F /* ContextMorningOutcomesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextMorningOutcomesView.swift; sourceTree = "<group>"; };
 		CTX001F /* ContextMorningProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextMorningProjection.swift; sourceTree = "<group>"; };
+		WBPROJ101 /* DashboardWorkCycleProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardWorkCycleProjection.swift; sourceTree = "<group>"; };
 		DINS001F /* DashboardInspection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardInspection.swift; sourceTree = "<group>"; };
 		DPUI002F /* DosePatternDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternDetailSheet.swift; sourceTree = "<group>"; };
 		DPUI003F /* DosePatternPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternPresentation.swift; sourceTree = "<group>"; };
@@ -675,6 +677,7 @@
 				DIDENT004 /* DashboardProviderMatching.swift */,
 				DIDENT002 /* DashboardIdentityAggregation.swift */,
 				DPAD001 /* DashboardDosePatternAdapter.swift */,
+				WBPROJ101 /* DashboardWorkCycleProjection.swift */,
 				WBCTX103 /* WorkContextEditors.swift */,
 				WBCTX102 /* DashboardWorkBlockView.swift */,
 				CLUST106 /* DashboardTypes.swift */,
@@ -1258,6 +1261,7 @@
 				CTX002B /* ContextMorningOutcomesView.swift in Sources */,
 				DPUI004B /* DosePatternReviewSheet.swift in Sources */,
 				DPUI005B /* MorningDoseHistoryReviewSection.swift in Sources */,
+				WBPROJ001 /* DashboardWorkCycleProjection.swift in Sources */,
 				WBCTX003 /* WorkContextEditors.swift in Sources */,
 				WBCTX002 /* DashboardWorkBlockView.swift in Sources */,
 				CLUST105 /* DeferredCloudKitSyncService.swift in Sources */,
