@@ -11,23 +11,34 @@ enum DashboardReplayMode: String, CaseIterable, Identifiable {
 /// Read-only inspection. Selecting or checking coverage never records a medication or changes alarms.
 struct DashboardReplayView: View {
     @ObservedObject var model: DashboardAnalyticsModel
-    @StateObject private var coverage = TimelineDoseSleepModel()
-    @State private var page: DashboardReplayMode
-    @State private var medicationLabels: [String: String] = [:]
-    @State private var opportunityEndpoint = DashboardIntervalPreset.dose2ToDeviceEnd
-    init(model: DashboardAnalyticsModel, initialMode: DashboardReplayMode = .replay) {
-        self.model = model; _page = State(initialValue: initialMode)
+    @ObservedObject private var coverage: TimelineDoseSleepModel
+    private let initialMode: DashboardReplayMode?
+    init(model: DashboardAnalyticsModel, initialMode: DashboardReplayMode? = nil) {
+        self.model = model; self.initialMode = initialMode
+        _coverage = ObservedObject(wrappedValue: model.replayCoverageState)
+    }
+    private var page: DashboardReplayMode { model.replayPresentation.mode }
+    private var alignment: DashboardReplaySnapshot.Alignment { model.replayPresentation.alignment }
+    private var preset: DashboardIntervalPreset { model.replayPresentation.preset }
+    private var intervalMode: String { model.replayPresentation.intervalMode }
+    private var opportunityEndpoint: DashboardIntervalPreset { model.replayPresentation.opportunityEndpoint }
+    private var medicationLabels: [String: String] {
+        get { model.replayPresentation.medicationLabels }
+        nonmutating set { model.replayPresentation.medicationLabels = newValue }
+    }
+    private var selectionNotice: String? {
+        get { model.replayPresentation.selectionNotice }
+        nonmutating set { model.replayPresentation.selectionNotice = newValue }
+    }
+    private var endpointSelections: [String: [DashboardReplayMarker]] {
+        get { model.replayPresentation.endpointSelections }
+        nonmutating set { model.replayPresentation.endpointSelections = newValue }
     }
     private var selectedID: String? {
         get { model.selectedReplayID }
         nonmutating set { model.selectReplayID(newValue) }
     }
-    @State private var alignment = DashboardReplaySnapshot.Alignment.clock
-    @State private var preset = DashboardIntervalPreset.dose1ToDose2
-    @State private var intervalMode = "By date"
     @State private var export: ReplayExportPreview?
-    @State private var selectionNotice: String?
-    @State private var endpointSelections: [String: [DashboardReplayMarker]] = [:]
     @Environment(\.dashboardPalette) private var palette
 
     private var snapshots: [DashboardReplaySnapshot] {
@@ -73,7 +84,7 @@ struct DashboardReplayView: View {
                 Text(model.rangeDescription).font(.caption).foregroundStyle(.secondary)
                 if let issue = model.inspectionFilterIssue { Text(issue).font(.caption) }
                 if let error = model.errorMessage { Label(error, systemImage: "exclamationmark.triangle").font(.caption) }
-                Picker("Inspection", selection: $page) {
+                Picker("Inspection", selection: $model.replayPresentation.mode) {
                     ForEach(DashboardReplayMode.allCases) { Text($0.rawValue).tag($0) }
                 }.pickerStyle(.menu).accessibilityIdentifier("dashboard-replay-page")
                 Picker("Selected session", selection: Binding(get: { selectedID }, set: { selectedID = $0 })) {
@@ -120,20 +131,15 @@ struct DashboardReplayView: View {
             }.padding()
         }
         .navigationTitle("Replay & intervals")
-        .onAppear { if model.inspection.selectedObservationID == nil { selectedID = snapshots.first?.sessionID } }
-        .onChange(of: selectedID) { _ in coverage.invalidate() }
-        .onReceive(model.objectWillChange) { _ in coverage.invalidate() }
-        .onReceive(model.sessionRepo.sessionDidChange) { _ in
-            coverage.invalidate()
-            if !endpointSelections.isEmpty { selectionNotice = "Local records changed. Select current medication or nap endpoints again." }
-            endpointSelections.removeAll()
+        .onAppear {
+            model.replayPresentation.open(initialMode: initialMode)
+            if model.inspection.selectedObservationID == nil { selectedID = snapshots.first?.sessionID }
         }
-        .onReceive(model.providerAccess.changes) { _ in coverage.invalidate() }
         .sheet(item: $export) { $0 }
     }
 
     @ViewBuilder private func replay(_ snap: DashboardReplaySnapshot) -> some View {
-        Picker("Alignment", selection: $alignment) {
+        Picker("Alignment", selection: $model.replayPresentation.alignment) {
             ForEach(DashboardReplaySnapshot.Alignment.allCases) { Text($0.rawValue).tag($0) }
         }.pickerStyle(.menu)
         Text(alignment == .clock ? "Local clock labels include date and UTC offset; elapsed intervals use UTC."
@@ -224,10 +230,10 @@ struct DashboardReplayView: View {
 
     private var intervals: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Picker("Curated interval", selection: $preset) {
+            Picker("Curated interval", selection: $model.replayPresentation.preset) {
                 ForEach(DashboardIntervalPreset.allCases) { Text($0.rawValue).tag($0) }
             }.accessibilityIdentifier("dashboard-interval-preset")
-            Picker("Interval display", selection: $intervalMode) {
+            Picker("Interval display", selection: $model.replayPresentation.intervalMode) {
                 ForEach(["By date", "Distribution", "Compare sleep"], id: \.self) { Text($0) }
             }.pickerStyle(.menu)
             Text("\(available.count) available / \(snapshots.count) selected sessions. Each interval uses its named occurrence endpoints; elapsed minutes are not sleep duration.").font(.caption)
@@ -281,7 +287,7 @@ struct DashboardReplayView: View {
     @ViewBuilder private func opportunity(_ snap: DashboardReplaySnapshot) -> some View {
         let value = DashboardPostDoseCoverage.calculate(snapshot: snap, preset: opportunityEndpoint)
         Text("Sleep opportunity and continuity").font(.headline)
-        Picker("Named endpoint", selection: $opportunityEndpoint) {
+        Picker("Named endpoint", selection: $model.replayPresentation.opportunityEndpoint) {
             ForEach([DashboardIntervalPreset.dose2ToDeviceEnd, .dose2ToReportedWake, .dose2ToRequiredWake]) { Text($0.rawValue).tag($0) }
         }.accessibilityIdentifier("dashboard-opportunity-endpoint")
         Text("One selected session. Elapsed time, observed asleep time and coverage have distinct meanings.").font(.caption)

@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		DPUI001B /* DosePatternDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI001F; };
 		UI_DP01B /* DosePatternDashboardUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI_DP01F; };
+		DRPL106 /* DashboardReplayPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DRPL006 /* DashboardReplayPresentation.swift */; };
 		DINS001B /* DashboardInspection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DINS001F; };
 		DPUI002B /* DosePatternDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI002F; };
 		DPUI003B /* DosePatternPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI003F; };
@@ -255,6 +256,7 @@
 /* Begin PBXFileReference section */
 		DPUI001F /* DosePatternDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternDashboardView.swift; sourceTree = "<group>"; };
 		UI_DP01F /* DosePatternDashboardUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternDashboardUITests.swift; sourceTree = "<group>"; };
+		DRPL006 /* DashboardReplayPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardReplayPresentation.swift; sourceTree = "<group>"; };
 		DINS001F /* DashboardInspection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardInspection.swift; sourceTree = "<group>"; };
 		DPUI002F /* DosePatternDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternDetailSheet.swift; sourceTree = "<group>"; };
 		DPUI003F /* DosePatternPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternPresentation.swift; sourceTree = "<group>"; };
@@ -679,6 +681,7 @@
 			children = (
 				CLUST001 /* DashboardModels.swift */,
 				DINS001F /* DashboardInspection.swift */,
+				DRPL006 /* DashboardReplayPresentation.swift */,
 				DRPL005 /* DashboardReplayUITestFixture.swift */,
 				DRPL004 /* DashboardReplayExport.swift */,
 				DRPL003 /* DashboardReviewedCoverage.swift */,
@@ -1285,6 +1288,7 @@
 				DYPR001 /* DaytimePromptService.swift in Sources */,
 				CLUST101 /* DashboardModels.swift in Sources */,
 				DINS001B /* DashboardInspection.swift in Sources */,
+				DRPL106 /* DashboardReplayPresentation.swift in Sources */,
 				DRPL105 /* DashboardReplayUITestFixture.swift in Sources */,
 				DRPL104 /* DashboardReplayExport.swift in Sources */,
 				DRPL103 /* DashboardReviewedCoverage.swift in Sources */,

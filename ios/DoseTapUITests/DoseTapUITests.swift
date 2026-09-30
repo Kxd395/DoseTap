@@ -1327,6 +1327,11 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Actual minus saved reminder"].isHittable)
         captureDashboard("Signed historical reminder deviation and exact rows")
         for _ in 0..<16 where !app.buttons["dashboard-replay-page"].isHittable { app.swipeDown() }
+        app.navigationBars["Replay & intervals"].buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(open.waitForExistence(timeout: 5)); open.tap()
+        XCTAssertTrue(app.buttons["dashboard-replay-page"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["dashboard-replay-page"].label.contains("Medication"))
+        captureDashboard("Replay route reentry retains medication inspection mode")
         app.buttons["dashboard-replay-page"].tap(); app.buttons["Intervals"].tap()
         for _ in 0..<12 where !app.buttons["dashboard-replay-export"].isHittable { app.swipeUp() }
         XCTAssertTrue(app.buttons["dashboard-replay-export"].isHittable)

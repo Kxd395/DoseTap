@@ -13,6 +13,9 @@ let dashboardLogger = Logger(subsystem: "com.dosetap.app", category: "Dashboard"
 final class DashboardAnalyticsModel: ObservableObject {
     @Published var nights: [DashboardNightAggregate] = []
     @Published var inspection = DashboardInspectionState()
+    @Published var replayPresentation = DashboardReplayPresentation()
+    let replayCoverageState = TimelineDoseSleepModel()
+    var replaySourceSubscriptions: Set<AnyCancellable> = []
     @Published var workInspectionContext: WorkContextDocument?
     @Published var workContextReadReady = false
     @Published var workContextIssue: String?
@@ -60,6 +63,7 @@ final class DashboardAnalyticsModel: ObservableObject {
         self.providerAccess = providerAccess
         self.providerQueries = providerQueries ?? fixture?.queries ?? .live
         publishedProviderAccess = providerAccess.revision
+        installReplaySourceObservation()
         providerAccessSubscription = providerAccess.changes.sink { [weak self] provider in
             if Thread.isMainThread {
                 MainActor.assumeIsolated { self?.providerAccessChanged(provider) }

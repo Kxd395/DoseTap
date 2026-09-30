@@ -1,4 +1,5 @@
 import XCTest
+import Combine
 import DoseCore
 @testable import DoseTap
 
@@ -109,6 +110,75 @@ final class DashboardReplayAdapterTests: XCTestCase {
         XCTAssertEqual(medication.amount, "5 mg")
         XCTAssertNil(medication.marker(role: .medicationXR, sessionID: "selected-night"))
         XCTAssertNil(medication.occurredAt)
+    }
+    func presentationModel() -> DashboardAnalyticsModel {
+        DashboardAnalyticsModel(now: { self.start.addingTimeInterval(50_000) },
+            sessionRepo: SessionRepository(storage: .inMemory()), providerAccess: DashboardProviderAccess())
+    }
+    func testPresentationAndExplicitEndpointsSurviveViewReconstruction() async throws {
+        let model = presentationModel()
+        let endpoint = DashboardReplayMarker(id: "chosen", sessionID: "durable-session", kind: .napEnd,
+            occurredAt: start, source: "Explicitly selected")
+        model.replayPresentation.open(initialMode: .medication)
+        model.replayPresentation.endpointSelections = ["durable-session": [endpoint]]
+        model.replayPresentation.preset = .napToSleep
+        model.replayPresentation.alignment = .dose2
+        model.replayPresentation.intervalMode = "Distribution"
+        await model.replayCoverageState.refresh(sessionDate: "2026-09-21") { _ in .init(status: .available, checkedAt: self.start) }
+        _ = DashboardReplayView(model: model)
+        _ = DashboardReplayView(model: model, initialMode: .replay)
+        model.replayPresentation.open(initialMode: .replay)
+        XCTAssertEqual(model.replayPresentation.mode, .medication)
+        XCTAssertEqual(model.replayPresentation.endpointSelections["durable-session"], [endpoint])
+        XCTAssertEqual(model.replayPresentation.preset, .napToSleep)
+        XCTAssertEqual(model.replayPresentation.alignment, .dose2)
+        XCTAssertEqual(model.replayPresentation.intervalMode, "Distribution")
+        XCTAssertEqual(model.replayCoverageState.result?.checkedAt, start)
+    }
+    func testPresentationAndFiltersRetainCoverageButCanonicalSelectionInvalidatesIt() async {
+        let model = presentationModel()
+        model.inspection.selectedObservationID = "session:first"
+        await model.replayCoverageState.refresh(sessionDate: "2026-09-21") { _ in .init(status: .available, checkedAt: self.start) }
+        model.replayPresentation.mode = .medication
+        model.replayPresentation.preset = .foodToDose1
+        model.replayPresentation.alignment = .dose1
+        model.inspection.includePartialMetrics = true
+        model.inspection.selectedObservationID = "session:first"
+        XCTAssertEqual(model.replayCoverageState.result?.checkedAt, start)
+        model.inspection.selectedObservationID = "session:second"
+        XCTAssertNil(model.replayCoverageState.result)
+    }
+    func testSourcePublicationAndCutoffChangesInvalidateCoverageOffscreen() async {
+        let model = presentationModel()
+        let changes: [() -> Void] = [
+            { model.nights = [self.night()] },
+            { model.reportingAsOf = model.reportingAsOf.addingTimeInterval(1) },
+            { model.reportingTimeZone = TimeZone(secondsFromGMT: 0)! },
+            { model.sleepSource = .whoop }
+        ]
+        model.reportingTimeZone = TimeZone(identifier: "America/New_York")!
+        for change in changes {
+            await model.replayCoverageState.refresh(sessionDate: "2026-09-21") { _ in .init(status: .available, checkedAt: self.start) }
+            change()
+            XCTAssertNil(model.replayCoverageState.result)
+        }
+    }
+    func testInjectedRepositoryAndProviderInvalidationUseTheirExactOwners() async {
+        let model = presentationModel(), other = SessionRepository(storage: .inMemory())
+        let marker = DashboardReplayMarker(id: "chosen", sessionID: "durable-session", kind: .napEnd,
+            occurredAt: start, source: "Explicitly selected")
+        model.replayPresentation.endpointSelections = ["durable-session": [marker]]
+        await model.replayCoverageState.refresh(sessionDate: "2026-09-21") { _ in .init(status: .available, checkedAt: self.start) }
+        other.sessionDidChange.send()
+        XCTAssertNotNil(model.replayCoverageState.result)
+        model.providerAccess.invalidate(.health)
+        XCTAssertNil(model.replayCoverageState.result)
+        XCTAssertEqual(model.replayPresentation.endpointSelections["durable-session"], [marker])
+        await model.replayCoverageState.refresh(sessionDate: "2026-09-21") { _ in .init(status: .available, checkedAt: self.start) }
+        model.sessionRepo.sessionDidChange.send()
+        XCTAssertNil(model.replayCoverageState.result)
+        XCTAssertTrue(model.replayPresentation.endpointSelections.isEmpty)
+        XCTAssertNotNil(model.replayPresentation.selectionNotice)
     }
     func testDateScopedCoverageCannotSelectBetweenTwoSessions() async {
         let model = DashboardAnalyticsModel(now: { self.start.addingTimeInterval(50_000) })
