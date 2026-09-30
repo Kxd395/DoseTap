@@ -29,6 +29,7 @@ struct DashboardNightAggregate: Identifiable {
     var stableID: String? = nil
     var doseEvents: [DoseCore.StoredDoseEvent] = []
     var sessionClosed = false
+    var sessionActive = false
     var identityNeedsReview = false
     var providerAssociation = "No provider association"
     var localFingerprint: String? = nil
@@ -55,7 +56,7 @@ struct DashboardNightAggregate: Identifiable {
     }
 
     func isPendingDose2(at now: Date) -> Bool {
-        guard let dose1Time, dose2Time == nil, !dose2Skipped else { return false }
+        guard sessionActive, !sessionClosed, let dose1Time, dose2Time == nil, !dose2Skipped else { return false }
         return now <= dose1Time.addingTimeInterval(Double(DoseCore.DoseWindowConfig().maxIntervalMin) * 60)
     }
 

@@ -171,6 +171,7 @@ final class DashboardAnalyticsAuditTests: XCTestCase {
         model.nights = [night("2026-09-04", dose1: current.addingTimeInterval(-3600), interval: nil),
                         night("2026-09-03", interval: nil), night("2026-09-02", interval: nil, skipped: true),
                         night("2026-09-01", interval: -10), night("2026-08-31", interval: 239.9)]
+        model.nights[0].sessionActive = true
         XCTAssertEqual(model.pendingDose2OutcomeCount, 1)
         XCTAssertEqual(model.missingDose2OutcomeCount, 1)
         XCTAssertEqual(model.eligibleDose2OutcomeCount, 4)

@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		DDRV001 /* EventStorage+DashboardDoseReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDRV101; };
+		DIDENT106 /* DashboardAssociationUITestFixture.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT006 /* DashboardAssociationUITestFixture.swift */; };
+		DIDENT105 /* ProviderSessionAssociationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT005 /* ProviderSessionAssociationView.swift */; };
 		DIDENT104 /* DashboardProviderMatching.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT004 /* DashboardProviderMatching.swift */; };
 		DIDENT103 /* DashboardProviderAssociations.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT003 /* DashboardProviderAssociations.swift */; };
 		DIDENT102 /* DashboardIdentityAggregation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT002 /* DashboardIdentityAggregation.swift */; };
@@ -203,6 +205,8 @@
 
 /* Begin PBXFileReference section */
 		DDRV101 /* EventStorage+DashboardDoseReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+DashboardDoseReview.swift"; sourceTree = "<group>"; };
+		DIDENT006 /* DashboardAssociationUITestFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardAssociationUITestFixture.swift; sourceTree = "<group>"; };
+		DIDENT005 /* ProviderSessionAssociationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderSessionAssociationView.swift; sourceTree = "<group>"; };
 		DIDENT004 /* DashboardProviderMatching.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardProviderMatching.swift; sourceTree = "<group>"; };
 		DIDENT003 /* DashboardProviderAssociations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardProviderAssociations.swift; sourceTree = "<group>"; };
 		DIDENT002 /* DashboardIdentityAggregation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardIdentityAggregation.swift; sourceTree = "<group>"; };
@@ -575,6 +579,7 @@
 			children = (
 				CLUST001 /* DashboardModels.swift */,
 				CLUST002 /* DashboardViews.swift */,
+				DIDENT005 /* ProviderSessionAssociationView.swift */,
 				DIDENT004 /* DashboardProviderMatching.swift */,
 				DIDENT002 /* DashboardIdentityAggregation.swift */,
 				CLUST106 /* DashboardTypes.swift */,
@@ -635,6 +640,7 @@
 			children = (
 				HKP002 /* HealthKitProviding.swift */,
 				RNS002 /* ReviewedNightSleepLoader.swift */,
+				DIDENT006 /* DashboardAssociationUITestFixture.swift */,
 				DPAC001 /* DashboardProviderAccess.swift */,
 		DPSN001 /* DashboardProviderSnapshot.swift */,
 			);
@@ -992,6 +998,7 @@
 				WP001 /* WeeklyPlanner.swift in Sources */,
 				HKP001 /* HealthKitProviding.swift in Sources */,
 				RNS001 /* ReviewedNightSleepLoader.swift in Sources */,
+				DIDENT106 /* DashboardAssociationUITestFixture.swift in Sources */,
 				DPAC101 /* DashboardProviderAccess.swift in Sources */,
 		DPSN101 /* DashboardProviderSnapshot.swift in Sources */,
 				UNDO003 /* UndoSnackbarView.swift in Sources */,
@@ -1107,6 +1114,7 @@
 				CLUST101 /* DashboardModels.swift in Sources */,
 				CLUST102 /* DashboardViews.swift in Sources */,
 				CLUST105 /* DeferredCloudKitSyncService.swift in Sources */,
+				DIDENT105 /* ProviderSessionAssociationView.swift in Sources */,
 				DIDENT104 /* DashboardProviderMatching.swift in Sources */,
 				DIDENT102 /* DashboardIdentityAggregation.swift in Sources */,
 				CLUST107 /* DashboardTypes.swift in Sources */,

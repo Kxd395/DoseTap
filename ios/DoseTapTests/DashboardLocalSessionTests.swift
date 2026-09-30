@@ -48,4 +48,18 @@ final class DashboardLocalSessionTests: XCTestCase {
         XCTAssertEqual(rows.count, 2)
         XCTAssertTrue(rows.allSatisfy { $0.sessionID == nil && $0.needsReview })
     }
+    func testActiveRequiresCurrentLifecycleNotJustAnUnclosedHistoricalRow() throws {
+        let storage = EventStorage.inMemory()
+        execute("""
+        INSERT INTO sleep_sessions(session_id,session_date,start_utc) VALUES('old','2026-09-28','2026-09-28T22:00:00Z');
+        INSERT INTO current_session(id,session_id,session_date,session_start_utc) VALUES(1,'live','2026-09-29','2026-09-29T22:00:00Z');
+        """, storage)
+        var rows = try storage.dashboardLocalSessions()
+        XCTAssertEqual(rows.first { $0.sessionID == "old" }?.sessionActive, false)
+        XCTAssertEqual(rows.first { $0.sessionID == "live" }?.sessionActive, true)
+        execute("UPDATE current_session SET session_end_utc='2026-09-30T08:00:00Z',terminal_state='completed'", storage)
+        rows = try storage.dashboardLocalSessions()
+        XCTAssertEqual(rows.first { $0.sessionID == "live" }?.sessionActive, false)
+        XCTAssertEqual(rows.first { $0.sessionID == "live" }?.sessionClosed, true)
+    }
 }

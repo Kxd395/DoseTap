@@ -15,6 +15,7 @@ extension DashboardAnalyticsModel {
                 napSummary: SessionRepository.napSummary(events: events))
             row.sessionID = session.sessionID; row.stableID = session.id; row.doseEvents = session.doses
             row.localFingerprint = session.fingerprint
+            row.sessionActive = session.sessionActive
             row.sessionClosed = session.sessionClosed; row.identityNeedsReview = session.needsReview
             row.outcome = session.outcome; row.outcomeReadFailed = session.outcomeReadFailed
             return row

@@ -1248,6 +1248,31 @@ final class DoseTapUITests: XCTestCase {
         captureDashboard("Six month range at largest text")
     }
 
+    func testDashboardProviderAssociationConfirmationAndUnlink() throws {
+        app.terminate()
+        app.launchArguments = ["--uitesting", "-dashboard-provider-match-uitest", "-setup_completed_v2", "YES"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Dashboard"].waitForExistence(timeout: 15)); app.buttons["Dashboard"].tap()
+        let open = app.buttons["dashboard-provider-match-test-open"]
+        XCTAssertTrue(open.waitForExistence(timeout: 10)); open.tap()
+        let choose = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "provider-match-choose-")).firstMatch
+        XCTAssertTrue(choose.waitForExistence(timeout: 10)); choose.tap()
+        let target = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Session -session")).firstMatch
+        XCTAssertTrue(target.waitForExistence(timeout: 5)); target.tap()
+        let confirm = app.buttons["Save explicit match"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5)); captureDashboard("Explicit provider matching review")
+        confirm.tap()
+        let remove = app.buttons["Remove this sleep match"]
+        for _ in 0..<4 where !remove.isHittable { app.swipeUp() }
+        XCTAssertTrue(remove.waitForExistence(timeout: 10)); captureDashboard("Saved explicit provider match")
+        remove.tap()
+        XCTAssertTrue(app.buttons["Remove match"].waitForExistence(timeout: 5)); app.buttons["Remove match"].tap()
+        for _ in 0..<4 where !choose.isHittable { app.swipeDown() }
+        XCTAssertTrue(choose.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["provider-match-error"].exists)
+        captureDashboard("Provider sleep retained after unlink")
+    }
+
     func testDashboardSixMonthCoverage() throws {
         app.buttons["Dashboard"].tap()
         let range = app.segmentedControls["dashboard-range-picker"]

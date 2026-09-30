@@ -14,6 +14,8 @@ final class DashboardAnalyticsModel: ObservableObject {
     @Published var nights: [DashboardNightAggregate] = []
     @Published var integrationStates: [DashboardIntegrationState] = []
     @Published var isLoading = false
+    @Published var savedProviderAssociations: [DashboardProviderAssociation] = []
+    var providerAssociationsReady = false
     @Published var lastRefresh: Date?
     @Published var errorMessage: String?
     @Published var sleepSource: DashboardSleepSource = .appleHealth
@@ -39,9 +41,10 @@ final class DashboardAnalyticsModel: ObservableObject {
         self.timeZone = timeZone
         reportingAsOf = now()
         reportingTimeZone = timeZone()
-        self.sessionRepo = sessionRepo ?? .shared
+        let fixture = sessionRepo == nil && providerQueries == nil ? DashboardAssociationUITestFixture.dependencies() : nil
+        self.sessionRepo = sessionRepo ?? fixture?.repository ?? .shared
         self.providerAccess = providerAccess
-        self.providerQueries = providerQueries ?? .live
+        self.providerQueries = providerQueries ?? fixture?.queries ?? .live
         publishedProviderAccess = providerAccess.revision
         providerAccessSubscription = providerAccess.changes.sink { [weak self] provider in
             if Thread.isMainThread {
@@ -65,7 +68,7 @@ final class DashboardAnalyticsModel: ObservableObject {
     static let keyFormatter: DateFormatter = AppFormatters.sessionDate
 
     func providerSnapshotIsCurrent(_ provider: DashboardProviderAccess.Provider) -> Bool {
-        guard !isLoading else { return false }
+        guard !isLoading, providerAssociationsReady else { return false }
         func current<T>(_ snapshot: DashboardProviderSnapshot<T>?) -> Bool {
             guard let snapshot else { return false }
             return snapshot.failedAttemptAt == nil && snapshot.window.range == selectedRange

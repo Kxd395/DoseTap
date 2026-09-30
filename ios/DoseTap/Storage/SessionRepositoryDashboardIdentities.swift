@@ -7,6 +7,7 @@ struct DashboardLocalSession {
     let sessionID: String?
     let sessionDate: String
     var sessionClosed = false
+    var sessionActive = false
     var doses: [DoseCore.StoredDoseEvent] = []
     var events: [StoredSleepEvent] = []
     var morning: StoredMorningCheckIn?
@@ -75,6 +76,12 @@ extension EventStorage {
             group.needsReview = group.needsReview || resolved == nil
             switch row.sourceTable {
             case "sleep_sessions", "current_session":
+                if row.sourceTable == "current_session", resolved != nil,
+                   text("session_end_utc") == nil, text("terminal_state") == nil,
+                   let start = text("session_start_utc") ?? text("dose1_time") {
+                    guard AppFormatters.parseISO8601Flexible(start) != nil else { throw ExportReadError.unreadable }
+                    group.sessionActive = true
+                }
                 if let ending = text("end_utc") ?? text("session_end_utc") {
                     guard AppFormatters.parseISO8601Flexible(ending) != nil else { throw ExportReadError.unreadable }
                     group.sessionClosed = true
@@ -119,6 +126,10 @@ extension EventStorage {
             groups[key] = group
         }
         for key in groups.keys {
+            if groups[key]?.sessionClosed == true {
+                if groups[key]?.sessionActive == true { groups[key]?.needsReview = true }
+                groups[key]?.sessionActive = false
+            }
             groups[key]?.fingerprint = dashboardFingerprint(evidence[key, default: []].sorted())
             if questionnaireCounts[key + ":outcome", default: 0] > 1 {
                 groups[key]?.outcome = nil; groups[key]?.outcomeReadFailed = true

@@ -50,6 +50,12 @@ struct DashboardTabView: View {
 
     private var dashboardContent: some View {
             ScrollView {
+                #if DEBUG && targetEnvironment(simulator)
+                if ProcessInfo.processInfo.arguments.contains("-dashboard-provider-match-uitest") {
+                    NavigationLink("Match synthetic provider sleep") { ProviderSessionAssociationView(model: model) }
+                        .accessibilityIdentifier("dashboard-provider-match-test-open")
+                }
+                #endif
                 VStack(spacing: 0) {
                     // MARK: Date Range Picker
                     Group {

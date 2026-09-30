@@ -26,27 +26,47 @@ extension DashboardNightAggregate {
     }
 }
 
+struct DashboardProviderMatchReview {
+    let providerRowID: String
+    let sessionID: String
+    let episodeFingerprint: String
+    let sessionFingerprint: String
+    let associationRevision: String?
+}
+
 extension DashboardAnalyticsModel {
-    func saveProviderAssociation(providerRowID: String, sessionID: String) throws {
+    func providerMatchReview(providerRowID: String, sessionID: String) throws -> DashboardProviderMatchReview {
+        guard let source = nights.first(where: { $0.id == providerRowID }), let evidence = source.unmatchedProviderEvidence,
+              let target = nights.first(where: { $0.sessionID == sessionID }), let fingerprint = target.localFingerprint,
+              !target.identityNeedsReview, source.sessionDate == target.sessionDate,
+              providerSnapshotIsCurrent(evidence.provider == "apple-health" ? .health : .whoop) else { throw ExportReadError.unreadable }
+        return .init(providerRowID: providerRowID, sessionID: sessionID, episodeFingerprint: evidence.fingerprint,
+            sessionFingerprint: fingerprint, associationRevision: savedProviderAssociations.first { $0.episodeID == evidence.episode }?.revision)
+    }
+    func saveProviderAssociation(_ review: DashboardProviderMatchReview) throws {
+        let providerRowID = review.providerRowID, sessionID = review.sessionID
         guard let provider = nights.first(where: { $0.id == providerRowID }),
               let evidence = provider.unmatchedProviderEvidence,
               providerSnapshotIsCurrent(evidence.provider == "apple-health" ? .health : .whoop),
-              let displayed = nights.first(where: { $0.sessionID == sessionID }) else { throw ExportReadError.unreadable }
+              let displayed = nights.first(where: { $0.sessionID == sessionID }),
+              evidence.fingerprint == review.episodeFingerprint, displayed.localFingerprint == review.sessionFingerprint else { throw ExportReadError.unreadable }
         let snapshot = try sessionRepo.dashboardIdentitySnapshot()
         guard let current = snapshot.sessions.first(where: { $0.sessionID == sessionID }), !current.needsReview,
               current.sessionDate == provider.sessionDate, current.fingerprint == displayed.localFingerprint else {
             throw ExportReadError.unreadable
         }
         let previous = snapshot.associations.first { $0.episodeID == evidence.episode }
+        guard previous?.revision == review.associationRevision else { throw ExportReadError.unreadable }
         let match = DashboardProviderAssociation(episodeID: evidence.episode, provider: evidence.provider,
             sessionID: sessionID, sessionDate: current.sessionDate, sessionFingerprint: current.fingerprint,
             episodeFingerprint: evidence.fingerprint, revision: UUID().uuidString)
-        try sessionRepo.saveDashboardAssociation(match, expectedRevision: previous?.revision)
+        try sessionRepo.saveDashboardAssociation(match, expectedRevision: review.associationRevision)
         refresh()
     }
-    func removeProviderAssociation(providerEpisodeID: String) throws {
+    func removeProviderAssociation(providerEpisodeID: String, expectedRevision: String) throws {
         let snapshot = try sessionRepo.dashboardIdentitySnapshot()
-        guard let match = snapshot.associations.first(where: { $0.episodeID == providerEpisodeID }) else { throw ExportReadError.unreadable }
+        guard let match = snapshot.associations.first(where: { $0.episodeID == providerEpisodeID }),
+              match.revision == expectedRevision else { throw ExportReadError.unreadable }
         try sessionRepo.removeDashboardAssociation(match)
         refresh()
     }

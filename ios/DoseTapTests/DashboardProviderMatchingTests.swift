@@ -97,12 +97,13 @@ final class DashboardProviderMatchingTests: XCTestCase {
             timeZone: { TimeZone(secondsFromGMT: 0)! }, providerAccess: access, providerQueries: queries)
         await model.performRefresh(days: 30)
         let source = try XCTUnwrap(model.nights.first { $0.healthSummary != nil })
+        let review = try model.providerMatchReview(providerRowID: source.id, sessionID: "a")
         enabled = false
-        XCTAssertThrowsError(try model.saveProviderAssociation(providerRowID: source.id, sessionID: "a"))
+        XCTAssertThrowsError(try model.saveProviderAssociation(review))
         enabled = true; model.isLoading = true
-        XCTAssertThrowsError(try model.saveProviderAssociation(providerRowID: source.id, sessionID: "a"))
+        XCTAssertThrowsError(try model.saveProviderAssociation(review))
         model.isLoading = false
-        try model.saveProviderAssociation(providerRowID: source.id, sessionID: "a")
+        try model.saveProviderAssociation(review)
         await model.refreshAndWait()
         XCTAssertNotNil(model.nights.first { $0.sessionID == "a" }?.healthSummary)
         XCTAssertEqual(try storage.dashboardAssociations().count, 1)
@@ -113,5 +114,51 @@ final class DashboardProviderMatchingTests: XCTestCase {
         let rows = model.identityAggregates(local: local, health: ["2026-09-29": summary], whoop: [:])
         XCTAssertEqual(rows.count, 2)
         XCTAssertNil(rows.first { $0.sessionID == "a" }?.healthSummary)
+    }
+    func testStaleUnmatchedReviewCannotReplaceConcurrentAssociation() async throws {
+        let storage = store(), access = DashboardProviderAccess()
+        let asOf = try XCTUnwrap(AppFormatters.parseISO8601Flexible("2026-09-30T12:00:00Z"))
+        let evening = try XCTUnwrap(AppFormatters.parseISO8601Flexible("2026-09-29T18:00:00Z"))
+        let health = HealthKitService.SleepNightSummary(date: evening, bedTime: evening, sleepOnset: evening,
+            firstWake: nil, finalWake: evening.addingTimeInterval(3600), ttfwMinutes: nil,
+            totalSleepMinutes: 60, wakeCount: 0, source: "Test")
+        let queries = DashboardProviderQueries(healthEnabled: { true }, whoopEnabled: { false }, whoopConnected: { false },
+            prepareHealth: { .ready }, healthHistory: { _ in [health] },
+            whoopHistory: { _, _ in .init(summaries: [], sleepRecordCount: 0, recoveryRecordCount: 0, recoveryStatus: .completed) })
+        let model = DashboardAnalyticsModel(now: { asOf }, sessionRepo: SessionRepository(storage: storage),
+            timeZone: { TimeZone(secondsFromGMT: 0)! }, providerAccess: access, providerQueries: queries)
+        await model.performRefresh(days: 30)
+        let source = try XCTUnwrap(model.nights.first { $0.healthSummary != nil })
+        let review = try model.providerMatchReview(providerRowID: source.id, sessionID: "a")
+        let target = try XCTUnwrap(storage.dashboardLocalSessions().first { $0.sessionID == "b" })
+        let concurrent = DashboardProviderAssociation(episodeID: health.id, provider: "apple-health", sessionID: "b",
+            sessionDate: target.sessionDate, sessionFingerprint: target.fingerprint,
+            episodeFingerprint: health.associationFingerprint, revision: UUID().uuidString)
+        try storage.saveDashboardAssociation(concurrent, expectedRevision: nil, now: asOf)
+        XCTAssertThrowsError(try model.saveProviderAssociation(review))
+        XCTAssertEqual(try storage.dashboardAssociations().first?.sessionID, "b")
+    }
+    func testLocalReadFailureCannotLeaveOldProviderSnapshotEligibleForMatching() async throws {
+        let storage = store(), access = DashboardProviderAccess()
+        let asOf = try XCTUnwrap(AppFormatters.parseISO8601Flexible("2026-09-30T12:00:00Z"))
+        var failProvider = false
+        let queries = DashboardProviderQueries(healthEnabled: { true }, whoopEnabled: { false }, whoopConnected: { false },
+            prepareHealth: { .ready }, healthHistory: { _ in
+                if failProvider { throw URLError(.timedOut) }; return [self.summary]
+            }, whoopHistory: { _, _ in .init(summaries: [], sleepRecordCount: 0, recoveryRecordCount: 0, recoveryStatus: .completed) })
+        let model = DashboardAnalyticsModel(now: { asOf }, sessionRepo: SessionRepository(storage: storage),
+            timeZone: { TimeZone(secondsFromGMT: 0)! }, providerAccess: access, providerQueries: queries)
+        await model.performRefresh(days: 30)
+        XCTAssertTrue(model.providerSnapshotIsCurrent(.health))
+        XCTAssertEqual(sqlite3_exec(storage.db, "ALTER TABLE morning_checkins RENAME TO unavailable_morning", nil, nil, nil), SQLITE_OK)
+        failProvider = true
+        await model.performRefresh(days: 30)
+        XCTAssertEqual(sqlite3_exec(storage.db, "ALTER TABLE unavailable_morning RENAME TO morning_checkins", nil, nil, nil), SQLITE_OK)
+        XCTAssertNotNil(model.healthSnapshot)
+        XCTAssertFalse(model.providerSnapshotIsCurrent(.health))
+        XCTAssertFalse(model.providerAssociationsReady)
+        failProvider = false
+        await model.performRefresh(days: 30)
+        XCTAssertTrue(model.providerSnapshotIsCurrent(.health))
     }
 }
