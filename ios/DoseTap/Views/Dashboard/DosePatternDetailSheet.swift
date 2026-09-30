@@ -40,6 +40,13 @@ struct DosePatternDetailSheet: View {
                     Section("Dose evidence") {
                         LabeledContent("Reported count", value: String(night.dosePattern.reportedCount))
                         LabeledContent("Count completeness", value: night.dosePattern.countComplete ? "Explicit complete report" : "Not confirmed complete")
+                        if let review = night.doseReview {
+                            LabeledContent("Historical plan report", value: review.historicalPlanCount.map(String.init) ?? "Unknown")
+                            LabeledContent("Expected Dose 2 not taken", value: review.secondNotTaken.map { $0 ? "Yes" : "No" } ?? "Unanswered")
+                            Text("Review recorded " + timestamp(review.recordedAt)).font(.caption)
+                            if !review.reason.isEmpty { Text("Review reason: " + review.reason).font(.caption) }
+                            Text("\(night.doseReviewLedger?.revisions.count ?? 0) saved review revisions; administration records remain separate.").font(.caption)
+                        }
                         ForEach(night.doseEvents) { event in
                             VStack(alignment: .leading) {
                                 Text(event.eventType)

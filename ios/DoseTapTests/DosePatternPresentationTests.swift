@@ -4,6 +4,54 @@ import DoseCore
 
 @MainActor
 final class DosePatternPresentationTests: XCTestCase {
+    func testCSVMatchesExactFilteredRowsAndMetricCoveragePolicy() throws {
+        let second = start.addingTimeInterval(180 * 60)
+        var observed = night(intervals: [.init(start: second, end: second.addingTimeInterval(30 * 60), asleep: true)])
+        observed.providerAssociation = "=unsafe spreadsheet expression"
+        var omitted = night(hasDose2: false, intervals: [])
+        omitted.sessionID = "other"; omitted.stableID = "session:other"
+        omitted.doseEvents = omitted.doseEvents.map { .init(id: "other:" + $0.id, eventType: $0.eventType,
+            timestamp: $0.timestamp, sessionDate: $0.sessionDate, sessionId: "other") }
+        let model = DashboardAnalyticsModel(now: { Date(timeIntervalSince1970: 1_790_768_000) })
+        model.selectedRange = .all; model.nights = [observed, omitted]
+        model.doseReviewReadReady = true; model.contextReadReady = true
+        model.publishWorkInspectionContext(nil, nights: model.nights, asOf: model.reportingAsOf)
+        let csv = try XCTUnwrap(DosePatternPresentation.csv(model: model, outcome: .postDose2))
+        let parsed = try ReportCSV.rows(csv), header = try XCTUnwrap(parsed.first)
+        XCTAssertEqual(parsed.count, 3)
+        let observedFields = try XCTUnwrap(parsed.dropFirst().first { $0.first == observed.id })
+        let row = Dictionary(uniqueKeysWithValues: zip(header, observedFields))
+        XCTAssertEqual(row["observation_id"], observed.id); XCTAssertEqual(row["sleep_minutes"], "30.0")
+        XCTAssertEqual(row["sleep_state"], "partial"); XCTAssertEqual(row["boundary_basis"], "providerLastObservedSleepEnd")
+        XCTAssertEqual(row["covered_minutes"], "30.0"); XCTAssertEqual(row["unmeasured_minutes"], "30.0")
+        XCTAssertEqual(row["selected_rows"], "2"); XCTAssertEqual(row["numeric_sleep_rows"], "1")
+        XCTAssertEqual(row["summary_included"], "false"); XCTAssertEqual(row["provider_association"], observed.providerAssociation)
+        XCTAssertTrue(csv.contains("'\u{200B}=unsafe"))
+        model.inspection.dosePatternFilter = .twoReported
+        XCTAssertEqual(try ReportCSV.rows(XCTUnwrap(DosePatternPresentation.csv(model: model, outcome: .postDose2))).count, 2)
+        model.doseReviewReadReady = false
+        XCTAssertNil(DosePatternPresentation.csv(model: model, outcome: .postDose2))
+    }
+    func testComparisonKeysSeparateUnknownContextSourcesDefinitionsAndBoundaries() {
+        let context = DashboardContextStratum.unknown(observationID: "one")
+        let main = DashboardSleepMetricProjection.providerEpisode(totalMinutes: 300, source: .appleHealth, freshness: .current)
+        let key = DosePatternPresentation.comparisonKey(pattern: .twoReported, context: context, projection: main)
+        XCTAssertEqual(key, DosePatternPresentation.comparisonKey(pattern: .twoReported, context: context, projection: main))
+        XCTAssertNotEqual(key, DosePatternPresentation.comparisonKey(pattern: .twoReported,
+            context: .unknown(observationID: "another"), projection: main))
+        XCTAssertNotEqual(key, DosePatternPresentation.comparisonKey(pattern: .singleUnknownPlan, context: context, projection: main))
+        let whoop = DashboardSleepMetricProjection.providerEpisode(totalMinutes: 300, source: .whoop, freshness: .current)
+        XCTAssertNotEqual(key, DosePatternPresentation.comparisonKey(pattern: .twoReported, context: context, projection: whoop))
+        let second = start.addingTimeInterval(180 * 60)
+        let night = night(intervals: [.init(start: second, end: second.addingTimeInterval(60 * 60), asleep: true)])
+        let reported = DashboardSleepMetricProjection.afterDose2(pattern: night.dosePattern, estimate: night.postDoseSleep,
+            source: .appleHealth, freshness: .current, boundaryBasis: .reportedFinalAwakening)
+        let provider = DashboardSleepMetricProjection.afterDose2(pattern: night.dosePattern, estimate: night.postDoseSleep,
+            source: .appleHealth, freshness: .current, boundaryBasis: .providerLastObservedSleepEnd)
+        XCTAssertNotEqual(key, DosePatternPresentation.comparisonKey(pattern: .twoReported, context: context, projection: reported))
+        XCTAssertNotEqual(DosePatternPresentation.comparisonKey(pattern: .twoReported, context: context, projection: reported),
+            DosePatternPresentation.comparisonKey(pattern: .twoReported, context: context, projection: provider))
+    }
     let start = Date(timeIntervalSince1970: 1_790_720_000)
     func night(hasDose2: Bool = true, hasOmission: Bool = true, intervals: [RecordedSleepInterval]) -> DashboardNightAggregate {
         let second = start.addingTimeInterval(180 * 60), end = second.addingTimeInterval(60 * 60)

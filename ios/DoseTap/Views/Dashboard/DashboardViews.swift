@@ -69,6 +69,8 @@ struct DashboardTabView: View {
 
                 NavigationLink("Replay & intervals") { DashboardReplayView(model: model) }
                     .accessibilityIdentifier("dashboard-replay-open").padding(.horizontal)
+                NavigationLink("Sleep & Dose Pattern") { ScrollView { DosePatternDashboardView(model: model).padding() } }
+                    .accessibilityIdentifier("dashboard-dose-pattern-open").padding(.horizontal)
                 Picker("Dashboard section", selection: $section) {
                     Text("All").tag("All")
                     Text("Overview").tag("Overview")

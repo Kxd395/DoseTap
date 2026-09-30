@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		DPUI001B /* DosePatternDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI001F; };
+		UI_DP01B /* DosePatternDashboardUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI_DP01F; };
 		DINS001B /* DashboardInspection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DINS001F; };
 		DPUI002B /* DosePatternDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI002F; };
 		DPUI003B /* DosePatternPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI003F; };
@@ -246,6 +248,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		DPUI001F /* DosePatternDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternDashboardView.swift; sourceTree = "<group>"; };
+		UI_DP01F /* DosePatternDashboardUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternDashboardUITests.swift; sourceTree = "<group>"; };
 		DINS001F /* DashboardInspection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardInspection.swift; sourceTree = "<group>"; };
 		DPUI002F /* DosePatternDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternDetailSheet.swift; sourceTree = "<group>"; };
 		DPUI003F /* DosePatternPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternPresentation.swift; sourceTree = "<group>"; };
@@ -676,6 +680,7 @@
 				CLUST002 /* DashboardViews.swift */,
 				DIDENT005 /* ProviderSessionAssociationView.swift */,
 				DPUI002F /* DosePatternDetailSheet.swift */,
+				DPUI001F /* DosePatternDashboardView.swift */,
 				DPUI003F /* DosePatternPresentation.swift */,
 				CTX001F /* ContextMorningProjection.swift */,
 				CTX002F /* ContextMorningOutcomesView.swift */,
@@ -885,6 +890,7 @@
 		UI_GRP01 /* DoseTapUITests */ = {
 			isa = PBXGroup;
 			children = (
+				UI_DP01F /* DosePatternDashboardUITests.swift */,
 				UI_F01 /* DoseTapUITests.swift */,
 				DYPU101 /* DaytimePromptUITests.swift */,
 				CTX003F /* ContextMorningOutcomesUITests.swift */,
@@ -1271,6 +1277,7 @@
 				DPUI003B /* DosePatternPresentation.swift in Sources */,
 				CTX001B /* ContextMorningProjection.swift in Sources */,
 				CTX002B /* ContextMorningOutcomesView.swift in Sources */,
+				DPUI001B /* DosePatternDashboardView.swift in Sources */,
 				DPUI004B /* DosePatternReviewSheet.swift in Sources */,
 				DPUI005B /* MorningDoseHistoryReviewSection.swift in Sources */,
 				WBPROJ001 /* DashboardWorkCycleProjection.swift in Sources */,
@@ -1307,6 +1314,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				UI_DP01B /* DosePatternDashboardUITests.swift in Sources */,
 				80D996632F5CFA280092DB29 /* Formatters.swift in Sources */,
 				UI_B01 /* DoseTapUITests.swift in Sources */,
 				DYPU001 /* DaytimePromptUITests.swift in Sources */,

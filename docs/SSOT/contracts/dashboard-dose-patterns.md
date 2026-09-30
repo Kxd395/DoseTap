@@ -33,6 +33,8 @@ iPad preserves report source/generation/capture and cannot write the phone ledge
 
 ## Sleep & Dose Pattern consumer
 
+The exact filtered-row CSV uses the same sleep projection and compatible context policy as chart/table inspection. It captures source, definition, named endpoint, derivation/reference versions, reporting as-of/timezone/filter/partial policies, observation and metric denominators, count/plan/review evidence, known actual administration amounts, coverage/freshness, and cached exact work context; incomplete reads and empty observations cannot produce a misleading export. JSON fields encode dates as Unix seconds and CSV text uses reversible spreadsheet guards. Accessibility text sizes replace mode/source segments with readable menus.
+
 Sleep projection policy v2 requires an explicit post-Dose-2 endpoint basis before numerical summary inclusion. Raw post-dose estimates accept reported final awakening or provider last observed sleep end only. Reviewed coverage can additionally name reviewed-window end, app session end, or required-wake target; these are observation-window policies, not actual awakening or a physiological response. Unresolved and main-episode bases require review and cannot enter summaries, including decoded legacy projections. Each named basis remains separate in comparisons and exports.
 
 - By date, category comparison and paired-interval modes share the selected provider and sleep definition. Total main-episode sleep is independent of count/spacing; post-Dose-2 sleep requires a usable Dose 2 and compatible Apple Health intervals. Missing values are not points at zero.
