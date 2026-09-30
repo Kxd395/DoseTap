@@ -17,6 +17,7 @@ extension DashboardAnalyticsModel {
                 case .doseInterval: suffix = ":spacing"; title = "Dose 1 to Dose 2 spacing"
                 case .mainSleep: suffix = sleepSource == .appleHealth ? ":apple-sleep" : ":whoop-sleep"; title = "Primary episode sleep"
                 case .sleepAfterDose2: suffix = ":observed-after-d2:" + (sleepSource == .appleHealth ? DashboardSleepMetricProjection.Source.appleHealth : .whoop).rawValue; title = "Observed sleep after Dose 2"
+                default: suffix = ":work-metric:" + evidence.metricID; title = metric.rawValue
                 }
                 let raw = evidence.metric
                 let state = PhysicianMetricState(rawValue: row.contributionState.rawValue) ?? .needsReview
@@ -36,7 +37,7 @@ extension DashboardAnalyticsModel {
                     evidence.start == nil ? "A source/dose timestamp may anchor this missing-result row; it does not establish a measured sleep onset." : "Membership uses the original source occurrence."]
                 observations.append(.init(id: night.id + suffix, observedAt: stamp, metricID: title + " • " + night.dosePattern.pattern.label,
                     value: row.value, state: state, unit: raw.unit, source: evidence.source,
-                    definitionVersion: evidence.definitionVersion + "|context:" + hash, detail: lines.joined(separator: "\n"),
+                    definitionVersion: evidence.definitionVersion + "|context:" + hash, detail: lines.joined(separator: "\n") + "\n" + (try physicianProviderEvidence(night, metric: metric)),
                     recordIDs: ids, requiresReview: state == .needsReview || night.identityNeedsReview,
                     comparisonLabel: row.stratumLabel ?? "Context unknown — kept separate"))
             }

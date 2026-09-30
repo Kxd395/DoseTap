@@ -1,4 +1,5 @@
 import XCTest
+import SQLite3
 import DoseCore
 @testable import DoseTap
 
@@ -233,5 +234,78 @@ extension PhysicianReportAdapterTests {
         XCTAssertEqual(rows.count, 1); XCTAssertNil(rows.first?.observedAt); XCTAssertNil(rows.first?.value)
         XCTAssertEqual(rows.first?.detailOnly, true); XCTAssertEqual(rows.first?.recordIDs, [review.id.uuidString])
         XCTAssertTrue(rows.first?.detail.contains("fully assessed report day") == true)
+    }
+}
+
+extension PhysicianReportAdapterTests {
+    func testReportFreezesExactWakeElapsedAndOriginalSourceLineage() async throws {
+        let model = await model(), storage = model.sessionRepo.storage
+        XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_sessions(session_id,session_date,start_utc) VALUES('report-wake','2026-09-29','2026-09-30T00:00:00Z')", nil, nil, nil), SQLITE_OK)
+        var diary = NightOutcomeDiary(); diary.finalWakeAt = now.addingTimeInterval(-3600)
+        XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: "2026-09-29"), reason: "", recordedAt: now.addingTimeInterval(-60)).isCommitted)
+        let link = try XCTUnwrap(model.sessionRepo.daytimeSourceCandidates(kind: .mainWake, asOf: now).first?.link)
+        let observation = try DaytimeCheckIn(assessedAt: now.addingTimeInterval(-30), recordedAt: now, timeZoneIdentifier: "UTC", response: 4, sourceLinks: [link])
+        try model.sessionRepo.saveDaytimeCheckIn(observation)
+        let context = try XCTUnwrap(model.physicianDaytimeCapture(for: period()).analysis.observationContexts?[observation.id])
+        XCTAssertEqual(context.wake?.elapsedSeconds, 3570); XCTAssertEqual(context.wake?.status, .current)
+        let row = try XCTUnwrap(model.physicianReportObservations(for: period()).first { $0.id == "daytime:" + observation.id.uuidString })
+        XCTAssertTrue(row.detail.contains("\"elapsedSeconds\":3570")); XCTAssertTrue(row.detail.contains(link.evidenceKey))
+        XCTAssertTrue(row.detail.contains("originalReferences")); XCTAssertTrue(row.detail.contains("currentSourceRecordedAt"))
+        XCTAssertTrue(row.recordIDs.contains(link.sourceID))
+        XCTAssertTrue(storage.saveNightOutcome(NightOutcomeDiary(), review: try storage.nightOutcomeSnapshot(sessionDate: "2026-09-29"), reason: "Synthetic correction", recordedAt: now.addingTimeInterval(10)).isCommitted)
+        XCTAssertEqual(context.wake?.status, .current)
+        XCTAssertTrue(row.detail.contains("\"elapsedSeconds\":3570"))
+    }
+}
+
+extension PhysicianReportAdapterTests {
+    func testWorkCategoriesKeepLegacyRawAnswersOutsideConfirmedCounts() async throws {
+        let model = await model()
+        model.nights = [night(morning: .init(id: "report-category", sessionId: "synthetic", timestamp: now.addingTimeInterval(-60), sessionDate: "2026-09-29"))]
+        let canonical = try XCTUnwrap(model.workCycleCategoryReport(metric: .quality, period: period()))
+        XCTAssertEqual(canonical.comparison.eligibleCount, 0)
+        let contexts = try model.physicianReportContexts(for: period(), generatedAt: now)
+        let group = try XCTUnwrap(contexts.first { $0.id.hasPrefix("work-category:") && $0.title.hasPrefix("Full period • Sleep quality") })
+        XCTAssertTrue(group.lines.contains { $0.contains("0/1 observations eligible") })
+        XCTAssertTrue(group.lines.contains { $0.contains("Original eligible categories: none confirmed") })
+        XCTAssertTrue(group.lines.contains { $0.contains("source state needsReview") })
+        XCTAssertTrue(group.recordIDs.contains("session:synthetic"))
+    }
+    func testAssessedNapReportUsesSharedFullCivilDayDenominatorAndExplicitZero() async throws {
+        let model = await model()
+        var calendar = Calendar(identifier: .gregorian); calendar.timeZone = .gmt
+        let today = calendar.startOfDay(for: now), yesterday = try XCTUnwrap(calendar.date(byAdding: .day, value: -1, to: today))
+        let period = try PhysicianReportPeriod.resolve(.custom(start: yesterday, endExclusive: now), ledger: .init(), asOf: now, timeZone: .gmt)
+        var document = NapDiaryDocument()
+        document.reviews = [yesterday, today].map { NapDayReview(day: NapEpisode.day($0, "UTC"), timeZoneID: "UTC", status: .none, recordedAt: now) }
+        try model.sessionRepo.saveNapDiary(document, expectedRevision: nil)
+        let canonical = try model.workCycleNapDayReport(period: period)
+        XCTAssertEqual(canonical.assessedDayCount, 1); XCTAssertEqual(canonical.rows.count, 2)
+        let contexts = try model.physicianReportContexts(for: period, generatedAt: now)
+        let coverage = try XCTUnwrap(contexts.first { $0.id == "nap-assessment-coverage" })
+        XCTAssertTrue(coverage.lines.contains { $0.contains("1/2 recorded original day/timezone") })
+        let lines = contexts.filter { $0.id.hasPrefix("nap-assessment-month:") }.flatMap(\.lines)
+        XCTAssertTrue(lines.contains { $0.contains("reviewed episode count 0;") && $0.contains("full original-day coverage true") })
+        XCTAssertTrue(lines.contains { $0.contains("reviewed episode count unavailable;") && $0.contains("full original-day coverage false") })
+        XCTAssertTrue(lines.allSatisfy { $0.contains("work context Unknown") })
+    }
+    func testProviderDetailRetainsCanonicalCoverageAndRawSourceBounds() async throws {
+        let model = await model(); var row = night()
+        var health = HealthKitService.SleepNightSummary(date: now.addingTimeInterval(-7200), bedTime: nil,
+            sleepOnset: now.addingTimeInterval(-2700), firstWake: nil, finalWake: now.addingTimeInterval(-60),
+            ttfwMinutes: nil, totalSleepMinutes: 44, wakeCount: 0, source: "Synthetic original source")
+        health.recordedIntervals = [.init(start: now.addingTimeInterval(-2700), end: now.addingTimeInterval(-60), asleep: true)]
+        row.healthSummary = health; model.nights = [row]
+        let projection = DosePatternPresentation.sleepProjection(row, source: .appleHealth, outcome: .postDose2, freshness: .stale)
+        let detail = try model.physicianProviderEvidence(row, metric: .sleepAfterDose2)
+        let first = try XCTUnwrap(detail.split(separator: "\n").first), json = try XCTUnwrap(first.firstIndex(of: "{"))
+        let decoded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(first[json...].utf8)) as? [String: Any])
+        XCTAssertEqual(decoded["coveredMinutes"] as? Double, projection.coveredMinutes)
+        XCTAssertEqual(decoded["unmeasuredMinutes"] as? Double, projection.unmeasuredMinutes)
+        XCTAssertEqual(decoded["boundaryBasis"] as? String, projection.boundaryBasis.rawValue)
+        let records = try model.physicianReportObservations(for: period())
+        let primary = try XCTUnwrap(records.first { $0.id == row.id + ":apple-sleep" })
+        XCTAssertTrue(primary.detail.contains("Synthetic original source")); XCTAssertTrue(primary.detail.contains("Raw original provider total: 44.0"))
+        XCTAssertNil(primary.value)
     }
 }

@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		PHFN10012 /* PhysicianReportedOutcomeContexts.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHFN0012 /* PhysicianReportedOutcomeContexts.swift */; };
+		PHFN10011 /* PhysicianProviderEvidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHFN0011 /* PhysicianProviderEvidence.swift */; };
+		PHFN10010 /* PhysicianDaytimeContextEvidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHFN0010 /* PhysicianDaytimeContextEvidence.swift */; };
 		PHRU1009 /* PhysicianNapSources.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRU009 /* PhysicianNapSources.swift */; };
 		PHRU1008 /* PhysicianDaytimeSources.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRU008 /* PhysicianDaytimeSources.swift */; };
 		PHRU1007 /* PhysicianCanonicalMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRU007 /* PhysicianCanonicalMetrics.swift */; };
@@ -271,6 +274,9 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		PHFN0012 /* PhysicianReportedOutcomeContexts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianReportedOutcomeContexts.swift; sourceTree = "<group>"; };
+		PHFN0011 /* PhysicianProviderEvidence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianProviderEvidence.swift; sourceTree = "<group>"; };
+		PHFN0010 /* PhysicianDaytimeContextEvidence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianDaytimeContextEvidence.swift; sourceTree = "<group>"; };
 		PHRU009 /* PhysicianNapSources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianNapSources.swift; sourceTree = "<group>"; };
 		PHRU008 /* PhysicianDaytimeSources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianDaytimeSources.swift; sourceTree = "<group>"; };
 		PHRU007 /* PhysicianCanonicalMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianCanonicalMetrics.swift; sourceTree = "<group>"; };
@@ -934,6 +940,9 @@
 				PHRU007 /* PhysicianCanonicalMetrics.swift */,
 				PHRU008 /* PhysicianDaytimeSources.swift */,
 				PHRU009 /* PhysicianNapSources.swift */,
+				PHFN0010 /* PhysicianDaytimeContextEvidence.swift */,
+				PHFN0011 /* PhysicianProviderEvidence.swift */,
+				PHFN0012 /* PhysicianReportedOutcomeContexts.swift */,
 				PHRU005 /* PhysicianReportAdapter.swift */,
 				PHRU004 /* PhysicianReportPDF.swift */,
 				PHRU002 /* PhysicianReviewView.swift */,
@@ -1231,6 +1240,9 @@
 				PHRU1007 /* PhysicianCanonicalMetrics.swift in Sources */,
 				PHRU1008 /* PhysicianDaytimeSources.swift in Sources */,
 				PHRU1009 /* PhysicianNapSources.swift in Sources */,
+				PHFN10010 /* PhysicianDaytimeContextEvidence.swift in Sources */,
+				PHFN10011 /* PhysicianProviderEvidence.swift in Sources */,
+				PHFN10012 /* PhysicianReportedOutcomeContexts.swift in Sources */,
 				PHRU1005 /* PhysicianReportAdapter.swift in Sources */,
 				PHRU1004 /* PhysicianReportPDF.swift in Sources */,
 				PHRU1002 /* PhysicianReviewView.swift in Sources */,

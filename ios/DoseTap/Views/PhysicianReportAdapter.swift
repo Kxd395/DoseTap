@@ -124,7 +124,7 @@ extension DashboardAnalyticsModel {
             add("daytime:" + value.id.uuidString, at: value.assessedAt, metric: "Current sleepiness (custom 0–10)",
                 value: value.response.map(Double.init), state: value.status == .answered ? .available : .unavailable,
                 unit: "custom rating 0–10", source: "Patient daytime diary", version: "daytime-sampling.v\(daytime.calculationVersion)|" + groupHash,
-                detail: context + "\n" + (try value.encoded()), ids: [value.id.uuidString, value.revisionID.uuidString] + (daytime.observationContexts?[value.id]?.sourceRecordIDs ?? []), comparisonLabel: context)
+                detail: context + "\n" + (try value.encoded()) + "\n" + (try physicianDaytimeContextPayload(daytime.observationContexts?[value.id])), ids: [value.id.uuidString, value.revisionID.uuidString] + (daytime.observationContexts?[value.id]?.sourceRecordIDs ?? []), comparisonLabel: context)
         }
         for value in events {
             add("daytime-event:" + value.id.uuidString, at: value.occurredAt, metric: value.kind.rawValue, value: nil,
@@ -178,6 +178,8 @@ extension DashboardAnalyticsModel {
         }
         result += try physicianWorkComparisons(for: period)
         result += try physicianMorningCoverage()
+        result += try physicianWorkCategoryContexts(for: period)
+        result += try physicianAssessedNapContexts(for: period)
         return result
     }
 

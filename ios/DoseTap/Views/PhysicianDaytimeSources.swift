@@ -17,7 +17,7 @@ extension DashboardAnalyticsModel {
         let records = try DaytimeTrendRecords(repository: sessionRepo, asOf: selection.asOf)
         let contexts = try Dictionary(uniqueKeysWithValues: records.observations.map {
             ($0.id, try DaytimeObservationContext(observation: $0, work: selection.work, basis: selection.basis,
-                medication: selection.medication, asOf: selection.asOf))
+                medication: selection.medication, asOf: selection.asOf, wake: records.wakeContexts[$0.id]))
         })
         let analysis = try DaytimeDiaryAnalysis(observations: records.observations, events: records.events,
             start: period.start, end: period.endExclusive, now: selection.asOf, timeZone: selection.timeZone,
