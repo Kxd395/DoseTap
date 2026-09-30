@@ -14,7 +14,21 @@ extension WHOOPNightSummary {
     var associationFingerprint: String {
         dashboardFingerprint([id, String(date.timeIntervalSince1970), String(totalSleepMinutes), String(remMinutes),
             String(deepMinutes), String(lightMinutes), String(awakeMinutes), String(hasCompleteSleepStages),
-            inBedMinutes.map(String.init) ?? ""])
+            inBedMinutes.map(String.init) ?? ""] + endpointFingerprintFields + stageFingerprintFields)
+    }
+    private var stageFingerprintFields: [String] {
+        guard let evidence = stageEvidence else { return ["stage-evidence:unavailable"] }
+        return [evidence.sleepID ?? "", evidence.scoreState ?? "", evidence.provenance ?? "",
+            evidence.version.map(String.init) ?? "", evidence.lightMilliseconds.map(String.init) ?? "",
+            evidence.deepMilliseconds.map(String.init) ?? "", evidence.remMilliseconds.map(String.init) ?? ""]
+    }
+    private var endpointFingerprintFields: [String] {
+        guard let evidence = endpointEvidence else { return ["endpoint-evidence:unavailable"] }
+        return [evidence.provenance, String(evidence.version), evidence.sleepID,
+            evidence.originalStart.map { String($0.timeIntervalSince1970) } ?? "",
+            evidence.originalEnd.map { String($0.timeIntervalSince1970) } ?? "",
+            evidence.providerTimeZoneOffset ?? "",
+            evidence.providerUpdatedAt.map { String($0.timeIntervalSince1970) } ?? ""]
     }
 }
 

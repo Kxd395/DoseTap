@@ -81,8 +81,7 @@ struct DashboardNightAggregate: Identifiable {
     }
 
     var whoopSleepMinutes: Double? {
-        guard whoopSummary?.hasCompleteSleepStages == true, let minutes = whoopSummary?.totalSleepMinutes, minutes > 0 else { return nil }
-        return Double(minutes)
+        whoopSummary?.quantitativeSleepMinutes
     }
 
     var ttfwMinutes: Double? { healthSummary?.ttfwMinutes }

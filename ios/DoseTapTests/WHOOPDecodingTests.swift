@@ -1,8 +1,55 @@
 import XCTest
+import DoseCore
 @testable import DoseTap
 
 @MainActor
 final class WHOOPDecodingTests: XCTestCase {
+
+    func testSummaryPreservesRawEndpointsAndRejectsInconsistentIdentity() throws {
+        let json = #"{"id":"endpoint-night","start":"2026-09-29T22:00:00Z","end":"2026-09-30T06:00:00Z","timezone_offset":"-04:00","updated_at":"2026-09-30T07:00:00Z"}"#
+        let raw = try WHOOPService.makeAPIDecoder().decode(WHOOPSleep.self, from: Data(json.utf8))
+        var summary = raw.toNightSummary()
+        XCTAssertEqual(summary.endpointEvidence?.originalStart, raw.start)
+        XCTAssertEqual(summary.endpointEvidence?.originalEnd, raw.end)
+        XCTAssertEqual(summary.endpointEvidence?.providerUpdatedAt, raw.updatedAt)
+        XCTAssertEqual(summary.endpointEvidence?.providerTimeZoneOffset, "-04:00")
+        XCTAssertEqual(summary.originalSleepInterval?.duration, 28_800)
+        let previous = summary.associationFingerprint
+        summary.endpointEvidence = .init(sleepID: raw.id, originalStart: raw.start, originalEnd: raw.end?.addingTimeInterval(60), providerTimeZoneOffset: raw.timezoneOffset, providerUpdatedAt: raw.updatedAt)
+        XCTAssertNotEqual(previous, summary.associationFingerprint)
+        summary.endpointEvidence = .init(sleepID: "wrong-id", originalStart: raw.start, originalEnd: raw.end, providerTimeZoneOffset: raw.timezoneOffset, providerUpdatedAt: raw.updatedAt)
+        XCTAssertNil(summary.originalSleepInterval)
+        summary.endpointEvidence = .init(sleepID: raw.id, originalStart: raw.start?.addingTimeInterval(1), originalEnd: raw.end, providerTimeZoneOffset: raw.timezoneOffset, providerUpdatedAt: raw.updatedAt)
+        XCTAssertNil(summary.originalSleepInterval)
+    }
+    func testMissingOrInvalidWHOOPEndIsNotInventedFromDuration() throws {
+        for suffix in ["", #", "end":"2026-09-29T21:00:00Z""#] {
+            let json = #"{"id":"endpoint-night","start":"2026-09-29T22:00:00Z","score":{"stage_summary":{"total_in_bed_time_milli":28800000}}"# + suffix + "}"
+            let raw = try WHOOPService.makeAPIDecoder().decode(WHOOPSleep.self, from: Data(json.utf8))
+            let summary = raw.toNightSummary()
+            XCTAssertEqual(summary.inBedMinutes, 480)
+            XCTAssertEqual(summary.endpointEvidence?.originalEnd, raw.end)
+            XCTAssertNil(summary.originalSleepInterval)
+        }
+    }
+
+    func testStageCorrectionPreservesPrecisionAndInvalidatesFingerprint() throws {
+        let json = #"{"id":"precision-night","start":"2026-09-29T22:00:00Z","end":"2026-09-30T06:00:00Z","score_state":"SCORED","score":{"stage_summary":{"total_light_sleep_time_milli":1000,"total_slow_wave_sleep_time_milli":0,"total_rem_sleep_time_milli":0}}}"#
+        let raw = try WHOOPService.makeAPIDecoder().decode(WHOOPSleep.self, from: Data(json.utf8))
+        let original = raw.toNightSummary()
+        var corrected = original
+        corrected.stageEvidence = .init(sleepID: original.sleepId, scoreState: "SCORED",
+            lightMilliseconds: 2_000, deepMilliseconds: 0, remMilliseconds: 0)
+        XCTAssertEqual(original.totalSleepMinutes, corrected.totalSleepMinutes)
+        XCTAssertNotEqual(original.associationFingerprint, corrected.associationFingerprint)
+        XCTAssertEqual(try XCTUnwrap(corrected.quantitativeSleepMinutes), 1.0 / 30, accuracy: 0.000001)
+        corrected.stageEvidence = .init(sleepID: "different-sleep", scoreState: "SCORED",
+            lightMilliseconds: 2_000, deepMilliseconds: 0, remMilliseconds: 0)
+        XCTAssertNil(corrected.quantitativeSleepMinutes)
+        XCTAssertNotNil(corrected.sleepEvidenceReviewReason)
+        corrected.stageEvidence = nil
+        XCTAssertNil(corrected.quantitativeSleepMinutes) // Legacy integer totals cannot establish scoring.
+    }
 
     func testNightFetchPreservesSleepAfterRecoveryFailure() async throws {
         let sleeps = try nightFetchSleepRecords()

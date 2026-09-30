@@ -151,6 +151,43 @@ final class DashboardDosePatternAdapterTests: XCTestCase {
         XCTAssertEqual(model.nights.first?.doseReview, next)
         XCTAssertEqual(model.nights.first?.doseReviewLedger?.revisions, [zero, next])
     }
+    func testWHOOPFetchAndDashboardPreserveScoredZeroAndSubminuteEvidence() throws {
+        let model = model(EventStorage.inMemory())
+        let cases: [(String?, Int?, Int?, Int?, Double?)] = [
+            ("SCORED", 0, 0, 0, 0), ("SCORED", 1_000, 2_000, 3_000, 0.1),
+            (nil, 60_000, 0, 0, nil), ("SCORED", 60_000, nil, 0, nil),
+            ("SCORED", 60_000, -1, 0, nil)
+        ]
+        for (state, light, deep, rem, expected) in cases {
+            var stages: [String: Any] = [:]
+            stages["total_light_sleep_time_milli"] = light
+            stages["total_slow_wave_sleep_time_milli"] = deep
+            stages["total_rem_sleep_time_milli"] = rem
+            var object: [String: Any] = ["id": "zero-or-raw", "start": "2026-09-29T22:00:00Z",
+                "end": "2026-09-30T06:00:00Z", "score": ["stage_summary": stages]]
+            object["score_state"] = state
+            let raw = try WHOOPService.makeAPIDecoder().decode(WHOOPSleep.self,
+                from: JSONSerialization.data(withJSONObject: object))
+            guard let summary = WHOOPService.makeNightSummaries(sleeps: [raw], recoveries: []).first else {
+                XCTFail("Reported stage fields must remain inspectable, including complete scored zero"); continue
+            }
+            let row = try XCTUnwrap(model.identityAggregates(local: [], health: [:], whoop: ["2026-09-29": summary]).first)
+            if let expected { XCTAssertEqual(try XCTUnwrap(row.whoopSleepMinutes), expected, accuracy: 0.000001) }
+            else { XCTAssertNil(row.whoopSleepMinutes) }
+        }
+    }
+
+    func testWHOOPStageTotalExceedingOriginalEpisodeCannotSupplyNumericSleep() throws {
+        let model = model(EventStorage.inMemory())
+        let json = #"{"id":"inconsistent-night","start":"2026-09-29T22:00:00Z","end":"2026-09-30T06:00:00Z","score_state":"SCORED","score":{"stage_summary":{"total_light_sleep_time_milli":32400000,"total_slow_wave_sleep_time_milli":0,"total_rem_sleep_time_milli":0}}}"#
+        let raw = try WHOOPService.makeAPIDecoder().decode(WHOOPSleep.self, from: Data(json.utf8))
+        let summary = try XCTUnwrap(WHOOPService.makeNightSummaries(sleeps: [raw], recoveries: []).first)
+        XCTAssertEqual(summary.totalSleepMinutes, 540) // Original aggregate remains inspectable.
+        XCTAssertNotNil(summary.sleepEvidenceReviewReason)
+        let row = try XCTUnwrap(model.identityAggregates(local: [], health: [:], whoop: ["2026-09-29": summary]).first)
+        XCTAssertNil(row.whoopSleepMinutes)
+    }
+
     func testSameProviderIDCorrectionsInvalidateCountReview() throws {
         let model = model(EventStorage.inMemory())
         func summary(_ date: Date, _ sleep: Int, inBed: Int = 440) -> WHOOPNightSummary {
