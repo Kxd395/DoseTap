@@ -6,46 +6,60 @@ public struct WorkCycleMetricEvidence: Equatable, Sendable {
     public let source: String
     public let definitionVersion: String
     public let metric: DashboardMetricValue
+    public let boundaryIssue: String?
     public var start: Date?
     public var end: Date?
     public init(metricID: String, source: String, definitionVersion: String, metric: DashboardMetricValue,
-                start: Date?, end: Date?) {
+                start: Date?, end: Date?, boundaryIssue: String? = nil) {
         self.metricID = metricID; self.source = source; self.definitionVersion = definitionVersion
-        self.metric = metric; self.start = start; self.end = end
+        self.metric = metric; self.start = start; self.end = end; self.boundaryIssue = boundaryIssue
     }
 }
 
 public extension WorkCycleObservation {
     func applying(_ evidence: WorkCycleMetricEvidence, includePartial: Bool,
-                  period: PhysicianReportPeriod? = nil) -> Self {
+                  period: PhysicianReportPeriod? = nil, asOf: Date? = nil) -> Self {
         var result = self
-        result.metricEvidence = evidence; result.value = nil
+        result.metricEvidence = evidence; result.value = nil; result.contributionState = evidence.metric.state
         result.contributionReason = evidence.metric.reason
+        func review(_ reason: String) -> Self {
+            var excluded = result; excluded.contributionState = .needsReview; excluded.contributionReason = reason
+            return excluded
+        }
+        let capture = asOf ?? period?.capturedAt
+        if let capture, !capture.timeIntervalSince1970.isFinite { return review("invalid_capture_time") }
+        if let issue = evidence.boundaryIssue {
+            return review(issue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || issue.count > 300
+                ? "invalid_boundary_issue" : issue)
+        }
         guard [evidence.metricID, evidence.source, evidence.definitionVersion, evidence.metric.unit]
             .allSatisfy({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && $0.count <= 300 }) else {
-            result.contributionReason = "invalid_metric_metadata"; return result
+            return review("invalid_metric_metadata")
         }
         guard evidence.metric.state == .available || evidence.metric.state == .partial else { return result }
+        guard [evidence.start, evidence.end].compactMap({ $0 }).allSatisfy({ $0.timeIntervalSince1970.isFinite }),
+              evidence.start.flatMap({ start in evidence.end.map { start < $0 } }) != false else {
+            return review("invalid_metric_bounds")
+        }
+        if let capture, [evidence.start, evidence.end].compactMap({ $0 }).contains(where: { $0 > capture }) {
+            return review("metric_bounds_after_capture")
+        }
         if evidence.metric.state == .partial && !includePartial {
             result.contributionReason = "partial_excluded"; return result
         }
         guard let value = evidence.metric.value, value.isFinite, value >= 0 else {
-            result.contributionReason = "invalid_duration_value"; return result
-        }
-        guard [evidence.start, evidence.end].compactMap({ $0 }).allSatisfy({ $0.timeIntervalSince1970.isFinite }),
-              evidence.start.flatMap({ start in evidence.end.map { start < $0 } }) != false else {
-            result.contributionReason = "invalid_metric_bounds"; return result
+            return review("invalid_duration_value")
         }
         if let period {
-            guard (try? period.validate()) != nil else { result.contributionReason = "invalid_reporting_period"; return result }
+            guard (try? period.validate()) != nil else { return review("invalid_reporting_period") }
             guard let start = evidence.start, let end = evidence.end else {
-                result.contributionReason = "metric_bounds_unavailable"; return result
+                result.contributionState = .unavailable; result.contributionReason = "metric_bounds_unavailable"; return result
             }
             guard start.timeIntervalSince1970.isFinite, end.timeIntervalSince1970.isFinite, start < end else {
-                result.contributionReason = "invalid_metric_bounds"; return result
+                return review("invalid_metric_bounds")
             }
             guard period.contains(start), period.contains(end) else {
-                result.contributionReason = "metric_bounds_outside_selected_period"; return result
+                result.contributionState = .unavailable; result.contributionReason = "metric_bounds_outside_selected_period"; return result
             }
         }
         result.value = value
@@ -74,7 +88,7 @@ public struct WorkCycleComparison: Sendable {
         public var eligibleCount: Int { rows.count - notApplicableCount }
         public var partialCount: Int { rows.filter { $0.metricEvidence?.metric.state == .partial }.count }
         public var partialIncludedCount: Int { rows.filter { $0.metricEvidence?.metric.state == .partial && $0.value != nil }.count }
-        public var needsReviewCount: Int { rows.filter { $0.metricEvidence?.metric.state == .needsReview || $0.contributionReason == "conflicting_observation_identity" }.count }
+        public var needsReviewCount: Int { rows.filter { $0.contributionState == .needsReview || $0.metricEvidence?.metric.state == .needsReview }.count }
         public var representedDateCount: Int { Set(rows.map(\.sleepDate)).count }
     }
     public let rawObservations: [WorkCycleObservation]
@@ -93,7 +107,7 @@ public struct WorkCycleComparison: Sendable {
             guard var row = rows.first else { continue }
             if rows.count > 1 { duplicate.append(id) }
             if rows.contains(where: { $0 != row }) {
-                conflicting.append(id); row.value = nil; row.contributionReason = "conflicting_observation_identity"
+                conflicting.append(id); row.value = nil; row.contributionState = .needsReview; row.contributionReason = "conflicting_observation_identity"
             }
             guard !id.isEmpty, DashboardReportingWindow.isValidDateKey(row.sleepDate) else { unplaced.append(id); continue }
             checked.append(row)
@@ -121,5 +135,45 @@ public struct WorkCycleComparison: Sendable {
                 stratumLabel: row.stratumLabel ?? "Context unknown — kept separate", metricID: fields[4], source: fields[5],
                 definitionVersion: fields[6], unit: fields[7], rows: rows.sorted { $0.id < $1.id })
         }.sorted { $0.id < $1.id }
+    }
+}
+
+/// Frozen selected-view metadata, independent of whether its filters return any observations.
+public struct WorkCycleExportContext: Equatable, Sendable {
+    public let selectedSource: String, selectedDefinition: String, timeZoneIdentifier: String
+    public let periodStart: Date?, periodEndExclusive: Date?
+    public let dosePatternFilter: String?, contextStratumFilter: String?, selectedObservationID: String?
+    public let includePartialMetrics: Bool, visualization: String, monthlySummaries: Bool
+    public let periodPolicy: String, providerSnapshotState: String
+    public init(selectedSource: String, selectedDefinition: String, timeZoneIdentifier: String,
+                periodStart: Date?, periodEndExclusive: Date?, dosePatternFilter: String?, contextStratumFilter: String?,
+                includePartialMetrics: Bool, selectedObservationID: String?, visualization: String, monthlySummaries: Bool,
+                periodPolicy: String = "reviewed_exact", providerSnapshotState: String = "unavailable") {
+        self.selectedSource = selectedSource; self.selectedDefinition = selectedDefinition; self.timeZoneIdentifier = timeZoneIdentifier
+        self.periodStart = periodStart; self.periodEndExclusive = periodEndExclusive; self.dosePatternFilter = dosePatternFilter
+        self.contextStratumFilter = contextStratumFilter; self.includePartialMetrics = includePartialMetrics
+        self.selectedObservationID = selectedObservationID; self.visualization = visualization; self.monthlySummaries = monthlySummaries
+        self.periodPolicy = periodPolicy; self.providerSnapshotState = providerSnapshotState
+    }
+    static let headers = ["selected_source", "selected_definition", "selected_timezone", "selected_period_start_utc",
+        "selected_period_end_exclusive_utc", "dose_pattern_filter", "context_stratum_filter", "include_partial_metrics",
+        "selected_observation_id", "visualization", "summary_period", "period_policy", "provider_snapshot_state", "view_context_state"]
+    var fields: [String: String] {
+        let valid = TimeZone(identifier: timeZoneIdentifier) != nil
+            && ["reviewed_exact", "treatment_date_membership"].contains(periodPolicy)
+            && ["current", "stale", "unavailable"].contains(providerSnapshotState)
+            && [selectedSource, selectedDefinition, visualization].allSatisfy { !$0.isEmpty && $0.count <= 300 }
+            && [periodStart, periodEndExclusive].compactMap { $0 }.allSatisfy { $0.timeIntervalSince1970.isFinite }
+            && periodStart.flatMap { start in periodEndExclusive.map { start < $0 } } != false
+        return ["selected_source": selectedSource, "selected_definition": selectedDefinition, "selected_timezone": timeZoneIdentifier,
+            "selected_period_start_utc": Self.stamp(periodStart), "selected_period_end_exclusive_utc": Self.stamp(periodEndExclusive),
+            "dose_pattern_filter": dosePatternFilter ?? "All", "context_stratum_filter": contextStratumFilter ?? "All",
+            "include_partial_metrics": includePartialMetrics ? "true" : "false", "selected_observation_id": selectedObservationID ?? "",
+            "visualization": visualization, "summary_period": monthlySummaries ? "calendar_month" : "selected_period",
+            "period_policy": periodPolicy, "provider_snapshot_state": providerSnapshotState, "view_context_state": valid ? "available" : "needsReview"]
+    }
+    static func stamp(_ date: Date?) -> String {
+        guard let date, date.timeIntervalSince1970.isFinite else { return "" }
+        return ISO8601DateFormatter().string(from: date)
     }
 }

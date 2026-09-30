@@ -188,6 +188,8 @@ let package = Package(
                 "WorkCycleProfileTests.swift",
                 "WorkCycleEncodingTests.swift",
                 "WorkCycleComparisonTests.swift",
+                "WorkCycleGroupExportRegressionTests.swift",
+                "WorkCycleEligibilityDraftTests.swift",
                 "WorkPlanSnapshotTests.swift",
                 "WorkShiftEventTests.swift",
                 "SessionIdBackfillTests.swift",
