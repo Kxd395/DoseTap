@@ -80,4 +80,25 @@ final class DashboardDosePatternTests: XCTestCase {
         XCTAssertEqual(DashboardMetricValue(value:.nan,state:.available,reason:"bad",unit:"minutes").state,.needsReview)
         XCTAssertEqual(DashboardMetricValue(value:0,state:.available,reason:"observed",unit:"minutes").value,0)
     }
+    func testMetricRejectsContradictoryValueStatesAndPreservesReason() {
+        let cases: [(DashboardMetricState, Double?)] = [(.available, nil), (.notApplicable, 0), (.unavailable, 1), (.needsReview, 2)]
+        for (state, value) in cases {
+            let metric = DashboardMetricValue(value: value, state: state, reason: "original_reason", unit: "minutes")
+            XCTAssertNil(metric.value)
+            XCTAssertEqual(metric.state, .needsReview)
+            XCTAssertEqual(metric.reason, "original_reason")
+            XCTAssertEqual(metric.unit, "minutes")
+        }
+        XCTAssertEqual(DashboardMetricValue(value: nil, state: .partial, reason: "coverage", unit: "minutes").state, .partial)
+        XCTAssertEqual(DashboardMetricValue(value: 0, state: .partial, reason: "coverage", unit: "minutes").value, 0)
+    }
+    func testDecodedMetricUsesTheSameValueStateInvariant() throws {
+        let data = Data(#"{"value":4,"state":"notApplicable","reason":"original_reason","unit":"minutes"}"#.utf8)
+        let metric = try JSONDecoder().decode(DashboardMetricValue.self, from: data)
+        XCTAssertNil(metric.value)
+        XCTAssertEqual(metric.state, .needsReview)
+        XCTAssertEqual(metric.reason, "original_reason")
+        XCTAssertEqual(try JSONDecoder().decode(DashboardMetricValue.self, from: JSONEncoder().encode(metric)), metric)
+    }
+
 }

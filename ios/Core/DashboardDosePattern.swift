@@ -10,9 +10,21 @@ public struct DashboardMetricValue: Codable, Equatable, Sendable {
     public let reason: String
     public let unit: String
     public init(value: Double?, state: DashboardMetricState, reason: String, unit: String) {
-        self.value = value?.isFinite == true ? value : nil
-        self.state = value != nil && value?.isFinite != true ? .needsReview : state
+        let invalidNumber = value.map { !$0.isFinite } ?? false
+        let missingAvailableValue = state == .available && value == nil
+        let unexpectedValue = value != nil && state != .available && state != .partial
+        let invalid = invalidNumber || missingAvailableValue || unexpectedValue
+        self.value = invalid ? nil : value
+        self.state = invalid ? .needsReview : state
         self.reason = reason; self.unit = unit
+    }
+    private enum CodingKeys: String, CodingKey { case value, state, reason, unit }
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(value: try values.decodeIfPresent(Double.self, forKey: .value),
+                  state: try values.decode(DashboardMetricState.self, forKey: .state),
+                  reason: try values.decode(String.self, forKey: .reason),
+                  unit: try values.decode(String.self, forKey: .unit))
     }
 }
 
