@@ -82,3 +82,5 @@ For future behavior slices follow [TESTING_GUIDE.md](../../TESTING_GUIDE.md) and
 ## Calendar-range implementation increment
 
 The [September 30 implementation record](../../review/2026-09-30-dashboard-calendar-ranges.md) tracks the reporting-range portion of stage 1: shared phone/iPad calendar months and explicit provider query bounds. This does not close the other foundation or dashboard stages; integration and device/provider acceptance are reported separately.
+
+The [provider-access prerequisite](../../review/2026-09-30-dashboard-provider-access.md) adds invalidation and request-revision checks before future failed-refresh retention. It does not implement a stale cache.

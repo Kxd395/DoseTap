@@ -168,8 +168,12 @@ class UserSettingsManager: ObservableObject {
     @AppStorage("sound_enabled") var soundEnabled: Bool = true
     
     // MARK: - Integrations
-    @AppStorage("healthkit_enabled") var healthKitEnabled: Bool = false
-    @AppStorage("whoop_enabled") var whoopEnabled: Bool = false
+    @AppStorage("healthkit_enabled") var healthKitEnabled: Bool = false {
+        didSet { if oldValue != healthKitEnabled { DashboardProviderAccess.shared.invalidate(.health) } }
+    }
+    @AppStorage("whoop_enabled") var whoopEnabled: Bool = false {
+        didSet { if oldValue != whoopEnabled { DashboardProviderAccess.shared.invalidate(.whoop) } }
+    }
     
     // MARK: - Privacy
     @AppStorage("analytics_enabled") var analyticsEnabled: Bool = false

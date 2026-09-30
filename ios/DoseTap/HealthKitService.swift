@@ -20,7 +20,9 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
     private let authorizationTimeoutSeconds: UInt64 = 15
     
     // MARK: - Published State
-    @Published var isAuthorized = false
+    @Published var isAuthorized = false {
+        didSet { if oldValue && !isAuthorized { DashboardProviderAccess.shared.invalidate(.health) } }
+    }
     @Published var authorizationStatus: HKAuthorizationStatus = .notDetermined
     
     // MARK: - Initialization

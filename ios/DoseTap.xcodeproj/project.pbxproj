@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		DPAC101 /* DashboardProviderAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPAC001 /* DashboardProviderAccess.swift */; };
 		BOTQ01B /* BottleQuantityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BOTQ01F /* BottleQuantityView.swift */; };
 		BOTS01B /* BottleSupplyViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = BOTS01F /* BottleSupplyViews.swift */; };
 		DB770003 /* DashboardTransferView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB770004 /* DashboardTransferView.swift */; };
@@ -195,6 +196,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		DPAC001 /* DashboardProviderAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardProviderAccess.swift; sourceTree = "<group>"; };
 		BOTQ01F /* BottleQuantityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottleQuantityView.swift; sourceTree = "<group>"; };
 		BOTS01F /* BottleSupplyViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottleSupplyViews.swift; sourceTree = "<group>"; };
 		DB770004 /* DashboardTransferView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Views/DashboardTransferView.swift; sourceTree = "<group>"; };
@@ -619,6 +621,7 @@
 			children = (
 				HKP002 /* HealthKitProviding.swift */,
 				RNS002 /* ReviewedNightSleepLoader.swift */,
+				DPAC001 /* DashboardProviderAccess.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -971,6 +974,7 @@
 				WP001 /* WeeklyPlanner.swift in Sources */,
 				HKP001 /* HealthKitProviding.swift in Sources */,
 				RNS001 /* ReviewedNightSleepLoader.swift in Sources */,
+				DPAC101 /* DashboardProviderAccess.swift in Sources */,
 				UNDO003 /* UndoSnackbarView.swift in Sources */,
 				UNDO005 /* MedicationSettingsView.swift in Sources */,
 				D074B302 /* MedicationPresetSettingsView.swift in Sources */,
@@ -1135,7 +1139,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Cloud.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 87;
+				CURRENT_PROJECT_VERSION = 88;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;
 				ENABLE_PREVIEWS = YES;
@@ -1178,7 +1182,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Cloud.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 87;
+				CURRENT_PROJECT_VERSION = 88;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;
 				ENABLE_PREVIEWS = YES;
@@ -1453,7 +1457,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Local.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 87;
+				CURRENT_PROJECT_VERSION = 88;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;
@@ -1501,7 +1505,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Local.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 87;
+				CURRENT_PROJECT_VERSION = 88;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;
