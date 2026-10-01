@@ -62,4 +62,30 @@ Final focused native rerun: 69 cases passed, including the previously failing ch
 
 Latest 365-session capture benchmark averaged 24 ms (about 23 ms warm); full synchronous capture and decoding averaged 68 ms. Repeated period projections averaged about 0.6 ms including the first cache fill. These are synthetic simulator measurements with warm-cache variance, not device interaction timings.
 
-The detailed recorded-measures disclosure retains the reporting-range/rollover explanation together with source and capture provenance. Final UI verification, candidate signing/installation and owner acceptance follow.
+The detailed recorded-measures disclosure retains the reporting-range/rollover explanation together with source and capture provenance. Final UI verification passed: Overview normal and maximum text (including full first-metric bounds in landscape), night-mode chart selection/readable legends, and detailed recorded-measures large-text/landscape navigation. The earlier missing range-description failure is retained; final-details-ui passed after restoration. Screenshots were inspected. The detailed-page screenshot establishes navigation/reachability, not full visibility of every lower metric at once.
+
+Recovery application commits: `7555aa5` and `6e313f1`. Normal enabled precommit hooks passed SwiftPM and generic simulator builds for arm64 and x86_64. Required Plane workflow, SSOT, version90, architecture, dose-write, legacy, companion, repository hygiene, documentation lint and diff checks passed. Signed installation evidence and owner acceptance remain separate.
+
+## Recommendation and remaining sequence
+
+1. Review candidate90 on the owner's phone with existing records: initial dashboard, scrolling, switching ranges, returning from a detail view, and refresh with providers available/unavailable. Judge appearance and responsiveness before more dashboard expansion.
+2. If a visible hitch remains, capture a targeted device trace for that interaction. SQL capture is still on the UI actor; migrate it only if measured device evidence identifies it as the remaining bottleneck. Keep the coherent read transaction and stale-publication guards.
+3. Verify actual-night chart/table/export consistency and physical VoiceOver focus/order. Synthetic UI and microbenchmarks do not close these gates.
+4. After phone acceptance, reconcile these two focused fixes into the pending integration branch and rerun affected checks against that combined head. The recovery begins from an unmerged phone89 stack; do not open a misleading whole-stack main PR or reset main to the feature branch.
+5. Resume iPad work separately when requested. Keep DOSETAP-45 In Progress and preserve all inherited provider/privacy/release gates until their own evidence is complete.
+
+Do not broadly roll back the stored-data or medication features to recover appearance. Keep the build89 artifact for comparison; an older executable is not assumed compatible with newer stored state without an explicit compatibility check.
+
+## Signed phone delivery
+
+Installed 0.4.19 (90), bundle `com.dosetap.ios`, on the paired iPhone 15 Pro Max
+without uninstall/reset. Signed source is `6e313f11d3ee12b4a26c8f54f2384c592cdb51fa`.
+Executable SHA-256: `bb8e83cad98dcdb467b69a0e48c6b2d722b6471283fc915576e4a9b34488e0ba`.
+Strict/deep code-signature verification passed. Original ignored local signing
+configuration was used and the recovery template restored afterward; no config
+values were printed or staged. Independent device inventory reports version90;
+launch succeeded and an independent process readback confirmed PID47651.
+Receipts: `phone90-artifact.json`, `phone90-install.log`,
+`phone90-installed-apps.json`, `phone90-launch.json`, `phone90-processes.json`.
+The signed build89 artifact remains preserved with its verified original hash.
+Installation/launch is not owner-observed display, performance, data, or provider acceptance.
