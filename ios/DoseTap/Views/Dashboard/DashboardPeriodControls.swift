@@ -16,9 +16,10 @@ struct DashboardPeriodControls: View {
             }
             Button("Custom dates…") { reviewingCustom = true }
         } label: {
-            Label(model.selectedRange.label, systemImage: "calendar")
+            Label(model.selectedRange.rawValue, systemImage: "calendar")
+                .font(.subheadline.weight(.semibold))
                 .frame(maxWidth: .infinity, minHeight: 44)
-        }.accessibilityIdentifier("dashboard-range-picker")
+        }.accessibilityLabel(model.selectedRange.label).accessibilityIdentifier("dashboard-range-picker")
             .sheet(isPresented: $reviewingCustom) { DashboardCustomPeriodSheet(model: model) }
     }
 }

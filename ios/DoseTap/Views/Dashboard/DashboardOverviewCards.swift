@@ -6,6 +6,7 @@ struct DashboardExecutiveSummaryCard: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ObservedObject var model: DashboardAnalyticsModel
     @ObservedObject var core: DoseTapCore
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -37,10 +38,13 @@ struct DashboardExecutiveSummaryCard: View {
     }
 
     private func kpi(_ title: String, _ value: String, color: Color? = nil) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
+        let layout = verticalSizeClass == .compact && dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 12))
+            : AnyLayout(VStackLayout(alignment: .leading, spacing: 3))
+        return layout {
             Text(title).font(.caption).foregroundColor(.secondary)
             Text(value).font(.title2.bold()).foregroundColor(value == "No data" || value == "—" ? .secondary : (color ?? palette.timing))
-        }.accessibilityElement(children: .combine)
+        }.accessibilityElement(children: .combine).accessibilityIdentifier("dashboard-summary-" + title)
     }
 
     private var tonightStatus: String {

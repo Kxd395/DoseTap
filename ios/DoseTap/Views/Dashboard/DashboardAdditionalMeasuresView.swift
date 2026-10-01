@@ -19,12 +19,14 @@ struct DashboardAdditionalMeasuresView: View {
                 Picker("Recorded measure", selection: $model.additionalMeasure) {
                     ForEach(DashboardAdditionalMeasure.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                 }.pickerStyle(.menu).accessibilityIdentifier("dashboard-additional-measure")
+                DisclosureGroup("Source & reporting details") {
                 Text("These recorded-measure panels use the whole selected reporting range. Shared night-comparison filters do not narrow these legacy summaries; use the focused comparison views for those filters.")
                     .font(.caption).foregroundStyle(.secondary)
                 Text("Sleep comparison source: \(model.sleepSource.rawValue) · \(model.sleepSampleCount) available readings. Providers are not substituted.")
                     .font(.caption).foregroundStyle(.secondary)
                 Text("Captured at \(stampUTC(model.reportingAsOf)) (UTC) · reporting timezone \(model.reportingTimeZone.identifier)")
                     .font(.caption).foregroundStyle(.secondary)
+                }.font(.caption)
                 if model.populatedNights.isEmpty {
                     Text("No recorded night measurements are available for this panel. Missing sleep and unanswered questions are not zero values.")
                 } else { panel }

@@ -41,30 +41,13 @@ struct DashboardReplayView: View {
     @State private var export: ReplayExportPreview?
     @Environment(\.dashboardPalette) private var palette
 
-    private var snapshots: [DashboardReplaySnapshot] {
-        model.visibleInspectionNights.map { night in
-            let base = model.replaySnapshot(for: night, reviewed: night.replayID == selectedID ? coverage.result : nil)
-            do { return try applyChoices(base) }
-            catch {
-                return DashboardReplaySnapshot(sessionID: base.sessionID, treatmentDate: base.treatmentDate,
-                    asOf: base.asOf, timeZoneID: base.timeZoneID, sourcePolicy: base.sourcePolicy,
-                    filterDescription: base.filterDescription + "; endpoint selection needs review", markers: base.markers,
-                    dose2NotTaken: base.dose2NotTaken, identityResolved: false,
-                    reviewedProjection: base.reviewedProjection, mainEpisodeIntervals: base.mainEpisodeIntervals)
-            }
-        }
-    }
+    private var snapshots: [DashboardReplaySnapshot] { model.replayDisplaySnapshots }
     private var selectionIsInvalid: Bool {
         guard let night = model.populatedNights.first(where: { $0.replayID == selectedID }) else { return false }
         return hasInvalidEndpoints(night)
     }
     private func hasInvalidEndpoints(_ night: DashboardNightAggregate) -> Bool {
-        (try? applyChoices(model.replaySnapshot(for: night))) == nil
-    }
-    private func applyChoices(_ base: DashboardReplaySnapshot) throws -> DashboardReplaySnapshot {
-        let result = try base.addingSelectedEndpoints(endpointSelections[base.sessionID] ?? [])
-        guard let choice = model.replayPresentation.dosePairs[base.sessionID] else { return result }
-        return try result.selectingDosePair(dose1ID: choice.dose1ID, dose2ID: choice.dose2ID)
+        (try? model.applyingReplayChoices(model.replaySnapshot(for: night))) == nil
     }
     private var selected: DashboardReplaySnapshot? { snapshots.first { $0.sessionID == selectedID } }
     private var alignedRows: [DashboardReplaySnapshot] {
@@ -130,7 +113,7 @@ struct DashboardReplayView: View {
                 Button("Preview filtered observations export") {
                     export = ReplayExportPreview(export: makeExport(filteredIntervalSnapshots, scope: "All filtered observations"))
                 }.accessibilityIdentifier("dashboard-replay-export-filtered")
-                    .disabled(filteredIntervalSnapshots.isEmpty || model.visibleInspectionNights.contains(where: hasInvalidEndpoints) || model.isLoading)
+                    .disabled(filteredIntervalSnapshots.isEmpty || !model.invalidReplayEndpointIDs.isEmpty || model.isLoading)
             }.padding()
         }
         .navigationTitle("Replay & intervals")

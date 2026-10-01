@@ -11,42 +11,52 @@ let dashboardLogger = Logger(subsystem: "com.dosetap.app", category: "Dashboard"
 
 @MainActor
 final class DashboardAnalyticsModel: ObservableObject {
-    @Published var nights: [DashboardNightAggregate] = []
-    @Published var inspection = DashboardInspectionState()
-    @Published var replayPresentation = DashboardReplayPresentation()
+    @Published var nights: [DashboardNightAggregate] = [] { didSet { invalidateDisplayProjections() } }
+    @Published var inspection = DashboardInspectionState() { didSet { invalidateDisplayProjections() } }
+    @Published var replayPresentation = DashboardReplayPresentation() { didSet { invalidateDisplayProjections() } }
+    var cachedReportingWindow: DashboardReportingWindow?
+    var cachedPeriodRows: (current: [DashboardNightAggregate], prior: [DashboardNightAggregate])?
+    var cachedReplaySnapshots: [DashboardReplaySnapshot]?
+    var cachedReplayAccess: DashboardProviderAccess.Revision?
+    var invalidReplayEndpointIDs: Set<String> = []
+    func invalidateDisplayProjections() {
+        cachedReportingWindow = nil; cachedPeriodRows = nil
+        cachedReplaySnapshots = nil; cachedReplayAccess = nil
+        invalidReplayEndpointIDs = []
+    }
     let replayCoverageState = TimelineDoseSleepModel()
     var replaySourceSubscriptions: Set<AnyCancellable> = []
-    @Published var contextPresentation = ContextMorningPresentation()
-    @Published var daytimeInspection = DaytimeInspectionState()
-    @Published var napInspection = DashboardNapInspection()
-    @Published var additionalMeasure = DashboardAdditionalMeasure.summary
-    @Published var workInspectionContext: WorkContextDocument?
-    @Published var workContextReadReady = false
-    @Published var workContextIssue: String?
+    @Published var contextPresentation = ContextMorningPresentation() { didSet { invalidateDisplayProjections() } }
+    @Published var daytimeInspection = DaytimeInspectionState() { didSet { invalidateDisplayProjections() } }
+    @Published var napInspection = DashboardNapInspection() { didSet { invalidateDisplayProjections() } }
+    @Published var additionalMeasure = DashboardAdditionalMeasure.summary { didSet { invalidateDisplayProjections() } }
+    @Published var workInspectionContext: WorkContextDocument? { didSet { invalidateDisplayProjections() } }
+    @Published var workContextReadReady = false { didSet { invalidateDisplayProjections() } }
+    @Published var workContextIssue: String? { didSet { invalidateDisplayProjections() } }
     var workInspectionAsOf: Date?
     var plannedWorkClassifications: [String: WorkPhaseResult] = [:]
     var confirmedWorkClassifications: [String: WorkPhaseResult] = [:]
-    @Published var integrationStates: [DashboardIntegrationState] = []
-    @Published var isLoading = false
-    @Published var savedProviderAssociations: [DashboardProviderAssociation] = []
+    @Published var integrationStates: [DashboardIntegrationState] = [] { didSet { invalidateDisplayProjections() } }
+    @Published var isLoading = false { didSet { invalidateDisplayProjections() } }
+    @Published var savedProviderAssociations: [DashboardProviderAssociation] = [] { didSet { invalidateDisplayProjections() } }
     var providerAssociationsReady = false
-    @Published var doseReviewReadReady = false
-    @Published var contextTimeline: DashboardContextTimeline?
-    @Published var contextReadReady = false
+    @Published var doseReviewReadReady = false { didSet { invalidateDisplayProjections() } }
+    @Published var contextTimeline: DashboardContextTimeline? { didSet { invalidateDisplayProjections() } }
+    @Published var contextReadReady = false { didSet { invalidateDisplayProjections() } }
     var contextAnnotations: [DashboardContextAnnotation] { contextReadReady ? contextTimeline?.annotations ?? [] : [] }
-    @Published var lastRefresh: Date?
-    @Published var errorMessage: String?
-    @Published var sleepSource: DashboardSleepSource = .appleHealth
-    @Published var selectedRange: DashboardDateRange = .month
-    @Published var customReportingRange: PhysicianReportRange?
-    @Published var reportingPeriod: PhysicianReportPeriod?
+    @Published var lastRefresh: Date? { didSet { invalidateDisplayProjections() } }
+    @Published var errorMessage: String? { didSet { invalidateDisplayProjections() } }
+    @Published var sleepSource: DashboardSleepSource = .appleHealth { didSet { invalidateDisplayProjections() } }
+    @Published var selectedRange: DashboardDateRange = .month { didSet { invalidateDisplayProjections() } }
+    @Published var customReportingRange: PhysicianReportRange? { didSet { invalidateDisplayProjections() } }
+    @Published var reportingPeriod: PhysicianReportPeriod? { didSet { invalidateDisplayProjections() } }
     var publishedCustomReportingRange: PhysicianReportRange?
 
-    @Published var reportingAsOf: Date
-    @Published var reportingTimeZone: TimeZone
-    @Published var healthQueryWindow: DashboardReportingWindow?
-    @Published var healthSnapshot: DashboardProviderSnapshot<HealthKitService.SleepNightSummary>?
-    @Published var whoopSnapshot: DashboardProviderSnapshot<WHOOPNightSummary>?
+    @Published var reportingAsOf: Date { didSet { invalidateDisplayProjections() } }
+    @Published var reportingTimeZone: TimeZone { didSet { invalidateDisplayProjections() } }
+    @Published var healthQueryWindow: DashboardReportingWindow? { didSet { invalidateDisplayProjections() } }
+    @Published var healthSnapshot: DashboardProviderSnapshot<HealthKitService.SleepNightSummary>? { didSet { invalidateDisplayProjections() } }
+    @Published var whoopSnapshot: DashboardProviderSnapshot<WHOOPNightSummary>? { didSet { invalidateDisplayProjections() } }
     let timeZone: () -> TimeZone
     let now: () -> Date
     let providerAccess: DashboardProviderAccess
@@ -85,6 +95,9 @@ final class DashboardAnalyticsModel: ObservableObject {
         self.providerQueries = providerQueries ?? fixture?.queries ?? Self.dashboardDisplayFixtureQueries() ?? .live
         publishedProviderAccess = providerAccess.revision
         installReplaySourceObservation()
+        replayCoverageState.objectWillChange.sink { [weak self] _ in
+            self?.cachedReplaySnapshots = nil
+        }.store(in: &replaySourceSubscriptions)
         providerAccessSubscription = providerAccess.changes.sink { [weak self] provider in
             if Thread.isMainThread {
                 MainActor.assumeIsolated { self?.providerAccessChanged(provider) }

@@ -101,6 +101,37 @@ final class DoseTapUITests: XCTestCase {
         app = nil
     }
 
+    func testDashboardRecoveryOverview() { recoveryOverview(size: "UICTContentSizeCategoryL") }
+    func testDashboardRecoveryLargeText() { recoveryOverview(size: "UICTContentSizeCategoryAccessibilityXXXL") }
+
+    private func recoveryOverview(size: String) {
+        app.terminate()
+        app.launchArguments = ["--uitesting", "--uitesting-dashboard", "-setup_completed_v2", "YES",
+            "-UIPreferredContentSizeCategoryName", size]
+        app.launch()
+        let start = Date()
+        app.buttons["Dashboard"].tap()
+        let heading = app.staticTexts["Recorded Nights"]
+        let visible = heading.waitForExistence(timeout: 5) && heading.isHittable
+        captureDashboard("Recovery landing " + size)
+        let timing = XCTAttachment(string: "Dashboard tap to summary probe: \(Date().timeIntervalSince(start)) seconds; visible=\(visible)")
+        timing.name = "Recovery landing timing"; timing.lifetime = .keepAlways; add(timing)
+        XCTAssertTrue(visible, "The initial dashboard must show recorded-night information without menu navigation or scrolling")
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "dashboard-summary-In-window pairs").firstMatch.isHittable,
+            "A summary value, not just a heading, must fit on the initial screen")
+        let controls = app.buttons["dashboard-view-picker"]
+        XCTAssertTrue(controls.isHittable)
+        XCTAssertLessThan(controls.frame.height, app.frame.height * 0.18, "Navigation must leave room for data at large text sizes")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let rotated = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in self.app.frame.width > self.app.frame.height }, object: app)
+        wait(for: [rotated], timeout: 10)
+        XCTAssertTrue(controls.isHittable)
+        XCTAssertLessThan(controls.frame.height, app.frame.height * 0.30)
+        captureDashboard("Recovery landscape " + size)
+
+    }
+
     func testSupplyTrackedQuantity() { quantityJourney() }
     func testSupplyTrackedQuantityLargeText() { quantityJourney() }
 
@@ -2914,6 +2945,16 @@ extension DoseTapUITests {
 // Native menus virtualize offscreen rows at accessibility text sizes.
 extension XCUIApplication {
     func revealDashboardMenuItem(_ item: XCUIElement) {
+        let explore = buttons["dashboard-explore-open"]
+        if !item.exists && explore.exists { explore.tap() }
+        let list = scrollViews["dashboard-explore-list"]
+        if list.exists {
+            for _ in 0..<12 {
+                if item.exists && item.isHittable { return }
+                list.swipeUp(velocity: .slow)
+            }
+            return
+        }
         let menu = collectionViews.firstMatch
         for _ in 0..<16 {
             if item.exists && item.isHittable { return }

@@ -1,12 +1,13 @@
 import SwiftUI
 
 enum DashboardPage: String, CaseIterable, Identifiable {
+    case overview, trends, explore
     case timing, intervals, opportunity, medications, coverage, sleepNaps, dosePatterns, work, context, daytime, physician, data, additional
     var id: String { rawValue }
     var requiresNightEvidence: Bool {
         switch self {
-        case .timing, .intervals, .opportunity, .coverage, .dosePatterns, .work, .context, .additional: return true
-        case .medications, .sleepNaps, .daytime, .physician, .data: return false
+        case .overview, .trends, .timing, .intervals, .opportunity, .coverage, .dosePatterns, .work, .context, .additional: return true
+        case .explore, .medications, .sleepNaps, .daytime, .physician, .data: return false
         }
     }
     var replayMode: DashboardReplayMode? {
@@ -28,8 +29,14 @@ enum DashboardPage: String, CaseIterable, Identifiable {
         case .coverage: return .coverage
         }
     }
+    static let primary: [Self] = [.overview, .trends, .explore, .data]
+    static var detailPages: [Self] { allCases.filter { !primary.contains($0) } }
+    var navigationTitle: String { Self.primary.contains(self) ? (self == .data ? "Records" : title) : "Explore" }
     var title: String {
         switch self {
+        case .overview: return "Overview"
+        case .trends: return "Trends"
+        case .explore: return "Explore"
         case .timing: return "Session Replay"
         case .intervals: return "Interval Explorer"
         case .opportunity: return "Sleep Opportunity"
@@ -47,6 +54,9 @@ enum DashboardPage: String, CaseIterable, Identifiable {
     }
     var accessibilityID: String {
         switch self {
+        case .overview: return "dashboard-overview-open"
+        case .trends: return "dashboard-trends-open"
+        case .explore: return "dashboard-explore-open"
         case .timing: return "dashboard-replay-open"
         case .intervals: return "dashboard-intervals-open"
         case .opportunity: return "dashboard-opportunity-open"
@@ -66,19 +76,21 @@ enum DashboardPage: String, CaseIterable, Identifiable {
 
 struct DashboardPagePicker: View {
     @Binding var selection: DashboardPage
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var body: some View {
         Menu {
-            ForEach(DashboardPage.allCases) { page in
+            ForEach(DashboardPage.primary) { page in
                 Button {
                     selection = page
                 } label: {
-                    if page == selection { Label(page.title, systemImage: "checkmark") }
-                    else { Text(page.title) }
+                    if page == selection { Label(page.navigationTitle, systemImage: "checkmark") }
+                    else { Text(page.navigationTitle) }
                 }.accessibilityIdentifier(page.accessibilityID)
             }
         } label: {
-            Label(selection.title, systemImage: "rectangle.3.group")
+            Label(dynamicTypeSize.isAccessibilitySize ? "View" : selection.navigationTitle, systemImage: "rectangle.3.group")
+                .font(.subheadline.weight(.semibold))
                 .frame(maxWidth: .infinity, minHeight: 44)
-        }.accessibilityIdentifier("dashboard-view-picker")
+        }.accessibilityLabel(selection.title).accessibilityIdentifier("dashboard-view-picker")
     }
 }

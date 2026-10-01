@@ -1057,3 +1057,9 @@ Full manual Excel and Studio exports require an explicit review describing origi
 ### iPad independent daytime companion
 
 The daytime companion reads immutable transferred custom observation/event revisions and nap source records. It uses an explicitly supplied civil half-open report period frozen at source capture, never treatment-night date matching. Unknown collection or work/medication context remains unknown. Scheduled, self-initiated, symptom-triggered and retrospective samples retain separate filters and comparable strata; sparse ordinal points never become a continuous curve or ESS score. Export contains only the selected points with their source revision, exact occurrence/recording times, definitions and filter scope.
+
+### Phone dashboard recovery (DOSETAP-45)
+
+The overview-first phone navigation follows [navigation](navigation.md). Build 89 owner-reported appearance and responsiveness are unresolved acceptance failures. Restore useful first-screen summaries and secondary detailed inspection without changing records, source eligibility or historical questionnaire confirmation. Validate normal and accessibility layouts and measure rendering/refresh work; reachability alone does not establish usability.
+
+Dashboard reporting-window, period-row and replay projections are in-memory read caches only. Published model changes invalidate them synchronously after mutation; reviewed-coverage changes and provider-access revisions invalidate replay evidence. Cache hits preserve exact IDs, ordering, source eligibility, endpoint choices and export values. No cached projection writes records or survives process restart.

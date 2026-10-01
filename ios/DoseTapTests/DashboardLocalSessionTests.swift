@@ -8,6 +8,16 @@ final class DashboardLocalSessionTests: XCTestCase {
     func execute(_ sql: String, _ storage: EventStorage) {
         XCTAssertEqual(sqlite3_exec(storage.db, sql, nil, nil, nil), SQLITE_OK)
     }
+    func testDashboardFullHistorySnapshotPerformance() throws {
+        let storage = EventStorage.inMemory()
+        for index in 0..<365 {
+            execute("INSERT INTO dose_events(id,event_type,timestamp,session_date,session_id) VALUES('d\(index)','dose1','2026-09-29T22:00:00Z','2026-09-29','s\(index)')", storage)
+        }
+        measure {
+            XCTAssertEqual(try? storage.dashboardContextSnapshot(capturedAt: Date(timeIntervalSince1970: 1_790_784_000)).sessions.count, 365)
+        }
+    }
+
     func testExactIdentityIncludesLegacyOrphansAndClosure() throws {
         let storage = EventStorage.inMemory()
         execute("""

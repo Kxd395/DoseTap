@@ -13,13 +13,20 @@ extension DashboardAnalyticsModel {
     }
 
     var currentReportWindow: DashboardReportingWindow? {
-        selectedRange.window(asOf: reportingAsOf, timeZone: reportingTimeZone, reviewedPeriod: reportingPeriod)
+        if let cachedReportingWindow { return cachedReportingWindow }
+        let window = selectedRange.window(asOf: reportingAsOf, timeZone: reportingTimeZone, reviewedPeriod: reportingPeriod)
+        cachedReportingWindow = window
+        return window
     }
 
     private func filteredNights(prior: Bool) -> [DashboardNightAggregate] {
         guard let window = currentReportWindow else { return [] }
-        return nights.filter { $0.hasAnyData && window.contains($0.sessionDate, prior: prior) }
-            .sorted { $0.sessionDate > $1.sessionDate }
+        if cachedPeriodRows == nil {
+            let sorted = nights.filter(\.hasAnyData).sorted { $0.sessionDate > $1.sessionDate }
+            cachedPeriodRows = (sorted.filter { window.contains($0.sessionDate, prior: false) },
+                                sorted.filter { window.contains($0.sessionDate, prior: true) })
+        }
+        return prior ? cachedPeriodRows?.prior ?? [] : cachedPeriodRows?.current ?? []
     }
 
     var rangeDescription: String {

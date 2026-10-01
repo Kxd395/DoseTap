@@ -6,8 +6,8 @@ import DoseCore
 @MainActor
 final class DashboardReplayAdapterTests: XCTestCase {
     let start = Date(timeIntervalSince1970: 1_790_000_000)
-    func night(metadata: String? = nil, events: [DoseTap.StoredSleepEvent] = []) -> DashboardNightAggregate {
-        var row = DashboardNightAggregate(sessionDate: "2026-09-21", dose1Time: start,
+    func night(sessionDate: String = "2026-09-21", metadata: String? = nil, events: [DoseTap.StoredSleepEvent] = []) -> DashboardNightAggregate {
+        var row = DashboardNightAggregate(sessionDate: sessionDate, dose1Time: start,
             dose2Time: start.addingTimeInterval(10_800), dose2Skipped: false, snoozeCount: 0, extraDoseCount: 0,
             events: events, morningCheckIn: nil, preSleepLog: nil, healthSummary: nil, whoopSummary: nil,
             duplicateClusterCount: 0, napSummary: .init(count: 0, totalMinutes: 0))
@@ -19,6 +19,59 @@ final class DashboardReplayAdapterTests: XCTestCase {
                                 sessionDate: row.sessionDate, sessionId: row.sessionID)]
         return row
     }
+    func testDashboardRangeProjectionPerformance() {
+        let model = DashboardAnalyticsModel(now: { self.start.addingTimeInterval(86400 * 365) })
+        model.selectedRange = .all
+        model.nights = (0..<336).map { index in
+            var row = night(sessionDate: String(format: "2026-%02d-%02d", index / 28 + 1, index % 28 + 1))
+            row.stableID = "session:synthetic-\(index)"; return row
+        }
+        measure {
+            var count = 0
+            for _ in 0..<40 { count += model.populatedNights.count }
+            XCTAssertEqual(count, model.nights.count * 40)
+        }
+    }
+
+    func testCachedReplayInvalidatesAfterRecordFilterPeriodAndSourceChanges() {
+        let model = DashboardAnalyticsModel(now: { self.start.addingTimeInterval(50_000) })
+        model.nights = [night()]; model.selectedRange = .all
+        let original = model.replayDisplaySnapshots
+        XCTAssertEqual(original.first?.interval(.dose1ToDose2).minutes, 180)
+        XCTAssertEqual(model.replayDisplaySnapshots.first?.markers.map(\.id), original.first?.markers.map(\.id))
+        model.replayPresentation.dosePairs["durable-session"] = .init(dose1ID: "missing", dose2ID: "d2")
+        XCTAssertEqual(model.replayDisplaySnapshots.first?.identityResolved, false)
+        model.replayPresentation.dosePairs = [:]
+        XCTAssertEqual(model.replayDisplaySnapshots.first?.identityResolved, true)
+        model.sleepSource = .whoop
+        XCTAssertTrue(model.replayDisplaySnapshots.first?.sourcePolicy.hasPrefix("WHOOP") == true)
+        model.inspection.selectedObservationID = "session:durable-session"
+        model.nights = []
+        XCTAssertTrue(model.populatedNights.isEmpty); XCTAssertTrue(model.replayDisplaySnapshots.isEmpty)
+        XCTAssertEqual(model.inspection.selectedObservationID, "session:durable-session")
+        model.nights = [night()]
+        model.reportingAsOf = self.start.addingTimeInterval(86400 * 100)
+        model.selectedRange = .week
+        XCTAssertTrue(model.populatedNights.isEmpty); XCTAssertTrue(model.replayDisplaySnapshots.isEmpty)
+        model.selectedRange = .all
+        XCTAssertEqual(model.replayDisplaySnapshots.count, 1)
+    }
+
+    func testReplayProjectionRepeatedReadPerformance() {
+        let model = DashboardAnalyticsModel(now: { self.start.addingTimeInterval(50_000) })
+        model.selectedRange = .all
+        model.nights = (0..<336).map { index in
+            var row = night(); row.sessionID = "session-\(index)"; row.stableID = "session:session-\(index)"
+            row.doseEvents = row.doseEvents.map { .init(id: $0.id + "-\(index)", eventType: $0.eventType,
+                timestamp: $0.timestamp, sessionDate: $0.sessionDate, metadata: $0.metadata, sessionId: row.sessionID) }
+            return row
+        }
+        _ = model.replayDisplaySnapshots
+        measure {
+            for _ in 0..<40 { XCTAssertEqual(model.replayDisplaySnapshots.count, 336) }
+        }
+    }
+
     func testReplayUsesDurableIdentityAndNeverCurrentReminderPreference() {
         let model = DashboardAnalyticsModel(now: { self.start.addingTimeInterval(50_000) })
         let snapshot = model.replaySnapshot(for: night())

@@ -6,6 +6,31 @@ extension DashboardNightAggregate {
 }
 
 extension DashboardAnalyticsModel {
+    var replayDisplaySnapshots: [DashboardReplaySnapshot] {
+        let access = providerAccess.revision
+        if let cachedReplaySnapshots, cachedReplayAccess == access { return cachedReplaySnapshots }
+        invalidReplayEndpointIDs = []
+        let result = visibleInspectionNights.map { night in
+            let base = replaySnapshot(for: night, reviewed: night.replayID == selectedReplayID ? replayCoverageState.result : nil)
+            do { return try applyingReplayChoices(base) }
+            catch {
+                invalidReplayEndpointIDs.insert(base.sessionID)
+                return DashboardReplaySnapshot(sessionID: base.sessionID, treatmentDate: base.treatmentDate,
+                    asOf: base.asOf, timeZoneID: base.timeZoneID, sourcePolicy: base.sourcePolicy,
+                    filterDescription: base.filterDescription + "; endpoint selection needs review", markers: base.markers,
+                    dose2NotTaken: base.dose2NotTaken, identityResolved: false,
+                    reviewedProjection: base.reviewedProjection, mainEpisodeIntervals: base.mainEpisodeIntervals)
+            }
+        }
+        cachedReplaySnapshots = result; cachedReplayAccess = access
+        return result
+    }
+    func applyingReplayChoices(_ base: DashboardReplaySnapshot) throws -> DashboardReplaySnapshot {
+        let result = try base.addingSelectedEndpoints(replayPresentation.endpointSelections[base.sessionID] ?? [])
+        guard let choice = replayPresentation.dosePairs[base.sessionID] else { return result }
+        return try result.selectingDosePair(dose1ID: choice.dose1ID, dose2ID: choice.dose2ID)
+    }
+
     var selectedReplayID: String? {
         let matches = nights.filter { $0.id == inspection.selectedObservationID }
         return matches.count == 1 ? matches.first?.replayID : nil
