@@ -10,13 +10,15 @@ struct DashboardExecutiveSummaryCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Recorded Nights").font(.headline)
+            if !dynamicTypeSize.isAccessibilitySize || verticalSizeClass != .compact {
+                Text("Recorded Nights").font(.headline)
+            }
             LazyVGrid(columns: dynamicTypeSize.isAccessibilitySize ? [GridItem(.flexible(), alignment: .leading)] : [GridItem(.adaptive(minimum: 130), alignment: .leading)], alignment: .leading, spacing: 12) {
                 kpi("In-window pairs", model.onTimePercentage.map { String(format: "%.0f%%", $0) } ?? "—")
                 kpi("Outcomes recorded", model.completionRate.map { String(format: "%.0f%%", $0) } ?? "—")
                 kpi("Recorded pairs", "\(model.recordedPairCount)")
                 kpi("Pending Dose 2", "\(model.pendingDose2OutcomeCount)")
-                kpi("Finished-night streak", "\(model.finishedNightStreak) nights")
+                kpi("Finished-night streak", "\(model.finishedNightStreak) \(model.finishedNightStreak == 1 ? "night" : "nights")")
                 kpi("Nights with data", "\(model.populatedNights.count)")
                 kpi("Coverage · 3+ categories", "\(model.threeCategoryNightCount) nights", color: palette.coverage)
                 kpi("WHOOP Recovery", model.averageWhoopRecovery.map { String(format: "%.0f%%", $0) } ?? "No data", color: palette.recovery(model.averageWhoopRecovery))

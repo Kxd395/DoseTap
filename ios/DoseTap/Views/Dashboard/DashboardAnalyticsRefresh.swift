@@ -31,12 +31,14 @@ extension DashboardAnalyticsModel {
         defer { if refreshGeneration == generation { isLoading = false } }
         let asOf = now(), zone = timeZone(), range = selectedRange
         let customRange = customReportingRange
+        let localRevision = localSnapshotRevision
         let access = providerAccess.revision
         refreshProviderAccess = access
         let healthEnabled = providerQueries.healthEnabled()
         let whoopEnabled = providerQueries.whoopEnabled(), whoopConnected = providerQueries.whoopConnected()
         func requestIsCurrent() -> Bool {
             !Task.isCancelled && refreshGeneration == generation && providerAccess.revision == access
+                && localSnapshotRevision == localRevision
                 && range == selectedRange && zone == timeZone()
                 && customRange == customReportingRange
                 && healthEnabled == providerQueries.healthEnabled()
@@ -52,6 +54,24 @@ extension DashboardAnalyticsModel {
         var refreshErrors: [String] = []
         var health = includeProviders && healthEnabled && healthSnapshot?.matches(timeZone: zone, epoch: access[.health]) == true ? healthSnapshot : nil
         var whoopResult = includeProviders && whoopEnabled && whoopConnected && whoopSnapshot?.matches(timeZone: zone, epoch: access[.whoop]) == true ? whoopSnapshot : nil
+
+        // First paint does not wait for permissions or a provider's network request.
+        // Final publication below re-reads current local evidence and establishes readiness.
+        if nights.isEmpty && includeProviders && (healthEnabled || (whoopEnabled && whoopConnected)) {
+            do {
+                let local = try await sessionRepo.dashboardContextSnapshotAsync(capturedAt: asOf)
+                guard requestIsCurrent() else { return }
+                if !local.sessions.isEmpty {
+                    reportingAsOf = asOf; reportingTimeZone = zone
+                    reportingPeriod = requestedWindow.reviewedPeriod
+                    nights = identityAggregates(local: local.sessions, health: [:], whoop: [:])
+                }
+            } catch {
+                guard requestIsCurrent() else { return }
+                errorMessage = "Local records could not be read completely. Try Refresh again."
+                return
+            }
+        }
 
         if includeProviders && healthEnabled {
             let preparation = await providerQueries.prepareHealth()
@@ -110,7 +130,8 @@ extension DashboardAnalyticsModel {
         let context: DashboardContextTimeline
         let workContext: WorkContextDocument?
         do {
-            let snapshot = try sessionRepo.dashboardContextSnapshot(capturedAt: asOf)
+            let snapshot = try await sessionRepo.dashboardContextSnapshotAsync(capturedAt: asOf)
+            guard requestIsCurrent() else { return }
             context = snapshot.timeline
             workContext = try sessionRepo.workContext()
             associations = snapshot.associations
@@ -119,6 +140,7 @@ extension DashboardAnalyticsModel {
                 associations: snapshot.associations, contextTimeline: context)
                 .map { row in var row = row; row.doseReviewLedger = reviews[row.id]; return row }
         } catch {
+            guard requestIsCurrent() else { return }
             errorMessage = "Local records could not be read completely. Previous dashboard data is retained. Try Refresh again."
             return
         }

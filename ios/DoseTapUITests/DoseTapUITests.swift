@@ -128,6 +128,12 @@ final class DoseTapUITests: XCTestCase {
         wait(for: [rotated], timeout: 10)
         XCTAssertTrue(controls.isHittable)
         XCTAssertLessThan(controls.frame.height, app.frame.height * 0.30)
+        let metric = app.descendants(matching: .any).matching(identifier: "dashboard-summary-In-window pairs").firstMatch
+        let fits = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            let viewport = self.app.scrollViews["dashboard-overview"].frame.intersection(self.app.frame)
+            return metric.exists && metric.frame.minY >= viewport.minY && metric.frame.maxY <= viewport.maxY
+        }, object: app)
+        wait(for: [fits], timeout: 5)
         captureDashboard("Recovery landscape " + size)
 
     }
@@ -1876,7 +1882,7 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Recorded Nights"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["dashboard-view-picker"].isHittable)
         XCTAssertTrue(app.buttons["dashboard-range-picker"].isHittable)
-        let details = app.buttons["Reporting period details"]
+        let details = app.buttons["Source & reporting details"]
         XCTAssertTrue(details.waitForExistence(timeout: 5)); details.tap()
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "rollover")).firstMatch.exists)
         details.tap()

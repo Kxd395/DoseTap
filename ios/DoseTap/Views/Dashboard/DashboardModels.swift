@@ -125,6 +125,7 @@ final class DashboardAnalyticsModel: ObservableObject {
     let cloudSync = DeferredCloudKitSyncService.shared
 
     /// Cancels in-flight refresh when a new one starts (prevents race on rapid range changes).
+    var localSnapshotRevision: UInt = 0
     var refreshGeneration = UUID()
     var refreshTask: Task<Void, Never>?
 

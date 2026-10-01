@@ -37,6 +37,26 @@ extension EventStorage {
         defer { if !committed && !inTransaction { sqlite3_exec(db, "ROLLBACK", nil, nil, nil) } }
         let records = try ["sleep_sessions", "current_session", "dose_events", "sleep_events",
                            "morning_checkins", "checkin_submissions", "pre_sleep_logs"].flatMap { try dashboardRows($0) }
+        let result = try DashboardLocalSessionDecoder(timeZone: timeZoneProvider()).decode(records)
+        guard inTransaction || sqlite3_exec(db, "COMMIT", nil, nil, nil) == SQLITE_OK else { throw ExportReadError.unreadable }
+        committed = true
+        return result
+    }
+}
+
+/// Per-read formatters and value-only input; safe to use on a background worker.
+struct DashboardLocalSessionDecoder {
+    let timeZone: TimeZone
+    private let plain: ISO8601DateFormatter
+    private let fractional: ISO8601DateFormatter
+    init(timeZone: TimeZone) {
+        self.timeZone = timeZone
+        plain = ISO8601DateFormatter()
+        fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    }
+    func parse(_ text: String) -> Date? { fractional.date(from: text) ?? plain.date(from: text) }
+    func decode(_ records: [StoredExportSourceRecord]) throws -> [DashboardLocalSession] {
         var dates: [String: Set<String>] = [:]
         for row in records where row.sourceTable != "pre_sleep_logs" {
             guard let day = row.columns["session_date"]?.text else { continue }
@@ -48,13 +68,14 @@ extension EventStorage {
         var evidence: [String: [String]] = [:]
         var questionnaireCounts: [String: Int] = [:]
         for row in records {
+            try Task.checkCancellation()
             let c = row.columns
             func text(_ key: String) -> String? { c[key]?.text }
             func required(_ key: String) throws -> String {
                 guard let value = text(key), !value.isEmpty else { throw ExportReadError.unreadable }; return value
             }
             func timestamp(_ key: String) throws -> Date {
-                guard let value = AppFormatters.parseISO8601Flexible(try required(key)),
+                guard let value = parse(try required(key)),
                       value.timeIntervalSince1970.isFinite else { throw ExportReadError.unreadable }; return value
             }
             // The singleton's unstarted placeholder is not an observation.
@@ -65,7 +86,7 @@ extension EventStorage {
             if row.sourceTable == "pre_sleep_logs" {
                 if let identity, dates[identity]?.count == 1, let known = dates[identity]?.first { day = known }
                 else if let identity, identity.count == 10, identity.dropFirst(4).first == "-" { day = identity }
-                else { day = sessionDateString(for: try timestamp("created_at_utc")) }
+                else { day = sessionKey(for: try timestamp("created_at_utc"), timeZone: timeZone, rolloverHour: 18) }
             } else { day = try required("session_date") }
             let resolved = identity.flatMap { $0 != day && dates[$0]?.count == 1 ? $0 : nil }
             let key: String
@@ -80,11 +101,11 @@ extension EventStorage {
                 if row.sourceTable == "current_session", resolved != nil,
                    text("session_end_utc") == nil, text("terminal_state") == nil,
                    let start = text("session_start_utc") ?? text("dose1_time") {
-                    guard AppFormatters.parseISO8601Flexible(start) != nil else { throw ExportReadError.unreadable }
+                    guard parse(start) != nil else { throw ExportReadError.unreadable }
                     group.sessionActive = true
                 }
                 if let ending = text("end_utc") ?? text("session_end_utc") {
-                    guard AppFormatters.parseISO8601Flexible(ending) != nil else { throw ExportReadError.unreadable }
+                    guard parse(ending) != nil else { throw ExportReadError.unreadable }
                     group.sessionClosed = true
                 }
             case "dose_events":
@@ -139,8 +160,6 @@ extension EventStorage {
                 groups[key]?.needsReview = true
             }
         }
-        guard inTransaction || sqlite3_exec(db, "COMMIT", nil, nil, nil) == SQLITE_OK else { throw ExportReadError.unreadable }
-        committed = true
         return groups.values.sorted { $0.id < $1.id }
     }
 
@@ -150,7 +169,7 @@ extension EventStorage {
         func n(_ key: String) -> Int { Int(c[key]?.integer ?? 0) }
         func b(_ key: String) -> Bool { n(key) != 0 }
         guard let id = s("id"), let session = s("session_id"), let day = s("session_date"),
-              let raw = s("timestamp"), let timestamp = AppFormatters.parseISO8601Flexible(raw) else { throw ExportReadError.unreadable }
+              let raw = s("timestamp"), let timestamp = parse(raw) else { throw ExportReadError.unreadable }
         return StoredMorningCheckIn(id: id, sessionId: session, timestamp: timestamp, sessionDate: day,
             sleepQuality: c["sleep_quality"]?.real ?? Double(n("sleep_quality")), feelRested: s("feel_rested") ?? "moderate",
             grogginess: s("grogginess") ?? "mild", sleepInertiaDuration: s("sleep_inertia_duration") ?? "fiveToFifteen",

@@ -3,7 +3,7 @@ import SQLite3
 import DoseCore
 
 /// SQLite values are tagged so NULL, empty text, numbers and blobs stay distinct.
-struct StoredExportColumn: Encodable, Equatable {
+struct StoredExportColumn: Encodable, Equatable, Sendable {
     let type: String
     var text: String? = nil
     var integer: Int64? = nil
@@ -38,7 +38,7 @@ struct StoredExportColumn: Encodable, Equatable {
     }
 }
 
-struct StoredExportSourceRecord: Encodable, Equatable {
+struct StoredExportSourceRecord: Encodable, Equatable, Sendable {
     let sourceTable: String
     let columns: [String: StoredExportColumn]
 }

@@ -45,6 +45,7 @@ extension DashboardAnalyticsModel {
             .store(in: &replaySourceSubscriptions)
         sessionRepo.sessionDidChange.sink { [weak self] _ in
             let invalidate: @MainActor () -> Void = { [weak self] in
+                self?.localSnapshotRevision &+= 1
                 self?.replayCoverageState.invalidate()
                 self?.replayPresentation.localRecordsChanged()
             }

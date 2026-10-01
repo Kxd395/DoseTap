@@ -2,7 +2,7 @@ import Foundation
 import SQLite3
 import CryptoKit
 
-struct DashboardProviderAssociation {
+struct DashboardProviderAssociation: Sendable {
     let episodeID: String
     let provider: String
     let sessionID: String

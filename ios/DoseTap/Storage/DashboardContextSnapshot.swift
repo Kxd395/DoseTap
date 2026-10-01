@@ -20,20 +20,49 @@ extension SessionRepository {
     func dashboardContextSnapshot(capturedAt: Date) throws -> DashboardContextLocalSnapshot {
         try storage.dashboardContextSnapshot(capturedAt: capturedAt)
     }
+    func dashboardContextSnapshotAsync(capturedAt: Date) async throws -> DashboardContextLocalSnapshot {
+        let copy = try storage.captureDashboardContext(capturedAt: capturedAt)
+        let worker = Task.detached(priority: .userInitiated) { try copy.decode() }
+        return try await withTaskCancellationHandler {
+            try await worker.value
+        } onCancel: { worker.cancel() }
+    }
 }
 
 @MainActor
 extension EventStorage {
     /// Context and exact local identity share a single snapshot; failures never mean an empty history.
     func dashboardContextSnapshot(capturedAt: Date) throws -> DashboardContextLocalSnapshot {
+        try captureDashboardContext(capturedAt: capturedAt).decode()
+    }
+    func captureDashboardContext(capturedAt: Date) throws -> DashboardCapturedContext {
         guard databaseInitializationFailure == nil, let db, sqlite3_get_autocommit(db) != 0,
               sqlite3_exec(db, "BEGIN DEFERRED", nil, nil, nil) == SQLITE_OK else { throw ExportReadError.unreadable }
         var committed = false
         defer { if !committed { sqlite3_exec(db, "ROLLBACK", nil, nil, nil) } }
-        var sessions = try dashboardLocalSessions(inTransaction: true)
-        let sources = try dashboardRows("checkin_submissions").map { row -> (row: StoredExportSourceRecord, content: DashboardContentObservation) in
+        let records = try ["sleep_sessions", "current_session", "dose_events", "sleep_events",
+            "morning_checkins", "checkin_submissions", "pre_sleep_logs"].flatMap { try dashboardRows($0) }
+        let copy = try DashboardCapturedContext(records: records, presets: medicationPresetExportSnapshot(),
+            associations: dashboardAssociations(), timeZone: timeZoneProvider(), capturedAt: capturedAt)
+        guard sqlite3_exec(db, "COMMIT", nil, nil, nil) == SQLITE_OK else { throw ExportReadError.unreadable }
+        committed = true
+        return copy
+    }
+}
+
+struct DashboardCapturedContext: Sendable {
+    let records: [StoredExportSourceRecord]
+    let presets: MedicationPresetExportSnapshot
+    let associations: [DashboardProviderAssociation]
+    let timeZone: TimeZone
+    let capturedAt: Date
+    func decode() throws -> DashboardContextLocalSnapshot {
+        try Task.checkCancellation()
+        let decoder = DashboardLocalSessionDecoder(timeZone: timeZone)
+        var sessions = try decoder.decode(records)
+        let sources = try records.filter { $0.sourceTable == "checkin_submissions" }.map { row -> (row: StoredExportSourceRecord, content: DashboardContentObservation) in
             guard let id = row.columns["id"]?.text, !id.isEmpty, let kind = row.columns["checkin_type"]?.text, !kind.isEmpty,
-                  let rawTime = row.columns["submitted_at_utc"]?.text, let time = AppFormatters.parseISO8601Flexible(rawTime) else {
+                  let rawTime = row.columns["submitted_at_utc"]?.text, let time = decoder.parse(rawTime) else {
                 throw ExportReadError.unreadable
             }
             let rawVersion = row.columns["questionnaire_version"]?.text
@@ -65,7 +94,7 @@ extension EventStorage {
                 values.append(try observation(table: "morning_checkins", kind: "morning", id: morning.id, time: morning.timestamp))
             }
             if let pre = session.preSleep {
-                guard let time = AppFormatters.parseISO8601Flexible(pre.createdAtUtc) else { throw ExportReadError.unreadable }
+                guard let time = decoder.parse(pre.createdAtUtc) else { throw ExportReadError.unreadable }
                 values.append(try observation(table: "pre_sleep_logs", kind: "pre_night", id: pre.id, time: time))
             }
             if let identity = session.sessionID {
@@ -75,11 +104,9 @@ extension EventStorage {
             sessions[index].contentObservations = values
             for value in values { allContent[value.sourceRecordID] = value }
         }
-        let timeline = try DashboardContextTimeline(presets: medicationPresetExportSnapshot(),
+        let timeline = try DashboardContextTimeline(presets: presets,
             content: Array(allContent.values), capturedAt: capturedAt)
-        let associations = try dashboardAssociations()
-        guard sqlite3_exec(db, "COMMIT", nil, nil, nil) == SQLITE_OK else { throw ExportReadError.unreadable }
-        committed = true
+        try Task.checkCancellation()
         return .init(sessions: sessions, associations: associations, timeline: timeline)
     }
 }

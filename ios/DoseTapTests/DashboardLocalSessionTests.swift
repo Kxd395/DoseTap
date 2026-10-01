@@ -18,6 +18,30 @@ final class DashboardLocalSessionTests: XCTestCase {
         }
     }
 
+    func testCapturedRowsAreImmutableAndDecodeMatchesSynchronousSnapshot() async throws {
+        let storage = EventStorage.inMemory(), capturedAt = Date(timeIntervalSince1970: 1_790_784_000)
+        execute("INSERT INTO dose_events(id,event_type,timestamp,session_date,session_id) VALUES('before','dose1','2026-09-29T22:00:00Z','2026-09-29','a')", storage)
+        let expected = try storage.dashboardContextSnapshot(capturedAt: capturedAt)
+        let copy = try storage.captureDashboardContext(capturedAt: capturedAt)
+        XCTAssertEqual(sqlite3_get_autocommit(storage.db), 1, "No transaction may remain open while worker decoding suspends")
+        execute("INSERT INTO dose_events(id,event_type,timestamp,session_date,session_id) VALUES('after','dose2','2026-09-30T02:00:00Z','2026-09-29','a')", storage)
+        let actual = try await Task.detached { try copy.decode() }.value
+        XCTAssertEqual(actual.sessions.map(\.fingerprint), expected.sessions.map(\.fingerprint))
+        XCTAssertEqual(actual.sessions.flatMap(\.doses).map(\.id), ["before"])
+        let fresh = try await SessionRepository(storage: storage).dashboardContextSnapshotAsync(capturedAt: capturedAt)
+        XCTAssertEqual(Set(fresh.sessions.flatMap(\.doses).map(\.id)), ["before", "after"])
+    }
+
+    func testDashboardMainActorCapturePerformance() throws {
+        let storage = EventStorage.inMemory()
+        for index in 0..<365 {
+            execute("INSERT INTO dose_events(id,event_type,timestamp,session_date,session_id) VALUES('d\(index)','dose1','2026-09-29T22:00:00Z','2026-09-29','s\(index)')", storage)
+        }
+        measure {
+            XCTAssertNotNil(try? storage.captureDashboardContext(capturedAt: Date(timeIntervalSince1970: 1_790_784_000)))
+        }
+    }
+
     func testExactIdentityIncludesLegacyOrphansAndClosure() throws {
         let storage = EventStorage.inMemory()
         execute("""

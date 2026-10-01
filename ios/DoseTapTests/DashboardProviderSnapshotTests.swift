@@ -5,6 +5,27 @@ import HealthKit
 
 @MainActor
 final class DashboardProviderSnapshotTests: XCTestCase {
+    func testFirstLocalRecordsAreVisibleWhileProviderPreparationIsSuspended() async throws {
+        let instant = Date(timeIntervalSince1970: 1_790_000_000)
+        let storage = EventStorage.inMemory()
+        storage.insertDoseEvent(eventType: "dose1", timestamp: instant, sessionKey: "2026-09-21", metadata: nil)
+        let entered = expectation(description: "Provider suspended")
+        var resume: CheckedContinuation<HealthReadPreparation, Never>?
+        let reader = DashboardProviderQueries(healthEnabled: { true }, whoopEnabled: { false }, whoopConnected: { false },
+            prepareHealth: { await withCheckedContinuation { resume = $0; entered.fulfill() } },
+            healthHistory: { _ in [] }, whoopHistory: { _, _ in self.whoopResult([]) })
+        let model = DashboardAnalyticsModel(now: { instant }, sessionRepo: SessionRepository(storage: storage), providerQueries: reader)
+        let refresh = Task { await model.performRefresh(days: 30) }
+        await fulfillment(of: [entered], timeout: 3)
+        XCTAssertTrue(model.nights.contains { $0.dose1Time == instant }, "Local records must not wait for provider access or network requests")
+        XCTAssertTrue(model.isLoading)
+        XCTAssertFalse(model.providerAssociationsReady); XCTAssertFalse(model.contextReadReady)
+        XCTAssertFalse(model.doseReviewReadReady); XCTAssertNil(model.lastRefresh)
+        resume?.resume(returning: .ready); await refresh.value
+        XCTAssertFalse(model.isLoading); XCTAssertTrue(model.providerAssociationsReady)
+        XCTAssertEqual(model.nights.count, 1)
+    }
+
     func testTransientFailureRetainsSuccessfulQueryWhileRefreshingLocalRecords() async throws {
         let first = Date(timeIntervalSince1970: 1_790_000_000)
         var clock = first, failing = false
