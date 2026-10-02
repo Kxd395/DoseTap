@@ -9,6 +9,8 @@ struct DashboardReplayPresentation {
     var preset: DashboardIntervalPreset = .dose1ToDose2
     var intervalMode = "By date"
     var timingMode = "By date"
+    var timingContextBasis = DashboardTimingContextBasis.reported
+    var reportedNightFilter: NightType?
     var timingWorkFilter: DashboardWorkBeforeSleep?
     var comparedOutcome: ReplayComparedOutcome = .mainSleep
     var selectedBinLower: Double?

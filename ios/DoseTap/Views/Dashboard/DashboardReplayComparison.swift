@@ -25,6 +25,7 @@ struct ReplayComparisonRow: Codable, Identifiable {
     let referenceGroup: String?
     var dosePattern: DashboardDosePattern.Pattern? = nil
     var workBeforeSleep: DashboardWorkBeforeSleep = .unknown
+    var reportedNight: DashboardReportedNightContext? = nil
     var isConfirmedSingle: Bool {
         [.singlePlanned, .singleOmitted, .singleUnknownPlan].contains(dosePattern)
     }
@@ -49,11 +50,11 @@ struct ReplayComparisonRow: Codable, Identifiable {
     var csv: String {
         func number(_ value: Double?) -> String { value.map(String.init(describing:)) ?? "" }
         func stamp(_ value: Date?) -> String { value.map { $0.timeIntervalSinceReferenceDate.isFinite ? ISO8601DateFormatter().string(from: $0) : "invalid_timestamp" } ?? "" }
-        return ReportCSV.row(["observation_id", "interval_preset", "interval_minutes", "interval_state", "interval_reason", "start_id", "end_id", "reference_version", "reference_group", "outcome", "outcome_value", "outcome_unit", "outcome_state", "outcome_reason", "outcome_source", "outcome_source_id", "outcome_observed_at", "outcome_captured_at", "definition", "context_id", "include_partial", "paired_included", "dose_pattern", "work_before_sleep", "single_dose_category"]) + "\n"
+        return ReportCSV.row(["observation_id", "interval_preset", "interval_minutes", "interval_state", "interval_reason", "start_id", "end_id", "reference_version", "reference_group", "outcome", "outcome_value", "outcome_unit", "outcome_state", "outcome_reason", "outcome_source", "outcome_source_id", "outcome_observed_at", "outcome_captured_at", "definition", "context_id", "include_partial", "paired_included", "dose_pattern", "work_before_sleep", "single_dose_category", "reported_night_type", "reported_first_off", "morning_record_id", "morning_reported_at"]) + "\n"
             + ReportCSV.row([observationID, interval.preset.rawValue, number(interval.minutes), interval.state.rawValue, interval.reason,
                 interval.startID ?? "", interval.endID ?? "", referenceVersion ?? "", referenceGroup ?? "",
                 outcome.rawValue, number(metric.value), metric.unit, metric.state.rawValue, metric.reason, source, sourceRecordID ?? "",
-                stamp(observedAt), stamp(capturedAt), definition, contextID, String(includePartial), String(paired), dosePattern?.rawValue ?? "", workBeforeSleep.rawValue, String(isConfirmedSingle)])
+                stamp(observedAt), stamp(capturedAt), definition, contextID, String(includePartial), String(paired), dosePattern?.rawValue ?? "", workBeforeSleep.rawValue, String(isConfirmedSingle), reportedNight?.type.rawValue ?? "", reportedNight.map { String($0.firstOff) } ?? "", reportedNight?.recordID ?? "", stamp(reportedNight?.reportedAt)])
     }
 }
 
@@ -109,6 +110,6 @@ extension DashboardAnalyticsModel {
             definition: definition, contextID: night.contextStratum(for: sleepSource).id,
             includePartial: inspection.includePartialMetrics, referenceVersion: snapshot.interval(preset).referenceVersion,
             referenceGroup: snapshot.interval(preset).referenceGroup,
-            dosePattern: doseReviewReadReady ? night.dosePattern.pattern : nil, workBeforeSleep: workBeforeSleep(for: night.id))
+            dosePattern: doseReviewReadReady ? night.dosePattern.pattern : nil, workBeforeSleep: workBeforeSleep(for: night.id), reportedNight: DashboardReportedNightContext.project(night: night, asOf: reportingAsOf))
     }
 }

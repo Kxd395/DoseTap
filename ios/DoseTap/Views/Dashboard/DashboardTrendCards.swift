@@ -37,7 +37,7 @@ struct DashboardTrendChartsCard: View {
     private var trendColorLegend: String {
         switch trendMode {
         case .intervalVsSleep:
-            return "Work: square; off: circle; unknown: diamond. Single dose: 1 at zero. Blue: within reference; purple: below; orange: above; teal: single dose (warm colors in Night Mode). "
+            return (model.replayPresentation.timingContextBasis == .reported ? "Morning report: square work; circle off; triangle into block; inverted triangle out; hexagon recovery; diamond unsure/unknown. " : "Reviewed shifts: square work; circle off; diamond unknown. ") + " Single dose: 1 at zero. Blue: within reference; purple: below; orange: above; teal: single dose (warm colors in Night Mode). "
                 + "Built-in recorded-spacing reference: 150–240 minutes inclusive, not a historical prescription."
         case .recoveryTrend:
             return palette.isNight ? "WHOOP recovery ranges use labeled symbols: 67–100, 34–66, below 34."
@@ -66,10 +66,7 @@ struct DashboardTrendChartsCard: View {
 
             #if canImport(Charts)
             if trendMode == .intervalVsSleep {
-                Picker("Work before sleep", selection: $model.replayPresentation.timingWorkFilter) {
-                    Text("All days").tag(DashboardWorkBeforeSleep?.none)
-                    ForEach(DashboardWorkBeforeSleep.allCases, id: \.self) { Text($0.rawValue).tag(Optional($0)) }
-                }.pickerStyle(.menu).accessibilityIdentifier("dashboard-trend-work")
+                DashboardTimingContextControls(model: model)
                 chartBody
             }
             else { chartBody.frame(height: 220) }
@@ -109,7 +106,7 @@ struct DashboardTrendChartsCard: View {
         case .intervalVsSleep:
             DashboardSleepIntervalChart(model: model, rows: model.replayComparisons(
                 for: model.replayDisplaySnapshots, outcome: .mainSleep, preset: .dose1ToDose2)
-                .filter { model.replayPresentation.timingWorkFilter == nil || $0.workBeforeSleep == model.replayPresentation.timingWorkFilter })
+                .filter { $0.matchesTimingContext(model.replayPresentation) })
 
         case .recoveryTrend:
             let points = recoveryTrendPoints

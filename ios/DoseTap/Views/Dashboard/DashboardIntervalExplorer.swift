@@ -16,7 +16,7 @@ struct DashboardIntervalExplorer: View {
         model.replayComparisons(for: snapshots, outcome: outcome, preset: preset)
     }
     private var workRows: [ReplayComparisonRow] {
-        rows.filter { model.replayPresentation.timingWorkFilter == nil || $0.workBeforeSleep == model.replayPresentation.timingWorkFilter }
+        rows.filter { $0.matchesTimingContext(model.replayPresentation) }
     }
     private var filtered: [ReplayComparisonRow] {
         workRows.filter { focusedTiming || model.replayPresentation.selectedBinLower == nil || $0.binLower == model.replayPresentation.selectedBinLower }
@@ -49,10 +49,7 @@ struct DashboardIntervalExplorer: View {
             }.accessibilityIdentifier("dashboard-interval-outcome")
             Toggle("Include partial values", isOn: $model.inspection.includePartialMetrics)
             }
-            Picker("Work before sleep", selection: $model.replayPresentation.timingWorkFilter) {
-                Text("All days").tag(DashboardWorkBeforeSleep?.none)
-                ForEach(DashboardWorkBeforeSleep.allCases, id: \.self) { Text($0.rawValue).tag(Optional($0)) }
-            }.pickerStyle(.menu).accessibilityIdentifier("dashboard-timing-work")
+            DashboardTimingContextControls(model: model)
             if !focusedTiming { countLabel }
             if !focusedTiming && (mode == "Distribution" || model.replayPresentation.selectedBinLower != nil) {
                 Picker("Distribution rows", selection: $model.replayPresentation.selectedBinLower) {
@@ -85,7 +82,7 @@ struct DashboardIntervalExplorer: View {
             if let row = filtered.first(where: { $0.id == model.inspection.selectedObservationID }) { tableRow(row) }
             else { Text("Tap a point to see that night.").font(.caption).foregroundStyle(.secondary) }
             DisclosureGroup("Chart details") {
-                Text("Work before sleep uses confirmed saved history. Square: workday; circle: off day; diamond: unknown. A planned shift alone is not confirmed work.")
+                Text("Morning context is your saved answer for this exact night. Reviewed shift attendance is a separate basis. A night-type answer does not create a shift or prove its start/end times.")
                 Text("150–240 minutes inclusive is the built-in spacing reference, not a prescription. Elapsed time is not sleep duration.")
                 if paired { Text("Single dose sits at the labeled zero position. It has no dose-to-dose interval. Y shows recorded main sleep from the selected source; missing sleep is not plotted.") }
                 Text("Reference: dose_spacing_reference_v1_150_240_minutes. Associations do not establish medication effects.")
@@ -145,12 +142,12 @@ struct DashboardIntervalExplorer: View {
                 if paired, let y = row.y {
                     PointMark(x: .value("Interval minutes", x), y: .value(outcome.rawValue, y))
                         .foregroundStyle(timingColor(row))
-                        .symbol { SleepIntervalChartMarker(work: row.workBeforeSleep, color: timingColor(row), selected: row.id == model.inspection.selectedObservationID) }
+                        .symbol { SleepIntervalChartMarker(work: row.workBeforeSleep, color: timingColor(row), reported: model.replayPresentation.timingContextBasis == .reported ? row.reportedNight : nil, usesReported: model.replayPresentation.timingContextBasis == .reported, selected: row.id == model.inspection.selectedObservationID) }
                         .accessibilityHidden(true)
                 } else if !paired {
                     PointMark(x: .value("Treatment date", date(row)), y: .value("Interval minutes", x))
                         .foregroundStyle(timingColor(row))
-                        .symbol { SleepIntervalChartMarker(work: row.workBeforeSleep, color: timingColor(row), selected: row.id == model.inspection.selectedObservationID) }
+                        .symbol { SleepIntervalChartMarker(work: row.workBeforeSleep, color: timingColor(row), reported: model.replayPresentation.timingContextBasis == .reported ? row.reportedNight : nil, usesReported: model.replayPresentation.timingContextBasis == .reported, selected: row.id == model.inspection.selectedObservationID) }
                         .accessibilityHidden(true)
                 }
             }
@@ -205,7 +202,7 @@ struct DashboardIntervalExplorer: View {
     private var legends: some View {
         VStack(alignment: .leading, spacing: 6) {
             (Text("● Within 150–240 min  ").foregroundColor(SleepIntervalChartMarker.spacingColor(interval: 180, palette: palette)) + Text("● Below  ").foregroundColor(SleepIntervalChartMarker.spacingColor(interval: 100, palette: palette)) + Text("● Above").foregroundColor(SleepIntervalChartMarker.spacingColor(interval: 280, palette: palette)))
-            Text("Work before sleep: ■ Work   ● Off   ◆ Unknown").foregroundStyle(.secondary)
+            Text(model.replayPresentation.timingContextBasis == .reported ? "Morning report: ■ Work  ● Off  ▲ Into block  ▼ Out of block  ⬡ Recovery  ◆ Unsure/unknown" : "Reviewed work before sleep: ■ Work   ● Off   ◆ Unknown").foregroundStyle(.secondary)
             if paired { Text("1 · Single dose · no spacing interval").foregroundStyle(palette.coverage) }
         }.font(.caption).fixedSize(horizontal: false, vertical: true)
     }
@@ -218,7 +215,11 @@ struct DashboardIntervalExplorer: View {
                 ForEach(markers) { marker in Text(marker.kind.label + ": " + stamp(marker.occurredAt)).font(.subheadline) }
             }
             if !row.isConfirmedSingle, let group = row.referenceGroup { Text(group).font(.subheadline) }
-            Text("Work before sleep: " + row.workBeforeSleep.rawValue).font(.subheadline)
+            Text(row.timingContextLabel(model.replayPresentation.timingContextBasis)).font(.subheadline)
+            if let report = row.reportedNight {
+                Text("Saved check-in " + report.recordID + " · reported " + stamp(report.reportedAt)).font(.caption)
+            }
+            Text("Reviewed work before sleep: " + row.workBeforeSleep.rawValue).font(.caption)
             if paired { Text("Recorded sleep: \(number(row.y)) min · \(row.source)") }
             DisclosureGroup("Record and source details") {
                 Text(row.id)
@@ -233,7 +234,7 @@ struct DashboardIntervalExplorer: View {
     }
     private func select(_ row: ReplayComparisonRow) { model.selectReplayID(row.replayID) }
     private func pointLabel(_ row: ReplayComparisonRow) -> String {
-        row.treatmentDate + "; " + row.workBeforeSleep.rawValue + "; " + (row.isConfirmedSingle ? "Single dose" : "interval " + number(row.x) + " minutes; " + (row.referenceGroup ?? "Unclassified")) + "; " + row.outcome.rawValue + " " + number(row.y)
+        row.treatmentDate + "; " + row.timingContextLabel(model.replayPresentation.timingContextBasis) + "; " + (row.isConfirmedSingle ? "Single dose" : "interval " + number(row.x) + " minutes; " + (row.referenceGroup ?? "Unclassified")) + "; " + row.outcome.rawValue + " " + number(row.y)
     }
     private func number(_ value: Double?) -> String { value.map { $0.formatted(.number.precision(.fractionLength(0...6))) } ?? "unavailable" }
     private func stamp(_ date: Date?) -> String {

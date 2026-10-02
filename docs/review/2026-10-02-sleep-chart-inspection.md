@@ -23,3 +23,15 @@ Physical pinch/hover, VoiceOver usability, real-phone chart responsiveness and p
 Verified automated results: 29 focused native tests; 2 synthetic UI journeys (normal dark palette and largest-text Night Mode); 1,191 XCTest core tests plus 43 Swift Testing tests. Plane workflow 15 tests/80 assertions, SSOT, architecture, version 94 across four phone/staging configurations, docs and whitespace checks passed.
 
 Signed 0.4.19 (94) passed codesign verification, installed over the existing phone app, was independently inventoried as build94 and launched successfully. The first transport connection reset; retry succeeded. Actual chart pixels and touch acceptance remain separate evidence.
+
+## Morning context alignment correction — build 95
+
+The chart previously read only reviewed shift associations, while the exact night already contained the saved morning `timingContextJson.nightType`. This ignored Work Night, Off Night and Into/Out block answers; reviewed phases were also intentionally reduced to preceding-work/off/unknown. The saved phone diagnostic copy confirmed the reported categories existed. It is a snapshot, not a fresh phone read; records without an exact session link and duplicate morning groups require review. Private diagnostic counts remain in local ignored evidence.
+
+The chart now defaults to Morning check-in context: square work, circle off, upward triangle into block, downward triangle out, hexagon recovery, diamond unsure/unknown. Into/Out retain their original labels. First-night-off remains an independent positive report in point details. Reviewed shifts remain selectable separately; a morning report never creates attendance, block membership or actual shift times. Shared work-phase filters still use reviewed shifts and are labeled when active.
+
+The projection requires an unambiguous exact session ID and treatment date plus a finite report timestamp no later than the dashboard cutoff. The morning clock date never reassigns a record to another night. Chart marker/filter/detail and CSV freeze the same projected category and morning ID/timestamp. Missing, malformed, future, mismatched or ambiguous evidence remains unknown/review.
+
+34 focused native tests passed, including real in-memory SQLite saves and production refresh of D1 before midnight, D2 after midnight and the following morning check-in. A historical edit changes the context on the same stable observation and preserves its 180-minute pair and dose rows. Existing reviewed-work freshness/identity tests still pass.
+
+Three distinct simulator UI journeys passed: exact reported Into/Out context and filtering, reviewed-shift single-dose/zoom/filter journey, and the largest-text Night Mode journey. Initial largest-text automated scrolling failed reachability; the final test uses the scroll margin and adaptive direction, retains visible/hittable assertions, and passes actual point/control taps. Screenshots and failure/readback evidence remain in the ignored local evidence directory.

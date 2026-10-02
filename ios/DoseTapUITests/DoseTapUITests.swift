@@ -144,12 +144,13 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Dose timing"].waitForExistence(timeout: 10))
         app.buttons["dashboard-timing-mode"].tap()
         app.buttons["Sleep vs spacing"].tap()
+        app.buttons["dashboard-timing-context-basis"].tap(); app.buttons["Reviewed shifts"].tap()
         let single = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "dashboard-interval-point-", "Single dose")).firstMatch
         XCTAssertTrue(single.waitForExistence(timeout: 5))
-        for _ in 0..<6 where !single.isHittable { app.swipeUp() }
+        revealDashboardElement(single, title: "Single-dose chart point", scrollAtEdge: true)
         XCTAssertTrue(single.isHittable); single.tap()
         let zoomIn = app.buttons["dashboard-sleep-zoom-in"]
-        for _ in 0..<6 where !zoomIn.isHittable { app.swipeUp() }
+        revealDashboardElement(zoomIn, title: "Chart zoom controls", scrollAtEdge: true)
         XCTAssertTrue(zoomIn.isHittable); zoomIn.tap()
         let reset = app.buttons["dashboard-sleep-zoom-reset"]
         XCTAssertTrue(reset.isEnabled); reset.tap()
@@ -157,12 +158,34 @@ final class DoseTapUITests: XCTestCase {
         revealDashboardText("Single dose · Dose 2 not taken or one dose confirmed")
         XCTAssertTrue(app.staticTexts["Single dose · Dose 2 not taken or one dose confirmed"].isHittable)
         captureDashboard("Single dose category and selected recorded sleep")
-        for _ in 0..<6 where !app.buttons["dashboard-timing-work"].isHittable { app.swipeDown() }
+        revealDashboardElement(app.buttons["dashboard-timing-work"], title: "Reviewed work filter", scrollAtEdge: true)
         app.buttons["dashboard-timing-work"].tap(); app.buttons["Workday"].tap()
         XCTAssertTrue(app.staticTexts["3 plotted · 3 nights"].waitForExistence(timeout: 5), "Only confirmed work observations belong in this filter")
         app.buttons["dashboard-timing-work"].tap(); app.buttons["Off day"].tap()
         XCTAssertTrue(single.waitForExistence(timeout: 5))
         captureDashboard("Confirmed off days include the single dose")
+    }
+
+    func testDashboardMorningNightContextAlignsAndFilters() {
+        app.terminate()
+        app.launchArguments += ["--uitesting-timing", "--uitesting-replay", "--uitesting-reported-context",
+            "-selectedTheme", "Dark", "-automaticNightModeEnabled", "NO"]
+        app.launch(); app.buttons["Dashboard"].tap()
+        XCTAssertTrue(app.staticTexts["Dose timing"].waitForExistence(timeout: 10))
+        app.buttons["dashboard-timing-mode"].tap(); app.buttons["Sleep vs spacing"].tap()
+        XCTAssertTrue(app.buttons["dashboard-timing-context-basis"].label.contains("Morning check-in"))
+        for type in ["Into Work Block", "Out Of Work Block"] {
+            let filter = app.buttons["dashboard-reported-night-filter"]
+            revealDashboardElement(filter, title: "Reported night filter", scrollAtEdge: true)
+            XCTAssertTrue(filter.isHittable); filter.tap(); app.buttons[type].tap()
+            let point = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@",
+                "dashboard-interval-point-", "Morning report: " + type)).firstMatch
+            XCTAssertTrue(point.waitForExistence(timeout: 5))
+            revealDashboardElement(point, title: "Morning-context chart point", scrollAtEdge: true)
+            XCTAssertTrue(point.isHittable); point.tap()
+            revealDashboardText("Morning report: " + type, prefix: true)
+            captureDashboard("Exact saved morning context: " + type)
+        }
     }
 
     func testDashboardRecoveryOverview() { recoveryOverview(size: "UICTContentSizeCategoryL") }
@@ -1942,6 +1965,9 @@ final class DoseTapUITests: XCTestCase {
 
     private func revealDashboardText(_ title: String, prefix: Bool = false) {
         let element = app.staticTexts.matching(NSPredicate(format: prefix ? "label BEGINSWITH %@" : "label == %@", title)).firstMatch
+        revealDashboardElement(element, title: title)
+    }
+    private func revealDashboardElement(_ element: XCUIElement, title: String, scrollAtEdge: Bool = false) {
         for _ in 0..<18 {
             if element.exists && element.isHittable { return }
             let data = app.scrollViews["dashboard-data-review"]
@@ -1956,9 +1982,10 @@ final class DoseTapUITests: XCTestCase {
             let origin = app.coordinate(withNormalizedOffset: .zero)
             let center = bounds.minY + height / 2
             let distance = element.exists ? min(height * 0.35, max(12, abs(element.frame.midY - center))) : height * 0.70
-            let upper = origin.withOffset(CGVector(dx: bounds.midX - app.frame.minX,
+            let dragX = scrollAtEdge ? bounds.maxX - 8 : bounds.midX
+            let upper = origin.withOffset(CGVector(dx: dragX - app.frame.minX,
                 dy: center - distance / 2 - app.frame.minY))
-            let lower = origin.withOffset(CGVector(dx: bounds.midX - app.frame.minX,
+            let lower = origin.withOffset(CGVector(dx: dragX - app.frame.minX,
                 dy: center + distance / 2 - app.frame.minY))
             (downward ? upper : lower).press(forDuration: 0.1, thenDragTo: downward ? lower : upper,
                 withVelocity: .slow, thenHoldForDuration: 0.2)
