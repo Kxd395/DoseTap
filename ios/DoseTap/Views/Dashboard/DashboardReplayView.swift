@@ -56,9 +56,12 @@ struct DashboardReplayView: View {
     }
     private var selectedIndex: Int? { snapshots.firstIndex { $0.sessionID == selectedID } }
     private var filteredIntervalSnapshots: [DashboardReplaySnapshot] {
-        guard page == .intervals, let lower = model.replayPresentation.selectedBinLower else { return snapshots }
-        return snapshots.filter { model.replayComparison(for: $0, outcome: model.replayPresentation.comparedOutcome,
-            preset: preset)?.binLower == lower }
+        guard page == .intervals else { return snapshots }
+        return snapshots.filter {
+            guard let row = model.replayComparison(for: $0, outcome: model.replayPresentation.comparedOutcome, preset: preset) else { return false }
+            return (model.replayPresentation.selectedBinLower == nil || row.binLower == model.replayPresentation.selectedBinLower)
+                && (model.replayPresentation.timingWorkFilter == nil || row.workBeforeSleep == model.replayPresentation.timingWorkFilter)
+        }
     }
 
     var body: some View {

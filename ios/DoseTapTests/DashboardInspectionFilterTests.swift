@@ -24,6 +24,26 @@ final class DashboardInspectionFilterTests: XCTestCase {
         row.sessionID = id; row.stableID = "session:" + id
         return row
     }
+    func testWorkBeforeSleepUsesConfirmedExactIdentityAndRejectsStaleContext() {
+        let model = makeModel()
+        XCTAssertEqual(model.workBeforeSleep(for: "session:one"), .unknown)
+        for (phase, expected) in [(WorkPhase.entering, DashboardWorkBeforeSleep.off),
+                                  (.between, .work), (.after, .work), (.off, .off), (.unknown, .unknown)] {
+            var document = WorkContextDocument()
+            var association = WorkSleepAssociation(sleepID: "session:one", precedingDate: "2026-09-27",
+                followingDate: "2026-09-28", timeZoneIdentifier: "UTC", plannedAt: instant, recordedAt: instant)
+            association.overridePhase = phase; association.overrideReason = "Explicit reviewed phase"
+            document.associations = [association]
+            model.publishWorkInspectionContext(document, nights: model.nights, asOf: instant)
+            XCTAssertEqual(model.workBeforeSleep(for: "session:one"), expected)
+            XCTAssertEqual(model.workBeforeSleep(for: "session:two"), .unknown)
+            model.workInspectionAsOf = instant.addingTimeInterval(-1)
+            XCTAssertEqual(model.workBeforeSleep(for: "session:one"), .unknown)
+        }
+        model.invalidateWorkInspectionContext()
+        XCTAssertEqual(model.workBeforeSleep(for: "session:one"), .unknown)
+    }
+
     func testNoFilterRetainsSameDateIdentitiesAndSelection() {
         let model = makeModel(); model.inspection.selectedObservationID = "session:two"
         XCTAssertEqual(Set(model.visibleInspectionNights.map(\.id)), ["session:one", "session:two"])
@@ -68,6 +88,7 @@ final class DashboardInspectionFilterTests: XCTestCase {
         model.inspection.workContextBasis = .confirmed
         XCTAssertTrue(model.visibleInspectionNights.isEmpty)
         XCTAssertEqual(model.workClassification(for: "session:one")?.phase, .unknown)
+        XCTAssertEqual(model.workBeforeSleep(for: "session:one"), .unknown, "A planned workday is not confirmed attendance")
     }
     func testInvalidatedWorkCacheDoesNotClassifyRetainedRows() {
         let model = makeModel(); model.publishWorkInspectionContext(nil, nights: model.nights, asOf: instant)

@@ -234,6 +234,9 @@ extension DashboardAnalyticsModel {
                 if let second = aggregate.dose2Time {
                     aggregate.doseEvents.append(.init(id: "d2:" + key, eventType: "dose2", timestamp: second, sessionDate: key, sessionId: key))
                 }
+                if arguments.contains("--uitesting-timing"), offset == 2 {
+                    aggregate.doseEvents.append(.init(id: "skip:" + key, eventType: "dose2_skipped", timestamp: date.addingTimeInterval(14400), sessionDate: key, sessionId: key))
+                }
                 aggregate.outcome = diary
                 if let metadata = DashboardReplayUITestFixture.doseMetadata(for: aggregate) {
                     aggregate.doseEvents = aggregate.doseEvents.map { event in
@@ -248,7 +251,20 @@ extension DashboardAnalyticsModel {
         do {
             let snapshot = try sessionRepo.dashboardContextSnapshot(capturedAt: reportingAsOf)
             let reviews = try sessionRepo.dashboardDoseReviews()
-            let work = arguments.contains("--uitesting-work-events") ? workEventDisplayFixture() : try sessionRepo.workContext()
+            var work = arguments.contains("--uitesting-work-events") ? workEventDisplayFixture() : try sessionRepo.workContext()
+            if arguments.contains("--uitesting-timing") {
+                var document = WorkContextDocument()
+                for (index, night) in nights.enumerated() {
+                    guard let start = night.dose1Time, let following = calendar.date(byAdding: .day, value: 1, to: start) else { continue }
+                    let phase: WorkPhase = index % 3 == 0 ? .between : index % 3 == 1 ? .off : .unknown
+                    var association = WorkSleepAssociation(sleepID: night.id, precedingDate: night.sessionDate,
+                        followingDate: sessionKey(for: following, timeZone: reportingTimeZone), timeZoneIdentifier: reportingTimeZone.identifier,
+                        plannedAt: reportingAsOf, recordedAt: reportingAsOf)
+                    association.overridePhase = phase; association.overrideReason = "Synthetic reviewed work context"
+                    document.associations.append(association)
+                }
+                work = document
+            }
             nights = nights.map { row in
                 var row = row; row.applyContext(snapshot.timeline); row.doseReviewLedger = reviews[row.id]; return row
             }

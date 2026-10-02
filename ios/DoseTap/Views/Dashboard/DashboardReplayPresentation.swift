@@ -8,6 +8,8 @@ struct DashboardReplayPresentation {
     var alignment: DashboardReplaySnapshot.Alignment = .clock
     var preset: DashboardIntervalPreset = .dose1ToDose2
     var intervalMode = "By date"
+    var timingMode = "By date"
+    var timingWorkFilter: DashboardWorkBeforeSleep?
     var comparedOutcome: ReplayComparedOutcome = .mainSleep
     var selectedBinLower: Double?
     struct DosePairChoice { var dose1ID: String?; var dose2ID: String? }

@@ -1,7 +1,20 @@
 import Foundation
 import DoseCore
 
+enum DashboardWorkBeforeSleep: String, Codable, CaseIterable {
+    case work = "Workday", off = "Off day", unknown = "Unknown"
+}
+
 extension DashboardAnalyticsModel {
+    func workBeforeSleep(for observationID: String) -> DashboardWorkBeforeSleep {
+        guard workContextReadReady, workInspectionAsOf == reportingAsOf else { return .unknown }
+        switch confirmedWorkClassifications[observationID]?.phase {
+        case .between, .after: return .work
+        case .entering, .off: return .off
+        case .unknown, nil: return .unknown
+        }
+    }
+
     var inspectionFilterIssue: String? {
         guard currentReportWindow != nil else { return "Choose a valid reporting period before applying dashboard filters." }
         if inspection.dosePatternFilter != nil && !doseReviewReadReady {

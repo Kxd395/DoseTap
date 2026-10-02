@@ -106,8 +106,8 @@ final class DoseTapUITests: XCTestCase {
         app.buttons["Theme quick switch"].press(forDuration: 1)
         app.buttons["Light"].tap()
         captureDashboard("Simple home light appearance")
-        XCTAssertTrue(app.staticTexts["Your nights"].waitForExistence(timeout: 10))
-        XCTAssertFalse(app.buttons["dashboard-shared-filters"].exists)
+        XCTAssertTrue(app.staticTexts["Dose timing"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["dashboard-shared-filters"].exists)
         app.buttons["dashboard-range-picker"].tap()
         app.buttons["6 Months"].tap()
         revealDashboardText("Review records")
@@ -127,10 +127,32 @@ final class DoseTapUITests: XCTestCase {
         app.launch()
         app.buttons["Dashboard"].tap()
         XCTAssertTrue(app.staticTexts["No recorded pairs in this period"].waitForExistence(timeout: 10))
-        XCTAssertFalse(app.descendants(matching: .any).matching(identifier: "dashboard-home-spacing-chart").firstMatch.exists)
+        XCTAssertFalse(app.descendants(matching: .any).matching(identifier: "dashboard-interval-points").firstMatch.exists)
         revealDashboardText("Review records")
         XCTAssertTrue(app.buttons["dashboard-home-data"].isHittable)
         captureDashboard("Simple home empty records")
+    }
+
+    func testDashboardTimingSingleDoseAndWorkFilter() {
+        app.terminate()
+        app.launchArguments += ["--uitesting-timing", "--uitesting-replay"]
+        app.launch()
+        app.buttons["Dashboard"].tap()
+        XCTAssertTrue(app.staticTexts["Dose timing"].waitForExistence(timeout: 10))
+        app.buttons["dashboard-timing-mode"].tap()
+        app.buttons["Sleep vs spacing"].tap()
+        let single = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "dashboard-interval-point-", "Single dose")).firstMatch
+        XCTAssertTrue(single.waitForExistence(timeout: 5))
+        single.tap()
+        revealDashboardText("Single dose · Dose 2 not taken or one dose confirmed")
+        XCTAssertTrue(app.staticTexts["Single dose · Dose 2 not taken or one dose confirmed"].isHittable)
+        captureDashboard("Single dose category and selected recorded sleep")
+        for _ in 0..<6 where !app.buttons["dashboard-timing-work"].isHittable { app.swipeDown() }
+        app.buttons["dashboard-timing-work"].tap(); app.buttons["Workday"].tap()
+        XCTAssertTrue(app.staticTexts["3 plotted · 3 nights"].waitForExistence(timeout: 5), "Only confirmed work observations belong in this filter")
+        app.buttons["dashboard-timing-work"].tap(); app.buttons["Off day"].tap()
+        XCTAssertTrue(single.waitForExistence(timeout: 5))
+        captureDashboard("Confirmed off days include the single dose")
     }
 
     func testDashboardRecoveryOverview() { recoveryOverview(size: "UICTContentSizeCategoryL") }
@@ -143,19 +165,19 @@ final class DoseTapUITests: XCTestCase {
         app.launch()
         let start = Date()
         app.buttons["Dashboard"].tap()
-        let heading = app.staticTexts["Your nights"]
+        let heading = app.staticTexts["Dose timing"]
         let visible = heading.waitForExistence(timeout: 5) && heading.isHittable
         captureDashboard("Recovery landing " + size)
         let timing = XCTAttachment(string: "Dashboard tap to summary probe: \(Date().timeIntervalSince(start)) seconds; visible=\(visible)")
         timing.name = "Recovery landing timing"; timing.lifetime = .keepAlways; add(timing)
         XCTAssertTrue(visible, "The initial dashboard must show recorded-night information without menu navigation or scrolling")
-        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "dashboard-home-nights").firstMatch.isHittable,
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "dashboard-timing-count").firstMatch.isHittable,
             "A summary value, not just a heading, must fit on the initial screen")
         let controls = app.buttons["dashboard-view-picker"]
         XCTAssertTrue(controls.isHittable)
         XCTAssertLessThan(controls.frame.height, app.frame.height * 0.18, "Navigation must leave room for data at large text sizes")
         if size == "UICTContentSizeCategoryL" {
-            XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "dashboard-home-spacing-chart").firstMatch.isHittable,
+            XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "dashboard-interval-points").firstMatch.isHittable,
                 "The default text layout must show the trend without scrolling")
         }
         XCUIDevice.shared.orientation = .landscapeLeft
@@ -164,7 +186,7 @@ final class DoseTapUITests: XCTestCase {
         wait(for: [rotated], timeout: 10)
         XCTAssertTrue(controls.isHittable)
         XCTAssertLessThan(controls.frame.height, app.frame.height * 0.30)
-        let metric = app.descendants(matching: .any).matching(identifier: "dashboard-home-nights").firstMatch
+        let metric = app.descendants(matching: .any).matching(identifier: "dashboard-timing-count").firstMatch
         let fits = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
             let viewport = self.app.scrollViews["dashboard-overview"].frame.intersection(self.app.frame)
             return metric.exists && metric.frame.minY >= viewport.minY && metric.frame.maxY <= viewport.maxY

@@ -23,6 +23,15 @@ struct ReplayComparisonRow: Codable, Identifiable {
     let includePartial: Bool
     let referenceVersion: String?
     let referenceGroup: String?
+    var dosePattern: DashboardDosePattern.Pattern? = nil
+    var workBeforeSleep: DashboardWorkBeforeSleep = .unknown
+    var isConfirmedSingle: Bool {
+        [.singlePlanned, .singleOmitted, .singleUnknownPlan].contains(dosePattern)
+    }
+    /// Zero is a labeled category position, never a measured interval.
+    var sleepComparisonX: Double? {
+        outcome == .mainSleep && interval.preset == .dose1ToDose2 && isConfirmedSingle ? 0 : x
+    }
     var id: String { observationID }
     var x: Double? { interval.eligibleMinutes(includePartial: includePartial) }
     var y: Double? {
@@ -30,7 +39,7 @@ struct ReplayComparisonRow: Codable, Identifiable {
               let value = metric.value, value.isFinite else { return nil }
         return value
     }
-    var paired: Bool { x != nil && y != nil }
+    var paired: Bool { sleepComparisonX != nil && y != nil }
     var binLower: Double? {
         guard let x else { return nil }
         let lower = floor(x / 30) * 30
@@ -40,11 +49,11 @@ struct ReplayComparisonRow: Codable, Identifiable {
     var csv: String {
         func number(_ value: Double?) -> String { value.map(String.init(describing:)) ?? "" }
         func stamp(_ value: Date?) -> String { value.map { $0.timeIntervalSinceReferenceDate.isFinite ? ISO8601DateFormatter().string(from: $0) : "invalid_timestamp" } ?? "" }
-        return ReportCSV.row(["observation_id", "interval_preset", "interval_minutes", "interval_state", "interval_reason", "start_id", "end_id", "reference_version", "reference_group", "outcome", "outcome_value", "outcome_unit", "outcome_state", "outcome_reason", "outcome_source", "outcome_source_id", "outcome_observed_at", "outcome_captured_at", "definition", "context_id", "include_partial", "paired_included"]) + "\n"
+        return ReportCSV.row(["observation_id", "interval_preset", "interval_minutes", "interval_state", "interval_reason", "start_id", "end_id", "reference_version", "reference_group", "outcome", "outcome_value", "outcome_unit", "outcome_state", "outcome_reason", "outcome_source", "outcome_source_id", "outcome_observed_at", "outcome_captured_at", "definition", "context_id", "include_partial", "paired_included", "dose_pattern", "work_before_sleep", "single_dose_category"]) + "\n"
             + ReportCSV.row([observationID, interval.preset.rawValue, number(interval.minutes), interval.state.rawValue, interval.reason,
                 interval.startID ?? "", interval.endID ?? "", referenceVersion ?? "", referenceGroup ?? "",
                 outcome.rawValue, number(metric.value), metric.unit, metric.state.rawValue, metric.reason, source, sourceRecordID ?? "",
-                stamp(observedAt), stamp(capturedAt), definition, contextID, String(includePartial), String(paired)])
+                stamp(observedAt), stamp(capturedAt), definition, contextID, String(includePartial), String(paired), dosePattern?.rawValue ?? "", workBeforeSleep.rawValue, String(isConfirmedSingle)])
     }
 }
 
@@ -53,6 +62,20 @@ extension DashboardAnalyticsModel {
                           preset: DashboardIntervalPreset) -> ReplayComparisonRow? {
         let matches = nights.filter { $0.replayID == snapshot.sessionID }
         guard matches.count == 1, let night = matches.first else { return nil }
+        return replayComparison(for: snapshot, night: night, outcome: outcome, preset: preset)
+    }
+
+    func replayComparisons(for snapshots: [DashboardReplaySnapshot], outcome: ReplayComparedOutcome,
+                           preset: DashboardIntervalPreset) -> [ReplayComparisonRow] {
+        let indexed = Dictionary(grouping: nights, by: \.replayID)
+        return snapshots.compactMap { snapshot in
+            guard let matches = indexed[snapshot.sessionID], matches.count == 1, let night = matches.first else { return nil }
+            return replayComparison(for: snapshot, night: night, outcome: outcome, preset: preset)
+        }
+    }
+
+    private func replayComparison(for snapshot: DashboardReplaySnapshot, night: DashboardNightAggregate,
+                                  outcome: ReplayComparedOutcome, preset: DashboardIntervalPreset) -> ReplayComparisonRow {
         let source = sleepSource == .appleHealth ? DashboardProviderAccess.Provider.health : .whoop
         let capture = source == .health ? healthSnapshot?.window.asOf : whoopSnapshot?.window.asOf
         let fixture = DashboardReplayUITestFixture.enabled
@@ -85,6 +108,7 @@ extension DashboardAnalyticsModel {
             capturedAt: outcome == .mainSleep ? capture ?? (fixture ? snapshot.asOf : nil) : snapshot.asOf,
             definition: definition, contextID: night.contextStratum(for: sleepSource).id,
             includePartial: inspection.includePartialMetrics, referenceVersion: snapshot.interval(preset).referenceVersion,
-            referenceGroup: snapshot.interval(preset).referenceGroup)
+            referenceGroup: snapshot.interval(preset).referenceGroup,
+            dosePattern: doseReviewReadReady ? night.dosePattern.pattern : nil, workBeforeSleep: workBeforeSleep(for: night.id))
     }
 }

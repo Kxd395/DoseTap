@@ -81,7 +81,7 @@ struct DashboardTabView: View {
             }
             .toolbar {
                 PageToolbar {
-                    if page != .overview && page != .trends {
+                    if page != .trends {
                     Button { showingInspection = true } label: {
                         Image(systemName: "line.3.horizontal.decrease.circle")
                     }.accessibilityLabel("Dashboard shared filters")
@@ -227,8 +227,7 @@ struct DashboardTabView: View {
                     Label(error, systemImage: "exclamationmark.triangle")
                         .font(.callout).foregroundStyle(.orange)
                 }
-                DashboardHomeSummary(model: model)
-                DashboardHomeTrend(model: model)
+                DashboardIntervalExplorer(model: model, snapshots: model.replayDisplaySnapshots, focusedTiming: true)
                 homeLink("Review records", detail: "Nights, sources and saved entries", icon: "list.bullet.rectangle", page: .data)
                 homeLink("Explore patterns", detail: "Sleep, timing and detailed comparisons", icon: "chart.xyaxis.line", page: .explore)
                 homeLink("Prepare a visit", detail: "Review and share a physician report", icon: "doc.text", page: .physician)

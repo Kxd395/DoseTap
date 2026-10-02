@@ -37,6 +37,44 @@ final class DashboardDosePatternAdapterTests: XCTestCase {
         XCTAssertNil(row.dosePattern.interval.value)
         XCTAssertEqual(storage.fetchDoseEvents(sessionKey: "2026-09-29").count, 1)
     }
+    func testMorningSkipAndLaterTakenCorrectionMoveSameComparisonObservation() async throws {
+        let storage = EventStorage.inMemory(); seed(storage)
+        let model = model(storage)
+        let repository = SessionRepository(storage: storage, clock: { self.now })
+        func comparison() throws -> ReplayComparisonRow {
+            let night = try XCTUnwrap(model.nights.first)
+            return try XCTUnwrap(model.replayComparison(for: model.replaySnapshot(for: night),
+                outcome: .mainSleep, preset: .dose1ToDose2))
+        }
+        await model.performRefresh(days: 30, includeProviders: false)
+        let initial = try comparison()
+        XCTAssertFalse(initial.isConfirmedSingle)
+        XCTAssertNil(initial.sleepComparisonX)
+        XCTAssertTrue(repository.reconcileDose2Skipped(sessionDate: "2026-09-29", reason: "Morning check-in").isCommitted)
+        await model.performRefresh(days: 30, includeProviders: false)
+        let single = try comparison()
+        XCTAssertEqual(single.id, initial.id)
+        XCTAssertTrue(single.isConfirmedSingle)
+        XCTAssertNil(single.x)
+        XCTAssertEqual(single.sleepComparisonX, 0)
+        XCTAssertNil(single.y) // No provider sleep: no invented total or plotted point.
+        let bulk = model.replayComparisons(for: model.replayDisplaySnapshots, outcome: .mainSleep, preset: .dose1ToDose2)
+        XCTAssertEqual(bulk.map(\.id), [single.id])
+        XCTAssertEqual(bulk.first?.sleepComparisonX, 0)
+        XCTAssertNil(bulk.first?.interval.minutes)
+        XCTAssertTrue(single.csv.contains("single_dose_category"))
+        let second = ISO8601DateFormatter().date(from: "2026-09-30T01:00:00Z")!
+        XCTAssertTrue(repository.reconcileDose2(sessionDate: "2026-09-29", takenAt: second,
+            amountMg: 4500, reason: "Corrected missed entry").isCommitted)
+        await model.performRefresh(days: 30, includeProviders: false)
+        let corrected = try comparison()
+        XCTAssertEqual(corrected.id, initial.id)
+        XCTAssertFalse(corrected.isConfirmedSingle)
+        XCTAssertEqual(corrected.x, 180)
+        XCTAssertEqual(corrected.sleepComparisonX, 180)
+        XCTAssertFalse(storage.fetchDoseEvents(sessionKey: "2026-09-29").contains { $0.eventType == "dose2_skipped" })
+    }
+
     func testCanonicalCorrectionInvalidatesReviewAndStaleSave() async throws {
         let storage = EventStorage.inMemory(); seed(storage); let model = model(storage)
         await model.performRefresh(days: 30, includeProviders: false)
