@@ -33,4 +33,20 @@ Evidence: `.build/dashboard-pairing-evidence/`.
 
 ## Acceptance
 
-The copied database establishes the zero-association condition, not live Apple Health episode coverage. Current physical-phone chart population and pairing correctness remain open until observed. iPhone Mirroring reported iPhone in Use during this run. Owner speed, accessibility, provider/privacy/release and inherited gates remain open. No claim that simulator dots prove the owner's records are paired correctly.
+The copied database establishes the zero-association condition, not live Apple Health episode coverage. iPhone Mirroring initially reported iPhone in Use. Its later live screenshot verified physical-phone chart population; individual pairing correctness remains open. Owner speed, accessibility, provider/privacy/release and inherited gates remain open. No claim that simulator dots prove the owner's records are paired correctly.
+
+## Signed delivery
+
+Application source `5540cc38ab474c76d2b011f82504f09cd22fbf09`. Signed `0.4.19 (93)` installed over the existing app without uninstall/reset; independent inventory verified version/build. Dashboard deep-link launch and running process both identified PID `58874`. Original ignored configuration restored. Executable SHA-256 `6f7a9ca98eba6a07c8fdab30d39ccd254056f4d2f2e21b46c80159d513f1212e`.
+
+The final source-label suite passed 36 tests. The final production-path chart UI rerun executed one test with zero failures. Normal enabled precommit checks passed SwiftPM and generic simulator arm64/x86_64 builds. Full core suite: 1,191 XCTest plus 43 Swift Testing cases.
+
+Artifact: `/tmp/dosetap-dashboard-phone93-signed/Build/Products/Debug-iphoneos/DoseTap.app`. Delivery receipts are in the evidence directory. Installation and launch do not close live-chart acceptance.
+
+## Live physical-phone chart verification
+
+At 00:29 on October 2, the iPhone Mirroring screenshot showed Dashboard → Trends → Interval vs Sleep with actual Apple Health history and a populated green/orange scatter. Visible counts: **25 dose pairs, 29 sleep records, 24 paired points, 27 automatically matched sleep records, 2 unmatched sleep records**. The screen used 30D and Apple Health. The textual accessibility tree was stale; this verification uses the screenshot pixels. The observation is recorded in `phone93-live-chart-observation.json` and the conversation's native screenshot tool output.
+
+This resolves the empty-chart population blocker. It does not establish that every automatic association is correct or close owner acceptance. The two unresolved sleep records remain separate with a direct review link. No further phone locking is needed for the population check.
+
+Plane DOSETAP-45 remains **In Progress**. Live-chart closeout `3c52e3541ca0a0a6` was applied and verified twice; owner/per-night accuracy and inherited gates remain open.
