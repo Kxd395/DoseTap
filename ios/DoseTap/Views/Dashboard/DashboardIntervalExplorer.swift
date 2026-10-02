@@ -70,6 +70,9 @@ struct DashboardIntervalExplorer: View {
                 Text("Selected observation is outside the interval filter. Its identity is retained; adjust the work or interval filters to inspect it.").font(.caption)
             }
             if mode == "Distribution" { distribution }
+            else if paired && outcome == .mainSleep && preset == .dose1ToDose2 {
+                DashboardSleepIntervalChart(model: model, rows: filtered, showDetails: false)
+            }
             else if filtered.contains(where: { plotX($0) != nil && (!paired || $0.y != nil) }) { pointChart }
             else { Text(paired ? "No nights with confirmed dose history and recorded sleep in this view." : "No recorded pairs in this period") }
             if paired && outcome == .mainSleep {
@@ -142,14 +145,12 @@ struct DashboardIntervalExplorer: View {
                 if paired, let y = row.y {
                     PointMark(x: .value("Interval minutes", x), y: .value(outcome.rawValue, y))
                         .foregroundStyle(timingColor(row))
-                        .symbol(symbol(row.workBeforeSleep))
-                        .symbolSize(row.id == model.inspection.selectedObservationID ? 125 : 45)
+                        .symbol { SleepIntervalChartMarker(work: row.workBeforeSleep, color: timingColor(row), selected: row.id == model.inspection.selectedObservationID) }
                         .accessibilityHidden(true)
                 } else if !paired {
                     PointMark(x: .value("Treatment date", date(row)), y: .value("Interval minutes", x))
                         .foregroundStyle(timingColor(row))
-                        .symbol(symbol(row.workBeforeSleep))
-                        .symbolSize(row.id == model.inspection.selectedObservationID ? 125 : 45)
+                        .symbol { SleepIntervalChartMarker(work: row.workBeforeSleep, color: timingColor(row), selected: row.id == model.inspection.selectedObservationID) }
                         .accessibilityHidden(true)
                 }
             }
@@ -197,23 +198,15 @@ struct DashboardIntervalExplorer: View {
             } }
     }
     private func plotX(_ row: ReplayComparisonRow) -> Double? { paired ? row.sleepComparisonX : row.x }
-    private func symbol(_ work: DashboardWorkBeforeSleep) -> BasicChartSymbolShape {
-        switch work { case .work: return .square; case .off: return .circle; case .unknown: return .diamond }
-    }
     private func timingColor(_ row: ReplayComparisonRow) -> Color {
-        if row.isConfirmedSingle { return palette.coverage }
-        switch row.referenceGroup {
-        case "Within reference": return palette.timing
-        case "Below reference": return palette.chart(.purple, warmth: 0.8)
-        case "Above reference": return palette.review
-        default: return palette.chart(.gray)
-        }
+        guard row.isConfirmedSingle || row.x != nil else { return palette.chart(.gray) }
+        return SleepIntervalChartMarker.spacingColor(interval: row.x ?? 0, single: row.isConfirmedSingle, palette: palette)
     }
     private var legends: some View {
         VStack(alignment: .leading, spacing: 6) {
-            (Text("● Within 150–240 min  ").foregroundColor(palette.timing) + Text("● Below  ").foregroundColor(palette.chart(.purple, warmth: 0.8)) + Text("● Above").foregroundColor(palette.review))
+            (Text("● Within 150–240 min  ").foregroundColor(SleepIntervalChartMarker.spacingColor(interval: 180, palette: palette)) + Text("● Below  ").foregroundColor(SleepIntervalChartMarker.spacingColor(interval: 100, palette: palette)) + Text("● Above").foregroundColor(SleepIntervalChartMarker.spacingColor(interval: 280, palette: palette)))
             Text("Work before sleep: ■ Work   ● Off   ◆ Unknown").foregroundStyle(.secondary)
-            if paired { Text("● Single dose · no spacing interval").foregroundStyle(palette.coverage) }
+            if paired { Text("1 · Single dose · no spacing interval").foregroundStyle(palette.coverage) }
         }.font(.caption).fixedSize(horizontal: false, vertical: true)
     }
     private func tableRow(_ row: ReplayComparisonRow) -> some View {

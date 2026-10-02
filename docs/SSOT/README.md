@@ -1075,3 +1075,9 @@ Build 92 supersedes the build-91 two-count/14-pair overview with the full select
 The bounded Overview uses an eager vertical stack so returning from Records and scrolling does not recycle its chart/cards through a lazy layout. Larger record/analysis collections retain their own existing layouts.
 
 Dashboard navigation and control backgrounds explicitly follow the selected Light, Dark or Night appearance so a theme switch cannot leave a contrasting stale header band.
+
+### Sleep interval chart inspection
+
+Overview Sleep vs spacing and Trends Interval vs Sleep share exact canonical observation rows. Confirmed single-dose nights with recorded sleep appear at a labeled zero category, never as measured zero-minute spacing; unknown dose count and missing sleep remain unplotted. Single-dose markers use a distinct teal color and a 1 label with sleep minutes; larger outlined markers retain blue/lavender/amber spacing colors (warm variants in Night Mode); confirmed work/off/unknown use square/circle/diamond shapes independently. Grid lines show 25-minute divisions and finer 12.5-minute interval subdivisions, with adaptive labels and bounded tick counts. Tap or pointer hover inspects exact source values; overlapping targets offer all candidate identities. Pinch and accessible zoom controls change only display scales, focus around selection and retain a reset. Changing provider, range or source rows resets display zoom; it does not edit records, filters or exports.
+
+Chart inspection update targets phone 0.4.19 (94); installation and physical acceptance require separate evidence.

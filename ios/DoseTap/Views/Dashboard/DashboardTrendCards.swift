@@ -16,13 +16,6 @@ struct DashboardTrendChartsCard: View {
     @ObservedObject var model: DashboardAnalyticsModel
     @State private var trendMode: DashboardTrendMode = .intervalVsSleep
 
-    private struct IntervalSleepPoint: Identifiable {
-        let id: String
-        let intervalMinutes: Double
-        let sleepMinutes: Double
-        let onTime: Bool
-    }
-
     private struct RecoveryPoint: Identifiable {
         let id: String
         let date: Date
@@ -44,7 +37,7 @@ struct DashboardTrendChartsCard: View {
     private var trendColorLegend: String {
         switch trendMode {
         case .intervalVsSleep:
-            return (palette.isNight ? "Circles: inside; diamonds: outside. " : "Green circles: inside; orange diamonds: outside. ")
+            return "Work: square; off: circle; unknown: diamond. Single dose: 1 at zero. Blue: within reference; purple: below; orange: above; teal: single dose (warm colors in Night Mode). "
                 + "Built-in recorded-spacing reference: 150–240 minutes inclusive, not a historical prescription."
         case .recoveryTrend:
             return palette.isNight ? "WHOOP recovery ranges use labeled symbols: 67–100, 34–66, below 34."
@@ -53,13 +46,6 @@ struct DashboardTrendChartsCard: View {
             return "Saved screen answers need review; questionnaire cohort averages are withheld."
         case .weekday:
             return "Recorded pairs within the built-in 150–240 minute inclusive reference, by weekday; not a historical prescription."
-        }
-    }
-
-    private var intervalSleepPoints: [IntervalSleepPoint] {
-        model.populatedNights.compactMap { night in
-            guard let interval = night.exactIntervalMinutes, let sleep = model.sleepMinutes(for: night) else { return nil }
-            return IntervalSleepPoint(id: night.id, intervalMinutes: Double(interval), sleepMinutes: sleep, onTime: night.onTimeDosing ?? false)
         }
     }
 
@@ -79,8 +65,14 @@ struct DashboardTrendChartsCard: View {
             }
 
             #if canImport(Charts)
-            chartBody
-                .frame(height: 220)
+            if trendMode == .intervalVsSleep {
+                Picker("Work before sleep", selection: $model.replayPresentation.timingWorkFilter) {
+                    Text("All days").tag(DashboardWorkBeforeSleep?.none)
+                    ForEach(DashboardWorkBeforeSleep.allCases, id: \.self) { Text($0.rawValue).tag(Optional($0)) }
+                }.pickerStyle(.menu).accessibilityIdentifier("dashboard-trend-work")
+                chartBody
+            }
+            else { chartBody.frame(height: 220) }
             if trendMode == .intervalVsSleep {
                 Text(model.sleepPairingSummary).font(.caption).accessibilityIdentifier("dashboard-sleep-pairing-counts")
                 if model.automaticSleepMatchCount > 0 {
@@ -115,22 +107,9 @@ struct DashboardTrendChartsCard: View {
     private var chartBody: some View {
         switch trendMode {
         case .intervalVsSleep:
-            if intervalSleepPoints.isEmpty {
-                emptyChartState(model.intervalSleepEmptyReason)
-            } else {
-                Chart(intervalSleepPoints) { point in
-                    PointMark(
-                        x: .value("Interval (min)", point.intervalMinutes),
-                        y: .value("Total Sleep (min)", point.sleepMinutes)
-                    )
-                    .foregroundStyle(palette.chart(point.onTime ? .green : .orange))
-                    .symbol(by: .value("Recorded spacing", point.onTime ? "Inside reference" : "Outside reference"))
-                }
-                .chartSymbolScale(["Inside reference": BasicChartSymbolShape.circle, "Outside reference": .diamond])
-                .chartXAxisLabel("Dose interval (minutes)")
-                .accessibilityLabel("\(intervalSleepPoints.count) recorded pairs with \(model.sleepSource.rawValue) sleep")
-                .chartYAxisLabel("Sleep Minutes")
-            }
+            DashboardSleepIntervalChart(model: model, rows: model.replayComparisons(
+                for: model.replayDisplaySnapshots, outcome: .mainSleep, preset: .dose1ToDose2)
+                .filter { model.replayPresentation.timingWorkFilter == nil || $0.workBeforeSleep == model.replayPresentation.timingWorkFilter })
 
         case .recoveryTrend:
             let points = recoveryTrendPoints

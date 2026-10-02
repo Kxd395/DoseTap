@@ -133,9 +133,12 @@ final class DoseTapUITests: XCTestCase {
         captureDashboard("Simple home empty records")
     }
 
-    func testDashboardTimingSingleDoseAndWorkFilter() {
+    func testDashboardTimingSingleDoseAndWorkFilter() { timingChartJourney(largeText: false) }
+    func testDashboardTimingSingleDoseAndWorkFilterLargeText() { timingChartJourney(largeText: true) }
+    private func timingChartJourney(largeText: Bool) {
         app.terminate()
-        app.launchArguments += ["--uitesting-timing", "--uitesting-replay"]
+        app.launchArguments += ["--uitesting-timing", "--uitesting-replay", "-selectedTheme", largeText ? "Night Mode" : "Dark", "-automaticNightModeEnabled", "NO"]
+        if largeText { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
         app.launch()
         app.buttons["Dashboard"].tap()
         XCTAssertTrue(app.staticTexts["Dose timing"].waitForExistence(timeout: 10))
@@ -143,7 +146,14 @@ final class DoseTapUITests: XCTestCase {
         app.buttons["Sleep vs spacing"].tap()
         let single = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "dashboard-interval-point-", "Single dose")).firstMatch
         XCTAssertTrue(single.waitForExistence(timeout: 5))
-        single.tap()
+        for _ in 0..<6 where !single.isHittable { app.swipeUp() }
+        XCTAssertTrue(single.isHittable); single.tap()
+        let zoomIn = app.buttons["dashboard-sleep-zoom-in"]
+        for _ in 0..<6 where !zoomIn.isHittable { app.swipeUp() }
+        XCTAssertTrue(zoomIn.isHittable); zoomIn.tap()
+        let reset = app.buttons["dashboard-sleep-zoom-reset"]
+        XCTAssertTrue(reset.isEnabled); reset.tap()
+        XCTAssertFalse(reset.isEnabled)
         revealDashboardText("Single dose · Dose 2 not taken or one dose confirmed")
         XCTAssertTrue(app.staticTexts["Single dose · Dose 2 not taken or one dose confirmed"].isHittable)
         captureDashboard("Single dose category and selected recorded sleep")

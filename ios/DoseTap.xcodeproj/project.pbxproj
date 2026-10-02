@@ -24,6 +24,7 @@
 		DINS001B /* DashboardInspection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DINS001F; };
 		DPUI002B /* DosePatternDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI002F; };
 		DPUI003B /* DosePatternPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI003F; };
+		SINT001B /* DashboardSleepIntervalChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = SINT001F; };
 		DPUI004B /* DosePatternReviewSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI004F; };
 		DPUI005B /* MorningDoseHistoryReviewSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI005F; };
 		DHSIDE101 /* DashboardSharedSleepProducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = DHSIDE001 /* DashboardSharedSleepProducer.swift */; };
@@ -293,6 +294,7 @@
 		DINS001F /* DashboardInspection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardInspection.swift; sourceTree = "<group>"; };
 		DPUI002F /* DosePatternDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternDetailSheet.swift; sourceTree = "<group>"; };
 		DPUI003F /* DosePatternPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternPresentation.swift; sourceTree = "<group>"; };
+		SINT001F /* DashboardSleepIntervalChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardSleepIntervalChart.swift; sourceTree = "<group>"; };
 		DPUI004F /* DosePatternReviewSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternReviewSheet.swift; sourceTree = "<group>"; };
 		DPUI005F /* MorningDoseHistoryReviewSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningDoseHistoryReviewSection.swift; sourceTree = "<group>"; };
 		DHSIDE001 /* DashboardSharedSleepProducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardSharedSleepProducer.swift; sourceTree = "<group>"; };
@@ -749,6 +751,7 @@
 				DPUI002F /* DosePatternDetailSheet.swift */,
 				DPUI001F /* DosePatternDashboardView.swift */,
 				DPUI003F /* DosePatternPresentation.swift */,
+				SINT001F /* DashboardSleepIntervalChart.swift */,
 				CTX001F /* ContextMorningProjection.swift */,
 				CTX002F /* ContextMorningOutcomesView.swift */,
 				DPUI004F /* DosePatternReviewSheet.swift */,
@@ -1380,6 +1383,7 @@
 				CLUST102 /* DashboardViews.swift in Sources */,
 				DPUI002B /* DosePatternDetailSheet.swift in Sources */,
 				DPUI003B /* DosePatternPresentation.swift in Sources */,
+				SINT001B /* DashboardSleepIntervalChart.swift in Sources */,
 				CTX001B /* ContextMorningProjection.swift in Sources */,
 				CTX002B /* ContextMorningOutcomesView.swift in Sources */,
 				DPUI001B /* DosePatternDashboardView.swift in Sources */,
@@ -1459,7 +1463,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Cloud.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 93;
+				CURRENT_PROJECT_VERSION = 94;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;
 				ENABLE_PREVIEWS = YES;
@@ -1502,7 +1506,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Cloud.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 93;
+				CURRENT_PROJECT_VERSION = 94;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;
 				ENABLE_PREVIEWS = YES;
@@ -1777,7 +1781,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Local.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 93;
+				CURRENT_PROJECT_VERSION = 94;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;
@@ -1825,7 +1829,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Local.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 93;
+				CURRENT_PROJECT_VERSION = 94;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;
