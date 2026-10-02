@@ -166,6 +166,43 @@ final class DoseTapUITests: XCTestCase {
         captureDashboard("Confirmed off days include the single dose")
     }
 
+    func testDashboardSleepChartPanAndOverlap() {
+        app.terminate()
+        app.launchArguments.removeAll { $0 == "--uitesting-dashboard" }
+        app.launchArguments += ["-dashboard-dose-pattern-overlap-uitest", "-setup_completed_v2", "YES", "-selectedTheme", "Dark", "-automaticNightModeEnabled", "NO", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
+        app.launch()
+        app.buttons["Dashboard"].tap()
+        XCTAssertTrue(app.staticTexts["Dose timing"].waitForExistence(timeout: 10))
+        app.buttons["dashboard-timing-mode"].tap(); app.buttons["Sleep vs spacing"].tap()
+        let pair = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "dashboard-interval-point-", "Spacing 180")).firstMatch
+        XCTAssertTrue(pair.waitForExistence(timeout: 10))
+        revealDashboardElement(pair, title: "Coincident pair", scrollAtEdge: true)
+        pair.tap()
+        let choices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "dashboard-sleep-overlap-record-"))
+        XCTAssertTrue(choices.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertEqual(choices.count, 2, "Two distinct nights share exact coordinates")
+        choices.element(boundBy: 1).tap()
+        let zoom = app.buttons["dashboard-sleep-zoom-in"]
+        revealDashboardElement(zoom, title: "Zoom", scrollAtEdge: true); zoom.tap()
+        let viewport = app.staticTexts["dashboard-sleep-viewport"]
+        XCTAssertTrue(viewport.waitForExistence(timeout: 5))
+        let initial = viewport.label
+        let left = app.buttons["dashboard-sleep-move-left"]
+        revealDashboardElement(left, title: "Move view", scrollAtEdge: true); left.tap()
+        XCTAssertNotEqual(viewport.label, initial)
+        let chart = app.descendants(matching: .any).matching(identifier: "dashboard-interval-points").firstMatch
+        revealDashboardElement(chart, title: "Zoomed chart", scrollAtEdge: true)
+        let beforeDrag = viewport.label
+        chart.coordinate(withNormalizedOffset: CGVector(dx: 0.55, dy: 0.55)).press(forDuration: 0.05,
+            thenDragTo: chart.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.45)))
+        XCTAssertNotEqual(viewport.label, beforeDrag, "Dragging moves the actual viewport")
+        let reset = app.buttons["dashboard-sleep-zoom-reset"]
+        revealDashboardElement(reset, title: "Reset", scrollAtEdge: true); reset.tap()
+        XCTAssertFalse(reset.isEnabled)
+        XCTAssertTrue(pair.exists)
+        captureDashboard("Coincident nights preserved after drag pan and reset")
+    }
+
     func testDashboardMorningNightContextAlignsAndFilters() {
         app.terminate()
         app.launchArguments += ["--uitesting-timing", "--uitesting-replay", "--uitesting-reported-context",

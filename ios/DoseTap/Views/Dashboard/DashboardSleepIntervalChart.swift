@@ -31,6 +31,14 @@ enum SleepIntervalChartScale {
         let first = ceil(range.lowerBound / stride) * stride
         return (0...120).map { first + Double($0) * stride }.filter { range.contains($0) }
     }
+    static func panCenter(range: ClosedRange<Double>, bounds: ClosedRange<Double>, translation: Double,
+                          length: Double, inverted: Bool = false) -> Double {
+        let center = (range.lowerBound + range.upperBound) / 2
+        guard translation.isFinite, length.isFinite, length > 0 else { return center }
+        let half = (range.upperBound - range.lowerBound) / 2
+        let shifted = center + (inverted ? 1 : -1) * translation / length * half * 2
+        return min(bounds.upperBound - half, max(bounds.lowerBound + half, shifted))
+    }
     static func domain(maximum: Double, focus: Double?, zoom: Double, minimumSpan: Double) -> ClosedRange<Double> {
         let maximum = maximum.isFinite ? min(1e9, max(0, maximum)) : 0
         let upper = max(minimumSpan, ceil(maximum / 25) * 25 + 25)
@@ -51,16 +59,20 @@ struct DashboardSleepIntervalChart: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     @State private var zoom = 1.0
     @State private var candidates: Set<String> = []
+    @State private var focus: CGPoint?
+    @State private var dragRanges: (ClosedRange<Double>, ClosedRange<Double>)?
+    @State private var pinchStartZoom: Double?
+    @State private var showCandidates = false
     private var points: [SleepIntervalChartPoint] {
         rows.compactMap { .init(id: $0.id, date: $0.treatmentDate, interval: $0.x, sleep: $0.y,
                                single: $0.isConfirmedSingle, work: $0.workBeforeSleep, source: $0.source, reported: model.replayPresentation.timingContextBasis == .reported ? $0.reportedNight : nil, usesReported: model.replayPresentation.timingContextBasis == .reported) }
     }
     private var selected: SleepIntervalChartPoint? { points.first { $0.id == model.inspection.selectedObservationID } }
     private var xDomain: ClosedRange<Double> {
-        SleepIntervalChartScale.domain(maximum: points.map(\.x).max() ?? 0, focus: selected?.x, zoom: zoom, minimumSpan: 50)
+        SleepIntervalChartScale.domain(maximum: points.map(\.x).max() ?? 0, focus: focus.map { Double($0.x) }, zoom: zoom, minimumSpan: 50)
     }
     private var yDomain: ClosedRange<Double> {
-        SleepIntervalChartScale.domain(maximum: points.map(\.sleep).max() ?? 0, focus: selected?.sleep, zoom: zoom, minimumSpan: 100)
+        SleepIntervalChartScale.domain(maximum: points.map(\.sleep).max() ?? 0, focus: focus.map { Double($0.y) }, zoom: zoom, minimumSpan: 100)
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -71,13 +83,23 @@ struct DashboardSleepIntervalChart: View {
                     HStack { zoomButtons }
                     VStack(alignment: .leading) { zoomButtons }
                 }.buttonStyle(.bordered).controlSize(.small)
-                Text("Tap a point for minutes. Pinch to zoom; zoom follows the selected night. Pointer hover also inspects points.")
+                if zoom > 1 {
+                    HStack(spacing: 12) {
+                        moveButton("Move left", symbol: "arrow.left", dx: -0.25, dy: 0)
+                        moveButton("Move right", symbol: "arrow.right", dx: 0.25, dy: 0)
+                        moveButton("Move down", symbol: "arrow.down", dx: 0, dy: -0.25)
+                        moveButton("Move up", symbol: "arrow.up", dx: 0, dy: 0.25)
+                    }.buttonStyle(.bordered)
+                    Text("View: spacing " + SleepIntervalChartPoint.number(xDomain.lowerBound) + "–" + SleepIntervalChartPoint.number(xDomain.upperBound)
+                         + " min · sleep " + SleepIntervalChartPoint.number(yDomain.lowerBound) + "–" + SleepIntervalChartPoint.number(yDomain.upperBound) + " min")
+                        .font(.caption).accessibilityIdentifier("dashboard-sleep-viewport")
+                    Text("Drag inside the chart to move the zoomed view.").font(.caption)
+                }
+                Text("Tap a point for minutes; nearby nights open a dated record list. Select a night before Zoom in to focus it. Pinch to zoom; drag to move when zoomed.")
                     .font(.caption).foregroundStyle(.secondary)
                 if candidates.count > 1 {
-                    Text("Overlapping nights: choose a record").font(.caption.bold())
-                    ForEach(points.filter { candidates.contains($0.id) }) { point in
-                        Button(point.label) { select(point.id) }.font(.caption)
-                    }
+                    Button("Nearby nights: \(candidates.count) · choose a record") { showCandidates = true }
+                        .accessibilityIdentifier("dashboard-sleep-overlap-open")
                 }
                 if showDetails, let selected {
                     Text(selected.label).font(.callout).accessibilityIdentifier("dashboard-sleep-point-details")
@@ -92,16 +114,53 @@ struct DashboardSleepIntervalChart: View {
                     }.font(.caption)
                 }
             }
-        }.onChange(of: points) { _ in zoom = 1; candidates = [] }
-            .onChange(of: model.replayPresentation.timingContextBasis) { _ in zoom = 1; candidates = [] }
+        }.onChange(of: points) { _ in resetView() }
+            .onChange(of: model.replayPresentation.timingContextBasis) { _ in resetView() }
+            .sheet(isPresented: $showCandidates) {
+                NavigationStack {
+                    List(points.filter { candidates.contains($0.id) }.sorted { $0.date == $1.date ? $0.id < $1.id : $0.date < $1.date }) { point in
+                        Button { select(point.id); showCandidates = false } label: {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(point.date).font(.headline)
+                                Text(point.label).font(.subheadline)
+                                Text("Exact spacing: " + (point.interval.map(String.init(describing:)) ?? "Single dose") + " · sleep: " + String(point.sleep) + " min")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }.padding(.vertical, 6)
+                        }.accessibilityIdentifier("dashboard-sleep-overlap-record-" + point.id)
+                    }.navigationTitle("Nearby nights")
+                        .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showCandidates = false } } }
+                }
+            }
     }
     @ViewBuilder private var zoomButtons: some View {
-        Button { zoom = min(8, zoom * 2) } label: { Label("Zoom in", systemImage: "plus.magnifyingglass") }
+        Button { changeZoom(min(8, zoom * 2)) } label: { Label("Zoom in", systemImage: "plus.magnifyingglass") }
             .disabled(zoom >= 8).accessibilityIdentifier("dashboard-sleep-zoom-in")
-        Button { zoom = max(1, zoom / 2) } label: { Label("Zoom out", systemImage: "minus.magnifyingglass") }
+        Button { changeZoom(max(1, zoom / 2)) } label: { Label("Zoom out", systemImage: "minus.magnifyingglass") }
             .disabled(zoom <= 1).accessibilityIdentifier("dashboard-sleep-zoom-out")
-        Button("Reset") { zoom = 1; candidates = [] }.disabled(zoom == 1 && candidates.isEmpty)
+        Button("Reset") { resetView() }.disabled(zoom == 1 && candidates.isEmpty)
             .accessibilityIdentifier("dashboard-sleep-zoom-reset")
+    }
+    private func resetView() {
+        zoom = 1; focus = nil; candidates = []; dragRanges = nil; pinchStartZoom = nil; showCandidates = false
+    }
+    private func changeZoom(_ value: Double) {
+        if zoom == 1 {
+            focus = selected.map { CGPoint(x: $0.x, y: $0.sleep) }
+                ?? CGPoint(x: (xDomain.lowerBound + xDomain.upperBound) / 2, y: (yDomain.lowerBound + yDomain.upperBound) / 2)
+        }
+        zoom = value
+        if zoom == 1 { focus = nil }
+    }
+    private func moveButton(_ label: String, symbol: String, dx: Double, dy: Double) -> some View {
+        Button { pan(x: xDomain, y: yDomain, translation: CGSize(width: -dx, height: dy), size: CGSize(width: 1, height: 1)) } label: {
+            Image(systemName: symbol).frame(minWidth: 28, minHeight: 28)
+        }.accessibilityLabel(label).accessibilityIdentifier("dashboard-sleep-" + label.lowercased().replacingOccurrences(of: " ", with: "-"))
+    }
+    private func pan(x: ClosedRange<Double>, y: ClosedRange<Double>, translation: CGSize, size: CGSize) {
+        let fullX = SleepIntervalChartScale.domain(maximum: points.map(\.x).max() ?? 0, focus: nil, zoom: 1, minimumSpan: 50)
+        let fullY = SleepIntervalChartScale.domain(maximum: points.map(\.sleep).max() ?? 0, focus: nil, zoom: 1, minimumSpan: 100)
+        focus = CGPoint(x: SleepIntervalChartScale.panCenter(range: x, bounds: fullX, translation: translation.width, length: size.width),
+                        y: SleepIntervalChartScale.panCenter(range: y, bounds: fullY, translation: translation.height, length: size.height, inverted: true))
     }
     private var plot: some View {
         Chart(points) { point in
@@ -161,19 +220,28 @@ struct DashboardSleepIntervalChart: View {
                     }
                 }.frame(width: geometry.size.width, height: geometry.size.height)
                     .accessibilityElement(children: .contain)
+                    .contentShape(SleepIntervalPlotHitArea(frame: frame))
                     .highPriorityGesture(SpatialTapGesture().onEnded { inspect($0.location, frame: frame, targets: targets) })
-                    .simultaneousGesture(MagnificationGesture().onEnded { value in
-                        guard value.isFinite else { return }; zoom = min(8, max(1, zoom * value))
-                    })
+                    .highPriorityGesture(DragGesture(minimumDistance: 8).onChanged { value in
+                        guard zoom > 1, pinchStartZoom == nil, frame.contains(value.startLocation) else { return }
+                        if dragRanges == nil { dragRanges = (xDomain, yDomain) }
+                        if let ranges = dragRanges { pan(x: ranges.0, y: ranges.1, translation: value.translation, size: frame.size) }
+                    }.onEnded { _ in dragRanges = nil }, including: zoom > 1 ? .all : .none)
+                    .simultaneousGesture(MagnificationGesture().onChanged { value in
+                        guard value.isFinite else { return }
+                        if pinchStartZoom == nil { pinchStartZoom = zoom; changeZoom(zoom) }
+                        zoom = min(8, max(1, (pinchStartZoom ?? zoom) * value))
+                    }.onEnded { _ in pinchStartZoom = nil; dragRanges = nil; if zoom == 1 { focus = nil } })
                     .onContinuousHover { phase in
-                        if case .active(let location) = phase { inspect(location, frame: frame, targets: targets) }
+                        if case .active(let location) = phase { inspect(location, frame: frame, targets: targets, presentChooser: false) }
                     }
             } }
     }
-    private func inspect(_ location: CGPoint, frame: CGRect, targets: [DosePatternPresentation.PlotPoint]) {
+    private func inspect(_ location: CGPoint, frame: CGRect, targets: [DosePatternPresentation.PlotPoint], presentChooser: Bool = true) {
         guard frame.contains(location) else { return }
         candidates = DosePatternPresentation.candidates(at: CGPoint(x: location.x - frame.minX, y: location.y - frame.minY), points: targets)
         if candidates.count == 1, let id = candidates.first { select(id, clearCandidates: false) }
+        else if candidates.count > 1 && presentChooser { showCandidates = true }
     }
     private func select(_ id: String, clearCandidates: Bool = true) {
         if let row = rows.first(where: { $0.id == id }) { model.selectReplayID(row.replayID) }
@@ -182,6 +250,11 @@ struct DashboardSleepIntervalChart: View {
     private func color(_ point: SleepIntervalChartPoint) -> Color {
         SleepIntervalChartMarker.spacingColor(interval: point.x, single: point.single, palette: palette)
     }
+}
+
+private struct SleepIntervalPlotHitArea: Shape {
+    let frame: CGRect
+    func path(in rect: CGRect) -> Path { Path(frame) }
 }
 
 /// Shape expresses confirmed work context independently of the spacing color.

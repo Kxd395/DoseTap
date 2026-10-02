@@ -42,4 +42,24 @@ final class SleepIntervalChartTests: XCTestCase {
         let edge = SleepIntervalChartScale.domain(maximum: 300, focus: 300, zoom: 8, minimumSpan: 50)
         XCTAssertTrue(edge.contains(300)); XCTAssertLessThanOrEqual(edge.upperBound, full.upperBound)
     }
+    func testPanPreservesSpanAndClampsAtFullBounds() {
+        XCTAssertEqual(SleepIntervalChartScale.panCenter(range: 100...200, bounds: 0...300, translation: 50, length: 100), 100)
+        XCTAssertEqual(SleepIntervalChartScale.panCenter(range: 100...200, bounds: 0...300, translation: -50, length: 100), 200)
+        XCTAssertEqual(SleepIntervalChartScale.panCenter(range: 100...200, bounds: 0...300, translation: 1000, length: 100), 50)
+        XCTAssertEqual(SleepIntervalChartScale.panCenter(range: 100...200, bounds: 0...300, translation: -1000, length: 100), 250)
+        XCTAssertEqual(SleepIntervalChartScale.panCenter(range: 100...200, bounds: 0...300, translation: 50, length: 100, inverted: true), 200)
+    }
+    func testPanRejectsInvalidGeometryAndTranslation() {
+        for size in [0.0, -1, .infinity, .nan] {
+            XCTAssertEqual(SleepIntervalChartScale.panCenter(range: 100...200, bounds: 0...300, translation: 50, length: size), 150)
+        }
+        XCTAssertEqual(SleepIntervalChartScale.panCenter(range: 100...200, bounds: 0...300, translation: .nan, length: 100), 150)
+    }
+    func testNearbyUniqueRecordsRemainIndividuallyInspectable() {
+        let records = [DosePatternPresentation.PlotPoint(id: "night-a", point: .init(x: 100, y: 100)),
+                       DosePatternPresentation.PlotPoint(id: "night-b", point: .init(x: 100, y: 100)),
+                       DosePatternPresentation.PlotPoint(id: "night-c", point: .init(x: 180, y: 100))]
+        XCTAssertEqual(DosePatternPresentation.candidates(at: .init(x: 100, y: 100), points: records), ["night-a", "night-b"])
+    }
+
 }
