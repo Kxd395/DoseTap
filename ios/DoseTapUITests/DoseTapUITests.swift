@@ -1320,6 +1320,19 @@ final class DoseTapUITests: XCTestCase {
         app.navigationBars["Morning Check-In"].buttons["Cancel"].tap()
     }
 
+    func testDashboardTrendsPairsProductionRefreshWithoutManualMatches() {
+        app.terminate()
+        app.launchArguments = ["--uitesting", "-dashboard-auto-pair-uitest", "-setup_completed_v2", "YES"]
+        app.launch()
+        app.buttons["Dashboard"].tap()
+        selectDashboardPage("dashboard-trends-open", title: "Trends")
+        revealDashboardText("Dose pairs: 1 · Sleep records: 1 · Paired: 1")
+        XCTAssertTrue(app.staticTexts["Dose pairs: 1 · Sleep records: 1 · Paired: 1"].isHittable)
+        XCTAssertFalse(app.staticTexts["Need nights with both interval and sleep data."].exists)
+        XCTAssertTrue(app.staticTexts["Automatically matched: 1 · Not manually reviewed"].exists)
+        captureDashboard("Production refresh automatic pair without saved matches")
+    }
+
     func testDashboardPrimaryTrendsShowsOriginalIntervalAndWakeCards() {
         app.buttons["Dashboard"].tap()
         selectDashboardPage("dashboard-trends-open", title: "Trends")

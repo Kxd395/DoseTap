@@ -72,6 +72,12 @@ struct DashboardIntervalExplorer: View {
             if mode == "Distribution" { distribution }
             else if filtered.contains(where: { plotX($0) != nil && (!paired || $0.y != nil) }) { pointChart }
             else { Text(paired ? "No nights with confirmed dose history and recorded sleep in this view." : "No recorded pairs in this period") }
+            if paired && outcome == .mainSleep {
+                Text(model.sleepPairingSummary).font(.caption)
+                if model.unmatchedSelectedSleepCount > 0 {
+                    NavigationLink("Review unmatched sleep (\(model.unmatchedSelectedSleepCount))") { ProviderSessionAssociationView(model: model) }
+                }
+            }
             if mode != "Distribution" { legends }
             if let row = filtered.first(where: { $0.id == model.inspection.selectedObservationID }) { tableRow(row) }
             else { Text("Tap a point to see that night.").font(.caption).foregroundStyle(.secondary) }
@@ -223,6 +229,7 @@ struct DashboardIntervalExplorer: View {
             if paired { Text("Recorded sleep: \(number(row.y)) min · \(row.source)") }
             DisclosureGroup("Record and source details") {
                 Text(row.id)
+                if let snapshot = snapshots.first(where: { $0.sessionID == row.replayID }) { Text(snapshot.sourcePolicy) }
                 Text("Interval: \(row.interval.state.rawValue) · \(row.interval.reason)")
                 Text("\(row.outcome.rawValue): \(number(row.metric.value)) \(row.metric.unit) · \(row.metric.state.rawValue) · \(row.metric.reason)")
                 Text("\(row.source) · source \(row.sourceRecordID ?? "unavailable") · observed \(stamp(row.observedAt)) · captured \(stamp(row.capturedAt))")

@@ -37,6 +37,10 @@ struct DashboardNightAggregate: Identifiable {
     var doseReviewLedger: DashboardDoseReviewLedger? = nil
     var identityNeedsReview = false
     var providerAssociation = "No provider association"
+    var providerAssociationLabels: [String: String] = [:]
+    func associationLabel(for source: DashboardSleepSource) -> String {
+        providerAssociationLabels[source == .appleHealth ? "health" : "whoop"] ?? providerAssociation
+    }
     var localFingerprint: String? = nil
 
     var effectiveWakeMethod: Dose2WakeKind {

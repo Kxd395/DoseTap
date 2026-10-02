@@ -92,7 +92,7 @@ struct ProviderSessionAssociationView: View {
                 unlink = nil
             }
             Button("Cancel", role: .cancel) { unlink = nil }
-        } message: { value in Text("Remove the provider relationship for \(value.description)? Medication and measured sleep remain unchanged.") }
+        } message: { value in Text("Remove the provider relationship for \(value.description)? Medication and measured sleep remain unchanged. If its times uniquely fit the session, the dashboard may still show an automatic time match.") }
     }
 
     @ViewBuilder private func episode(_ row: DashboardNightAggregate) -> some View {

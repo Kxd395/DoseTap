@@ -115,7 +115,7 @@ extension DashboardAnalyticsModel {
         }
         return .init(sessionID: identity, treatmentDate: night.sessionDate,
             asOf: max(reportingAsOf, projection?.generatedAt ?? reportingAsOf), timeZoneID: reportingTimeZone.identifier,
-            sourcePolicy: sleepSource.rawValue + " main episode; " + night.providerAssociation + (wake.state == .needsReview ? "; required wake needs review" : "") + (projection == nil ? "" : "; reviewed intervals: Apple Health"),
+            sourcePolicy: sleepSource.rawValue + " main episode; " + night.associationLabel(for: sleepSource) + (wake.state == .needsReview ? "; required wake needs review" : "") + (projection == nil ? "" : "; reviewed intervals: Apple Health"),
             filterDescription: rangeDescription, markers: markers, dose2NotTaken: night.dose2Skipped,
             identityResolved: !night.identityNeedsReview && night.doseEvents.allSatisfy { $0.sessionId == night.sessionID && $0.sessionId != nil } && (night.sessionID != nil || night.healthSummary != nil || night.whoopSummary != nil), reviewedProjection: projection,
             mainEpisodeIntervals: sleepSource == .appleHealth ? night.healthSummary?.recordedIntervals ?? [] : [])

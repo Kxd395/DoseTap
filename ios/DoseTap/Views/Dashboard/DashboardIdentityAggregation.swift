@@ -34,7 +34,7 @@ extension DashboardAnalyticsModel {
                         napSummary: .init(count: 0, totalMinutes: 0))
                     row.stableID = source == "health" ? health[key]!.id : "whoop:\(whoop[key]!.id)"
                     row.providerAssociation = candidates.isEmpty ? "Provider-only sleep; no session association"
-                        : "Ambiguous session association; provider-only sleep"
+                        : "Sleep awaiting a session match"
                     if let evidence = row.unmatchedProviderEvidence,
                        let match = associations.first(where: { $0.episodeID == evidence.episode }),
                        match.provider == evidence.provider, match.episodeFingerprint == evidence.fingerprint,
@@ -43,6 +43,15 @@ extension DashboardAnalyticsModel {
                         if source == "health" { result[index].healthSummary = row.healthSummary }
                         else { result[index].whoopSummary = row.whoopSummary }
                         result[index].providerAssociation = "Explicit provider match · v1"
+                        result[index].providerAssociationLabels[source] = result[index].providerAssociation
+                    } else if candidates.count == 1, let index = candidates.first,
+                              let evidence = row.unmatchedProviderEvidence,
+                              !associations.contains(where: { $0.episodeID == evidence.episode || ($0.sessionID == result[index].sessionID && $0.provider == evidence.provider) }),
+                              Self.supportsAutomaticSleepMatch(session: result[index], provider: row) {
+                        if source == "health" { result[index].healthSummary = row.healthSummary }
+                        else { result[index].whoopSummary = row.whoopSummary }
+                        result[index].providerAssociation = "Automatic time match · v1 (not manually reviewed)"
+                        result[index].providerAssociationLabels[source] = result[index].providerAssociation
                     } else { result.append(row) }
                 }
         }
@@ -51,4 +60,27 @@ extension DashboardAnalyticsModel {
         }
         return result.sorted { $0.sessionDate == $1.sessionDate ? $0.id < $1.id : $0.sessionDate > $1.sessionDate }
     }
+    /// A transient primary-episode association, never a stored or reviewed relationship.
+    private static func supportsAutomaticSleepMatch(session: DashboardNightAggregate, provider: DashboardNightAggregate) -> Bool {
+        guard session.sessionID != nil, !session.identityNeedsReview,
+              let first = session.dose1Time, first.timeIntervalSince1970.isFinite else { return false }
+        let doses = session.doseEvents.filter { [CanonicalDoseEventType.dose1, .dose2, .extraDose].contains(CanonicalDoseEventType(canonicalizing: $0.eventType)) }
+        let firsts = doses.filter { CanonicalDoseEventType(canonicalizing: $0.eventType) == .dose1 }
+        let seconds = doses.filter { CanonicalDoseEventType(canonicalizing: $0.eventType) == .dose2 }
+        guard firsts.count == 1, seconds.count <= 1, doses.count == firsts.count + seconds.count,
+              !(session.dose2Skipped && !seconds.isEmpty) else { return false }
+        let start: Date?, end: Date?
+        if let health = provider.healthSummary {
+            start = health.sleepOnset ?? health.bedTime
+            end = health.observationEnd ?? health.finalWake
+        } else {
+            start = provider.whoopSummary?.originalSleepInterval?.start
+            end = provider.whoopSummary?.originalSleepInterval?.end
+        }
+        guard let start, let end, start.timeIntervalSince1970.isFinite, end.timeIntervalSince1970.isFinite,
+              end > start, end.timeIntervalSince(start) <= 16 * 3600,
+              first >= start.addingTimeInterval(-120 * 60), first <= start.addingTimeInterval(30 * 60), first < end else { return false }
+        return seconds.allSatisfy { $0.timestamp.timeIntervalSince1970.isFinite && $0.timestamp > first && $0.timestamp < end }
+    }
+
 }

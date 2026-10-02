@@ -81,6 +81,16 @@ struct DashboardTrendChartsCard: View {
             #if canImport(Charts)
             chartBody
                 .frame(height: 220)
+            if trendMode == .intervalVsSleep {
+                Text(model.sleepPairingSummary).font(.caption).accessibilityIdentifier("dashboard-sleep-pairing-counts")
+                if model.automaticSleepMatchCount > 0 {
+                    Text("Automatically matched: \(model.automaticSleepMatchCount) · Not manually reviewed").font(.caption)
+                }
+                if model.unmatchedSelectedSleepCount > 0 {
+                    NavigationLink("Review unmatched sleep (\(model.unmatchedSelectedSleepCount))") { ProviderSessionAssociationView(model: model) }
+                        .accessibilityIdentifier("dashboard-review-unmatched-sleep")
+                }
+            }
             Text(trendColorLegend).font(.caption).foregroundColor(.secondary)
             if trendMode == .weekday {
                 Text(model.weekdayTimingValues.map { "\($0.name): n=\($0.count)" }.joined(separator: " · "))
@@ -106,7 +116,7 @@ struct DashboardTrendChartsCard: View {
         switch trendMode {
         case .intervalVsSleep:
             if intervalSleepPoints.isEmpty {
-                emptyChartState("Need nights with both interval and sleep data.")
+                emptyChartState(model.intervalSleepEmptyReason)
             } else {
                 Chart(intervalSleepPoints) { point in
                     PointMark(

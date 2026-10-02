@@ -12,7 +12,8 @@ enum DashboardAssociationUITestFixture {
     static func dependencies(arguments: [String] = ProcessInfo.processInfo.arguments) -> (repository: SessionRepository, queries: DashboardProviderQueries)? {
         #if DEBUG && targetEnvironment(simulator)
         if arguments.contains("-dashboard-dose-pattern-overlap-uitest") { return overlapDependencies() }
-        guard arguments.contains("-dashboard-provider-match-uitest") else { return nil }
+        let automatic = arguments.contains("-dashboard-auto-pair-uitest")
+        guard automatic || arguments.contains("-dashboard-provider-match-uitest") else { return nil }
         let storage = EventStorage.inMemory(), repository = SessionRepository(storage: EventStorage.inMemory())
         let disabled = DashboardProviderQueries(healthEnabled: { false }, whoopEnabled: { false }, whoopConnected: { false },
             prepareHealth: { .unavailable }, healthHistory: { _ in [] },
@@ -20,12 +21,17 @@ enum DashboardAssociationUITestFixture {
         let fallback = (repository, disabled)
         let now = Date(), calendar = Calendar.current
         guard let today = calendar.date(bySettingHour: 18, minute: 0, second: 0, of: now),
-              let evening = today > now ? calendar.date(byAdding: .day, value: -1, to: today) : Optional(today) else { return fallback }
+              let latestEvening = today > now ? calendar.date(byAdding: .day, value: -1, to: today) : Optional(today),
+              let evening = automatic ? calendar.date(byAdding: .day, value: -1, to: latestEvening) : Optional(latestEvening) else { return fallback }
         let key = AppFormatters.sessionDate.string(from: evening)
         guard case .committed = storage.saveDose1(timestamp: evening.addingTimeInterval(3600),
             sessionId: "association-ui-session", sessionDateOverride: key) else { return fallback }
+        if automatic {
+            guard case .committed = storage.saveDose2(timestamp: evening.addingTimeInterval(4 * 3600),
+                sessionId: "association-ui-session", sessionDateOverride: key) else { return fallback }
+        }
         let summary = HealthKitService.SleepNightSummary(date: evening, bedTime: evening.addingTimeInterval(3600),
-            sleepOnset: evening.addingTimeInterval(3900), firstWake: nil, finalWake: evening.addingTimeInterval(8 * 3600),
+            sleepOnset: evening.addingTimeInterval(automatic ? 3900 : 4 * 3600), firstWake: nil, finalWake: evening.addingTimeInterval(8 * 3600),
             ttfwMinutes: nil, totalSleepMinutes: 415, wakeCount: 0, source: "Synthetic UI Test Watch")
         let queries = DashboardProviderQueries(healthEnabled: { true }, whoopEnabled: { false }, whoopConnected: { false },
             prepareHealth: { .ready }, healthHistory: { _ in [summary] },

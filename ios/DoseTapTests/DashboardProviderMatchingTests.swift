@@ -108,13 +108,59 @@ final class DashboardProviderMatchingTests: XCTestCase {
         XCTAssertNotNil(model.nights.first { $0.sessionID == "a" }?.healthSummary)
         XCTAssertEqual(try storage.dashboardAssociations().count, 1)
     }
-    func testSingleDateCandidateIsNotAnAutomaticAssociation() throws {
+    func testSingleDateCandidateWithoutCompatibleTimesIsNotAnAutomaticAssociation() throws {
         let storage = store(), model = DashboardAnalyticsModel(sessionRepo: SessionRepository(storage: store()))
         let local = try storage.dashboardLocalSessions().filter { $0.sessionID == "a" }
-        let rows = model.identityAggregates(local: local, health: ["2026-09-29": summary], whoop: [:])
+        let later = summary.date.addingTimeInterval(8 * 3600)
+        let unrelated = HealthKitService.SleepNightSummary(date: summary.date, bedTime: later, sleepOnset: later,
+            firstWake: nil, finalWake: later.addingTimeInterval(3600), ttfwMinutes: nil, totalSleepMinutes: 60, wakeCount: 0, source: "Test")
+        let rows = model.identityAggregates(local: local, health: ["2026-09-29": unrelated], whoop: [:])
         XCTAssertEqual(rows.count, 2)
         XCTAssertNil(rows.first { $0.sessionID == "a" }?.healthSummary)
     }
+    func testProductionRefreshPairsUnambiguousTimesWithoutSavedRelationship() async throws {
+        let storage = EventStorage.inMemory()
+        XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_sessions(session_id,session_date,start_utc) VALUES('a','2026-09-29','2026-09-29T22:00:00Z'); INSERT INTO dose_events(id,event_type,timestamp,session_date,session_id) VALUES('d1','dose1','2026-09-29T22:00:00Z','2026-09-29','a'),('d2','dose2','2026-09-30T01:00:00Z','2026-09-29','a')", nil, nil, nil), SQLITE_OK)
+        let first = ISO8601DateFormatter().date(from: "2026-09-29T22:00:00Z")!
+        let now = first.addingTimeInterval(14 * 3600)
+        var sleep = HealthKitService.SleepNightSummary(date: first, bedTime: first, sleepOnset: first.addingTimeInterval(1200),
+            firstWake: nil, finalWake: first.addingTimeInterval(8 * 3600), ttfwMinutes: nil, totalSleepMinutes: 420, wakeCount: 1, source: "Synthetic source through production refresh")
+        let queries = DashboardProviderQueries(healthEnabled: { true }, whoopEnabled: { false }, whoopConnected: { false },
+            prepareHealth: { .ready }, healthHistory: { _ in [sleep] },
+            whoopHistory: { _, _ in .init(summaries: [], sleepRecordCount: 0, recoveryRecordCount: 0, recoveryStatus: .completed) })
+        let model = DashboardAnalyticsModel(now: { now }, sessionRepo: SessionRepository(storage: storage, clock: { now }),
+            timeZone: { .gmt }, providerAccess: DashboardProviderAccess(), providerQueries: queries)
+        await model.performRefresh(days: 30)
+        let paired = try XCTUnwrap(model.nights.first { $0.sessionID == "a" })
+        XCTAssertEqual(paired.appleHealthSleepMinutes, 420)
+        XCTAssertEqual(paired.exactIntervalMinutes, 180)
+        XCTAssertTrue(paired.providerAssociation.contains("Automatic time"))
+        XCTAssertEqual(model.nights.count, 1)
+        XCTAssertEqual(model.pairedSleepCount, 1)
+        XCTAssertEqual(model.unmatchedSelectedSleepCount, 0)
+        XCTAssertTrue(try storage.dashboardAssociations().isEmpty)
+        let stale = DashboardProviderAssociation(episodeID: sleep.id, provider: "apple-health", sessionID: "a", sessionDate: "2026-09-29",
+            sessionFingerprint: "stale", episodeFingerprint: sleep.associationFingerprint, revision: "prior-review")
+        let blocked = model.identityAggregates(local: try storage.dashboardLocalSessions(), health: ["2026-09-29": sleep], whoop: [:], associations: [stale])
+        XCTAssertNil(blocked.first { $0.sessionID == "a" }?.healthSummary, "Automatic matching cannot override a stale explicit relationship")
+        let comparison = try XCTUnwrap(model.replayComparison(for: model.replaySnapshot(for: paired), outcome: .mainSleep, preset: .dose1ToDose2))
+        XCTAssertEqual(comparison.x, 180); XCTAssertEqual(comparison.y, 420)
+        // A later provider correction outside this session must unpair on refresh.
+        sleep = .init(date: first, bedTime: first.addingTimeInterval(5 * 3600), sleepOnset: first.addingTimeInterval(5 * 3600),
+            firstWake: nil, finalWake: first.addingTimeInterval(8 * 3600), ttfwMinutes: nil, totalSleepMinutes: 180, wakeCount: 0, source: "Corrected source")
+        await model.performRefresh(days: 30)
+        XCTAssertNil(model.nights.first { $0.sessionID == "a" }?.healthSummary)
+        XCTAssertEqual(model.nights.count, 2)
+        XCTAssertEqual(model.pairedSleepCount, 0)
+        XCTAssertEqual(model.unmatchedSelectedSleepCount, 1)
+        XCTAssertTrue(model.intervalSleepEmptyReason.contains("matches need review"))
+        // Dose 2 outside the observed episode cannot be attached by a shared date.
+        sleep = .init(date: first, bedTime: first, sleepOnset: first.addingTimeInterval(1200),
+            firstWake: nil, finalWake: first.addingTimeInterval(2 * 3600), ttfwMinutes: nil, totalSleepMinutes: 90, wakeCount: 0, source: "Short episode")
+        await model.performRefresh(days: 30)
+        XCTAssertNil(model.nights.first { $0.sessionID == "a" }?.healthSummary)
+    }
+
     func testStaleUnmatchedReviewCannotReplaceConcurrentAssociation() async throws {
         let storage = store(), access = DashboardProviderAccess()
         let asOf = try XCTUnwrap(AppFormatters.parseISO8601Flexible("2026-09-30T12:00:00Z"))
