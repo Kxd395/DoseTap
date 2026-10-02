@@ -55,11 +55,11 @@ struct DashboardTabView: View {
                         DashboardPagePicker(selection: selectedPage).labelStyle(.titleOnly)
                     }
                 }.padding(.horizontal) }
-                if let error = model.errorMessage {
+                if page != .overview, let error = model.errorMessage {
                     Label(error, systemImage: "exclamationmark.triangle")
                         .font(.caption).foregroundStyle(.orange).padding(.horizontal)
                 }
-                if page.requiresNightEvidence && !model.isLoading && model.populatedNights.isEmpty {
+                if page != .overview && page.requiresNightEvidence && !model.isLoading && model.populatedNights.isEmpty {
                     VStack(spacing: 4) {
                         Text("No session or provider observations in this range").font(.headline)
                         Text("Choose a wider range, record a night from Tonight, or Refresh connected sleep sources. Independent daytime and nap records remain available in their views.")
@@ -77,10 +77,12 @@ struct DashboardTabView: View {
             }
             .toolbar {
                 PageToolbar {
+                    if page != .overview && page != .trends {
                     Button { showingInspection = true } label: {
                         Image(systemName: "line.3.horizontal.decrease.circle")
                     }.accessibilityLabel("Dashboard shared filters")
                         .accessibilityIdentifier("dashboard-shared-filters")
+                    }
                     if cloudSync.cloudSyncAvailableInBuild {
                         if cloudSync.isSyncing {
                             ProgressView()
@@ -217,26 +219,38 @@ struct DashboardTabView: View {
     private var overviewContent: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 16) {
-                DashboardExecutiveSummaryCard(model: model, core: core)
+                if let error = model.errorMessage {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                        .font(.callout).foregroundStyle(.orange)
+                }
+                DashboardHomeSummary(model: model)
+                DashboardHomeTrend(model: model)
+                homeLink("Review records", detail: "Nights, sources and saved entries", icon: "list.bullet.rectangle", page: .data)
+                homeLink("Explore patterns", detail: "Sleep, timing and detailed comparisons", icon: "chart.xyaxis.line", page: .explore)
+                homeLink("Prepare a visit", detail: "Review and share a physician report", icon: "doc.text", page: .physician)
                 reportingDetails
-                DashboardDosingSnapshotCard(model: model)
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Recorded sleep").font(.headline)
-                    Text("Apple Health: " + sleepDuration(model.averageAppleHealthSleepMinutes))
-                    Text("WHOOP: " + sleepDuration(model.averageWhoopSleepMinutes))
-                    Text("Provider main episodes; unavailable readings are excluded. Questionnaire averages remain withheld pending review.")
+                if let updated = model.lastRefresh {
+                    Text("Updated " + updated.formatted(date: .omitted, time: .shortened))
                         .font(.caption).foregroundStyle(.secondary)
-                }.padding().frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 16))
-                if !model.whoopNights.isEmpty { DashboardWHOOPCard(model: model) }
-                Button("Review data coverage") { page = .data }
-                Button("Prepare physician review") { page = .physician }
-            }.padding().padding(.bottom, 24)
-        }.accessibilityIdentifier("dashboard-overview")
+                }
+            }.padding(16).padding(.bottom, 24)
+        }.background(Color(.systemGroupedBackground))
+            .accessibilityIdentifier("dashboard-overview")
     }
 
-    private func sleepDuration(_ value: Double?) -> String {
-        value.map { TimeIntervalMath.formatMinutes(Int($0.rounded())) } ?? "No data"
+    private func homeLink(_ title: String, detail: String, icon: String, page destination: DashboardPage) -> some View {
+        Button { selectedPage.wrappedValue = destination } label: {
+            HStack(spacing: 12) {
+                Image(systemName: icon).font(.title3).frame(width: 26)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title).font(.headline)
+                    Text(detail).font(.subheadline).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right").font(.caption.weight(.semibold))
+            }.padding(16).frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+        }.buttonStyle(.plain).accessibilityIdentifier("dashboard-home-" + destination.rawValue)
     }
 
     private var trendsContent: some View {
@@ -255,7 +269,8 @@ struct DashboardTabView: View {
     private var reviewData: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text("What records are available for review?").font(.title2.bold())
+                DashboardRecentNightsCard(nights: model.trendNights, onResolveDuplicateGroup: { resolvingDuplicateGroup = $0 })
+                Text("Sources & coverage").font(.title2.bold())
                 Text("This inventory covers the whole selected reporting range. Night-level comparison filters do not remove records from this inventory.")
                     .font(.callout).foregroundStyle(.secondary)
                 DashboardDataQualityCard(model: model)
@@ -269,7 +284,6 @@ struct DashboardTabView: View {
                     Text("Apple Health syncing, device backups, and files saved to iCloud Drive are separate. An exported file is a review snapshot, not a live dashboard or full-app restore.")
                 }
                 DisclosureGroup("Colors & missing data") { Text(palette.legend) }
-                DashboardRecentNightsCard(nights: model.trendNights, onResolveDuplicateGroup: { resolvingDuplicateGroup = $0 })
                 DashboardCapturedMetricsCard(categories: model.metricsCatalog)
             }.padding().padding(.bottom, 90)
         }.accessibilityIdentifier("dashboard-data-review")

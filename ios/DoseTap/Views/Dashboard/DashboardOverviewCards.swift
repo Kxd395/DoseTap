@@ -450,3 +450,41 @@ struct DashboardIntegrationsCard: View {
         )
     }
 }
+
+/// The everyday overview stays small; the complete measure inventory remains in Explore.
+struct DashboardHomeSummary: View {
+    @ObservedObject var model: DashboardAnalyticsModel
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.dashboardPalette) private var palette
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if !typeSize.isAccessibilitySize || verticalSizeClass != .compact {
+                Text("Your nights").font(.title2.bold())
+            }
+            let layout = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 16))
+                : AnyLayout(HStackLayout(alignment: .top, spacing: 24))
+            layout {
+                metric("Nights with data", value: model.populatedNights.count, id: "dashboard-home-nights")
+                metric("Recorded dose pairs", value: model.recordedPairCount, id: "dashboard-home-pairs")
+            }
+            Text(model.selectedRange.label + " · whole reporting period")
+                .font(.caption).foregroundStyle(.secondary)
+        }.padding(20).frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
+    }
+
+    private func metric(_ label: String, value: Int, id: String) -> some View {
+        let layout = typeSize.isAccessibilitySize && verticalSizeClass == .compact
+            ? AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 12))
+            : AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+        return layout {
+            Text(value.formatted()).font(.largeTitle.weight(.semibold)).monospacedDigit()
+                .foregroundStyle(palette.timing)
+            Text(label).font(.subheadline).foregroundStyle(.secondary)
+        }.frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine).accessibilityIdentifier(id)
+    }
+}

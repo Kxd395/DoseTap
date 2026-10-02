@@ -842,7 +842,7 @@ State transitions:
 ### Data Surface Gating
 
 All WHOOP data display is gated behind `WHOOPService.isEnabled` and/or data presence checks:
-- **Dashboard:** WHOOP measurements appear only with recorded WHOOP nights; otherwise its card explains the missing data and connection/range checks. Recovery and HRV appear in the WHOOP card with observed sample counts and as compact Overview summaries, all using the same provider aggregates.
+- **Dashboard:** WHOOP measurements appear only with recorded WHOOP nights; otherwise its card explains the missing data and connection/range checks. Recovery and HRV appear in detailed WHOOP and recorded-summary cards with observed sample counts, all using the same provider aggregates.
 - **Timeline:** `extractBiometricData()` returns empty arrays when `!WHOOPService.isEnabled`.
 - **Night Review:** `HealthDataCard` WHOOP section guarded behind `WHOOPService.isEnabled`.
 - **Sleep Snapshot:** WHOOP Metrics section guarded behind `averageWhoopRecovery != nil || averageWhoopHRV != nil`.
@@ -908,7 +908,7 @@ Calendar reporting windows follow the [shared range contract](contracts/dashboar
 - Missing observations remain missing, never zero or an implicit negative answer. Bathroom analytics count logs; duration is not measured. Pre-sleep completion requires a completed log. Stress-driver frequency counts each driver at most once per night.
 - Studio's 30-day dose-timing cards use valid recorded timestamp pairs only, disclose their usable pair count, and show No data when no pairs exist. Classify each pair from unrounded elapsed seconds, never a legacy adherence flag. The average interval is descriptive; it is not labeled Optimal, Good, or an effectiveness result.
 - Sleep comparisons use one explicitly selected provider without fallback. Show sample counts, source coverage and fetch errors. Descriptive timing groups and associations do not measure medication effectiveness or establish causation; changes in an average are not automatically improvements.
-- Dashboard defaults to All, showing Overview, Trends and Data in one scroll; these groups remain optional filters. The captured metric reference is available in All and Data. Missing WHOOP, prior-period or timing-group inputs show explanatory cards. Empty, loading and partial-provider states remain visible. Existing Typical Week, nightly overrides, medication supply and alarm behavior are unchanged.
+- Dashboard defaults to a compact Overview: night/pair counts, a recorded dose-spacing chart and direct routes to records and analysis. Detailed summaries remain in Explore; Trends and Records retain their existing scopes. Empty, loading and partial-provider states remain visible. Existing Typical Week, nightly overrides, medication supply and alarm behavior are unchanged.
 
 Tonight’s weekly summary covers the seven finished civil nights before the current night. “Dose 2 recorded” is the fraction of Dose-1 nights with a recorded second dose; explicit skips and unrecorded outcomes are shown separately. Gaps are not a day streak, and orphan second doses cannot inflate the rate.
 
@@ -1067,3 +1067,7 @@ Dashboard reporting-window, period-row and replay projections are in-memory read
 Dashboard refresh captures typed local rows, preset evidence and provider relationships in one synchronous read transaction, then closes the transaction before decoding the immutable copy off the main actor. The worker never receives SQLite handles, storage objects or shared mutable date formatters. Cancellation and local-record/provider revisions prevent obsolete publication. Existing synchronous snapshot consumers retain the same decoding and identity rules.
 
 On first dashboard load with enabled providers, publish a complete local-only snapshot before awaiting provider requests. This provisional display keeps provider matching, dose-review and context readiness false until final refresh publication. Existing displays remain retained during subsequent refreshes. A local read error is visible and never replaced by an empty success; cancelled or superseded work cannot overwrite a newer display.
+
+### Dashboard presentation simplification (DOSETAP-45, build 91)
+
+Overview shows two whole-period counts and a descriptive dot chart of up to 14 most recent valid dose pairs, ordered by treatment-night key. The chart uses existing exact positive dose intervals; missing/invalid pairs are omitted, never plotted as zero or connected across gaps. No provider substitution, scoring, reference band or treatment recommendation is introduced. The count scope and chart subset are labeled. Detailed summary/WHOOP measures and original records remain accessible in Explore and Records. Overview does not expose comparison filters that do not apply to its summaries. Reporting explanations are expandable, errors scroll with content, and accessibility text grows naturally.

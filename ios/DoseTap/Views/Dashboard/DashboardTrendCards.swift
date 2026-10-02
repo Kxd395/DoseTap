@@ -333,3 +333,42 @@ struct DashboardPeriodComparisonCard: View {
     }
 
 }
+
+/// A small read-only entry point; exact record inspection remains in Session Replay.
+struct DashboardHomeTrend: View {
+    @ObservedObject var model: DashboardAnalyticsModel
+    @Environment(\.dashboardPalette) private var palette
+    private var pairs: [DashboardNightAggregate] {
+        Array(model.populatedNights.filter { $0.exactIntervalMinutes != nil }.prefix(14)).reversed()
+    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Dose spacing").font(.headline)
+            if pairs.isEmpty {
+                Label("No recorded pairs in this period", systemImage: "chart.xyaxis.line")
+                    .font(.subheadline).foregroundStyle(.secondary).padding(.vertical, 20)
+                Text("A trend appears when both dose times are recorded with a valid interval.")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else {
+                Chart(pairs) { night in
+                    if let interval = night.exactIntervalMinutes {
+                        PointMark(x: .value("Treatment night", night.sessionDate),
+                                  y: .value("Minutes between doses", interval))
+                            .foregroundStyle(palette.timing).symbolSize(45)
+                            .accessibilityLabel("Treatment night " + night.sessionDate)
+                            .accessibilityValue("\(interval) minutes between recorded doses")
+                    }
+                }.chartYAxisLabel("Minutes")
+                    .chartXAxis { AxisMarks(values: .automatic(desiredCount: 3)) { value in
+                        AxisTick()
+                        AxisValueLabel { if let day = value.as(String.self) { Text(String(day.suffix(5))) } }
+                    } }
+                    .frame(height: 150)
+                    .accessibilityIdentifier("dashboard-home-spacing-chart")
+                Text("Most recent \(pairs.count) valid pairs in this period. Missing pairs are omitted.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }.padding(20).frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
+    }
+}
