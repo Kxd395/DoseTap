@@ -108,9 +108,9 @@ struct DashboardSleepIntervalChart: View {
             PointMark(x: .value("Spacing", point.x), y: .value("Sleep", point.sleep))
                 .symbol { SleepIntervalChartMarker(work: point.work, color: color(point), reported: point.reported, usesReported: model.replayPresentation.timingContextBasis == .reported, selected: point.id == selected?.id) }
                 .foregroundStyle(color(point))
-                .annotation(position: .top, alignment: .leading) { if point.single { Text("1 · " + SleepIntervalChartPoint.number(point.sleep) + " min").font(.caption2.bold()).foregroundStyle(color(point)) } }
                 .accessibilityHidden(true)
         }.chartXScale(domain: xDomain).chartYScale(domain: yDomain)
+            .chartPlotStyle { $0.clipped() }
             .chartXAxisLabel("Spacing (min) · 0 = Single dose")
             .chartYAxisLabel("Recorded sleep (min)")
             .chartXAxis {
@@ -147,6 +147,16 @@ struct DashboardSleepIntervalChart: View {
                                 .accessibilityValue(point.id == selected?.id ? "Selected" : "Not selected")
                                 .accessibilityAction { select(point.id) }
                                 .position(x: frame.minX + target.point.x, y: frame.minY + target.point.y)
+                        }
+                    }
+                    ForEach(points.filter(\.single)) { point in
+                        if let target = targets.first(where: { $0.id == point.id }) {
+                            Text("1 · " + SleepIntervalChartPoint.number(point.sleep) + " min")
+                                .font(.caption2.bold()).foregroundStyle(color(point))
+                                .frame(width: min(110, frame.width), alignment: .leading)
+                                .position(x: min(frame.maxX - min(110, frame.width) / 2, frame.minX + target.point.x + 12 + min(110, frame.width) / 2),
+                                          y: max(frame.minY + 8, frame.minY + target.point.y - 12))
+                                .allowsHitTesting(false).accessibilityHidden(true)
                         }
                     }
                 }.frame(width: geometry.size.width, height: geometry.size.height)
