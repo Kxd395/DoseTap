@@ -69,6 +69,10 @@ struct DashboardTabView: View {
                 }
                 dashboardPageContent.frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            .background(Color(.systemGroupedBackground))
+            .toolbarBackground(Color(.systemGroupedBackground), for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(themeManager.currentTheme == .light ? .light : .dark, for: .navigationBar)
             .navigationTitle(dynamicTypeSize.isAccessibilitySize ? "Data" : "Dashboard")
             .navigationBarTitleDisplayMode(isInSplitView ? .automatic : .inline)
             .toolbar(.visible, for: .navigationBar)

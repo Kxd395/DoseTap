@@ -51,3 +51,5 @@ previously hanging return/scroll path, range retention across Records/Replay,
 empty history, normal/max text portrait/landscape and night-mode chart interaction.
 Artifact: `home-scroll-fixed.xcresult`. The empty state keeps Records reachable
 and does not draw a zero-valued chart. Required guards and core tests passed.
+
+Screenshot review also caught a stale dark header after switching to Light. The dashboard now explicitly sets its control background, navigation background and toolbar color scheme from the current appearance. Theme-switch verification follows this correction.
