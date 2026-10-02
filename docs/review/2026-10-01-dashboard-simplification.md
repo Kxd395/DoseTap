@@ -53,3 +53,31 @@ Artifact: `home-scroll-fixed.xcresult`. The empty state keeps Records reachable
 and does not draw a zero-valued chart. Required guards and core tests passed.
 
 Screenshot review also caught a stale dark header after switching to Light. The dashboard now explicitly sets its control background, navigation background and toolbar color scheme from the current appearance. Theme-switch verification follows this correction.
+
+Theme verification passed both selected journeys (`theme-final-ui.xcresult`).
+The final Light screenshot was inspected: the header and content now use the same
+appearance. The normal overview fits its summary, full chart and Records action;
+maximum-text landscape fits the first complete metric and allows scrolling.
+Application commits: `f7ebe9c`, `6e20741`, `f530113`. Normal enabled hooks passed
+SwiftPM and generic simulator arm64/x86_64 builds for each commit. The core suite
+and workflow/SSOT/version91/architecture/dose-write/legacy/companion/hygiene/doc
+checks passed. The failed scroll artifact remains diagnostic evidence, not a pass.
+
+## Signed phone delivery
+
+Installed0.4.19(91), bundle `com.dosetap.ios`, without uninstall/reset on the paired
+iPhone15 Pro Max. Independent inventory confirmed91, launch succeeded, and an
+independent process inventory confirmedPID57699. Signed application source:
+`f530113f1bee879bf721f6f02ed795e36cf85b69`. ExecutableSHA256:
+`99d0b0199b13918bad4dd1cace3080e0c56c5a16f9f5e1da2e282c368acf2db1`.
+Strict/deep signature verification passed. The original ignored local configuration
+was used for signing and the recovery template restored afterward.
+
+Receipts: `phone91-artifact.json`, `phone91-install.log`,
+`phone91-installed-apps.json`, `phone91-launch.json`, `phone91-processes.json`.
+Physical installation/launch does not establish actual-record consistency, perceived
+speed, VoiceOver, live providers, privacy or owner acceptance. No PR/push/merge or
+iPad launch was performed. Main and the paused dashboard/iPad checkout remain
+unchanged. Next: owner phone review, then focused integration against the pending
+feature head with affected checks; investigate any remaining specific slow action
+using a device trace rather than expanding the dashboard again.
