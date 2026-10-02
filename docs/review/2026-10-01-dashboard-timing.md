@@ -44,3 +44,9 @@ Executable SHA-256: `935ca052ea3c878e10f68c0e3c11c1589430d96b3bba4db42180eb6dcbc
 Artifact: `/tmp/dosetap-dashboard-phone92-signed/Build/Products/Debug-iphoneos/DoseTap.app`. Receipts: `phone92-artifact.json`, `phone92-installed-apps.json`, `phone92-launch.json`, `phone92-processes.json` in the evidence directory. This establishes installation and launch, not owner-observed chart accuracy or speed.
 
 Plane DOSETAP-45 remains **In Progress**. Closeout `b991e2d652143c66` was applied and verified by two independent readbacks (`plane45-verified.json` and `plane45-verified-repeat.json`). Inherited acceptance gates were retained.
+
+## Original Interactive Trends route check
+
+The owner's additional screenshot shows the original Interactive Trends / Interval vs Sleep card with green inside-reference circles and orange outside-reference diamonds, followed by Natural waking vs. alarm waking. Both remain in build92 under Dashboard → Overview menu → Trends; Interval vs Sleep is the default chart there. A direct-route simulator test and inspected screenshot confirm the cards render. The old combined layout is not the current landing screen. Sleep-quality period averages remain explicitly withheld pending saved-answer review; this route check does not restore them. No application source change or phone reinstall was needed.
+
+Evidence: `trends-route-final.xcresult` and `trends-screens/E57731A3-157E-404B-A414-D0D8AF66977E.png` in the timing evidence directory. The final direct-route test executed one test with zero failures and scrolls the waking table into view. Earlier attempts failed on an offscreen picker assertion; a zero-test run was rejected as validation. No app behavior was changed.

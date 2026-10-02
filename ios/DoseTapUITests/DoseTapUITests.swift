@@ -1320,6 +1320,22 @@ final class DoseTapUITests: XCTestCase {
         app.navigationBars["Morning Check-In"].buttons["Cancel"].tap()
     }
 
+    func testDashboardPrimaryTrendsShowsOriginalIntervalAndWakeCards() {
+        app.buttons["Dashboard"].tap()
+        selectDashboardPage("dashboard-trends-open", title: "Trends")
+        let picker = app.buttons["dashboard-trend-picker"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 10))
+        XCTAssertTrue(picker.label.contains("Interval vs Sleep"))
+        revealDashboardText("Interactive Trends")
+        XCTAssertTrue(app.staticTexts["Interactive Trends"].isHittable)
+        captureDashboard("Primary Trends original interval versus sleep chart")
+        revealDashboardText("Natural waking vs. alarm waking")
+        XCTAssertTrue(app.staticTexts["Natural waking vs. alarm waking"].isHittable)
+        revealDashboardText("Recorded nights")
+        XCTAssertTrue(app.staticTexts["Recorded nights"].isHittable)
+        captureDashboard("Primary Trends original waking comparison")
+    }
+
     func testDashboardNightModeKeepsChartSelectionAndReadableLegends() throws {
         app.buttons["Dashboard"].tap()
         let theme = app.buttons["Theme quick switch"]
