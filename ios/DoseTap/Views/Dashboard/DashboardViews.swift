@@ -218,7 +218,7 @@ struct DashboardTabView: View {
 
     private var overviewContent: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 16) {
                 if let error = model.errorMessage {
                     Label(error, systemImage: "exclamationmark.triangle")
                         .font(.callout).foregroundStyle(.orange)

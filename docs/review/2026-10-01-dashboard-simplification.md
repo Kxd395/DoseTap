@@ -41,3 +41,13 @@ the existing runtime brought its existing Plane containers back automatically;
 the proxy remains bound to127.0.0.1:3301. No image pull, volume reset, stack
 reconfiguration or data deletion was performed. ExactDOSETAP-45 preflight then
 succeeded: InProgress/high. Tracker acceptance remains separate from installation.
+
+## Scroll regression discovered during validation
+
+The new navigation test reproduced an app hang after returning from Records and scrolling to Explore. DoseTap consumed about99% CPU; a three-second sample showed the main thread repeatedly in SwiftUI lazy-stack layout. The owned simulator test was interrupted and its app terminated, without reset/uninstall. Overview contains a bounded set of cards, so its LazyVStack was replaced with VStack. The same test must pass before phone delivery; the sample and interrupted artifact are retained.
+
+The corrected combined UI run passed all four selected journeys, including the
+previously hanging return/scroll path, range retention across Records/Replay,
+empty history, normal/max text portrait/landscape and night-mode chart interaction.
+Artifact: `home-scroll-fixed.xcresult`. The empty state keeps Records reachable
+and does not draw a zero-valued chart. Required guards and core tests passed.

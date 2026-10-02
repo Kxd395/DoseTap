@@ -1071,3 +1071,5 @@ On first dashboard load with enabled providers, publish a complete local-only sn
 ### Dashboard presentation simplification (DOSETAP-45, build 91)
 
 Overview shows two whole-period counts and a descriptive dot chart of up to 14 most recent valid dose pairs, ordered by treatment-night key. The chart uses existing exact positive dose intervals; missing/invalid pairs are omitted, never plotted as zero or connected across gaps. No provider substitution, scoring, reference band or treatment recommendation is introduced. The count scope and chart subset are labeled. Detailed summary/WHOOP measures and original records remain accessible in Explore and Records. Overview does not expose comparison filters that do not apply to its summaries. Reporting explanations are expandable, errors scroll with content, and accessibility text grows naturally.
+
+The bounded Overview uses an eager vertical stack so returning from Records and scrolling does not recycle its chart/cards through a lazy layout. Larger record/analysis collections retain their own existing layouts.
