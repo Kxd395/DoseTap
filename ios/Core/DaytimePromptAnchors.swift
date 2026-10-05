@@ -137,8 +137,10 @@ public struct RandomizedWakeRoutine: Codable, Equatable, Sendable {
         guard let zone = TimeZone(identifier: timeZone), (try? validate()) != nil else { return nil }
         var calendar = Calendar(identifier: .gregorian); calendar.timeZone = zone
         let minute = working ? workBedtimeMinute : offBedtimeMinute
-        return calendar.nextDate(after: wake, matching: DateComponents(hour: minute / 60, minute: minute % 60),
-            matchingPolicy: .nextTime, repeatedTimePolicy: .first)?.addingTimeInterval(-7200)
+        let components = DateComponents(hour: minute / 60, minute: minute % 60)
+        let first = calendar.nextDate(after: wake, matching: components, matchingPolicy: .nextTime, repeatedTimePolicy: .first)
+        let last = calendar.nextDate(after: wake, matching: components, matchingPolicy: .nextTime, repeatedTimePolicy: .last)
+        return [first, last].compactMap { $0 }.filter { $0 > wake }.min()?.addingTimeInterval(-7200)
     }
     static func hash(_ text: String) -> UInt64 {
         text.utf8.reduce(UInt64(14695981039346656037)) { ($0 ^ UInt64($1)) &* 1099511628211 }

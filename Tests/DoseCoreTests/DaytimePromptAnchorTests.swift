@@ -149,4 +149,115 @@ final class DaytimePromptAnchorTests: XCTestCase {
         XCTAssertEqual(ledger.prepareHorizon(at: wake.addingTimeInterval(1), contexts: [context]), slots)
     }
 
+    func randomLedger(seed: Int = 1) throws -> DaytimePromptLedger {
+        var value = DaytimePromptLedger()
+        try value.configure(hour: 14, minute: 0, timeZone: "UTC", enabled: true,
+            at: date("2035-10-04T23:00:00Z"), rule: DaytimePromptRule(anchor: .mainWake,
+            randomizedWake: .init(workBedtimeMinute: 1380)))
+        let fixed = String(format: "00000000-0000-0000-0000-%012d", seed)
+        let text = String(decoding: try value.encodedPayload(), as: UTF8.self)
+            .replacingOccurrences(of: value.current!.id.uuidString, with: fixed)
+        return try DaytimePromptLedger.decodePayload(Data(text.utf8))
+    }
+    func wakeContext(_ stamp: String, revision: String = "r1", workID: String = "work-A") throws -> DaytimePromptAnchorContext {
+        let wake = date(stamp)
+        return .init(dayKey: DaytimePromptRule.dayKey(wake, timeZone: "UTC"), timeZone: "UTC",
+            working: true, mainWake: try DaytimeAnchorSource(id: stamp, revision: revision, at: wake),
+            workSourceID: workID, workRevision: "w1")
+    }
+    func testRandomizedSpacingIncludesRetainedPreviousWakeDay() throws {
+        let prior = try wakeContext("2035-10-04T23:00:00Z"), today = try wakeContext("2035-10-05T09:00:00Z")
+        for seed in 1...24 {
+            var ledger = try randomLedger(seed: seed)
+            _ = ledger.prepareHorizon(at: prior.mainWake!.at, contexts: [prior])
+            let retained = ledger.prompts
+            _ = ledger.prepareHorizon(at: today.mainWake!.at, contexts: [prior, today])
+            XCTAssertEqual(Array(ledger.prompts.prefix(retained.count)), retained)
+            let attempts = ledger.prompts.map(\.nextAttemptAt).sorted()
+            for pair in zip(attempts, attempts.dropFirst()) {
+                XCTAssertGreaterThanOrEqual(pair.1.timeIntervalSince(pair.0), 7200, "seed \(seed)")
+            }
+        }
+    }
+    func testCorrectionPreservesPastAttemptAndIncludesWorkSourceIdentity() throws {
+        let context = try wakeContext("2035-10-05T09:00:00Z")
+        var ledger = try randomLedger()
+        let slots = ledger.prepareHorizon(at: context.mainWake!.at, contexts: [context])
+        let first = try XCTUnwrap(slots.first)
+        let attempted = first.nextAttemptAt.addingTimeInterval(1)
+        let corrected = try wakeContext("2035-10-05T09:00:00Z", revision: "r2")
+        _ = ledger.prepareHorizon(at: attempted, contexts: [corrected])
+        XCTAssertEqual(ledger.prompts[0], first)
+        XCTAssertTrue(ledger.prompts.dropFirst().allSatisfy { $0.status == .suppressed })
+        var sourceLedger = try randomLedger()
+        _ = sourceLedger.prepareHorizon(at: context.mainWake!.at, contexts: [context])
+        _ = sourceLedger.prepareHorizon(at: context.mainWake!.at, contexts: [try wakeContext("2035-10-05T09:00:00Z", workID: "work-B")])
+        XCTAssertTrue(sourceLedger.prompts.allSatisfy { $0.status == .suppressed })
+        var deferred = try randomLedger()
+        let original = try XCTUnwrap(deferred.prepareHorizon(at: context.mainWake!.at, contexts: [context]).first)
+        let later = min(original.nextAttemptAt.addingTimeInterval(60), original.windowEnd!)
+        try deferred.deferPrompt(id: original.id, until: later, now: context.mainWake!.at)
+        _ = deferred.prepareHorizon(at: later.addingTimeInterval(1), contexts: [corrected])
+        XCTAssertEqual(deferred.prompts[0].status, .deferred)
+    }
+    func testManualCompletionRecoversOnlyEnvironmentalSuppression() throws {
+        let context = try wakeContext("2035-10-05T09:00:00Z")
+        for reason in ["Notification permission unavailable", "Inside configured quiet hours", "Known sleep or nap active", "Wake or work evidence changed; review the routine", "Schedule changed"] {
+            for offset in [0.0, 3600.0, 7200.0] {
+                var ledger = try randomLedger()
+                let slot = try XCTUnwrap(ledger.prepareHorizon(at: context.mainWake!.at, contexts: [context]).first)
+                ledger.suppress(id: slot.id, reason: reason)
+                let assessed = min(slot.windowStart!.addingTimeInterval(offset), slot.windowEnd!)
+                let id = UUID()
+                try ledger.satisfyRandomizedWindow(assessmentID: id, assessedAt: assessed, recordedAt: assessed)
+                let recoverable = ["Notification permission unavailable", "Inside configured quiet hours", "Known sleep or nap active"].contains(reason)
+                XCTAssertEqual(ledger.prompts[0].assessmentID, recoverable ? id : nil, reason)
+            }
+        }
+        var skipped = try randomLedger()
+        let slot = try XCTUnwrap(skipped.prepareHorizon(at: context.mainWake!.at, contexts: [context]).first)
+        try skipped.skip(id: slot.id)
+        try skipped.satisfyRandomizedWindow(assessmentID: UUID(), assessedAt: slot.windowStart!, recordedAt: slot.windowStart!)
+        XCTAssertEqual(skipped.prompts[0].status, .skipped)
+    }
+    func testBedtimeBetweenFallbackFoldsUsesNextActualBedtime() throws {
+        let routine = RandomizedWakeRoutine(workBedtimeMinute: 90)
+        let wake = date("2035-11-04T05:45:00Z") // 01:45 first fold; next 01:30 is second fold.
+        XCTAssertEqual(routine.cutoff(wake: wake, working: true, timeZone: zone), date("2035-11-04T04:30:00Z"))
+    }
+
+    func testPreFixTwoPromptPayloadIsStableWithoutBackfill() throws {
+        // Literal payload generated by c5446a5 with the fractional upper-edge seed.
+        let payload = #"{"enabled":true,"prompts":[{"anchor":{"intendedAt":"2026-10-05T15:54:01.000Z","kind":"mainWake","label":"Workday check-in 2 · after main wake","sourceAt":"2026-10-05T09:00:00.123Z","sourceID":"wake","sourceRevision":"r1","working":true},"anchorDayKey":"2026-10-05","id":"00000000-0000-0000-0000-D639DA929C9A","intendedAt":"2026-10-05T15:54:01.000Z","nextAttemptAt":"2026-10-05T15:54:01.000Z","scheduleID":"00000000-0000-0000-0000-000000000035","status":"pending","windowEnd":"2026-10-05T18:00:00.123Z","windowIndex":1,"windowStart":"2026-10-05T15:00:00.123Z"},{"anchor":{"intendedAt":"2026-10-05T20:18:01.000Z","kind":"mainWake","label":"Workday check-in 3 · after main wake","sourceAt":"2026-10-05T09:00:00.123Z","sourceID":"wake","sourceRevision":"r1","working":true},"anchorDayKey":"2026-10-05","id":"00000000-0000-0000-0000-D539DA929AE7","intendedAt":"2026-10-05T20:18:01.000Z","nextAttemptAt":"2026-10-05T20:18:01.000Z","scheduleID":"00000000-0000-0000-0000-000000000035","status":"pending","windowEnd":"2026-10-05T22:00:00.123Z","windowIndex":2,"windowStart":"2026-10-05T20:00:00.123Z"}],"quietEnd":420,"quietStart":1320,"schedules":[{"createdAt":"2026-10-05T09:00:00.123Z","hour":14,"id":"00000000-0000-0000-0000-000000000035","minute":0,"rule":{"anchor":"mainWake","offDayAnchor":"clock","offDayHour":14,"offDayMinute":0,"randomizedWake":{"offBedtimeMinute":1320,"workBedtimeMinute":1320},"selectedWeekdays":[1,2,3,4,5,6,7],"wakeOffsetMinutes":240},"timeZone":"America\/New_York"}]}"#
+        var ledger = try DaytimePromptLedger.decodePayload(Data(payload.utf8))
+        let saved = ledger.prompts
+        XCTAssertEqual(saved.map(\.windowIndex), [1, 2])
+        let wake = date("2026-10-05T09:00:00Z").addingTimeInterval(0.123)
+        let context = DaytimePromptAnchorContext(dayKey: "2026-10-05", timeZone: zone, working: true,
+            mainWake: try DaytimeAnchorSource(id: "wake", revision: "r1", at: wake))
+        for clock in [wake, wake.addingTimeInterval(1), wake.addingTimeInterval(3600)] {
+            _ = ledger.prepareHorizon(at: clock, contexts: [context])
+            XCTAssertEqual(ledger.prompts, saved)
+            ledger = try DaytimePromptLedger.decodePayload(ledger.encodedPayload())
+        }
+    }
+    func testLaterCannotCollideWithAnotherWakeDay() throws {
+        let prior = try wakeContext("2035-10-04T23:00:00Z"), today = try wakeContext("2035-10-05T09:00:00Z")
+        var ledger = try randomLedger(), separate = try randomLedger()
+        _ = ledger.prepareHorizon(at: prior.mainWake!.at, contexts: [prior])
+        let other = try XCTUnwrap(separate.prepareHorizon(at: today.mainWake!.at, contexts: [today]).first)
+        let target = date("2035-10-05T12:00:00Z")
+        // Persist two legitimate adjacent-day windows, then place the other attempt at the boundary.
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: ledger.encodedPayload()) as? [String: Any])
+        var prompts = try XCTUnwrap(json["prompts"] as? [[String: Any]])
+        let otherJSON = try XCTUnwrap(JSONSerialization.jsonObject(with: separate.encodedPayload()) as? [String: Any])
+        var next = try XCTUnwrap((otherJSON["prompts"] as? [[String: Any]])?.first)
+        next["nextAttemptAt"] = "2035-10-05T12:00:00.000Z"
+        prompts.append(next); json["prompts"] = prompts
+        ledger = try DaytimePromptLedger.decodePayload(JSONSerialization.data(withJSONObject: json))
+        let priorSlot = try XCTUnwrap(ledger.prompts.first { $0.anchorDayKey == prior.dayKey && $0.windowIndex == 2 })
+        XCTAssertNotEqual(priorSlot.anchorDayKey, other.anchorDayKey)
+        XCTAssertThrowsError(try ledger.deferPrompt(id: priorSlot.id, until: target, now: today.mainWake!.at))
+    }
+
 }

@@ -77,3 +77,19 @@ moves the same occurrence by 30 minutes only within its window and bedtime cutof
 and only when two-hour spacing from other attempts remains; otherwise it fails
 without a new request. There are no automatic follow-up nudges. Missing responses
 remain unknown. Enabling and Save remain explicit user actions.
+
+### Reconciliation failure and response boundaries
+
+Two-hour spacing applies to all retained randomized attempts in the current schedule,
+including adjacent wake dates and deferred attempts. Existing choices never redraw;
+new choices enumerate the minute grid deterministically and omit a window if no
+spaced choice remains. Wake/work corrections (including work source identity) suppress
+only future outstanding attempts. Due or past attempts retain unknown-delivery state.
+Manual original nonretrospective assessments reconcile before permission and known-sleep
+returns; only permission, quiet-hour and known-sleep suppressions can become responded.
+Explicit skip, source-change, schedule-change, expired and responded states stay final.
+Rejected mutations and stale actions preserve the verified OS queue. Later samples one
+clock instant for preview and mutation. After partial OS work fails, cancel owned partial
+requests and make at most one fresh reconciliation attempt; persistent failure leaves
+verification empty and exposes retry. Other notification owners remain untouched.
+For a bedtime in a repeated fall-back hour, use the next absolute occurrence after wake.

@@ -334,4 +334,93 @@ final class DaytimePromptServiceTests: XCTestCase {
                        ISO8601DateFormatter().date(from: "2035-10-04T02:30:00Z"))
     }
 
+    func testRejectedMutationAndStaleSkipPreserveVerifiedQueue() async throws {
+        let repo = SessionRepository(storage: .inMemory()), client = Client()
+        let service = DaytimePromptService(repository: repo, client: client, now: { self.now })
+        _ = await enable(service)
+        let before = try repo.daytimePrompts(), queued = Set(client.requests.keys), next = service.nextReminderAt
+        let rejected = await service.change { _ in throw DaytimeDiaryError.invalid }
+        XCTAssertFalse(rejected)
+        XCTAssertEqual(Set(client.requests.keys), queued)
+        XCTAssertEqual(service.nextReminderAt, next)
+        await service.handle(promptID: UUID(), action: "daytime_skip")
+        XCTAssertEqual(Set(client.requests.keys), queued)
+        XCTAssertEqual(service.nextReminderAt, next)
+        XCTAssertEqual(try repo.daytimePrompts(), before)
+    }
+    func testManualCompletionPrecedesPermissionAndSleepEarlyReturn() async throws {
+        for mode in ["permission", "quiet", "sleep"] {
+            var clock = now
+            let repo = SessionRepository(storage: .inMemory(), clock: { clock }), client = Client()
+            let context = DaytimePromptAnchorContext(dayKey: "2035-10-04", timeZone: "UTC", working: true,
+                mainWake: try DaytimeAnchorSource(id: "wake", revision: "r1", at: now))
+            let service = DaytimePromptService(repository: repo, client: client, now: { clock }, contexts: { _, _, _ in [context] })
+            _ = await service.change {
+                $0.quietStart = 0; $0.quietEnd = 0
+                try $0.configure(hour: 14, minute: 0, timeZone: "UTC", enabled: true, at: now,
+                    rule: DaytimePromptRule(anchor: .mainWake, randomizedWake: .init(workBedtimeMinute: 60)))
+            }
+            let slot = try XCTUnwrap(service.ledger.prompts.first)
+            if mode == "permission" { client.authorization = .denied }
+            if mode == "quiet" { _ = await service.change { $0.quietStart = 0; $0.quietEnd = 1439 } }
+            if mode == "sleep" { repo.setDose1Time(now) }
+            await service.reconcile()
+            clock = slot.windowStart!
+            let entry = try DaytimeCheckIn(assessedAt: clock, recordedAt: clock, timeZoneIdentifier: "UTC", response: 4, status: .answered)
+            try repo.saveDaytimeCheckIn(entry)
+            await service.reconcile()
+            XCTAssertEqual(service.ledger.prompts.first?.assessmentID, entry.id, mode)
+            XCTAssertEqual(service.ledger.prompts.first?.status, .responded, mode)
+        }
+    }
+    func testPartialOSAddTransientFailureGetsOneBoundedRecovery() async throws {
+        let repo = SessionRepository(storage: .inMemory()), client = Client()
+        let service = DaytimePromptService(repository: repo, client: client, now: { self.now })
+        var adds = 0
+        client.onAdd = {
+            adds += 1
+            if adds == 1 { client.failsAdds = true }
+        }
+        client.onPending = { if client.failsAdds { client.failsAdds = false; client.onAdd = nil } }
+        _ = await enable(service)
+        XCTAssertEqual(client.requests.count, 7)
+        XCTAssertNotNil(service.nextReminderAt)
+    }
+
+    func testLaterAtWindowBoundaryUsesOneActionClockSample() async throws {
+        let repo = SessionRepository(storage: .inMemory()), client = Client()
+        let context = DaytimePromptAnchorContext(dayKey: "2035-10-04", timeZone: "UTC", working: true,
+            mainWake: try DaytimeAnchorSource(id: "wake", revision: "r1", at: now))
+        var actionClock: Date?, reads = 0
+        let service = DaytimePromptService(repository: repo, client: client, now: {
+            guard let start = actionClock else { return self.now }
+            defer { reads += 1 }
+            return start.addingTimeInterval(Double(reads))
+        }, contexts: { _, _, _ in [context] })
+        _ = await service.change {
+            $0.quietStart = 0; $0.quietEnd = 0
+            try $0.configure(hour: 14, minute: 0, timeZone: "UTC", enabled: true, at: now,
+                rule: DaytimePromptRule(anchor: .mainWake, randomizedWake: .init(workBedtimeMinute: 60)))
+        }
+        let slot = try XCTUnwrap(service.ledger.prompts.first)
+        let fire = Date(timeIntervalSince1970: floor(slot.windowEnd!.timeIntervalSince1970))
+        actionClock = fire.addingTimeInterval(-1800)
+        await service.handle(promptID: slot.id, action: "daytime_later")
+        XCTAssertEqual(service.ledger.prompts.first?.nextAttemptAt, fire)
+        XCTAssertEqual(service.ledger.prompts.first?.status, .deferred)
+        XCTAssertEqual(client.requests.count, 3)
+    }
+    func testPersistentOSFailureStopsAfterOneRecovery() async throws {
+        let repo = SessionRepository(storage: .inMemory()), client = Client()
+        let service = DaytimePromptService(repository: repo, client: client, now: { self.now })
+        var adds = 0
+        client.dropsAdds = true; client.onAdd = { adds += 1 }
+        let saved = await enable(service)
+        XCTAssertFalse(saved)
+        XCTAssertEqual(adds, 14, "Seven-request initial attempt plus exactly one recovery")
+        XCTAssertTrue(client.requests.isEmpty)
+        XCTAssertNil(service.nextReminderAt)
+        XCTAssertTrue(service.status.contains("failed"))
+    }
+
 }

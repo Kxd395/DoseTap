@@ -42,6 +42,14 @@ public struct DaytimePrompt: Codable, Equatable, Identifiable, Sendable {
     public var windowIndex: Int?
     public var windowStart: Date?
     public var windowEnd: Date?
+    public enum EnvironmentalSuppression: String {
+        case permission = "Notification permission unavailable"
+        case quietHours = "Inside configured quiet hours"
+        case knownSleep = "Known sleep or nap active"
+    }
+    public var environmentalSuppression: EnvironmentalSuppression? {
+        status == .suppressed ? reason.flatMap(EnvironmentalSuppression.init(rawValue:)) : nil
+    }
     public var isOutstanding: Bool { status == .pending || status == .deferred }
 }
 
@@ -78,7 +86,7 @@ public struct DaytimePromptLedger: Codable, Equatable, Sendable {
         }
         for index in prompts.indices where prompts[index].scheduleID == schedule.id && prompts[index].status == .suppressed
             && prompts[index].nextAttemptAt > now
-            && ["Notification permission unavailable", "Inside configured quiet hours"].contains(prompts[index].reason ?? "") {
+            && prompts[index].environmentalSuppression != nil {
             prompts[index].status = .pending; prompts[index].reason = nil
         }
         if schedule.rule?.randomizedWake != nil { return prepareRandomizedHorizon(schedule: schedule, at: now, contexts: contexts) }
@@ -152,11 +160,11 @@ public struct DaytimePromptLedger: Codable, Equatable, Sendable {
                                           timeZone: schedule.timeZone, context: context, now: now)
             let previous = prompts.indices.filter { prompts[$0].scheduleID == schedule.id && prompts[$0].anchorDayKey == key }
             if !previous.isEmpty {
-                for index in previous where prompts[index].isOutstanding {
+                for index in previous where prompts[index].isOutstanding && prompts[index].nextAttemptAt > now {
                     let old = prompts[index].anchor
                     if resolution.intendedAt == nil || context?.working == nil || old?.sourceID != resolution.sourceID ||
                         old?.sourceRevision != resolution.sourceRevision || old?.sourceAt != resolution.sourceAt ||
-                        old?.working != context?.working || old?.workRevision != context?.workRevision {
+                        old?.working != context?.working || old?.workSourceID != context?.workSourceID || old?.workRevision != context?.workRevision {
                         prompts[index].status = .suppressed; prompts[index].reason = "Wake or work evidence changed; review the routine"
                     }
                 }
@@ -172,7 +180,14 @@ public struct DaytimePromptLedger: Codable, Equatable, Sendable {
                 guard start <= upper else { continue }
                 let seed = RandomizedWakeRoutine.hash("\(schedule.id)#\(key)#\(index)")
                 let minutes = Int(upper.timeIntervalSince(start) / 60)
-                let intended = start.addingTimeInterval(Double(seed % UInt64(minutes + 1)) * 60)
+                let choices = minutes + 1
+                let firstChoice = Int(seed % UInt64(choices))
+                guard let intended = (0..<choices).lazy.map({ offset in
+                    start.addingTimeInterval(Double((firstChoice + offset) % choices) * 60)
+                }).first(where: { candidate in
+                    prompts.filter { $0.scheduleID == schedule.id && $0.windowIndex != nil }
+                        .allSatisfy { abs($0.nextAttemptAt.timeIntervalSince(candidate)) >= 7200 }
+                }) else { continue }
                 last = intended
                 guard intended > now, intended <= upper else { continue }
                 // Saving a different routine cannot repeat an already attempted or explicitly resolved window.
@@ -191,7 +206,7 @@ public struct DaytimePromptLedger: Codable, Equatable, Sendable {
             .sorted { $0.nextAttemptAt < $1.nextAttemptAt }.prefix(7))
     }
     public mutating func satisfyRandomizedWindow(assessmentID: UUID, assessedAt: Date, recordedAt: Date) throws {
-        guard let index = prompts.firstIndex(where: { $0.scheduleID == current?.id && $0.isOutstanding &&
+        guard let index = prompts.firstIndex(where: { $0.scheduleID == current?.id && ($0.isOutstanding || $0.environmentalSuppression != nil) &&
             $0.windowStart.map { assessedAt >= $0 } == true && $0.windowEnd.map { assessedAt <= $0 } == true }) else { return }
         try respond(id: prompts[index].id, assessmentID: assessmentID, assessedAt: assessedAt, at: recordedAt)
     }
@@ -219,13 +234,15 @@ public struct DaytimePromptLedger: Codable, Equatable, Sendable {
         prompts[index].status = .skipped; prompts[index].reason = "Skipped by user"
     }
     public mutating func deferPrompt(id: UUID, until: Date, now: Date) throws {
+        guard until.timeIntervalSince1970.isFinite, now.timeIntervalSince1970.isFinite else { throw DaytimeDiaryError.invalid }
+        let attempt = Self.canonicalDate(until)
         guard let index = prompts.firstIndex(where: { $0.id == id }), prompts[index].isOutstanding,
-              until > now, until.timeIntervalSince1970.isFinite else { throw DaytimeDiaryError.invalid }
+              attempt > now else { throw DaytimeDiaryError.invalid }
         if let end = prompts[index].windowEnd {
-            guard until <= end, prompts.filter({ $0.id != id && $0.anchorDayKey == prompts[index].anchorDayKey && $0.windowIndex != nil })
-                .allSatisfy({ abs($0.nextAttemptAt.timeIntervalSince(until)) >= 7200 }) else { throw DaytimeDiaryError.invalid }
+            guard attempt <= end, attempt >= (prompts[index].windowStart ?? attempt), prompts.filter({ $0.id != id && $0.scheduleID == prompts[index].scheduleID && $0.windowIndex != nil })
+                .allSatisfy({ abs($0.nextAttemptAt.timeIntervalSince(attempt)) >= 7200 }) else { throw DaytimeDiaryError.invalid }
         }
-        prompts[index].status = .deferred; prompts[index].nextAttemptAt = Self.canonicalDate(until); prompts[index].reason = "Deferred by user"
+        prompts[index].status = .deferred; prompts[index].nextAttemptAt = attempt; prompts[index].reason = "Deferred by user"
     }
     public mutating func respond(id: UUID, assessmentID: UUID, assessedAt: Date, at: Date) throws {
         guard let index = prompts.firstIndex(where: { $0.id == id }), assessedAt <= at,
