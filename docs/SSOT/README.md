@@ -47,6 +47,17 @@ Notes:
 
 ---
 
+## Morning night-type chart selection
+
+Overview Sleep vs spacing and Trends Interval vs Sleep share a multiple-selection
+morning night-type filter. All categories start selected. A night is included if
+its exact saved morning category is selected; missing or unusable context belongs
+to Unsure / unknown. Clear all shows no matching nights and explicit guidance to
+choose at least one category. Select all restores every category. The selection
+survives switching dashboard views or context basis during the model lifetime;
+Reviewed shifts retains its independent filter. This display selection does not
+edit check-ins, medication records, provider associations or stored/export values.
+
 ## Work-block context
 
 [Work-block context contract](contracts/work-block-context.md) defines effective rosters, explicit attendance and reviewed sleep associations independently of wake scheduling.

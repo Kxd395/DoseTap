@@ -59,3 +59,41 @@ The next UI run reached the overlap chooser and zoom but exposed chart gestures 
 The final UI journey passed using the production repository/provider overlap fixture: two exact-coordinate nights remained separate in the chooser, selecting one and zooming worked, the directional control changed the displayed range, an actual chart drag changed it again, and Reset restored the view. Scroll-margin navigation reached the controls without intercepting the plot. Result: `/tmp/dosetap97-ui-bounded.log`, `Test-DoseTapUITests-2026.10.02_08-19-07--0400.xcresult`.
 
 Build97 signed/device verification passed: codesign, installation, independent version inventory and launch. Actual phone refresh populated the chart. A tapped cluster opened different dated nights with different exact spacing/sleep values; selecting a record and zooming worked. A physical Mirroring drag changed both viewport ranges, the right-arrow control changed the horizontal range, outer dashboard scrolling worked while zoomed, and Reset restored the full range. No dose, check-in, provider association or export file was modified during inspection. Actual pinch, VoiceOver and owner usefulness acceptance remain separate open gates. Installation and source checkpoints are retained in ignored local evidence.
+
+## Multiple morning night types — build 98, October 4
+
+The owner authorized proceeding with the chart-filter proposal. The single-choice
+night-type picker is replaced with a scrollable checklist. Select all, Clear all,
+individual checkmarks and an explicit empty-selection message support arbitrary
+combinations. Selected names remain visible after dismissal. Overview and Trends
+consume the same model selection; reviewed shifts keep their independent filter.
+Unknown or unusable morning reports are included only when Unsure / unknown is
+selected. Source records and values are unchanged; filtered views/export membership
+follow the selection.
+
+Implementation uses the clean build97 chart branch at `448b120`. Main and fetched
+origin/main both read `fac445c`; the preserved legacy checkout was not modified.
+The app version is 0.4.19 (98). Physical installation and owner acceptance of this
+new checklist remain open. Prior build97 phone evidence does not verify build98.
+
+Validation on iPhone 17 Pro simulator, iOS 26.5: 26 focused native tests
+(`ReportedNightContextTests`, `DashboardDosePatternAdapterTests`,
+`SleepIntervalChartTests`) passed, including all 64 category combinations and
+unknown-context/reviewed-shift independence. Three UI journeys passed: multiple
+selection at normal and accessibility XXXL text, plus the existing exact-context
+selection journey. Tests actually selected two types, removed one, cleared all,
+checked absence/presence of plotted categories and restored all. Device-panel
+screenshots confirmed the checklist's normal and largest-text rendered layouts.
+
+Commands used `xcodebuild test` with separate `DoseTap` and `DoseTapUITests`
+schemes, destination `21E15B3C-E6DD-4107-82B3-3AFF80BEB65C`, signing disabled
+and `/tmp/dosetap98-derived`. Logs: `/tmp/dosetap98-native.log` and
+`/tmp/dosetap98-ui.log`; xcresults are in that derived directory's `Logs/Test`.
+An initial invocation incorrectly combined UI tests with the app scheme and was
+rejected before running tests; separate schemes corrected the invocation.
+
+`swift build -q` and `swift test -q` passed: 1,191 XCTest tests and 43 Swift
+Testing tests. Plane workflow (15 tests / 80 assertions), SSOT, app version
+(all four configurations), architecture, documentation and whitespace guards
+passed. Physical build98 installation, owner usefulness, VoiceOver and all
+previous per-night/provider/privacy/iPad/release gates remain open.

@@ -214,7 +214,10 @@ final class DoseTapUITests: XCTestCase {
         for type in ["Into Work Block", "Out Of Work Block"] {
             let filter = app.buttons["dashboard-reported-night-filter"]
             revealDashboardElement(filter, title: "Reported night filter", scrollAtEdge: true)
-            XCTAssertTrue(filter.isHittable); filter.tap(); app.buttons[type].tap()
+            XCTAssertTrue(filter.isHittable); filter.tap()
+            app.buttons["dashboard-night-types-clear"].tap()
+            app.buttons[type].tap()
+            app.buttons["dashboard-night-types-done"].tap()
             let point = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@",
                 "dashboard-interval-point-", "Morning report: " + type)).firstMatch
             XCTAssertTrue(point.waitForExistence(timeout: 5))
@@ -223,6 +226,55 @@ final class DoseTapUITests: XCTestCase {
             revealDashboardText("Morning report: " + type, prefix: true)
             captureDashboard("Exact saved morning context: " + type)
         }
+    }
+
+    func testDashboardMorningMultiSelection() { morningMultiSelection(largeText: false) }
+    func testDashboardMorningMultiSelectionLargeText() { morningMultiSelection(largeText: true) }
+
+    private func morningMultiSelection(largeText: Bool) {
+        app.terminate()
+        app.launchArguments += ["--uitesting-timing", "--uitesting-replay", "--uitesting-reported-context",
+            "-selectedTheme", "Dark", "-automaticNightModeEnabled", "NO",
+            "-UIPreferredContentSizeCategoryName", largeText ? "UICTContentSizeCategoryAccessibilityXXXL" : "UICTContentSizeCategoryL"]
+        app.launch(); app.buttons["Dashboard"].tap()
+        XCTAssertTrue(app.staticTexts["Dose timing"].waitForExistence(timeout: 10))
+        app.buttons["dashboard-timing-mode"].tap(); app.buttons["Sleep vs spacing"].tap()
+        let filter = app.buttons["dashboard-reported-night-filter"]
+        func openFilter() {
+            revealDashboardElement(filter, title: "Night types", scrollAtEdge: true)
+            filter.tap()
+            XCTAssertTrue(app.buttons["dashboard-night-types-clear"].waitForExistence(timeout: 5))
+        }
+        func points(_ type: String) -> XCUIElementQuery {
+            app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@",
+                "dashboard-interval-point-", "Morning report: " + type))
+        }
+        openFilter(); app.buttons["dashboard-night-types-clear"].tap()
+        app.buttons["dashboard-night-types-done"].tap()
+        XCTAssertTrue(app.staticTexts["dashboard-night-types-empty"].exists)
+        XCTAssertEqual(points("Into Work Block").count, 0)
+        openFilter()
+        for id in ["transition_into_work_block", "transition_out_of_work_block"] {
+            let choice = app.buttons["dashboard-night-type-" + id]
+            if !choice.isHittable { app.swipeUp() }
+            choice.tap(); XCTAssertEqual(choice.value as? String, "Selected")
+        }
+        captureDashboard("Multiple morning night types selected")
+        app.buttons["dashboard-night-types-done"].tap()
+        XCTAssertTrue(points("Into Work Block").firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(points("Out Of Work Block").firstMatch.exists)
+        XCTAssertEqual(points("Work Night").count, 0)
+        openFilter()
+        app.buttons["dashboard-night-type-transition_into_work_block"].tap()
+        app.buttons["dashboard-night-types-done"].tap()
+        XCTAssertEqual(points("Into Work Block").count, 0)
+        XCTAssertTrue(points("Out Of Work Block").firstMatch.exists)
+        openFilter(); app.buttons["dashboard-night-types-all"].tap()
+        app.buttons["dashboard-night-types-done"].tap()
+        XCTAssertTrue(points("Into Work Block").firstMatch.exists)
+        XCTAssertTrue(points("Out Of Work Block").firstMatch.exists)
+        XCTAssertTrue(filter.label.contains("All night types"))
+        captureDashboard("All morning night types restored")
     }
 
     func testDashboardRecoveryOverview() { recoveryOverview(size: "UICTContentSizeCategoryL") }

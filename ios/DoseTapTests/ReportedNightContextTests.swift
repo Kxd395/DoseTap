@@ -74,10 +74,31 @@ extension DashboardDosePatternAdapterTests {
         XCTAssertEqual(first.x, 180); XCTAssertEqual(first.reportedNight?.type, .transitionIntoWorkBlock)
         XCTAssertEqual(first.reportedNight?.recordID, "morning-a"); XCTAssertEqual(first.workBeforeSleep, .unknown)
         XCTAssertTrue(first.csv.contains("transition_into_work_block")); XCTAssertTrue(first.csv.contains("morning-a"))
-        var presentation = DashboardReplayPresentation(); presentation.reportedNightFilter = .transitionIntoWorkBlock
+        var presentation = DashboardReplayPresentation(); presentation.reportedNightFilter = [.transitionIntoWorkBlock]
         XCTAssertTrue(first.matchesTimingContext(presentation))
-        presentation.reportedNightFilter = .transitionOutOfWorkBlock
+        presentation.reportedNightFilter = [.transitionOutOfWorkBlock]
         XCTAssertFalse(first.matchesTimingContext(presentation))
+        let categories = NightType.allCases
+        for mask in 0..<(1 << categories.count) {
+            presentation.reportedNightFilter = Set(categories.enumerated().compactMap {
+                mask & (1 << $0.offset) != 0 ? $0.element : nil
+            })
+            for type in categories {
+                var row = first
+                row.reportedNight = .init(type: type, firstOff: false, recordID: "test", reportedAt: now)
+                XCTAssertEqual(row.matchesTimingContext(presentation), presentation.reportedNightFilter.contains(type))
+            }
+            var unknown = first; unknown.reportedNight = nil
+            XCTAssertEqual(unknown.matchesTimingContext(presentation), presentation.reportedNightFilter.contains(.unsure))
+        }
+        presentation.reportedNightFilter = []
+        presentation.timingContextBasis = .reviewed
+        XCTAssertTrue(first.matchesTimingContext(presentation), "Morning selection must not affect reviewed shifts")
+        presentation.timingWorkFilter = DashboardWorkBeforeSleep.allCases.first { $0 != .unknown }
+        XCTAssertFalse(first.matchesTimingContext(presentation))
+        presentation.timingContextBasis = .reported
+        presentation.reportedNightFilter = [.transitionIntoWorkBlock, .transitionOutOfWorkBlock]
+        XCTAssertTrue(first.matchesTimingContext(presentation))
         save(.transitionOutOfWorkBlock)
         await dashboard.performRefresh(days: 30, includeProviders: false)
         let corrected = try comparison()

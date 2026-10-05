@@ -10,7 +10,7 @@ struct DashboardReplayPresentation {
     var intervalMode = "By date"
     var timingMode = "By date"
     var timingContextBasis = DashboardTimingContextBasis.reported
-    var reportedNightFilter: NightType?
+    var reportedNightFilter = Set(NightType.allCases)
     var timingWorkFilter: DashboardWorkBeforeSleep?
     var comparedOutcome: ReplayComparedOutcome = .mainSleep
     var selectedBinLower: Double?
