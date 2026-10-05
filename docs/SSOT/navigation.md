@@ -98,4 +98,12 @@ The physician-review screen opens a completed-visit history and explicit report-
 
 ### Optional daytime reminder
 
+The reminder page opens with saved status, last-check time and the next future
+verified queued attempt. The queue horizon and saved timezone remain explicit;
+displayed status times use the device timezone. Permission denial offers Open
+iOS Settings. Save is available in the toolbar as well as below the configuration.
+The draft waits for a valid load, remains separate from saved status and survives
+refresh without losing unsaved edits. Unreadable state disables edits and Save
+until a valid retry.
+
 Settings → Daytime reminder provides one explicit Save for the master opt-in, selected weekdays, anchor, saved timezone, quiet hours and independent off-day rule. Clock anchors use a chosen clock time; main-wake anchors use an elapsed-minute offset; work anchors require reviewed shift endpoints or a saved break. “Use current timezone” is an explicit action; travel does not silently replace the saved zone. Enabling requires at least one weekday. Pausing remains available with an empty draft selection and retains the previous valid day selection. Status shows scheduled-through and expandable reasons for unscheduled dates. History keeps original intended time, anchor label and actual assessment time separate. Notification taps open an unanswered current check-in with immutable schedule protocol identity and label.

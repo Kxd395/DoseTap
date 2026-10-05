@@ -30,6 +30,12 @@ Review check-ins opens the independent ledger. Reminder setup is reachable from
 both this card and the ledger, using the existing explicit Save reminder flow.
 Opening these routes does not enable a reminder or record medication.
 
+Daytime reminder opens with the saved scheduling status and last-check time.
+After successful notification readback it shows the next future queued attempt
+and the end of the verified queue. Permission denial links to iOS Settings.
+Reconciliation clears stale queue evidence before checking; a saved routine alone
+does not claim a notification is queued or delivered. Save is also in the toolbar.
+
 ## Physician review preparation (DOSETAP-59)
 
 The [physician review contract](contracts/physician-review.md) defines completed-visit anchors, explicit report bounds, immutable preview snapshots and unscored notes. It does not authorize automatic sharing or instrument scoring.

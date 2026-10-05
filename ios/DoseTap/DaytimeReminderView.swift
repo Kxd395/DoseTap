@@ -2,8 +2,10 @@ import SwiftUI
 import DoseCore
 
 struct DaytimeReminderView: View {
+    @Environment(\.openURL) private var openURL
     @ObservedObject private var service = DaytimePromptService.shared
     @State private var enabled = false
+    @State private var draftLoaded = false
     @State private var time = Date()
     @State private var quietStart = Date()
     @State private var quietEnd = Date()
@@ -15,6 +17,48 @@ struct DaytimeReminderView: View {
     @State private var timeZoneID = TimeZone.current.identifier
     var body: some View {
         Form {
+            Section("Saved reminder status") {
+                if service.isBusy {
+                    ProgressView("Checking reminder status…")
+                } else {
+                    Text(service.status).accessibilityIdentifier("daytime-reminder-status")
+                    if service.scheduledThrough != nil {
+                        TimelineView(.periodic(from: .now, by: 60)) { _ in
+                            if let next = service.nextReminderAt {
+                                Text("Next queued reminder: \(next.formatted(date: .abbreviated, time: .shortened))")
+                                    .accessibilityIdentifier("daytime-next-reminder")
+                            } else {
+                                Text("Previously queued times have passed. Refresh status to check upcoming reminders.")
+                            }
+                        }
+                    }
+                    if let through = service.scheduledThrough {
+                        Text("Queue verified through: \(through.formatted(date: .abbreviated, time: .shortened))")
+                            .font(.caption)
+                    }
+                    if let checked = service.lastCheckedAt {
+                        Text("Last checked: \(checked.formatted(date: .abbreviated, time: .shortened))")
+                            .font(.caption)
+                            .accessibilityIdentifier("daytime-reminder-last-checked")
+                    }
+                    if service.notificationPermission == .denied {
+                        Button("Open iOS Settings") {
+                            if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                        }
+                    }
+                }
+                Button("Retry / refresh status") { Task { await service.reconcile() } }.disabled(service.isBusy)
+                if !service.anchorAvailability.isEmpty {
+                    DisclosureGroup("Unscheduled dates") {
+                        ForEach(service.anchorAvailability, id: \.self) { Text($0).font(.caption) }
+                    }
+                }
+                if let schedule = service.ledger.current { Text("Saved timezone: \(schedule.timeZone)").font(.caption) }
+                Text("Status times use this device's timezone: \(TimeZone.current.identifier).")
+                    .font(.caption)
+                Text("Status reflects your saved routine. Changes below take effect only after Save.")
+                    .font(.caption)
+            }
             Section("Optional routine reminder") {
                 Toggle("Enable daytime reminder", isOn: $enabled)
                 Picker("Reminder anchor", selection: $anchor) {
@@ -45,18 +89,12 @@ struct DaytimeReminderView: View {
                 Button("Use current timezone") { timeZoneID = TimeZone.current.identifier }
                 Button("Save reminder") { Task { await save() } }.disabled(service.isBusy || (enabled && weekdays.isEmpty))
             }
-            Section("Status") {
-                Text(service.status)
-                if !service.anchorAvailability.isEmpty {
-                    DisclosureGroup("Unscheduled dates") {
-                        ForEach(service.anchorAvailability, id: \.self) { Text($0).font(.caption) }
-                    }
-                }
-                if let schedule = service.ledger.current { Text("Saved timezone: \(schedule.timeZone)").font(.caption) }
-                Button("Retry / refresh status") { Task { await service.reconcile() } }.disabled(service.isBusy)
-                if let through = service.scheduledThrough { Text("Scheduled through: \(through.formatted())") }
-                Text("Up to seven reminders within the next seven civil days are queued. Open DoseTap regularly to renew this window. Wake anchors require a recorded final wake in your night outcome; ending a session does not provide it. Missing or ambiguous anchors stay unscheduled. Routine notifications respect iOS Focus and have no sound or health details. Known sleep or naps pause queued reminders until wake is recorded. No delivery time is inferred.")
+            .disabled(!draftLoaded || !service.hasLoadedLedger || service.isBusy)
+            Section {
+                DisclosureGroup("How reminders work") {
+                Text("DoseTap can queue up to seven reminders within the next seven civil days. Open DoseTap regularly to renew this window. Wake anchors require a recorded final wake in your night outcome; ending a session does not provide it. Missing or ambiguous anchors stay unscheduled. Routine notifications respect iOS Focus and have no sound or health details. Known sleep or naps pause queued reminders until wake is recorded. No delivery time is inferred.")
                     .font(.caption)
+                }
             }
             Section("Prompt history") {
                 ForEach(service.ledger.prompts.reversed()) { prompt in
@@ -81,18 +119,32 @@ struct DaytimeReminderView: View {
             }
         }
         .navigationTitle("Daytime reminder")
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Save") { Task { await save() } }
+                    .disabled(!draftLoaded || !service.hasLoadedLedger || service.isBusy || (enabled && weekdays.isEmpty))
+                    .accessibilityIdentifier("daytime-reminder-save-top")
+            }
+        }
         .task {
             await service.reconcile()
-            enabled = service.ledger.enabled
-            let rule = service.ledger.current?.rule
-            anchor = rule?.anchor ?? .clock; weekdays = Set(rule?.selectedWeekdays ?? Array(1...7))
-            wakeOffset = rule?.wakeOffsetMinutes ?? 240; offDayAnchor = rule?.offDayAnchor ?? .clock
-            offDayTime = clock(hour: rule?.offDayHour ?? 14, minute: rule?.offDayMinute ?? 0)
-            timeZoneID = service.ledger.current?.timeZone ?? TimeZone.current.identifier
-            time = clock(hour: service.ledger.current?.hour ?? 14, minute: service.ledger.current?.minute ?? 0)
-            quietStart = clock(hour: service.ledger.quietStart / 60, minute: service.ledger.quietStart % 60)
-            quietEnd = clock(hour: service.ledger.quietEnd / 60, minute: service.ledger.quietEnd % 60)
+            loadDraftIfReady()
         }
+        .onChange(of: service.isBusy) { _ in loadDraftIfReady() }
+        .onChange(of: service.lastCheckedAt) { _ in loadDraftIfReady() }
+    }
+    private func loadDraftIfReady() {
+        guard !draftLoaded, !service.isBusy, service.hasLoadedLedger else { return }
+        enabled = service.ledger.enabled
+        let rule = service.ledger.current?.rule
+        anchor = rule?.anchor ?? .clock; weekdays = Set(rule?.selectedWeekdays ?? Array(1...7))
+        wakeOffset = rule?.wakeOffsetMinutes ?? 240; offDayAnchor = rule?.offDayAnchor ?? .clock
+        offDayTime = clock(hour: rule?.offDayHour ?? 14, minute: rule?.offDayMinute ?? 0)
+        timeZoneID = service.ledger.current?.timeZone ?? TimeZone.current.identifier
+        time = clock(hour: service.ledger.current?.hour ?? 14, minute: service.ledger.current?.minute ?? 0)
+        quietStart = clock(hour: service.ledger.quietStart / 60, minute: service.ledger.quietStart % 60)
+        quietEnd = clock(hour: service.ledger.quietEnd / 60, minute: service.ledger.quietEnd % 60)
+        draftLoaded = true
     }
     private func clock(hour: Int, minute: Int) -> Date {
         Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: Date()) ?? Date()

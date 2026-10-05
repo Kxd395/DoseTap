@@ -1,5 +1,24 @@
 # Optional daytime routine prompt (DOSETAP-58)
 
+## Visible queue status
+
+The reminder screen presents saved status before editable configuration. A queue
+snapshot is published only after OS request identity/time readback and the final
+ledger write succeed. It records verification time and sorted attempt times;
+the next reminder is the earliest future attempt in that snapshot, not the first
+ledger row or the saved routine's nominal clock time. Past attempts are never
+presented as upcoming. Refresh, pause, denied permission, active sleep, capacity
+limits and failures clear the previous snapshot. Queue verification is not proof
+of notification delivery. The last-check time includes unsuccessful attempts.
+Permission denial provides a direct iOS Settings action; it does not enable
+notifications or alter the saved schedule. Status and Save remain accessible
+without scrolling through all weekday controls.
+
+The settings draft initializes once, after a valid ledger load and completion of
+any in-progress reconciliation. Loading or unreadable state disables edits and
+Save. A successful retry enables the retained draft; refresh never overwrites
+unsaved edits. Saved status remains separate from those edits.
+
 One optional user-selected routine reminder is off by default. Its anchor and selected days are explicitly configured. Store immutable schedule versions and prompt IDs, intended time, opened time, actual assessment time, response identity, and explicit pending/deferred/suppressed/skipped/expired/responded state. A schedule change cancels outstanding prompts; it never rewrites old intended times. Retry uses the same prompt/request identity. Nonresponse is unknown, never a symptom or sleep score.
 
 Use a routine passive notification with generic DoseTap wording, no sound, no health value, and no bypass of Focus. Skip and Later are explicit actions. Suppress while a known main sleep or nap is active, within user-configured quiet hours, or without permission. Up to seven daily occurrences are queued using stable schedule/date identities; foreground reconciliation replenishes the horizon. Settings shows the last scheduled time and explains the renewal boundary. Known active sleep cancels queued requests, keeps past unanswered delivery unknown, and retains future pending slots for wake reconciliation. This bounded schedule does not promise indefinite background scheduling. Delivery time is not claimed. A delayed response assesses the current moment, never the intended prompt time.

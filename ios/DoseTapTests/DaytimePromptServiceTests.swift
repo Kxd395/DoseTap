@@ -11,6 +11,63 @@ final class DaytimePromptServiceTests: XCTestCase {
     func enable(_ service: DaytimePromptService) async -> Bool {
         await service.change { try $0.configure(hour: 14, minute: 0, timeZone: "UTC", enabled: true, at: now) }
     }
+    func testVerifiedQueueReportsNextFutureAttemptAndClearsOnPause() async throws {
+        let repo = SessionRepository(storage: .inMemory()), client = Client()
+        var clock = now
+        let service = DaytimePromptService(repository: repo, client: client, now: { clock })
+        XCTAssertNil(service.nextReminderAt)
+        XCTAssertNil(service.lastCheckedAt)
+        let enabled = await enable(service)
+        XCTAssertTrue(enabled)
+        let dates = service.ledger.prompts.map(\.nextAttemptAt).sorted()
+        XCTAssertEqual(service.nextReminderAt, dates.first)
+        XCTAssertEqual(service.scheduledThrough, dates.last)
+        XCTAssertEqual(service.lastCheckedAt, clock)
+        clock = try XCTUnwrap(dates.first)
+        XCTAssertEqual(service.nextReminderAt, dates[1])
+        let paused = await service.change { $0.enabled = false }
+        XCTAssertTrue(paused)
+        XCTAssertNil(service.nextReminderAt)
+        XCTAssertNil(service.scheduledThrough)
+        XCTAssertEqual(service.lastCheckedAt, clock)
+    }
+    func testUnreadableRoutineBlocksConfigurationUntilSuccessfulRetry() async throws {
+        let storage = EventStorage.inMemory(), repo = SessionRepository(storage: storage), client = Client()
+        let service = DaytimePromptService(repository: repo, client: client, now: { self.now })
+        XCTAssertFalse(service.hasLoadedLedger)
+        _ = await enable(service)
+        XCTAssertTrue(service.hasLoadedLedger)
+        let saved = try repo.daytimePrompts()
+        XCTAssertEqual(sqlite3_exec(storage.db, "UPDATE daytime_prompt_state SET payload = 'invalid' WHERE id = 1", nil, nil, nil), SQLITE_OK)
+        await service.reconcile()
+        XCTAssertFalse(service.hasLoadedLedger)
+        XCTAssertNil(service.nextReminderAt)
+        XCTAssertTrue(service.status.contains("failed"))
+        try repo.saveDaytimePrompts(saved)
+        await service.reconcile()
+        XCTAssertTrue(service.hasLoadedLedger)
+        XCTAssertEqual(service.ledger.current, saved.current)
+        XCTAssertNotNil(service.nextReminderAt)
+    }
+    func testDeniedPermissionAndFailedRefreshClearVerifiedQueue() async throws {
+        let repo = SessionRepository(storage: .inMemory()), client = Client()
+        let service = DaytimePromptService(repository: repo, client: client, now: { self.now })
+        _ = await enable(service)
+        XCTAssertNotNil(service.nextReminderAt)
+        client.authorization = .denied
+        await service.reconcile()
+        XCTAssertEqual(service.notificationPermission, .denied)
+        XCTAssertNil(service.nextReminderAt)
+        XCTAssertNil(service.scheduledThrough)
+        client.authorization = .authorized
+        await service.reconcile()
+        XCTAssertNotNil(service.nextReminderAt)
+        client.dropsAdds = true
+        await service.reconcile()
+        XCTAssertNil(service.nextReminderAt)
+        XCTAssertNil(service.scheduledThrough)
+        XCTAssertTrue(service.status.contains("failed"))
+    }
     func testSevenDayRetryPreservesDoseRequestsAndNoSensitiveContent() async throws {
         let repo = SessionRepository(storage: .inMemory()), client = Client()
         client.requests["dosetap_dose2_alarm"] = UNNotificationRequest(identifier: "dosetap_dose2_alarm", content: UNMutableNotificationContent(), trigger: nil)
@@ -28,6 +85,22 @@ final class DaytimePromptServiceTests: XCTestCase {
             XCTAssertEqual(request.content.userInfo.count, 1)
             XCTAssertNotNil(request.content.userInfo["prompt_id"])
         }
+    }
+    func testFullQueueClearsOldVerificationAndPreservesOtherOwners() async throws {
+        let repo = SessionRepository(storage: .inMemory()), client = Client()
+        let service = DaytimePromptService(repository: repo, client: client, now: { self.now })
+        _ = await enable(service)
+        XCTAssertNotNil(service.nextReminderAt)
+        for index in 0..<64 {
+            let id = "other-owner-\(index)"
+            client.requests[id] = UNNotificationRequest(identifier: id, content: UNMutableNotificationContent(), trigger: nil)
+        }
+        await service.reconcile()
+        XCTAssertNil(service.nextReminderAt)
+        XCTAssertNil(service.scheduledThrough)
+        XCTAssertTrue(service.status.contains("queue is full"))
+        XCTAssertEqual(client.requests.count, 64)
+        XCTAssertFalse(client.requests.keys.contains(where: DaytimePromptService.owns))
     }
     func testPermissionDenialQuietHoursAndSleepSuppressWithoutAssessment() async throws {
         let repo = SessionRepository(storage: .inMemory()), client = Client()
@@ -48,6 +121,8 @@ final class DaytimePromptServiceTests: XCTestCase {
         }
         XCTAssertTrue(client.requests.isEmpty)
         XCTAssertTrue(service.status.contains("sleep"))
+        XCTAssertNil(service.nextReminderAt)
+        XCTAssertNil(service.scheduledThrough)
     }
     func testSilentDropAndWriteFailureDoNotClaimScheduledSuccess() async throws {
         let storage = EventStorage.inMemory(), repo = SessionRepository(storage: storage), client = Client()
@@ -85,6 +160,7 @@ final class DaytimePromptServiceTests: XCTestCase {
         client.ignoresRemovals = true
         let paused = await service.change { $0.enabled = false }
         XCTAssertFalse(paused); XCTAssertNil(service.scheduledThrough)
+        XCTAssertNil(service.nextReminderAt)
         XCTAssertEqual(client.requests.count, 7)
         let before = try repo.daytimePrompts()
         await service.handle(promptID: UUID(), action: UNNotificationDismissActionIdentifier)
@@ -160,6 +236,7 @@ final class DaytimePromptServiceTests: XCTestCase {
                                 rule: DaytimePromptRule(anchor: .mainWake))
         }
         XCTAssertTrue(saved); XCTAssertTrue(client.requests.isEmpty)
+        XCTAssertNil(service.nextReminderAt)
         XCTAssertTrue(service.ledger.prompts.isEmpty)
         XCTAssertTrue(service.anchorAvailability.contains { $0.contains("main-wake observation unavailable") })
     }

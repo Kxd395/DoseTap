@@ -18,7 +18,12 @@ final class DaytimePromptService: ObservableObject {
     @Published private(set) var ledger = DaytimePromptLedger()
     @Published private(set) var status = "Not checked"
     @Published private(set) var isBusy = false
-    @Published private(set) var scheduledThrough: Date?
+    @Published private var verifiedAttempts: [Date] = []
+    @Published private(set) var lastCheckedAt: Date?
+    @Published private(set) var notificationPermission: UNAuthorizationStatus?
+    @Published private(set) var hasLoadedLedger = false
+    var scheduledThrough: Date? { verifiedAttempts.last }
+    var nextReminderAt: Date? { verifiedAttempts.first { $0 > now() } }
     @Published private(set) var anchorAvailability: [String] = []
     @Published var promptToOpen: DaytimePrompt?
     private let repository: SessionRepository
@@ -53,8 +58,11 @@ final class DaytimePromptService: ObservableObject {
     func reconcile() async { _ = await change { _ in } }
     @discardableResult func change(requestPermission: Bool = false, _ mutation: (inout DaytimePromptLedger) throws -> Void) async -> Bool {
         guard !isBusy else { again = true; return false }
-        isBusy = true; anchorAvailability = []
+        isBusy = true; anchorAvailability = []; verifiedAttempts = []
+        notificationPermission = nil
+        hasLoadedLedger = false
         defer {
+            lastCheckedAt = now()
             isBusy = false
             if !actions.isEmpty {
                 let next = actions.removeFirst(); Task { await handle(promptID: next.0, action: next.1); next.2.resume() }
@@ -62,6 +70,7 @@ final class DaytimePromptService: ObservableObject {
         }
         do {
             var value = try repository.daytimePrompts()
+            ledger = value; hasLoadedLedger = true
             try mutation(&value)
             // Recover a response committed before a crash or a failed prompt-status write.
             for assessment in try repository.daytimeCheckIns().revisions where assessment.predecessorID == nil {
@@ -76,6 +85,7 @@ final class DaytimePromptService: ObservableObject {
                 _ = try await client.requestAuthorization(options: [.alert])
                 permission = await client.authorizationStatus()
             }
+            notificationPermission = permission
             guard try repository.daytimePrompts().encodedPayload() == value.encodedPayload() else { throw DaytimeDiaryError.conflict }
             guard value.enabled else {
                 if let delivered = await client.deliveredIdentifiers() { client.removeDeliveredNotifications(withIdentifiers: delivered.filter { Self.owns($0) }) }
@@ -152,15 +162,18 @@ final class DaytimePromptService: ObservableObject {
                 value.suppressDue(at: now(), reason: "Known sleep or nap active")
                 status = "Queued reminders paused during known sleep or nap."
             } else {
-                scheduledThrough = eligible.last?.nextAttemptAt
                 status = eligible.isEmpty ? "No reminders queued. Review available anchors, selected days and quiet hours." : "Routine reminders queued for up to seven days. Delivery is controlled by iOS."
             }
             try repository.saveDaytimePrompts(value); ledger = value
+            if !repository.daytimePromptSleepActive {
+                verifiedAttempts = eligible.map(\.nextAttemptAt).sorted()
+            }
             return true
         } catch {
             try? await cancelOwnedRequests()
+            hasLoadedLedger = false
             if let current = try? repository.daytimePrompts() {
-                ledger = current
+                ledger = current; hasLoadedLedger = true
                 if !current.prompts.contains(where: { $0.id == promptToOpen?.id }) { promptToOpen = nil }
             }
             status = "Reminder update failed. Existing records are retained; retry when ready."
@@ -171,7 +184,7 @@ final class DaytimePromptService: ObservableObject {
     private func cancelOwnedRequests() async throws {
         let requests = await client.pendingRequests()
         client.removePendingRequests(withIdentifiers: requests.map(\.identifier).filter { Self.owns($0) })
-        scheduledThrough = nil
+        verifiedAttempts = []
         guard await client.pendingRequests().allSatisfy({ !Self.owns($0.identifier) }) else { throw DaytimeDiaryError.notCommitted }
     }
     nonisolated static func owns(_ identifier: String) -> Bool {
