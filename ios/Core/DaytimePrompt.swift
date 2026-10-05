@@ -202,8 +202,24 @@ public struct DaytimePromptLedger: Codable, Equatable, Sendable {
                     anchor: anchor, anchorDayKey: key, windowIndex: index, windowStart: lower, windowEnd: upper))
             }
         }
+        reconcileRandomizedSpacing(scheduleID: schedule.id, at: now)
         return Array(prompts.filter { $0.scheduleID == schedule.id && $0.isOutstanding && $0.nextAttemptAt > now }
             .sorted { $0.nextAttemptAt < $1.nextAttemptAt }.prefix(7))
+    }
+    private mutating func reconcileRandomizedSpacing(scheduleID: UUID, at now: Date) {
+        // Read old plans without redrawing them. Preserve all potentially delivered history.
+        var last = prompts.filter { $0.scheduleID == scheduleID && $0.windowIndex != nil && $0.nextAttemptAt <= now }
+            .map(\.nextAttemptAt).max()
+        let future = prompts.indices.filter { prompts[$0].scheduleID == scheduleID && prompts[$0].windowIndex != nil &&
+            prompts[$0].isOutstanding && prompts[$0].nextAttemptAt > now }.sorted {
+                let left = prompts[$0], right = prompts[$1]
+                return left.nextAttemptAt == right.nextAttemptAt ? left.id.uuidString < right.id.uuidString : left.nextAttemptAt < right.nextAttemptAt
+            }
+        for index in future {
+            if let prior = last, prompts[index].nextAttemptAt.timeIntervalSince(prior) < 7200 {
+                prompts[index].status = .suppressed; prompts[index].reason = "Spacing conflict; review the routine"
+            } else { last = prompts[index].nextAttemptAt }
+        }
     }
     public mutating func satisfyRandomizedWindow(assessmentID: UUID, assessedAt: Date, recordedAt: Date) throws {
         guard let index = prompts.firstIndex(where: { $0.scheduleID == current?.id && ($0.isOutstanding || $0.environmentalSuppression != nil) &&

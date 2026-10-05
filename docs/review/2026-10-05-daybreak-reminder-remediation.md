@@ -42,7 +42,7 @@ captured by compiling DaytimePrompt.swift from c5446a5 with the fixed schedule s
 It contains windows 1 and 2 only. Decode, reconciliation and repeated encode/decode
 preserve both occurrences byte-semantically without backfilling window 0.
 
-Final automated checks:
+First increment automated checks:
 
 - swift build -q: passed; /tmp/dosetap103-core-build-final.log.
 - swift test -q: 1,202 XCTest and 43 Swift Testing cases passed, zero failures;
@@ -65,9 +65,36 @@ The independent second Daybreak Blue review confirmed the original repairs but
 found two medium follow-up defects: retained pre-fix cross-day collisions still queue,
 and committed Later/Open actions can be misreported as rejected when OS reconciliation
 fails. It also identified contradictory known-sleep recovery text in the contract.
-These findings require the next bounded remediation increment before installation.
-The terminal review belongs to task dosetap-build103-daybreak-remediation-round2.
-No independent acceptance or installation is claimed by this checkpoint.
+The follow-up increment reproduces and repairs all three findings. Its core fixture
+came from actual c5446a5 code and contains six saved prompts, including a 10:58/11:14
+collision. Chronological reconciliation suppresses the later conflicting future
+attempt with an explicit review reason; original times/identities and past statuses
+remain intact. Typed action results distinguish rejection from committed actions
+with unverified scheduling. Saved Later shows scheduling-failure/retry guidance;
+saved Open still navigates after independently reading the original prompt back.
+The known-sleep contract now explicitly describes suppression and future recovery.
+
+Follow-up red evidence: one core test produced three assertion failures, and two iOS
+service tests produced five assertion failures. Logs:
+/tmp/dosetap103-followup-core-red.log and
+/tmp/dosetap103-followup-service-red.log. The second core boundary was tightened from
+12:00:01 to 10:58:01 so it explicitly verifies a past attempt constraining the next
+future conflicting occurrence while preserving past records.
+
+Follow-up validation: swift build -q passed; both default and UTC full suites passed
+1,203 XCTest plus 43 Swift Testing cases, zero failures. The iOS service/storage run
+passed 51 tests, zero failures. Evidence: /tmp/dosetap103-followup-core.log,
+/tmp/dosetap103-followup-core-utc.log and
+/tmp/dosetap103-followup-service.xcresult. Normal (15.370 seconds) and largest-text
+(44.732 seconds) reminder journeys also passed on the final source:
+/tmp/dosetap103-followup-ui.xcresult. The signed device rebuild passed and strict
+codesign verification succeeded; /tmp/dosetap103-followup-device.log.
+
+A third independent review was delegated with the original brief, full round-two
+findings and these responses: dosetap-build103-daybreak-remediation-round3.
+Its terminal result and final device/UI evidence belong in the DOSETAP-58 workpad.
+Delegation alone does not establish a passing review. Installation is held until
+that assessment returns; phone inventory still independently shows build 102.
 
 ## Open acceptance
 

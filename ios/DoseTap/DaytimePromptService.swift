@@ -55,17 +55,23 @@ final class DaytimePromptService: ObservableObject {
         let fixedTime = prompt.anchor == nil || prompt.anchor?.kind == .clock ? " \(clock)" : ""
         return "\(prompt.anchor?.label ?? "Clock time")\(fixedTime) · \(days) · \(schedule.timeZone)"
     }
+    private enum ActionOutcome { case rejected, notCommitted, committedQueueVerified, committedQueueUnverified }
+    private typealias UpdateResult = (success: Bool, retry: Bool, outcome: ActionOutcome)
     func reconcile() async { _ = await change { _ in } }
     @discardableResult func change(requestPermission: Bool = false, _ mutation: (inout DaytimePromptLedger) throws -> Void) async -> Bool {
+        await performChange(requestPermission: requestPermission, mutation).success
+    }
+    private func performChange(requestPermission: Bool = false, _ mutation: (inout DaytimePromptLedger) throws -> Void) async -> UpdateResult {
         let result = await update(requestPermission: requestPermission, mutation)
         if result.retry {
             // One fresh read/reconciliation after partial OS work; never retry a rejected action.
-            return await update(requestPermission: false, { _ in }).success
+            let recovery = await update(requestPermission: false, { _ in })
+            return (recovery.success, false, recovery.success ? .committedQueueVerified : .committedQueueUnverified)
         }
-        return result.success
+        return result
     }
-    private func update(requestPermission: Bool, _ mutation: (inout DaytimePromptLedger) throws -> Void) async -> (success: Bool, retry: Bool) {
-        guard !isBusy else { again = true; return (false, false) }
+    private func update(requestPermission: Bool, _ mutation: (inout DaytimePromptLedger) throws -> Void) async -> UpdateResult {
+        guard !isBusy else { again = true; return (false, false, .notCommitted) }
         isBusy = true
         var osWorkStarted = false
         let sampledAt = now()
@@ -82,7 +88,7 @@ final class DaytimePromptService: ObservableObject {
             do { try mutation(&value); try value.validate() }
             catch {
                 status = "This reminder action is no longer available. Existing reminders were retained."
-                return (false, false)
+                return (false, false, .rejected)
             }
             anchorAvailability = []
             // Recover a response committed before a crash or a failed prompt-status write.
@@ -112,18 +118,18 @@ final class DaytimePromptService: ObservableObject {
             guard try repository.daytimePrompts().encodedPayload() == value.encodedPayload() else { throw DaytimeDiaryError.conflict }
             guard value.enabled else {
                 if let delivered = await client.deliveredIdentifiers() { client.removeDeliveredNotifications(withIdentifiers: delivered.filter { Self.owns($0) }) }
-                promptToOpen = nil; status = "Reminders paused"; return (true, false)
+                promptToOpen = nil; status = "Reminders paused"; return (true, false, .committedQueueVerified)
             }
             guard permission == .authorized || permission == .provisional || permission == .ephemeral else {
                 value.suppress(reason: "Notification permission unavailable", at: now())
                 try repository.saveDaytimePrompts(value); ledger = value
-                status = "Enable notifications in iOS Settings to receive reminders."; return (true, false)
+                status = "Enable notifications in iOS Settings to receive reminders."; return (true, false, .committedQueueVerified)
             }
             guard !repository.daytimePromptSleepActive else {
                 value.suppressDue(at: sampledAt, reason: "Known sleep or nap active")
                 value.suppress(reason: DaytimePrompt.EnvironmentalSuppression.knownSleep.rawValue, at: sampledAt)
                 try repository.saveDaytimePrompts(value); ledger = value
-                status = "Suppressed during known sleep or nap. Rechecked when the app records wake or nap end."; return (true, false)
+                status = "Suppressed during known sleep or nap. Rechecked when the app records wake or nap end."; return (true, false, .committedQueueVerified)
             }
             guard let schedule = value.current, let zone = TimeZone(identifier: schedule.timeZone) else { throw DaytimeDiaryError.invalid }
             var calendar = Calendar(identifier: .gregorian); calendar.timeZone = zone
@@ -156,7 +162,7 @@ final class DaytimePromptService: ObservableObject {
             let existing = await client.pendingRequests()
             guard existing.count + eligible.count <= 64 else {
                 status = "Reminder queue is full. Existing dose reminders were preserved; retry after pending reminders clear."
-                return (true, false)
+                return (true, false, .committedQueueVerified)
             }
             guard try repository.daytimePrompts().encodedPayload() == value.encodedPayload(),
                   try contextProvider(schedule, value, now()) == contexts else { throw DaytimeDiaryError.conflict }
@@ -195,7 +201,7 @@ final class DaytimePromptService: ObservableObject {
             if !repository.daytimePromptSleepActive {
                 verifiedAttempts = eligible.map(\.nextAttemptAt).sorted()
             }
-            return (true, false)
+            return (true, false, .committedQueueVerified)
         } catch {
             if osWorkStarted { try? await cancelOwnedRequests() }
             else if (try? repository.daytimePrompts()) == nil {
@@ -209,7 +215,7 @@ final class DaytimePromptService: ObservableObject {
             status = "Reminder update failed. Existing records are retained; retry when ready."
             log.error("Daytime reminder update failed")
             let failure = error as? DaytimeDiaryError
-            return (false, osWorkStarted && failure != .conflict && failure != .invalid && failure != .unreadable)
+            return (false, osWorkStarted && failure != .conflict && failure != .invalid && failure != .unreadable, osWorkStarted ? .committedQueueUnverified : .notCommitted)
         }
     }
     private func cancelOwnedRequests() async throws {
@@ -226,16 +232,22 @@ final class DaytimePromptService: ObservableObject {
         if isBusy { await withCheckedContinuation { actions.append((promptID, action, $0)) }; return }
         let actionAt = now()
         let laterAt = Date(timeIntervalSince1970: ceil(actionAt.timeIntervalSince1970 + 1800))
-        let changed = await change { value in
+        let result = await performChange { value in
             if action == "daytime_skip" { try value.skip(id: promptID) }
             else if action == "daytime_later" { try value.deferPrompt(id: promptID, until: laterAt, now: actionAt) }
             else { try value.open(id: promptID, at: actionAt) }
         }
-        if !changed && action == "daytime_later" {
+        if result.outcome == .rejected && action == "daytime_later" {
             status = "This check-in cannot be postponed within its window. Check in now or skip it."
         }
-        if changed && action != "daytime_skip" && action != "daytime_later" {
-            promptToOpen = ledger.prompts.first { $0.id == promptID }
+        let saved = (try? repository.daytimePrompts())?.prompts.first { $0.id == promptID }
+        if result.outcome == .committedQueueUnverified && action == "daytime_later",
+           saved?.status == .deferred, saved?.nextAttemptAt == DaytimePromptLedger.canonicalDate(laterAt) {
+            status = "Check-in postponed, but reminder scheduling could not be verified. Retry / refresh status when ready."
+        }
+        if [.committedQueueVerified, .committedQueueUnverified].contains(result.outcome),
+           action != "daytime_skip" && action != "daytime_later", saved?.openedAt != nil {
+            promptToOpen = saved
         }
     }
     func markResponded(_ assessment: DaytimeCheckIn) async {

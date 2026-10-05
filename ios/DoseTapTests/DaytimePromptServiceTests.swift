@@ -423,4 +423,48 @@ final class DaytimePromptServiceTests: XCTestCase {
         XCTAssertTrue(service.status.contains("failed"))
     }
 
+    func testCommittedLaterAndOpenRemainAcceptedWhenOSVerificationFails() async throws {
+        for action in ["daytime_later", "open"] {
+            var clock = now
+            let repo = SessionRepository(storage: .inMemory()), client = Client()
+            let service = DaytimePromptService(repository: repo, client: client, now: { clock })
+            _ = await enable(service)
+            let slot = try XCTUnwrap(service.ledger.prompts.first)
+            clock = slot.intendedAt
+            client.dropsAdds = true
+            await service.handle(promptID: slot.id, action: action)
+            let saved = try XCTUnwrap(repo.daytimePrompts().prompts.first { $0.id == slot.id })
+            XCTAssertTrue(service.status.contains("retry") || service.status.contains("Retry"))
+            XCTAssertFalse(service.status.contains("cannot be postponed"))
+            XCTAssertNil(service.nextReminderAt)
+            XCTAssertTrue(client.requests.isEmpty)
+            if action == "daytime_later" {
+                XCTAssertEqual(saved.status, .deferred)
+                XCTAssertEqual(saved.nextAttemptAt, clock.addingTimeInterval(1800))
+            } else {
+                XCTAssertEqual(saved.openedAt, DaytimePromptLedger.canonicalDate(clock))
+                XCTAssertEqual(service.promptToOpen?.id, slot.id)
+            }
+        }
+    }
+    func testRetainedCrossDayCollisionNeverQueuesBothRequests() async throws {
+        let payload = #"{"enabled":true,"prompts":[{"anchor":{"intendedAt":"2035-10-05T02:17:00.000Z","kind":"mainWake","label":"Workday check-in 1 · after main wake","sourceAt":"2035-10-04T23:00:00.000Z","sourceID":"2035-10-04T23:00:00Z","sourceRevision":"r1","workRevision":"w1","workSourceID":"work-A","working":true},"anchorDayKey":"2035-10-04","id":"00000000-0000-0000-0000-295B83AB8D1B","intendedAt":"2035-10-05T02:17:00.000Z","nextAttemptAt":"2035-10-05T02:17:00.000Z","scheduleID":"00000000-0000-0000-0000-000000000001","status":"pending","windowEnd":"2035-10-05T03:00:00.000Z","windowIndex":0,"windowStart":"2035-10-05T01:00:00.000Z"},{"anchor":{"intendedAt":"2035-10-05T07:17:00.000Z","kind":"mainWake","label":"Workday check-in 2 · after main wake","sourceAt":"2035-10-04T23:00:00.000Z","sourceID":"2035-10-04T23:00:00Z","sourceRevision":"r1","workRevision":"w1","workSourceID":"work-A","working":true},"anchorDayKey":"2035-10-04","id":"00000000-0000-0000-0000-285B83AB8B68","intendedAt":"2035-10-05T07:17:00.000Z","nextAttemptAt":"2035-10-05T07:17:00.000Z","scheduleID":"00000000-0000-0000-0000-000000000001","status":"pending","windowEnd":"2035-10-05T08:00:00.000Z","windowIndex":1,"windowStart":"2035-10-05T05:00:00.000Z"},{"anchor":{"intendedAt":"2035-10-05T10:58:00.000Z","kind":"mainWake","label":"Workday check-in 3 · after main wake","sourceAt":"2035-10-04T23:00:00.000Z","sourceID":"2035-10-04T23:00:00Z","sourceRevision":"r1","workRevision":"w1","workSourceID":"work-A","working":true},"anchorDayKey":"2035-10-04","id":"00000000-0000-0000-0000-2B5B83AB9081","intendedAt":"2035-10-05T10:58:00.000Z","nextAttemptAt":"2035-10-05T10:58:00.000Z","scheduleID":"00000000-0000-0000-0000-000000000001","status":"pending","windowEnd":"2035-10-05T12:00:00.000Z","windowIndex":2,"windowStart":"2035-10-05T10:00:00.000Z"},{"anchor":{"intendedAt":"2035-10-05T11:14:00.000Z","kind":"mainWake","label":"Workday check-in 1 · after main wake","sourceAt":"2035-10-05T09:00:00.000Z","sourceID":"2035-10-05T09:00:00Z","sourceRevision":"r1","workRevision":"w1","workSourceID":"work-A","working":true},"anchorDayKey":"2035-10-05","id":"00000000-0000-0000-0000-405B888238D0","intendedAt":"2035-10-05T11:14:00.000Z","nextAttemptAt":"2035-10-05T11:14:00.000Z","scheduleID":"00000000-0000-0000-0000-000000000001","status":"pending","windowEnd":"2035-10-05T13:00:00.000Z","windowIndex":0,"windowStart":"2035-10-05T11:00:00.000Z"},{"anchor":{"intendedAt":"2035-10-05T16:43:00.000Z","kind":"mainWake","label":"Workday check-in 2 · after main wake","sourceAt":"2035-10-05T09:00:00.000Z","sourceID":"2035-10-05T09:00:00Z","sourceRevision":"r1","workRevision":"w1","workSourceID":"work-A","working":true},"anchorDayKey":"2035-10-05","id":"00000000-0000-0000-0000-415B88823A83","intendedAt":"2035-10-05T16:43:00.000Z","nextAttemptAt":"2035-10-05T16:43:00.000Z","scheduleID":"00000000-0000-0000-0000-000000000001","status":"pending","windowEnd":"2035-10-05T18:00:00.000Z","windowIndex":1,"windowStart":"2035-10-05T15:00:00.000Z"},{"anchor":{"intendedAt":"2035-10-05T20:21:00.000Z","kind":"mainWake","label":"Workday check-in 3 · after main wake","sourceAt":"2035-10-05T09:00:00.000Z","sourceID":"2035-10-05T09:00:00Z","sourceRevision":"r1","workRevision":"w1","workSourceID":"work-A","working":true},"anchorDayKey":"2035-10-05","id":"00000000-0000-0000-0000-425B88823C36","intendedAt":"2035-10-05T20:21:00.000Z","nextAttemptAt":"2035-10-05T20:21:00.000Z","scheduleID":"00000000-0000-0000-0000-000000000001","status":"pending","windowEnd":"2035-10-05T21:00:00.000Z","windowIndex":2,"windowStart":"2035-10-05T20:00:00.000Z"}],"quietEnd":420,"quietStart":1320,"schedules":[{"createdAt":"2035-10-04T23:00:00.000Z","hour":14,"id":"00000000-0000-0000-0000-000000000001","minute":0,"rule":{"anchor":"mainWake","offDayAnchor":"clock","offDayHour":14,"offDayMinute":0,"randomizedWake":{"offBedtimeMinute":1320,"workBedtimeMinute":1380},"selectedWeekdays":[1,2,3,4,5,6,7],"wakeOffsetMinutes":240},"timeZone":"UTC"}]}"#
+        let original = try DaytimePromptLedger.decodePayload(Data(payload.utf8))
+        let clock = ISO8601DateFormatter().date(from: "2035-10-05T09:00:00Z")!
+        let repo = SessionRepository(storage: .inMemory()), client = Client()
+        try repo.saveDaytimePrompts(original)
+        let contexts = try ["2035-10-04T23:00:00Z", "2035-10-05T09:00:00Z"].map { stamp in
+            let wake = ISO8601DateFormatter().date(from: stamp)!
+            return DaytimePromptAnchorContext(dayKey: DaytimePromptRule.dayKey(wake, timeZone: "UTC"), timeZone: "UTC", working: true,
+                mainWake: try DaytimeAnchorSource(id: stamp, revision: "r1", at: wake), workSourceID: "work-A", workRevision: "w1")
+        }
+        let service = DaytimePromptService(repository: repo, client: client, now: { clock }, contexts: { _, _, _ in contexts })
+        await service.reconcile()
+        let queued = service.ledger.prompts.filter { client.requests[DaytimePromptService.requestID + "." + $0.id.uuidString] != nil }
+            .map(\.nextAttemptAt).sorted()
+        for pair in zip(queued, queued.dropFirst()) { XCTAssertGreaterThanOrEqual(pair.1.timeIntervalSince(pair.0), 7200) }
+        XCTAssertTrue(service.ledger.prompts.contains { $0.reason == "Spacing conflict; review the routine" })
+        XCTAssertEqual(service.ledger.prompts.map(\.intendedAt), original.prompts.map(\.intendedAt))
+    }
+
 }

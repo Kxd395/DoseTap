@@ -21,11 +21,11 @@ unsaved edits. Saved status remains separate from those edits.
 
 One optional user-selected routine reminder is off by default. Its anchor and selected days are explicitly configured. Store immutable schedule versions and prompt IDs, intended time, opened time, actual assessment time, response identity, and explicit pending/deferred/suppressed/skipped/expired/responded state. A schedule change cancels outstanding prompts; it never rewrites old intended times. Retry uses the same prompt/request identity. Nonresponse is unknown, never a symptom or sleep score.
 
-Use a routine passive notification with generic DoseTap wording, no sound, no health value, and no bypass of Focus. Skip and Later are explicit actions. Suppress while a known main sleep or nap is active, within user-configured quiet hours, or without permission. Up to seven daily occurrences are queued using stable schedule/date identities; foreground reconciliation replenishes the horizon. Settings shows the last scheduled time and explains the renewal boundary. Known active sleep cancels queued requests, keeps past unanswered delivery unknown, and retains future pending slots for wake reconciliation. This bounded schedule does not promise indefinite background scheduling. Delivery time is not claimed. A delayed response assesses the current moment, never the intended prompt time.
+Use a routine passive notification with generic DoseTap wording, no sound, no health value, and no bypass of Focus. Skip and Later are explicit actions. Suppress while a known main sleep or nap is active, within user-configured quiet hours, or without permission. Up to seven daily occurrences are queued using stable schedule/date identities; foreground reconciliation replenishes the horizon. Settings shows the last scheduled time and explains the renewal boundary. Known active sleep cancels queued requests, keeps past unanswered delivery unknown, and retains future slots explicitly suppressed for known sleep until wake reconciliation. This bounded schedule does not promise indefinite background scheduling. Delivery time is not claimed. A delayed response assesses the current moment, never the intended prompt time.
 
 History and preferences persist in SQLite through SessionRepository. Clear All Data removes both and cancels the owned request on reconciliation. Dose alarm categories, requests, permissions and routing remain independent. Physical-device background delivery, Focus, actions, nap cancellation and notification privacy require owner-observed acceptance.
 
-Eligibility recovery may resume only future instances in the current schedule that were suppressed for notification permission or configured quiet hours. Preserve their intended time and identity; recheck permission and quiet hours before queueing. Explicit skips, responses, older schedule versions and past unknown-delivery instances never reactivate automatically.
+Eligibility recovery may resume only future instances in the current schedule that were suppressed for notification permission, configured quiet hours or known sleep. Preserve their intended time and identity; recheck permission, quiet hours and known sleep before queueing. Explicit skips, responses, older schedule versions and past unknown-delivery instances never reactivate automatically.
 
 ## Selected days and evidence-based anchors
 
@@ -93,3 +93,11 @@ clock instant for preview and mutation. After partial OS work fails, cancel owne
 requests and make at most one fresh reconciliation attempt; persistent failure leaves
 verification empty and exposes retry. Other notification owners remain untouched.
 For a bedtime in a repeated fall-back hour, use the next absolute occurrence after wake.
+
+Retained pre-fix randomized plans undergo chronological spacing reconciliation.
+Only a conflicting future outstanding attempt is suppressed with a spacing-conflict
+review reason. Due/past evidence, original intended times and identities stay intact;
+there is no redraw or backfill. Committed actions and notification verification have
+separate outcomes: a saved Later remains deferred if OS verification fails and shows
+scheduling-failure retry guidance. A saved Open still opens its original check-in.
+Only actual pre-commit rejection produces the invalid-window message.
