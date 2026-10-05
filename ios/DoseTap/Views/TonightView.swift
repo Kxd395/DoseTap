@@ -218,6 +218,10 @@ struct LegacyTonightView: View {
                     .padding(.horizontal)
                 }
 
+            TonightDaytimeCheckInCard()
+                .padding(.horizontal)
+                .padding(.bottom, 12)
+
             Button { showMedications = true } label: {
                 Label("Log Medication", systemImage: "pills.fill")
                     .frame(maxWidth: .infinity, minHeight: 44)

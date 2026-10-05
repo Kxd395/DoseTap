@@ -1,6 +1,49 @@
 import SwiftUI
 import DoseCore
 
+struct TonightDaytimeCheckInCard: View {
+    @State private var recording = false
+    @State private var savedAt: Date?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Daytime check-in", systemImage: "sun.max")
+                .font(.headline)
+                .accessibilityAddTraits(.isHeader)
+            Text("Record how sleepy you feel now, when it is safe to pause. Details are optional.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Button { recording = true } label: {
+                Text("Record now")
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .buttonStyle(.borderedProminent)
+            .accessibilityLabel("Record daytime check-in now")
+            .accessibilityIdentifier("tonight-daytime-record")
+            if let savedAt {
+                Label("Saved \(savedAt.formatted(date: .abbreviated, time: .shortened))", systemImage: "checkmark.circle")
+                    .font(.footnote)
+                    .accessibilityIdentifier("tonight-daytime-saved")
+            }
+            NavigationLink { DaytimeCheckInView() } label: {
+                Label("Review check-ins", systemImage: "list.bullet")
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            }
+            .accessibilityIdentifier("tonight-daytime-review")
+            NavigationLink { DaytimeReminderView() } label: {
+                Label("Daytime reminder", systemImage: "bell")
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            }
+            .accessibilityIdentifier("tonight-daytime-reminder")
+        }
+        .padding()
+        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
+        .sheet(isPresented: $recording) {
+            DaytimeCheckInEditor { observation in savedAt = observation.recordedAt }
+        }
+    }
+}
+
 struct DaytimeCheckInView: View {
     @ObservedObject private var repository = SessionRepository.shared
     @State private var ledger: DaytimeCheckInLedger?
@@ -14,6 +57,8 @@ struct DaytimeCheckInView: View {
                     .font(.footnote).foregroundStyle(.secondary)
                 NavigationLink("Daytime trends") { DaytimeTrendsView() }
                 NavigationLink("Daytime events") { DaytimeEventView() }
+                NavigationLink("Daytime reminder") { DaytimeReminderView() }
+                    .accessibilityIdentifier("daytime-reminder-settings")
                 Button("Record daytime check-in") { adding = true }
                     .disabled(ledger == nil).accessibilityIdentifier("daytime-add")
             }

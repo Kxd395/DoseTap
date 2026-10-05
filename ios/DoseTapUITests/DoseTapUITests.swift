@@ -3022,21 +3022,30 @@ extension DoseTapUITests {
                 if element.exists && element.isHittable && (interior.contains(CGPoint(x: element.frame.midX, y: element.frame.midY)) || previousFrame == element.frame) { break }
                 previousFrame = element.exists ? element.frame : nil
                 let towardTop = element.exists && !element.frame.isEmpty ? element.frame.midY < interior.minY : down
-                if towardTop { app.swipeDown() } else { app.swipeUp() }
+                let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: towardTop ? 0.35 : 0.7))
+                let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: towardTop ? 0.7 : 0.35))
+                start.press(forDuration: 0.05, thenDragTo: end)
             }
             XCTAssertTrue(element.exists); XCTAssertTrue(element.isHittable)
         }
-        XCTAssertTrue(app.buttons["History"].firstMatch.waitForExistence(timeout: 15)); app.buttons["History"].firstMatch.tap()
-        let entry = app.buttons["history-daytime"]
-        XCTAssertTrue(entry.waitForExistence(timeout: 10)); entry.tap()
-        let add = app.buttons["daytime-add-top"]
-        XCTAssertTrue(add.waitForExistence(timeout: 5)); add.tap()
+        let record = app.buttons["tonight-daytime-record"]
+        XCTAssertTrue(record.waitForExistence(timeout: 15)); reveal(record); record.tap()
+        XCTAssertTrue(app.buttons["Cancel"].waitForExistence(timeout: 5))
+        reveal(app.buttons["daytime-rating"])
+        XCTAssertTrue(app.buttons["daytime-rating"].label.contains("Choose a rating"))
+        app.buttons["Cancel"].tap()
+        XCTAssertFalse(app.staticTexts["tonight-daytime-saved"].exists)
+        reveal(record); record.tap()
         let rating = app.buttons["daytime-rating"]
         reveal(rating); rating.tap()
         app.buttons["4"].tap()
         let save = app.buttons["daytime-save-top"]
         for _ in 0..<5 where !save.isHittable { app.swipeUp() }
         XCTAssertTrue(save.isHittable); save.tap()
+        reveal(app.staticTexts["tonight-daytime-saved"])
+        let review = app.buttons["tonight-daytime-review"]
+        reveal(review); review.tap()
+        reveal(app.buttons["daytime-reminder-settings"])
         reveal(app.staticTexts["Custom sleepiness: 4/10"].firstMatch)
         let saved = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH %@", "daytime-saved-observation-")).firstMatch
         reveal(saved)

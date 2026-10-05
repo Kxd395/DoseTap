@@ -79,6 +79,13 @@ administration. Existing My Medications picker settings remain a separate route.
 
 ### Independent daytime diary
 
+Tonight → Daytime check-in → Record now opens the existing current-observation
+editor in one tap. The card stays available independently of nightly session
+state. Review check-ins opens the same ledger as History → Daytime check-in.
+Daytime reminder links on the card and ledger open the existing reminder settings;
+schedule changes still require Save reminder. Successful saves show the recording
+timestamp on Tonight without displaying a previous rating before another entry.
+
 History → Daytime check-in opens independent observations, current custom 0–10 entry, explicit remembered entries and correction history. Opening does not create a nighttime session. No score is selected initially; save failure retains the exact pending revision for retry.
 
 ## Dashboard reporting period

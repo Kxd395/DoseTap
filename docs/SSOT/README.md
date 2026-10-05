@@ -20,6 +20,16 @@ global notifications and medication timing windows do not change. Restart and
 History correction must not automatically recreate opted-out reminders. Explicit
 alarm changes may re-enable them for the still-active dose.
 
+## Daytime check-in access (DOSETAP-58)
+
+Tonight provides a Daytime check-in card before the nightly workflow, including
+when a previous night needs review or morning closeout is complete. Record now
+opens the existing unanswered custom diary directly. A successful durable save
+returns to Tonight with its recording timestamp; cancellation shows no success.
+Review check-ins opens the independent ledger. Reminder setup is reachable from
+both this card and the ledger, using the existing explicit Save reminder flow.
+Opening these routes does not enable a reminder or record medication.
+
 ## Physician review preparation (DOSETAP-59)
 
 The [physician review contract](contracts/physician-review.md) defines completed-visit anchors, explicit report bounds, immutable preview snapshots and unscored notes. It does not authorize automatic sharing or instrument scoring.
