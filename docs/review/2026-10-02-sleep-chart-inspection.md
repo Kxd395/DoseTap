@@ -97,3 +97,26 @@ Testing tests. Plane workflow (15 tests / 80 assertions), SSOT, app version
 (all four configurations), architecture, documentation and whitespace guards
 passed. Physical build98 installation, owner usefulness, VoiceOver and all
 previous per-night/provider/privacy/iPad/release gates remain open.
+
+### Build98 physical iPhone verification — October 4
+
+Signed build98 from `e2114da` passed codesign verification and was installed over
+build97 on the verified iPhone 15 Pro Max (Kevin Cell 1996), without uninstall or
+reset. Independent device inventory read back 0.4.19 (98), and devicectl launch
+plus actual Mirroring pixels verified the running dashboard. Mirroring initially
+pointed to the older phone; its target was corrected and read back before app
+inspection. No installation was performed on that older phone.
+
+Physical selection of Work Night + Into Work Block + Out Of Work Block showed
+all three checkmarks and the matching summary. The by-date chart displayed
+10 plotted / 12 nights, and Sleep vs spacing displayed 11 plotted / 12 nights.
+Clear all produced 0 plotted / 0 nights with explicit selection guidance. Select
+all restored 27 plotted / 31 nights. The phone was left at 30D Overview, Apple
+Health, Morning check-in, Sleep vs spacing, All night types. No medication,
+questionnaire or provider association was edited. These are display-filter
+observations, not validation of every source record or match.
+
+Ignored `phone98-artifact.json`, install, apps, launch and Mirroring review
+receipts record the evidence. This supersedes the prior build98 installation
+gate; owner usefulness, VoiceOver and existing per-night/provider/privacy/iPad/
+release gates remain open.
