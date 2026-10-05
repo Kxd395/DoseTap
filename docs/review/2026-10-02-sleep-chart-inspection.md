@@ -120,3 +120,26 @@ Ignored `phone98-artifact.json`, install, apps, launch and Mirroring review
 receipts record the evidence. This supersedes the prior build98 installation
 gate; owner usefulness, VoiceOver and existing per-night/provider/privacy/iPad/
 release gates remain open.
+
+### Cross-view and accessibility-state follow-up — October 4
+
+On build98's iPhone17 Pro/iOS26.5 simulator, the synthetic reported-context
+fixture retained Work Night + Into Work Block from Overview to Trends and back.
+Trends showed the four matching nights, including the confirmed single-dose
+night. Switching to Reviewed shifts showed its separate All days view and all
+eight fixture nights. Returning to Morning check-in restored the original two
+selected categories and four matching nights. Returning to Overview retained
+the same names and three plotted dose pairs across four matching nights.
+
+The runtime raw accessibility tree exposes all six named category buttons with
+Selected / Not selected values matching the two actual selections. Each category
+row is enabled and 52 points high at normal text size. Done, Select all and Clear
+all expose named controls. This checks accessible labels, state and row geometry;
+it does not prove spoken VoiceOver navigation, focus order or owner usefulness.
+
+The physical iPhone15 was in use and Mirroring explicitly required it to be
+locked. No new physical interaction or installation was attempted in this
+follow-up. Existing build98 phone evidence remains valid for its prior scope;
+this additional cross-view journey is simulator evidence only. App source and
+build number are unchanged. Raw fixture-only snapshots are preserved in the
+ignored chart-inspection evidence directory.
