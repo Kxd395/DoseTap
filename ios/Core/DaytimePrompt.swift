@@ -168,11 +168,11 @@ public struct DaytimePromptLedger: Codable, Equatable, Sendable {
             for (index, window) in routine.windows(working: working).enumerated() {
                 let lower = wake.addingTimeInterval(Double(window.lowerBound * 60))
                 let upper = min(wake.addingTimeInterval(Double(window.upperBound * 60)), cutoff)
-                let start = max(lower, last?.addingTimeInterval(7200) ?? lower)
+                let start = Date(timeIntervalSince1970: ceil(max(lower, last?.addingTimeInterval(7200) ?? lower).timeIntervalSince1970))
                 guard start <= upper else { continue }
                 let seed = RandomizedWakeRoutine.hash("\(schedule.id)#\(key)#\(index)")
                 let minutes = Int(upper.timeIntervalSince(start) / 60)
-                let intended = Date(timeIntervalSince1970: ceil(start.addingTimeInterval(Double(seed % UInt64(minutes + 1)) * 60).timeIntervalSince1970))
+                let intended = start.addingTimeInterval(Double(seed % UInt64(minutes + 1)) * 60)
                 last = intended
                 guard intended > now, intended <= upper else { continue }
                 // Saving a different routine cannot repeat an already attempted or explicitly resolved window.

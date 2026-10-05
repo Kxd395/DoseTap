@@ -58,7 +58,10 @@ A separately saved work/off-day bedtime (initial draft 22:00, editable before
 Save) stops prompts two hours before the next bedtime after wake. Quiet hours
 and known sleep remain independent suppressors. No future wakes are predicted.
 
-A stable schedule/date/window seed selects whole-minute offsets once, with at
+A stable schedule/date/window seed selects whole-minute steps from the first
+valid whole-second instant in the window. Normalize the lower bound before
+calculating the available choices so rounding cannot discard an upper-edge draw.
+Previously saved choices remain unchanged. New choices have at
 least two hours between attempts. Each occurrence retains its window bounds and
 wake/work evidence. Refresh and restart cannot redraw it. Source corrections
 suppress remaining old occurrences for that wake date instead of silently

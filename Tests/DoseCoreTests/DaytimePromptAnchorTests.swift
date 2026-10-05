@@ -127,4 +127,26 @@ final class DaytimePromptAnchorTests: XCTestCase {
         XCTAssertEqual(try DaytimePromptLedger.decodePayload(ledger.encodedPayload()), ledger)
     }
 
+    func testFractionalWakeDoesNotDropWindowWhenRandomChoiceReachesUpperEdge() throws {
+        let wake = date("2026-10-05T09:00:00Z").addingTimeInterval(0.123)
+        var template = DaytimePromptLedger()
+        try template.configure(hour: 14, minute: 0, timeZone: zone, enabled: true, at: wake,
+            rule: DaytimePromptRule(anchor: .mainWake, randomizedWake: .init()))
+        // Fixed schedule seed selected to exercise the old upper-edge draw deterministically.
+        let payload = String(decoding: try template.encodedPayload(), as: UTF8.self)
+            .replacingOccurrences(of: template.current!.id.uuidString, with: "00000000-0000-0000-0000-000000000035")
+        var ledger = try DaytimePromptLedger.decodePayload(Data(payload.utf8))
+        let context = DaytimePromptAnchorContext(dayKey: "2026-10-05", timeZone: zone, working: true,
+            mainWake: try DaytimeAnchorSource(id: "wake", revision: "r1", at: wake))
+        let slots = ledger.prepareHorizon(at: wake, contexts: [context])
+        XCTAssertEqual(slots.count, 3, "Whole-second notification rounding must not discard a valid window")
+        XCTAssertEqual(slots.map(\.windowIndex), [0, 1, 2])
+        for slot in slots {
+            XCTAssertGreaterThanOrEqual(slot.intendedAt, slot.windowStart!)
+            XCTAssertLessThanOrEqual(slot.intendedAt, slot.windowEnd!)
+            XCTAssertEqual(slot.nextAttemptAt.timeIntervalSince1970.rounded(.down), slot.nextAttemptAt.timeIntervalSince1970)
+        }
+        XCTAssertEqual(ledger.prepareHorizon(at: wake.addingTimeInterval(1), contexts: [context]), slots)
+    }
+
 }
